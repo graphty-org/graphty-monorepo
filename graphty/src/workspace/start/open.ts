@@ -13,12 +13,7 @@ import {
     type GeneratorDescriptor,
     type GeneratorParams,
 } from "@graphty/graphty-element/catalog";
-import {
-    createGraphSession,
-    type DataSourceInput,
-    type GraphSession,
-    type LoadDraft,
-} from "@graphty/graphty-element/session";
+import type { DataSourceInput, GraphSession, LoadDraft } from "@graphty/graphty-element/session";
 import { useCallback, useRef } from "react";
 
 import type { StartSample } from "../../data/sampleManifest";
@@ -70,7 +65,6 @@ export function openProject(
         ends: null,
         pickedSource: null,
         dataTab: "loaded",
-        timeWindowCard: false,
     }));
 }
 
@@ -111,6 +105,10 @@ export async function openNetworkSample(
     signal: AbortSignal,
 ): Promise<void> {
     workspace.set({ notice: null });
+    // Loaded on first use rather than with the start page, which does not need a session to show.
+    // Through a module of the app's own: the start page imports graphty-element's session entry
+    // statically, and a dynamic import of a module already in the first load brings all of it.
+    const { createGraphSession } = await import("./scratchSession");
     const scratch = createGraphSession({ features: [...siteConfig().features] });
     try {
         const read = await scratch.data.readExample(source, example, { signal });

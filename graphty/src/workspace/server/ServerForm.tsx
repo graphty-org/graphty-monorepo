@@ -18,8 +18,8 @@ import React, { useEffect, useRef, useState } from "react";
 
 import { sourceName } from "../data-place/words";
 import { GLYPHS } from "../glyphs";
-import { useSessionVersion } from "../inspector/hooks";
 import { replaceWith } from "../replace/commands";
+import { INSPECTOR_EVENTS, useSessionEvents } from "../sessionEvents";
 import { addSource, urlSource } from "../start/open";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import {
@@ -670,7 +670,7 @@ function ServerForm({ onClose }: Readonly<{ onClose: () => void }>): React.JSX.E
  */
 function WaitingLoads(): React.JSX.Element | null {
     const { session } = useWorkspace();
-    useSessionVersion(session);
+    useSessionEvents(session, INSPECTOR_EVENTS);
     const [failed, setFailed] = useState<Readonly<Record<string, CodedFact>>>({});
     const waiting = session?.data.pendingSourceLoads() ?? [];
     if (session === null || waiting.length === 0) {

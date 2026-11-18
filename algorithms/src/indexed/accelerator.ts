@@ -43,7 +43,7 @@ import type { MaxFlowOptions, MaxFlowResult, MinCutResult } from "./flow.js";
 import type { GirvanNewmanOptions, GirvanNewmanResult } from "./girvan-newman.js";
 import { checkHitsOptions, type HitsOptions } from "./hits.js";
 import * as indexed from "./index.js";
-import { checkKatzOptions, type KatzOptions } from "./katz.js";
+import { checkKatzOptions, katzAlpha, type KatzOptions, katzRadiusBound } from "./katz.js";
 import type { LabelPropagationOptions, SynchronousLabelPropagationOptions } from "./label-propagation.js";
 import type { LeidenOptions, LeidenResult } from "./leiden.js";
 import type { LinkPredictionOptions, LinkPredictionResult } from "./link-prediction.js";
@@ -184,10 +184,8 @@ export interface AlgorithmAccelerator {
 }
 
 /**
- * The option shape of the power-iteration family until each one's `indexed.*` port lands and
- * brings its real option type (plan decision PD-2's "NOT TOUCHED" rows). It is DELIBERATELY not
- * `Record<string, unknown>`: these three are the members every one of those algorithms takes, so
- * an accelerator can honor them today and the type narrows rather than widens as ports arrive.
+ * The options every power-iteration algorithm takes, as an accelerator sees them. It is deliberately not
+ * `Record<string, unknown>`, so an accelerator honors exactly these members.
  * @public
  */
 export interface HitsOptionsLike {
@@ -220,7 +218,7 @@ export interface PageRankOptionsLike {
 
 /**
  * Betweenness options as the accelerator sees them: node INDICES, which is the only form that
- * means anything on a snapshot (plan decision PD-5).
+ * means anything on a snapshot.
  * @public
  */
 export interface BetweennessAcceleratorOptions {
@@ -256,8 +254,6 @@ export interface ClosenessResultLike extends ScoresResultLike {
  * accelerator when it has the method and runs the CPU port otherwise, wrapped in `Promise.resolve`
  * so both paths are async and graphty-element's `async run()` adapters treat them alike.
  *
- * The list GROWS with the A2 ports -- each port PR adds its method (plan departure DEP-8A-E).
- *
  * `louvain` and `kCoreDecomposition` pass their port's options through unchanged; Louvain's
  * `resolution` is wider than the `HitsOptionsLike` the accelerator side declares, and narrowing that
  * member belongs to the pull request that lands a GPU Louvain.
@@ -276,7 +272,7 @@ export interface ClosenessResultLike extends ScoresResultLike {
  * to converge: past that an f32 accelerator can overflow to Infinity. The iteration counts
  * of the two paths differ.
  *
- * `labelPropagation` passes its options through the same way, except that a call with `randomSeed`
+ * `labelPropagation` passes its options through the same way, except that a call with a `seed`
  * set runs the CPU port: the partition depends on the seed, and a GPU kernel has none to honor. An
  * accelerator's result carries no `iterations` or `converged`; call `labelPropagation` directly for
  * those. webgpu-graph-algorithms runs synchronous passes (the rules of `labelPropagationSynchronous`),
@@ -319,8 +315,8 @@ export interface ClosenessResultLike extends ScoresResultLike {
  * every path sum is an integer below 2^24, and otherwise may differ by f32 rounding.
  *
  * `bellmanFord` goes to the accelerator unless the call carries a `weights` override that is not a
- * `Float32Array`: an accelerator narrows the override to f32, so an f64 one -- the exact weights a
- * legacy facade passes -- would be answered for different weights. Its result gets the same
+ * `Float32Array`: an accelerator narrows the override to f32, so an f64 one would be answered
+ * for different weights. Its result gets the same
  * `pathTo` / `pathEdges` decoration as `sssp`.
  *
  * The three path centralities route the same way. `betweennessCentrality` and
@@ -656,38 +652,27 @@ function finishEigenvector(like: ScoresResultLike, options: EigenvectorOptions |
  * radius sqrt(d), not d -- so one busy node does not keep a graph off the accelerator.
  * @param s - The snapshot
  * @param options - The caller's port options
+ * @param alpha - The alpha the run uses: the caller's, or the one `katzAlpha` derives
  * @returns True when the call may go to the accelerator
  */
-function acceleratorAnswersKatz(s: GraphSnapshot, options: KatzOptions | undefined): boolean {
+function acceleratorAnswersKatz(s: GraphSnapshot, options: KatzOptions | undefined, alpha: number): boolean {
     checkKatzOptions(s, options);
-    if (options?.normalized === false || options?.alpha === 0) {
+    if (options?.normalized === false || alpha === 0) {
         return false;
     }
     const rev = s.reverse();
     const weights = options?.weighted === true ? rev.weights : null;
-    const totals = new Float64Array(s.nodeCount);
     let first: number | undefined;
     let uneven = false;
     for (let v = 0; v < s.nodeCount; v++) {
         let inWeight = 0;
         for (let a = rev.rowPtr[v]; a < rev.rowPtr[v + 1]; a++) {
             inWeight += weights === null ? 1 : weights[a];
-            totals[v] += weights === null ? 1 : Math.abs(weights[a]);
         }
         first ??= inWeight;
         uneven ||= inWeight !== first;
     }
-    if (!uneven) {
-        return false;
-    }
-    let largest = 0;
-    for (let v = 0; v < s.nodeCount; v++) {
-        for (let a = rev.rowPtr[v]; a < rev.rowPtr[v + 1]; a++) {
-            largest = Math.max(largest, totals[v] * totals[rev.colIdx[a]]);
-        }
-    }
-    const alpha = options?.alpha ?? 0.1;
-    return alpha * alpha * largest < 1;
+    return uneven && alpha * katzRadiusBound(s, options?.weighted === true) < 1;
 }
 
 /**
@@ -877,18 +862,21 @@ export function accelerated(acc: AlgorithmAccelerator | null | undefined): Accel
             acc?.kCoreDecomposition !== undefined
                 ? acc.kCoreDecomposition(s)
                 : Promise.resolve(indexed.kCoreDecomposition(s)),
-        katzCentrality: (s, options) =>
-            acc?.katzCentrality !== undefined && acceleratorAnswersKatz(s, options)
+        katzCentrality: (s, options) => {
+            // Resolved here so the accelerator runs the alpha the port would, not a default of its own.
+            const alpha = acc?.katzCentrality === undefined ? undefined : katzAlpha(s, options);
+            return acc?.katzCentrality !== undefined && alpha !== undefined && acceleratorAnswersKatz(s, options, alpha)
                 ? acc
                       .katzCentrality(s, {
-                          alpha: options?.alpha,
+                          alpha,
                           beta: options?.beta,
                           maxIterations: options?.maxIterations,
                           tolerance: options?.tolerance,
                           weighted: options?.weighted === true,
                       })
                       .then((like) => finishKatz(like, options))
-                : Promise.resolve(indexed.katzCentrality(s, options)),
+                : Promise.resolve(indexed.katzCentrality(s, options));
+        },
         hits: (s, options) =>
             acc?.hits !== undefined && passes(checkHitsOptions, s, options)
                 ? acc
@@ -926,7 +914,7 @@ export function accelerated(acc: AlgorithmAccelerator | null | undefined): Accel
                 ? acc.closenessCentrality(s, closenessSources(s, options))
                 : Promise.resolve(indexed.closenessCentrality(s, options)),
         labelPropagation: (s, options) =>
-            acc?.labelPropagation !== undefined && options?.randomSeed === undefined
+            acc?.labelPropagation !== undefined && options?.seed === undefined && options?.randomSeed === undefined
                 ? acc.labelPropagation(s, options)
                 : Promise.resolve(indexed.labelPropagation(s, options)),
         labelPropagationSynchronous: (s, options) =>

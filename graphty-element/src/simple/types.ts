@@ -68,9 +68,11 @@ export type ShorthandValue<S> = S extends number
               ? NodeId
               : S extends { readonly type: "node-set" }
                 ? readonly NodeId[]
-                : S extends { readonly type: "enum"; readonly values: readonly { readonly value: infer V }[] }
-                  ? V
-                  : string;
+                : S extends { readonly type: "edge-set" }
+                  ? readonly string[]
+                  : S extends { readonly type: "enum"; readonly values: readonly { readonly value: infer V }[] }
+                    ? V
+                    : string;
 
 /**
  * The resolved option values an extension's functions receive, typed from the declaration with no

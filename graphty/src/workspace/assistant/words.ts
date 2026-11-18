@@ -20,9 +20,10 @@ import {
     ASSISTANT_TOOLS,
     calledAlgorithm,
     layoutDescriptor,
+    PRIMARY_CHANNELS,
 } from "@graphty/graphty-element/catalog";
 import type { Channel } from "@graphty/graphty-element/schema";
-import type { GraphSession } from "@graphty/graphty-element/session";
+import { type GraphSession, pathParts } from "@graphty/graphty-element/session";
 
 import { wordsFor } from "../analyze/words";
 import { type EffortLevel, providerDisclosure } from "../assistant-door/provider";
@@ -244,19 +245,14 @@ const STEP_CAUSES: Readonly<Record<string, string>> = {
     AI_UNKNOWN_ENTRY: "the assistant named something that does not exist",
     AI_PAINTED_NOTHING: "other layers cover it",
     AI_BAD_SELECTOR: "its rule could not be read",
-    E_BAD_SELECTOR: "its rule could not be read",
     E_SELECTOR_EMPTY: "its rule was empty",
     AI_UNKNOWN_COLUMN: "that column is not in this graph",
-    E_UNKNOWN_ATTRIBUTE: "that column is not in this graph",
     AI_NOT_AVAILABLE: "it is not available here",
-    E_UNSUPPORTED: "it is not available here",
     AI_UNKNOWN_RUN: "that result has not been computed",
-    E_UNKNOWN_RUN: "that result has not been computed",
     AI_UNKNOWN_NODE: "that node is not in this graph",
     AI_UNKNOWN_EDGE: "that edge is not in this graph",
     AI_ARG_INVALID: "a value it passed was not valid",
     AI_ARG_OUT_OF_RANGE: "a value it passed was out of range",
-    E_OPTION_RANGE: "a value it passed was out of range",
     E_BAD_LAYER: "the style it made was not valid",
     E_UNKNOWN_CHANNEL: "that property does not exist",
     E_UNKNOWN_PALETTE: "that palette does not exist",
@@ -710,11 +706,20 @@ export const isChange = (effect: AiEffect): boolean =>
  * @returns the name.
  */
 function sourceName(session: GraphSession, path: string): string {
-    // A run's result, `results.<run>.<field>`, is named by the algorithm that made it.
-    const run = /^results\.([^.]+)\./.exec(path)?.[1];
-    const algorithm = run === undefined ? undefined : session.runs.get(run)?.algorithm;
+    // A run's result is named by the algorithm that made it.
+    const parts = pathParts(path);
+    const algorithm = parts?.from === "run" ? session.runs.get(parts.runId)?.algorithm : undefined;
     return (algorithm === undefined ? undefined : algorithmByKey(algorithm)?.plainName) ?? attributeName(session, path);
 }
+
+/** The channels a style effect's line says "Colored" for. */
+const COLOR_CHANNELS: ReadonlySet<unknown> = new Set<Channel>([
+    PRIMARY_CHANNELS.node.color,
+    PRIMARY_CHANNELS.edge.color,
+]);
+
+/** The channels a style effect's line says "Sized" for. */
+const SIZE_CHANNELS: ReadonlySet<unknown> = new Set<Channel>([PRIMARY_CHANNELS.node.size, PRIMARY_CHANNELS.edge.size]);
 
 /**
  * A style effect's line.
@@ -729,10 +734,10 @@ function styleLine(session: GraphSession | null, params: AiEffect["params"]): st
     const source = typeof params.source === "string" ? params.source : undefined;
     const named = session === null || source === undefined ? source : sourceName(session, source);
     const by = named === undefined ? "" : ` by ${named}`;
-    if (channel.endsWith(".color")) {
+    if (COLOR_CHANNELS.has(channel)) {
         return `Colored ${count}${by}`;
     }
-    if (channel.endsWith(".size")) {
+    if (SIZE_CHANNELS.has(channel)) {
         return `Sized ${count}${by}`;
     }
     return `Set ${(channelWord(channel as Channel) ?? channel).toLowerCase()} on ${count}`;
@@ -842,7 +847,7 @@ export function excludedLine(effects: readonly AiEffect[]): string | null {
     if (worst === 0) {
         return null;
     }
-    const colored = styles.every((effect) => String(effect.params.channel).endsWith(".color"));
+    const colored = styles.every((effect) => COLOR_CHANNELS.has(effect.params.channel));
     return `${formatNumber(worst)} hidden ${worst === 1 ? "node" : "nodes"} ${colored ? "not colored" : "not changed"}`;
 }
 
@@ -974,7 +979,10 @@ function listed(items: readonly string[]): string {
  * @returns the name.
  */
 function columnName(session: GraphSession | null, column: string): string {
-    return (session === null ? undefined : shownName(session, column)) ?? column.replace(/^data\./, "");
+    const parts = pathParts(column);
+    return (
+        (session === null ? undefined : shownName(session, column)) ?? (parts?.from === "data" ? parts.column : column)
+    );
 }
 
 /**

@@ -54,7 +54,6 @@ import type {
     ShaderParamAddress,
 } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
-import { englishRunLabel } from "../english";
 import { nearestNames } from "../results/ResultsApi";
 import { fieldMeasurement, resultPath, resultShapeContract, type RunRef } from "../results/types";
 import type { RunDistinction } from "../runs/types";
@@ -222,12 +221,6 @@ export interface EncodingRun {
     /** The run id, which is the path segment under `results`. */
     readonly id: RunId;
     /**
-     * What to call the run, which becomes half of the layer's name.
-     * @deprecated Word the run from its `algorithm`, {@link EncodingRun.distinguishedBy} and
-     *   {@link EncodingRun.siblingsDifferBy} yourself. Removed in the next major.
-     */
-    readonly label: string;
-    /**
      * The option the run's name was suggested by, once it left its default. See
      * {@link Run.distinguishedBy}.
      * @since 3.18.0
@@ -263,6 +256,12 @@ export interface EncodingSource {
      * @returns The ids, in the order the runs were started.
      */
     runIds(): readonly RunId[];
+    /**
+     * The name a run's layers are given when the caller names none.
+     * @param id - The run id.
+     * @returns The name, or undefined when this session holds no such run.
+     */
+    defaultLayerName(id: RunId): string | undefined;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -611,7 +610,7 @@ export function planEncoding(spec: EncodingSpec, source: EncodingSource): LayerS
     const binding = { ...buildBinding(ranged, path, scale, descriptor), ...stepped?.extra };
 
     return {
-        name: spec.name ?? englishRunLabel(run),
+        name: spec.name ?? source.defaultLayerName(run.id) ?? run.algorithm,
         target: descriptor.target,
         kind: "encoding",
         selector: { match: "has", path },

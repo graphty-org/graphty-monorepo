@@ -1,5 +1,5 @@
 /**
- * Dispatch planning (spec 5.2; contract 3.9): the 16,776,960 rule. `ceil(items / wg)` workgroups as a 1D dispatch
+ * Dispatch planning: the 16,776,960 rule. `ceil(items / wg)` workgroups as a 1D dispatch
  * while the count fits one dimension (65,535 groups x 256 = 16,776,960 items, NOT 2^24), else a 2D grid whose
  * kernels linearize their id with the prelude's `linear_id()` and guard `id >= items`. Pure functions with no
  * device: every branch is unit-tested against faked capability tables.
@@ -9,7 +9,7 @@ import { MAX_WORKGROUPS_PER_DIM } from "../constants.js";
 import { WebGpuGraphError } from "../errors.js";
 import { type PlanCaps } from "../types/context.js";
 
-/** A dispatch shape (spec 5.2). `stride` is the grid-stride step (null for plain 1D / 2D plans). `z` is 1 from every planner; only K3's pass split sets it (issue #87). */
+/** A dispatch shape. `stride` is the grid-stride step (null for plain 1D / 2D plans). `z` is 1 from every planner; only K3's pass split sets it (issue #87). */
 export interface DispatchPlan {
     readonly x: number;
     readonly y: number;
@@ -19,8 +19,8 @@ export interface DispatchPlan {
 }
 
 /**
- * The per-dimension workgroup limit a plan honors. PLAN DECISION: the minimum of the spec constant and the table's
- * `maxComputeWorkgroupsPerDimension`; the two are asserted equal on a real device at create() (spec 2.2), so every
+ * The per-dimension workgroup limit a plan honors. The minimum of the spec constant and the table's
+ * `maxComputeWorkgroupsPerDimension`; the two are asserted equal on a real device at create(), so every
  * capability table of the tests yields the same plans and a faked table below the constant is still honored.
  * @param caps - the capability table
  * @returns the limit
@@ -108,10 +108,10 @@ export function plan1d(items: number, wg: number, caps: PlanCaps): DispatchPlan 
 }
 
 /**
- * The 2D form for a group count (x = MAX_WORKGROUPS_PER_DIM, y = ceil(groups / x)); exported for the indirect finalize kernel's host twin (P4).
- * PLAN DECISION: plan1d's rule applied to a group count (spec 5.4: the finalize kernel uses "the same rule as
+ * The 2D form for a group count (x = MAX_WORKGROUPS_PER_DIM, y = ceil(groups / x)); exported for the indirect finalize kernel's host twin.
+ * It is plan1d's rule applied to a group count (the finalize kernel uses "the same rule as
  * plan1d") -- 1D `{ x: groups, y: 1 }` up to the per-dimension limit and the `x = limit` split only above it, through
- * the same `grid()` as plan1d so the two cannot drift; P4's finalize WGSL mirrors exactly this rule. `items` of the
+ * the same `grid()` as plan1d so the two cannot drift; the finalize WGSL mirrors exactly this rule. `items` of the
  * returned plan is `groups` (the caller knows its own wg); groups 0 -> { x: 0, y: 1 }.
  * @param groups - the workgroup count
  * @param caps - the capability table
@@ -123,10 +123,10 @@ export function plan2d(groups: number, caps: PlanCaps): DispatchPlan {
 }
 
 /**
- * P7 (spec 5.2): groups = min(ceil(items / wg), maxGroups ?? (caps.software ? 64 : 4096), the per-dimension limit) with the kernel looping by `stride = groups * wg`; items 0 -> { x: 0, stride: null }.
- * The cap is the ONE performance default in src/ that may read `caps.software` (spec 2.4, 5.2): a grid-stride map is
+ * groups = min(ceil(items / wg), maxGroups ?? (caps.software ? 64 : 4096), the per-dimension limit) with the kernel looping by `stride = groups * wg`; items 0 -> { x: 0, stride: null }.
+ * The cap is the ONE performance default in src/ that may read `caps.software`: a grid-stride map is
  * order-independent, so the result never depends on it and the same body serves both adapters.
- * PLAN DECISION: `maxGroups?` is spelled `?: number` rather than the contract's `?: number | undefined` because the
+ * `maxGroups?` is spelled `?: number` rather than `?: number | undefined` because the
  * root ESLint rule no-duplicate-type-constituents rejects the explicit undefined on an optional parameter (the call
  * signature is identical).
  * @param items - the item count
@@ -147,7 +147,7 @@ export function planGridStride(items: number, wg: number, caps: PlanCaps, maxGro
 }
 
 /**
- * P4 (spec 5.4): the (x, y, 1) args the device-side finalize kernel writes for a count -- plan1d's rule applied to a
+ * The (x, y, 1) args the device-side finalize kernel writes for a count -- plan1d's rule applied to a
  * u32 count through the same grid() as plan1d and plan2d, so the host twin and the kernel cannot drift; the kernel
  * (src/wgsl/indirect-finalize.wgsl.ts) mirrors exactly this arithmetic. `items` of the plan is the count. A count
  * outside [0, 2^32) is E_INVALID_ARGUMENT (the device holds it as a u32); for any u32 count y <= 1,025, so

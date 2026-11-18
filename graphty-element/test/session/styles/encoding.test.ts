@@ -22,6 +22,9 @@ import {
 } from "../../../src/session/styles/EncodingSpec";
 import { createScaleRegistry, type ScaleRegistry } from "../../../src/session/styles/scales";
 
+/** A run fixture with the name its layers are given by default. */
+type NamedRun = EncodingRun & { readonly label: string };
+
 /** A fresh registry per call, so one test's plugin scale never reaches the next test. */
 function scales(): ScaleRegistry {
     return createScaleRegistry();
@@ -672,7 +675,7 @@ function field(
 }
 
 /** A centrality run: a number per node. */
-const BETWEENNESS: EncodingRun = {
+const BETWEENNESS: NamedRun = {
     id: "betweenness",
     label: "Betweenness",
     distinguishedBy: null,
@@ -689,7 +692,7 @@ const BETWEENNESS: EncodingRun = {
 };
 
 /** A partition run: a group per node. */
-const LOUVAIN: EncodingRun = {
+const LOUVAIN: NamedRun = {
     id: "louvain",
     label: "Communities",
     distinguishedBy: null,
@@ -701,7 +704,7 @@ const LOUVAIN: EncodingRun = {
 };
 
 /** A flow run: a number per edge. */
-const FLOW: EncodingRun = {
+const FLOW: NamedRun = {
     id: "flow",
     label: "Flow",
     distinguishedBy: null,
@@ -713,7 +716,7 @@ const FLOW: EncodingRun = {
 };
 
 /** A route run, which names a subset rather than measuring everything. */
-const ROUTE: EncodingRun = {
+const ROUTE: NamedRun = {
     id: "route",
     label: "Shortest Path",
     distinguishedBy: null,
@@ -725,7 +728,7 @@ const ROUTE: EncodingRun = {
 };
 
 /** A cut run: a chosen set of edges, and the side every node ended up on. */
-const CUT: EncodingRun = {
+const CUT: NamedRun = {
     id: "cut",
     label: "Weakest link",
     distinguishedBy: null,
@@ -737,7 +740,7 @@ const CUT: EncodingRun = {
 };
 
 /** A prediction run, which publishes a table and nothing per element. */
-const PAIRS: EncodingRun = {
+const PAIRS: NamedRun = {
     id: "pairs",
     label: "Link Prediction",
     distinguishedBy: null,
@@ -749,12 +752,13 @@ const PAIRS: EncodingRun = {
 };
 
 /** Every run these tests can look up. */
-const RUNS: readonly EncodingRun[] = [BETWEENNESS, LOUVAIN, FLOW, ROUTE, CUT, PAIRS];
+const RUNS: readonly NamedRun[] = [BETWEENNESS, LOUVAIN, FLOW, ROUTE, CUT, PAIRS];
 
 /** A source over the runs above, which is all `encode()` needs from a session. */
 const SOURCE: EncodingSource = {
     run: (ref: RunRef): EncodingRun | undefined => RUNS.find((entry) => entry.id === ref),
     runIds: (): readonly RunId[] => RUNS.map((entry) => entry.id),
+    defaultLayerName: (id: RunId): string | undefined => RUNS.find((entry) => entry.id === id)?.label,
 };
 
 /** Plan one encoding over the runs above. */

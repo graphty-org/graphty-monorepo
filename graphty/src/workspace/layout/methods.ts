@@ -15,7 +15,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { useEffect, useState } from "react";
 
 import { isSlow } from "../analyze/words";
-import { useSessionVersion } from "../toolbar/useSessionVersion";
+import { TOOLBAR_EVENTS, useSessionEvents } from "../sessionEvents";
 import { layoutRefusalWords } from "./refusalWords";
 import { LAYOUT_DESCRIPTIONS } from "./words";
 
@@ -148,7 +148,7 @@ function keyOption(descriptor: LayoutDescriptor, type: "node-id" | "partition"):
  * @returns the layouts.
  */
 export function useLayouts(session: GraphSession | null): readonly LayoutDescriptor[] {
-    const version = useSessionVersion(session);
+    const version = useSessionEvents(session, TOOLBAR_EVENTS);
     const [resolved, setResolved] = useState<{
         session: GraphSession;
         layouts: readonly LayoutDescriptor[];

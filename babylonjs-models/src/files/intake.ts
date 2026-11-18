@@ -1405,3 +1405,50 @@ function partsFound(
 
     return parts;
 }
+
+/** One model of a file set, as {@link listModels} finds it. */
+export interface ModelInSet {
+    /** The model's own file: its path in the set. */
+    readonly main: string;
+    readonly format: ModelFormat;
+    /** Every file of the set it uses: its main file first, then each part it names that the set holds. */
+    readonly files: readonly string[];
+}
+
+/**
+ * Every model a file set holds that this package loads, each with the files it uses, so a folder,
+ * a .zip or a drop of several models can be added one model at a time. Of files sharing a base
+ * name (rack.glb, rack.obj) only the best ranked counts, and a file another model uses as a part
+ * is not a model of its own. A set of one model lists it alone; `mainFileOf` and the checks are
+ * unchanged.
+ * @param files - The set, a zip already unpacked.
+ * @param limits - The limits in force.
+ * @returns The models, by path.
+ * @example
+ * ```ts
+ * for (const model of listModels(files, DEFAULT_MODEL_LIMITS)) {
+ *     const own = new Map(model.files.map((path) => [path, files.get(path)!]));
+ *     await checkModelFiles(own, { main: model.main }, DEFAULT_MODEL_LIMITS);
+ * }
+ * ```
+ */
+export function listModels(files: ReadonlyMap<string, Uint8Array>, limits: ModelLimits): ModelInSet[] {
+    const models = bestOfEachBase(rankedCandidates(files))
+        .filter((c) => c.supported && c.rank < UNSUPPORTED_RANK)
+        .sort((a, b) => byCodeUnits(a.path, b.path))
+        .map((main) => {
+            const findings: Findings = { warnings: [], missing: [], found: [] };
+            try {
+                findPartsByFormat(main, files.get(main.path), files, limits, findings);
+            } catch (error) {
+                // A model that cannot be read is still listed; its checks say why.
+                if (!(error instanceof ModelError)) {
+                    throw error;
+                }
+            }
+            const used = [main.path, ...(findings.found ?? []).map((part) => part.file)];
+            return { main: main.path, format: main.format, files: [...new Set(used)] };
+        });
+    const parts = new Set(models.flatMap((m) => m.files.slice(1)));
+    return models.filter((m) => !parts.has(m.main));
+}

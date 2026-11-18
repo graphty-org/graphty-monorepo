@@ -14,7 +14,7 @@
  * modeled this package's internals for itself was wrong by 6.9x at 200,000 nodes.
  *
  * Every metric is listed, including the ones this graph cannot support, because a list that
- * silently drops them cannot say WHY a metric is missing. `available` plus `reason` is the
+ * silently drops them cannot say WHY a metric is missing. `available` plus `refusal` is the
  * difference between a grayed-out card that explains itself and a card nobody can find.
  */
 
@@ -107,10 +107,8 @@ export function describeMetrics(source: MetricsSource): readonly MetricAvailabil
                 available: estimate.available,
                 // Present only when the metric is unavailable, which is what the descriptor's own
                 // contract says. A reason beside an available metric would read as a caveat on a
-                // number that has none. MetricAvailability has no coded refusal yet, so it still
-                // passes the estimate's sentence on.
-                // eslint-disable-next-line @typescript-eslint/no-deprecated -- MetricAvailability.reason is still English
-                ...(estimate.available || estimate.reason === undefined ? {} : { reason: estimate.reason }),
+                // number that has none.
+                ...(estimate.available || estimate.refusal === undefined ? {} : { refusal: estimate.refusal }),
                 costClass: estimate.costClass,
                 estimateSeconds: estimate.seconds,
                 hasRun: runIds.length > 0,

@@ -36,6 +36,7 @@ import {
 } from "../helpers/noise-floor.js";
 import { assertCheckPasses } from "../helpers/sabotage.js";
 import { outDegreeOracle } from "../oracle/degree.js";
+import { noiseDirOverride, noiseFloorWriting } from "../setup/env.js";
 import { acquire, gpuScale, requireGpu } from "../setup/gpu.js";
 
 const KARATE_UNDIRECTED = [
@@ -334,7 +335,7 @@ describe("degree (spec 3.3, 11.5): the walking-skeleton algorithm", () => {
             expectBitwiseEqual(result, outDegreeOracle(snapshot), "random1k");
             const cls = adapterClass(ctx.caps);
             writeNoiseFixture("degree", "random1k", cls, result, "u32");
-            if (process.env.GRAPHTY_NOISE_FLOOR_WRITE === "1") {
+            if (noiseFloorWriting()) {
                 expect(existsSync(noiseFixturePath("degree", "random1k", cls))).toBe(true);
             }
             const committed = readNoiseFixtures("degree", "random1k");
@@ -370,7 +371,7 @@ describe("degree (spec 3.3, 11.5): the walking-skeleton algorithm", () => {
 
 describe("noise-floor helpers (Node)", () => {
     it("noiseFixturePath lives under test/fixtures/noise (GRAPHTY_NOISE_DIR unset) and sanitises every segment like the 2.5 command", () => {
-        expect(process.env.GRAPHTY_NOISE_DIR).toBeUndefined();
+        expect(noiseDirOverride()).toBeUndefined();
         const p = noiseFixturePath("degree", "random1k", "nvidia-lovelace-node");
         expect(p.replace(/\\/g, "/")).toMatch(/\/test\/fixtures\/noise\/degree-random1k-nvidia-lovelace-node\.json$/);
         expect(noiseFixturePath("a b", "c/d", "e:f")).toMatch(/a_b-c_d-e_f\.json$/);

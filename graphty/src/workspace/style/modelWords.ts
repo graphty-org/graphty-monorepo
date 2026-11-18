@@ -5,7 +5,13 @@
  * caused it. A notice's sentences are `modelWords` in words.ts.
  */
 
-import type { CodedFact, GraphtyErrorCode, GraphtyWarningCode, ModelPart } from "@graphty/graphty-element/session";
+import type {
+    CodedFact,
+    GraphtyErrorCode,
+    GraphtyWarningCode,
+    ModelChange,
+    ModelPart,
+} from "@graphty/graphty-element/session";
 
 import { formatCount } from "../settings/numberFormat";
 
@@ -214,6 +220,40 @@ export function countChip(facts: readonly CodedFact[]): ModelChipWords | undefin
 export function chipLine(fact: CodedFact): string {
     const { word, tip } = modelChip(fact);
     return `${word}: ${tip}`;
+}
+
+/**
+ * The warnings worth a line on the Shape field's Model settings tooltip; the rest belong to Model settings. A
+ * substituted part is worth knowing, not worth a line on a model that draws as it should.
+ */
+const FIELD_WARNINGS = new Set(["W_MODEL_PART_UNUSED"]);
+
+/**
+ * The parts a model waits for: a rejected model's part problems.
+ * @param change - the model's state.
+ * @returns the parts.
+ */
+export function waitingParts(change: ModelChange | undefined): readonly CodedFact[] {
+    return change?.state === "rejected" ? change.problems.filter((p) => PART_CODES.has(p.code)) : [];
+}
+
+/**
+ * What graphty-element reports on the model a layer names, one short line each ("Not loaded: file damaged",
+ * "Without 1: a.png"), for the Model settings button's tooltip: the Style sidebar draws no chip or note (#8739).
+ * The parts a model waits for are not here: the Parts button says them.
+ * @param change - the model's state, if any.
+ * @returns the lines.
+ */
+export function modelProblemLines(change: ModelChange | undefined): readonly string[] {
+    const problems = change?.problems ?? [];
+    const waiting = waitingParts(change).length > 0;
+    const skipped = countChip(problems.filter((p) => p.code === "W_MODEL_PART_SKIPPED"));
+    const refusal = waiting ? undefined : problems.find((p) => p.code.startsWith("E_"));
+    return [
+        ...(skipped === undefined ? [] : [`${skipped.word}: ${skipped.tip}`]),
+        ...(refusal === undefined ? [] : [chipLine(refusal)]),
+        ...problems.filter((p) => FIELD_WARNINGS.has(p.code)).map((fact) => chipLine(fact)),
+    ];
 }
 
 /**

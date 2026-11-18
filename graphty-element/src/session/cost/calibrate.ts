@@ -48,8 +48,8 @@ const PROBE_DEGREE = 8;
  * The probe is tight typed-array arithmetic, and the real algorithms walk Maps of objects, so
  * the probe runs one to two hundred times faster than the work it stands for: on the fitting
  * machine the iterative probe retires about 1,250M elements/s where PageRank retires 3-5M. Using
- * the probe's throughput as the rate -- which this function did until 2026-09-23 -- made every
- * calibrated estimate optimistic by that factor, so a calibrated session waved through runs
+ * the probe's throughput as the rate would make every calibrated estimate optimistic by that
+ * factor, so a calibrated session waved through runs
  * that locked the frame for minutes. The probe is only good for the RATIO between two machines,
  * so a calibrated rate is the default rate scaled by this machine's probe over this one's.
  * `test/session/cost/estimate-against-measured-runs.test.ts` re-measures real runs against it.
@@ -412,9 +412,9 @@ function defaultYield(): Promise<void> {
  * `basis: "defaults"` and carries `DEFAULT_COST_RATES`. That is the difference between a
  * calibration a consumer can trust and one that merely always succeeds.
  *
- * The cubic rate is not probed. No cubic algorithm has ever been timed here, so it is set to the
- * measured linear rate, which is the most optimistic honest placeholder and therefore the one
- * that makes a cubic estimate the most cautious of the four.
+ * The cubic rate is not probed. No cubic algorithm has ever been timed here, so the placeholder
+ * `DEFAULT_COST_RATES.cubicOperationsPerSecond` is scaled by the linear probe's speed ratio, the
+ * same factor the linear rate gets; see `DEFAULT_COST_RATES` for what that placeholder is.
  *
  * It also times random increments into a 64 MB table, which no cache holds, and reports the
  * result as {@link MachineCalibration.memorySpeed}. Memory that is too slow for that reading --

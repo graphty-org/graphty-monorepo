@@ -144,8 +144,6 @@ export function suggestResultPaths(
 export interface ResultsRunEntry {
     /** The run id, which is the path segment under `results`. */
     readonly id: RunId;
-    /** What to call the run in a completion list. */
-    readonly label: string;
     /** The option the run's name was suggested by; none when absent. */
     readonly distinguishedBy?: RunDistinction | null;
     /** What tells the run apart from listed runs of its algorithm sharing its name; none when absent. */
@@ -366,7 +364,6 @@ class Results implements ResultsApi {
                 roots.push(
                     Object.freeze({
                         runId: entry.id,
-                        label: entry.label,
                         distinguishedBy: entry.distinguishedBy ?? null,
                         siblingsDifferBy: entry.siblingsDifferBy ?? null,
                         fields: entry.result.fields,

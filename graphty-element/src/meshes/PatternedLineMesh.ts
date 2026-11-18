@@ -6,18 +6,11 @@
  *   (see `PatternedLineRenderer.createPatternElement`), so a patterned line adds no scene object
  * - Uses FilledArrowRenderer shader for billboarding
  * - Adaptive element density (add/remove slots as line length changes)
+ * - Discrete patterns (dots, dashes) and alternating ones (dash-dot), whose element shapes
+ *   alternate by index
+ * - Connected patterns (sinewave, zigzag), whose elements join end to end
  * @remarks
- * This class implements Phases 1-4 of design/rendering/mesh-based-patterned-lines.md.
- * That document is a DESIGN NOTE, not a generator input: nothing in tools/ or
- * graphty-element/scripts/ produces this file, so it is an ordinary source file and is
- * edited directly. It previously carried a "THIS FILE IS AUTO GENERATED" banner naming a
- * path (design/mesh-based-patterned-lines.md) that no longer exists after the monorepo
- * reorganization. That banner was false and was removed, because it would have stopped the
- * next reader from making exactly the mesh-count repair this file now carries.
- * - Phase 1: Basic infrastructure with discrete patterns
- * - Phase 2: Adaptive mesh density (the count is always the one the current length takes)
- * - Phase 3: Alternating patterns (dash-dot) support
- * - Phase 4: Connected patterns (sinewave, zigzag) positioning
+ * The design is in design/rendering/mesh-based-patterned-lines.md.
  */
 
 import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
@@ -505,8 +498,8 @@ export class PatternedLineMesh {
     }
 
     /**
-     * Create initial pattern meshes based on line length
-     * Phase 3: Updated to handle alternating patterns
+     * Create initial pattern meshes based on line length; a multi-shape pattern alternates
+     * shapes by element index
      * @param start - Starting point of the line
      * @param end - Ending point of the line
      */
@@ -520,7 +513,7 @@ export class PatternedLineMesh {
         } else {
             const meshCount = this.calculateOptimalMeshCount(length, patternDef);
 
-            // Phase 3: Create elements with alternating shapes for multi-shape patterns
+            // A multi-shape pattern alternates shapes by element index
             for (let i = 0; i < meshCount; i++) {
                 this.elements.push(this.createPatternElement(i));
             }
@@ -622,8 +615,8 @@ export class PatternedLineMesh {
     }
 
     /**
-     * Add or remove meshes to match optimal count
-     * Phase 3: Updated to handle alternating patterns when adding meshes
+     * Add or remove meshes to match optimal count; added meshes continue the alternating
+     * shape sequence
      * @param newLength - New length of the line
      */
     private adjustMeshCount(newLength: number): void {
@@ -638,7 +631,7 @@ export class PatternedLineMesh {
         }
 
         if (optimalCount > currentCount) {
-            // Phase 3: Add elements with correct alternating shapes
+            // Add elements continuing the alternating shape sequence
             for (let i = 0; i < optimalCount - currentCount; i++) {
                 // Use current count + i to get the next element index in sequence
                 this.elements.push(this.createPatternElement(currentCount + i));
@@ -932,8 +925,7 @@ export class PatternedLineMesh {
     }
 
     /**
-     * Create a single pattern element
-     * Phase 3: Updated to handle alternating patterns via element index
+     * Create a single pattern element; a multi-shape pattern picks its shape by element index
      * @param meshIndex - Index of the element in the sequence (for alternating patterns)
      * @param piece - How much of its period a wave's element draws, and its caps
      * @returns The element: a slot in its shape's batch
@@ -941,7 +933,7 @@ export class PatternedLineMesh {
     private createPatternElement(meshIndex: number, piece: ZigzagPiece = WHOLE_PERIOD): ArrowCap {
         const patternDef = PATTERN_DEFINITIONS[this.pattern];
 
-        // Phase 3: For multi-shape patterns, determine which shape to use based on index
+        // A multi-shape pattern picks its shape by index
         let shapeType: PatternShapeType | undefined;
 
         if (patternDef.shapes.length > 1) {

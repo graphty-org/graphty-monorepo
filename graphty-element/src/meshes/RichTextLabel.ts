@@ -244,12 +244,17 @@ type ResolvedRichTextLabelOptions = RequiredExceptOptional<
     | "wrapWidth"
     | "letterSize"
     | "wrapTrailingSpace"
+    | "wrapSkipEndSpace"
     | "wrapEllipsis"
     | "wrapAnywhere"
     | "wrapSpaceCount"
     | "maxLines"
+    | "maxLinesEllipsis"
     | "keepBlankLines"
     | "runAlign"
+    | "lineBox"
+    | "borderAlign"
+    | "backgroundShape"
     | "minScreenSize"
     | "minNodeScreenSize"
     | "declutter"
@@ -462,9 +467,36 @@ function along(side: Side, min: number, max: number, gap: number): number {
 }
 
 /**
+ * A label's measured sizes and resolved options, as the tests that check its drawing read them,
+ * typed so a rename in `RichTextLabel` fails to compile rather than at run time (issue #6988). The
+ * class fills it in; no entry point exports it.
+ */
+export const labelInternals = {} as {
+    /** The texture's size, the area inside its borders, the words' own extent, its options and the room round its panel. */
+    drawn(label: RichTextLabel): {
+        actualDimensions: Readonly<RichTextLabel["actualDimensions"]>;
+        contentArea: Readonly<RichTextLabel["contentArea"]>;
+        textSize: Readonly<RichTextLabel["textSize"]>;
+        options: RichTextLabel["options"];
+        /** The room round the panel on every side, for its shadow and the words' outline. */
+        shadowMargin: number;
+    };
+};
+
+/**
  * Rich text label with support for formatting, badges, animations, and speech bubble pointers
  */
 export class RichTextLabel {
+    static {
+        labelInternals.drawn = (label) => ({
+            actualDimensions: label.actualDimensions,
+            contentArea: label.contentArea,
+            textSize: label.textSize,
+            options: label.options,
+            shadowMargin: label.shadowMargin,
+        });
+    }
+
     private readonly scene: Scene;
     private readonly options: ResolvedRichTextLabelOptions;
     private mesh: Mesh | null = null;
@@ -490,9 +522,11 @@ export class RichTextLabel {
     /** One line's canvas height (the line, its margins, padding and borders), as `heightInLines` measures it. */
     private oneLinePx = 0;
     private totalBorderWidth = 0;
+    /** How far the border reaches past the panel: all of its width, or half for a border centered on its edge. */
+    private borderReach = 0;
     /** The width in canvas pixels a `box` of `"target-width"` holds the label's panel to, at the least. */
     private spanWidth = 0;
-    /** The room around the panel its drop shadow is drawn in, on every side; zero without one. */
+    /** The room around the panel, on every side, its drop shadow and the outline past its padding are drawn in. */
     private shadowMargin = 0;
     private pointerInfo: PointerInfo | null = null;
     private _progressValue = 0;
@@ -840,6 +874,7 @@ export class RichTextLabel {
             textOutlineWidth: this.options.textOutlineWidth,
             textOutlineJoin: this.options.textOutlineJoin,
             runAlign: this.options.runAlign,
+            lineBox: this.options.lineBox,
         });
 
         this.pointerRenderer = new PointerRenderer();
@@ -947,6 +982,7 @@ export class RichTextLabel {
                 textOutline: this.options.textOutline,
                 textOutlineWidth: this.options.textOutlineWidth,
                 runAlign: this.options.runAlign,
+                lineBox: this.options.lineBox,
             },
         );
 
@@ -956,22 +992,23 @@ export class RichTextLabel {
         const bgPadding = this.options.backgroundPadding * 2;
 
         this.totalBorderWidth = this._sumBorderWidth();
+        this.borderReach = this.bordersCentered() ? this.totalBorderWidth / 2 : this.totalBorderWidth;
 
         const contentWidth = Math.max(
             maxWidth + this.options.marginLeft + this.options.marginRight + bgPadding,
-            this.spanWidth - this.totalBorderWidth * 2,
+            this.spanWidth - this.borderReach * 2,
         );
         const contentHeight = totalHeight + this.options.marginTop + this.options.marginBottom + bgPadding;
 
         this.contentArea = {
-            x: this.totalBorderWidth,
-            y: this.totalBorderWidth,
+            x: this.borderReach,
+            y: this.borderReach,
             width: contentWidth,
             height: contentHeight,
         };
 
-        this.actualDimensions.width = contentWidth + this.totalBorderWidth * 2;
-        this.actualDimensions.height = contentHeight + this.totalBorderWidth * 2;
+        this.actualDimensions.width = contentWidth + this.borderReach * 2;
+        this.actualDimensions.height = contentHeight + this.borderReach * 2;
         const table = this.layOutTable(tempCtx);
 
         // LETTERS KEEP THEIR SIZE; THE LABEL GROWS. The plane is one line's height in the scene tall for
@@ -1044,6 +1081,7 @@ export class RichTextLabel {
             textOutline: this.options.textOutline,
             textOutlineWidth: this.options.textOutlineWidth,
             runAlign: this.options.runAlign,
+            lineBox: this.options.lineBox,
         };
     }
 
@@ -1114,6 +1152,15 @@ export class RichTextLabel {
     }
 
     /**
+     * Whether the border is drawn centered on the panel's edge (`borderAlign: "center"`); a table's and a pointer
+     * panel's border stay outside it.
+     * @returns True when it is.
+     */
+    private bordersCentered(): boolean {
+        return this.options.borderAlign === "center" && this.table === null && !this.options.pointer;
+    }
+
+    /**
      * The width of every border plus the spacing between them.
      * @returns The total, in canvas pixels.
      */
@@ -1130,13 +1177,25 @@ export class RichTextLabel {
         return total;
     }
 
-    /** Grow the canvas evenly on every side to make room for the panel's shadow. */
+    /** Grow the canvas evenly on every side to make room for the panel's shadow and the words' outline. */
     private _addShadowRoom(): void {
         // ROOM FOR THE SHADOW, THE SAME ON EVERY SIDE, so the panel stays centered on the plane and
         // the shadow is not cut off at the canvas edge. The plane grows with it, in proportion, so
         // the letters keep their size.
         const { panelShadowBlur: blur, panelShadowOffsetX: dx, panelShadowOffsetY: dy } = this.options;
-        this.shadowMargin = this.options.panelShadow ? Math.max(0, blur) + Math.max(Math.abs(dx), Math.abs(dy)) : 0;
+        const shadow = this.options.panelShadow ? Math.max(0, blur) + Math.max(Math.abs(dx), Math.abs(dy)) : 0;
+        // The outline is drawn round the glyphs, past the words' box and the panel it sizes (#8746): room for
+        // whatever of it reaches past the margins, padding and borders, so the canvas edge does not cut it off.
+        const o = this.options;
+        const inset = Math.min(o.marginLeft, o.marginRight, o.marginTop, o.marginBottom) + o.backgroundPadding;
+        const outline = o.textOutline ? Math.max(0, o.textOutlineWidth - inset - this.borderReach) : 0;
+        // and for the letters a line box shorter than their font box leaves reaching past it (`lineBox: "size"`)
+        const letters = Math.max(
+            0,
+            -this.textLead.top - inset - this.borderReach,
+            -this.textLead.bottom - inset - this.borderReach,
+        );
+        this.shadowMargin = Math.max(shadow, outline, letters);
         if (this.shadowMargin > 0) {
             const panelHeight = this.actualDimensions.height;
             this.actualDimensions.width += this.shadowMargin * 2;
@@ -1561,44 +1620,83 @@ export class RichTextLabel {
         const width = this.actualDimensions.width - m * 2;
         const height = this.actualDimensions.height - m * 2;
         const radius = this.options.cornerRadius;
-
-        this._drawBorderRings(ctx, (offset, innerOffset, innerRadius) => {
-            this._createRoundedRectPath(
-                ctx,
-                m + offset,
-                m + offset,
-                width - offset * 2,
-                height - offset * 2,
-                Math.max(0, radius - offset),
-            );
-            if (innerRadius !== undefined) {
-                this._createRoundedRectPath(
+        const rings = (): void => {
+            this._drawBorderRings(ctx, (offset, innerOffset, innerRadius) => {
+                this._panelPath(
                     ctx,
-                    m + innerOffset,
-                    m + innerOffset,
-                    width - innerOffset * 2,
-                    height - innerOffset * 2,
-                    innerRadius,
+                    m + offset,
+                    m + offset,
+                    width - offset * 2,
+                    height - offset * 2,
+                    Math.max(0, radius - offset),
                 );
-            }
-        });
+                if (innerRadius !== undefined) {
+                    this._panelPath(
+                        ctx,
+                        m + innerOffset,
+                        m + innerOffset,
+                        width - innerOffset * 2,
+                        height - innerOffset * 2,
+                        innerRadius,
+                    );
+                }
+            });
+        };
+        // a border centered on the panel's edge lies half over the panel, so it is drawn over it, hollow
+        const centered = this.bordersCentered();
+        if (!centered) {
+            rings();
+        }
 
         ctx.beginPath();
-        this._createRoundedRectPath(
+        this._panelPath(
             ctx,
             this.contentArea.x,
             this.contentArea.y,
             this.contentArea.width,
             this.contentArea.height,
-            Math.max(0, radius - this.totalBorderWidth),
+            Math.max(0, radius - this.borderReach),
         );
         ctx.closePath();
 
         this._fillBackground(ctx);
 
+        if (centered) {
+            rings();
+        }
+
         if (this.options._progressBar) {
             this._drawProgressBar(ctx);
         }
+    }
+
+    /**
+     * Trace the panel's outline in a box: a rectangle with its corners rounded, or for `backgroundShape: "circle"`
+     * a disc whose diameter is the box's shorter side, centered on it.
+     * @param ctx - The canvas.
+     * @param x - The box's left.
+     * @param y - Its top.
+     * @param width - Its width.
+     * @param height - Its height.
+     * @param radius - A rectangle's corner radius.
+     */
+    private _panelPath(
+        ctx: CanvasRenderingContext2D,
+        x: number,
+        y: number,
+        width: number,
+        height: number,
+        radius: number,
+    ): void {
+        if (this.options.backgroundShape !== "circle") {
+            this._createRoundedRectPath(ctx, x, y, width, height, radius);
+            return;
+        }
+
+        const r = Math.max(0, Math.min(width, height) / 2);
+        ctx.moveTo(x + width / 2 + r, y + height / 2);
+        ctx.arc(x + width / 2, y + height / 2, r, 0, Math.PI * 2);
+        ctx.closePath();
     }
 
     private _drawBackgroundWithPointer(ctx: CanvasRenderingContext2D): void {
@@ -1694,7 +1792,12 @@ export class RichTextLabel {
      */
     private _innerRingRadius(i: number, innerOffset: number): number | undefined {
         const last = i === this.options.borders.length - 1;
-        if (last && innerOffset >= this.totalBorderWidth && !this._backgroundShowsThrough()) {
+        if (
+            last &&
+            innerOffset >= this.totalBorderWidth &&
+            !this.bordersCentered() &&
+            !this._backgroundShowsThrough()
+        ) {
             return undefined;
         }
 
@@ -1747,7 +1850,7 @@ export class RichTextLabel {
      * @param ctx - The label's canvas, already scaled to label units.
      */
     private _drawPanelShadow(ctx: CanvasRenderingContext2D): void {
-        if (this.shadowMargin === 0) {
+        if (!this.options.panelShadow || this.shadowMargin === 0) {
             return;
         }
 
@@ -1802,12 +1905,12 @@ export class RichTextLabel {
         ctx.beginPath();
         if (this.options.borders.length > 0) {
             const { width, height } = this.actualDimensions;
-            this._createRoundedRectPath(ctx, m + dx, m, width - m * 2, height - m * 2, radius);
+            this._panelPath(ctx, m + dx, m, width - m * 2, height - m * 2, radius);
             return;
         }
 
         const { x, y, width, height } = this.contentArea;
-        this._createRoundedRectPath(ctx, x + dx, y, width, height, radius);
+        this._panelPath(ctx, x + dx, y, width, height, radius);
     }
 
     private _fillBackground(ctx: CanvasRenderingContext2D): void {
@@ -2068,17 +2171,18 @@ export class RichTextLabel {
      * Break the label's lines where they run past its wrap width, at the spaces between words. The
      * width is in the scene, so it is turned into the canvas's pixels by one line's height in each.
      * A word longer than the width keeps a line of its own. With `maxLines`, the lines past it are
-     * cut and the last one kept ends in an ellipsis, with or without a wrap width.
+     * cut and the last one kept ends in an ellipsis (unless `maxLinesEllipsis` is false), with or
+     * without a wrap width.
      * @param ctx - A canvas to measure on.
      */
     private wrapToWidth(ctx: CanvasRenderingContext2D): void {
-        const { wrapWidth, maxLines } = this.options;
+        const { wrapWidth, maxLines, maxLinesEllipsis } = this.options;
         const first = this.parsedContent.find(hasWords);
         if ((wrapWidth === undefined && maxLines === undefined) || first === undefined) {
             return;
         }
         if (wrapWidth === undefined) {
-            this.parsedContent = wrapLines(ctx, this.parsedContent, Infinity, { maxLines });
+            this.parsedContent = wrapLines(ctx, this.parsedContent, Infinity, { maxLines, maxLinesEllipsis });
             return;
         }
 
@@ -2092,20 +2196,24 @@ export class RichTextLabel {
         // One line's plane is `lineHeightInWorld` tall for a canvas of the line, its margins, its
         // panel's padding and its borders (see `_calculateDimensions`).
         const { marginTop, marginBottom, backgroundPadding, borders } = this.options;
-        const bordersPx = borders.reduce((sum, border) => sum + border.width + border.spacing, 0);
+        // a border centered on the panel's edge reaches half its width past it
+        const reach = this.options.borderAlign === "center" ? 0.5 : 1;
+        const bordersPx = reach * borders.reduce((sum, border) => sum + border.width + border.spacing, 0);
         const oneLinePx = lineBox + marginTop + marginBottom + 2 * backgroundPadding + 2 * bordersPx;
         const { letterSize, fontSize } = this.options;
         const widthPx =
             letterSize === undefined || letterSize <= 0
                 ? (wrapWidth * oneLinePx) / this.lineHeightInWorld()
                 : (wrapWidth * fontSize) / letterSize;
-        const { wrapTrailingSpace, wrapEllipsis, wrapAnywhere, wrapSpaceCount } = this.options;
+        const { wrapTrailingSpace, wrapSkipEndSpace, wrapEllipsis, wrapAnywhere, wrapSpaceCount } = this.options;
         this.parsedContent = wrapLines(ctx, this.parsedContent, widthPx, {
             trailingSpace: wrapTrailingSpace === true,
+            skipEndSpace: wrapSkipEndSpace === true,
             ellipsis: wrapEllipsis === true,
             anywhere: wrapAnywhere === true,
             spaceCount: wrapSpaceCount,
             maxLines,
+            maxLinesEllipsis,
         });
     }
 

@@ -1386,10 +1386,17 @@ export const FILE_OVERHEAD_MS = 5_000;
  *   one 1-minute run into ten bins.
  * - graphty-large-graph's files are each planned at about half the file guard (tools/ci-test-matrix.mjs), with
  *   no room for a second in a job: a whole bin of overhead gives each its own bin, recorded or not.
+ * - graphty-element-browser, re-fitted to PR runs 44077096553, 44102453358 and 44102973749 (2026-11-17, 6-min
+ *   bins, 96 bins of it and its features-on twin): 3.1 to 3.9 s per file (4.9 s at the 90th percentile) and
+ *   0.92 times the recorded time, so its bins of many short files ended at 2.5 to 3.5 min on a 6-minute plan;
+ *   4.5 s per file (#5404).
+ * A features-on twin (`<family>-features-on`) runs the same files with flags on, so it takes its family's cost:
+ * at the default 5 s a file, graphty-element-default-features-on planned 11 bins whose tests ran 30 to 137 s each,
+ * and graphty-element-storybook-features-on's bins ran 441 to 448 s on a 6-minute plan (same runs, #5404).
  * ponytail: constants re-fitted by hand; learn them from the store's invocation records if they drift.
  */
 export const FAMILY_BIN_COST = {
-    "graphty-element-browser": { overheadMs: 7_500, scale: 1 },
+    "graphty-element-browser": { overheadMs: 4_500, scale: 1 },
     "graphty-element-storybook": { overheadMs: 7_500, scale: 1 },
     graphty: { overheadMs: 2_000, scale: 1.35 },
     "graphty-element-default": { overheadMs: 500, scale: 1 },
@@ -1398,11 +1405,14 @@ export const FAMILY_BIN_COST = {
 };
 
 /**
- * A family's bin cost: FAMILY_BIN_COST's entry, or FILE_OVERHEAD_MS per file and the recorded ms as they are.
+ * A family's bin cost: FAMILY_BIN_COST's entry (a features-on twin's is its family's), or FILE_OVERHEAD_MS per
+ * file and the recorded ms as they are.
  * @param family a shard family
  * @returns `{ overheadMs, scale }`
  */
-export const binCost = (family) => FAMILY_BIN_COST[family] ?? { overheadMs: FILE_OVERHEAD_MS, scale: 1 };
+export const binCost = (family) =>
+    FAMILY_BIN_COST[family] ??
+    FAMILY_BIN_COST[family.replace(/-features-on$/u, "")] ?? { overheadMs: FILE_OVERHEAD_MS, scale: 1 };
 
 /**
  * Packs one shard family's selected test files into bins of at most `limitMs` each, longest file first, each

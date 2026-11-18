@@ -1,6 +1,5 @@
 /**
- * Triangle counting with the local clustering coefficient and the transitivity (design 8.5, 3.3 line 806, design 17
- * line 5067; the P11 plan's P11-T8). Over the simple symmetric graph of the snapshot (`buildSimpleSymmetric`, so a
+ * Triangle counting with the local clustering coefficient and the transitivity. Over the simple symmetric graph of the snapshot (`buildSimpleSymmetric`, so a
  * directed snapshot, parallel edges and self-loops all give the answer of the underlying simple undirected graph):
  *
  * 1. `orient-flags` keeps arc (u, v) when v is above u in the (degree, id) order, one arc per undirected edge;
@@ -12,7 +11,7 @@
  *
  * All of it rides in the build's second submit, so a call is two synchronizations whatever the graph.
  *
- * PLAN DECISION (the P11 plan's DEP-P11-C): the coefficient and the transitivity are computed on the host from the
+ * the coefficient and the transitivity are computed on the host from the
  * per-node counts and the simple graph's `rowPtr`, both read back in the same submit, not by a `tri-coefficient`
  * kernel. f32 division on the device is not correctly rounded (2.5 ULP on the reference card), and the transitivity's
  * denominator -- the sum of `d (d - 1) / 2` -- overflows a u32 at a single node of degree 92,682; in f64 on the host

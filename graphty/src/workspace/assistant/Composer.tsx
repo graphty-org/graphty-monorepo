@@ -11,9 +11,9 @@ import {
     writeAssistantChoice,
 } from "../assistant-door/provider";
 import { GLYPHS } from "../glyphs";
+import { TOOLBAR_EVENTS, useSessionEvents } from "../sessionEvents";
 import { formatNumber } from "../settings/numberFormat";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { useSessionVersion } from "../toolbar/useSessionVersion";
 import { answerQuestion, failureOf, link, type ScopeKind, scopeKind, send } from "./connection";
 import { Talk } from "./Talk";
 import { type AssistantView, isRunning } from "./useAssistantView";
@@ -35,7 +35,7 @@ interface Scope {
  */
 function useScope(): Scope {
     const { session } = useWorkspace();
-    useSessionVersion(session);
+    useSessionEvents(session, TOOLBAR_EVENTS);
     const picked = useWorkspaceState((state) => state.assistantScopeSelection);
     return {
         kind: scopeKind(session, picked),

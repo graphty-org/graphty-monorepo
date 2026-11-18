@@ -238,7 +238,7 @@ describe("CompactColorInput", () => {
             expect(onColorChange.mock.calls[0][1].type).toBe("click");
         });
 
-        // Contract 1.5: focus and blur are forwarded, never swallowed for
+        // Focus and blur are forwarded, never swallowed for
         // internal state, even though blur is what commits the value.
         it("forwards focus and blur from both boxes", async () => {
             const user = userEvent.setup();

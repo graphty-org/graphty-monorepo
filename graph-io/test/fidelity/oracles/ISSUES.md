@@ -1523,7 +1523,7 @@ Fixed:
   `ring-hole-0-7`, `-p2` `customgraphics-3-ring`, `-p5` `ring-hole-0-1`).
 - ARROW, HAYSTACK, uncurved parallel edges (bbdf7ce71), the label background box and its ROUND_RECTANGLE corners
   (12b7e0d4d, e6d877107) and OPEN_HALF_CIRCLE caps (dbfd268c8), fixed by the sibling rounds, pass on the session
-  sheets too. Test: `graph-io/test/formats/cys/fix-round-2.test.ts`.
+  sheets too. Test: `graph-io/test/formats/cys/arrows-and-parallel-edges.test.ts`.
 
 Still open, and why:
 
@@ -3205,7 +3205,7 @@ Fixed:
   now reads the face the same way for every Cytoscape desktop format, and the Cytoscape writer puts bold and italic
   on the name as a Java face suffix (`SansSerif.bold,bold,12`) as desktop itself writes them. NDEx files written by
   other tools (`cx2js/UD-294.cx`, `Dialog,bold,12`) are now drawn plain, as Cytoscape draws them. The sheet passes.
-  Test: `graph-io/test/formats/cx/fix-round-2.test.ts`.
+  Test: `graph-io/test/formats/cx/font-faces.test.ts`.
 - `ARROW` caps, `HAYSTACK` edges and curved-false parallel edges: fixed for all four Cytoscape desktop formats by the
   XGMML round (`bbdf7ce71`); `cx-specimen-arrows` and `-edges-lines` no longer fail on them.
 - Label background size: graphty's box now measures 27.2 x 11.73 against Cytoscape's 27.2 x 11.74 (`labels`,
@@ -3283,7 +3283,7 @@ Fixed:
 - `OPEN_HALF_CIRCLE` caps and the lines under CIRCLE, T and HALF_* caps (`arrows`, `mappings-bypass-p11`): fixed by
   the sibling comparator round; no `edge.arrow` or `edge.route` failure remains on these sheets.
 
-Tests: `graph-io/test/formats/xgmml/fix-round-2.test.ts`, `graphty-element/test/session/file-style-label-box.test.ts`,
+Tests: `graph-io/test/formats/xgmml/arrows-edges-and-label-boxes.test.ts`, `graphty-element/test/session/file-style-label-box.test.ts`,
 `graphty-element/test/browser/oracle-svg-primitives.test.ts` (a family CSS rejects).
 
 Still open, and why:
@@ -3671,7 +3671,7 @@ Rows still open, each with what stops it:
 ## Specimen sheets: Graphviz DOT settings graph-io now reads, and the DOT rows still open (fix round 3, 2026-10-20)
 
 Graph-io now reads these Graphviz settings, each checked against Graphviz 14.1.2's own drawing of the DOT sheets.
-The unit tests are in `graph-io/test/formats/dot/styles-fix-round-3.test.ts`, `graphty-element/test/browser/oracle-svg-primitives.test.ts`
+The unit tests are in `graph-io/test/formats/dot/styles-label-runs-and-places.test.ts`, `graphty-element/test/browser/oracle-svg-primitives.test.ts`
 and `graphty-element/test/fidelity/oracle/compare-oracle-labels.test.ts`.
 
 - HTML `<B>`, `<I>` and `<FONT COLOR FACE POINT-SIZE>` (`dot-specimen-labels-p2` `html-b`, `html-i`, `html-nested`,
@@ -3862,7 +3862,7 @@ Fixed:
   the rule gives every fanned edge's side on both sheets. A collection (`cySubNetworks`), whose elements desktop
   creates in list order, keeps the old fan; a file graphty wrote reads its fan back as written. `edges-lines` and
   `mappings-bypass-p10` pass; `cx-lianhe-affiliation` 19 -> 14 failing, `cx-nci-pid-rhoa` 22 -> 10. Test:
-  `graph-io/test/formats/cx/fix-round-3.test.ts`.
+  `graph-io/test/formats/cx/parallel-edges.test.ts`.
 - `cx-ddram` sub-pixel label lines (comparator; `comparator-text-metrics`): Cytoscape draws the further lines of
   wrapped labels at 0.15 px (node 6907); the association dropped the first line with its node as illegible but kept
   the others as free text no drawing could match. A free oracle text under one render pixel is no longer judged,

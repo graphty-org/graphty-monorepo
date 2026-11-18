@@ -1,6 +1,6 @@
 import type { F64, GraphSnapshot, U32 } from "@graphty/graph-format";
 
-import { withCode } from "../errors.js";
+import { seedOption, withCode } from "../errors.js";
 import { mulberry32 } from "../utils/math-utilities.js";
 import { withGroups } from "./components.js";
 
@@ -331,7 +331,7 @@ export function syncClustering(s: GraphSnapshot, options: SyncClusteringOptions)
             "E_BAD_OPTION",
         );
     }
-    const random = mulberry32(seed);
+    const random = mulberry32(seedOption("syncClustering", { seed }));
     const dim = Math.min(64, n);
     const st: SyncState = {
         n,

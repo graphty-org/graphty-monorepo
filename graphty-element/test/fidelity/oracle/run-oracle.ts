@@ -8,8 +8,9 @@
  * comparator, so a change is said to come from the drawing or from the comparator.
  *
  * The verdict is the elements' (`floors.ts`): a sample fails when an element fails a property that
- * `oracle-known-failures.json` does not list; the pass rates in `oracle-floors.json` are recorded values the run is
- * reported against, never a gate. `scripts/fidelity-ratchet.ts` applies a run's report to both files.
+ * `oracle-known-failures.json` does not list, or when an element-judged pass rate falls below its floor in
+ * `oracle-floors.json` and below any drop accepted for it (`gateFloors`). The raster regions' floors are reported
+ * against, never a gate. `scripts/fidelity-ratchet.ts` applies a run's report to both files.
  *
  * Browser only.
  */

@@ -15,7 +15,6 @@
  */
 
 import { type GraphSnapshot, INVALID_INDEX, type U32 } from "@graphty/graph-format";
-import { type TestContext } from "vitest";
 
 import { type BfsTuning, bfsWithTuning, breadthFirstSearch } from "../../src/algorithms/bfs.js";
 import { type AlgorithmScope } from "../../src/algorithms/scope.js";
@@ -65,7 +64,7 @@ import {
     expectSmallestPredecessor,
 } from "../helpers/traversal-check.js";
 import { bfsOracle } from "../oracle/traversal.js";
-import { acquire, acquireRaw, gpuScale, requireGpu } from "../setup/gpu.js";
+import { acquire, acquireRaw, gpuScale, requireGpu, sharedContext } from "../setup/gpu.js";
 
 /** One fixture of design 11.3: its edges, an optional node count (isolated vertices above the edges' indices) and the sources to run from (`-1` = the last index). */
 interface Fixture {
@@ -183,14 +182,7 @@ function expectedMaps(levels: number): number {
 }
 
 describe("breadthFirstSearch (design 8.4 / 9.7; P8-T6)", () => {
-    let shared: GpuContext | null = null;
-
-    async function context(t: TestContext): Promise<GpuContext> {
-        requireGpu(t);
-        const ctx = shared ?? (await acquire({ label: "bfs" }));
-        shared = ctx;
-        return ctx;
-    }
+    const context = sharedContext({ label: "bfs" });
 
     /**
      * The differential of one run: twice through the tuning entry (which reads the counters block after every

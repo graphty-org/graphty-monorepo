@@ -1,16 +1,16 @@
 /**
- * G7, the `grid-near-field` kernel body (spec 7.7, 7.6, 7.20; P4-T10, P4-T13; D24): per node `i = sortedIdx[t]`, the
+ * G7, the `grid-near-field` kernel body: per node `i = sortedIdx[t]`, the
  * exact pair law of K3 (`LAW` 0: `|F| = k m_i m_j / d` with the 0.01 floor; `LAW` 1: FR's unfloored `k^2 / d`;
  * `LAW` 2: the unfloored coulomb `-g m_i m_j / d^2`; the antisymmetric coincident kick at the law's magnitude at
- * d = 0.01, PD-22) over the 9 (27) finest
+ * d = 0.01) over the 9 (27) finest
  * cells around its own, or over the 2^dim outside pseudo-cells (one per orthant, issue #90) for an outside node; a cell above `nearMax` entries
  * is sampled by `nearMax` INDEPENDENT draws with replacement, draw `k` reading the slot
  * `lowbias32(((c ^ (iteration * 0x9E3779B9)) ^ seed) ^ (k * 0x85EBCA6B)) % count` (every slot's inclusion
  * probability is `nearMax / count` whatever its position in the sorted order, so a duplicated draw is counted twice
  * and the node itself, when drawn, is skipped and not replaced), and scaled by `others / sampled` where `sampled` is
- * the realized number of draws that were not the node (the Horvitz-Thompson form of PD-15 / DEP-P4-K: given
+ * the realized number of draws that were not the node (the Horvitz-Thompson form: given
  * `sampled = s`, those `s` draws are i.i.d. uniform over the `others` slots, so the expectation of the scaled sum is
- * the exact cell sum whenever `s >= 1`; the G4 record's G4-F2 row carries the measurement); then
+ * the exact cell sum whenever `s >= 1`; docs/decisions/G4.md records the measurement); then
  * the fused epilogue of K3 (gravity, `force +=`, the swing / traction workgroup reduction in uniform control flow).
  * The helpers `load_force`, `store_force`, `load_old`, `kick_magnitude`, `gravity_force` and the epilogue are K3's
  * text. Body only; normative text.
@@ -23,7 +23,7 @@ fn store_force(i: u32, f: vec3f) {
     force[3u * i + 2u] = f.z;
 }
 fn load_old(i: u32) -> vec3f { return vec3f(oldForce[3u * i], oldForce[3u * i + 1u], oldForce[3u * i + 2u]); }
-fn gravity_force(pi: vec4f) -> vec3f {                         // spec 7.9: centroid (GRAVITY_CENTER 0) or origin (1); regular or strong
+fn gravity_force(pi: vec4f) -> vec3f {                         // centroid (GRAVITY_CENTER 0) or origin (1); regular or strong
     var q = pi.xyz;
     if (GRAVITY_CENTER == 0u) { q = pi.xyz - S.centroid.xyz; }
     if (STRONG_GRAVITY) { return -P.gravity * pi.w * q; }
@@ -32,7 +32,7 @@ fn gravity_force(pi: vec4f) -> vec3f {                         // spec 7.9: cent
     return vec3f(0.0);
 }
 fn grid_cells() -> u32 { return P.gridMax * P.gridMax * select(1u, P.gridMax, P.dim == 3u); }
-fn kick_magnitude(mi: f32, mj: f32) -> f32 {                   // the law's magnitude at d = FA2_DIST_FLOOR (the P5 plan's PD-10)
+fn kick_magnitude(mi: f32, mj: f32) -> f32 {                   // the law's magnitude at d = FA2_DIST_FLOOR
     if (LAW == 1u) { return P.frK * P.frK / FA2_DIST_FLOOR; }
     if (LAW == 2u) { return -P.coulomb * mi * mj / FA2_DIST_FLOOR_SQ; }
     return P.scalingRatio * mi * mj / FA2_DIST_FLOOR;
@@ -48,7 +48,7 @@ fn pair_force(i: u32, pi: vec4f, jj: u32, o: vec4f) -> vec3f {  // the exact pai
     if (LAW == 2u) { return d * (-P.coulomb * pi.w * o.w / (d2 * sqrt(d2))); }
     return d * (k / d2);
 }
-fn cell_sum(i: u32, pi: vec4f, c: u32, own: bool) -> vec3f {     // one finest cell: exact below nearMax entries, Horvitz-Thompson above (PD-15)
+fn cell_sum(i: u32, pi: vec4f, c: u32, own: bool) -> vec3f {     // one finest cell: exact below nearMax entries, Horvitz-Thompson above
     let start = cellStart[c];
     let count = cellStart[c + 1u] - start;
     var f = vec3f(0.0);
@@ -59,17 +59,17 @@ fn cell_sum(i: u32, pi: vec4f, c: u32, own: bool) -> vec3f {     // one finest c
         }
         return f;
     }
-    let base = (c ^ (P.iterationIndex * 0x9E3779B9u)) ^ P.seed;                  // the per-iteration draw seed (7.16)
+    let base = (c ^ (P.iterationIndex * 0x9E3779B9u)) ^ P.seed;                  // the per-iteration draw seed
     var sampled = 0u;
     for (var k = 0u; k < P.nearMax; k = k + 1u) {
-        let jj = sortedIdx[start + (lowbias32(base ^ (k * 0x85EBCA6Bu)) % count)];   // draw k: independent inclusion, with replacement (PD-15)
+        let jj = sortedIdx[start + (lowbias32(base ^ (k * 0x85EBCA6Bu)) % count)];   // draw k: independent inclusion, with replacement
         if (jj == i) { continue; }
         f = f + pair_force(i, pi, jj, pos[jj]);
         sampled = sampled + 1u;
     }
     if (sampled == 0u) { return vec3f(0.0); }
     let others = select(count, count - 1u, own);
-    return f * (f32(others) / f32(sampled));                     // others / sampled over the realised sample (DEP-P4-K)
+    return f * (f32(others) / f32(sampled));                     // others / sampled over the realised sample
 }
 
 @compute @workgroup_size(WG)
@@ -80,7 +80,7 @@ fn grid_near_field(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocat
     var pi = vec4f(0.0);
     var f = vec3f(0.0);
     if (valid) {
-        i = sortedIdx[t];                                          // sorted order (D24)
+        i = sortedIdx[t];                                          // sorted order
         pi = pos[i];
         let gf = f32(P.gridMax);
         let q = (pi.xyz - S.gridMin.xyz) * S.invCellSize;
@@ -119,7 +119,7 @@ fn grid_near_field(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocat
         let fnew = load_force(i) + f;
         store_force(i, fnew);
         let free = !mask_bit(fixedMask[i >> 5u], i);                               // a pinned node says nothing about the speed (#3255)
-        if (SWING_MODE == 1u && free) {                            // NetworkX: positions and forces mixed, every free node (7.2)
+        if (SWING_MODE == 1u && free) {                            // NetworkX: positions and forces mixed, every free node
             sw = pi.w * length(pi.xyz - fnew);
             tr = 0.5 * pi.w * length(pi.xyz + fnew);
         } else if (free) {             // paper: free nodes only

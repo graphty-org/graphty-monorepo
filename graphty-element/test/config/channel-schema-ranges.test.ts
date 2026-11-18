@@ -48,7 +48,10 @@ describe("a numeric channel and its style schema accept the same numbers (#2067)
             }
 
             for (const value of probes) {
-                const channelAccepts = (min === undefined || value >= min) && (max === undefined || value <= max);
+                const channelAccepts =
+                    (min === undefined || value >= min) &&
+                    (max === undefined || value <= max) &&
+                    (descriptor.integer !== true || Number.isInteger(value));
                 const schemaAccepts = schema.safeParse(styleWith(descriptor, value)).success;
                 assert.strictEqual(
                     schemaAccepts,

@@ -426,7 +426,7 @@ describe("choosing one graph", () => {
         for (const choice of [{ graphIndex: 1 }, { graphName: "b" }]) {
             const { chunks } = await read("json", { data: doc, ...choice });
             assert.deepEqual(
-                chunks.flatMap((c) => c.nodes.map((n) => n.id)),
+                chunks.flatMap((c) => c.nodes.map((n): unknown => n.id)),
                 ["x", "y"],
             );
             assert.strictEqual(chunks.flatMap((c) => c.edges).length, 1);

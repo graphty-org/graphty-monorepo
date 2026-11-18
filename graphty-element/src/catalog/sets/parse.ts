@@ -28,7 +28,6 @@
 
 import { GraphtyError } from "../../errors/GraphtyError";
 import { noteFieldOf } from "../../session/notes/paths";
-import { parseFileStylePath } from "../../session/styles/fileStyles/path";
 import type { EdgeMember, EdgeReading, Scope, SetDefinition } from "../types";
 import { canonicalSetDefinition, DEFINITION_FIELDS, EDGE_MEMBER_FIELDS, runIdOfRef } from "./canonical";
 
@@ -385,13 +384,13 @@ const FIELD_ROOTS = new Set(["data", "results"]);
 const STRUCTURE_PATHS: ReadonlySet<string> = new Set(["graphty.degree", "graphty.inDegree", "graphty.outDegree"]);
 
 /**
- * Whether a `graphty.` path names a value graphty-element provides today: a degree, a note value
- * or a file's style value. Each already has its meaning, so a rule may read it (#6630).
+ * Whether a `graphty.` path names a value graphty-element provides today: a degree or a note
+ * value. Each already has its meaning, so a rule may read it (#6630).
  * @param path - The candidate path.
  * @returns True for a known element path.
  */
 function isElementPath(path: string): boolean {
-    return STRUCTURE_PATHS.has(path) || noteFieldOf(path) !== undefined || parseFileStylePath(path) !== undefined;
+    return STRUCTURE_PATHS.has(path) || noteFieldOf(path) !== undefined;
 }
 
 /**
@@ -827,7 +826,7 @@ function checkStepEnums(step: Loose): void {
 }
 
 /** The states a `state` leaf reads. */
-const ELEMENT_STATES: ReadonlySet<string> = new Set(["selected", "hovered", "ghosted", "pinned"]);
+const ELEMENT_STATES: ReadonlySet<string> = new Set(["selected", "hovered", "ghosted", "outsideWindow", "pinned"]);
 
 /**
  * Check one rule tree node, all the way down.

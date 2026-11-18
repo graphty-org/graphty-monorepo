@@ -1,5 +1,5 @@
 /**
- * The `apsp-fw` kernel body (design 8.7): one phase of one round of blocked Floyd-Warshall over `APSP_TILE x
+ * The `apsp-fw` kernel body: one phase of one round of blocked Floyd-Warshall over `APSP_TILE x
  * APSP_TILE` blocks of the row-major `n x n` matrix `dist`. Round `r` (`P.round`) runs three dispatches in order,
  * the `PHASE` override choosing which:
  *
@@ -18,7 +18,7 @@
  * id and uniforms only, the per-lane loops hold no barrier, and the lanes of an edge tile load `+Infinity` for a cell
  * outside `n x n` (it offers no path; read from `P.infBits` because Tint refuses `+Infinity` as a constant) and
  * store nothing there -- the matrix is exactly `n * n`, never padded, so the
- * ceiling is `floor(sqrt(maxStorageBufferBindingSize / 4))`. Body only (spec 3.5, D9); the text is normative: the
+ * ceiling is `floor(sqrt(maxStorageBufferBindingSize / 4))`. Body only; the text is normative: the
  * sabotage rows of test/helpers/sabotage.ts are textual edits of it.
  */
 export const apspFwWgsl = /* wgsl */ `

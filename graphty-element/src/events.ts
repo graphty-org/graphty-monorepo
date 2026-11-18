@@ -588,13 +588,6 @@ export interface OperationCancelledEvent {
      * this one operation was canceled. Write the reader-facing words from this code.
      */
     code: "queue-cleared" | "cancelled";
-    /**
-     * Why it was aborted, as the queue words it: `"Queue cleared"` when the whole queue was
-     * cleared, `"Manual cancellation"` when this one operation was canceled.
-     * @deprecated Read {@link OperationCancelledEvent.code} instead; this English text is removed
-     * in the next major release.
-     */
-    reason: string;
 }
 
 /** The American spelling of {@link OperationCancelledEvent}. */

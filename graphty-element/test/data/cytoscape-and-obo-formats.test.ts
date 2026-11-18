@@ -79,14 +79,14 @@ describe("the Cytoscape formats and OBO", () => {
         assert.strictEqual(loaded.nodes.length, 140);
         assert.strictEqual(loaded.edges.length, 64);
         assert.include(
-            loaded.nodes.map((node) => node.id),
+            loaded.nodes.map((node): unknown => node.id),
             "GO:0000228",
             "ids are short prefixed ids by default",
         );
 
         const iris = await read("json", { data: bytes, oboIds: "iri" });
         assert.include(
-            iris.nodes.map((node) => node.id),
+            iris.nodes.map((node): unknown => node.id),
             "http://purl.obolibrary.org/obo/GO_0000228",
         );
     });
@@ -110,8 +110,8 @@ describe("the Cytoscape formats and OBO", () => {
         const beta = await read("cys", { ...session, graphIndex: 0 });
         const alpha = await read("cys", { ...session, graphName: "Alpha" });
         assert.notDeepEqual(
-            alpha.nodes.map((node) => node.id),
-            beta.nodes.map((node) => node.id),
+            alpha.nodes.map((node): unknown => node.id),
+            beta.nodes.map((node): unknown => node.id),
         );
 
         const collection = { data: bytesOf("cx/authored/collection.cx") };

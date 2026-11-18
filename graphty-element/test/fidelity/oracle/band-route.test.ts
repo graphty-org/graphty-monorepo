@@ -82,4 +82,40 @@ describe("a band drawn in pieces", () => {
         assert.strictEqual(band?.dashClass, "double");
         assert.isUndefined(band?.route, "straight, not zigzagged from one row to the other");
     });
+    it("reads slashes along a route that turns back across the sheet in the order drawn, its ends the route's", () => {
+        // cx-syn-bypass: a bent edge out to a far bend and back past where it started, too wide for any one axis
+        const corners: Pt[] = [
+            [400, 200],
+            [300, 400],
+            [150, 50],
+            [0, 300],
+        ];
+        const pieces: Pt[][] = [];
+        for (let k = 1; k < corners.length; k++) {
+            const [a, b] = [corners[k - 1], corners[k]];
+            const n = Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 4);
+            for (let j = 0; j < n; j++) {
+                const t = j / n;
+                const turn = Math.atan2(b[1] - a[1], b[0] - a[0]) + 0.8;
+                pieces.push(slash(a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, turn));
+            }
+        }
+        const band = bandPaintedAsFill(pieces);
+        assert.strictEqual(band?.dashClass, "slashes");
+        assert.closeTo(band?.ends[0][0] ?? 0, 400, 1);
+        assert.closeTo(band?.ends[1][0] ?? 99, 0, 4);
+        const route = band?.route ?? [];
+        assert.strictEqual(route.length, pieces.length);
+        for (let i = 1; i < route.length; i++) {
+            assert.isBelow(Math.hypot(route[i][0] - route[i - 1][0], route[i][1] - route[i - 1][1]), 10);
+        }
+    });
+
+    it("reads no line from a ring of pieces, which comes back where it started", () => {
+        const ring = Array.from({ length: 40 }, (_, i) => {
+            const a = (2 * Math.PI * i) / 40;
+            return slash(50 * Math.cos(a), 50 * Math.sin(a), a + 0.8);
+        });
+        assert.isNull(bandPaintedAsFill(ring));
+    });
 });

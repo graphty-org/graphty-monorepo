@@ -275,7 +275,6 @@ describe("the vocabulary", () => {
         assert.strictEqual(session.layout.dimension, "3d");
         assert.deepEqual(entered, ["vr"]);
         assert.strictEqual(session.history.steps.length, steps + 1);
-        assert.strictEqual(session.history.steps.at(-1)?.label, "Switched to 3D for VR");
         assert.deepEqual(session.history.steps.at(-1)?.fact, { code: "view.immersive", params: { mode: "vr" } });
 
         await session.undo();

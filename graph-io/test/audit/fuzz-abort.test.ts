@@ -21,6 +21,7 @@ import { describe, expect, it } from "vitest";
 import { importGraph, registry } from "../../src/registry.js";
 import { ImportError } from "../../src/types.js";
 import { CORPUS_FORMATS, type CorpusFormat, readCorpusBytes, readCorpusInput } from "../helpers/corpus.js";
+import { rejection } from "../robustness/helpers.js";
 
 /** One file per format, big enough to arrive in several 256-byte chunks. */
 const FILES: Readonly<Record<CorpusFormat, string>> = {
@@ -69,15 +70,6 @@ function tracked(bytes: Uint8Array, size: number, onPull?: (pull: number) => voi
         { highWaterMark },
     );
     return { stream, state };
-}
-
-async function rejection(promise: Promise<unknown>): Promise<unknown> {
-    try {
-        await promise;
-    } catch (err) {
-        return err;
-    }
-    throw new Error("expected the import to reject");
 }
 
 function expectSinkUsable(sink: GraphBuilder): void {

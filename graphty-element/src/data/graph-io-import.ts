@@ -16,14 +16,19 @@ import {
     type ImportInput,
     type ImportReport,
     INPUT_ISSUE,
+    jsonImporter,
+    type JsonRecordsOptions,
+    readJsonRecords,
+    recordKey,
     registry,
 } from "@graphty/graph-io";
+import { placeRecords } from "@graphty/graph-io/positions";
 import { isStyleSlotColumn } from "@graphty/graph-io/styles";
 
 import type { AdHocData } from "../config/common.js";
 import { GraphtyError } from "../errors/index.js";
 import type { DataLoadingError, ErrorAggregator } from "./ErrorAggregator.js";
-import { applyFilePositions, filePositionsOf } from "./filePositions.js";
+import { filePositionsOf } from "./filePositions.js";
 
 /** How the scratch builder treats what the importer pushes, beyond what graph-format does itself. */
 interface ScratchPolicy {
@@ -260,6 +265,60 @@ export async function importWhole<Opts>(
 
     aggregateErrors(imported.report, errors);
     return imported;
+}
+
+/** A JSON document read as flat records by graph-io's `readJsonRecords`, with the import it came from. */
+export interface JsonRecordsRead {
+    /** The import, as {@link importWhole} gives it. */
+    readonly imported: ImportedGraph;
+    /** The node records, one per node the document declared. */
+    readonly nodes: Record<string, unknown>[];
+    /** The edge records, one per edge the importer kept. */
+    readonly edges: Record<string, unknown>[];
+    /** Where a column's value sits on the records (see {@link ReaderImport.path}). */
+    readonly path: ReaderImport["path"];
+}
+
+/**
+ * Read a JSON document graph-io reads as flat records (`readJsonRecords`), the same way for every
+ * document it knows, into the element's scratch builder; a failure is `E_PARSE_FAILED`, as
+ * {@link importWhole} reports it.
+ * @param text - the document
+ * @param options - importer options, passed on unread
+ * @param errors - the data source's aggregator
+ * @returns the records, or null for a document graph-io does not read as records
+ * @throws A `GraphtyError` with `E_PARSE_FAILED` when the importer gave up on the document.
+ */
+export async function importJsonRecords(
+    text: string,
+    options: JsonRecordsOptions,
+    errors: ErrorAggregator,
+): Promise<JsonRecordsRead | null> {
+    const builder = new DeclaringBuilder({ firstDeclarationWins: true });
+    let read: Awaited<ReturnType<typeof readJsonRecords>>;
+    try {
+        read = await readJsonRecords(text, { ...options, builder });
+    } catch (error) {
+        if (error instanceof ImportError) {
+            aggregateErrors(error.report, errors);
+            throw parseFailed(jsonImporter.format, error);
+        }
+
+        throw error;
+    }
+
+    if (read === null) {
+        return null;
+    }
+
+    aggregateErrors(read.report, errors);
+    const { snapshot, report, nodes, edges } = read;
+    return {
+        imported: { snapshot, report, importer: jsonImporter, declared: builder.declared },
+        nodes,
+        edges,
+        path: (kind, column) => read.path(kind, column),
+    };
 }
 
 /** The exact shadow column a freeze writes an edge weight to when f32 cannot hold it. */
@@ -606,20 +665,10 @@ export function attributeKey(kind: "node" | "edge", title: string, id: string): 
 /**
  * Where {@link copyColumns} puts a column on a record: under its own name, except a reserved
  * `graphty.*` column, the stored node position ({@link toRecords} writes it as `position`) and one
- * named like a key that identifies the record, which it leaves out.
- * @param kind - node or edge
- * @param column - the column
- * @returns the key, or null
+ * named like a key that identifies the record, which it leaves out: graph-io's `recordKey`, so the
+ * element's records and graph-io's `readJsonRecords` agree.
  */
-export function copiedPath(kind: "node" | "edge", column: Column): string | null {
-    const { name } = column.meta;
-    return name.startsWith(RESERVED_PREFIX) ||
-        column.meta.role === "position" ||
-        (IDENTITY_KEYS[kind] as readonly string[]).includes(name) ||
-        (kind === "edge" && name === EDGE_ID_KEY)
-        ? null
-        : name;
-}
+export const copiedPath: (kind: "node" | "edge", column: Column) => string | null = recordKey;
 
 /** The record key the element writes its own edge id under, over any `id` the file gave. */
 const EDGE_ID_KEY = "id";
@@ -751,15 +800,19 @@ export function copyColumns(table: AttributeTable, row: number, record: Record<s
  * the importer read it with. A node the file placed carries `position: { x, y, z }`: its center, y up,
  * in the file's own unit, read by graph-io's `extractPositions` whatever the format's spelling.
  * @param imported - the import
- * @param mapping - the format's mapping from rows to record keys
+ * @param readerMapping - the format's mapping from rows to record keys
  * @param reader - the data source the records are for, which remembers the import (see {@link readerImport})
+ * @param styles - the load's choice of styles: with `"file"` the columns that only say how an element
+ *     looks (see {@link withoutStyleSlots}) are left off the records, for every format
  * @returns the records, in file order
  */
 export function toRecords(
     imported: SourceGraph,
-    mapping: RecordMapping,
+    readerMapping: RecordMapping,
     reader?: object,
+    styles?: "file" | "none",
 ): { nodes: AdHocData[]; edges: AdHocData[] } {
+    const mapping = styles === "file" ? withoutStyleSlots(imported.snapshot, readerMapping) : readerMapping;
     const { importer } = imported;
     if (reader !== undefined && importer !== undefined) {
         rememberImport(reader, () => readerImportOf({ ...imported, importer }, mapping.path ?? copiedPath));
@@ -777,10 +830,22 @@ export function toRecords(
         nodes.push(record);
     }
 
-    applyFilePositions(nodes, importer === undefined ? null : filePositionsOf({ ...imported, importer }), (record) =>
+    placeRecords(nodes, importer === undefined ? null : filePositionsOf({ ...imported, importer }), (record) =>
         ids.indexOf(record.id as NodeId),
     );
 
+    return { nodes: nodes as AdHocData[], edges: edgeRecordsOf(snapshot, mapping) as AdHocData[] };
+}
+
+/**
+ * One record per logical edge of a snapshot, the mirror half of an expanded edge skipped, with its weight where the
+ * file gave one.
+ * @param snapshot - the imported graph
+ * @param mapping - the reader's mapping
+ * @returns the records, in row order
+ */
+function edgeRecordsOf(snapshot: GraphSnapshot, mapping: RecordMapping): Record<string, unknown>[] {
+    const { ids } = snapshot;
     const pair = snapshot.edges.byRole("pair");
     const weight = snapshot.edges.byRole("weight");
     const arcWeights = snapshot.flags.weighted ? snapshot.edgeList().weights : null;
@@ -806,7 +871,7 @@ export function toRecords(
         edges.push(record);
     }
 
-    return { nodes: nodes as AdHocData[], edges: edges as AdHocData[] };
+    return edges;
 }
 
 /**
@@ -817,11 +882,14 @@ export function toRecords(
  * @param mapping - the reader's mapping
  * @returns the mapping without the style slots
  */
-export function withoutStyleSlots(snapshot: GraphSnapshot, mapping: RecordMapping): RecordMapping {
-    const slots = {
-        node: [...snapshot.nodes].filter((column) => isStyleSlotColumn(column.meta)).map((column) => column.meta.name),
-        edge: [...snapshot.edges].filter((column) => isStyleSlotColumn(column.meta)).map((column) => column.meta.name),
-    };
+function withoutStyleSlots(snapshot: GraphSnapshot, mapping: RecordMapping): RecordMapping {
+    const path = mapping.path ?? copiedPath;
+    // Each slot under the record key the reader writes it at (a reader may rename it), and under its own name.
+    const keysOf = (kind: "node" | "edge", table: Iterable<Column>): string[] =>
+        [...table]
+            .filter((column) => isStyleSlotColumn(column.meta))
+            .flatMap((column) => [column.meta.name, path(kind, column) ?? column.meta.name]);
+    const slots = { node: keysOf("node", snapshot.nodes), edge: keysOf("edge", snapshot.edges) };
     if (slots.node.length === 0 && slots.edge.length === 0) {
         return mapping;
     }
@@ -831,7 +899,6 @@ export function withoutStyleSlots(snapshot: GraphSnapshot, mapping: RecordMappin
             Reflect.deleteProperty(record, key);
         }
     };
-    const path = mapping.path ?? copiedPath;
     return {
         node: (row, record) => {
             mapping.node(row, record);

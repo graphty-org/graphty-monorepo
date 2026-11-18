@@ -270,13 +270,6 @@ export interface RmatOptions extends RecursiveOptions {
  * the source for top/bottom, of the target for left/right). Edges are listed in sampling order.
  * A multigraph with self-loops unless erased: see `selfLoops`, `multiEdges`, `permute` (stream
  * (seed, "rmat-permute", 0)) and `directed`.
- *
- * webgpu-graph-algorithms carries three private R-MAT copies on xorshift / LCG streams
- * (benchmarks/datasets.ts, test/helpers/graphs.ts, demo/main.ts) that should move to this. Two
- * of them move a self-loop to (u, (v + 1) mod n), keeping exactly m edges; `selfLoops: "erase"`
- * drops the loop instead (about m / n^0.4 fewer edges at the defaults), and `weights: { kind:
- * "integer", min: 1, max: 10 }` reproduces their 1..10 weights. The third keeps self-loops, which
- * is this function's default.
  * @param options - scale, edgeFactor, a, b, c, d, the shared recursive options and seed
  * @returns the graph
  */

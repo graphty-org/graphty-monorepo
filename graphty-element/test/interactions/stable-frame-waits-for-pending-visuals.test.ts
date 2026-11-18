@@ -16,7 +16,7 @@ import type { AbstractMesh, Observer, Scene } from "@babylonjs/core";
 import { afterEach, assert, describe, it } from "vitest";
 
 import type { Graphty } from "../../index.js";
-import type { RenderManager } from "../../src/managers/RenderManager.js";
+import { renderManagerOf } from "../../src/Graph.js";
 import { hover, type Point } from "../helpers/real-input";
 
 const WIDTH = 480;
@@ -80,8 +80,7 @@ function afterEachFrame(element: Graphty, record: () => void): void {
  * @returns The release.
  */
 function holdFrames(element: Graphty): () => void {
-    const graphAny = element.graph as unknown as Record<string, unknown>;
-    return (graphAny.renderManager as RenderManager).holdFrames();
+    return renderManagerOf(element.graph).holdFrames();
 }
 
 /**

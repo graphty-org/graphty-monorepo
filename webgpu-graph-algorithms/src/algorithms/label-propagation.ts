@@ -1,5 +1,5 @@
 /**
- * Label propagation (design 8.6, 3.3 line 807; the P11 plan's P11-T6) over the simple symmetric graph of the
+ * Label propagation over the simple symmetric graph of the
  * snapshot (`buildSimpleSymmetric`), with the rules of `@graphty/algorithms`' `labelPropagationSynchronous`. Vertex
  * `i` starts with the label `fmix32(i)`, the murmur3 32-bit finalizer of its index: a one-to-one scramble, so comparing
  * two labels compares the priorities the CPU port gives them. Each pass, `group-by-key-row` finds every vertex's

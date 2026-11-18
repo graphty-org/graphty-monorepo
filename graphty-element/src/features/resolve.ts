@@ -28,7 +28,7 @@ let pageDefault: readonly string[] = Object.freeze([]);
  * @example
  * ```ts
  * import { setDefaultFeatures } from "@graphty/graphty-element/extend";
- * setDefaultFeatures(["timeline"]);
+ * setDefaultFeatures(["location-map"]);
  * ```
  */
 export function setDefaultFeatures(ids: readonly string[]): void {
@@ -84,7 +84,7 @@ export function featureOff(feature: FeatureId, key: string): GraphtyError {
 }
 
 /**
- * Read experiment ids from a URL's query, such as `?features=timeline,location-map`.
+ * Read experiment ids from a URL's query, such as `?features=assistant,location-map`.
  * @param url - The URL, usually `location.href`.
  * @param param - The query parameter to read.
  * @returns The ids, comma separated, trimmed, lowercased and without duplicates, unknown ones

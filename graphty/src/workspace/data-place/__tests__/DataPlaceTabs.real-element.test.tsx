@@ -3,7 +3,7 @@
  * driven by real clicks (the owner's review, 2026-11-07): the tabs come first; Sources holds the
  * sources with Filters directly under Data sources, and Calculated the results, with no "Runs"
  * heading; the tab chosen is kept; a result's row has no filled tags, only quiet marks (what uses it, a scope other than what is showing), and
- * its "..." holds Apply style, grayed once it is styled, and Remove result; a filter's row says its
+ * its "..." holds Apply style, grayed once it is styled, Run again with changes..., Combine into a score..., the Copy items and Remove result; a filter's row says its
  * steps in one structured line.
  */
 
@@ -155,8 +155,23 @@ describe("the Data place's Sources and Calculated tabs", () => {
         await userEvent.click(within(row).getByRole("button", { name: /^More for / }));
         const items = await screen.findAllByRole("menuitem");
         assert.deepEqual(
-            items.map((item) => /^(Apply style|Remove result)/u.exec(item.textContent ?? "")?.[1]),
-            ["Apply style", "Remove result"],
+            items.map(
+                (item) =>
+                    /^(Apply style|Run again with changes\.\.\.|Combine into a score\.\.\.|Copy [a-zA-Z ]+?|Remove result)(?=Not finished|Already styled|$)/u.exec(
+                        item.textContent ?? "",
+                    )?.[1],
+            ),
+            [
+                "Apply style",
+                "Run again with changes...",
+                "Combine into a score...",
+                "Copy as JSON",
+                "Copy as command",
+                "Copy methods text",
+                "Copy as TSV",
+                "Copy member ids",
+                "Remove result",
+            ],
         );
         assert.include(items[0].textContent ?? "", "Already styled");
         assert.isTrue(items[0].hasAttribute("data-disabled") || items[0].hasAttribute("disabled"), "greyed");

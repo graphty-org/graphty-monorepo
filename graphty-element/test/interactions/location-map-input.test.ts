@@ -16,8 +16,7 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 import { commands, userEvent } from "vitest/browser";
 
 import type { Graphty } from "../../index.js";
-import { operationQueueOf } from "../../src/Graph";
-import type { RenderManager } from "../../src/managers/RenderManager";
+import { operationQueueOf, renderManagerOf } from "../../src/Graph";
 import { drawnFrames } from "../helpers/drawn-frames";
 import { click, drag, nextFrame, type Point, touchDrag, wheel } from "../helpers/real-input";
 
@@ -819,7 +818,7 @@ async function heightsWhileHeld(element: Graphty, key: string, count: number): P
     const height = (): number => (scene.activeCamera?.position.length() ?? Number.NaN) / radius - 1;
     const input = (element.graph.camera as unknown as { inputs: Map<string, { update(): void }> }).inputs.get("orbit");
     assert.isDefined(input);
-    const { renderManager } = element.graph as unknown as { renderManager: RenderManager };
+    const renderManager = renderManagerOf(element.graph);
     const update = input.update.bind(input);
     const heights = [height()];
     let held = false;

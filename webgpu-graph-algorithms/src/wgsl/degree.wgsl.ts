@@ -1,7 +1,7 @@
 /**
- * The `degree` kernel body (contract 4.5; spec 6 row 3, 11.5): the out-degree of every row of `[P.start, P.end)`
+ * The `degree` kernel body: the out-degree of every row of `[P.start, P.end)`
  * through the row-walking gather with the USE_PERM dummy pattern, counting the arcs of the bound window whose
- * neighbor index is a valid node; `P.accumulate == 1` adds into `out[i]` instead of overwriting (the P4 windowed
+ * neighbor index is a valid node; `P.accumulate == 1` adds into `out[i]` instead of overwriting (the windowed
  * loop). Bindings, overrides and the `RangeParams` block come from the registry entry (src/kernels.ts); WG,
  * USE_PERM and `linear_id` from the prelude. The text is normative: test/helpers/sabotage.ts mutates it textually,
  * so it is copied from the contract and never re-derived or restyled.
@@ -16,7 +16,7 @@ fn degree(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id) l
     let a1 = min(rowPtr[i + 1u], P.arcEnd);
     var d = 0u;
     for (var arc = a0; arc < a1; arc = arc + 1u) {
-        let nbr = colIdx[arc - P.arcBase];               // \`target\` is a WGSL reserved word (spec 16.2); never use it as an identifier
+        let nbr = colIdx[arc - P.arcBase];               // \`target\` is a WGSL reserved word; never use it as an identifier
         d = d + select(0u, 1u, nbr < P.n);
     }
     out[i] = select(d, out[i] + d, P.accumulate == 1u);

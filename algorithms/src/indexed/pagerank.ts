@@ -2,7 +2,7 @@ import type { F32, F64, GraphSnapshot, NumericVector, ReverseView, U32 } from "@
 
 import { checkNumber, checkWeights, withCode } from "../errors.js";
 
-/** Options of the index-based PageRank (graph-format design 14.2 Port 3). @public */
+/** Options of {@link pageRank}. @public */
 export interface PageRankOptions {
     /** Probability of following a link; default 0.85. */
     readonly dampingFactor?: number | undefined;

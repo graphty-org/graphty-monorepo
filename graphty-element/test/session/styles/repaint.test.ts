@@ -15,7 +15,6 @@ import {
     type CompiledLayer,
     createStylesApi,
     type ElementLayerSpec,
-    type RepaintContext,
     type SessionStylesApi,
     type StyleChange,
 } from "../../../src/session/styles/index";
@@ -34,6 +33,7 @@ import {
     type RepaintSources,
     type ResolvedStyle,
 } from "../../../src/session/styles/repaint";
+import { quietContext } from "../helpers";
 
 /** One element's columns, keyed by the path a selector or a binding names. */
 type Row = Readonly<Record<Path, unknown>>;
@@ -64,11 +64,6 @@ const ELEMENT_BASE: ElementLayerSpec = {
     selector: { match: "everything" },
     set: { "node.color": "#333333" },
 };
-
-/** A context that never cancels and reports to nobody. */
-function quietContext(): RepaintContext {
-    return { signal: new AbortController().signal, report: () => undefined };
-}
 
 interface Harness {
     /** The engine under test. */

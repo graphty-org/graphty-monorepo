@@ -1,5 +1,5 @@
 /**
- * The simple symmetric graph (the P11 plan's PD-4): triangle counting and label propagation are defined over an
+ * The simple symmetric graph: triangle counting and label propagation are defined over an
  * undirected graph with no parallel edges and no self-loops, and a snapshot may be directed, may carry parallel
  * edges and may carry self-loops. This builds that graph on the device from the snapshot's edge list:
  *

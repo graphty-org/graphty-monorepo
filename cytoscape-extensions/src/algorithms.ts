@@ -429,7 +429,8 @@ export const DEFAULTS: Readonly<Record<string, Readonly<Record<string, unknown>>
     deltaPageRank: PAGERANK,
     eigenvectorCentrality: POWER,
     hits: POWER,
-    katzCentrality: { ...POWER, alpha: 0.1, beta: 1 },
+    // No alpha: @graphty/algorithms derives one that converges on the graph (0.1 wherever that is safe).
+    katzCentrality: { ...POWER, beta: 1 },
     labelPropagation: { maxIterations: 100 },
     labelPropagationSynchronous: { maxIterations: 100 },
     labelPropagationSemiSupervised: { maxIterations: 100 },

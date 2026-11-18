@@ -6,7 +6,7 @@ import { checkNumber, checkWeights, withCode } from "../errors.js";
 export interface ModularityOptions {
     /** Resolution gamma: above 1 favors smaller communities; default 1. */
     readonly resolution?: number | undefined;
-    /** Per-arc weight override, arcCount long -- the facade passes `expandEdges(s, shadow.data)`. */
+    /** Per-arc weight override, arcCount long; f64 weights here are used exactly. */
     readonly weights?: NumericVector | undefined;
 }
 

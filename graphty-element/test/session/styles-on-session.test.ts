@@ -179,6 +179,7 @@ describe("the element's own layers", () => {
 
         const stack = harness.session.styles.list();
 
+        // The look, then, with the timeline on, what hides what lies outside a time window.
         assert.strictEqual(stack.length, 2, "a layer paints nodes or edges, never both");
         assert.deepStrictEqual(
             stack.map((layer) => layer.target),
@@ -194,7 +195,8 @@ describe("the element's own layers", () => {
         const stack = harness.session.styles.list();
 
         for (const layer of stack) {
-            assert.deepStrictEqual(layer.source, { by: "element", reason: "default" });
+            assert.strictEqual(layer.source.by, "element");
+            assert.include(["default", "time"], layer.source.by === "element" ? layer.source.reason : "");
             assert.isTrue(layer.locked, "an element-owned layer is locked by construction");
         }
 
@@ -259,7 +261,7 @@ describe("session.styles", () => {
 
         const stack = harness.session.styles.list();
         assert.strictEqual(stack.length, 3);
-        assert.strictEqual(stack[2]?.id, added.id, "list() is BOTTOM first, so the newest is last");
+        assert.strictEqual(stack.at(-1)?.id, added.id, "list() is BOTTOM first, so the newest is last");
         assert.strictEqual(harness.session.styles.get(added.id)?.name, "Hosts in orange");
         assert.deepStrictEqual(added.source, { by: "user" });
         assert.isFalse(added.locked);

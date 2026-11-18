@@ -45,10 +45,12 @@ import type {
     TopTies,
 } from "../../catalog/types";
 import { GraphtyError, isGraphtyError } from "../../errors";
+import { pathsRead } from "../sets/dependencies";
 import {
     columnsFor,
     type CompiledSelector,
     compileExpressionPredicate,
+    expressionPaths,
     expressionRule,
     hasPredicate,
     hoverPredicate,
@@ -113,8 +115,8 @@ export type Selector =
     /**
      * The elements a reader is pointing at now: in the selection (`"selected"`, nodes and edges as
      * the selection holds them), or under the pointer (`"hovered"`, one node at most; no edge is
-     * ever hovered), or drawn outside the time window (`"ghosted"`, while the timeline setting
-     * `outside` is `"ghost"`), or pinned in place (`"pinned"`, nodes only, as
+     * ever hovered), drawn while a held filter condition would remove it (`"ghosted"`), outside
+     * the time window (`"outsideWindow"`), or pinned in place (`"pinned"`, nodes only, as
      * `session.positions.pinned` holds them). View state, never data: the layer follows each
      * change without a step.
      * @since 3.26.0
@@ -132,7 +134,7 @@ export type Selector =
       };
 
 /** Every element state, for a refusal that lists what was allowed. */
-const ELEMENT_STATES: readonly ElementState[] = ["selected", "hovered", "ghosted", "pinned"];
+const ELEMENT_STATES: readonly ElementState[] = ["selected", "hovered", "ghosted", "outsideWindow", "pinned"];
 
 /** The path list every selector that reads no column shares. */
 const EMPTY_PATHS: readonly Path[] = Object.freeze([]);
@@ -290,6 +292,19 @@ function assertSelector(selector: Selector): void {
                 match: kind,
                 kinds: SELECTOR_KINDS,
             });
+    }
+}
+
+/**
+ * The paths a query reads, or none when it does not parse (its own check refuses it).
+ * @param where - The query.
+ * @returns The paths.
+ */
+function queryPaths(where: Query): readonly Path[] {
+    try {
+        return expressionPaths(where);
+    } catch {
+        return EMPTY_PATHS;
     }
 }
 
@@ -615,13 +630,15 @@ export function compileSelector(selector: Selector, target: SelectorTarget, sour
                 });
             }
 
-            const live = source.scope(parseScope(selectorScope(selector)));
+            const scope = selectorScope(selector);
+            const live = source.scope(parseScope(scope));
 
             return {
                 match: selector.match,
                 target,
                 test: scopePredicate(live, target),
-                paths: EMPTY_PATHS,
+                // What the rule reads ("results.louvain.group"), so the layer's reads name it.
+                paths: scope === null ? EMPTY_PATHS : Object.freeze(pathsRead(scope, queryPaths)),
                 problem: () => live.problem(),
             };
         }

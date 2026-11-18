@@ -26,6 +26,9 @@ import type { ElementSession, GraphSession, StyleProblem } from "../../../src/se
 import { fixtureSession } from "../history/fixture-session";
 import { stubResult } from "../runs/harness";
 
+/** A run fixture with the name its layers are given by default. */
+type NamedRun = AutoApplyRun & { readonly label: string };
+
 // ---------------------------------------------------------------------------------------------
 // The runs these tests finish
 // ---------------------------------------------------------------------------------------------
@@ -46,7 +49,7 @@ function runOf(
     shape: ResultShape,
     fields: readonly FieldDescriptor[],
     extra: Partial<AutoApplyRun> = {},
-): AutoApplyRun {
+): NamedRun {
     return {
         id,
         label: `The ${id} run`,
@@ -479,12 +482,13 @@ const ELEMENT_BASE: ElementLayerSpec = {
 };
 
 /** Every run the real stack can look one up by. */
-const KNOWN_RUNS: readonly EncodingRun[] = [BETWEENNESS, DEGREE, ROUTE, INFLUENCERS];
+const KNOWN_RUNS: readonly NamedRun[] = [BETWEENNESS, DEGREE, ROUTE, INFLUENCERS];
 
 /** Where the real stack looks a run up. */
 const RUN_SOURCE: EncodingSource = {
     run: (ref: RunRef): EncodingRun | undefined => KNOWN_RUNS.find((entry) => entry.id === ref),
     runIds: (): readonly RunId[] => KNOWN_RUNS.map((entry) => entry.id),
+    defaultLayerName: (id: RunId): string | undefined => KNOWN_RUNS.find((entry) => entry.id === id)?.label,
 };
 
 /**

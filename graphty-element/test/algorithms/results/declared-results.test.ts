@@ -46,7 +46,17 @@ import type { FieldDescriptor, ResultShape } from "../../../src/catalog/types";
 import type { Graph } from "../../../src/Graph";
 import { checkShapeContract, resultPath } from "../../../src/session/results";
 import type { RunProgressReport } from "../../../src/session/runs";
+import type { Caveats } from "../../../src/session/runs/types";
 import { createMockGraph } from "../../helpers/mockGraph";
+
+/**
+ * The facts an algorithm's caveats carry, empty when its output states none.
+ * @param caveats - The caveats.
+ * @returns The facts.
+ */
+function factsOf(caveats: Caveats | Omit<Caveats, "facts">): Caveats["facts"] {
+    return "facts" in caveats ? caveats.facts : [];
+}
 
 /** A connected, weighted graph with a triangle, so every method has something to find. */
 const FIXTURE = {
@@ -311,9 +321,15 @@ describe("declared algorithm results", () => {
             const weak = await runCase(CASES.find((entry) => entry.name === "connected components")!);
             const strong = await runCase(CASES.find((entry) => entry.name === "strongly connected components")!);
 
-            assert.isTrue(weak.caveats.notes.some((note) => note.includes("weak")));
+            assert.include(
+                factsOf(weak.caveats).map((fact) => fact.code),
+                "components.weak",
+            );
             assert.strictEqual(weak.caveats.direction, "undirected");
-            assert.isTrue(strong.caveats.notes.some((note) => note.includes("strong")));
+            assert.include(
+                factsOf(strong.caveats).map((fact) => fact.code),
+                "components.strong",
+            );
             assert.strictEqual(strong.caveats.direction, "directed");
         });
     });

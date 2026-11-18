@@ -20,9 +20,9 @@ import { afterAll, assert, beforeAll, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { Edge } from "../../src/Edge";
-import { pageDefaultFeatures, setDefaultFeatures } from "../../src/features/resolve";
 import { operationQueueOf } from "../../src/Graph";
-import { laneStoreOf } from "../../src/managers/DataManager";
+import { dataManagerInternals, laneStoreOf } from "../../src/managers/DataManager";
+import { layoutManagerInternals } from "../../src/managers/LayoutManager";
 import { minimumWorkPerFrame, setMinimumWorkPerFrame } from "../../src/managers/minimumWork";
 import { NodeBatches } from "../../src/meshes/NodeBatch";
 import { RichTextLabel } from "../../src/meshes/RichTextLabel";
@@ -678,7 +678,7 @@ const CASES: readonly Case[] = [
                         graph.getUpdateManager().renderFrames(1);
                     },
                     () => {
-                        assert.strictEqual((data as unknown as { styles: unknown }).styles, graph.styles);
+                        assert.strictEqual(dataManagerInternals.styles(data), graph.styles);
                     },
                 ),
             );
@@ -699,7 +699,7 @@ const CASES: readonly Case[] = [
                         graph.getUpdateManager().renderFrames(1);
                     },
                     () => {
-                        assert.strictEqual((layout as unknown as { styles: unknown }).styles, graph.styles);
+                        assert.strictEqual(layoutManagerInternals.styles(layout), graph.styles);
                     },
                 ),
             );
@@ -815,8 +815,7 @@ describe("a repaint of every node", () => {
     });
 
     // The walk that ends a repaint is owed by whichever kind of element the repaint painted, so a
-    // repaint of one kind has to bring it alone. The timeline is switched off here, because the
-    // features-on projects switch every experiment on.
+    // repaint of one kind has to bring it alone.
     for (const [kind, spec] of [
         ["nodes", { target: "node", set: { "node.color": "#123456" } }],
         ["edges", { target: "edge", set: { "edge.color": "#123456" } }],
@@ -824,12 +823,9 @@ describe("a repaint of every node", () => {
         it(`visits every edge once, on the last frame, after a repaint of only ${kind}`, async () => {
             const size = 400;
             const minimumWork = minimumWorkPerFrame();
-            const features = pageDefaultFeatures();
-            setDefaultFeatures([]);
             const element = await mount(size);
             try {
                 const { graph } = element;
-                assert.notInclude(graph.getSession().features.enabled, "timeline");
                 const painter = graph.getStylePainter();
                 const manager = graph.getUpdateManager();
                 // The load painted both kinds, and what is left of it would be part of this repaint.
@@ -852,7 +848,6 @@ describe("a repaint of every node", () => {
             } finally {
                 vi.restoreAllMocks();
                 setMinimumWorkPerFrame(minimumWork);
-                setDefaultFeatures(features);
                 element.remove();
             }
         });

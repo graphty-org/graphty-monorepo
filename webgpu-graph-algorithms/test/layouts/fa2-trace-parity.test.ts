@@ -70,6 +70,7 @@ import { expectBitwiseEqual } from "../helpers/matchers.js";
 import { adapterClass, type NoiseRow, recordNoiseRow, writeNoiseFixture } from "../helpers/noise-floor.js";
 import { assertCheckPasses, ratioOf } from "../helpers/sabotage.js";
 import { forceAtlas2Oracle, type OracleTraceRecord } from "../oracle/forceatlas2.js";
+import { noiseFloorWriting } from "../setup/env.js";
 import { acquire, gpuScale, requireGpu } from "../setup/gpu.js";
 
 const ITERATIONS = TRACE_ITERATIONS;
@@ -207,7 +208,7 @@ describe("FA2 trace parity: 50 x step(1) vs the f32 / f64 oracles (spec 11.4)", 
     }
 
     it("writes the karate NETWORKX trace (50 iterations) and its f64 reference as noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)", async (t) => {
-        if (process.env.GRAPHTY_NOISE_FLOOR_WRITE !== "1") {
+        if (!noiseFloorWriting()) {
             // a writer regenerates fixtures nobody asked for; test/noise-floor.test.ts checks the committed
             // ones on every run (issue #455)
             t.skip("noise fixtures are written under GRAPHTY_NOISE_FLOOR_WRITE=1 only");
@@ -247,7 +248,7 @@ describe("FA2 trace parity: 50 x step(1) vs the f32 / f64 oracles (spec 11.4)", 
     });
 
     it("writes the unscaled random1k NETWORKX traces (10 and 50 iterations) and the f32 / f64 references as noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)", async (t) => {
-        if (process.env.GRAPHTY_NOISE_FLOOR_WRITE !== "1") {
+        if (!noiseFloorWriting()) {
             // a writer regenerates fixtures nobody asked for; test/noise-floor.test.ts checks the committed
             // ones on every run (issue #455)
             t.skip("noise fixtures are written under GRAPHTY_NOISE_FLOOR_WRITE=1 only");
@@ -303,7 +304,7 @@ describe("FA2 trace parity: 50 x step(1) vs the f32 / f64 oracles (spec 11.4)", 
     for (const member of ["resync50", "resyncKarate50"] as const) {
         const graph: ParityGraph = member === "resync50" ? "random1k" : "karate";
         it(`writes the unscaled ${graph} PAPER re-synchronised trace and its per-adapter f32 / f64 references as noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)`, async (t) => {
-            if (process.env.GRAPHTY_NOISE_FLOOR_WRITE !== "1") {
+            if (!noiseFloorWriting()) {
                 // a writer regenerates fixtures nobody asked for; test/noise-floor.test.ts checks the committed
                 // ones on every run (issue #455)
                 t.skip("noise fixtures are written under GRAPHTY_NOISE_FLOOR_WRITE=1 only");

@@ -907,6 +907,10 @@ edges are 3.8's.
   Backspace is never "back", because it is a delete key on macOS; Delete and Backspace keep their
   one meaning (`interaction-patterns.md` 3.6) during the walk. Studies of screen-reader navigation over data structures found
   people get lost without a known way back (Zong et al. 2022; the TADA study of node-link diagrams).
+- **Visible controls.** While the walk is active the walk-position slot carries four buttons, each
+  showing its key chip: Back, Home, Previous member and Next member (the last two only when the
+  selection has more than one member). A click does what the key does, so no walk command is
+  keyboard-only (`principles.md`, Rules, "Every shortcut is on a visible control").
 - **The member-walk keys** (`]` and `[` in the element's default keymap, matched on the character
   typed so AltGr layouts work, and `{` and `}` never bound apart) move the focused node
   through the current selection, in its own order (path, rank, order of addition, else lowest id),

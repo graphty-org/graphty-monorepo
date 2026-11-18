@@ -12,7 +12,7 @@ import { Graph } from "../../../src/Graph";
 import { assertPlaced } from "../../helpers/placed-position";
 import { click, drag, nextFrame } from "../../helpers/real-input";
 import { cleanupTestGraph, createTestGraph, setBehavior } from "../../helpers/testSetup";
-import type { CameraState, DragDelta, NodeData, ScreenPosition, TestGraphOptions, Vector3D } from "../types";
+import type { DragDelta, NodeData, ScreenPosition, TestGraphOptions } from "../types";
 
 /**
  * Wait for a graph to be fully initialized and ready for interaction.
@@ -86,64 +86,8 @@ export function getNodeScreenPosition(graph: Graph, nodeId: string | number): Sc
 }
 
 /**
- * Get the current state of the active camera.
- * Returns different properties depending on whether it's 2D or 3D mode.
- *
- * @param graph - The graph instance
- * @returns Current camera state snapshot
- */
-export function getCameraState(graph: Graph): CameraState {
-    const viewMode = graph.getViewMode();
-    const controller = graph.camera.getActiveController();
-
-    if (!controller) {
-        throw new Error("No active camera controller");
-    }
-
-    const { camera } = controller;
-    const position = {
-        x: camera.position.x,
-        y: camera.position.y,
-        z: camera.position.z,
-    };
-
-    if (viewMode === "2d") {
-        // 2D orthographic camera
-        const orthoCamera = camera as {
-            orthoTop?: number | null;
-            orthoBottom?: number | null;
-        };
-
-        const top = orthoCamera.orthoTop ?? 10;
-        const bottom = orthoCamera.orthoBottom ?? -10;
-        const orthoRange = top - bottom;
-
-        return {
-            mode: "2d",
-            position,
-            orthoRange,
-        };
-    }
-
-    // 3D arc rotate camera
-    const arcCamera = camera as {
-        alpha?: number;
-        beta?: number;
-        radius?: number;
-    };
-
-    return {
-        mode: "3d",
-        position,
-        alpha: arcCamera.alpha,
-        beta: arcCamera.beta,
-        radius: arcCamera.radius,
-    };
-}
-
-/**
  * Set up a test graph with specified options.
- * Creates a graph instance using NullEngine for headless testing.
+ * Creates a graph instance on a real WebGL engine, since picking needs one.
  *
  * @param options - Configuration options for the test graph
  * @returns The initialized graph instance
@@ -193,85 +137,6 @@ export async function dragNode(graph: Graph, nodeId: string | number, delta: Dra
     // Wait for whatever the drag queued to run, and a frame to show it
     await graph.waitForSettled();
     await nextFrame();
-}
-
-/**
- * Get the current scale of the scene (for XR pivot-based scaling).
- *
- * @param graph - The graph instance
- * @returns The current scene scale (1.0 = default)
- */
-export function getSceneScale(graph: Graph): number {
-    // In XR mode, scale is managed via the pivot controller
-    // For non-XR modes, we return the ortho range ratio or radius ratio
-    const state = getCameraState(graph);
-
-    if (state.mode === "2d" && state.orthoRange !== undefined) {
-        // Default ortho range is approximately 20 units
-        return 20 / state.orthoRange;
-    } else if (state.mode === "3d" && state.radius !== undefined) {
-        // 30 is a fixed reference distance, not the camera's default: an unset
-        // startingCameraDistance frames the graph to fit, so the start depends on the graph
-        return 30 / state.radius;
-    }
-
-    return 1.0;
-}
-
-/**
- * Get the current rotation of the scene/camera.
- *
- * @param graph - The graph instance
- * @returns Euler angles (x, y, z) in radians
- */
-export function getSceneRotation(graph: Graph): Vector3D {
-    const controller = graph.camera.getActiveController();
-    if (!controller) {
-        return { x: 0, y: 0, z: 0 };
-    }
-
-    // For 2D mode, rotation is the 2D camera's roll
-    if (graph.getViewMode() === "2d") {
-        // The camera holds the roll
-        const twoDController = controller as unknown as {
-            camera?: { rotation?: { x?: number; y?: number; z?: number } };
-        };
-        const cameraRotation = twoDController.camera?.rotation;
-        return {
-            x: cameraRotation?.x ?? 0,
-            y: cameraRotation?.y ?? 0,
-            z: cameraRotation?.z ?? 0,
-        };
-    }
-
-    // For 3D mode, rotation is defined by alpha/beta angles
-    const { camera } = controller;
-    const arcCamera = camera as { alpha?: number; beta?: number };
-    return {
-        x: arcCamera.beta ?? 0,
-        y: arcCamera.alpha ?? 0,
-        z: 0,
-    };
-}
-
-/**
- * Get the current camera position in world space.
- *
- * @param graph - The graph instance
- * @returns Camera position (x, y, z)
- */
-export function getCameraPosition(graph: Graph): Vector3D {
-    const controller = graph.camera.getActiveController();
-    if (!controller) {
-        return { x: 0, y: 0, z: 0 };
-    }
-
-    const pos = controller.camera.position;
-    return {
-        x: pos.x,
-        y: pos.y,
-        z: pos.z,
-    };
 }
 
 /**

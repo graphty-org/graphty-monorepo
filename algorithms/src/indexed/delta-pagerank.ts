@@ -1,36 +1,14 @@
 import type { F64, GraphSnapshot, NumericVector, U32 } from "@graphty/graph-format";
 
 import { withCode } from "../errors.js";
-import type { PageRankResult } from "./pagerank.js";
 import { IndexedMaxHeap } from "./structures/max-heap.js";
 
 /**
- * The delta PageRank engines over snapshots: the `useDelta` path of the legacy `pageRank`
- * ({@link deltaPageRank}), and the {@link DeltaPageRank} and {@link PriorityDeltaPageRank} engines.
- * The first two reproduce their legacy counterparts' arithmetic, including its quirks, so a facade
- * over them gives the legacy answer; {@link PriorityDeltaPageRank} converges to `pageRank` instead.
- * Neighbors are visited in logical edge order (the legacy adjacency's
- * insertion order), and every weight comes from the per-arc `weights` override when one is given.
+ * The delta PageRank engines over snapshots. {@link DeltaPageRank} propagates score changes between calls and keeps
+ * 2.x's arithmetic, quirks included; {@link PriorityDeltaPageRank} converges to `pageRank`. Neighbors are visited in
+ * edge order, and every weight comes from the per-arc `weights` override when one is given.
  * @module
  */
-
-/** Options of {@link deltaPageRank}. @internal */
-export interface DeltaPageRankOptions {
-    /** Probability of following a link; default 0.85. */
-    readonly dampingFactor?: number | undefined;
-    /** Iteration cap; default 100. */
-    readonly maxIterations?: number | undefined;
-    /** Stop when no score moved by this much or more in one iteration (L-infinity); default 1e-6. */
-    readonly tolerance?: number | undefined;
-    /** Use arc weights; default false. */
-    readonly weighted?: boolean | undefined;
-    /** Per-arc weight override, arcCount long -- a facade passes `expandEdges(s, shadow.data)`. */
-    readonly weights?: NumericVector | undefined;
-    /** Starting score per node index, nodeCount long; normalized to sum 1. Default 1 / n each. */
-    readonly initialRanks?: NumericVector | undefined;
-    /** Teleport distribution per node index, nodeCount long; normalized to sum 1. Default uniform. */
-    readonly personalization?: NumericVector | undefined;
-}
 
 /** Options of {@link DeltaPageRank}'s and {@link PriorityDeltaPageRank}'s constructors. @public */
 export interface DeltaPageRankEngineOptions {
@@ -174,22 +152,6 @@ function spreadRow(
 }
 
 /**
- * Sum of `mass` over the nodes with no out-arcs, in index order.
- * @param s - The snapshot
- * @param mass - The per-node mass
- * @returns The dangling mass
- */
-function danglingMass(s: GraphSnapshot, mass: F64): number {
-    let dangling = 0;
-    for (let u = 0; u < s.nodeCount; u++) {
-        if (s.rowPtr[u] === s.rowPtr[u + 1]) {
-            dangling += mass[u];
-        }
-    }
-    return dangling;
-}
-
-/**
  * The largest absolute value of `a - b` (or of `a` when `b` is null), 0 when every one is 0.
  * @param a - The first vector
  * @param b - The vector to subtract, or null
@@ -204,20 +166,6 @@ function maxAbsDiff(a: F64, b: F64 | null): number {
 }
 
 /**
- * Set each entry of `next` to its teleport share plus its share of the dangling spread.
- * @param next - The vector to set
- * @param d - The damping factor
- * @param spread - The dangling spread per node (before the personalization)
- * @param personal - The normalized personalization, or null for uniform
- */
-function fillTeleport(next: F64, d: number, spread: number, personal: F64 | null): void {
-    const n = next.length;
-    for (let v = 0; v < n; v++) {
-        next[v] = personal === null ? (1 - d) / n + spread : (1 - d) * personal[v] + spread * personal[v];
-    }
-}
-
-/**
  * Refuse a damping factor outside [0, 1], NaN included.
  * @param d - The damping factor
  */
@@ -225,57 +173,6 @@ function checkDamping(d: number): void {
     if (!(d >= 0 && d <= 1)) {
         throw withCode(new RangeError("Damping factor must be between 0 and 1"), "E_BAD_OPTION");
     }
-}
-
-/**
- * PageRank by power iteration with an L-infinity stopping rule: the `useDelta` path of the legacy
- * `pageRank`, which it takes when `useDelta !== false` and the graph has more than 100 nodes. Its
- * other path runs the same iteration, so this answers both. A node with no out-arcs is dangling
- * and its rank is spread over every node (by the personalization when one is given); a node whose
- * out-weights sum to 0 but has arcs is not dangling and passes nothing on, as in legacy.
- *
- * Not in the `indexed` namespace: it propagates no deltas, and it exists only so the legacy
- * `pageRank` facade can reproduce legacy arithmetic exactly. Snapshot callers use
- * `indexed.pageRank`.
- * @param s - A DIRECTED snapshot
- * @param o - Algorithm options
- * @returns The scores, the iteration count and the convergence flag
- * @internal
- */
-export function deltaPageRank(s: GraphSnapshot, o: DeltaPageRankOptions = {}): PageRankResult {
-    if (!s.directed) {
-        throw withCode(new Error("PageRank requires a directed graph"), "E_NEEDS_DIRECTED");
-    }
-    const d = o.dampingFactor ?? 0.85;
-    checkDamping(d);
-    const n = s.nodeCount;
-    const maxIter = o.maxIterations ?? 100;
-    const tol = o.tolerance ?? 1e-6;
-    if (n === 0) {
-        return { scores: new Float64Array(0), iterations: 0, converged: true };
-    }
-    const personal = nodeVector(o.personalization, n, "personalization");
-    let rank = nodeVector(o.initialRanks, n, "initialRanks") ?? new Float64Array(n).fill(1 / n);
-    const order = arcsInEdgeOrder(s);
-    const weights = o.weighted === true ? arcWeights(s, o.weights) : null;
-    const outW = outWeights(s, order, weights);
-    let next = new Float64Array(n);
-    let iterations = 0;
-    let converged = false;
-    while (iterations < maxIter && !converged) {
-        iterations++;
-        const dangling = danglingMass(s, rank);
-        fillTeleport(next, d, dangling > 0 ? (d * dangling) / n : 0, personal);
-        for (let u = 0; u < n; u++) {
-            if (outW[u] > 0) {
-                spreadRow(s, order, weights, u, outW[u], d * rank[u], next);
-            }
-        }
-        const maxDiff = maxAbsDiff(next, rank);
-        [rank, next] = [next, rank];
-        converged = maxDiff < tol;
-    }
-    return { scores: rank, iterations, converged };
 }
 
 /**

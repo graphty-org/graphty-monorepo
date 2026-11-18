@@ -1,5 +1,5 @@
 /**
- * Device-loss and uncaptured-error plumbing (spec 5.7, 2.2 step 5; contract 3.4): the pending-error slot a
+ * Device-loss and uncaptured-error plumbing (step 5 of create()): the pending-error slot a
  * context throws from its next public call, the uncapturederror listener that routes each event to the
  * caller's sink or to the slot, the device.lost watcher and the E_DEVICE_LOST constructor. Nothing here
  * throws; errors are constructed and handed on.
@@ -7,7 +7,7 @@
 
 import { WebGpuGraphError } from "../errors.js";
 
-/** The context's pending-error slot (spec 5.7): the last uncaptured error not yet delivered; `take()` clears it. */
+/** The context's pending-error slot: the last uncaptured error not yet delivered; `take()` clears it. */
 export class PendingErrorSlot {
     private readonly queue: WebGpuGraphError[] = [];
 
@@ -51,7 +51,7 @@ export class PendingErrorSlot {
 
 /**
  * The WebGpuGraphError for one uncaptured GPUError: E_OUT_OF_MEMORY for a GPUOutOfMemoryError (recognized
- * by its class name so no global is read, spec 2.1 rule 1), E_VALIDATION otherwise.
+ * by its class name so no global is read), E_VALIDATION otherwise.
  * @param error - the event's error
  * @param label - the device label the error is attributed to
  * @returns the wrapped error
@@ -59,7 +59,7 @@ export class PendingErrorSlot {
 function uncapturedError(error: GPUError, label: string): WebGpuGraphError {
     const { message } = error;
     if (error.constructor.name === "GPUOutOfMemoryError") {
-        // the documented shape is { requested, resident, label } (contract 3.1); the event names no size and the
+        // the documented shape is { requested, resident, label }; the event names no size and the
         // sink tracks no residency, so both are 0 and the runtime's text lives in the message only
         return new WebGpuGraphError("E_OUT_OF_MEMORY", `uncaptured out-of-memory error on "${label}": ${message}`, {
             requested: 0,

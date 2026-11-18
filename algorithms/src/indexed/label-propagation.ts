@@ -7,16 +7,14 @@ import {
     type U32,
 } from "@graphty/graph-format";
 
-import { withCode } from "../errors.js";
+import { seedOption, type SeedOptions, withCode } from "../errors.js";
 import { mulberry32 } from "../utils/math-utilities.js";
 import { type LabelResult, withGroups } from "./components.js";
 
 /** Options of the index-based label propagation. @public */
-export interface LabelPropagationOptions {
+export interface LabelPropagationOptions extends SeedOptions {
     /** Work cap, in node visits per node (full-sweep equivalents); default 100. */
     readonly maxIterations?: number | undefined;
-    /** Seed of the visit order and of the tie draws; default 42. */
-    readonly randomSeed?: number | undefined;
     /** Sum arc weights (true, the default) or count each distinct neighbor once (false). */
     readonly weighted?: boolean | undefined;
 }
@@ -157,18 +155,14 @@ function votingRows(s: GraphSnapshot, weighted: boolean): VotingRows {
  * Check the options every label propagation shares.
  * @param n - The node count
  * @param maxIterations - The work cap
- * @param randomSeed - The seed, or null when the variant takes none
  * @throws RangeError for a bad option
  */
-function checkOptions(n: number, maxIterations: number, randomSeed: number | null): void {
+function checkOptions(n: number, maxIterations: number): void {
     if (!Number.isInteger(maxIterations) || maxIterations < 0) {
         throw withCode(
             new RangeError(`maxIterations must be a non-negative integer, got ${maxIterations}`),
             "E_BAD_OPTION",
         );
-    }
-    if (randomSeed !== null && !Number.isInteger(randomSeed)) {
-        throw withCode(new RangeError(`randomSeed must be a finite integer, got ${randomSeed}`), "E_BAD_OPTION");
     }
     if (maxIterations * n > Number.MAX_SAFE_INTEGER) {
         throw withCode(
@@ -454,7 +448,7 @@ function requeueNeighbours(
  * graph whose weights are not all f32-exact), so a weight rounded in the f32 arc array never
  * decides a vote.
  *
- * One `randomSeed` gives one result, bit for bit. The partitions differ from the legacy
+ * One `seed` gives one result, bit for bit. The partitions differ from the legacy
  * `labelPropagation` for the same seed: the random stream and the stop rule are different
  * (design `design/algorithms/label-propagation-indexed-port-design.md`, section 3).
  * @param s - Any snapshot
@@ -464,10 +458,10 @@ function requeueNeighbours(
  */
 export function labelPropagation(s: GraphSnapshot, options: LabelPropagationOptions = {}): LabelPropagationResult {
     const maxIterations = options.maxIterations ?? 100;
-    const randomSeed = options.randomSeed ?? 42;
+    const randomSeed = seedOption("labelPropagation", options);
     const weighted = options.weighted ?? true;
     const n = s.nodeCount;
-    checkOptions(n, maxIterations, randomSeed);
+    checkOptions(n, maxIterations);
     const rows = votingRows(s, weighted);
     const label = new Uint32Array(n);
     for (let i = 0; i < n; i++) {
@@ -522,7 +516,7 @@ export function labelPropagationSemiSupervised(
     options: LabelPropagationOptions = {},
 ): LabelPropagationResult {
     const maxIterations = options.maxIterations ?? 100;
-    const randomSeed = options.randomSeed ?? 42;
+    const randomSeed = seedOption("labelPropagationSemiSupervised", options);
     const weighted = options.weighted ?? true;
     const n = s.nodeCount;
     if (seeds.length !== n) {
@@ -531,7 +525,7 @@ export function labelPropagationSemiSupervised(
             "E_BAD_OPTION",
         );
     }
-    checkOptions(n, maxIterations, randomSeed);
+    checkOptions(n, maxIterations);
     const rows = votingRows(s, weighted);
     // The kernel's labels are node indices, so a seed label becomes the index of the first node
     // seeded with it. A free node starts unlabeled.
@@ -657,7 +651,7 @@ export function labelPropagationSynchronous(
     const maxIterations = options.maxIterations ?? 100;
     const weighted = options.weighted ?? true;
     const n = s.nodeCount;
-    checkOptions(n, maxIterations, null);
+    checkOptions(n, maxIterations);
     const rows = votingRows(s, weighted);
     const tally = new Tally(n, rows, weighted);
     let label = new Uint32Array(n);

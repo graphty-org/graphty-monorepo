@@ -127,7 +127,6 @@ export interface OpenArrangement {
 /** A step as the history publishes it. Frozen. */
 interface HistoryStepView {
     readonly id: string;
-    readonly label: string;
     readonly fact: CodedFact<HistoryCode>;
     /** ISO 8601 of the last record or merge. */
     readonly at: string;
@@ -141,7 +140,6 @@ interface HistoryStepView {
 /** A step as the history keeps it. */
 interface Step<P> {
     readonly id: string;
-    label: string;
     fact: CodedFact<HistoryCode>;
     readonly key: string | null;
     patch: P;
@@ -326,9 +324,7 @@ export class History<P> {
             time - top.lastMerge < this.coalesceMs &&
             time - top.started < COALESCE_SPAN_MS
         ) {
-            // The step now ends where the newest edit left it, so it is named for that edit, and it
-            // still names every channel it changed: undo reverts them all.
-            top.label = input.label;
+            // The step's fact now names every channel it changed: undo reverts them all.
             top.fact = mergedFact(top.fact, factOf(input));
             this.mergeInto(top, input, time, at);
             return top.id;
@@ -339,7 +335,6 @@ export class History<P> {
         const id = `step-${this.nextId++}`;
         this.entries.push({
             id,
-            label: input.label,
             fact: factOf(input),
             key,
             patch: input.patch,
@@ -1167,7 +1162,6 @@ export class History<P> {
     private view(step: Step<P>, index: number): HistoryStepView {
         step.view ??= Object.freeze({
             id: step.id,
-            label: step.label,
             fact: step.fact,
             at: step.at,
             ops: Object.freeze([...step.ops]),

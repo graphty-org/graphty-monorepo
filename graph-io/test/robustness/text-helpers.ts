@@ -6,7 +6,8 @@
 import { type GraphSnapshot } from "@graphty/graph-format";
 import { expect } from "vitest";
 
-import { ImportError, type ImportReport } from "../../src/index.js";
+import { type ImportError, type ImportReport } from "../../src/index.js";
+import { codes, importFailure } from "./helpers.js";
 
 /**
  * Await an import that must fail, and return its ImportError.
@@ -14,16 +15,7 @@ import { ImportError, type ImportReport } from "../../src/index.js";
  * @returns the error, checked to be an ImportError with a report
  */
 export async function rejects(promise: Promise<unknown>): Promise<ImportError> {
-    let caught: unknown = null;
-    try {
-        await promise;
-    } catch (err) {
-        caught = err;
-    }
-    expect(caught).toBeInstanceOf(ImportError);
-    const err = caught as ImportError;
-    expect(err.report).toBeDefined();
-    return err;
+    return importFailure(promise);
 }
 
 /**
@@ -36,15 +28,6 @@ export function fatalCode(err: ImportError): unknown {
 }
 
 /**
- * The issue codes of a report, in order.
- * @param report - the report
- * @returns the codes
- */
-export function codes(report: ImportReport): string[] {
-    return report.issues.map((issue) => issue.code);
-}
-
-/**
  * The issue of a report with a code (the first).
  * @param report - the report
  * @param code - the code
@@ -54,15 +37,6 @@ export function issue(report: ImportReport, code: string): ImportReport["issues"
     const found = report.issues.find((i) => i.code === code);
     expect(found, `issue ${code} in ${codes(report).join(", ")}`).toBeDefined();
     return found as ImportReport["issues"][number];
-}
-
-/**
- * The node ids in index order.
- * @param s - the snapshot
- * @returns the ids
- */
-export function ids(s: GraphSnapshot): unknown[] {
-    return Array.from({ length: s.nodeCount }, (_, i) => s.ids.idOf(i));
 }
 
 /**

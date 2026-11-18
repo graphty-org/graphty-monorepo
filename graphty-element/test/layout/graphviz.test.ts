@@ -1,12 +1,12 @@
 /**
  * @file The Graphviz layouts' Node-side pieces: the DOT the element writes, the json it reads back,
  * the options, the error codes, the catalog entries, each engine on a small graph through the real
- * WebAssembly library, and every branch of the recommendation for a Graphviz file.
+ * WebAssembly library. The recommendation for a requested layout is in test/session/layout-requested.test.ts.
  */
 
 import { GraphBuilder, type GraphSnapshot } from "@graphty/graph-format";
 import { graphvizPosBends } from "@graphty/graph-io/dot";
-import { assert, describe, it, vi } from "vitest";
+import { assert, describe, it } from "vitest";
 
 import { LAYOUT_DESCRIPTORS, layoutDescriptor } from "../../src/catalog/layouts";
 import { graphvizAvailability } from "../../src/layout/graphviz/availability";
@@ -26,12 +26,6 @@ import { graphvizStructure } from "../../src/layout/graphviz/structure";
 import { toDot } from "../../src/layout/graphviz/toDot";
 import { graphvizAttributes, graphvizError, layoutStructure } from "../../src/layout/GraphvizLayoutEngine";
 import type { SnapshotLayoutInput } from "../../src/layout/SnapshotLayoutEngine";
-import { recommendLayout } from "../../src/session";
-import { FILE_GRAPH_VALUE } from "../../src/session/commands/data";
-import { dispatcherOf } from "../../src/session/GraphSession";
-import type { GraphStatistics } from "../../src/session/types";
-import { fakeNode } from "../helpers/layout-fakes";
-import { makeSession } from "../session/helpers";
 
 /**
  * A small graph.
@@ -46,35 +40,6 @@ function graph(directed: boolean, edges: readonly (readonly [string, string])[])
     }
 
     return builder.freeze();
-}
-
-/**
- * The shape of a graph with these counts.
- * @param nodeCount - nodes
- * @param edgeCount - edges
- * @returns the statistics
- */
-function sizeOnly(nodeCount: number, edgeCount: number): GraphStatistics {
-    return {
-        nodeCount,
-        edgeCount,
-        density: 0,
-        directedness: "unknown",
-        directednessSource: { by: "unsettled", statedBy: null },
-        weighted: false,
-        selfLoopCount: 0,
-        repeatedEdgeCount: 0,
-        degreeRange: [0, 0],
-        meanDegree: 0,
-        components: {
-            count: 0,
-            sizes: [],
-            largestSize: 0,
-            isolatedCount: 0,
-            truncatedSizes: false,
-            componentOf: () => undefined,
-        },
-    };
 }
 
 const TRIANGLE: readonly (readonly [string, string])[] = [
@@ -589,145 +554,6 @@ describe("the catalogue", () => {
     });
 });
 
-describe("the recommendation for a Graphviz file", () => {
-    const connected = sizeOnly(30, 40);
-    const dotFile = { format: "dot", attributes: { rankdir: "LR", clusterrank: "none", label: "not passed on" } };
-
-    it("draws a DOT file with no coordinates with dot, passing on its layout attributes", () => {
-        const advice = recommendLayout(connected, { file: dotFile, graphvizAvailable: true });
-
-        assert.strictEqual(advice?.layout.id, "graphviz-dot");
-        assert.strictEqual(advice?.fact.code, "recommend.graphviz-file");
-        assert.strictEqual(advice?.fact.params.engine, "dot");
-        assert.deepEqual(advice?.options, {
-            attributes: { rankdir: "LR", clusterrank: "none" },
-            nodeSize: "label",
-        });
-    });
-
-    it("draws the engine the file names", () => {
-        const advice = recommendLayout(connected, {
-            file: { format: "dot", attributes: { layout: "neato" } },
-            graphvizAvailable: true,
-        });
-
-        assert.strictEqual(advice?.layout.id, "graphviz-neato");
-        assert.strictEqual(advice?.fact.params.engine, "neato");
-        assert.deepEqual(advice?.options, { nodeSize: "label" }, "no graph attribute to pass on");
-    });
-
-    it("names the engine a file of another format asks for in its layout value", () => {
-        const advice = recommendLayout(connected, {
-            file: { format: "gv", attributes: { layout: "twopi" } },
-            graphvizAvailable: true,
-        });
-
-        assert.strictEqual(advice?.layout.id, "graphviz-twopi");
-        assert.isUndefined(advice?.options, "its nodes carry no Graphviz label attributes to size them by");
-    });
-
-    it("says the package is missing and takes the next rule's arrangement", () => {
-        const advice = recommendLayout(connected, { file: dotFile });
-
-        assert.strictEqual(advice?.layout.id, "force");
-        assert.strictEqual(advice?.fact.code, "recommend.graphviz-unavailable");
-        assert.strictEqual(advice?.fact.params.engine, "dot");
-    });
-
-    it("passes a graph over the engine's node budget to the ordinary rules", () => {
-        const advice = recommendLayout(sizeOnly(GRAPHVIZ_NODE_BUDGETS.circo + 1, 600), {
-            file: { format: "dot", attributes: { layout: "circo" } },
-            graphvizAvailable: true,
-        });
-
-        assert.strictEqual(advice?.layout.id, "force");
-        assert.strictEqual(advice?.fact.code, "recommend.force");
-    });
-
-    it("keeps the coordinates a file arrived with, and has Graphviz route its edges round them", () => {
-        const advice = recommendLayout(connected, {
-            file: { format: "dot", attributes: { splines: "curved", rankdir: "LR" } },
-            graphvizAvailable: true,
-            placedNodes: 30,
-        });
-
-        assert.strictEqual(advice?.layout.id, "fixed");
-        assert.strictEqual(advice?.fact.code, "recommend.fixed");
-        assert.deepEqual(advice?.options, { edgeRoutes: "graphviz", graphvizAttributes: { splines: "curved" } });
-    });
-
-    it("keeps a placed file's coordinates with no routes when the package is missing, or the file is not DOT", () => {
-        const missing = recommendLayout(connected, { file: dotFile, placedNodes: 30 });
-        const gml = recommendLayout(connected, {
-            file: { format: "gml", attributes: { layout: "neato" } },
-            graphvizAvailable: true,
-            placedNodes: 30,
-        });
-
-        assert.strictEqual(missing?.layout.id, "fixed");
-        assert.isUndefined(missing?.options);
-        assert.strictEqual(gml?.layout.id, "fixed");
-        assert.isUndefined(gml?.options);
-    });
-
-    it("reads graph-io's layout fact before the file's format and attributes", () => {
-        const fact = { tool: "graphviz", program: "circo", ownFormat: false, settings: { mindist: "2" } } as const;
-        const drawn = recommendLayout(connected, {
-            file: { format: "graphml", attributes: { layout: "neato" }, layout: fact },
-            graphvizAvailable: true,
-        });
-        const placed = recommendLayout(connected, { file: { layout: fact }, graphvizAvailable: true, placedNodes: 30 });
-        const other = recommendLayout(connected, {
-            file: { format: "dot", layout: { tool: "yed", program: "hierarchic", ownFormat: true, settings: {} } },
-            graphvizAvailable: true,
-        });
-
-        assert.strictEqual(drawn?.layout.id, "graphviz-circo");
-        assert.deepEqual(drawn?.options, { attributes: { mindist: "2" } }, "not Graphviz's own format: no label sizes");
-        assert.isUndefined(placed?.options, "Graphviz routes the edges only of a file in its own format");
-        assert.strictEqual(other?.layout.id, "force", "a layout of another tool is not drawn with Graphviz");
-    });
-
-    it("ignores files that are not Graphviz files, and never recommends a Graphviz layout on its own", () => {
-        const advice = recommendLayout(connected, {
-            file: { format: "gexf", attributes: {} },
-            graphvizAvailable: true,
-        });
-
-        assert.strictEqual(advice?.layout.id, "force");
-        assert.strictEqual(recommendLayout(sizeOnly(0, 0))?.layout.requires, undefined);
-    });
-});
-
-describe("a DOT file loaded with layout recommended", () => {
-    it("keeps the file's graph attributes with the graph, and without the package here uses the next rule", async () => {
-        const { session } = makeSession();
-
-        await session.data.import(
-            { type: "dot", config: { data: "digraph { layout=neato; rankdir=LR; a -> b; b -> c; c -> a }" } },
-            { layout: "recommended" },
-        );
-        await vi.waitFor(() => {
-            assert.lengthOf(session.history.pending, 0);
-        });
-
-        const { values } = dispatcherOf(session).state.graph;
-        assert.deepEqual(values.get(FILE_GRAPH_VALUE), {
-            format: "dot",
-            attributes: { layout: "neato", rankdir: "LR" },
-            layout: {
-                tool: "graphviz",
-                program: "neato",
-                ownFormat: true,
-                direction: "right",
-                settings: { rankdir: "LR" },
-            },
-        });
-        assert.strictEqual(session.layout.id, "force", "Node has no Worker, so Graphviz is unavailable");
-        session.dispose();
-    });
-});
-
 /**
  * Where Graphviz put each node of a json answer, by name, centered on its bounding box, in points.
  * @param json - the `-Tjson` text
@@ -848,14 +674,17 @@ describe("nodes Graphviz sizes to their labels (nodeSize: label)", () => {
     it("is what a layout's nodeSize: label hands over, and drawn sizes stay the default", () => {
         const snapshot = graph(true, [["a", "b"]]);
         const input = { stored: snapshot } as unknown as SnapshotLayoutInput;
-        const nodes = [fakeNode("a", { data: { shape: "box" } }), fakeNode("b", { data: {} })];
+        const records: Record<string, unknown>[] = [];
+        records[snapshot.ids.requireIndex("a")] = { shape: "box" };
+        records[snapshot.ids.requireIndex("b")] = {};
+        const rows = { records, ranks: [] };
 
-        const sized = layoutStructure(input, nodes, [], new Map(), false, true);
+        const sized = layoutStructure(input, rows, [], new Map(), false, true);
         assert.isTrue(sized.labelSized);
         assert.deepEqual(sized.nodeAttributes?.get(snapshot.ids.requireIndex("a")), { shape: "box", label: "a" });
         assert.deepEqual(sized.nodeAttributes?.get(snapshot.ids.requireIndex("b")), { label: "b" });
 
-        const drawn = layoutStructure(input, nodes, [], new Map());
+        const drawn = layoutStructure(input, rows, [], new Map());
         assert.isUndefined(drawn.labelSized);
         assert.isUndefined(drawn.nodeAttributes);
         const option = layoutDescriptor("graphviz-dot")?.options.find(({ name }) => name === "nodeSize");

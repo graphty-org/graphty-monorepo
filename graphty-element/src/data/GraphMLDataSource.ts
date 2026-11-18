@@ -15,126 +15,69 @@ import {
 // GraphML has no additional config currently, so just use the base config
 type GraphMLDataSourceConfig = BaseDataSourceConfig;
 
-/** The prefix graph-io gives the columns it reads out of yFiles node and edge graphics. */
-const YFILES = "yfiles.";
-
 /**
- * The yFiles columns that describe only how an element looks. A load that draws the file's styles
- * leaves them off the records, because its layers carry them; the position, label and edge
- * direction are kept.
- */
-const YFILES_STYLE_KEYS: ReadonlySet<string> = new Set([
-    "width",
-    "height",
-    "color",
-    "borderColor",
-    "borderWidth",
-    "shape",
-    "targetArrow",
-    "sourceArrow",
-]);
-
-/**
- * yFiles shape names mapped to the element's node shapes; anything unlisted is a box.
+ * The record key a column lands under unchanged, or null when the records leave it out.
  *
- * Deprecated with the yFiles record keys (removed in the next major): a load that draws the
- * file's styles maps shapes through the style translation's shape table instead.
- */
-const YFILES_SHAPES: Readonly<Record<string, string>> = {
-    ellipse: "sphere",
-    circle: "sphere",
-};
-
-/**
- * Write one yFiles value onto a record under the element's key for it.
- * @param key - the column name without its `yfiles.` prefix
+ * A key the file declared lands under its `attr.name`. A column graph-io derived from an extension's
+ * markup (its origin names a namespace and the column is named `<namespace>.<field>`) lands under
+ * its field, as `label`, `width` or `color`; the extension's markup tree itself is left out. The stored
+ * position is written by `toRecords`, as for every format.
+ * @param kind - node or edge
  * @param column - the column
- * @param row - the row
- * @param record - the record being built
+ * @returns the key, or null
  */
-function writeYFiles(key: string, column: Column, row: number, record: Record<string, unknown>): void {
-    switch (key) {
-        case "position":
-            // Written by toRecords, centered and y up, as for every format.
-            break;
-        case "shape":
-            record.shape = YFILES_SHAPES[(column.value(row) as string).toLowerCase()] ?? "box";
-            break;
-        default:
-            record[key] = cell(column, row);
+function keyOf(kind: "node" | "edge", column: Column): string | null {
+    const { name, origin, role } = column.meta;
+    if (role === "id" || role === "position" || typeof origin?.id !== "string") {
+        return null;
     }
+
+    // An extension's own markup tree, kept whole, is not a field: its readable parts are columns of their own.
+    if (typeof origin.namespace === "string") {
+        const prefix = `${origin.namespace}.`;
+        return name.startsWith(prefix) ? name.slice(prefix.length) : null;
+    }
+
+    return attributeKey(kind, attributeTitle(name, origin.id), origin.id);
 }
 
 /**
- * Copy a row's declared keys and yFiles graphics onto its record.
- *
- * A key the file declared lands under its `attr.name`. The raw yFiles graphics tree is left out,
- * because its readable parts (position, size, colors, label, shape, arrows) are written from the
- * `yfiles.*` columns instead.
+ * Copy a row's columns onto its record, each under {@link keyOf}'s key.
  * @param kind - node or edge
  * @param table - the node or edge table
  * @param row - the row
  * @param record - the record being built
- * @param fileStyles - whether the load draws the file's styles, so the yFiles style keys are left out
  */
-function writeRow(
-    kind: "node" | "edge",
-    table: Iterable<Column>,
-    row: number,
-    record: Record<string, unknown>,
-    fileStyles: boolean,
-): void {
+function writeRow(kind: "node" | "edge", table: Iterable<Column>, row: number, record: Record<string, unknown>): void {
     for (const column of table) {
-        if (!column.isSet(row)) {
-            continue;
-        }
-
-        const { name, origin } = column.meta;
-        if (name.startsWith(YFILES)) {
-            const key = name.slice(YFILES.length);
-            if (!(fileStyles && YFILES_STYLE_KEYS.has(key))) {
-                writeYFiles(key, column, row, record);
-            }
-        } else if (typeof origin?.id === "string" && origin.namespace !== "yfiles" && column.meta.role !== "id") {
-            record[attributeKey(kind, attributeTitle(name, origin.id), origin.id)] = cell(column, row);
+        const key = column.isSet(row) ? keyOf(kind, column) : null;
+        if (key !== null) {
+            record[key] = cell(column, row);
         }
     }
 }
 
 /**
- * The record mapping for GraphML: each key under its name, the yFiles graphics under the element's
- * keys, and an edge's own `directed` when it differs from the graph's `edgedefault` or when yFiles
- * arrows say it.
+ * The record mapping for GraphML: each key under its name, and an edge's own `directed` when it
+ * differs from the graph's `edgedefault`.
  * @param snapshot - the imported graph
  * @param graphDirected - the direction the graph declared, or null when it declared none
- * @param fileStyles - whether the load draws the file's styles, so the yFiles style keys are left out
  * @returns the mapping
  */
-function graphmlMapping(snapshot: GraphSnapshot, graphDirected: boolean | null, fileStyles: boolean): RecordMapping {
+function graphmlMapping(snapshot: GraphSnapshot, graphDirected: boolean | null): RecordMapping {
     const directed = snapshot.edges.byRole("directed");
     return {
         node(row, record): void {
-            writeRow("node", snapshot.nodes, row, record, fileStyles);
+            writeRow("node", snapshot.nodes, row, record);
         },
         edge(row, record): void {
             if (directed?.isSet(row) && directed.value(row) !== graphDirected) {
                 record.directed = directed.value(row);
             }
 
-            writeRow("edge", snapshot.edges, row, record, fileStyles);
+            writeRow("edge", snapshot.edges, row, record);
         },
-        path(kind, column): string | null {
-            const { name, origin } = column.meta;
-            if (name.startsWith(YFILES)) {
-                const key = name.slice(YFILES.length);
-                // The element rewrites these two into its own shapes.
-                return key === "position" || key === "shape" || (fileStyles && YFILES_STYLE_KEYS.has(key)) ? null : key;
-            }
-
-            return typeof origin?.id === "string" && origin.namespace !== "yfiles" && column.meta.role !== "id"
-                ? attributeKey(kind, attributeTitle(name, origin.id), origin.id)
-                : null;
-        },
+        path: keyOf,
     };
 }
 
@@ -180,15 +123,14 @@ function readDirection(
 
 /**
  * Data source for loading graph data from GraphML files, read by `@graphty/graph-io`'s GraphML
- * importer. Supports key definitions and data elements, and the yFiles `ShapeNode` and
- * `PolyLineEdge` graphics (position, size, colors, border, label, shape and arrows).
+ * importer. Supports key definitions and data elements, and the graphics of an extension graph-io
+ * reads (the yFiles `ShapeNode` and `PolyLineEdge`).
  *
- * The yFiles graphics are copied onto the records under `position`, `width`, `height`, `color`,
- * `borderColor`, `borderWidth`, `label` and `shape` (`sphere` or `box`), and on edges `color`,
- * `width`, `directed`, `targetArrow` and `sourceArrow`. These record keys are deprecated, kept
- * as they are, and removed in the next major version. Load with `styles: "file"` to draw the
- * file's yEd and yFiles styles as style layers instead: the records then keep only the position,
- * label and direction.
+ * Each record holds the keys the file declared under their names, a node's `position` and `label`,
+ * an edge's `directed`, and each field an extension's graphics give (a yFiles `width`, `color`,
+ * `borderColor`, `shape` and so on) under its field name, as the file has it. A load with
+ * `styles: "file"` draws the file's look with style layers instead, over the data columns the load
+ * writes for them, as every format's load does.
  */
 export class GraphMLDataSource extends DataSource {
     static readonly type = "graphml";
@@ -225,8 +167,9 @@ export class GraphMLDataSource extends DataSource {
 
         const { nodes, edges } = toRecords(
             imported,
-            graphmlMapping(imported.snapshot, direction?.directed ?? null, this.config.styles === "file"),
+            graphmlMapping(imported.snapshot, direction?.directed ?? null),
             this,
+            this.config.styles,
         );
         yield* this.chunkData(nodes, edges);
     }

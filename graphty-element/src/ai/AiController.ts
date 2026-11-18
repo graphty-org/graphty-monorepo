@@ -659,7 +659,7 @@ export interface AiControllerOptions {
      * approval. Absent, only URLs in the reader's own message are imported.
      */
     allowImportUrl?: (url: URL) => boolean;
-    /** Where `load_dataset` downloads datasets from; absent, it fails with `E_OPTION_RANGE`. */
+    /** Where `load_dataset` downloads datasets from; absent, it fails with `AI_ARG_OUT_OF_RANGE`. */
     datasetBaseUrl?: string;
     /**
      * Whether the assistant keeps one conversation across messages: `"none"` (the default: every

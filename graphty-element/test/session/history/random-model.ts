@@ -793,7 +793,7 @@ function notePending(model: Model, real: Real, item: Omit<Pending, "id" | "seq" 
         return null;
     }
 
-    const pending: Pending = { ...item, id: view.id, label: view.label, seq: model.tick++ };
+    const pending: Pending = { ...item, id: view.id, label: view.fact.code, seq: model.tick++ };
     model.pending.push(pending);
     return pending;
 }

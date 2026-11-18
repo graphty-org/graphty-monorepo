@@ -18,14 +18,10 @@ import { INVALID_INDEX, maskTest, type U32 } from "@graphty/graph-format";
 import type { EdgeId, NodeId, OptionDescriptor } from "../../catalog/types";
 import { edgeRowOf } from "../../data/edgeIdentity";
 import { GraphtyError } from "../../errors/GraphtyError";
-import { englishNotes } from "../../session/english";
 import type { ResultColumns, ResultElementValues, RunResultInit } from "../../session/results/RunResult";
-import { caveat, type CaveatCode, caveatSentence } from "../../session/runs/caveatFacts";
+import { caveat, type CaveatCode } from "../../session/runs/caveatFacts";
 import type { CodedFact } from "../../session/shared";
 import { computesOverScope, type ResolvedInputScope, runScopeOf } from "./ScopedInput";
-
-/** The note a run carries when its algorithm computed on the whole graph and was masked back. */
-export const WHOLE_GRAPH_CAVEAT = caveatSentence(caveat("scope.whole-graph"));
 
 /**
  * Whether a scope covers every node and every edge of its snapshot.
@@ -115,7 +111,6 @@ export function maskBack(algorithm: object, init: RunResultInit): RunResultInit 
         caveats: {
             ...init.caveats,
             facts: [...init.caveats.facts, scopeFact],
-            notes: [...englishNotes(init.caveats), caveatSentence(scopeFact)],
         },
     };
 }

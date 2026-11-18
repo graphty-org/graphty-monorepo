@@ -11,7 +11,7 @@ import {
 import { withCode } from "../errors.js";
 import { walkPredArcs, walkPredEdges } from "./dijkstra.js";
 
-/** Result of the index-based BFS (graph-format design 14.2 Port 1). @public */
+/** Result of a breadth-first search. @public */
 export interface BfsResult {
     /** Visit order, one entry per visited node; a subarray of length `visitedCount`. */
     readonly order: U32;

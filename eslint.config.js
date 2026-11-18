@@ -11,6 +11,7 @@ import globals from "globals";
 import tseslint from "typescript-eslint";
 
 import { MANTINE_REPLACEMENTS } from "./compact-mantine/eslint/mantine-replacements.js";
+import noSourceProgram from "./tools/eslint-rules/no-source-program.mjs";
 import noTestTiming from "./tools/eslint-rules/no-test-timing.mjs";
 import sonarWay, { sonarWayTypedOff } from "./tools/eslint-rules/sonar-way.mjs";
 
@@ -27,6 +28,8 @@ export default tseslint.config(
             "**/gh-pages/**",
             "**/tmp/**",
             "**/.worktrees/**",
+            // Built copies of each package that benchmarks/compare checks out and builds (gitignored).
+            "benchmarks/compare/builds/**",
             // Storybook configuration directories, not yet linted. graphty and compact-mantine keep
             // .storybook out of every tsconfig, so a type-aware pass reports "not found by the
             // project service" on each file; the other packages have a handful of real findings
@@ -380,6 +383,25 @@ export default tseslint.config(
         files: ["compact-mantine/**/*.ts", "compact-mantine/**/*.tsx"],
         rules: { "@typescript-eslint/no-restricted-imports": ["error", { paths: MANTINE_REPLACEMENTS }] },
     },
+    // The files that need Mantine's own SegmentedControl, Slider, RangeSlider and ScrollArea: the
+    // wrappers that replace them, the theme that styles them, the stories of the themed stock
+    // components, and the tests of that theme.
+    {
+        files: [
+            "compact-mantine/src/components/SegmentedControl.tsx",
+            "compact-mantine/src/components/Slider.tsx",
+            "compact-mantine/src/components/ScrollArea.tsx",
+            "compact-mantine/src/theme/**/*.ts",
+            "compact-mantine/stories/mantine/**/*.tsx",
+            "compact-mantine/tests/**/*.{ts,tsx}",
+        ],
+        rules: {
+            "@typescript-eslint/no-restricted-imports": [
+                "error",
+                { paths: MANTINE_REPLACEMENTS.filter((entry) => !entry.importNames.includes("ScrollArea")) },
+            ],
+        },
+    },
 
     // ============================================
     // ONE ZOD: IMPORT IT AS "zod"
@@ -454,6 +476,28 @@ export default tseslint.config(
             "jsdoc/check-tag-names": "off",
             "jsdoc/tag-lines": "off",
         },
+    },
+
+    // ============================================
+    // NOTHING AFTER A LOAD KNOWS WHICH PROGRAM WROTE THE FILE
+    // ============================================
+    // graph-io translates each program's look into generic style values and ordinary layers; graphty-element and
+    // the graphty app never read the program graph-io reports, import its per-program names or keep a trace of a
+    // layer's origin (owner, 2026-11-15; #8259). The rule and what it reports: tools/eslint-rules/no-source-program.mjs.
+    // Test code and the fidelity harnesses may name programs, so only source is checked. "src/**" is how
+    // graphty-element and graphty, linted with their own eslint.config.js, see their own files.
+    {
+        files: ["graphty-element/src/**/*.{ts,tsx}", "graphty/src/**/*.{ts,tsx}", "src/**/*.{ts,tsx}"],
+        ignores: ["**/*.test.{ts,tsx}", "**/*.spec.{ts,tsx}", "**/__tests__/**", "**/*.stories.{ts,tsx}"],
+        // Its own plugin name: graphty-element's config registers other rules as "local" on the same files.
+        plugins: { "source-blind": { rules: { "no-source-program": noSourceProgram } } },
+        rules: { "source-blind/no-source-program": "error" },
+    },
+    // Reading an older saved project rewrites the `file:` template earlier loads put on a layer into an
+    // ordinary one; nothing else may name that prefix.
+    {
+        files: ["graphty-element/src/session/projectFile.ts", "src/session/projectFile.ts"],
+        rules: { "source-blind/no-source-program": ["error", { filePrefix: false }] },
     },
 
     // ============================================
@@ -587,7 +631,8 @@ export default tseslint.config(
     // A package that adds its stories to its tsconfig should drop it the same way.
     {
         name: "stories/no-type-information",
-        files: ["**/*.stories.ts", "**/*.stories.tsx", "**/stories/**/*.ts"],
+        // compact-mantine's stories/ also holds a worked example a story imports (LabelSettingsPopout.tsx).
+        files: ["**/*.stories.ts", "**/*.stories.tsx", "**/stories/**/*.ts", "compact-mantine/stories/**/*.tsx"],
         languageOptions: {
             parserOptions: {
                 projectService: false,

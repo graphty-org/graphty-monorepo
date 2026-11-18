@@ -1,6 +1,6 @@
 /**
- * G1, the `grid-cell-key` kernel body (spec 7.7; P4-T8): the finest cell of every node from the state's robust extent,
- * `floor((p - gridMin) * invCellSize)` (a multiply, correctly rounded everywhere: PD-10), linearized when every axis
+ * G1, the `grid-cell-key` kernel body: the finest cell of every node from the state's robust extent,
+ * `floor((p - gridMin) * invCellSize)` (a multiply, correctly rounded everywhere), linearized when every axis
  * is in [0, G), and otherwise one of the 2^dim outside pseudo-cells `cells + orthant`, the orthant of the cell about the
  * grid center (bit a set when `c[a] >= G / 2`; issue #90); `cellVal[i] = i`. The clamp before the floor keeps a
  * far-away or NaN coordinate out of an out-of-range float-to-int conversion. Body only; normative text.
@@ -14,7 +14,7 @@ fn grid_cell_key(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocatio
     if (i >= P.n) { return; }                                      // no barrier follows
     let cells = grid_cells();
     let gf = f32(P.gridMax);
-    let q = (pos[i].xyz - S.gridMin.xyz) * S.invCellSize;          // PD-10: never a division
+    let q = (pos[i].xyz - S.gridMin.xyz) * S.invCellSize;          // never a division
     let c = vec3<i32>(floor(clamp(q, vec3f(-1.0), vec3f(gf + 1.0))));
     let g = i32(P.gridMax);
     var inside = c.x >= 0 && c.x < g && c.y >= 0 && c.y < g;

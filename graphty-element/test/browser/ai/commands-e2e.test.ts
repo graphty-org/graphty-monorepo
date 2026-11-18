@@ -619,7 +619,7 @@ describe("AI Commands End-to-End", () => {
 
             assert.strictEqual(result.success, false);
             assert.strictEqual(result.code, "AI_TOOL_FAILED");
-            assert.deepInclude(result.params, { tool: "runAlgorithm", cause: "E_OPTION_RANGE" });
+            assert.deepInclude(result.params, { tool: "runAlgorithm", cause: "AI_ARG_OUT_OF_RANGE" });
             assert.include(result.message, "dampingFactor");
         });
     });

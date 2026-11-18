@@ -22,6 +22,7 @@ import {
 import { Graph } from "../../index.js";
 import { setDefaultFeatures } from "../../src/features/resolve";
 import { operationQueueOf } from "../../src/Graph";
+import { LocationMapLayout } from "../../src/layout/LocationMapLayoutEngine";
 import type { Node } from "../../src/Node";
 import type { ElementSession } from "../../src/session/types";
 
@@ -529,8 +530,9 @@ describe("a location map over the working graph", () => {
             await graph.setLayout("location-map", { extent: "data" });
             await graph.waitForSettled();
             await graph.waitForStableFrame();
-            type MapEngine = { geoFrame: { bounds: [[number, number], [number, number]] } | null };
-            const framed = (graph.getLayoutManager().layoutEngine as unknown as MapEngine).geoFrame?.bounds;
+            const engine = graph.getLayoutManager().layoutEngine;
+            assert.instanceOf(engine, LocationMapLayout);
+            const framed = engine.geoFrame?.bounds;
             assert.isDefined(framed);
             const lats = framed.map(([lat]) => lat);
             assert.isAbove(Math.min(...lats), 0, "the map holds the shown European cities, not Australia");
@@ -540,7 +542,9 @@ describe("a location map over the working graph", () => {
             await session.undo();
             await graph.waitForSettled();
             await graph.waitForStableFrame();
-            const back = (graph.getLayoutManager().layoutEngine as unknown as MapEngine).geoFrame?.bounds;
+            const undone = graph.getLayoutManager().layoutEngine;
+            assert.instanceOf(undone, LocationMapLayout);
+            const back = undone.geoFrame?.bounds;
             assert.deepEqual(back, framed, "the undone map frames what is shown, as the run did");
         } finally {
             graph.dispose();
@@ -575,9 +579,6 @@ describe("a third party's engine over the working graph", () => {
 });
 
 describe("the time window and the working graph", () => {
-    beforeEach(() => {
-        setDefaultFeatures(["timeline"]);
-    });
     afterEach(() => {
         setDefaultFeatures([]);
     });
@@ -597,7 +598,12 @@ describe("the time window and the working graph", () => {
             await session.time.window({ from: 0, to: 5 });
             await graph.waitForSettled();
             // The time window is not part of the working graph (owner rule 2026-11-12).
-            assert.isTrue(session.visibility.ghosting, "the nodes outside the window are drawn as ghosts");
+            const outside = session.visibility.outsideWindowBytes()?.node ?? new Uint8Array();
+            assert.isAbove(
+                outside.reduce((sum, byte) => sum + byte, 0),
+                0,
+                "the nodes outside the window are in the state the ghost layer draws",
+            );
             assert.deepEqual(positionsOf(graph), before, "no node moved for the window");
         } finally {
             graph.dispose();

@@ -54,7 +54,7 @@ import {
 } from "./graphs.js";
 import { flooredRelError, maxRelError } from "./matchers.js";
 import { layoutMetrics } from "./metrics.js";
-import { noiseFloorFor } from "./noise-floor.js";
+import { resolveTolerance } from "./noise-floor.js";
 
 // ---------------------------------------------------------------- constants
 
@@ -73,9 +73,6 @@ export const TWIN_SUFFIX = "-no-subgroups";
 /** The seed of every seeded case. */
 const PARITY_SEED = 7;
 const RANDOM_GRAPH_SEED = 1234;
-// `process` is absent in the browser project, which bundles this module for the browser noise-fixture writers
-/** True in a recording run: every parity test is then held to the spec cap, not to the derived value (PLAN DECISION 4). */
-const WRITE = typeof process !== "undefined" && process.env.GRAPHTY_NOISE_FLOOR_WRITE === "1";
 
 /** The options every parity case starts from: layout units = scene units, seeded, settling disabled (settleThreshold 0 -> K1 never increments settledCount unless every node is fixed). */
 export const BASE_OPTIONS: ForceAtlas2Options = Object.freeze({
@@ -647,20 +644,13 @@ export const P3_TOLERANCE_CAPS: Readonly<Record<string, { readonly cap: number; 
     });
 
 /**
- * The tolerance a parity test uses: the derived value of benchmarks/results/noise-floor.json (noiseFloorFor), or the
- * spec cap during a recording run (GRAPHTY_NOISE_FLOOR_WRITE=1), when the derived values do not exist yet.
+ * The tolerance a parity test uses: resolveTolerance over P3_TOLERANCE_CAPS (the derived value, checked against its
+ * basis row and spec cap, or the cap itself in a recording run: PLAN DECISION 4).
  * @param id - a P3 tolerance id
  * @returns the tolerance
  */
 export function toleranceOf(id: string): number {
-    if (WRITE) {
-        if (!(id in P3_TOLERANCE_CAPS)) {
-            throw new Error(`${id}: not a P3 tolerance id`);
-        }
-        const spec = P3_TOLERANCE_CAPS[id];
-        return spec.cap;
-    }
-    return noiseFloorFor(id).value;
+    return resolveTolerance(P3_TOLERANCE_CAPS, id, "P3").value;
 }
 
 // ---------------------------------------------------------------- the stage capture (spec 11.9 item 2)
@@ -854,9 +844,9 @@ export function resyncOracleClass(oracleClass: string, adapterClass: string): st
     return `${oracleClass}/${adapterClass}`;
 }
 
-/** One stage of a capture. @public the value type of StageCapture */
-export interface StageResult {
-    readonly key: StageKey;
+/** One stage of a capture (FA2's, or the FR / spring captures' with their own key type). @public the value type of StageCapture */
+export interface StageResult<K extends string = StageKey> {
+    readonly key: K;
     /** Vector stages are compared per node with the floored stride-3 metric, scalar stages elementwise (PLAN DECISION 11). */
     readonly vector: boolean;
     /** This adapter's raw output (f32 values widened). */
@@ -892,12 +882,20 @@ export function stageError(
     return { rel: maxRelError(a, b, SCALAR_ABS_FLOOR), abs: maxAbsDiff(a, b) };
 }
 
-function stageResult(
-    key: StageKey,
+/**
+ * One stage's comparison: both outputs widened to f64 and their stageError.
+ * @param key - the stage
+ * @param vector - whether the values are stride-3 per-node vectors
+ * @param values - this adapter's raw output
+ * @param expected - the oracle's expectation in the same layout
+ * @returns the stage result
+ */
+export function stageResult<K extends string>(
+    key: K,
     vector: boolean,
     values: ArrayLike<number>,
     expected: ArrayLike<number>,
-): StageResult {
+): StageResult<K> {
     const v = Float64Array.from(values);
     const e = Float64Array.from(expected);
     const err = stageError(vector, v, e);
@@ -1023,19 +1021,7 @@ export async function captureAllStages(
         throw new Error("free count mismatch");
     }
 
-    const run = <T>(upTo: string, afterFirstStep: boolean, read: (st: StageIo) => Promise<T>): Promise<T> =>
-        withSim(ctx, options, tuning, async (sim) => {
-            sim.load(s, Float32Array.from(start));
-            if (mask !== null) {
-                sim.setFixed(mask);
-            }
-            if (afterFirstStep) {
-                await sim.step(1);
-            }
-            const st = debugStages(sim);
-            await st.run(upTo);
-            return read(st);
-        });
+    const run = stageRunner((body) => withSim(ctx, options, tuning, body), debugStages, s, start, mask);
 
     const attraction = await run("K2", false, async (st) => asF32(await st.read("force")));
     const k3 = await run("K3", false, async (st) => ({
@@ -1067,42 +1053,32 @@ export async function captureAllStages(
             [record0.speed, record0.speedEfficiency, record0.swing, record0.traction],
         ),
         positions: stageResult("positions", true, k5.positions, after),
-        partials: stageResult(
-            "partials",
-            false,
-            [
-                p.sum[0],
-                p.sum[1],
-                p.sum[2],
-                p.sum[3],
-                p.min[0],
-                p.min[1],
-                p.min[2],
-                p.max[0],
-                p.max[1],
-                p.max[2],
-                p.maxW,
-                p.disp,
-                p.free,
-            ],
-            [sum[0], sum[1], sum[2], sumSq, lo[0], lo[1], lo[2], hi[0], hi[1], hi[2], maxW, disp, free],
-        ),
+        partials: stageResult("partials", false, partialsValues(p), [
+            sum[0],
+            sum[1],
+            sum[2],
+            sumSq,
+            lo[0],
+            lo[1],
+            lo[2],
+            hi[0],
+            hi[1],
+            hi[2],
+            maxW,
+            disp,
+            free,
+        ]),
         scene: stageResult("scene", true, scene, oracleRun.positions),
-        k1: stageResult(
-            "k1",
-            false,
-            [
-                state1.centroid[0],
-                state1.centroid[1],
-                state1.centroid[2],
-                state1.rmsRadius,
-                state1.radius,
-                state1.meanDisplacement,
-                state1.settledCount,
-                state1.iteration,
-            ],
-            [sum[0] / n, sum[1] / n, sum[2] / n, rms, radius, meanDisp, settled, 2],
-        ),
+        k1: stageResult("k1", false, foldValues(state1), [
+            sum[0] / n,
+            sum[1] / n,
+            sum[2] / n,
+            rms,
+            radius,
+            meanDisp,
+            settled,
+            2,
+        ]),
     };
 }
 
@@ -1113,12 +1089,85 @@ export async function captureAllStages(
  * @returns the report (worst = error / tolerance)
  */
 export function stageReport(capture: StageCapture, key: StageKey): CheckReport {
-    const r = capture[key];
-    return {
-        worst: ratioOf(r.error, toleranceOf(STAGE_TOLERANCE[key])),
-        worstLabel: `${key} (${STAGE_UP_TO[key]})`,
-        samples: r.values.length,
-    };
+    return stageCheck(capture[key], toleranceOf(STAGE_TOLERANCE[key]), STAGE_UP_TO[key]);
+}
+
+/**
+ * The check report of one stage result against a tolerance (the CheckReport shape of sabotage.ts).
+ * @param r - the stage result
+ * @param tolerance - its traced tolerance
+ * @param upTo - the debugRunStages stage it ran up to, for the label
+ * @returns the report (worst = error / tolerance)
+ */
+export function stageCheck(r: StageResult<string>, tolerance: number, upTo: string): CheckReport {
+    return { worst: ratioOf(r.error, tolerance), worstLabel: `${r.key} (${upTo})`, samples: r.values.length };
+}
+
+/** What stageRunner needs of a layout simulation. */
+interface StagedSim {
+    load(snapshot: GraphSnapshot, positions: F32): void;
+    setFixed(mask: NodeMask): void;
+    step(iterations?: number): Promise<void>;
+}
+
+/** Runs one stage capture on a FRESH simulation (no stage sees another's debug run) and reads its outputs. */
+export type StageRun = <T>(upTo: string, afterFirstStep: boolean, read: (st: StageIo) => Promise<T>) => Promise<T>;
+
+/**
+ * The stage runner of a capture: every call builds a fresh simulation, loads `start` (and `mask`), optionally takes
+ * one real step(1), runs debugRunStages up to `upTo` and hands the inspect pair to `read`.
+ * @param withSim - builds a simulation, runs the body and disposes it
+ * @param stagesOf - the inspect / debugRunStages pair of a simulation
+ * @param s - the snapshot
+ * @param start - the scene start
+ * @param mask - the fixed mask or null
+ * @returns the runner
+ */
+export function stageRunner<S extends StagedSim>(
+    withSim: <T>(body: (sim: S) => Promise<T>) => Promise<T>,
+    stagesOf: (sim: S) => StageIo,
+    s: GraphSnapshot,
+    start: F32,
+    mask: NodeMask | null,
+): StageRun {
+    return <T>(upTo: string, afterFirstStep: boolean, read: (st: StageIo) => Promise<T>): Promise<T> =>
+        withSim(async (sim) => {
+            sim.load(s, Float32Array.from(start));
+            if (mask !== null) {
+                sim.setFixed(mask);
+            }
+            if (afterFirstStep) {
+                await sim.step(1);
+            }
+            const st = stagesOf(sim);
+            await st.run(upTo);
+            return read(st);
+        });
+}
+
+/**
+ * The thirteen values of folded partials A / C every model's "partials" stage compares, in the oracle's order.
+ * @param p - a readPartials fold
+ * @returns sum xyzw, min xyz, max xyz, maxW, disp, free
+ */
+export function partialsValues(p: PartialsSum): number[] {
+    return [p.sum[0], p.sum[1], p.sum[2], p.sum[3], ...p.min, ...p.max, p.maxW, p.disp, p.free];
+}
+
+/**
+ * The eight K1 fold values every model's "k1" stage compares.
+ * @param state - a readState header
+ * @returns centroid xyz, rmsRadius, radius, meanDisplacement, settledCount, iteration
+ */
+export function foldValues(state: StateFields): number[] {
+    return [
+        ...state.centroid,
+        state.rmsRadius,
+        state.radius,
+        state.meanDisplacement,
+        state.settledCount,
+        state.iteration,
+    ];
 }
 
 // ---------------------------------------------------------------- the trace (spec 11.4 trace parity)

@@ -1,18 +1,18 @@
 /**
- * Weakly connected components on the device (spec 8.3, 3.3): Afforest from GAP's cc.cc, step for step. `comp[v] = v`
+ * Weakly connected components on the device: Afforest from GAP's cc.cc, step for step. `comp[v] = v`
  * by `fill` mode 1; two sampled link rounds over the r-th out-neighbor of every row plus a compress (one batch, no
- * readback); a 1,024-vertex label sample the host takes the mode of, which is the giant component (PD-12); then
+ * readback); a 1,024-vertex label sample the host takes the mode of, which is the giant component; then
  * each-edge-once link rounds over `edgeList()` -- correct for directed and undirected input alike, which is what
  * makes the partition the WEAK one -- in batches of four `link + compress` pairs, ONE readback of the changed flag per
  * batch, until the flag stays 0; a final compress; readback; `renumberPartition` on the host in first-seen order so
- * the labels are IDENTICAL to the CPU's (spec 9.7), or the raw roots when `renumber: false`.
+ * the labels are IDENTICAL to the CPU's, or the raw roots when `renumber: false`.
  *
- * PLAN DECISION PD-4: the changed flag is the word at `comp[n]`, so the link kernels bind three buffers (design 8.10).
- * PLAN DECISION PD-11: `E_PARTITION` is NOT a pass-through. The kernels only ever store a value read out of `comp`,
+ * The changed flag is the word at `comp[n]`, so the link kernels bind three buffers.
+ * `E_PARTITION` is NOT a pass-through. The kernels only ever store a value read out of `comp`,
  * which `fill` seeded with `v < n`, so no label can be `INVALID_INDEX`; the host verifies every label is `< n` before
  * `renumberPartition` sees it and raises `E_VALIDATION { label: "connectedComponents/labels" }` if that ever fails --
  * it would mean a GPU bug, which no caller could act on as `E_PARTITION`.
- * DEP-M8B-C: no `dedupe` primitive; Afforest's link is idempotent, so a repeated edge is a no-op.
+ * There is no `dedupe` primitive here: Afforest's link is idempotent, so a repeated edge is a no-op.
  */
 
 import { type GraphSnapshot, renumberPartition, type U32 } from "@graphty/graph-format";
@@ -32,13 +32,13 @@ import { type GpuRunOptions } from "../types/run.js";
 import { algorithmScope } from "./scope.js";
 
 const ALGORITHM = "connectedComponents";
-/** Link rounds between two reads of the changed flag (design 8.3: "checked every 4 rounds"). */
+/** Link rounds between two reads of the changed flag (Afforest checks it every 4 rounds). */
 const ROUNDS_PER_BATCH = 4;
 /** The edge-round cap; the flag not settling by then is a hard error, never a fallback. */
 const MAX_WCC_ROUNDS = 64;
-/** The sampled vertices the giant component is found from (design 8.3). */
+/** The sampled vertices the giant component is found from. */
 const SAMPLE_SIZE = 1024;
-/** The bound of a CAS retry loop and of a compress walk (PD-5). */
+/** The bound of a CAS retry loop and of a compress walk. */
 const MAX_STEPS = 1024;
 /** Params slots of the largest batch: four link + four compress blocks; the setup batch uses fill + 2 links + compress. */
 const RING_SLOTS = 2 * ROUNDS_PER_BATCH;
@@ -68,8 +68,8 @@ function checkDest(dest: Float32Array | Uint32Array | undefined, n: number): U32
 }
 
 /**
- * The resident core; a windowed plan is refused with `E_TOO_LARGE { path: "windowed", algorithm }` (spec 3.8, 3.12;
- * DEP-P4-B: only degree and segmentedReduce execute windows).
+ * The resident core; a windowed plan is refused with `E_TOO_LARGE { path: "windowed", algorithm }` (only degree and
+ * segmentedReduce execute windows).
  * @param ctx - the context
  * @param s - the snapshot
  * @returns the core binding
@@ -131,7 +131,7 @@ export function labelResult(labels: U32, count: number): GpuLabelResult {
 }
 
 /**
- * The mode of the sampled labels (GAP's SampleFrequentElement, counted on the host; PD-12).
+ * The mode of the sampled labels (GAP's SampleFrequentElement, counted on the host).
  * @param sample - the sampled labels
  * @returns the most frequent label
  */
@@ -151,7 +151,7 @@ function modeOf(sample: Uint32Array): number {
 }
 
 /**
- * Verifies every label is a node index (so `renumberPartition` can never see `INVALID_INDEX`, PD-11) and counts the
+ * Verifies every label is a node index (so `renumberPartition` can never see `INVALID_INDEX`) and counts the
  * distinct roots.
  * @param raw - the labels the device produced
  * @returns the number of distinct labels
@@ -227,7 +227,7 @@ function roundsSettled(
 }
 
 /**
- * Weakly connected components on the device (spec 3.3, 8.3): Afforest over the resident core and the edge list;
+ * Weakly connected components on the device: Afforest over the resident core and the edge list;
  * labels dense in first-seen order (`renumber: true`, the default) or the raw roots (`renumber: false`).
  * @param ctx - the context whose device runs the kernels
  * @param s - the snapshot (uploaded through ctx.residency, or found there)

@@ -519,7 +519,7 @@ function typeNameOf(node: JsonSchemaNode): string {
         return type;
     }
 
-    if (Array.isArray(type) && type.length > 0) {
+    if (type !== undefined && type.length > 0) {
         return type[0];
     }
 

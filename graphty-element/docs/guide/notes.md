@@ -81,6 +81,7 @@ interface Note {
     readonly cites?: readonly NoteCite[]; // results the claim rests on
     readonly extensions?: Readonly<Record<string, unknown>>; // other applications' data
     readonly done?: string; // when it was marked done; stamped by the element
+    readonly tags?: readonly string[]; // words the note is filed under
 }
 ```
 
@@ -97,12 +98,14 @@ session.notes.list({ cites: run.id }); // citing a result, whichever run
 session.notes.list({ author: "Ada" });
 session.notes.list({ missing: true }); // with a target the graph no longer holds
 session.notes.list({ done: false }); // not marked done; true for only the done ones
+session.notes.list({ tag: "lead" }); // carrying this tag
 ```
 
 `session.notes.counts()` says how many notes there are, and how many nodes and edges have at least
-one. `session.notes.authors()` lists the distinct authors.
+one. `session.notes.authors()` lists the distinct authors, and `session.notes.tags()` the distinct
+tags, each in the order of its first note.
 
-`extensions` is for data an application keeps about a note -- tags, a color -- under
+`extensions` is for data an application keeps about a note -- a color, say -- under
 a reverse-domain key it owns (`"com.example.casebook"`). The element keeps it and writes it back;
 it never reads it. The value must be plain JSON: objects, arrays, strings, finite numbers,
 booleans and `null`, at most 32 levels deep and 64 KB once saved.
@@ -162,23 +165,24 @@ try {
 }
 ```
 
-| Code            | `details.reason`   | When                                                                              |
-| --------------- | ------------------ | --------------------------------------------------------------------------------- |
-| `E_BAD_COMMAND` | `"empty-text"`     | `text` is empty or only white space                                               |
-| `E_BAD_COMMAND` | `"text-too-long"`  | `text` is longer than 65,536 characters (code points)                             |
-| `E_BAD_COMMAND` | `"no-targets"`     | `targets` is empty                                                                |
-| `E_BAD_COMMAND` | `"too-many"`       | more than 64 targets or 64 cites (`details.field`)                                |
-| `E_BAD_COMMAND` | `"bad-target"`     | a target is malformed, or names an edge id the graph does not hold                |
-| `E_BAD_COMMAND` | `"unknown-target"` | a set, result or item names an id the session does not hold                       |
-| `E_BAD_COMMAND` | `"unknown-cite"`   | a cite names a result the session does not hold                                   |
-| `E_BAD_COMMAND` | `"not-finished"`   | a cite, or an item without `run`, names a result with no finished run             |
-| `E_BAD_COMMAND` | `"bad-media-type"` | `mediaType` is not `type/subtype` with optional parameters, or is too long        |
-| `E_BAD_COMMAND` | `"bad-extensions"` | `extensions` is not plain JSON, or a key is not a reverse-domain name             |
-| `E_BAD_COMMAND` | `"element-field"`  | the input carries `id`, `time`, `author` or `edited`, which the element stamps    |
-| `E_BAD_COMMAND` | `"bad-done"`       | `update`'s `done` is not `true` or `false`                                        |
-| `E_BAD_COMMAND` | `"unknown-id"`     | `update`, `remove`, `status` or `select({ note })` names a note that is not there |
-| `E_TOO_LARGE`   | `"notes"`          | the session would hold more than 10,000 notes                                     |
-| `E_TOO_LARGE`   | `"note-size"`      | the note, saved as JSON, would be larger than 256 KB                              |
+| Code            | `details.reason`   | When                                                                               |
+| --------------- | ------------------ | ---------------------------------------------------------------------------------- |
+| `E_BAD_COMMAND` | `"empty-text"`     | `text` is empty or only white space                                                |
+| `E_BAD_COMMAND` | `"text-too-long"`  | `text` is longer than 65,536 characters (code points)                              |
+| `E_BAD_COMMAND` | `"no-targets"`     | `targets` is empty                                                                 |
+| `E_BAD_COMMAND` | `"too-many"`       | more than 64 targets, 64 cites or 64 tags (`details.field`)                        |
+| `E_BAD_COMMAND` | `"bad-target"`     | a target is malformed, or names an edge id the graph does not hold                 |
+| `E_BAD_COMMAND` | `"unknown-target"` | a set, result or item names an id the session does not hold                        |
+| `E_BAD_COMMAND` | `"unknown-cite"`   | a cite names a result the session does not hold                                    |
+| `E_BAD_COMMAND` | `"not-finished"`   | a cite, or an item without `run`, names a result with no finished run              |
+| `E_BAD_COMMAND` | `"bad-media-type"` | `mediaType` is not `type/subtype` with optional parameters, or is too long         |
+| `E_BAD_COMMAND` | `"bad-extensions"` | `extensions` is not plain JSON, or a key is not a reverse-domain name              |
+| `E_BAD_COMMAND` | `"element-field"`  | the input carries `id`, `time`, `author` or `edited`, which the element stamps     |
+| `E_BAD_COMMAND` | `"bad-done"`       | `update`'s `done` is not `true` or `false`                                         |
+| `E_BAD_COMMAND` | `"bad-tags"`       | `tags` is not a list of strings, each 1 to 256 characters and not only white space |
+| `E_BAD_COMMAND` | `"unknown-id"`     | `update`, `remove`, `status` or `select({ note })` names a note that is not there  |
+| `E_TOO_LARGE`   | `"notes"`          | the session would hold more than 10,000 notes                                      |
+| `E_TOO_LARGE`   | `"note-size"`      | the note, saved as JSON, would be larger than 256 KB                               |
 
 `details.reason` is an open union: a later release may add reasons. A node or edge the graph does
 not hold is accepted (it reads `missing`); a set, result or run id is checked, because a mistyped
@@ -208,6 +212,18 @@ A note is not done until it is marked, and `add` does not take `done`. Marking i
 edit: one undoable step, labeled "Edited note", that stamps `edited` and is told by `note:changed`
 with `"done"` in `fields`. Marking a done note done again changes nothing and keeps the time it
 was first marked.
+
+### Tags
+
+```typescript
+const id = session.notes.add({ text: "Same address", targets: [{ node: "ada" }], tags: ["lead"] });
+session.notes.update(id, { tags: ["lead", "checked"] }); // replaces the tags
+session.notes.update(id, { tags: [] }); // clears them; null does too
+session.notes.tags(); // ["lead", "checked", ...]: every tag in use, to offer in a picker
+```
+
+A repeated tag is kept once. Changing the tags is an ordinary edit, told by `note:changed` with
+`"tags"` in `fields`.
 
 ## The author
 

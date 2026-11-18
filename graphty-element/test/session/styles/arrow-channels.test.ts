@@ -17,70 +17,17 @@
 
 import { assert, describe, it } from "vitest";
 
-import type { LayerSpec, Path } from "../../../src/catalog/types";
+import type { LayerSpec } from "../../../src/catalog/types";
 import { defaultEdgeStyle, EdgeStyle } from "../../../src/config";
-import { StylePainter } from "../../../src/managers/StylePainter";
 import { CHANNEL_DESCRIPTORS, COLOR_CHANNELS, isChannel } from "../../../src/session/styles/channels";
-import { createStylesApi, type RepaintContext, type SessionStylesApi } from "../../../src/session/styles/index";
 import { channelRole } from "../../../src/session/styles/intern";
-import type { SelectorSource } from "../../../src/session/styles/predicate";
-import { createLayerRepaint, type RepaintEngine } from "../../../src/session/styles/repaint";
-
-/** One element's columns, keyed by the path a selector or a binding names. */
-type Row = Readonly<Record<Path, unknown>>;
+import { painterHarness, type Row } from "../helpers";
 
 /** Two nodes and the one edge between them: the smallest graph with an arrow in it. */
 const NODES: readonly Row[] = [{ "data.id": "A" }, { "data.id": "B" }];
 
 /** Three edges carrying a weight, so an arrow size has something to ramp over. */
 const EDGES: readonly Row[] = [{ "data.weight": 1 }, { "data.weight": 2 }, { "data.weight": 3 }];
-
-/** What a test drives: the stack, the engine behind it, and the painter over both. */
-interface Harness {
-    /** The stack to edit. */
-    readonly styles: SessionStylesApi;
-    /** The engine the painter reads. */
-    readonly engine: RepaintEngine;
-    /** The painter under test. */
-    readonly painter: StylePainter;
-    /** Paint every element from the whole stack, as a first draw does. */
-    paintAll(): Promise<void>;
-}
-
-/** A context that never cancels and reports to nobody. */
-function quietContext(): RepaintContext {
-    return { signal: new AbortController().signal, report: () => undefined };
-}
-
-/**
- * Build a stack, an engine and a painter over two nodes and three edges.
- * @returns The harness.
- */
-function harness(): Harness {
-    const elements: SelectorSource = {
-        nodeValue: (index, path) => NODES[index]?.[path],
-        edgeValue: (index, path) => EDGES[index]?.[path],
-    };
-    const engine = createLayerRepaint({
-        nodeCount: () => NODES.length,
-        edgeCount: () => EDGES.length,
-        elements,
-        measured: () => undefined,
-    });
-    const styles = createStylesApi({ elements, base: [], repaint: engine.repaint });
-    const painter = new StylePainter();
-    painter.bind(engine);
-
-    return {
-        styles,
-        engine,
-        painter,
-        paintAll: async (): Promise<void> => {
-            await engine.repaintAll(styles.compiled(), quietContext());
-            painter.markPainted();
-        },
-    };
-}
 
 /**
  * Paint every edge with one layer and read the style the first one is drawn from.
@@ -90,7 +37,7 @@ function harness(): Harness {
 async function edgePaintedWith(
     set: LayerSpec["set"],
 ): Promise<{ style: ReturnType<typeof EdgeStyle.parse>; meshKey: string }> {
-    const held = harness();
+    const held = painterHarness(NODES, EDGES);
 
     await held.styles.add({ name: "arrows", target: "edge", selector: { match: "everything" }, set });
     await held.paintAll();
@@ -198,7 +145,7 @@ describe("what a layer that writes them paints", () => {
     });
 
     it("draws two arrow sizes from two source meshes, so a repaint really rebuilds the cap", async () => {
-        const held = harness();
+        const held = painterHarness(NODES, EDGES);
 
         await held.styles.add({
             name: "big arrows on heavy edges",
@@ -215,7 +162,7 @@ describe("what a layer that writes them paints", () => {
     });
 
     it("draws two head colours from two source meshes, so a colour edit really rebuilds the cap", async () => {
-        const held = harness();
+        const held = painterHarness(NODES, EDGES);
 
         // The CAP ITSELF IS THE SAME on every edge -- same type, same size, same end -- so the
         // only thing the two keys below can disagree about is the color. A test that switched
@@ -252,7 +199,7 @@ describe("what a layer that writes them paints", () => {
     });
 
     it("keys the tail's colour too, at the other end of the same line", async () => {
-        const held = harness();
+        const held = painterHarness(NODES, EDGES);
 
         await held.styles.add({
             name: "red tails everywhere",
@@ -273,7 +220,7 @@ describe("what a layer that writes them paints", () => {
     });
 
     it("tells two colours apart by every component, so a red and a green are not one key", async () => {
-        const held = harness();
+        const held = painterHarness(NODES, EDGES);
 
         await held.styles.add({
             name: "opaque red heads everywhere",
@@ -297,7 +244,7 @@ describe("what a layer that writes them paints", () => {
     });
 
     it("takes a size bound to a value in the data, which is what an encoding needs a scalar for", async () => {
-        const held = harness();
+        const held = painterHarness(NODES, EDGES);
 
         await held.styles.add({
             name: "arrow size by weight",

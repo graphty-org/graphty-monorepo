@@ -69,7 +69,10 @@ export type UiGlyphName =
     | "component"
     | "group"
     | "upload"
-    | "folder";
+    | "folder"
+    | "file"
+    | "fileUpload"
+    | "folderUpload";
 
 /**
  * Every glyph name in the closed field register, in register order.
@@ -140,6 +143,9 @@ export const UI_GLYPH_NAMES: readonly UiGlyphName[] = [
     "group",
     "upload",
     "folder",
+    "file",
+    "fileUpload",
+    "folderUpload",
 ];
 
 /**
@@ -504,6 +510,30 @@ const UI_GLYPH_SHAPES: Record<UiGlyphName, React.JSX.Element> = {
     // Lucide's Folder, drawn on this set's 16-unit grid.
     folder: (
         <path d="M13 13a1.33 1.33 0 0 0 1.33-1.33V5.33A1.33 1.33 0 0 0 13 4H7.73a1.33 1.33 0 0 1-1.13-.6l-.53-.8A1.33 1.33 0 0 0 4.95 2H2.67a1.33 1.33 0 0 0-1.34 1.33V11.67A1.33 1.33 0 0 0 2.67 13Z" />
+    ),
+    // Lucide's File, a page with its corner folded, drawn on this set's 16-unit grid.
+    file: (
+        <>
+            <path d="M10 1.33H4a1.33 1.33 0 0 0-1.33 1.33v10.67A1.33 1.33 0 0 0 4 14.67h8a1.33 1.33 0 0 0 1.33-1.33V4.67Z" />
+            <path d="M9.33 1.33V4a1.33 1.33 0 0 0 1.33 1.33h2.67" />
+        </>
+    ),
+    // Lucide's FileUp: the same page with an arrow rising in it, a file taken from this device.
+    fileUpload: (
+        <>
+            <path d="M10 1.33H4a1.33 1.33 0 0 0-1.33 1.33v10.67A1.33 1.33 0 0 0 4 14.67h8a1.33 1.33 0 0 0 1.33-1.33V4.67Z" />
+            <path d="M9.33 1.33V4a1.33 1.33 0 0 0 1.33 1.33h2.67" />
+            <path d="M8 12V8" />
+            <polyline points="6,10 8,8 10,10" />
+        </>
+    ),
+    // Lucide's FolderUp: the folder with an arrow rising in it, a folder taken from this device.
+    folderUpload: (
+        <>
+            <path d="M13 13a1.33 1.33 0 0 0 1.33-1.33V5.33A1.33 1.33 0 0 0 13 4H7.73a1.33 1.33 0 0 1-1.13-.6l-.53-.8A1.33 1.33 0 0 0 4.95 2H2.67a1.33 1.33 0 0 0-1.34 1.33V11.67A1.33 1.33 0 0 0 2.67 13Z" />
+            <path d="M8 10.67V6.67" />
+            <polyline points="6,8.67 8,6.67 10,8.67" />
+        </>
     ),
 };
 

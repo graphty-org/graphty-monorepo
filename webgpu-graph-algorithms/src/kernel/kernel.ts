@@ -1,9 +1,9 @@
 /**
- * Kernel (spec 5.1; contract 3.9): a compiled pipeline bound to the binding list of its spec. `bind()` creates the
+ * Kernel: a compiled pipeline bound to the binding list of its spec. `bind()` creates the
  * bind groups from a `Record<name, Binding>` keyed by the declared names and caches them by the identity of the
  * buffers, offsets and sizes (a layout's bind groups are created once per load(), not per iteration); `dispatch()`
- * records setPipeline / setBindGroup / dispatchWorkgroups and skips an empty plan (spec 5.6); `dispatchIndirect()`
- * (P4, spec 5.4) records the same prefix and a dispatchWorkgroupsIndirect over one 16-byte slot of an args buffer.
+ * records setPipeline / setBindGroup / dispatchWorkgroups and skips an empty plan; `dispatchIndirect()`
+ * records the same prefix and a dispatchWorkgroupsIndirect over one 16-byte slot of an args buffer.
  */
 
 import { STORAGE_ALIGN } from "../constants.js";
@@ -14,7 +14,7 @@ import { type BindingDecl, type ComposedModule, type WgslModuleSpec } from "./wg
 
 /** The resources of one bind(): one Binding per BindingDecl name; a uniform decl takes the ring's whole-buffer binding (the slot is chosen by the dynamic offset at dispatch). */
 export type KernelBindings = Readonly<Record<string, Binding>>;
-/** A kernel with its bind groups created (spec 5.1: cached per set of buffers and offsets). */
+/** A kernel with its bind groups created (cached per set of buffers and offsets). */
 export interface BoundKernel {
     readonly kernel: Kernel;
     readonly bindGroups: readonly GPUBindGroup[];
@@ -22,7 +22,7 @@ export interface BoundKernel {
     readonly dynamicGroups: readonly number[];
 }
 
-/** Bytes of one indirect args slot: (x, y, 1, count) as four u32 (spec 5.4; P4 PD-2). */
+/** Bytes of one indirect args slot: (x, y, 1, count) as four u32. */
 export const INDIRECT_ARGS_STRIDE = 16;
 
 /**
@@ -88,7 +88,7 @@ function assertBindingRange(id: string, decl: BindingDecl, binding: Binding): vo
         throw new WebGpuGraphError("E_INVALID_ARGUMENT", `${id}: binding "${decl.name}" has offset ${binding.offset}`, {
             argument: decl.name,
             value: binding.offset,
-            expected: `a multiple of ${STORAGE_ALIGN} (spec 2.6: the offset alignment the package always honours)`,
+            expected: `a multiple of ${STORAGE_ALIGN} (the offset alignment the package always honors)`,
         });
     }
 }
@@ -181,7 +181,7 @@ function assertNoAliasing(id: string, resolved: readonly ResolvedBinding[]): voi
     }
 }
 
-/** A compiled pipeline plus the binding list of its spec (spec 5.1). */
+/** A compiled pipeline plus the binding list of its spec. */
 export class Kernel {
     /** The module spec the pipeline was compiled from (its bindings drive bind()). */
     readonly spec: WgslModuleSpec;
@@ -237,18 +237,18 @@ export class Kernel {
      * Creates (or reuses, keyed by every buffer identity + offset + size) the bind groups, each labeled
      * `<spec.id>/<group>`; a missing or extra name is E_INVALID_ARGUMENT; two bindings of one call whose ranges
      * intersect on one buffer while either slot is `storage` (read_write) is E_INVALID_ARGUMENT
-     * { argument: "aliasing" } (the host-side mirror of WebGPU's writable buffer-binding-aliasing rule, 3.10.1, so
-     * the failure is synchronous and labeled). CONTRACT DECISION: bind() is synchronous, so a createBindGroup
+     * { argument: "aliasing" } (the host-side mirror of WebGPU's writable buffer-binding-aliasing rule, so
+     * the failure is synchronous and labeled). Because bind() is synchronous, a createBindGroup
      * validation error (a wrong-size uniform binding, a usage mismatch) is NOT thrown here -- it reaches the
      * pending-error slot as E_VALIDATION { label: "<spec.id>/<group>" } and is thrown by the batch's readback
-     * (Dawn-node) or the next assertReady() (browser), spec 5.7. An empty bind group is created for every empty
+     * (Dawn-node) or the next assertReady() (browser). An empty bind group is created for every empty
      * layout index so setBindGroup is called for 0..maxGroup.
-     * PLAN DECISION (verified on Dawn 0.4.0 / lavapipe): one buffer bound with two DIFFERENT access modes when one is
+     * Verified on Dawn 0.4.0 / lavapipe: one buffer bound with two DIFFERENT access modes when one is
      * `storage` is also E_INVALID_ARGUMENT { argument: "aliasing", reason: "usage" } even with disjoint ranges, because
      * WebGPU's usage-scope rule rejects "writable usage and another usage in the same synchronization scope" per
      * BUFFER; two `storage` slots with disjoint ranges (the state header / trace pattern) are accepted; a zero-size
-     * binding (never bind a zero-length buffer, spec 3.6) and an offset that is not a multiple of STORAGE_ALIGN = 256
-     * (spec 2.6; Dawn: "does not satisfy the minimum ... alignment (256)") are E_INVALID_ARGUMENT.
+     * binding (never bind a zero-length buffer) and an offset that is not a multiple of STORAGE_ALIGN = 256
+     * (Dawn: "does not satisfy the minimum ... alignment (256)") are E_INVALID_ARGUMENT.
      * @param resources - one Binding per declared name
      * @returns the bound kernel (the same object for the same buffers, offsets and sizes until invalidate())
      */
@@ -299,11 +299,11 @@ export class Kernel {
     }
 
     /**
-     * setPipeline + setBindGroup for every group (dynamic offsets in dynamicGroups order) + dispatchWorkgroups(plan.x, plan.y, plan.z); a plan with x === 0 records nothing (spec 5.6).
-     * PLAN DECISION: one dynamic offset per dynamic GROUP, replicated over every uniform binding of that group (every
-     * P1-P3 kernel has exactly one params uniform per group); absent offsets mean 0; a BoundKernel of another kernel
+     * setPipeline + setBindGroup for every group (dynamic offsets in dynamicGroups order) + dispatchWorkgroups(plan.x, plan.y, plan.z); a plan with x === 0 records nothing.
+     * One dynamic offset per dynamic GROUP, replicated over every uniform binding of that group (every
+     * kernel has exactly one params uniform per group); absent offsets mean 0; a BoundKernel of another kernel
      * or an offset list of the wrong length is E_INVALID_ARGUMENT.
-     * PLAN DECISION: `dynamicOffsets?` is spelled `?: readonly number[]` rather than the contract's
+     * `dynamicOffsets?` is spelled `?: readonly number[]` rather than
      * `?: readonly number[] | undefined` because the root ESLint rule no-duplicate-type-constituents rejects the
      * explicit undefined on an optional parameter (the call signature is identical).
      * @param pass - the open compute pass
@@ -327,7 +327,7 @@ export class Kernel {
 
     /**
      * setPipeline + the bind groups exactly as dispatch(), then dispatchWorkgroupsIndirect(args.buffer, args.offset +
-     * INDIRECT_ARGS_STRIDE * slot) (spec 5.4): the (x, y, 1) of the slot were written by the indirect-finalize kernel
+     * INDIRECT_ARGS_STRIDE * slot): the (x, y, 1) of the slot were written by the indirect-finalize kernel
      * earlier in the same pass. A slot beyond the binding is E_INVALID_ARGUMENT.
      * @param pass - the open compute pass
      * @param bound - a BoundKernel of THIS kernel

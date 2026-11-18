@@ -1,18 +1,20 @@
 /**
- * The grid build (spec 6 row 12, 7.7 G1-G3; P4-T8): `GridSpec` on the host (PD-9) and the planner that records, into
+ * The grid build (stages G1-G3 of the grid tier): `GridSpec` on the host and the planner that records, into
  * the caller's pass, the cell keys (G1, `grid-cell-key`), the stable sort by key (G2: `radixSort` at GRID_SORT_BITS,
  * or `countingSortByKey` when the caller asks for the set-deterministic path) and the per-cell histogram with its
- * exclusive scan (G3: the `histogram` kernel over `cellKey` and the `scan` of it; DEP-P4-I names no grid-specific
- * id). `cellHist` and `cellStart` hold `histWords = cells + 2^dim + 1` words: every real cell, the 2^dim outside
+ * exclusive scan (G3: the `histogram` kernel over `cellKey` and the `scan` of it; no grid-specific
+ * kernel). `cellHist` and `cellStart` hold `histWords = cells + 2^dim + 1` words: every real cell, the 2^dim outside
  * pseudo-cells (one per orthant about the grid center, issue #90) from index `cells`, and one more so
  * `cellStart[histWords - 1] === n` closes the last range. Every zeroing is a `fill` dispatch inside the
- * pass (PD-12), never an encoder clear.
+ * pass, never an encoder clear.
  *
  * The named grid buffers (`cellKey`, `cellVal`, `sortedKey`, `sortedIdx`, `cellHist`, `cellStart`) are the caller's
  * (the model's `BufferSpec`s, so `inspect(name)` reaches them); the anonymous scratch of the sort (the digit-major
  * table and its scan, the counting-sort cursor) is taken from the scope ONCE at bind() so the sub-kernels bind the
- * same buffers every iteration and `Kernel.bind`'s identity cache holds (PD-11). `src/primitives/**` never imports
+ * same buffers every iteration and `Kernel.bind`'s identity cache holds. `src/primitives/**` never imports
  * `src/context.ts`.
+ *
+ * See design/webgpu/webgpu-acceleration-plan.md, "7.7 Repulsion, approximate tier".
  */
 
 import { GRID_COARSEST_SIDE, GRID_MIN_SIDE, GRID_SORT_BITS } from "../constants.js";
@@ -27,7 +29,7 @@ import { prepareRadixSort, radixHistBytes, type RadixSortPlanner } from "./radix
 import { type ReduceScope } from "./reduce.js";
 import { prepareScan, type ScanPlanner } from "./scan.js";
 
-/** The grid's geometry (spec 7.7 geometry table; PD-9), computed on the host once per load. */
+/** The grid's geometry, computed on the host once per load. */
 export interface GridSpec {
     /** 2 or 3. */
     readonly dim: 2 | 3;
@@ -101,7 +103,7 @@ export function ceilRoot(n: number, dim: 2 | 3): number {
 }
 
 /**
- * The grid of `n` nodes in `dim` dimensions under the tuning (spec 7.7 geometry table; PD-9): `G = clamp(nextPow2(2 *
+ * The grid of `n` nodes in `dim` dimensions under the tuning: `G = clamp(nextPow2(2 *
  * ceil(n^(1 / dim))), GRID_MIN_SIDE, floorPow2(gridMax))` where `gridMax` is `gridMax2D` or `gridMax3D`, rounded DOWN
  * to a power of two so every level's side is an integer (512 and 128 stay; 100 becomes 64); `levels = log2(G /
  * GRID_COARSEST_SIDE) + 1`. At the caps: 349,524 pyramid cells in 2D, 2,396,744 in 3D (the design's counts plus the
@@ -145,7 +147,7 @@ export function gridSpecFor(
 }
 
 /**
- * The bytes of the pyramid (spec 7.7: 16 B per cell, every level, the pseudo-cells included): 38,347,904 at the 3D cap.
+ * The bytes of the pyramid (16 B per cell, every level, the pseudo-cells included): 38,347,904 at the 3D cap.
  * @param spec - the grid
  * @returns the byte length
  */
@@ -167,7 +169,7 @@ export interface GridBuildBindings {
     readonly params: Binding;
     /**
      * `n` words: G1's keys, node-indexed until G2. On the deterministic path the radix sort ping-pongs through this
-     * pair (PD-5: three passes, the even one writes the input pair), so after G2 `cellKey` / `cellVal` hold the
+     * pair (three passes, the even one writes the input pair), so after G2 `cellKey` / `cellVal` hold the
      * sort's last even-pass intermediate -- a permutation of the keys, which is why the histogram recorded after it
      * counts the same multiset; the node-indexed keys of an iteration are read through `upTo: "G1"`. The counting
      * path never writes them.
@@ -188,11 +190,11 @@ export interface GridBuildBindings {
 /** Where `record()` stops: after the keys (G1), after the sort (G2) or after the histogram and its scan (G3, the default). */
 export type GridBuildStage = "G1" | "G2" | "G3";
 
-/** A prepared grid build (spec 7.7 G1-G3): binds once per load, records the stages of one iteration into a pass. */
+/** A prepared grid build (stages G1-G3): binds once per load, records the stages of one iteration into a pass. */
 export interface GridBuildPlanner {
     /**
      * Binds the named buffers and takes the sort's scratch from the scope, sized by `cellKey` (its word count is the
-     * node capacity; PD-11); called once per load (a second call rebinds and takes fresh scratch, so it belongs to a
+     * node capacity); called once per load (a second call rebinds and takes fresh scratch, so it belongs to a
      * reload, never to an iteration).
      * @param bindings - the buffers
      */
@@ -210,7 +212,7 @@ export interface GridBuildPlanner {
     readonly lastDispatches: number;
 }
 
-/** The G2 / G3 planners: the stable radix path (PD-5) or the set-deterministic counting path. */
+/** The G2 / G3 planners: the stable radix path or the set-deterministic counting path. */
 type SortPath =
     | {
           readonly kind: "radix";

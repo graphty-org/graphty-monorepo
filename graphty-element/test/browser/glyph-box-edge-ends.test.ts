@@ -9,7 +9,7 @@ import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 import { afterEach, assert, describe, test } from "vitest";
 
 import type { StaticStyle } from "../../src/catalog/types";
-import { Edge } from "../../src/Edge";
+import { type Edge, edgeInternals } from "../../src/Edge";
 import { Graph, operationQueueOf } from "../../src/Graph";
 import { NodeMesh } from "../../src/meshes/NodeMesh";
 import { asData, edgeBetween, styleEveryEdge, styleEveryNode } from "../helpers/testSetup";
@@ -57,11 +57,7 @@ async function joined(nodeSet: StaticStyle): Promise<Edge> {
  * @returns the point
  */
 function leaves(edge: Edge): Vector3 {
-    return (edge as unknown as { leaveNode(node: unknown, centre: Vector3, toward: Vector3): Vector3 }).leaveNode(
-        edge.srcNode,
-        edge.srcNode.mesh.position,
-        edge.dstNode.mesh.position,
-    );
+    return edgeInternals.leaveNode(edge, edge.srcNode, edge.srcNode.mesh.position, edge.dstNode.mesh.position);
 }
 
 /**
@@ -79,10 +75,7 @@ function drawnStart(edge: Edge): Vector3 {
  * @returns the start of its first piece and the end of its last
  */
 function drawnEnds(edge: Edge): [Vector3, Vector3] {
-    const { lineBatch, lineSlots } = edge as unknown as {
-        lineBatch: { endsOf(slot: number): [Vector3, Vector3] } | null;
-        lineSlots: number[];
-    };
+    const { lineBatch, lineSlots } = edgeInternals.drawn(edge);
     const last = lineSlots.at(-1);
     assert(lineBatch !== null && last !== undefined, "the line is drawn");
     return [lineBatch.endsOf(lineSlots[0])[0], lineBatch.endsOf(last)[1]];
@@ -117,10 +110,7 @@ describe("a polygon drawn against its box", () => {
         assert.approximately(srcPoint.x, 2 * per + node.borderReach, 1e-3);
         assert.approximately(dstPoint.x, side, 1e-3);
         // and where the line leaves the box placing the arrow from the centers, when the ray finds nothing
-        const reach = (Edge as unknown as { boxReachOf(n: unknown, d: Vector3): number }).boxReachOf(
-            node,
-            new Vector3(1, 0, 0),
-        );
+        const reach = edgeInternals.boxReachOf(node, new Vector3(1, 0, 0));
         assert.approximately(reach, 2 * per, 1e-6);
     });
 

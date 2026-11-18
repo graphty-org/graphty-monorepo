@@ -444,8 +444,8 @@ describe("a community result", () => {
             { group: 1, size: 2 },
         ]);
         assert.deepStrictEqual(result.summary().groups, [
-            { group: 0, size: 3, rank: 1, name: "Group 1" },
-            { group: 1, size: 2, rank: 2, name: "Group 2" },
+            { group: 0, size: 3, rank: 1 },
+            { group: 1, size: 2, rank: 2 },
         ]);
         assert.strictEqual(result.summary().count, 5);
         assert.strictEqual(result.summary().measured, 5);
@@ -507,6 +507,7 @@ describe("a community result", () => {
         } catch (error) {
             assert.strictEqual(isGraphtyError(error) ? error.code : null, "E_BAD_COMMAND");
         }
+        assert.isUndefined(metric.groups());
     });
 
     it("bounds the groups a summary carries", () => {
@@ -542,6 +543,16 @@ describe("a community result", () => {
             Array.from({ length: 100 }, (_unused, index) => index + 1),
         );
         for (const group of result.summary().groups ?? []) {
+            assert.strictEqual(ranks?.get(String(group.group)), group.rank);
+        }
+        // Every group listed, largest first, ranked as groupRanks ranks it.
+        const groups = result.groups() ?? [];
+        assert.strictEqual(groups.length, 100);
+        assert.strictEqual(
+            groups.reduce((sum, group) => sum + group.size, 0),
+            400,
+        );
+        for (const group of groups) {
             assert.strictEqual(ranks?.get(String(group.group)), group.rank);
         }
     });
@@ -911,5 +922,80 @@ describe("a quality score's band", () => {
         );
         assert.isUndefined(interpretation.bands.at(-1)?.above);
         assert.isUndefined(interpretation.bands.at(-1)?.atLeast);
+    });
+});
+
+describe("a result copied out", () => {
+    it("writes every value at full stored precision, one row per element", () => {
+        const result = metricResult([1 / 3, 2]);
+
+        assert.strictEqual(
+            result.toTsv(),
+            ["id\tvalue\trank\tpercentile", `n0\t${String(1 / 3)}\t2\t0.5`, "n1\t2\t1\t1"].join("\n"),
+        );
+    });
+
+    it("marks each row's kind when the result has node and edge fields, and keeps a tab out of a cell", () => {
+        const result = createRunResult({
+            runId: "shortest-path",
+            shape: "path",
+            fields: [
+                field({ name: "onPath", plainName: "On", technicalName: "onPath", kind: "node", type: "boolean" }),
+                field({ name: "onPath", plainName: "On", technicalName: "onPath", kind: "edge", type: "boolean" }),
+            ],
+            measured: { nodes: 2, edges: 1 },
+            nodes: [
+                { id: "a\tb", values: { onPath: true } },
+                { id: "c", values: { onPath: false } },
+            ],
+            edges: [{ id: "e", values: { onPath: true } }],
+            caveats: CAVEATS,
+            durationMs: 1,
+        });
+
+        assert.strictEqual(result.toTsv(), "kind\tid\tonPath\nnode\ta b\ttrue\nnode\tc\tfalse\nedge\te\ttrue");
+        assert.deepStrictEqual(result.memberIds(), ["a\tb", "e"]);
+    });
+
+    it("writes a result with no per-element field as one row of its graph fields", () => {
+        const result = createRunResult({
+            runId: "density",
+            shape: "fact",
+            fields: [
+                field({
+                    name: "density",
+                    plainName: "Density",
+                    technicalName: "density",
+                    kind: "graph",
+                    type: "number",
+                }),
+            ],
+            measured: { nodes: 3, edges: 2 },
+            graph: { density: 2 / 3 },
+            caveats: CAVEATS,
+            durationMs: 1,
+        });
+
+        assert.strictEqual(result.toTsv(), `density\n${String(2 / 3)}`);
+        assert.deepStrictEqual(result.memberIds(), []);
+    });
+
+    it("lists a set's members and every measured element of any other shape", () => {
+        const set = createRunResult({
+            runId: "k-core",
+            shape: "node-set",
+            fields: [field({ name: "in", plainName: "In", technicalName: "in", kind: "node", type: "boolean" })],
+            measured: { nodes: 3, edges: 0 },
+            nodes: [
+                { id: "a", values: { in: true } },
+                { id: "b", values: { in: false } },
+                { id: "c", values: { in: true } },
+            ],
+            caveats: CAVEATS,
+            durationMs: 1,
+        });
+
+        assert.deepStrictEqual(set.memberIds(), ["a", "c"]);
+        assert.deepStrictEqual(metricResult([4, 5]).memberIds(), ["n0", "n1"]);
     });
 });

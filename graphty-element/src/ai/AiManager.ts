@@ -334,7 +334,7 @@ export interface AiManagerConfig {
     allowImportUrl?: (url: URL) => boolean;
     /**
      * Where the assistant's `load_dataset` downloads graph-samples' datasets from (the
-     * `baseUrl` of `session.data.loadDataset`). Absent, that action fails with `E_OPTION_RANGE`.
+     * `baseUrl` of `session.data.loadDataset`). Absent, that action fails with `AI_ARG_OUT_OF_RANGE`.
      */
     datasetBaseUrl?: string;
     /** Optional custom provider instance (e.g., pre-initialized WebLlmProvider) */

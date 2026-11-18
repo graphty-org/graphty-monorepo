@@ -19,6 +19,9 @@ export const HISTORY_INVOCATIONS = 1000;
 // defect in the drawing or the comparator (#4270)
 const NEVER_QUARANTINED = /^(webgpu-graph-algorithms|graphty-element-fidelity)/;
 
+// The inputs placeholder a client sends when it knows no inputs key: every client does today (tools/results), and
+// no record carries it, so its pair clause and reuse lookup are skipped rather than run to match nothing (#7269)
+const NO_INPUTS = "-";
 const list = (value) => (value ?? "").split(",").filter(Boolean);
 const placeholders = (values) => values.map(() => "?").join(",");
 const all = async (db, sql, ...args) =>
@@ -122,7 +125,7 @@ export async function trackedIssues(db, family, now) {
 // in the variant's newest full run (6.3): a master break shows there before any base check runs on a pull
 // request's own base (#8051). Another variant's failure (flags=on for a flags=off run) excuses nothing.
 async function failingOnBase(db, base, pairs, changed) {
-    // 1 + 4 parameters a variant: chunks of 24 stay under D1's 100 (an everything run asks about ~55 variants)
+    // 1 + 4 parameters a variant at most: chunks of 24 stay under D1's 100 (an everything run asks about ~55 variants)
     const rows = [];
     for (let i = 0; i < pairs.length; i += 24)
         rows.push(...(await failingOnBaseChunk(db, base, pairs.slice(i, i + 24))));
@@ -135,7 +138,8 @@ async function failingOnBase(db, base, pairs, changed) {
 // half of pull request plan reads answered HTTP 500 (#8208). UNION keeps DISTINCT across both halves.
 async function failingOnBaseChunk(db, base, pairs) {
     const variants = pairs.map(([v]) => v);
-    const same = pairs.map(() => " OR (i.variant = ? AND i.inputs = ?)").join("");
+    const keyed = pairs.filter(([, k]) => k !== NO_INPUTS);
+    const same = keyed.map(() => " OR (i.variant = ? AND i.inputs = ?)").join("");
     const columns = "i.variant, i.sha, f.file, f.name, f.key, f.signature, f.invocation, t.number AS issue";
     return all(
         db,
@@ -154,19 +158,22 @@ async function failingOnBaseChunk(db, base, pairs) {
          WHERE i.kind = 'full' AND i.outcome = 'failed'`,
         base ?? "",
         ...variants,
-        ...pairs.flat(),
+        ...keyed.flat(),
         ...variants,
     );
 }
 
 async function variantFacts(db, variant, inputs, now) {
-    const passed = await db
-        .prepare(
-            `SELECT id FROM invocation WHERE variant = ? AND inputs = ? AND outcome = 'passed' AND kind IN ${EVIDENCE}
+    const passed =
+        inputs === NO_INPUTS
+            ? null
+            : await db
+                  .prepare(
+                      `SELECT id FROM invocation WHERE variant = ? AND inputs = ? AND outcome = 'passed' AND kind IN ${EVIDENCE}
              ORDER BY started_at DESC LIMIT 1`,
-        )
-        .bind(variant, inputs)
-        .first();
+                  )
+                  .bind(variant, inputs)
+                  .first();
     const order = await all(
         db,
         `SELECT f.file, max(i.started_at) AS at FROM failure f JOIN invocation i ON i.id = f.invocation

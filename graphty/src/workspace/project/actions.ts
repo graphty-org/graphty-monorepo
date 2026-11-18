@@ -17,6 +17,8 @@ import {
     type ProjectAssetChoice,
     projectFileName,
     type ProjectSaveReport,
+    type SourceCopyChoice,
+    type SourceKey,
 } from "@graphty/graphty-element/session";
 
 import { forgetKeptWork } from "../autosave/autosave";
@@ -860,4 +862,22 @@ export async function removeRecent(entry: RecentProject): Promise<void> {
     }
     await browserProjects.remove(entry.id);
     await refreshStored();
+}
+
+/**
+ * Hands the dialog's pending choices to graphty-element (`data.setCopy`), as its Save is pressed;
+ * a source removed while the dialog was open is skipped.
+ * @param session - the element's session, or null.
+ * @param pending - the dialog's choices.
+ */
+export function applyCopies(session: GraphSession | null, pending: ReadonlyMap<SourceKey, SourceCopyChoice>): void {
+    if (session === null || !sourceReferencesOn(session)) {
+        return;
+    }
+    const listed = new Set(session.data.sources().map((each) => each.key));
+    for (const [source, copy] of pending) {
+        if (listed.has(source)) {
+            session.data.setCopy(source, copy);
+        }
+    }
 }

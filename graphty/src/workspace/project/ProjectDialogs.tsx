@@ -8,6 +8,7 @@ import { megabytes } from "../start/library";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { chipLine, middleCut } from "../style/modelWords";
 import {
+    applyCopies,
     type AssetChoices,
     assetQuestion,
     DISCARD_DIALOG,
@@ -18,7 +19,7 @@ import {
     saveProjectAs,
 } from "./actions";
 import { NetworkPrompt } from "./NetworkPrompt";
-import { SourceCopyControl } from "./SourceCopyControl";
+import { type PendingCopies, SourceCopyControl } from "./SourceCopyControl";
 
 /**
  * Save as... (`#/project-menu/save-as`): titled with the project's name, the name a field with
@@ -33,12 +34,15 @@ function SaveAsDialog(): React.JSX.Element {
     const [saving, setSaving] = useState(false);
     // While the data source settings pop-over is open, Escape closes it and not the dialog.
     const [settingsOpen, setSettingsOpen] = useState(false);
+    // The data source choices picked here: handed to graphty-element on Save, dropped on Cancel.
+    const [pending, setPending] = useState<PendingCopies>(new Map());
 
     // Whether another dialog took the slot during a save (the question about files from the web,
     // or Save as pressed again over it): the save then leaves the slot to that dialog.
     const left = useRef(false);
     useEffect(() => {
         setSettingsOpen(false);
+        setPending(new Map());
         if (opened) {
             setName(current);
         } else {
@@ -57,6 +61,7 @@ function SaveAsDialog(): React.JSX.Element {
         setSaving(true);
         left.current = false;
         try {
+            applyCopies(workspace.session, pending);
             await saveProjectAs(workspace, trimmed);
             if (!left.current) {
                 close();
@@ -85,7 +90,7 @@ function SaveAsDialog(): React.JSX.Element {
                         event.currentTarget.select();
                     }}
                 />
-                <SourceCopyControl onSettingsOpen={setSettingsOpen} />
+                <SourceCopyControl pending={pending} onPending={setPending} onSettingsOpen={setSettingsOpen} />
                 <ModalFooter mt="md">
                     <Button variant="default" onClick={close}>
                         Cancel

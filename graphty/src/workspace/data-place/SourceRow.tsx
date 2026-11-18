@@ -244,7 +244,7 @@ export function SourceRow({
                                     component="span"
                                     variant="light"
                                     className="dp-source-ref"
-                                    aria-label="Saved as a reference"
+                                    aria-label="Reference"
                                 >
                                     Ref
                                 </Badge>

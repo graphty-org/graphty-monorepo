@@ -41,6 +41,7 @@ import {
     readCorpusText,
     readMalformedBytes,
 } from "../../helpers/corpus.js";
+import { expectImportError } from "../../helpers/import-error.js";
 import { compareSnapshots, describeDiffs } from "../../helpers/roundtrip.js";
 
 type Options = Parameters<typeof gmlImporter.import>[2];
@@ -62,13 +63,7 @@ async function importGml(
 }
 
 async function importError(input: string, options?: Options): Promise<ImportError> {
-    try {
-        await importGml(input, options);
-    } catch (err) {
-        expect(err).toBeInstanceOf(ImportError);
-        return err as ImportError;
-    }
-    throw new Error("expected an ImportError");
+    return expectImportError(() => importGml(input, options), { format: "gml" });
 }
 
 function codes(report: ImportReport): string[] {

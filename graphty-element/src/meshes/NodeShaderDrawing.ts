@@ -227,7 +227,7 @@ function seedOf(id: string | number): number {
     let hash = 0x811c9dc5;
     const text = String(id);
     for (let i = 0; i < text.length; i++) {
-        hash = Math.imul(hash ^ text.charCodeAt(i), 0x01000193); // NOSONAR(S7758): hashes UTF-16 code units; codePointAt would change the seed of ids outside the BMP
+        hash = Math.imul(hash ^ text.charCodeAt(i), 0x01000193); // eslint-disable-line unicorn/prefer-code-point -- hashes UTF-16 code units; codePointAt would change the seed of ids outside the BMP
     }
 
     return (hash >>> 0) / 0xffffffff;

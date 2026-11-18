@@ -1724,7 +1724,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         });
 
         if (context.signal.aborted) {
-            throw context.signal.reason as Error; // NOSONAR(S3696): rethrows the abort signal's reason, as the platform does
+            throw context.signal.reason as Error; // rethrows the abort signal's reason, as the platform does
         }
 
         const back = now();
@@ -2108,7 +2108,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         problems = [];
 
         if (context.signal.aborted) {
-            throw context.signal.reason as Error; // NOSONAR(S3696): rethrows the abort signal's reason, as the platform does
+            throw context.signal.reason as Error; // rethrows the abort signal's reason, as the platform does
         }
 
         const { node: nodes, edge: edges } = stores;

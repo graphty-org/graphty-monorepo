@@ -3,11 +3,12 @@
  * view benchmarks, prints one table per group and appends the session to
  * `benchmarks/results/<host>-<node>.json`.
  *
+ * The harness forces a garbage collection before every run, so memory deltas need no extra node flag.
+ *
  * Usage (from the package directory):
  *
  *   npm run benchmark                       # every group
  *   npx tsx benchmarks/run.ts freeze ids    # selected groups
- *   node --expose-gc --import tsx benchmarks/run.ts   # with GC before every run for exact memory deltas
  *   npx tsx benchmarks/run.ts --no-save     # do not append to benchmarks/results
  */
 

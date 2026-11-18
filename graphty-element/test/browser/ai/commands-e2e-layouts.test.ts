@@ -64,7 +64,7 @@ describe("AI Layout Commands - All Layout Types", () => {
 
     /**
      * Layouts that need an option the fixture's call does not pass (bfs a `start` node, the
-     * partite layouts `groupBy`), so setLayout refuses them with the session's E_OPTION_RANGE.
+     * partite layouts `groupBy`), so setLayout refuses them with AI_ARG_OUT_OF_RANGE (the session's E_OPTION_RANGE).
      */
     const layoutsNeedingOptions = ["bfs", "bipartite", "multipartite"];
 
@@ -131,7 +131,7 @@ describe("AI Layout Commands - All Layout Types", () => {
 
             const result = await graph.aiCommand(layoutType);
 
-            assertLayoutRefused(result, "E_OPTION_RANGE");
+            assertLayoutRefused(result, "AI_ARG_OUT_OF_RANGE");
             assert.notStrictEqual(graph.getLayoutManager().layoutEngine?.type, layoutType);
         });
     }
@@ -307,7 +307,7 @@ describe("AI Layout Commands - All Layout Types", () => {
             const result = await graph.aiCommand("bipartite");
 
             // The path graph is bipartite, but the layout reads its parts from groupBy, which no node carries.
-            assertLayoutRefused(result, "E_OPTION_RANGE");
+            assertLayoutRefused(result, "AI_ARG_OUT_OF_RANGE");
         });
 
         it("multipartite layout refuses a graph without explicit partitions", async () => {
@@ -320,7 +320,7 @@ describe("AI Layout Commands - All Layout Types", () => {
 
             const result = await graph.aiCommand("multipartite");
 
-            assertLayoutRefused(result, "E_OPTION_RANGE");
+            assertLayoutRefused(result, "AI_ARG_OUT_OF_RANGE");
         });
     });
 

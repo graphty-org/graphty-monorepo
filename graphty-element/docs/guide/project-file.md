@@ -50,7 +50,7 @@ openInput.addEventListener("change", () => {
   `<project name><the format's first extension>`, such as `Pioneers.graphml`. Pass
   `downloadGraph("graphty")` for a copy of the project file. It never changes `dirty` -- a copy
   is not a save -- which is the one difference from `downloadProject`, which always does. It
-  takes `{ fileName }` too, and resolves to the export, whose `lossNotes` list what the format
+  takes `{ fileName }` too, and resolves to the export, whose `losses` list what the format
   could not hold.
 - **`project.open(file)`** takes the `File` (or any `Blob`), its bytes, or its text. It never
   takes a URL: nothing is fetched. Opening a project replaces what the session holds and starts a

@@ -16,7 +16,6 @@ import { page, userEvent } from "vitest/browser";
 
 import { withoutFeatures } from "../../../test/features";
 import { act, findValuePicker, render, screen, waitFor, within } from "../../../test/test-utils";
-import { selectionWorkspaceOn } from "../../features";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { showKind } from "./kindTab";
@@ -175,12 +174,8 @@ describe("the Style tab's fields on the real element", () => {
         const kinds = within(tab).getByRole("tablist", { name: "Style for" });
         assert.strictEqual(within(kinds).getByRole("tab", { name: /^Edge/ }).getAttribute("aria-selected"), "true");
         const nodeTab = within(kinds).getByRole("tab", { name: /^Node/ }).textContent ?? "";
-        // The selection workspace drops the "not styled" note from the kind tabs (StylePanel.tsx).
-        if (selectionWorkspaceOn(session)) {
-            assert.notInclude(nodeTab, "not styled");
-        } else {
-            assert.include(nodeTab, "not styled");
-        }
+        // The kind tabs say no "not styled" note (StylePanel.tsx).
+        assert.notInclude(nodeTab, "not styled");
         assert.isNotNull(tab.querySelector('[data-group="edge"]'));
         assert.isNull(tab.querySelector('[data-group="node"]'));
     });

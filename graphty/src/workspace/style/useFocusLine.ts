@@ -2,6 +2,8 @@ import type { Channel } from "@graphty/graphty-element/schema";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { type RefObject, useEffect, useLayoutEffect, useRef } from "react";
 
+import type { EncodeKey } from "./words";
+
 /** What can take keyboard focus inside a line. */
 const CONTROL = "button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex='-1'])";
 
@@ -127,7 +129,11 @@ function controlForChange(
  * @param bound - wait until the line is bound (its pill drawn, not its old value), or with
  *   "fixed" until it holds one value again (a detach).
  */
-export function focusLineNext(session: GraphSession, channel: Channel | null, bound: boolean | "fixed" = false): void {
+export function focusLineNext(
+    session: GraphSession,
+    channel: EncodeKey | null,
+    bound: boolean | "fixed" = false,
+): void {
     let state = "";
     if (bound === "fixed") {
         state = ":not([data-bound])";

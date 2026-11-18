@@ -261,6 +261,8 @@ export interface LlmRegressionTestHarnessOptions {
  * Captured tool call information from the provider
  */
 export interface CapturedToolCall {
+    /** The provider's id for the call, which its tool result carries as `callId`. */
+    id?: string;
     name: string;
     arguments: Record<string, unknown>;
     /**
@@ -378,7 +380,7 @@ export class RecordingEngine implements AiEngine {
                 turn.end = event.code;
             } else if (event.type === "tool-call") {
                 // Every turn's tool calls, in order: one prompt may ask the model several times.
-                this.capturedToolCalls.push({ name: event.name, arguments: { ...event.arguments } });
+                this.capturedToolCalls.push({ id: event.id, name: event.name, arguments: { ...event.arguments } });
                 turn.toolCalls.push({
                     name: event.name,
                     arguments: { ...event.arguments },
@@ -838,6 +840,7 @@ export function reachedCalls(result: LlmRegressionResult): CapturedToolCall[] {
                 ? (JSON.parse(call.arguments.args) as Record<string, unknown>)
                 : ((call.arguments.args ?? {}) as Record<string, unknown>);
         return {
+            ...(call.id === undefined ? {} : { id: call.id }),
             name: String(call.arguments.tool),
             arguments: { ...inner, ...(call.arguments.action === undefined ? {} : { action: call.arguments.action }) },
             ...(call.resolvedAction === undefined ? {} : { resolvedAction: call.resolvedAction }),
@@ -880,6 +883,44 @@ export function assertAction(
     }
 
     return call;
+}
+
+/**
+ * How a call ended -- its tool result's code (`AI_COMPLETED` when it ran) -- as the message's
+ * last request to the model carried it.
+ * @param result - The prompt's result.
+ * @param call - One of its calls.
+ * @returns The code, or undefined when no later request carried the call's result.
+ */
+export function outcomeOf(result: LlmRegressionResult, call: CapturedToolCall): string | undefined {
+    const parts = (result.lastRequest?.messages ?? []).flatMap((message) => message.parts);
+    const part = parts.find((each) => each.type === "tool-result" && each.callId === call.id);
+    return part?.type === "tool-result" ? part.code : undefined;
+}
+
+/**
+ * Every call of a prompt with its arguments and how it ended, one line each, for a failure message.
+ * @param result - The prompt's result.
+ * @returns The lines.
+ */
+export function callLines(result: LlmRegressionResult): string[] {
+    return result.toolCalls.map(
+        (call) => `${call.name} ${JSON.stringify(call.arguments)} -> ${outcomeOf(result, call) ?? "no result"}`,
+    );
+}
+
+/**
+ * Assert a call was not refused: a refused call the model never corrected changed nothing.
+ * @param result - The prompt's result.
+ * @param call - The call, as `assertAction` found it.
+ */
+export function assertNotRefused(result: LlmRegressionResult, call: CapturedToolCall): void {
+    const outcome = outcomeOf(result, call);
+    // No later request carried its result when the message ended on this call; the checks of
+    // what it painted judge it then.
+    if (outcome !== undefined) {
+        assert.strictEqual(outcome, "AI_COMPLETED", `${call.name} ${JSON.stringify(call.arguments)} was refused`);
+    }
 }
 
 /**

@@ -193,6 +193,28 @@ describe("DataTable header features", () => {
         });
     });
 
+    it("opens the header menu with Shift+F10 and with the menu key", async () => {
+        const onHide = vi.fn();
+        renderTable(onHide);
+        const button = within(screen.getAllByTestId("data-table-header")[1]).getByTestId("data-table-sort-button");
+        await userEvent.click(screen.getByRole("button", { name: "Options for Degree" }));
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            expect(button).toHaveFocus();
+        });
+
+        await userEvent.keyboard("{Shift>}{F10}{/Shift}");
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Hide column" }));
+        expect(onHide).toHaveBeenCalledTimes(1);
+        await waitFor(() => {
+            expect(button).toHaveFocus();
+        });
+
+        await userEvent.keyboard("{ContextMenu}");
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Hide column" }));
+        expect(onHide).toHaveBeenCalledTimes(2);
+    });
+
     it("opens the header menu on a right-click and never sorts on one", async () => {
         renderTable();
         const header = screen.getAllByTestId("data-table-header")[1];

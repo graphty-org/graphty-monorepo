@@ -9,6 +9,7 @@ implements_capabilities:
 used_in_workflows:
     - W14
     - W18
+    - W20
 dependencies:
     - icon
     - button

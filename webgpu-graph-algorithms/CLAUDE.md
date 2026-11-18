@@ -20,7 +20,9 @@ The normative documents, in order of authority (paths from the monorepo root):
 - `design/webgpu/webgpu-acceleration-plan.md` (the "spec"): runtime (2), architecture (3), memory (4), kernels (5),
   primitives (6), layouts (7), algorithms (8), integration (9), targets (10), testing (11), CI (12), gates (13).
 - `docs/decisions/G<n>.md`: what each gate measured and signed off; re-fixed constants cite them.
-- `docs/research/`; `docs/HEADLESS_GPU_REPORT.md` is the verified recipe for the real GPU under headless Chromium.
+- `docs/research/01-*.md` .. `07-*.md`, the seven research notes; `docs/HEADLESS_GPU_REPORT.md` is the verified
+  recipe for the real GPU under headless Chromium. The plan drafts and reviews in
+  `design/webgpu/plan-drafts-and-reviews/` are superseded records, never normative.
 
 Where the contract is silent, choose the simplest option consistent with the spec and record it as a `PLAN DECISION`
 in the phase plan; where it is wrong, change the contract first.
@@ -115,8 +117,8 @@ observed at the assertion.
 `GRAPHTY_GPU_REQUIRE` (D19, the ONE policy variable): unset = skip with the printed `E_NO_ADAPTER` reason (local
 only); `any` = an adapter must exist (default lane); `hardware` = also not software; `nvidia` (any vendor string) =
 also that vendor and, in the browser, `isFallbackAdapter === false` (GPU lane). A missing required adapter fails once
-in `globalSetup`. Only `test/setup/gpu.ts`, `vitest.config.ts` and `scripts/` read environment variables; `src/`
-never does. The other variables' per-lane values and the Chromium flag sets are in the reference file. Run `scripts/probe-browser-flags.mjs` before guessing a Chromium flag.
+in `globalSetup`. Only `test/setup/` (`env.ts` holds the switches helpers and tests share), `vitest.config.ts` and
+`scripts/` read environment variables; `src/` never does. The other variables' per-lane values and the Chromium flag sets are in the reference file. Run `scripts/probe-browser-flags.mjs` before guessing a Chromium flag.
 
 ```bash
 GRAPHTY_GPU_REQUIRE=hardware pnpm exec vitest run --project=node --project=node-gpu-alone   # NVIDIA

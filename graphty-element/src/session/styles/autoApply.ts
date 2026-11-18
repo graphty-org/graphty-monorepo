@@ -52,6 +52,8 @@
  */
 
 import type { Channel, RunId } from "../../catalog/types";
+import { isGraphtyError } from "../../errors";
+import { algorithmLog } from "../../logging/algorithmLog";
 import type { StyleCommand } from "../commands/style";
 import type { RunRef } from "../results/types";
 import type { RunPainting, RunStatus, RunStyle, SuggestionOutcome } from "../runs/types";
@@ -385,47 +387,68 @@ export function createAutoApplyPolicy(sources: AutoApplySources): AutoApplyPolic
         return { paint: Object.freeze(paint), suppressed };
     };
 
+    /**
+     * What the policy decides for a run that completed; see `completed`.
+     * @param run - The run.
+     * @param painted - Whether it already had its moment.
+     * @param hold - The hold it waits under, if any.
+     * @returns The decision.
+     */
+    const decide = (run: AutoApplyRun, painted: boolean, hold?: PaintHold): PaintDecision => {
+        // A re-run keeps its id -- so a run that already had its moment keeps the layers it
+        // already has, and the decision that made them.
+        if (painted) {
+            return { painted, paint: NOTHING };
+        }
+
+        // A cancel and a failure have no result to paint.
+        if (run.status !== "succeeded") {
+            return { painted, paint: NOTHING, painting: bare("not-succeeded") };
+        }
+
+        if (!run.style) {
+            return { painted, paint: NOTHING, painting: bare("opted-out") };
+        }
+
+        if (sources.styles() === undefined) {
+            return { painted: true, paint: NOTHING, painting: bare("no-styles") };
+        }
+
+        // Had whether or not anything is painted. The moment a run first completes is the
+        // moment the policy had, and coming back to it later -- after a reader has arranged
+        // the stack -- would repaint a picture they had already decided about.
+        const suggestions = suggestStyles(run, run.style);
+        const pending = hold === undefined ? undefined : held.get(hold);
+
+        if (pending === undefined) {
+            const { paint, suppressed } = unsuppressed(suggestions);
+
+            return {
+                painted: true,
+                paint,
+                painting: Object.freeze({ state: "decided", suggestions: Object.freeze(suppressed) }),
+            };
+        }
+
+        pending.suggestions.push(...suggestions);
+        pending.members.push(run.id);
+
+        return { painted: true, paint: NOTHING, painting: bare("pending") };
+    };
+
     return {
         completed(run: AutoApplyRun, painted: boolean, hold?: PaintHold): PaintDecision {
-            // A re-run keeps its id -- so a run that already had its moment keeps the layers it
-            // already has, and the decision that made them.
-            if (painted) {
-                return { painted, paint: NOTHING };
-            }
-
-            // A cancel and a failure have no result to paint.
-            if (run.status !== "succeeded") {
-                return { painted, paint: NOTHING, painting: bare("not-succeeded") };
-            }
-
-            if (!run.style) {
-                return { painted, paint: NOTHING, painting: bare("opted-out") };
-            }
-
-            if (sources.styles() === undefined) {
-                return { painted: true, paint: NOTHING, painting: bare("no-styles") };
-            }
-
-            // Had whether or not anything is painted. The moment a run first completes is the
-            // moment the policy had, and coming back to it later -- after a reader has arranged
-            // the stack -- would repaint a picture they had already decided about.
-            const suggestions = suggestStyles(run, run.style);
-            const pending = hold === undefined ? undefined : held.get(hold);
-
-            if (pending === undefined) {
-                const { paint, suppressed } = unsuppressed(suggestions);
-
-                return {
-                    painted: true,
-                    paint,
-                    painting: Object.freeze({ state: "decided", suggestions: Object.freeze(suppressed) }),
-                };
-            }
-
-            pending.suggestions.push(...suggestions);
-            pending.members.push(run.id);
-
-            return { painted: true, paint: NOTHING, painting: bare("pending") };
+            const decision = decide(run, painted, hold);
+            algorithmLog.info("run style layers", {
+                id: run.id,
+                status: run.status,
+                state: decision.painting?.state ?? "already-painted",
+                paint: decision.paint.length,
+                suppressed: (decision.painting?.suggestions ?? []).map((outcome) =>
+                    outcome.outcome === "suppressed" ? outcome.byLayerId : outcome.outcome,
+                ),
+            });
+            return decision;
         },
 
         hold(): PaintHold {
@@ -470,6 +493,11 @@ export function createAutoApplyPolicy(sources: AutoApplySources): AutoApplyPolic
         },
 
         refused(runId: RunId, error: unknown): void {
+            algorithmLog.warn("run style layers refused", {
+                id: runId,
+                message: error instanceof Error ? error.message : String(error),
+                ...(isGraphtyError(error) ? { code: error.code } : {}),
+            });
             sources.onProblem?.(runId, error);
         },
     };

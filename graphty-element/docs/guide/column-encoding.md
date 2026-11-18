@@ -217,8 +217,6 @@ for (const block of session.styles.legend()) {
 | `legend.no-spread`          | `{ value }`         | Every value is `value`, so the scale paints the middle of its range     |
 
 Treat a code you do not know as something to leave out: codes may be added in a minor release.
-The older English fields -- a row's `label`, the field's `plainName`, the scale's `label` and the
-block's `departures` -- still work and are deprecated; they are removed in the next major.
 
 ## Writing the binding yourself
 

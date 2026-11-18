@@ -1,6 +1,6 @@
 # Platform facts for githerd
 
-> Historical record; the pipeline it describes (githerd and the Mergify merge queue) was replaced on 2026-10-18 by design/ci/golden-local.md. Its facts were true when gathered, and that design cites them.
+> Historical record; the pipeline it describes (githerd and the Mergify merge queue) was replaced on 2026-10-18 by golden-local landing (design/ci/golden-local.md, itself now history); today every change reaches master through its own pull request (CLAUDE.md, "Shipping a change"). Its facts were true when gathered, and that design cites them.
 
 Measured on 2026-10-02 on this machine: Claude Code 2.1.287/2.1.288, tmux 3.2a, running inside
 a Docker container (no cron, no systemd). Every fact below was produced by a command run here;

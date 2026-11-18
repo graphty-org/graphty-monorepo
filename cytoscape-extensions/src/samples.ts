@@ -95,29 +95,6 @@ export { NAMED_GRAPH_NAMES } from "@graphty/graph-samples/generators";
 export type GeneratorOptions<N extends GeneratorName> = Parameters<(typeof GENERATORS)[N]>[0];
 
 /**
- * The small datasets, which the package used to bundle. Every dataset now downloads from graphty.app like the rest.
- * @deprecated every dataset is downloaded; graph-samples' `DATASET_NAMES` lists them all
- */
-export const BUNDLED_DATASET_NAMES: readonly string[] = [
-    "karate",
-    "florentine-families",
-    "davis-southern-women",
-    "les-miserables",
-    "football",
-    "political-books",
-    "dolphins",
-    "contiguous-usa",
-    "knuth-miles",
-    "celegans-neural",
-    "political-blogs",
-    "openflights",
-    "yeast-perturbation",
-    "stelzl-interactome",
-    "wikipathways-senescence-autophagy",
-    "go-slim-generic",
-];
-
-/**
  * The number of single-character edits that turn one string into the other.
  * @param a - one string
  * @param b - the other

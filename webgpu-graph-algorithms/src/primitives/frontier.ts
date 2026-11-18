@@ -1,12 +1,11 @@
 /**
- * The `Frontier` of design 6 row 7 and the device-side dispatch selector of design 5.4 (P8-T4; the P8 plan's PD-1,
- * PD-3, PD-8, PD-23, DEP-P8-A, DEP-P8-C). A traversal's per-level state is two n-slot vertex queues, ONE 25-word
+ * The `Frontier` and the device-side dispatch selector. A traversal's per-level state is two n-slot vertex queues, ONE 25-word
  * counters block (every counter of the phase is a word of it: a four-byte word is never a legal storage-binding
  * offset, and the selector must reach every count it acts on through one binding) and the edge queue. The host
  * never reads a counter inside a submit: `frontier-finalize`, one lane, runs at the START of every level (role 0:
  * rotates `nextFrontierCount` into `frontierCount`, advances `level`, decides `done`, chooses the level's path) and
  * again once the edge queue is filled (role 1: clamps `edgeCount`, or on an overflow -- `edgeCountUnclamped >
- * edgeCapacity` -- switches the path to the fused retry, PD-23). The choice is the block's `path` word (`W.path`,
+ * edgeCapacity` -- switches the path to the fused retry). The choice is the block's `path` word (`W.path`,
  * word 24); every level kernel is a direct grid-stride dispatch that reads it first and does nothing unless the
  * word names it (design/decisions/2026-09-25-frontier-kernels-dispatch-directly.md: the seven indirect slots the
  * selector once wrote per level cost about 0.4 ms of Dawn validation each and were 97 % of a traversal's wall
@@ -20,7 +19,7 @@
  * `reset` is a queue write, ordered before the submit that follows, and it puts the source on side 0.
  *
  * Every buffer comes from the caller's ONE lease (`scope.scratch`) so the algorithm's dispose()
- * releases them together (design 4.4). The two vertex queues are two BUFFERS, never two ranges of one: `Kernel.bind`
+ * releases them together. The two vertex queues are two BUFFERS, never two ranges of one: `Kernel.bind`
  * rejects one buffer bound read-only and read-write in one dispatch even for disjoint ranges. `src/primitives/**`
  * never imports `src/context.ts`.
  */
@@ -147,7 +146,7 @@ function definedWords(words: Readonly<Partial<Record<string, number>>>): Record<
     return out;
 }
 
-/** The largest role `frontier-finalize` knows: 0 and 1 land here (P8-T4), 2 and 3 are the SSSP piles' (P8-T9). */
+/** The largest role `frontier-finalize` knows: 0 and 1 are the traversal's, 2 and 3 are the SSSP piles'. */
 const MAX_ROLE = 3;
 
 /**
@@ -267,7 +266,7 @@ export interface FrontierPlanner {
      * the host's submit cadence still is the bound) or a role outside `[0, 3]` is E_INVALID_ARGUMENT before
      * anything is recorded.
      * @param pass - the compute pass
-     * @param role - 0 the level boundary, 1 the edge-queue role (2 and 3 are P8-T9's)
+     * @param role - 0 the level boundary, 1 the edge-queue role (2 and 3 are the SSSP piles')
      * @param level - the level inside the submit
      * @param fields - the tuning and window words
      */

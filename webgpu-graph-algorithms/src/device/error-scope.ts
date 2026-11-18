@@ -1,6 +1,5 @@
 /**
- * Error scopes (spec 5.7; contract 3.4): a validation scope that turns a captured GPUValidationError into
- * E_VALIDATION { label, message }, the compilation-info formatter with body-relative line numbers, and the
+ * Error scopes (spec 5.7; contract 3.4): the compilation-info formatter with body-relative line numbers, and the
  * AllocationTracker that wraps large createBuffer calls in an out-of-memory scope and keeps the resident-byte
  * bookkeeping the residency, the pool and the staging ring share (it is owned by the context).
  */
@@ -9,34 +8,9 @@ import { OOM_SCOPE_THRESHOLD_BYTES } from "../constants.js";
 import { WebGpuGraphError } from "../errors.js";
 
 /**
- * Runs `fn` inside pushErrorScope("validation"); a captured error becomes E_VALIDATION { label, message }
- * thrown from the returned promise (spec 5.7). An error `fn` itself throws is rethrown unchanged after the
- * scope is popped, so the device's scope stack stays balanced.
- * @param device - the device
- * @param label - names the operation in the error (every object the package creates is labelled)
- * @param fn - the work; may return a promise
- * @returns the value of `fn`
- */
-export async function withValidationScope<T>(device: GPUDevice, label: string, fn: () => Promise<T> | T): Promise<T> {
-    device.pushErrorScope("validation");
-    let result: T;
-    try {
-        result = await fn();
-    } catch (err) {
-        await device.popErrorScope().catch(() => null);
-        throw err;
-    }
-    const error = await device.popErrorScope();
-    if (error !== null) {
-        throw new WebGpuGraphError("E_VALIDATION", `${label}: ${error.message}`, { label, message: error.message });
-    }
-    return result;
-}
-
-/**
  * Formats GPUCompilationInfo messages with line numbers relative to the kernel BODY: `preludeLines` (the
  * lines the composer emitted before the body) is subtracted, a message located inside those lines is
- * reported as `prelude:<line>`, and a message without a location (lineNum 0) carries no position (spec 5.1).
+ * reported as `prelude:<line>`, and a message without a location (lineNum 0) carries no position.
  * @param info - the compilation info of the shader module
  * @param preludeLines - the number of emitted lines before the body's first line
  * @returns one string per message: `<type> <line>:<column> <message>`
@@ -56,7 +30,7 @@ export function formatCompilationInfo(info: GPUCompilationInfo, preludeLines: nu
 
 /**
  * Creates buffers, wrapping sizes >= OOM_SCOPE_THRESHOLD_BYTES in an "out-of-memory" scope whose pop is
- * collected; `check()` surfaces the first OOM (spec 4.4, 5.7). Owned by the context, shared by the
+ * collected; `check()` surfaces the first OOM. Owned by the context, shared by the
  * residency and the pool.
  */
 export class AllocationTracker {

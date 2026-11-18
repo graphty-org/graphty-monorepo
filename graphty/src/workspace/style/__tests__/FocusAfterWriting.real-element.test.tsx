@@ -221,7 +221,7 @@ describe("focus after a style line is written or removed", () => {
         }
         await userEvent.keyboard("red{Enter}");
         await waitFor(() => {
-            assert.isNotNull(document.querySelector('.ws-row[data-line="node.color"]:not(:has([data-first-value]))'));
+            assert.isNotNull(document.querySelector('.ws-row[data-line="node.color"]:not(:has([data-notes]))'));
             assert.include(
                 document.querySelector<HTMLInputElement>('.ws-row[data-line="node.color"] input')?.value ?? "",
                 "FF0000",

@@ -758,7 +758,7 @@ export function GradientEditor({
             <fieldset className="cm-fieldset" aria-labelledby={stopsHeadingId}>
                 <div ref={areaRef} className="cm-gradient-area" data-testid="gradient-editor-bar-area">
                     {stopsValue.map((stop, index) => (
-                        <div // NOSONAR(S6819): one of several draggable stop handles over a gradient bar; input type=range has one thumb and cannot draw this
+                        <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- one of several draggable stop handles over a gradient bar; input type=range has one thumb and cannot draw this
                             key={stop.id}
                             className="cm-gradient-handle cm-focus-outside"
                             data-testid="gradient-editor-handle"

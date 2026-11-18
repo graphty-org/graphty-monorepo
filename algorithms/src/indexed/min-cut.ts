@@ -7,7 +7,7 @@ import {
     type NumericVector,
 } from "@graphty/graph-format";
 
-import { withCode } from "../errors.js";
+import { seedOption, withCode } from "../errors.js";
 import { mulberry32 } from "../utils/math-utilities.js";
 import { crossingEdges, edgeCapacities, type MinCutResult, sidesPartition } from "./flow.js";
 import { IndexedMaxHeap } from "./structures/max-heap.js";
@@ -23,7 +23,9 @@ export interface StoerWagnerOptions {
 export interface KargerOptions {
     /** Independent contraction trials; the lightest cut found wins. Default 100. */
     readonly iterations?: number | undefined;
-    /** Seed of the edge orders; one seed gives one result, bit for bit. Default 42. */
+    /** Seed of the edge orders; an integer, one seed gives one result, bit for bit. Default 42. */
+    readonly seed?: number | undefined;
+    /** The earlier spelling of `seed`, deprecated: still read when `seed` is not given, and goes in a later major. */
     readonly randomSeed?: number | undefined;
     /** Per-arc weight override, arcCount long; without it the snapshot's weights (1 when unweighted). */
     readonly weights?: NumericVector | undefined;
@@ -305,17 +307,14 @@ function groupMask(uf: IntUnionFind, root: number, n: number): NodeMask {
  * @param s - The snapshot
  * @param options - Trials, seed and weight override
  * @returns The lightest cut found; with fewer than two nodes the value is 0 and `side` is empty
- * @throws RangeError when `randomSeed` is not an integer or `iterations` is not a positive integer
+ * @throws RangeError when `seed` is not an integer or `iterations` is not a positive integer
  * @public
  */
 export function kargerMinCut(s: GraphSnapshot, options: KargerOptions = {}): MinCutResult {
     const iterations = options.iterations ?? 100;
-    const randomSeed = options.randomSeed ?? 42;
+    const randomSeed = seedOption("kargerMinCut", options);
     if (!Number.isInteger(iterations) || iterations < 1) {
         throw withCode(new RangeError(`iterations must be a positive integer, got ${iterations}`), "E_BAD_OPTION");
-    }
-    if (!Number.isInteger(randomSeed)) {
-        throw withCode(new RangeError(`randomSeed must be a finite integer, got ${randomSeed}`), "E_BAD_OPTION");
     }
     const n = s.nodeCount;
     const capacity = edgeCapacities(s, options.weights);

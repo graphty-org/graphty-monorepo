@@ -75,7 +75,9 @@ registerSource(
     defineSource({
         id: "people",
         async records(params: { team: string }, ctx) {
-            const rows = await ctx.fetchJson<{ id: string; knows: string[] }[]>(`/api/people.json?team=${params.team}`);
+            const rows = await ctx.fetchJson<{ id: string; knows: string[] }[]>(
+                `/api/people.json?team=${encodeURIComponent(params.team)}`,
+            );
             return { edges: rows.flatMap((r) => r.knows.map((k) => ({ source: r.id, target: k }))) };
         },
     }),
@@ -263,7 +265,7 @@ import { defineSource, ImportError, loadFromSource, replayFetch } from "@graphty
 
 const people = defineSource({
     id: "people",
-    records: (params: { team: string }, ctx) => ctx.fetchJson(`/api/people?team=${params.team}`),
+    records: (params: { team: string }, ctx) => ctx.fetchJson(`/api/people?team=${encodeURIComponent(params.team)}`),
 });
 
 const fetch = replayFetch([{ url: "https://example.com/api/people?team=core", status: 401 }]);
@@ -332,7 +334,7 @@ import { credentials, defineSource, loadFromSource, replayFetch } from "@graphty
 const people = defineSource({
     id: "people",
     records: async (params: { team: string }, ctx) => ({
-        nodes: await ctx.fetchJson<{ id: string }[]>(`/api/people?team=${params.team}`),
+        nodes: await ctx.fetchJson<{ id: string }[]>(`/api/people?team=${encodeURIComponent(params.team)}`),
     }),
 });
 

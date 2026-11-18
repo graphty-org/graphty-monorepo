@@ -6,6 +6,7 @@
     "idleDailyMin": 700,
     "idleHourlyMin": 120,
     "freshHours": 3,
+    "overdueHours": 4,
     "idleRunning": 10,
     "baseRunning": 30,
     "quietMinutes": 30,

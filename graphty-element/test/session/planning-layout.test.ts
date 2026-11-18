@@ -36,10 +36,10 @@ describe("estimating a layout choice", () => {
         const estimate = session.estimate({ op: "layout.set", id: "planar" });
 
         assert.isFalse(estimate.available);
-        assert.match(estimate.reason ?? "", /crossings/);
+        assert.strictEqual(estimate.refusal?.code, "layout.not-planar");
         const plan = await session.plan({ op: "layout.set", id: "planar" });
         assert.isFalse(plan.ok);
-        assert.strictEqual(plan.blocked?.reason, estimate.reason);
+        assert.match(plan.blocked?.reason ?? "", /crossings/);
     });
 
     it("costs force in finite seconds", async () => {
@@ -82,18 +82,18 @@ describe("estimating a layout choice", () => {
         const { session } = harness;
 
         for (const id of ["shell", "layers", "bipartite"]) {
-            assert.match(session.estimate({ op: "layout.set", id }).reason ?? "", /needs groupBy/, id);
-            assert.match(
-                session.estimate({ op: "layout.set", id, options: { groupBy: "missing" } }).reason ?? "",
-                /no node carries/,
+            assert.strictEqual(session.estimate({ op: "layout.set", id }).refusal?.code, "layout.needs-grouping", id);
+            assert.strictEqual(
+                session.estimate({ op: "layout.set", id, options: { groupBy: "missing" } }).refusal?.code,
+                "layout.grouping-absent",
                 id,
             );
         }
 
         assert.isTrue(session.estimate({ op: "layout.set", id: "bipartite", options: { groupBy: "side" } }).available);
-        assert.match(
-            session.estimate({ op: "layout.set", id: "bipartite", options: { groupBy: "tier" } }).reason ?? "",
-            /exactly two groups/,
+        assert.strictEqual(
+            session.estimate({ op: "layout.set", id: "bipartite", options: { groupBy: "tier" } }).refusal?.code,
+            "layout.needs-two-groups",
         );
         assert.isTrue(session.estimate({ op: "layout.set", id: "shell", options: { groupBy: "tier" } }).available);
     });

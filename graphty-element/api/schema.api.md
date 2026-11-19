@@ -410,8 +410,8 @@ export const EdgeStyle: z.ZodObject<{
                 outside: "outside";
             }>>;
             borderStyle: z.ZodOptional<z.ZodEnum<{
-                solid: "solid";
-                double: "double";
+                readonly solid: "solid";
+                readonly double: "double";
             }>>;
             backgroundShape: z.ZodOptional<z.ZodEnum<{
                 rectangle: "rectangle";
@@ -707,8 +707,8 @@ export const EdgeStyle: z.ZodObject<{
                 outside: "outside";
             }>>;
             borderStyle: z.ZodOptional<z.ZodEnum<{
-                solid: "solid";
-                double: "double";
+                readonly solid: "solid";
+                readonly double: "double";
             }>>;
             backgroundShape: z.ZodOptional<z.ZodEnum<{
                 rectangle: "rectangle";
@@ -1157,8 +1157,8 @@ export const EdgeStyle: z.ZodObject<{
             outside: "outside";
         }>>;
         borderStyle: z.ZodOptional<z.ZodEnum<{
-            solid: "solid";
-            double: "double";
+            readonly solid: "solid";
+            readonly double: "double";
         }>>;
         backgroundShape: z.ZodOptional<z.ZodEnum<{
             rectangle: "rectangle";
@@ -1400,8 +1400,8 @@ export const EdgeStyle: z.ZodObject<{
             outside: "outside";
         }>>;
         borderStyle: z.ZodOptional<z.ZodEnum<{
-            solid: "solid";
-            double: "double";
+            readonly solid: "solid";
+            readonly double: "double";
         }>>;
         backgroundShape: z.ZodOptional<z.ZodEnum<{
             rectangle: "rectangle";
@@ -2526,8 +2526,8 @@ export const NodeStyle: z.ZodObject<{
             outside: "outside";
         }>>;
         borderStyle: z.ZodOptional<z.ZodEnum<{
-            solid: "solid";
-            double: "double";
+            readonly solid: "solid";
+            readonly double: "double";
         }>>;
         backgroundShape: z.ZodOptional<z.ZodEnum<{
             rectangle: "rectangle";
@@ -2769,8 +2769,8 @@ export const NodeStyle: z.ZodObject<{
             outside: "outside";
         }>>;
         borderStyle: z.ZodOptional<z.ZodEnum<{
-            solid: "solid";
-            double: "double";
+            readonly solid: "solid";
+            readonly double: "double";
         }>>;
         backgroundShape: z.ZodOptional<z.ZodEnum<{
             rectangle: "rectangle";
@@ -3012,8 +3012,8 @@ export const NodeStyle: z.ZodObject<{
             outside: "outside";
         }>>;
         borderStyle: z.ZodOptional<z.ZodEnum<{
-            solid: "solid";
-            double: "double";
+            readonly solid: "solid";
+            readonly double: "double";
         }>>;
         backgroundShape: z.ZodOptional<z.ZodEnum<{
             rectangle: "rectangle";
@@ -3370,8 +3370,8 @@ export const RichTextStyle: z.ZodObject<{
         outside: "outside";
     }>>;
     borderStyle: z.ZodOptional<z.ZodEnum<{
-        solid: "solid";
-        double: "double";
+        readonly solid: "solid";
+        readonly double: "double";
     }>>;
     backgroundShape: z.ZodOptional<z.ZodEnum<{
         rectangle: "rectangle";

@@ -133,4 +133,71 @@ describe("letting the builder go after a load", () => {
         store.releaseIdle();
         assert.deepStrictEqual(release(store), { released: false, revivals: 0 });
     });
+    it("lets it go again once edges follow a nodes-only load in a second command", () => {
+        const store = storeWith(true);
+        const { builder } = store;
+        for (let id = 0; id < 50; id++) {
+            builder.addNode(id);
+        }
+        store.account();
+        store.getSnapshot();
+        store.releaseIdle();
+        assert.deepStrictEqual(release(store), { released: true, revivals: 0 });
+        for (let at = 0; at < 200; at++) {
+            const row = store.builder.addEdge(at % 50, (at * 3 + 1) % 50, 1);
+            store.stampEdgeId(row, store.nextEdgeId());
+        }
+        store.account();
+        store.getSnapshot();
+        store.releaseIdle();
+        assert.deepStrictEqual(release(store), { released: true, revivals: 1 });
+    });
+
+    it("sets a let-go graph aside for a clear without rebuilding it, and puts it back as it was", () => {
+        const graphs = [true, false].map((on) => {
+            const store = storeWith(on);
+            load(store, 50, 200);
+            const before = contents(store.getSnapshot());
+            store.releaseIdle();
+            const kept = store.keep();
+            store.replace(kept, false);
+            store.getSnapshot();
+            assert.strictEqual(release(store).revivals, 0, "keep() rebuilt the graph it was about to drop");
+            store.replace(kept, true);
+            const after = contents(store.getSnapshot());
+            assert.deepStrictEqual(after, before);
+            return { store, after };
+        });
+        assert.deepStrictEqual(graphs[0].after, graphs[1].after);
+        assert.strictEqual(release(graphs[0].store).revivals, 0);
+    });
+
+    it("undoes a replacing load while let go without rebuilding the builder it drops", () => {
+        const store = storeWith(true);
+        load(store, 50, 200);
+        const before = contents(store.getSnapshot());
+        const kept = store.keep();
+        store.replace(kept, false);
+        for (let id = 100; id < 160; id++) {
+            store.builder.addNode(id);
+        }
+        store.account();
+        store.getSnapshot();
+        store.releaseIdle();
+        assert.isTrue(release(store).released);
+        store.replace(kept, true);
+        assert.deepStrictEqual(contents(store.getSnapshot()), before);
+        assert.strictEqual(release(store).revivals, 0);
+    });
+
+    it("still answers its builder and reads after dispose while let go", () => {
+        const store = storeWith(true);
+        load(store, 10, 20);
+        store.getSnapshot();
+        store.releaseIdle();
+        store.dispose();
+        assert.doesNotThrow(() => store.builder.nodeCount);
+        assert.doesNotThrow(() => store.reads.nodeCount);
+        assert.doesNotThrow(() => store.holdsNoRows);
+    });
 });

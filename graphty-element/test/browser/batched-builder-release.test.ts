@@ -121,4 +121,22 @@ describe("the graph builder on the batched path", () => {
         assert.deepEqual(sorted(graphOf(element)), sorted(want));
         assert.strictEqual(builderRelease(element).revivals, 1, "a rebuilt builder is kept");
     });
+    it("let it go again after nodes and edges arrive as two commands, and clear and undo it with no rebuild", async () => {
+        const element = await loaded("batched", [], []);
+        await element.session.data.addNodes(nodes());
+        await element.session.data.addEdges(edges());
+        await operationQueueOf(element.graph).waitForCompletion();
+        const want = { nodes: nodes(), ends: edges().map((edge) => [edge.src, edge.dst]) };
+        assert.deepEqual(graphOf(element), want);
+        // The edges rebuilt the nodes-only builder once, and the loaded graph lets it go again.
+        assert.deepEqual(builderRelease(element), { released: true, revivals: 1 });
+
+        await element.session.data.clear();
+        await operationQueueOf(element.graph).waitForCompletion();
+        assert.strictEqual(element.session.data.snapshot().nodeCount, 0);
+        await element.session.undo();
+        await operationQueueOf(element.graph).waitForCompletion();
+        assert.deepEqual(sorted(graphOf(element)), sorted(want));
+        assert.strictEqual(builderRelease(element).revivals, 1, "the clear set the let-go graph aside unrebuilt");
+    });
 });

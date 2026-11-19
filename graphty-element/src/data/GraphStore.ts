@@ -148,6 +148,9 @@ interface ReleasedBuilder {
     readonly directedLocked: boolean;
     /** Whether {@link GraphStore.restoredFrom} named it, with its count. */
     readonly restored: boolean;
+    /** Its row bounds: the index space a walk out of it is sized by. */
+    readonly nodeBound: number;
+    readonly edgeBound: number;
 }
 
 /** The node column an importer seeds file coordinates into; deleted from every snapshot by the attach. */
@@ -382,19 +385,23 @@ function mergeAt<R extends { readonly index: number }>(list: readonly Row<R>[], 
 /**
  * The graph a rebuild starts from: the builder now, frozen (with the walk from its rows to the
  * frozen ones), the kept graph a restore puts back, or none for a replace that empties it.
- * @param old - The builder now.
+ * @param old - The builder now; null only for a replace, while it is let go.
  * @param replace - The replace the rebuild starts from, or null to start from the builder now.
  * @param nodeBound - The builder's node row bound.
  * @param edgeBound - The builder's edge row bound.
  * @returns The base snapshot, and the builder's rows in it when it was frozen from the builder.
  */
 function rebuildBase(
-    old: GraphBuilder,
+    old: GraphBuilder | null,
     replace: Extract<Structural, { kind: "replace" }> | null,
     nodeBound: number,
     edgeBound: number,
 ): { base: GraphSnapshot | null; oldNodes: U32 | null; oldEdges: U32 | null } {
     if (replace === null) {
+        if (old === null) {
+            throw new Error("GraphStore: a rebuild from the builder now needs the builder");
+        }
+
         const frozen = old.freezeWithReport({ label: "graphty-element rebuild" });
         return {
             base: frozen.snapshot,
@@ -679,8 +686,8 @@ export class GraphStore {
     private held: GraphBuilder | null = null;
     /**
      * Whether the builder may be let go: true from the store's start and from each load that
-     * replaces the graph, false from the first rebuild after a release until then, so editing a
-     * loaded graph rebuilds it once, not after every quiet moment.
+     * replaces the graph, false from the first rebuild after a release (of a builder holding edges)
+     * until then, so editing a loaded graph rebuilds it once, not after every quiet moment.
      */
     private releasable = true;
     /** The builder let go, while it is. */
@@ -891,6 +898,14 @@ export class GraphStore {
         return this.held ?? this.revive();
     }
 
+    /**
+     * The builder's row bounds, without rebuilding a let-go one.
+     * @returns The bounds.
+     */
+    private bounds(): { readonly nodeBound: number; readonly edgeBound: number } {
+        return this.held ?? (this.released as ReleasedBuilder);
+    }
+
     private set current(builder: GraphBuilder) {
         this.held = builder;
         this.released = null;
@@ -938,6 +953,8 @@ export class GraphStore {
             directed: builder.directed,
             directedLocked: builder.directedLocked,
             restored: restored?.builder === builder && restored.count === builder.mutationCount,
+            nodeBound: builder.nodeBound,
+            edgeBound: builder.edgeBound,
         };
         // Nothing may keep the builder reachable: each key that names it is rewritten on revive.
         this.held = null;
@@ -968,7 +985,11 @@ export class GraphStore {
 
         const builder = this.createBuilder(released.directed);
         this.held = builder;
-        this.releasable = false;
+        // A rebuild before any edge is in is still the load (nodes, then edges in a second
+        // command), so the builder may go again once the edges are in.
+        // ponytail: a graph that never gets edges rebuilds on every edit after a quiet moment; count
+        // rebuilds per load if node-only editing shows up in a profile.
+        this.releasable = base.edgeCount === 0;
         this.released = null;
         this.readsOf = null;
         this.revivals++;
@@ -1930,15 +1951,39 @@ export class GraphStore {
     keep(): KeptGraph {
         const current = this.getSnapshot();
         // A second freeze of a builder about to be replaced: its report chain no longer matters,
-        // and unlike the cached snapshot this one still carries the seed column.
+        // and unlike the cached snapshot this one still carries the seed column. A let-go builder
+        // is not rebuilt for it: the cached snapshot holds the same rows.
         const kept = {
-            snapshot: this.current.freeze({ label: "graphty-element kept" }),
+            snapshot:
+                this.held === null && this.cache !== null
+                    ? this.keptFromCache(this.cache)
+                    : this.current.freeze({ label: "graphty-element kept" }),
             direction: this.direction,
             unconfigured: this.unconfigured,
         };
         // History holds it until the step is evicted: nothing may write it meanwhile.
         seal(kept.snapshot, "a kept graph's snapshot");
         this.heldLane.set(kept, { ids: current.ids.toArray(), coords: this.positions.view(current.nodeCount).slice() });
+        return kept;
+    }
+
+    /**
+     * What a fresh freeze of the let-go builder would hold: the cached snapshot's core and columns,
+     * with the seed column as frozen in place of the positions lane and the pins.
+     * @param cache - The cached snapshot.
+     * @returns A new snapshot sharing the cache's core.
+     */
+    private keptFromCache(cache: GraphSnapshot): GraphSnapshot {
+        const kept = cache.withColumns();
+        kept.nodes.remove(PINNED_COLUMN);
+        const seed = this.frozenColumns.node.find((column) => column.meta.name === SEED_COLUMN);
+        if (seed === undefined) {
+            kept.nodes.remove("position");
+        } else {
+            // The seed holds the position role, so it evicts the lane.
+            kept.nodes.set(SEED_COLUMN, seed, undefined, { replaceRole: true });
+        }
+
         return kept;
     }
 
@@ -2159,7 +2204,7 @@ export class GraphStore {
      * @param kept - The graph the replace sets aside.
      * @param old - The builder it swaps out.
      */
-    private setAsideIfRestored(kept: KeptGraph, old: GraphBuilder): void {
+    private setAsideIfRestored(kept: KeptGraph, old: GraphBuilder | null): void {
         const earlier = this.setAsideKey?.deref();
         if (earlier !== undefined) {
             this.setAside.delete(earlier);
@@ -2167,7 +2212,12 @@ export class GraphStore {
 
         this.setAsideKey = null;
         const restored = this.restoredFrom;
-        if (restored?.kept.deref() !== kept || restored.builder !== old || old.mutationCount !== restored.count) {
+        if (
+            old === null ||
+            restored?.kept.deref() !== kept ||
+            restored.builder !== old ||
+            old.mutationCount !== restored.count
+        ) {
             return;
         }
 
@@ -2210,7 +2260,7 @@ export class GraphStore {
 
         this.setAside.delete(kept);
         this.setAsideKey = null;
-        const old = this.current;
+        const old = this.bounds();
         const { builder, handles, edgeIdByIndex, denseRows, indexByEdgeId, denseOffset, pairsOrdered } = aside.state;
         this.current = builder;
         [
@@ -2249,9 +2299,11 @@ export class GraphStore {
         changes: readonly Structural[],
         directed?: boolean,
     ): { node: U32; edge: U32 } {
-        const old = this.current;
-        const node = new Uint32Array(old.nodeBound).fill(INVALID_INDEX);
-        const edge = new Uint32Array(old.edgeBound).fill(INVALID_INDEX);
+        // A replace reads the old builder only for its bounds: a let-go one is not rebuilt for that.
+        const old = replace === null ? this.current : this.held;
+        const { nodeBound, edgeBound } = old ?? this.bounds();
+        const node = new Uint32Array(nodeBound).fill(INVALID_INDEX);
+        const edge = new Uint32Array(edgeBound).fill(INVALID_INDEX);
         const { base, oldNodes, oldEdges } = rebuildBase(old, replace, node.length, edge.length);
         const { nodeRows, edgeRows } = pendingRows(base, changes);
         if (replace !== null && !replace.restore) {
@@ -2461,6 +2513,11 @@ export class GraphStore {
      * here to clear. Calling this twice is harmless.
      */
     dispose(): void {
+        if (this.held === null) {
+            // Nothing is left to rebuild a let-go builder from: an empty one keeps `builder` readable.
+            this.current = new GraphBuilder({ directed: (this.released as ReleasedBuilder).directed });
+        }
+
         this.cache?.dropCaches();
         this.cache = null;
         this.cachedFrom = null;

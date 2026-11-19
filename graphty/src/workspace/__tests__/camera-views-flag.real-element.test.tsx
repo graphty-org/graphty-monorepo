@@ -100,7 +100,7 @@ describe("the camera-views experiment off", () => {
         await session.views.save([{ name: "Spot" }]);
         assert.deepEqual(await cameraRows(), [
             "Fit0",
-            "Frame selectionSelect something firstF",
+            "Fit selectionSelect something firstF",
             "Front1",
             "Side3",
             "Top7",
@@ -109,7 +109,7 @@ describe("the camera-views experiment off", () => {
             "Remove view",
             "Save view",
             "Auto-rotate9",
-            "Follow selection",
+            "Focus selected",
             "Export imageShift+I",
             "Record videoShift+R",
         ]);

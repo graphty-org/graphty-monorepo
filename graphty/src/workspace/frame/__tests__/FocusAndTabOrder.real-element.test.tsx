@@ -1,7 +1,7 @@
 /**
  * Where keyboard focus goes in the workspace, on the REAL graphty-element, by real keys: never to
  * the page. Tab rounds the page; F6 crosses from the layer list to the inspector in one press;
- * Shift+T puts focus in the table; Camera > Frame selection hands focus back to Camera; a "Why this
+ * Shift+T puts focus in the table; Camera > Fit selection hands focus back to Camera; a "Why this
  * look" link hands it to the inspector's title; the arrow keys on the Node and Edge tabs keep it
  * on the tabs; an info button opens only when pressed; Tab out of a Vary by list closes it and
  * moves on; a section "+" with nothing to add is no Tab stop.
@@ -126,14 +126,14 @@ describe("focus and Tab order in the workspace, on the real element", () => {
         });
     });
 
-    it("Camera > Frame selection hands focus back to Camera", async () => {
+    it("Camera > Fit selection hands focus back to Camera", async () => {
         const { session } = await openRings();
         await act(async () => {
             await session.selection.apply({ nodes: ["n3"] });
         });
         const view = screen.getByRole("button", { name: "Camera" });
         await userEvent.click(view);
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Frame selection" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Fit selection" }));
         await waitFor(() => {
             assert.isNull(screen.queryByRole("menu"));
             assert.strictEqual(document.activeElement, view);

@@ -237,7 +237,7 @@ function CameraRows(): React.JSX.Element | null {
 }
 
 /**
- * The Camera menu's Auto-rotate and Follow selection switches.
+ * The Camera menu's Auto-rotate and Focus selected switches.
  * @returns The rows
  */
 function CameraSwitchRows(): React.JSX.Element {
@@ -253,20 +253,15 @@ function CameraSwitchRows(): React.JSX.Element {
                 shortcut="9"
                 radio={false}
             />
-            <CheckItem
-                command="view.follow-selection"
-                label="Follow selection"
-                checked={followSelection}
-                radio={false}
-            />
+            <CheckItem command="view.follow-selection" label="Focus selected" checked={followSelection} radio={false} />
         </>
     );
 }
 
 /**
  * The Camera menu with the camera-views experiment on (design/ui/camera-views-tours-and-capture.md,
- * section 3.2): every camera, Fit and Frame selection, Zoom in and Zoom out in 2D, then the
- * Auto-rotate and Follow selection switches.
+ * section 3.2): every camera, Fit and Fit selection, Zoom in and Zoom out in 2D, then the
+ * Auto-rotate and Focus selected switches.
  * @param props - Component props
  * @param props.session - The element's session, or null
  * @returns The menu's rows
@@ -331,8 +326,8 @@ function SavedViewRows({ session }: Readonly<{ session: GraphSession }>): React.
 }
 
 /**
- * The Camera menu: Fit and Frame selection; the four standard views, disabled with their reason in
- * 2D; the saved views and Save view; zoom in and out in 2D; the Auto-rotate and Follow selection
+ * The Camera menu: Fit and Fit selection; the four standard views, disabled with their reason in
+ * 2D; the saved views and Save view; zoom in and out in 2D; the Auto-rotate and Focus selected
  * switches; then Export image and Record video, which reads Stop recording while it records.
  * @param props - Component props
  * @param props.session - The element's session, or null
@@ -536,7 +531,7 @@ export function WorkspaceToolbar(): React.JSX.Element {
             },
             position: "top",
             offset: 8,
-            // Closing (Esc, Run, a pick, a menu row such as Frame selection) unmounts the focused
+            // Closing (Esc, Run, a pick, a menu row such as Fit selection) unmounts the focused
             // control; focus goes back to the popover's button, unless the reader has already put
             // it somewhere else.
             onClose: () => {

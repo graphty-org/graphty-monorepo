@@ -1,7 +1,7 @@
 /**
  * The Camera menu, the camera keys and the toolbar while a tour plays, on the REAL graphty-element
  * (design/ui/camera-views-tours-and-capture.md, sections 3.2, 3.4 and 3.5): the menu lists the
- * cameras with their keys, Fit, Frame selection, zoom in 2D and the two switches, and nothing else; a
+ * cameras with their keys, Fit, Fit selection, zoom in 2D and the two switches, and nothing else; a
  * camera's digit flies there, never while typing; Camera and Mode stay one flex gap apart, and
  * while a tour plays the Camera tool is Stop. Every change is real input; every assertion reads
  * what is drawn or what the element reports. All with the camera-views experiment on.
@@ -150,7 +150,7 @@ async function openViewsPlace(): Promise<HTMLElement> {
 }
 
 describe("the Camera menu", () => {
-    it("holds exactly the cameras with their keys, Fit, Frame selection and the two switches; in 2D zoom too", async () => {
+    it("holds exactly the cameras with their keys, Fit, Fit selection and the two switches; in 2D zoom too", async () => {
         const { session } = await openRing();
         await session.views.save([{ name: "Hub cluster", key: "2" }]);
 
@@ -163,9 +163,9 @@ describe("the Camera menu", () => {
             { text: "Isometric", disabled: false },
             { text: "Hub cluster2", disabled: false },
             { text: "Fit0", disabled: false },
-            { text: "Frame selectionSelect something firstF", disabled: true },
+            { text: "Fit selectionSelect something firstF", disabled: true },
             { text: "Auto-rotate9", disabled: false },
-            { text: "Follow selection", disabled: false },
+            { text: "Focus selected", disabled: false },
         ]);
         await closeMenu();
 
@@ -182,11 +182,11 @@ describe("the Camera menu", () => {
             { text: "Isometric3D only", disabled: true },
             { text: "Hub clusterSaved in 3D2", disabled: true },
             { text: "Fit0", disabled: false },
-            { text: "Frame selectionSelect something firstF", disabled: true },
+            { text: "Fit selectionSelect something firstF", disabled: true },
             { text: "Zoom in", disabled: false },
             { text: "Zoom out", disabled: false },
             { text: "Auto-rotateOnly in 3D9", disabled: true },
-            { text: "Follow selection", disabled: false },
+            { text: "Focus selected", disabled: false },
         ]);
     });
 

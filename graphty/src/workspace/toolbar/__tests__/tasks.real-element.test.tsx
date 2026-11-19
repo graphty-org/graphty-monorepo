@@ -385,7 +385,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         };
 
         let menu = await open();
-        for (const name of [/^Fit/, /^Frame selection/, /^Front/, /^Side/, /^Top/, /^Isometric/]) {
+        for (const name of [/^Fit/, /^Fit selection/, /^Front/, /^Side/, /^Top/, /^Isometric/]) {
             assert.isNotNull(within(menu).getByRole("menuitem", { name }));
         }
         // Each standard view shows its key on its row.
@@ -436,7 +436,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         assert.isNotNull(within(menu).getByRole("menuitem", { name: /^Zoom out/ }));
     });
 
-    it("saves the camera as a view, goes back to it, removes it, and turns Follow selection off", async () => {
+    it("saves the camera as a view, goes back to it, removes it, and turns Focus selected off", async () => {
         const session = await openKarate();
         const element = document.querySelector("graphty-element");
         assert.isNotNull(element);
@@ -491,9 +491,9 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
             assert.deepEqual([...session.views.keys()], ["View 2"]);
         });
 
-        // Follow selection is on, and turning it off leaves the camera where it is on a pick.
+        // Focus selected is on, and turning it off leaves the camera where it is on a pick.
         await userEvent.keyboard("{Escape}");
-        const follow = within(await open()).getByRole("menuitemcheckbox", { name: /^Follow selection/ });
+        const follow = within(await open()).getByRole("menuitemcheckbox", { name: /^Focus selected/ });
         assert.equal(follow.getAttribute("aria-checked"), "true");
         await userEvent.click(follow);
         await waitFor(() => {
@@ -504,18 +504,18 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         await session.selection.apply({ nodes: [session.data.nodes()[0].id] }, "replace", { cause: "user" });
         await element.waitForStableFrame();
         assert.deepEqual(element.getCameraState().target, before.target);
-        const off = within(await open()).getByRole("menuitemcheckbox", { name: /^Follow selection/ });
+        const off = within(await open()).getByRole("menuitemcheckbox", { name: /^Focus selected/ });
         assert.equal(off.getAttribute("aria-checked"), "false");
     });
 
-    it("frames a selected edge's two ends with Frame selection, and disables it with nothing selected", async () => {
+    it("frames a selected edge's two ends with Fit selection, and disables it with nothing selected", async () => {
         const session = await openKarate();
         const element = document.querySelector("graphty-element");
         assert.isNotNull(element);
         if (element === null) {
             return;
         }
-        // Frame selection frames the ends where they are when it is pressed, and the layout is
+        // Fit selection frames the ends where they are when it is pressed, and the layout is
         // still moving them after the queue empties: wait for the drawing to stop.
         await element.waitForStableFrame();
         const view = within(screen.getByRole("toolbar", { name: "Canvas tools" })).getByRole("button", {
@@ -524,7 +524,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         const frameRow = async (): Promise<HTMLElement> => {
             await userEvent.click(view);
             const menu = await screen.findByRole("menu", { name: /^Camera/ });
-            return within(menu).getByRole("menuitem", { name: /^Frame selection/ });
+            return within(menu).getByRole("menuitem", { name: /^Fit selection/ });
         };
 
         assert.equal((await frameRow()).getAttribute("aria-disabled"), "true", "nothing selected");
@@ -624,7 +624,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         assert.isNull(screen.queryByRole("radiogroup", { name: "Follow" }));
         // The neighborhood has one home: no Grow by one hop in its "...".
         await userEvent.click(screen.getByRole("button", { name: "Neighborhood actions" }));
-        await screen.findByRole("menuitem", { name: /Frame selection/ });
+        await screen.findByRole("menuitem", { name: /Fit selection/ });
         assert.isNull(screen.queryByRole("menuitem", { name: /Grow by one hop/ }));
         await userEvent.keyboard("{Escape}");
 

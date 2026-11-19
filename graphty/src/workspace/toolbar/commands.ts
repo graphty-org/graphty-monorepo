@@ -40,7 +40,7 @@ function filteredReach(session: GraphSession, center: NodeId): number {
 }
 
 /**
- * Why Frame selection cannot run: nothing is selected. The element frames a selected edge's ends.
+ * Why Fit selection cannot run: nothing is selected. The element frames a selected edge's ends.
  * @param session - the element's session, or null.
  * @returns the reason, or null when a node or an edge is selected.
  */
@@ -216,7 +216,7 @@ function withoutCameraViews(ctx: CommandContext): boolean {
  * The Toolbar package's commands (tier1-design.md 2.3): the Camera and Mode menus and what they
  * hold, the legend switch, Quick actions, and Neighborhood for the selection.
  *
- * The camera moves (Fit, Frame selection, zoom) are view state, so they go
+ * The camera moves (Fit, Fit selection, zoom) are view state, so they go
  * through the element's camera methods and record no step, as Auto-rotate (a view preference)
  * does; Switch to 2D or 3D is a project change
  * and goes through the session.
@@ -261,7 +261,7 @@ export const registration = defineRegistration({
         },
         {
             id: "view.follow-selection",
-            label: "Follow selection",
+            label: "Focus selected",
             group: "View",
             disabled: ({ session }) => nothingDrawn(session),
             run: ({ workspace }) => {
@@ -326,7 +326,7 @@ export const registration = defineRegistration({
         },
         {
             id: "view.frame-selection",
-            label: "Frame selection",
+            label: "Fit selection",
             group: "View",
             keys: ["F"],
             disabled: ({ session }) => nothingSelected(session),

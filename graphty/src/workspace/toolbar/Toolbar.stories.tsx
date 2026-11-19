@@ -176,7 +176,7 @@ function onSite(story: Story, features: readonly string[]): Story {
     return { ...story, beforeEach: onSiteWith(features) };
 }
 
-/** The Camera menu in 2D: Fit, Frame selection, the standard views and Auto-rotate disabled, zoom, Export image and Record video (the camera-views experiment off). */
+/** The Camera menu in 2D: Fit, Fit selection, the standard views and Auto-rotate disabled, zoom, Export image and Record video (the camera-views experiment off). */
 export const CameraMenu2D: Story = onSite(
     {
         args: { initialState: OPEN },
@@ -188,7 +188,7 @@ export const CameraMenu2D: Story = onSite(
     [],
 );
 
-/** The Camera menu in 3D: Fit, Frame selection, the standard views, Auto-rotate, Export image and Record video, each with its key (the camera-views experiment off). */
+/** The Camera menu in 3D: Fit, Fit selection, the standard views, Auto-rotate, Export image and Record video, each with its key (the camera-views experiment off). */
 export const CameraMenu3D: Story = onSite(
     {
         args: { initialState: OPEN },

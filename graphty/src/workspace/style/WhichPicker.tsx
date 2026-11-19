@@ -31,7 +31,7 @@ import {
     VisuallyHidden,
 } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
-import React, { useContext, useEffect, useId, useMemo, useRef, useState } from "react";
+import React, { useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 
 import { sourceName } from "../data-place/words";
@@ -1435,6 +1435,16 @@ export function AddCondition({
                   onElsewhere(other);
               };
     const { dropdownOpened, selectFirstOption, selectOption, resetSelectedOption, setListId } = combobox;
+    // The search takes focus in the commit that shows the list, so a key pressed the moment it
+    // shows lands in it. Mantine's focusSearchInput waits a timer, and under load the reader's (or
+    // a test's) first keys arrive before it fires and go to the field behind (#8943). No scroll:
+    // the list may not be placed yet.
+    const { searchRef } = combobox;
+    useLayoutEffect(() => {
+        if (dropdownOpened) {
+            searchRef.current?.focus({ preventScroll: true });
+        }
+    }, [dropdownOpened, searchRef]);
     // The store finds its options in the list by this id (Combobox.Options would tell it).
     useEffect(() => {
         setListId(listId);

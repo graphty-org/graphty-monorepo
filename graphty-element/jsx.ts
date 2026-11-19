@@ -543,6 +543,10 @@ export interface GraphtyElementJSXProps {
     /**
      * Emitted when an AI command is canceled
      */
+    "onai-command-canceled"?: (event: CustomEvent<EventOfType<"ai-command-canceled">>) => void;
+    /**
+     * The British spelling of `ai-command-canceled`, emitted right after it with the same fields.
+     */
     "onai-command-cancelled"?: (event: CustomEvent<EventOfType<"ai-command-cancelled">>) => void;
     /**
      * Emitted when an AI command completes successfully
@@ -620,6 +624,10 @@ export interface GraphtyElementJSXProps {
      * Emitted when voice transcript is available
      */
     "onai-voice-transcript"?: (event: CustomEvent<EventOfType<"ai-voice-transcript">>) => void;
+    /**
+     * The graph's lifecycle, operation, animation and screenshot events, which carry no declared fields beyond their name; any facts they carry are extra properties.
+     */
+    "onanimation-canceled"?: (event: CustomEvent<EventOfType<"animation-canceled">>) => void;
     /**
      * The graph's lifecycle, operation, animation and screenshot events, which carry no declared fields beyond their name; any facts they carry are extra properties.
      */
@@ -803,6 +811,10 @@ export interface GraphtyElementJSXProps {
     "onoperation-batch-complete"?: (event: CustomEvent<EventOfType<"operation-batch-complete">>) => void;
     /**
      * Emitted when a queued operation is aborted before it finished.
+     */
+    "onoperation-canceled"?: (event: CustomEvent<EventOfType<"operation-canceled">>) => void;
+    /**
+     * The British spelling of `operation-canceled`: emitted right after it for every aborted operation, with `"cancelled"` where that one says `"canceled"`.
      */
     "onoperation-cancelled"?: (event: CustomEvent<EventOfType<"operation-cancelled">>) => void;
     /**

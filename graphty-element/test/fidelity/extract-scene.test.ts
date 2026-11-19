@@ -3,6 +3,8 @@
  * label locations and colors become the fidelity scene's classes. The reader itself runs in the
  * browser (`fidelity.test.ts`); these are the parts that decide what a value means.
  */
+import { GraphBuilder } from "@graphty/graph-format";
+import { dotImporter } from "@graphty/graph-io/dot";
 import { assert, describe, it } from "vitest";
 
 import type { SceneNode } from "../../../graph-io/test/fidelity/scene";
@@ -17,6 +19,7 @@ import {
     groupsOf,
     labelPositionOf,
     lineStyleOf,
+    nestingNodes,
     occluders,
     polygonClassOf,
     sceneNode,
@@ -266,6 +269,17 @@ describe("what the graphty scene extractor counts as hidden, and as a group", ()
             groupsOf(scene, nodes).map((g) => g.id),
             ["parent", "big"],
         );
+    });
+
+    it("reads the nodes a graph nests others in off its data, which no folding of the file's layers loses", async () => {
+        // dot-synth-edges-clusters: its file styles make more layers than the cap, so the rule that draws each cluster
+        // behind its members is folded and its name gone; the clusters are still the graph's nesting
+        const builder = new GraphBuilder({ directed: true });
+        const dot = "digraph { subgraph cluster_a { a; b; subgraph cluster_b { c } } d; a -> d }";
+        await dotImporter.import(new TextEncoder().encode(dot), builder, { ids: "keep" });
+        const snapshot = builder.freeze();
+        const nesting = nestingNodes(snapshot);
+        assert.deepEqual([...nesting].sort(), ["cluster_a", "cluster_b"]);
     });
 
     it("shows a label drawn under one pixel tall, and leaves its size to fontSize", () => {

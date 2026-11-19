@@ -2039,6 +2039,8 @@ export interface LayoutDescriptor {
     engine: string;
     // (undocumented)
     family: string;
+    honorsWeights: boolean;
+    // @deprecated
     honoursWeights: boolean;
     // (undocumented)
     id: LayoutId;
@@ -2079,6 +2081,8 @@ export interface LayoutImplementation {
     descriptionId?: string;
     engine: string;
     fact: CodedFact<LayoutImplementationCode>;
+    honorsWeights: boolean;
+    // @deprecated
     honoursWeights: boolean;
     isDefault: boolean;
     // (undocumented)

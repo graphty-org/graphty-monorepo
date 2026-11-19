@@ -309,6 +309,7 @@ export { defineShader } from "./src/simple/defineShader";
 // Events
 // =============================================================================
 export type {
+    AiCommandCanceledEvent,
     AiEventType,
     BasemapStatusEvent,
     CameraStateChangedEvent,
@@ -354,6 +355,7 @@ export type {
     NodeGenericEvent,
     NodeHoverEvent,
     OperationCanceledEvent,
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- the British alias stays exported until the next major
     OperationCancelledEvent,
     OverviewChangedEvent,
     RenderLostEvent,

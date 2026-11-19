@@ -8536,8 +8536,9 @@ export class Graph implements GraphContext {
 
         const cancelled = this.activeCapture.cancel();
 
-        // Emit cancellation event
+        // `animation-cancelled` is the deprecated British name, still sent until the next major.
         if (cancelled) {
+            this.eventManager.emit("animation-canceled", {});
             this.eventManager.emit("animation-cancelled", {});
         }
 

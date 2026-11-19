@@ -239,6 +239,25 @@ export function isStandIn(meta: Record<string, unknown>): boolean {
 const NO_GROUP_PROGRAMS: ReadonlySet<string> = new Set(["Gephi Toolkit", "Pajek"]);
 
 /**
+ * The oracle programs whose SVG names every node and group it draws (Graphviz's `<g class="node">` and
+ * `<g class="cluster">`): graphty's groups there are the ones the program names (`namedGroups`; a cluster's title is the
+ * id graph-io gives its group node), never a node drawn round a smaller one, which the oracle reads as the node it
+ * names (dot-real-softmaint 375499, an ellipse over the 5 px circle odfpr1_0_3t_21 in both drawings).
+ */
+const NAMED_GROUP_PROGRAMS: ReadonlySet<string> = new Set(["Graphviz"]);
+
+/**
+ * The groups an oracle's markup names, by id.
+ * @param id - the sample
+ * @returns their ids
+ */
+async function namedGroups(id: string): Promise<Set<string>> {
+    const svgPath = pathOf(svgs, id);
+    const read = svgPath === undefined ? null : await readSvgOnce(await svgs[svgPath]());
+    return new Set((read?.prims ?? []).flatMap((p) => (p.hint?.role === "group" ? [p.hint.id] : [])));
+}
+
+/**
  * What a comparison takes from the mounted element besides its drawing, so the same comparison can be run again on a
  * drawing kept from another run (`judgeDrawing`): the specimen names both sides are named by, and whether graphty ran
  * its own layout. These follow from the sample file, not from how graphty drew it.
@@ -338,9 +357,11 @@ export async function compareWithOracle(
         const fontPx = (d?.label ?? d?.tableLabel)?.fontPx ?? 0;
         return n.label === null || fontPx >= 1 ? n : { ...n, label: { ...n.label, visible: false } };
     });
-    // An SVG names no group, so a box graphty draws round others is read as one by its drawing alone, as the oracle's
-    // is, not only where the file nests nodes (the scene's groups, which the reference scenes are judged by)
-    const unmutated = drawnPrimitives({ ...scene, nodes, groups: groupsOf(nodes, drawn.nodes) }, drawn, {
+    // An SVG that names no group has a box graphty draws round others read as one by its drawing alone, as the
+    // oracle's is, not only where the file nests nodes (the scene's groups, which the reference scenes are judged by);
+    // one that names its groups has only those
+    const declared = NAMED_GROUP_PROGRAMS.has(String(meta.program)) ? await namedGroups(id) : undefined;
+    const unmutated = drawnPrimitives({ ...scene, nodes, groups: groupsOf(nodes, drawn.nodes, declared) }, drawn, {
         groups: !groupless,
     });
     // A specimen sheet whose format ids its nodes otherwise (Cytoscape desktop by SUID, GML by number) keeps `cap-*`

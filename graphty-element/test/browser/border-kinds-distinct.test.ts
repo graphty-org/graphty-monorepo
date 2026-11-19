@@ -23,7 +23,6 @@ import { commands } from "vitest/browser";
 
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
-import type { ChannelValues } from "../../src/session/styles/channels";
 import { nextFrame } from "../helpers/real-input";
 import { pngOf } from "./shaders/presets/lit-surface-scene";
 
@@ -47,7 +46,7 @@ const KINDS = {
     borderRed: { "node.borderColor": "#E00000", "node.borderWidth": 0.1 },
     outlineRed: { "node.outline": "#E00000" },
     haloRed: { "node.halo": true, "node.haloColor": "#E00000" },
-} as const satisfies Record<string, Partial<ChannelValues>>;
+} as const;
 
 type Kind = keyof typeof KINDS;
 type View = "2d" | "3d";

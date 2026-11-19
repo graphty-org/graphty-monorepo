@@ -45,8 +45,10 @@ export interface ChannelPoint {
  * @since 3.60.0
  */
 export interface ShapeTextItem {
-    readonly x: number;
-    readonly y: number;
+    /** Its point, right of the center; absent, the text sits one line below the one before it, at its x. */
+    readonly x?: number;
+    /** Its point, up from the center; absent with `x`. */
+    readonly y?: number;
     readonly text: string;
     readonly look?: ShapeTextLook;
 }
@@ -147,8 +149,7 @@ function readItems(channel: ItemChannel, value: string): readonly unknown[] {
             return pointLists(value).map((list) => list.map((point) => shapePoint(point)));
         case "node.shapeTexts":
             return shapeTexts(value, true).map(([x, y, text, look]) => ({
-                x,
-                y,
+                ...(x === undefined || y === undefined ? {} : { x, y }),
                 text,
                 ...(Object.keys(look).length === 0 ? {} : { look }),
             }));
@@ -244,9 +245,12 @@ function writeItems(channel: ItemChannel, items: readonly unknown[], from: unkno
             return (items as readonly (readonly ChannelPoint[])[]).map((points) => pointsText(points)).join("; ");
         case "node.shapeTexts":
             return JSON.stringify(
-                (items as readonly ShapeTextItem[]).map(({ x, y, text, look }) =>
-                    look === undefined || Object.keys(look).length === 0 ? [x, y, text] : [x, y, text, look],
-                ),
+                (items as readonly ShapeTextItem[]).map(({ x, y, text, look }) => {
+                    const point = x === undefined || y === undefined ? [] : [x, y];
+                    return look === undefined || Object.keys(look).length === 0
+                        ? [...point, text]
+                        : [...point, text, look];
+                }),
             );
         case "edge.arrowHeadStack":
         case "edge.arrowTailStack":

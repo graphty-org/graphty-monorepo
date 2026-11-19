@@ -4550,21 +4550,31 @@ export class Node implements ModelUser {
 
         const scene = this.#anchor.getScene();
         const style = { ...o.label, location: "center" as const, attachOffset: 0, offsetX: 0, offsetY: 0 };
-        this.shapeTextLabels = texts.map(
-            ([x, y, text, look]) =>
-                new RichTextLabel(scene, {
-                    ...this.createLabelOptions(text, {
-                        ...style,
-                        ...(look.size === undefined ? {} : { letterSize: look.size * 2 * half.y }),
-                        ...(look.color === undefined ? {} : { textColor: look.color }),
-                        ...(look.font === undefined ? {} : { font: look.font }),
-                        ...(look.rotation === undefined ? {} : { rotation: look.rotation }),
-                    }),
-                    // right and down on screen
-                    offsetX: x * half.x,
-                    offsetY: -y * half.y,
+        // A text with no point of its own sits one of the previous text's lines below it, at its x.
+        let previous: { readonly x: number; readonly y: number; readonly label: RichTextLabel } | undefined;
+        this.shapeTextLabels = texts.map(([x, y, text, look]) => {
+            // right and down on screen
+            const at =
+                x !== undefined && y !== undefined
+                    ? { x: x * half.x, y: -y * half.y }
+                    : {
+                          x: previous?.x ?? 0,
+                          y: previous === undefined ? 0 : previous.y + previous.label.worldLineHeight,
+                      };
+            const label = new RichTextLabel(scene, {
+                ...this.createLabelOptions(text, {
+                    ...style,
+                    ...(look.size === undefined ? {} : { letterSize: look.size * 2 * half.y }),
+                    ...(look.color === undefined ? {} : { textColor: look.color }),
+                    ...(look.font === undefined ? {} : { font: look.font }),
+                    ...(look.rotation === undefined ? {} : { rotation: look.rotation }),
                 }),
-        );
+                offsetX: at.x,
+                offsetY: at.y,
+            });
+            previous = { ...at, label };
+            return label;
+        });
     }
 
     /**

@@ -496,13 +496,18 @@ export interface ShapeTextLook {
 /**
  * A node's further texts (`shape.texts`): a JSON list of `[x, y, text]` or `[x, y, text, look]`, each point relative
  * to the node's center as fractions of its half width and half height, y up, and `look` an object of what differs
- * from the node's label (`size`, a share of the node's height; `color`; `font`; `rotation`). An entry of any other
- * shape is passed over, and so is a look's field of the wrong type.
+ * from the node's label (`size`, a share of the node's height; `color`; `font`; `rotation`). An entry may leave its
+ * point out, `[text]` or `[text, look]`: it is drawn one line below the entry before it, at its x (the first at the
+ * center), as the fields of a record are. An entry of any other shape is passed over, and so is a look's field of
+ * the wrong type.
  * @param text - the list, or undefined
  * @param keepEmpty - keep an entry whose text is empty (an editor's new field); drawing passes it over
- * @returns the texts, none when unset or not a list
+ * @returns the texts, none when unset or not a list; a point left out is undefined
  */
-export function shapeTexts(text: string | undefined, keepEmpty = false): [number, number, string, ShapeTextLook][] {
+export function shapeTexts(
+    text: string | undefined,
+    keepEmpty = false,
+): [number | undefined, number | undefined, string, ShapeTextLook][] {
     if (text === undefined || text.trim() === "") {
         return [];
     }
@@ -515,26 +520,45 @@ export function shapeTexts(text: string | undefined, keepEmpty = false): [number
     if (!Array.isArray(list)) {
         return [];
     }
-    return list.flatMap((e: unknown): [number, number, string, ShapeTextLook][] => {
-        if (
-            !Array.isArray(e) ||
-            !Number.isFinite(e[0]) ||
-            !Number.isFinite(e[1]) ||
-            typeof e[2] !== "string" ||
-            (e[2] === "" && !keepEmpty)
-        ) {
+    return list.flatMap((e: unknown): [number | undefined, number | undefined, string, ShapeTextLook][] => {
+        const parts = shapeTextParts(e);
+        if (parts === null || (parts.words === "" && !keepEmpty)) {
             return [];
         }
-        const raw: unknown = e[3];
-        const o = typeof raw === "object" && raw !== null ? (raw as Record<string, unknown>) : {};
+        const o = typeof parts.look === "object" && parts.look !== null ? (parts.look as Record<string, unknown>) : {};
         const look: ShapeTextLook = {
             ...(typeof o.size === "number" && o.size > 0 ? { size: o.size } : {}),
             ...(typeof o.color === "string" ? { color: o.color } : {}),
             ...(typeof o.font === "string" ? { font: o.font } : {}),
             ...(typeof o.rotation === "number" && Number.isFinite(o.rotation) ? { rotation: o.rotation } : {}),
         };
-        return [[e[0] as number, e[1] as number, e[2], look]];
+        return [[parts.x, parts.y, parts.words, look]];
     });
+}
+
+/**
+ * One entry of a node's further texts, split: `[x, y, text, look]` gives a point, `[text]` or
+ * `[text, look]` leaves it out.
+ * @param e - The entry.
+ * @returns Its point (undefined when left out), words and look, or null for an entry of any other shape.
+ */
+function shapeTextParts(e: unknown): {
+    readonly x: number | undefined;
+    readonly y: number | undefined;
+    readonly words: string;
+    readonly look: unknown;
+} | null {
+    if (!Array.isArray(e)) {
+        return null;
+    }
+    if (typeof e[0] === "string") {
+        const lookless = e.length === 1 || (e.length === 2 && typeof e[1] === "object" && e[1] !== null);
+        return lookless ? { x: undefined, y: undefined, words: e[0], look: e[1] } : null;
+    }
+    if (!Number.isFinite(e[0]) || !Number.isFinite(e[1]) || typeof e[2] !== "string") {
+        return null;
+    }
+    return { x: e[0] as number, y: e[1] as number, words: e[2], look: e[3] };
 }
 
 /**

@@ -350,7 +350,7 @@ function textsKind(args: KindArgs): { lines: React.ReactNode; add: () => void } 
                     <PointPair
                         descriptor={coordinateDescriptor(descriptor)}
                         label={`${name} point`}
-                        point={field}
+                        point={field.x === undefined || field.y === undefined ? undefined : { x: field.x, y: field.y }}
                         onWrite={(point) => {
                             change(at, { x: point?.x ?? 0, y: point?.y ?? 0 });
                         }}

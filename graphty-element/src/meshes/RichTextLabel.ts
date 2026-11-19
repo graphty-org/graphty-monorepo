@@ -2217,6 +2217,14 @@ export class RichTextLabel {
         });
     }
 
+    /**
+     * How tall one line of the label is drawn in the scene, in world units.
+     * @returns The height.
+     */
+    public get worldLineHeight(): number {
+        return this.lineHeightInWorld();
+    }
+
     private lineHeightInWorld(): number {
         const { letterSize, fontSize } = this.options;
         if (letterSize !== undefined && letterSize > 0 && this.oneLinePx > 0) {

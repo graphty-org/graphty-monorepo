@@ -54,6 +54,18 @@ describe("structured channel items", () => {
         assert.deepEqual([...readChannelItems("node.shapeTexts", "not json")], []);
     });
 
+    it("reads and writes further texts with no point of their own", () => {
+        const texts = readChannelItems("node.shapeTexts", '[["name"], ["age", {"color": "#ff0000"}], [0, 1, "top"]]');
+        assert.deepEqual(
+            [...texts],
+            [{ text: "name" }, { text: "age", look: { color: "#ff0000" } }, { x: 0, y: 1, text: "top" }],
+        );
+        assert.strictEqual(
+            writeChannelItems("node.shapeTexts", texts),
+            '[["name"],["age",{"color":"#ff0000"}],[0,1,"top"]]',
+        );
+    });
+
     it("reads and writes bends and ports", () => {
         const bends = readChannelItems("edge.bends", "0.25,0.1 0.75,-0.1");
         assert.deepEqual(

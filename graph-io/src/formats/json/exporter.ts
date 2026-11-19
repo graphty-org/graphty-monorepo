@@ -232,11 +232,14 @@ const SLOT_ROLES: Readonly<Record<JsonDialect, ReadonlySet<string>>> = Object.fr
     "node-link": new Set<string>(),
     d3: new Set<string>(),
     jgf: new Set(["label", "kind"]),
-    cytoscape: new Set(["classes"]),
+    cytoscape: new Set(["classes", "fixed"]),
     graphology: new Set<string>(),
     vis: new Set<string>(),
     obographs: new Set(["label", "kind"]),
 });
+
+/** The node roles Cytoscape writes on the element, read back under the element key's name. */
+const CYTOSCAPE_NODE_ROLE_NAMES: Readonly<Record<string, string>> = Object.freeze({ fixed: "locked" });
 
 /** The element domains. */
 type Domain = "node" | "edge" | "graph";
@@ -674,6 +677,7 @@ function plan(snapshot: GraphSnapshot, resolved: Resolved): Plan {
     // plain attributes and read back without their role)
     const notes = checkCapabilities(snapshot, caps, resolved.common, {
         roles: SLOT_ROLES[dialect],
+        ...(dialect === "cytoscape" ? { nodeRoleNames: CYTOSCAPE_NODE_ROLE_NAMES } : {}),
         positionDtype: "f64",
         // Deprecated (next major): role columns are written as plain attributes; styles go through the style writer.
         vizAsAttributes: true,
@@ -794,6 +798,10 @@ function planTable(ctx: PlanContext, table: Iterable<Column>, domain: Domain): C
     // a position written as x / y (vis, graphology) takes those keys from any plain column, whatever the order
     if (domain === "node" && columns.some((column) => xySlotOf(ctx.dialect, column) !== undefined)) {
         used.add("attribute:x").add("attribute:y");
+    }
+    // so is Cytoscape's element `locked`, by the fixed role column
+    if (columns.some((column) => isLockedSlot(ctx.dialect, column, domain))) {
+        used.add("element:locked");
     }
     for (const column of columns) {
         const { role } = column.meta;
@@ -1035,6 +1043,9 @@ function planDialectSlot(dialect: JsonDialect, column: Column, domain: Domain): 
     if (dialect === "cytoscape" && role === "classes" && column.dtype === "list" && column.child.dtype === "string") {
         return { column, key: "classes", slot: "classes" };
     }
+    if (isLockedSlot(dialect, column, domain)) {
+        return { column, key: "locked", slot: "element" };
+    }
     if (dialect !== "jgf" || (column.dtype !== "string" && column.dtype !== "dict")) {
         return null;
     }
@@ -1045,6 +1056,17 @@ function planDialectSlot(dialect: JsonDialect, column: Column, domain: Domain): 
         return { column, key: "relation", slot: "relation" };
     }
     return null;
+}
+
+/**
+ * Whether a column is written as Cytoscape's element `locked`: the bool node column of the fixed role.
+ * @param dialect - the dialect
+ * @param column - the column
+ * @param domain - its domain
+ * @returns true for that column
+ */
+function isLockedSlot(dialect: JsonDialect, column: Column, domain: Domain): boolean {
+    return dialect === "cytoscape" && domain === "node" && column.meta.role === "fixed" && column.dtype === "bool";
 }
 
 /**

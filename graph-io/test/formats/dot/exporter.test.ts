@@ -252,6 +252,20 @@ describe("dot exporter: capabilities and shape", () => {
         expect(Array.from(back.edgeList().weights ?? [])).toEqual([Math.fround(0.1), Infinity]);
     });
 
+    it("writes the fixed role as pin, whatever the column is named", async () => {
+        const builder = new GraphBuilder({ directed: true });
+        builder.declareNodeColumn({ name: "locked", dtype: "bool", role: "fixed" });
+        builder.declareNodeColumn({ name: "pin", dtype: "string" });
+        builder.setNodeValue("locked", builder.addNode("a"), true);
+        builder.setNodeValue("pin", builder.addNode("b"), "x");
+        const snapshot = builder.freeze();
+        expect(noteCodes(snapshot)).toEqual([LOSS.COLUMN_NAME_CHANGED, DOT_LOSS.ATTRIBUTE_CLASH]);
+        const text = await dotExporter.exportToString(snapshot);
+        expect(lines(text).slice(1, 3)).toEqual(["a [pin=true];", "b;"]);
+        const back = await imported(text);
+        expect(back.nodes.byRole("fixed")?.meta.name).toBe("pin");
+    });
+
     it("writes the edge id role as key, ports as endpoint suffixes", async () => {
         const builder = new GraphBuilder({ directed: true, weightDtype: "f64" });
         builder.declareEdgeColumn({ name: "id", dtype: "i32", role: "id" });
@@ -276,6 +290,7 @@ describe("dot exporter: capabilities and shape", () => {
         const text = await dotExporter.exportToString(snapshot);
         expect(lines(text).slice(1, 3)).toEqual(['a [pos="1.5,2"];', 'b [pin=true, pos="3,4"];']);
         expectSameSnapshot(snapshot, (await roundTrip(snapshot, dotExporter, dotImporter)).snapshot);
+        expect(snapshot.nodes.byRole("fixed")?.meta.name).toBe("pin");
         const threeD = await imported('digraph { a [pos="1,2,3"] }');
         expect(lines(await dotExporter.exportToString(threeD))[1]).toBe('a [pos="1,2,3"];');
         const builder = new GraphBuilder({ directed: true, weightDtype: "f64" });

@@ -175,7 +175,7 @@ jobs:
             # every browser a shard may launch (the lifecycle shard runs Firefox and WebKit too)
             - run: pnpm exec playwright install chromium firefox webkit
             - name: Install Mesa lavapipe (the webgpu-graph-algorithms shards)
-              run: sudo apt-get update && sudo apt-get install -y --no-install-recommends mesa-vulkan-drivers libvulkan1
+              uses: ./.github/actions/mesa-lavapipe
             - name: Build every package
               id: build
               # ponytail: builds here; reuse the merge's master build (ci.yml `reuse_build_run`) once full-run-calls lands

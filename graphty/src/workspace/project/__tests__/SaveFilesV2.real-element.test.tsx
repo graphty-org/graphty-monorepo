@@ -2,7 +2,8 @@
  * Version 2 save files (the "save-files-v2" experiment) on the REAL graphty-element: Save as asks
  * for a preset, sections, copy or reference and the file's form; the whole project is kept in this
  * browser and every other choice downloads as a copy; opening a version 2 file asks which sections
- * to load first, warns of a held section, and reports a referenced source that changed. With the
+ * to load first, warns of a held section, and holds a referenced source that changed until the
+ * reader clicks Refresh. With the
  * experiment off, Save as is the name-only dialog it was.
  */
 
@@ -218,7 +219,7 @@ describe("version 2 save files, experiment on", () => {
         assert.strictEqual(session.data.nodes().length, 15);
     });
 
-    it("reads a referenced source from the file the reader locates, and reports that it changed", async () => {
+    it("holds a located file that changed since the save, and builds it when the reader clicks Refresh", async () => {
         const { store, session } = await openSample();
         await session.data.import(
             { type: "csv", config: { data: "source,target\nAva,Ben\n" }, name: "friends.csv" },
@@ -242,11 +243,60 @@ describe("version 2 save files, experiment on", () => {
 
         const report = await screen.findByRole("dialog", { name: /^Opened / });
         const row = within(report).getByRole("row", { name: /^friends\.csv/ });
+        assert.isNotNull(within(row).getByText("Held"));
         assert.isNotNull(within(row).getByText("Changed since saved"));
-        await waitFor(() => {
-            assert.strictEqual(session.data.nodes().length, 3, "the located file's rows");
-        });
+        assert.strictEqual(session.data.nodes().length, 0, "held: built without it until Refresh");
         assert.match(store.get().notice?.message ?? "", /^Opened /);
+
+        await userEvent.click(within(row).getByRole("button", { name: "Refresh friends.csv" }));
+        await within(row).findByText("Refreshed");
+        assert.strictEqual(session.data.nodes().length, 3, "the located file's rows");
+    });
+});
+
+describe("version 2 save files, a style file on other data", () => {
+    withFeatures(["save-files-v2"]);
+
+    it("maps the style file's column to the open data's before adding it", async () => {
+        const { session } = await openSample();
+        const payments = "source,target,amount\nAva,Ben,900\nBen,Cara,20\n";
+        await session.data.import(
+            { type: "csv", config: { data: payments }, name: "payments.csv" },
+            { mode: "replace" },
+        );
+        await session.styles.add({
+            name: "Big payments",
+            target: "edge",
+            selector: { match: "expression", where: "data.amount > `500`" },
+            set: { "edge.color": "#c62828" },
+        });
+        const { text } = await session.project.save({
+            format: 2,
+            sections: ["style"],
+            form: "section",
+            markSaved: false,
+        });
+        await session.styles.remove(session.styles.list().find((layer) => layer.name === "Big payments")?.id ?? "");
+        const renamed = payments.replace("amount", "amount_usd");
+        await session.data.import({ type: "csv", config: { data: renamed }, name: "usd.csv" }, { mode: "replace" });
+
+        await commands.chooseNextFile("kit.graphty-style.json", "application/json", text);
+        await userEvent.keyboard("{Control>}o{/Control}");
+        const add = await screen.findByRole("dialog", { name: "Add kit.graphty-style.json" });
+        const missing = within(add).getByRole("row", { name: /^amount/ });
+        assert.isNotNull(within(missing).getByText("Missing"));
+        await userEvent.click(within(add).getByRole("button", { name: "Map columns" }));
+        const map = await screen.findByRole("dialog", { name: "Map kit.graphty-style.json" });
+        await userEvent.click(within(map).getByLabelText("Open column for amount"));
+        await userEvent.click(await screen.findByRole("option", { name: "amount_usd" }));
+        await userEvent.click(within(map).getByRole("button", { name: "Back" }));
+        const back = await screen.findByRole("dialog", { name: "Add kit.graphty-style.json" });
+        await within(within(back).getByRole("row", { name: /^amount/ })).findByText("Mapped");
+        await userEvent.click(within(back).getByRole("button", { name: "Add style" }));
+        await waitFor(() => {
+            const layer = session.styles.list().find((each) => each.name === "Big payments");
+            assert.deepEqual(layer?.selector, { match: "expression", where: "data.amount_usd > `500`" });
+        });
     });
 });
 

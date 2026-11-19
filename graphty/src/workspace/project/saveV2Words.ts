@@ -11,6 +11,7 @@ import type {
     DocumentSectionFacts,
     GraphSession,
     ProjectFileSection,
+    ProjectOpenOptions,
     ProjectProblem,
     ProjectSourceChoice,
     SourceEmbeddedReason,
@@ -107,6 +108,8 @@ export interface ReportLine {
     readonly item: string;
     readonly outcome: string;
     readonly reason: string;
+    /** A held source the reader can refresh from this line: its record id. */
+    readonly refresh?: string;
 }
 
 /** Why a source asked to be referenced was copied into the file (`W_SOURCE_EMBEDDED` reasons). */
@@ -118,15 +121,29 @@ const EMBEDDED_REASONS: Readonly<Record<SourceEmbeddedReason, string>> = {
     kind: "Cannot be read again",
 };
 
-/** Why a referenced source did not load (`W_SOURCE_UNAVAILABLE` reasons). */
+/** Why a referenced source is held (`W_SOURCE_UNAVAILABLE` reasons). */
 const UNAVAILABLE_REASONS: Readonly<Record<SourceUnavailableReason, string>> = {
-    unreachable: "Could not be reached",
+    "not-found": "Not found",
     "needs-file": "Needs its file",
     read: "Could not be read",
     "too-large": "Too large",
-    consent: "Fetching not allowed",
+    "needs-permission": "Needs permission to fetch",
+    "copy-changed": "Changed since saved",
     kind: "Cannot be read again",
 };
+
+/** The held reasons a Refresh answers: the reader's click is the permission, or takes the new copy. */
+const REFRESHABLE = new Set<unknown>(["needs-permission", "copy-changed"]);
+
+/**
+ * Why a refresh of a held source failed, in words, from the error graphty-element rejected with.
+ * @param error - the rejection.
+ * @returns the words.
+ */
+export function refreshFailedWords(error: unknown): string {
+    const details = (error as { details?: { reason?: unknown } } | null)?.details;
+    return wordOf(UNAVAILABLE_REASONS, details?.reason, "Could not be read");
+}
 
 /** Why a section is held (`W_SECTION_KEPT` reasons). */
 const HELD_REASONS: Readonly<Record<Exclude<DocumentHeldReason, "version">, string>> = {
@@ -225,11 +242,10 @@ function reportLine(fact: ProjectProblem, names: ReportNames): ReportLine {
         case "W_SOURCE_UNAVAILABLE":
             return {
                 item: source,
-                outcome: "Not loaded",
+                outcome: "Held",
                 reason: wordOf(UNAVAILABLE_REASONS, params.reason, "Could not be read"),
+                ...(REFRESHABLE.has(params.reason) ? { refresh: String(params.source) } : {}),
             };
-        case "W_SOURCE_CHANGED":
-            return { item: source, outcome: "Read again", reason: "Changed since saved" };
         case "W_DATA_MISMATCH":
             return { item: sectionWord(params.section), outcome: "Not loaded", reason: "Written on other data" };
         case "W_DATA_CHANGED":
@@ -336,6 +352,9 @@ export function aboutRows(facts: ProjectFileSection): [string, string][] {
     return rows.filter((row): row is [string, string] => row[1] !== undefined && row[1] !== "");
 }
 
+/** The reader's column mapping: the open data's column for each column a section names, by table. */
+export type ColumnMap = NonNullable<ProjectOpenOptions["columns"]>;
+
 /** One row of the Needs table: what a section needs, what the open data has for it, and its state. */
 export interface NeedRow {
     readonly need: string;
@@ -347,9 +366,10 @@ export interface NeedRow {
  * The Needs table's rows: each column, type, source role and run a section needs, and whether the
  * open data answers it, as graphty-element said.
  * @param facts - what graphty-element read of the section.
+ * @param columns - the reader's column mapping, shown as each column's open data column.
  * @returns the rows.
  */
-export function needRows(facts: ProjectFileSection): NeedRow[] {
+export function needRows(facts: ProjectFileSection, columns: ColumnMap = {}): NeedRow[] {
     return facts.needs.map((need) => {
         const label = {
             column: need.name,
@@ -363,8 +383,36 @@ export function needRows(facts: ProjectFileSection): NeedRow[] {
         if (need.kind === "result") {
             return { need: label, found: "", state: need.found ? "Bound" : "Waits for the run" };
         }
+        const mapped = need.table === undefined ? undefined : columns[need.table]?.[need.name];
         return need.found
-            ? { need: label, found: need.name, state: "Bound" }
-            : { need: label, found: "", state: "Missing" };
+            ? { need: label, found: mapped ?? need.name, state: mapped === undefined ? "Bound" : "Mapped" }
+            : { need: label, found: mapped ?? "", state: "Missing" };
     });
+}
+
+/** What a column measures, in words (graphty-element's measurements; an open vocabulary). */
+const MEASUREMENT_WORDS: Readonly<Record<string, string>> = {
+    quantitative: "Number",
+    categorical: "Category",
+    ordinal: "Ordered category",
+    time: "Date and time",
+};
+
+/** A JSON Schema type, in words, for a column whose file names no measurement. */
+const SCHEMA_TYPE_WORDS: Readonly<Record<string, string>> = {
+    number: "Number",
+    integer: "Number",
+    string: "Text",
+    boolean: "Yes or no",
+};
+
+/**
+ * What a section expects of a column, in words, from the schema its file gives: "Number . USD".
+ * @param schema - the column need's schema, if any.
+ * @returns the words, empty when the file says nothing.
+ */
+export function columnNeedWords(schema: Readonly<Record<string, unknown>> | undefined): string {
+    const kind = wordOf(MEASUREMENT_WORDS, schema?.measurement, "") || wordOf(SCHEMA_TYPE_WORDS, schema?.type, "");
+    const unit = typeof schema?.unit === "string" ? schema.unit : "";
+    return [kind, unit].filter((part) => part !== "").join(" . ");
 }

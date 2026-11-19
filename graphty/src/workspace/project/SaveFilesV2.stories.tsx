@@ -203,3 +203,81 @@ export const OpenStyleSectionFile: Story = {
         });
     },
 };
+
+/**
+ * The report after opening a project whose referenced file changed since it was saved: the source
+ * is held, the graph built without it, and Refresh (the reader's click) builds it from the new file.
+ */
+export const OpenReportHeldSource: Story = {
+    ...freshStore({ project: { name: "Ring", id: 1 } }),
+    play: async (context) => {
+        const { store, session } = await ready(context);
+        await session.data.import(
+            { type: "csv", config: { data: "source,target\nAva,Ben\n" }, name: "friends.csv" },
+            { mode: "replace" },
+        );
+        const [source] = (await session.project.describe()).sources.filter((each) => each.kind === "file");
+        const { text } = await session.project.save({
+            format: 2,
+            markSaved: false,
+            embed: { [source.id]: "referenced" },
+            paths: { [source.id]: "friends.csv" },
+        });
+        const changed = new File(["source,target\nAva,Ben\nBen,Cara\n"], "friends.csv", { type: "text/csv" });
+        const { problems } = await session.project.open(text, { files: { [source.id]: changed }, discard: true });
+        showReport(store, session, "Opened friends.graphty.json", problems, new Map([[source.id, "friends.csv"]]));
+        const report = await within(context.canvasElement.ownerDocument.body).findByRole("dialog", {
+            name: "Opened friends.graphty.json",
+        });
+        await within(report).findByRole("button", { name: "Refresh friends.csv" });
+    },
+};
+
+/** A style file whose payment column the open data calls by another name, as the step maps it. */
+const STYLE_ON_AMOUNT = "source,target,amount\np0,p1,900\np1,p2,20\n";
+
+/**
+ * Adding a style section file written on other data: Map columns pairs each column it names with
+ * one of the open data's, and the Needs table then reads it as mapped.
+ */
+export const OpenColumnMapping: Story = {
+    ...freshStore({ project: { name: "Ring", id: 1 } }),
+    play: async (context) => {
+        const { store, session } = await ready(context);
+        await session.data.import(
+            { type: "csv", config: { data: STYLE_ON_AMOUNT }, name: "payments.csv" },
+            { mode: "replace" },
+        );
+        await session.styles.add({
+            name: "Big payments",
+            target: "edge",
+            selector: { match: "expression", where: "data.amount > `500`" },
+            set: { "edge.color": "#c62828" },
+        });
+        const { text } = await session.project.save({
+            format: 2,
+            sections: ["style"],
+            form: "section",
+            markSaved: false,
+        });
+        await session.data.import(
+            {
+                type: "csv",
+                config: { data: STYLE_ON_AMOUNT.replace("amount", "amount_usd") },
+                name: "payments-usd.csv",
+            },
+            { mode: "replace" },
+        );
+        // A fixed date, so the picture does not change from one day to the next.
+        const fixed = JSON.parse(text, (key, value: unknown) =>
+            key === "created" || key === "modified" ? "2026-11-01T12:00:00Z" : value,
+        ) as unknown;
+        void askOpenV2(store, session, new File([JSON.stringify(fixed)], "kit.graphty-style.json"));
+        const body = within(context.canvasElement.ownerDocument.body);
+        const add = await body.findByRole("dialog", { name: "Add kit.graphty-style.json" });
+        await userEvent.click(within(add).getByRole("button", { name: "Map columns" }));
+        const map = await body.findByRole("dialog", { name: "Map kit.graphty-style.json" });
+        await userEvent.click(within(map).getByLabelText("Open column for amount"));
+        await userEvent.click(await body.findByRole("option", { name: "amount_usd" }));
+    },
+};

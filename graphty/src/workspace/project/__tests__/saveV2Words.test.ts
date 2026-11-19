@@ -39,7 +39,8 @@ describe("the version 2 dialogs' words", () => {
         const facts: ProjectProblem[] = [
             { code: "W_SOURCE_NO_PATH", params: { source: "src_1" } },
             { code: "W_SECTION_KEPT", params: { section: "style", version: 3, reason: "version" } },
-            { code: "W_SOURCE_UNAVAILABLE", params: { source: "src_1", reason: "consent" } },
+            { code: "W_SOURCE_UNAVAILABLE", params: { source: "src_1", reason: "needs-permission" } },
+            { code: "W_SOURCE_UNAVAILABLE", params: { source: "src_1", reason: "not-found" } },
             { code: "W_DATA_MISMATCH", params: { section: "notes", data: null } },
             { code: "W_DATA_MISMATCH", params: { section: "notes", data: null } },
             { code: "W_ELEMENT_NAMING_LEFT_OUT", params: { section: "style", pointer: "/layers/1", movedTo: "view" } },
@@ -47,7 +48,8 @@ describe("the version 2 dialogs' words", () => {
         assert.deepEqual(reportLines(facts, NAMES), [
             { item: "friends.csv", outcome: "Copied", reason: "No file path to refer to" },
             { item: "Style", outcome: "Kept as opened", reason: "Version 3, newer than this release" },
-            { item: "friends.csv", outcome: "Not loaded", reason: "Fetching not allowed" },
+            { item: "friends.csv", outcome: "Held", reason: "Needs permission to fetch", refresh: "src_1" },
+            { item: "friends.csv", outcome: "Held", reason: "Not found" },
             { item: "Notes", outcome: "Not loaded", reason: "Written on other data" },
             { item: "A layer", outcome: "Moved to view", reason: "Picks nodes by id" },
         ]);

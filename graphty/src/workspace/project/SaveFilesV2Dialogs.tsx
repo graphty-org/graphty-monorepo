@@ -41,8 +41,11 @@ import { NameField } from "./NameField";
 import { OPEN_V2_DIALOG, openQuestion, REPORT_V2_DIALOG, shownReport } from "./saveV2";
 import {
     aboutRows,
+    type ColumnMap,
+    columnNeedWords,
     heldWords,
     needRows,
+    refreshFailedWords,
     refusedWords,
     type ReportLine,
     savePresets,
@@ -104,13 +107,33 @@ function SectionChecks({
     );
 }
 
+/** A held source's refresh from the report: running, done, or why it failed. */
+type RefreshState = "running" | "done" | { readonly failed: string };
+
 /**
- * A report: each thing a save or open left out, kept or changed, and why.
+ * A report: each thing a save or open left out, kept or changed, and why; a held source's line has
+ * a Refresh button when the report is given one.
  * @param props - Component props
  * @param props.lines - the report's lines.
+ * @param props.onRefresh - refreshes a held source by its record id; its line shows the outcome.
  * @returns the table.
  */
-export function ReportTable({ lines }: Readonly<{ lines: readonly ReportLine[] }>): React.JSX.Element {
+export function ReportTable({
+    lines,
+    onRefresh,
+}: Readonly<{
+    lines: readonly ReportLine[];
+    onRefresh?: (source: string) => Promise<string | null>;
+}>): React.JSX.Element {
+    // Each refreshed source: running, done, or why it failed.
+    const [refreshed, setRefreshed] = useState<ReadonlyMap<string, RefreshState>>(new Map());
+    const refreshes = onRefresh !== undefined && lines.some((line) => line.refresh !== undefined);
+    const refresh = (source: string): void => {
+        setRefreshed((now) => new Map(now).set(source, "running"));
+        void onRefresh?.(source).then((failed) => {
+            setRefreshed((now) => new Map(now).set(source, failed === null ? "done" : { failed }));
+        });
+    };
     return (
         <Table fz="sm" verticalSpacing={4}>
             <Table.Thead>
@@ -118,16 +141,39 @@ export function ReportTable({ lines }: Readonly<{ lines: readonly ReportLine[] }
                     <Table.Th>Item</Table.Th>
                     <Table.Th>Result</Table.Th>
                     <Table.Th>Why</Table.Th>
+                    {refreshes ? <Table.Th aria-label="Actions" /> : null}
                 </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
-                {lines.map((line) => (
-                    <Table.Tr key={`${line.item}\n${line.outcome}\n${line.reason}`}>
-                        <Table.Td>{line.item}</Table.Td>
-                        <Table.Td>{line.outcome}</Table.Td>
-                        <Table.Td c={SECONDARY}>{line.reason}</Table.Td>
-                    </Table.Tr>
-                ))}
+                {lines.map((line) => {
+                    const state = line.refresh === undefined ? undefined : refreshed.get(line.refresh);
+                    const done = state === "done";
+                    const failed = typeof state === "object" ? state.failed : undefined;
+                    return (
+                        <Table.Tr key={`${line.item}\n${line.outcome}\n${line.reason}`}>
+                            <Table.Td>{line.item}</Table.Td>
+                            <Table.Td>{done ? "Refreshed" : line.outcome}</Table.Td>
+                            <Table.Td c={SECONDARY}>{done ? "" : (failed ?? line.reason)}</Table.Td>
+                            {refreshes ? (
+                                <Table.Td>
+                                    {line.refresh === undefined || done ? null : (
+                                        <Button
+                                            size="xs"
+                                            variant="default"
+                                            aria-label={`Refresh ${line.item}`}
+                                            loading={state === "running"}
+                                            onClick={() => {
+                                                refresh(line.refresh as string);
+                                            }}
+                                        >
+                                            Refresh
+                                        </Button>
+                                    )}
+                                </Table.Td>
+                            ) : null}
+                        </Table.Tr>
+                    );
+                })}
             </Table.Tbody>
         </Table>
     );
@@ -582,10 +628,14 @@ function AboutTable({ rows }: Readonly<{ rows: readonly [string, string][] }>): 
  * What a section file needs from the open data, and whether the open data has it.
  * @param props - Component props
  * @param props.facts - what graphty-element read of the section.
+ * @param props.columns - the reader's column mapping.
  * @returns the table, or nothing when it needs nothing.
  */
-function NeedsTable({ facts }: Readonly<{ facts: ProjectFileSection }>): React.JSX.Element | null {
-    const rows = needRows(facts);
+function NeedsTable({
+    facts,
+    columns,
+}: Readonly<{ facts: ProjectFileSection; columns: ColumnMap }>): React.JSX.Element | null {
+    const rows = needRows(facts, columns);
     if (rows.length === 0) {
         return null;
     }
@@ -608,6 +658,174 @@ function NeedsTable({ facts }: Readonly<{ facts: ProjectFileSection }>): React.J
                 ))}
             </Table.Tbody>
         </Table>
+    );
+}
+
+/**
+ * The column mapping step: each column a section file names, paired with one of the open data's
+ * columns in the same table. A column left unpaired is read as the file names it.
+ * @param props - Component props
+ * @param props.facts - what graphty-element read of the section, before any mapping.
+ * @param props.columns - the mapping so far.
+ * @param props.onChange - takes the new mapping.
+ * @returns the table.
+ */
+function ColumnMapping({
+    facts,
+    columns,
+    onChange,
+}: Readonly<{
+    facts: ProjectFileSection;
+    columns: ColumnMap;
+    onChange: (next: ColumnMap) => void;
+}>): React.JSX.Element {
+    const { session } = useWorkspace();
+    const attributes = (session?.data.attributes() ?? []).filter((attribute) => attribute.origin !== "result");
+    const needs = facts.needs.filter((need) => need.kind === "column");
+    return (
+        <Table fz="sm" verticalSpacing={4}>
+            <Table.Thead>
+                <Table.Tr>
+                    <Table.Th>Expected</Table.Th>
+                    <Table.Th>Needs</Table.Th>
+                    <Table.Th>Open data</Table.Th>
+                </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+                {needs.map((need) => {
+                    const table = need.table ?? "node";
+                    const names = [
+                        ...new Set(attributes.filter((each) => each.kind === table).map((each) => each.name)),
+                    ];
+                    const value = columns[table]?.[need.name] ?? (need.found === true ? need.name : null);
+                    return (
+                        <Table.Tr key={`${table}:${need.name}`}>
+                            <Table.Td>{need.name}</Table.Td>
+                            <Table.Td c={SECONDARY}>{columnNeedWords(need.schema)}</Table.Td>
+                            <Table.Td>
+                                <Select
+                                    size="xs"
+                                    aria-label={`Open column for ${need.name}`}
+                                    placeholder="Unpaired"
+                                    clearable
+                                    data={names}
+                                    value={value}
+                                    onChange={(picked) => {
+                                        const { [need.name]: _was, ...rest } = columns[table] ?? {};
+                                        const paired =
+                                            picked === null || picked === need.name
+                                                ? rest
+                                                : { ...rest, [need.name]: picked };
+                                        onChange({ ...columns, [table]: paired });
+                                    }}
+                                />
+                            </Table.Td>
+                        </Table.Tr>
+                    );
+                })}
+            </Table.Tbody>
+        </Table>
+    );
+}
+
+/**
+ * The column mapping as an open option: only the tables that pair anything.
+ * @param columns - the mapping.
+ * @returns the option, or undefined when nothing is paired.
+ */
+function columnsOption(columns: ColumnMap): ColumnMap | undefined {
+    const tables = Object.entries(columns).filter(([, renames]) => Object.keys(renames ?? {}).length > 0);
+    return tables.length === 0 ? undefined : Object.fromEntries(tables);
+}
+
+/**
+ * Adding a section file other than data to the project: what it is, what it adds and needs from the
+ * open data, and its column mapping step.
+ * @param props - Component props
+ * @param props.opened - whether the dialog shows.
+ * @param props.fileName - the file's name.
+ * @param props.adds - what graphty-element read of the section, before any mapping.
+ * @param props.mapped - the same, with the mapping so far.
+ * @param props.columns - the mapping so far.
+ * @param props.onColumns - takes the new mapping.
+ * @param props.bindChoice - the bind-by-key choice, if any.
+ * @param props.onCancel - cancels the open.
+ * @param props.onAdd - adds the section.
+ * @returns the dialog.
+ */
+function AddSectionDialog({
+    opened,
+    fileName,
+    adds,
+    mapped,
+    columns,
+    onColumns,
+    bindChoice,
+    onCancel,
+    onAdd,
+}: Readonly<{
+    opened: boolean;
+    fileName: string;
+    adds: ProjectFileSection;
+    mapped: ProjectFileSection;
+    columns: ColumnMap;
+    onColumns: (next: ColumnMap) => void;
+    bindChoice: React.ReactNode;
+    onCancel: () => void;
+    onAdd: () => void;
+}>): React.JSX.Element {
+    const [mapping, setMapping] = useState(false);
+    const label = SECTION_LABELS[adds.section];
+    const addButton = (
+        <Button data-autofocus disabled={adds.held !== undefined} onClick={onAdd}>
+            {`Add ${label.toLowerCase()}`}
+        </Button>
+    );
+    if (mapping) {
+        return (
+            <Modal opened={opened} onClose={onCancel} title={`Map ${fileName}`} size="lg">
+                <ColumnMapping facts={adds} columns={columns} onChange={onColumns} />
+                <ModalFooter mt="md">
+                    <Button
+                        variant="default"
+                        onClick={() => {
+                            setMapping(false);
+                        }}
+                    >
+                        Back
+                    </Button>
+                    {addButton}
+                </ModalFooter>
+            </Modal>
+        );
+    }
+    return (
+        <Modal opened={opened} onClose={onCancel} title={`Add ${fileName}`} size="lg">
+            <Stack gap="sm">
+                {adds.held === undefined ? null : (
+                    <Alert color="yellow" title={`${label}: ${heldWords(adds.held.reason, adds.held.version)}`} />
+                )}
+                <AboutTable rows={aboutRows(adds)} />
+                <NeedsTable facts={mapped} columns={columns} />
+                {bindChoice}
+            </Stack>
+            <ModalFooter mt="md">
+                <Button variant="default" onClick={onCancel}>
+                    Cancel
+                </Button>
+                {adds.needs.some((need) => need.kind === "column") ? (
+                    <Button
+                        variant="default"
+                        onClick={() => {
+                            setMapping(true);
+                        }}
+                    >
+                        Map columns
+                    </Button>
+                ) : null}
+                {addButton}
+            </ModalFooter>
+        </Modal>
     );
 }
 
@@ -638,6 +856,8 @@ function OpenV2Dialog(): React.JSX.Element {
     const [fetch, setFetch] = useState(false);
     const [bind, setBind] = useState(false);
     const [files, setFiles] = useState<Record<string, File>>({});
+    // The column mapping of a section file added to the project.
+    const [columns, setColumns] = useState<ColumnMap>({});
     // How each bound section would bind with the sections chosen, as graphty-element says.
     const [bound, setBound] = useState<ProjectFileFacts | undefined>(undefined);
 
@@ -650,6 +870,7 @@ function OpenV2Dialog(): React.JSX.Element {
         setFetch(false);
         setBind(false);
         setFiles({});
+        setColumns({});
         // Closed without an answer (another dialog took the slot): the open is canceled.
         return () => {
             openQuestion(store)?.answer(null);
@@ -663,7 +884,8 @@ function OpenV2Dialog(): React.JSX.Element {
             return undefined;
         }
         let live = true;
-        session.project.inspect(file, { sections: chosen }).then(
+        const mapped = columnsOption(columns);
+        session.project.inspect(file, { sections: chosen, ...(mapped === undefined ? {} : { columns: mapped }) }).then(
             (read) => {
                 if (live) {
                     setBound(read);
@@ -674,7 +896,7 @@ function OpenV2Dialog(): React.JSX.Element {
         return () => {
             live = false;
         };
-    }, [file, session, chosen]);
+    }, [file, session, chosen, columns]);
 
     const finish = (options: ProjectOpenOptions | null): void => {
         question?.answer(options);
@@ -688,7 +910,9 @@ function OpenV2Dialog(): React.JSX.Element {
         .filter((section) => section.binding === "other-data")
         .map((section) => section.section);
     const open = (): void => {
+        const mapped = columnsOption(columns);
         finish({
+            ...(mapped === undefined ? {} : { columns: mapped }),
             sections: chosen,
             rerun: true,
             runs: Object.fromEntries(runs.map((run) => [run.id, !(results && run.restorable && restore.has(run.id))])),
@@ -718,26 +942,18 @@ function OpenV2Dialog(): React.JSX.Element {
     const adds = facts?.form === "section" && only !== undefined && only.section !== "data" ? only : undefined;
 
     if (adds !== undefined) {
-        const label = SECTION_LABELS[adds.section];
         return (
-            <Modal opened={opened} onClose={cancel} title={`Add ${question?.fileName ?? ""}`} size="lg">
-                <Stack gap="sm">
-                    {adds.held === undefined ? null : (
-                        <Alert color="yellow" title={`${label}: ${heldWords(adds.held.reason, adds.held.version)}`} />
-                    )}
-                    <AboutTable rows={aboutRows(adds)} />
-                    <NeedsTable facts={adds} />
-                    {bindChoice}
-                </Stack>
-                <ModalFooter mt="md">
-                    <Button variant="default" onClick={cancel}>
-                        Cancel
-                    </Button>
-                    <Button data-autofocus disabled={adds.held !== undefined} onClick={open}>
-                        {`Add ${label.toLowerCase()}`}
-                    </Button>
-                </ModalFooter>
-            </Modal>
+            <AddSectionDialog
+                opened={opened}
+                fileName={question?.fileName ?? ""}
+                adds={adds}
+                mapped={bound?.sections.find((section) => section.section === adds.section) ?? adds}
+                columns={columns}
+                onColumns={setColumns}
+                bindChoice={bindChoice}
+                onCancel={cancel}
+                onAdd={open}
+            />
         );
     }
 
@@ -847,15 +1063,23 @@ function OpenV2Dialog(): React.JSX.Element {
  * @returns the dialog.
  */
 function ReportV2Dialog(): React.JSX.Element {
-    const { store } = useWorkspace();
+    const { store, session } = useWorkspace();
     const opened = useWorkspaceState((state) => state.dialog === REPORT_V2_DIALOG);
     const report = opened ? shownReport(store) : undefined;
     const close = (): void => {
         store.set({ dialog: null });
     };
+    // The click is the permission: graphty-element fetches the held source and builds it.
+    const refresh = (source: string): Promise<string | null> =>
+        session === null
+            ? Promise.resolve(refreshFailedWords(null))
+            : session.data.refresh(source).then(
+                  () => null,
+                  (error: unknown) => refreshFailedWords(error),
+              );
     return (
         <Modal opened={opened} onClose={close} title={report?.title ?? ""} size="lg">
-            <ReportTable lines={report?.lines ?? []} />
+            <ReportTable key={report?.title} lines={report?.lines ?? []} onRefresh={refresh} />
             <ModalFooter mt="md">
                 <Button data-autofocus onClick={close}>
                     Done

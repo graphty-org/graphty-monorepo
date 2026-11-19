@@ -36,7 +36,7 @@ import { runName } from "../runWords";
 import { type SelectionMenuItem, SelectionMenuItems } from "../selection/SelectionMenu";
 import { INSPECTOR_EVENTS, useSessionEvents, VISIBILITY_EVENTS } from "../sessionEvents";
 import { useNumberFormats } from "../settings/numberFormat";
-import { type InspectorTab, tabFor, type WorkspaceState } from "../state/store";
+import { type InspectorTab, type ReportPin, tabFor, type WorkspaceState } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { FolderPanel } from "../style/FolderPanel";
 import { MultiRowPanel } from "../style/MultiRowPanel";
@@ -329,11 +329,12 @@ function dataActionsOf(
 }
 
 /**
- * A result's Run again and Copy items, the same as its Data place row's.
+ * A result's Run again, Pin to report and Copy items, the same as its Data place row's.
  * @param session - the session.
  * @param store - the workspace store.
  * @param run - the inspected run, if any.
  * @param resolved - what is inspected.
+ * @param pins - the results pinned to the report now.
  * @returns the items, none unless a result (not one of its groups) is inspected.
  */
 function resultActionsOf(
@@ -341,9 +342,10 @@ function resultActionsOf(
     store: Workspace["store"],
     run: Run | undefined,
     resolved: Resolved,
+    pins: readonly ReportPin[],
 ): SelectionMenuItem[] {
     return run !== undefined && (resolved.kind === "measure-row" || resolved.kind === "run-row")
-        ? resultItems(session, store, run)
+        ? resultItems(session, store, run, pins)
         : [];
 }
 
@@ -548,6 +550,7 @@ export function Inspector(): React.JSX.Element {
     const inspected = useWorkspaceState((state) => state.inspected);
     const projectName = useWorkspaceState((state) => state.project?.name);
     const remembered = useWorkspaceState((state) => state.tabs);
+    const pins = useWorkspaceState((state) => state.reportPins);
     const [picked, setPicked] = useState<{ identity: string; tab: InspectorTab } | null>(null);
     // A link that names the tab it opens on (a layer's look opens on Style) overrides the last pick.
     const [seen, setSeen] = useState(inspected);
@@ -624,7 +627,7 @@ export function Inspector(): React.JSX.Element {
     const body = bodyOf(session, resolved, run, runDraft, onDraft, version);
     const menu = (MENUS[kindId] ?? []).flatMap((id) => registry.built(id) ?? []);
     const attributeActions = dataActionsOf(session, resolved, attributeActionsOf, sourceActionsOf);
-    const resultActions = resultActionsOf(session, store, run, resolved);
+    const resultActions = resultActionsOf(session, store, run, resolved, pins);
     // A style tree row's header carries Select what it paints (Figma's Select matching layers).
     const selectsPaints = kindId === "layer-row" || kindId === "folder-row";
     // ... and draws the tree's own glyph and menu for the row.

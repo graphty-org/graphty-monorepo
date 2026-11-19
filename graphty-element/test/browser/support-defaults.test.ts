@@ -65,11 +65,17 @@ for (const view of ["2d", "3d"] as const) {
                 maxX: Math.max(...nodes.map((p) => p.x)),
                 minY: Math.min(...nodes.map((p) => p.y)),
                 maxY: Math.max(...nodes.map((p) => p.y)),
+                minZ: Math.min(...nodes.map((p) => p.z)),
+                maxZ: Math.max(...nodes.map((p) => p.z)),
             };
             const cx = (box.minX + box.maxX) / 2;
             const cy = (box.minY + box.maxY) / 2;
             const halfX = ((box.maxX - box.minX) / 2) * REACH;
             const halfY = ((box.maxY - box.minY) / 2) * REACH;
+            const cz = (box.minZ + box.maxZ) / 2;
+            // A flat drawing in 3D still lets a point leave the plane by as much as the box is wide.
+            const halfZ = Math.max(((box.maxZ - box.minZ) / 2) * REACH, halfX, halfY);
+            const outsideZ = (p: { z: number }): boolean => view === "3d" && Math.abs(p.z - cz) > halfZ;
             const points = [...dm.edges.values()].map((edge) => dm.supportPoints.pointOf(edge));
             const placed = points.filter((p) => p !== null);
 
@@ -77,9 +83,11 @@ for (const view of ["2d", "3d"] as const) {
             await session.styles.remove(curved.id);
 
             assert.strictEqual(placed.length, points.length, "every curved edge has a support point");
-            const outside = placed.filter((p) => Math.abs(p.x - cx) > halfX || Math.abs(p.y - cy) > halfY);
+            const outside = placed.filter(
+                (p) => Math.abs(p.x - cx) > halfX || Math.abs(p.y - cy) > halfY || outsideZ(p),
+            );
             assert.deepEqual(
-                outside.map((p) => [p.x, p.y]),
+                outside.map((p) => [p.x, p.y, p.z]),
                 [],
                 `every support point rests within ${String(REACH)}x the nodes' box ${JSON.stringify(box)}`,
             );

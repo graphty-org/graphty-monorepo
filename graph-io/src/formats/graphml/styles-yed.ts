@@ -2518,11 +2518,13 @@ function oneCubic(real: Realizer): boolean {
 }
 
 /**
- * Whether an edge is drawn curved through its bends: an arc always; a polyline, and a generic edge (a framed or
- * styled polyline), only when it smooths bends it has. A quad curve or spline edge never, nor a Bezier edge of whole cubic pieces (two control points, five, ...): its
- * curve is flattened into points on it (`readEdgeRoute`), drawn straight from one to the next, as a Graphviz spline
- * is; rounding their corners cut inside the curve (a quad curve of straightness 1, whose points are its control
- * polygon, was drawn bowed).
+ * Whether an edge is drawn curved through its bends: an arc always; a spline when it has bends (its natural spline is
+ * flattened into points on it by `readEdgeRoute`, close enough that rounding their corners keeps to the curve, and a
+ * spline is a curve however a reader draws it); a polyline, and a generic edge (a framed or styled polyline), only
+ * when it smooths bends it has. A quad curve edge never, nor a Bezier edge of whole cubic pieces (two control points,
+ * five, ...): its curve is flattened into points on it, drawn straight from one to the next, as a Graphviz spline is;
+ * rounding their corners cut inside the curve (a quad curve of straightness 1, whose points are its control polygon,
+ * was drawn bowed).
  * @param real - the edge realizer
  * @returns true when curved, null when a polyline does not say whether it smooths
  */
@@ -2531,7 +2533,7 @@ function edgeCurved(real: Realizer): boolean | null {
         return true;
     }
     const points = treeChildren(treeChild(real.r, "Path"), "Point").length;
-    if (real.type === "QuadCurveEdge" || real.type === "SplineEdge") {
+    if (real.type === "QuadCurveEdge") {
         return false;
     }
     if (real.type === "BezierEdge") {

@@ -237,7 +237,7 @@ Tool values are elements drawn with the writing program's default.
 | graphml/fidelity/magiclantern-architecture.graphml | ok | 43 | 34 | 6 | 4 | 152 | 56% | 2% | 0 | 438 | 0 |  |
 | graphml/fidelity/open-archaeo.graphml | ok | 61 | 54 | 6 | 5 | 148 | 61% | 9% | 0 | 675 | 0 | W_STYLE_NO_FILL |
 | graphml/fidelity/scala-collection-mutable.graphml | ok | 42 | 42 | 4 | 6 | 69 | 46% | 0% | 0 | 479 | 0 | W_STYLE_NO_FILL |
-| graphml/fidelity/synthetic-edges.graphml | ok | 40 | 109 | 3 | 2 | 357 | 100% | 0% | 0 | 893 | 0 | W_STYLE_UNKNOWN_VALUE |
+| graphml/fidelity/synthetic-edges.graphml | ok | 40 | 109 | 3 | 2 | 354 | 100% | 0% | 0 | 893 | 0 | W_STYLE_UNKNOWN_VALUE |
 | graphml/fidelity/synthetic-nodes.graphml | ok | 74 | 24 | 2 | 3 | 363 | 100% | 0% | 0 | 481 | 0 | W_STYLE_EXTRA_LABELS, W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
 | graphml/generated/fill-oddities.graphml | ok | 15 | 3 | 4 | 2 | 18 | 100% | 11% | 0 | 165 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NO_FILL |
 | graphml/generated/graphty-written.graphml | ok | 50 | 50 | 4 | 3 | 326 | 87% | 0% | 0 | 400 | 0 |  |
@@ -269,7 +269,7 @@ Tool values are elements drawn with the writing program's default.
 | graphml/yed-large/crocs-muni__scrutiny__SCRUTINYWholeProcess.graphml.gz | ok | 31 | 0 | 3 | 1 | 71 | 70% | 0% | 0 | 288 | 0 | W_STYLE_NO_FILL |
 | graphml/yed-large/cuba-platform__documentation__DeploymentStructure.graphml.gz | ok | 263 | 6 | 6 | 3 | 273 | 84% | 18% | 0 | 2619 | 0 | W_STYLE_NO_FILL |
 | graphml/yed-large/ministryofjustice__cla_backend__checker-graph.graphml.gz | ok | 152 | 254 | 9 | 3 | 736 | 93% | 5% | 0 | 2386 | 0 |  |
-| graphml/yed-shapenode/Animatron__player__flow.graphml | ok | 12 | 14 | 7 | 4 | 42 | 62% | 2% | 0 | 143 | 0 |  |
+| graphml/yed-shapenode/Animatron__player__flow.graphml | ok | 12 | 14 | 7 | 4 | 43 | 60% | 2% | 0 | 143 | 0 |  |
 | graphml/yed-shapenode/awslabs__ml-io__architecture.graphml | ok | 14 | 6 | 8 | 3 | 20 | 70% | 35% | 0 | 92 | 0 |  |
 | graphml/yed-shapenode/getopt-php__getopt-php__getopt.graphml | ok | 13 | 8 | 6 | 4 | 35 | 29% | 3% | 0 | 113 | 0 | W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
 | graphml/yed-shapenode/kwk__docker-registry-setup__setup.graphml | ok | 7 | 12 | 3 | 3 | 33 | 100% | 0% | 0 | 90 | 0 | W_STYLE_NO_FILL |

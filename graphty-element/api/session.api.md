@@ -2561,7 +2561,13 @@ export type GraphtyErrorCode =
 * column and can carry the role. `details.sources` lists them; the caller names one with the
 * setter's `source` option. Experimental: the source-steps experiment.
 */
-| "E_ROLE_TARGET_AMBIGUOUS" | "E_INTERNAL";
+| "E_ROLE_TARGET_AMBIGUOUS"
+/**
+* A draft of the sources and steps is open (`session.data.draft()`), so a data write, an undo
+* or a redo would change what its commit replaces. `details.draft` names the draft. The caller
+* commits or discards it first. Experimental: the source-steps experiment.
+*/
+| "E_DRAFT_OPEN" | "E_INTERNAL";
 
 // @public
 export type GraphtyErrorDetails<C extends GraphtyErrorCode = GraphtyErrorCode> = Readonly<Record<string, unknown>> & (C extends keyof GraphtyErrorDetailsMap ? GraphtyErrorDetailsMap[C] : unknown);
@@ -6387,11 +6393,13 @@ export interface SessionDataApi {
         readonly nodes: number;
         readonly edges: number;
     };
+    currentDraft(): SourceDraft | null;
     declare(column: ColumnRef, declaration: MeasurementDeclaration): Promise<void>;
     declareType(entry: SourceTypeEntry): Promise<void>;
     derive(name: string, expression: Query, options?: DeriveOptions): Promise<void>;
     derivedColumns(): readonly DerivedColumn[];
     deriveScore(name: string, terms: readonly ScoreTerm[], options?: DeriveOptions): Promise<void>;
+    draft(): SourceDraft;
     edge(id: EdgeId): EdgeRecord | undefined;
     edgeName(edge: {
         readonly source: NodeId_2;
@@ -6548,6 +6556,7 @@ export interface SessionEventMap {
         readonly capabilities: SessionCapabilities;
     };
     "data:changed": DataChange;
+    "data:draft-changed": SourceDraftChange;
     "history:changed": {
         readonly reason: "record" | "merge" | "undo" | "redo" | "restore" | "evict" | "clear" | "pending" | "size";
     };
@@ -7206,6 +7215,47 @@ export { SourceCursor }
 
 export { SourceDescriptor }
 
+// @public
+export interface SourceDraft {
+    add(source: SourceKey, options?: {
+        readonly overlap?: "separate" | "merge";
+    }): void;
+    commit(): Promise<void>;
+    connect(options: SourceConnectOptions): number;
+    declareType(entry: SourceTypeEntry): void;
+    dispose(): void;
+    edits(): readonly ReaderEditRow[];
+    editStep(index: number, patch: SourceStepPatch): void;
+    extract(source: SourceKey, options: SourceExtractOptions): number;
+    readonly id: string;
+    import(source: DataSourceInput, options?: ImportOptions & {
+        readonly overlap?: "separate" | "merge";
+    }): Promise<string>;
+    merge(options: SourceMergeOptions): void;
+    moveColumns(source: SourceKey, options: SourceMoveColumnsOptions): void;
+    readonly open: boolean;
+    pick(ref: SourceElementRef, column: string, source: SourceKey): void;
+    removeEdit(id: string): void;
+    removeSource(source: SourceKey): void;
+    removeStep(index: number): void;
+    renameColumn(column: ColumnRef, name: string, options: {
+        readonly source: SourceKey;
+    }): void;
+    setMapping(source: SourceKey, patch: SourceMappingPatch): void;
+    stage(source: DataSourceInput, options?: ImportOptions): Promise<string>;
+    steps(): readonly SourceStepRow[];
+    types(): readonly SourceTypeEntry[];
+    undo(): boolean;
+    use(ref: SourceElementRef, column: string, source: SourceKey): void;
+}
+
+// @public
+export interface SourceDraftChange {
+    readonly draft: string;
+    // (undocumented)
+    readonly reason: "opened" | "changed" | "committed" | "discarded";
+}
+
 export { SourceEdgeRecord }
 
 // @public
@@ -7390,6 +7440,24 @@ export interface SourceLoadRecord {
 }
 
 // @public
+export interface SourceMappingPatch {
+    readonly edges?: SourceRolePatch & {
+        readonly source?: string;
+        readonly target?: string;
+        readonly sourceSpace?: SourceSpaceName;
+        readonly targetSpace?: SourceSpaceName;
+        readonly edgeId?: string;
+        readonly weight?: string;
+        readonly weightMeaning?: string;
+    };
+    readonly nodes?: SourceRolePatch & {
+        readonly key?: string;
+    };
+    readonly space?: SourceSpaceName;
+    readonly type?: SourceTypeName | null;
+}
+
+// @public
 export interface SourceMergeOptions {
     readonly clash?: SourceClashRule | Readonly<Record<string, SourceClashRule>>;
     readonly except?: SourceRowFilter;
@@ -7527,6 +7595,27 @@ export interface SourceRoleOptions {
 }
 
 // @public
+export interface SourceRolePatch {
+    // (undocumented)
+    readonly city?: string;
+    // (undocumented)
+    readonly coordinates?: string;
+    // (undocumented)
+    readonly country?: string;
+    // (undocumented)
+    readonly latitude?: string;
+    // (undocumented)
+    readonly longitude?: string;
+    // (undocumented)
+    readonly region?: string;
+    // (undocumented)
+    readonly time?: string;
+    // (undocumented)
+    readonly timeEnd?: string;
+    readonly timeParseZone?: string;
+}
+
+// @public
 export interface SourceRowFilter {
     readonly column: string;
     readonly values: readonly SourceCellValue[];
@@ -7591,6 +7680,16 @@ export interface SourceStepCounts {
 
 // @public
 export type SourceStepOp = "join.add" | "join.merge" | "join.node-values" | "join.edge-values" | "join.edges";
+
+// @public
+export interface SourceStepPatch {
+    readonly clash?: SourceClashRule | Readonly<Record<string, SourceClashRule>>;
+    readonly except?: SourceRowFilter | null;
+    readonly ignoreCase?: boolean;
+    readonly ignoreSpaces?: boolean;
+    readonly off?: boolean;
+    readonly repeated?: "first" | "last" | "both" | null;
+}
 
 // @public
 export type SourceStepResolution = {

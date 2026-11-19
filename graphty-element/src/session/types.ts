@@ -1672,6 +1672,22 @@ export interface SessionDataApi {
      */
     add(source: SourceKey, options?: { readonly overlap?: "separate" | "merge" }): Promise<void>;
     /**
+     * Open a draft of the sources and steps: the same acts as these doors, applied to a copy until
+     * its `commit()`, which records them as one undoable step. See {@link SourceDraft}.
+     * @returns The draft.
+     * @throws A `GraphtyError` with `E_DRAFT_OPEN` while another draft is open, or `E_FEATURE_OFF`
+     *   while the source-steps experiment is off.
+     * @experimental source-steps
+     */
+    draft(): SourceDraft;
+    /**
+     * The draft open now.
+     * @returns It, or null when none is open.
+     * @throws A `GraphtyError` with `E_FEATURE_OFF` while the source-steps experiment is off.
+     * @experimental source-steps
+     */
+    currentDraft(): SourceDraft | null;
+    /**
      * Where one node or edge came from.
      * @param ref - The element.
      * @returns Its lineage, or null when no element answers the reference.
@@ -4328,6 +4344,241 @@ export interface SourceMoveColumnsOptions {
 }
 
 /**
+ * `draft.editStep`: the choices of one step a draft may change. `null` or `false` takes a choice off.
+ * @experimental source-steps
+ */
+export interface SourceStepPatch {
+    /**
+     * One rule for every column, or rules for some columns (`"*"` for the rest) that keep the
+     * step's rules for the other columns.
+     */
+    readonly clash?: SourceClashRule | Readonly<Record<string, SourceClashRule>>;
+    /** The rows the step leaves out, by one column's values. */
+    readonly except?: SourceRowFilter | null;
+    /** Match keys ignoring case. */
+    readonly ignoreCase?: boolean;
+    /** Match keys ignoring spaces. */
+    readonly ignoreSpaces?: boolean;
+    /** Two rows naming one key: `"first"`, `"last"`, or `"both"` (an edge step only); `null` for the default. */
+    readonly repeated?: "first" | "last" | "both" | null;
+    /** Keep the step but build nothing from it. */
+    readonly off?: boolean;
+}
+
+/**
+ * The columns a source's rows give each role, as `draft.setMapping` changes them.
+ * @experimental source-steps
+ */
+export interface SourceRolePatch {
+    readonly time?: string;
+    readonly timeEnd?: string;
+    /** The zone a time with no zone of its own is read in, such as `"+02:00"`. */
+    readonly timeParseZone?: string;
+    readonly latitude?: string;
+    readonly longitude?: string;
+    readonly coordinates?: string;
+    readonly country?: string;
+    readonly region?: string;
+    readonly city?: string;
+}
+
+/**
+ * `draft.setMapping`: what a source the draft staged, added or acted on may still change while the
+ * draft is open.
+ * @experimental source-steps
+ */
+export interface SourceMappingPatch {
+    /** The id space its node keys live in; naming one means Add never asks the key-overlap question. */
+    readonly space?: SourceSpaceName;
+    /** Its node type, written as its whole-source rule; `null` for none. */
+    readonly type?: SourceTypeName | null;
+    /** The roles of its node rows. */
+    readonly nodes?: SourceRolePatch & { readonly key?: string };
+    /** The roles of its edge rows. */
+    readonly edges?: SourceRolePatch & {
+        readonly source?: string;
+        readonly target?: string;
+        readonly sourceSpace?: SourceSpaceName;
+        readonly targetSpace?: SourceSpaceName;
+        readonly edgeId?: string;
+        readonly weight?: string;
+        /** What a larger weight means, such as `"strength"` or `"distance"`. */
+        readonly weightMeaning?: string;
+    };
+}
+
+/**
+ * A draft of the sources and steps, from `session.data.draft()`: the same acts as the data doors,
+ * applied to a copy of the committed sources and steps only. Nothing changes the graph, the undo
+ * history or a saved file until {@link SourceDraft.commit}, which applies everything the draft did
+ * as one undoable step. One draft is open at a time; while it is open every data write and
+ * `session.undo()` / `redo()` are refused with `E_DRAFT_OPEN { draft }`, and view, style, filter,
+ * selection, set and note writes go ahead. A project saved while a draft is open saves the committed
+ * project and leaves the draft open; opening a project or `data.clear()` discards it.
+ *
+ * ```ts
+ * const draft = session.data.draft();
+ * const people = await draft.stage(peopleCsv, { key: "badge", type: "person" });
+ * draft.connect({ from: { source: entries, field: "badge" }, into: { source: people } });
+ * await draft.commit(); // one undo step
+ * ```
+ *
+ * The acts throw what the data door of the same name throws, and leave the draft as it was.
+ * @experimental source-steps
+ */
+export interface SourceDraft {
+    /** The draft's id, as `E_DRAFT_OPEN` and `data:draft-changed` name it. */
+    readonly id: string;
+    /** Whether the draft is still open: false once committed or discarded. */
+    readonly open: boolean;
+    /**
+     * Read a source and hold it staged in the draft (as `data.stage` does).
+     * @param source - What `import` takes.
+     * @param options - Its key, type, space and edge ends.
+     * @returns The new source's id.
+     */
+    stage(source: DataSourceInput, options?: ImportOptions): Promise<string>;
+    /**
+     * Read a source and add it with its own `join.add`, as one act of the draft.
+     * @param source - What `import` takes.
+     * @param options - Its key, type, space and edge ends, and what a key overlap does.
+     * @returns The new source's id.
+     */
+    import(
+        source: DataSourceInput,
+        options?: ImportOptions & { readonly overlap?: "separate" | "merge" },
+    ): Promise<string>;
+    /**
+     * Add a staged source with its own `join.add` (as `data.add` does).
+     * @param source - The staged source.
+     * @param options - What a key overlap does: `"separate"` (default) or `"merge"`.
+     * @param options.overlap - The answer.
+     */
+    add(source: SourceKey, options?: { readonly overlap?: "separate" | "merge" }): void;
+    /**
+     * Merge (as `data.merge` does).
+     * @param options - The source and field, the nodes they fold into, and the choices.
+     */
+    merge(options: SourceMergeOptions): void;
+    /**
+     * Make an edge (as `data.connect` does).
+     * @param options - The source and field, the nodes they name, the direction and edge type.
+     * @returns The part the new edges are keyed by.
+     */
+    connect(options: SourceConnectOptions): number;
+    /**
+     * Extract (as `data.extract` does).
+     * @param source - The edge source.
+     * @param options - The column, its space and types, and columns to move.
+     * @returns The part the new edges are keyed by.
+     */
+    extract(source: SourceKey, options: SourceExtractOptions): number;
+    /**
+     * Move columns (as `data.moveColumns` does).
+     * @param source - The edge source.
+     * @param options - The columns and where they go.
+     */
+    moveColumns(source: SourceKey, options: SourceMoveColumnsOptions): void;
+    /**
+     * Rename a value column of one source (as `data.renameColumn` with a source does).
+     * @param column - The column.
+     * @param name - Its new name.
+     * @param options - The source.
+     * @param options.source - The source.
+     * @throws A `GraphtyError` with `E_EDIT_ROLE_COLUMN` for a column a role, rule or step reads, or
+     *   `E_BAD_COMMAND` (reason `name-taken`) for a name its table already carries.
+     */
+    renameColumn(column: ColumnRef, name: string, options: { readonly source: SourceKey }): void;
+    /**
+     * Declare a type, or add rules to one (as `data.declareType` does).
+     * @param entry - The type and its rules.
+     */
+    declareType(entry: SourceTypeEntry): void;
+    /**
+     * Take one source's value for a cell where sources disagree (as `data.pick` does).
+     * @param ref - The element.
+     * @param column - The column.
+     * @param source - The source whose value to take.
+     */
+    pick(ref: SourceElementRef, column: string, source: SourceKey): void;
+    /**
+     * Use one source's value for a cell: the same reader edit as {@link SourceDraft.pick}.
+     * @param ref - The element.
+     * @param column - The column.
+     * @param source - The source whose value to use.
+     */
+    use(ref: SourceElementRef, column: string, source: SourceKey): void;
+    /**
+     * Change one step's choices: clash rules per column, rows left out, matching, repeated rows, off.
+     * @param index - The step's place, as {@link SourceDraft.steps} lists it.
+     * @param patch - The choices.
+     * @throws A `GraphtyError` with `E_CLASH_RULE_TYPE` for a rule that orders values a column does
+     *   not hold as numbers, or `E_BAD_COMMAND` for no such step or a `repeated` it cannot take.
+     */
+    editStep(index: number, patch: SourceStepPatch): void;
+    /**
+     * Delete one step (as `data.removeStep` does).
+     * @param index - The step's place.
+     */
+    removeStep(index: number): void;
+    /**
+     * Take out one source and every step that reads it.
+     * @param source - The source.
+     */
+    removeSource(source: SourceKey): void;
+    /**
+     * Take back one of the reader's edits (as `data.removeEdit` does).
+     * @param id - The edit's id.
+     */
+    removeEdit(id: string): void;
+    /**
+     * Change the mapping, space or type of a source this draft staged, added or acted on.
+     * @param source - The source.
+     * @param patch - The change.
+     * @throws A `GraphtyError` with `E_DRAFT_OPEN` for any other source.
+     */
+    setMapping(source: SourceKey, patch: SourceMappingPatch): void;
+    /**
+     * Take back the draft's newest act.
+     * @returns False when there was none.
+     */
+    undo(): boolean;
+    /**
+     * Every step of the draft, with its counts in the draft's build.
+     * @returns The steps.
+     */
+    steps(): readonly SourceStepRow[];
+    /**
+     * The draft's type registry.
+     * @returns The declared types.
+     */
+    types(): readonly SourceTypeEntry[];
+    /**
+     * The draft's reader edits, picks included, in the order made.
+     * @returns The edits.
+     */
+    edits(): readonly ReaderEditRow[];
+    /**
+     * Apply everything the draft did to the graph as one undoable step, and close the draft. A
+     * draft that changed nothing records nothing.
+     * @returns Settles once the graph is rebuilt and drawn.
+     */
+    commit(): Promise<void>;
+    /** Close the draft, leaving the graph, the history and the saved file as they were. */
+    dispose(): void;
+}
+
+/**
+ * `data:draft-changed`: a draft opened, changed, was committed or was discarded.
+ * @experimental source-steps
+ */
+export interface SourceDraftChange {
+    /** The draft's id. */
+    readonly draft: string;
+    readonly reason: "opened" | "changed" | "committed" | "discarded";
+}
+
+/**
  * Where one element came from.
  * @experimental source-steps
  */
@@ -5228,6 +5479,11 @@ export interface SessionEventMap {
      * @since 3.40.0
      */
     "data:changed": DataChange;
+    /**
+     * A draft of the sources and steps opened, changed, was committed or was discarded
+     * (`session.data.draft()`), so a view of it can read it again. Experimental: source-steps.
+     */
+    "data:draft-changed": SourceDraftChange;
     /** A command finished and the journal appended its entry: one event per entry. */
     "journal:appended": {
         /** The entry appended. */

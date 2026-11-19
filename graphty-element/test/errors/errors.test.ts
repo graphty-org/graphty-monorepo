@@ -95,6 +95,7 @@ const CODES_FROM_THE_DESIGN = [
     "E_EDIT_ROLE_COLUMN",
     "E_CLASH_RULE_TYPE",
     "E_ROLE_TARGET_AMBIGUOUS",
+    "E_DRAFT_OPEN",
     "E_UNKNOWN_DATASET",
     "E_UNKNOWN_SINK",
     "E_UNKNOWN_RUN",
@@ -252,6 +253,7 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_EDIT_ROLE_COLUMN":
         case "E_CLASH_RULE_TYPE":
         case "E_ROLE_TARGET_AMBIGUOUS":
+        case "E_DRAFT_OPEN":
         case "E_NOT_PLANAR":
         case "E_NOT_CONNECTED":
         case "E_NOT_BIPARTITE":

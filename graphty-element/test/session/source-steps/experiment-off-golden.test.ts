@@ -55,6 +55,26 @@ describe("source-steps off: nothing changes", () => {
         session.dispose();
     });
 
+    it("refuses a draft with E_FEATURE_OFF, publishes no draft event, and refuses no write or undo", async () => {
+        const session = createGraphSession({ features: [] });
+        const drafts: unknown[] = [];
+        session.on("data:draft-changed", (change) => drafts.push(change));
+        for (const call of [() => session.data.draft(), () => session.data.currentDraft()]) {
+            let code: unknown = null;
+            try {
+                call();
+            } catch (error) {
+                ({ code } = error as { code?: string });
+            }
+            assert.strictEqual(code, "E_FEATURE_OFF");
+        }
+        await session.data.addNodes([{ id: "a" }]);
+        await session.undo();
+        assert.strictEqual(session.data.store.getSnapshot().ids.size, 0);
+        assert.deepStrictEqual(drafts, []);
+        session.dispose();
+    });
+
     it("refuses the data.steps-set command with E_FEATURE_OFF and leaves the graph and the file as they were", async () => {
         const session = createGraphSession({ features: [] });
         const before = (await session.project.save()).text;

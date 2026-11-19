@@ -3659,6 +3659,8 @@ export function projectOf(
             }
         },
         async open(source, options = {}) {
+            // A draft of the sources and steps drafts over the project this replaces.
+            (session.data as Partial<Pick<SessionData, "discardDraft">>).discardDraft?.();
             // Its place in the session's load line is taken now, before the file is read, so a
             // load asked for before the open lands before it, and one asked for after lands after
             // it, whichever read finishes first (issue #3525). The autosave restore opens here too.

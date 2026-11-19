@@ -136,6 +136,11 @@ interface CommandServices {
     progress?: (change: ProgressChange) => void;
     /** The command that brings the computed columns up to date now, or null when nothing changes. */
     derive?: () => DataDeriveCommand | null;
+    /**
+     * Why a command, or an undo, redo or restore (`"history"`), is refused now, or null: a draft
+     * of the sources and steps holds the data while it is open.
+     */
+    refuse?: (command: CommandLike | "history") => Error | null;
 }
 
 /** What the queue hands a queued command when its slot comes up. */
@@ -1448,6 +1453,10 @@ export class Dispatcher {
 
         let outcome: HistoryOutcome;
         try {
+            const refusal = this.services.refuse?.("history") ?? null;
+            if (refusal !== null) {
+                throw refusal;
+            }
             outcome = act();
         } catch (error) {
             return Promise.reject(error);
@@ -1840,6 +1849,10 @@ export class Dispatcher {
         origin: DeferredOrigin | null = null,
     ): unknown {
         const { state, definition, concrete } = this.resolve(command);
+        const refusal = this.services.refuse?.(concrete) ?? null;
+        if (refusal !== null) {
+            throw refusal;
+        }
 
         if (definition.undo.kind === "exempt") {
             return (definition as ExemptDefinition<CommandLike>).execute(concrete, { state, services: this.services });

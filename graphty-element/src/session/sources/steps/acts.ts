@@ -304,6 +304,22 @@ function defined<T extends Record<string, unknown>>(members: T): Partial<T> {
 }
 
 /**
+ * Refuse `repeated: "both"` off a `join.edges` step (3.3): only an edge step can keep two rows
+ * naming one key as two elements.
+ * @param op - The step's op.
+ * @param repeated - The `repeated` asked for.
+ * @throws A `GraphtyError` with `E_BAD_COMMAND`, reason `repeated-both`.
+ */
+export function refuseBoth(op: Step["op"], repeated: string | null | undefined): void {
+    if (repeated === "both" && op !== "join.edges") {
+        throw refused("E_BAD_COMMAND", `A ${op} step cannot keep repeated rows both.`, {
+            reason: "repeated-both",
+            op,
+        });
+    }
+}
+
+/**
  * Merge 2 into 1 (3.6): a staged source 2 is added in its own space first, then `join.merge` folds
  * each of its nodes into the node 1 its field names.
  * @param value - The value.
@@ -312,6 +328,7 @@ function defined<T extends Record<string, unknown>>(members: T): Partial<T> {
  * @returns The next value.
  */
 function merge(value: SourceSteps, copies: Copies, o: MergeAct): SourceSteps {
+    refuseBoth("join.merge", o.repeated);
     const s2 = nodeSource(value, copies, o.from.source);
     const n1 = nodeOne(value, o.into);
     let next = value;
@@ -351,7 +368,12 @@ function merge(value: SourceSteps, copies: Copies, o: MergeAct): SourceSteps {
  * @param clash - The step's rule, one for every column or one per column with `"*"` for the rest.
  * @throws A `GraphtyError` with `E_CLASH_RULE_TYPE { step, column, rule }`.
  */
-function checkClash(value: SourceSteps, copies: Copies, index: number, clash: NonNullable<MergeStep["clash"]>): void {
+export function checkClash(
+    value: SourceSteps,
+    copies: Copies,
+    index: number,
+    clash: NonNullable<MergeStep["clash"]>,
+): void {
     const result = buildOf(value, copies);
     const rules: Readonly<Record<string, ClashRule>> = typeof clash === "string" ? { "*": clash } : clash;
     const columns = new Set(conflicts(result, { step: index }).map((c) => c.column));
@@ -564,7 +586,7 @@ export function applyAct(value: SourceSteps, act: StepsAct, copies: Copies): Sou
             return moveColumns(value, act.source, act.options);
         case "rename": {
             sourceOf(value, act.rename.source);
-            const out = renameColumn(value, new Map(Object.entries(copies)), act.rename);
+            const out = renameColumn(value, new Map(Object.entries(copies)), act.rename, buildOf(value, copies));
             if (isOutcome(out)) {
                 throw refused(out.code as GraphtyErrorCode, `${out.code} for ${act.rename.from}.`, out.params);
             }

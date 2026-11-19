@@ -539,6 +539,7 @@ const renameKeys = <T>(rec: Readonly<Record<string, T>>, from: string, to: strin
  * @param input - The build input.
  * @param copies - Each source's rows as read, by copy id.
  * @param r - The source, table and names.
+ * @param held - The build of `input` when the caller holds it; absent builds it.
  * @returns The new build input, `E_EDIT_ROLE_COLUMN` for a column a role, rule or step reads, or
  * `E_BAD_COMMAND` (`name-taken`) when the table already has a column of the new name.
  */
@@ -546,6 +547,7 @@ export function renameColumn(
     input: BuildInput,
     copies: ReadonlyMap<string, CopyTables>,
     r: Rename,
+    held?: BuildResult,
 ): BuildInput | StepsOutcome {
     const src = input.sources[r.source];
     if (readColumns(input, r.source).has(r.from)) {
@@ -560,7 +562,7 @@ export function renameColumn(
         };
     }
     const read = Object.entries(renamed).find(([, w]) => w === r.from)?.[0] ?? r.from;
-    const result = build(input, copies);
+    const result = held ?? build(input, copies);
     const col = (c: string): string => (c === r.from ? r.to : c);
     const filter = <F extends { column: string }>(f: F | undefined): F | undefined =>
         f && { ...f, column: col(f.column) };

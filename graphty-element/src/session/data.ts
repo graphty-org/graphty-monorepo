@@ -187,6 +187,7 @@ import { edgeSpaceOf } from "./scope/ScopeApi";
 import type { SelectionTextMode } from "./selection";
 import { searchOf } from "./selection/targets";
 import type { CodedFact, ColumnRef, ProgressChange } from "./shared";
+import { draftOpenError, SourceDraftHandle } from "./sourceDraft";
 import { ExpansionState, type HostEdge, type SourceHost } from "./sources/host";
 import {
     isSourceFactKey,
@@ -344,6 +345,7 @@ import type {
     SourceConflict,
     SourceConflictQuery,
     SourceConnectOptions,
+    SourceDraft,
     SourceEditChoice,
     SourceElementRef,
     SourceElementsFilter,
@@ -985,7 +987,11 @@ export class SessionData implements SessionDataApi {
         { readonly whole: readonly AttributeDescriptor[]; readonly shown: readonly AttributeDescriptor[] }
     >();
     /** The draft `prepare` returned last, until it is loaded or disposed: one is held at a time. */
-    private draft: Draft | null = null;
+    private heldDraft: Draft | null = null;
+    /** The draft of the sources and steps open now, under the source-steps experiment. */
+    private sourceDraft: SourceDraftHandle | null = null;
+    /** The draft whose commit is on its way, so a draft opened meanwhile would not start from before it. */
+    private committingDraft: string | null = null;
     /** Row orders computed for pages, by what they were asked with, for the current revision. */
     private readonly orders: RevisionCache<Uint32Array>;
     /** The last few neighbor lists, by node and options, for the current revision. */
@@ -1286,6 +1292,7 @@ export class SessionData implements SessionDataApi {
      */
     async clear(): Promise<void> {
         this.requireLive("clear");
+        this.discardDraft();
         // A load still reading when the clear is asked for is canceled: it rejects with
         // E_SUPERSEDED and adds nothing, so the cleared graph does not come back (issue #3524). An
         // edit still waiting resolves and adds nothing either.
@@ -1614,7 +1621,7 @@ export class SessionData implements SessionDataApi {
             // records stay in the ledger, unlisted, so undoing the replacement lists them again.
             this.pendingLoads.clear();
         }
-        this.draft?.dispose();
+        this.heldDraft?.dispose();
         if (readsThroughDraft(options) || (this.stepsOn() && sample?.held === undefined)) {
             const draft = await this.prepare(source, options.signal === undefined ? {} : { signal: options.signal });
             try {
@@ -2224,7 +2231,7 @@ export class SessionData implements SessionDataApi {
         options: { readonly signal?: AbortSignal; readonly onto?: "graph"; readonly guess?: "names" | "values" } = {},
     ): Promise<Draft> {
         this.requireLive("prepare");
-        this.draft?.dispose();
+        this.heldDraft?.dispose();
         const read = await readWithProgress(source, options.signal, (change) => this.writes.progress?.(change));
         this.reads.set(source, read);
         return this.draftOf(source, read, options);
@@ -2245,7 +2252,7 @@ export class SessionData implements SessionDataApi {
         read: ReadSource,
         options: { readonly signal?: AbortSignal; readonly onto?: "graph"; readonly guess?: "names" | "values" } = {},
     ): Promise<Draft> {
-        this.draft?.dispose();
+        this.heldDraft?.dispose();
         // With the file styles experiment off a draft does not say what styles the file carries.
         const styles = this.pages.fileStyles?.() === false ? null : await draftStyles(read, options.signal);
         const draft = new Draft(
@@ -2279,8 +2286,8 @@ export class SessionData implements SessionDataApi {
                 },
                 measure: (command, config) => this.writes.measure(command, config),
                 released: (released) => {
-                    if (this.draft === released) {
-                        this.draft = null;
+                    if (this.heldDraft === released) {
+                        this.heldDraft = null;
                     }
                 },
                 ...(options.onto === "graph"
@@ -2297,7 +2304,7 @@ export class SessionData implements SessionDataApi {
             styles,
             options.guess,
         );
-        this.draft = draft;
+        this.heldDraft = draft;
         return draft;
     }
 
@@ -3382,28 +3389,106 @@ export class SessionData implements SessionDataApi {
      */
     async stage(source: DataSourceInput, options: ImportOptions = {}): Promise<string> {
         this.requireSteps("stage");
+        const read = await this.readStaged(source, options);
+        if (read === null) {
+            return "";
+        }
+        // Staging is no undo step (8.9): it joins the step before it.
+        await this.stepsEdit(() => ({ kind: "add", source: read.source, staged: true }), read.copies, true);
+        return read.source.id;
+    }
+
+    /**
+     * Read a source as a staged source, dispatching nothing.
+     * @param source - What `import` takes.
+     * @param options - Its key, type, space and edge ends.
+     * @returns The source and its rows as read, or null when the read held no rows.
+     */
+    private async readStaged(
+        source: DataSourceInput,
+        options: ImportOptions,
+    ): Promise<{ source: StepsSource; copies: Copies } | null> {
         checkSpace(options.space);
         const draft = await this.prepare(source);
-        let id = "";
+        let read: { source: StepsSource; copies: Copies } | null = null;
         try {
             await draft.loadVia(
                 (command) => {
                     const load = (command.op === "batch" ? command.steps.at(-1) : command) as DataImportCommand;
                     const compiled = compileImport(load, options, this.readConfig().knownFields);
-                    if (compiled === null) {
-                        return Promise.resolve();
+                    if (compiled !== null) {
+                        read = { source: compiled.edit.source, copies: compiled.copies ?? EMPTY_COPIES };
                     }
-                    const staged = compiled.edit.source;
-                    ({ id } = staged);
-                    // Staging is no undo step (8.9): it joins the step before it.
-                    return this.stepsEdit(() => ({ kind: "add", source: staged, staged: true }), compiled.copies, true);
+                    return Promise.resolve();
                 },
                 withStepsMapping({ ...options, mode: "merge" }),
             );
         } finally {
             draft.dispose();
         }
-        return id;
+        return read;
+    }
+
+    /**
+     * Open a draft of the sources and steps (design 5.6).
+     * @returns The draft.
+     * @throws A `GraphtyError` with `E_DRAFT_OPEN` while one is open, or `E_FEATURE_OFF` while the
+     *   source-steps experiment is off.
+     */
+    draft(): SourceDraft {
+        this.requireSteps("draft");
+        const open = this.sourceDraft?.id ?? this.committingDraft;
+        if (open !== null) {
+            throw draftOpenError(open);
+        }
+        const draft = new SourceDraftHandle(
+            {
+                read: (source, options) => this.readStaged(source, options),
+                send: async (edit, copies) => {
+                    this.committingDraft = draft.id;
+                    try {
+                        return await this.stepsEdit(() => edit, copies);
+                    } finally {
+                        this.committingDraft = null;
+                    }
+                },
+                committedCopies: () => this.stepsCopies(),
+                hold: (held) => {
+                    // A draft a failed commit hands back never displaces one opened since.
+                    if (held === null || this.sourceDraft === null) {
+                        this.sourceDraft = held;
+                    }
+                },
+                emit: (change) => this.writes.emit?.("data:draft-changed", change),
+            },
+            { value: this.stepsValue(), copies: this.stepsCopies() },
+        );
+        this.sourceDraft = draft;
+        this.writes.emit?.("data:draft-changed", { draft: draft.id, reason: "opened" });
+        return draft;
+    }
+
+    /**
+     * The draft open now.
+     * @returns It, or null.
+     * @throws A `GraphtyError` with `E_FEATURE_OFF` while the source-steps experiment is off.
+     */
+    currentDraft(): SourceDraft | null {
+        this.requireSteps("currentDraft");
+        return this.sourceDraft;
+    }
+
+    /**
+     * The refusal a data write or an undo meets while a draft is open.
+     * @returns `E_DRAFT_OPEN`, or null when no draft is open.
+     */
+    draftRefusal(): GraphtyError | null {
+        return this.sourceDraft === null ? null : draftOpenError(this.sourceDraft.id);
+    }
+
+    /** Discard the open draft, if any: a project opened or the graph cleared replaces what it drafted. */
+    discardDraft(): void {
+        this.sourceDraft?.dispose();
     }
 
     /**
@@ -7585,6 +7670,7 @@ export class SessionData implements SessionDataApi {
      * one either way.
      */
     dispose(): void {
+        this.discardDraft();
         this.disposed = true;
         this.derived = null;
     }

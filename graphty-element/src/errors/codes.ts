@@ -832,6 +832,12 @@ export type GraphtyErrorCode =
      * setter's `source` option. Experimental: the source-steps experiment.
      */
     | "E_ROLE_TARGET_AMBIGUOUS"
+    /**
+     * A draft of the sources and steps is open (`session.data.draft()`), so a data write, an undo
+     * or a redo would change what its commit replaces. `details.draft` names the draft. The caller
+     * commits or discards it first. Experimental: the source-steps experiment.
+     */
+    | "E_DRAFT_OPEN"
     | "E_INTERNAL";
 
 /**
@@ -1198,6 +1204,7 @@ const CODE_TABLE = {
     E_EDIT_ROLE_COLUMN: "E_EDIT_ROLE_COLUMN",
     E_CLASH_RULE_TYPE: "E_CLASH_RULE_TYPE",
     E_ROLE_TARGET_AMBIGUOUS: "E_ROLE_TARGET_AMBIGUOUS",
+    E_DRAFT_OPEN: "E_DRAFT_OPEN",
     E_UNKNOWN_DATASET: "E_UNKNOWN_DATASET",
     E_UNKNOWN_SINK: "E_UNKNOWN_SINK",
     E_UNKNOWN_RUN: "E_UNKNOWN_RUN",

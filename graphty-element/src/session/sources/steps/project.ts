@@ -161,7 +161,7 @@ const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
  * A ULID: 48 bits of the time and 80 random bits, in Crockford base 32.
  * @returns The 26 characters.
  */
-function ulid(): string {
+export function ulid(): string {
     let time = Date.now();
     let head = "";
     for (let i = 0; i < 10; i++) {
@@ -262,7 +262,7 @@ export function counted(value: SourceSteps, copies: Copies, count: number): Sour
  * @param src - The source.
  * @returns The registry with the rules.
  */
-function withSourceRules(types: readonly TypeEntry[], src: StepsSource): readonly TypeEntry[] {
+export function withSourceRules(types: readonly TypeEntry[], src: StepsSource): readonly TypeEntry[] {
     const rules: [string, TypeRule][] = [];
     for (const [end, name] of Object.entries(src.endTypes ?? {}) as ["source" | "target", string | undefined][]) {
         if (name !== undefined) {

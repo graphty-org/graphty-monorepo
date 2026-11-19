@@ -31,7 +31,7 @@ const DATA3 = data3Url;
 /** The image the skybox story puts behind the graph. */
 const SKYBOX = skyboxUrl;
 
-/** The background every story is drawn against, so the skybox story's undo has a colour to return to. */
+/** The background every story is drawn against, so the skybox story's undo has a color to return to. */
 const PAPER = "#f5f5f5";
 
 /**
@@ -79,7 +79,7 @@ function projectState(scene: Drawn): string {
     return stateDigest(dispatcherOf(scene.session).state);
 }
 
-/** How far a colour channel may move before a pixel counts as changed: rounding, not a repaint. */
+/** How far a color channel may move before a pixel counts as changed: rounding, not a repaint. */
 const CHANNEL_TOLERANCE = 2;
 
 /**
@@ -222,7 +222,7 @@ export const ImportThenUndo: Story = {
     },
 };
 
-/** Degree centrality run with its colour and size applied, then undone: the run and its paint go together. */
+/** Degree centrality run with its color and size applied, then undone: the run and its paint go together. */
 export const RunThenUndo: Story = {
     play: async ({ canvasElement }) => {
         const scene = await actThenUndo(canvasElement, "Undo RunThenUndo", async ({ session }) => {
@@ -303,7 +303,7 @@ export const ThreeDToTwoDThenUndo: Story = {
     },
 };
 
-/** A plain background swapped for a photo skybox, then undone: the dome is gone and the colour is back. */
+/** A plain background swapped for a photo skybox, then undone: the dome is gone and the color is back. */
 export const SkyboxThenUndo: Story = {
     play: async ({ canvasElement }) => {
         const scene = await actThenUndo(canvasElement, "Undo SkyboxThenUndo", async (acted) => {

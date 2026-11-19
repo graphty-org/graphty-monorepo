@@ -513,3 +513,105 @@ describe("Data > Fields as a + list on the real element", () => {
         assert.isNull(section.getByRole("combobox", { name: "Node city column" }).closest("[data-unused]"));
     });
 });
+
+describe("Data > Fields' settings rows on the real element", () => {
+    beforeAll(async () => {
+        await page.viewport(1440, 900);
+    });
+    beforeEach(forgetAutosave);
+    afterEach(forgetAutosave);
+
+    /** An edge file whose ties hold a group, a start year and an end year. */
+    const SPELLS = "source,target,group,year,until\na,b,x,1990,1995\nb,c,y,2000,2004\nc,a,x,2001,2008\n";
+
+    /**
+     * Picks an option of a Fields dropdown, as a reader does.
+     * @param section - the Fields section.
+     * @param name - the dropdown's name.
+     * @param option - the option's words.
+     */
+    async function choose(section: Within, name: string, option: string | RegExp): Promise<void> {
+        await userEvent.click(section.getByRole("combobox", { name }));
+        await userEvent.click(await screen.findByRole("option", { name: option }));
+    }
+
+    it("Direction writes the graph's direction, and Auto gives it back to the file", async () => {
+        const session = await dropCsv(SPELLS);
+        const section = await fields();
+        await waitFor(() => {
+            assert.equal(shown(section, "Direction"), "Auto");
+        });
+        await choose(section, "Direction", "Directed");
+        await waitFor(() => {
+            assert.isTrue(session.config.data.directed);
+            assert.equal(shown(section, "Direction"), "Directed");
+        });
+        await choose(section, "Direction", "Undirected");
+        await waitFor(() => {
+            assert.isFalse(session.config.data.directed);
+        });
+        await choose(section, "Direction", "Auto");
+        await waitFor(() => {
+            assert.equal(session.config.data.directed, "auto");
+        });
+    });
+
+    it("a time column's Unit and End are set under it, and its column can be changed in place", async () => {
+        const session = await dropCsv(SPELLS);
+        const section = await fields();
+        await userEvent.click(await section.findByRole("button", { name: "Add to edge attributes" }));
+        await pickFromSubmenu("Time", /^year/);
+        await waitFor(() => {
+            assert.equal(session.time.field?.edges?.start, "year");
+            assert.equal(shown(section, "Edge time"), "year");
+        });
+
+        await choose(section, "Edge time unit", "Year");
+        await waitFor(() => {
+            assert.deepEqual(session.time.field, { edges: { start: "year", unit: "year" } });
+            assert.equal(shown(section, "Edge time unit"), "Year");
+        });
+        await choose(section, "Edge time end", "until");
+        await waitFor(() => {
+            assert.deepEqual(session.time.field, { edges: { start: "year", unit: "year", end: "until" } });
+        });
+        await choose(section, "Edge time end", "None");
+        await waitFor(() => {
+            assert.deepEqual(session.time.field, { edges: { start: "year", unit: "year" } });
+            assert.equal(shown(section, "Edge time end"), "None");
+        });
+
+        // Another column for the time starts it over on that column.
+        await choose(section, "Edge time", /^until/);
+        await waitFor(() => {
+            assert.equal(session.time.field?.edges?.start, "until");
+            assert.equal(shown(section, "Edge time"), "until");
+        });
+    });
+
+    it("a row read when the rows load reads the load again: Kind added and taken away, and Target moved", async () => {
+        const session = await dropCsv(SPELLS);
+        const section = await fields();
+        await userEvent.click(await section.findByRole("button", { name: "Add to edge attributes" }));
+        await pickFromSubmenu("Kind", "group");
+        await waitFor(() => {
+            assert.include(entries(section, "edges"), "kind");
+            assert.equal(shown(section, "Kind"), "group");
+        });
+
+        await userEvent.click(section.getByRole("button", { name: "Remove edge kind" }));
+        await waitFor(() => {
+            assert.notInclude(entries(section, "edges"), "kind");
+            assert.strictEqual(document.activeElement, section.getByRole("button", { name: "Add to edge attributes" }));
+        });
+
+        assert.equal(shown(section, "Target"), "target");
+        await choose(section, "Target", "group");
+        // Fields shows the load's mapping, so Target names group once the load is read again.
+        await waitFor(() => {
+            assert.equal(shown(section, "Target"), "group");
+        });
+        // a, b and c, then the groups x and y as the edges' other ends.
+        assert.equal(session.data.statistics().nodeCount, 5);
+    });
+});

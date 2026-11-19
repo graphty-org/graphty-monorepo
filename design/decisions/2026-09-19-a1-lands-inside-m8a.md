@@ -13,9 +13,9 @@ supersedes them. The plan that executes this decision is
 
 A1 is the graph-format bridge inside `@graphty/algorithms`: the legacy `Graph` class gains a
 `mutationCount` getter, `toSnapshot(graph)` freezes a `Graph` into a `GraphSnapshot` built with
-`weightDtype: "f64"` and memoises the result on `(graph, mutationCount)` in a `WeakMap`, and a
+`weightDtype: "f64"` and memoizes the result on `(graph, mutationCount)` in a `WeakMap`, and a
 differential harness replays every existing test fixture through the snapshot's views to prove
-the conversion preserves node sets, neighbour sets, degrees, edge multisets and weights. Public
+the conversion preserves node sets, neighbor sets, degrees, edge multisets and weights. Public
 signatures are untouched.
 
 A1's CONTENT is unchanged. Its ORDER changes: instead of landing on an earlier branch of its own
@@ -111,7 +111,7 @@ comment always promised and what `uniqueEdgeCount` already counted.
 `algorithms/test/unit/indexed/to-snapshot.test.ts` carries the regression case (`yields each
 undirected edge once when ids mix strings and numbers`).
 
-This is the phase's second behaviour change to an existing function, beyond the `sources` / `k`
+This is the phase's second behavior change to an existing function, beyond the `sources` / `k`
 guard on `betweennessCentrality`, and the plan allows only that one. Deduplicating inside
 `toSnapshot` instead would have hidden a defect of the public method behind the bridge, which is
 the workaround pattern this repository forbids. To reverse this, revert the `isMirror` helper in

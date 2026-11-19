@@ -19,7 +19,7 @@ What it builds on:
   `design/ui/object-first-ux/inventory/app-today-and-personas.md` (every control in the app
   today, and the twelve personas and twenty-five workflows that are the requirements base);
 - the element's session API: `graphty-element/src/session/` (`types.ts`, `runs/`, `results/`,
-  `scope/`, `selection/`, `visibility/`, `styles/`) and the catalogue types in
+  `scope/`, `selection/`, `visibility/`, `styles/`) and the catalog types in
   `graphty-element/src/catalog/types.ts`.
 
 ## 0. The idea in one paragraph, and the vocabulary
@@ -47,8 +47,8 @@ Terms used throughout:
 - **Grouping**: a measure whose values are labels (community 3, BFS level 2), which is also a
   family of sets, one per label. In the tree a grouping is a parent row with one child set per
   group.
-- **Fill**: the object's appearance, in Figma's word. A set's fill is a flat colour, size, shape,
-  outline or label rule applied to its members. A measure's fill is a colour ramp or a size
+- **Fill**: the object's appearance, in Figma's word. A set's fill is a flat color, size, shape,
+  outline or label rule applied to its members. A measure's fill is a color ramp or a size
   scale. Every fill is one graphty-element style layer.
 - **Tree**: the left panel's list of objects, nested and ordered. Figma calls its equivalent the
   Layers panel.
@@ -67,7 +67,7 @@ Terms used throughout:
   later layer wins per channel (`graphty-element/src/session/styles/`).
 - **Channel**: one visual property a layer can write: `node.color`, `node.size`, `edge.width`
   (`Channel` in `graphty-element/src/catalog/types.ts`).
-- **Chit**: Figma's 14 x 14 colour swatch inside a field; clicking it opens the colour picker.
+- **Chit**: Figma's 14 x 14 color swatch inside a field; clicking it opens the color picker.
 - **Scrub**: dragging the label of a number field to change the value.
 
 The Figma measurements the visual language inherits, from `design/ui/figma/components.md`:
@@ -89,7 +89,7 @@ document contradicts those; where a row is named below, it is a 32 px row on tha
 | a run with shape `path`, `node-set`, `edge-set` (shortest path, MST, matching, min-cut) | a Set row (a path is ordered) | live set |
 | a run with shape `node-metric` / `edge-metric` (the centralities, eccentricity, max flow) | a Measure row | live measure |
 | a run with shape `community`, `layered-grouping`, `category-table` (communities, components, BFS levels, bipartite sides) | a Grouping row with one Group child per label | live grouping |
-| an imported numeric or categorical attribute (`session.data.attributes()`) | a Measure or Grouping row, created when the reader asks to colour or size by it | measure |
+| an imported numeric or categorical attribute (`session.data.attributes()`) | a Measure or Grouping row, created when the reader asks to color or size by it | measure |
 | a run with shape `fact`, `pair-list`, `temporal` | not a tree row; shown in the Graph inspector (facts) or the data table (tables) | -- |
 | a style layer with `source.by == "user"` | the Fill of the object it belongs to (never a row of its own) | property |
 | a style layer with `source.by == "run"` | the Fill of the run's object | property |
@@ -112,8 +112,8 @@ it nests; how it is re-run, edited and deleted. The element member behind each c
 | | |
 |---|---|
 | What it is | A named collection of node ids and/or edge ids. A set is either **static** (a list of ids, from a saved selection or a manual override) or **live** (a rule, re-evaluated when the data changes). |
-| Created by | Select tool then "Save as set" (`session.selection.promote(name)`); the Filter tool (a `Filter` from `graphty-element/src/session/visibility/filter.ts`, kept as a scope); the Neighbours tool (selection target `{neighborsOf, depth, direction}`); the Path and Structure tools (a run whose shape is `path`, `node-set` or `edge-set`); a boolean operation on two selected sets; "Fill" on a raw node (a one-node set, see section 7.5). |
-| Definition | For a static set: the id list. For a rule set: the rule (attribute, operator, value; degree band; component; neighbourhood seeds and depth; or an expression). For a run set: the algorithm, its parameters (`run.params`: source, target, method) and its scope (`run.scope`). |
+| Created by | Select tool then "Save as set" (`session.selection.promote(name)`); the Filter tool (a `Filter` from `graphty-element/src/session/visibility/filter.ts`, kept as a scope); the Neighbors tool (selection target `{neighborsOf, depth, direction}`); the Path and Structure tools (a run whose shape is `path`, `node-set` or `edge-set`); a boolean operation on two selected sets; "Fill" on a raw node (a one-node set, see section 7.5). |
+| Definition | For a static set: the id list. For a rule set: the rule (attribute, operator, value; degree band; component; neighborhood seeds and depth; or an expression). For a run set: the algorithm, its parameters (`run.params`: source, target, method) and its scope (`run.scope`). |
 | Members | `session.scope.resolve(spec)` gives the ids; `session.scope.count(spec)` gives counts without resolving. A path also has an order (`results.<run>.order`) and a length. |
 | Appearance (Fill) | One style layer per set, `source: {by: "user"}` or `{by: "run"}`, selector = the set. Channels a set can write: `node.color`, `node.opacity`, `node.size`, `node.shape`, `node.outline`, `node.glow`, `node.label`; for edge members `edge.color`, `edge.width`, `edge.style`, `edge.opacity`, `edge.arrowHead`. Added through `session.styles.add(spec)`; edited through `session.styles.update(id, patch)`. A set with no fill has no layer. |
 | State | `current` when the members reflect the data now; `computing` while a run or a filter pass is in flight (`run.status` `queued` / `running`, `run.progress`); `stale` when `run.stale` is set (ran on N, now M) or the snapshot fingerprint changed since a rule set was resolved; `failed` (`run.status` `failed`, with the `GraphtyError`). A static set is never stale; members that left the graph are reported as `unmatched`. |
@@ -130,7 +130,7 @@ it nests; how it is re-run, edited and deleted. The element member behind each c
 | Created by | The Rank tool (a run with shape `node-metric` or `edge-metric`: `session.runs.start("pagerank", params, {scope})`); "Colour by" or "Size by" on an attribute in the Graph inspector (a measure over `data.<attribute>`); a computed attribute (proposed, design 4.3.4). |
 | Definition | The algorithm and its parameters, scope, and caveats (`run.caveats`: exact or sampled, converged, iterations, direction, weight meaning); or the attribute path. |
 | Values | `session.results.get(run).column(field)` (min, max, mean, median), `.ranking(field, n)`, `.histogram(field)`, `.summary()`, `.reading({audience})`. A measure may have several fields (HITS has `hub` and `authority`; degree has `value`, `inDegree`, `outDegree`); the inspector picks which one the fill reads. |
-| Appearance (Fill) | An encoding layer: `session.styles.encode({run, field, channel, scale, palette, domain, clamp, range, missing, reverse})`. Colour ramp on `node.color`, size scale on `node.size`, or both (two channels, one layer). The legend blocks for it come from `session.styles.legend()`. |
+| Appearance (Fill) | An encoding layer: `session.styles.encode({run, field, channel, scale, palette, domain, clamp, range, missing, reverse})`. Color ramp on `node.color`, size scale on `node.size`, or both (two channels, one layer). The legend blocks for it come from `session.styles.legend()`. |
 | State | As a set: current / computing / stale / failed. |
 | Nests | Two derived sets appear as children when the reader asks for them: **Top N** (selection target `{top: {run, field, n}}`) and **Above** a threshold (`{above: {run, field, threshold}}`), each a live set that can carry its own fill. |
 | Re-run, edit, delete | As a set. Deleting a measure deletes its derived sets. |
@@ -192,7 +192,7 @@ channel, the layer that won it and whether that layer is editable.
 An object's fill applies only to its members. This is the root rule in `CLAUDE.md` ("an
 algorithm's suggested style layers MUST write ONLY to the nodes and edges that are part of that
 algorithm's own result"): a set's layer selector is the set, a measure's encoding visits only the
-elements the run measured, a grouping's ramp only the labelled ones. Dimming everything else is
+elements the run measured, a grouping's ramp only the labeled ones. Dimming everything else is
 the reader's own object: a filter set "Not in Group 2" with a fill of opacity 0.2.
 
 ### 1.4 Where the objects are stored
@@ -219,12 +219,12 @@ estimate's sentence.
 
 | Tool (key) | Group face and flyout | What it does on the canvas | Hands back |
 |---|---|---|---|
-| Select (V) | Select; flyout: Select all visible (Ctrl+A), Invert (I), Select neighbours (Shift+E), Select connected part | Click, Shift+click, marquee. Not a creator; its result is the transient Selection. "Save as set" (Ctrl+S in the inspector) promotes it. | the Selection; a Set on save |
-| Filter (F) | Filter; flyout: By attribute, By degree, By type (needs issue #299), Connected part, Neighbourhood, Expression (advanced) | Opens the rule form as a light popover beside the tree (Figma's "+" pattern). Each rule kind is one form; the expression tab is the advanced door. Enter creates the set. | a live Set |
+| Select (V) | Select; flyout: Select all visible (Ctrl+A), Invert (I), Select neighbors (Shift+E), Select connected part | Click, Shift+click, marquee. Not a creator; its result is the transient Selection. "Save as set" (Ctrl+S in the inspector) promotes it. | the Selection; a Set on save |
+| Filter (F) | Filter; flyout: By attribute, By degree, By type (needs issue #299), Connected part, Neighborhood, Expression (advanced) | Opens the rule form as a light popover beside the tree (Figma's "+" pattern). Each rule kind is one form; the expression tab is the advanced door. Enter creates the set. | a live Set |
 | Groups (G) | Communities (Louvain) as the face; flyout: Communities refined (Leiden), Communities fast (Label propagation), Communities by cutting bridges (Girvan-Newman), Separate pieces (Components), Steps away from a node (BFS levels; then click the start node) | Runs at once with defaults over the visible scope; the row appears computing. | a Grouping with Group children, filled with a categorical ramp |
 | Path (P) | Shortest route as the face; flyout: Shortest route, All routes (issue #329), Most that can flow (max flow), Weakest link (min cut) | Like a line tool: click A, click B (the canvas shows "Click the start node", then "Click the end node"; a ghost line follows the pointer). Escape cancels. | a Set (ordered), filled with a highlight |
-| Rank (R) | Connections (degree) as the face; flyout: Bridges (betweenness), Reach (closeness), Influence (PageRank), Influence by association (eigenvector), Influence at a distance (Katz), Hubs and authorities (HITS), Distance from everything (eccentricity), Exploration order (DFS; click the start) | Runs at once over the visible scope. | a Measure, filled with a colour ramp |
-| Neighbours (E) | Neighbours; flyout: 1 step, 2 steps, 3 steps; In, Out, All | Click a node (or use the selection as seeds). | a live Set (an ego network) |
+| Rank (R) | Connections (degree) as the face; flyout: Bridges (betweenness), Reach (closeness), Influence (PageRank), Influence by association (eigenvector), Influence at a distance (Katz), Hubs and authorities (HITS), Distance from everything (eccentricity), Exploration order (DFS; click the start) | Runs at once over the visible scope. | a Measure, filled with a color ramp |
+| Neighbors (E) | Neighbors; flyout: 1 step, 2 steps, 3 steps; In, Out, All | Click a node (or use the selection as seeds). | a live Set (an ego network) |
 | Structure (S) | Cheapest connecting network (Kruskal) as the face; flyout: Cheapest network from a node (Prim; click the start), Best pairing (matching), Bridges and cut points (issue #311), Weakest link (min cut) | Runs at once. | a Set of edges (or nodes), filled with a highlight |
 | Note (C) | Note | Click a node, an edge or empty canvas to drop a pin and open the composer. | a Note |
 | Actions (Ctrl+K) | the palette | Type a command, an object name, a node name (`@`), or a plain-language request (the AI door, section 6). | whatever the command makes |
@@ -238,10 +238,10 @@ What is deliberately not a tool: layout (it is a property of the Graph), export 
 load the app draws the graph and nothing else: no degree pass, no suggestion cards, no panel
 switch. The Rank tool's face is Connections; that is where "most connected" lives now.
 
-Every tool's variant list is the algorithm catalogue (`session.catalog.algorithms()`) filtered by
+Every tool's variant list is the algorithm catalog (`session.catalog.algorithms()`) filtered by
 result shape: `community` and `layered-grouping` under Groups, `path` and edge-metric flows
 under Path, `node-metric` under Rank, `edge-set` under Structure. A registered plugin algorithm
-appears in the right flyout by its shape with no app change, which is what the catalogue is for.
+appears in the right flyout by its shape with no app change, which is what the catalog is for.
 `session.catalog.metrics()` says whether each variant can run on this graph; a variant that
 cannot is dimmed with the reason in its tooltip.
 
@@ -261,7 +261,7 @@ Stroke, Effects, Export. The sections map like this:
 | (none) | About (collapsed) | provenance and caveats, explanation on request |
 
 Rows are named below. A row is 32 px on the 16 / 88 / 8 / 88 / 8 / 24 / 8 grid; a "two-column"
-row is Figma's labelled two-column row (9 px captions above two 88 px fields); a "paint row" is
+row is Figma's labeled two-column row (9 px captions above two 88 px fields); a "paint row" is
 Figma's Fill row (chit, hex, opacity, eye, minus). Sections end with a 1 px divider. An empty
 section is only its header with a "+", and clicking the header of an empty section adds the
 first item, as in Figma.
@@ -361,7 +361,7 @@ About
 ```
 
 Element members: Values from `session.results.get(run)`; the Definition fields come from the
-catalogue's `OptionDescriptor` list for the algorithm, with bounds from
+catalog's `OptionDescriptor` list for the algorithm, with bounds from
 `session.catalog.optionsFor()` when issue #336 lands; Appearance is the encoding layer's
 `Binding` (`palette`, `scale`, `domain`, `clamp`, `range`, `missing`, `reverse`) through
 `session.styles.update`; the derived sets are selection targets `{top}` and `{above}` promoted
@@ -442,7 +442,7 @@ Export
   [Image...]  [Data...]  [Report...] (issue #187)
 ```
 
-The Attributes section is where a data column becomes a Measure or a Grouping: "Colour by
+The Attributes section is where a data column becomes a Measure or a Grouping: "Color by
 weight" creates a measure object over `data.weight` with an encoding layer (`encode: {by:
 "data.weight"}`, which exists in the element today; only the UI is missing, issue #190). "Group
 by club" creates a grouping object over the attribute with one child per value. "Label by name"
@@ -486,7 +486,7 @@ Actions
 ```
 
 Element members: `session.data.node(id)`; `session.styles.explain({node})` for Appearance;
-`results.get(run).node(id)` for Values; membership from the registry (gap, section 8); neighbour
+`results.get(run).node(id)` for Values; membership from the registry (gap, section 8); neighbor
 rows need an edge listing (issue #297, gap small); Locate = `setCameraTarget`; Pin = `el.pin`.
 
 With several nodes selected the header reads "12 nodes selected", the Attributes section shows
@@ -516,7 +516,7 @@ the inspector is about. Picking a measure row (no members) clears the element se
 | Click a node | canvas | select that node; inspector shows the node | `selection.apply({nodes: [id]}, "replace")` (cause `user`) |
 | Shift+click a node | canvas | toggle it in the selection | `apply(..., "toggle")` |
 | Ctrl+click a node | canvas | select the smallest object containing it (Figma: the deepest layer) | registry lookup, then `apply({scope})` |
-| Double-click a node | canvas | select its neighbours (Figma: enter the group) | `apply({neighborsOf: [id], depth: 1}, "replace")` |
+| Double-click a node | canvas | select its neighbors (Figma: enter the group) | `apply({neighborsOf: [id], depth: 1}, "replace")` |
 | Shift+Enter | keyboard | select the smallest object containing the selection (Figma: select parent) | registry lookup |
 | Tab / Shift+Tab | keyboard | next / previous node in the current object, by rank or id | app over `scope.resolve` |
 | Drag on empty canvas | canvas | marquee: nodes inside the rectangle (2D), inside the frustum slab (3D); live preview | gap (medium): the element must hit-test, it owns the projection |
@@ -533,7 +533,7 @@ the inspector is about. Picking a measure row (no members) clears the element se
 
 Locked objects: a locked row's members cannot be selected by a canvas click or a marquee (the
 click falls through to the next unlocked element, as in Figma), and its fill cannot be edited.
-Gap (small): canvas picking honours a lock mask; today the `locked` flag exists only on the
+Gap (small): canvas picking honors a lock mask; today the `locked` flag exists only on the
 element's own base layers.
 
 ## 5. What "nothing selected" shows
@@ -614,7 +614,7 @@ never re-runs by itself when data changes; it turns stale and says so (never act
 ### 7.4 Rules without a query engine
 
 Figma never asks for a query language; every property is a form. The Filter tool's forms are
-the element's `Filter` kinds (range, categories, degree, component, neighbourhood, and all / any
+the element's `Filter` kinds (range, categories, degree, component, neighborhood, and all / any
 / not), which exist and run today. But three things that the object model treats as one --
 selection targets (`{top}`, `{above}`, `{neighborsOf}`), filters, and scopes (`"visible"`,
 `{set}`, `{where}`, `{nodes}`) -- are three unions in the element, and a scope is the only one a
@@ -637,12 +637,12 @@ which is honest: those are ten decisions the reader made. Two things keep it fro
 clutter: consecutive one-node sets are created as siblings inside an "Overrides" group the app
 creates on the third one (a plain set whose scope is the union), and
 `session.styles.resolveToStatic(layerId, channel, at)` is the door for "keep this node's
-computed colour but freeze it". Neighbour listing, the other thing a node inspector needs, is a
+computed color but freeze it". Neighbor listing, the other thing a node inspector needs, is a
 small element gap (issue #297). Edges remain unpickable by the element's choice; an edge set can
 still be selected through a row, and an edge inspector waits on picking (issue #319, medium).
 
 Other fits that are awkward but resolved by a sentence: a data attribute is a measure only once
-the reader colours or sizes by it (before that it is a row in the Graph's Attributes section);
+the reader colors or sizes by it (before that it is a row in the Graph's Attributes section);
 layout over a scope ("arrange these members radially") is an Arrangement section on a set,
 waiting on issue #144; a 3D marquee selects the frustum slab between the near plane and the
 farthest node; the legend belongs to measures and groupings only, and each has an eye for it.
@@ -660,8 +660,8 @@ tests; large is a subsystem. Existing issue numbers are given where one is open.
 | Expression engine and text search (issue #149) | the Filter tool's advanced tab; Find by node name; `{where}` scopes | large |
 | Hover highlight layer (`LayerSource.reason: "hover"`) | the two-way hover link | medium |
 | Marquee: screen rectangle (2D) or frustum slab (3D) to ids | Select tool | medium |
-| Canvas picking honours a lock mask | locked rows | small |
-| Edge listing per node (`getEdges`, issue #297) | Neighbours section | small |
+| Canvas picking honors a lock mask | locked rows | small |
+| Edge listing per node (`getEdges`, issue #297) | Neighbors section | small |
 | Fit the camera to a scope (`fit(scope)`, design 4.8) | Zoom to on every set | small |
 | Layout transport and layout over a scope (issue #144) | Arrangement section; per-set arrangement | medium |
 | Stable group identity across re-runs; group names (issue #191) | groupings that survive Run again | medium |
@@ -674,22 +674,22 @@ tests; large is a subsystem. Existing issue numbers are given where one is open.
 | Option bounds for a form (`optionsFor`, issue #336); weight and direction options everywhere (issue #313) | Definition sections | small, medium |
 
 Nothing in this model requires the app to compute over nodes and edges, sniff a format, walk
-neighbours, count components, estimate a cost, or copy a catalogue. Every list a panel draws is
-a catalogue or a session call, and every fill is a layer.
+neighbors, count components, estimate a cost, or copy a catalog. Every list a panel draws is
+a catalog or a session call, and every fill is a layer.
 
 ## 9. A worked minute
 
 Elena loads the Karate Club sample. The tree shows "Karate Club"; the inspector shows the Graph:
 34 nodes, 78 edges, undirected (from file). She presses G. A row "Communities (Louvain)" appears
 computing, finishes in 80 ms, expands to six Group children with swatches, and is selected; the
-inspector shows six groups and modularity 0.36; the canvas is coloured; the legend appears. She
+inspector shows six groups and modularity 0.36; the canvas is colored; the legend appears. She
 clicks Group 2's row: its nine members get the halo. She clicks the Fill chit in the inspector
 and picks orange: Group 2's own layer is added above the parent ramp and only those nine nodes
 change. She presses P, clicks Mr. Hi, clicks John A.: a row "Path: Mr. Hi to John A." appears
 above Communities, its four edges thick and blue, and it wins where it overlaps because it is
-higher. She drags it below Communities; the group colours win on the path's nodes and the blue
+higher. She drags it below Communities; the group colors win on the path's nodes and the blue
 stays on its edges, because the two objects write different channels. She hovers "Group 2" and
 the nine nodes outline. She presses Ctrl+K, types "who is most connected", and the assistant
 runs Rank > Connections; a measure row appears with a viridis ramp. She turns the ramp's eye off
-to keep the group colours and keeps the measure for its ranking. She saves a view, exports an
+to keep the group colors and keeps the measure for its ranking. She saves a view, exports an
 image, and nothing on screen was computed that she did not ask for.

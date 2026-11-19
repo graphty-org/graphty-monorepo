@@ -186,7 +186,7 @@ as participant errors.
   name twice ("Anzelma Anzelma") and covers the left of the canvas, hiding nodes and names (T10,
   T14, T15, T16). A label needs no key. The legend card does not show label blocks.
 - **Constant size block:** adding Size before binding it shows "Size: Influence -- Influence - Node
-  Colour 1" (T9, T15): a key for a size that does not vary, with an internal layer name. That is
+  Color 1" (T9, T15): a key for a size that does not vary, with an internal layer name. That is
   a ready-made false "done" on the size step. The legend shows a size block only when the size
   varies.
 - **Gray color chip:** the run row's Color line shows a gray swatch while the dots are an orange

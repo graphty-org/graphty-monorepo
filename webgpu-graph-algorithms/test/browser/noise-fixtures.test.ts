@@ -9,7 +9,7 @@
  * Node writers. Each stage is held to its spec cap, as every parity test is in a recording run.
  *
  * Runs only under GRAPHTY_NOISE_FLOOR_WRITE=1: the default browser run compiles only what the node lanes cannot cover
- * (issue #1741), and these kernels' behaviour is covered there and by test/browser/spring-layouts.test.ts.
+ * (issue #1741), and these kernels' behavior is covered there and by test/browser/spring-layouts.test.ts.
  */
 
 import { type GraphSnapshot } from "@graphty/graph-format";

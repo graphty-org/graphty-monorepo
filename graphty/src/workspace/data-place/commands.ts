@@ -182,10 +182,6 @@ const SOURCE_ROW_COMMANDS: readonly SourceRowCommand[] = [
 ];
 
 /**
- * The Data place package's registration: its Sources row commands. Its Fields rows act on the row
- * they are drawn for, so they are not commands.
- */
-/**
  * A column's attribute, as `data.attributes()` describes it.
  * @param ctx - the workspace.
  * @param column - the column.
@@ -236,6 +232,10 @@ const COLUMN_HEADER_COMMANDS: readonly ColumnHeaderCommand[] = [
     },
 ];
 
+/**
+ * The Data place package's registration: its Sources row and column header commands. Its Fields rows act on the row
+ * they are drawn for, so they are not commands.
+ */
 export const registration = defineRegistration({
     owner: "data-place",
     commands: [],

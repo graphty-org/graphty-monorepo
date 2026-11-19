@@ -17,7 +17,7 @@ Command: --step --click "Ask about this graph" --type "Which one gene do most of
 Output: 03.png
 
 ## Step 4
-Note: Answer: YMR043W (MCM1, plausible), via betweenness. It recoloured my network by Betweenness 0 to 16,124 without being asked. I want to see where the answer came from, so opening "3 steps".
+Note: Answer: YMR043W (MCM1, plausible), via betweenness. It recolored my network by Betweenness 0 to 16,124 without being asked. I want to see where the answer came from, so opening "3 steps".
 Command: --step --click "3 steps"
 Output: 04.png
 
@@ -70,7 +70,7 @@ What confused me:
 - The chip "5" under the first answer has no label. I still don't know what it counts.
 - "Open run" lands on the Style tab, not on the numbers. I had to find Values myself.
 - "Show in table" shows all 331 genes in loaded order, with my seven scattered and out of sight. Nothing is highlighted until you sort. I only found them because I sorted.
-- The AI recoloured my network by Betweenness without my asking. Undo is there, but I did not ask for a style change, and it stayed on while I worked on the second question.
+- The AI recolored my network by Betweenness without my asking. Undo is there, but I did not ask for a style change, and it stayed on while I worked on the second question.
 - "Sends to Google": it does tell me, which is good, but it does not say what is sent. With unpublished data my PI would ask, and I could not answer.
 
 Would I use it? For a quick check like this, yes. It is honest about where a number came from. But a betweenness score is not a biological result, and the paper figure stays in Cytoscape.

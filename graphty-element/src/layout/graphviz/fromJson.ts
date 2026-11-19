@@ -17,6 +17,9 @@ interface JsonObject {
     readonly name?: unknown;
     readonly id?: unknown;
     readonly pos?: unknown;
+    /** A node's width and height, in inches. */
+    readonly width?: unknown;
+    readonly height?: unknown;
     readonly lp?: unknown;
     readonly xlp?: unknown;
     readonly xlabel?: unknown;
@@ -92,17 +95,30 @@ function nodeCenters(parsed: JsonGraph): Map<string, Point> {
 }
 
 /**
+ * A node's width and height as Graphviz drew it, in its points (it gives them in inches, one scene unit each).
+ * @param parsed - the `-Tjson` answer
+ * @param name - the node's name
+ * @returns the size, or undefined when the answer gives none
+ */
+function nodeSize(parsed: JsonGraph, name: string): Point | undefined {
+    const object = parsed.objects?.find((o) => o.name === name);
+    const [w, h] = [Number(object?.width) * POINTS_PER_UNIT, Number(object?.height) * POINTS_PER_UNIT];
+    return w > 0 && h > 0 ? [w, h] : undefined;
+}
+
+/**
  * Read the route Graphviz laid each edge along out of its json output, as bends between the two
  * nodes' centers: the edges are named `e<k>` by their place in the list handed over (see `toDot`).
  * @param json - the `-Tjson` text
  * @param edges - the edges handed over, each with its end rows
- * @param bendsOf - an edge's bends from its `pos` text and its ends' centers (graph-io's reading)
+ * @param bendsOf - an edge's bends from its `pos` text and its ends' centers (graph-io's reading); a self-loop's node
+ *     size too, whose bends are then offsets round its node
  * @returns each edge's bends, by place in the list; absent for an edge drawn straight or not laid
  */
 export function edgeBends(
     json: string,
     edges: readonly { readonly src: number; readonly dst: number }[],
-    bendsOf: (source: Point, target: Point, pos: string) => string | null,
+    bendsOf: (source: Point, target: Point, pos: string, loopSize?: Point) => string | null,
 ): Map<number, string> {
     const parsed = JSON.parse(json) as JsonGraph;
     const centers = nodeCenters(parsed);
@@ -116,7 +132,8 @@ export function edgeBends(
 
         const source = centers.get(`n${edge.src}`);
         const target = centers.get(`n${edge.dst}`);
-        const bends = source && target ? bendsOf(source, target, pos) : null;
+        const loopSize = edge.src === edge.dst ? nodeSize(parsed, `n${edge.src}`) : undefined;
+        const bends = source && target ? bendsOf(source, target, pos, loopSize) : null;
         if (bends !== null) {
             out.set(k, bends);
         }
@@ -133,7 +150,7 @@ export function edgeBends(
  * @param json - the `-Tjson` text
  * @param edges - the edges handed over, each with its end rows
  * @param key - which label's place to read
- * @returns each labelled edge's label place, by place in the list; absent for an edge with no such place or a self-loop
+ * @returns each labeled edge's label place, by place in the list; absent for an edge with no such place or a self-loop
  */
 export function edgeLabelPlaces(
     json: string,

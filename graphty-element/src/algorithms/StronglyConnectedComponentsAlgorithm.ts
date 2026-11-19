@@ -45,7 +45,7 @@ export class StronglyConnectedComponentsAlgorithm extends DeclaredAlgorithm {
            that is the question asked of it.
 
            Components are numbered in the order Tarjan's walk completes them, trying each node's
-           neighbours in the order their edges were declared -- the numbering the element has
+           neighbors in the order their edges were declared -- the numbering the element has
            always published, which is what a palette keyed on the group reads. No accelerator
            computes strong components, so this is the CPU port's decision. */
         const { snapshot, run } = this.accelerated("stronglyConnectedComponents", "directed");

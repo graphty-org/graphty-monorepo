@@ -163,7 +163,12 @@ function merged(series: Series | undefined, from: number, to: number): Bucket {
     return out;
 }
 
-const metricsOf = (m: Measure): string[] => ("metric" in m ? [m.metric] : []);
+const metricsOf = (m: Measure): string[] => {
+    if (m.type === "rate_per_last") {
+        return [m.metric, m.per];
+    }
+    return "metric" in m ? [m.metric] : [];
+};
 
 /** Days of spend a month-end projection takes its daily rate from. */
 export const PROJECTION_DAYS = 7;
@@ -340,6 +345,12 @@ function slowValue(ctx: Ctx, c: MemberConfig, end: number): Computed {
         };
     }
     const b = merged(ctx.daily.get(metricsOf(m)[0]), from, today);
+    if (m.type === "rate_per_last") {
+        // Runner-minutes per issue: the 7-day rate per merge over another source's newest per-merge reading.
+        const per = merged(ctx.daily.get(m.per), from, today);
+        const div = per.lastAt === undefined ? undefined : per.last;
+        return { ...(b.n > 0 && div ? { value: b.sum / b.n / div } : {}), n: b.n, covered };
+    }
     return { value: measureValue(m, b, (covered || days) * DAY), n: b.n, covered };
 }
 
@@ -803,7 +814,7 @@ function currentStatus(ctx: Ctx, c: MemberConfig): MemberStatus {
     if (partial) {
         return { ...status, state: "PARTIAL WINDOW", reason: partial };
     }
-    // A slow window the history does not yet cover still shows its value, labelled with the days it covers,
+    // A slow window the history does not yet cover still shows its value, labeled with the days it covers,
     // and is never gray only for too few samples while history is short.
     const short = c.window === "slow" && v.value !== undefined && (v.covered ?? 0) < slowDays(c);
     const out = short

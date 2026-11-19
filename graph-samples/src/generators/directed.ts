@@ -52,8 +52,8 @@ function checkPolicy(name: string, value: string | undefined): void {
  * Relabel edge endpoints by a Fisher-Yates permutation of 0 .. n - 1 (for i = n - 1 down to 1,
  * swap i with nextBelow(i + 1)) from stream (seed, permuteDomain, 0).
  * @param n - the node count
- * @param src - the sources, relabelled in place
- * @param dst - the targets, relabelled in place
+ * @param src - the sources, relabeled in place
+ * @param dst - the targets, relabeled in place
  * @param seed - the resolved seed
  * @param permuteDomain - the permutation's stream domain
  */
@@ -106,7 +106,7 @@ function dropRepeatedPairs(src: U32, dst: U32, directed: boolean, keep: Uint8Arr
  * Apply `permute`, `selfLoops` and `multiEdges` to freshly sampled edges, then build the graph.
  * The permutation is a Fisher-Yates shuffle of 0 .. n - 1 (for i = n - 1 down to 1, swap i with
  * nextBelow(i + 1)) from stream (seed, permuteDomain, 0); node u becomes perm[u]. Erasing keeps
- * the first occurrence of a pair in edge order, and is not affected by the relabelling.
+ * the first occurrence of a pair in edge order, and is not affected by the relabeling.
  * @param n - the node count
  * @param src - the sources, in edge order
  * @param dst - the targets

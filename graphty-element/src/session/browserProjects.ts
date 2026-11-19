@@ -238,6 +238,8 @@ export const browserProjects: BrowserProjects = Object.freeze({
         const { nodes, edges } = session.status.counts;
         const saved = await session.project.save({
             markSaved: false,
+            // Version 1, with the `save-files-v2` experiment on too: version 2 does not carry
+            // everything version 1 keeps yet, and its draft format may still change.
             ...(options.assets === undefined ? {} : { assets: options.assets }),
         });
         const record: ProjectRecord = {

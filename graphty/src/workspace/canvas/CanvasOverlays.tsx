@@ -211,7 +211,7 @@ function useDetailedMapForSmallData(): void {
 }
 
 /** The words a change of the map under a map layout is announced with, by its state. */
-const BASEMAP_STATE_WORDS: Readonly<Record<string, string>> = {
+const BASEMAP_STATE_WORDS: Readonly<Partial<Record<string, string>>> = {
     ready: "Map shown",
     fallback: "Map unavailable, showing Natural Earth",
 };

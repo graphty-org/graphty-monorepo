@@ -8,7 +8,8 @@ import type { DefaultableLimits } from "../limits";
 import type { SessionCommand } from "../planning";
 import type { SessionEventMap } from "../types";
 import type { SourceLedger } from "./ledger";
-import type { ExpandOptions, SourceLoadRecord } from "./types";
+import type { Row } from "./steps/types";
+import type { ExpandOptions, SourceLoadRecord, SourceRefreshReport } from "./types";
 
 /** One edge as the expand code reads it. */
 export interface HostEdge {
@@ -118,6 +119,14 @@ export interface SourceHost {
      * @returns the scale
      */
     positionScale(): number;
+    /**
+     * Under the source-steps experiment: swap a network load's rows in as its source's new copy,
+     * in place of the difference a refresh applies otherwise. Absent with the experiment off.
+     */
+    readonly refreshSteps?: (
+        load: string,
+        tables: { readonly nodes?: readonly Row[]; readonly edges?: readonly Row[] },
+    ) => Promise<SourceRefreshReport>;
 }
 
 /** An expansion running for some seeds, and the options it was asked with. */

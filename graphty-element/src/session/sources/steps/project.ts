@@ -16,6 +16,7 @@ import { GraphtyError } from "../../../errors/GraphtyError";
 import type { JoinRecord } from "../../types";
 import { applyAct, type StepsAct } from "./acts";
 import { build, isStaged, nodeSpace, ownSpace, resolveNode, stepSources } from "./build";
+import { applyRefreshEdit, editStates, missingColumns, type RefreshEdit, type RefreshIssue } from "./refresh";
 import {
     type BuildResult,
     type BuiltEdge,
@@ -32,6 +33,7 @@ import {
     type TableName,
     type TypeEntry,
     type TypeRule,
+    type Value,
 } from "./types";
 
 /** The graph value holding the {@link SourceSteps}. */
@@ -97,6 +99,11 @@ export interface SourceSteps {
     readonly reader: readonly ReaderOp[];
     /** The highest `join.edges` part minted per source, so a deleted step's part is never reused (3.3). */
     readonly parts?: Readonly<Record<string, number>>;
+    /**
+     * Counts the builds that changed the graph, so a run made over one build reads stale after a
+     * later one, even when a refresh brings the same rows back (8.6).
+     */
+    readonly build?: number;
 }
 
 /** The rows as read, by copy id. */
@@ -135,7 +142,9 @@ export type StepsEdit =
     /** A type entry, or more rules for one already declared. */
     | { readonly kind: "declare-type"; readonly entry: TypeEntry }
     /** An act: Merge, Make an edge, Extract, Move columns, Rename, a pick, or deleting a step. */
-    | { readonly kind: "act"; readonly act: StepsAct };
+    | { readonly kind: "act"; readonly act: StepsAct }
+    /** A refresh or replace of one source's copy, a reader edit settled, or a held step resolved (7.12). */
+    | RefreshEdit;
 
 // ---------------------------------------------------------------- ids
 
@@ -223,6 +232,19 @@ export function buildOf(value: SourceSteps, copies: Copies): BuildResult {
     const result = build(value, copyMap(copies));
     builds.set(value, { copies, result });
     return result;
+}
+
+/**
+ * The value with its build count set, sharing its build: the count changes no element.
+ * @param value - The value, built over `copies`.
+ * @param copies - Its copies.
+ * @param count - The count.
+ * @returns The counted value.
+ */
+export function counted(value: SourceSteps, copies: Copies, count: number): SourceSteps {
+    const next = { ...value, build: count };
+    builds.set(next, { copies, result: buildOf(value, copies) });
+    return next;
 }
 
 // ---------------------------------------------------------------- edits
@@ -421,6 +443,10 @@ export function applyEdit(prior: SourceSteps, edit: StepsEdit, copies: Copies): 
             return withoutSource(prior, edit.id);
         case "act":
             return applyAct(prior, edit.act, copies);
+        case "replace-copy":
+        case "settle-edit":
+        case "resolve-step":
+            return applyRefreshEdit(prior, edit, copies);
         default:
             return { ...prior, types: declared(prior.types, edit.entry) };
     }
@@ -826,6 +852,8 @@ export interface StepRow {
     readonly off: boolean;
     /** A source it depends on is held, so it is not built. */
     readonly held: boolean;
+    /** The columns it reads that its sources' rows no longer hold; a step missing one is off (7.12). */
+    readonly missing: readonly RefreshIssue[];
     /** Its counts in the committed build; null when it was not built. */
     readonly buckets: StepStats | null;
 }
@@ -860,9 +888,10 @@ function readsOf(step: Step, src: Source | undefined): string[] {
  * Every step with its buckets from the committed build (9.2).
  * @param value - The value.
  * @param result - Its build.
+ * @param copies - The rows as read, which say what columns each step finds.
  * @returns One row per step, in order.
  */
-export function stepRows(value: SourceSteps, result: BuildResult): readonly StepRow[] {
+export function stepRows(value: SourceSteps, result: BuildResult, copies: Copies): readonly StepRow[] {
     return value.steps.map((step, index) => {
         const src = value.sources[step.source] as StepsSource | undefined;
         const spaces = new Set<string>();
@@ -903,6 +932,7 @@ export function stepRows(value: SourceSteps, result: BuildResult): readonly Step
             types: Object.freeze(types),
             off: step.off === true,
             held: stepSources(step, value).some((id) => value.sources[id]?.held === true),
+            missing: Object.freeze(missingColumns(value, copies, index)),
             buckets: result.stats.find((s) => s.step === index) ?? null,
         });
     });
@@ -949,6 +979,11 @@ export interface EditRow {
     readonly value?: CellValue;
     /** For a pick or Use: the source whose value it took. */
     readonly picked?: string;
+    /** For an edit: whether it applies, names no element (`lost`), or its source moved under it (7.12). */
+    readonly state?: "applies" | "lost" | "source-changed";
+    /** For `source-changed`: the value it was made over, and what the source says now. */
+    readonly was?: Value | null;
+    readonly now?: Value | null;
 }
 
 /**
@@ -961,12 +996,15 @@ function targetOf(op: Exclude<ReaderOp, { op: "add" }>): EditRow["target"] {
 }
 
 /**
- * The reader source's operations, in the order made.
+ * The reader source's operations, in the order made, each edit with where it stands.
  * @param value - The value.
+ * @param copies - The rows as read.
  * @returns One row per operation.
  */
-export function editRows(value: SourceSteps): readonly EditRow[] {
+export function editRows(value: SourceSteps, copies: Copies): readonly EditRow[] {
+    const states = new Map(editStates(value, copies).map((s) => [s.id, s]));
     return value.reader.map((op) => {
+        const state = states.get(op.id);
         const target = op.op === "add" ? op.node : targetOf(op);
         return Object.freeze({
             id: op.id,
@@ -975,6 +1013,12 @@ export function editRows(value: SourceSteps): readonly EditRow[] {
             ...(op.op === "edit"
                 ? { column: op.column, value: op.value, ...(op.picked === undefined ? {} : { picked: op.picked }) }
                 : {}),
+            ...(state === undefined
+                ? {}
+                : {
+                      state: state.state,
+                      ...(state.state === "source-changed" ? { was: state.was ?? null, now: state.now ?? null } : {}),
+                  }),
         });
     });
 }

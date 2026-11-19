@@ -821,6 +821,21 @@ export type GraphtyWarningCode =
      * Experimental: the source-steps experiment.
      */
     | "W_SPACE_OVERLAP"
+    /**
+     * A step went with a removed source (`params.step`, `params.reason` `"source-removed"`,
+     * `params.source`). Experimental: the source-steps experiment.
+     */
+    | "W_STEP_REMOVED"
+    /**
+     * A refresh or replace brought a column the source's old rows did not hold (`params.source`,
+     * `params.column`). Experimental: the source-steps experiment.
+     */
+    | "W_COLUMN_UNUSED"
+    /**
+     * The value under a reader edit moved since it was made (`params.edit`, `params.was`,
+     * `params.now`, and `params.picked` for a pick). Experimental: the source-steps experiment.
+     */
+    | "W_EDIT_SOURCE_CHANGED"
     /** A run was still computing when the project was saved, so the file does not hold it. */
     | "W_RUN_PENDING"
     /**

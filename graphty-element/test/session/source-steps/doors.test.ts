@@ -3,8 +3,9 @@
  * until a later slice compiles them. Removing a source rebuilds without it; a replacing load starts
  * a new graph even over records no step built; the element's nodeData / edgeData pair owns one
  * derived source (design 9.1, ported from the reference model's late-findings case); the direct
- * edits read the configured edge end columns; joins, replace, reload, remap and refresh are refused
- * with E_UNSUPPORTED, reason "later", so the old path never runs over a steps-built graph.
+ * edits read the configured edge end columns; remap is refused with E_UNSUPPORTED, reason "later",
+ * so the old path never runs over a steps-built graph (replace, reload and refresh are rebuilds:
+ * refresh.test.ts).
  */
 
 import { assert, describe, it } from "vitest";
@@ -172,20 +173,13 @@ describe("source-steps: today's doors", () => {
         opened.dispose();
     });
 
-    it("refuses replace, reload, remap and refresh until they compile to steps", async () => {
+    it("refuses remap until it compiles to steps", async () => {
         const session = stepsSession();
         await session.data.import(csv("one.csv", "source,target\na,b\n"));
-        const [{ key }] = session.data.sources();
-        assert.deepStrictEqual(await codeOf(session.data.replaceSource(key, csv("one.csv", "source,target\na,c\n"))), [
-            "E_UNSUPPORTED",
-            "later",
-        ]);
-        assert.deepStrictEqual(await codeOf(session.data.reloadSource(key, {})), ["E_UNSUPPORTED", "later"]);
         assert.deepStrictEqual(await codeOf(session.data.remap({ mapping: { rowsAre: "edges" } })), [
             "E_UNSUPPORTED",
             "later",
         ]);
-        assert.deepStrictEqual(await codeOf(session.data.refresh(key)), ["E_UNSUPPORTED", "later"]);
         assert.deepStrictEqual(nodeIds(session), ["a", "b"], "the graph is untouched");
         session.dispose();
     });

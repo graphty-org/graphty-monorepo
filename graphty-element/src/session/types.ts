@@ -1545,6 +1545,33 @@ export interface SessionDataApi {
      */
     removeEdit(id: string): Promise<void>;
     /**
+     * Settle a reader edit whose source moved under it after a refresh or replace (its
+     * {@link edits} row reads `state: "source-changed"`, reported as `W_EDIT_SOURCE_CHANGED`), as
+     * one undoable step: `"follow"` takes the picked source's new value (a pick only), `"keep"`
+     * keeps the edit's value as the reader's own, `"drop"` takes the edit back.
+     * @param id - The edit's id, from {@link edits}.
+     * @param choice - Follow, keep or drop.
+     * @returns Settles once the graph is rebuilt.
+     * @throws A `GraphtyError` with `E_BAD_COMMAND` for an unknown edit or `"follow"` on a typed
+     *   edit, or `E_FEATURE_OFF` while the source-steps experiment is off.
+     * @experimental source-steps
+     */
+    settleEdit(id: string, choice: SourceEditChoice): Promise<void>;
+    /**
+     * Resolve a step a refresh or replace held because a column it reads is gone (its
+     * {@link steps} row lists `missing`), as one undoable step: `{ column }` names a column of the
+     * new rows that takes the vanished name, so every step, rule and edit reading it keeps reading
+     * it; `{ none: true }` clears a vanished weight, time or location role. The step is built
+     * again once it misses nothing.
+     * @param index - The step's place, from {@link steps}.
+     * @param resolution - A column, or none.
+     * @returns Settles once the graph is rebuilt.
+     * @throws A `GraphtyError` with `E_BAD_COMMAND` for a step that misses nothing or `none` for a
+     *   column that is not a role, or `E_FEATURE_OFF` while the source-steps experiment is off.
+     * @experimental source-steps
+     */
+    resolveStep(index: number, resolution: SourceStepResolution): Promise<void>;
+    /**
      * The node a key names, as `{ space, key }`.
      * @param key - The key.
      * @param options - The space to look in; absent looks in every space.
@@ -3748,6 +3775,11 @@ export interface RemoveSourceResult {
      * @since 3.38.0
      */
     readonly alsoRemoved: readonly SourceKey[];
+    /**
+     * Under the source-steps experiment: each step that went with the source (`W_STEP_REMOVED`).
+     * @experimental source-steps
+     */
+    readonly issues?: readonly SourceRefreshIssue[];
 }
 
 /**
@@ -3794,6 +3826,11 @@ export interface ReplaceReport {
     readonly edges: ReplaceCounts;
     /** Styles, filters and joins that read a column the copy no longer has. */
     readonly unbound: readonly CodedFact<ReplaceUnboundCode>[];
+    /**
+     * Under the source-steps experiment: held steps, new columns and reader edits whose source moved.
+     * @experimental source-steps
+     */
+    readonly issues?: readonly SourceRefreshIssue[];
 }
 
 /** How an import treats the graph already there. */
@@ -3963,6 +4000,8 @@ export interface SourceStepRow {
     readonly off: boolean;
     /** A source it depends on is held, so it is not built. */
     readonly held: boolean;
+    /** The columns it reads that its sources' rows no longer hold; a step missing one is off. */
+    readonly missing: readonly SourceRefreshIssue[];
     /** Its counts in the committed build; null when it was not built. */
     readonly buckets: SourceStepCounts | null;
 }
@@ -3998,6 +4037,15 @@ export interface ReaderEditRow {
     readonly value?: SourceCellValue;
     /** For a pick: the source whose value it took. */
     readonly picked?: SourceKey;
+    /**
+     * For an edit: `"applies"`, `"lost"` (it names no element now) or `"source-changed"` (the value
+     * under it moved since it was made; settle it with `data.settleEdit`).
+     */
+    readonly state?: "applies" | "lost" | "source-changed";
+    /** For `"source-changed"`: the value it was made over (for a pick, the value it took). */
+    readonly was?: SourceValue | null;
+    /** For `"source-changed"`: what the source says now. */
+    readonly now?: SourceValue | null;
 }
 
 /**
@@ -4284,6 +4332,89 @@ export interface SourceConflictQuery {
     /** `"open"`: no reader decision; `"decided"`: a reader decision shows the value. */
     readonly only?: "open" | "decided";
 }
+
+/**
+ * What a removal, refresh or replace reports under the source-steps experiment, as a code and its
+ * parameters:
+ *
+ * - `E_COLUMN_MISSING`: a step (`step`) or a type rule (`type`) of `source` reads `column` of
+ *   `table`, which the new rows no longer hold. The step is held (listed `off`, not built) until
+ *   `data.resolveStep` names a column for it or a later refresh brings the column back.
+ * - `E_READ_ROLE_MISSING`: the same for a weight, time or location `role`; `data.resolveStep`
+ *   can also clear the role.
+ * - `W_COLUMN_UNUSED`: the new rows bring `column`, which the old ones did not.
+ * - `W_STEP_REMOVED`: the step at `step` went with removed `source`.
+ * - `W_EDIT_SOURCE_CHANGED`: the value under reader edit `edit` moved from `was` to `now` (for a
+ *   pick, `picked` names the source it took from); `data.settleEdit` follows, keeps or drops it.
+ *
+ * OPEN UNION: codes may be added.
+ * @experimental source-steps
+ */
+export type SourceRefreshIssue =
+    | {
+          readonly code: "E_COLUMN_MISSING";
+          readonly params: {
+              readonly source: SourceKey;
+              readonly column: string;
+              readonly table: "nodes" | "edges";
+              readonly step?: number;
+              readonly type?: SourceTypeName;
+          };
+      }
+    | {
+          readonly code: "E_READ_ROLE_MISSING";
+          readonly params: {
+              readonly step: number;
+              readonly source: SourceKey;
+              readonly column: string;
+              readonly role: SourceRoleName;
+              readonly table: "nodes" | "edges";
+          };
+      }
+    | { readonly code: "W_COLUMN_UNUSED"; readonly params: { readonly source: SourceKey; readonly column: string } }
+    | {
+          readonly code: "W_STEP_REMOVED";
+          readonly params: { readonly step: number; readonly reason: "source-removed"; readonly source: SourceKey };
+      }
+    | {
+          readonly code: "W_EDIT_SOURCE_CHANGED";
+          readonly params: {
+              readonly edit: ReaderEditRow["id"];
+              readonly was: SourceValue | null;
+              readonly now: SourceValue | null;
+              readonly picked?: SourceKey;
+          };
+      };
+
+/**
+ * A weight, time or location role a step reads from a column. OPEN UNION: roles may be added.
+ * @experimental source-steps
+ */
+export type SourceRoleName =
+    | "weight"
+    | "time"
+    | "timeEnd"
+    | "latitude"
+    | "longitude"
+    | "coordinates"
+    | "country"
+    | "region"
+    | "city";
+
+/**
+ * How the reader settles an edit whose source moved under it: `"follow"` takes the picked
+ * source's new value (a pick only), `"keep"` keeps the edit's value as the reader's own, `"drop"`
+ * takes the edit back.
+ * @experimental source-steps
+ */
+export type SourceEditChoice = "follow" | "keep" | "drop";
+
+/**
+ * A held step's way out: `column` names a column of the new rows that takes the vanished name;
+ * `none` clears a vanished weight, time or location role.
+ * @experimental source-steps
+ */
+export type SourceStepResolution = { readonly column: string } | { readonly none: true };
 
 /**
  * A key overlap a source met when it was added: its keys meet nodes another source built in the

@@ -22,6 +22,7 @@ import {
     buildOf,
     type Copies,
     copiesOf,
+    counted,
     diffGraph,
     EMPTY_STEPS,
     type GraphDiff,
@@ -74,7 +75,7 @@ function sourceOfEdit(edit: StepsEdit): string | null {
     if (edit.kind === "act") {
         return actSource(edit.act);
     }
-    return edit.kind === "remove-source" ? edit.id : null;
+    return edit.kind === "remove-source" || edit.kind === "replace-copy" ? edit.id : null;
 }
 
 /**
@@ -151,6 +152,12 @@ function labelOf(command: DataStepsSetCommand): string {
             return `Declared the type ${edit.entry.name}`;
         case "act":
             return ACT_LABELS[edit.act.act];
+        case "replace-copy":
+            return `Refreshed ${edit.label ?? "a source"}`;
+        case "settle-edit":
+            return "Settled an edit";
+        case "resolve-step":
+            return "Resolved a held step";
         default:
             return "Set the sources";
     }
@@ -337,6 +344,18 @@ function removeAndPatch(diff: GraphDiff, apply: (mutation: DataMutation) => void
     }
 }
 
+/**
+ * Whether a diff writes anything to the graph.
+ * @param diff - The diff.
+ * @returns True when it removes, patches or adds an element.
+ */
+function changesGraph(diff: GraphDiff): boolean {
+    return (
+        diff.removeEdges.length + diff.removeNodes.length + diff.updateNodes.length + diff.updateEdges.length > 0 ||
+        diff.addNodes.length + diff.addEdges.length > 0
+    );
+}
+
 const dataStepsSet: UndoableDefinition<DataStepsSetCommand> = {
     op: "data.steps-set",
     undo: { kind: "undoable", label: labelOf, fact: factOf },
@@ -364,6 +383,9 @@ const dataStepsSet: UndoableDefinition<DataStepsSetCommand> = {
         "pick",
         "remove-step",
         "add-staged",
+        "replace-copy",
+        "settle-edit",
+        "resolve-step",
     ],
     keys: () => ["graph"],
     lane: { kind: "queued", category: "data-add" },
@@ -377,11 +399,13 @@ const dataStepsSet: UndoableDefinition<DataStepsSetCommand> = {
         const priorCopies = valueOf<Copies>(ctx, SOURCE_COPIES_VALUE, {});
         const edgeIds = valueOf<Readonly<Record<string, EdgeId>>>(ctx, SOURCE_EDGE_IDS_VALUE, {});
         const all = command.copies === undefined ? priorCopies : { ...priorCopies, ...command.copies };
-        const next = applyEdit(prior, command.edit, all);
-        const copies = copiesOf(next, all);
+        const edited = applyEdit(prior, command.edit, all);
+        const copies = copiesOf(edited, all);
         const idPath = ctx.services.config?.().data.knownFields.nodeIdPath ?? "id";
         const before = projectBuild(buildOf(prior, priorCopies), prior, idPath);
-        const diff = diffGraph(before, projectBuild(buildOf(next, copies), next, idPath), edgeIds);
+        const diff = diffGraph(before, projectBuild(buildOf(edited, copies), edited, idPath), edgeIds);
+        // A build that changes the graph is counted, so a run made over an earlier one reads stale (8.6).
+        const next = changesGraph(diff) ? counted(edited, copies, (prior.build ?? 0) + 1) : edited;
         const apply = (mutation: Parameters<typeof service.apply>[0]): void => {
             service.apply(mutation, ctx.draft, ctx.after);
         };

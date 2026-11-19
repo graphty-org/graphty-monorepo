@@ -57,7 +57,7 @@ import { readonlyPositions } from "../data/lane";
 import { rowOfEitherSpelling } from "../data/nodeIdSpelling";
 import type { ImportReport, LoadReport } from "../data/report";
 import { DETECTION_SAMPLE, fetchBytes, isSourceData, sampleOf, toSourceInput, urlTail } from "../data/source-bytes";
-import { GraphtyError } from "../errors";
+import { GraphtyError, isGraphtyError } from "../errors";
 import { featureOff } from "../features/resolve";
 import { bestRole, cachedGazetteer, gazetteerGeneration } from "../layout/locationMap/gazetteer";
 import {
@@ -182,10 +182,12 @@ import {
 } from "./sources/member";
 import { pendingSourceLoads, targetOf } from "./sources/pending";
 import { type Provenance, PROVENANCE_VALUE, provenanceIndex, withoutSource, withSupplied } from "./sources/provenance";
+import { refreshReport } from "./sources/refreshReport";
 import type { StepsAct } from "./sources/steps/acts";
 import { resolveNode } from "./sources/steps/build";
 import { compileCommand, compileImport, compileJoin, readerOps, withoutJoin } from "./sources/steps/compile";
 import {
+    applyEdit,
     buildOf,
     checkSpace,
     type Copies,
@@ -205,6 +207,7 @@ import {
     spaceRows,
     stepRows,
     type StepsEdit,
+    type StepsSource,
 } from "./sources/steps/project";
 import {
     cell as stepsCell,
@@ -212,6 +215,8 @@ import {
     lineage as stepsLineage,
     values as stepsValues,
 } from "./sources/steps/provenance";
+import { type ChangeCounts, changeCounts, refreshIssues, removedSteps, sameRows } from "./sources/steps/refresh";
+import type { CopyTables, Row } from "./sources/steps/types";
 import type {
     CollapseResult,
     ExpandOptions,
@@ -301,13 +306,16 @@ import type {
     SourceConflict,
     SourceConflictQuery,
     SourceConnectOptions,
+    SourceEditChoice,
     SourceElementRef,
     SourceExtractOptions,
     SourceLineage,
     SourceMergeOptions,
     SourceMoveColumnsOptions,
     SourceNodeRef,
+    SourceRefreshIssue,
     SourceSpaceRow,
+    SourceStepResolution,
     SourceStepRow,
     SourceTypeEntry,
     TableMapping,
@@ -1671,6 +1679,10 @@ export class SessionData implements SessionDataApi {
      */
     expand(ids: readonly NodeId[], options: ExpandOptions = {}): Promise<SourceExpandResult> {
         this.requireLive("expand");
+        const several = this.severalStepsSources("expand");
+        if (several !== null) {
+            return Promise.reject(several);
+        }
 
         // In line, as a load: its rows are dispatched after every load asked for before it, and a
         // load asked for after it waits for all of them, so it never adds to the graph that load
@@ -1718,6 +1730,10 @@ export class SessionData implements SessionDataApi {
      */
     collapse(id: NodeId): Promise<CollapseResult> {
         this.requireLive("collapse");
+        const several = this.severalStepsSources("collapse");
+        if (several !== null) {
+            return Promise.reject(several);
+        }
 
         // In line, as an edit: it removes what the graph holds once the loads ahead of it landed.
         // A clear asked for while it waits cancels it: it removes nothing, and the clear removes all.
@@ -1740,6 +1756,10 @@ export class SessionData implements SessionDataApi {
      */
     more(options: SourceMoreOptions = {}): Promise<void> {
         this.requireLive("more");
+        const several = this.severalStepsSources("more");
+        if (several !== null) {
+            return Promise.reject(several);
+        }
 
         return this.inLine(options.signal, (host) =>
             import("./sources/load").then((module) => module.more(host, options)),
@@ -1797,11 +1817,6 @@ export class SessionData implements SessionDataApi {
      */
     refresh(load: string, options: SourceLoadOptions = {}): Promise<SourceRefreshReport> {
         this.requireLive("refresh");
-        try {
-            this.refuseUnderSteps("refresh");
-        } catch (error) {
-            return Promise.reject(error);
-        }
 
         const host = this.sourceHost();
         return import("./sources/load").then((module) => module.refreshSource(host, load, options));
@@ -2045,6 +2060,9 @@ export class SessionData implements SessionDataApi {
             ceilings: () => writes.ceilings?.overrides,
             loads: () => this.loads(),
             sourceKeyOf: (load) => this.sources().find((each) => each.loadKey === load)?.key,
+            ...(this.stepsOn()
+                ? { refreshSteps: (load: string, tables: CopyTables) => this.refreshStepsSource(load, tables) }
+                : {}),
             labelPath: () => this.readConfig().knownFields.nodeLabelPath,
             credentialSlotOf: (load) => {
                 const key = this.sources().find((each) => each.loadKey === load)?.key;
@@ -3098,6 +3116,24 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
+     * Under the source-steps experiment, expand, More and Collapse write the graph as they do today
+     * only while the network source is the graph's only source (section 11).
+     * @param verb - The door.
+     * @returns `E_UNSUPPORTED` (reason `several-sources`) while other sources are loaded, else null.
+     */
+    private severalStepsSources(verb: string): GraphtyError | null {
+        if (!this.stepsOn() || Object.keys(this.stepsValue().sources).length <= 1) {
+            return null;
+        }
+        return new GraphtyError({
+            code: "E_UNSUPPORTED",
+            message: `${verb} is available under the source-steps experiment only while one source is loaded.`,
+            source: "data",
+            details: { reason: "several-sources", verb },
+        });
+    }
+
+    /**
      * Refuse a source-steps call while the experiment is off.
      * @param verb - The call.
      * @throws A `GraphtyError` with `E_FEATURE_OFF`.
@@ -3230,7 +3266,7 @@ export class SessionData implements SessionDataApi {
     steps(): readonly SourceStepRow[] {
         this.requireLive("steps");
         const { value, result } = this.stepsBuild();
-        return stepRows(value, result);
+        return stepRows(value, result, this.stepsCopies());
     }
 
     /**
@@ -3267,7 +3303,7 @@ export class SessionData implements SessionDataApi {
      */
     edits(): readonly ReaderEditRow[] {
         this.requireLive("edits");
-        return editRows(this.stepsValue());
+        return editRows(this.stepsValue(), this.stepsCopies());
     }
 
     /**
@@ -3878,26 +3914,258 @@ export class SessionData implements SessionDataApi {
      */
     private async removeStepsSource(key: SourceKey): Promise<RemoveSourceResult> {
         const entry = this.sources().find((each) => each.key === key);
-        if (entry === undefined || this.stepsValue().sources[key] === undefined) {
+        const value = this.stepsValue();
+        if (entry === undefined || value.sources[key] === undefined) {
             throw new GraphtyError({
                 code: "E_LOAD_UNKNOWN",
                 message: `No load still in the graph has key ${JSON.stringify(key)}.`,
                 source: "data",
-                details: { key, known: Object.keys(this.stepsValue().sources) },
+                details: { key, known: Object.keys(value.sources) },
             });
         }
+        const issues = removedSteps(value, key);
+        const supplied = this.provenance()?.[key] ?? { nodes: [], edges: [] };
         const before = this.current();
         await this.sender("remove a load")({ op: "data.steps-set", edit: { kind: "remove-source", id: key } });
         const after = this.current();
-        const removed = { nodes: before.nodeCount - after.nodeCount, edges: before.edgeCount - after.edgeCount };
+        const space = edgeSpaceOf(after);
         return Object.freeze({
-            removed: Object.freeze(removed),
+            removed: Object.freeze({
+                nodes: before.nodeCount - after.nodeCount,
+                edges: before.edgeCount - after.edgeCount,
+            }),
+            // What the source supplied that the graph without it still holds: another source supplied it too.
             kept: Object.freeze({
-                nodes: Math.max(0, entry.counts.nodes - removed.nodes),
-                edges: Math.max(0, entry.counts.edges - removed.edges),
+                nodes: supplied.nodes.filter((id) => after.ids.has(id)).length,
+                edges: supplied.edges.filter((id) => space.indexOf(id) !== INVALID_INDEX).length,
             }),
             alsoRemoved: Object.freeze([]),
+            issues: Object.freeze(issues),
         });
+    }
+
+    /**
+     * reloadSource under the source-steps experiment: the source read again from what it was read from.
+     * @param key - The source's id.
+     * @param choices - Changed choices; none are taken yet.
+     * @returns What replaceSource returns.
+     * @throws A `GraphtyError` with `E_SOURCE_UNKNOWN`, or `E_UNSUPPORTED` for a source this
+     *   session cannot read again or changed choices.
+     */
+    private async reloadStepsSource(key: SourceKey, choices: LoadChoices): Promise<ReplaceReport> {
+        const src = this.stepsValue().sources[key] as StepsSource | undefined;
+        const input = src?.input === undefined ? undefined : this.kept.get(src.input);
+        if (src === undefined) {
+            throw this.unknownSource(key);
+        }
+        if (input === undefined || Object.keys(choices).length > 0) {
+            throw new GraphtyError({
+                code: "E_UNSUPPORTED",
+                message: `Load ${JSON.stringify(key)} cannot be read again here.`,
+                source: "data",
+                details: { reason: input === undefined ? "not-reloadable" : "later", key },
+            });
+        }
+        return this.replaceStepsSource(key, input);
+    }
+
+    /**
+     * `E_SOURCE_UNKNOWN` for a key the sources do not hold.
+     * @param key - The key.
+     * @returns The error.
+     */
+    private unknownSource(key: SourceKey): GraphtyError {
+        return new GraphtyError({
+            code: "E_SOURCE_UNKNOWN",
+            message: `No load still in the graph has key ${JSON.stringify(key)}.`,
+            source: "data",
+            details: { key, known: Object.keys(this.stepsValue().sources) },
+        });
+    }
+
+    /**
+     * replaceSource under the source-steps experiment: the newer copy's rows read as the source's
+     * mapping reads them, then swapped in under the same source id (7.12).
+     * @param key - The source's id.
+     * @param source - The newer copy.
+     * @returns What changed, and the held steps, new columns and moved edits.
+     */
+    private async replaceStepsSource(key: SourceKey, source: DataSourceInput): Promise<ReplaceReport> {
+        const src = this.stepsValue().sources[key] as StepsSource | undefined;
+        if (src === undefined) {
+            throw this.unknownSource(key);
+        }
+        if (source.source !== undefined) {
+            throw new GraphtyError({
+                code: "E_UNSUPPORTED",
+                message: "Replacing a load with a network source is not available under the source-steps experiment yet.",
+                source: "data",
+                details: { reason: "later", key },
+            });
+        }
+        const options = readChoicesOf(src);
+        let captured: DataImportCommand | undefined;
+        try {
+            captured = await this.captureLoad(source, options);
+        } catch (error) {
+            // The newer copy lacks a column the mapping reads its rows by: its rows are read as they
+            // are, and the steps reading that column are held (7.12).
+            if (!isGraphtyError(error) || Object.keys(options).length === 0) {
+                throw error;
+            }
+            const raw = await readWithProgress(source, undefined, () => undefined);
+            const rows = raw.tables.flatMap((held) => held.rows) as readonly Row[];
+            const tables: CopyTables = src.mapping.edges === undefined ? { nodes: rows } : { edges: rows };
+            const counts = await this.swapStepsCopy(key, tables, { label: source.name ?? src.label, input: this.keep(source) });
+            return Object.freeze({ nodes: counts.nodes, edges: counts.edges, unbound: Object.freeze([]), issues: counts.issues });
+        }
+        const compiled = captured === undefined ? null : compileImport(captured, options, this.readConfig().knownFields);
+        const tables = compiled?.copies?.[compiled.edit.source.origin.copy];
+        if (compiled === null || tables === undefined) {
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: "The newer copy holds no rows to replace the load with.",
+                source: "data",
+                details: { reason: "no-rows", key },
+            });
+        }
+        const counts = await this.swapStepsCopy(key, tables, {
+            label: compiled.edit.source.label ?? src.label,
+            input: this.keep(source),
+            tables: compiled.edit.source.tables,
+        });
+        return Object.freeze({ nodes: counts.nodes, edges: counts.edges, unbound: Object.freeze([]), issues: counts.issues });
+    }
+
+    /**
+     * The import a draft of a source would dispatch, read with the given choices and held back.
+     * @param source - The source.
+     * @param options - How to read its rows.
+     * @returns The import, or undefined when the draft dispatches none.
+     */
+    private async captureLoad(source: DataSourceInput, options: ImportOptions): Promise<DataImportCommand | undefined> {
+        const read = this.reads.get(source);
+        const draft = read === undefined ? await this.prepare(source) : await this.draftOf(source, read);
+        let captured: DataImportCommand | undefined;
+        try {
+            await draft.loadVia((command) => {
+                const steps = command.op === "batch" ? command.steps : [command];
+                captured = steps.find((step): step is DataImportCommand => step.op === "data.import");
+                return Promise.resolve();
+            }, withStepsMapping({ ...options, mode: "merge" }));
+        } finally {
+            draft.dispose();
+        }
+        return captured;
+    }
+
+    /**
+     * Swap a source's copy for newer rows, as one undoable step; identical rows change nothing and
+     * record no step.
+     * @param key - The source's id.
+     * @param tables - The new rows.
+     * @param about - The new copy's name, input token and table names.
+     * @param about.label - Its name.
+     * @param about.input - Its input token.
+     * @param about.tables - Its tables.
+     * @returns What changed and the issues.
+     */
+    private async swapStepsCopy(
+        key: SourceKey,
+        tables: CopyTables,
+        about: { readonly label?: string | null; readonly input?: string; readonly tables?: readonly string[] },
+    ): Promise<ChangeCounts & { readonly issues: readonly SourceRefreshIssue[] }> {
+        const value = this.stepsValue();
+        const copies = this.stepsCopies();
+        const src = value.sources[key];
+        if (sameRows(tables, copies[src.origin.copy])) {
+            const zero = Object.freeze({ added: 0, removed: 0, changed: 0 });
+            return { nodes: zero, edges: zero, issues: Object.freeze(refreshIssues(value, value, copies, key)) };
+        }
+        const copy = mintCopyId();
+        const edit: StepsEdit = { kind: "replace-copy", id: key, copy, ...about };
+        const all = { ...copies, [copy]: tables };
+        // ponytail: the report builds the next value once more than the command does; share the
+        // command's build if a large source's refresh shows up in a profile.
+        const next = applyEdit(value, edit, all);
+        const counts = changeCounts(buildOf(value, copies), buildOf(next, all));
+        const issues = refreshIssues(value, next, all, key);
+        await this.sender("replace a load")({ op: "data.steps-set", edit, copies: { [copy]: tables } });
+        return { ...counts, issues: Object.freeze(issues) };
+    }
+
+    /**
+     * A network refresh under the source-steps experiment: the rows read again swapped in as the
+     * source's new copy.
+     * @param load - The load's key, from `loads()`.
+     * @param tables - The rows read, stamped with the load.
+     * @returns What changed.
+     */
+    private async refreshStepsSource(load: string, tables: CopyTables): Promise<SourceRefreshReport> {
+        const key = this.sources().find((each) => each.loadKey === load)?.key;
+        if (key === undefined || this.stepsValue().sources[key] === undefined) {
+            throw this.unknownSource(load);
+        }
+        const { nodes, edges, issues } = await this.swapStepsCopy(key, tables, {});
+        return refreshReport(
+            {
+                added: { nodes: nodes.added, edges: edges.added },
+                removed: { nodes: nodes.removed, edges: edges.removed },
+                updated: { nodes: nodes.changed, edges: edges.changed },
+            },
+            { issues },
+        );
+    }
+
+    /**
+     * Settle a reader edit whose source moved under it (7.12, 3.10), as one undoable step.
+     * @param id - The edit's id, from `edits()`.
+     * @param choice - `"follow"` takes the picked source's new value (a pick only), `"keep"` keeps
+     *   the edit as the reader's own, `"drop"` takes it back.
+     * @returns Settles once the graph is rebuilt.
+     * @throws A `GraphtyError` with `E_BAD_COMMAND` for an unknown edit or Follow on a typed edit.
+     */
+    async settleEdit(id: string, choice: SourceEditChoice): Promise<void> {
+        this.requireSteps("settleEdit");
+        const op = this.stepsValue().reader.find((o) => o.id === id);
+        if (op?.op !== "edit" || (choice === "follow" && op.picked === undefined)) {
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: `Edit ${JSON.stringify(id)} cannot be settled with ${choice}.`,
+                source: "data",
+                details: { reason: op?.op === "edit" ? "not-a-pick" : "unknown-edit", id, choice },
+            });
+        }
+        await this.stepsEdit(() => ({ kind: "settle-edit", id, choice }));
+    }
+
+    /**
+     * Resolve a step held because a column it reads is gone (7.12), as one undoable step: a column
+     * of the new rows takes the vanished name, or a vanished role is cleared. The step is built
+     * again once it misses nothing.
+     * @param index - The step's place, from `steps()`.
+     * @param resolution - `{ column }` or `{ none: true }`.
+     * @returns Settles once the graph is rebuilt.
+     * @throws A `GraphtyError` with `E_BAD_COMMAND` for a step that misses nothing, or `none` for a
+     *   column that is not a role.
+     */
+    async resolveStep(index: number, resolution: SourceStepResolution): Promise<void> {
+        this.requireSteps("resolveStep");
+        const [first] = this.steps()[index]?.missing ?? [];
+        const none = "none" in resolution;
+        if (first === undefined || (none && first.code !== "E_READ_ROLE_MISSING")) {
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: `Step ${String(index)} cannot be resolved that way.`,
+                source: "data",
+                details: { reason: first === undefined ? "not-held" : "not-a-role", index },
+            });
+        }
+        await this.stepsEdit(() => ({
+            kind: "resolve-step",
+            index,
+            ...(none ? { none: true as const } : { column: resolution.column }),
+        }));
     }
 
     /**
@@ -3940,7 +4208,9 @@ export class SessionData implements SessionDataApi {
         choices: LoadChoices & SourceLoadOptions = {},
     ): Promise<ReplaceReport> {
         this.requireLive("replaceSource");
-        this.refuseUnderSteps("replaceSource");
+        if (this.stepsOn()) {
+            return this.afterLoads(() => this.replaceStepsSource(key, source));
+        }
 
         return this.afterLoads(() => this.replaceSourceNow(key, source, choices));
     }
@@ -4382,7 +4652,9 @@ export class SessionData implements SessionDataApi {
      */
     async reloadSource(key: SourceKey, choices: LoadChoices): Promise<ReplaceReport> {
         this.requireLive("reloadSource");
-        this.refuseUnderSteps("reloadSource");
+        if (this.stepsOn()) {
+            return this.afterLoads(() => this.reloadStepsSource(key, choices));
+        }
         return this.afterLoads(() => this.reloadSourceNow(key, choices));
     }
 
@@ -7118,6 +7390,30 @@ function withStepsMapping<O extends LoadChoices>(options: O): O {
             ? { rowsAre: "nodes", key: options.key ?? null }
             : { rowsAre: "edges", source: options.edges.from.column, target: options.edges.to.column };
     return { ...options, mapping };
+}
+
+/**
+ * The load choices that read a newer copy of a source the way its mapping reads it: its key, or
+ * its edge ends, under the names the rows spell them (before a rename).
+ * @param src - The source.
+ * @returns The choices; none for a source holding both nodes and edges, which the file says.
+ */
+function readChoicesOf(src: StepsSource): ImportOptions {
+    const { nodes, edges } = src.mapping;
+    const asRead = (column: string, renamed: Readonly<Record<string, string>> | undefined): string =>
+        Object.entries(renamed ?? {}).find(([, working]) => working === column)?.[0] ?? column;
+    if (edges !== undefined && nodes === undefined) {
+        return {
+            edges: {
+                from: { column: asRead(edges.source, edges.renamed) },
+                to: { column: asRead(edges.target, edges.renamed) },
+            },
+        };
+    }
+    if (nodes?.key !== undefined && edges === undefined) {
+        return { key: asRead(nodes.key, nodes.renamed) };
+    }
+    return {};
 }
 
 /** No copies: before the first load under the source-steps experiment. */

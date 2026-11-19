@@ -258,6 +258,74 @@ const STEPS_FIXTURES: readonly RoundTripFixture[] = [
         command: { op: "data.steps-set", edit: { kind: "remove-source", id: STEPS_SOURCE.id } },
     },
     {
+        name: "data.steps-set: a source's copy swapped for newer rows",
+        variant: "replace-copy",
+        tags: ["session", "renderer"],
+        features: ["source-steps"],
+        before: stepsSource,
+        command: {
+            op: "data.steps-set",
+            edit: { kind: "replace-copy", id: STEPS_SOURCE.id, copy: "fixture-copy-2", label: "newer.csv" },
+            copies: {
+                "fixture-copy-2": {
+                    nodes: [{ id: "s1", name: "uno" }, { id: "s3" }],
+                    edges: [{ source: "s1", target: "s3" }],
+                },
+            },
+        },
+    },
+    {
+        name: "data.steps-set: a reader edit whose source moved, kept",
+        variant: "settle-edit",
+        tags: ["session", "renderer"],
+        features: ["source-steps"],
+        before: async (session) => {
+            await stepsSource(session);
+            await session.execute({
+                op: "data.steps-set",
+                edit: {
+                    kind: "reader",
+                    ops: [
+                        {
+                            id: "edit_s",
+                            op: "edit",
+                            node: { space: "source:src_fixture", key: "s1" },
+                            column: "name",
+                            value: "mine",
+                            was: "one",
+                        },
+                    ],
+                },
+            });
+            await session.execute({
+                op: "data.steps-set",
+                edit: { kind: "replace-copy", id: STEPS_SOURCE.id, copy: "fixture-copy-3" },
+                copies: { "fixture-copy-3": { ...STEPS_COPIES["fixture-copy"], nodes: [{ id: "s1", name: "uno" }, { id: "s2" }] } },
+            });
+        },
+        command: { op: "data.steps-set", edit: { kind: "settle-edit", id: "edit_s", choice: "keep" } },
+    },
+    {
+        name: "data.steps-set: a held step given the column that took the vanished one's place",
+        variant: "resolve-step",
+        tags: ["session", "renderer"],
+        features: ["source-steps"],
+        before: async (session) => {
+            await stepsSource(session);
+            await session.execute({
+                op: "data.steps-set",
+                edit: { kind: "replace-copy", id: STEPS_SOURCE.id, copy: "fixture-copy-4" },
+                copies: {
+                    "fixture-copy-4": {
+                        nodes: [{ ident: "s1", name: "one" }, { ident: "s2" }],
+                        edges: [{ source: "s1", target: "s2" }],
+                    },
+                },
+            });
+        },
+        command: { op: "data.steps-set", edit: { kind: "resolve-step", index: 0, column: "ident" } },
+    },
+    {
         name: "data.steps-set: a type declared",
         variant: "declare-type",
         tags: ["session", "renderer"],

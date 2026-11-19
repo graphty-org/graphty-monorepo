@@ -479,8 +479,9 @@ Edges end at their outline.
 In a 2D view, `node.zIndex` puts a node behind the rest of the drawing: a node below 0 is drawn
 behind every edge and every node with a higher value, so a group (compound) node at -1 never
 hides the nodes inside it, and an outer group at -2 stays behind an inner one. Loading a file
-with `styles: "file"` sets it on the file's group nodes. A 3D view draws by real depth and
-ignores it.
+with `styles: "file"` sets it on the file's group nodes. A 3D view moves a flat shape (a
+rectangle, an ellipse, any `node.planar` node) back the same way, so a flat group is drawn
+behind its members there too, and draws a solid shape by real depth.
 
 `node.drawOrder` decides which of two overlapping nodes is drawn on top in a 2D view: the one with
 the higher value, from 0 to 100. A node with a draw order is drawn in front of every edge and of

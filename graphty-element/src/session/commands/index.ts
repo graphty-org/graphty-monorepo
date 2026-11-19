@@ -23,6 +23,7 @@ import { SET_DEFINITIONS } from "./sets";
 import { SHADER_DEFINITIONS } from "./shaders";
 import { SOURCE_EXPAND_DEFINITIONS } from "./source-expand";
 import { SOURCE_LOAD_DEFINITIONS } from "./source-load";
+import { SOURCE_STEPS_DEFINITIONS } from "./source-steps";
 import { STYLE_DEFINITIONS } from "./style";
 import { VIEW_DEFINITIONS } from "./view";
 import { VISIBILITY_DEFINITIONS } from "./visibility";
@@ -103,6 +104,7 @@ export const DEFINITIONS: readonly CommandDefinition<SessionCommand>[] = [
     ...ISSUE_DEFINITIONS,
     ...SOURCE_LOAD_DEFINITIONS,
     ...SOURCE_EXPAND_DEFINITIONS,
+    ...SOURCE_STEPS_DEFINITIONS,
     ...STYLE_DEFINITIONS,
     ...SHADER_DEFINITIONS,
     ...VISIBILITY_DEFINITIONS,

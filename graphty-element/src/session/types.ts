@@ -95,6 +95,18 @@ import type { SetChange, SetsApi } from "./sets/types";
 import type { RenderQualityChange, SessionShaders, ShaderStatus } from "./shaders";
 import type { CodedFact, ColumnRef, ProgressChange, ResultRef } from "./shared";
 import type {
+    EditRow as StepsEditRow,
+    SourceState as StepsSourceState,
+    SpaceOverlap as StepsSpaceOverlap,
+    SpaceRow as StepsSpaceRow,
+    StepRow as StepsStepRow,
+} from "./sources/steps/project";
+import type {
+    NodeRef as StepsNodeRef,
+    TypeEntry as StepsTypeEntry,
+    TypeRule as StepsTypeRule,
+} from "./sources/steps/types";
+import type {
     CollapseResult,
     ExpandOptions,
     NodeSource,
@@ -1298,10 +1310,13 @@ export interface SessionDataApi {
      * One node, by id.
      * @param id - the node id. An integer id may be written either way: `"34"` finds node `34` and
      *     `34` finds node `"34"`; a graph that holds both answers each by its own id
+     * @param options - Under the source-steps experiment: `space` reads `id` as a key in that id
+     *     space, so a key several spaces hold names one node (experimental)
+     * @param options.space - The id space.
      * @returns the record, carrying the id as the graph holds it, or undefined when the graph has
      *     no such node
      */
-    node(id: NodeId): NodeRecord | undefined;
+    node(id: NodeId, options?: { readonly space?: string }): NodeRecord | undefined;
     /**
      * What a node is called: the value of its label column (`data.knownFields.nodeLabelPath`) as
      * text, else its id as text. The same name {@link neighbors} gives each neighbor and a result
@@ -1490,6 +1505,66 @@ export interface SessionDataApi {
      * @since 3.30.0
      */
     sources(): readonly LoadedSource[];
+    /**
+     * Hold a source's rows without building anything from them: a staged source, which no step
+     * reads, is saved and listed with `state: "staged"`. One undoable step.
+     * @param source - What `import` takes.
+     * @param options - Its key, type, space and edge ends.
+     * @returns The new source's id.
+     * @throws A `GraphtyError` with `E_FEATURE_OFF` while the source-steps experiment is off.
+     * @experimental source-steps
+     */
+    stage(source: DataSourceInput, options?: ImportOptions): Promise<string>;
+    /**
+     * Every step the graph is built from, in order, with its counts in the committed build.
+     * @returns The steps; empty while the source-steps experiment is off.
+     * @experimental source-steps
+     */
+    steps(): readonly SourceStepRow[];
+    /**
+     * Every id space the graph holds nodes in.
+     * @returns The spaces; empty while the source-steps experiment is off.
+     * @experimental source-steps
+     */
+    spaces(): readonly SourceSpaceRow[];
+    /**
+     * The type registry.
+     * @returns The declared types; empty while the source-steps experiment is off.
+     * @experimental source-steps
+     */
+    types(): readonly SourceTypeEntry[];
+    /**
+     * Declare a type, or add rules to one already declared, as one undoable step.
+     * @param entry - The type and its rules.
+     * @returns Settles once the graph is rebuilt.
+     * @throws A `GraphtyError` with `E_FEATURE_OFF` while the source-steps experiment is off.
+     * @experimental source-steps
+     */
+    declareType(entry: SourceTypeEntry): Promise<void>;
+    /**
+     * The reader's own edits (the direct edits, `addNodes` and the rest), in the order made.
+     * @returns The edits; empty while the source-steps experiment is off.
+     * @experimental source-steps
+     */
+    edits(): readonly ReaderEditRow[];
+    /**
+     * Take back one of the reader's edits, as one undoable step.
+     * @param id - The edit's id, from {@link edits}.
+     * @returns Settles once the graph is rebuilt.
+     * @throws A `GraphtyError` with `E_FEATURE_OFF` while the source-steps experiment is off.
+     * @experimental source-steps
+     */
+    removeEdit(id: string): Promise<void>;
+    /**
+     * The node a key names, as `{ space, key }`.
+     * @param key - The key.
+     * @param options - The space to look in; absent looks in every space.
+     * @param options.space - The space.
+     * @returns The reference, or null when no node holds the key.
+     * @throws A `GraphtyError` with `E_AMBIGUOUS_ID` when nodes in several spaces hold it.
+     * @experimental source-steps
+     */
+    ref(key: string, options?: { readonly space?: string }): SourceNodeRef | null;
     /**
      * What is wrong with the data now: a number column holding "N/A", decimal commas, padded
      * values, two spellings of one value, edges naming a node no node row gave, repeated edges,
@@ -3084,6 +3159,38 @@ export interface LoadedSource extends DataSourceDescriptor {
      * @since 3.30.0
      */
     readonly totalEdges?: number;
+    /**
+     * Where the load stands in the build. Present only under the source-steps experiment.
+     * @experimental source-steps
+     */
+    readonly state?: SourceBuildState;
+    /**
+     * How many nodes its rows only named (an edge end another source supplies). Present only
+     * under the source-steps experiment.
+     * @experimental source-steps
+     */
+    readonly named?: number;
+    /**
+     * Its rows the build left out, by reason. Present only under the source-steps experiment.
+     * @experimental source-steps
+     */
+    readonly rowsLeftOut?: Readonly<
+        Partial<
+            Record<
+                | "left-out:empty-key"
+                | "left-out:empty-end"
+                | "left-out:unmatched"
+                | "left-out:fan-out"
+                | "left-out:no-step",
+                number
+            >
+        >
+    >;
+    /**
+     * The key overlaps it met when it was added. Present only under the source-steps experiment.
+     * @experimental source-steps
+     */
+    readonly issues?: readonly SourceSpaceOverlap[];
 }
 
 /**
@@ -3603,7 +3710,115 @@ export interface ImportOptions {
      * was pending is kept as its own steps.
      */
     readonly history?: "step" | "start";
+    /**
+     * The column the loaded node rows are keyed by; the id column the load read when absent.
+     * @experimental source-steps
+     */
+    readonly key?: string;
+    /**
+     * The node type the loaded node rows carry, declared as the source's type rule; it also names
+     * the id space their keys live in when `space` is absent.
+     * @experimental source-steps
+     */
+    readonly type?: SourceTypeName;
+    /**
+     * The id space the loaded keys live in; absent, the source's own space (or its `type`'s), so
+     * two loads with no options never meet. A `graph:` space is refused with `E_SPACE_RESERVED`.
+     * @experimental source-steps
+     */
+    readonly space?: SourceSpaceName;
+    /**
+     * The columns the loaded edge rows name their ends by, and the space and type of each end.
+     * @experimental source-steps
+     */
+    readonly edges?: {
+        readonly from: SourceEndOption;
+        readonly to: SourceEndOption;
+        /** The column holding each edge's own key; absent keys each row by its place in the file. */
+        readonly id?: string;
+    };
+    /**
+     * What a key overlap does (`W_SPACE_OVERLAP`): `"separate"` (the default) keeps the source's
+     * keys in its own space, `"merge"` makes them the nodes already in the space.
+     * @experimental source-steps
+     */
+    readonly overlap?: "separate" | "merge";
 }
+
+/**
+ * One edge end of a source loaded under the source-steps experiment.
+ * @experimental source-steps
+ */
+export interface SourceEndOption {
+    /** The column naming the end. */
+    readonly column: string;
+    /** The id space the end's keys live in. */
+    readonly space?: SourceSpaceName;
+    /** The node type the end's nodes carry; names the space when `space` is absent. */
+    readonly type?: SourceTypeName;
+}
+
+/**
+ * The name of an id space loaded keys live in: one the consumer names, or `source:<source id>`.
+ * @experimental source-steps
+ */
+// eslint-disable-next-line sonarjs/redundant-type-aliases -- names an identifier the consumer gives, as the API report reads it
+export type SourceSpaceName = string;
+
+/**
+ * The name of a node or edge type the consumer declares.
+ * @experimental source-steps
+ */
+// eslint-disable-next-line sonarjs/redundant-type-aliases -- names an identifier the consumer gives, as the API report reads it
+export type SourceTypeName = string;
+
+/**
+ * A step as `data.steps()` lists it, with its counts in the committed build.
+ * @experimental source-steps
+ */
+export type SourceStepRow = StepsStepRow;
+
+/**
+ * An id space as `data.spaces()` lists it.
+ * @experimental source-steps
+ */
+export type SourceSpaceRow = StepsSpaceRow;
+
+/**
+ * A reader operation as `data.edits()` lists it.
+ * @experimental source-steps
+ */
+export type ReaderEditRow = StepsEditRow;
+
+/**
+ * Where a source stands in the build: `"staged"` (no step reads it), `"built"`, `"off"` or `"held"`.
+ * @experimental source-steps
+ */
+export type SourceBuildState = StepsSourceState;
+
+/**
+ * A type declared in the type registry, and the rules that give elements it.
+ * @experimental source-steps
+ */
+export type SourceTypeEntry = StepsTypeEntry;
+
+/**
+ * One rule of a {@link SourceTypeEntry}.
+ * @experimental source-steps
+ */
+export type SourceTypeRule = StepsTypeRule;
+
+/**
+ * A node named by its id space and key.
+ * @experimental source-steps
+ */
+export type SourceNodeRef = StepsNodeRef;
+
+/**
+ * A key overlap a source met when it was added.
+ * @experimental source-steps
+ */
+export type SourceSpaceOverlap = StepsSpaceOverlap;
 
 /** A node record to add: its id is read through `data.knownFields.nodeIdPath`. */
 export type NodeRecordInput = Readonly<Record<string, unknown>>;
@@ -4523,6 +4738,7 @@ export type PendingId = string & {
  * | `groups.collapse`, `groups.expand` | `groupBy`: the path grouped by; `group`: the group's value; `size`: how many members (experimental) |
  * | `data.import` | `name`: the source's name (given, file or URL), or null; `type`: the data source, or null |
  * | `data.import-source` | `source`: the network source's id; `name`: what the reader called the data, or null |
+ * | `data.steps-set` | `kind`: the edit (`set`, `add`, `reader`, `remove-edit`, `declare-type`); `source`, `name`: the source an `add` adds, else null (experimental) |
  * | `data.expand` | `node`: the id expanded |
  * | `data.source-expand` | `seeds`: the ids expanded; `nodes`, `edges`: how many rows came (experimental) |
  * | `data.collapse` | `node`: the id collapsed; `nodes`: how many nodes went (experimental) |
@@ -4616,6 +4832,7 @@ export type HistoryCode =
     | "groups.expand"
     | "data.import"
     | "data.import-source"
+    | "data.steps-set"
     | "data.expand"
     | "data.source-expand"
     | "data.collapse"
@@ -4893,6 +5110,8 @@ export interface CommandOutcomeMap {
     "data.import": Promise<void>;
     /** Settles once the rows a network source load read are recorded and drawn. Experimental. */
     "data.import-source": Promise<void>;
+    /** Settles once the sources and steps are recorded and the graph rebuilt from them is drawn. Experimental. */
+    "data.steps-set": Promise<void>;
     /** Settles once the neighbourhood is recorded and the pass that draws it has run. */
     "data.expand": Promise<void>;
     /** Settles once the expansion is recorded and drawn. Experimental. */

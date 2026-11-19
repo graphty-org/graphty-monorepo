@@ -54,6 +54,7 @@ import type { PositionsCommand } from "./commands/positions";
 import type { SetCommand } from "./commands/sets";
 import type { ShaderCommand } from "./commands/shaders";
 import type { SourceExpandOpCommand } from "./commands/source-expand";
+import type { DataStepsSetCommand } from "./commands/source-steps";
 import type { StyleCommand } from "./commands/style";
 import type { ViewCommand } from "./commands/view";
 import type { VisibilityCommand } from "./commands/visibility";
@@ -136,6 +137,7 @@ export type SessionCommand =
     | DataDeriveCommand
     | DataIssuesCommand
     | SourceExpandOpCommand
+    | DataStepsSetCommand
     | StyleCommand
     | ShaderCommand
     | VisibilityCommand

@@ -90,8 +90,30 @@ drawn, and a project saved with the experiment on opens with the styles it was s
 ### `source-steps`
 
 Several data sources in one graph: each source keeps its rows as read, and the graph is rebuilt
-from an ordered list of steps that add, merge and connect them. Work in progress; switching it on
-changes nothing yet. With it off, loads, joins and saved files are as before.
+from an ordered list of steps that add, merge and connect them. Work in progress. With it on:
+
+- every load (`import`, `generate`, `loadDataset`, `loadExample`, `importColumns`, a draft's
+  `load()` without a join, a network source) becomes one source plus a step that adds it; a
+  replacing load takes every source out first, so opening a file works as before;
+- each source's keys live in an id space: its own unless the load names `space` or `type`, so two
+  loads with no options never merge their nodes. A NodeId is the key when one space holds it, else
+  `<space>:<key>`;
+- `addNodes` and the other direct edits are the reader's own edits (`data.edits()`,
+  `data.removeEdit(id)`); `mergeNodes` is refused with `E_UNSUPPORTED` (`reason: "later"`);
+- `data.stage`, `data.steps`, `data.spaces`, `data.types`, `data.declareType` and `data.ref` read
+  and write the sources and steps.
+
+```ts
+await session.data.import(
+    { type: "csv", config: { data: accounts }, name: "accounts.csv" },
+    { key: "id", type: "account" },
+);
+await session.data.import({ type: "csv", config: { data: more } }, { mode: "merge", key: "id", type: "account" });
+session.data.sources()[1].issues; // [{ code: "W_SPACE_OVERLAP", params: { space: "account", count: 12, of: 40 } }]
+```
+
+Joins, removing and refreshing a source, and saving the sources and steps are not wired yet. With it
+off, loads, joins and saved files are as before.
 
 ## What `@experimental` promises
 

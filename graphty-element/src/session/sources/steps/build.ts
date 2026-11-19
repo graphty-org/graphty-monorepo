@@ -816,7 +816,7 @@ class Builder {
         return { nodes, edges, aliases, edgeAliases, stats, issues, fates, readerResults };
     }
 
-    private bind(op: ReaderOp): BuiltNode | BuiltEdge | null {
+    private bind(op: Extract<ReaderOp, { op: "remove" | "edit" }>): BuiltNode | BuiltEdge | null {
         if (op.node) {
             const id = this.resolve(op.node.space, op.node.key);
             return id === undefined ? null : (this.nodes.get(id) ?? null);
@@ -839,6 +839,9 @@ class Builder {
             }
             return true;
         }
+        if (op.op === "add-edge") {
+            return this.readerEdge(op);
+        }
         const el = this.bind(op);
         if (!el) {
             if (op.op === "edit") {
@@ -859,6 +862,52 @@ class Builder {
         el.origin[op.column] = READER_SOURCE;
         el.edited ??= {};
         el.edited[op.column] = op;
+        return true;
+    }
+
+    // A reader edge: its ends bind through live keys and aliases, an end nothing holds is added in the reader space.
+    private readerEdge(op: Extract<ReaderOp, { op: "add-edge" }>): boolean {
+        const id = edgeId(READER_SOURCE, op.edge.key);
+        if (this.edges.has(id)) {
+            return false;
+        }
+        const end = (ref: { space: string; key: string }): BuiltNode => {
+            const at = this.resolve(ref.space, ref.key) ?? this.resolve(READER_SPACE, ref.key);
+            const met = at === undefined ? undefined : this.nodes.get(at);
+            if (met) {
+                return met;
+            }
+            const n = this.mkNode(READER_SPACE, ref.key, null);
+            n.loads.push(READER_SOURCE);
+            return n;
+        };
+        const from = end(op.from);
+        const to = end(op.to);
+        const weight = op.weight ?? null;
+        const e: BuiltEdge = {
+            id,
+            load: READER_SOURCE,
+            key: op.edge.key,
+            from: from.id,
+            to: to.id,
+            type: null,
+            loads: [READER_SOURCE],
+            named: [],
+            values: {},
+            origin: {},
+            own: {},
+            touch: [],
+            weight,
+            weightMeaning: null,
+            weightDefault: false,
+            time: null,
+            timeFrom: null,
+        };
+        for (const [c, v] of Object.entries(op.columns ?? {})) {
+            e.values[c] = v;
+            e.origin[c] = READER_SOURCE;
+        }
+        this.edges.set(id, e);
         return true;
     }
 

@@ -748,6 +748,11 @@ const LOAD_FROM_FILE = calls(
     ],
 );
 
+/** A source-steps write: refused while the experiment is off, a `data.steps-set` step while it is on. */
+const SOURCE_STEPS_WRITE = exempt(
+    "Experimental (source-steps): refused with E_FEATURE_OFF while the experiment is off, as on every session " +
+        "the door rows run on; with it on it dispatches the undoable data.steps-set, covered by GESTURE_DOORS.",
+);
 const CAMERA = exempt("The camera is view state, not saved in a project file.");
 const XR = exempt("An XR device session is view state, not saved in a project file.");
 const SELECTION = exempt("Selection is not a step; undo and redo select what they changed instead.");
@@ -2804,6 +2809,17 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             source: READ,
             sources: READ,
             sourcesOf: READ,
+            // The source-steps experiment: the reads read the committed sources and steps; the
+            // writes are refused with E_FEATURE_OFF on every session these rows run on, and with the
+            // experiment on dispatch data.steps-set (GESTURE_DOORS).
+            steps: READ,
+            spaces: READ,
+            types: READ,
+            edits: READ,
+            ref: READ,
+            stage: SOURCE_STEPS_WRITE,
+            declareType: SOURCE_STEPS_WRITE,
+            removeEdit: SOURCE_STEPS_WRITE,
             issues: READ,
             hiddenColumns: READ,
             derivedColumns: READ,
@@ -4452,6 +4468,10 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
  * the test that checks it.
  */
 export const GESTURE_DOORS: Readonly<Record<string, string>> = {
+    "data.steps-set":
+        "Every data door that changes the graph (import, generate, loadDataset, loadExample, importColumns, a " +
+        "draft's load, addNodes and the other direct edits, stage, declareType, removeEdit) while the source-steps " +
+        "experiment is on; the door rows here run with it off. Checked by test/session/source-steps/*.test.ts.",
     "data.expand":
         "Double-clicking a node when the layout behaviour supplies fetchNodes and fetchEdges (src/NodeBehavior.ts); " +
         "checked by test/browser/expansion-through-behaviour.test.ts.",

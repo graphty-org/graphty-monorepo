@@ -4581,7 +4581,18 @@ export type GraphtyErrorCode =
 * `timing.settleTimeoutMs`, or captures without waiting (`timing.waitForSettle: false`).
 * @since 3.40.0
 */
-| "E_NOT_SETTLED" | "E_INTERNAL";
+| "E_NOT_SETTLED"
+/**
+* A load or a stage names an id space the element reserves (`graph:...`). `details.space` is
+* the space. The caller names another space. Experimental: the source-steps experiment.
+*/
+| "E_SPACE_RESERVED"
+/**
+* A key names nodes in more than one id space, so it names no one node. `details.key` is the
+* key, `details.spaces` the spaces holding it. The caller names the space, or the
+* `<space>:<key>` NodeId. Experimental: the source-steps experiment.
+*/
+| "E_AMBIGUOUS_ID" | "E_INTERNAL";
 
 // @public
 export type GraphtyErrorDetails<C extends GraphtyErrorCode = GraphtyErrorCode> = Readonly<Record<string, unknown>> & (C extends keyof GraphtyErrorDetailsMap ? GraphtyErrorDetailsMap[C] : unknown);
@@ -4716,6 +4727,13 @@ export type GraphtyWarningCode =
 | "W_UNKNOWN_KIND"
 /** A project's data is not the data its results were saved against: the results keyed by edge position were left out. */
 | "W_DATA_DIFFERS"
+/**
+* A source's keys meet nodes already in the id space it would join (`params.space`,
+* `params.count` of `params.of` keys; `params.other` names the other source for an untyped
+* one). Kept in the source's own space unless the load asked `overlap: "merge"`.
+* Experimental: the source-steps experiment.
+*/
+| "W_SPACE_OVERLAP"
 /** A run was still computing when the project was saved, so the file does not hold it. */
 | "W_RUN_PENDING"
 /**

@@ -32,6 +32,125 @@ export interface RoundTripFixture {
     readonly before?: (session: GraphSession) => Promise<void>;
 }
 
+/** A source of the source-steps experiment, its rows as read kept as copy `fixture-copy`. */
+const STEPS_SOURCE = {
+    id: "src_fixture",
+    origin: { copy: "fixture-copy" },
+    mapping: { nodes: { key: "id" }, edges: { source: "source", target: "target" } },
+    kind: "file",
+    label: "steps.csv",
+    tables: [],
+} as const;
+
+/** The rows as read of {@link STEPS_SOURCE}. */
+const STEPS_COPIES = {
+    "fixture-copy": {
+        nodes: [{ id: "s1", name: "one" }, { id: "s2" }],
+        edges: [{ source: "s1", target: "s2" }],
+    },
+} as const;
+
+/** The step adding {@link STEPS_SOURCE}. */
+const STEPS_ADD: SessionCommand = {
+    op: "data.steps-set",
+    edit: { kind: "add", source: STEPS_SOURCE },
+    copies: STEPS_COPIES,
+};
+
+/**
+ * Add {@link STEPS_SOURCE} before a fixture.
+ * @param session - The session.
+ */
+async function stepsSource(session: GraphSession): Promise<void> {
+    await session.execute(STEPS_ADD);
+}
+
+/** The `data.steps-set` fixtures: one per edit kind. */
+const STEPS_FIXTURES: readonly RoundTripFixture[] = [
+    {
+        name: "data.steps-set: a source added with join.add",
+        variant: "add",
+        tags: ["session", "renderer"],
+        command: STEPS_ADD,
+    },
+    {
+        name: "data.steps-set: the whole value set, a source and its step",
+        variant: "set",
+        tags: ["session", "renderer"],
+        command: {
+            op: "data.steps-set",
+            edit: {
+                kind: "set",
+                value: {
+                    sources: { [STEPS_SOURCE.id]: STEPS_SOURCE },
+                    steps: [{ op: "join.add", source: STEPS_SOURCE.id }],
+                    types: [],
+                    reader: [],
+                },
+            },
+            copies: STEPS_COPIES,
+        },
+    },
+    {
+        name: "data.steps-set: reader edits add a node and an edge and edit a built node",
+        variant: "reader",
+        tags: ["session", "renderer"],
+        before: stepsSource,
+        command: {
+            op: "data.steps-set",
+            edit: {
+                kind: "reader",
+                ops: [
+                    { id: "edit_1", op: "add", node: { space: "source:reader", key: "s9" }, columns: { id: "s9" } },
+                    {
+                        id: "edit_2",
+                        op: "add-edge",
+                        edge: { load: "reader", key: "edit_2" },
+                        from: { space: "source:reader", key: "s9" },
+                        to: { space: "source:src_fixture", key: "s1" },
+                    },
+                    {
+                        id: "edit_3",
+                        op: "edit",
+                        node: { space: "source:src_fixture", key: "s2" },
+                        column: "name",
+                        value: "two",
+                    },
+                ],
+            },
+        },
+    },
+    {
+        name: "data.steps-set: a reader edit taken back",
+        variant: "remove-edit",
+        tags: ["session", "renderer"],
+        before: async (session) => {
+            await stepsSource(session);
+            await session.execute({
+                op: "data.steps-set",
+                edit: {
+                    kind: "reader",
+                    ops: [{ id: "edit_r", op: "remove", node: { space: "source:src_fixture", key: "s1" } }],
+                },
+            });
+        },
+        command: { op: "data.steps-set", edit: { kind: "remove-edit", id: "edit_r" } },
+    },
+    {
+        name: "data.steps-set: a type declared",
+        variant: "declare-type",
+        tags: ["session", "renderer"],
+        before: stepsSource,
+        command: {
+            op: "data.steps-set",
+            edit: {
+                kind: "declare-type",
+                entry: { name: "thing", kind: "node", rules: [{ source: "src_fixture" }] },
+            },
+        },
+    },
+];
+
 /** Both twins run every style and visibility fixture. */
 const BOTH = ["session", "renderer"] as const;
 
@@ -277,6 +396,7 @@ export const FIXTURES: readonly RoundTripFixture[] = [
             },
         },
     },
+    ...STEPS_FIXTURES,
     {
         name: "data.expand: a fetched neighbourhood, one edge of it already held",
         tags: BOTH,

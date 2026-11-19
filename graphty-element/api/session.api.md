@@ -663,6 +663,7 @@ export interface CommandOutcomeMap {
     "data.label": Promise<void>;
     "data.setSource": Promise<void>;
     "data.source-expand": Promise<void>;
+    "data.steps-set": Promise<void>;
     "layout.rerun": Promise<void>;
     "layout.scope": Promise<void>;
     "layout.set": Promise<void>;
@@ -2493,7 +2494,18 @@ export type GraphtyErrorCode =
 * `timing.settleTimeoutMs`, or captures without waiting (`timing.waitForSettle: false`).
 * @since 3.40.0
 */
-| "E_NOT_SETTLED" | "E_INTERNAL";
+| "E_NOT_SETTLED"
+/**
+* A load or a stage names an id space the element reserves (`graph:...`). `details.space` is
+* the space. The caller names another space. Experimental: the source-steps experiment.
+*/
+| "E_SPACE_RESERVED"
+/**
+* A key names nodes in more than one id space, so it names no one node. `details.key` is the
+* key, `details.spaces` the spaces holding it. The caller names the space, or the
+* `<space>:<key>` NodeId. Experimental: the source-steps experiment.
+*/
+| "E_AMBIGUOUS_ID" | "E_INTERNAL";
 
 // @public
 export type GraphtyErrorDetails<C extends GraphtyErrorCode = GraphtyErrorCode> = Readonly<Record<string, unknown>> & (C extends keyof GraphtyErrorDetailsMap ? GraphtyErrorDetailsMap[C] : unknown);
@@ -2599,6 +2611,13 @@ export type GraphtyWarningCode =
 | "W_UNKNOWN_KIND"
 /** A project's data is not the data its results were saved against: the results keyed by edge position were left out. */
 | "W_DATA_DIFFERS"
+/**
+* A source's keys meet nodes already in the id space it would join (`params.space`,
+* `params.count` of `params.of` keys; `params.other` names the other source for an untyped
+* one). Kept in the source's own space unless the load asked `overlap: "merge"`.
+* Experimental: the source-steps experiment.
+*/
+| "W_SPACE_OVERLAP"
 /** A run was still computing when the project was saved, so the file does not hold it. */
 | "W_RUN_PENDING"
 /**
@@ -2983,7 +3002,7 @@ export interface HistoryClearOptions {
 }
 
 // @public
-export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.move" | "algo.rename" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.fix-issue" | "data.ignore-issue" | "data.ignore-issues" | "data.issues" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.merge-nodes" | "groups.collapse" | "groups.expand" | "data.import" | "data.import-source" | "data.expand" | "data.source-expand" | "data.collapse" | "data.declare" | "data.set-source" | "data.remove-source" | "data.replace-source" | "data.join" | "data.edit-join" | "data.label" | "data.set-role" | "data.set-type" | "data.rename-column" | "data.hide-columns" | "data.show-columns" | "data.columns" | "data.derive" | "annotations.set" | "annotations.patch" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "style.add-folder" | "style.rename-row" | "style.move-row" | "style.pin-row" | "style.lock-row" | "style.hide-row" | "style.delete-row" | "style.add-default-rows" | "shader.add" | "shader.replace" | "shader.remove" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "visibility.step-add" | "visibility.step-edit" | "visibility.step-on" | "visibility.step-off" | "visibility.step-remove" | "visibility.condition-add" | "visibility.condition-edit" | "visibility.condition-on" | "visibility.condition-off" | "visibility.condition-remove" | "visibility.steps" | "visibility.playback" | "visibility.hide-nodes" | "visibility.show-nodes" | "time.field" | "time.clear-field" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.rerun" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
+export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.move" | "algo.rename" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.fix-issue" | "data.ignore-issue" | "data.ignore-issues" | "data.issues" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.merge-nodes" | "groups.collapse" | "groups.expand" | "data.import" | "data.import-source" | "data.steps-set" | "data.expand" | "data.source-expand" | "data.collapse" | "data.declare" | "data.set-source" | "data.remove-source" | "data.replace-source" | "data.join" | "data.edit-join" | "data.label" | "data.set-role" | "data.set-type" | "data.rename-column" | "data.hide-columns" | "data.show-columns" | "data.columns" | "data.derive" | "annotations.set" | "annotations.patch" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "style.add-folder" | "style.rename-row" | "style.move-row" | "style.pin-row" | "style.lock-row" | "style.hide-row" | "style.delete-row" | "style.add-default-rows" | "shader.add" | "shader.replace" | "shader.remove" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "visibility.step-add" | "visibility.step-edit" | "visibility.step-on" | "visibility.step-off" | "visibility.step-remove" | "visibility.condition-add" | "visibility.condition-edit" | "visibility.condition-on" | "visibility.condition-off" | "visibility.condition-remove" | "visibility.steps" | "visibility.playback" | "visibility.hide-nodes" | "visibility.show-nodes" | "time.field" | "time.clear-field" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.rerun" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
 
 // @public
 export type HistoryOutcome = {
@@ -3054,9 +3073,18 @@ export interface ImportColumnsInput {
 
 // @public
 export interface ImportOptions {
+    readonly edges?: {
+        readonly from: SourceEndOption;
+        readonly to: SourceEndOption;
+        readonly id?: string;
+    };
     readonly history?: "step" | "start";
+    readonly key?: string;
     readonly layout?: "recommended" | "keep";
     readonly mode?: "replace" | "merge";
+    readonly overlap?: "separate" | "merge";
+    readonly space?: SourceSpaceName;
+    readonly type?: SourceTypeName;
 }
 
 // @public
@@ -3626,6 +3654,7 @@ export interface LoadedSource extends DataSourceDescriptor {
         readonly edges: number;
     };
     readonly features?: SourceFeatures;
+    readonly issues?: readonly SourceSpaceOverlap[];
     readonly join?: JoinRecord;
     readonly joinedOnto?: SourceKey;
     readonly key: SourceKey;
@@ -3642,7 +3671,10 @@ export interface LoadedSource extends DataSourceDescriptor {
     readonly loadedAt?: string;
     readonly loadKey?: string;
     readonly mapping?: LoadMappingRead;
+    readonly named?: number;
     readonly reloadable?: true;
+    readonly rowsLeftOut?: Readonly<Partial<Record<"left-out:empty-key" | "left-out:empty-end" | "left-out:unmatched" | "left-out:fan-out" | "left-out:no-step", number>>>;
+    readonly state?: SourceBuildState;
     readonly tableRows?: readonly ("nodes" | "edges")[];
     readonly tables: readonly string[];
     readonly total?: number;
@@ -4776,6 +4808,9 @@ export interface ReadableValue {
 
 // @public
 export type ReadableValueKind = "number" | "category" | "text" | "yes-no";
+
+// @public
+export type ReaderEditRow = EditRow;
 
 // @public
 export type ReadingCode = "reading.metric" | "reading.metric-empty" | "reading.groups" | "reading.groups-empty" | "reading.path" | "reading.path-none" | "reading.set" | "reading.pairs" | "reading.series" | "reading.coverage";
@@ -6152,7 +6187,7 @@ export type SessionCapabilities = Pick<Capabilities, "acceleration" | "xr" | "ca
 export type SessionCatalogApi = Omit<CatalogApi, DeprecatedCatalogMethod>;
 
 // @public
-export type SessionCommand = AlgorithmRunCommand | AlgoLegacyCommand | AlgoRemoveCommand | AlgoMoveCommand | AlgoRenameCommand | DataCommand | DataDeriveCommand | DataIssuesCommand | SourceExpandOpCommand | StyleCommand | ShaderCommand | VisibilityCommand | SetCommand | NoteCommand | ViewCommand | AnnotationsCommand | ConfigSetCommand | PositionsCommand | LayoutCommand | BatchCommand;
+export type SessionCommand = AlgorithmRunCommand | AlgoLegacyCommand | AlgoRemoveCommand | AlgoMoveCommand | AlgoRenameCommand | DataCommand | DataDeriveCommand | DataIssuesCommand | SourceExpandOpCommand | DataStepsSetCommand | StyleCommand | ShaderCommand | VisibilityCommand | SetCommand | NoteCommand | ViewCommand | AnnotationsCommand | ConfigSetCommand | PositionsCommand | LayoutCommand | BatchCommand;
 
 // @public
 export interface SessionConfig extends ProjectConfig {
@@ -6180,6 +6215,7 @@ export interface SessionDataApi {
         readonly edges: number;
     };
     declare(column: ColumnRef, declaration: MeasurementDeclaration): Promise<void>;
+    declareType(entry: SourceTypeEntry): Promise<void>;
     derive(name: string, expression: Query, options?: DeriveOptions): Promise<void>;
     derivedColumns(): readonly DerivedColumn[];
     deriveScore(name: string, terms: readonly ScoreTerm[], options?: DeriveOptions): Promise<void>;
@@ -6200,6 +6236,7 @@ export interface SessionDataApi {
     }): readonly EdgeRecord[];
     editJoin(source: SourceKey, choices: JoinChoices): Promise<void>;
     editJoinReport(source: SourceKey, choices: JoinChoices): JoinReport;
+    edits(): readonly ReaderEditRow[];
     expand(ids: readonly NodeId_2[], options?: ExpandOptions): Promise<SourceExpandResult>;
     fingerprint(): string;
     fix(issue: IssueId | Pick<DataIssue, "id">, fix: FixCode): Promise<FixResult>;
@@ -6230,7 +6267,9 @@ export interface SessionDataApi {
     more(options?: SourceMoreOptions): Promise<void>;
     name(id: NodeId_2): string | undefined;
     neighbors(id: NodeId_2, options?: NeighborOptions): NeighborPage;
-    node(id: NodeId_2): NodeRecord | undefined;
+    node(id: NodeId_2, options?: {
+        readonly space?: string;
+    }): NodeRecord | undefined;
     nodeName(id: NodeId_2): NodeName;
     nodePage(options: RecordPageOptions & {
         readonly columns: readonly ResultColumn[];
@@ -6253,10 +6292,14 @@ export interface SessionDataApi {
     previewType(column: ColumnRef, type: ValueType): TypeChangePreview;
     readableValues(): readonly ReadableValue[];
     readExample(source: string, example: string, options?: SourceLoadOptions): Promise<SourceRead>;
+    ref(key: string, options?: {
+        readonly space?: string;
+    }): SourceNodeRef | null;
     refresh(load: string, options?: SourceLoadOptions): Promise<SourceRefreshReport>;
     reloadSource(key: SourceKey, choices: LoadChoices): Promise<ReplaceReport>;
     remap(options: RemapOptions): Promise<ReplaceReport>;
     removeEdges(ids: readonly EdgeId[]): Promise<void>;
+    removeEdit(id: string): Promise<void>;
     removeNodes(ids: readonly NodeId_2[]): Promise<void>;
     removeSource(key: SourceKey): Promise<RemoveSourceResult>;
     renameColumn(column: ColumnRef, name: string): Promise<void>;
@@ -6277,15 +6320,19 @@ export interface SessionDataApi {
     sourcesOf(id: NodeId_2 | EdgeId, options?: {
         readonly kind?: "node" | "edge";
     }): readonly SourceKey[];
+    spaces(): readonly SourceSpaceRow[];
+    stage(source: DataSourceInput, options?: ImportOptions): Promise<string>;
     statistics(options?: {
         readonly scope?: "all" | "visible";
     }): GraphStatistics;
+    steps(): readonly SourceStepRow[];
     readonly store: SessionGraphStore;
     structureValue(id: NodeId_2, path: Path, options?: {
         readonly scope?: "graph" | "visible";
     }): number | undefined;
     structureValues(): readonly StructureValue[];
     testSource(source: SourceInput, options?: SourceLoadOptions): Promise<SourceProbe>;
+    types(): readonly SourceTypeEntry[];
     undirected(snapshot?: GraphSnapshot): DerivedGraph;
     updateEdges(rows: readonly RowUpdate<EdgeId>[]): Promise<void>;
     updateNodes(rows: readonly RowUpdate<NodeId_2>[]): Promise<void>;
@@ -6868,6 +6915,9 @@ export const SOURCE_RECORD_MEMBER = "graphty-sources";
 export const SOURCE_RECORD_VERSION = 1;
 
 // @public
+export type SourceBuildState = SourceState;
+
+// @public
 export interface SourceCatalogEntry extends SourceInfo {
     readonly features: SourceFeatures;
 }
@@ -6900,6 +6950,13 @@ export { SourceCursor }
 export { SourceDescriptor }
 
 export { SourceEdgeRecord }
+
+// @public
+export interface SourceEndOption {
+    readonly column: string;
+    readonly space?: SourceSpaceName;
+    readonly type?: SourceTypeName;
+}
 
 export { sourceEndpoint }
 
@@ -7016,6 +7073,9 @@ export interface SourceMoreOptions extends SourceLoadOptions {
 
 export { SourceNodeRecord }
 
+// @public
+export type SourceNodeRef = NodeRef;
+
 export { SourceParamDescriptor }
 
 export { SourceParamType }
@@ -7074,6 +7134,27 @@ export const SOURCES_MEMBER_VERSION = 2;
 export type SourceSettings = Pick<SourceLoadRecord, "source" | "endpoint" | "config" | "expand"> & {
     readonly limits?: SourceLimitOptions;
 };
+
+// @public
+export type SourceSpaceName = string;
+
+// @public
+export type SourceSpaceOverlap = SpaceOverlap;
+
+// @public
+export type SourceSpaceRow = SpaceRow;
+
+// @public
+export type SourceStepRow = StepRow;
+
+// @public
+export type SourceTypeEntry = TypeEntry;
+
+// @public
+export type SourceTypeName = string;
+
+// @public
+export type SourceTypeRule = TypeRule;
 
 export { SourceValidators }
 

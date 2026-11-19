@@ -109,6 +109,7 @@ import {
     scoreExpression,
     type ValuesWhere,
 } from "./commands/derive";
+import type { DataStepsSetCommand } from "./commands/source-steps";
 import {
     Draft,
     draftStyles,
@@ -179,6 +180,24 @@ import {
 } from "./sources/member";
 import { pendingSourceLoads, targetOf } from "./sources/pending";
 import { type Provenance, PROVENANCE_VALUE, provenanceIndex, withoutSource, withSupplied } from "./sources/provenance";
+import { resolveNode } from "./sources/steps/build";
+import { compileCommand, compileImport, readerOps } from "./sources/steps/compile";
+import {
+    buildOf,
+    checkSpace,
+    type Copies,
+    editRows,
+    EMPTY_STEPS,
+    nodeIdsOf,
+    refOf,
+    SOURCE_COPIES_VALUE,
+    SOURCE_EDGE_IDS_VALUE,
+    SOURCE_STEPS_VALUE,
+    type SourceSteps,
+    spaceRows,
+    stepRows,
+    type StepsEdit,
+} from "./sources/steps/project";
 import type {
     CollapseResult,
     ExpandOptions,
@@ -244,6 +263,7 @@ import type {
     OverRepresentedOptions,
     OverRepresentedValues,
     PageColumn,
+    ReaderEditRow,
     RecordPage,
     RecordPageOptions,
     RecordSort,
@@ -261,6 +281,10 @@ import type {
     SessionEventMap,
     SessionGraphStore,
     SessionRecordSource,
+    SourceNodeRef,
+    SourceSpaceRow,
+    SourceStepRow,
+    SourceTypeEntry,
     TableMapping,
     TypeChangePreview,
     ValueCounts,
@@ -287,7 +311,9 @@ interface DataWrites {
      * Where a `data.import` made now would go -- the session, or the transaction a routed verb
      * runs in -- held for a verb that dispatches it after an await.
      */
-    importer(signal?: AbortSignal): (command: DataImportCommand | BatchCommand) => Promise<unknown>;
+    importer(
+        signal?: AbortSignal,
+    ): (command: DataImportCommand | BatchCommand | DataStepsSetCommand) => Promise<unknown>;
     /** The ceilings in force, which a read-first load is refused above. */
     readonly ceilings?: RenderLimits;
     /** The `graph` slice now. */
@@ -404,6 +430,11 @@ interface PageSources {
      * @returns true when it is
      */
     fileStyles?(): boolean;
+    /**
+     * Whether the source-steps experiment is on; absent reads off.
+     * @returns true when it is
+     */
+    sourceSteps?(): boolean;
     /**
      * Whether the element draws on the `"batched"` render path; absent reads false.
      * @returns true when it does
@@ -963,7 +994,23 @@ export class SessionData implements SessionDataApi {
         this.store = readonlyStore(store);
         this.records = records;
         this.readConfig = readConfig;
-        this.writes = writes;
+        // Under the source-steps experiment every load that holds its rows is dispatched as a
+        // source plus `join.add` (`data.steps-set`), whichever door sent it.
+        const compiled = <C extends SessionCommand>(command: C): C =>
+            pages.sourceSteps?.() === true ? (compileCommand(command, {}, readConfig().knownFields) as C) : command;
+        this.writes = {
+            ...writes,
+            importer: (signal) => {
+                const send = writes.importer(signal);
+                return (command) => send(compiled(command));
+            },
+            ...(writes.send === undefined
+                ? {}
+                : {
+                      send: (command: SessionCommand) =>
+                          (writes.send as NonNullable<DataWrites["send"]>)(compiled(command)),
+                  }),
+        };
         this.loadLine = writes.loadLine;
         this.pages = pages;
         this.orders = new RevisionCache(() => pages.revision());
@@ -999,6 +1046,10 @@ export class SessionData implements SessionDataApi {
      */
     async importColumns(columns: ImportColumnsInput): Promise<LoadReport> {
         this.requireLive("importColumns");
+        if (this.stepsOn()) {
+            await this.importColumnsAsSource(columns);
+            return this.lastImport() as LoadReport;
+        }
         // A batched graph keeps the records it builds, so the slice keeps them as they are, not a copy.
         const [nodes, edges] = columnMutations(columns, this.pages.batched?.() === true);
         const send = this.writes.importer();
@@ -1069,6 +1120,15 @@ export class SessionData implements SessionDataApi {
      */
     async mergeNodes(ids: readonly NodeId[], options: MergeNodesOptions = {}): Promise<void> {
         this.requireLive("mergeNodes");
+        if (this.stepsOn()) {
+            // Section 11: merging two nodes by hand under the source-steps experiment comes later.
+            throw new GraphtyError({
+                code: "E_UNSUPPORTED",
+                message: "mergeNodes is not available under the source-steps experiment yet.",
+                source: "data",
+                details: { reason: "later" },
+            });
+        }
         if (!Array.isArray(ids)) {
             throw mergeRefusal("ids is not an array");
         }
@@ -1161,6 +1221,21 @@ export class SessionData implements SessionDataApi {
      */
     private edit(mutation: DataMutation): Promise<unknown> {
         checkMutation(mutation);
+        if (this.stepsOn()) {
+            const send = this.writes.importer();
+            return this.loadLine.edit(() => {
+                const { knownFields } = this.readConfig();
+                const ends = this.lastImport()?.endpoints ?? { source: "source", target: "target" };
+                const ops = readerOps(mutation, this.stepsValue(), this.stepsCopies(), this.stepsEdgeIds(), {
+                    nodeIdPath: knownFields.nodeIdPath,
+                    source: ends.source,
+                    target: ends.target,
+                });
+                return ops.length === 0
+                    ? Promise.resolve()
+                    : send({ op: "data.steps-set", edit: { kind: "reader", ops } });
+            }, undefined);
+        }
         const send = this.writes.applier();
         const routed = this.throughColumns(mutation);
         return this.loadLine.edit(() => send(routed), undefined);
@@ -1435,11 +1510,12 @@ export class SessionData implements SessionDataApi {
             this.pendingLoads.clear();
         }
         this.draft?.dispose();
-        if (readsThroughDraft(options)) {
+        if (readsThroughDraft(options) || (this.stepsOn() && sample?.held === undefined)) {
             const draft = await this.prepare(source, options.signal === undefined ? {} : { signal: options.signal });
             try {
                 await turn.wait();
-                await draft.loadVia((command) => turn.issue(() => send(command)), options);
+                const read = this.stepsOn() ? withStepsMapping(options) : options;
+                await draft.loadVia((command) => turn.issue(() => send(command)), read);
             } finally {
                 draft.dispose();
             }
@@ -1458,6 +1534,7 @@ export class SessionData implements SessionDataApi {
             const step: DataImportCommand = {
                 ...importCommand(resolved, options, sample?.held),
                 ...(chosenOrigin === undefined ? {} : { origin: chosenOrigin }),
+                ...(this.stepsOn() ? { choices: stepsChoices(options) } : {}),
             };
             // A new graph does not inherit the last one's weight meaning (as `Draft.plan` does).
             // ponytail: only this door and the draft reset it; another replace route keeps the old one.
@@ -2120,13 +2197,32 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
+     * The NodeId of the node a key names in one id space, under the source-steps experiment.
+     * @param key - The key.
+     * @param space - The space.
+     * @returns The NodeId, or null when no node of the space holds the key.
+     */
+    private nodeIdIn(key: string, space: string): NodeId | null {
+        const { result } = this.stepsBuild();
+        const ref = refOf(result, key, space);
+        const n = ref === null ? null : resolveNode(result, ref.space, ref.key);
+        return n === null ? null : (nodeIdsOf(result).get(n.id) ?? null);
+    }
+
+    /**
      * One node, by id.
      * @param id - the node id; an integer id may be written either way, `34` or `"34"`
+     * @param options - Under the source-steps experiment, how to read `id` (experimental).
+     * @param options.space - Read `id` as a key in this id space.
      * @returns the record, carrying the id as the graph holds it, or undefined when the graph has
      *     no such node
      * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
      */
-    node(id: NodeId): NodeRecord | undefined {
+    node(id: NodeId, options: { readonly space?: string } = {}): NodeRecord | undefined {
+        if (options.space !== undefined) {
+            const named = this.nodeIdIn(String(id), options.space);
+            return named === null ? undefined : this.node(named);
+        }
         const snapshot = this.current();
         const index = rowOfEitherSpelling(snapshot.ids, id);
         if (index === INVALID_INDEX) {
@@ -2940,6 +3036,207 @@ export class SessionData implements SessionDataApi {
         );
         this.sourcesMemo = { stored, provenance, snapshot, ledger, result };
         return result;
+    }
+
+    /**
+     * Whether the source-steps experiment is on.
+     * @returns True when it is.
+     */
+    private stepsOn(): boolean {
+        return this.pages.sourceSteps?.() === true;
+    }
+
+    /**
+     * Refuse a source-steps call while the experiment is off.
+     * @param verb - The call.
+     * @throws A `GraphtyError` with `E_FEATURE_OFF`.
+     */
+    private requireSteps(verb: string): void {
+        this.requireLive(verb);
+        if (!this.stepsOn()) {
+            throw featureOff("source-steps", "data");
+        }
+    }
+
+    /**
+     * The sources and steps the graph holds.
+     * @returns The value; empty before the first load.
+     */
+    private stepsValue(): SourceSteps {
+        return (this.writes.slice().values.get(SOURCE_STEPS_VALUE) as SourceSteps | undefined) ?? EMPTY_STEPS;
+    }
+
+    /**
+     * The rows as read of every source, by copy id.
+     * @returns The copies.
+     */
+    private stepsCopies(): Copies {
+        return (this.writes.slice().values.get(SOURCE_COPIES_VALUE) as Copies | undefined) ?? EMPTY_COPIES;
+    }
+
+    /**
+     * The session edge id of each built edge.
+     * @returns The ids by built edge id.
+     */
+    private stepsEdgeIds(): Readonly<Record<string, EdgeId>> {
+        return (this.writes.slice().values.get(SOURCE_EDGE_IDS_VALUE) as Record<string, EdgeId> | undefined) ?? {};
+    }
+
+    /**
+     * Dispatch one edit of the sources and steps in the load line.
+     * @param edit - The edit, built when its turn comes.
+     * @param copies - The rows as read of a source it adds.
+     * @returns Settles once it is recorded and drawn.
+     */
+    private stepsEdit(edit: () => StepsEdit, copies?: Copies): Promise<unknown> {
+        const send = this.writes.importer();
+        return this.loadLine.edit(
+            () => send({ op: "data.steps-set", edit: edit(), ...(copies === undefined ? {} : { copies }) }),
+            undefined,
+        );
+    }
+
+    /**
+     * `importColumns` under the source-steps experiment: the columns as one added source.
+     * @param columns - The columns.
+     * @returns Settles once the source is built and drawn.
+     */
+    private importColumnsAsSource(columns: ImportColumnsInput): Promise<unknown> {
+        const [nodes, edges] = columnMutations(columns, false);
+        const records = (m: DataMutation): readonly Record<string, unknown>[] => ("records" in m ? m.records : []);
+        const send = this.writes.importer();
+        return this.loadLine.edit(() => {
+            const command = compileImport(
+                {
+                    op: "data.import",
+                    source: { name: "columns" },
+                    mode: "merge",
+                    held: {
+                        nodes: records(nodes),
+                        edges: records(edges),
+                        declaredDirection: null,
+                        errors: [],
+                        errorLimit: 0,
+                        idPath: "id",
+                        source: "source",
+                        target: "target",
+                        ...(columns.weights === undefined ? {} : { weight: "weight" }),
+                    },
+                },
+                {},
+                this.readConfig().knownFields,
+            );
+            return command === null ? Promise.resolve() : send(command);
+        }, undefined);
+    }
+
+    /**
+     * Hold a source's rows as a staged source: saved and listed, read by no step.
+     * @param source - What `import` takes.
+     * @param options - Its key, type, space and edge ends.
+     * @returns The new source's id.
+     */
+    async stage(source: DataSourceInput, options: ImportOptions = {}): Promise<string> {
+        this.requireSteps("stage");
+        checkSpace(options.space);
+        const draft = await this.prepare(source);
+        let id = "";
+        try {
+            await draft.loadVia(
+                (command) => {
+                    const load = (command.op === "batch" ? command.steps.at(-1) : command) as DataImportCommand;
+                    const compiled = compileImport(load, options, this.readConfig().knownFields);
+                    if (compiled === null) {
+                        return Promise.resolve();
+                    }
+                    const staged = compiled.edit.source;
+                    ({ id } = staged);
+                    return this.stepsEdit(() => ({ kind: "add", source: staged, staged: true }), compiled.copies);
+                },
+                withStepsMapping({ ...options, mode: "merge" }),
+            );
+        } finally {
+            draft.dispose();
+        }
+        return id;
+    }
+
+    /**
+     * The sources and steps, built from the committed value.
+     * @returns The value and its build.
+     */
+    private stepsBuild(): { value: SourceSteps; result: ReturnType<typeof buildOf> } {
+        const value = this.stepsValue();
+        return { value, result: buildOf(value, this.stepsCopies()) };
+    }
+
+    /**
+     * Every step, with its counts in the committed build.
+     * @returns The steps.
+     */
+    steps(): readonly SourceStepRow[] {
+        this.requireLive("steps");
+        const { value, result } = this.stepsBuild();
+        return stepRows(value, result);
+    }
+
+    /**
+     * Every id space the graph holds nodes in.
+     * @returns The spaces.
+     */
+    spaces(): readonly SourceSpaceRow[] {
+        this.requireLive("spaces");
+        return spaceRows(this.stepsBuild().result);
+    }
+
+    /**
+     * The type registry.
+     * @returns The declared types.
+     */
+    types(): readonly SourceTypeEntry[] {
+        this.requireLive("types");
+        return this.stepsValue().types;
+    }
+
+    /**
+     * Declare a type, or add rules to one, as one undoable step.
+     * @param entry - The type and its rules.
+     * @returns Settles once the graph is rebuilt.
+     */
+    async declareType(entry: SourceTypeEntry): Promise<void> {
+        this.requireSteps("declareType");
+        await this.stepsEdit(() => ({ kind: "declare-type", entry }));
+    }
+
+    /**
+     * The reader's own edits, in the order made.
+     * @returns The edits.
+     */
+    edits(): readonly ReaderEditRow[] {
+        this.requireLive("edits");
+        return editRows(this.stepsValue());
+    }
+
+    /**
+     * Take back one of the reader's edits, as one undoable step.
+     * @param id - The edit's id.
+     * @returns Settles once the graph is rebuilt.
+     */
+    async removeEdit(id: string): Promise<void> {
+        this.requireSteps("removeEdit");
+        await this.stepsEdit(() => ({ kind: "remove-edit", id }));
+    }
+
+    /**
+     * The node a key names, as `{ space, key }`.
+     * @param key - The key.
+     * @param options - The space to look in.
+     * @param options.space - The space.
+     * @returns The reference, or null.
+     */
+    ref(key: string, options: { readonly space?: string } = {}): SourceNodeRef | null {
+        this.requireLive("ref");
+        return refOf(this.stepsBuild().result, key, options.space);
     }
 
     /**
@@ -6447,6 +6744,41 @@ interface SampleLoad {
     readonly label: string | undefined;
     /** The records, handed to the import instead of a JSON text of them. */
     readonly held?: HeldRows;
+}
+
+/**
+ * A load's source-steps key or edge ends as the draft's roles for its one table, so the draft reads
+ * the rows the way the source maps them; a load naming its own mapping keeps it.
+ * @param options - The load's choices.
+ * @returns The choices, with a mapping when the source-steps options name one.
+ */
+function withStepsMapping<O extends LoadChoices>(options: O): O {
+    if (options.mapping !== undefined || (options.key === undefined && options.edges === undefined)) {
+        return options;
+    }
+    const mapping: TableMapping =
+        options.edges === undefined
+            ? { rowsAre: "nodes", key: options.key ?? null }
+            : { rowsAre: "edges", source: options.edges.from.column, target: options.edges.to.column };
+    return { ...options, mapping };
+}
+
+/** No copies: before the first load under the source-steps experiment. */
+const EMPTY_COPIES: Copies = Object.freeze({});
+
+/**
+ * The source-steps choices of a load, for the command that carries them to the compile.
+ * @param options - The load's choices.
+ * @returns The ones the compile reads.
+ */
+function stepsChoices(options: ImportOptions): LoadChoices {
+    return Object.freeze(
+        Object.fromEntries(
+            (["key", "type", "space", "edges", "overlap"] as const)
+                .filter((name) => options[name] !== undefined)
+                .map((name) => [name, options[name]]),
+        ),
+    );
 }
 
 /**

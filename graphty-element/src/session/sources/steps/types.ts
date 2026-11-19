@@ -280,6 +280,20 @@ interface ReaderAdd {
     readonly columns?: Readonly<Record<string, CellValue>>;
 }
 
+/**
+ * A reader operation that adds one edge between two nodes, keyed `{ load: "reader", key }`. An end
+ * no node holds is added in {@link READER_SPACE}, as an edge file's end makes its node.
+ */
+interface ReaderAddEdge {
+    readonly id: string;
+    readonly op: "add-edge";
+    readonly edge: { readonly load: typeof READER_SOURCE; readonly key: string };
+    readonly from: NodeRef;
+    readonly to: NodeRef;
+    readonly weight?: number | null;
+    readonly columns?: Readonly<Record<string, CellValue>>;
+}
+
 /** A reader operation that sets one cell; it wins over every step (3.8). */
 export type ReaderEdit = {
     readonly id: string;
@@ -293,7 +307,7 @@ export type ReaderEdit = {
 } & ReaderTarget;
 
 /** One operation of the reader source, applied in the order made, after the steps (3.2). */
-export type ReaderOp = ReaderRemove | ReaderAdd | ReaderEdit;
+export type ReaderOp = ReaderRemove | ReaderAdd | ReaderAddEdge | ReaderEdit;
 
 /** Everything the build reads besides the copies. */
 export interface BuildInput {

@@ -140,7 +140,19 @@ const ROLES: Readonly<Record<"nodes" | "edges", ReadonlySet<string>>> = {
 };
 
 /** The choices a load keeps with it, for `data.reloadSource` to read the rows again the same way. */
-const KEPT_CHOICES = ["mapping", "unmatched", "duplicateIds", "kindIds", "directed"] as const;
+const KEPT_CHOICES = [
+    "mapping",
+    "unmatched",
+    "duplicateIds",
+    "kindIds",
+    "directed",
+    // The source-steps choices (experimental): kept only when given.
+    "key",
+    "type",
+    "space",
+    "edges",
+    "overlap",
+] as const;
 
 /**
  * The choices a load keeps, as `{ choices }`, or nothing when it was given none.

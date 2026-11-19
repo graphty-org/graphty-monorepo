@@ -104,6 +104,11 @@ export const COMMANDS = Object.freeze({
         /** "undoable": a step in the history. */
         undo: "undoable",
     },
+    /** `data.steps-set`: one change to the sources and steps the graph is rebuilt from (the source-steps experiment). */
+    "data.steps-set": {
+        /** "undoable": a step in the history. */
+        undo: "undoable",
+    },
     /** `data.declare`: declare what a column measures, overriding what the element inferred. */
     "data.declare": {
         /** "undoable": a step in the history. */

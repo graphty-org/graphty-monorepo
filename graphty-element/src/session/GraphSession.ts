@@ -439,6 +439,8 @@ interface SessionParts {
     readonly readProject: () => ProjectConfig;
     /** The renderer's graph-wide node size space, for `config.inEffect`; absent with no renderer. */
     readonly nodeSizeSpace: (() => string | undefined) | undefined;
+    /** Whether the renderer's color scheme is dark, for `config.backgroundColor`; absent with no renderer. */
+    readonly darkScheme: (() => boolean) | undefined;
     /** The controller whose capabilities and policy this session publishes. */
     readonly controller: AccelerationControllerLike;
     /** The controller when this session built it, so that disposal releases it. */
@@ -505,6 +507,8 @@ interface SessionInternals {
     readonly batched?: () => boolean;
     /** The renderer's graph-wide node size space (`layoutBehavior.node.sizeSpace`); absent with no renderer. */
     readonly nodeSizeSpace?: () => string | undefined;
+    /** Whether the renderer's color scheme is dark (`Graph.setColorScheme`); absent with no renderer. */
+    readonly darkScheme?: () => boolean;
 }
 
 /**
@@ -856,7 +860,13 @@ class Session implements ElementSession {
             const base = advice.layout.scoped ? advised : { id: DEFAULT_LAYOUT.id, engine: DEFAULT_LAYOUT.engine };
             return { ...base, unplaced, placed: partial.placed };
         };
-        this.config = configOf(this.dispatcher, parts.readProject, parts.controller, parts.nodeSizeSpace);
+        this.config = configOf(
+            this.dispatcher,
+            parts.readProject,
+            parts.controller,
+            parts.nodeSizeSpace,
+            parts.darkScheme,
+        );
         this.project = projectOf(this, this.dispatcher, parts.canned, {
             announce: (change) => {
                 publish(this.watchers, "project:status", change);
@@ -2053,6 +2063,7 @@ function projectConfigReader(dispatcher: Dispatcher, base: () => SessionDataConf
  * @param read - Reads the project settings.
  * @param controller - The acceleration controller.
  * @param nodeSizeSpace - Reads the renderer's graph-wide node size space, for `inEffect`.
+ * @param darkScheme - Whether the renderer's color scheme is dark, for `backgroundColor`.
  * @returns The settings.
  */
 function configOf(
@@ -2060,6 +2071,7 @@ function configOf(
     read: () => ProjectConfig,
     controller: AccelerationControllerLike,
     nodeSizeSpace: (() => string | undefined) | undefined,
+    darkScheme?: () => boolean,
 ): SessionConfig {
     return Object.freeze({
         get data() {
@@ -2072,7 +2084,7 @@ function configOf(
             return read().background;
         },
         get backgroundColor() {
-            return backgroundColorOf(read().background);
+            return backgroundColorOf(read().background, darkScheme?.() ?? false);
         },
         get selectionStyle() {
             return read().selectionStyle;
@@ -4918,6 +4930,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         features: settleFeatures,
         readProject,
         nodeSizeSpace: internals.nodeSizeSpace,
+        darkScheme: internals.darkScheme,
         controller: acceleration.controller,
         ownedAcceleration: acceleration.owned,
         xr: options.xr ?? HEADLESS_XR,

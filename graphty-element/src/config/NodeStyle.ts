@@ -895,7 +895,7 @@ export const NodeStyle = z.strictObject({
             includeLabels: z.boolean().optional(),
         })
         .optional(),
-    /** The node's label: its words, font, colors, place and background. Unset fields default to the top, in black. */
+    /** The node's label: its words, font, colors, place and background. Unset fields default to the top, in black (light gray under a dark color scheme). */
     label: RichTextStyle.prefault({ location: "top", textColor: "#000000" }).optional(),
     /**
      * A second label drawn outside the node, beside it (Graphviz's `xlabel`), switched on by its words. It is drawn

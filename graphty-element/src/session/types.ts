@@ -1606,7 +1606,8 @@ export interface SessionDataApi {
     merge(options: SourceMergeOptions): Promise<void>;
     /**
      * Make an edge: each node row of a source becomes an edge between its node and the node its
-     * field names, as one undoable step. A staged source is added in its own space first.
+     * field names, as one undoable step. A staged source is added first: the source of the rows
+     * in its own space, the source named by `into` as `add` adds it.
      * @param options - The source and field, the nodes they name, the direction and edge type.
      * @returns The part the new edges are keyed by (`<part>/<key>`).
      * @throws A `GraphtyError` with `E_STEP_NEEDS_NODES`, `E_AMBIGUOUS_ID`, or `E_JOIN_SPACE_SAME`
@@ -4417,9 +4418,11 @@ export interface SourceMappingPatch {
  * project and leaves the draft open; opening a project or `data.clear()` discards it.
  *
  * ```ts
+ * await session.data.import(entriesCsv, { key: "entry", type: "entry" });
+ * const [entries] = session.data.sources();
  * const draft = session.data.draft();
  * const people = await draft.stage(peopleCsv, { key: "badge", type: "person" });
- * draft.connect({ from: { source: entries, field: "badge" }, into: { source: people } });
+ * draft.connect({ from: { source: entries.key, field: "badge" }, into: { source: people } });
  * await draft.commit(); // one undo step
  * ```
  *
@@ -4560,8 +4563,11 @@ export interface SourceDraft {
     edits(): readonly ReaderEditRow[];
     /**
      * Apply everything the draft did to the graph as one undoable step, and close the draft. A
-     * draft that changed nothing records nothing.
+     * draft that changed nothing records nothing. Data writes waiting in line ahead of the commit
+     * are refused with `E_DRAFT_OPEN`, as they are while the draft is open.
      * @returns Settles once the graph is rebuilt and drawn.
+     * @throws A `GraphtyError` with `E_DRAFT_STALE { draft }` when a data write already on its way
+     *   when the draft opened landed first; the draft stays open, to be discarded.
      */
     commit(): Promise<void>;
     /** Close the draft, leaving the graph, the history and the saved file as they were. */

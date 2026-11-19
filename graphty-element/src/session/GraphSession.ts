@@ -3387,8 +3387,12 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     dispatcher.services.derive = () => data.derivedRefresh();
     // While a draft of the sources and steps is open, the data is its: every data write and every
     // move through the history is refused until it is committed or discarded (design 5.6).
-    dispatcher.services.refuse = (command) =>
-        command === "history" || command.op.startsWith("data.") ? data.draftRefusal() : null;
+    dispatcher.services.refuse = (command) => {
+        if (command === "history") {
+            return data.draftRefusal();
+        }
+        return command.op.startsWith("data.") ? data.draftRefusal(command) : null;
+    };
 
     const components = componentLabelsOf(data);
     // Kept sets, published as `session.sets`.

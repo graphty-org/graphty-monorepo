@@ -1767,7 +1767,14 @@ export type GraphtyErrorCode =
 * or a redo would change what its commit replaces. `details.draft` names the draft. The caller
 * commits or discards it first. Experimental: the source-steps experiment.
 */
-| "E_DRAFT_OPEN" | "E_INTERNAL";
+| "E_DRAFT_OPEN"
+/**
+* A draft's commit was refused because the committed sources and steps changed after the
+* draft opened: a data write already on its way when it opened landed first, and the commit
+* would have undone it. `details.draft` names the draft, which stays open. The caller discards
+* it and opens a new one. Experimental: the source-steps experiment.
+*/
+| "E_DRAFT_STALE" | "E_INTERNAL";
 
 // @public
 export type GroupMatchCode = "group.new" | "group.gone";

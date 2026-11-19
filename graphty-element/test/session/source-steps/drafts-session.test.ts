@@ -236,6 +236,63 @@ describe("source-steps drafts: the session around a draft", () => {
         session.dispose();
     });
 
+    it("a data write already on its way when a draft opens is never undone by the commit", async () => {
+        const { session, t } = await phase2();
+        const a = await session.data.stage(ACCOUNTS_CSV, { key: "account_id", type: "account" });
+        const pending = session.data.merge({ from: { source: a, field: "account_id" }, into: { space: "account" } });
+        const d = session.data.draft();
+        await pending;
+        const merged = session.data.steps().length;
+        d.renameColumn({ kind: "edge", name: "category" }, "kind", { source: t });
+        const details = await refused(() => d.commit(), "E_DRAFT_STALE");
+        assert.strictEqual(details.draft, d.id);
+        assert.lengthOf(session.data.steps(), merged, "the merge's steps survive");
+        assert.isDefined(session.data.steps().find((s) => s.op === "join.merge"));
+        d.dispose();
+        session.dispose();
+    });
+
+    it("a load still reading when a draft opens is refused, not erased by the commit", async () => {
+        const { session } = await phase2();
+        const a = await session.data.stage(ACCOUNTS_CSV, { key: "account_id", type: "account" });
+        const load = session.data.import(
+            { type: "csv", config: { data: "id,z\nz1,1" }, name: "late.csv" },
+            { key: "id", mode: "merge" },
+        );
+        const d = session.data.draft();
+        d.merge({ from: { source: a, field: "account_id" }, into: { space: "account" } });
+        const commit = d.commit();
+        await refused(() => load, "E_DRAFT_OPEN");
+        await commit;
+        assert.isUndefined(session.data.sources().find((s) => s.name === "late.csv"));
+        assert.isDefined(
+            session.data.steps().find((s) => s.op === "join.merge"),
+            "the commit applied",
+        );
+        assert.isNull(session.data.currentDraft());
+        session.dispose();
+    });
+
+    it("the SourceDraft simple-path example joins door entries to people and draws the edges", async () => {
+        const session = createGraphSession({ features: ["source-steps"] });
+        const entriesCsv = {
+            type: "csv",
+            config: { data: "entry,badge,door\ne1,b1,d1\ne2,b2,d1" },
+            name: "entries.csv",
+        } as const;
+        const peopleCsv = { type: "csv", config: { data: "badge,name\nb1,Ann\nb2,Bo" }, name: "people.csv" } as const;
+        // The example, as the SourceDraft doc comment gives it.
+        await session.data.import(entriesCsv, { key: "entry", type: "entry" });
+        const [entries] = session.data.sources();
+        const draft = session.data.draft();
+        const people = await draft.stage(peopleCsv, { key: "badge", type: "person" });
+        draft.connect({ from: { source: entries.key, field: "badge" }, into: { source: people } });
+        await draft.commit(); // one undo step
+        assert.lengthOf(session.data.edges(), 2);
+        assert.strictEqual(session.data.sources().find((s) => s.key === people)?.state, "built");
+        session.dispose();
+    });
+
     it("with the experiment off, data.draft() and data.currentDraft() throw E_FEATURE_OFF", async () => {
         const session = createGraphSession({ features: [] });
         await refused(() => Promise.resolve(session.data.draft()), "E_FEATURE_OFF");

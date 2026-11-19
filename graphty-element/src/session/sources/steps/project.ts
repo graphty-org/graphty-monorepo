@@ -121,8 +121,15 @@ export const EMPTY_STEPS: SourceSteps = Object.freeze({
 
 /** One change a door makes to the {@link SourceSteps}. */
 export type StepsEdit =
-    /** The whole value. */
-    | { readonly kind: "set"; readonly value: SourceSteps }
+    /**
+     * The whole value. A draft's commit names the value it started from as `draftBase`, and is refused
+     * with `E_DRAFT_STALE` when the value it lands on is another.
+     */
+    | {
+          readonly kind: "set";
+          readonly value: SourceSteps;
+          readonly draftBase?: { readonly value: SourceSteps; readonly draft: string };
+      }
     /**
      * A source, staged or added with `join.add`; `replace` first takes out every source, step, type
      * and reader operation (a replacing load).
@@ -430,6 +437,15 @@ function ownSpaceOverlap(next: SourceSteps, id: string, copies: Copies): SpaceOv
 export function applyEdit(prior: SourceSteps, edit: StepsEdit, copies: Copies): SourceSteps {
     switch (edit.kind) {
         case "set":
+            if (edit.draftBase !== undefined && edit.draftBase.value !== prior) {
+                throw new GraphtyError({
+                    code: "E_DRAFT_STALE",
+                    message: "The sources and steps changed after the draft opened: its commit would undo that change.",
+                    source: "data",
+                    details: { draft: edit.draftBase.draft },
+                });
+            }
+            return edit.value;
         case "restore":
             return edit.value;
         case "add": {

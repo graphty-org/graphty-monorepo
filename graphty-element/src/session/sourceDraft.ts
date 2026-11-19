@@ -57,12 +57,8 @@ export interface SourceDraftHost {
     send(edit: StepsEdit, copies: Copies): Promise<unknown>;
     /** The rows as read the committed project holds, by copy id. */
     committedCopies(): Copies;
-    /**
-     * The draft stops or starts holding the data: called with null when it closes, and with the
-     * draft again when a commit failed.
-     * @param draft - The draft, or null.
-     */
-    hold(draft: SourceDraftHandle | null): void;
+    /** The draft stops holding the data: called once it is committed or discarded. */
+    release(): void;
     /**
      * Publish `data:draft-changed`.
      * @param change - The change.
@@ -303,20 +299,24 @@ export class SourceDraftHandle implements SourceDraft {
     async commit(): Promise<void> {
         this.live("commit");
         const { value, copies } = this.state;
+        // The draft keeps holding the data until its set lands, so a write waiting ahead of it in
+        // line is refused rather than landing first and being replaced by the draft's copy.
         this.closed = true;
-        this.host.hold(null);
         if (value !== this.base.value) {
             const held = this.host.committedCopies();
             const staged = Object.fromEntries(Object.entries(copies).filter(([id]) => !(id in held)));
             try {
-                await this.host.send({ kind: "set", value }, staged);
+                await this.host.send(
+                    { kind: "set", value, draftBase: { value: this.base.value, draft: this.id } },
+                    staged,
+                );
             } catch (error) {
                 // Nothing was applied: the draft stays open with everything it did.
                 this.closed = false;
-                this.host.hold(this);
                 throw error;
             }
         }
+        this.host.release();
         this.host.emit({ draft: this.id, reason: "committed" });
     }
 
@@ -326,7 +326,7 @@ export class SourceDraftHandle implements SourceDraft {
             return;
         }
         this.closed = true;
-        this.host.hold(null);
+        this.host.release();
         this.host.emit({ draft: this.id, reason: "discarded" });
     }
 }

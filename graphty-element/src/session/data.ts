@@ -990,8 +990,6 @@ export class SessionData implements SessionDataApi {
     private heldDraft: Draft | null = null;
     /** The draft of the sources and steps open now, under the source-steps experiment. */
     private sourceDraft: SourceDraftHandle | null = null;
-    /** The draft whose commit is on its way, so a draft opened meanwhile would not start from before it. */
-    private committingDraft: string | null = null;
     /** Row orders computed for pages, by what they were asked with, for the current revision. */
     private readonly orders: RevisionCache<Uint32Array>;
     /** The last few neighbor lists, by node and options, for the current revision. */
@@ -3437,26 +3435,18 @@ export class SessionData implements SessionDataApi {
      */
     draft(): SourceDraft {
         this.requireSteps("draft");
-        const open = this.sourceDraft?.id ?? this.committingDraft;
-        if (open !== null) {
-            throw draftOpenError(open);
+        if (this.sourceDraft !== null) {
+            throw draftOpenError(this.sourceDraft.id);
         }
         const draft = new SourceDraftHandle(
             {
                 read: (source, options) => this.readStaged(source, options),
-                send: async (edit, copies) => {
-                    this.committingDraft = draft.id;
-                    try {
-                        return await this.stepsEdit(() => edit, copies);
-                    } finally {
-                        this.committingDraft = null;
-                    }
-                },
+                send: (edit, copies) => this.stepsEdit(() => edit, copies),
                 committedCopies: () => this.stepsCopies(),
-                hold: (held) => {
-                    // A draft a failed commit hands back never displaces one opened since.
-                    if (held === null || this.sourceDraft === null) {
-                        this.sourceDraft = held;
+                release: () => {
+                    // A draft discarded while its commit was landing never releases one opened since.
+                    if (this.sourceDraft === draft) {
+                        this.sourceDraft = null;
                     }
                 },
                 emit: (change) => this.writes.emit?.("data:draft-changed", change),
@@ -3479,16 +3469,29 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
-     * The refusal a data write or an undo meets while a draft is open.
-     * @returns `E_DRAFT_OPEN`, or null when no draft is open.
+     * The refusal a data write or an undo meets while a draft is open, its own commit aside.
+     * @param command - The data command, or undefined for an undo or redo.
+     * @param command.op - Its op.
+     * @returns `E_DRAFT_OPEN`, or null when no draft is open or the command is the draft's commit.
      */
-    draftRefusal(): GraphtyError | null {
-        return this.sourceDraft === null ? null : draftOpenError(this.sourceDraft.id);
+    draftRefusal(command?: { readonly op: string }): GraphtyError | null {
+        if (this.sourceDraft === null) {
+            return null;
+        }
+        // The draft's own commit: the one data write it lets through while it holds the data.
+        const edit = command?.op === "data.steps-set" ? (command as DataStepsSetCommand).edit : null;
+        if (edit?.kind === "set" && edit.draftBase?.draft === this.sourceDraft.id) {
+            return null;
+        }
+        return draftOpenError(this.sourceDraft.id);
     }
 
     /** Discard the open draft, if any: a project opened or the graph cleared replaces what it drafted. */
     discardDraft(): void {
-        this.sourceDraft?.dispose();
+        const draft = this.sourceDraft;
+        // A draft whose commit is landing is closed already, so it lets go of the data here.
+        this.sourceDraft = null;
+        draft?.dispose();
     }
 
     /**

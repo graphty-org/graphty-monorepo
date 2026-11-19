@@ -391,15 +391,19 @@ export function checkClash(
 }
 
 /**
- * Make an edge (3.6): a staged source 2 is added in its own space (never node 1's), then
- * `join.edges` reads its node rows, one edge each, between node 1 and its node.
- * @param value - The value.
+ * Make an edge (3.6): a staged source 1 is added as `add-staged` adds it, a staged source 2 in its
+ * own space (never node 1's), then `join.edges` reads its node rows, one edge each, between node 1
+ * and its node.
+ * @param prior - The value.
  * @param copies - The rows as read.
  * @param o - The choices.
  * @returns The next value.
  * @throws A `GraphtyError` with `E_JOIN_SPACE_SAME` when source 2 would land in node 1's space.
  */
-function connect(value: SourceSteps, copies: Copies, o: ConnectAct): SourceSteps {
+function connect(prior: SourceSteps, copies: Copies, o: ConnectAct): SourceSteps {
+    const s1 = o.into.source;
+    const value =
+        s1 !== undefined && isStaged(prior, s1) ? addSource(prior, sourceOf(prior, s1), copies, undefined) : prior;
     let s2 = nodeSource(value, copies, o.from.source);
     const n1 = nodeOne(value, o.into);
     let next = value;

@@ -453,7 +453,8 @@ const dataStepsSet: UndoableDefinition<DataStepsSetCommand> = {
     ],
     keys: () => ["graph"],
     lane: { kind: "queued", category: "data-add" },
-    byReference: ["copies"],
+    // A draft commit's base is compared by identity with the value it lands on.
+    byReference: ["copies", "draftBase"],
     execute: (command, ctx) => {
         if (ctx.services.sourceSteps?.() === false) {
             throw featureOff("source-steps", "data");

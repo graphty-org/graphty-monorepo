@@ -255,10 +255,12 @@ describe("the usage data gate with the usage-analytics experiment off", () => {
         assert.equal(initSentry.mock.calls.length, 1);
         resetSiteConfig();
         const site = { site: "production", features: ["usage-analytics"], analytics: TEST_ANALYTICS };
-        await loadSiteConfig(`data:application/json,${encodeURIComponent(JSON.stringify(site))}`);
+        // On the site's own host, as the page is when its site.json arrives.
         setAnalyticsCallsForTests({ hostname: () => "graphty.app", importPostHog: () => new Promise(() => undefined) });
         try {
+            await loadSiteConfig(`data:application/json,${encodeURIComponent(JSON.stringify(site))}`);
             assert.isNull(readUsageAnswer(), "the card asks again");
+            assert.equal(stopSentry.mock.calls.length, 1, "what the Share started is stopped");
             startUsageDataIfShared();
             assert.equal(initSentry.mock.calls.length, 1, "nothing more starts at boot");
         } finally {

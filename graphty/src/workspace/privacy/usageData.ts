@@ -3,10 +3,14 @@
  * error reporting, No stops both, here and in every other open tab. Anonymous counts (PostHog's
  * cookieless mode, lib/analytics.ts) are sent whatever the answer, and Share switches the counts to
  * PostHog's shared mode; Share itself is one anonymous count, `usage_data_shared`. The answer is
- * the reader's own preference, kept in this browser. With the usage-analytics experiment off
- * (src/features.ts), Share and No start and stop error reporting alone, in this tab alone, and No
- * still deletes what an earlier visit with it on stored for analytics. A Share given with it off
- * never starts PostHog once it is on: the card asks again (SHARE_WITH_ANALYTICS).
+ * the reader's own preference, kept in this browser. Where the page sends PostHog nothing
+ * (analyticsSends: the usage-analytics experiment off, a site with no PostHog ids such as canary, or
+ * off the site's own host), Share and No start and stop error reporting alone (nothing at all off
+ * the site's own host with the experiment on), in this tab alone,
+ * with the address bar left as it is, and No still deletes what an earlier visit that sent PostHog
+ * stored for analytics. A Share given with it off
+ * never starts PostHog once it is on: the card asks again (SHARE_WITH_ANALYTICS), and the error
+ * reporting it started in this page view stops.
  */
 
 import { useSyncExternalStore } from "react";
@@ -63,13 +67,13 @@ const live = {
      * @param fresh - false when another tab's Share started this one (see startPostHog).
      */
     start: (fresh = true): void => {
-        // The usage-analytics experiment off: Share starts error reporting alone, as it did before.
-        if (!appFeatureOn("usage-analytics")) {
-            initSentry();
-            return;
-        }
-        // Off the site's own host (a local build serving a real site's site.json) nothing starts.
-        if (!onOwnHost()) {
+        // Where the page sends PostHog nothing (the experiment off, or a site with no PostHog ids such
+        // as canary): Share starts error reporting alone, as it did before. With the experiment on and
+        // off the site's own host (a local build serving a real site's site.json) nothing starts.
+        if (!analyticsSends()) {
+            if (!appFeatureOn("usage-analytics") || onOwnHost()) {
+                initSentry();
+            }
             return;
         }
         stripQueryForRecorders();
@@ -82,8 +86,8 @@ const live = {
         // ?features=usage-analytics, or production before a rollback) has PostHog's id, survey keys
         // and a visit record stored, and No deletes them. stopPostHog loads and sends nothing.
         stopPostHog();
-        if (!appFeatureOn("usage-analytics")) {
-            // With it on these stay: anonymous counts and their survey record go on after No.
+        if (!analyticsSends()) {
+            // Where the page sends PostHog these stay: anonymous counts and their survey record go on after No.
             forgetAnalyticsRecords();
         }
     },
@@ -178,8 +182,8 @@ export function answerUsageData(answer: UsageAnswer): void {
 // deleted it. Another tab's Share starts it here, so this tab's chip and Settings switch, which read
 // the stored answer, never say it sends while it does not.
 globalThis.addEventListener("storage", (event) => {
-    // The usage-analytics experiment off: each tab acts on its own answer only, as before.
-    if ((event.key !== KEY && event.key !== null) || !appFeatureOn("usage-analytics")) {
+    // Where the page sends PostHog nothing: each tab acts on its own answer only, as before.
+    if ((event.key !== KEY && event.key !== null) || !analyticsSends()) {
         return;
     }
     unsaved = false;
@@ -192,6 +196,17 @@ globalThis.addEventListener("storage", (event) => {
     listeners.forEach((listener) => {
         listener();
     });
+});
+
+// A Share clicked before site.json loaded was given under the words that never name PostHog, and
+// started error reporting alone (live.start). Once site.json switches PostHog on it reads as
+// unanswered (parse) and the card asks again, so what it started stops: nothing beyond the anonymous
+// counts is sent while every surface says so. A plain Share from an earlier visit started nothing yet.
+onSiteConfig(() => {
+    if (remembered === "share" && analyticsSends()) {
+        remembered = null;
+        sending.stop();
+    }
 });
 
 /**

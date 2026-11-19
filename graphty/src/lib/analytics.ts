@@ -682,18 +682,26 @@ export function analyticsSends(config: SiteConfig = siteConfig()): boolean {
 }
 
 /**
+ * Says why a site with PostHog ids sends nothing from this host: off on purpose for a local build; on
+ * a site whose host moved, this line says why it went quiet.
+ * @param config - the site's configuration.
+ */
+function warnOffHost(config: SiteConfig): void {
+    if (config.analytics !== undefined && !onOwnHost(config)) {
+        console.warn(
+            `[graphty] analytics is off: ${calls.hostname()} is not the host of the ${config.site} site (${SITE_HOSTS[config.site] ?? "none"})`,
+        );
+    }
+}
+
+/**
  * Starts this page view's counts: the page view (into the mode current now), then the visit event,
  * then removes the channel parameters from the address bar. Sends nothing without a PostHog key or
  * off the site's own host.
  * @param config - the site's configuration.
  */
 export function startPageCounts(config: SiteConfig): void {
-    if (config.analytics !== undefined && !onOwnHost(config)) {
-        // Off on purpose for a local build; on a site whose host moved, this line says why it went quiet.
-        console.warn(
-            `[graphty] analytics is off: ${calls.hostname()} is not the host of the ${config.site} site (${SITE_HOSTS[config.site] ?? "none"})`,
-        );
-    }
+    warnOffHost(config);
     if (postHogTarget(config) !== undefined) {
         counting = true;
         count("$pageview");
@@ -707,24 +715,26 @@ export function startPageCounts(config: SiteConfig): void {
 }
 
 /**
- * Everything analytics does at boot (section 3), in order. With the usage-analytics experiment off
- * (section 11) only error reporting starts, for a reader who said Share on an earlier visit: no
+ * Everything analytics does at boot (section 3), in order. Where the page sends PostHog nothing (the
+ * usage-analytics experiment off, a site with no PostHog ids such as canary, or off the site's own
+ * host; section 11) only error reporting starts, for a reader who said Share on an earlier visit: no
  * PostHog, no visit record, and the address bar left as it is.
  * @param config - the site's configuration.
  */
 export function startAnalyticsAtBoot(config: SiteConfig): void {
-    if (!appFeatureOn("usage-analytics", config.features)) {
+    if (!analyticsSends(config)) {
+        if (appFeatureOn("usage-analytics", config.features)) {
+            warnOffHost(config);
+        }
         startUsageDataIfShared();
         return;
     }
     readChannel();
     startUsageDataIfShared();
     startPageCounts(config);
-    if (postHogTarget(config) !== undefined) {
-        calls.afterFirstPaint(() => {
-            startAnonymous(config);
-        });
-    }
+    calls.afterFirstPaint(() => {
+        startAnonymous(config);
+    });
 }
 
 /**

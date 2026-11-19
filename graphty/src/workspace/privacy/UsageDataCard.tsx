@@ -1,5 +1,5 @@
 import { Anchor, Button, CloseButton, Group, Paper, Stack, Text } from "@mantine/core";
-import React, { type RefObject, useRef, useState } from "react";
+import React, { type RefObject, useEffect, useRef, useState } from "react";
 
 import { useWorkspace } from "../state/WorkspaceContext";
 import { answerUsageData, type UsageAnswer, useAnalyticsSends, useUsageAnswer } from "./usageData";
@@ -42,6 +42,27 @@ export function UsageDataCard({
     // The button pressed goes with the question: when it held focus, the answer line's close takes it.
     const [focusClose, setFocusClose] = useState(false);
     const card = useRef<HTMLDivElement>(null);
+    // An answer given now that no longer holds: a Share clicked before site.json loaded, which reads as
+    // unanswered once it switches PostHog on (usageData.ts). The question is asked again, focus that
+    // was on the answer line moves to it, and the status line says so. Read before the answer line
+    // leaves the page, while focus is still on it.
+    const [shownAnswer, setShownAnswer] = useState(answer);
+    const [focusQuestion, setFocusQuestion] = useState(false);
+    const [askedAgain, setAskedAgain] = useState(false);
+    if (shownAnswer !== answer) {
+        setShownAnswer(answer);
+        if (answer === null && answeredNow) {
+            setFocusQuestion(!closed && (document.activeElement?.closest(".ws-usage-notice") ?? null) !== null);
+            setAnsweredNow(false);
+            setClosed(false);
+            setAskedAgain(true);
+        }
+    }
+    useEffect(() => {
+        if (askedAgain) {
+            store.set({ announcement: "Usage data is off again. Please answer the question again." });
+        }
+    }, [askedAgain, store]);
     const choose = (next: UsageAnswer): void => {
         setFocusClose(card.current?.contains(document.activeElement) === true);
         setAnsweredNow(true);
@@ -98,6 +119,7 @@ export function UsageDataCard({
                 <Group gap="xs">
                     <Button
                         variant="default"
+                        autoFocus={focusQuestion}
                         onClick={() => {
                             choose("share");
                         }}

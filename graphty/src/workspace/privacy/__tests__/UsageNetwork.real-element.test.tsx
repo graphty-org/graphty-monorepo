@@ -26,7 +26,7 @@ import {
     setAnalyticsCallsForTests,
     startAnalyticsAtBoot,
 } from "../../../lib/analytics";
-import { resetSentryState, type SentryCalls, setSentryCallsForTests } from "../../../lib/sentry";
+import { isSentryEnabled, resetSentryState, type SentryCalls, setSentryCallsForTests } from "../../../lib/sentry";
 import { loadSiteConfig, resetSiteConfig } from "../../../siteConfig";
 import { openSampleFromStart } from "../../../test/open";
 import {
@@ -321,6 +321,31 @@ describe("with the usage-analytics experiment off", () => {
     });
 });
 
+// Canary: the experiment on, and no PostHog ids to send with. The page shows the words for sending
+// PostHog nothing, so it behaves as with the experiment off.
+describe("with the usage-analytics experiment on and no PostHog ids", () => {
+    beforeEach(startRecording);
+    afterEach(stopRecording);
+
+    it("leaves the address bar as it was, at boot and after a Share, and starts error reporting alone", async () => {
+        // On canary's own host, so only the missing PostHog ids keep the page from sending.
+        setAnalyticsCallsForTests({ ...recordingCalls(), hostname: () => "canary.graphty.app" });
+        globalThis.history.replaceState(null, "", SECRET_QUERY);
+        const site = { site: "canary", features: ["usage-analytics"] };
+        startAnalyticsAtBoot(await loadSiteConfig(`data:application/json,${encodeURIComponent(JSON.stringify(site))}`));
+        render(<Workspace store={createWorkspaceStore()} />);
+        assert.strictEqual(globalThis.location.search, SECRET_QUERY, "boot keeps the channel parameters");
+
+        const card = screen.getByRole("complementary", { name: "Usage data" });
+        assert.isNull(document.querySelector(".ws-usage-corner"), "no survey corner: the card is laid out as before");
+        await userEvent.click(within(card).getByRole("button", { name: "Share usage data" }));
+        assert.strictEqual(sentryStarts, 1, "Share starts error reporting, as before");
+        assert.strictEqual(globalThis.location.search, SECRET_QUERY, "Share keeps the query");
+        assert.strictEqual(imports, 0, "PostHog's code was never asked for");
+        assert.isEmpty(network.urls, "no request reached PostHog");
+    });
+});
+
 describe("a reader who never shares usage data", () => {
     beforeEach(startRecording);
     afterEach(stopRecording);
@@ -448,5 +473,37 @@ describe("the usage card while site.json loads", () => {
         assert.isNotNull(document.querySelector(".ws-usage-corner"), "the experiment is on");
         assert.strictEqual(document.querySelector(".ws-start-answer"), line, "the same answer line is still shown");
         assert.strictEqual(document.activeElement, close, "focus stayed on its Close");
+    });
+
+    it("stops what a Share started, and asks again with focus on the question, when site.json switches PostHog on after it", async () => {
+        // The page paints before site.json settles: the card's words never name PostHog.
+        render(<Workspace store={createWorkspaceStore()} />);
+        const card = screen.getByRole("complementary", { name: "Usage data" });
+        await userEvent.click(within(card).getByRole("button", { name: "Share usage data" }));
+        // Not vacuous: the Share started error reporting, and focus moved to the answer line's Close.
+        assert.isTrue(isSentryEnabled(), "Share started error reporting");
+        await vi.waitFor(() => {
+            assert.strictEqual(document.activeElement?.getAttribute("aria-label"), "Close");
+        });
+
+        const site = { site: "production", features: ["usage-analytics"], analytics: TEST_ANALYTICS };
+        await act(async () => {
+            await loadSiteConfig(`data:application/json,${encodeURIComponent(JSON.stringify(site))}`);
+        });
+
+        assert.isFalse(isSentryEnabled(), "error reporting stopped with the Share it came from");
+        const asked = screen.getByRole("complementary", { name: "Usage data" });
+        await vi.waitFor(() => {
+            assert.strictEqual(
+                document.activeElement,
+                within(asked).getByRole("button", { name: "Share usage data" }),
+                "focus is on the question asked again",
+            );
+        });
+        assert.include(
+            document.querySelector('[role="status"]')?.textContent ?? "",
+            "Usage data is off again",
+            "the status line says the answer no longer holds",
+        );
     });
 });

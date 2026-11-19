@@ -202,6 +202,7 @@ export type {
     SessionViews,
     SettingEffect,
     SettingEffectCode,
+    SideMapping,
     StartingCamera,
     StyleProblem,
     TableMapping,

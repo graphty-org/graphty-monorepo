@@ -2853,13 +2853,30 @@ export interface Endpoint {
     readonly column: string;
 }
 
-/** A bare `TableMapping` applies to a source with one table; otherwise each table is named by id. */
+/**
+ * A bare `TableMapping` applies to a source with one table; otherwise each table is named by id
+ * (`{ tables }`) or by what its rows are (`{ nodes, edges }`, see {@link SideMapping}).
+ */
 export type LoadMapping =
     | TableMapping
     | {
           /** Each table's roles, by table id. */
           readonly tables: Readonly<Record<string, TableMapping>>;
-      };
+      }
+    | SideMapping;
+
+/**
+ * Each table's roles named by what its rows are, so a caller need not look up table ids: `nodes`
+ * applies to the table read as nodes and `edges` to the table read as edges. With one table, the
+ * side named is what its rows are read as.
+ * @since 3.40.0
+ */
+export interface SideMapping {
+    /** The node table's roles. */
+    readonly nodes?: TableMapping;
+    /** The edge table's roles. */
+    readonly edges?: TableMapping;
+}
 
 /** One table's roles as the element reads them: `rowsAre` always set, endpoints always objects. */
 export interface TableMappingRead extends TableMapping {
@@ -3026,6 +3043,13 @@ export interface LoadedSource extends DataSourceDescriptor {
      * name, and in a project saved before it was kept.
      */
     readonly tableRows?: readonly ("nodes" | "edges")[];
+    /**
+     * How a CSV load's file was split into columns, as {@link DraftTable.delimiter} says while
+     * drafting: the separator and whether the element detected it. For a pair of files, the node
+     * file's. Absent for any other format and in a project reopened from a save.
+     * @since 3.40.0
+     */
+    readonly delimiter?: DraftTable["delimiter"];
     /** How many nodes and edges the load added to the graph. */
     readonly added: {
         /** Nodes added. */

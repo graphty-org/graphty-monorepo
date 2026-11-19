@@ -119,6 +119,8 @@ import {
     type ValuesWhere,
 } from "./commands/derive";
 import {
+    byTableId,
+    type ByTableMapping,
     Draft,
     draftStyles,
     fileName,
@@ -242,7 +244,7 @@ import type {
     LoadedSource,
     LoadedSourceKind,
     LoadedWeight,
-    LoadMapping,
+    LoadMappingRead,
     MergeNodesOptions,
     Neighbor,
     NeighborOptions,
@@ -4052,7 +4054,7 @@ export class SessionData implements SessionDataApi {
             });
         }
 
-        return this.replaceSourceNow(key, input, overChoices(withReadRoles(entry), choices));
+        return this.replaceSourceNow(key, input, overChoices(withReadRoles(entry), choices, entry.mapping));
     }
 
     /**
@@ -6514,9 +6516,10 @@ function withReadRoles(entry: LoadedSource): LoadChoices {
  * are laid over the earlier mapping's role by role (per table when either names tables).
  * @param earlier - What the load was read with.
  * @param later - What changes.
+ * @param reading - What each table's rows were read as, so a mapping named by side finds its table.
  * @returns The choices to read it with now.
  */
-function overChoices(earlier: LoadChoices, later: LoadChoices): LoadChoices {
+function overChoices(earlier: LoadChoices, later: LoadChoices, reading: LoadMappingRead | undefined): LoadChoices {
     const { mode: _mode, join: _join, ...rest } = later;
     const a = earlier.mapping;
     const b = rest.mapping;
@@ -6524,7 +6527,7 @@ function overChoices(earlier: LoadChoices, later: LoadChoices): LoadChoices {
         return { ...earlier, ...rest, ...(a === undefined && b === undefined ? {} : { mapping: b ?? a }) };
     }
 
-    return { ...earlier, ...rest, mapping: overMapping(a, b) };
+    return { ...earlier, ...rest, mapping: overMapping(byTableId(a, reading), byTableId(b, reading)) };
 }
 
 /**
@@ -6533,13 +6536,22 @@ function overChoices(earlier: LoadChoices, later: LoadChoices): LoadChoices {
  * @param b - The later mapping.
  * @returns The mapping to read with now.
  */
-function overMapping(a: LoadMapping, b: LoadMapping): LoadMapping {
+function overMapping(a: ByTableMapping, b: ByTableMapping): ByTableMapping {
     const lone = "tables" in a && !("tables" in b) ? Object.keys(a.tables) : [];
     if (lone.length === 1) {
         // A bare mapping names a load of one table, so it is laid over that table's roles.
         const [id] = lone;
         const roles = (a as { tables: Record<string, TableMapping> }).tables[id];
-        return { tables: { [id]: movesRows(roles, b as TableMapping) ? b : { ...roles, ...b } } } as LoadMapping;
+        const bare = b as TableMapping;
+        return { tables: { [id]: movesRows(roles, bare) ? bare : { ...roles, ...bare } } };
+    }
+
+    const named = "tables" in b && !("tables" in a) ? Object.entries(b.tables) : [];
+    if (named.length === 1) {
+        // A bare earlier mapping read the load's one table, so the table named now is that one.
+        const [[id, roles]] = named;
+        const earlier = a as TableMapping;
+        return { tables: { [id]: movesRows(earlier, roles) ? roles : { ...earlier, ...roles } } };
     }
 
     if ("tables" in a || "tables" in b) {
@@ -6557,7 +6569,7 @@ function overMapping(a: LoadMapping, b: LoadMapping): LoadMapping {
  * @param b - The later mapping.
  * @returns The mapping to read with now.
  */
-function overTables(a: LoadMapping, b: LoadMapping): LoadMapping {
+function overTables(a: ByTableMapping, b: ByTableMapping): ByTableMapping {
     const tables: Record<string, TableMapping> = "tables" in a && "tables" in b ? { ...a.tables } : {};
     for (const [id, roles] of Object.entries("tables" in b ? b.tables : {})) {
         tables[id] = { ...(movesRows(tables[id], roles) ? {} : tables[id]), ...roles };

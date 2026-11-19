@@ -3704,6 +3704,7 @@ export interface LoadedSource extends DataSourceDescriptor {
         readonly nodes: number;
         readonly edges: number;
     };
+    readonly delimiter?: DraftTable["delimiter"];
     readonly features?: SourceFeatures;
     readonly join?: JoinRecord;
     readonly joinedOnto?: SourceKey;
@@ -3751,7 +3752,7 @@ export { LoadFromSourceOptions }
 // @public
 export type LoadMapping = TableMapping | {
     readonly tables: Readonly<Record<string, TableMapping>>;
-};
+} | SideMapping;
 
 // @public
 export interface LoadMappingRead {
@@ -6974,6 +6975,12 @@ export interface ShaderUse {
     readonly params?: Readonly<Record<string, ShaderParamValue>>;
     readonly place?: ShaderPlace;
     readonly shader: string;
+}
+
+// @public
+export interface SideMapping {
+    readonly edges?: TableMapping;
+    readonly nodes?: TableMapping;
 }
 
 // @public

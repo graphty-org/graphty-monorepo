@@ -256,7 +256,9 @@ describe("usage counts from the reader's hands on the canvas", () => {
         assert.deepEqual({ ...(await orbited) }, { kind: "orbit" });
 
         // How many zoom gestures the element saw in the wheel run: a frame falling between two
-        // notches can make it two, so the count is checked per gesture, not as exactly one.
+        // notches can make it two, so the count is checked per gesture, not as exactly one. The
+        // listener stays on to the end: a stable frame says nothing about a reader's gesture, so a
+        // second run's end can come after it, and this listener and the app's hear it together.
         let zooms = 0;
         const offZoom = element.session.on("camera:gesture-end", ({ kind }) => {
             if (kind === "zoom") {
@@ -266,11 +268,7 @@ describe("usage counts from the reader's hands on the canvas", () => {
         const zoomed = next("camera_used");
         await wheelRun(element, 5);
         assert.deepEqual({ ...(await zoomed) }, { kind: "zoom" });
-        // Every notch has been handled once a frame settles with no wheel in it; anything the
-        // camera does after this (Fit's animation) must send no camera_used at all.
         await element.waitForStableFrame();
-        offZoom();
-        assert.isAtMost(zooms, 5, "no more zoom gestures than notches");
 
         // The Camera button is a command of its own (view.camera); Fit is the row it opens.
         await userEvent.click(screen.getByRole("button", { name: /^Camera/ }));
@@ -278,8 +276,10 @@ describe("usage counts from the reader's hands on the canvas", () => {
         const fit = next("command_run");
         await userEvent.click(row);
         assert.strictEqual((await fit).command, "view.fit");
-        // Fit's own animation is not the reader's gesture.
+        // Fit's own animation is not the reader's gesture: it sends no camera_used at all.
         await element.waitForStableFrame();
+        offZoom();
+        assert.isAtMost(zooms, 5, "no more zoom gestures than notches");
 
         assert.deepEqual(
             own("command_run", "command").map((each) => each.command),

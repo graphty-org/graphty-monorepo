@@ -332,6 +332,11 @@ const LineStyle = z.strictObject({
     bends: z.string().optional(),
     /** The width at the target as a multiple of the width at the source; 1 draws no taper. */
     taper: z.number().min(0).max(4).optional(),
+    /**
+     * The width at the source as a multiple of the line's width; 1 draws no taper there. When it and `taper` are both
+     * below 1, the line is its full width at the middle and narrows straight to each end.
+     */
+    taperSource: z.number().min(0).max(4).optional(),
     /** How far the route's middle rises out of a flat layout's plane in the 3D view, world units. */
     lift: z.number().optional(),
     /**

@@ -2412,11 +2412,14 @@ function readEdgeLine(get: Attr, tokens: readonly string[], cx: EdgeContext, put
     } else if (tokens.includes("tapered")) {
         put("lineStyle", "other:tapered");
         // Graphviz narrows a tapered line by its direction (lib/common/emit.c, taperfun): forward from the pen's width
-        // at the tail to a point at the head; back and both (a point at the tail, or at both ends) are no width ratio
-        // and stay a line of one width
+        // at the tail to a point at the head, back from a point at the tail to the pen's width at the head, both from
+        // a point at each end to the pen's width at the middle; none keeps one width
         const dir = (nonEmpty(get("dir")) ?? (cx.directed ? "forward" : "none")).trim().toLowerCase();
-        if (dir === "forward") {
+        if (dir === "forward" || dir === "both") {
             put("taper", 0);
+        }
+        if (dir === "back" || dir === "both") {
+            put("taperSource", 0);
         }
     }
 }

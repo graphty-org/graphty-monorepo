@@ -373,13 +373,13 @@ function SaveAsV2Dialog({ saveAsDialog, save: saveAs }: SaveFilesV2DialogsProps)
     } | null>(null);
     // Whether another dialog took the slot during a save: the save then leaves the slot to it.
     const left = useRef(false);
+    const stillHere = (): boolean => !left.current;
 
     useEffect(() => {
         if (!opened || session === null) {
             left.current = true;
             return undefined;
         }
-        left.current = false;
         setName(workspace.store.get().project?.name ?? "");
         setChosen([...DOCUMENT_SECTIONS]);
         setForm("full");
@@ -442,9 +442,11 @@ function SaveAsV2Dialog({ saveAsDialog, save: saveAs }: SaveFilesV2DialogsProps)
             return;
         }
         setSaving(true);
+        left.current = false;
         try {
             await saveAs(workspace, trimmed, { sections: chosen, form: fileForm, embed: storage }, whole);
-            if (!left.current) {
+            // A function call, since the narrowing from the reset above does not see the await.
+            if (stillHere()) {
                 close();
             }
         } finally {

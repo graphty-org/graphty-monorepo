@@ -31,7 +31,7 @@ function complete(n: number): [number, number][] {
     return edges;
 }
 
-/** A 3 x 3 grid, node 3i + j at row i and column j, as networkx's grid_2d_graph(3, 3) relabelled. */
+/** A 3 x 3 grid, node 3i + j at row i and column j, as networkx's grid_2d_graph(3, 3) relabeled. */
 function grid3(): [number, number][] {
     const edges: [number, number][] = [];
     for (let i = 0; i < 3; i++) {

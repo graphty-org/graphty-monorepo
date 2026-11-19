@@ -1,13 +1,45 @@
-import { ModalFooter } from "@graphty/compact-mantine";
+import { ModalFooter, pickFiles } from "@graphty/compact-mantine";
 import type { DataIssue } from "@graphty/graphty-element/session";
-import { ActionIcon, Button, Checkbox, Menu, NumberInput, Text, Textarea, TextInput, Tooltip } from "@mantine/core";
+import {
+    ActionIcon,
+    Button,
+    Checkbox,
+    Group,
+    Menu,
+    NumberInput,
+    Select,
+    Text,
+    Textarea,
+    TextInput,
+    Tooltip,
+} from "@mantine/core";
 import React, { useState } from "react";
 
+import { imageKey } from "../canvas/legendWords";
 import { GLYPHS } from "../glyphs";
 import { runName } from "../runWords";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { fileName, REPORT_SECTIONS, type ReportChoices, type ReportSection, saveBlob } from "./choices";
+import {
+    DEFAULT_IMAGE,
+    failureWords,
+    fileName,
+    REPORT_SECTIONS,
+    type ReportChoices,
+    type ReportSection,
+    saveBlob,
+    screenshotOptions,
+} from "./choices";
 import { cleaningSteps, issuesCsv, pinnedRuns, reportMarkdown, sectionCounts, validationIssues } from "./report";
+import {
+    choicesWithConfig,
+    configFromChoices,
+    deleteReportConfig,
+    parseReportConfigFile,
+    readReportConfigs,
+    type ReportConfig,
+    reportConfigFile,
+    saveReportConfig,
+} from "./reportConfigs";
 
 /** Props for ReportOutput. */
 interface ReportOutputProps {
@@ -29,9 +61,29 @@ const ISSUE_FILES: readonly {
 ];
 
 /**
- * The Report output: Title, Row cap, the sections checklist with what each holds, the pinned
+ * A file's contents as a data URL, for an image inside the Markdown.
+ * @param blob - the file.
+ * @returns the data URL.
+ */
+function dataUrl(blob: Blob): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.addEventListener("load", () => {
+            resolve(reader.result as string);
+        });
+        reader.addEventListener("error", () => {
+            reject(reader.error ?? new Error("the image could not be read"));
+        });
+        reader.readAsDataURL(blob);
+    });
+}
+
+/**
+ * The Report output: Saved (the report configurations kept in this browser, loaded by choosing one,
+ * the plus saving this one under its title, the overflow importing, exporting and deleting), Title, Row cap, the sections checklist with what each holds, the pinned
  * results in the order pinned (each with the reader's note and an Unpin), the reader's summary and
- * findings, then Export (the report as Markdown) and Save issues (the validation report
+ * findings, then Export (the report as Markdown, the canvas inside it as graphty-element's
+ * `captureScreenshot` draws it) and Save issues (the validation report
  * or the data changes alone, as JSON or CSV).
  * @param props - Component props
  * @param props.choices - The report's choices
@@ -41,8 +93,11 @@ const ISSUE_FILES: readonly {
  * @returns The output's body and footer
  */
 export function ReportOutput({ choices, onChange, onCancel, onDone }: Readonly<ReportOutputProps>): React.JSX.Element {
-    const { session, store } = useWorkspace();
+    const { element, session, store } = useWorkspace();
     const project = useWorkspaceState((state) => state.project?.name ?? "untitled");
+    const legendShown = useWorkspaceState((state) => state.legendShown);
+    const [configs, setConfigs] = useState<readonly ReportConfig[]>(readReportConfigs);
+    const [savedName, setSavedName] = useState<string | null>(null);
     const pins = useWorkspaceState((state) => state.reportPins);
     const [counts] = useState(() => (session === null ? null : sectionCounts(session)));
     const pinned = session === null ? [] : pinnedRuns(session, pins);
@@ -67,14 +122,67 @@ export function ReportOutput({ choices, onChange, onCancel, onDone }: Readonly<R
         });
     };
 
-    const generate = (): void => {
+    const generate = async (): Promise<void> => {
         if (session === null) {
             return;
         }
+        let image: string | undefined;
+        if (choices.sections.includes("image") && element !== null && countOf("image") !== 0) {
+            try {
+                // What is on screen now: a layout still moving is taken as it stands.
+                const shot = await element.captureScreenshot({
+                    ...screenshotOptions(DEFAULT_IMAGE, { blob: true }),
+                    legend: legendShown ? imageKey(session) : [],
+                    timing: { waitForSettle: false },
+                });
+                image = await dataUrl(shot.blob);
+            } catch (error) {
+                store.set({ notice: { message: failureWords(error, true), error: true } });
+                return;
+            }
+        }
         const name = fileName(project, "report", "md");
-        saveBlob(new Blob([reportMarkdown(session, choices, project, pins)], { type: "text/markdown" }), name);
+        saveBlob(new Blob([reportMarkdown(session, choices, project, pins, image)], { type: "text/markdown" }), name);
         onDone(`Exported ${name}`, name);
     };
+
+    /** The name the report is kept under: its title, else the project's name. */
+    const configName = choices.title.trim() === "" ? project : choices.title.trim();
+    const load = (name: string | null): void => {
+        const config = configs.find((each) => each.name === name);
+        setSavedName(config?.name ?? null);
+        if (config !== undefined) {
+            onChange(choicesWithConfig(choices, config));
+        }
+    };
+    const save = (): void => {
+        setConfigs(saveReportConfig(configFromChoices(configName, choices)));
+        setSavedName(configName);
+    };
+    const importConfig = async (): Promise<void> => {
+        const [file] = await pickFiles({ accept: ".json,application/json" });
+        if (file === undefined) {
+            return;
+        }
+        const config = parseReportConfigFile(await file.text());
+        if (config === undefined) {
+            store.set({ notice: { message: `${file.name} is not a report`, error: true } });
+            return;
+        }
+        setConfigs(saveReportConfig(config));
+        setSavedName(config.name);
+        onChange(choicesWithConfig(choices, config));
+    };
+    const exportConfig = (): void => {
+        const name = fileName(configName, "report", "json");
+        saveBlob(
+            new Blob([reportConfigFile(configFromChoices(configName, choices))], { type: "application/json" }),
+            name,
+        );
+        onDone(`Exported ${name}`, name);
+    };
+    const Add = GLYPHS.add;
+    const More = GLYPHS.more;
 
     const saveIssues = (what: string, issues: readonly DataIssue[], format: "json" | "csv"): void => {
         const name = fileName(project, what, format);
@@ -89,6 +197,44 @@ export function ReportOutput({ choices, onChange, onCancel, onDone }: Readonly<R
                 <Text component="h3" fw={550} size="md" m={0}>
                     Report
                 </Text>
+                <Group gap={4} align="flex-end" wrap="nowrap">
+                    <Select
+                        label="Saved"
+                        placeholder="None"
+                        flex={1}
+                        clearable
+                        data={configs.map((each) => each.name)}
+                        value={savedName}
+                        onChange={load}
+                    />
+                    <Tooltip label="Save report">
+                        <ActionIcon variant="subtle" color="gray" aria-label="Save report" onClick={save}>
+                            <Add size={14} aria-hidden />
+                        </ActionIcon>
+                    </Tooltip>
+                    <Menu position="bottom-end">
+                        <Menu.Target>
+                            <ActionIcon variant="subtle" color="gray" aria-label="Saved reports">
+                                <More size={14} aria-hidden />
+                            </ActionIcon>
+                        </Menu.Target>
+                        <Menu.Dropdown>
+                            <Menu.Item onClick={() => void importConfig()}>Import report...</Menu.Item>
+                            <Menu.Item onClick={exportConfig}>Export report (JSON)</Menu.Item>
+                            <Menu.Item
+                                disabled={savedName === null}
+                                onClick={() => {
+                                    if (savedName !== null) {
+                                        setConfigs(deleteReportConfig(savedName));
+                                        setSavedName(null);
+                                    }
+                                }}
+                            >
+                                Delete report
+                            </Menu.Item>
+                        </Menu.Dropdown>
+                    </Menu>
+                </Group>
                 <div className="ws-export-fields">
                     <TextInput
                         label="Title"
@@ -209,7 +355,7 @@ export function ReportOutput({ choices, onChange, onCancel, onDone }: Readonly<R
                         )}
                     </Menu.Dropdown>
                 </Menu>
-                <Button disabled={session === null} onClick={generate}>
+                <Button disabled={session === null} onClick={() => void generate()}>
                     Generate report
                 </Button>
             </ModalFooter>

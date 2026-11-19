@@ -799,8 +799,8 @@ export class DataManager implements Manager {
             manager.edgesUnbuilt = on;
         };
         dataManagerInternals.unbuiltEdgeEnds = (manager, row) => {
-            const stored = manager.unbuiltEdges.get(row);
-            if (stored === undefined) {
+            const edges = manager.unbuiltEdges;
+            if (edges.edgeIdAt(row) === undefined) {
                 return undefined;
             }
 
@@ -809,7 +809,10 @@ export class DataManager implements Manager {
             const builder = manager.store.reads;
             return builder.hasEdge(row)
                 ? builder.edgeEndpoints(row)
-                : [builder.indexOf(stored.sourceId), builder.indexOf(stored.targetId)];
+                : [
+                      builder.indexOf(edges.sourceAt(row) as NodeIdType),
+                      builder.indexOf(edges.targetAt(row) as NodeIdType),
+                  ];
         };
         dataManagerInternals.buildEdgeAt = (manager, row, paintingNow = false) =>
             manager.buildEdgeRow(row, !paintingNow);
@@ -3395,9 +3398,9 @@ export class DataManager implements Manager {
                 join(each.srcId, each.dstId, each);
             }
 
-            for (const [row, stored] of this.unbuiltEdges) {
-                join(stored.sourceId, stored.targetId, row);
-            }
+            this.unbuiltEdges.forEachEnds((row, sourceId, targetId) => {
+                join(sourceId, targetId, row);
+            });
 
             const byRow = this.renderLimits?.batched() === true;
             for (const inner of pairs.values()) {

@@ -122,6 +122,8 @@ export interface BuilderReads {
  * @returns The reads.
  */
 function snapshotReads(snapshot: GraphSnapshot, directed: boolean): BuilderReads {
+    // Ends by two array reads, as the builder answers them: `edgeSource` alone searches the rows.
+    let list: EdgeListView | null = null;
     return {
         directed,
         nodeCount: snapshot.nodeCount,
@@ -130,7 +132,10 @@ function snapshotReads(snapshot: GraphSnapshot, directed: boolean): BuilderReads
         idOf: (index) => snapshot.ids.idOf(index),
         hasNode: (id) => snapshot.ids.has(id),
         hasEdge: (edge) => Number.isInteger(edge) && edge >= 0 && edge < snapshot.edgeCount,
-        edgeEndpoints: (edge) => [snapshot.edgeSource(edge), snapshot.edgeTarget(edge)],
+        edgeEndpoints: (edge) => {
+            list ??= snapshot.edgeList();
+            return [list.src[edge], list.dst[edge]];
+        },
     };
 }
 
@@ -476,6 +481,50 @@ function copyEdgeCells(builder: GraphBuilder, columns: Iterable<Column>, row: nu
     for (const column of columns) {
         if (column.meta.role !== "weight" && column.meta.name !== EDGE_ID_COLUMN && column.isSet(row)) {
             builder.setEdgeValue(column.meta.name, index, column.value(row));
+        }
+    }
+}
+
+/**
+ * Copy a snapshot's rows into an empty builder so each lands on its own row: nodes (ids that are
+ * their own rows as anonymous nodes, as a load adds them, so no id map is built), every edge in one
+ * call by node index, then the cells a column at a time.
+ * @param builder - The empty builder.
+ * @param base - The snapshot.
+ * @param nodeColumns - Its node columns as frozen, before the position lane replaced the seed column.
+ * @param edgeIdHandle - The builder's edge id column.
+ */
+function copyBaseRows(
+    builder: GraphBuilder,
+    base: GraphSnapshot,
+    nodeColumns: readonly Column[],
+    edgeIdHandle: ColumnHandle,
+): void {
+    // Ids that are their own rows go in as anonymous nodes, as the load added them: no id map.
+    let anonymous = 0;
+    while (anonymous < base.nodeCount && base.ids.idOf(anonymous) === anonymous) {
+        anonymous++;
+    }
+
+    builder.addAnonymousNodes(anonymous);
+    for (let row = anonymous; row < base.nodeCount; row++) {
+        builder.addNode(base.ids.idOf(row));
+    }
+
+    const list = base.edgeList();
+    builder.addEdges(list.src, list.dst, list.weights ?? undefined);
+    for (const column of nodeColumns) {
+        copyColumnCells(column, (row, value) => {
+            builder.setNodeValue(column.meta.name, row, value);
+        });
+    }
+
+    for (const column of base.edges) {
+        if (column.meta.role !== "weight") {
+            const handle = column.meta.name === EDGE_ID_COLUMN ? edgeIdHandle : column.meta.name;
+            copyColumnCells(column, (row, value) => {
+                builder.setEdgeValue(handle, row, value);
+            });
         }
     }
 }
@@ -932,34 +981,7 @@ export class GraphStore {
             builder.setGraphValue(PAIRS_ORDERED_ATTRIBUTE, this.pairsOrdered ? 1 : 0, { dtype: "u8" });
         }
 
-        // Rows in row order, so each lands on its own row; then the cells a column at a time.
-        // Ids that are their own rows as anonymous nodes, as the load added them: no id map.
-        let anonymous = 0;
-        while (anonymous < base.nodeCount && base.ids.idOf(anonymous) === anonymous) {
-            anonymous++;
-        }
-
-        builder.addAnonymousNodes(anonymous);
-        for (let row = anonymous; row < base.nodeCount; row++) {
-            builder.addNode(base.ids.idOf(row));
-        }
-
-        const list = base.edgeList();
-        builder.addEdges(list.src, list.dst, list.weights ?? undefined);
-        for (const column of this.frozenColumns.node) {
-            copyColumnCells(column, (row, value) => {
-                builder.setNodeValue(column.meta.name, row, value);
-            });
-        }
-
-        for (const column of base.edges) {
-            if (column.meta.role !== "weight") {
-                const handle = column.meta.name === EDGE_ID_COLUMN ? this.edgeIdHandle : column.meta.name;
-                copyColumnCells(column, (row, value) => {
-                    builder.setEdgeValue(handle, row, value);
-                });
-            }
-        }
+        copyBaseRows(builder, base, this.frozenColumns.node, this.edgeIdHandle);
 
         const count = builder.mutationCount;
         this.cachedFrom = { builder, count, records: this.cachedFrom?.records ?? this.records };

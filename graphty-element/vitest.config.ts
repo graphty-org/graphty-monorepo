@@ -895,7 +895,7 @@ const config = defineConfig({
                         "test/browser/channel-paints.test.ts",
                         // Reads the shading on a node's surface, which nothing else in the
                         // package can see: the style model, the instance buffer and the mesh all
-                        // report the right colour while the lit half of the node is drawn flat.
+                        // report the right color while the lit half of the node is drawn flat.
                         // It is also the only thing that notices if a Babylon upgrade moves the
                         // line of the stock shader that src/meshes/InstanceColorShading.ts
                         // rewrites -- the rewrite then matches nothing, silently.
@@ -1115,9 +1115,10 @@ const config = defineConfig({
             },
             {
                 // The `"batched"` render path against `"objects"`, on SwiftShader with both engines
-                // (design/rendering/row-renderer.md 7). Neither this nor "forced-batched" joins a pull
-                // request; the full run runs "forced-batched" in twelve shards (tools/ci-test-matrix.mjs), and
-                // .github/workflows/render-proof.yml dispatches the whole of both.
+                // (design/rendering/row-renderer.md 7). This never joins a pull request; "forced-batched" joins
+                // one only as the selected files of a change to a browser test or the render path, and the full
+                // run runs it in twelve shards (tools/ci-test-matrix.mjs). .github/workflows/render-proof.yml
+                // dispatches the whole of both.
                 define: { ...define },
                 envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU"],
                 resolve: {

@@ -3,7 +3,8 @@ name: Force-Directed Layout
 category: visualization
 description: Position nodes using force-directed algorithms that simulate physical forces - repulsion between all nodes
     and attraction along edges. Produces aesthetically pleasing layouts that reveal cluster structure naturally.
-status: planned
+status: implemented
+notes: "Ships: graphty-element/src/layout/ForceAtlas2LayoutEngine.ts, D3GraphLayoutEngine.ts and NGraphLayoutEngine.ts."
 algorithms:
     - Fruchterman-Reingold
     - ForceAtlas2

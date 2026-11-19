@@ -787,7 +787,7 @@ export class StatsManager implements Manager {
                 max: -Infinity,
                 avg: 0,
                 lastDuration: 0,
-                durations: new Array(StatsManager.RING_BUFFER_SIZE),
+                durations: new Array<number>(StatsManager.RING_BUFFER_SIZE),
                 durationsIndex: 0,
                 durationsFilled: false,
             });

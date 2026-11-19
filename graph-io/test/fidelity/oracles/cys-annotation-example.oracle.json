@@ -25,6 +25,6 @@
     "svgPostprocessing": "none: the SVG is Cytoscape's output byte for byte",
     "exportsAgreed": 3,
     "loads": "two loads, each in a new session, drew the same SVG (in any element order, numbers within 1 px)",
-    "date": "2026-10-18",
+    "date": "2026-11-18",
     "regenerate": "CYREST_PORT=<port> node graph-io/test/fidelity/oracles/tools/cytoscape-desktop.mjs cys-annotation-example && node graph-io/test/fidelity/oracles/tools/rasterize.mjs graph-io/test/fidelity/oracles/cys-annotation-example.svg"
 }

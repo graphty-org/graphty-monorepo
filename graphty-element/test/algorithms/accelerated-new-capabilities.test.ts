@@ -97,7 +97,7 @@ type Handed = unknown[];
 
 /**
  * A fake accelerator implementing the four members, each recording its options and answering a
- * sentinel the tests recognise: every score 0.5, every distance 1, every coefficient 0.25, one
+ * sentinel the tests recognize: every score 0.5, every distance 1, every coefficient 0.25, one
  * community.
  * @returns The fake and what each member was handed.
  */

@@ -135,7 +135,7 @@ The whole path was walked by keys and reached the end. Focus never fell to the p
     is the route, as decided; recorded for whether participants look there. detour-1/02.png, 03.png.
 
 Already ruled, not counted: the starter "Does name line up with the groups?" (answers.md, severity 2,
-kept). The cancelled Gemini request after Escape is the intended stop, not a failure.
+kept). The canceled Gemini request after Escape is the intended stop, not a failure.
 
 ## Not defects, confirmed
 

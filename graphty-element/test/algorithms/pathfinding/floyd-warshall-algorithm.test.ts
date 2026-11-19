@@ -77,7 +77,7 @@ describe("FloydWarshallAlgorithm", () => {
             // Eccentricity is published under the node-metric shape's own name for "the number
             // this run measured on this element", which is `value`. Published under a name of its
             // own it was unpaintable: the shape a run declares is what tells the element there is
-            // a per-element measurement here to colour by at all.
+            // a per-element measurement here to color by at all.
             for (const node of smallGraph.nodes.values()) {
                 assert.property(result.node(node.id as string) ?? {}, "value");
             }

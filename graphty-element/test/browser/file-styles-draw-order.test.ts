@@ -1,7 +1,7 @@
 /**
  * Overlapping nodes are drawn in the file's own order in 2D, as Cytoscape and Pajek draw them: a
  * node later in the file is on top. Read off the drawn frame, at a point inside both nodes that is
- * nearer the first node's centre, where the first node's solid would otherwise show through.
+ * nearer the first node's center, where the first node's solid would otherwise show through.
  */
 import "../../src/graphty-element";
 
@@ -59,7 +59,7 @@ describe("a file's drawing order in 2D", () => {
             return;
         }
 
-        // A third of the way from the first centre to the second: inside both, nearer the first.
+        // A third of the way from the first center to the second: inside both, nearer the first.
         const probe = new Projector(graph.getScene()).point(Vector3.Lerp(first, second, 1 / 3));
         graph.getScene().render();
         const { engine } = graph;

@@ -50,7 +50,7 @@ export interface LoadTurn {
     take<T>(send: () => Promise<T>): Promise<T>;
     /** Give up the place without dispatching (the load failed). Safe to call more than once. */
     leave(): void;
-    /** Whether a clear cancelled the place before it dispatched. */
+    /** Whether a clear canceled the place before it dispatched. */
     readonly superseded: boolean;
 }
 
@@ -62,7 +62,7 @@ interface LineOwner {
 
 /**
  * The kinds of place in line: an edit or a clear called inside a transaction takes none, and a
- * clear's own place is never cancelled by a later clear.
+ * clear's own place is never canceled by a later clear.
  */
 type PlaceKind = "load" | "edit" | "clear";
 
@@ -159,8 +159,10 @@ export class LoadLine {
     private readonly loads = new Map<LoadTurn, () => void>();
     /** How many project opens hold the head of the line while they write. */
     private holding = 0;
-    /** How many clears cancelled what waited, so a door can tell whether one came after it. */
+    /** How many clears canceled what waited, so a door can tell whether one came after it. */
     private clearCount = 0;
+    /** How many places were asked for, so a door can tell whether another joined after it. */
+    private joinCount = 0;
 
     /**
      * Build a session's line.
@@ -177,6 +179,14 @@ export class LoadLine {
      */
     private inside(): boolean {
         return this.holding > 0 && this.owner.routing;
+    }
+
+    /**
+     * How many places were asked for so far: equal on two reads when no door joined between them.
+     * @returns The count.
+     */
+    get joined(): number {
+        return this.joinCount;
     }
 
     /**
@@ -211,6 +221,7 @@ export class LoadLine {
      * @returns The place.
      */
     join(signal?: AbortSignal, kind: PlaceKind = "load"): LoadTurn {
+        this.joinCount++;
         const handed = this.handoff;
         if (handed !== undefined) {
             this.handoff = undefined;
@@ -310,7 +321,7 @@ export class LoadLine {
      * A clear asked for after it while it waits cancels it: it resolves with `skipped` and
      * dispatches nothing, since the clear empties the graph anyway.
      * @param send - The dispatch, taken when the edit was asked for.
-     * @param skipped - What a cancelled edit resolves with.
+     * @param skipped - What a canceled edit resolves with.
      * @returns What it returned.
      */
     edit<T>(send: () => Promise<T>, skipped: T): Promise<T> {
@@ -325,7 +336,7 @@ export class LoadLine {
 
     /**
      * Dispatch a clear: every load and edit asked for before it that has not dispatched is
-     * cancelled (a load rejects with `E_SUPERSEDED`, an edit resolves, and neither adds anything),
+     * canceled (a load rejects with `E_SUPERSEDED`, an edit resolves, and neither adds anything),
      * and the clear dispatches at
      * once, before this call returns, unless a project open is writing: then it lands after the
      * open. Inside a transaction or a running command it dispatches into it and cancels nothing.
@@ -359,7 +370,7 @@ export class LoadLine {
     async opening<T>(turn: LoadTurn, write: () => Promise<T>): Promise<T> {
         try {
             await turn.wait();
-            // A clear asked for in the moment between the wait and now cancelled it after all.
+            // A clear asked for in the moment between the wait and now canceled it after all.
             if (turn.superseded) {
                 throw supersededError();
             }
@@ -387,7 +398,7 @@ export class LoadLine {
     }
 
     /**
-     * How many clears (outside a transaction) have cancelled what waited in line so far.
+     * How many clears (outside a transaction) have canceled what waited in line so far.
      * @returns The count.
      */
     get clears(): number {

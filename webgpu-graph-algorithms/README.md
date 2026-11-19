@@ -2,6 +2,8 @@
 
 # @graphty/webgpu-graph-algorithms
 
+[![Coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fgraphty-org%2Fgraphty-monorepo%2Fcoverage-badges%2Fwebgpu-graph-algorithms.json)](https://github.com/graphty-org/graphty-monorepo/blob/coverage-badges/webgpu-graph-algorithms.md)
+
 **[Read the documentation ->](https://graphty.app/docs/webgpu-graph-algorithms/)** -- getting started, Node and
 browser setup, a guide to every algorithm and layout, the errors, and the API reference.
 
@@ -276,7 +278,7 @@ sim.dispose();
 | `maxIter`                                                             | `null`                        | the iteration cap; an integer >= 1, or `null` for none                                                                                                                                     |
 | `springLength`                                                        | `10`                          | the rest length of an edge; a finite number > 0                                                                                                                                            |
 | `springCoefficient`                                                   | `0.8`, size-scaled            | Hooke's constant. Left out or `null` it is ngraph's `0.8` times `min(1, 300 / nodeCount)`, applied once `nodeCount` is known at `load()`; a number you pass is used as given at every size |
-| `gravity`                                                             | `-12`, size-scaled            | ngraph's Coulomb constant, where NEGATIVE repels -- this is not ForceAtlas2's centre gravity. Left out or `null` it is ngraph's `-12` times the same factor. Any finite number is accepted |
+| `gravity`                                                             | `-12`, size-scaled            | ngraph's Coulomb constant, where NEGATIVE repels -- this is not ForceAtlas2's center gravity. Left out or `null` it is ngraph's `-12` times the same factor. Any finite number is accepted |
 | `dragCoefficient`                                                     | `0.9`                         | velocity damping; a finite number >= 0                                                                                                                                                     |
 | `timeStep`                                                            | `0.5`                         | the integrator's step; a finite number > 0                                                                                                                                                 |
 | `dim`, `scale`, `center`, `seed`                                      | `2`, `1`, `[0, 0, 0]`, `null` | as ForceAtlas2                                                                                                                                                                             |
@@ -513,7 +515,7 @@ device's budget is `E_OUT_OF_MEMORY { requested, resident, label }`.
 
 PageRank is the stationary distribution of a surfer who follows an out-arc with probability `dampingFactor`
 and teleports to a uniformly random node otherwise. `pageRank` runs NetworkX's iteration on the device: rank
-is pulled along the reverse adjacency, out-weights normalise the push, and the mass sitting on nodes with no
+is pulled along the reverse adjacency, out-weights normalize the push, and the mass sitting on nodes with no
 out-arcs is redistributed through the teleport vector every iteration.
 
 ```ts
@@ -549,7 +551,7 @@ ctx.release(s); // when the graph goes away; ctx.dispose() at the end of the pro
 nodes with no positive out-weight and redistributed) and `precision`.
 
 Directed or undirected both work: an undirected snapshot carries both directions, so the pull and the
-normaliser see the same arcs, and the scores differ from the directed form's as they should. `nodeCount: 0`
+normalizer see the same arcs, and the scores differ from the directed form's as they should. `nodeCount: 0`
 returns an empty `scores` with `iterations: 0`, `converged: true` and does no GPU work. A graph with no arcs
 at all makes every node dangling, so the teleport vector is already the fixed point: the call returns
 `1 / nodeCount` everywhere with `iterations: 0` and `danglingMass: 1`. An isolated node inside a larger graph
@@ -570,16 +572,16 @@ console.log(r.scores); // mass concentrated on what node 0 reaches
 ```
 
 `personalization` is a `Float32Array` of one finite non-negative number per node, not all zero, and it is
-normalised to sum 1 on the host before the run -- so unnormalised weights are fine. A wrong length, a
+normalized to sum 1 on the host before the run -- so unnormalized weights are fine. A wrong length, a
 negative or non-finite entry, or a zero total is `E_INVALID_ARGUMENT { argument: "personalization" }`.
-Options, result and edge cases are PageRank's, except that a graph with no arcs returns the normalised
+Options, result and edge cases are PageRank's, except that a graph with no arcs returns the normalized
 personalization vector rather than `1 / nodeCount`.
 
 ### HITS
 
 HITS scores each node twice: as a hub (it points at good authorities) and as an authority (good hubs point at
 it). `hits` runs the CPU package's recurrence -- `a(i) = A^T norm(h(i-1))` and `h(i) = A norm(a(i-1))` from
-uniform seeds -- as two interleaved chains on the device, then sum-normalises both vectors once on the host.
+uniform seeds -- as two interleaved chains on the device, then sum-normalizes both vectors once on the host.
 
 ```ts
 import { hits } from "@graphty/webgpu-graph-algorithms";
@@ -608,7 +610,7 @@ with no arcs returns all zeros in both, since there is nothing to be a hub of.
 ### Eigenvector centrality
 
 A node is central when central nodes point at it. The scores are the principal eigenvector of the adjacency
-matrix, found by power iteration over the forward adjacency and L2-normalised once at the end.
+matrix, found by power iteration over the forward adjacency and L2-normalized once at the end.
 
 ```ts
 import { eigenvectorCentrality } from "@graphty/webgpu-graph-algorithms";
@@ -651,9 +653,9 @@ console.log(r.scores); // f32, index-aligned, L2-normalised
 | `weighted`      | `true`  | as above                                                                                                                                 |
 
 A run stops at the first pass whose summed (L1) change is below `tolerance` times the summed size of the pass,
-as eigenvector centrality does. A non-finite `alpha` or `beta` is `E_INVALID_ARGUMENT`. The result is `GpuScoresResult`, L2-normalised on the
-host with no per-iteration normaliser on the device. Walks arrive along the reverse adjacency, so direction
-matters. `nodeCount: 0` is empty; with no arcs every node holds `beta` alone, which after normalisation is
+as eigenvector centrality does. A non-finite `alpha` or `beta` is `E_INVALID_ARGUMENT`. The result is `GpuScoresResult`, L2-normalized on the
+host with no per-iteration normalizer on the device. Walks arrive along the reverse adjacency, so direction
+matters. `nodeCount: 0` is empty; with no arcs every node holds `beta` alone, which after normalization is
 `1 / sqrt(nodeCount)` each.
 
 ### Connected components
@@ -833,7 +835,7 @@ snapshot, or a sampled harmonic run, is `E_UNSUPPORTED`.
 ### Label propagation
 
 `labelPropagation(ctx, snapshot, options?)` finds communities: every node repeatedly takes the label most common
-among its neighbours until nothing changes. It follows the rules of `@graphty/algorithms`'
+among its neighbors until nothing changes. It follows the rules of `@graphty/algorithms`'
 `labelPropagationSynchronous`, with ties broken by a fixed scramble of the labels rather than at random, so the
 result is the same on every run and every device.
 
@@ -845,8 +847,8 @@ console.log(r.labels, r.count, r.groups());
 ```
 
 The options are `maxIterations` (default `100`, a non-negative integer) and `weighted` (default `true`: sum the
-weights of the edges to each neighbour label, each copy of a parallel edge counting; `false` counts every distinct
-neighbour once). The result is `GpuLabelResult`, as connected components return it: `labels` dense
+weights of the edges to each neighbor label, each copy of a parallel edge counting; `false` counts every distinct
+neighbor once). The result is `GpuLabelResult`, as connected components return it: `labels` dense
 `0 .. count - 1` in first-seen index order, `count` and `groups()`. Arc directions are ignored and self-loops do
 not count. A run whose labels swap back and forth forever runs to `maxIterations`. More parallel edges between
 one pair of nodes than a weighted sum can merge is `E_UNSUPPORTED`; run it unweighted or merge them first.
@@ -883,7 +885,7 @@ console.log(r.perNode, r.total, r.coefficient, r.transitivity);
 ```
 
 `GpuTriangleResult` carries `perNode` (the triangles each node lies in), `total` (each triangle once),
-`coefficient` (each node's local clustering coefficient, `0` for a node with fewer than two neighbours) and
+`coefficient` (each node's local clustering coefficient, `0` for a node with fewer than two neighbors) and
 `transitivity` (`3 x triangles / connected triples`, `0` when there is no connected triple). `dest` receives
 `perNode`.
 
@@ -905,7 +907,7 @@ every pending `step()` with `E_DEVICE_LOST` (create a new context from a fresh a
 ## The device self-check
 
 Some GPU drivers return wrong answers rather than failing. On Windows over the Microsoft Basic Render Driver,
-compute shaders that synchronise across a workgroup produce silently incorrect results, which would make every
+compute shaders that synchronize across a workgroup produce silently incorrect results, which would make every
 number this package computes there unreliable with no error anywhere.
 
 So the first algorithm or layout you run on a context asks the device for an answer this package already knows --

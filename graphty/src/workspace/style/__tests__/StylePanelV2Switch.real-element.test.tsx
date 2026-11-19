@@ -65,7 +65,7 @@ async function pickMember(line: HTMLElement, member: string): Promise<void> {
  */
 async function pickSticker(): Promise<void> {
     const gallery = await screen.findByRole("dialog", { name: "Sticker" });
-    await userEvent.click(within(gallery).getByRole("button", { name: "Sticker", exact: true }));
+    await userEvent.click(within(gallery).getByRole("button", { name: "Sticker" }));
 }
 
 /**

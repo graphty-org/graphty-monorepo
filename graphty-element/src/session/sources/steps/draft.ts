@@ -13,6 +13,7 @@ import { GraphtyError } from "../../../errors/GraphtyError";
 import { checkClash, refuseBoth } from "./acts";
 import { isStaged, ownSpace } from "./build";
 import {
+    addSource,
     applyEdit,
     buildOf,
     checkSpace,
@@ -160,7 +161,9 @@ export function draftAdd(
         act: { act: "add-staged", source: id, ...(overlap === undefined ? {} : { overlap }) },
     });
     if (asked === null || src === undefined) {
-        return next;
+        // An earlier add's question is settled by this one: it asks nothing, or answered at once.
+        const { [id]: _settled, ...rest } = next.questions ?? {};
+        return { ...next, questions: rest };
     }
     const was = src.mapping.edges;
     const now = next.value.sources[id].mapping.edges;
@@ -187,28 +190,79 @@ export function draftAnswer(state: DraftState, id: string, answer: "merge" | "se
             source: id,
         });
     }
-    let next = state;
-    if (answer !== (q.answer ?? "separate")) {
-        const [from, to] = answer === "merge" ? [ownSpace(id), q.space] : [q.space, ownSpace(id)];
-        const move = (space: string | undefined): string | undefined => (space === from ? to : space);
-        const { nodes, edges } = src.mapping;
-        const moved = edges === undefined ? undefined : { ...edges };
-        for (const end of q.ends) {
-            if (moved !== undefined) {
-                moved[end] = move(moved[end]);
-            }
+    const [from, to] = answer === "merge" ? [ownSpace(id), q.space] : [q.space, ownSpace(id)];
+    const sources = { ...state.value.sources, [id]: moved(src, from, to, q.ends) };
+    const questions = { ...state.questions, [id]: { ...q, answer } };
+    const fresh = refreshed({ ...state.value, sources }, questions, state.copies);
+    const next =
+        JSON.stringify(fresh.value) === JSON.stringify(state.value)
+            ? state
+            : draftApply(state, { kind: "set", value: fresh.value });
+    return { ...next, questions: fresh.questions };
+}
+
+/**
+ * A source with its node keys, and the edge ends named, moved from one space to another.
+ * @param src - The source.
+ * @param from - The space they leave.
+ * @param to - The space they move to.
+ * @param ends - The edge ends that move with the keys.
+ * @returns The moved source.
+ */
+function moved(
+    src: SourceSteps["sources"][string],
+    from: string,
+    to: string,
+    ends: AskedOverlap["ends"],
+): SourceSteps["sources"][string] {
+    const move = (space: string | undefined): string | undefined => (space === from ? to : space);
+    const { nodes, edges } = src.mapping;
+    const out = edges === undefined ? undefined : { ...edges };
+    for (const end of ends) {
+        if (out !== undefined) {
+            out[end] = move(out[end]);
         }
-        const mapping = {
-            ...src.mapping,
-            ...(nodes === undefined ? {} : { nodes: { ...nodes, space: move(nodes.space) } }),
-            ...(moved === undefined ? {} : { edges: moved }),
-        };
-        next = draftApply(state, {
-            kind: "set",
-            value: { ...state.value, sources: { ...state.value.sources, [id]: { ...src, mapping } } },
-        });
     }
-    return { ...next, questions: { ...next.questions, [id]: { ...q, answer } } };
+    const mapping = {
+        ...src.mapping,
+        ...(nodes === undefined ? {} : { nodes: { ...nodes, space: move(nodes.space) } }),
+        ...(out === undefined ? {} : { edges: out }),
+    };
+    return { ...src, mapping };
+}
+
+/**
+ * Every asked source's question and issues worked out again from the value now, as `data.add`
+ * would have given them had each been added in its place with its answer: an answer to one source
+ * changes which nodes a later one meets.
+ * @param value - The draft's value.
+ * @param questions - The questions asked.
+ * @param copies - The rows as read.
+ * @returns The value with each asked source's issues, and the questions recounted.
+ */
+function refreshed(
+    value: SourceSteps,
+    questions: Readonly<Record<string, AskedOverlap>>,
+    copies: Copies,
+): { value: SourceSteps; questions: Readonly<Record<string, AskedOverlap>> } {
+    const sources = { ...value.sources };
+    const out: Record<string, AskedOverlap> = {};
+    for (const [id, q] of Object.entries(questions)) {
+        const at = value.steps.findIndex((s) => s.op === "join.add" && s.source === id);
+        const src = value.sources[id] as SourceSteps["sources"][string] | undefined;
+        if (at < 0 || src === undefined) {
+            out[id] = q;
+            continue;
+        }
+        const before = { ...value, steps: value.steps.slice(0, at) };
+        const proposed = moved(src, ownSpace(id), q.space, q.ends);
+        const now = overlapQuestion(before, proposed, copies);
+        out[id] = now === null ? q : { ...q, count: now.count, of: now.of, sources: now.sources };
+        const { issues } = addSource(before, proposed, copies, q.answer ?? "separate").sources[id];
+        const { issues: _old, ...rest } = src;
+        sources[id] = issues === undefined ? rest : { ...rest, issues };
+    }
+    return { value: { ...value, sources }, questions: out };
 }
 
 /**

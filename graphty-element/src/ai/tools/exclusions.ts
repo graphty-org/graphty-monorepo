@@ -396,6 +396,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
                 "clearPicks",
                 "exclude",
                 "include",
+                "answerOverlap",
             ],
         },
         {
@@ -413,6 +414,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
                 "rows",
                 "elements",
                 "cells",
+                "questions",
             ],
         },
         { root: "VisibilityApi", members: ["held"] },

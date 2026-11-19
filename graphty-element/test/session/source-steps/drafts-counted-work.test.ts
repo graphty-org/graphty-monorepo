@@ -72,7 +72,7 @@ describe("source-steps drafts: counted work", () => {
         session.dispose();
     });
 
-    it("an add that asks the overlap question, and its answer, each build the draft once and dispatch nothing", async () => {
+    it("an add that asks the overlap question builds the draft once; its answer builds it once and two more per asked source; neither dispatches", async () => {
         const session = createGraphSession({ features: ["source-steps"] });
         await session.data.import(
             { type: "csv", config: { data: "id,amt\np1,1\np2,2" }, name: "crm.csv" },
@@ -96,7 +96,9 @@ describe("source-steps drafts: counted work", () => {
         assert.lengthOf(d.preview().questions, 1);
         builds.mockClear();
         d.answerOverlap(b, "merge");
-        assert.strictEqual(builds.mock.calls.length, 1, "the answer builds the draft once");
+        // Each asked source is worked out again as data.add would add it: the value before its add,
+        // and that value with it added.
+        assert.strictEqual(builds.mock.calls.length, 1 + 2, "the draft once, and two for the one asked source");
         assert.strictEqual(sent, 0, "neither dispatches");
         d.dispose();
         session.dispose();

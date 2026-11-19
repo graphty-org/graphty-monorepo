@@ -310,6 +310,82 @@ describe("source-steps drafts: the key-overlap question", () => {
         session.dispose();
     });
 
+    it("a re-add given an overlap replaces the question its earlier add asked", async () => {
+        const { session, b } = await stagedBankB();
+        const d = session.data.draft({ askOverlap: true });
+        d.add(b);
+        assert.lengthOf(d.preview().questions, 1);
+        d.removeStep(d.steps().length - 1);
+        d.add(b, { overlap: "merge" });
+        assert.deepStrictEqual(d.preview().questions, [], "the re-add answered it");
+        await refused(() => Promise.resolve(d.answerOverlap(b, "separate")), "E_BAD_COMMAND");
+        await d.commit();
+        assert.strictEqual(spaces(session).account, 5, "merged, as the re-add said");
+        session.dispose();
+    });
+
+    /**
+     * Phase 6 with bank B and bank C (the same keys) staged as accounts.
+     * @returns The session, accounts.csv's source, bank B's and bank C's.
+     */
+    async function stagedBankBC(): Promise<{ session: GraphSession; a: string; b: string; c: string }> {
+        const { session, a, b } = await stagedBankB();
+        const c = await session.data.stage({ ...BANK_B_PAIR, name: "bankC.json" }, { type: "account" });
+        return { session, a, b, c };
+    }
+
+    /**
+     * A source's issues as `data.sources()` lists them.
+     * @param session - The session.
+     * @param id - The source.
+     * @returns Its issues.
+     */
+    function issuesOf(session: GraphSession, id: string): unknown {
+        return session.data.sources().find((s) => s.key === id)?.issues;
+    }
+
+    it("two overlapping sources in one draft: an answer recounts the later question, and the commit matches data.add", async () => {
+        const seq = await stagedBankBC();
+        await seq.session.data.add(seq.b, { overlap: "merge" });
+        await seq.session.data.add(seq.c, { overlap: "merge" });
+
+        const { session, a, b, c } = await stagedBankBC();
+        const d = session.data.draft({ askOverlap: true });
+        d.add(b);
+        d.add(c);
+        d.answerOverlap(b, "merge");
+        assert.deepStrictEqual(
+            d.preview().questions.map((q) => q.params),
+            [{ space: "account", count: 4, of: 4, source: c, sources: [a, b] }],
+            "C now meets all four keys, bank A's and bank B's",
+        );
+        d.answerOverlap(c, "merge");
+        await d.commit();
+        assert.deepStrictEqual(issuesOf(session, c), issuesOf(seq.session, seq.c));
+        assert.deepStrictEqual(issuesOf(session, b), issuesOf(seq.session, seq.b));
+        assert.deepStrictEqual(spaces(session), spaces(seq.session));
+        seq.session.dispose();
+        session.dispose();
+    });
+
+    it("an asked source answered merge after one kept separate carries the issues data.add gives it", async () => {
+        const seq = await stagedBankBC();
+        await seq.session.data.add(seq.b);
+        await seq.session.data.add(seq.c, { overlap: "merge" });
+
+        const { session, b, c } = await stagedBankBC();
+        await session.data.add(b);
+        const d = session.data.draft({ askOverlap: true });
+        d.add(c);
+        d.answerOverlap(c, "merge");
+        await d.commit();
+        assert.deepStrictEqual(issuesOf(session, c), issuesOf(seq.session, seq.c));
+        const { [`source:${seq.b}`]: kept, ...rest } = spaces(seq.session);
+        assert.deepStrictEqual(spaces(session), { ...rest, [`source:${b}`]: kept });
+        seq.session.dispose();
+        session.dispose();
+    });
+
     it("a draft's import asks the question as its add does", async () => {
         const { session } = await phase6();
         const d = session.data.draft({ askOverlap: true });

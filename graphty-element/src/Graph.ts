@@ -8847,6 +8847,7 @@ export class Graph implements GraphContext {
             }
 
             state.cameraDistance = orbitController.cameraDistance;
+            state.fov = orbitController.camera.fov;
             state.mode = "3d";
         } else if (controller instanceof TwoDCameraController) {
             // TwoDCameraController - get zoom and pan

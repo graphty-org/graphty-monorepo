@@ -154,5 +154,31 @@ export function resolveCameraView(id: string, context: CameraViewContext): Camer
         options,
     };
 
-    return compute(input);
+    return withDistanceAndFov(compute(input), context);
+}
+
+/**
+ * A 3D pose with its `cameraDistance` and `fov` filled in when the view left them out, so every
+ * resolved pose reports both; applying it is unchanged (the distance is the one its `position` and
+ * `target` give, and `fov` is the camera's own).
+ * @param state - The pose the view computed.
+ * @param context - What the view was resolved against.
+ * @returns The pose, with the two filled in where they apply.
+ */
+function withDistanceAndFov(state: CameraState, context: CameraViewContext): CameraState {
+    if (context.mode !== "3d") {
+        return state;
+    }
+    const { position, target } = state;
+    const distance =
+        state.cameraDistance ??
+        (position === undefined || target === undefined
+            ? undefined
+            : Math.hypot(position.x - target.x, position.y - target.y, position.z - target.z));
+    const fov = state.fov ?? context.fov;
+    return {
+        ...state,
+        ...(distance === undefined ? {} : { cameraDistance: distance }),
+        ...(fov === undefined ? {} : { fov }),
+    };
 }

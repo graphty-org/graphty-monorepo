@@ -4,6 +4,7 @@
  * node's mesh so they move, hide and go with it. Each is a source mesh cached under the node's
  * style key, so every node of one style shares it and pays for one instance.
  */
+import { VertexBuffer } from "@babylonjs/core/Buffers/buffer.js";
 import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial.js";
 import { DynamicTexture } from "@babylonjs/core/Materials/Textures/dynamicTexture.js";
 import { Texture } from "@babylonjs/core/Materials/Textures/texture.js";
@@ -120,8 +121,12 @@ function hasDecoration(o: NodeDecorationOptions): boolean {
  * @param size - The node's size, when its shape gives none.
  * @param fill - The node's own mesh.
  * @param scene - The scene.
- * @param onImageFailed - Told once per built picture when neither it nor its fallback loads, with the
+ * @param how - How the decorations are drawn.
+ * @param how.onImageFailed - Told once per built picture when neither it nor its fallback loads, with the
  * URL the style named and the one that failed last.
+ * @param how.facesCamera - Whether the instances will turn to look at the camera's position (a solid in the 3D view,
+ * `BILLBOARDMODE_USE_POSITION`), which points their +z at it: the face is then built turned half round, so it sits
+ * on the camera's side of the node and reads the right way round.
  * @returns The three instances.
  */
 export function createNodeDecorations(
@@ -131,16 +136,34 @@ export function createNodeDecorations(
     size: number,
     fill: AbstractMesh,
     scene: Scene,
-    onImageFailed?: (ref: string, failed: string) => void,
+    how: { onImageFailed?: (ref: string, failed: string) => void; facesCamera?: boolean } = {},
 ): { pieces: InstancedMesh | null; image: InstancedMesh | null; glyph: InstancedMesh | null } {
     if (!hasDecoration(o)) {
         return { pieces: null, image: null, glyph: null };
     }
+    const { onImageFailed, facesCamera = false } = how;
+    if (facesCamera) {
+        key = `${key}-faced`;
+    }
+    const turned =
+        (make: () => Mesh): (() => Mesh) =>
+        () => {
+            const mesh = make();
+            if (facesCamera) {
+                turnHalfRound(mesh);
+            }
+            return mesh;
+        };
     const face = NodeMesh.faceOf(o, size, fill);
     const z = frontOf(fill) - FRONT_STEP;
     const colored = coloredPieces(o, face);
     const pieces =
-        colored.length === 0 ? null : cache.get(`node-decoration-${key}`, () => buildColored(colored, z, scene));
+        colored.length === 0
+            ? null
+            : cache.get(
+                  `node-decoration-${key}`,
+                  turned(() => buildColored(colored, z, scene)),
+              );
     const scale = NodeMesh.extentPerSize(o.shape);
     // a table's picture is drawn in its cell, in place of the node's own
     const cellImage = o.table?.image ?? null;
@@ -149,15 +172,20 @@ export function createNodeDecorations(
     const image =
         picture === undefined || (picture.src ?? "") === ""
             ? null
-            : cache.get(`node-image-${key}`, () =>
-                  buildImage(picture, drawn.face, scale, z - FRONT_STEP, scene, onImageFailed),
+            : cache.get(
+                  `node-image-${key}`,
+                  // turned by itself, as it is reshaped when its picture arrives
+                  () => buildImage(picture, drawn.face, scale, z - FRONT_STEP, scene, onImageFailed, facesCamera),
               );
     const glyph =
         (o.glyph?.text ?? "") === ""
             ? null
-            : cache.get(`node-glyph-${key}`, () =>
-                  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- checked just above
-                  buildGlyph(o.glyph!, face, NodeMesh.extentPerSize(o.shape), z - 2 * FRONT_STEP, scene),
+            : cache.get(
+                  `node-glyph-${key}`,
+                  turned(() =>
+                      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- checked just above
+                      buildGlyph(o.glyph!, face, NodeMesh.extentPerSize(o.shape), z - 2 * FRONT_STEP, scene),
+                  ),
               );
     for (const mesh of [pieces, image, glyph]) {
         if (mesh !== null) {
@@ -166,6 +194,24 @@ export function createNodeDecorations(
         }
     }
     return { pieces, image, glyph };
+}
+
+/**
+ * Turn a face half round about the node's vertical axis, in its vertices: (x, y, z) to (-x, y, -z). A proper
+ * rotation, so its triangles keep their winding and the picture reads the same way round from the other side.
+ * @param mesh - The face.
+ */
+function turnHalfRound(mesh: Mesh): void {
+    const positions = mesh.getVerticesData(VertexBuffer.PositionKind);
+    if (positions === null) {
+        return;
+    }
+    for (let i = 0; i < positions.length; i += 3) {
+        positions[i] = -positions[i];
+        positions[i + 2] = -positions[i + 2];
+    }
+    mesh.setVerticesData(VertexBuffer.PositionKind, positions);
+    mesh.refreshBoundingInfo();
 }
 
 /** How a cell's `align` and `valign` place its picture in the room its padding leaves, 0 to 1. */
@@ -493,6 +539,7 @@ function buildColored(pieces: readonly Placed[], z: number, scene: Scene): Mesh 
  * @param z - The z it is drawn at.
  * @param scene - The scene.
  * @param onFailed - Told when neither the picture nor its fallback loads.
+ * @param turned - Turn every shape half round ({@link turnHalfRound}), for a face that looks at the camera.
  * @returns The mesh.
  */
 function buildImage(
@@ -502,6 +549,7 @@ function buildImage(
     z: number,
     scene: Scene,
     onFailed?: (ref: string, failed: string) => void,
+    turned = false,
 ): Mesh {
     const mesh = new Mesh("node-image", scene);
     const mat = flatMaterial("node-image", scene);
@@ -541,6 +589,10 @@ function buildImage(
         data.uvs = faces.uvs;
         data.applyToMesh(mesh, true);
         mesh.refreshBoundingInfo();
+        // reshaped when the picture arrives, after the caller turned the first, empty shape
+        if (turned) {
+            turnHalfRound(mesh);
+        }
         const metadata: NodeDecorationMetadata = {
             // the picture's own box, as an SVG image's is whatever cuts it; a tiled picture's, the part it covers
             nodePieces: drawn ? [{ kind: "image", box: repeat === "no-repeat" ? box : boxOf(outline) }] : [],

@@ -276,6 +276,9 @@ let rebuildsFor: (node: Node, paint: NodePaint) => boolean;
 /** Reads a node's own mesh in this module, where the consumer's {@link Node.mesh} is not read. */
 let ownAnchor: (node: Node) => TransformNode;
 
+/** A decoration on a solid in 3D turns about the node's center to look at the camera's position. */
+const FACE_THE_CAMERA = TransformNode.BILLBOARDMODE_ALL | TransformNode.BILLBOARDMODE_USE_POSITION;
+
 /**
  * The parts a node draws, as the tests that check its drawing read them, typed so a rename in
  * `Node` fails to compile rather than at run time (issue #6988). The class fills it in; no entry
@@ -1249,6 +1252,13 @@ export class Node implements ModelUser {
             }
         }
 
+        // On a solid in the 3D view the face is the outline it shows the camera, so its decorations
+        // turn about the node's center to look at the camera's POSITION, as a solid's border ring turns
+        // with it: built on a card at the solid's front, they sat beside the node from the front and
+        // edge-on from the side. Facing the position rather than the view plane, the card lies on the
+        // line from the camera through the node's center, so it is drawn centered on the node however
+        // far from the middle of a perspective view the node is.
+        const facesCamera = !this.context.is2D() && !isFlatShape(style.shape?.type ?? "");
         const { pieces, image, glyph } = createNodeDecorations(
             this.context.getMeshCache(),
             `${meshKey}-${this.context.is2D() ? "2d" : "3d"}`,
@@ -1256,14 +1266,18 @@ export class Node implements ModelUser {
             this.size,
             this.#anchor as AbstractMesh,
             this.context.getScene(),
-            (ref, failed) => {
-                publishImageFailure(this.context.getSession?.(), ref, failed);
+            {
+                onImageFailed: (ref, failed) => {
+                    publishImageFailure(this.context.getSession?.(), ref, failed);
+                },
+                facesCamera,
             },
         );
         this.decorations = [pieces, image, glyph].filter((m): m is InstancedMesh => m !== null);
         for (const mesh of this.decorations) {
             mesh.parent = this.#anchor;
             mesh.position.setAll(0);
+            mesh.billboardMode = facesCamera ? FACE_THE_CAMERA : TransformNode.BILLBOARDMODE_NONE;
         }
     }
 

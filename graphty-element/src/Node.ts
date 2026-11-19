@@ -2974,11 +2974,18 @@ export class Node implements ModelUser {
             ...this.sourceArgs(meshKey, style, this.drawnImage),
             this.context.getScene(),
         );
-        if (source !== mesh.sourceMesh) {
+        // A group draws from a fill of its own, built over the shared source it stands for (see fitGroupFill)
+        const drawn = mesh.sourceMesh === this.groupFill ? this.groupFillKeep?.sourceMesh : mesh.sourceMesh;
+        if (source !== drawn) {
             moveInstance(mesh, source);
             this.#source = source;
             // A new source has no color buffer until a paint registers one: paint the instance again.
             this.applyInstancePaint(this.drawnStyle ?? style, this.drawnColor);
+            // and a group's fill is rebuilt over it at once, never drawn stretched until the next frame
+            const box = this.context.getLayoutManager().groupBox(this.id);
+            if (box !== undefined && this.drawnAsGroup) {
+                this.drawAsGroup(box);
+            }
         }
     }
 

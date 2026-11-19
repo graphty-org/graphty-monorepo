@@ -209,6 +209,20 @@ export function pairKey(source: unknown, target: unknown): string {
     return `${String(source)}\u0000${String(target)}`;
 }
 
+/**
+ * The type a record's `kind` column gives a node or edge: the only types a load makes itself, and
+ * what a version 2 file declares them as (spec 4.1.5).
+ * @param record - the record, if any
+ * @returns the type name, or undefined
+ */
+export function recordType(record: Readonly<Record<string | number, unknown>> | undefined): string | undefined {
+    const kind = record?.kind;
+    return typeof kind === "string" && kind.length > 0 && kind.length <= 256 && !kind.includes(":") ? kind : undefined;
+}
+
+/** The repeat policies that combine weights, and so reduce only repeats of one weight meaning. */
+export const COMBINING_POLICIES: ReadonlySet<DuplicatePolicy> = new Set(["sum", "min", "max"]);
+
 /** What becomes of a record repeating an edge the graph already holds. */
 type RepeatDecision =
     /** `keep`: the repeat is an edge of its own. */

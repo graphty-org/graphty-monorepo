@@ -12,6 +12,7 @@
 import { sha256HexSync } from "@graphty/graph-io";
 
 import type { EdgeId, NodeId } from "../../../catalog/types";
+import { recordType } from "../../../data/edgeIdentity";
 import { GraphtyError } from "../../../errors/GraphtyError";
 import { COLUMNS_VALUE, type ColumnSettings, SOURCES_VALUE } from "../../commands/data";
 import { dispatcherOf } from "../../dispatchers";
@@ -1763,17 +1764,6 @@ function sourceRecordOf(
 }
 
 /**
- * The type names a record's `kind` column gives it: today's kinds are the only types the session
- * makes itself.
- * @param record - The record.
- * @returns The type name, or undefined.
- */
-function kindOf(record: Readonly<JsonObject>): string | undefined {
-    const { kind } = record;
-    return typeof kind === "string" && kind.length > 0 && kind.length <= 256 && !kind.includes(":") ? kind : undefined;
-}
-
-/**
  * The type registry (spec 4.1.5): the types the last data section read declared, their rules on
  * sources still open, then one type per node or edge `kind` value no read type names, each
  * declared by the sources whose rows carry it in their `kind` column.
@@ -1795,7 +1785,7 @@ function typesOf(model: DataModel): JsonObject[] {
     const taken = new Set(read.map((type) => `${String(type.kind)}:${String(type.name)}`));
     const entries = new Map<string, { name: string; kind: string; sources: string[] }>();
     const note = (kind: string, record: Readonly<JsonObject>, source: string): void => {
-        const name = kindOf(record);
+        const name = recordType(record);
         const at = `${kind}:${String(name)}`;
         if (name === undefined || taken.has(at)) {
             return;

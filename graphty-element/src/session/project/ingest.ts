@@ -18,7 +18,14 @@ import { unknownFormat } from "../../catalog/detect";
 import type { EdgeId, NodeId, SourceKey } from "../../catalog/types";
 import { CSVDataSource } from "../../data/CSVDataSource";
 import { DataSource, type DataSourceChunk, type DeclaredDirection, setReaderSignal } from "../../data/DataSource";
-import { decideRepeat, edgeCounterOf, edgeIdOf, pairKey } from "../../data/edgeIdentity";
+import {
+    COMBINING_POLICIES,
+    decideRepeat,
+    edgeCounterOf,
+    edgeIdOf,
+    pairKey,
+    recordType,
+} from "../../data/edgeIdentity";
 import { readEndpoint, type ResolvedEndpoints, resolveEndpoints, searchRecord } from "../../data/endpoints";
 import { type DataLoadingError, ErrorAggregator } from "../../data/ErrorAggregator";
 import type { GraphStore } from "../../data/GraphStore";
@@ -661,6 +668,8 @@ interface EdgeBatch {
     readonly ownEdges?: Set<number>;
     /** What a repeat of one of this load's own edges does. */
     readonly ownPolicy: DuplicatePolicy;
+    /** The weight meaning the batch's edges are read with, `data.knownFields.edgeWeightMeaning`. */
+    readonly meaning: string | null;
     /** Where a record's own id is read, or null when none is. */
     readonly recordIdPath: string | null;
     /** Where a record's weight is read, or null when none is. */
@@ -751,6 +760,16 @@ export class Ingest<K extends KnownEdge> {
      * Null on the "objects" path and whenever the store held edges this ingest did not store.
      */
     private storedPairs: StoredPairs | null = null;
+
+    /**
+     * The weight meaning each edge was stored under, as runs of edge counters: an edge's meaning is
+     * that of the last run starting at or below its counter. Counters only grow, so a meaning
+     * change costs one entry, never one per edge. An edge stored before the first run has no
+     * known meaning and is read as the repeat's.
+     * ponytail: an edge re-added with its old counter (redo) after a later run reads that run's
+     * meaning only if no newer run started below it; key by load if that ever matters.
+     */
+    private readonly meaningRuns: { readonly from: number; readonly meaning: string | null }[] = [];
 
     /**
      * The endpoint expressions the load in progress resolved, so a chunked load probes ONCE.
@@ -1549,7 +1568,7 @@ export class Ingest<K extends KnownEdge> {
         this.refuseAboveCeiling(
             "edges",
             this.heldCounts().edges,
-            this.edgesAdded(edges, endpoints, policy, false),
+            this.edgesAdded(edges, endpoints, policy, writer),
             this.ceilings().edgesDrawn,
         );
         this.refuseAboveCeiling(
@@ -1568,6 +1587,7 @@ export class Ingest<K extends KnownEdge> {
             tally,
             ...(options?.repeatedScope === "held" ? { ownEdges: new Set<number>() } : {}),
             ownPolicy: knownFields.repeatedEdges,
+            meaning: knownFields.edgeWeightMeaning,
             ...(ids === undefined ? {} : { ids }),
         };
         if (this.loadTally === null) {
@@ -1694,6 +1714,11 @@ export class Ingest<K extends KnownEdge> {
             return legacy;
         }
 
+        const run = this.meaningRuns.at(-1);
+        if (given === undefined && run?.meaning !== batch.meaning) {
+            this.meaningRuns.push({ from: edgeId, meaning: batch.meaning });
+        }
+
         if (isStorableRecordId(recordId)) {
             this.edgesByRecordId.set(recordId, edgeIndex);
             tally.edgesById++;
@@ -1733,7 +1758,12 @@ export class Ingest<K extends KnownEdge> {
         writer: GraphWriter,
     ): boolean {
         const { policy, tally } = batch;
-        const known = this.knownEdgeFor(repeat.sourceId, repeat.targetId, recordId);
+        const known = this.knownEdgeFor(
+            repeat.sourceId,
+            repeat.targetId,
+            recordId,
+            this.reducesWith(repeat.record, batch, writer),
+        );
         if (known !== null && this.foldsRow(known.edgeIndex, recordId, writer)) {
             // Under `duplicateIds: "merge"`, a row repeating an edge id an earlier row of the load
             // gave is that edge: the first row's values stand, the repeat only fills unset columns.
@@ -1905,7 +1935,7 @@ export class Ingest<K extends KnownEdge> {
         this.refuseAboveCeiling(
             "edges",
             surviving,
-            this.edgesAdded(edges, this.endpointsFor(edges, options), policy, true),
+            this.edgesAdded(edges, this.endpointsFor(edges, options), policy, null),
             this.ceilings().edgesDrawn,
         );
     }
@@ -2040,9 +2070,15 @@ export class Ingest<K extends KnownEdge> {
      * @param sourceId - the source endpoint id
      * @param targetId - the target endpoint id
      * @param recordId - the value of `knownFields.edgeIdPath`, when one is configured
+     * @param reduces - whether a held edge between the pair is one the record may reduce into
      * @returns the existing edge, or null
      */
-    private knownEdgeFor(sourceId: NodeIdType, targetId: NodeIdType, recordId: unknown): K | null {
+    private knownEdgeFor(
+        sourceId: NodeIdType,
+        targetId: NodeIdType,
+        recordId: unknown,
+        reduces: (edgeIndex: number) => boolean,
+    ): K | null {
         if (isStorableRecordId(recordId)) {
             // A record identifier is a stronger statement than a repeated pair: the consumer said
             // these two records are the same edge.
@@ -2058,7 +2094,48 @@ export class Ingest<K extends KnownEdge> {
             return null;
         }
 
-        return this.host.edgesBetween(sourceId, targetId)[0] ?? null;
+        return this.host.edgesBetween(sourceId, targetId).find((known) => reduces(known.edgeIndex)) ?? null;
+    }
+
+    /**
+     * Which held edges between its pair a record may reduce into (design 3.8): edges of its own
+     * type only, and under a policy that combines weights only edges of its own weight meaning.
+     * @param record - the record
+     * @param batch - its batch's repeat policy and weight meaning
+     * @param batch.policy - the repeat policy
+     * @param batch.meaning - the weight meaning
+     * @param writer - the graph primitives, to read a held edge's record
+     * @returns the test, by the held edge's row
+     */
+    private reducesWith(
+        record: Readonly<Record<string | number, unknown>>,
+        batch: { readonly policy: DuplicatePolicy; readonly meaning: string | null },
+        writer: GraphWriter,
+    ): (edgeIndex: number) => boolean {
+        const type = recordType(record);
+        const { policy, meaning } = batch;
+        const sameMeaning = (edgeIndex: number): boolean => {
+            const held = this.meaningAt(writer.store.edgeIdAt(edgeIndex));
+            return held === undefined || held === meaning;
+        };
+        return (edgeIndex) =>
+            recordType(writer.edgeRecord(edgeIndex)) === type &&
+            (!COMBINING_POLICIES.has(policy) || sameMeaning(edgeIndex));
+    }
+
+    /**
+     * The weight meaning an edge was stored under, from {@link meaningRuns}.
+     * @param counter - the edge's counter
+     * @returns the meaning, or undefined when the edge predates every run
+     */
+    private meaningAt(counter: number): string | null | undefined {
+        for (let at = this.meaningRuns.length - 1; at >= 0; at--) {
+            if (this.meaningRuns[at].from <= counter) {
+                return this.meaningRuns[at].meaning;
+            }
+        }
+
+        return undefined;
     }
 
     /**
@@ -2170,23 +2247,23 @@ export class Ingest<K extends KnownEdge> {
      * Under the `keep` policy every other record is an edge. Under a folding policy a record that
      * repeats an edge the graph holds, or a record earlier in the same batch, folds into it and
      * adds nothing; a repeat is named the way `knownEdgeFor` names it, by record id when one is
-     * configured and stored, else by the ordered endpoint pair.
+     * configured and stored, else by the ordered endpoint pair and the edge's type.
      * @param edges - the batch
      * @param endpoints - the batch's endpoint expressions
      * @param policy - the repeat policy the batch is under
-     * @param replacing - true when every held edge is about to be removed, so none of them can be
-     *     repeated
+     * @param held - the graph primitives the held edges are read through, or null when every held
+     *     edge is about to be removed, so none of them can be repeated
      * @returns the number of edges the batch would add
      */
     private edgesAdded(
         edges: readonly Record<string | number, unknown>[],
         endpoints: ResolvedEndpoints,
         policy: DuplicatePolicy,
-        replacing: boolean,
+        held: GraphWriter | null,
     ): number {
         const recordIdPath = this.host.dataConfig().knownFields.edgeIdPath;
         const seenIds = new Set<string | number>();
-        const seenPairs = new Map<NodeIdType, Set<NodeIdType>>();
+        const seenPairs = new Map<NodeIdType, Set<string>>();
         let adding = 0;
 
         for (const edge of edges) {
@@ -2198,7 +2275,7 @@ export class Ingest<K extends KnownEdge> {
 
             if (
                 policy !== "keep" &&
-                this.folds(edge, recordIdPath, srcNodeId, dstNodeId, replacing, seenIds, seenPairs)
+                this.folds(edge, recordIdPath, { srcNodeId, dstNodeId, policy }, held, seenIds, seenPairs)
             ) {
                 continue;
             }
@@ -2214,30 +2291,38 @@ export class Ingest<K extends KnownEdge> {
      * if not, remember it as seen.
      * @param edge - the record
      * @param recordIdPath - where its record id is, or null when none is configured
-     * @param srcNodeId - its source
-     * @param dstNodeId - its target
-     * @param replacing - true when every held edge is about to be removed
+     * @param ends - its ends and the batch's repeat policy
+     * @param ends.srcNodeId - its source
+     * @param ends.dstNodeId - its target
+     * @param ends.policy - the repeat policy
+     * @param held - the graph primitives held edges are read through, or null when none can repeat
      * @param seenIds - the record ids earlier in the batch
-     * @param seenPairs - the endpoint pairs earlier in the batch, by source
+     * @param seenPairs - the endpoint pairs and types earlier in the batch, by source
      * @returns true when it adds nothing
      */
     private folds(
         edge: Record<string | number, unknown>,
         recordIdPath: string | null,
-        srcNodeId: NodeIdType,
-        dstNodeId: NodeIdType,
-        replacing: boolean,
+        ends: { readonly srcNodeId: NodeIdType; readonly dstNodeId: NodeIdType; readonly policy: DuplicatePolicy },
+        held: GraphWriter | null,
         seenIds: Set<string | number>,
-        seenPairs: Map<NodeIdType, Set<NodeIdType>>,
+        seenPairs: Map<NodeIdType, Set<string>>,
     ): boolean {
+        const { srcNodeId, dstNodeId, policy } = ends;
         const recordId = recordIdPath === null ? undefined : readEndpoint(edge, recordIdPath);
-        if (!replacing && this.knownEdgeFor(srcNodeId, dstNodeId, recordId) !== null) {
-            return true;
+        if (held !== null) {
+            const meaning = this.host.dataConfig().knownFields.edgeWeightMeaning;
+            const reduces = this.reducesWith(edge, { policy, meaning }, held);
+            if (this.knownEdgeFor(srcNodeId, dstNodeId, recordId, reduces) !== null) {
+                return true;
+            }
         }
 
-        const pairs = seenPairs.get(srcNodeId) ?? new Set<NodeIdType>();
+        const pairs = seenPairs.get(srcNodeId) ?? new Set<string>();
         seenPairs.set(srcNodeId, pairs);
-        const repeatsBatch = isStorableRecordId(recordId) ? seenIds.has(recordId) : pairs.has(dstNodeId);
+        // One batch reads one weight meaning, so within it only the type parts repeats.
+        const pair = JSON.stringify([dstNodeId, recordType(edge) ?? null]);
+        const repeatsBatch = isStorableRecordId(recordId) ? seenIds.has(recordId) : pairs.has(pair);
         if (repeatsBatch) {
             return true;
         }
@@ -2246,7 +2331,7 @@ export class Ingest<K extends KnownEdge> {
             seenIds.add(recordId);
         }
 
-        pairs.add(dstNodeId);
+        pairs.add(pair);
         return false;
     }
 

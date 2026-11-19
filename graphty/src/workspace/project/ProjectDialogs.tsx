@@ -1,7 +1,7 @@
 import { ModalFooter, SegmentedControl } from "@graphty/compact-mantine";
 import type { GraphSession, ProjectAssetChoice } from "@graphty/graphty-element/session";
 import { Button, Group, Modal, Stack, Text } from "@mantine/core";
-import React, { useEffect, useRef, useState } from "react";
+import React, { lazy, Suspense, useEffect, useRef, useState } from "react";
 
 import { modelName, pictureName } from "../canvas/models";
 import { saveFilesV2On } from "../features";
@@ -20,7 +20,9 @@ import {
 } from "./actions";
 import { NameField } from "./NameField";
 import { NetworkPrompt } from "./NetworkPrompt";
-import { OpenV2Dialog, ReportV2Dialog, SaveAsV2Dialog } from "./SaveFilesV2Dialogs";
+
+// The version 2 dialogs load only when the save-files-v2 experiment is on.
+const SaveFilesV2Dialogs = lazy(async () => ({ default: (await import("./SaveFilesV2Dialogs")).SaveFilesV2Dialogs }));
 
 /**
  * Save as... (`#/project-menu/save-as`): titled with the project's name, the name a field with
@@ -333,11 +335,9 @@ export function ProjectDialogs(): React.JSX.Element {
     return (
         <>
             {saveFilesV2On(session) ? (
-                <>
-                    <SaveAsV2Dialog />
-                    <OpenV2Dialog />
-                    <ReportV2Dialog />
-                </>
+                <Suspense fallback={null}>
+                    <SaveFilesV2Dialogs />
+                </Suspense>
             ) : (
                 <SaveAsDialog />
             )}

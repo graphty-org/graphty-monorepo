@@ -296,7 +296,7 @@ function storageOf(facts: ProjectSaveFacts): Record<string, SourceStorage> {
  * whole project is kept in this browser, as Save as keeps it; anything else downloads as a copy.
  * @returns the dialog.
  */
-export function SaveAsV2Dialog(): React.JSX.Element {
+function SaveAsV2Dialog(): React.JSX.Element {
     const workspace = useWorkspace();
     const { session } = workspace;
     const opened = useWorkspaceState((state) => state.dialog === SAVE_AS_DIALOG);
@@ -611,7 +611,7 @@ function loadable(facts: ProjectFileFacts | undefined): DocumentSection[] {
  * needs from the open data.
  * @returns the dialog.
  */
-export function OpenV2Dialog(): React.JSX.Element {
+function OpenV2Dialog(): React.JSX.Element {
     const { store, session } = useWorkspace();
     const opened = useWorkspaceState((state) => state.dialog === OPEN_V2_DIALOG);
     const question = opened ? openQuestion(store) : undefined;
@@ -829,7 +829,7 @@ export function OpenV2Dialog(): React.JSX.Element {
  * What a version 2 save or open reported: each thing left out, kept or changed, and why.
  * @returns the dialog.
  */
-export function ReportV2Dialog(): React.JSX.Element {
+function ReportV2Dialog(): React.JSX.Element {
     const { store } = useWorkspace();
     const opened = useWorkspaceState((state) => state.dialog === REPORT_V2_DIALOG);
     const report = opened ? shownReport(store) : undefined;
@@ -845,5 +845,19 @@ export function ReportV2Dialog(): React.JSX.Element {
                 </Button>
             </ModalFooter>
         </Modal>
+    );
+}
+
+/**
+ * The version 2 Save as, Open and report dialogs, which the workspace loads on first use.
+ * @returns the dialogs.
+ */
+export function SaveFilesV2Dialogs(): React.JSX.Element {
+    return (
+        <>
+            <SaveAsV2Dialog />
+            <OpenV2Dialog />
+            <ReportV2Dialog />
+        </>
     );
 }

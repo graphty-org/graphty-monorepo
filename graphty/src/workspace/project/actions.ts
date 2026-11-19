@@ -30,7 +30,8 @@ import { newProjectId, type Notice, openRun, type SettleOpen, type WorkspaceStor
 import { chipLine } from "../style/modelWords";
 import { locateFile, readHandle } from "./files";
 import { entryForHandle, forgetRecent, recentEntry, type RecentProject, refreshStored, rememberRecent } from "./recent";
-import { askOpenV2, type SaveV2Choices, showReport } from "./saveV2";
+// The version 2 dialogs load on first use, so the landing page does not carry them.
+import type { SaveV2Choices } from "./saveV2";
 import { notReadWords } from "./words";
 
 /** The dialog ids this package opens in the workspace's one dialog slot. */
@@ -387,7 +388,7 @@ async function reportSave(
     const names = leftOut.some((fact) => fact.code.startsWith("W_SOURCE_"))
         ? new Map((await session.project.describe()).sources.map((source) => [source.id, source.name]))
         : new Map<string, string>();
-    showReport(workspace, session, title, leftOut, names);
+    (await import("./saveV2")).showReport(workspace, session, title, leftOut, names);
 }
 
 /**
@@ -689,7 +690,7 @@ async function openedProject(
     if (pending.v2 !== undefined) {
         // Version 2: what did not come back is listed in the report, by what it is.
         workspace.set({ notice: heldNotice(workspace, session, { message: `Opened ${name}` }) });
-        showReport(workspace, session, `Opened ${name}`, report.problems, pending.v2.names);
+        (await import("./saveV2")).showReport(workspace, session, `Opened ${name}`, report.problems, pending.v2.names);
         await focused;
         return;
     }
@@ -771,7 +772,7 @@ async function askBeforeOpen(workspace: WorkspaceStore, session: GraphSession, p
         }
         return true;
     }
-    const asked = await askOpenV2(workspace, session, pending.file);
+    const asked = await (await import("./saveV2")).askOpenV2(workspace, session, pending.file);
     if (asked === null) {
         return false;
     }
@@ -829,7 +830,13 @@ async function openInSession(
         if (report.opened !== "project") {
             openedData(ctx.workspace, session, report, file, fresh, focusLater);
             if (pending.v2 !== undefined) {
-                showReport(ctx.workspace, session, `Added ${file.name}`, report.problems, pending.v2.names);
+                (await import("./saveV2")).showReport(
+                    ctx.workspace,
+                    session,
+                    `Added ${file.name}`,
+                    report.problems,
+                    pending.v2.names,
+                );
             }
             return true;
         }

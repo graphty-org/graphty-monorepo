@@ -2225,21 +2225,24 @@ export function rebasedPath(
         return path;
     }
 
-    let target: URL;
-    let folder: URL;
     try {
-        target = new URL(path, opened);
-        folder = new URL(".", location);
+        // The path is POSIX, not a URL: each segment is encoded so `%`, `#`, `?` and backslash stay
+        // part of the name.
+        const posix = path
+            .split("/")
+            .map((segment) => encodeURIComponent(segment))
+            .join("/");
+        const target = new URL(posix, opened);
+        const folder = new URL(".", location);
+        if (target.origin !== folder.origin || !target.pathname.startsWith(folder.pathname)) {
+            return undefined;
+        }
+
+        const rest = decodeURIComponent(target.pathname.slice(folder.pathname.length));
+        return rest === "" ? undefined : rest;
     } catch {
         return undefined;
     }
-
-    if (target.origin !== folder.origin || !target.pathname.startsWith(folder.pathname)) {
-        return undefined;
-    }
-
-    const rest = decodeURIComponent(target.pathname.slice(folder.pathname.length));
-    return rest === "" ? undefined : rest;
 }
 
 /**

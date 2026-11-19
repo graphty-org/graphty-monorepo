@@ -675,10 +675,11 @@ A style section holds `layers` (REQUIRED), `palettes`, `shaders`, `tree`, `value
     | `graphty.draft`                | while a draft is displayed: `new`, `changed`, `merged`, `removed` or `unchanged`; never saved |
 
     `graphty.types`, the saved graph's plural, is reserved and is never a path. graphty-element
-    today computes none of the readable paths per element: a layer reading one (or `graphty.types`)
-    is kept as read and written back, reported `W_UNKNOWN_MEMBER` with `reason`
-    `E_UNKNOWN_ATTRIBUTE`, and so is a view `visibility` member; a run reading one is not run
-    (`W_RUN_NOT_RUN`) and kept.
+    today computes none of the readable paths per element: a style or view layer reading one (or
+    `graphty.types`) is kept as read and written back in its place, reported `W_UNKNOWN_MEMBER`
+    with `reason` `E_UNKNOWN_ATTRIBUTE` and the layer's pointer, and so is the one view
+    `visibility` member (the filter, the window, or one condition) reading it, while the rest of
+    `visibility` is applied; a run reading one is not run (`W_RUN_NOT_RUN`) and kept.
 
 5. A style section MUST NOT name an element or a dataset. A writer MUST leave out, and report
    (`W_ELEMENT_NAMING_LEFT_OUT`, params `{ section, pointer }`, the writer's own `layer` id when it has one, and `movedTo: "view"` when the same save writes the view section that carries the layer), every layer section 5 rule 5
@@ -1015,7 +1016,7 @@ of the view section.
    no size-based switch. A `file` source the saver asked to reference but whose `path` is not known
    and that has no browser file handle is embedded instead, and the save report names it
    (`W_SOURCE_NO_PATH`, params `{ source }`). Every `path` written, also one written back as read
-   (a held source's, a later graph's), is resolved against the file the project was opened from
+   (a held source's, a later graph's, a data section held whole), is resolved against the file the project was opened from
    and written relative to the file being saved (graphty-element's `location` save option); a file
    outside that folder loses its path, reported `W_SOURCE_NO_PATH`: a built source is embedded,
    and a held source or a later graph's source, which this writer has no rows for, is written with

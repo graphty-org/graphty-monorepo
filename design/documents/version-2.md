@@ -834,7 +834,7 @@ frame later would be a view major version.
   alone. There is no size-based automatic switch. A file is referenced by its `path` or by a
   browser file handle; a file source with neither cannot be referenced: it is saved embedded even
   when a reference was asked for, and the save report names it (`W_SOURCE_NO_PATH`). Every path,
-  also one written back as read (a held source, a later graph), is resolved against the file the
+  also one written back as read (a held source, a later graph, a data section held whole), is resolved against the file the
   project was opened from and written relative to the file being saved (the `location` save
   option); a file outside that folder loses its path: a built source is embedded, a held one is
   written with no path, so reopening asks for the file, and the report names it. A referenced network source gets a new copy id on every open, so its keyless

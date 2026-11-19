@@ -339,8 +339,9 @@ export async function saveDocument2(
     for (const name of chosen) {
         const held = state.held.get(name);
         if (held !== undefined) {
-            // Written back exactly as read; the session's own content of this kind is not saved.
-            sections[name] = held.value;
+            // Written back exactly as read but for its file paths (spec 8.1 rule 4); the session's
+            // own content of this kind is not saved.
+            sections[name] = heldWritten(session, name, held.value, choices.location, problems);
             const { version } = held.value as { version?: unknown };
             problems.push({
                 code: "W_SECTION_KEPT",
@@ -380,7 +381,7 @@ export async function saveDocument2(
         now,
     );
     if (Array.isArray(document.graphs) && choices.location !== undefined) {
-        const where = { location: choices.location, opened: refetchOptionsOf(session)?.location };
+        const where = whereOf(session, choices.location);
         document.graphs = document.graphs.map((graph: unknown) => rebasedGraph(graph, where, problems));
     }
 
@@ -388,32 +389,76 @@ export async function saveDocument2(
 }
 
 /**
- * A later graph of the file, written back as read but for its file sources' paths, rebased to the
- * file being saved (spec 2.2 rule 4): this release never builds it, so a file outside the saved
- * file's folder loses its path.
+ * A held section as a save writes it back: as read, but a data section's file paths rebased to the
+ * file being saved when the saver gives its location (spec 8.1 rule 4).
+ * @param session - The session.
+ * @param name - The section's key.
+ * @param value - The section as read.
+ * @param location - The URL of the file being saved, if given.
+ * @param problems - Collects `W_SOURCE_NO_PATH`.
+ * @returns The section.
+ */
+function heldWritten(
+    session: GraphSession,
+    name: string,
+    value: unknown,
+    location: string | undefined,
+    problems: DocumentProblem[],
+): unknown {
+    return name === "data" && location !== undefined ? rebasedData(value, whereOf(session, location), problems) : value;
+}
+
+/** The URLs of the file being saved and of the file it was opened from. */
+interface SaveWhere {
+    readonly location: string;
+    readonly opened?: string;
+}
+
+/**
+ * Where the save is written and where the project was opened from.
+ * @param session - The session.
+ * @param location - The URL of the file being saved.
+ * @returns Both URLs, the opened one when known.
+ */
+function whereOf(session: GraphSession, location: string): SaveWhere {
+    const opened = refetchOptionsOf(session)?.location;
+    return opened === undefined ? { location } : { location, opened };
+}
+
+/**
+ * A data section written back as read but for its file sources' paths, rebased to the file being
+ * saved (spec 8.1 rule 4): a file outside the saved file's folder loses its path.
+ * @param data - The data section as read.
+ * @param where - The URLs of the file being saved and of the file it was opened from.
+ * @param problems - Collects `W_SOURCE_NO_PATH`.
+ * @returns The section.
+ */
+function rebasedData(data: unknown, where: SaveWhere, problems: DocumentProblem[]): unknown {
+    if (!isJsonObject(data) || !Array.isArray(data.sources)) {
+        return data;
+    }
+
+    const sources = data.sources.map((record: unknown) =>
+        isJsonObject(record) ? rebasedRecord(record, where, problems) : record,
+    );
+    return { ...data, sources };
+}
+
+/**
+ * A later graph of the file, written back as read but for its file sources' paths (spec 2.2 rule
+ * 4): this release never builds it.
  * @param graph - The `graphs` entry as read.
  * @param where - The URLs of the file being saved and of the file it was opened from.
- * @param where.location - The file being saved.
- * @param where.opened - The file it was opened from.
  * @param problems - Collects `W_SOURCE_NO_PATH`.
  * @returns The entry.
  */
-function rebasedGraph(
-    graph: unknown,
-    where: { readonly location: string; readonly opened: string | undefined },
-    problems: DocumentProblem[],
-): unknown {
-    const data = isJsonObject(graph) && isJsonObject(graph.sections) ? graph.sections.data : undefined;
-    if (!isJsonObject(data) || !Array.isArray(data.sources)) {
+function rebasedGraph(graph: unknown, where: SaveWhere, problems: DocumentProblem[]): unknown {
+    const sections = isJsonObject(graph) && isJsonObject(graph.sections) ? graph.sections : undefined;
+    if (sections?.data === undefined) {
         return graph;
     }
 
-    const choices = where.opened === undefined ? { location: where.location } : where;
-    const sources = data.sources.map((record: unknown) =>
-        isJsonObject(record) ? rebasedRecord(record, choices, problems) : record,
-    );
-    const sections = (graph as JsonObject).sections as JsonObject;
-    return { ...(graph as JsonObject), sections: { ...sections, data: { ...data, sources } } };
+    return { ...(graph as JsonObject), sections: { ...sections, data: rebasedData(sections.data, where, problems) } };
 }
 
 /** What `openDocument2` needs from the project that is not the session. */

@@ -13,6 +13,7 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 import { createGraphSession, type GraphSession } from "../../../session";
 import { isGraphtyError } from "../../../src/errors";
 import { dataCodec } from "../../../src/session/document2/codecs/data";
+import { rebasedPath } from "../../../src/session/document2/codecs/dataRefs";
 import type { ProjectFileHandle } from "../../../src/session/document2/codecs/fileHandles";
 import type { DocumentProblem, JsonObject } from "../../../src/session/document2/types";
 import { finishAtOnce } from "../runs/harness";
@@ -849,6 +850,42 @@ describe("copy or reference, by path or by browser file handle", () => {
     });
 });
 
+describe("a file path is a POSIX path, not a URL", () => {
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
+    it("keeps '%', '#', '?' and backslash as part of the name when it rebases", () => {
+        for (const name of ["100%.csv", "a#b.csv", "a?b.csv", "my%20file.csv", "a\\b.csv", "d/e f.csv"]) {
+            assert.strictEqual(rebasedPath(name, PROJECT_AT, PROJECT_AT), name);
+            assert.strictEqual(rebasedPath(name, PROJECT_AT, "https://example.test/x.graphty.json"), `p/${name}`);
+        }
+
+        assert.strictEqual(rebasedPath("../100%.csv", PROJECT_AT, "https://example.test/q/x.graphty.json"), undefined);
+    });
+
+    it("saves, opens and saves again a source whose path holds '%' or '#'", async () => {
+        const session = createGraphSession(ON);
+        await session.data.import({ type: "csv", config: { file: new File([FRIENDS_CSV], "friends.csv") } });
+        const [{ key }] = session.data.sources();
+        vi.stubGlobal("fetch", () => Promise.resolve(new Response(FRIENDS_CSV)));
+        for (const path of ["100%.csv", "q#1.csv"]) {
+            const first = await session.project.save({
+                format: 2,
+                embed: { [key]: "referenced" },
+                paths: { [key]: path },
+            });
+            const reopened = createGraphSession(ON);
+            await reopened.project.open(first.text, { location: PROJECT_AT });
+            const again = await reopened.project.save({ format: 2, location: PROJECT_AT });
+            assert.strictEqual((loadedRecord(again.text).origin as JsonObject).path, path);
+            reopened.dispose();
+        }
+
+        session.dispose();
+    });
+});
+
 describe("a file holding several graphs", () => {
     const TWO = readText("examples/minimal/minimal-graphs.graphty.json");
     const SECOND = "graph_01JCC0000000000000000000G2";
@@ -894,6 +931,30 @@ describe("a file holding several graphs", () => {
     });
 });
 
+describe("a data section held whole", () => {
+    it("is written back with its file paths rebased to the file being saved", async () => {
+        const file = readJson("examples/minimal/minimal-graphs.graphty.json");
+        const graphs = file.graphs as JsonObject[];
+        const second = (graphs[1].sections as JsonObject).data as JsonObject;
+        (file.sections as JsonObject).data = { ...second, id: "minimal-data" };
+        // A first graph with sections makes graphs unreadable, so every section is held.
+        graphs[0] = { ...graphs[0], sections: {} };
+        const session = createGraphSession(ON);
+        const report = await session.project.open(JSON.stringify(file), { rerun: false, location: PROJECT_AT });
+        assert.isTrue(
+            report.problems.some((problem) => problem.code === "W_SECTION_KEPT" && problem.params.section === "data"),
+        );
+        const saved = await session.project.save({ format: 2, location: "https://example.test/x.graphty.json" });
+        const [source] = (sectionsOf(saved.text).data.sources as JsonObject[]) ?? [];
+        assert.strictEqual((source.origin as JsonObject).path, "p/data/friends.csv");
+        const away = await session.project.save({ format: 2, location: "https://example.test/q/x.graphty.json" });
+        const [lost] = sectionsOf(away.text).data.sources as JsonObject[];
+        assert.notProperty(lost.origin as JsonObject, "path");
+        assert.deepInclude(away.report.leftOut, { code: "W_SOURCE_NO_PATH", params: { source: String(lost.id) } });
+        session.dispose();
+    });
+});
+
 describe("readable paths in saved styles, filters and runs", () => {
     it("keeps a layer, a filter and a run reading a path this release does not compute, written back as read", async () => {
         const file = readJson("examples/card-fraud.graphty.json");
@@ -911,7 +972,7 @@ describe("readable paths in saved styles, filters and runs", () => {
         const report = await session.project.open(JSON.stringify(file), { rerun: true });
         assert.deepInclude(report.problems, {
             code: "W_UNKNOWN_MEMBER",
-            params: { section: "view", pointer: "/sections/view/visibility", reason: "E_UNKNOWN_ATTRIBUTE" },
+            params: { section: "view", pointer: "/sections/view/visibility/filter", reason: "E_UNKNOWN_ATTRIBUTE" },
         });
         assert.isTrue(
             report.problems.some(
@@ -927,6 +988,58 @@ describe("readable paths in saved styles, filters and runs", () => {
         assert.deepEqual(saved.view.visibility, visibility);
         assert.deepInclude(saved.style.layers as JsonObject[], layer);
         assert.deepInclude(saved.view.runs as JsonObject[], run);
+        session.dispose();
+    });
+
+    it("keeps a view layer reading a readable path, and writes it back in its place", async () => {
+        const file = readJson("examples/card-fraud.graphty.json");
+        const { view } = file.sections as Record<string, JsonObject>;
+        const layer = {
+            id: "by-type",
+            name: "By type",
+            target: "node",
+            selector: { match: "expression", where: "graphty.type == 'account'" },
+            set: { "node.color": "#ff0000" },
+        };
+        const layers = view.layers as JsonObject[];
+        layers.splice(1, 0, layer);
+        const session = createGraphSession(ON);
+        const report = await session.project.open(JSON.stringify(file), { rerun: false });
+        assert.deepInclude(report.problems, {
+            code: "W_UNKNOWN_MEMBER",
+            params: { section: "view", pointer: "/sections/view/layers/1", reason: "E_UNKNOWN_ATTRIBUTE" },
+        });
+        assert.isUndefined(session.styles.list().find((each) => each.name === "By type"));
+        // Written back in its place even when the session's other view layers change.
+        const suspects = session.styles.list().find((each) => each.name === "Suspects");
+        assert.isDefined(suspects);
+        await session.styles.update(suspects?.id, { name: "Suspects now" });
+        const saved = sectionsOf((await session.project.save({ format: 2 })).text);
+        const ids = (saved.view.layers as JsonObject[]).map((each) => each.id);
+        assert.deepEqual(ids.slice(0, 2), ["suspects", "by-type"]);
+        assert.deepInclude(saved.view.layers as JsonObject[], layer);
+        session.dispose();
+    });
+
+    it("applies every visibility member but the one reading a readable path", async () => {
+        const file = readJson("examples/card-fraud.graphty.json");
+        const { view } = file.sections as Record<string, JsonObject>;
+        const visibility = view.visibility as JsonObject;
+        visibility.window = { ...(visibility.window as JsonObject), attribute: "graphty.time" };
+        const session = createGraphSession(ON);
+        const report = await session.project.open(JSON.stringify(file), { rerun: false });
+        const unknown = report.problems.filter(
+            (problem) => problem.code === "W_UNKNOWN_MEMBER" && problem.params.reason === "E_UNKNOWN_ATTRIBUTE",
+        );
+        assert.deepEqual(
+            unknown.map((problem) => problem.params.pointer),
+            ["/sections/view/visibility/window"],
+        );
+        assert.isNotNull(session.visibility.filter);
+        assert.isNull(session.visibility.window);
+        assert.isTrue(session.visibility.showContext);
+        const saved = sectionsOf((await session.project.save({ format: 2 })).text);
+        assert.deepEqual(saved.view.visibility, visibility);
         session.dispose();
     });
 });

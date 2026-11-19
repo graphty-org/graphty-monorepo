@@ -155,7 +155,7 @@ export class ForceAtlas2Layout extends SimulationLayoutEngine {
      * the CPU and the accelerator alike. Kamada-Kawai reads a distance and inverts a strength; the
      * two engines disagree about the arithmetic so that they agree about the meaning.
      */
-    static override readonly honoursWeights: boolean = true;
+    static override readonly honorsWeights: boolean = true;
     static readonly zodOptionsSchema: OptionsSchema = forceAtlas2LayoutOptionsSchema;
 
     /**

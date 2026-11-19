@@ -1615,6 +1615,11 @@ export interface LayoutDescriptor {
      * offering a weight control on the other fourteen would advertise a setting that changes
      * nothing.
      */
+    honorsWeights: boolean;
+    /**
+     * The British spelling of {@link LayoutDescriptor.honorsWeights}, always the same value.
+     * @deprecated Read `honorsWeights`. Removed in the next major.
+     */
     honoursWeights: boolean;
     /**
      * Whether the default engine accepts a scope: `setLayout(type, opts, { scope })` moves only
@@ -1648,11 +1653,11 @@ export interface LayoutRequirements {
 /**
  * A layout descriptor as a third party's engine class authors it.
  *
- * `honoursWeights` and `scoped` are missing from it because the engine class already declares
+ * `honorsWeights` (and its British spelling `honoursWeights`) and `scoped` are missing from it because the engine class already declares
  * those facts as statics, and a fact written in two places is a fact that can disagree with
  * itself. `LayoutEngine.register` reads the statics and publishes the complete descriptor.
  */
-export type AuthoredLayoutDescriptor = Omit<LayoutDescriptor, "honoursWeights" | "scoped">;
+export type AuthoredLayoutDescriptor = Omit<LayoutDescriptor, "honorsWeights" | "honoursWeights" | "scoped">;
 
 /** One file format the element can read, write, or both. */
 export interface FormatDescriptor {

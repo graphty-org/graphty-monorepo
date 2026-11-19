@@ -135,6 +135,17 @@ const layoutEngineRegistry = new SharedImplementationMap<LayoutEngineClass>("lay
 type RegisterableLayout = LayoutEngineClass & Partial<LayoutEngineStatics>;
 
 /**
+ * Whether a layout class reads edge weights, under either spelling of the static: the deprecated
+ * British `honoursWeights` when the class sets it, otherwise `honorsWeights`.
+ * @param cls - The engine class.
+ * @returns True when the engine arranges a weighted graph differently.
+ */
+export function honorsWeights(cls: Partial<Pick<LayoutEngineStatics, "honorsWeights" | "honoursWeights">>): boolean {
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- reading the alias is what keeps old engines working
+    return cls.honoursWeights ?? cls.honorsWeights ?? false;
+}
+
+/**
  * The engine names the element itself ships, which is also the list of names a third party may
  * not take.
  *
@@ -205,6 +216,12 @@ export interface LayoutEngineStatics {
      * Optional, and false for all but two of the element's own nineteen. It exists so that a
      * picker can tell a reader which arrangements the `weighted` option actually does something
      * for, instead of offering it on seventeen layouts that ignore it.
+     */
+    honorsWeights?: boolean;
+    /**
+     * The British spelling of {@link LayoutEngineStatics.honorsWeights}, still read when a class
+     * declares it.
+     * @deprecated Declare `honorsWeights`. Removed in the next major.
      */
     honoursWeights?: boolean;
     /**
@@ -490,13 +507,21 @@ export abstract class LayoutEngine {
     static maxDimensions: number;
 
     /**
-     * Whether this engine reads edge weights. See {@link LayoutEngineStatics.honoursWeights}.
+     * Whether this engine reads edge weights. See {@link LayoutEngineStatics.honorsWeights}.
      *
      * False here because most layouts have no weight channel at all: of the element's own
      * nineteen, only Kamada-Kawai and ForceAtlas2 can read one, and the other seventeen would be
      * advertising a control that changes nothing.
      */
-    static honoursWeights = false;
+    static honorsWeights = false;
+
+    /**
+     * The British spelling of {@link LayoutEngine.honorsWeights}. Undefined unless a class sets
+     * it; when one does, it wins over `honorsWeights`, so an engine written against the old name
+     * keeps its weight channel.
+     * @deprecated Declare `static honorsWeights`. Removed in the next major.
+     */
+    static readonly honoursWeights?: boolean;
 
     /**
      * Whether this engine accepts a scope. See {@link LayoutEngineStatics.scoped}, which states the
@@ -1502,15 +1527,17 @@ export abstract class LayoutEngine {
         // an engine reachable by name whose descriptor nothing carries is exactly the half-built
         // state this check exists to prevent.
         //
-        // `honoursWeights` and `scoped` are taken from the class rather than from the descriptor the author
+        // `honorsWeights` and `scoped` are taken from the class rather than from the descriptor the author
         // wrote, because the engine is where the fact is true: a descriptor that claimed weights
         // for an engine whose arrangement ignores them would put a live control in front of a
         // reader that changes nothing.
+        const weightsHonored = honorsWeights(declared);
         publishLayoutDescriptor(
             {
                 descriptor: {
                     ...descriptor,
-                    honoursWeights: declared.honoursWeights ?? false,
+                    honorsWeights: weightsHonored,
+                    honoursWeights: weightsHonored,
                     scoped: declared.scoped ?? false,
                 },
                 type,

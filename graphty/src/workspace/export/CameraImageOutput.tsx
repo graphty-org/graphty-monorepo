@@ -272,11 +272,6 @@ export function CameraImageOutput({
     return (
         <>
             <section className="ws-export-main" aria-label="Image">
-                <div>
-                    <Text fw={550} size="md" role="heading" aria-level={3}>
-                        Image
-                    </Text>
-                </div>
                 <div className="ws-export-fields">
                     <Select
                         label="Preset"

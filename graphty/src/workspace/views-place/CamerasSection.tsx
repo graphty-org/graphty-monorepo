@@ -234,7 +234,7 @@ export function CamerasSection({ session, element, store }: CamerasProps): React
                 group: "edit",
                 reason: goReason,
                 onRun: () => {
-                    store.set({ dialog: "export", exportOn: "image", exportSource: null });
+                    store.set({ dialog: "export", exportOn: "image", exportSource: null, exportView: name });
                 },
             },
             {

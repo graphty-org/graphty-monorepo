@@ -1,10 +1,10 @@
-import { ActionRow, ModalFooter, SegmentedControl } from "@graphty/compact-mantine";
+import { ModalFooter, SegmentedControl } from "@graphty/compact-mantine";
 import type { AnimationProgressEvent, CaptureEstimate, TourPlan } from "@graphty/graphty-element";
 import { isGraphtyError } from "@graphty/graphty-element/session";
 import { Alert, Button, Input, Progress, Select, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useId, useRef, useState } from "react";
 
-import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
+import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { useViewsChanged } from "../toolbar/useViewsChanged";
 import { lengthWords, tourProblemWords } from "../toolbar/viewWords";
 import { failureWords, fileName, framesWords, tourAnimationOptions, type TourVideoChoices } from "./choices";
@@ -55,41 +55,6 @@ function FramesRow({ estimate }: Readonly<{ estimate: CaptureEstimate | null }>)
                 </Tooltip>
             )}
         </Input.Wrapper>
-    );
-}
-
-/**
- * With no tours: says so, and Video tours... closes the dialog and opens the Views place on its
- * Video tours section.
- * @returns the row
- */
-function NoToursRow(): React.JSX.Element {
-    const { store } = useWorkspace();
-    const door = useCommand("place.views");
-    return (
-        <div className="ws-export-wide">
-            <ActionRow
-                state="No tours yet"
-                actions={
-                    door === null ? null : (
-                        <Button
-                            size="compact-xs"
-                            variant="subtle"
-                            aria-disabled={door.disabledReason !== null}
-                            aria-description={door.disabledReason ?? undefined}
-                            onClick={() => {
-                                if (door.disabledReason === null) {
-                                    store.set({ dialog: null, viewsToursOpen: true, viewsFocus: "tours" });
-                                    door.run();
-                                }
-                            }}
-                        >
-                            Video tours...
-                        </Button>
-                    )
-                }
-            />
-        </div>
     );
 }
 
@@ -228,8 +193,7 @@ interface CameraFieldsProps {
 
 /**
  * The fields that follow Motion: a tour's Tour select and its read-only Length (a tour that is
- * gone stays chosen, in error), or a still's Camera list and its 3 / 5 / 10 s, and with no tours,
- * the row that leads to the Views place.
+ * gone stays chosen, in error), or a still's Camera list and its 3 / 5 / 10 s.
  * @param props - Component props
  * @param props.target - what would be recorded
  * @param props.choices - the video choices
@@ -239,7 +203,6 @@ interface CameraFieldsProps {
  */
 function CameraFields({ target, choices, recording, set }: CameraFieldsProps): React.JSX.Element {
     const { tours, tour, plan } = target;
-    const noTours = tours.length === 0 ? <NoToursRow /> : null;
     if (target.camera === "still") {
         return (
             <>
@@ -250,7 +213,6 @@ function CameraFields({ target, choices, recording, set }: CameraFieldsProps): R
                         set({ view });
                     }}
                 />
-                {noTours}
                 <Input.Wrapper size="xs" label="Length">
                     <SegmentedControl
                         fullWidth
@@ -280,7 +242,6 @@ function CameraFields({ target, choices, recording, set }: CameraFieldsProps): R
                     }
                 }}
             />
-            {noTours}
             <Input.Wrapper size="xs" label="Length">
                 <Text size="sm" data-testid="video-length">
                     {plan === null ? null : lengthWords(plan.totalMs)}
@@ -294,8 +255,7 @@ function CameraFields({ target, choices, recording, set }: CameraFieldsProps): R
  * The Video output: a saved tour (its length the element's plan of it) or a still view held for
  * 3, 5 or 10 seconds, the frame rate, the element's frame estimate, and Record. Every recording is
  * graphty-element's `captureAnimation`; the bar follows `animation-progress` and the stop label
- * `tour-progress`. With no tours, Motion is on Still and "Video tours..." opens the Views place
- * on Video tours. Leaving the output while it records cancels the recording, so nothing records unseen.
+ * `tour-progress`. Leaving the output while it records cancels the recording, so nothing records unseen.
  * @param props - Component props
  * @param props.choices - The video choices
  * @param props.onChange - Called with new choices
@@ -368,11 +328,6 @@ export function TourVideoOutput({
     return (
         <>
             <section className="ws-export-main" aria-label="Video">
-                <div>
-                    <Text fw={550} size="md" role="heading" aria-level={3}>
-                        Video
-                    </Text>
-                </div>
                 <div className="ws-export-fields">
                     <Input.Wrapper size="xs" label="Motion">
                         <SegmentedControl

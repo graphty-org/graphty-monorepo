@@ -347,6 +347,8 @@ export interface WorkspaceState {
     readonly viewsRename: string | null;
     /** The saved tour the Export dialog's Video opens on (a tour's Record...), else null. */
     readonly exportTour: string | null;
+    /** The saved camera the Export dialog's Image opens on (a camera's Export image...), else null. */
+    readonly exportView: string | null;
     /** The algorithm Analyze opens on (a Quick actions row picked it, by key), else null. */
     readonly analyzeOn: string | null;
     /** The settings Analyze opens that algorithm with (a result's Run again with changes...), else null. */
@@ -490,6 +492,7 @@ export const ON_RELOAD = {
     viewsFocus: "fresh: a one-time request the Views place clears",
     viewsRename: "fresh: a one-time request the Views place clears",
     exportTour: "fresh: set when the Export dialog opens",
+    exportView: "fresh: set when the Export dialog opens",
     exportSource: "fresh: set when the Export dialog opens",
     serverKind: "fresh: set when the server form opens",
     analyzeOn: "fresh: set when a Quick actions row opens Analyze",
@@ -612,6 +615,7 @@ const INITIAL: WorkspaceState = {
     viewsFocus: null,
     viewsRename: null,
     exportTour: null,
+    exportView: null,
     exportSource: null,
     serverKind: null,
     analyzeOn: null,

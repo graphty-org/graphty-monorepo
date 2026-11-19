@@ -56,7 +56,8 @@ const RECENT_MAX = 5;
  * the tour `exportTour` names, for a tour's Record...), or on Data with CSV and the table the store's
  * `exportOn` names (whenever a table is showing), scoped to the whole graph, or to the source `exportSource`
  * names for a Sources row's Export... (that opening only), and keeps each output's choices while the workspace is mounted.
- * With the camera-views experiment on, Image and Video are the camera and tour outputs; off, master's.
+ * With the camera-views experiment on, Image and Video are not listed: a camera's Export image... (`exportView`)
+ * and a tour's Export video... open the dialog on that output alone; off, the dialog is master's.
  * @returns The dialog
  */
 export function ExportDialog(): React.JSX.Element {
@@ -65,6 +66,7 @@ export function ExportDialog(): React.JSX.Element {
     const exportOn = useWorkspaceState((state) => state.exportOn);
     const exportSource = useWorkspaceState((state) => state.exportSource);
     const exportTour = useWorkspaceState((state) => state.exportTour);
+    const exportView = useWorkspaceState((state) => state.exportView);
     const [recording, setRecording] = useState(false);
     const [output, setOutput] = useState<OutputId>("image");
     const [image, setImage] = useState<ImageChoices>(DEFAULT_IMAGE);
@@ -87,8 +89,12 @@ export function ExportDialog(): React.JSX.Element {
         if (exportOn === "image" || exportOn === "video") {
             setOutput(exportOn);
             if (exportOn === "video" && exportTour !== null) {
-                // A tour's Record...: Video with that tour chosen.
+                // A tour's Export video...: Video with that tour chosen.
                 setTourVideo((choices) => ({ ...choices, camera: "tour", tour: exportTour }));
+            }
+            if (exportOn === "image" && exportView !== null) {
+                // A camera's Export image...: Image from that camera.
+                setCameraImage((choices) => ({ ...choices, view: exportView }));
             }
             setData((choices) => ({ ...choices, scope }));
         } else {
@@ -102,7 +108,7 @@ export function ExportDialog(): React.JSX.Element {
                 scope,
             }));
         }
-    }, [opened, exportOn, exportSource, exportTour, session]);
+    }, [opened, exportOn, exportSource, exportTour, exportView, session]);
 
     const close = (): void => {
         store.set({ dialog: null });
@@ -167,6 +173,18 @@ export function ExportDialog(): React.JSX.Element {
         }
     };
 
+    // With the camera-views experiment on, Image and Video are a camera's and a tour's own Export:
+    // opened on one, the dialog is that output alone; the generic Export lists the rest.
+    const single = cameraViews && (output === "image" || output === "video");
+    const outputs = cameraViews ? OUTPUTS.filter((entry) => entry.id !== "image" && entry.id !== "video") : OUTPUTS;
+    const recentShown = recent
+        .map((entry, index) => ({ entry, index }))
+        .filter(({ entry }) => !cameraViews || (entry.output !== "image" && entry.output !== "video"));
+    let title = "Export";
+    if (single) {
+        title = output === "image" ? "Export image" : "Export video";
+    }
+
     const body = (() => {
         switch (output) {
             case "image":
@@ -227,34 +245,36 @@ export function ExportDialog(): React.JSX.Element {
                     }
                 },
             }}
-            title="Export"
+            title={title}
             size="lg"
-            classNames={{ body: "ws-dialog-columns ws-export-body" }}
+            classNames={{ body: single ? "ws-export-single" : "ws-dialog-columns ws-export-body" }}
         >
-            <div className="ws-export-list">
-                <PageList
-                    items={OUTPUTS}
-                    current={output}
-                    label="What to export"
-                    onCurrentChange={(id) => {
-                        setOutput(id as OutputId);
-                    }}
-                />
-                {recent.length > 0 ? (
-                    <div className="ws-export-recent">
-                        <Text size="xs" c="dimmed" fw={550}>
-                            Recent
-                        </Text>
-                        <PageList
-                            items={recent.map((entry, index) => ({ id: String(index), name: entry.name }))}
-                            label="Recent exports"
-                            onCurrentChange={(id) => {
-                                reopen(Number(id));
-                            }}
-                        />
-                    </div>
-                ) : null}
-            </div>
+            {single ? null : (
+                <div className="ws-export-list">
+                    <PageList
+                        items={outputs}
+                        current={output}
+                        label="What to export"
+                        onCurrentChange={(id) => {
+                            setOutput(id as OutputId);
+                        }}
+                    />
+                    {recentShown.length > 0 ? (
+                        <div className="ws-export-recent">
+                            <Text size="xs" c="dimmed" fw={550}>
+                                Recent
+                            </Text>
+                            <PageList
+                                items={recentShown.map(({ entry, index }) => ({ id: String(index), name: entry.name }))}
+                                label="Recent exports"
+                                onCurrentChange={(id) => {
+                                    reopen(Number(id));
+                                }}
+                            />
+                        </div>
+                    ) : null}
+                </div>
+            )}
             {opened ? body : null}
         </Modal>
     );

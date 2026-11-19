@@ -2,7 +2,7 @@
 import "@graphty/graphty-element";
 
 import type { Meta, StoryObj } from "@storybook/react";
-import { userEvent, waitFor, within } from "storybook/test";
+import { waitFor, within } from "storybook/test";
 
 import { freshStore, storeOf } from "../../stories/freshStore";
 import { onSiteWith } from "../../test/siteFeatures";
@@ -78,7 +78,7 @@ function exportStory(exportOn: WorkspaceState["exportOn"]): Story {
 /** Export > Image: the "To share" preset, the legend callout and the preview the element draws. */
 export const Image: Story = { ...exportStory("image"), beforeEach: onSiteWith([]) };
 
-/** Export > Image with a saved camera chosen in Camera: the picture is taken from that camera (the camera-views experiment on). */
+/** A camera's Export image...: the Image output alone, titled Export image, taken from that camera (the camera-views experiment on). */
 export const ImageSavedView: Story = {
     ...freshStore({ project: { name: "Ring", id: 1 } }),
     beforeEach: onSiteWith(["camera-views"]),
@@ -89,22 +89,13 @@ export const ImageSavedView: Story = {
         await loadRing(canvasElement);
         const element = canvasElement.ownerDocument.querySelector("graphty-element");
         await element?.session.views.save([{ name: "Overview" }]);
-        store.set({ dialog: "export", exportOn: "image" });
-        const body = within(canvasElement.ownerDocument.body);
-        const dialog = await body.findByRole("dialog", { name: "Export" });
-        const preview = (): HTMLImageElement | null =>
-            canvasElement.ownerDocument.querySelector<HTMLImageElement>(".ws-export-preview img");
-        // The first preview, from the current camera, then the one from the chosen camera.
-        const first = await waitFor(() => preview()?.src ?? Promise.reject(new Error("no preview yet")));
-        await userEvent.click(within(dialog).getByRole("combobox", { name: "Camera" }));
-        await userEvent.click(await body.findByRole("option", { name: "Overview" }));
-        const img = await waitFor(() => {
-            const found = preview();
-            if (found === null || found.src === first) {
-                throw new Error("the preview from the saved view is not drawn yet");
-            }
-            return found;
-        });
+        store.set({ dialog: "export", exportOn: "image", exportSource: null, exportView: "Overview" });
+        await within(canvasElement.ownerDocument.body).findByRole("dialog", { name: "Export image" });
+        const img = await waitFor(
+            () =>
+                canvasElement.ownerDocument.querySelector<HTMLImageElement>(".ws-export-preview img") ??
+                Promise.reject(new Error("no preview yet")),
+        );
         await img.decode();
     },
 };
@@ -112,10 +103,7 @@ export const ImageSavedView: Story = {
 /** Export > Data, opened on the node table: CSV, what it cannot hold, and the first lines with the Degree columns. */
 export const Data: Story = { ...exportStory("nodes"), beforeEach: onSiteWith([]) };
 
-/**
- * Export > Video with a saved tour chosen: its length from the element's plan, the frame rate and
- * the frame count (the camera-views experiment on).
- */
+/** A tour's Export video...: the Video output alone, titled Export video, on that tour with its length, frame rate and frame count (the camera-views experiment on). */
 export const VideoTour: Story = {
     ...freshStore({ project: { name: "Ring", id: 1 } }),
     beforeEach: onSiteWith(["camera-views"]),
@@ -137,23 +125,11 @@ export const VideoTour: Story = {
                 },
             },
         ]);
-        store.set({ dialog: "export", exportOn: "video", exportTour: null });
-        const dialog = await within(canvasElement.ownerDocument.body).findByRole("dialog", { name: "Export" });
+        store.set({ dialog: "export", exportOn: "video", exportSource: null, exportTour: "Ring walk" });
+        const dialog = await within(canvasElement.ownerDocument.body).findByRole("dialog", { name: "Export video" });
         await within(dialog).findByText(/^\d+ frames$/);
     },
 };
 
-/** Export > Video with no tours: Motion on Still with its Camera list, and Video tours... to the Views place (the camera-views experiment on). */
-export const VideoNoTours: Story = {
-    ...freshStore({ project: { name: "Ring", id: 1 } }),
-    beforeEach: onSiteWith(["camera-views"]),
-    play: async (context) => {
-        const { canvasElement } = context;
-        const store = storeOf(context);
-        store.set({ dialog: null });
-        await loadRing(canvasElement);
-        store.set({ dialog: "export", exportOn: "video", exportTour: null });
-        const dialog = await within(canvasElement.ownerDocument.body).findByRole("dialog", { name: "Export" });
-        await within(dialog).findByText(/^\d+ frames$/);
-    },
-};
+/** Export... (Mod+E): data files only, opened on the node table, with no Image or Video (the camera-views experiment on). */
+export const DataOnly: Story = { ...exportStory("nodes"), beforeEach: onSiteWith(["camera-views"]) };

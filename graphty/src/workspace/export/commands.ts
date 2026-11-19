@@ -83,13 +83,18 @@ async function recordVideo(ctx: CommandContext): Promise<void> {
 
 /**
  * Where Export... opens (tier 4, R14, tier 1's rule): on Data with the table that is showing
- * whenever the table dock is open, else on Image.
+ * whenever the table dock is open, else on Image; with the camera-views experiment on, whose Export
+ * lists no Image, on the nodes' Data.
  * @param state - the workspace state.
+ * @param cameraViews - whether the camera-views experiment is on.
  * @returns the store's `exportOn`.
  */
-function exportTarget(state: Pick<WorkspaceState, "dockOpen" | "dockTab">): WorkspaceState["exportOn"] {
+function exportTarget(
+    state: Pick<WorkspaceState, "dockOpen" | "dockTab">,
+    cameraViews: boolean,
+): WorkspaceState["exportOn"] {
     if (!state.dockOpen) {
-        return "image";
+        return cameraViews ? "nodes" : "image";
     }
     return state.dockTab === "edges" ? "edges" : "nodes";
 }
@@ -116,8 +121,12 @@ export const registration = defineRegistration({
                 }
                 return element === null ? "The graph is still loading" : null;
             },
-            run: ({ workspace }) => {
-                workspace.set({ dialog: "export", exportOn: exportTarget(workspace.get()), exportSource: null });
+            run: ({ workspace, session }) => {
+                workspace.set({
+                    dialog: "export",
+                    exportOn: exportTarget(workspace.get(), cameraViewsOn(session)),
+                    exportSource: null,
+                });
             },
         },
         {

@@ -11,9 +11,9 @@ import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
-import { withFeatures } from "../../../test/features";
+import { withFeatures, withoutFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { HOSTS_CSV } from "../../data-place/fixtures";
 import { createWorkspaceStore, type WorkspaceState } from "../../state/store";
@@ -63,15 +63,6 @@ describe("Export opens on Data where a table is showing (R14)", () => {
         assert.strictEqual(within(dialog).getByRole<HTMLInputElement>("combobox", { name: "Table" }).value, "Edges");
     });
 
-    it("opens Ctrl+E on Image while no table is showing", async () => {
-        const session = await open();
-        await session.data.addNodes(NODES);
-
-        await userEvent.keyboard("{Control>}e{/Control}");
-        const dialog = await screen.findByRole("dialog", { name: "Export" });
-        assert.isNotNull(within(dialog).getByRole("heading", { name: "Image" }));
-    });
-
     it("opens a source row's Export... on Data, scoped to that source", async () => {
         const session = await open({ place: "data" });
         await session.data.import({ config: { file: new File(["id,os\nweb9,linux\n"], "more-hosts.csv") } });
@@ -90,6 +81,56 @@ describe("Export opens on Data where a table is showing (R14)", () => {
                 /^hosts\.csv /,
             );
         });
+    });
+});
+
+describe("Export opens on Image while no table is showing, with the camera-views experiment off", () => {
+    withoutFeatures(["camera-views"]);
+
+    it("opens Ctrl+E on Image while no table is showing", async () => {
+        const session = await open();
+        await session.data.addNodes(NODES);
+
+        await userEvent.keyboard("{Control>}e{/Control}");
+        const dialog = await screen.findByRole("dialog", { name: "Export" });
+        assert.isNotNull(within(dialog).getByRole("heading", { name: "Image" }));
+    });
+});
+
+describe("Export with the camera-views experiment on: a camera exports images and a tour videos", () => {
+    withFeatures(["camera-views"]);
+
+    it("opens Ctrl+E on the nodes' Data, and neither the main menu nor Quick actions has Export image or video", async () => {
+        await page.viewport(1440, 900);
+        const session = await open();
+        await session.data.addNodes(NODES);
+        await session.data.addEdges(EDGES);
+
+        await userEvent.keyboard("{Control>}e{/Control}");
+        const dialog = await screen.findByRole("dialog", { name: "Export" });
+        assert.isNotNull(within(dialog).getByRole("heading", { name: "Data" }));
+        assert.strictEqual(within(dialog).getByRole<HTMLInputElement>("combobox", { name: "Table" }).value, "Nodes");
+        const outputs = within(dialog).getByRole("grid", { name: "What to export" });
+        assert.isNull(within(outputs).queryByText("Image"));
+        assert.isNull(within(outputs).queryByText("Video"));
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("dialog", { name: "Export" }));
+        });
+
+        await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
+        const menu = await screen.findByRole("menu");
+        assert.isNotNull(within(menu).getByRole("menuitem", { name: /^Export\.\.\./ }));
+        assert.isNull(within(menu).queryByRole("menuitem", { name: /^Export (image|video)/i }));
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("menu"));
+        });
+
+        await userEvent.keyboard("{Control>}k{/Control}");
+        await userEvent.fill(await screen.findByPlaceholderText("Search commands"), "Export");
+        await screen.findByRole("option", { name: /^Export\.\.\./ });
+        assert.isNull(screen.queryByRole("option", { name: /^(Export image|Export video|Record video)/i }));
     });
 });
 

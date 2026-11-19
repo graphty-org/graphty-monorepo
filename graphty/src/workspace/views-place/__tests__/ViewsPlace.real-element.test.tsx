@@ -663,7 +663,7 @@ describe("the Views place", () => {
         await session.tours.save([{ name: "Walk", tour: { stops: [{ view: "Top", hold: 300 }] } }]);
         await userEvent.click(await within(place()).findByRole("button", { name: "More for Walk" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Export video/ }));
-        assert.isNotNull(await screen.findByRole("dialog", { name: "Export" }));
+        assert.isNotNull(await screen.findByRole("dialog", { name: "Export video" }));
         assert.equal(store.get().exportTour, "Walk");
         assert.equal(store.get().exportOn, "video");
     });

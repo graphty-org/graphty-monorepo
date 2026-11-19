@@ -1022,6 +1022,19 @@ export class RenderManager implements Manager {
         this.canvas.focus({ preventScroll: true });
     };
 
+    /**
+     * A release focuses the canvas only when its press began on the canvas. A press that began on
+     * the host page and ends over the drawing -- a menu item or a segmented option that acts on
+     * mouse-down and closes the popover above the canvas -- is the host's gesture: taking focus on
+     * its release threw away the focus the host had just moved (issue #8920).
+     * @param event - the release
+     */
+    private readonly focusOnRelease = (event: PointerEvent): void => {
+        if (this.pointersHeld.has(event.pointerId)) {
+            this.focusOnPointer();
+        }
+    };
+
     /** The canvas lost focus, or took a key: from now on it shows the browser's ring. */
     private readonly restoreFocusRing = (): void => {
         this.canvas.style.outline = "";
@@ -1064,7 +1077,7 @@ export class RenderManager implements Manager {
         this.scene.preventDefaultOnPointerDown = false;
         this.scene.preventDefaultOnPointerUp = false;
         this.canvas.addEventListener("pointerdown", this.focusOnPointer);
-        this.canvas.addEventListener("pointerup", this.focusOnPointer);
+        this.canvas.addEventListener("pointerup", this.focusOnRelease);
         this.canvas.addEventListener("blur", this.restoreFocusRing);
         this.canvas.addEventListener("keydown", this.restoreFocusRing);
         for (const type of READER_INPUT_EVENTS) {
@@ -1178,7 +1191,7 @@ export class RenderManager implements Manager {
         globalThis.removeEventListener("pointerup", this.releasePointer);
         globalThis.removeEventListener("pointercancel", this.releasePointer);
         globalThis.removeEventListener("blur", this.releaseAllPointers);
-        this.canvas.removeEventListener("pointerup", this.focusOnPointer);
+        this.canvas.removeEventListener("pointerup", this.focusOnRelease);
         this.canvas.removeEventListener("blur", this.restoreFocusRing);
         this.canvas.removeEventListener("keydown", this.restoreFocusRing);
         for (const type of READER_INPUT_EVENTS) {

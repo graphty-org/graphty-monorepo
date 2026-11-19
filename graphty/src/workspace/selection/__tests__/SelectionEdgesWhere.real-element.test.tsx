@@ -88,8 +88,9 @@ describe("a step's Edges where ...", () => {
         });
         assert.isNull(document.querySelector("[data-card-links]"), "no edge condition while every edge counts");
 
-        // Settings: Edges where ... closes them and draws the card's edge value. (Its code hands
-        // focus to that field, but the closing pop-out's focus return wins: issue #8920.)
+        // Settings: Edges where ... closes them, draws the card's edge value and hands it focus. The
+        // option switches on mouse-down, so the mouse-up lands on the drawing behind the closed
+        // settings, and must not take the focus (issue #8920).
         await userEvent.click(await screen.findByRole("button", { name: "Settings for Degree" }));
         const settings = await screen.findByRole("dialog", { name: "Degree" });
         await userEvent.click(within(settings).getByText("Edges where ..."));
@@ -97,6 +98,7 @@ describe("a step's Edges where ...", () => {
         await waitFor(() => {
             assert.isNull(screen.queryByRole("dialog", { name: "Degree" }), "the settings close");
         });
+        assert.strictEqual(document.activeElement, field, "the edge value's field takes focus");
         assert.isUndefined(firstStep(session, layer.id).links, "nothing is scoped until a value is picked");
 
         // The edge value's list holds the edges' own data: Les Miserables' "shared_chapters".

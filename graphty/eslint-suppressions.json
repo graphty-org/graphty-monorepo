@@ -254,14 +254,11 @@
     }
   },
   "src/workspace/selection/SelectionEditor.tsx": {
-    "jsx-a11y/click-events-have-key-events": {
-      "count": 1
-    },
     "jsx-a11y/prefer-tag-over-role": {
       "count": 2
     },
     "sonarjs/cognitive-complexity": {
-      "count": 3
+      "count": 1
     }
   },
   "src/workspace/selection/StepPane.tsx": {

@@ -102,6 +102,31 @@ describe("session.recipes", () => {
         second.dispose();
     });
 
+    it("leaves a project save writing the session's own recipe after an apply, and after its undo", async () => {
+        const first = createGraphSession(ON);
+        await addGraph(first, "");
+        await first.runs.start("degree", undefined, { as: "lab__deg", style: false });
+        const { text } = await first.recipes.export();
+
+        const second = createGraphSession(ON);
+        await addGraph(second, "x");
+        await second.runs.start("pagerank", undefined, { as: "own__rank", style: false });
+        await second.recipes.apply(text);
+        const runsIn = async (): Promise<string[]> => {
+            const saved = JSON.parse((await second.project.save({ format: 2 })).text) as {
+                sections: { recipe: { commands: { op: string; algorithm?: string }[] } };
+            };
+            return saved.sections.recipe.commands.flatMap((command) =>
+                command.op === "algo.run" ? [String(command.algorithm)] : [],
+            );
+        };
+        assert.sameMembers(await runsIn(), ["pagerank", "degree"], "the session's run is kept beside the applied one");
+        await second.undo();
+        assert.sameMembers(await runsIn(), ["pagerank"], "an undone apply is not saved");
+        first.dispose();
+        second.dispose();
+    });
+
     it("RecipesApi.apply: no more than linear in the graph", async () => {
         const source = createGraphSession(ON);
         await addGraph(source, "");

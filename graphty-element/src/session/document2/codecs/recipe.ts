@@ -56,7 +56,12 @@ import { fileIdsOf, fileSetId } from "./viewParts";
 const IDENTITY = ["id", "name", "description", "authors", "license", "keywords", "language", "origin"];
 
 /** The recipe section a session last opened, as read: written back unless the saver asks otherwise. */
-const opened = projectMemory<{ readonly header: SectionHeaderInput; readonly body: JsonObject }>();
+const opened = projectMemory<{
+    readonly header: SectionHeaderInput;
+    readonly body: JsonObject;
+    /** Whether it was applied: then the session holds its steps, and a save writes the session's. */
+    readonly applied: boolean;
+}>();
 
 /** The option types whose values name elements (recipe.md, "Commands" rule 4). */
 const ELEMENT_OPTIONS = new Set(["node-id", "node-set", "ordering"]);
@@ -803,8 +808,14 @@ export const recipeCodec: SectionCodec = {
     members: ["namespace", "commands"],
     write(context) {
         const kept = opened.get(context.session);
-        // An opened recipe is written back as read unless the saver asks for the session's.
-        return Promise.resolve(kept !== undefined && context.rewriteRecipe !== true ? kept : writeRecipe(context));
+        // An opened recipe is written back as read unless the saver asks for the session's, or it
+        // was applied: its steps are then the session's own, undoable and editable, and a save
+        // writes what the session holds, under the opened recipe's identity.
+        return Promise.resolve(
+            kept !== undefined && !kept.applied && context.rewriteRecipe !== true
+                ? { header: kept.header, body: kept.body }
+                : writeRecipe(context),
+        );
     },
     async read(section, context) {
         const header = section.header as unknown as JsonObject;
@@ -815,6 +826,7 @@ export const recipeCodec: SectionCodec = {
             body: Object.fromEntries(
                 Object.entries(section.body).filter(([member]) => recipeCodec.members.includes(member)),
             ),
+            applied: context.applyRecipe === true,
         });
         if (context.applyRecipe !== true) {
             // Opening never applies a recipe (spec 8.2 rule 4): it is kept, and the plan says so.

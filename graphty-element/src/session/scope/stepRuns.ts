@@ -88,6 +88,13 @@ export interface StepRunsSources {
      * @returns The type.
      */
     optionType(algorithm: AlgorithmKey, option: string): OptionType | undefined;
+    /**
+     * Whether an algorithm is registered: a step naming one that is not (an extension's, not
+     * loaded here) selects nothing and says so, rather than asking the runs for it.
+     * @param algorithm - The algorithm.
+     * @returns True when the catalog lists it.
+     */
+    registered(algorithm: AlgorithmKey): boolean;
     /** The run limits. */
     options(): ScopeStepOptions;
     /** Whether the pointer is on a node now. */
@@ -547,6 +554,12 @@ export function createStepRuns(sources: StepRunsSources): StepRuns {
         const leaf = measureOf(step);
         if (leaf === null) {
             return { gate: liveGate(step, frame) };
+        }
+
+        if (!sources.registered(leaf.algorithm)) {
+            return {
+                gate: { state: "empty", reason: { code: "unknown-algorithm", params: { algorithm: leaf.algorithm } } },
+            };
         }
 
         const params = bound(leaf, frame);

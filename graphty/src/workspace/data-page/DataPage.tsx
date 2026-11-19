@@ -43,7 +43,7 @@ import {
     Title,
     Tooltip,
 } from "@mantine/core";
-import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import { meaningGloss, weightName } from "../analyze/words";
 import { missingNodes, NO_NODE_ROW, noNodeRow } from "../data-place/words";
@@ -1583,8 +1583,10 @@ function Footer({
     const counted = page.report !== null || page.reportError !== null;
     const decided = useRef<LoadDraft | null>(null);
     // The control that chose the file goes as the file is read: focus waits on the primary
-    // button, which takes the read's result, rather than falling back to the rail.
-    useEffect(() => {
+    // button, which takes the read's result, rather than falling back to the rail. A layout
+    // effect, so focus moves in the commit that removed that control, before the workspace's
+    // focus guard can find it lost and hand it elsewhere (#9005).
+    useLayoutEffect(() => {
         if (page.reading && focusIsLost()) {
             (replacePrimary ? replaceButton : loadButton).current?.focus();
         }

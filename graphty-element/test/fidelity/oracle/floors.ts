@@ -573,6 +573,64 @@ export function ratchetKnown(
 }
 
 /**
+ * Moves listed known failures to a new reason, so they cite the issue that tracks them now (an accepted difference, or a
+ * defect split off into its own issue): each named element comes off every reason that listed it and onto one new
+ * reason. A reason left listing nothing is dropped. The elements stay on the known failures. Needs no run; when none
+ * of the named elements is listed, the records come back unchanged.
+ * @param records - the known failures as committed
+ * @param recite - what to move and why
+ * @param recite.reason - the new reason, naming the issue tracking these elements (`#1234`)
+ * @param recite.date - `YYYY-MM-DD`
+ * @param recite.keys - the keys
+ * @param recite.ids - the element ids
+ * @param recite.properties - only these properties (all when omitted)
+ * @returns the new records and how many elements moved
+ */
+export function reciteKnown(
+    records: KnownRecords,
+    recite: {
+        reason: string;
+        date: string;
+        keys: readonly string[];
+        ids: readonly string[];
+        properties?: readonly string[];
+    },
+): { records: KnownRecords; moved: number } {
+    checkReason(recite.reason, "re-citing known failures");
+    const added: KnownReason["added"] = {};
+    let moved = 0;
+    for (const key of recite.keys) {
+        for (const [property, ids] of Object.entries(records.known[key] ?? {})) {
+            const hit = named(recite, property) ? ids.filter((id) => recite.ids.includes(id)) : [];
+            if (hit.length > 0) {
+                (added[key] ??= {})[property] = hit;
+                moved += hit.length;
+            }
+        }
+    }
+    if (moved === 0) {
+        return { records, moved };
+    }
+    const isMoved = (key: string, property: string, id: string): boolean => (added[key]?.[property] ?? []).includes(id);
+    const reasons = records.reasons
+        .map((r) => {
+            const left: KnownReason["added"] = {};
+            for (const [key, props] of Object.entries(r.added)) {
+                for (const [property, ids] of Object.entries(props)) {
+                    const kept = ids.filter((id) => !isMoved(key, property, id));
+                    if (kept.length > 0) {
+                        (left[key] ??= {})[property] = kept;
+                    }
+                }
+            }
+            return { ...r, added: left };
+        })
+        .filter((r) => Object.keys(r.added).length > 0);
+    reasons.push({ date: recite.date, reason: recite.reason, added, sources: { unclassified: moved } });
+    return { records: { ...records, reasons }, moved };
+}
+
+/**
  * Raises a key's recorded pass rates to this run's where it measured higher, and records a property never recorded;
  * never lowers one.
  * @param table - the floors, changed in place

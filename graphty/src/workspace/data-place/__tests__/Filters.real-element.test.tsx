@@ -271,6 +271,26 @@ describe("Filter cards on the real element", () => {
         });
     });
 
+    it("a card's count in the workspace shows what it keeps in the table", async () => {
+        await openWithGraph();
+        await columnVerb("edge", "value", "Filter to...");
+        const from = await screen.findByRole("textbox", { name: "value from, number" });
+        await userEvent.clear(from);
+        await userEvent.type(from, "9{Enter}");
+        const ws = await workspace();
+        // The table is shown at first: its title's More hides it.
+        await within(ws).findByRole("region", { name: "Matches" });
+        const more = within(ws).getAllByRole("button", { name: /^More for / })[0];
+        assert.isDefined(more);
+        await userEvent.click(more);
+        await userEvent.click(await screen.findByRole("menuitem", { name: /^Hide table/ }));
+        await waitFor(() => {
+            assert.isNull(within(ws).queryByRole("region", { name: "Matches" }), "the table is hidden");
+        });
+        await userEvent.click(await within(ws).findByRole("button", { name: /^Show 4 of 9 edges/ }));
+        await within(ws).findByRole("region", { name: "Matches" });
+    });
+
     it("the header chip opens the Data place from another place", async () => {
         const { session, store } = await openWithGraph();
         await addValueCard(session);

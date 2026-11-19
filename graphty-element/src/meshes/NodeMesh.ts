@@ -1031,6 +1031,73 @@ export class NodeMesh {
     }
 
     /**
+     * The fill of a group drawn over its members' box, as a source mesh of its own: the shape built at the box's own
+     * width and height, as its border is ({@link NodeMesh.createGroupBorder}), then shrunk by the stretch the group's
+     * mesh is drawn under, so the stretched instance draws it at the box's size. Stretching the shared fill instead
+     * stretched a rounded rectangle's corners into long ellipses (issue #8194). Drawn with the shared source's
+     * material, opacity and draw settings; the caller disposes it (never its material).
+     * @param from - The shared source the group's instance is drawn from now.
+     * @param shape - The group's flat shape.
+     * @param extents - The box's drawn size.
+     * @param extents.x - Its width.
+     * @param extents.y - Its height.
+     * @param extents.z - Its depth.
+     * @param stretch - The scaling the group's instance is drawn under.
+     * @param stretch.x - Across its width.
+     * @param stretch.y - Across its height.
+     * @param stretch.z - Across its depth.
+     * @param is2D - Whether the view is 2D.
+     * @returns The source, or null for a shape that is not flat.
+     */
+    static createGroupFill(
+        from: Mesh,
+        shape: NodeStyleConfig["shape"],
+        extents: { x: number; y: number; z: number },
+        stretch: { x: number; y: number; z: number },
+        is2D: boolean,
+    ): Mesh | null {
+        if (shape?.type === undefined || !isFlatShape(shape.type)) {
+            return null;
+        }
+
+        const scene = from.getScene();
+        const mesh = this.createFlatShape(shape, { across: Math.max(extents.x, extents.y), ...extents }, scene);
+        mesh.bakeTransformIntoVertices(Matrix.Scaling(1 / stretch.x, 1 / stretch.y, 1 / stretch.z));
+        // placed along z in the source's own units, as the shared source was, so it is drawn at the same depth
+        placeByZIndex(mesh, shape, is2D);
+        mesh.name = `${from.name}-group`;
+        mesh.material = from.material;
+        mesh.visibility = from.visibility;
+        mesh.renderingGroupId = from.renderingGroupId;
+        mesh.alphaIndex = from.alphaIndex;
+        mesh.renderOutline = from.renderOutline;
+        mesh.outlineWidth = from.outlineWidth;
+        mesh.outlineColor = from.outlineColor;
+        mesh.isPickable = from.isPickable;
+        mesh.isVisible = false;
+        for (const kind of Object.keys(from.instancedBuffers ?? {})) {
+            mesh.registerInstancedBuffer(kind, from.getVertexBuffer(kind)?.getSize() ?? 4);
+            mesh.instancedBuffers[kind] = from.instancedBuffers[kind] as unknown;
+        }
+        mesh.position.copyFrom(from.position);
+        mesh.freezeWorldMatrix();
+
+        return mesh;
+    }
+
+    /**
+     * A hidden instance of a shared source, keeping it alive while nothing drawn instances it: the mesh cache
+     * disposes a source with no instance left, and its material with it.
+     * @param source - The shared source.
+     * @returns The instance; dispose it to let the source go.
+     */
+    static keepSource(source: Mesh): InstancedMesh {
+        const kept = source.createInstance(`${source.name}-kept`);
+        kept.setEnabled(false);
+        return kept;
+    }
+
+    /**
      * The outline a line ends on for a flat shape whose outline is neither its box nor the ellipse in it (a star, a
      * diamond, a cross, Pajek's man and woman): its fill's outline in units of its box's half size.
      * @param createOptions - The node's shape and border.

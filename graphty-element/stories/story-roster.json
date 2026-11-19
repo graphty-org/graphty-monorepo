@@ -58,6 +58,7 @@
         "Data/File Styles::GraphmlYed",
         "Data/File Styles::Pajek",
         "Data/File Styles::Xgmml",
+        "Data/File Styles::XgmmlAtFilePositions",
         "Data/File positions::CX",
         "Data/File positions::CX2",
         "Data/File positions::CytoscapeSession",

@@ -7876,7 +7876,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.994,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -7931,7 +7931,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.994,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -56231,22 +56231,6 @@
                 "to": 0,
                 "reason": "2026-11-15: comparator (#8191): the hollow circle head of 189->192, an edge Cytoscape desktop draws as its two heads only, was counted as a stray graphty drew; read as the edge's target head now, it leaves one stray, the yellow box already listed",
                 "date": "2026-11-16"
-            }
-        },
-        "cys-annotation-example": {
-            "edge.route": {
-                "floor": 0.994,
-                "to": 0.989,
-                "reason": "tracked by #8200: the redrawn Cytoscape desktop oracle lists the same edge paths in another order, and the oracle's geometric edge association pairs two 16-unit edges at node 169397 greedily in that order (a path end equally near 169396 and 169391 takes 169396 first), so it judges each against the other edge; the paths are unchanged",
-                "date": "2026-11-18"
-            }
-        },
-        "cys-annotation-example@matched": {
-            "edge.route": {
-                "floor": 0.994,
-                "to": 0.989,
-                "reason": "tracked by #8200: the redrawn Cytoscape desktop oracle lists the same edge paths in another order, and the oracle's geometric edge association pairs two 16-unit edges at node 169397 greedily in that order (a path end equally near 169396 and 169391 takes 169396 first), so it judges each against the other edge; the paths are unchanged",
-                "date": "2026-11-18"
             }
         },
         "cys-syn-mappings": {

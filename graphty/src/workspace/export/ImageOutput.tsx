@@ -86,7 +86,7 @@ export function ImageOutput({ choices, onChange, onCancel, onDone }: Readonly<Im
         let live = true;
         let url: string | null = null;
         // An explicit width wins over the options' 1x multiplier.
-        const options = screenshotOptions({ ...choices, size: "1x" }, { blob: true });
+        const options = screenshotOptions({ ...choices, size: "1x" }, {});
         element
             .captureScreenshot({
                 ...options,
@@ -123,9 +123,7 @@ export function ImageOutput({ choices, onChange, onCancel, onDone }: Readonly<Im
         let live = true;
         void Promise.all(
             SIZES.map(async (size) => {
-                const check = await element.canCaptureScreenshot(
-                    screenshotOptions({ ...choices, size }, { blob: true }),
-                );
+                const check = await element.canCaptureScreenshot(screenshotOptions({ ...choices, size }, {}));
                 return [size, check.reason === undefined ? undefined : refusalWords(check.reason)] as const;
             }),
         ).then((entries) => {

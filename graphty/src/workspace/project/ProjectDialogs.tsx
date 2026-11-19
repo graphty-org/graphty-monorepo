@@ -40,6 +40,9 @@ function SaveAsDialog(): React.JSX.Element {
     // Whether another dialog took the slot during a save (the question about files from the web,
     // or Save as pressed again over it): the save then leaves the slot to that dialog.
     const left = useRef(false);
+    // Read through a call: the effect sets it while the save awaits, which TypeScript's narrowing
+    // after `left.current = false` cannot see.
+    const hasLeft = (): boolean => left.current;
     useEffect(() => {
         setSettingsOpen(false);
         setPending(new Map());
@@ -63,7 +66,7 @@ function SaveAsDialog(): React.JSX.Element {
         try {
             applyCopies(workspace.session, pending);
             await saveProjectAs(workspace, trimmed);
-            if (!left.current) {
+            if (!hasLeft()) {
                 close();
             }
         } finally {
@@ -248,7 +251,7 @@ function KeepAssetsDialog(): React.JSX.Element {
         }
         setChoices({});
         // Closed without an answer (another dialog took the slot, as Save as pressed while it
-        // asks): the save waiting on it is cancelled, never left waiting.
+        // asks): the save waiting on it is canceled, never left waiting.
         return () => {
             assetQuestion(store)?.answer(null);
         };

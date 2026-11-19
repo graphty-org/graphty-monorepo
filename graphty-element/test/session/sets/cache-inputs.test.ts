@@ -11,7 +11,7 @@
  * |                 |                                   | execution tokens read, saved record identity (absent marker),     |
  * |                 |                                   | seeds, and, through the columns a re-import writes, `edgeIdPath`  |
  * | summary         | set id                            | the resolution's signature                                        |
- * | digest          | the resolution object             | whatever the resolution reads (memoised on it)                    |
+ * | digest          | the resolution object             | whatever the resolution reads (memoized on it)                    |
  * | offer counts    | run id                            | the run's execution token, store, snapshot serial; the edge-count |
  * |                 |                                   | pass is filled into the entry and dropped with it                 |
  * | derived input   | store, serial, bitmap signature,  | the scope's node and edge bitmaps (confirmed word for word), the  |

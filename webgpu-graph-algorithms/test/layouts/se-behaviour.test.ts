@@ -1,8 +1,8 @@
 /**
- * The behaviour pins of the spring-electrical preset (spec 11.4; P5-T5 Step 3): the empty graph, a single node, two
- * coincident nodes separating (PD-10), a pinned node immobile while its neighbours move, the kinetic-energy trace
+ * The behavior pins of the spring-electrical preset (spec 11.4; P5-T5 Step 3): the empty graph, a single node, two
+ * coincident nodes separating (PD-10), a pinned node immobile while its neighbors move, the kinetic-energy trace
  * semantics of PD-4 (0 before the first batch and on the first record after load(), positive afterwards, always
- * finite and non-negative), a setPosition honoured with the dragged node's velocity NOT reset, the `velocity` buffer
+ * finite and non-negative), a setPosition honored with the dragged node's velocity NOT reset, the `velocity` buffer
  * name (PD-2: `inspect("oldForce")` is E_INVALID_ARGUMENT on this model), z === center.z in 2D, the same seed
  * bitwise, and the exact tier under an explicit `repulsion: "exact"`. No derived tolerance and no literal one: every check is bitwise, a
  * count or a sign.

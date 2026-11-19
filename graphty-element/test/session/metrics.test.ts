@@ -100,7 +100,7 @@ describe("the metrics a graph can support", () => {
     });
 
     it("keeps a metric this graph cannot support in the list, and says why", async () => {
-        // The store is told the graph is directed, so every algorithm whose catalogue entry
+        // The store is told the graph is directed, so every algorithm whose catalog entry
         // requires an undirected graph is unavailable on it.
         const harness = await lesMiserables(true);
 

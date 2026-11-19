@@ -46,7 +46,7 @@ import { CUSTOM_MODEL, logUnexpected, PICTURE_WORD } from "./words";
 
 /**
  * What the file chooser takes, as graphty-element lists it: a model's own file or a .zip, never
- * its parts, which the Files list asks for once the model is in (Safari greys out a part's
+ * its parts, which the Files list asks for once the model is in (Safari grays out a part's
  * extension, such as .mtl, that it has no file type for).
  */
 const MODEL_MAIN_EXTENSIONS = assetFileExtensions("model", { parts: false });
@@ -181,7 +181,7 @@ function isModelFile(file: File): boolean {
 }
 
 /**
- * Whether a load stopped because the reader cancelled it.
+ * Whether a load stopped because the reader canceled it.
  * @param error - what it threw.
  * @returns true for an abort.
  */
@@ -961,9 +961,9 @@ export function CustomModelDialog({
             }
             return;
         }
-        const [record] = records;
-        if (records.length === 1 && record.state === "accepted" && record.kind === "image") {
-            setPicture({ id: record.id, name: fileStem(record.path ?? files[0]?.name ?? "") || "picture" });
+        const record = records.at(0);
+        if (records.length === 1 && record?.state === "accepted" && record.kind === "image") {
+            setPicture({ id: record.id, name: fileStem(record.path ?? files.at(0)?.name ?? "") || "picture" });
             say(CUSTOM_MODEL.notModel(fileStem(record.path ?? "") || "picture", MODEL_FORMATS));
             return;
         }
@@ -971,7 +971,7 @@ export function CustomModelDialog({
         // A model refused outright is not held; one waiting for a part is, and Files asks for it.
         const kept = records.filter((r) => r.state === "accepted" || waitingIds.has(r.id));
         if (kept.length === 0) {
-            const fact = record.problems[0] ?? { code: "E_MODEL_PARSE", params: {} };
+            const fact = record?.problems[0] ?? { code: "E_MODEL_PARSE", params: {} };
             for (const r of refs) {
                 letGo(r);
             }
@@ -1232,16 +1232,14 @@ export function CustomModelDialog({
             )}
             {accepted === null || !forLayer || busy ? null : (
                 <Stack gap={4} className="ws-model-settings">
-                    {forLayer ? (
-                        <SettingRows
-                            channels={SHOWN_CHANNELS}
-                            values={draft}
-                            problems={accepted.record.problems}
-                            write={write}
-                            remove={unset}
-                            clips={clips}
-                        />
-                    ) : null}
+                    <SettingRows
+                        channels={SHOWN_CHANNELS}
+                        values={draft}
+                        problems={accepted.record.problems}
+                        write={write}
+                        remove={unset}
+                        clips={clips}
+                    />
                 </Stack>
             )}
             {draw.failure === undefined || busy ? null : (

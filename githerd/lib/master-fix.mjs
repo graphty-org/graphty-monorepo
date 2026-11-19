@@ -134,7 +134,7 @@ export function fixReason(node, { keys, issues, reported }) {
 
 /**
  * Whether an open pull request names a judged key, or its failing step, in its title or body: one
- * that already carries `priority:critical` is the incident's critical fix, whoever labelled it.
+ * that already carries `priority:critical` is the incident's critical fix, whoever labeled it.
  * @param {any} node the pull request
  * @param {{key: string}[]} keys the judged keys
  * @returns {boolean} true when it names one

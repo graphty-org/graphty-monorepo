@@ -11,7 +11,7 @@ import NETWORK_SAMPLES from "./network-samples.json";
 export const NETWORK_DIALOG = "network";
 
 /** The badge on each kind of network's card, and what the kind is. */
-const CARD_WORDS: Readonly<Record<string, { readonly badge: string; readonly what: string }>> = {
+const CARD_WORDS: Readonly<Partial<Record<string, { readonly badge: string; readonly what: string }>>> = {
     ndex: { badge: "ND", what: "Public biology networks" },
     neo4j: { badge: "N4j", what: "Run a Cypher query" },
     sparql: { badge: "SP", what: "Run a SPARQL query" },

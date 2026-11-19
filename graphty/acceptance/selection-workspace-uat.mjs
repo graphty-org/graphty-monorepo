@@ -1919,7 +1919,7 @@ const scenarios = [
         words: `${row.entry} ${row.dataset} start:${row.start} ${row.shape} ${row.k1}+${row.k2} ${row.verb} ${row.edit} ${row.leave}`,
         run: (page) => walkEdgeRow(page, row),
     })),
-    ...SCENARIOS.map(([words, run], at) => ({ id: `s${String(at + 1).padStart(2, "0")}`, words, run })),
+    ...SCENARIOS.map(([words, run], at) => ({ id: `s${String(at + 1).padStart(2, "0")}`, words, run, motion: true })),
 ];
 
 // ------------------------------------------------------------------------------------------------
@@ -1998,7 +1998,16 @@ mkdirSync(args.out, { recursive: true });
 const results = [];
 
 async function runOne(browser, engine, scenario) {
-    const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, ignoreHTTPSErrors: true });
+    // A matrix row runs as a reader who prefers less motion, so the graph is drawn once its layout
+    // settles instead of every frame of the flight in: on a runner's software GPU that drawing was
+    // about half of each row's CPU (#5404). A row checks what a selection holds, which motion does
+    // not change; the named scenarios check how the controls and the camera respond, so they keep
+    // every transition.
+    const context = await browser.newContext({
+        viewport: { width: 1440, height: 900 },
+        ignoreHTTPSErrors: true,
+        reducedMotion: scenario.motion === true ? "no-preference" : "reduce",
+    });
     const page = await context.newPage();
     // Every wait waits on its condition; only the repository's one hang guard ends a wait that hangs.
     page.setDefaultTimeout(WAIT_GUARD_MS);

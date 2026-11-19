@@ -228,7 +228,7 @@ afterEach(() => {
 });
 
 afterAll(() => {
-    // The catalogue is global, so a later file asking what the element can offer must not be shown
+    // The catalog is global, so a later file asking what the element can offer must not be shown
     // this file's plugin.
     clearRegisteredLayoutsForTesting();
 });

@@ -49,6 +49,13 @@ export function edgeCounterOf(id: EdgeId): number {
 }
 
 /**
+ * The first edge id a caller or a save file may not hand back. An id at or above it is never
+ * taken and never moves the counter, so the upper half of the u32 `graphty.edgeId` column stays
+ * free for edges added later and the counter never reaches `INVALID_INDEX`.
+ */
+export const EDGE_ID_CEILING = 2 ** 31;
+
+/**
  * A map from edge id to a number (a row), held by the id's counter in an array: no Map entry and no
  * id string per edge (about 35 bytes an edge at a million edges). An id this element never assigned
  * is never held. Its ids walk in counter order.
@@ -241,7 +248,7 @@ export function decideRepeat(policy: DuplicatePolicy, survivorWeight: number, re
         default:
             // "last": the repeat's weight and attributes replace the survivor's. The other three
             // reducers keep the survivor's attributes: no reading of `sum` makes the last record's
-            // colour the group's colour.
+            // color the group's color.
             return { kind: "merge", weight: repeatWeight, replaceRecord: true };
     }
 }

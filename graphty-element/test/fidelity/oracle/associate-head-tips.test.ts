@@ -1,7 +1,7 @@
 /**
  * A line a program stops at its arrowhead's base (Cytoscape desktop) ends where its head's tip points, not where the base
  * happens to lie: on cx2-signor-aml two curved lines' bases lay on the outline of a node drawn over or beside the one
- * their heads pointed at (38 -> 50 read as a second 92 -> 27, 146 -> 70 read as 63 -> 1, and so 1 -> 63's grey curve as
+ * their heads pointed at (38 -> 50 read as a second 92 -> 27, 146 -> 70 read as 63 -> 1, and so 1 -> 63's gray curve as
  * 135 -> 20, #5383).
  */
 import { assert, describe, it } from "vitest";

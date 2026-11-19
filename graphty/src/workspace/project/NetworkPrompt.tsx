@@ -63,7 +63,7 @@ export function NetworkPrompt(): React.JSX.Element | null {
     if (session === null) {
         return null;
     }
-    const [request] = waiting;
+    const request = waiting.at(0);
     const settle = (answer: () => void | Promise<void>): void => {
         void Promise.resolve(answer())
             .catch(() => undefined)
@@ -77,7 +77,9 @@ export function NetworkPrompt(): React.JSX.Element | null {
             opened={request !== undefined}
             onClose={() => {
                 settle(() => {
-                    session.network.deny(request.params.id);
+                    if (request !== undefined) {
+                        session.network.deny(request.params.id);
+                    }
                 });
             }}
             title="Open a web address?"

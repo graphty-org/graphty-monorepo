@@ -1,6 +1,6 @@
 /** The words Recent projects shows for an entry, and why a load did not open. */
 
-import { type CodedFactParam, isGraphtyError } from "@graphty/graphty-element/session";
+import { type CodedFact, type CodedFactParam, isGraphtyError } from "@graphty/graphty-element/session";
 
 import { codeWords } from "../server/words";
 import { formatCount } from "../settings/numberFormat";
@@ -114,7 +114,7 @@ function tooLarge(details: Details): string {
 }
 
 /** Why a load did not open, by the element's code (graph-io's arrive as these): a clause after "could not be opened: ". */
-const LOAD_REASONS: Readonly<Record<string, (details: Details) => string>> = {
+const LOAD_REASONS: Readonly<Partial<Record<string, (details: Details) => string>>> = {
     E_UNKNOWN_FORMAT: () => "graphty cannot tell what kind of file it is",
     E_BAD_DOCUMENT: () => "it is not a graphty project file",
     E_UNSUPPORTED_VERSION: () => "it was saved by a newer graphty; update graphty to open it",
@@ -154,7 +154,7 @@ const LOAD_REASONS: Readonly<Record<string, (details: Details) => string>> = {
 };
 
 /** Why a join choice was refused (`E_BAD_COMMAND` with a `reason`), by that reason. */
-const COMMAND_REASONS: Readonly<Record<string, (details: Details) => string>> = {
+const COMMAND_REASONS: Readonly<Partial<Record<string, (details: Details) => string>>> = {
     "unknown-column": (details) => {
         const column = text(details.column);
         return column === undefined ? "the table has no such column" : `the table has no column ${column}`;
@@ -253,11 +253,7 @@ const UNAVAILABLE_WORDS: Readonly<Record<string, string>> = {
  * @param saving - true for a save's report (the source was kept as a copy), false for an open's.
  * @returns the sentence, or undefined for any other code.
  */
-export function referenceWords(
-    { code, params }: { readonly code: string; readonly params: Readonly<Record<string, CodedFactParam>> },
-    name: string,
-    saving: boolean,
-): string | undefined {
+export function referenceWords({ code, params }: CodedFact, name: string, saving: boolean): string | undefined {
     if (code === "W_SOURCE_CHANGED") {
         return `${name} changed since it was saved.`;
     }

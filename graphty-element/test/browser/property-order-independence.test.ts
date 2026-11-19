@@ -50,10 +50,10 @@ const TEST_EDGES = [
 /** The appearance every variant in this file settles on: a green sphere of size 10. */
 const NODE_STYLE = { "node.color": "#4CAF50", "node.shape": "sphere", "node.size": 10 } as const;
 
-/** And grey edges three units wide. */
+/** And gray edges three units wide. */
 const EDGE_STYLE = { "edge.color": "#666666", "edge.width": 3 } as const;
 
-/** The node colour as the renderer writes it into a node's own instance. */
+/** The node color as the renderer writes it into a node's own instance. */
 const NODE_COLOR = { r: 76, g: 175, b: 80, a: 1 };
 
 /**
@@ -129,7 +129,7 @@ describe("Property Order Independence", () => {
      *
      * This ensures eventual consistency: regardless of operation order, the final picture must
      * be the one the last layer asked for. Read from the style stack's own answer per node,
-     * which is the one reading that says what a node is drawn as -- the colour beside the style,
+     * which is the one reading that says what a node is drawn as -- the color beside the style,
      * because it is written into the node's own instance rather than into the material of the
      * source mesh every node of that shape shares.
      */
@@ -154,7 +154,7 @@ describe("Property Order Independence", () => {
      */
     function verifyEdgeStyles(expectedColor: string, expectedWidth: number): void {
         for (const edge of graph.getDataManager().edges.values()) {
-            // An edge carries its colour IN its style, because the edge renderer has no
+            // An edge carries its color IN its style, because the edge renderer has no
             // per-instance state to carry one. See EdgePaint.
             const paint = graph.getStylePainter().edgePaint(edge.index);
 
@@ -250,10 +250,10 @@ describe("Property Order Independence", () => {
     }
 
     /**
-     * Verify the colour the renderer wrote into each node's own instance.
+     * Verify the color the renderer wrote into each node's own instance.
      *
      * NOT THE MATERIAL. Every node of one shape and size shares a source mesh whose material is
-     * deliberately neutral, so that a graph of fifty thousand colours is fifty thousand
+     * deliberately neutral, so that a graph of fifty thousand colors is fifty thousand
      * instances of one mesh rather than fifty thousand meshes.
      */
     function verifyNodeMeshMaterials(expectedColor: string): void {
@@ -380,7 +380,7 @@ describe("Property Order Independence", () => {
     async function verifyMeshState(skipMaterialCheck = false): Promise<void> {
         // A MESH IS MOVED BY A FRAME, NOT BY THE LAYOUT. A new layout publishes its positions into
         // the position array the moment it is built, and the engine reads them back from there --
-        // but the node meshes, and each instance's colour, are written by the next update pass of
+        // but the node meshes, and each instance's color, are written by the next update pass of
         // the render loop. The render loop runs on animation frames, which a busy GPU process
         // (SwiftShader in CI) can hold back for hundreds of milliseconds while timers keep firing,
         // so a timer-based wait can read the meshes before any frame has moved them. Wait for the

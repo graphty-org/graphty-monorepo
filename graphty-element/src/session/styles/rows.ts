@@ -274,7 +274,7 @@ export const LEGACY_GHOST_ROW_ID = "graphty:timeline-ghost";
 export type TimelineHiddenLook = "hidden" | "ghost";
 
 /**
- * The ghost look: grey at low opacity, so the elements outside the time window stay on screen as
+ * The ghost look: gray at low opacity, so the elements outside the time window stay on screen as
  * context without reading as part of it.
  */
 export const STARTING_GHOST_LOOK = {
@@ -302,7 +302,7 @@ export const STARTING_GHOST_LOOK = {
  * @returns The rows, in the order they are added: Everything (pinned to the bottom), then Pinned,
  *   Selected and Hovered, each pinned to the top above the one before. Given `timelineHidden`
  *   instead, the timeline's one row, Timeline Hidden, pinned to the top: `"hidden"` sets
- *   `visible: false`; `"ghost"` draws what lies outside the time window grey and faint.
+ *   `visible: false`; `"ghost"` draws what lies outside the time window gray and faint.
  */
 export function startingRows(
     look:

@@ -178,6 +178,7 @@ const DASHED_PATTERNS: ReadonlySet<string> = new Set(["dash", "dot", "box", "das
  * @param dashPx - the drawn elements and gaps, or null where none were read
  * @param width - the line's width in pixels
  * @param taper - its width at the target over its width at the source, where it tapers
+ * @param taperSource - its width at the source over the line's width, where it tapers there
  * @returns the class; a line narrowing to a point at one end is tapered, by the rule the oracle's tapered outlines are
  * read by (`taperedOutline`)
  */
@@ -187,8 +188,10 @@ function drawnLineClass(
     dashPx: readonly number[] | null,
     width: number,
     taper: number | undefined,
+    taperSource?: number,
 ): DashClass {
-    if (taper !== undefined && Math.min(taper, 1) <= TAPER_POINT * Math.max(taper, 1)) {
+    const ends = [taperSource ?? 1, taper ?? 1];
+    if ((taper !== undefined || taperSource !== undefined) && Math.min(...ends) <= TAPER_POINT * Math.max(...ends, 1)) {
         return "tapered";
     }
     const name = pattern ?? style;
@@ -938,6 +941,7 @@ export function drawnPrimitives(
             d.dashPx ?? null,
             d.thicknessPx > 0 ? d.thicknessPx : e.width,
             d.taper,
+            d.taperSource,
         );
         return [
             {

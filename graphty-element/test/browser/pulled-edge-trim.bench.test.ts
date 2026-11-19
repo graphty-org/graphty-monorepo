@@ -5,10 +5,11 @@
  * and stops at its outline), as spheres and as triangles (whose outline is read from `rowOutline`).
  *
  * A frame is `scene.render` and a one-pixel read, so the GPU's work is in it. Numbers go to the console as
- * `[pulled-edge-trim]` lines; nothing about speed is asserted. It is meant for a real card (on SwiftShader one
- * frame of half a million lines takes many seconds); without `GRAPHTY_BROWSER_GPU` it runs WebGL only:
+ * `[pulled-edge-trim]` lines; nothing about speed is asserted. It runs only with `GRAPHTY_BROWSER_GPU` set:
+ * what it times is a shader on a card, and on the software renderer CI draws with (SwiftShader) the scene
+ * takes minutes to settle and each frame of half a million lines many seconds, so its three cases ran past
+ * the browser-bench file guard and cut off every benchmark after it (issue #8904):
  *
- *     npx vitest run --project=browser-bench test/browser/pulled-edge-trim.bench.test.ts
  *     GRAPHTY_BROWSER_GPU=nvidia npx vitest run --project=browser-bench test/browser/pulled-edge-trim.bench.test.ts
  */
 import "../../src/graphty-element";
@@ -19,7 +20,7 @@ import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
 
 const GPU = ((import.meta.env as Record<string, string | undefined>).GRAPHTY_BROWSER_GPU ?? "") !== "";
-const RENDERERS = GPU ? (["webgl", "webgpu"] as const) : (["webgl"] as const);
+const RENDERERS = ["webgl", "webgpu"] as const;
 
 const NODES = 50_000;
 const EDGES = 500_000;
@@ -54,7 +55,7 @@ afterEach(() => {
     element = null;
 });
 
-describe("pulled lines stopped at translucent outlines, 50,000 nodes and 500,000 edges", () => {
+describe.skipIf(!GPU)("pulled lines stopped at translucent outlines, 50,000 nodes and 500,000 edges", () => {
     describe.each(RENDERERS)("on %s", (renderer) => {
         it.each([
             ["sphere", 1],

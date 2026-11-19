@@ -1,6 +1,6 @@
 /**
  * Regression tests for the code-quality audit findings (design/graph-format/STATUS.md, "Audit
- * round 1"): each test asserts the behaviour the design promises where the audit found it broken,
+ * round 1"): each test asserts the behavior the design promises where the audit found it broken,
  * and names the source location of the fix.
  */
 

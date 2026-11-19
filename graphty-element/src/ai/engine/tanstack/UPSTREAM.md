@@ -47,7 +47,7 @@ its chat module (`openaiVoice` in `openai.ts`, `googleVoice` in `google.ts`).
   `MediaRecorder` would be sent as MP3. Workaround: `audioFile()` in `voice.ts` passes a `File`
   named for its type, which the adapter passes on as it is. To report: name the file from the
   `Blob`'s type.
-- **The audio adapters do not pass the call's `abortSignal` to their request**, so cancelling
+- **The audio adapters do not pass the call's `abortSignal` to their request**, so canceling
   only stops waiting for it. Workaround: `voiceFetch()` in `voice.ts` gives graphty's fetch the
   call's signal too. To report: pass `abortSignal` to the SDK call.
 - **An unknown Gemini voice name throws an English sentence** (`toGeminiVoice`), before any
@@ -140,7 +140,7 @@ directly. The driver builds for browsers with Vite and with webpack
 - **Console output is unbounded.** The driver keeps every `console.log` line of a program in a host
   array until the program ends. Workaround: `program.ts` replaces `console` in the sandbox with one
   that stops at `maxLogChars`. To report: a log cap in `IsolateConfig`.
-- **Cancelling waits for the deadline.** `IsolateContext` has no abort: `dispose()` waits for a
+- **Canceling waits for the deadline.** `IsolateContext` has no abort: `dispose()` waits for a
   running program to settle. Workaround: `program.ts` settles every pending binding call at once on
   abort, so the program unwinds and the context can be disposed. To report: an `AbortSignal` on
   `execute()`.

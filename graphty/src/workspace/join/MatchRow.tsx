@@ -175,7 +175,7 @@ export function MatchRow({
                     aria-label="Add key pair"
                     onClick={() => {
                         const used = new Set(choices.keys.map((key) => key.file));
-                        const file = columns.find((column) => !used.has(column)) ?? columns[0] ?? "";
+                        const file = columns.find((column) => !used.has(column)) ?? columns.at(0) ?? "";
                         onChange({ ...choices, keys: [...choices.keys, { file, graph: "id" }] });
                     }}
                 >

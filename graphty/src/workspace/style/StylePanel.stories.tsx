@@ -21,10 +21,14 @@ import pointsPlyUrl from "./__fixtures__/variants/points.ply?url";
 
 type GraphtyElement = HTMLElementTagNameMap["graphty-element"];
 
-/** The scene's rows, by the name the tree draws for each. */
-interface Scene {
+/** Les Miserables opened from the start screen and laid on a circle, with only the starting rows. */
+interface BareScene {
     readonly element: GraphtyElement;
     readonly session: GraphSession;
+}
+
+/** The scene's rows, by the name the tree draws for each. */
+interface Scene extends BareScene {
     /** The layer name of each run's first layer, by algorithm; for Louvain, its folder's name. */
     readonly runs: Readonly<Record<"degree" | "louvain" | "edge-betweenness" | "shortest-path", string>>;
 }
@@ -56,15 +60,12 @@ async function panelsPlaced(): Promise<void> {
 
 /**
  * Opens Les Miserables (77 characters) from the start screen, as a reader does, so the app gives
- * it the starting rows (Everything, Selected, Hovered) itself. Lays it on a circle, so every
- * capture draws the same picture, and builds the rest of the rows a reader would have by now: an
- * Annotations folder holding Key people; a route from Myriel to Marius on top; Louvain's folder of
- * group layers; Edge betweenness; Degree. Each run starts as the app's Analyze starts it.
- * Each story then reaches its own state by real input.
+ * it the starting rows (Everything, Selected, Hovered) itself, and lays it on a circle, so every
+ * capture draws the same picture.
  * @param canvasElement - the story's root.
- * @returns the scene.
+ * @returns the scene, with only the starting rows.
  */
-async function loadScene(canvasElement: HTMLElement): Promise<Scene> {
+async function openScene(canvasElement: HTMLElement): Promise<BareScene> {
     await userEvent.click(await page().findByRole("button", { name: sampleTile("Les Miserables") }));
     await customElements.whenDefined("graphty-element");
     const element = await waitFor(() => {
@@ -85,6 +86,19 @@ async function loadScene(canvasElement: HTMLElement): Promise<Scene> {
     await session.layout.set("circular");
     // A layout change frames the camera on later frames: wait for the framing to land.
     await element.waitForStableFrame();
+    return { element, session };
+}
+
+/**
+ * Opens the scene (openScene) and builds the rest of the rows a reader would have by now: an
+ * Annotations folder holding Key people; a route from Myriel to Marius on top; Louvain's folder of
+ * group layers; Edge betweenness; Degree. Each run starts as the app's Analyze starts it.
+ * Each story then reaches its own state by real input.
+ * @param canvasElement - the story's root.
+ * @returns the scene.
+ */
+async function loadScene(canvasElement: HTMLElement): Promise<Scene> {
+    const { element, session } = await openScene(canvasElement);
     const idOf = (name: string): string => {
         const node = session.data.nodes().find((n) => n.name === name);
         if (node === undefined) {
@@ -220,15 +234,19 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 /**
- * A story on a fresh store, opening on the start screen, with the Les Miserables scene loaded.
+ * A story on a fresh store, opening on the start screen, with a Les Miserables scene loaded.
+ * @param load - builds the scene: loadScene, or openScene for a story that needs only the starting rows.
  * @param play - what the reader does once the scene is built.
  * @returns the story.
  */
-function sceneStory(play: (scene: Scene) => Promise<void>): Story {
+function storyOn<S extends BareScene>(
+    load: (canvasElement: HTMLElement) => Promise<S>,
+    play: (scene: S) => Promise<void>,
+): Story {
     return {
         ...freshStore(),
         play: async ({ canvasElement }) => {
-            const scene = await loadScene(canvasElement);
+            const scene = await load(canvasElement);
             await play(scene);
             // The key's node shapes arrive as pictures graphty-element draws after the frame.
             await waitFor(() => {
@@ -237,6 +255,25 @@ function sceneStory(play: (scene: Scene) => Promise<void>): Story {
             await scene.element.waitForStableFrame();
         },
     };
+}
+
+/**
+ * A story on the full Les Miserables scene (loadScene).
+ * @param play - what the reader does once the scene is built.
+ * @returns the story.
+ */
+function sceneStory(play: (scene: Scene) => Promise<void>): Story {
+    return storyOn(loadScene, play);
+}
+
+/**
+ * A story on Les Miserables with only the starting rows (openScene): for stories that run Leiden
+ * themselves and never look at the other runs, so the render does half the work.
+ * @param play - what the reader does once the scene is open.
+ * @returns the story.
+ */
+function bareSceneStory(play: (scene: BareScene) => Promise<void>): Story {
+    return storyOn(openScene, play);
 }
 
 // Checkpoint 1: the tree, the Style tab, Clear, a folder's panel, several rows.
@@ -373,14 +410,14 @@ async function fillRow(tab: HTMLElement): Promise<HTMLElement> {
 }
 
 /** Leiden's folder of group layers selected: Fill showing each group layer's own color in list order. */
-export const BulkFolder: Story = sceneStory(async () => {
+export const BulkFolder: Story = bareSceneStory(async () => {
     const tab = await openLeidenFolder();
     const fill = await fillRow(tab);
     await within(fill).findByRole("button", { name: /^Node color: / });
 });
 
 /** "One value for all", then a color typed into the Fill of Leiden's folder: every group layer takes it, and the receipt says so. */
-export const BulkReceipt: Story = sceneStory(async () => {
+export const BulkReceipt: Story = bareSceneStory(async () => {
     const tab = await openLeidenFolder();
     const fill = await fillRow(tab);
     await userEvent.hover(fill);
@@ -395,7 +432,7 @@ export const BulkReceipt: Story = sceneStory(async () => {
 });
 
 /** Fill > Change source > the run's group on Leiden's folder: the binding popover one layer gets for that value, held until it closes and copies the rule into each layer. */
-export const BulkVaryByData: Story = sceneStory(async () => {
+export const BulkVaryByData: Story = bareSceneStory(async () => {
     const tab = await openLeidenFolder();
     const fill = await fillRow(tab);
     // Each layer on its own color: the pill opens the popover by Layer, and Change source picks the value.
@@ -410,8 +447,8 @@ export const BulkVaryByData: Story = sceneStory(async () => {
     await within(popover).findByRole("grid", { name: / groups$/ });
 });
 
-/** Fill from each layer on Leiden's folder: the pill opens the binding popover with Layer as its source, Louvain's group rows with one row per layer in list order, each starting on its layer's own color, before it closes and writes. */
-export const BulkVaryByLayer: Story = sceneStory(async () => {
+/** Fill from each layer on Leiden's folder: the pill opens the binding popover with Layer as its source, Leiden's group rows with one row per layer in list order, each starting on its layer's own color, before it closes and writes. */
+export const BulkVaryByLayer: Story = bareSceneStory(async () => {
     const tab = await openLeidenFolder();
     const fill = await fillRow(tab);
     await userEvent.click(within(fill).getByRole("button", { name: /^Node color: from each layer, / }));

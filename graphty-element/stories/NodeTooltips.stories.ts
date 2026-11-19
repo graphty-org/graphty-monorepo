@@ -265,12 +265,12 @@ export const OnOneNodeOnly: Story = {
 };
 
 /**
- * The same tooltip, in the reader's own colours rather than the element's.
+ * The same tooltip, in the reader's own colors rather than the element's.
  *
  * `node.tooltip` carries the WORDS and `node.tooltipStyle` carries the look, on exactly the terms
  * `node.labelStyle` sits beside `node.label`. Until 2.0 only the first of those existed: the
  * renderer read the whole rich-text block behind a tooltip -- the typeface, the panel, the
- * colours, the margins -- and a consumer had no way to write any of it, so every tooltip in every
+ * colors, the margins -- and a consumer had no way to write any of it, so every tooltip in every
  * graph was drawn in the element's defaults.
  *
  * Writing the look alone asks for nothing: the words are what switch a tooltip on.

@@ -27,6 +27,7 @@ import {
     diffGraph,
     EMPTY_STEPS,
     type GraphDiff,
+    openedAsBuilt,
     projectBuild,
     type ProjectedEdge,
     type ProjectedGraph,
@@ -159,6 +160,8 @@ function labelOf(command: DataStepsSetCommand): string {
             return "Settled an edit";
         case "resolve-step":
             return "Resolved a held step";
+        case "restore":
+            return "Opened the sources";
         default:
             return "Set the sources";
     }
@@ -446,6 +449,7 @@ const dataStepsSet: UndoableDefinition<DataStepsSetCommand> = {
         "replace-copy",
         "settle-edit",
         "resolve-step",
+        "restore",
     ],
     keys: () => ["graph"],
     lane: { kind: "queued", category: "data-add" },
@@ -462,15 +466,21 @@ const dataStepsSet: UndoableDefinition<DataStepsSetCommand> = {
         const edited = applyEdit(prior, command.edit, all);
         const copies = copiesOf(edited, all);
         const idPath = ctx.services.config?.().data.knownFields.nodeIdPath ?? "id";
-        const before = projectBuild(buildOf(prior, priorCopies), prior, idPath);
         const after = projectBuild(buildOf(edited, copies), edited, idPath);
-        const diff = diffGraph(before, after, edgeIds);
-        // A build that changes the graph is counted, so a run made over an earlier one reads stale (8.6).
-        const next = changesGraph(diff) ? counted(edited, copies, (prior.build ?? 0) + 1) : edited;
+        const { edit } = command;
+        // A restore starts from the graph a project file embedded, matched to the build; every
+        // other edit from the build of the value it found.
+        const opened =
+            edit.kind === "restore" ? openedAsBuilt(after, ctx.state.graph.nodes, ctx.state.graph.edges) : null;
+        const before = opened?.before ?? projectBuild(buildOf(prior, priorCopies), prior, idPath);
+        const found = diffGraph(before, after, opened?.edgeIds ?? edgeIds);
+        const diff = opened === null ? found : { ...found, removeEdges: [...opened.strays, ...found.removeEdges] };
+        // A build that changes the graph is counted, so a run made over an earlier one reads stale
+        // (8.6); a restore keeps the count the file saved.
+        const next = opened === null && changesGraph(diff) ? counted(edited, copies, (prior.build ?? 0) + 1) : edited;
         const apply = (mutation: Parameters<typeof service.apply>[0]): void => {
             service.apply(mutation, ctx.draft, ctx.after);
         };
-        const { edit } = command;
         const adds = edit.kind === "add" && edit.staged !== true ? edit : null;
         if (adds?.replace === true) {
             removeStrays(ctx, before, edgeIds);

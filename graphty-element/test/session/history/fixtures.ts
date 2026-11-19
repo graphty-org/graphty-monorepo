@@ -203,6 +203,26 @@ const STEPS_FIXTURES: readonly RoundTripFixture[] = [
         },
     },
     {
+        name: "data.steps-set: a saved value restored over the graph a file embedded",
+        variant: "restore",
+        tags: ["session", "renderer"],
+        features: ["source-steps"],
+        command: {
+            op: "data.steps-set",
+            edit: {
+                kind: "restore",
+                value: {
+                    sources: { [STEPS_SOURCE.id]: STEPS_SOURCE },
+                    steps: [{ op: "join.add", source: STEPS_SOURCE.id }],
+                    types: [],
+                    reader: [],
+                    build: 3,
+                },
+            },
+            copies: STEPS_COPIES,
+        },
+    },
+    {
         name: "data.steps-set: reader edits add a node and an edge and edit a built node",
         variant: "reader",
         tags: ["session", "renderer"],
@@ -300,7 +320,12 @@ const STEPS_FIXTURES: readonly RoundTripFixture[] = [
             await session.execute({
                 op: "data.steps-set",
                 edit: { kind: "replace-copy", id: STEPS_SOURCE.id, copy: "fixture-copy-3" },
-                copies: { "fixture-copy-3": { ...STEPS_COPIES["fixture-copy"], nodes: [{ id: "s1", name: "uno" }, { id: "s2" }] } },
+                copies: {
+                    "fixture-copy-3": {
+                        ...STEPS_COPIES["fixture-copy"],
+                        nodes: [{ id: "s1", name: "uno" }, { id: "s2" }],
+                    },
+                },
             });
         },
         command: { op: "data.steps-set", edit: { kind: "settle-edit", id: "edit_s", choice: "keep" } },

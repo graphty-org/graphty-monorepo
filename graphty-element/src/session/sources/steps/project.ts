@@ -16,6 +16,7 @@ import { GraphtyError } from "../../../errors/GraphtyError";
 import type { JoinRecord } from "../../types";
 import { applyAct, type StepsAct } from "./acts";
 import { build, isStaged, nodeSpace, ownSpace, resolveNode, stepSources } from "./build";
+import { RECORD_PATHS } from "./paths";
 import { readableRecord } from "./provenance";
 import { applyRefreshEdit, editStates, missingColumns, type RefreshEdit, type RefreshIssue } from "./refresh";
 import {
@@ -140,6 +141,11 @@ export type StepsEdit =
     | { readonly kind: "remove-edit"; readonly id: string }
     /** Take out one source, every step that reads it and its type rules (section 8, removal). */
     | { readonly kind: "remove-source"; readonly id: string }
+    /**
+     * The whole value, read back from a project file, over the graph the file embeds: the graph
+     * becomes the build, keeping every element the embedded graph already holds as built.
+     */
+    | { readonly kind: "restore"; readonly value: SourceSteps }
     /** A type entry, or more rules for one already declared. */
     | { readonly kind: "declare-type"; readonly entry: TypeEntry }
     /** An act: Merge, Make an edge, Extract, Move columns, Rename, a pick, or deleting a step. */
@@ -424,6 +430,7 @@ function ownSpaceOverlap(next: SourceSteps, id: string, copies: Copies): SpaceOv
 export function applyEdit(prior: SourceSteps, edit: StepsEdit, copies: Copies): SourceSteps {
     switch (edit.kind) {
         case "set":
+        case "restore":
             return edit.value;
         case "add": {
             const base = edit.replace === true ? EMPTY_STEPS : prior;
@@ -633,6 +640,61 @@ function projectEdge(e: BuiltEdge, value: SourceSteps, ids: ReadonlyMap<string, 
         record[weight] = e.weight;
     }
     return { from, to, ends, record, ...(weight === undefined ? {} : { weight }) };
+}
+
+/** The keys an embedded edge record and its built edge are not compared on. */
+const UNCOMPARED: ReadonlySet<string> = new Set([...RECORD_PATHS, "_source.loads", "id", "source", "target"]);
+
+/**
+ * Whether an edge record a file embedded is the built edge: the built edge holds the same value in
+ * every column the record holds but its ends. A save leaves out the readable paths and the columns
+ * a record read hides (those an edge group reads its ends from), so the record may hold fewer.
+ * @param held - The record as opened, its ends at `source` and `target`.
+ * @param built - The built edge.
+ * @returns True when they agree.
+ */
+function sameEdge(held: Readonly<Record<string, unknown>>, built: ProjectedEdge): boolean {
+    const skip = (k: string): boolean => UNCOMPARED.has(k) || k === built.ends.source || k === built.ends.target;
+    return Object.keys(held)
+        .filter((k) => !skip(k))
+        .every((k) => JSON.stringify(held[k]) === JSON.stringify(built.record[k]));
+}
+
+/**
+ * The graph a project file embedded, as the build it should be: each opened edge matched to the
+ * built edge it is (same ends and values, in order), so a {@link diffGraph} to the build keeps it.
+ * @param after - The build.
+ * @param nodes - The opened node records, by id.
+ * @param edges - The opened edge records, by id, their ends at `source` and `target`.
+ * @returns The opened graph keyed as the build is, each matched edge's session id, and the
+ *     opened edges no built edge is.
+ */
+export function openedAsBuilt(
+    after: ProjectedGraph,
+    nodes: ReadonlyMap<NodeId, Readonly<Record<string, unknown>>>,
+    edges: ReadonlyMap<EdgeId, Readonly<Record<string, unknown>>>,
+): { before: ProjectedGraph; edgeIds: Record<string, EdgeId>; strays: EdgeId[] } {
+    const byEnds = new Map<string, (readonly [string, ProjectedEdge])[]>();
+    for (const each of after.edges) {
+        const k = `${String(each[1].from)}\u0001${String(each[1].to)}`;
+        byEnds.set(k, [...(byEnds.get(k) ?? []), each]);
+    }
+    const edgeIds: Record<string, EdgeId> = {};
+    const beforeEdges = new Map<string, ProjectedEdge>();
+    const strays: EdgeId[] = [];
+    for (const [id, record] of edges) {
+        const candidates = byEnds.get(`${String(record.source)}\u0001${String(record.target)}`) ?? [];
+        const at = candidates.findIndex(([, built]) => sameEdge(record, built));
+        if (at === -1) {
+            strays.push(id);
+            continue;
+        }
+        const [[key, built]] = candidates.splice(at, 1);
+        edgeIds[key] = id;
+        beforeEdges.set(key, { ...built, record });
+    }
+    const beforeNodes = new Map<NodeId, ProjectedNode>([...nodes].map(([id, record]) => [id, { id, record }]));
+    return { before: { nodes: beforeNodes, edges: beforeEdges }, edgeIds, strays };
 }
 
 /** The writes that take the session graph from one build to the next. */

@@ -49,6 +49,7 @@ describe("source-steps off: nothing changes", () => {
         const { sources, events, saved } = await run(session);
         assert.notInclude(saved, "sourceSteps");
         assert.notInclude(saved, "join.add");
+        assert.notInclude(saved, '"joins"', "no sources and steps in the sources member");
         const digest = createHash("sha256").update(JSON.stringify({ sources, events, saved })).digest("hex");
         assert.strictEqual(digest, "1d38ec94e541d1374075eefbaafa10cd3fe1a6c61b1587f9d138e0e8528c00b5");
         session.dispose();

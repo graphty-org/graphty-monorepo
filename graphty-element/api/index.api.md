@@ -5014,7 +5014,9 @@ export type GraphtyWarningCode =
 | "W_SOURCE_UNREGISTERED"
 /**
 * A `graphty-sources` member says `data: "steps"` but the file embeds the graph: the embedded
-* data applied. `params.graph` names the graph, null for the file's one graph.
+* data applied. `params.graph` names the graph, null for the file's one graph. Under the
+* `source-steps` experiment, also when the member's sources and steps build a graph other than
+* the one the file embeds: the embedded graph applied and the sources and steps were left out.
 */
 | "W_SOURCE_STEPS_IGNORED"
 /**

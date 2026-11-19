@@ -171,7 +171,14 @@ import type { SelectionTextMode } from "./selection";
 import { searchOf } from "./selection/targets";
 import type { CodedFact, ColumnRef, ProgressChange } from "./shared";
 import { ExpansionState, type HostEdge, type SourceHost } from "./sources/host";
-import { isSourceFactKey, SOURCE_ATTR, sourceFactsOf, sourceLoadsOf } from "./sources/ids";
+import {
+    isSourceFactKey,
+    SOURCE_ATTR,
+    SOURCE_RECORD_MEMBER,
+    sourceFactsOf,
+    sourceLoadsOf,
+    SOURCES_MEMBER_VERSION,
+} from "./sources/ids";
 import { SourceLedger } from "./sources/ledger";
 import {
     type LoadFacts,
@@ -222,6 +229,7 @@ import {
     values as stepsValues,
 } from "./sources/steps/provenance";
 import { type ChangeCounts, changeCounts, refreshIssues, removedSteps, sameRows } from "./sources/steps/refresh";
+import { stepsMemberFields } from "./sources/steps/saved";
 import type { BuildResult, BuiltEdge, BuiltNode, CopyTables, Row } from "./sources/steps/types";
 import type {
     CollapseResult,
@@ -1950,6 +1958,13 @@ export class SessionData implements SessionDataApi {
         // the ones the file opened with.
         if (skipped !== null && skipped.stored === this.writes.slice().values.get(SOURCES_VALUE)) {
             return { ...write, member: { ...skipped.member } };
+        }
+
+        // Under the source-steps experiment the member also carries the sources and steps (section 10).
+        const steps = this.stepsOn() ? stepsMemberFields(this.stepsValue(), this.stepsCopies()) : null;
+        if (steps !== null) {
+            const member = write.member ?? { kind: SOURCE_RECORD_MEMBER, version: SOURCES_MEMBER_VERSION, loads: [] };
+            return { ...write, member: { ...member, ...steps } };
         }
 
         return write;

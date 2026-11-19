@@ -144,7 +144,7 @@ export const BackgroundColor: Story = {
 };
 
 /**
- * Three layers, each colouring the nodes one of its own selector matches.
+ * Three layers, each coloring the nodes one of its own selector matches.
  *
  * SELECTED BY AN ATTRIBUTE, NOT BY A PREFIX OF THE ID. The element's selector language admits no
  * functions at all -- it is a declared subset of JMESPath, refused at its edge rather than
@@ -188,7 +188,7 @@ export const Layers: Story = {
 
         // The cat network carries `indoor_outdoor` on every node: seven indoor, five outdoor,
         // four strays, and four -- a clinic, a human, a kitten and a working cat -- that none of
-        // the three layers names and that are deliberately left to the element's own colour.
+        // the three layers names and that are deliberately left to the element's own color.
         await assertLayerPainted(scene, "Indoor cats are black", { nodes: 7 });
         await assertLayerPainted(scene, "Outdoor cats are yellow", { nodes: 5 });
         await assertLayerPainted(scene, "Strays are red", { nodes: 4 });

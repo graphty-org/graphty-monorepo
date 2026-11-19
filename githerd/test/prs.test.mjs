@@ -265,7 +265,7 @@ describe("checks", () => {
         const rec = polls([readied])["704"];
         expect(rec.required["All Checks Pass"]).toBe("PENDING");
         expect(rec.failingChecks).toEqual([]);
-        // #1066: the ready run has not reported All Checks Pass yet, so the draft run's cancelled one
+        // #1066: the ready run has not reported All Checks Pass yet, so the draft run's canceled one
         // is the newest of that name; it started before the PR was marked ready, so it is dropped.
         const suite = (/** @type {number} */ id) => ({
             checkSuite: { workflowRun: { databaseId: id, workflow: { name: "CI" } } },
@@ -356,7 +356,7 @@ describe("checks", () => {
         expect(askProblems(rec)).toEqual([]);
         expect(prWork("704", rec, { trust: { login: "apowers313" }, prs: { 704: rec } })).toBeNull();
         expect(stuck(rec)).toEqual(["required check cancelled, not failed: All Checks Pass, Lint PR Title"]);
-        // A real failure beside the cancelled check still counts, and that run is no re-run candidate.
+        // A real failure beside the canceled check still counts, and that run is no re-run candidate.
         const mixed = withChecks(node(), [
             run("All Checks Pass", "CANCELLED", { databaseId: 1, ...suite(100) }),
             run("Lint PR Title", "FAILURE", { databaseId: 2, ...suite(100) }),
@@ -368,8 +368,8 @@ describe("checks", () => {
         expect(prWork("704", failed, { trust: { login: "apowers313" }, prs: { 704: failed } })).toMatch(
             /required check failing: Lint PR Title/,
         );
-        // #490: "Queue Checks Pass" fails because "All Checks Pass" was cancelled. It started after
-        // the cancelled check, so it is downstream of the cancellation and the run is still re-run.
+        // #490: "Queue Checks Pass" fails because "All Checks Pass" was canceled. It started after
+        // the canceled check, so it is downstream of the cancellation and the run is still re-run.
         const at = (/** @type {string} */ t) => ({ startedAt: `2026-10-05T${t}Z`, ...suite(100) });
         const downstream = withChecks(node(), [
             run("Test (browser-1)", "CANCELLED", { databaseId: 1, ...at("20:02:29") }),
@@ -378,7 +378,7 @@ describe("checks", () => {
             run("Lint PR Title", "SUCCESS", { databaseId: 4, startedAt: "2026-10-05T23:23:45Z", ...suite(101) }),
         ]);
         expect(polls([downstream])["704"].cancelledRuns).toEqual([{ id: 100, workflow: "CI" }]);
-        // A failure that started before the cancelled required check is the code's: no re-run.
+        // A failure that started before the canceled required check is the code's: no re-run.
         const before = withChecks(node(), [
             run("Test (browser-1)", "FAILURE", { databaseId: 1, ...at("20:02:29") }),
             run("All Checks Pass", "CANCELLED", { databaseId: 2, ...at("20:42:11") }),

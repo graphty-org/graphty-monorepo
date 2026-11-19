@@ -2,7 +2,7 @@
  * @file The ForceAtlas2 layout: the Gephi arrangement, computed on the CPU or on an accelerator.
  *
  * It used to be a one-shot pass -- run `forceatlas2Layout` over a node and edge list, publish the
- * answer, stop -- which is why the catalogue called it a batch layout. It is now a steppable
+ * answer, stop -- which is why the catalog called it a batch layout. It is now a steppable
  * simulation from `@graphty/layout`, so it keeps running until the arrangement settles and reheats
  * on a drag or a pin, and the element decides at every load whether the simulation is the CPU's or
  * the accelerator's.
@@ -56,7 +56,7 @@ const forceAtlas2LayoutOptionsSchema = defineOptions({
     },
     gravity: {
         // NONNEGATIVE, not positive: zero gravity is a legal ForceAtlas2 setting -- nothing pulls
-        // the graph towards the centre and the components drift apart -- and it is what the
+        // the graph towards the center and the components drift apart -- and it is what the
         // Storybook slider has always offered as its lowest value.
         schema: z.number().nonnegative().default(1),
         meta: {
@@ -139,7 +139,7 @@ const forceAtlas2LayoutOptionsSchema = defineOptions({
  *
  * Every member is a static the element reads: `LayoutManager` builds the bridge itself, with the
  * graph's acceleration controller, so this class never runs a layout of its own. It declares no
- * `static descriptor` because its arrangement is authored in the layout catalogue, where it sits
+ * `static descriptor` because its arrangement is authored in the layout catalog, where it sits
  * under `force`.
  */
 export class ForceAtlas2Layout extends SimulationLayoutEngine {

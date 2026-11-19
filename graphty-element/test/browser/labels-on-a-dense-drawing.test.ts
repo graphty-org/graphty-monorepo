@@ -1,16 +1,16 @@
 /**
- * @file Names on a dense drawing: Les Miserables labelled with every character's name at size 96,
+ * @file Names on a dense drawing: Les Miserables labeled with every character's name at size 96,
  * in 3D, framed whole and then framed on one selected node, the way a reader puts names on and
  * looks for one of them.
  *
  * With `labels.declutter` on, no two drawn labels' words meet. With `labels.avoidNodesAndEdges`
  * on as well, no drawn label's words cover a node other than its own either, so a name is never
- * drawn across another node in front of it or behind it. And a node labelled by two layers draws
+ * drawn across another node in front of it or behind it. And a node labeled by two layers draws
  * one label, with the upper layer's words.
  *
  * Measured independently of the element's own placement: each label plane's four corners after a
  * frame, projected through the scene's transform, times the share of the plane the words take;
- * each node as its drawn radius projected at its centre.
+ * each node as its drawn radius projected at its center.
  */
 
 import "../../src/graphty-element";

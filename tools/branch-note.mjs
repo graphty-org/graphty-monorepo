@@ -66,7 +66,7 @@ export function parseNote(body) {
 
 /**
  * The issue number in a branch's name: three or more digits right after the type prefix, as in fix/1234 or
- * fix/1234-topic. A number anywhere else is not an issue: a date (integrate/pipeline-2026-10-24 once labelled
+ * fix/1234-topic. A number anywhere else is not an issue: a date (integrate/pipeline-2026-10-24 once labeled
  * pull request #2026 in-progress) or a commit id (revert/a5512f0).
  * @param branch the branch
  * @returns the number, or null

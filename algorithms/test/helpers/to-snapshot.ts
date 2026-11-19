@@ -53,7 +53,7 @@ function sameWeights(graph: Graph, weights: readonly (number | undefined)[]): bo
 const SNAPSHOT_CACHE = new WeakMap<Graph, CacheEntry>();
 
 /**
- * Freeze a legacy `Graph` into a `GraphSnapshot`, memoised on the graph's `mutationCount` and its
+ * Freeze a legacy `Graph` into a `GraphSnapshot`, memoized on the graph's `mutationCount` and its
  * edge weights (a weight set in place does not move the counter, so a hit re-reads the weights).
  *
  * The builder is created with `weightDtype: "f64"` so a legacy graph's double weights survive
@@ -141,15 +141,15 @@ export function toSnapshotOrNull(graph: Graph, options: ToSnapshotOptions = {}):
 }
 
 /**
- * The order a legacy `Graph` hands out each node's neighbours in, as the `arcOrder` option of the
+ * The order a legacy `Graph` hands out each node's neighbors in, as the `arcOrder` option of the
  * order-sensitive traversals (`depthFirstSearch`, `topologicalSort`, `stronglyConnectedComponents`,
- * `condensation`, `breadthFirstSearch`). A snapshot row is sorted by neighbour index, while the
+ * `condensation`, `breadthFirstSearch`). A snapshot row is sorted by neighbor index, while the
  * legacy adjacency Map is in insertion order, so a traversal that must visit nodes in the legacy
  * order -- a facade keeping its published result -- passes this.
  * @param graph - The legacy graph
- * @param s - A snapshot with the graph's nodes in the same order and its neighbour pairs, such as
+ * @param s - A snapshot with the graph's nodes in the same order and its neighbor pairs, such as
  *   `toSnapshot(graph)`; parallel arcs of one pair are kept together in row order
- * @returns For every row, its arcs in legacy neighbour order
+ * @returns For every row, its arcs in legacy neighbor order
  */
 export function legacyArcOrder(graph: Graph, s: GraphSnapshot): U32 {
     const order = new Uint32Array(s.arcCount);
@@ -160,7 +160,7 @@ export function legacyArcOrder(graph: Graph, s: GraphSnapshot): U32 {
             throw new Error("legacyArcOrder: the snapshot does not hold this graph's nodes and neighbours");
         }
         for (const neighbor of graph.neighbors(node.id)) {
-            // Every arc to this neighbour, in row order: the legacy graph holds one edge per pair,
+            // Every arc to this neighbor, in row order: the legacy graph holds one edge per pair,
             // but a multigraph snapshot of it may hold several.
             const [lo, hi] = s.arcsBetween(u, s.ids.requireIndex(neighbor));
             for (let a = lo; a < hi; a++) {

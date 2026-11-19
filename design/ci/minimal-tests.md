@@ -370,7 +370,7 @@ reads. Inside a package the test reads its imports (2.1), the files its own code
 "tests that read files" rule) and its setup (2.1); across packages it reads `dist/`, which changes
 only when the upstream package's build inputs change (2.2); and the shared configuration is in the
 "everything" rule. Each of those edges either is followed or makes the whole package run. The
-argument has holes wherever a reader is not recognised, so three checks look for them.
+argument has holes wherever a reader is not recognized, so three checks look for them.
 
 - **Replay** (`tools/test-select-replay.mjs`, results in `design/ci/test-selection-replay.md`):
   every past gate run and every failed CI run on golden and cut pull requests, asking whether the

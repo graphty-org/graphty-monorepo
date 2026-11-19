@@ -63,7 +63,7 @@ What worked: the import told me straight away "24 node rows and 63 edge rows rea
 
 What confused me / complaints:
 - The right-hand "Style" tab first showed only canvas settings (background, lighting); node size lives in the "Everything" layer on the left. I had to guess that "Everything" meant "all nodes". In Cytoscape the node style is right there.
-- The "map to a column" control is a tiny chain-link icon with no label; I only clicked it after hovering it. I would not click an unlabelled icon otherwise.
+- The "map to a column" control is a tiny chain-link icon with no label; I only clicked it after hovering it. I would not click an unlabeled icon otherwise.
 - "From 1 to 3" under Size: three times what? It doesn't say the unit or that 2 hours -> 1 and 52 -> 3. Is it linear? Can I change the range so the busiest stand out more?
 - There are no names on the nodes, so on the picture alone I cannot tell who the big ball is; I had to go to the table. For an annual report I'd want labels on at least the big ones.
 - It opened as 3D balls with shading. For a report figure I'd want a flat 2D view; I saw a "3D" switch but did not need it for this task.

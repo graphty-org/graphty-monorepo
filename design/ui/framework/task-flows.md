@@ -1052,7 +1052,7 @@ a place here is a gap for the information architecture.
    and device table; that neither table holds anything the drawings do not; that every flow
    has its Keyboard line and its Figma route; and that every "Departure:" in a header names a row
    of `figma-crosswalk.md` 4 by its Figma cell. It does not read the step tables' Command column,
-   and it does not judge whether a Figma route is the right analogue or its count is right; a label
+   and it does not judge whether a Figma route is the right analog or its count is right; a label
    in the outline but in the wrong place is beyond it too; those are section 11's hand-kept rows and
    review.
 2. **Cognitive walkthrough** of each flow against its workflows: will the analyst try the right

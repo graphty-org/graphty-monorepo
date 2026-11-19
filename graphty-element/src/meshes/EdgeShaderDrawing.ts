@@ -67,8 +67,10 @@ export interface EdgeStaticLook {
     readonly seed: number;
     /** The state bits (`EDGE_STATE_BITS`). */
     readonly bits: number;
-    /** Width at the target over width at the source. */
+    /** Width at the target over the line's width. */
     readonly taper: number;
+    /** Width at the source over the line's width. */
+    readonly taperSource: number;
     /** The entered, exited and changed stamps, scene time, or {@link EDGE_NEVER}. */
     readonly times: readonly [number, number, number];
 }
@@ -522,7 +524,7 @@ export function edgeStaticValues(
     out.set(look.colorB, 4);
     out.set(shader?.varying ?? [0, 0, 0, 0], 8);
     out.set([look.seed, shader?.row ?? 0, look.bits, look.taper], 12);
-    out.set([...look.times, 0], 16);
+    out.set([...look.times, look.taperSource], 16);
     return out;
 }
 

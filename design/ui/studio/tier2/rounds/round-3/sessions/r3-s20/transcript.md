@@ -84,7 +84,7 @@ Session ended normally; no further request.
     whether choosing something there would have changed my ranking compared to last month.
   - The small clock-like icon on the out-of-date PageRank entry does not explain itself. The legend
     text said "out of date", the icon did not.
-  - Small grey labels ("Measure ran Oct 10...", "Data changed since this run") are hard to read
+  - Small gray labels ("Measure ran Oct 10...", "Data changed since this run") are hard to read
     without my glasses.
   - Still my standing question: can I get this table into Power BI, and does my supplier file stay on
     my machine? "Local only" at the top suggests it does, which I like.

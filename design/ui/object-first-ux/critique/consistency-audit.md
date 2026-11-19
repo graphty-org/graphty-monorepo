@@ -9,7 +9,7 @@ same way on every screen, and is anything on a screen that the reader did not as
 Every number below was read from the DOM of the HTML files with a headless Chromium at the
 mocks' own 1440 x 960 viewport, not estimated from the screenshots. The scripts and the raw
 dump are in `tmp/object-first/`: `audit-measure.mjs` (walks each screen and records boxes,
-computed styles, colours, fonts and text), `audit-report.mjs` (prints the cross-screen
+computed styles, colors, fonts and text), `audit-report.mjs` (prints the cross-screen
 comparisons from `audit-measure.json`), `audit-fonts.mjs` (which typeface actually rendered),
 `audit-crops.mjs` (3x crops of headers, toolbar, tree and status bar) and `audit-share.mjs`
 (a pixel probe of the Share button). Re-run `node tmp/object-first/audit-measure.mjs > out.json`
@@ -33,9 +33,9 @@ then `node tmp/object-first/audit-report.mjs out.json <section>` to reproduce an
   (transparent, no outline).
 - **Tint**: the pale blue fill #e5f4ff that marks a selected row, an open trigger or a switch
   that is on; **child tint** is the paler #f2f9ff on rows inside a selected parent.
-- **Chit**: a 14 x 14 colour swatch with radius 2 inside a paint row. **Chip** in the tree
-  means the 14 x 14 Fill preview at the right of an object row (a colour, a ring, a size
-  glyph or a four-colour strip).
+- **Chit**: a 14 x 14 color swatch with radius 2 inside a paint row. **Chip** in the tree
+  means the 14 x 14 Fill preview at the right of an object row (a color, a ring, a size
+  glyph or a four-color strip).
 - **Panel grid**: the right panel's column layout, `16 | 88 | 8 | 88 | 8 | 24 | 8` = 240.
   Column A and B are 88 wide; a wide control spans A + gap + B = 184, or 156 when two 24 px
   icons follow it.
@@ -45,7 +45,7 @@ then `node tmp/object-first/audit-report.mjs out.json <section>` to reproduce an
   a node). **Tree**: the Objects list in the left panel.
 - **Secondary bar**: the second, smaller floating bar that appears above the toolbar while a
   tool is mid-flow (screen 5). **Popover**: the light settings panel a tool or control opens
-  (screen 7). **Legend**: the card at the bottom right of the canvas that keys colours and
+  (screen 7). **Legend**: the card at the bottom right of the canvas that keys colors and
   sizes.
 - **Kit**: `kit.css`, the shared stylesheet the mocks were meant to be built from, with every
   class prefixed `k-`. **Local style**: a `<style>` block inside one screen's HTML that adds
@@ -54,7 +54,7 @@ then `node tmp/object-first/audit-report.mjs out.json <section>` to reproduce an
 ## Summary
 
 The mocks pass the parts that the kit enforces: 240 px panels, 32 px rows, 24 px controls,
-40 px section headers, 11 px body text, weights 450 / 550, radii 2 / 5 / 13, every colour a
+40 px section headers, 11 px body text, weights 450 / 550, radii 2 / 5 / 13, every color a
 token value, one filled accent button per screen, dark menus and tooltips. They fail wherever
 a screen had to draw something the kit does not define: the file menu in the left header, the
 zoom-and-Share bar in the right header, the inspector title block, the tree row's count and
@@ -123,12 +123,12 @@ Measured on all eight screens unless noted.
 | Link text | #007be5 (dark #7cc4f8) | matches on screens 3, 4, 6, 8 | pass |
 | Tool buttons | 32 x 32, selected fill #0d99ff, chevron 16 x 32 | matches | pass |
 | Toolbar surface | 48 tall, radius 13, elevation 200, 1 x 48 dividers | matches | pass |
-| Toolbar centred on the window | yes | centre 719.5 to 720.1 of 720 | pass |
+| Toolbar centered on the window | yes | center 719.5 to 720.1 of 720 | pass |
 | Tooltip (screen 1) | #1e1e1e, radius 5, 11 px white, max-width 180 | matches | pass |
 | Popover (screen 7) | 240 wide, radius 13, elevation 400, 40 px header with inset divider | matches | pass |
 | Dark menu (screen 7) | #1e1e1e, 24 px rows, white 11 px, separators #ffffff1a | matches | pass |
-| Text colours | #000000e5 / #00000080 / #0000004d, white and #ffffffb2 in dark | only those five appear in the chrome | pass |
-| Surface colours | white, #f5f5f5, #e6e6e6, #1e1e1e menus; dark #2c2c2c / #383838 / #444 | only token values appear | pass |
+| Text colors | #000000e5 / #00000080 / #0000004d, white and #ffffffb2 in dark | only those five appear in the chrome | pass |
+| Surface colors | white, #f5f5f5, #e6e6e6, #1e1e1e menus; dark #2c2c2c / #383838 / #444 | only token values appear | pass |
 | One filled accent button | one per screen | screen 1: "Choose a file" (Share disabled #d9d9d9); screens 2 to 8: Share only | pass |
 | Dark theme tokens (screen 8) | per `screens.md` | surfaces, text, edges, brand #0c8ce9, menu unchanged | pass |
 
@@ -156,7 +156,7 @@ readable as the same screen... find nothing moved." Measured against screen 3:
 | Tree names | full: "Connections (Degree)", "Communities (Louvain)" | truncated: "Connections ...", "Communities ..." because the lock and eye buttons are laid out on every row (`.k-tree-actions { position: absolute }` in screen 8, always 48 px wide) |
 | Tree meta | inline after the name: "Degree > 8  5 nodes" | right-aligned before the chip |
 | Members section | 277 tall: two columns, 4 rows of 16 px cells (`s-cell`, `s-member`) | 405 tall: 8 single rows of 32 px, each with a node icon |
-| Export section | 117 tall: two labelled rows "Members [CSV] Export", "Framed image [PNG] Export", Export as a ghost button | 153 tall: 9 px captions ("Members", "Image framed on members") above the controls (`k-row-2`), Export as a secondary button 88 wide |
+| Export section | 117 tall: two labeled rows "Members [CSV] Export", "Framed image [PNG] Export", Export as a ghost button | 153 tall: 9 px captions ("Members", "Image framed on members") above the controls (`k-row-2`), Export as a secondary button 88 wide |
 | Definition "Of" row | a clickable row at x 1272 with a chevron | a ghost button 168 wide at x 1248 |
 | Legend swatches | 14 x 14 squares, radius 2 | 10 x 10 circles (`k-swatch-round`) |
 | Legend padding | 4 top, 8 bottom | 8 / 8 |
@@ -227,14 +227,14 @@ the left edge on four screens, next to Share on three, and after Share on one.
 
 The header is "a 16 px menu glyph, the dataset name at 13/22 weight 550 with a chevron".
 
-| Screen | Element | Name x | Chevron | Chevron colour | Bottom border |
+| Screen | Element | Name x | Chevron | Chevron color | Bottom border |
 |---|---|---|---|---|---|
 | 1, 6 | `k-panel-file`, `k-panel-type` | 40 | 24 px glyph at x 207 (right edge) | #0000004d (screen 6: #000000e5) | yes |
 | 3, 4, 7 | `s-file`, `s-file-header`, `m-file` | 40 | 16 px glyph at x 215 | #0000004d (screen 7: #00000080) | yes, yes, screen 4 none |
 | 2, 5, 8 | `m-panel-head`, `k-panel-file`, `k-panel-type` | 40 (screen 5: 32) | 24 px glyph immediately after the name (x 128 / 114 / 134) | #0000004d | yes |
 | all | | | header height 48 on 1, 2, 3, 4, 7; 49 on 5, 6, 8 | | |
 
-Three chevron placements, two glyph sizes, three chevron colours, one missing divider
+Three chevron placements, two glyph sizes, three chevron colors, one missing divider
 (screen 4), one 8 px shift of the name (screen 5), and a 1 px header height difference that
 moves every row below it on screens 5, 6 and 8 (Views header at y 49 instead of 48, Objects at
 121 / 125 / 134 instead of 120).
@@ -362,7 +362,7 @@ two others for the same content. Figma has no 16 px row anywhere.
 | Screen | Export button | Layout |
 |---|---|---|
 | 2, 5, 7 | secondary (outlined) 44 to 52 wide | select(s) + button on one 32 px row |
-| 3 | ghost (no outline), 40 wide, padding-left 2 | labelled row: label 80 + select 88 + button |
+| 3 | ghost (no outline), 40 wide, padding-left 2 | labeled row: label 80 + select 88 + button |
 | 6 | secondary, 216 wide (full row) | its own row under "Ranked list [CSV]" |
 | 8 | secondary, 88 wide | two-column row with 9 px captions |
 
@@ -395,9 +395,9 @@ Font census of the chrome (canvas labels excluded):
 Everything else is on the scale: 11 / 16 450, 11 / 16 550, 13 / 22 550, 15 / 25 550, 9 / 14
 500 and 11 / 32 for tree rows.
 
-### 3.17 Colour and the one accent (minor, with one design note)
+### 3.17 Color and the one accent (minor, with one design note)
 
-Every chrome colour is a token value; no stray hex was found. The accent is used for:
+Every chrome color is a token value; no stray hex was found. The accent is used for:
 
 1. the active tool and Share (fill) on every screen, and a switch that is on (5, 6);
 2. the selected mode face ("2D") and "See all ... in table" links (text, #007be5);
@@ -472,7 +472,7 @@ Things on a screen the reader did not ask for, or that say the same thing twice:
 3. **Screen 3 and 8**: the legend repeats the tree (Group 1..4 with the same counts) 800 px
    away. The legend is on by the spec, but it is 17 words that duplicate 17 words.
 4. **Screen 4**: "4 more, scroll" is an instruction inside a legend; Figma never writes
-   instructions into chrome. "played" on every neighbour row is the same word three times for
+   instructions into chrome. "played" on every neighbor row is the same word three times for
    a relationship that is the only kind in the file. (`s-legend-more`, `s-list`.)
 5. **Screen 5**: the secondary bar says "Pick the end node" and the status bar says "Path:
    pick the end node" at the same time. One is enough; the status bar was specified to carry
@@ -503,7 +503,7 @@ value that is consistent across screens.
 | 3 | blocker | Seven screens render DejaVu Sans or Liberation Sans, not Inter; only screen 6 declares the `@font-face`; the 450/550 weights are not what the PNGs show | `screen-1,2,3,4,5,7,8.html`, `kit.html`, `kit.css` (3.2) |
 | 4 | blocker | The Dataset inspector is laid out three ways: every select at a different x and width, label column 36 to 80, Default look rows differ, Layout label missing on 5, hex missing on 7 | `screen-2.html` `m-kv`/`m-row`, `screen-5.html`, `screen-7.html` `m-prop` (3.3) |
 | 5 | major | Right header drawn four ways: zoom as outlined select (1) vs ghost button (others); at the left edge (2, 3, 5, 6), beside Share (4, 7), after Share (8) | `k-panel-file`, `m-panel-head`, `s-topbar`, `s-right-header`, `k-panel-top`, `k-topbar`, `m-topbar`, `rp-header` (3.4) |
-| 6 | major | Left header file-menu chevron in three places (right edge 24 px, right edge 16 px, after the name), three colours; name at x 32 on screen 5; no divider on screen 4; header 48 vs 49 | `k-panel-file`, `s-file`, `s-file-header`, `m-file`, `m-panel-head`, `k-panel-type` (3.5) |
+| 6 | major | Left header file-menu chevron in three places (right edge 24 px, right edge 16 px, after the name), three colors; name at x 32 on screen 5; no divider on screen 4; header 48 vs 49 | `k-panel-file`, `s-file`, `s-file-header`, `m-file`, `m-panel-head`, `k-panel-type` (3.5) |
 | 7 | major | Tree counts in five formats ("34 / 78", "34 nodes 78 edges", "34 nodes", "115", none) and two placements (inline vs right-aligned) | `k-tree-meta` in every screen (3.6) |
 | 8 | major | Tree indent 16 px per level on screen 5 (24 everywhere else) | `screen-5.html` `--k-tree-indent` override (3.6) |
 | 9 | major | Chip moves 48 px left on the selected row (3, 8) and lock/eye reserve space on every row (8) so names truncate | `screen-3.html` line 33 to 35, `screen-8.html` line 29 to 31 (3.6) |
@@ -518,7 +518,7 @@ value that is consistent across screens.
 | 18 | major | Duplicated text: secondary bar + status bar on 5; popover count + status bar, dock "Showing" + inspector "Show", on 7; count three times on 2; legend repeats the tree on 3 and 8 | `screen-5.html`, `screen-7.html`, `screen-2.html` `m-prose` (4) |
 | 19 | major | An open verb menu with no pointer on screen 7, put there "to document the verbs" | `screen-7.html` `m-menu` (4) |
 | 20 | minor | Screen 1 shows three ways to open a file at once plus a "Nothing loaded" row | `screen-1.html` (4) |
-| 21 | minor | "4 more, scroll" instruction in the legend; "played" on every neighbour row | `screen-4.html` `s-legend-more`, `s-list` (4) |
+| 21 | minor | "4 more, scroll" instruction in the legend; "played" on every neighbor row | `screen-4.html` `s-legend-more`, `s-list` (4) |
 | 22 | minor | Root tree row weight 550 on screen 3, 600 on all others | `screen-3.html` line 28 (3.6) |
 | 23 | minor | Tree chip radius 0 on screen 3 and the size chip on 5; 2 elsewhere; chip x 216 / 217 / 221 | `k-tree-chip`, `chip-size` (3.6) |
 | 24 | minor | Off-scale type: 10 px 500 (VR/AR on 5), 10 px monospace (dock numbers on 7), 11/24 legend title on 6 | `screen-5.html` line 79, `screen-7.html` `is-num`, `screen-6.html` `legend-title` (3.16) |

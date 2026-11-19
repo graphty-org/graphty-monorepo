@@ -337,14 +337,10 @@ export class EdgeRowLines {
         }
 
         const { width, color } = look;
-        const batch = EdgeMesh.pulledBatch(
-            cache,
-            { styleId: meshKey, width, color },
-            style,
-            scene,
-            () => rows.positionTexture,
-            { route: "straight", lean: this.host.lean() },
-        );
+        const batch = EdgeMesh.pulledBatch(cache, { styleId: meshKey, width, color }, style, scene, () => rows, {
+            route: "straight",
+            lean: this.host.lean(),
+        });
         // as `Edge.pullLine` gives its piece the look: in 2D a world width
         const drawnWidth = EdgeMesh.drawsFlat(scene) ? width / 40 : width * 20;
         const piece = batch.acquire(drawnWidth);

@@ -3,7 +3,8 @@ name: Search Panel
 category: display
 description: Collapsible search panel with input, options, and scrollable results list. Supports filtering by attribute
     and search mode toggles.
-status: planned
+status: implemented
+notes: "Ships: graphty/src/workspace/graph-place/FindBox.tsx."
 implements_capabilities:
     - search
 used_in_workflows:

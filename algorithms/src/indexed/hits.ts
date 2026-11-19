@@ -14,7 +14,7 @@ export interface HitsOptions {
      * norm. Default true, i.e. the L2-normalized vectors are returned unchanged.
      */
     readonly normalized?: boolean | undefined;
-    /** Weight a neighbour's contribution by the arc weight; default false. */
+    /** Weight a neighbor's contribution by the arc weight; default false. */
     readonly weighted?: boolean | undefined;
 }
 

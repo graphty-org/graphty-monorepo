@@ -392,10 +392,10 @@
   },
   "src/workspace/style/WhichPicker.tsx": {
     "jsx-a11y/prefer-tag-over-role": {
-      "count": 9
+      "count": 7
     },
     "sonarjs/cognitive-complexity": {
-      "count": 2
+      "count": 1
     },
     "unicorn/no-array-callback-reference": {
       "count": 3

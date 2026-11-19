@@ -5919,14 +5919,15 @@ const ENUM_DEFAULTS: ReadonlyMap<string, string> = new Map<Channel, string>([
                 ["BackgroundShape", "rectangle"],
                 ["ShiftOf", "box"],
                 ["GapOf", "box"],
-                ["Box", "words"],
             ] as const
         ).map(([field, value]): [Channel, string] => [`${target}.label${field}` as Channel, value]),
     ),
+    ["node.labelBox", "words"],
     // Unset, an external label sits against its node's top left corner (or up and left of a line's middle).
     ["node.xlabelLocation", "top-left"],
     ["edge.xlabelLocation", "top-left"],
-    ["edge.supportScale", "unit"],
+    // Unset, with no support unit either, lengths are in drawing units (Edge.ts); a unit makes it "unit".
+    ["edge.supportScale", "drawing"],
     ["edge.arrowHeadTextWeight", "normal"],
     ["edge.arrowTailTextWeight", "normal"],
 ]);

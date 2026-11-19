@@ -9,8 +9,16 @@
 
 import { assert, describe, it } from "vitest";
 
-import { createGraphSession, type GraphSession } from "../../../src/session";
+import { createGraphSession, defineSource, type GraphSession, registerSource } from "../../../session";
 import { ACCOUNTS, BANK_B, edgeFile, full, KYC, phase2, phase6, refused, spaces } from "./scenario";
+
+registerSource(
+    defineSource({
+        id: "save-reopen-network",
+        descriptor: { plainName: "Network", defaultEndpoint: "https://save-reopen.example.com", params: [] },
+        records: () => Promise.resolve({ nodes: [{ id: "a" }, { id: "b" }], edges: [{ source: "a", target: "b" }] }),
+    }),
+);
 
 /** Saved text with its clock readings and session id blanked, so two saves compare. */
 function comparable(text: string): string {
@@ -255,7 +263,13 @@ describe("source-steps: save and reopen", () => {
         await edgeFile(session, "txn_id,account_id,merchant_id\nT-1,A-1,M-1\n", "t.csv");
         const doc = JSON.parse((await session.project.save()).text) as { members: Record<string, unknown>[] };
         session.dispose();
-        const data = doc.members.find((m) => m.kind === "graphty-data") as { graph: { nodes: unknown[] } };
+        const data = doc.members.find((m) => m.kind === "graphty-data") as {
+            graph: { nodes: Record<string, unknown>[] };
+        };
+        // A release without the experiment changed a built node: the steps no longer build the graph.
+        const built = data.graph.nodes.find((n) => n.id === "A-1");
+        assert.isDefined(built);
+        built.note = "edited";
         data.graph.nodes.push({ id: "edited" });
         const q = createGraphSession({ features: ["source-steps"] });
         const report = await q.project.open(JSON.stringify(doc));
@@ -294,5 +308,98 @@ describe("source-steps: save and reopen", () => {
         const saved = (await off.project.save()).text;
         assert.include(saved, '"joins"', "the skipped member is written back as read");
         off.dispose();
+    });
+    it("a copy whose rows hold a list or an object value saves and reopens with no problems", async () => {
+        const session = createGraphSession({ features: ["source-steps"] });
+        await session.data.import({
+            type: "json",
+            config: {
+                data: JSON.stringify({
+                    nodes: [
+                        { id: "a", tags: ["x", "y"] },
+                        { id: "b", pos: { x: 1, y: [2, 3] } },
+                    ],
+                    edges: [{ source: "a", target: "b" }],
+                }),
+            },
+        });
+        const graph = graphOf(session);
+        const steps = session.data.steps().map((s) => [s.op, s.source]);
+        const { q, text, problems } = await reopen(session);
+        assert.deepStrictEqual(problems, []);
+        assert.strictEqual(graphOf(q), graph);
+        assert.deepStrictEqual(
+            q.data.steps().map((s) => [s.op, s.source]),
+            steps,
+        );
+        assert.lengthOf(steps, 1);
+        // A reopened source cannot be read again by this session, so it no longer lists `reloadable`.
+        const again = (await q.project.save()).text;
+        assert.strictEqual(comparable(again), comparable(text).replaceAll(',"reloadable":true', ""));
+        q.dispose();
+    });
+
+    it("a registered network source saves and reopens with no problems", async () => {
+        const session = createGraphSession({ features: ["source-steps"] });
+        await session.data.import({ source: "save-reopen-network", config: {} });
+        const graph = graphOf(session);
+        const steps = session.data.steps().map((s) => [s.op, s.source]);
+        const { q, problems } = await reopen(session);
+        assert.deepStrictEqual(problems, []);
+        assert.strictEqual(graphOf(q), graph);
+        assert.lengthOf(steps, 1);
+        assert.deepStrictEqual(
+            q.data.steps().map((s) => [s.op, s.source]),
+            steps,
+        );
+        q.dispose();
+    });
+
+    it("a file saved without the experiment, opened with it and given a merged file, keeps its steps", async () => {
+        const off = createGraphSession({ features: [] });
+        await off.data.import({ type: "csv", config: { data: "source,target\na,b\n" } });
+        const { text: old } = await off.project.save();
+        off.dispose();
+        const on = createGraphSession({ features: ["source-steps"] });
+        assert.deepStrictEqual((await on.project.open(old)).problems, []);
+        await on.data.import({ type: "csv", config: { data: "source,target\nc,d\n" } }, { mode: "merge" });
+        const graph = graphOf(on);
+        const steps = on.data.steps().map((s) => [s.op, s.source]);
+        assert.lengthOf(steps, 1);
+        const { q, problems } = await reopen(on);
+        assert.deepStrictEqual(problems, []);
+        assert.strictEqual(graphOf(q), graph);
+        assert.deepStrictEqual(
+            q.data.steps().map((s) => [s.op, s.source]),
+            steps,
+        );
+        q.dispose();
+    });
+
+    it("a file saved without the experiment, opened with it and given a staged then added source, keeps it", async () => {
+        const off = createGraphSession({ features: [] });
+        await off.data.import({ type: "csv", config: { data: "source,target,w\nx,y,1\ny,z,2\n" } });
+        const { text: old } = await off.project.save();
+        off.dispose();
+        const on = createGraphSession({ features: ["source-steps"] });
+        await on.project.open(old);
+        const key = await on.data.stage({ type: "csv", config: { data: "id,score\nq,5\n" } }, { key: "id" });
+        await on.data.add(key);
+        const graph = graphOf(on);
+        const steps = on.data.steps().map((s) => [s.op, s.source]);
+        const state = on.data.sources().find((s) => s.key === key);
+        assert.isDefined(state);
+        const { q, problems } = await reopen(on);
+        assert.deepStrictEqual(problems, []);
+        assert.strictEqual(graphOf(q), graph);
+        assert.deepStrictEqual(
+            q.data.steps().map((s) => [s.op, s.source]),
+            steps,
+        );
+        assert.deepStrictEqual(
+            q.data.sources().find((s) => s.key === key),
+            state,
+        );
+        q.dispose();
     });
 });

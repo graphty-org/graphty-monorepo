@@ -6,7 +6,8 @@
  * source with its mapping, its copy id and its rows as read under `copy`, then the reader source
  * with its operations), `types` (the type registry) and `joins` (the ordered steps), plus `parts`
  * (the highest part minted per source) and `build` (the build count). The rows of a copy are saved
- * as columns: `{ rows, columns: { <name>: values } }`, a cell a row lacks written as null.
+ * as columns: `{ rows, columns: { <name>: values } }`, a cell a row lacks written as null; a cell
+ * may be any JSON value, a list or an object included.
  *
  * Every source is saved as a copy; a reference (3.11) is not written yet. Pure and free of
  * Babylon.js, Lit and the DOM.
@@ -100,12 +101,18 @@ export type StepsRead = { readonly value: SourceSteps; readonly copies: Copies }
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 
 /**
- * Whether a value is a cell as read.
+ * Whether a value is a cell as read. A row read from a JSON file or a registered source may hold a
+ * list or an object (a `tags` list, `_source.loads`), so any JSON value is one.
  * @param v - The value.
- * @returns True for a string, a finite number, a boolean or null.
+ * @returns True for a string, a finite number, a boolean, null, or a list or object of those.
  */
 const isCell = (v: unknown): v is CellValue | null =>
-    v === null || typeof v === "string" || typeof v === "boolean" || (typeof v === "number" && Number.isFinite(v));
+    v === null ||
+    typeof v === "string" ||
+    typeof v === "boolean" ||
+    (typeof v === "number" && Number.isFinite(v)) ||
+    (Array.isArray(v) && v.every(isCell)) ||
+    (isObject(v) && Object.values(v).every(isCell));
 
 /**
  * One saved table back as rows.

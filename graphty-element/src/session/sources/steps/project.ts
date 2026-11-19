@@ -661,19 +661,21 @@ function sameEdge(held: Readonly<Record<string, unknown>>, built: ProjectedEdge)
 }
 
 /**
- * The graph a project file embedded, as the build it should be: each opened edge matched to the
- * built edge it is (same ends and values, in order), so a {@link diffGraph} to the build keeps it.
+ * The part of the graph a project file embedded that the build owns, as the build it should be:
+ * each opened edge matched to the built edge it is (same ends and values, in order), so a
+ * {@link diffGraph} to the build keeps it. An opened node or edge no step builds is left out, so the
+ * diff leaves it in place: the session held it beside the build when it saved (records an older
+ * file brought in before the experiment was on), as a live session does.
  * @param after - The build.
  * @param nodes - The opened node records, by id.
  * @param edges - The opened edge records, by id, their ends at `source` and `target`.
- * @returns The opened graph keyed as the build is, each matched edge's session id, and the
- *     opened edges no built edge is.
+ * @returns The opened graph the build owns, keyed as the build is, and each matched edge's session id.
  */
 export function openedAsBuilt(
     after: ProjectedGraph,
     nodes: ReadonlyMap<NodeId, Readonly<Record<string, unknown>>>,
     edges: ReadonlyMap<EdgeId, Readonly<Record<string, unknown>>>,
-): { before: ProjectedGraph; edgeIds: Record<string, EdgeId>; strays: EdgeId[] } {
+): { before: ProjectedGraph; edgeIds: Record<string, EdgeId> } {
     const byEnds = new Map<string, (readonly [string, ProjectedEdge])[]>();
     for (const each of after.edges) {
         const k = `${String(each[1].from)}\u0001${String(each[1].to)}`;
@@ -681,20 +683,20 @@ export function openedAsBuilt(
     }
     const edgeIds: Record<string, EdgeId> = {};
     const beforeEdges = new Map<string, ProjectedEdge>();
-    const strays: EdgeId[] = [];
     for (const [id, record] of edges) {
         const candidates = byEnds.get(`${String(record.source)}\u0001${String(record.target)}`) ?? [];
         const at = candidates.findIndex(([, built]) => sameEdge(record, built));
         if (at === -1) {
-            strays.push(id);
             continue;
         }
         const [[key, built]] = candidates.splice(at, 1);
         edgeIds[key] = id;
         beforeEdges.set(key, { ...built, record });
     }
-    const beforeNodes = new Map<NodeId, ProjectedNode>([...nodes].map(([id, record]) => [id, { id, record }]));
-    return { before: { nodes: beforeNodes, edges: beforeEdges }, edgeIds, strays };
+    const beforeNodes = new Map<NodeId, ProjectedNode>(
+        [...nodes].filter(([id]) => after.nodes.has(id)).map(([id, record]) => [id, { id, record }]),
+    );
+    return { before: { nodes: beforeNodes, edges: beforeEdges }, edgeIds };
 }
 
 /** The writes that take the session graph from one build to the next. */

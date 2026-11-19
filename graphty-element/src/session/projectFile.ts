@@ -2253,10 +2253,11 @@ async function importWithSteps(
 
 /**
  * Put back the sources and steps a project file saved (the `source-steps` experiment) over the
- * graph it embeds, and check that their build is that graph.
+ * graph it embeds, and check that their build is the part of that graph they own. The records no
+ * step builds (those an older file brought in before the experiment was on) stay as they were.
  * @param tx - The transaction, the embedded graph already in.
  * @param steps - The sources and steps, and their rows as read.
- * @returns True when the build is the embedded graph; false when it differs, the build applied.
+ * @returns True when the build is the graph as embedded; false when it differs, the build applied.
  */
 async function restoreSteps(tx: TransactionScope, steps: NonNullable<SourcesRead["steps"]>): Promise<boolean> {
     const embedded = readGraphText(tx);

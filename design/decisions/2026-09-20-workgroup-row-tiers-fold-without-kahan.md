@@ -20,7 +20,7 @@ recorded, not asserted.
 
 `docs/decisions/G7.md` lines 121-124 record what happened to the last Kahan loop this package
 shipped. The pull's compensated sum, kept alive with a `select` that lavapipe and NVIDIA
-honoured, was folded away by Metal's compiler on the hosts lane: the macOS job failed
+honored, was folded away by Metal's compiler on the hosts lane: the macOS job failed
 `eigenvectorCentrality` and `katzCentrality` on hub10k at 2.07e-5 and 1.1e-5 relative, the
 naive-sum error, on the first run of PR #13. One kernel, two floors on two adapters, and a
 tolerance derived on one that the other could not meet.
@@ -40,7 +40,7 @@ The rejected argument was to keep the design's compensation:
 
 It is right about the arithmetic. A row of 10,000 arcs summed in `f32` carries a rounding error
 that grows with the row length, a compensated sum bounds it independent of length, and the rows
-that reach TIER 2 are exactly the long ones. On an adapter that honours the compensation, the
+that reach TIER 2 are exactly the long ones. On an adapter that honors the compensation, the
 hub row's floor is lower by an order of magnitude.
 
 It is acceptable because a floor that depends on the compiler is not a floor: the noise-floor

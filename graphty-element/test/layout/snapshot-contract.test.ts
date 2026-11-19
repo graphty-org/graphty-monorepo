@@ -7,10 +7,9 @@ import "../../src/layout";
 import type { F32 } from "@graphty/graph-format";
 import { assert, describe, it } from "vitest";
 
-import type { Edge } from "../../src/Edge";
 import { LayoutEngine, layoutEngineInternals } from "../../src/layout/LayoutEngine";
 import { SnapshotLayoutEngine, type SnapshotLayoutInput } from "../../src/layout/SnapshotLayoutEngine";
-import type { Node } from "../../src/Node";
+import { fakeEdge, fakeNode } from "../helpers/layout-fakes";
 
 /** Every layout the element ships that places the graph in one pass rather than stepping it. */
 const STATIC_LAYOUTS = [
@@ -78,8 +77,8 @@ class AsyncLine extends SnapshotLayoutEngine {
 
 describe("an asynchronous snapshot layout driven without an element", () => {
     it("publishes its answer and settles, asking once", async () => {
-        const nodes = ["a", "b", "c"].map((id) => ({ id, index: -1 }) as unknown as Node);
-        const edges = [{ srcId: "a", dstId: "b", srcNode: nodes[0], dstNode: nodes[1] }] as unknown as Edge[];
+        const nodes = ["a", "b", "c"].map((id) => fakeNode(id, { index: -1 }));
+        const edges = [fakeEdge(nodes[0], nodes[1])];
         const layout = new AsyncLine({});
         layoutEngineInternals.addNodes(layout, nodes);
         layoutEngineInternals.addEdges(layout, edges);

@@ -247,6 +247,9 @@ function labelBoxToCyjs(property: string, value: StyleValue): Written | null {
     switch (property) {
         case "labelBorderAlign":
             return value === "center" ? exact({}) : null;
+        // a double line's width is a quarter of Cytoscape.js's; doubleBorderBypasses writes the width
+        case "labelBorderStyle":
+            return value === "solid" || value === "double" ? exact({ "text-border-style": value }) : null;
         case "labelLineBox":
             if (value === "size") {
                 return exact({});
@@ -1111,8 +1114,11 @@ function exactness(e: Emit, rules: readonly StyleRule[]): CytoscapePerElement<st
         const want = (p: string): readonly (StyleValue | null)[] => resolveRules(rules, target, p, src);
         if (target === "node") {
             labelSizedBypasses(rows, want, drawn.node.values);
+        } else {
+            dashBypasses(rows, want, drawn.edge.values);
         }
-        labelOpacityBypasses(rows, want, drawn[target].values);
+        doubleBorderBypasses(rows, want, drawn[target].values);
+        labelOpacityBypasses(rows, want, drawn[target].values, target === "edge");
         // each part with the property it is drawn only with: a label's box, line or outline only where it has one
         const parts: (readonly [string, string, string, string | null])[] = [
             ["labelBackgroundOpacity", "text-background-opacity", "opacity", "labelBackground"],
@@ -1136,15 +1142,17 @@ function exactness(e: Emit, rules: readonly StyleRule[]): CytoscapePerElement<st
 /**
  * A label's opacity as Cytoscape.js's `text-opacity`, which it draws times the element's `opacity`, where what is
  * drawn differs; an edge whose label is less faint than its line is written at the label's opacity with a fainter
- * `line-opacity`.
+ * `line-opacity` (an edge's line drawn at 0 under a label that shows, too).
  * @param rows - the bypasses, changed in place
  * @param want - the styles' values of a property
  * @param got - what is drawn
+ * @param edges - whether the elements are edges, whose line has an opacity of its own
  */
 function labelOpacityBypasses(
     rows: (Record<string, string | number> | null)[],
     want: (property: string) => readonly (StyleValue | null)[],
     got: Readonly<Partial<Record<string, readonly (StyleValue | null)[]>>>,
+    edges: boolean,
 ): void {
     const label = want("labelOpacity");
     const whole = want("opacity");
@@ -1153,7 +1161,8 @@ function labelOpacityBypasses(
         const [l, o] = [at(label[i]), at(whole[i])];
         // a bypass of the opacity written above changes the label's too
         const rewritten = rows[i]?.opacity !== undefined;
-        if ((l === at(got.labelOpacity?.[i]) && !rewritten) || Number.isNaN(o) || o <= 0) {
+        const hiddenLine = edges && o <= 0 && l > 0;
+        if ((l === at(got.labelOpacity?.[i]) && !rewritten) || Number.isNaN(o) || (o <= 0 && !hiddenLine)) {
             continue;
         }
         if (l === o && rewritten) {
@@ -1221,6 +1230,54 @@ function labelSizedBypasses(
             if (fit[i] === "bounds" && size[i] === 0 && !(got.labelFit?.[i] === "bounds" && got[p]?.[i] === 0)) {
                 rows[i] = { ...rows[i], [p]: "label" };
             }
+        }
+    }
+}
+
+/**
+ * A dashed or dotted edge's dash and gap as a `dashed` line's `line-dash-pattern` (drawn butt-capped, in pixels
+ * whatever the width), where what is drawn differs: Cytoscape.js draws `dotted` 1 1 whatever its pattern, and reads a
+ * dashed line whose dashes are no longer than a dot as dotted.
+ * @param rows - the bypasses, changed in place
+ * @param want - the styles' values of a property
+ * @param got - what is drawn
+ */
+function dashBypasses(
+    rows: (Record<string, string | number> | null)[],
+    want: (property: string) => readonly (StyleValue | null)[],
+    got: Readonly<Partial<Record<string, readonly (StyleValue | null)[]>>>,
+): void {
+    const [style, dash, gap, width] = [want("lineStyle"), want("dashLength"), want("dashGap"), want("width")];
+    for (let i = 0; i < rows.length; i++) {
+        const [d, g] = [dash[i], gap[i]];
+        if ((style[i] !== "dashed" && style[i] !== "dotted") || typeof d !== "number" || typeof g !== "number") {
+            continue;
+        }
+        if (got.dashLength?.[i] !== d || got.dashGap?.[i] !== g) {
+            // in widths; Cytoscape.js draws an edge 3 px wide without one
+            const w = typeof width[i] === "number" ? (width[i] as number) : 3;
+            rows[i] = { ...rows[i], "line-style": "dashed", "line-dash-pattern": `${num6(d * w)} ${num6(g * w)}` };
+        }
+    }
+}
+
+/**
+ * A label's double line as Cytoscape.js's `text-border-style: double`, whose `text-border-width` is four times each
+ * line's, where what is drawn differs.
+ * @param rows - the bypasses, changed in place
+ * @param want - the styles' values of a property
+ * @param got - what is drawn
+ */
+function doubleBorderBypasses(
+    rows: (Record<string, string | number> | null)[],
+    want: (property: string) => readonly (StyleValue | null)[],
+    got: Readonly<Partial<Record<string, readonly (StyleValue | null)[]>>>,
+): void {
+    const [style, width] = [want("labelBorderStyle"), want("labelBorderWidth")];
+    for (let i = 0; i < rows.length; i++) {
+        const w = width[i];
+        if (style[i] === "double" && typeof w === "number" && got.labelBorderWidth?.[i] !== w) {
+            rows[i] = { ...rows[i], "text-border-style": "double", "text-border-width": num6(w * 4) };
         }
     }
 }

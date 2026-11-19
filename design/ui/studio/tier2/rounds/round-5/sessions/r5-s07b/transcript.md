@@ -34,7 +34,7 @@ Command: `--step $S --click "minutes is 10 or more (3)"` -> 04.png
 
 ## 04.png
 
-Good -- nothing went away. I count the balls: still ten, and all the grey arrows are still there.
+Good -- nothing went away. I count the balls: still ten, and all the gray arrows are still there.
 Three links are now drawn thick and blue, all at the top of the map around the big dark stop. The
 right side says "3 edges selected" and lists them with their minutes: School -> Harbor 12,
 Depot -> Station 15, Station -> Harbor 14. Three rows, three blue lines, and the search said 3. The

@@ -45,12 +45,13 @@ const RENDERER = {
         }),
     cancelAnimationCapture: () => false,
     playTour: () => Promise.resolve({ reason: "finished" }),
+    stopAnimationCapture: () => false,
     isVRSupported: () => Promise.resolve(false),
     isARSupported: () => Promise.resolve(false),
     exportGraph: () => Promise.resolve({ text: () => Promise.resolve("<graphml/>"), losses: [] }),
 };
 
-/** A renderer whose layout behaviour fetches a node's neighbors: node "a" is joined to a new "x". */
+/** A renderer whose layout behavior fetches a node's neighbors: node "a" is joined to a new "x". */
 const EXPANDING = {
     ...RENDERER,
     getNode: (id: string) => ({ id }),
@@ -555,6 +556,7 @@ const ROWS: Record<string, Row> = {
     "capture.screenshot": { args: { action: "screenshot", width: 100, height: 100 } },
     "capture.animation": { args: { action: "animation", seconds: 1 } },
     "capture.cancel": { args: { action: "cancel" } },
+    "capture.stop": { args: { action: "stop" } },
     "immersive.enter": { args: { action: "enter", mode: "vr" }, code: "AI_NOT_AVAILABLE" },
     "immersive.exit": { args: { action: "exit" }, code: "AI_NOT_AVAILABLE" },
     "immersive.support": { args: { action: "support" } },
@@ -1082,7 +1084,7 @@ const MORE: Record<string, Row[]> = {
 };
 
 /**
- * A session whose runs never finish until cancelled: a run read while it is going.
+ * A session whose runs never finish until canceled: a run read while it is going.
  * @returns The session.
  */
 async function stalledSession(): Promise<GraphSession> {

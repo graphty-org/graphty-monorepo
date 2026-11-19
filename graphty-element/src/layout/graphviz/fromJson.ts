@@ -133,7 +133,7 @@ export function edgeBends(
  * @param json - the `-Tjson` text
  * @param edges - the edges handed over, each with its end rows
  * @param key - which label's place to read
- * @returns each labelled edge's label place, by place in the list; absent for an edge with no such place or a self-loop
+ * @returns each labeled edge's label place, by place in the list; absent for an edge with no such place or a self-loop
  */
 export function edgeLabelPlaces(
     json: string,

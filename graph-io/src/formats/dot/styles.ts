@@ -32,7 +32,7 @@ import { isWritableDotText } from "../../common/escape.js";
 import { inferTextDtype, itemAt } from "../../common/text.js";
 import { type BendPoint, canonBends, canonNodeOffsets, flattenCubic } from "../../styles/canon/bends.js";
 import { canonColor, colorOpacity } from "../../styles/canon/color.js";
-import { canonEnum } from "../../styles/canon/enums.js";
+import { canonEnum, isBoldWeight, isNumericWeight } from "../../styles/canon/enums.js";
 import { canonNumber, DOT_POINTS_PER_INCH, num6 } from "../../styles/canon/number.js";
 import { graphvizFontName } from "../../styles/canon/postscript-font.js";
 import { type CanonSite, MAX_STYLE_VALUE_LENGTH, noteAt } from "../../styles/canon/site.js";
@@ -76,8 +76,16 @@ import {
 } from "./drawing.js";
 import { type LabelTable, readLabelTable } from "./html-table.js";
 import { type LabelPlaceContext, leftOutEdgeLabels, leftOutXlabels, readLabelPlaces } from "./label-places.js";
-import { CLUSTER_COLUMN, DOT_META_KEY, LABEL_ATTRIBUTE, POS_ATTRIBUTE } from "./names.js";
-import { fontWidths, layoutRecord } from "./record.js";
+import {
+    CLUSTER_COLUMN,
+    DOT_META_KEY,
+    LABEL_ATTRIBUTE,
+    POS_ATTRIBUTE,
+    SOURCE_PORT_COLUMN,
+    TARGET_PORT_COLUMN,
+} from "./names.js";
+import { fontWidths, layoutRecord, MAX_RECORD_DEPTH, recordDepth } from "./record.js";
+import { CENTER_END, compassEnd, type LoopEnd, type LoopSide, selfLoopControls } from "./self-loops.js";
 
 /**
  * The graph attribute holding the `graphty.styles` block of a DOT file graphty wrote.
@@ -1013,9 +1021,16 @@ function readNodeSize(
 ): void {
     const { get, put, at, shape } = n;
     readSize(get, shape, n.point, put, at);
-    if (RECORD.has(shape) && label !== null && !htmlLabel) {
+    const record = RECORD.has(shape) && label !== null && !htmlLabel;
+    if (record && recordDepth(label) <= MAX_RECORD_DEPTH) {
         readRecord(n, label, names);
-    } else if (!n.point) {
+        return;
+    }
+    if (record) {
+        // too deep to lay out: the node keeps its plain label
+        noteAt(at("label"), STYLE_ISSUE.NESTING, `record fields nested deeper than ${MAX_RECORD_DEPTH}`);
+    }
+    if (!n.point) {
         readLabelFit(get, shape, label, shown, n.table, put);
         readQuantum(n, label);
     }
@@ -2168,7 +2183,9 @@ function readEndLabelFace(get: Attr, scheme: string | null, put: Put, at: At): v
 /**
  * Reads an edge's colored segments: a color list with a `;fraction` in it (`red;0.3:blue`) draws the line in one piece
  * per color along its length, which is a linear gradient with a hard switch at each band's end. A list with no
- * fraction draws parallel lines, which graphty does not draw (the line is in the first color).
+ * fraction draws parallel lines, which graphty does not draw (the line is in the first color). Graphviz draws the head's
+ * arrow in the last band's color (emit.c `emit_edge_graphics`: `headcolor`), the tail's in the first, which the line
+ * already has.
  * @param list - the edge's `color`
  * @param scheme - its color scheme
  * @param put - receives the values
@@ -2193,6 +2210,7 @@ function readEdgeSegments(list: string | null, scheme: string | null, put: Put, 
     put("gradientKind", "linear");
     put("gradientColors", colors.join(" "));
     put("gradientStops", stops.join(" "));
+    put("targetArrowColor", bands.at(-1)?.color ?? null);
 }
 
 /**
@@ -2275,32 +2293,46 @@ export function graphvizPosBends(source: BendPoint, target: BendPoint, pos: stri
 /** How far off the line between its nodes' centers, in points, a Graphviz route may pass and still be straight. */
 const GRAPHVIZ_STRAIGHT_POINTS = 1;
 
-/** How far apart Graphviz's neato lays the loops on one node, across (x) and along (y) its side, in points. */
-const GRAPHVIZ_LOOP_STEP = { x: 18, y: 9 } as const;
+/** How far apart Graphviz's neato lays the loops on one node, in points (`makeSelfArcs`' step). */
+const GRAPHVIZ_LOOP_STEP = 18;
+
+/** The route of a self-loop Graphviz lays itself: its bends, its ends' ports, and the side it goes round. */
+interface LaidLoop {
+    readonly bends: string;
+    readonly sourcePort: string | null;
+    readonly targetPort: string | null;
+    readonly side: LoopSide;
+}
 
 /**
- * The self-loops Graphviz lays itself, with no `pos` of their own and no ports: neato's `selfRight` (splines.c), on
- * the node's right side, the k-th of a node's n loops two cubic curves from its center out to `rw + 18k` points right
- * of it and back, `9k / n` points above and then below its center line (measured on Graphviz 14.1.2's and 2.43's
- * drawings of nodes from 0.33 to 1 inch).
+ * The self-loops Graphviz lays itself, with no `pos` of their own: neato's `makeSelfEdge` (splines.c), round the
+ * node's right side with no ports, or the side its compass ports (`tailport`, `headport`, `a:e -> a:n`) choose; the
+ * i-th of a node's loops with the same ends one 18-point step further out.
+ * ponytail: a node Graphviz grows to fit its label is taken at its stated width and height; a port naming a record
+ * field or an HTML cell keeps the element's loop
  * @param snapshot - the graph
- * @returns the bends of an edge that is such a loop, or null
+ * @returns the route of an edge that is such a loop, or null
  */
-function graphvizLoops(snapshot: GraphSnapshot): { bendsOf: (e: number, get: Attr) => string | null } {
-    const portless = (get: Attr): boolean =>
-        nonEmpty(get("tailport")) === null &&
-        nonEmpty(get("headport")) === null &&
-        nonEmpty(get(POS_ATTRIBUTE)) === null;
-    const onNode = new Map<number, number[]>();
-    // ponytail: ortho routes a loop round the node's corners and none draws no edge; both keep the element's loop.
+function graphvizLoops(snapshot: GraphSnapshot): { routeOf: (e: number, get: Attr) => LaidLoop | null } {
+    const portText = (get: Attr, attribute: string, e: number, column: string): string =>
+        (nonEmpty(get(attribute)) ?? nonEmpty(cellText(snapshot.edges, column, e)) ?? "").trim().toLowerCase();
+    const ends = (e: number, get: Attr): [string, string] => [
+        portText(get, "tailport", e, SOURCE_PORT_COLUMN),
+        portText(get, "headport", e, TARGET_PORT_COLUMN),
+    ];
+    const groups = new Map<string, number[]>();
+    // ponytail: ortho routes a loop through its maze of the whole drawing and none draws no edge; both keep the
+    // element's loop
     const splines = (nonEmpty(cellText(snapshot.graph, "splines", 0)) ?? "").toLowerCase();
     // a file graphty wrote keeps its loops' look in its own block
     const laid =
         splines !== "ortho" && splines !== "none" && nonEmpty(cellText(snapshot.graph, STYLE_BLOCK_NAME, 0)) === null;
+    const keyOf = (e: number, get: Attr): string => `${String(snapshot.edgeSource(e))}|${ends(e, get).join("|")}`;
     for (let e = 0; e < snapshot.edgeCount && laid; e++) {
-        const n = snapshot.edgeSource(e);
-        if (n === snapshot.edgeTarget(e) && portless((name) => cellText(snapshot.edges, name, e))) {
-            onNode.set(n, [...(onNode.get(n) ?? []), e]);
+        const get: Attr = (name) => cellText(snapshot.edges, name, e);
+        if (snapshot.edgeSource(e) === snapshot.edgeTarget(e) && nonEmpty(get(POS_ATTRIBUTE)) === null) {
+            const key = keyOf(e, get);
+            groups.set(key, [...(groups.get(key) ?? []), e]);
         }
     }
     const inches = (n: number, name: string, fallback: number): number => {
@@ -2308,27 +2340,32 @@ function graphvizLoops(snapshot: GraphSnapshot): { bendsOf: (e: number, get: Att
         return (Number.isFinite(v) && v > 0 ? v : fallback) * DOT_POINTS_PER_INCH;
     };
     return {
-        bendsOf: (e, get) => {
+        routeOf: (e, get) => {
             const n = snapshot.edgeSource(e);
-            const list = onNode.get(n);
-            if (n !== snapshot.edgeTarget(e) || list === undefined || !portless(get)) {
+            const list = groups.get(keyOf(e, get));
+            if (n !== snapshot.edgeTarget(e) || list === undefined || nonEmpty(get(POS_ATTRIBUTE)) !== null) {
                 return null;
             }
-            // ponytail: a node Graphviz grows to fit its label is taken at its stated width and height
             const [w, h] = [inches(n, "width", 0.75), inches(n, "height", 0.5)];
-            const k = list.indexOf(e) + 1;
-            const dx = w / 2 + GRAPHVIZ_LOOP_STEP.x * k;
-            const dy = (GRAPHVIZ_LOOP_STEP.y * k) / list.length;
-            const curve = flattenCubic([
-                [0, 0],
-                [dx / 3, dy],
-                [dx, dy],
-                [dx, 0],
-                [dx, -dy],
-                [dx / 3, -dy],
-                [0, 0],
-            ]);
-            return curve === null ? null : canonNodeOffsets([0, 0], [w, h], curve.slice(1, -1), false);
+            const shape = (nonEmpty(cellText(snapshot.nodes, "shape", n)) ?? "").toLowerCase();
+            const [tail, head] = ends(e, get).map((t) => (t === "" ? CENTER_END : compassEnd(t, w, h, shape)));
+            if (tail === null || head === null) {
+                return null;
+            }
+            const { controls, side } = selfLoopControls(
+                tail,
+                head,
+                w,
+                h,
+                list.indexOf(e),
+                list.length,
+                GRAPHVIZ_LOOP_STEP,
+            );
+            const curve = flattenCubic(controls);
+            const bends = curve === null ? null : canonNodeOffsets([0, 0], [w, h], curve.slice(1, -1), false);
+            const port = (end: LoopEnd): string | null =>
+                end.defined ? canonNodeOffsets([0, 0], [w, h], [end.p], false) : null;
+            return bends === null ? null : { bends, sourcePort: port(tail), targetPort: port(head), side };
         },
     };
 }
@@ -2405,11 +2442,14 @@ function readEdgeLine(get: Attr, tokens: readonly string[], cx: EdgeContext, put
     } else if (tokens.includes("tapered")) {
         put("lineStyle", "other:tapered");
         // Graphviz narrows a tapered line by its direction (lib/common/emit.c, taperfun): forward from the pen's width
-        // at the tail to a point at the head; back and both (a point at the tail, or at both ends) are no width ratio
-        // and stay a line of one width
+        // at the tail to a point at the head, back from a point at the tail to the pen's width at the head, both from
+        // a point at each end to the pen's width at the middle; none keeps one width
         const dir = (nonEmpty(get("dir")) ?? (cx.directed ? "forward" : "none")).trim().toLowerCase();
-        if (dir === "forward") {
+        if (dir === "forward" || dir === "both") {
             put("taper", 0);
+        }
+        if (dir === "back" || dir === "both") {
+            put("taperSource", 0);
         }
     }
 }
@@ -2733,21 +2773,30 @@ function writeGraphRotation(graph: GraphSnapshot["graph"], rotation: StyleValue 
 }
 
 /**
- * Reads the route of an edge: the one it stores, else the loop Graphviz lays itself, whose label `selfRight` hangs
- * outside it, the box's left side on the loop's far point, level with the node.
- * ponytail: a node's later loops clear an earlier one's label in Graphviz; here they run through it
+ * Reads the route of an edge: the one it stores, else the loop Graphviz lays itself, with its ports. `selfRight` hangs
+ * a loop's label outside it, the box's left side on the loop's far point, level with the node.
+ * ponytail: a node's later loops clear an earlier one's label in Graphviz; here they run through it, and a loop
+ * round another side keeps the element's label place
  * @param stored - the bends of its stored route, or null
- * @param loop - the bends of the loop Graphviz lays, or null for an edge that is no such loop
+ * @param loop - the loop Graphviz lays, or null for an edge that is no such loop
  * @param get - the edge's attributes
  * @param put - receives the values
  */
-function readEdgeRoute(stored: string | null, loop: () => string | null, get: Attr, put: Put): void {
+function readEdgeRoute(stored: string | null, loop: () => LaidLoop | null, get: Attr, put: Put): void {
     const laid = stored === null ? loop() : null;
-    const bends = stored ?? laid;
+    const bends = stored ?? laid?.bends ?? null;
     if (bends !== null) {
         put("bends", bends);
     }
-    if (laid !== null && get(LABEL_ATTRIBUTE) !== null) {
+    for (const [property, port] of [
+        ["sourcePort", laid?.sourcePort ?? null],
+        ["targetPort", laid?.targetPort ?? null],
+    ] as const) {
+        if (port !== null) {
+            put(property, port);
+        }
+    }
+    if (laid?.side === "right" && get(LABEL_ATTRIBUTE) !== null) {
         put("labelPosition", "center");
         put("labelShiftX", 0.5);
     }
@@ -2824,7 +2873,7 @@ export function dotStyles(snapshot: GraphSnapshot, context: StyleReadContext): I
         const put: Put = (p, v) => {
             edge.put(e, p, v);
         };
-        readEdgeRoute(splineBends(snapshot, e, get(POS_ATTRIBUTE)), () => loops.bendsOf(e, get), get, put);
+        readEdgeRoute(splineBends(snapshot, e, get(POS_ATTRIBUTE)), () => loops.routeOf(e, get), get, put);
         readLabelPlaces(snapshot, places, e, get, put, cx.edge(e).directed);
     }
     const graph = graphBackground(snapshot, notes);
@@ -3085,20 +3134,22 @@ function writeCommon(get: Get, approximate: Approximate, out: Map<string, Writte
         out.set("fontsize", size);
     }
     const font = get("labelFont");
-    const bold = get("labelWeight") === "bold";
+    const weight = get("labelWeight");
+    const bold = isBoldWeight(weight);
     const italic = get("labelItalic") === true;
     if (typeof font === "string") {
         const name = graphvizFontName(font, bold, italic);
         out.set("fontname", name);
         const drawn = graphvizFont(name);
-        if (drawn.bold !== bold) {
+        // Graphviz's PostScript faces are plain or bold: a numeric weight is drawn as the nearer of the two
+        if (drawn.bold !== bold || isNumericWeight(weight)) {
             approximate("labelWeight", get("labelWeight") ?? "normal");
         }
         if (drawn.italic !== italic) {
             approximate("labelItalic", italic);
         }
     } else if (bold || italic) {
-        approximate(bold ? "labelWeight" : "labelItalic", bold ? "bold" : true);
+        approximate(bold ? "labelWeight" : "labelItalic", bold ? (weight ?? "bold") : true);
     }
     const tip = get("tooltip");
     if (typeof tip === "string") {

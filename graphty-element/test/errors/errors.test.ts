@@ -133,6 +133,7 @@ const CODES_FROM_THE_DESIGN = [
     "E_NO_ACCELERATOR",
     "E_NO_ACCELERATOR_REGISTERED",
     "E_ACCELERATOR_FAILED",
+    "E_ACCELERATOR_INCOMPATIBLE",
     "E_NO_WEBGPU",
     "E_NO_ADAPTER",
     "E_SOFTWARE_ONLY",
@@ -224,6 +225,7 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_NO_ACCELERATOR":
         case "E_NO_ACCELERATOR_REGISTERED":
         case "E_ACCELERATOR_FAILED":
+        case "E_ACCELERATOR_INCOMPATIBLE":
         case "E_NO_WEBGPU":
         case "E_NO_ADAPTER":
         case "E_SOFTWARE_ONLY":
@@ -355,7 +357,7 @@ describe("isGraphtyErrorCode", () => {
 });
 
 describe("ACCELERATION_ERROR_CODES", () => {
-    it("is the eight codes capabilities.acceleration can report", () => {
+    it("is the ten codes capabilities.acceleration can report", () => {
         assert.deepStrictEqual(
             [...ACCELERATION_ERROR_CODES],
             [
@@ -367,6 +369,8 @@ describe("ACCELERATION_ERROR_CODES", () => {
                 "E_TOO_LARGE",
                 "E_NO_ACCELERATOR_REGISTERED",
                 "E_ACCELERATOR_FAILED",
+                "E_ACCELERATOR_INCOMPATIBLE",
+                "E_MISSING_PACKAGE",
             ],
         );
     });

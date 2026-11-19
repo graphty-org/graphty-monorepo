@@ -14,7 +14,7 @@
  * section 9.5 and then run the snapshot's own validate().
  *
  * Buffers are adopted by reference by default: the arrays are views into the caller's buffers and
- * the arena descriptor is honoured. A SharedArrayBuffer is copied (decision D-SAB), and `copy: true`
+ * the arena descriptor is honored. A SharedArrayBuffer is copied (decision D-SAB), and `copy: true`
  * copies every buffer before adoption.
  */
 
@@ -35,6 +35,7 @@ import {
     type ColumnMeta,
     type ColumnOrigin,
     type ColumnOriginInput,
+    type CoordinateSystemInput,
     type CoreArrayName,
     type Dtype,
     type F32,
@@ -734,6 +735,7 @@ class WireDecoder {
             origin: optional("origin", (v) => v as ColumnOriginInput),
             dynamic: optional("dynamic", asBoolean),
             extra: optional("extra", (v, p) => decodeJsonValue(v, p) as Readonly<Record<string, unknown>>),
+            coordinates: optional("coordinates", (v) => v as CoordinateSystemInput),
         };
         try {
             return resolveColumnMeta(name, domain, decl);
@@ -1040,7 +1042,7 @@ function arenaSegmentOf(
 }
 
 /**
- * Honour the manifest's arena descriptor (design sections 9.1 and 10.3): the core arrays lying at
+ * Honor the manifest's arena descriptor (design sections 9.1 and 10.3): the core arrays lying at
  * 256-aligned offsets inside the described range become its segments; hotByteLength is recomputed
  * and, at the structure level, compared with the manifest.
  * @param value - manifest.arena

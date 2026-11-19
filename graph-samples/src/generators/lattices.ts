@@ -1,5 +1,5 @@
 /**
- * Lattices: the square and cubic grids (with torus wrap-around, diagonal neighbours, forward-only
+ * Lattices: the square and cubic grids (with torus wrap-around, diagonal neighbors, forward-only
  * arcs, random obstacles and position columns), the triangular lattice and the hexagonal
  * (honeycomb) lattice. All deterministic except the obstacles, which draw from stream
  * (seed, "grid-obstacles", node).
@@ -24,7 +24,7 @@ export interface Grid3dOptions extends WeightOptions {
      */
     periodic?: boolean | undefined;
     /**
-     * Join diagonal neighbours too: the king's graph (8 neighbours) in 2D, the 26-neighbour lattice
+     * Join diagonal neighbors too: the king's graph (8 neighbors) in 2D, the 26-neighbor lattice
      * in 3D.
      */
     diagonals?: boolean | undefined;
@@ -46,7 +46,7 @@ export interface Grid3dOptions extends WeightOptions {
 export type GridOptions = Omit<Grid3dOptions, "layers">;
 
 /**
- * The neighbour offsets (dc, dr, dl) a node links forward to, in edge order: +column, +row,
+ * The neighbor offsets (dc, dr, dl) a node links forward to, in edge order: +column, +row,
  * +layer, then (with diagonals) every other offset in {-1, 0, 1}^3 that is lexicographically
  * positive in (dl, dr, dc), ordered by dl, then dr, then dc.
  * @param diagonals - whether to include the diagonal offsets
@@ -96,7 +96,7 @@ interface GridShape {
     wraps: boolean[];
     /** The nodes in one layer, rows * cols. */
     plane: number;
-    /** The forward neighbour offsets, from {@link forwardOffsets}. */
+    /** The forward neighbor offsets, from {@link forwardOffsets}. */
     offsets: number[][];
     /** The blocked nodes, or null without obstacles. */
     blocked: Uint8Array<ArrayBuffer> | null;
@@ -132,8 +132,8 @@ function gridObstacles(options: Grid3dOptions, n: number): Uint8Array<ArrayBuffe
  * @param shape - the grid shape
  * @param here - the node's (column, row, layer)
  * @param offset - the offset (dc, dr, dl)
- * @param at - scratch for the neighbour's coordinates
- * @returns the neighbour's index, or -1 when it is off the grid
+ * @param at - scratch for the neighbor's coordinates
+ * @returns the neighbor's index, or -1 when it is off the grid
  */
 function gridNeighbour(shape: GridShape, here: number[], offset: number[], at: number[]): number {
     const { sizes, wraps } = shape;
@@ -151,14 +151,14 @@ function gridNeighbour(shape: GridShape, here: number[], offset: number[], at: n
 }
 
 /**
- * Push node i's edge to each forward neighbour that is on the grid and not blocked, in offset
+ * Push node i's edge to each forward neighbor that is on the grid and not blocked, in offset
  * order. The edge is always (i, j): with `directed` the grid does not wrap, so every forward
- * neighbour has the higher index and the arc already runs from the lower index to the higher.
+ * neighbor has the higher index and the arc already runs from the lower index to the higher.
  * @param out - the edge buffer
  * @param shape - the grid shape
  * @param i - the node index
  * @param here - the node's (column, row, layer)
- * @param at - scratch for the neighbour's coordinates
+ * @param at - scratch for the neighbor's coordinates
  */
 function pushGridNodeEdges(out: EdgeBuffer, shape: GridShape, i: number, here: number[], at: number[]): void {
     const { blocked } = shape;
@@ -218,8 +218,8 @@ function gridPositions(rows: number, cols: number, layers: number): Record<strin
 
 /**
  * The rows x cols x layers grid. Node (l, r, c) is index (l * rows + r) * cols + c. For each node
- * in index order, the edge to each forward neighbour in the order of the offsets: +column, +row,
- * +layer, then the diagonals. Without options this is the 6-neighbour lattice of phase 1, edge for
+ * in index order, the edge to each forward neighbor in the order of the offsets: +column, +row,
+ * +layer, then the diagonals. Without options this is the 6-neighbor lattice of phase 1, edge for
  * edge. Obstacles draw one float per node from stream (seed, "grid-obstacles", node) -- node < p
  * blocks it -- so the obstacle map does not depend on the other options.
  * @param options - sizes and the lattice options
@@ -256,7 +256,7 @@ export function grid3dGraph(options: Grid3dOptions): SampleGraph {
 
 /**
  * The rows x cols grid: {@link grid3dGraph} with one layer. Node (r, c) is index r * cols + c; for
- * each node in index order, the edge to its right neighbour, then the one below, then (with
+ * each node in index order, the edge to its right neighbor, then the one below, then (with
  * diagonals) below-left and below-right.
  * @param options - sizes and the lattice options
  * @returns the graph

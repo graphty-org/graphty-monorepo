@@ -1,6 +1,6 @@
 /**
  * @file The Graphviz layouts' Node-side pieces: the DOT the element writes, the json it reads back,
- * the options, the error codes, the catalogue entries, each engine on a small graph through the real
+ * the options, the error codes, the catalog entries, each engine on a small graph through the real
  * WebAssembly library. The recommendation for a requested layout is in test/session/layout-requested.test.ts.
  */
 
@@ -291,7 +291,7 @@ describe("the room Graphviz gives each cluster read back", () => {
         });
         const reply = await layout(dot, "dot");
         assert.isTrue(reply.ok, JSON.stringify(reply));
-        const margins = reply.ok ? clusterMargins(reply.json) : new Map();
+        const margins = reply.ok ? clusterMargins(reply.json) : new Map<number, never>();
 
         assert.deepEqual([...margins.keys()].sort(), [3, 4]);
         // the inner cluster: Graphviz's 8-point margin on every side, no label
@@ -518,7 +518,7 @@ describe("options and failures", () => {
     });
 });
 
-/** The plain name each Graphviz engine's catalogue entry carries. */
+/** The plain name each Graphviz engine's catalog entry carries. */
 const GRAPHVIZ_NAMES: Readonly<Record<(typeof GRAPHVIZ_ENGINES)[number], string>> = {
     dot: "Layered",
     neato: "Stress",

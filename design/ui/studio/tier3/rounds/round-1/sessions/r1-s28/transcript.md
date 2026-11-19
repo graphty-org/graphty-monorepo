@@ -42,7 +42,7 @@ Notes: A Color box opened with "6366F1" -- that's a code, not a color name. It s
 
 ## Step 11
 Command: `--step <folder> --click-at 1268,335` ("Pick node color") -> 11.png
-Notes: A color picker popped up, like in Slides. Little color squares at the bottom: purple, grey, a real blue, yellow, black. Clicking the real blue one.
+Notes: A color picker popped up, like in Slides. Little color squares at the bottom: purple, gray, a real blue, yellow, black. Clicking the real blue one.
 
 ## Step 12
 Command: `--step <folder> --click-at 1031,697` ("blue 0077BB") -> 12.png

@@ -1,11 +1,11 @@
 import { ModalFooter, SegmentedControl } from "@graphty/compact-mantine";
-import type { ScreenshotLegendPosition, ScreenshotLegendSection, ScreenshotOptions } from "@graphty/graphty-element";
+import type { ScreenshotLegendPosition, ScreenshotOptions } from "@graphty/graphty-element";
 import { SCREENSHOT_PRESET_DESCRIPTORS } from "@graphty/graphty-element/catalog";
 import { type GraphSession, isGraphtyError } from "@graphty/graphty-element/session";
 import { Alert, Button, Checkbox, Input, Loader, Select, Text } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
-import { dataBlocks, imageLegend, keyNames } from "../canvas/legendWords";
+import { imageKey } from "../canvas/legendWords";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import {
     CUSTOM,
@@ -37,16 +37,6 @@ const CORNERS: readonly { value: ScreenshotLegendPosition; label: string }[] = [
     { value: "bottom-left", label: "Bottom left" },
     { value: "bottom-right", label: "Bottom right" },
 ];
-
-/**
- * The key an image carries when the canvas shows the legend card: the card's sections, in the
- * same words.
- * @param session - the session, or null.
- * @returns the sections; none without a session.
- */
-function imageKey(session: GraphSession | null): ScreenshotLegendSection[] {
-    return session === null ? [] : imageLegend(dataBlocks(session), keyNames(session));
-}
 
 /**
  * The capture's `legend` option: the legend card's sections in the chosen corner, or no key.

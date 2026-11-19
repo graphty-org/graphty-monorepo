@@ -9,10 +9,11 @@ const GAP = 6;
 const CHIP = 10;
 const RAMP_WIDTH = 120;
 const RAMP_HEIGHT = 8;
+const FONT_SIZE = 12;
 const FONT = "12px system-ui, sans-serif";
 
 /** The key's sizes, for a figure that lays it out as {@link drawLegend} does. */
-export const LEGEND_METRICS = { PAD, LINE, GAP, CHIP, RAMP_HEIGHT } as const;
+export const LEGEND_METRICS = { PAD, LINE, GAP, CHIP, RAMP_HEIGHT, FONT_SIZE } as const;
 const BOLD = "600 12px system-ui, sans-serif";
 
 /**

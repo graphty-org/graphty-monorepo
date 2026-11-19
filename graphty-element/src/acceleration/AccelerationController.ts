@@ -24,6 +24,8 @@
 
 import { ACCELERATION_ERROR_CODES, type AccelerationErrorCode, GraphtyError } from "../errors";
 import { GraphtyLogger } from "../logging/GraphtyLogger.js";
+import type { CodedFactParam } from "../session/shared";
+import { reportUnavailable } from "./consoleReport";
 import { type AcceleratorRegistry, acceleratorRegistry } from "./registry";
 import {
     ACCELERATION_MIN_EDGES_MEASUREMENT,
@@ -151,7 +153,12 @@ interface AccelerationControllerOptions {
     readonly registry?: AcceleratorRegistry;
     /** Whether a lost device is followed by an attempt to attach a fresh accelerator. Defaults to true. */
     readonly recoverOnDeviceLoss?: boolean;
-    /** How many consecutive recovery attempts to make before giving up. Defaults to 3. */
+    /**
+     * How many times to try attaching a fresh accelerator after a device loss before giving up.
+     * Defaults to 3. The first try follows the loss at once; each later one waits for the next
+     * {@link AccelerationController.plan} call or factory registration while the state is
+     * `"error"`. The count starts again once a reattached device has finished a piece of work.
+     */
     readonly maxRecoveryAttempts?: number;
     /**
      * Opens a span around every call-shaped accelerated run, returning what closes it.
@@ -213,6 +220,27 @@ function accelerationCodeOf(error: GraphtyError): AccelerationErrorCode | undefi
     return ACCELERATION_ERROR_CODES.find((known) => known === error.code);
 }
 
+/** The `details` of a failed probe that are published as `capabilities.acceleration.params`. */
+const PUBLISHED_PARAMS = ["accelerator", "package", "missing"] as const;
+
+/**
+ * Picks the values a failed probe publishes beside its code: the accelerator's name, and for the
+ * package codes the package and the exports it lacked. Never a sentence.
+ * @param error - The failure, already wrapped.
+ * @returns The params, frozen.
+ */
+function paramsOf(error: GraphtyError): Readonly<Record<string, CodedFactParam>> {
+    const params: Record<string, CodedFactParam> = {};
+    for (const key of PUBLISHED_PARAMS) {
+        const value = error.details[key];
+        if (typeof value === "string" || (Array.isArray(value) && value.every((item) => typeof item === "string"))) {
+            params[key] = value;
+        }
+    }
+
+    return Object.freeze(params);
+}
+
 /**
  * Whether a thrown value is a cancellation rather than a failure.
  *
@@ -250,7 +278,8 @@ function sameStatus(a: AccelerationStatus, b: AccelerationStatus): boolean {
         a.architecture === b.architecture &&
         a.device === b.device &&
         a.reason === b.reason &&
-        a.code === b.code
+        a.code === b.code &&
+        JSON.stringify(a.params) === JSON.stringify(b.params)
     );
 }
 
@@ -297,6 +326,7 @@ export class AccelerationController {
     #state: AccelerationState;
     #reason: string | undefined;
     #code: AccelerationErrorCode | undefined;
+    #params: Readonly<Record<string, CodedFactParam>> | undefined;
     #backend: string | undefined;
     #device: AcceleratorDeviceInfo | undefined;
     #attachment: Attachment | null = null;
@@ -313,13 +343,17 @@ export class AccelerationController {
      */
     #generation = 0;
     #recoveryAttempts = 0;
+    /** True while a reattach after a device loss is in flight, so a second one does not start. */
+    #recovering = false;
+    /** What the backend said about the last device loss, while recovery from it may still try. */
+    #lossReason: string | undefined;
     #disposed = false;
     #status: AccelerationStatus;
     #capabilities: AccelerationCapabilities;
 
     /**
      * Builds a controller. Nothing is probed until {@link start} is called.
-     * @param options - The policy, the threshold, the registry and the recovery behaviour.
+     * @param options - The policy, the threshold, the registry and the recovery behavior.
      */
     constructor(options: AccelerationControllerOptions = {}) {
         this.#registry = options.registry ?? acceleratorRegistry;
@@ -340,7 +374,7 @@ export class AccelerationController {
     }
 
     /**
-     * Where acceleration stands right now, as frozen, serialisable data.
+     * Where acceleration stands right now, as frozen, serializable data.
      * @returns The published status.
      */
     get status(): AccelerationStatus {
@@ -434,6 +468,8 @@ export class AccelerationController {
 
         this.#policy = policy;
         this.#generation += 1;
+        this.#recoveryAttempts = 0;
+        this.#lossReason = undefined;
 
         if (policy === "off") {
             this.#detach();
@@ -611,6 +647,9 @@ export class AccelerationController {
 
         const { accelerator } = this;
         if (accelerator === null) {
+            // This work is planned without an accelerator either way; a reattach that succeeds
+            // serves the work after it.
+            this.#retryRecovery();
             return this.#withoutAccelerator(work, required);
         }
 
@@ -751,6 +790,7 @@ export class AccelerationController {
 
         try {
             const value = await fn(decision.accelerator);
+            this.#workFinished(attachment);
             return { accelerated: true, value, precision: decision.precision };
         } catch (error) {
             // The one exit. Nothing below this line may produce a CPU result: the accelerator
@@ -787,6 +827,7 @@ export class AccelerationController {
             };
         }
 
+        const attachment = this.#attachment;
         this.#enterWork();
         let ended = false;
 
@@ -796,6 +837,7 @@ export class AccelerationController {
             }
 
             ended = true;
+            this.#workFinished(attachment);
             this.#leaveWork();
         };
     }
@@ -848,7 +890,8 @@ export class AccelerationController {
         this.#probeSettled = true;
 
         if (!attached) {
-            this.#transition("unavailable", this.#reason, this.#code);
+            this.#transition("unavailable", this.#reason, this.#code, this.#params);
+            reportUnavailable(this.#code, this.#reason);
         }
 
         return this.#status;
@@ -873,14 +916,17 @@ export class AccelerationController {
 
         if (registrations.length === 0) {
             this.#reason =
-                'no accelerator is registered. Import "@graphty/graphty-element/webgpu" to use WebGPU, ' +
-                "or register your own accelerator factory.";
+                "no accelerator is registered. Load the element from @graphty/graphty-element, which finds " +
+                'an installed WebGPU package itself, import "@graphty/graphty-element/webgpu", or register ' +
+                "your own accelerator factory.";
             this.#code = "E_NO_ACCELERATOR_REGISTERED";
+            this.#params = undefined;
             return false;
         }
 
         const declined: string[] = [];
         let code: AccelerationErrorCode | undefined;
+        let params: Readonly<Record<string, CodedFactParam>> | undefined;
 
         for (const registration of registrations) {
             if (this.#stale(generation)) {
@@ -909,7 +955,12 @@ export class AccelerationController {
                 });
                 // A throw with no acceleration code of its own (a backend module that failed to load,
                 // a defect) still gets one, so a consumer can switch on every unavailable state.
-                code = accelerationCodeOf(failure) ?? code ?? "E_ACCELERATOR_FAILED";
+                const own = accelerationCodeOf(failure);
+                if (own !== undefined || code === undefined) {
+                    code = own ?? "E_ACCELERATOR_FAILED";
+                    params = paramsOf(failure);
+                }
+
                 declined.push(`${registration.name}: ${failure.message}`);
             }
         }
@@ -917,6 +968,7 @@ export class AccelerationController {
         if (!this.#stale(generation)) {
             this.#reason = declined.join("; ");
             this.#code = code;
+            this.#params = params;
         }
 
         return false;
@@ -1012,7 +1064,7 @@ export class AccelerationController {
         this.#attachment = attachment;
         this.#backend = accelerator.backend;
         this.#device = accelerator.device;
-        this.#recoveryAttempts = 0;
+        this.#lossReason = undefined;
 
         const { lost } = accelerator;
         if (lost !== undefined) {
@@ -1084,8 +1136,25 @@ export class AccelerationController {
         this.#detach();
         logger.warn("device lost", { reason, busy: this.#busy });
         this.#transition("error", `the accelerator's device was lost: ${reason}`, "E_DEVICE_LOST");
+        this.#lossReason = reason;
+        this.#retryRecovery();
+    }
 
+    /**
+     * Starts one more try at reattaching after a device loss, when the budget allows it.
+     *
+     * Called at the loss itself, and then on the next `plan()` and the next factory registration
+     * while the state is still `"error"`: a browser often has no adapter to hand out in the first
+     * moments after a GPU reset, and those events are the moments worth trying again. No timer.
+     */
+    #retryRecovery(): void {
+        const lossReason = this.#lossReason;
         if (
+            lossReason === undefined ||
+            this.#recovering ||
+            this.#disposed ||
+            this.#state !== "error" ||
+            this.#attachment !== null ||
             !this.#recoverOnDeviceLoss ||
             this.#policy === "off" ||
             this.#recoveryAttempts >= this.#maxRecoveryAttempts
@@ -1094,11 +1163,25 @@ export class AccelerationController {
         }
 
         this.#recoveryAttempts += 1;
-        void this.#recover(reason);
+        this.#recovering = true;
+        void this.#recover(lossReason).finally(() => {
+            this.#recovering = false;
+        });
     }
 
     /**
-     * Tries to attach a fresh accelerator after a device loss.
+     * Records that the attached device finished a piece of work, which is what proves a
+     * reattached device healthy and gives the next loss a full recovery budget again.
+     * @param attachment - The attachment the work ran on.
+     */
+    #workFinished(attachment: Attachment | null): void {
+        if (attachment !== null && attachment === this.#attachment) {
+            this.#recoveryAttempts = 0;
+        }
+    }
+
+    /**
+     * Makes one try at attaching a fresh accelerator after a device loss.
      *
      * The state stays `"error"` while this runs and when it fails: an accelerator that worked
      * and then died is a different thing from one that was never there, and flattening the two
@@ -1130,6 +1213,11 @@ export class AccelerationController {
      */
     #onRegistryChanged(): void {
         if (this.#disposed || this.#policy === "off" || this.#injected || this.#attachment !== null) {
+            return;
+        }
+
+        if (this.#state === "error") {
+            this.#retryRecovery();
             return;
         }
 
@@ -1256,6 +1344,7 @@ export class AccelerationController {
                 policy: this.#policy,
                 state: this.#state,
                 ...(this.#code === undefined ? {} : { acceleration: this.#code }),
+                ...(this.#params === undefined ? {} : { params: this.#params }),
                 ...(work === undefined ? {} : { capability: work.capability, nodeCount: work.nodeCount }),
             },
         });
@@ -1280,11 +1369,18 @@ export class AccelerationController {
      * @param state - The new state.
      * @param reason - The sentence a person reads, or undefined to clear it.
      * @param code - The code a `switch` takes, or undefined to clear it.
+     * @param params - The values the code is about, or undefined to clear them.
      */
-    #transition(state: AccelerationState, reason: string | undefined, code: AccelerationErrorCode | undefined): void {
+    #transition(
+        state: AccelerationState,
+        reason: string | undefined,
+        code: AccelerationErrorCode | undefined,
+        params?: Readonly<Record<string, CodedFactParam>>,
+    ): void {
         this.#state = state;
         this.#reason = reason;
         this.#code = code;
+        this.#params = params;
 
         const next = this.#buildStatus();
         if (sameStatus(this.#status, next)) {
@@ -1356,6 +1452,10 @@ export class AccelerationController {
 
         if (this.#code !== undefined) {
             status.code = this.#code;
+        }
+
+        if (this.#params !== undefined) {
+            status.params = this.#params;
         }
 
         return Object.freeze(status);

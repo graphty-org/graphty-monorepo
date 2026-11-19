@@ -15,7 +15,7 @@ colored by it). Tool commit `acf3894e2c56`, no uncommitted changes.
 
 ## The answer against the key
 
-- **Club note (right).** After cancelling a form that read "About PageRank" (`04.png`), Jordan
+- **Club note (right).** After canceling a form that read "About PageRank" (`04.png`), Jordan
   clicked the graph's row in the Graph place; the inspector showed "Graph, From friends.csv" with
   20 nodes, 41 edges (`06.png`); the form read "About Graph" (`07.png`); saved with the chip
   "Graph", and the inspector then read "From friends.csv 1 note" (`08.png`).

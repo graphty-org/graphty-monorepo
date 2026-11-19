@@ -361,7 +361,7 @@ async function closedAfterLastFlake(store: Store, s: FlakySeen, closedAt: number
  * @param repo - the repository, as owner/name
  * @param open - the open pull requests with their checks
  * @param now - the current time, in ms
- * @returns the flaky members' values, by member name
+ * @returns the flaky members' values, by member name, and the tests flaky.no_issue counts, as `file > name`
  */
 export async function flakyMembers(
     store: Store,
@@ -369,7 +369,7 @@ export async function flakyMembers(
     repo: string,
     open: GqlPr[],
     now: number,
-): Promise<Record<string, number>> {
+): Promise<{ obs: Record<string, number>; untracked: string[] }> {
     const history = await flakyHistory(store, now);
     const today = floorTo(now, "1d");
     const fileRuns = await loadSeries(store, "flaky.file_runs", "1d", today - 27 * DAY, today, now);
@@ -386,16 +386,18 @@ export async function flakyMembers(
     }
     const blocked = await blockedPrs(store, open, new Set(history.keys()), now);
     const net = netChange(history, fixedAt, fileRuns, now);
-    return {
-        // A test is filed while an issue naming it is open, or once one was closed as fixed after its last flaky event.
-        "flaky.no_issue": week.filter((s) => {
-            const k = testKey(s.file, s.name);
-            return !issues.get(k)?.open && !fixedAt.has(k);
-        }).length,
+    // A test is filed while an issue naming it is open, or once one was closed as fixed after its last flaky event.
+    const untracked = week.filter((s) => {
+        const k = testKey(s.file, s.name);
+        return !issues.get(k)?.open && !fixedAt.has(k);
+    });
+    const obs = {
+        "flaky.no_issue": untracked.length,
         "flaky.blocked_prs": blocked.prs.length,
         "flaky.blocked_oldest_ms": blocked.oldestMs,
         "flaky.net_change": net.added - net.resolved,
         "flaky.net_added": net.added,
         "flaky.net_resolved": net.resolved,
     };
+    return { obs, untracked: untracked.map((s) => `${s.file} > ${s.name}`) };
 }

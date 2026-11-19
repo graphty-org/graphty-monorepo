@@ -21,8 +21,11 @@ import type { CameraDescriptor } from "../catalog/types";
 
 /** A point or a size in world units. */
 export interface Vec3 {
+    /** Along the x axis. */
     readonly x: number;
+    /** Along the y axis. */
     readonly y: number;
+    /** Along the z axis. */
     readonly z: number;
 }
 
@@ -30,7 +33,7 @@ export interface Vec3 {
 export type DrawingMode = "2d" | "3d";
 
 /**
- * What each node counts as in the box a camera view frames: `"centers"` its centre alone,
+ * What each node counts as in the box a camera view frames: `"centers"` its center alone,
  * `"drawn"` the box it is drawn in, so a big node at the edge of the frame is not cut off. A camera
  * view framing the whole graph defaults to `"drawn"`; one framing a subset defaults to `"centers"`.
  */
@@ -38,9 +41,13 @@ export type CameraViewExtent = "centers" | "drawn";
 
 /** An axis-aligned box around the elements a view is being asked to frame, in world units. */
 export interface GraphBounds {
+    /** The corner with the smallest x, y and z. */
     readonly min: Vec3;
+    /** The corner with the largest x, y and z. */
     readonly max: Vec3;
+    /** The middle of the box. */
     readonly center: Vec3;
+    /** The box's extent along each axis, `max` minus `min`. */
     readonly size: Vec3;
     /** The largest of the three sides. */
     readonly maxDimension: number;
@@ -76,11 +83,31 @@ export interface CameraState {
      * `radius`, `pivotRotation`, `cameraDistance` and `fov`).
      */
     mode?: DrawingMode;
+    /**
+     * Which kind of camera the state describes. A label only: a state is applied to whichever
+     * camera is active, through the members it gives.
+     */
     type?: "arcRotate" | "free" | "universal" | "orthographic";
 
     // 3D Camera Properties
-    position?: { x: number; y: number; z: number };
-    target?: { x: number; y: number; z: number };
+    /** Where the viewer stands, in world units. */
+    position?: {
+        /** World x. */
+        x: number;
+        /** World y. */
+        y: number;
+        /** World z. */
+        z: number;
+    };
+    /** The point the camera looks at and orbits around, in world units. */
+    target?: {
+        /** World x. */
+        x: number;
+        /** World y. */
+        y: number;
+        /** World z. */
+        z: number;
+    };
     /**
      * Orbit angles in Babylon's ArcRotate convention: `alpha` turns around the +y axis starting
      * from +x, `beta` is measured down from +y (0 looks straight down, PI/2 is level). With
@@ -88,9 +115,14 @@ export interface CameraState {
      * sin(alpha) sin(beta)). Ignored when the state also gives `position` or `pivotRotation`.
      */
     alpha?: number;
+    /** The orbit angle down from +y, in radians: 0 looks straight down, PI/2 is level. See `alpha`. */
     beta?: number;
     /** Distance from `target` for an orbit state given as `alpha` and `beta`. */
     radius?: number;
+    /**
+     * The vertical field of view in radians, as read from the camera. Applying a state does not
+     * change the field of view.
+     */
     fov?: number;
 
     // 2D Camera Properties
@@ -99,7 +131,13 @@ export interface CameraState {
      * that. To show a half-width of `h` units, ask for `5 / h`.
      */
     zoom?: number;
-    pan?: { x: number; y: number };
+    /** The world point at the center of a 2D view. */
+    pan?: {
+        /** World x. */
+        x: number;
+        /** World y. */
+        y: number;
+    };
     /**
      * How far a 2D view is turned: the angle the drawing is turned counterclockwise on screen, in
      * radians, about the view's center (`pan`). 0 is unturned. A reader's two-finger turn and the
@@ -108,13 +146,32 @@ export interface CameraState {
     rotation?: number;
 
     // Orthographic frustum (advanced)
+    /** The left edge of a 2D view's frustum, in world units. Not applied: a 2D view is placed by `zoom` and `pan`. */
     orthoLeft?: number;
+    /** The right edge of a 2D view's frustum, in world units. Not applied: a 2D view is placed by `zoom` and `pan`. */
     orthoRight?: number;
+    /** The top edge of a 2D view's frustum, in world units. Not applied: a 2D view is placed by `zoom` and `pan`. */
     orthoTop?: number;
+    /** The bottom edge of a 2D view's frustum, in world units. Not applied: a 2D view is placed by `zoom` and `pan`. */
     orthoBottom?: number;
 
     // OrbitCameraController-specific fields
-    pivotRotation?: { x: number; y: number; z: number };
+    /**
+     * The 3D camera's turn about `target`, as Euler angles in radians. Wins over the direction
+     * `position` implies, so a state read with `getCameraState()` is restored exactly.
+     */
+    pivotRotation?: {
+        /** Pitch: the turn about the x axis. */
+        x: number;
+        /** Yaw: the turn about the y axis. */
+        y: number;
+        /** Roll: the turn about the z axis. */
+        z: number;
+    };
+    /**
+     * How far the 3D camera stands from `target`, in world units. Wins over the distance
+     * `position` implies; never nearer than the camera's closest allowed distance.
+     */
     cameraDistance?: number;
 }
 
@@ -124,9 +181,13 @@ export interface CameraState {
  * and in 3D the camera's center of view is the center of what is left. A side left out is 0.
  */
 export interface ViewInsets {
+    /** The covered band along the top edge. */
     readonly top?: number;
+    /** The covered band along the right edge. */
     readonly right?: number;
+    /** The covered band along the bottom edge. */
     readonly bottom?: number;
+    /** The covered band along the left edge. */
     readonly left?: number;
 }
 
@@ -140,6 +201,7 @@ export interface CameraViewInput {
      * view that always framed everything could not be asked to do anything else.
      */
     readonly bounds: GraphBounds;
+    /** Whether the element is drawing flat or in three dimensions. */
     readonly mode: DrawingMode;
     /** The viewport's width divided by its height. */
     readonly aspect: number;
@@ -152,7 +214,12 @@ export interface CameraViewInput {
      * leave a plugin unable to compute what a built-in computes, which is the defect this
      * extension point exists to prevent.
      */
-    readonly viewport: { readonly width: number; readonly height: number };
+    readonly viewport: {
+        /** The width in device pixels. */
+        readonly width: number;
+        /** The height in device pixels. */
+        readonly height: number;
+    };
     /**
      * The view insets in force, in the same device pixels as `viewport`. A view that frames
      * should keep the box out of them; absent or all zero, the whole viewport is free.
@@ -167,13 +234,20 @@ export interface CameraViewInput {
      * toward the viewer, when the active layout has one: a map or a globe is read from -z.
      * Absent for a layout that looks the same from every side.
      */
-    readonly facing?: { readonly x: number; readonly y: number; readonly z: number };
+    readonly facing?: {
+        /** The direction's x component. */
+        readonly x: number;
+        /** The direction's y component. */
+        readonly y: number;
+        /** The direction's z component. */
+        readonly z: number;
+    };
     /** The view's own options, resolved against the defaults its descriptor declares. */
     readonly options: Readonly<Record<string, unknown>>;
 }
 
 /**
- * A camera view as it is registered: what the catalogue publishes about it, and the one pure
+ * A camera view as it is registered: what the catalog publishes about it, and the one pure
  * function that decides where the viewer stands.
  *
  * `compute` is synchronous and total. The element calls it inside an operation it may animate,
@@ -182,6 +256,8 @@ export interface CameraViewInput {
  * element already has.
  */
 export interface CameraViewRegistration {
+    /** What the catalog publishes about the view: its id, name and options. */
     readonly descriptor: CameraDescriptor;
+    /** Decides where the viewer stands from what the element measured. Pure, synchronous and total. */
     readonly compute: (input: CameraViewInput) => CameraState;
 }

@@ -2,7 +2,8 @@ id: toggle-switch
 name: Toggle Switch
 category: control
 description: Toggle switch for binary on/off settings. Provides clear visual feedback of current state.
-status: planned
+status: implemented
+notes: "Ships: Mantine Switch, Mantine through compact-mantine, used across graphty/src."
 implements_capabilities: []
 used_in_workflows: []
 dependencies: []

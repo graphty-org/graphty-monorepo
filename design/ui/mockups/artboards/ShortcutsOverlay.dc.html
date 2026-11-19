@@ -52,7 +52,7 @@
   THE ANCHOR, MEASURED (B1, B2). A transient surface never chooses its own position; it inherits one
   from its opener on both axes.
     Opener       rail Help button, the smallest focusable ancestor that draws as one control,
-                 [0,828 47x44], bottom edge 872, vertical centre 850, drawn in its open state.
+                 [0,828 47x44], bottom edge 872, vertical center 850, drawn in its open state.
     Family       activity rail (B2 row 2): opens right, left = 56, gap horizontal 8,
                  shared edge line "button bottom to menu bottom".
     Gap axis     horizontal. Rail right edge 48, surface left edge 56. GAP = 8, the shell-region
@@ -63,7 +63,7 @@
     Edge line    bottom to bottom. Opener bottom 872, surface bottom 872. OFFSET 0, against B4's
                  review clause of 8. Drawn as bottom: 28px from the 900 root, since the status bar
                  is 24 and the rail's own 4px bottom padding puts the button's bottom at 872.
-    Caret        6px on the leading (left) edge at the opener row's vertical centre, y 850, which is
+    Caret        6px on the leading (left) edge at the opener row's vertical center, y 850, which is
                  22px above the surface's own bottom edge, so it is drawn at bottom: 16px and is
                  clamped well inside the 12px corner rule (B3, VOCAB 14.2). It is drawn because the
                  surface is 760 wide: only a surface under 280 takes an 8px caret INSTEAD of an edge
@@ -74,14 +74,14 @@
                  are pop-out rules and do not reach a surface that is over the pop-out ceiling by
                  280px; what replaces them is this max-height and the flip, which is unnecessary
                  because the surface already opens upward from a button at the bottom of the rail.
-    Not centred  B1's ladder ends in "opening centred over the canvas with 'from <opener name>' in the
+    Not centered  B1's ladder ends in "opening centered over the canvas with 'from <opener name>' in the
                  header", and that rung is not reached here: the anchored placement fits, so the
                  surface is anchored and its header carries no from-line.
     Named obstruction, recorded per B4's review clause: at 760 wide this surface covers x 56 to 816,
     so with an activity panel open it would stand in front of the whole 280px panel. The panel is
     live under it -- nothing here is modal -- but a surface that hides a region end to end is the
     obstruction that sends this one down B1's ladder, and that is the case ShortcutsDialog draws,
-    centred on the canvas rect. One rule, two rungs, two boards. This board draws the first rung, with
+    centered on the canvas rect. One rule, two rungs, two boards. This board draws the first rung, with
     no panel open, where the rail lane is clear and the anchor is exact.
 
   WHAT IS OPEN, AND WHAT IS NOT (E2). One transient, one class. The Help menu that carries the
@@ -91,7 +91,7 @@
   as the rail's ACTIVE state, and this is the state the rail is in: the surface this rail item opens is
   open. Main draws the same button at hover #2a3035 with its menu open under the pointer, which is a
   pointer state and a different fact. No pin glyph: E2 closes the pin at four comparative surfaces --
-  the colour and gradient picker, Selection statistics, the group profile and the AI console -- and a
+  the color and gradient picker, Selection statistics, the group profile and the AI console -- and a
   reference table is none of them.
 
   ROW TYPES. Inside the surface: six group names, drawn as RT-8 section headers with no chevron because
@@ -100,7 +100,7 @@
   one dispatcher, so the label strings and the key chips here are SettingsShortcuts.dc.html verbatim
   and the two boards may differ only in WHICH rows they draw. That fixes the density too: 20px group
   name, 22px row, the reference pitch, not the 32px panel pitch, and a later compaction pass must not
-  normalise it. Outside the surface the inspector is the usual RT-10 reading, RT-8 headers, RT-6 rows
+  normalize it. Outside the surface the inspector is the usual RT-10 reading, RT-8 headers, RT-6 rows
   and one RT-9 chart row.
 
   ONE STRING CHANGED FROM ShortcutsDialog (Rule 1): the Panels group's row reads "Keyboard shortcuts
@@ -835,7 +835,7 @@
                is inert: the reference overlay is non-modal, so a click lands on the node under it and the
                camera keys in the table beside it act on this drawing while it is being read. That is the
                whole argument for the surface class -- you read a binding in order to press it.
-               The surface's right edge at 816 cuts the Garbage_Bandit label, whose centre sits at 837.
+               The surface's right edge at 816 cuts the Garbage_Bandit label, whose center sits at 837.
                That is occlusion by a transient card, not a clipped string: the label is drawn whole in the
                SVG and returns whole when Escape closes the reference. -->
                                 <svg
@@ -1354,7 +1354,7 @@
                                 </div>
 
                                 <!-- CANVAS TOOLBAR (5.6, 5.1; TB-1, TB-2, TB-4), copied from CommandPalette.dc.html, which copied
-               it from Main. 246 x 36, centred on the LIVE canvas rect -- left: 50% resolves against this
+               it from Main. 246 x 36, centered on the LIVE canvas rect -- left: 50% resolves against this
                board's 1112 canvas, so the bar spans x 481 to 727 -- riding 12px above the canvas floor on
                TB-4's plain rung, on one baseline with the minimap at left 12 and the legend at right 12.
                The item set is FIXED, so Zoom to selection is drawn permanently and merely disabled at
@@ -2517,7 +2517,7 @@
                  "measuring..." in its place, so the stub never hides the fact that the numbers are not there yet.
                  Not drawn open here: the reference overlay is this board's subject, it is a different surface class, and
                  E2 allows one transient at a time.
-                 REVISION 1.9 (SECTIONS-1.9 D1, D5, D7, work-list 5.8). The permanent-door licence is WITHDRAWN
+                 REVISION 1.9 (SECTIONS-1.9 D1, D5, D7, work-list 5.8). The permanent-door license is WITHDRAWN
                  and every sentence above that asserts it is struck -- there is no permanently-closed chevron, and
                  a chevron that reveals nothing is a defect. This is an ordinary collapsed section. It is closed
                  here because the section is closed, and it opens IN PLACE onto the node-type rows with their
@@ -2833,7 +2833,7 @@
          max-height    = 820 = 872 less the top bar's 40 less the 12px overlay inset. The card
                          measures 614, so the cap binds nothing and the top edge lands at 258.
        The 6px caret sits on the leading edge at bottom: 16px, which is the opener row's vertical
-       centre, y 850, 22px above this surface's bottom edge (B3, VOCAB 14.2). It is drawn outside
+       center, y 850, 22px above this surface's bottom edge (B3, VOCAB 14.2). It is drawn outside
        the card so the card's own overflow: hidden cannot clip it.
        Escape closes and returns focus to the Help button. The surface also carries its own close
        X and its Close verb: a non-modal overlay keeps both, and 6.8 keeps "Close" as text. Nothing

@@ -281,6 +281,29 @@ function shownStroke(n: PNode): PNode["stroke"] {
     return band === n.stroke.width ? n.stroke : { ...n.stroke, width: band };
 }
 
+/**
+ * Whether a node draws no body: no fill, outline, ring or picture of its own, only its words if any.
+ * @param n - the node, either side's
+ * @returns true when it draws no body
+ */
+const bodiless = (n: PNode): boolean =>
+    n.fill === null && n.stroke === null && (n.ring ?? null) === null && (n.pictures?.length ?? 0) === 0;
+
+/**
+ * The shape "none" of a node the program draws as its words alone (vis-network's `text`, Graphviz's `plaintext`):
+ * graphty draws it right when it draws no body either. An icon node's glyph is its body, which an oracle with no icon
+ * font cannot show (`endBox`), so it is not judged.
+ * @param o - the oracle's node
+ * @param g - graphty's node
+ * @returns 0 when both draw only words, 1 when graphty draws a body, null when the oracle's node is not words alone
+ */
+export function wordsOnlyShapeMiss(o: PNode, g: PNode): number | null {
+    if (o.label === null || o.endBox !== undefined || !bodiless(o)) {
+        return null;
+    }
+    return bodiless(g) ? 0 : 1;
+}
+
 /** One judged element. */
 export interface OracleJudged {
     id: string;
@@ -1626,6 +1649,20 @@ export function strayIou(a: PBox, b: PBox): number {
     return iou(toBox(thick(a)), toBox(thick(b)));
 }
 
+/** The five XML entities and numeric character references a text holds, decoded once. */
+const XML_ENTITIES: Readonly<Record<string, string>> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'" };
+const decodeRefs = (text: string): string =>
+    text.replace(
+        /&(?:#(\d+)|#x([\da-f]+)|(amp|lt|gt|quot|apos));/gi,
+        (m, dec?: string, hex?: string, name?: string) => {
+            if (dec !== undefined || hex !== undefined) {
+                const code = dec === undefined ? parseInt(hex ?? "", 16) : Number(dec);
+                return code <= 0x10ffff ? String.fromCodePoint(code) : m;
+            }
+            return XML_ENTITIES[(name ?? "").toLowerCase()] ?? m;
+        },
+    );
+
 /** A specimen sheet's corner anchor node (`anchor-nw` and so on), which fixes the frame. */
 const isAnchor = (id: string): boolean => id.startsWith("anchor-");
 
@@ -1670,8 +1707,11 @@ export function withoutCaptions(scene: PScene, other: PScene | null = null): PSc
     const squash = (w: string): string => w.replace(/\s+/g, "");
     const theirs = other === null ? [] : captionWordsOf(other);
     const own = new Set(captionWordsOf(scene).map(squash));
-    const words = new Set([...own, ...theirs.map(squash)]);
-    if (ids.size === 0 && words.size === 0) {
+    const known = new Set([...own, ...theirs.map(squash)]);
+    // a program that draws a file's text as written, its character references undecoded (OGDF draws GML's
+    // "label=A&amp;amp;B" where graph-io reads the draft's "label=A&amp;B"), still draws the caption
+    const words = { has: (w: string): boolean => known.has(w) || known.has(decodeRefs(w)) };
+    if (ids.size === 0 && known.size === 0) {
         return facelessAsTexts(scene, other);
     }
     const { texts } = scene;
@@ -2177,6 +2217,11 @@ export function compareOracle(
         }
         if (o.shape !== null) {
             j.add("node.shape", "node", id, o.shape === g.shape ? 0 : 1, o.shape, g.shape);
+        } else {
+            const miss = wordsOnlyShapeMiss(o, g);
+            if (miss !== null) {
+                j.add("node.shape", "node", id, miss, "none", miss === 0 ? "none" : g.shape);
+            }
         }
         // each fill as a reader of the oracle's drawing would see it: none under half an oracle pixel across, on
         // either side (yEd draws a white box 1 wide at 0.34 px, graphty-element at the same size: graphml-stm32-func)
@@ -3796,6 +3841,21 @@ function levelOnSlope(rotation: number, line: number, tol: number): boolean {
 }
 
 /**
+ * Whether a text paints anything: its words, their outline, or its box's fill or line.
+ * @param t - the text
+ * @returns false for a text drawn wholly clear
+ */
+function paints(t: PText): boolean {
+    const bg = t.background;
+    return (
+        t.opacity > 0 ||
+        (t.outline?.opacity ?? 0) > 0 ||
+        (bg?.fill?.opacity ?? 0) > 0 ||
+        (bg?.stroke !== null && bg?.stroke !== undefined && bg.stroke.opacity > 0 && bg.stroke.width > 0)
+    );
+}
+
+/**
  * Judges a label: its words (unless the element's own property does), size, weight, style, family, color, opacity,
  * rotation, lines and their alignment, outline, background, and its place -- against its node's or group's box, or
  * along its edge's line.
@@ -3816,11 +3876,18 @@ function judgeLabel(
     const T = ORACLE_TOLERANCES;
     // A label under one render pixel is no label to a reader, on graphty's side (extract-scene.ts) and the oracle's.
     // A raster oracle (sigma) names the labels it drew but not their size (sizePx 0): those are shown.
-    const legible = oracle !== null && (oracle.sizePx === 0 || oracle.sizePx / scale >= T.legibleFontPx);
+    // A label that paints nothing (words, outline and box all clear) is no label to a reader either, on both sides:
+    // at text-opacity 0 Cytoscape.js draws no text (json-cyjs-synth-nodes n67), Cytoscape desktop writes one at
+    // opacity 0, and graphty draws its plane clear.
+    const legible =
+        oracle !== null && (oracle.sizePx === 0 || oracle.sizePx / scale >= T.legibleFontPx) && paints(oracle);
     const o = legible ? oracle : null;
     // and graphty's by the same measure, for a text the scene keeps however small: a node's further texts
     // (`shape.texts`, Cytoscape's chart item labels at their default 1 px, xgmml-specimen-images-charts-p5)
-    const g = graphty !== null && (graphty.sizePx === 0 || graphty.sizePx >= T.legibleFontPx) ? graphty : null;
+    const g =
+        graphty !== null && (graphty.sizePx === 0 || graphty.sizePx >= T.legibleFontPx) && paints(graphty)
+            ? graphty
+            : null;
     // the oracle hid it by its own choice (overlap avoidance on an unrelated layout): nothing to judge
     if (oracle === null && oracleMayHide) {
         return;

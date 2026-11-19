@@ -36,7 +36,7 @@ import { runName } from "../runWords";
 import { type SelectionMenuItem, SelectionMenuItems } from "../selection/SelectionMenu";
 import { INSPECTOR_EVENTS, useSessionEvents, VISIBILITY_EVENTS } from "../sessionEvents";
 import { useNumberFormats } from "../settings/numberFormat";
-import { type InspectorTab, tabFor, type WorkspaceState } from "../state/store";
+import { type InspectorTab, type ReportPin, tabFor, type WorkspaceState } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { FolderPanel } from "../style/FolderPanel";
 import { MultiRowPanel } from "../style/MultiRowPanel";
@@ -50,7 +50,7 @@ import { EdgeValues, NeighborList, NodeValues, SeveralValues } from "./NodeValue
 import { type Draft, swatchOf } from "./reads";
 import { GroupValues, RunStateBar, RunValues } from "./RunValues";
 import { WhyThisLook } from "./WhyThisLook";
-import { count, edgeName, groupName, KIND_WORDS, nodeName, PATH_WORD, runTime, selectionWords } from "./words";
+import { count, edgeName, groupName, KIND_WORDS, nodeName, RUN_SHAPE_WORDS, runTime, selectionWords } from "./words";
 
 /** A kind's two tab bodies (`style` null when it has nothing to style: no Style tab), or its one body when it has no tabs. */
 type Body = { readonly style: React.ReactNode; readonly values: React.ReactNode } | { readonly only: React.ReactNode };
@@ -329,11 +329,12 @@ function dataActionsOf(
 }
 
 /**
- * A result's Run again and Copy items, the same as its Data place row's.
+ * A result's Run again, Pin to report and Copy items, the same as its Data place row's.
  * @param session - the session.
  * @param store - the workspace store.
  * @param run - the inspected run, if any.
  * @param resolved - what is inspected.
+ * @param pins - the results pinned to the report now.
  * @returns the items, none unless a result (not one of its groups) is inspected.
  */
 function resultActionsOf(
@@ -341,9 +342,10 @@ function resultActionsOf(
     store: Workspace["store"],
     run: Run | undefined,
     resolved: Resolved,
+    pins: readonly ReportPin[],
 ): SelectionMenuItem[] {
     return run !== undefined && (resolved.kind === "measure-row" || resolved.kind === "run-row")
-        ? resultItems(session, store, run)
+        ? resultItems(session, store, run, pins)
         : [];
 }
 
@@ -548,6 +550,7 @@ export function Inspector(): React.JSX.Element {
     const inspected = useWorkspaceState((state) => state.inspected);
     const projectName = useWorkspaceState((state) => state.project?.name);
     const remembered = useWorkspaceState((state) => state.tabs);
+    const pins = useWorkspaceState((state) => state.reportPins);
     const [picked, setPicked] = useState<{ identity: string; tab: InspectorTab } | null>(null);
     // A link that names the tab it opens on (a layer's look opens on Style) overrides the last pick.
     const [seen, setSeen] = useState(inspected);
@@ -581,14 +584,16 @@ export function Inspector(): React.JSX.Element {
     const barRun = run ?? layerRunOf(session, resolved);
     const kindId = kindIdOf(run, resolved);
     const kind = registry.kinds.get(kindId);
-    const isPath = run?.shape === "path";
     // The notes about this, listed in its Notes tab; with none there is no Notes tab.
     const notes = session === null ? [] : notesAbout(session, resolved);
     const hasNotes = notes.length > 0;
     const opensOn = opensOnOf(opensOnValues(session, run, resolved), kind, inspected, remembered, hasNotes);
     const tab = tabShown(picked, identity, hasNotes, opensOn);
-    // A path is not a measure, though its run row is one.
-    const kindWord = isPath ? PATH_WORD : KIND_WORDS[kindId];
+    // A run row that publishes no groups is headed for what it holds (a path, an edge set).
+    const kindWord =
+        run !== undefined && kindId === "run-row" && run.record.summary?.groups === undefined
+            ? RUN_SHAPE_WORDS[run.shape]
+            : KIND_WORDS[kindId];
     const runDraft = run !== undefined && draft?.run === run.id ? draft.values : {};
     const onDraft = (values: Draft): void => {
         if (run !== undefined) {
@@ -622,7 +627,7 @@ export function Inspector(): React.JSX.Element {
     const body = bodyOf(session, resolved, run, runDraft, onDraft, version);
     const menu = (MENUS[kindId] ?? []).flatMap((id) => registry.built(id) ?? []);
     const attributeActions = dataActionsOf(session, resolved, attributeActionsOf, sourceActionsOf);
-    const resultActions = resultActionsOf(session, store, run, resolved);
+    const resultActions = resultActionsOf(session, store, run, resolved, pins);
     // A style tree row's header carries Select what it paints (Figma's Select matching layers).
     const selectsPaints = kindId === "layer-row" || kindId === "folder-row";
     // ... and draws the tree's own glyph and menu for the row.

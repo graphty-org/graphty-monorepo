@@ -118,6 +118,11 @@ export interface CameraService {
      * @returns The state, or undefined when it cannot be computed in the drawing mode now.
      */
     pose?(follows: string): CameraState | undefined;
+    /**
+     * Where the camera is now, as `Graph.getCameraState` reads it: what a save writes.
+     * @returns The camera state.
+     */
+    state?(): CameraState;
 }
 
 /**

@@ -94,6 +94,17 @@ describe("Cytoscape.js label boxes", () => {
         }
     });
 
+    it("reads a double line as two lines a quarter of the width, half the width apart", () => {
+        const line = (style: string): unknown[] => {
+            const { values } = evaluateCytoscapeJs(
+                doc({ "text-border-width": 8, "text-border-opacity": 1, "text-border-style": style }),
+            ).node;
+            return [values.labelBorderWidth?.[0], values.labelBorderStyle?.[0] ?? null];
+        };
+        expect(line("double")).toEqual([2, "double"]);
+        expect(line("solid")).toEqual([8, null]);
+    });
+
     it("reads text-metrics glyph as a box its letters' ink tall", () => {
         const { values } = evaluateCytoscapeJs(doc({ "text-background-opacity": 1, "text-metrics": "glyph" })).node;
         expect(values.labelLineBox?.[0]).toBe("glyphs");
@@ -473,13 +484,13 @@ describe("Cytoscape.js label opacity, margins and borders", () => {
         expect([v.labelBorderWidth?.[1], v.labelBorderOpacity?.[1], v.labelPadding?.[1]]).toEqual([0.5, 0.3, 4]);
     });
 
-    it("notes a double label border as approximated: drawText strokes two lines, graphty one", () => {
+    it("reads a double label border as drawn, with no note: two lines, as drawText strokes them", () => {
         const notes = new StyleNotes();
         evaluateCytoscapeJs({
             ...doc({ "text-border-width": 4, "text-border-opacity": 1, "text-border-style": "double" }),
             notes,
         });
-        expect(notes.covers(STYLE_ISSUE.APPROXIMATED, "node", "labelBorderColor", 0)).toBe(true);
+        expect(notes.covers(STYLE_ISSUE.APPROXIMATED, "node", "labelBorderColor", 0)).toBe(false);
     });
 });
 
@@ -509,6 +520,19 @@ describe("Cytoscape.js node borders, opacity and sizes to the label", () => {
         expect(edges({ "line-dash-pattern": [12, 4, 2, 4] })).toBe("dash-dot");
         // a round cap grows each dash by the width
         expect(edges({ "line-dash-pattern": [3, 6], "line-cap": "round" })).toBe("dashed");
+        // a dashed line's own pattern as the dash and gap it draws, in widths (3 without one), a round cap a width
+        // longer; without one, and for dots, Cytoscape.js's own (ToolDefaults.dashes)
+        const lengths = (edge: Record<string, unknown>): unknown => {
+            const v = evaluateCytoscapeJs(doc({}, { "curve-style": "straight", ...edge })).edge.values;
+            return [v.dashLength?.[0] ?? null, v.dashGap?.[0] ?? null];
+        };
+        expect(lengths({ "line-style": "dotted" })).toEqual([null, null]);
+        expect(lengths({ "line-style": "dashed" })).toEqual([null, null]);
+        expect(lengths({ "line-style": "dashed", "line-dash-pattern": [10, 5] })).toEqual([3.33333, 1.66667]);
+        expect(lengths({ "line-style": "dashed", width: 2, "line-dash-pattern": [3, 6], "line-cap": "round" })).toEqual(
+            [2.5, 2],
+        );
+        expect(lengths({ "line-style": "solid" })).toEqual([null, null]);
         const border = (node: Record<string, unknown>): unknown =>
             evaluateCytoscapeJs(doc({ "border-style": "dashed", ...node })).node.values.borderStyle?.[0];
         expect(border({ "border-width": 1 })).toBe("dashed");

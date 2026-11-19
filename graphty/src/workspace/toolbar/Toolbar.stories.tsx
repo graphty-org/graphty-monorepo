@@ -165,7 +165,7 @@ export const LayoutOpen: Story = {
     },
 };
 
-/** The Camera menu in 2D: Top usable, Bottom, Front, Side and Isometric disabled with "3D only", Fit, Fit selection, zoom. */
+/** The Camera menu in 2D: Top usable, Bottom, Front, Side and Isometric disabled with "3D only", Fit, Fit selection, zoom, Export image and Record video. */
 export const CameraMenu2D: Story = {
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
@@ -174,7 +174,7 @@ export const CameraMenu2D: Story = {
     },
 };
 
-/** The Camera menu in 3D: the five starting cameras with their keys, Fit, Fit selection, Auto-rotate, Focus selected. */
+/** The Camera menu in 3D: the five starting cameras with their keys, Fit, Fit selection, Auto-rotate, Focus selected, Export image and Record video. */
 export const CameraMenu3D: Story = {
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
@@ -249,7 +249,7 @@ export const TourPlayingCameraIsStop: Story = {
     },
 };
 
-/** The Mode menu in 2D: the square face, 2D checked, 3D with key 5, VR and AR with their reason. */
+/** The Mode menu in 2D: the square face, 2D checked, 3D with key 5, VR and AR a row each, Not available. */
 export const ModeMenu: Story = {
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {

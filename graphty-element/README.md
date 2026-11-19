@@ -4,7 +4,7 @@
 
 [![npm version](https://img.shields.io/npm/v/@graphty/graphty-element.svg)](https://www.npmjs.com/package/@graphty/graphty-element)
 [![CI/CD](https://github.com/graphty-org/graphty-monorepo/actions/workflows/ci.yml/badge.svg)](https://github.com/graphty-org/graphty-monorepo/actions/workflows/ci.yml)
-[![Coverage Status](https://coveralls.io/repos/github/graphty-org/graphty-monorepo/badge.svg?branch=master)](https://coveralls.io/github/graphty-org/graphty-monorepo?branch=master)
+[![Coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fgraphty-org%2Fgraphty-monorepo%2Fcoverage-badges%2Fgraphty-element.json)](https://github.com/graphty-org/graphty-monorepo/blob/coverage-badges/graphty-element.md)
 [![Documentation](https://img.shields.io/badge/docs-vitepress-blue)](https://graphty.app/docs/graphty-element/)
 [![Storybook](https://img.shields.io/badge/storybook-examples-ff4785)](https://graphty.app/storybook/graphty-element/)
 
@@ -13,7 +13,7 @@ A Web Component for 3D/2D graph visualization built with Lit and Babylon.js.
 ## Quick Start
 
 ```bash
-npm install @graphty/graphty-element @babylonjs/core lit
+npm install @graphty/graphty-element @babylonjs/core @babylonjs/loaders lit
 ```
 
 ```html
@@ -69,11 +69,11 @@ npm install @graphty/graphty-element @babylonjs/core lit
 
 ## Browser Support
 
-Graphty works in all modern browsers that support Web Components:
+graphty-element runs in browsers with WebGL2 or WebGPU and the JavaScript its build targets:
 
-- Chrome/Edge 88+
-- Firefox 78+
-- Safari 14+
+- Chrome/Edge 111+
+- Firefox 114+
+- Safari 16.4+ (macOS and iOS)
 
 ## License
 

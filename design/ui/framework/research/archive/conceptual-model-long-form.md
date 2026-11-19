@@ -21,7 +21,7 @@ This is the long form of `conceptual-model.md` as it stood before it was split b
 | 7.2, 7.3, 7.4 | `conceptual-model.md` 6.3 |
 | 7.5 comparison | `conceptual-model.md` 3.7; the comparison statistics and null model to `graph-conventions.md` |
 | 7.6 derived graphs | `conceptual-model.md` 3.8 |
-| 8 what each verb does | `interaction-patterns.md`, the command catalogue |
+| 8 what each verb does | `interaction-patterns.md`, the command catalog |
 | 9 graph conventions | `graph-conventions.md`, unchanged |
 | 10 tail concepts | time to `conceptual-model.md` 3.9; covers to 2.4; group marks to 4.1; the library became the recipe, 7; collapse to `visual-language.md` |
 | 11 out of scope | `conceptual-model.md` 1.3 |
@@ -278,7 +278,7 @@ A set is addressed by reference and never passes through graphty-element's selec
 members" produces an element selection, and it says so when the cap truncates it.
 
 **A subnetwork is a set.** It is shown through a "filter to" step, laid out with its own layout
-settings (section 5.5), saved as a view and analysed with the set as scope; exporting it writes it
+settings (section 5.5), saved as a view and analyzed with the set as scope; exporting it writes it
 as a graph file. Nothing copies it into a graph of its own, which would sever it from its parent's
 notes, labels and edits. Parent and subnetwork are seen together on the
 comparison surface.
@@ -568,10 +568,10 @@ Benjamini-Hochberg adjusted, and the raw values are under Details.
 **Retention.** Records are kept forever. Values are kept while something holds them: a reading's
 current run, a drawn or kept query, a run that is cited, compared, held by a reference, marked "Always store values" or
 undoable, and the runs that were current on the previous data version until the next Replace data.
-Otherwise a run the catalogue declares deterministic for its recorded version and engine drops its
+Otherwise a run the catalog declares deterministic for its recorded version and engine drops its
 values and offers "values not kept; restore". Its inputs are always held, because a record counts
 as a reader of the attributes it names. A restore under a different algorithm version or engine is
-labelled a new computation, never shown as the old values. The full rule and its cost are in
+labeled a new computation, never shown as the old values. The full rule and its cost are in
 `element-contract.md` 8.
 
 The one word is **record**; on screen a run's record is read from the **Details** link on its state
@@ -623,7 +623,7 @@ the nodes it isolates unless a "drop isolates" step follows, and Statistics coun
 Steps are of two kinds, and **the command that creates a step decides its kind**, never the
 definition of the set inside it. A **working set** is the boundary of what the investigator is
 looking at; "Filter to selection" and "Filter to neighbors" create one, and Select neighbors and "Include found nodes" add to
-it. A **data step** encodes a judgement about the data ("confidence >= 0.7", "filter out transactions
+it. A **data step** encodes a judgment about the data ("confidence >= 0.7", "filter out transactions
 under $10", "filter to the largest connected component"); every other way of adding a step creates one,
 whether the set it names is fixed or a rule. The two kinds look different in the list: a
 working-set step reads "Working set: 40 nodes" with its own icon, and a data step shows its
@@ -1245,7 +1245,7 @@ is written on it. The detail behind each row is in `element-contract.md`.
 | Node identity across node types | **Open for the owner.** Recommended: once endpoint columns declare different node types, a node's identity is its type plus its id, so user "123" and item "123" stay two nodes, and the import report counts the ids that occur under more than one type; with no declared types, the id alone. Changing it later re-keys saved projects (contract 2; `information-architecture.md` 14) |
 | Result id and run id | a result id is a name minted at the first run and never recomputed: from the algorithm, whether it is exact or sampled, the frozen scope and the source nodes for a reading kind, from the algorithm alone for a query kind, whose scope is recorded per query; each kind publishes whether it accumulates one current run or all runs; a run id per execution. This changes "same definition, same id" to "same algorithm and scope, same id", and no consumer has saved a derived id yet (contract 3) |
 | The item address | graph, result, run, level and item key, or graph, attribute path (with its scope) and value; freshness never stored (contract 4) |
-| The record | one shape for every operation, including the engine and adapter class; determinism declared in the catalogue; an append-only log in the file (contract 5) |
+| The record | one shape for every operation, including the engine and adapter class; determinism declared in the catalog; an append-only log in the file (contract 5) |
 | The frozen graph reference | graph, data version, scope definition (named sets by id and revision) and a digest over nodes and edges with the reading (contract 6) |
 | The set grammar | one set definition of three kinds (fixed, rule, path) with a stored edge reading (induced, listed, or clipped for rules) and an optional rule scope, reached everywhere through the published `Scope` reference, which keeps `{ set: SetId }` and gains `{ define }`; scope forms include the search graph and a list of scopes; what a reference to a deleted set resolves to (contract 7, 9; `one-way-doors.md` 11, 18) |
 | The expression language | JMESPath kept for paths and plain predicates; relative thresholds, element references and arithmetic as structured JSON forms in `./schema`; neighborhood aggregates are runs (contract 9) |
@@ -1281,12 +1281,12 @@ Where these disagree with the model, the model wins:
   (filters combined by AND, not ordered), 1.12 (notes may target metrics, views and the project),
   1.16 (the whole full graph as the default scope), 1.17 (degree at rest only over the loaded
   graph), 1.19 (positions as two slots a view points at), 1.21 (cost or strength), 4.5 (the
-  project's metrics listed in the catalogue panel), 4.11 (notes and views inside the tree of
+  project's metrics listed in the catalog panel), 4.11 (notes and views inside the tree of
   analysis results), and section 7, whose departures from Figma are replaced by the departures table in `principles.md`.
 
 Where the list of results lives is left to the IA. Figma's precedent for a definition applied from
 property rows is either the nothing-selected inspector (local styles) or a table reached from the
-rail (the Variables view) (`research/figma.md` lines 195 and 305); the catalogue lists what can be
+rail (the Variables view) (`research/figma.md` lines 195 and 305); the catalog lists what can be
 run, not what has been run. The graph's Statistics do not compete for that place, because it lives
 under the selected graph.
 

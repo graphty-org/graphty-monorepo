@@ -147,7 +147,7 @@ async function openViewsPlace(): Promise<HTMLElement> {
 }
 
 describe("the Camera menu", () => {
-    it("holds exactly the cameras with their keys, Fit, Fit selection and the two switches; in 2D zoom too", async () => {
+    it("holds exactly the cameras with their keys, Fit, Fit selection, the two switches and the captures; in 2D zoom too", async () => {
         const { session } = await openRing();
         await session.views.save([{ name: "Hub cluster", key: "2" }]);
 
@@ -163,6 +163,8 @@ describe("the Camera menu", () => {
             { text: "Fit selectionSelect something firstF", disabled: true },
             { text: "Auto-rotate", disabled: false },
             { text: "Focus selected", disabled: false },
+            { text: "Export imageShift+I", disabled: false },
+            { text: "Record videoShift+R", disabled: false },
         ]);
         await closeMenu();
 
@@ -184,6 +186,8 @@ describe("the Camera menu", () => {
             { text: "Zoom out", disabled: false },
             { text: "Auto-rotateOnly in 3D", disabled: true },
             { text: "Focus selected", disabled: false },
+            { text: "Export imageShift+I", disabled: false },
+            { text: "Record videoShift+R", disabled: false },
         ]);
     });
 
@@ -206,8 +210,8 @@ describe("the Camera menu", () => {
 
         const menu = await openCamera();
         assert.equal(rowsOf(menu)[0]?.text, "Fit0");
-        // The one divider left is the one above the switches.
-        assert.lengthOf(menu.querySelectorAll(".mantine-Menu-divider"), 1);
+        // The dividers left are the ones above the switches and above Export image.
+        assert.lengthOf(menu.querySelectorAll(".mantine-Menu-divider"), 2);
     });
 });
 

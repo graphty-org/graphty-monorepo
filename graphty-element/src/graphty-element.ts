@@ -52,7 +52,15 @@ import {
     nodeEventDetail,
 } from "./events";
 import { type EnabledFeatures, featureOff, resolveFeatures } from "./features/resolve";
-import { featuresFrom, Graph, loadSourcePair, type NodeScreenPosition, operationQueueOf, waitFirstFor } from "./Graph";
+import {
+    featuresFrom,
+    Graph,
+    loadSourcePair,
+    type NodeScreenPosition,
+    operationQueueOf,
+    type StableFrameOptions,
+    waitFirstFor,
+} from "./Graph";
 import { GraphtyLogger, type Logger } from "./logging";
 import type { EdgeLabelCounts, NodeLabel, NodeLabelCounts } from "./managers/LabelDeclutter";
 import type { PixelRatio, RendererRequest, RendererStatus } from "./managers/RenderManager";
@@ -67,6 +75,7 @@ import {
     describeSource,
     type ImportSource,
     replaceEdgesCommand,
+    replaceGraphCommand,
     replaceNodesCommand,
     SOURCE_VALUE,
 } from "./session/commands/data";
@@ -110,6 +119,20 @@ import { downloadBlob } from "./utils/download";
 
 /** What the element reports about its attributes and properties, through `GraphtyLogger`. */
 const elementLogger: Logger = GraphtyLogger.getLogger(["graphty", "element"]);
+
+/** Rows assigned to `nodeData` or `edgeData`, waiting for their step to be built. */
+interface RowWrite {
+    readonly rows: {
+        nodes?: Record<string, unknown>[];
+        nodeIdPath?: string;
+        edges?: Record<string, unknown>[];
+    };
+    readonly setup: boolean;
+    /** The load line's count of places just after this write took its own. */
+    joined: number;
+    /** Settles once the step is recorded, or failed and was reported. */
+    done: Promise<void>;
+}
 
 /**
  * How often a run's progress may reach a DOM listener, in milliseconds.
@@ -378,7 +401,7 @@ export class Graphty extends LitElement {
      * @since 2.0.0
      * @example
      * ```html
-     * <graphty-element id="g" sample="karate"></graphty-element>
+     * <graphty-element id="g" data-source="url" data-source-config='{"url": "karate.json"}'></graphty-element>
      * <script type="module">
      *   const { session } = document.getElementById("g");
      *   await session.visibility.set({ kind: "degree", min: 3 });
@@ -534,7 +557,7 @@ export class Graphty extends LitElement {
      * @since 2.0.0
      * @example
      * ```html
-     * <graphty-element id="g" sample="karate"></graphty-element>
+     * <graphty-element id="g" data-source="url" data-source-config='{"url": "karate.json"}'></graphty-element>
      * <script type="module">
      *   const g = document.getElementById("g");
      *   const run = g.run("betweenness");
@@ -563,7 +586,7 @@ export class Graphty extends LitElement {
      * @since 2.0.0
      * @example
      * ```html
-     * <graphty-element id="g" sample="karate"></graphty-element>
+     * <graphty-element id="g" data-source="url" data-source-config='{"url": "karate.json"}'></graphty-element>
      * <script type="module">
      *   const g = document.getElementById("g");
      *   await g.select({ nodes: [1, 2, 3] });
@@ -1560,7 +1583,7 @@ export class Graphty extends LitElement {
             this.#featuresValue = value.split(/\s+/).filter((id) => id !== "");
         } else {
             // A copy, so the caller changing its array afterwards does not change what was set.
-            this.#featuresValue = Array.isArray(value) ? Object.freeze([...value]) : undefined;
+            this.#featuresValue = value === null || value === undefined ? undefined : Object.freeze([...value]);
         }
         this.requestUpdate("features", oldValue);
     }
@@ -1592,6 +1615,8 @@ export class Graphty extends LitElement {
     #gateSteps = 0;
     /** A data-source pair is waiting its turn on the gate. */
     #pairQueued = false;
+    /** Rows assigned whose step has not been built yet, which a write in the same task joins. */
+    #rowWrite: RowWrite | undefined;
     /** The last page-supplied load of each kind, run again by `autosaver.discard()`. */
     readonly #pageLoads = new Map<string, { readonly source: PageSource; readonly load: () => Promise<void> }>();
 
@@ -2013,10 +2038,7 @@ export class Graphty extends LitElement {
         if (value && Array.isArray(value)) {
             const { nodeIdPath } = this.#graph.getStyles().config.data.knownFields;
             this.#pageLoad({ kind: "rows", nodes: value }, (setup) =>
-                this.#replaceData(
-                    (state, asSetup) => replaceNodesCommand(state.nodes, value, nodeIdPath, asSetup),
-                    setup,
-                ),
+                this.#replaceRows({ nodes: value, nodeIdPath }, setup),
             );
         }
 
@@ -2104,12 +2126,7 @@ export class Graphty extends LitElement {
         // REPLACE, not append. Two edges between one pair are now two edges, so an additive
         // setter would double every edge each time a host re-assigned the property.
         if (value && Array.isArray(value)) {
-            this.#pageLoad({ kind: "rows", edges: value }, (setup) =>
-                this.#replaceData(
-                    (state, asSetup) => replaceEdgesCommand([...state.edges.keys()], value, {}, asSetup),
-                    setup,
-                ),
-            );
+            this.#pageLoad({ kind: "rows", edges: value }, (setup) => this.#replaceRows({ edges: value }, setup));
         }
 
         this.requestUpdate("edgeData", oldValue);
@@ -2536,6 +2553,54 @@ export class Graphty extends LitElement {
                     () => undefined,
                 )
         );
+    }
+
+    /**
+     * Replace the nodes, the edges or both, as one step. A write in the same task as one whose
+     * step is still waiting its turn joins that step, with nothing else asked for between them,
+     * so a page that assigns `nodeData` and then `edgeData` gets one step and one layout pass
+     * however the frames fall (issue #8901); a later write of the same kind wins.
+     * @param rows - The rows: the nodes with their id path, the edges, or both.
+     * @param rows.nodes - The nodes.
+     * @param rows.nodeIdPath - Where a node record's id is.
+     * @param rows.edges - The edges.
+     * @param setup - Whether the page declared it before the first update, so it is baseline.
+     * @returns Settles once the step is recorded, or failed and was reported.
+     */
+    #replaceRows(rows: RowWrite["rows"], setup: boolean): Promise<void> {
+        const line = loadLineOf(dispatcherOf(this.#graph.getSession()));
+        const open = this.#rowWrite;
+        if (open?.setup === setup && open.joined === line.joined) {
+            Object.assign(open.rows, rows);
+            return open.done;
+        }
+
+        const write: RowWrite = { rows: { ...rows }, setup, joined: -1, done: Promise.resolve() };
+        this.#rowWrite = write;
+        // Only a write in this same task joins it.
+        queueMicrotask(() => {
+            if (this.#rowWrite === write) {
+                this.#rowWrite = undefined;
+            }
+        });
+        write.done = this.#replaceData((state, asSetup) => {
+            // Built now: a later write takes a step of its own.
+            if (this.#rowWrite === write) {
+                this.#rowWrite = undefined;
+            }
+
+            const { nodes, nodeIdPath = "id", edges } = write.rows;
+            if (nodes !== undefined && edges !== undefined) {
+                return replaceGraphCommand(state.nodes, [...state.edges.keys()], nodes, edges, nodeIdPath, asSetup);
+            }
+
+            return nodes === undefined
+                ? replaceEdgesCommand([...state.edges.keys()], edges ?? [], {}, asSetup)
+                : replaceNodesCommand(state.nodes, nodes, nodeIdPath, asSetup);
+        }, setup);
+        // Its place in line is taken by now; a write joins it only while nothing joined after it.
+        write.joined = line.joined;
+        return write.done;
     }
 
     /**
@@ -4405,7 +4470,7 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Export the graph as it is drawn now as a vector figure, an SVG file for a paper or a slide.
+     * Export the graph as it is drawn now as a vector figure, an SVG or a PDF file for a paper or a slide.
      *
      * Every visible node is a filled shape where the canvas draws it, in its color; every visible
      * edge is a line; every label on screen is text, not pixels, so it can be edited and searched;
@@ -4413,9 +4478,9 @@ export class Graphty extends LitElement {
      * canvas's size in CSS pixels and lines up with a screenshot taken at the same moment. It waits
      * for the finished picture first, as {@link Graphty.waitForStableFrame} does, and rejects as it
      * does.
-     * @param options - The format (`"svg"`), the key, the background and an optional download.
-     * @returns The file as a Blob of type `image/svg+xml`, its size, and whether it was downloaded.
-     * @throws A `GraphtyError`: `E_BAD_COMMAND` for a format other than `"svg"` (`details.field`
+     * @param options - The format (`"svg"` or `"pdf"`), the key, the background and an optional download.
+     * @returns The file as a Blob of type `image/svg+xml` or `application/pdf`, its size, and whether it was downloaded.
+     * @throws A `GraphtyError`: `E_BAD_COMMAND` for a format other than `"svg"` or `"pdf"` (`details.field`
      *   is `"format"`), `E_CAPTURE_FAILED` when there is no camera to draw from.
      * @since 3.40.0
      * @example
@@ -4585,6 +4650,24 @@ export class Graphty extends LitElement {
      */
     cancelAnimationCapture(): boolean {
         return this.#graph.cancelAnimationCapture();
+    }
+
+    /**
+     * End an ongoing animation capture now and keep what was recorded: the `captureAnimation`
+     * promise resolves with the video so far (and downloads it when it was asked to), where
+     * `cancelAnimationCapture` throws it away. Pair it with a long `duration` to record until
+     * the reader stops.
+     * @returns true if a capture was stopped, false if no capture was in progress
+     * @example
+     * ```typescript
+     * const el = document.querySelector("graphty-element");
+     * const recording = el.captureAnimation({ duration: 300_000, cameraMode: "stationary", download: true });
+     * stopButton.onclick = () => el.stopAnimationCapture();
+     * await recording; // the video so far, downloaded
+     * ```
+     */
+    stopAnimationCapture(): boolean {
+        return this.#graph.stopAnimationCapture();
     }
 
     /**
@@ -5475,7 +5558,7 @@ export class Graphty extends LitElement {
      * @param pinned - Pin, or release.
      */
     #pin(ids: (string | number) | readonly (string | number)[], pinned: boolean): void {
-        const nodes = (Array.isArray(ids) ? ids : [ids as string | number]).flatMap(
+        const nodes = (typeof ids === "string" || typeof ids === "number" ? [ids] : ids).flatMap(
             (id) => this.#graph.getNode(id)?.id ?? [],
         );
         void dispatcherOf(this.#graph.getSession()).dispatchNow({ op: "positions.pin", ids: nodes, pinned });
@@ -5877,9 +5960,6 @@ export class Graphty extends LitElement {
      * the element is removed from the page during the wait, or already had been when the wait
      * started, it rejects at once with `E_DISPOSED`: a removed element never draws again.
      * @param options - How the wait is bounded.
-     * @param options.timeoutMs - Deprecated: how long to wait before giving up; 30 seconds by default.
-     *   Leave it out. To ask whether the picture is final now, without waiting, read
-     *   {@link Graphty.isFrameStable}.
      * @returns Promise that resolves once a frame of the finished picture has been drawn.
      * @throws Error when the picture is still changing when the timeout expires.
      * @throws A `GraphtyError` with `E_DISPOSED` when the element leaves the page before or during
@@ -5891,15 +5971,7 @@ export class Graphty extends LitElement {
      * const shot = await element.captureScreenshot();
      * ```
      */
-    async waitForStableFrame(options?: {
-        /**
-         * How long to wait before the wait rejects; 30 seconds by default.
-         * @deprecated Since 3.33. Leave it out: a per-call deadline makes a wait fail on a busy
-         * machine while the picture is still on its way. To ask whether the picture is final
-         * now, without waiting, read {@link Graphty.isFrameStable}. Still honored.
-         */
-        timeoutMs?: number;
-    }): Promise<void> {
+    async waitForStableFrame(options?: StableFrameOptions): Promise<void> {
         return this.#graph.waitForStableFrame(options);
     }
 

@@ -67,7 +67,7 @@ export function closeGlyphRect(panel: CloseRect, fontSize: number, padding: numb
  * Draw the x.
  * @param ctx - The label's canvas, in canvas units.
  * @param rect - Where, from {@link closeGlyphRect}.
- * @param color - The stroke colour: the label's text colour.
+ * @param color - The stroke color: the label's text color.
  */
 export function drawCloseGlyph(ctx: CanvasRenderingContext2D, rect: CloseRect, color: string): void {
     ctx.save();

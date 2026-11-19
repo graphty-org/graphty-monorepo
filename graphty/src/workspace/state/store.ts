@@ -71,6 +71,14 @@ interface Inspected {
     readonly tab?: "style" | "values";
 }
 
+/** One result pinned to the report: the run, and the reader's note for it. */
+export interface ReportPin {
+    /** The run's id in graphty-element. */
+    readonly run: string;
+    /** The reader's words about it, put in the report as written; blank leaves it out. */
+    readonly note: string;
+}
+
 /** The chrome state. */
 export interface WorkspaceState {
     /**
@@ -309,6 +317,8 @@ export interface WorkspaceState {
     readonly lighting: Lighting;
     /** Camera > Auto-rotate: whether the 3D view turns on its own. A view preference, never saved. */
     readonly autoRotate: boolean;
+    /** Camera > Record video: whether a recording of the canvas is running, until it is stopped. */
+    readonly recording: boolean;
     /**
      * Camera > Focus selected: the camera glides to the selection and keeps it centered while it
      * moves (graphty-element's `camera.pivotOnSelection`). On by default; a view preference, never saved.
@@ -397,6 +407,12 @@ export interface WorkspaceState {
     readonly autosave: boolean;
     /** Work kept from an earlier visit that the start screen offers to restore, or null. */
     readonly recovered: AutosaveEntry | null;
+    /**
+     * The results the reader pinned to the report, in the order pinned: the report's Pinned items.
+     * Which results go in a report is the reader's choice, not the graph's, so it lives here; a
+     * project that opens starts with none.
+     */
+    readonly reportPins: readonly ReportPin[];
 }
 
 /**
@@ -464,6 +480,7 @@ export const ON_RELOAD = {
     sameSizeAtAnyDepth: "kept",
     lighting: "kept",
     autoRotate: "kept",
+    recording: "fresh: a recording ends with the page that ran it",
     followSelection: "kept",
     exportOn: "fresh: set when the Export dialog opens",
     lastView: "fresh: the camera itself is not kept across a reload",
@@ -490,6 +507,7 @@ export const ON_RELOAD = {
     opened: "fresh: an open in flight",
     autosave: "fresh: set by the application at start",
     recovered: "fresh: looked up again at start",
+    reportPins: "kept",
 } as const satisfies Record<keyof WorkspaceState, "kept" | `this tab: ${string}` | `fresh: ${string}`>;
 
 /** The fields a reload of this tab puts back. */
@@ -584,6 +602,7 @@ const INITIAL: WorkspaceState = {
     mapDepthIndependentSize: true,
     lighting: "studio",
     autoRotate: false,
+    recording: false,
     followSelection: true,
     exportOn: "image",
     lastView: null,
@@ -609,6 +628,7 @@ const INITIAL: WorkspaceState = {
     opened: null,
     autosave: false,
     recovered: null,
+    reportPins: [],
 };
 
 /** Settles an open's `opened`: with nothing once it is done, else with the failure. */
@@ -722,8 +742,12 @@ export function createWorkspaceStore(initial: Partial<WorkspaceState> = {}): Wor
                     : given;
             // Opening a layer row selects that layer: a selection's Style tab goes on editing it.
             const opened = fields.inspected?.kind === "layer-row" ? fields.inspected.id : undefined;
+            // Another project opening starts with nothing pinned, unless the write puts its kept pins back.
+            const otherProject =
+                fields.project !== undefined && fields.project?.id !== state.project?.id && !("reportPins" in fields);
             state = {
                 ...state,
+                ...(otherProject ? { reportPins: [] } : {}),
                 ...fields,
                 ...(opened === undefined ? {} : { styleRow: opened }),
                 ...("announcement" in fields ? { announced: state.announced + 1 } : {}),

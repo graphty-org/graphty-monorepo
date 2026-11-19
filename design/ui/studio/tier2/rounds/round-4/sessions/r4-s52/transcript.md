@@ -14,7 +14,7 @@ Elena: "OK, I remember this page. First get rid of the data-sharing box."
 Elena: "Two spreadsheets this time. 'New from data...' sounds like where I build something from my own sheets."
 
 ### 3. --click "New from data..."
-03.png: page "Open as a new graph". Left: "Tables" with a +. Right: "Drop a file here, or choose a file...". Bottom: Direction "As the file says", Cancel, Load (greyed, "Choose a file first").
+03.png: page "Open as a new graph". Left: "Tables" with a +. Right: "Drop a file here, or choose a file...". Bottom: Direction "As the file says", Cancel, Load (grayed, "Choose a file first").
 Elena: "Tables, with a plus -- so more than one sheet. Start with the players."
 
 ### 4. --click "choose a file..." --upload players.csv

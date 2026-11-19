@@ -17,7 +17,7 @@ const gc: () => void = ((): (() => void) => {
 })();
 
 /**
- * Collect everything collectable: three full collections, so objects released by finalisers and
+ * Collect everything collectable: three full collections, so objects released by finalizers and
  * weak references of the first pass are gone by the last.
  */
 export function fullGc(): void {
@@ -120,32 +120,6 @@ export async function sampleHeap(body: () => Promise<unknown>, intervalMs = 100)
         samples: timeline.length,
         timeline,
     };
-}
-
-/**
- * Wrap a chunk iterable so that after every `every` chunks a full GC runs and the heap then in
- * use is recorded: the high-water mark of these readings is what the consumer retained while
- * streaming, independent of garbage-collector timing.
- * @param chunks - the chunks
- * @param every - chunks between readings
- * @param readings - receives one heapUsed value per reading, in bytes
- * @yields the chunks unchanged
- * @returns nothing
- */
-export async function* retainedWhileStreaming(
-    chunks: AsyncIterable<Uint8Array>,
-    every: number,
-    readings: number[],
-): AsyncGenerator<Uint8Array, void, undefined> {
-    let count = 0;
-    for await (const chunk of chunks) {
-        yield chunk;
-        count++;
-        if (count % every === 0) {
-            fullGc();
-            readings.push(process.memoryUsage().heapUsed);
-        }
-    }
 }
 
 /**

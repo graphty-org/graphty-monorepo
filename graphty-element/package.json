@@ -68,6 +68,7 @@
         "./dist/webgpu.js",
         "./dist/chunks/*.js",
         "./webgpu.ts",
+        "./src/acceleration/autoload.ts",
         "./src/algorithms/index.ts",
         "./src/data/index.ts",
         "./src/layout/index.ts",
@@ -82,7 +83,8 @@
         "!dist/**/*.map",
         "AGENTS.md",
         "README.md",
-        "LICENSE"
+        "LICENSE",
+        "spec/"
     ],
     "publishConfig": {
         "access": "public",
@@ -111,6 +113,7 @@
     "scripts": {
         "test": "npm run test:shards:parallel",
         "test:default": "vitest --project=default",
+        "test:bundlers": "node scripts/bundler-matrix.mjs",
         "test:browser": "vitest --project=browser",
         "test:xr": "vitest run --project=xr",
         "test:storybook": "vitest --project=storybook",

@@ -1139,7 +1139,7 @@ it used up the per-client budget).
 
 **Live check.** `graph-io/scripts/live-examples.ts` loads every example from its server and fails
 on an error or an empty graph (a count that drifts is a warning). The `network-examples` job of
-`.github/workflows/links-weekly.yml` runs it weekly and keeps one issue labelled
+`.github/workflows/links-weekly.yml` runs it weekly and keeps one issue labeled
 `dead-network-examples` open while any example fails. `test/sources/examples.test.ts` checks every
 example's catalog data offline and loads the SPARQL examples from recordings.
 
@@ -1782,7 +1782,7 @@ against the effort ("Browser" is CORS, checked 2026-10-17):
 no importer, auth, paging or query, from a fixed trusted host; folding it into the registry would
 make graph-samples depend on graph-io for nothing.
 
-Decision (revised 2026-11-07): **two mechanisms, two catalogues.** graph-samples' datasets are
+Decision (revised 2026-11-07): **two mechanisms, two catalogs.** graph-samples' datasets are
 samples, loaded with `session.data.loadDataset` and listed by the element's `DATASET_DESCRIPTORS`;
 they are not a network source. The `graph-samples` source the first build registered made every
 dataset load a network load, saved in `graphty-sources` and offered for approval on reopen, and put

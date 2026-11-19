@@ -56,7 +56,7 @@ const FIXTURE_ANNOTATION = {
 /**
  * A node layer a fixture adds. Its id is minted from its name: "Fixture A" is `fixture-a_1`.
  * @param name - The layer's name.
- * @param color - The colour it paints every node.
+ * @param color - The color it paints every node.
  * @returns The specification.
  */
 function nodeLayer(name: string, color: string): LayerSpec {

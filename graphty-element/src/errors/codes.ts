@@ -791,6 +791,47 @@ export type GraphtyErrorCode =
      * @since 3.40.0
      */
     | "E_NOT_SETTLED"
+    /**
+     * A load or a stage names an id space the element reserves (`graph:...`). `details.space` is
+     * the space. The caller names another space. Experimental: the source-steps experiment.
+     */
+    | "E_SPACE_RESERVED"
+    /**
+     * A key names nodes in more than one id space, so it names no one node. `details.key` is the
+     * key, `details.spaces` the spaces holding it. The caller names the space, or the
+     * `<space>:<key>` NodeId. Experimental: the source-steps experiment.
+     */
+    | "E_AMBIGUOUS_ID"
+    /**
+     * Make an edge would add a staged source in the id space of the nodes it connects to, so its
+     * nodes would meet them instead of being joined by edges. `details.source` and `details.space`
+     * name them. The caller stages the source in another space. Experimental: the source-steps
+     * experiment.
+     */
+    | "E_JOIN_SPACE_SAME"
+    /**
+     * A merge or Make an edge reads node rows the source does not hold. `details.source` is the
+     * source. Experimental: the source-steps experiment.
+     */
+    | "E_STEP_NEEDS_NODES"
+    /**
+     * An edit, pick or rename names a column a key, an end, a role, a type rule or a step reads.
+     * `details.column` is the column. Experimental: the source-steps experiment.
+     */
+    | "E_EDIT_ROLE_COLUMN"
+    /**
+     * A merge's clash rule orders values (`min`, `max`, `mean`) but the values that meet in a column
+     * are not all numbers (or, for `min` and `max`, all dates). `details.step`, `details.column` and
+     * `details.rule` name the step, the column and the rule. Experimental: the source-steps
+     * experiment.
+     */
+    | "E_CLASH_RULE_TYPE"
+    /**
+     * A role setter that names no source could mean several built sources: each carries the
+     * column and can carry the role. `details.sources` lists them; the caller names one with the
+     * setter's `source` option. Experimental: the source-steps experiment.
+     */
+    | "E_ROLE_TARGET_AMBIGUOUS"
     | "E_INTERNAL";
 
 /**
@@ -810,6 +851,40 @@ export type GraphtyWarningCode =
     | "W_UNKNOWN_KIND"
     /** A project's data is not the data its results were saved against: each such run was computed again over the open data. */
     | "W_DATA_DIFFERS"
+    /**
+     * A source's keys meet nodes already in the id space it would join (`params.space`,
+     * `params.count` of `params.of` keys; `params.other` names the other source for an untyped
+     * one). Kept in the source's own space unless the load asked `overlap: "merge"`.
+     * Experimental: the source-steps experiment.
+     */
+    | "W_SPACE_OVERLAP"
+    /**
+     * A step went with a removed source (`params.step`, `params.reason` `"source-removed"`,
+     * `params.source`). Experimental: the source-steps experiment.
+     */
+    | "W_STEP_REMOVED"
+    /**
+     * Values from different sources differ in one column of one step (`params.step`,
+     * `params.column`, `params.count` cells, `params.rule` the step's rule for the column,
+     * `params.decided` cells a reader decision settles). Experimental: the source-steps experiment.
+     */
+    | "W_VALUES_DIFFER"
+    /**
+     * A refresh or replace brought a column the source's old rows did not hold (`params.source`,
+     * `params.column`). Experimental: the source-steps experiment.
+     */
+    | "W_COLUMN_UNUSED"
+    /**
+     * The value under a reader edit moved since it was made (`params.edit`, `params.was`,
+     * `params.now`, and `params.picked` for a pick). Experimental: the source-steps experiment.
+     */
+    | "W_EDIT_SOURCE_CHANGED"
+    /**
+     * A note, a pin or a reader edit names an element a rebuild left out (`params.ref`): the
+     * reference is kept and binds again when Undo brings the element back. Experimental: the
+     * source-steps experiment.
+     */
+    | "W_REFERENCE_UNBOUND"
     /** A run was still computing when the project was saved, so the file does not hold it. */
     | "W_RUN_PENDING"
     /**
@@ -1013,6 +1088,25 @@ export type GraphtyWarningCode =
      */
     | "W_WEIGHT_MEANING_MISMATCH"
     /**
+     * Under the `source-steps` experiment, a layout that reads edge weights left them unread because
+     * the edges' weights do not share one meaning, or some edges' sources read no weight (design
+     * 8.6): every edge counts the same. Emitted as a `layout-warning` event. `params.sources` lists
+     * the sources of the edges.
+     */
+    | "W_WEIGHT_MEANING_MIXED"
+    /**
+     * Under the `source-steps` experiment, a Source scope on a source's edges named sources that
+     * supplied no edges, so it holds their nodes and the edges between them instead (design 8.6).
+     * Reported in `scope.count(...).issues`. `params.nodes` is how many nodes it holds.
+     */
+    | "W_SCOPE_NO_EDGES"
+    /**
+     * Under the `source-steps` experiment, a filter condition reads a column no element carries, so
+     * it is held off and judges nothing rather than hiding every node (design 8.4). Reported in
+     * `visibility.held`. `params.filter` is the condition's id and `params.column` its column.
+     */
+    | "W_FILTER_HELD"
+    /**
      * A project save left values whose names mark a credential (`api_key`, `token`, ...) out of
      * the `graphty-sources` member: query parameters of a URL load's address, or of a network
      * load's endpoint, cursor or REST mapping. `params.id` is the load's id and `params.names` the
@@ -1027,7 +1121,9 @@ export type GraphtyWarningCode =
     | "W_SOURCE_UNREGISTERED"
     /**
      * A `graphty-sources` member says `data: "steps"` but the file embeds the graph: the embedded
-     * data applied. `params.graph` names the graph, null for the file's one graph.
+     * data applied. `params.graph` names the graph, null for the file's one graph. Under the
+     * `source-steps` experiment, also when the member's sources and steps build a graph other than
+     * the one the file embeds: the embedded graph applied and the sources and steps were left out.
      */
     | "W_SOURCE_STEPS_IGNORED"
     /**
@@ -1095,6 +1191,13 @@ const CODE_TABLE = {
     E_UNKNOWN_SHADER_PARAM: "E_UNKNOWN_SHADER_PARAM",
     E_UNKNOWN_CAMERA: "E_UNKNOWN_CAMERA",
     E_UNKNOWN_GENERATOR: "E_UNKNOWN_GENERATOR",
+    E_SPACE_RESERVED: "E_SPACE_RESERVED",
+    E_AMBIGUOUS_ID: "E_AMBIGUOUS_ID",
+    E_JOIN_SPACE_SAME: "E_JOIN_SPACE_SAME",
+    E_STEP_NEEDS_NODES: "E_STEP_NEEDS_NODES",
+    E_EDIT_ROLE_COLUMN: "E_EDIT_ROLE_COLUMN",
+    E_CLASH_RULE_TYPE: "E_CLASH_RULE_TYPE",
+    E_ROLE_TARGET_AMBIGUOUS: "E_ROLE_TARGET_AMBIGUOUS",
     E_UNKNOWN_DATASET: "E_UNKNOWN_DATASET",
     E_UNKNOWN_SINK: "E_UNKNOWN_SINK",
     E_UNKNOWN_RUN: "E_UNKNOWN_RUN",

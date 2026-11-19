@@ -64,6 +64,10 @@ export type SelectorTarget = "node" | "edge";
  */
 export interface SelectorSource {
     /**
+     * Whether the source-steps experiment is on. Off or absent, a `type` selector is refused.
+     */
+    readonly sourceSteps?: () => boolean;
+    /**
      * The value one node carries for a path.
      * @param index - The dense node index.
      * @param path - The column path, such as `results.louvain.group`.
@@ -294,7 +298,8 @@ export type ElementPredicate = (index: number) => boolean;
 /** A selector, reduced to the test a repaint runs and the columns that test reads. */
 export interface CompiledSelector {
     /** Which selector kind this was compiled from. */
-    readonly match: "everything" | "expression" | "has" | "ids" | "top" | "member" | "rule" | "state" | "hover";
+    readonly match:
+        "everything" | "expression" | "has" | "ids" | "top" | "member" | "rule" | "state" | "hover" | "type";
     /** Which kind of element it speaks about. */
     readonly target: SelectorTarget;
     /**

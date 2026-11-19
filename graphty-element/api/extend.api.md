@@ -1904,7 +1904,48 @@ export type GraphtyErrorCode =
 * `timing.settleTimeoutMs`, or captures without waiting (`timing.waitForSettle: false`).
 * @since 3.40.0
 */
-| "E_NOT_SETTLED" | "E_INTERNAL";
+| "E_NOT_SETTLED"
+/**
+* A load or a stage names an id space the element reserves (`graph:...`). `details.space` is
+* the space. The caller names another space. Experimental: the source-steps experiment.
+*/
+| "E_SPACE_RESERVED"
+/**
+* A key names nodes in more than one id space, so it names no one node. `details.key` is the
+* key, `details.spaces` the spaces holding it. The caller names the space, or the
+* `<space>:<key>` NodeId. Experimental: the source-steps experiment.
+*/
+| "E_AMBIGUOUS_ID"
+/**
+* Make an edge would add a staged source in the id space of the nodes it connects to, so its
+* nodes would meet them instead of being joined by edges. `details.source` and `details.space`
+* name them. The caller stages the source in another space. Experimental: the source-steps
+* experiment.
+*/
+| "E_JOIN_SPACE_SAME"
+/**
+* A merge or Make an edge reads node rows the source does not hold. `details.source` is the
+* source. Experimental: the source-steps experiment.
+*/
+| "E_STEP_NEEDS_NODES"
+/**
+* An edit, pick or rename names a column a key, an end, a role, a type rule or a step reads.
+* `details.column` is the column. Experimental: the source-steps experiment.
+*/
+| "E_EDIT_ROLE_COLUMN"
+/**
+* A merge's clash rule orders values (`min`, `max`, `mean`) but the values that meet in a column
+* are not all numbers (or, for `min` and `max`, all dates). `details.step`, `details.column` and
+* `details.rule` name the step, the column and the rule. Experimental: the source-steps
+* experiment.
+*/
+| "E_CLASH_RULE_TYPE"
+/**
+* A role setter that names no source could mean several built sources: each carries the
+* column and can carry the role. `details.sources` lists them; the caller names one with the
+* setter's `source` option. Experimental: the source-steps experiment.
+*/
+| "E_ROLE_TARGET_AMBIGUOUS" | "E_INTERNAL";
 
 // @public
 export type GraphtyErrorDetails<C extends GraphtyErrorCode = GraphtyErrorCode> = Readonly<Record<string, unknown>> & (C extends keyof GraphtyErrorDetailsMap ? GraphtyErrorDetailsMap[C] : unknown);
@@ -3358,6 +3399,7 @@ export interface SourceRead extends SourceInput {
 export interface SourceRefreshReport {
     readonly added: SourceCounts;
     readonly fact: CodedFact<"I_SOURCE_REFRESHED" | "I_SOURCE_UNCHANGED">;
+    readonly issues?: readonly SourceRefreshIssue[];
     readonly removed: SourceCounts;
     readonly updated: SourceCounts;
 }
@@ -3472,7 +3514,7 @@ export interface WeightMeaning {
 }
 
 // @public
-export type WeightSkip = CodedFact<"weight.meaning-mismatch">;
+export type WeightSkip = CodedFact<"weight.meaning-mismatch" | "weight.meaning-mixed">;
 
 // @public
 export interface WholeGraphScoreDefinition<O extends OptionsShorthand> extends AlgorithmDefinitionBase<O> {

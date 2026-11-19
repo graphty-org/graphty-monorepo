@@ -96,6 +96,7 @@ import {
 import { sealedSet } from "../sealed";
 import { type DependencySources, visibilityCycle } from "../sets/dependencies";
 import type { SetWatch } from "../sets/notify";
+import type { CodedFact } from "../shared";
 import type { HistoryCause } from "../types";
 import {
     assertConditions,
@@ -105,6 +106,7 @@ import {
     conditionsOfSteps,
     selectRule,
     selectsOverGraph,
+    type SourceScopedRule,
     stepsOf,
     wellFormed,
 } from "./conditions";
@@ -114,6 +116,7 @@ import {
     type CompiledVisibility,
     compileVisibility,
     type FilterSources,
+    heldColumn,
     type RuleTree,
     runPass,
     type ScopeLeaf,
@@ -584,6 +587,15 @@ export interface VisibilityApi {
      * @beta
      */
     readonly notDrawn: readonly HiddenNotDrawn[];
+    /**
+     * Under the source-steps experiment: the keep and exclude conditions that are on but held off,
+     * each as `W_FILTER_HELD { filter, column }` with the condition's id and the column it reads.
+     * A condition is held when no element carries any column it reads (a condition with `source`:
+     * when that source gave no element one), so it judges nothing and never hides every node.
+     * Empty while the experiment is off.
+     * @experimental source-steps
+     */
+    readonly held: readonly CodedFact<"W_FILTER_HELD">[];
 }
 
 /**
@@ -3229,6 +3241,29 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
 
         get notDrawn(): readonly HiddenNotDrawn[] {
             return notDrawnNow();
+        },
+
+        get held(): readonly CodedFact<"W_FILTER_HELD">[] {
+            if (sources.sourceSteps?.() !== true) {
+                return [];
+            }
+            const graph = sources.snapshot();
+            const read = passSources(graph);
+            const held: CodedFact<"W_FILTER_HELD">[] = [];
+            for (const condition of dispatcher.state.visibility.conditions) {
+                if (!condition.on || condition.effect === "select") {
+                    continue;
+                }
+                const scoped: SourceScopedRule | undefined =
+                    condition.source === undefined
+                        ? undefined
+                        : { kind: "all", of: [condition.rule], withinSources: [condition.source], outside: true };
+                const column = heldColumn(graph, scoped ?? condition.rule, read);
+                if (column !== null) {
+                    held.push({ code: "W_FILTER_HELD", params: { filter: condition.id, column } });
+                }
+            }
+            return held;
         },
 
         workingGraphChanged(): void {

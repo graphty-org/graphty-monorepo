@@ -19,6 +19,7 @@ import type { GraphSnapshot } from "@graphty/graph-format";
 
 import { DEFERRED_HASH_COLUMN, EDGE_ID_COLUMN, IDENTITY_COLUMNS, identityColumnsOf } from "../../data/edgeIdentity";
 import { stableDigest } from "../runs/runId";
+import { SOURCE_COPIES_VALUE, SOURCE_STEPS_VALUE, type SourceSteps } from "../sources/steps/project";
 import { ownRows } from "../styles/tree";
 import type { ProjectState } from "./state";
 
@@ -166,6 +167,22 @@ export function stateDigest(state: ProjectState, options: DigestOptions = {}): s
     return stableDigest(parts.join("\n"));
 }
 
+/**
+ * Under the source-steps experiment, the build count and the copy ids the graph was built from
+ * (8.6): a later build, or other rows read, make the data another one even when the graph comes
+ * out the same. Empty with the experiment off.
+ * @param graph - The `graph` slice.
+ * @returns The digest's suffix.
+ */
+function buildsOf(graph: ProjectState["graph"]): string {
+    const steps = graph.values.get(SOURCE_STEPS_VALUE) as SourceSteps | undefined;
+    if (steps === undefined) {
+        return "";
+    }
+    const copies = Object.keys((graph.values.get(SOURCE_COPIES_VALUE) as object | undefined) ?? {}).sort(); // eslint-disable-line sonarjs/no-alphabetical-sort -- code-unit order, stable in every locale
+    return `\nbuild=${String(steps.build ?? 0)}\ncopies=${copies.join(",")}`;
+}
+
 /** The data digest of each graph slice. */
 const dataDigests = new WeakMap<object, string>();
 
@@ -194,7 +211,7 @@ export function dataDigest(graph: ProjectState["graph"], readSnapshot: () => Gra
     // file names the same edges afresh.
     const edges = [...graph.edges.values()].map((edge) => canonical(edge, path)).sort(); // eslint-disable-line sonarjs/no-alphabetical-sort -- code-unit order, the same in every locale, so the digest is stable
     const digest = stableDigest(
-        `graph=${canonical({ nodes: graph.nodes, edges }, path)}\nrows=${rowsDigest(readSnapshot(), path, NOT_DATA)}`,
+        `graph=${canonical({ nodes: graph.nodes, edges }, path)}\nrows=${rowsDigest(readSnapshot(), path, NOT_DATA)}${buildsOf(graph)}`,
     );
     dataDigests.set(graph, digest);
 

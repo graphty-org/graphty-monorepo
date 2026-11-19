@@ -88,6 +88,13 @@ const CODES_FROM_THE_DESIGN = [
     "E_UNKNOWN_SHADER_PARAM",
     "E_UNKNOWN_CAMERA",
     "E_UNKNOWN_GENERATOR",
+    "E_SPACE_RESERVED",
+    "E_AMBIGUOUS_ID",
+    "E_JOIN_SPACE_SAME",
+    "E_STEP_NEEDS_NODES",
+    "E_EDIT_ROLE_COLUMN",
+    "E_CLASH_RULE_TYPE",
+    "E_ROLE_TARGET_AMBIGUOUS",
     "E_UNKNOWN_DATASET",
     "E_UNKNOWN_SINK",
     "E_UNKNOWN_RUN",
@@ -194,6 +201,9 @@ function bucketOf(code: GraphtyErrorCode): string {
             return "unknown-name";
         case "E_UNSTABLE_RUN_ID":
         case "E_DUPLICATE_ID":
+        case "E_SPACE_RESERVED":
+        case "E_AMBIGUOUS_ID":
+        case "E_JOIN_SPACE_SAME":
         case "E_DUPLICATE_EDGE":
         case "E_DUPLICATE_PLUGIN":
         case "E_PROTECTED":
@@ -238,6 +248,10 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_MISSING_PACKAGE":
             return "hardware";
         case "E_UNSUPPORTED":
+        case "E_STEP_NEEDS_NODES":
+        case "E_EDIT_ROLE_COLUMN":
+        case "E_CLASH_RULE_TYPE":
+        case "E_ROLE_TARGET_AMBIGUOUS":
         case "E_NOT_PLANAR":
         case "E_NOT_CONNECTED":
         case "E_NOT_BIPARTITE":

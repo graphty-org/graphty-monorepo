@@ -99,6 +99,7 @@ const KINDS: Readonly<Record<SessionCommand["op"], JournalEntry["kind"]>> = {
     "data.collapse": "data",
     "data.import": "data",
     "data.import-source": "data",
+    "data.steps-set": "data",
     "data.setSource": "data",
     "data.label": "data",
     "shader.set": "style",

@@ -40,9 +40,10 @@ import { factParams } from "./expand";
 import type { SourceHost } from "./host";
 import { isSourceFactKey, SOURCE_ATTR, sourceLoadsOf } from "./ids";
 import { descriptorOf } from "./pending";
+import { refreshReport } from "./refreshReport";
+import type { Row } from "./steps/types";
 import type {
     SourceCheck,
-    SourceCounts,
     SourceInput,
     SourceLoadOptions,
     SourceLoadRecord,
@@ -871,6 +872,20 @@ export async function refreshSource(
         ...readOnly,
     });
 
+    if (host.refreshSteps !== undefined) {
+        // Stamped as a load's rows are, so the copy matches the one the load kept.
+        const { held } = importCommand(host, loadKey, { source: record.source, config }, read, { mode: "merge" });
+        const tables = {
+            ...(held.nodes.length > 0 ? { nodes: held.nodes as readonly Row[] } : {}),
+            ...(held.edges.length > 0 ? { edges: held.edges as readonly Row[] } : {}),
+        };
+        const stepsReport = await host.refreshSteps(loadKey, tables);
+        if (stepsReport !== undefined) {
+            settleRefresh(host, record, read, access);
+            return stepsReport;
+        }
+    }
+
     const directed = host.directed();
     const own = (row: Readonly<Record<string, unknown>> | undefined): boolean => sourceLoadsOf(row).includes(loadKey);
     const elsewhere = (row: Readonly<Record<string, unknown>> | undefined): boolean =>
@@ -897,27 +912,30 @@ export async function refreshSource(
         held: read.held,
         paths: { nodeId: "id", source: "source", target: "target" },
     });
-    const added = Object.freeze({ nodes: plan.nodes.added, edges: plan.edges.added });
-    const removed = Object.freeze({ nodes: plan.nodes.removed, edges: plan.edges.removed });
-    const updated = Object.freeze({ nodes: plan.nodes.changed, edges: plan.edges.changed });
-    const counted: readonly SourceCounts[] = [added, removed, updated];
-    const changed = counted.some((counts) => counts.nodes + counts.edges > 0);
-    const pair = (counts: SourceCounts): number[] => [counts.nodes, counts.edges];
-    const report: SourceRefreshReport = Object.freeze({
-        added,
-        removed,
-        updated,
-        fact: Object.freeze({
-            code: changed ? ("I_SOURCE_REFRESHED" as const) : ("I_SOURCE_UNCHANGED" as const),
-            params: { added: pair(added), removed: pair(removed), updated: pair(updated) },
-        }),
+    const report = refreshReport({
+        added: { nodes: plan.nodes.added, edges: plan.edges.added },
+        removed: { nodes: plan.nodes.removed, edges: plan.edges.removed },
+        updated: { nodes: plan.nodes.changed, edges: plan.edges.changed },
     });
+    const changed = report.fact.code === "I_SOURCE_REFRESHED";
 
     if (changed) {
         await host.dispatch(refreshBatch(host, record, config, read, plan, report));
     }
 
-    host.ledger.refreshLoad(loadKey, {
+    settleRefresh(host, record, read, access);
+    return report;
+}
+
+/**
+ * Record a refresh in the ledger and announce it.
+ * @param host - the session pieces
+ * @param record - the load
+ * @param read - what the source holds now
+ * @param access - the endpoint and the credential it was read with
+ */
+function settleRefresh(host: SourceHost, record: SourceLoadRecord, read: Read, access: Access): void {
+    host.ledger.refreshLoad(record.key, {
         next: read.info?.next ?? null,
         ...(read.info?.validators === undefined ? {} : { validators: read.info.validators }),
         credential: access.credential ?? null,
@@ -925,8 +943,7 @@ export async function refreshSource(
         endpoint: access.endpoint,
         ...totalOf(read, record.total, record.totalEdges),
     });
-    host.emit("source:refreshed", { load: loadKey });
-    return report;
+    host.emit("source:refreshed", { load: record.key });
 }
 
 /**
@@ -1104,14 +1121,28 @@ async function readPending(host: SourceHost, id: string, options: SourceLoadOpti
     });
     await host.waitTurn?.();
     requireUnchanged(host, id);
-    await host.dispatch(
-        importCommand(host, record.key, { source: record.source, config }, read, {
-            ...readOnly,
-            mode: "merge",
-            existing: "update",
-            ...sameEntry(host, record.key),
-        }),
-    );
+    // Under the source-steps experiment a load a step reads already has its source: the rows read
+    // now become its copy, as a refresh's do, rather than a second source beside it. A load no step
+    // reads (a file saved without the experiment) is merged as before.
+    let swapped = false;
+    if (host.refreshSteps !== undefined) {
+        const { held } = importCommand(host, record.key, { source: record.source, config }, read, { mode: "merge" });
+        const report = await host.refreshSteps(record.key, {
+            ...(held.nodes.length > 0 ? { nodes: held.nodes as readonly Row[] } : {}),
+            ...(held.edges.length > 0 ? { edges: held.edges as readonly Row[] } : {}),
+        });
+        swapped = report !== undefined;
+    }
+    if (!swapped) {
+        await host.dispatch(
+            importCommand(host, record.key, { source: record.source, config }, read, {
+                ...readOnly,
+                mode: "merge",
+                existing: "update",
+                ...sameEntry(host, record.key),
+            }),
+        );
+    }
     host.pending.delete(id);
     host.ledger.refreshLoad(id, {
         next: read.info?.next ?? null,

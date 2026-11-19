@@ -165,6 +165,13 @@ export interface AlgorithmRunCommand {
 }
 
 // @public
+export interface AssetCommand {
+    readonly id: string;
+    readonly op: "asset.defaults";
+    readonly patch: ModelDefaultsPatch;
+}
+
+// @public
 export type AssetId = `asset:${string}`;
 
 // @public

@@ -19,6 +19,7 @@ export type { BackgroundImageProblem, PrepareBackgroundImageOptions, PreparedBac
 export { DEFAULT_BACKGROUND_IMAGE_SIZE, prepareBackgroundImage } from "./backgroundImage";
 export type { BrowserProjects, BrowserProjectSaveOptions, StoredProject } from "./browserProjects";
 export { browserProjects } from "./browserProjects";
+export type { AssetCommand } from "./commands/assets";
 export { COLUMN_ROLES } from "./data";
 export { LOAD_ROLES } from "./draft";
 export { createElementSession, createGraphSession } from "./GraphSession";

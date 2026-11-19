@@ -650,7 +650,7 @@ export type {
 // Asking what something would do and cost, before doing it
 // ---------------------------------------------------------------------------------------------
 
-export type { AlgorithmRunCommand, Plan, PlanBlock, PlanEffect, SessionCommand } from "./src/session";
+export type { AlgorithmRunCommand, AssetCommand, Plan, PlanBlock, PlanEffect, SessionCommand } from "./src/session";
 export { isAlgorithmRunCommand } from "./src/session";
 export type {
     CostBasis,

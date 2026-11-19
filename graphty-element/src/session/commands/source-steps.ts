@@ -34,6 +34,7 @@ import {
     type SourceSteps,
     type StepsEdit,
 } from "../sources/steps/project";
+import { READER_SOURCE } from "../sources/steps/types";
 import { type DataMutation, serviceOf, SOURCE_VALUE, SOURCES_VALUE } from "./data";
 import { refreshDerivedAfter } from "./derive";
 
@@ -156,6 +157,13 @@ function listed(
             ...(src.issues === undefined ? {} : { issues: src.issues }),
         });
     });
+    const reader = facts.get(READER_SOURCE);
+    if (reader !== undefined && reader.nodes.length + reader.edges.length > 0) {
+        provenance[READER_SOURCE] = Object.freeze({
+            nodes: Object.freeze([...reader.nodes]),
+            edges: Object.freeze([...reader.edges]),
+        });
+    }
     return { sources: Object.freeze(sources), provenance: Object.freeze(provenance) };
 }
 

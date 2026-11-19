@@ -233,6 +233,7 @@ import type {
     HistoryClearOptions,
     HistoryOutcome,
     HistoryRestoreOptions,
+    HistoryStepId,
     LayoutMotion,
     LocationColumns,
     ModelChange,
@@ -3223,6 +3224,19 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 return (mutation) => send({ op: "data.apply", mutation });
             },
             importer: (signal) => dispatcher.capturedDispatch(signal === undefined ? {} : { signal }),
+            folder: () => {
+                const send = dispatcher.capturedDispatch();
+                const routed = dispatcher.routing;
+                return (command) => {
+                    const top = dispatcher.history.stepAt(dispatcher.history.position - 1);
+                    // ponytail: with no step to join, it records its own; a baseline write would avoid even that.
+                    return top === undefined || routed
+                        ? send(command)
+                        : dispatcher.transaction("Staged a source", (tx) => tx.dispatch(command), {
+                              after: top.id as HistoryStepId,
+                          });
+                };
+            },
             loadLine: loadLineOf(dispatcher),
             ceilings,
             slice,

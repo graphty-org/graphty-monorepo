@@ -76,6 +76,7 @@ describe("source-steps: phases", () => {
         await phase1(session);
         const nodes = session.data.store.getSnapshot().ids.size;
         const steps = session.data.steps().length;
+        const history = session.history.steps.length;
         const a = await session.data.stage(
             { type: "csv", config: { data: ACCOUNTS }, name: "accounts.csv" },
             { key: "account_id", type: "account" },
@@ -84,9 +85,21 @@ describe("source-steps: phases", () => {
         assert.strictEqual(staged?.state, "staged");
         assert.strictEqual(session.data.store.getSnapshot().ids.size, nodes, "staging builds nothing");
         assert.strictEqual(session.data.steps().length, steps, "no step reads it");
-        // Adapted: in the element a staged source is saved state, so staging is one undo step.
+        assert.lengthOf(session.history.steps, history, "staging is not an undo step");
+        // Undo takes back the change before it, the last type declared, and not only the staging.
         await session.undo();
-        assert.isUndefined(session.data.sources().find((s) => s.key === a));
+        assert.strictEqual(session.data.types().length, 2);
+        // Removing a staged source is an undo step.
+        await session.data.stage(
+            { type: "csv", config: { data: ACCOUNTS }, name: "accounts.csv" },
+            { key: "account_id", type: "account" },
+        );
+        const again = session.data.sources().find((s) => s.state === "staged");
+        assert.isDefined(again);
+        await session.data.removeSource(again?.key ?? "");
+        assert.isUndefined(session.data.sources().find((s) => s.state === "staged"));
+        await session.undo();
+        assert.strictEqual(session.data.sources().find((s) => s.key === again?.key)?.state, "staged");
         session.dispose();
     });
 

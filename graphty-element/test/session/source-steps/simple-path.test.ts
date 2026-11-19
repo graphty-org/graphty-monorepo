@@ -135,11 +135,14 @@ describe("source-steps: the simple path", () => {
             session.data.edits().map((e) => [e.op, e.target]),
             [["add", { space: "source:reader", key: "X-1" }]],
         );
-        assert.deepStrictEqual(session.data.sourcesOf("X-1"), [], "the reader is no load");
+        assert.deepStrictEqual(session.data.sourcesOf("X-1"), ["reader"], "the reader supplies it (3.1)");
         await session.data.addEdges([{ source: "X-1", target: "a" }]);
         assert.strictEqual(session.data.store.getSnapshot().edgeCount, 2);
         await session.data.updateNodes([{ id: "a", values: { score: 3 } }]);
         assert.strictEqual(session.data.node("a")?.score, 3);
+        assert.notInclude(session.data.sourcesOf("a"), "reader", "an edit never credits the reader");
+        const { text } = await session.project.save();
+        assert.include(text, '{"id":"X-1","_source.loads":["reader"]}', "saved with its source");
         const [added, edge] = session.data.edits();
         await session.data.removeEdit(edge.id);
         assert.strictEqual(session.data.store.getSnapshot().edgeCount, 1, "taking back the edge");

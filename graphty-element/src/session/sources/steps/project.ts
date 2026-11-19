@@ -20,6 +20,7 @@ import {
     type BuiltNode,
     type CellValue,
     type CopyTables,
+    READER_SOURCE,
     READER_SPACE,
     type ReaderOp,
     type RowFateKind,
@@ -733,7 +734,8 @@ export function sourceFacts(
 ): ReadonlyMap<string, SourceFacts> {
     const ids = nodeIdsOf(result);
     const out = new Map<string, { nodes: NodeId[]; edges: EdgeId[]; named: number; leftOut: Record<string, number> }>();
-    for (const id of Object.keys(value.sources)) {
+    // The reader source is in no list of sources, but supplies what the reader adds (3.1).
+    for (const id of [...Object.keys(value.sources), READER_SOURCE]) {
         out.set(id, { nodes: [], edges: [], named: 0, leftOut: {} });
     }
     for (const n of result.nodes.values()) {

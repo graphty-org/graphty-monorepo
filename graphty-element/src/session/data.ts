@@ -316,6 +316,11 @@ interface DataWrites {
     importer(
         signal?: AbortSignal,
     ): (command: DataImportCommand | BatchCommand | DataStepsSetCommand) => Promise<unknown>;
+    /**
+     * Where a write that is no undo step of its own goes: into the newest applied step, as part
+     * of it. With no step to join, or inside a routed verb, it goes where `importer` sends it.
+     */
+    folder?(): (command: DataStepsSetCommand) => Promise<unknown>;
     /** The ceilings in force, which a read-first load is refused above. */
     readonly ceilings?: RenderLimits;
     /** The `graph` slice now. */
@@ -3108,10 +3113,11 @@ export class SessionData implements SessionDataApi {
      * Dispatch one edit of the sources and steps in the load line.
      * @param edit - The edit, built when its turn comes.
      * @param copies - The rows as read of a source it adds.
+     * @param fold - Join the newest step instead of recording one.
      * @returns Settles once it is recorded and drawn.
      */
-    private stepsEdit(edit: () => StepsEdit, copies?: Copies): Promise<unknown> {
-        const send = this.writes.importer();
+    private stepsEdit(edit: () => StepsEdit, copies?: Copies, fold = false): Promise<unknown> {
+        const send = (fold ? this.writes.folder?.() : undefined) ?? this.writes.importer();
         return this.loadLine.edit(
             () => send({ op: "data.steps-set", edit: edit(), ...(copies === undefined ? {} : { copies }) }),
             undefined,
@@ -3173,7 +3179,8 @@ export class SessionData implements SessionDataApi {
                     }
                     const staged = compiled.edit.source;
                     ({ id } = staged);
-                    return this.stepsEdit(() => ({ kind: "add", source: staged, staged: true }), compiled.copies);
+                    // Staging is no undo step (8.9): it joins the step before it.
+                    return this.stepsEdit(() => ({ kind: "add", source: staged, staged: true }), compiled.copies, true);
                 },
                 withStepsMapping({ ...options, mode: "merge" }),
             );

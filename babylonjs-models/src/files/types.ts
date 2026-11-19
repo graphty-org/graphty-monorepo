@@ -89,7 +89,7 @@ export interface ModelPart {
 }
 
 /** What a model file draws: see {@link ModelSummary.geometry}. */
-export type ModelGeometry = "mesh" | "points" | "splats";
+export type ModelGeometry = "mesh" | "points";
 
 /** How an STL or PLY file is stored: see {@link ModelSummary.encoding}. */
 export type ModelEncoding = "ascii" | "binary" | "binaryBigEndian";
@@ -99,6 +99,12 @@ export type ModelEncoding = "ascii" | "binary" | "binaryBigEndian";
  * AVIF pictures. See {@link ModelSummary.compression}.
  */
 export type ModelCompression = "draco" | "meshopt" | "ktx2" | "webp" | "avif";
+
+/** One picture a model's materials draw: see {@link ModelSummary.pictures}. */
+export interface ModelPicture {
+    readonly name: string;
+    readonly materials: readonly string[];
+}
 
 /** What a model holds, read from its files without drawing it. */
 export interface ModelSummary {
@@ -116,26 +122,32 @@ export interface ModelSummary {
         readonly min: readonly [number, number, number];
         readonly max: readonly [number, number, number];
     };
-    /**
-     * The axis that points up in the file: fixed for glTF, assumed for the others (`"-y"` for
-     * Gaussian splats, which store Y pointing down).
-     */
-    readonly upAxis: "y" | "z" | "-y" | "unknown";
+    /** The axis that points up in the file: fixed for glTF, assumed for the others. */
+    readonly upAxis: "y" | "z" | "unknown";
+    /** Each clip; an unnamed glTF clip is `animation<index>`, as Babylon's glTF loader names it. */
     readonly animations: readonly { readonly name: string; readonly seconds: number }[];
+    /**
+     * glTF, OBJ, `.babylon` and PLY: every picture the materials draw, and the materials that draw
+     * it ("" for an unnamed one). A glTF picture, embedded or external, is named by its image's
+     * name, else its `uri`, else `image<index>` (as Babylon's glTF loader names it); an OBJ's
+     * `map_Kd`, a `.babylon` material's diffuse texture and a PLY's `TextureFile` by its path in
+     * the set. Load with `withoutPictures` naming some to draw those parts without them. Empty for
+     * the others, which draw no pictures.
+     */
+    readonly pictures: readonly ModelPicture[];
     readonly skinned: boolean;
     readonly morphTargets: number;
     readonly transparent: boolean;
     /** glTF only. */
     readonly extensionsRequired: readonly string[];
     /**
-     * What the file draws: triangles (`mesh`), a point cloud (`points`) or Gaussian splats
-     * (`splats`). Points and splats are drawn as small solids, one per point, and earn
-     * `W_MODEL_POINTS_APPROXIMATED`. Absent for a picture.
+     * What the file draws: triangles (`mesh`) or a point cloud (`points`). Points are drawn as
+     * small solids, one per point, and earn `W_MODEL_POINTS_APPROXIMATED`. Absent for a picture.
      */
     readonly geometry?: ModelGeometry;
-    /** Points or splats in the file, before thinning. Points and splats only. */
+    /** Points in the file, before thinning. Point clouds only. */
     readonly points?: number;
-    /** STL and PLY: how the file is stored. */
+    /** STL, PLY, FBX and a `.usd` layer: how the file is stored. */
     readonly encoding?: ModelEncoding;
     /** The file carries per-vertex or per-face colors, and they are drawn. */
     readonly vertexColors?: boolean;
@@ -145,26 +157,53 @@ export interface ModelSummary {
     readonly gltfVersion?: "1.0" | "2.0";
     /** glTF only: every extension the file uses, beside `extensionsRequired`. */
     readonly extensionsUsed?: readonly string[];
+    /**
+     * FBX and USD: how many meters one unit of the file's coordinates is (its `UnitScaleFactor` /
+     * 100, its `metersPerUnit`); the other formats do not say.
+     */
+    readonly metersPerUnit?: number;
 }
 
-/** The limits that keep a page responsive while it reads a model it did not make. */
+/**
+ * The limits that keep a page responsive while it reads a model it did not make. The defaults
+ * refuse only what a browser tab cannot hold or draw; lower any of them to be stricter.
+ */
 export interface ModelLimits {
-    /** Per model file or unzipped set. Default 32 MB. */
+    /** Per model file or set: a model fetched by URL counts its parts too. Default 1 GB. */
     readonly maxBytes: number;
-    /** Per OBJ, ASCII STL or ASCII PLY file, which parse on the main thread. Default 8 MB. */
+    /**
+     * Per OBJ, ASCII STL, ASCII PLY, ASCII FBX, or text USD file, read as one string. Default 536,870,888 bytes (2^29 - 24),
+     * the longest string a browser holds: longer text cannot be read at all.
+     */
     readonly maxTextBytes: number;
-    /** Per model, counted per use. Default 1,000,000. */
+    /** Per model, counted per use. Default 20,000,000. */
     readonly maxTriangles: number;
-    /** Decoded texture bytes per model (a KTX2 picture counts 1 byte a pixel, others 4). Default 128 MB. */
+    /** Decoded texture bytes per model (a KTX2 picture counts 1 byte a pixel, others 4). Default 1 GB. */
     readonly maxTextureBytes: number;
-    /** What every glTF accessor decodes to, together. Default 256 MB. */
+    /** What every glTF accessor decodes to, together; also an FBX file's deflated arrays and a binary USD layer's compressed sections. Default 1 GB. */
     readonly maxDecodedBytes: number;
+    /** Files a model fetched by URL may load beside its main file. Default 10,000. */
+    readonly maxFiles: number;
+    /** glTF nodes and FBX models. Default `Infinity`: no limit. */
+    readonly maxNodes: number;
+    /** glTF, FBX and USD meshes. Default `Infinity`: no limit. */
+    readonly maxMeshes: number;
+    /** glTF, FBX and USD materials. Default `Infinity`: no limit. */
+    readonly maxMaterials: number;
+    /** glTF, FBX and USD textures. Default `Infinity`: no limit. */
+    readonly maxTextures: number;
+    /** glTF, FBX and USD animations. Default `Infinity`: no limit. */
+    readonly maxAnimations: number;
+    /** Morph targets on one glTF primitive; an FBX file's blend shape channels, a USD stage's blend shapes. Default `Infinity`: no limit. */
+    readonly maxMorphTargets: number;
+    /** Joints in one glTF or FBX skin. Default `Infinity`: no limit. */
+    readonly maxJoints: number;
     /** Pixels per texture side; larger textures earn `W_MODEL_TEXTURES_REDUCED`. Default 2048. */
     readonly maxTextureSize: number;
     /**
      * A fetch that receives nothing for this many milliseconds is stopped; every chunk that arrives
      * starts the wait again, so a large file on a slow but steady connection still loads.
-     * Default 30,000.
+     * Default 30,000; `Infinity` (or anything past 2^31 - 1) waits for ever.
      */
     readonly fetchTimeoutMs: number;
 }

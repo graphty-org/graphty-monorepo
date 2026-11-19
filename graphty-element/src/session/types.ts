@@ -30,6 +30,7 @@ import type {
 // different EdgeId types -- graph-format's `string | number` on EdgeRecord and the catalog's
 // `string` everywhere else -- so assigning one to the other was an error on the element's own
 // published surface.
+import type { Tour } from "../camera/tour";
 import type { CameraState } from "../camera/types";
 import type {
     AlgorithmKey,
@@ -2376,11 +2377,19 @@ export interface SessionDataApi {
      *     edge's ends (`bait` and `prey`), else a single file's nearly unique text column is its
      *     nodes' key (`account`). Pass the draft's `mapping` to `load` to keep the guess when the
      *     load is read again.
+     * @param options.onProgress - Called with each change of the read, as `progress:changed`
+     *     publishes it (`task: "prepare"`): the rows read so far and, when the size is known, the
+     *     share read (`fraction`). @since 3.40.0
      * @returns The draft.
      */
     prepare(
         source: DataSourceInput,
-        options?: { readonly signal?: AbortSignal; readonly onto?: "graph"; readonly guess?: "names" | "values" },
+        options?: {
+            readonly signal?: AbortSignal;
+            readonly onto?: "graph";
+            readonly guess?: "names" | "values";
+            readonly onProgress?: (change: ProgressChange) => void;
+        },
     ): Promise<LoadDraft>;
     /**
      * Every table joined onto the graph and still loaded, oldest first: the join each was made
@@ -3758,6 +3767,14 @@ export interface ProjectConfig {
      */
     readonly timelineHiddenAdded: boolean;
     /**
+     * Whether this project has had the session's starting cameras
+     * (`session.views.setStartingCameras`) written into it. False by default and saved with the
+     * project; the element sets it when it writes them. Setting it true stops them being written
+     * into this project; setting it false lets the next writing point write them again.
+     * @since 3.58.0
+     */
+    readonly startingCamerasWritten: boolean;
+    /**
      * Where the layer a finished run paints lands: `"beneath"` (the default), under the lowest
      * layer somebody wrote that drives the same property, and not at all when such a layer covers
      * every element; or `"top"`, on top of the unpinned rows, never held back by a layer somebody
@@ -3880,6 +3897,8 @@ export interface ProjectConfigPatch {
     readonly timelineHiddenLook?: "hidden" | "ghost";
     /** See {@link ProjectConfig.timelineHiddenAdded}. */
     readonly timelineHiddenAdded?: boolean;
+    /** See {@link ProjectConfig.startingCamerasWritten}. */
+    readonly startingCamerasWritten?: boolean;
     /** See {@link ProjectConfig.runPlacement}. */
     readonly runPlacement?: RunPlacement;
     /** See {@link ProjectConfig.layoutBehavior}; merged key by key. */
@@ -4279,6 +4298,15 @@ export interface SessionEventMap {
         readonly cause: HistoryCause;
     };
     /**
+     * `session.views.setStartingCameras` wrote its views into the project's starting state: no
+     * step and no `project:changed`, so a list of saved views re-reads `session.views` on this.
+     * @since 3.58.0
+     */
+    "views:seeded": {
+        /** The names of the views written. */
+        readonly names: readonly string[];
+    };
+    /**
      * The picture has caught up with every project change made so far: published once nothing is
      * left to derive or repaint -- after the per-domain events, and after any repaint the element
      * put off or started on its own -- with every slice changed or derived since the last one
@@ -4450,10 +4478,12 @@ export type ProjectSlice =
     | "visibility"
     | "sets"
     | "views"
+    | "tours"
     | "notes"
     | "attributes"
     | "valueLabels"
-    | "shaders";
+    | "shaders"
+    | "modelDefaults";
 
 /** What moved project state: a command, a history move, or a failed command being reverted. */
 export type HistoryCause = "command" | "undo" | "redo" | "restore" | "rollback";
@@ -4573,6 +4603,8 @@ export type PendingId = string & {
  * | `note.add`, `note.update`, `note.remove` | none |
  * | `note.merge` | `source`: the merged document's name, or null |
  * | `view.save`, `view.remove` | `names`: the views |
+ * | `view.rename` | `from`: the view's name before; `to`: its new name |
+ * | `view.move` | `name`: the view moved; `index`: its new 0-based place |
  * | `annotations.set` | `count`: how many annotations are kept |
  * | `annotations.patch` | `action`: `"add"`, `"update"` or `"remove"`; `id`: the annotation's id, or null |
  * | `view.dimension` | `dimension`: `"2d"` or `"3d"` |
@@ -4657,6 +4689,7 @@ export type HistoryCode =
     | "shader.add"
     | "shader.replace"
     | "shader.remove"
+    | "asset.defaults"
     | "visibility.filter"
     | "visibility.clear-filter"
     | "visibility.window"
@@ -4691,6 +4724,14 @@ export type HistoryCode =
     | "note.merge"
     | "view.save"
     | "view.remove"
+    | "view.rename"
+    | "view.move"
+    | "view.key"
+    | "view.starting"
+    | "tour.save"
+    | "tour.remove"
+    | "tour.rename"
+    | "tour.move"
     | "view.dimension"
     | "view.immersive"
     | "config.set"
@@ -4918,6 +4959,8 @@ export interface CommandOutcomeMap {
     "style.template": Promise<void>;
     /** Settles once the shader's text is recorded. */
     "shader.set": Promise<void>;
+    /** Settles once the model's settings are recorded and the pass that repaints its nodes has run. */
+    "asset.defaults": Promise<void>;
     /** Settles once the filter is recorded and the pass that evaluates the masks has run. */
     "visibility.set": Promise<void>;
     /** Settles once the window is recorded and the pass that evaluates the masks has run. */
@@ -4964,6 +5007,22 @@ export interface CommandOutcomeMap {
     "annotations.patch": Promise<void>;
     /** Settles once the removal is recorded. */
     "view.remove": Promise<void>;
+    /** Settles once the rename is recorded. */
+    "view.rename": Promise<void>;
+    /** Settles once the new order is recorded. */
+    "view.move": Promise<void>;
+    /** Settles once the key is recorded. */
+    "view.key": Promise<void>;
+    /** Settles once the starting cameras are recorded. */
+    "view.starting": Promise<void>;
+    /** Settles once the tours are recorded. */
+    "tour.save": Promise<void>;
+    /** Settles once the removal is recorded. */
+    "tour.remove": Promise<void>;
+    /** Settles once the rename is recorded. */
+    "tour.rename": Promise<void>;
+    /** Settles once the new order is recorded. */
+    "tour.move": Promise<void>;
     /** Settles once the camera has arrived. */
     "view.camera": Promise<void>;
     /** Settles once the settings are recorded and the picture has caught up. */
@@ -5434,20 +5493,113 @@ export interface SessionAnnotations {
 }
 
 /**
- * The saved camera views, read as a map from name to camera state.
- *
- * A saved view is a fixed position, not a rule: it does not recompute itself for a different
- * graph the way a camera view does, which is why a name a camera view answers to is refused.
+ * One saved view: a fixed camera, or a camera view it follows, and the key a consumer binds to it.
+ * @since 3.58.0
  */
-export interface SessionViews extends ReadonlyMap<string, CameraState> {
+export interface SavedView {
+    /** A fixed camera. Absent for a following view. */
+    readonly camera?: CameraState;
     /**
-     * Keep camera states under names, replacing any view already saved under one. One step.
-     * @param views - The names and the camera states.
-     * @returns Settles once the step is recorded.
-     * @throws A `GraphtyError` (as a rejection) with `E_PROTECTED` when a camera view answers to
-     *     a name, or `E_BAD_COMMAND` for an empty name; nothing is saved then.
+     * A camera view id (`catalog.cameras()`) this view is recomputed from each time it is applied,
+     * for whatever is drawn then. Absent for a fixed view.
      */
-    save(views: readonly { readonly name: string; readonly camera: CameraState }[]): Promise<void>;
+    readonly follows?: string;
+    /**
+     * An opaque key chord the consumer binds; unique among the saved views. The element stores it
+     * and never listens for it.
+     */
+    readonly key?: string;
+}
+
+/**
+ * One view `session.views.setStartingCameras` writes into a project that never had them.
+ * @since 3.58.0
+ */
+export interface StartingCamera {
+    /** The saved view's name. */
+    readonly name: string;
+    /** The camera view id it follows. */
+    readonly follows: string;
+    /** The key chord it carries, dropped when another saved view holds it. */
+    readonly key?: string;
+}
+
+/**
+ * The saved camera views, read as a map from name to saved view, iterated in project order.
+ *
+ * A saved view is either a fixed position or a camera view it follows (`follows`), recomputed for
+ * whatever is drawn when it is applied. A name a camera view answers to is refused, so a saved view
+ * never shadows one. A new view goes at the end of the order; `move` changes it.
+ */
+export interface SessionViews extends ReadonlyMap<string, SavedView> {
+    /**
+     * Keep views under names, replacing the camera or the followed view of any view already saved
+     * under one; that view keeps its place, and its key unless `key` is given. One step.
+     * @param views - The names, each with a `camera`, a camera view it `follows`, or neither: then
+     *     it keeps where the camera stands now, read once, so redo puts back the same state. `key`
+     *     sets its key chord, taking it from any other view that holds it; null clears it.
+     * @returns Settles once the step is recorded.
+     * @throws A `GraphtyError` (as a rejection) with `E_PROTECTED` `{ name }` when a camera view
+     *     answers to a name, `E_BAD_COMMAND` `{ reason: "empty-name" }` for an empty name,
+     *     `E_BAD_COMMAND` `{ reason: "conflict", options: ["camera", "follows"] }` for both,
+     *     `E_UNKNOWN_CAMERA` `{ name }` when `follows` names no camera view, `E_BAD_COMMAND`
+     *     `{ reason: "empty-key" }` for an empty key, and, for a view with neither, `E_UNSUPPORTED`
+     *     when the session draws nothing or `{ reason: "xr", mode }` while immersive; nothing is
+     *     saved then.
+     */
+    save(
+        views: readonly {
+            readonly name: string;
+            readonly camera?: CameraState;
+            readonly follows?: string;
+            readonly key?: string | null;
+        }[],
+    ): Promise<void>;
+    /**
+     * Give a saved view a key chord, taking it from any other view that holds it, in one step; null
+     * clears it. The element stores the key and never listens for it.
+     * @param name - The view.
+     * @param key - The key chord, or null.
+     * @returns Settles once the step is recorded.
+     * @throws A `GraphtyError` (as a rejection) with `E_BAD_COMMAND` `{ missing, available }` when
+     *     nothing is saved as `name`, or `E_BAD_COMMAND` `{ reason: "empty-key" }` for an empty key.
+     * @since 3.58.0
+     */
+    setKey(name: string, key: string | null): Promise<void>;
+    /**
+     * The saved views to write once into every project that never had them; null (the default)
+     * writes none. A session option, never saved: it lasts for the session's life. Each project
+     * records that it got them in `config.startingCamerasWritten`, so a project is written once:
+     * the list is appended after the project's own views now (no undo step on a fresh session,
+     * one step after edits) and when a project that never had them is opened. A name already
+     * saved is skipped, a key another view holds is dropped, and a `follows` no longer registered
+     * is skipped.
+     * @param list - The views, or null.
+     * @returns Settles once the current project is written.
+     * @throws A `GraphtyError` (as a rejection) with `E_UNKNOWN_CAMERA` `{ name }` when a `follows`
+     *     names no camera view.
+     * @since 3.58.0
+     */
+    setStartingCameras(list: readonly StartingCamera[] | null): Promise<void>;
+    /**
+     * Give a saved view a new name, keeping its place in the order. One step.
+     * @param from - Its name now.
+     * @param to - The new name.
+     * @returns Settles once the step is recorded.
+     * @throws A `GraphtyError` (as a rejection) with `E_BAD_COMMAND` `{ missing, available }` when
+     *     nothing is saved as `from`, `E_BAD_COMMAND` `{ reason: "name-taken", name }` when `to`
+     *     is saved already, or `E_PROTECTED` `{ name }` when a camera view answers to `to`.
+     */
+    rename(from: string, to: string): Promise<void>;
+    /**
+     * Put a saved view at a place in the order. One step.
+     * @param name - The view.
+     * @param index - Its new 0-based place, clamped to the order.
+     * @returns Settles once the step is recorded.
+     * @throws A `GraphtyError` (as a rejection) with `E_BAD_COMMAND` `{ missing, available }` when
+     *     nothing is saved as `name`.
+     */
+    move(name: string, index: number): Promise<void>;
     /**
      * Forget saved views. One step.
      * @param names - The names.
@@ -5456,6 +5608,60 @@ export interface SessionViews extends ReadonlyMap<string, CameraState> {
      *     nothing is removed then.
      */
     remove(names: readonly string[]): Promise<void>;
+}
+
+/**
+ * The saved camera tours, by name, in project order: each a list of stops that name views (see
+ * `session.views`). Every change is one undoable step and a project file saves them; playing one
+ * (`playTour`) is not a change. An empty tour, and a stop naming a view nothing is saved under,
+ * are allowed, so drafts exist and a view's removal never fails; `planTour` reports them.
+ * @since 3.58.0
+ * @example
+ * ```typescript
+ * await session.tours.save([
+ *     { name: "intro", tour: { stops: [{ view: "overview", hold: 2000 }, { view: "hub", duration: 1500 }] } },
+ * ]);
+ * ```
+ */
+export interface SessionTours extends ReadonlyMap<string, Tour> {
+    /**
+     * Keep tours under names, replacing a tour already saved under one in its place; a new name
+     * goes at the end. One step.
+     * @param tours - The names and tours.
+     * @returns Settles once the step is recorded.
+     * @throws A `GraphtyError` (as a rejection) with `E_BAD_COMMAND` `{ reason: "empty-name" }`
+     *     for an empty name, or `E_OPTION_RANGE` `{ option, stop }` for a negative or non-finite
+     *     flight (`duration`) or `hold`, a stop whose `view` is not a name, or an unknown easing
+     *     (`{ option: "easing" }`); nothing is saved then.
+     */
+    save(tours: readonly { readonly name: string; readonly tour: Tour }[]): Promise<void>;
+    /**
+     * Forget saved tours. One step.
+     * @param names - The names.
+     * @returns Settles once the step is recorded.
+     * @throws A `GraphtyError` (as a rejection) with `E_BAD_COMMAND` `{ missing, available }` when
+     *     a name is not saved; nothing is removed then.
+     */
+    remove(names: readonly string[]): Promise<void>;
+    /**
+     * Give a saved tour a new name, keeping its place. One step.
+     * @param from - Its name now.
+     * @param to - The new name.
+     * @returns Settles once the step is recorded.
+     * @throws A `GraphtyError` (as a rejection) with `E_BAD_COMMAND` `{ missing, available }` when
+     *     nothing is saved as `from`, `{ reason: "name-taken", name }` when `to` is saved already,
+     *     or `{ reason: "empty-name" }` for an empty `to`.
+     */
+    rename(from: string, to: string): Promise<void>;
+    /**
+     * Put a saved tour at a place in the order. One step.
+     * @param name - The tour.
+     * @param index - Its new 0-based place, clamped to the order.
+     * @returns Settles once the step is recorded.
+     * @throws A `GraphtyError` (as a rejection) with `E_BAD_COMMAND` `{ missing, available }` when
+     *     nothing is saved as `name`.
+     */
+    move(name: string, index: number): Promise<void>;
 }
 
 /** What `execute` returns for one command. */
@@ -5584,6 +5790,11 @@ export interface GraphSession {
      * choosing. Saving and removing one are undoable steps; moving the camera to one is not.
      */
     readonly views: SessionViews;
+    /**
+     * The saved camera tours, by name, in project order; every change is one undoable step.
+     * @since 3.58.0
+     */
+    readonly tours: SessionTours;
     /** The annotations drawn beside the graph; every change is a step, and a project file saves them. */
     readonly annotations: SessionAnnotations;
     /** Which layout draws the graph, and in how many dimensions; choosing either is a step. */

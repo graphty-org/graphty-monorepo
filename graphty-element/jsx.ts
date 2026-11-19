@@ -633,7 +633,7 @@ export interface GraphtyElementJSXProps {
      */
     "onanimation-cancelled"?: (event: CustomEvent<EventOfType<"animation-cancelled">>) => void;
     /**
-     * The graph's lifecycle, operation, animation and screenshot events, which carry no declared fields beyond their name; any facts they carry are extra properties.
+     * Emitted while `captureAnimation` records: how far the recording has got, from 0 to 100. A tour recording follows the tour's own clock, so it reaches 100 only with the tour.
      */
     "onanimation-progress"?: (event: CustomEvent<EventOfType<"animation-progress">>) => void;
     /**
@@ -846,6 +846,10 @@ export interface GraphtyElementJSXProps {
      */
     "onoverview-changed"?: (event: CustomEvent<EventOfType<"overview-changed">>) => void;
     /**
+     * Emitted when whether motion is reduced changes: `setReducedMotion` was called with a different answer, or, under `"auto"`, the platform's `prefers-reduced-motion` changed. Read `isMotionReduced()` for the answer at any time.
+     */
+    "onreduced-motion-changed"?: (event: CustomEvent<EventOfType<"reduced-motion-changed">>) => void;
+    /**
      * The graph's lifecycle, operation, animation and screenshot events, which carry no declared fields beyond their name; any facts they carry are extra properties.
      */
     "onrender-initialized"?: (event: CustomEvent<EventOfType<"render-initialized">>) => void;
@@ -885,6 +889,18 @@ export interface GraphtyElementJSXProps {
      * Emitted after the style stack changed and the graph was repainted for it.
      */
     "onstyle-changed"?: (event: CustomEvent<EventOfType<"style-changed">>) => void;
+    /**
+     * Emitted once when a tour ends, however it ended; `playTour` resolves with the same reason.
+     */
+    "ontour-ended"?: (event: CustomEvent<EventOfType<"tour-ended">>) => void;
+    /**
+     * Emitted while a tour plays or records, on each stop or phase change (never on a timer): the flight to a stop (`"flight"`, absent for a zero-length flight), the hold there (`"hold"`), or a pause stop's wait where the camera is (`"pause"`, one event per pause).
+     */
+    "ontour-progress"?: (event: CustomEvent<EventOfType<"tour-progress">>) => void;
+    /**
+     * Emitted when anything `planTour` or `viewProblem` reads may have changed: the saved views, their order or the tours, the 2D/3D dimension, an XR session starting or ending, or a camera view being registered. An editor showing tour lengths or broken stops plans again on it alone.
+     */
+    "onviews-changed"?: (event: CustomEvent<EventOfType<"views-changed">>) => void;
     /**
      * Emitted when a VR or AR session has ended and the graph is back in its 3D view.
      */

@@ -1,16 +1,7 @@
 import type { CodedFact, ModelChange } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 
-import {
-    chipLine,
-    countChip,
-    middleCut,
-    modelChip,
-    modelProblemLines,
-    partChip,
-    roleWord,
-    waitingParts,
-} from "../modelWords";
+import { chipLine, countChip, middleCut, modelChip, modelProblemLines, roleWord, waitingParts } from "../modelWords";
 
 /**
  * A coded fact as the element reports it.
@@ -68,7 +59,7 @@ describe("the words for a model's problems", () => {
             [fact("E_MODEL_DIGEST_MISMATCH"), "Not loaded", "model in this file damaged"],
             [fact("E_MODEL_PART_REQUIRED", { name: "c.bin" }), "Needed", "c.bin"],
             [fact("W_MODEL_UP_GUESSED"), "Guessed", "up axis guessed from the file"],
-            [fact("W_MODEL_HAS_ANIMATIONS"), "Animated", "set Animation to play a clip"],
+            [fact("W_MODEL_HAS_ANIMATIONS"), "Animated", "Animation in Model settings plays a clip or holds a pose"],
             [fact("W_MODEL_EXTENSION_IGNORED", { extension: "KHR_x" }), "Drawn opaque", "KHR_x not drawn"],
             [fact("W_MODEL_ANIMATION_UNKNOWN", { name: "Run" }), "No such clip", "Run not in the file"],
             [fact("W_MODEL_ANIMATION_REDUCED", { fps: 30 }), "Animation reduced", "30 frames a second"],
@@ -85,7 +76,7 @@ describe("the words for a model's problems", () => {
                 "Substituted",
                 "used t/a.png for a.png",
             ],
-            [fact("W_MODEL_PART_SKIPPED", { name: "d.png" }), "Without 1", "d.png"],
+            [fact("W_MODEL_PART_SKIPPED", { name: "d.png" }), "Drawn without", "d.png"],
             [fact("W_MODEL_PART_UNUSED", { fileName: "e.txt" }), "Not needed", "e.txt"],
             [
                 fact("W_MODEL_NOT_KEPT_BY_URL", { url: "https://a.org/m.gltf" }),
@@ -164,27 +155,6 @@ describe("the words for a model's problems", () => {
         for (const [role, word] of roles) {
             assert.equal(roleWord(role as Parameters<typeof roleWord>[0]), word);
         }
-    });
-
-    it("chips a part only when it is not as named", () => {
-        const part = (state: string, name: string, file?: string): Parameters<typeof partChip>[0] =>
-            ({ name, role: "texture", state, file }) as Parameters<typeof partChip>[0];
-        assert.deepEqual(partChip(part("missing", "tex/a.png")), {
-            word: "Missing",
-            tip: "a.png is not among the files",
-        });
-        assert.deepEqual(partChip(part("ambiguous", "a.png")), {
-            word: "Which file?",
-            tip: "more than one file could be a.png",
-        });
-        assert.isUndefined(partChip(part("substituted", "tex/a.png", "other/a.png")));
-        assert.deepEqual(partChip(part("substituted", "tex/a.png", "other/b.png")), {
-            word: "Substituted",
-            tip: "used other/b.png for tex/a.png",
-        });
-        assert.deepEqual(partChip(part("substituted", "a.png")), { word: "Substituted", tip: "used  for a.png" });
-        assert.deepEqual(partChip(part("skipped", "a/b.png")), { word: "Skipped", tip: "drawn without b.png" });
-        assert.isUndefined(partChip(part("found", "a.png")));
     });
 
     it("cuts a long path in its middle", () => {

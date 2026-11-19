@@ -217,7 +217,7 @@ const RUN_TIMEOUT_FLOOR_MS = 10_000;
  */
 const RUN_TIMEOUT_MS_PER_UNIT = 1e-3;
 
-/** The longest delay setTimeout honours; a longer one fires at once. */
+/** The longest delay setTimeout honors; a longer one fires at once. */
 const MAX_TIMER_MS = 2 ** 31 - 1;
 
 /**

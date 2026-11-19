@@ -17,6 +17,7 @@ import { isGraphtyError } from "../../../errors/GraphtyError";
 import type { GraphSession, LoadChoices, TableMapping } from "../../types";
 import type { JsonObject, SourceUnavailableReason } from "../types";
 import { copyTables, isPlainObject, isReserved, repeatedEdgeRows } from "./dataRefs";
+import { fileOf, handleOf } from "./fileHandles";
 
 /**
  * Why a referenced source supplied nothing: not found, no location to read it from, unreadable,
@@ -94,6 +95,31 @@ export function refetchedOf(record: object): Refetched | undefined {
 }
 
 /**
+ * The bytes of a file source referenced by a browser file handle (saved with no `path`): the one
+ * this browser keeps for its copy. An open only checks the permission; a refresh asks for it.
+ * @param record - The record.
+ * @param how - The open's options.
+ * @returns The bytes, `needs-file` when this browser keeps no handle, `needs-permission`, or
+ *     `too-large`.
+ */
+async function handleBytes(
+    record: JsonObject,
+    how: RefetchOptions,
+): Promise<Uint8Array | "needs-file" | "too-large" | "needs-permission"> {
+    const handle = await handleOf(String(record.id), String((record.origin as JsonObject).copy));
+    if (handle === undefined) {
+        return "needs-file";
+    }
+
+    const file = await fileOf(handle, how.fetch && how.accept === true);
+    if (file === "needs-permission") {
+        return file;
+    }
+
+    return file.size > how.limit ? "too-large" : new Uint8Array(await file.arrayBuffer());
+}
+
+/**
  * The bytes of a referenced source: a file the caller picked, else its `url`, else its `path`,
  * each resolved against the location of the file being opened.
  * @param record - The record.
@@ -112,6 +138,10 @@ async function bytesOf(
 
     const origin = record.origin as JsonObject;
     const where = [origin.url, origin.path].find((each): each is string => typeof each === "string");
+    if (where === undefined && record.kind === "file") {
+        return handleBytes(record, how);
+    }
+
     let resolved: URL;
     try {
         // A relative address with no location to resolve against throws, and so needs a file.

@@ -238,6 +238,83 @@ export function dataColumnsIn(text: string, into: Set<string>): void {
 }
 
 /**
+ * The readable paths of version 2 (spec 4.2 rule 4): values graphty-element computes for every node
+ * or edge, read by their bare names.
+ */
+export const READABLE_PATHS: readonly string[] = Object.freeze([
+    "graphty.type",
+    "graphty.load",
+    "_source.loads",
+    "graphty.space",
+    "graphty.key",
+    "graphty.time",
+    "graphty.weight",
+    "graphty.draft",
+]);
+
+/** The members whose text is one path, never an expression. */
+const ONE_PATH_MEMBERS = new Set(["path", "by", "attribute", "end", "spells", "groupBy"]);
+
+/**
+ * Whether graphty-element cannot answer a path: a readable path, none of which it computes per
+ * element yet, or the saved graph's plural `graphty.types`, which is reserved and never a path
+ * (spec 10).
+ * @param path - The path.
+ * @returns True when nothing reads it.
+ */
+const unanswered = (path: string): boolean => path === "graphty.types" || READABLE_PATHS.includes(path);
+
+/**
+ * The first path a value reads that graphty-element cannot answer (see `unanswered`): in a member
+ * holding one path, or in an expression.
+ * @param value - The value.
+ * @param member - The member the value is held under.
+ * @returns The path, or undefined when it reads none.
+ */
+export function unansweredPath(value: unknown, member = ""): string | undefined {
+    if (typeof value === "string" && ONE_PATH_MEMBERS.has(member)) {
+        return unanswered(value) ? value : undefined;
+    }
+
+    if (typeof value === "string") {
+        return unansweredIn(value);
+    }
+
+    const values = Array.isArray(value) ? value.map((each): [string, unknown] => ["", each]) : undefined;
+    for (const [name, each] of values ?? (isObject(value) ? Object.entries(value) : [])) {
+        const found = unansweredPath(each, name);
+        if (found !== undefined) {
+            return found;
+        }
+    }
+
+    return undefined;
+}
+
+/**
+ * The first path an expression reads that graphty-element cannot answer.
+ * @param text - The expression; text that is no expression reads nothing.
+ * @returns The path, or undefined.
+ */
+function unansweredIn(text: string): string | undefined {
+    if (!text.includes("graphty.") && !text.includes("_source.")) {
+        return undefined;
+    }
+
+    let found: string | undefined;
+    try {
+        renamePaths(text, (path) => {
+            found ??= unanswered(path) ? path : undefined;
+            return undefined;
+        });
+    } catch {
+        // Words, not an expression.
+    }
+
+    return found;
+}
+
+/**
  * The columns a value's predicates read.
  * @param value - The value.
  * @param into - Where to add them.

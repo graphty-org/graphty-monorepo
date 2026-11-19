@@ -11,6 +11,7 @@ import type { RunId } from "../../catalog/types";
 import type { ProjectProblem } from "../projectFile";
 import type { CodedFact } from "../shared";
 import type { GraphSession } from "../types";
+import { refetchOptionsOf } from "./codecs/dataFetch";
 import { sourceChoicesOf } from "./codecs/dataRefs";
 import { splitRunId } from "./codecs/recipeCommands";
 import {
@@ -358,6 +359,16 @@ function heldFacts(held: HeldSection, codecs: CodecRegistry, section: DocumentSe
 }
 
 /**
+ * Where the open data was opened from, which every path read is relative to.
+ * @param session - The session.
+ * @returns `{ opened }`, or nothing when no version 2 open gave a location.
+ */
+function openedFrom(session: GraphSession): { opened?: string } {
+    const opened = refetchOptionsOf(session)?.location;
+    return opened === undefined ? {} : { opened };
+}
+
+/**
  * What a version 2 save of the session would write: every section's facts as its codec writes it
  * now, and every source's storage choice. Writes nothing and moves no save point.
  * @param session - The session.
@@ -370,12 +381,17 @@ export async function describeSave(
     session: GraphSession,
     codecs: CodecRegistry,
     isDerived: (id: RunId) => boolean,
-    choices: Pick<SaveChoices, "paths" | "sections" | "form"> = {},
+    choices: Pick<SaveChoices, "paths" | "handles" | "location" | "sections" | "form"> = {},
 ): Promise<ProjectSaveFacts> {
     const state = documentStateOf(session);
     const saved = new Set(sectionsToSave({}, state));
     const refs = lazyRefs(session);
-    const paths = choices.paths ?? {};
+    const { paths = {}, handles, location } = choices;
+    const where = {
+        paths,
+        ...(handles === undefined ? {} : { handles }),
+        ...(location === undefined ? {} : { location }),
+    };
     const all = new Set(DOCUMENT_SECTIONS.filter((section) => !state.held.has(section)));
     const sections: ProjectSaveSection[] = [];
     // ponytail: every codec writes the whole session once per call (the data section copies every
@@ -387,7 +403,7 @@ export async function describeSave(
         if (held !== undefined) {
             sections.push({ ...sectionFacts(section, held.value), ...flags, held: heldFacts(held, codecs, section) });
         } else if (codec !== undefined) {
-            const context = writeContextOf(session, state, all, { paths }, isDerived, [], refs);
+            const context = writeContextOf(session, state, all, where, isDerived, [], refs);
             const written = await codec.write(context);
             const facts = sectionFacts(section, { ...written.header, ...written.body });
             // The open data's whole graph, referenced rows included.
@@ -402,7 +418,7 @@ export async function describeSave(
     return {
         sections,
         project: isWholeSave(sectionsToSave(choices, state), choices.form),
-        sources: sourceChoicesOf(session, paths) as ProjectSourceChoice[],
+        sources: sourceChoicesOf(session, { ...where, ...openedFrom(session) }) as ProjectSourceChoice[],
     };
 }
 

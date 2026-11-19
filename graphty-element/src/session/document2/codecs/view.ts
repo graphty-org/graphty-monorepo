@@ -35,7 +35,7 @@ import type {
 import { addedValues } from "./data";
 import { addedColumns, edgeRefOf, elementRefsOf, READER, rememberReaderEdge, savedEdgeId, typedIds } from "./dataRefs";
 import { layerNamesElements } from "./elementNaming";
-import { filterRule } from "./recipeCommands";
+import { filterRule, unansweredPath } from "./recipeCommands";
 import { markRecipeRun, recipeRunName, restoredPositions } from "./results";
 import { heldTypeSelector } from "./style";
 import {
@@ -829,6 +829,16 @@ function filterIn(filter: unknown): RuleTree | null {
 async function readVisibility(r: Reader, visibility: JsonObject): Promise<void> {
     const { tx } = r.context;
     const api = tx.visibility as SessionVisibilityApi;
+    // A filter, window or condition reading a readable path this release does not compute, or the
+    // reserved `graphty.types`, is not applied (spec 4.7 rule 4).
+    if (unansweredPath(visibility) !== undefined) {
+        r.context.problems.push({
+            code: "W_UNKNOWN_MEMBER",
+            params: { section: SECTION, pointer: `${r.section.pointer}/visibility`, reason: "E_UNKNOWN_ATTRIBUTE" },
+        });
+        return; // Written back as read while the session holds no visibility (rememberRead).
+    }
+
     const read = mapRefs(visibility, r.mapper, `${r.section.pointer}/visibility`) as JsonObject;
     await attempt(r, "visibility", async () => {
         if ("filter" in read) {
@@ -1025,7 +1035,9 @@ async function readRun(r: Reader, record: unknown, at: number): Promise<void> {
     );
     const scope = scopeIn(r, record.scope, `${pointer}/scope`);
     const reruns = rerunsOnOpen(context, id, record);
-    if (!bound || scope === undefined || (!reruns && !context.canned.has(id))) {
+    // A run reading a path this release cannot answer is kept, not run (spec 4.7 rule 5).
+    const answered = unansweredPath({ params: record.params, scope: record.scope }) === undefined;
+    if (!bound || !answered || scope === undefined || (!reruns && !context.canned.has(id))) {
         notRun();
         return;
     }

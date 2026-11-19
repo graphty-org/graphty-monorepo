@@ -31,6 +31,7 @@ import type {
     SourceEmbeddedReason,
     SourceStorage,
 } from "../types";
+import { keepHandle, keptHandle, type ProjectFileHandle } from "./fileHandles";
 import { type MixedRole, ROLE_FIELDS, rolesOf } from "./roles";
 import { mintUlid } from "./viewParts";
 
@@ -1401,7 +1402,7 @@ function originOf(source: ModelSource, model: DataModel, kind: string, copy: str
  * @param source - The source.
  * @param model - The model.
  * @param storage - Embedded or referenced.
- * @param path - A file source's path the saver gave, if any.
+ * @param path - A file source's path, if it has one: the saver's, else the one read, rebased.
  * @returns The record.
  */
 function sourceRecordOf(
@@ -1419,8 +1420,11 @@ function sourceRecordOf(
     delete options.url;
     const origin: JsonObject =
         kind === "network" ? networkOrigin(source, model, copy.copy) : originOf(source, model, kind, copy.copy);
-    if (kind === "file" && path !== undefined) {
-        origin.path = path;
+    if (kind === "file") {
+        delete origin.path;
+        if (path !== undefined) {
+            origin.path = path;
+        }
     }
 
     const { choices } = load;
@@ -1844,6 +1848,77 @@ interface SourceChoices {
     readonly embed: Readonly<Record<string, SourceStorage>>;
     /** A file source's path relative to the folder the file is saved in. */
     readonly paths: Readonly<Record<string, string>>;
+    /** A file source's browser file handle, referenced with no `path`. */
+    readonly handles?: Readonly<Record<string, ProjectFileHandle>>;
+    /** The URL of the file being saved, which every path read is rebased to. */
+    readonly location?: string;
+    /** The URL of the file the data was opened from, which every path read is relative to. */
+    readonly opened?: string;
+}
+
+/**
+ * A path read relative to the file the data was opened from, written relative to the file being
+ * saved (spec 4.1.2 rule 6). Without both locations it is written as read.
+ * @param path - The path as read.
+ * @param opened - The URL of the file it was read from.
+ * @param location - The URL of the file being saved.
+ * @returns The path, or undefined when the file is not in or below the saved file's folder.
+ */
+export function rebasedPath(
+    path: string,
+    opened: string | undefined,
+    location: string | undefined,
+): string | undefined {
+    if (opened === undefined || location === undefined) {
+        return path;
+    }
+
+    let target: URL;
+    let folder: URL;
+    try {
+        target = new URL(path, opened);
+        folder = new URL(".", location);
+    } catch {
+        return undefined;
+    }
+
+    if (target.origin !== folder.origin || !target.pathname.startsWith(folder.pathname)) {
+        return undefined;
+    }
+
+    const rest = decodeURIComponent(target.pathname.slice(folder.pathname.length));
+    return rest === "" ? undefined : rest;
+}
+
+/**
+ * A record written back as read with its `path` rebased (spec 3.11 of the design: a held copy
+ * keeps its path), or with none when the file is outside the saved file's folder, reported.
+ * @param record - The record.
+ * @param choices - The saver's choices.
+ * @param problems - Collects `W_SOURCE_NO_PATH`.
+ * @returns The record.
+ */
+export function rebasedRecord(
+    record: JsonObject,
+    choices: Pick<SourceChoices, "location" | "opened">,
+    problems: DocumentProblem[],
+): JsonObject {
+    const origin = isPlainObject(record.origin) ? record.origin : undefined;
+    if (record.kind !== "file" || typeof origin?.path !== "string") {
+        return record;
+    }
+
+    const path = rebasedPath(origin.path, choices.opened, choices.location);
+    if (path === origin.path) {
+        return record;
+    }
+
+    const { path: _path, ...rest } = origin;
+    if (path === undefined) {
+        problems.push({ code: "W_SOURCE_NO_PATH", params: { source: String(record.id) } });
+    }
+
+    return { ...record, origin: path === undefined ? rest : { ...rest, path } };
 }
 
 /**
@@ -1865,8 +1940,8 @@ function chosenFor<T>(choices: Readonly<Record<string, T>>, source: ModelSource)
  */
 function checkChoices(model: DataModel, choices: SourceChoices): void {
     const named = new Set([READER, ...model.sources.flatMap((source) => [source.id, source.load.key])]);
-    for (const option of ["embed", "paths"] as const) {
-        const unknown = Object.keys(choices[option]).find((key) => !named.has(key));
+    for (const option of ["embed", "paths", "handles"] as const) {
+        const unknown = Object.keys(choices[option] ?? {}).find((key) => !named.has(key));
         if (unknown !== undefined) {
             throw new GraphtyError({
                 code: "E_OPTION_RANGE",
@@ -1902,8 +1977,9 @@ const REFETCHED_KINDS = new Set(["file", "url"]);
  * @param source - The source.
  * @param model - The model.
  * @param asked - What the caller asked for.
- * @param path - The path the saver gave, if any.
+ * @param path - The path written, if any: the saver's, else the one read, rebased.
  * @param problems - Collects `W_SOURCE_NO_PATH` and `W_SOURCE_EMBEDDED`.
+ * @param handled - Whether a browser file handle names it.
  * @returns Embedded or referenced.
  */
 function storageOf(
@@ -1912,6 +1988,7 @@ function storageOf(
     asked: SourceStorage,
     path: string | undefined,
     problems: DocumentProblem[],
+    handled = false,
 ): SourceStorage {
     if (asked === "embedded") {
         return asked;
@@ -1923,7 +2000,7 @@ function storageOf(
         return "embedded";
     }
 
-    if (kind === "file" && path === undefined && typeof memory.origins.get(source.id)?.path !== "string") {
+    if (kind === "file" && path === undefined && !handled) {
         problems.push({ code: "W_SOURCE_NO_PATH", params: { source: source.id } });
         return "embedded";
     }
@@ -1935,6 +2012,28 @@ function storageOf(
     }
 
     return asked;
+}
+
+/**
+ * Where a source's file is named in the save: the saver's path, else the path read rebased to the
+ * file being saved, and the saver's browser file handle, else the one kept for its copy.
+ * @param source - The source.
+ * @param model - The model.
+ * @param choices - The saver's choices.
+ * @returns The path, the handle and the copy id.
+ */
+function locatorOf(
+    source: ModelSource,
+    model: DataModel,
+    choices: Partial<SourceChoices>,
+): { path?: string; handle?: ProjectFileHandle; copyId: string } {
+    const readPath = memoryOf(model.session).origins.get(source.id)?.path;
+    const path =
+        chosenFor(choices.paths ?? {}, source) ??
+        (typeof readPath === "string" ? rebasedPath(readPath, choices.opened, choices.location) : undefined);
+    const copyId = (model.copies.get(source.id) as Copy).copy;
+    const handle = chosenFor(choices.handles ?? {}, source) ?? keptHandle(source.id, copyId);
+    return { ...(path === undefined ? {} : { path }), ...(handle === undefined ? {} : { handle }), copyId };
 }
 
 /**
@@ -1965,18 +2064,22 @@ function sourceRecordsOf(
     for (const source of model.sources) {
         const unavailable = model.unavailable.get(source.id);
         if (unavailable !== undefined && source.nodes.length + source.edges.length === 0) {
-            // Never fetched: written back as read, its reference kept.
-            records.push(unavailable);
+            // Never fetched: written back as read, its reference kept, its path rebased.
+            records.push(rebasedRecord(unavailable, choices, problems));
             continue;
         }
 
         // A source read by reference stays one unless the caller asks otherwise (spec 8.1 rule 5).
-        const read = memoryOf(model.session).referenced.has(source.id);
+        const memory = memoryOf(model.session);
+        const read = memory.referenced.has(source.id);
         const asked = chosenFor(choices.embed, source) ?? (read ? "referenced" : "embedded");
-        const path = chosenFor(choices.paths, source);
-        const storage = storageOf(source, model, asked, path, problems);
+        const { path, handle, copyId } = locatorOf(source, model, choices);
+        const storage = storageOf(source, model, asked, path, problems, handle !== undefined);
         if (storage === "embedded") {
             embedded.add(source.id);
+        } else if (path === undefined && handle !== undefined) {
+            // A handle cannot be written: the element keeps it, and the record names no path.
+            keepHandle(source.id, copyId, handle);
         }
 
         records.push(sourceRecordOf(source, model, storage, path));
@@ -2173,12 +2276,12 @@ export interface SourceChoiceFacts {
  * (`storage`) and whether asking for a reference would hold: the refusal a save would report, else
  * none. Asks `storageOf` itself, so the answer is the save's.
  * @param session - The session.
- * @param paths - The paths a save would be given, per source id or load key.
+ * @param choices - The paths, handles and location a save would be given, per source id or load key.
  * @returns The sources.
  */
 export function sourceChoicesOf(
     session: GraphSession,
-    paths: Readonly<Record<string, string>> = {},
+    choices: Partial<Omit<SourceChoices, "embed">> = {},
 ): SourceChoiceFacts[] {
     const model = dataModelOf(session);
     const memory = memoryOf(session);
@@ -2196,6 +2299,7 @@ export function sourceChoicesOf(
         });
     }
 
+    const locator = (source: ModelSource): ReturnType<typeof locatorOf> => locatorOf(source, model, choices);
     for (const source of model.sources) {
         const kind = kindOfSource(source, memory);
         const { load } = source;
@@ -2204,7 +2308,14 @@ export function sourceChoicesOf(
         const asked =
             neverFetched || kind === "derived"
                 ? undefined
-                : storageOf(source, model, "referenced", chosenFor(paths, source), problems);
+                : storageOf(
+                      source,
+                      model,
+                      "referenced",
+                      locator(source).path,
+                      problems,
+                      locator(source).handle !== undefined,
+                  );
         out.push({
             id: source.id,
             key: load.key,

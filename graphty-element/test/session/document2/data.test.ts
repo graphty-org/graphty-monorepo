@@ -835,6 +835,17 @@ describe("data section version 2", () => {
         reopened.dispose();
     });
 
+    /**
+     * An off `join.node-values` step of the section's first file source: kept and not built.
+     * @param copy - The section.
+     * @returns The step.
+     */
+    const offStep = (copy: JsonObject): JsonObject => ({
+        op: "join.node-values",
+        source: (copy.sources as JsonObject[])[1].id,
+        off: true,
+    });
+
     it("applies nothing and reports W_SECTION_KEPT when the section cannot be built whole", async () => {
         const session = await sampleSession();
         const { body } = await writeBody(session);
@@ -868,7 +879,39 @@ describe("data section version 2", () => {
             ],
             ["no build stamp", (copy) => delete copy.build],
             ["the removed issues.fixed", (copy) => (copy.issues = { fixed: [] })],
+            ...(["compare", "membership", "action"] as const).map((member): [string, (copy: JsonObject) => void] => [
+                `the reserved step member ${member}`,
+                (copy) => (copy.joins as JsonObject[]).push({ ...offStep(copy), [member]: {} }),
+            ]),
+            [
+                "the reserved mapping.many",
+                (copy) => (copy.joins as JsonObject[]).push({ ...offStep(copy), mapping: { many: true } }),
+            ],
+            [
+                "a space beginning graph:",
+                (copy) =>
+                    ((((copy.sources as JsonObject[])[1].mapping as JsonObject).edges as JsonObject).sourceSpace =
+                        "graph:people"),
+            ],
+            [
+                "the reserved reader merge",
+                (copy) =>
+                    (((copy.sources as JsonObject[])[0].copy as JsonObject).operations as JsonObject[]).push({
+                        op: "merge",
+                        into: { space: "s", key: "a" },
+                        from: { space: "s", key: "b" },
+                    }),
+            ],
         ];
+        // An off step without a reserved member is kept, never a refusal.
+        const control = JSON.parse(JSON.stringify(body)) as JsonObject;
+        (control.joins as JsonObject[]).push(offStep(control));
+        const opened = createGraphSession(ON);
+        assert.notInclude(
+            (await readBody(opened, control)).map((problem) => problem.code),
+            "W_SECTION_KEPT",
+        );
+        opened.dispose();
         for (const [what, breakIt] of broken) {
             const copy = JSON.parse(JSON.stringify(body)) as JsonObject;
             breakIt(copy);
@@ -901,7 +944,6 @@ describe("data section version 2", () => {
         operations.push(
             { op: "edit", node: { space, key: "Cara" }, column: "mood", value: "calm", was: null },
             { op: "remove", node: { space, key: "Nobody" } },
-            { op: "merge", into: { space, key: "Ava" }, from: { space, key: "Cara" } },
         );
         const reopened = createGraphSession(ON);
         const problems = await readBody(reopened, body);
@@ -915,9 +957,8 @@ describe("data section version 2", () => {
                 },
             },
         ]);
-        const ava = reopened.data.nodes().find((node) => node.id === "Ava");
-        assert.strictEqual(ava?.mood, "calm", "the edit, then the merge, carried Cara's value onto Ava");
-        assert.isFalse(reopened.data.nodes().some((node) => node.id === "Cara"));
+        const cara = reopened.data.nodes().find((node) => node.id === "Cara");
+        assert.strictEqual(cara?.mood, "calm", "the edit applied");
         session.dispose();
         reopened.dispose();
     });

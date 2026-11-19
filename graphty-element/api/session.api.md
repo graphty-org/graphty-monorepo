@@ -4612,7 +4612,7 @@ export const PROJECT_FILE: Readonly<{
 export interface ProjectApi {
     assetChoices(): ProjectAssetChoice[];
     // @beta
-    describe(options?: Pick<ProjectSaveOptions, "sections" | "form" | "paths">): Promise<ProjectSaveFacts>;
+    describe(options?: Pick<ProjectSaveOptions, "sections" | "form" | "paths" | "handles" | "location">): Promise<ProjectSaveFacts>;
     readonly dirty: boolean;
     readonly id: string;
     // @beta
@@ -4696,6 +4696,18 @@ export interface ProjectFileFacts {
     readonly runs: readonly ProjectFileRun[];
     readonly sections: readonly ProjectFileSection[];
     readonly sources: readonly ProjectFileSource[];
+}
+
+// @beta
+export interface ProjectFileHandle {
+    getFile(): Promise<Blob>;
+    readonly name: string;
+    queryPermission?(descriptor: {
+        mode: "read";
+    }): Promise<"granted" | "denied" | "prompt">;
+    requestPermission?(descriptor: {
+        mode: "read";
+    }): Promise<"granted" | "denied" | "prompt">;
 }
 
 // @public
@@ -4802,7 +4814,11 @@ export interface ProjectSaveOptions {
     readonly form?: "full" | "section";
     // @beta
     readonly format?: 1 | 2;
+    // @beta
+    readonly handles?: Readonly<Record<string, ProjectFileHandle>>;
     readonly leaveOut?: readonly ("graphty-style" | "graphty-notes" | "graphty-view-state")[];
+    // @beta
+    readonly location?: string;
     readonly markSaved?: boolean;
     // @beta
     readonly paths?: Readonly<Record<string, string>>;

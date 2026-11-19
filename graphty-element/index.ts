@@ -217,6 +217,7 @@ export type {
     ProjectApi,
     ProjectAssetChoice,
     ProjectFileFacts,
+    ProjectFileHandle,
     ProjectFileRun,
     ProjectFileSection,
     ProjectFileSource,

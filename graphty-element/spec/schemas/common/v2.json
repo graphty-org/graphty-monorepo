@@ -253,8 +253,11 @@
         },
         "space": {
             "type": "string",
-            "description": "An opaque id space, compared exactly after NFC normalization, never parsed. A type name, shared:<name> and source:<source id> are only the names a writer proposes.",
-            "minLength": 1
+            "description": "An opaque id space, compared exactly after NFC normalization, never parsed. A type name, shared:<name> and source:<source id> are only the names a writer proposes. Names beginning graph: are reserved and refused.",
+            "minLength": 1,
+            "not": {
+                "pattern": "^graph:"
+            }
         },
         "sourceId": {
             "type": "string",
@@ -396,9 +399,12 @@
         },
         "path": {
             "type": "string",
-            "description": "data.<column> or results.<run>.<field>.",
+            "description": "data.<column>, results.<run>.<field>, a readable path (readablePath), or a value graphty-element provides under graphty. (a degree, a note value, a node value read at an edge's end). graphty.types, the saved graph's plural, is reserved and never a path.",
             "minLength": 1,
-            "maxLength": 1024
+            "maxLength": 1024,
+            "not": {
+                "const": "graphty.types"
+            }
         },
         "edgeReading": {
             "type": "string",
@@ -463,6 +469,28 @@
                             }
                         },
                         "required": ["kind"]
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "kind": {
+                                "const": "source"
+                            }
+                        },
+                        "required": ["kind"]
+                    },
+                    "then": {
+                        "not": {
+                            "anyOf": [
+                                {
+                                    "required": ["match"]
+                                },
+                                {
+                                    "required": ["named"]
+                                }
+                            ]
+                        }
                     }
                 }
             ]
@@ -539,6 +567,28 @@
                                 "type": "integer",
                                 "minimum": 0
                             }
+                        }
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "kind": {
+                                "const": "source"
+                            }
+                        },
+                        "required": ["kind"]
+                    },
+                    "then": {
+                        "not": {
+                            "anyOf": [
+                                {
+                                    "required": ["match"]
+                                },
+                                {
+                                    "required": ["named"]
+                                }
+                            ]
                         }
                     }
                 }
@@ -761,9 +811,16 @@
                             "type": "number",
                             "minimum": 0.01,
                             "maximum": 100
+                        },
+                        "unmapped": {
+                            "const": "skip",
+                            "description": "On a map: an element whose value the map does not hold is left as the layers beneath paint it. Absent, the value goes on through the scale."
                         }
                     },
-                    "additionalProperties": false
+                    "additionalProperties": false,
+                    "dependentRequired": {
+                        "unmapped": ["map"]
+                    }
                 }
             ],
             "description": "Closed: a member no binding has is reported and kept."
@@ -1175,7 +1232,7 @@
         },
         "joinStep": {
             "type": "object",
-            "description": "A join step: { op, source, ...choices }, naming sources by id in the join history and by role in a recipe. One source may be named by several steps. Closed. op is an open vocabulary: an unknown op holds the data section, or stops a recipe's replay.",
+            "description": "A join step: { op, source, ...choices }, naming sources by id in the join history and by role in a recipe. One source may be named by several steps. Closed. op is an open vocabulary: an unknown op holds the data section, or stops a recipe's replay. The members compare, membership and action are reserved and refused.",
             "required": ["op", "source"],
             "properties": {
                 "op": {
@@ -1202,15 +1259,19 @@
                     "description": "Rows of one key or one end pair: first or last (both on join.edges only). Absent: first on node steps; on join.edges, the graph's repeatedEdges decides."
                 },
                 "lookup": true,
-                "mapping": true,
+                "mapping": {
+                    "not": {
+                        "type": "object",
+                        "required": ["many"]
+                    },
+                    "description": "The id-mapping table a step translates keys through. Its member many is reserved and refused."
+                },
                 "aggregate": true,
                 "unmatchedFrom": true,
                 "unmatchedRows": {
                     "enum": ["add", "leave-out"],
                     "description": "On join.node-values (default leave-out) and join.edges (absent: the source's settings.unmatched)."
                 },
-                "compare": true,
-                "membership": true,
                 "names": true,
                 "read": {
                     "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/joinRead"
@@ -1330,12 +1391,6 @@
                                 },
                                 {
                                     "required": ["names"]
-                                },
-                                {
-                                    "required": ["compare"]
-                                },
-                                {
-                                    "required": ["membership"]
                                 }
                             ]
                         }
@@ -1528,6 +1583,28 @@
                 "targetSpace": ["target"]
             },
             "unevaluatedProperties": false
+        },
+        "graphId": {
+            "type": "string",
+            "description": "graph_ plus a ULID, minted by graphty-element and never reused; names one graph of a file holding several.",
+            "pattern": "^graph_[0-9A-HJKMNP-TV-Z]{26}$"
+        },
+        "readablePath": {
+            "enum": [
+                "graphty.type",
+                "graphty.load",
+                "_source.loads",
+                "graphty.space",
+                "graphty.key",
+                "graphty.time",
+                "graphty.weight",
+                "graphty.draft"
+            ],
+            "description": "A value graphty-element computes for every node or edge, read by its bare name: the element's one type, the first supplying source, every supplying source in step order, its record key's space and key, its resolved time, an edge's own weight, and its draft state while a draft is displayed."
+        },
+        "draftState": {
+            "enum": ["new", "changed", "merged", "removed", "unchanged"],
+            "description": "The values graphty.draft reads while a draft is displayed. Never saved as data; a layer or filter may test them."
         }
     }
 }

@@ -84,29 +84,15 @@
                                         },
                                         "allOf": [
                                             {
-                                                "if": {
+                                                "not": {
                                                     "properties": {
                                                         "op": {
                                                             "const": "merge"
-                                                        }
-                                                    }
-                                                },
-                                                "then": {
-                                                    "type": "object",
-                                                    "properties": {
-                                                        "op": {
-                                                            "const": "merge"
-                                                        },
-                                                        "into": {
-                                                            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/nodeRef"
-                                                        },
-                                                        "from": {
-                                                            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/nodeRef"
                                                         }
                                                     },
-                                                    "required": ["op", "into", "from"],
-                                                    "unevaluatedProperties": false
-                                                }
+                                                    "required": ["op"]
+                                                },
+                                                "description": "A reader merge is reserved and refused: a session's merges are folded into the copies it embeds."
                                             },
                                             {
                                                 "if": {

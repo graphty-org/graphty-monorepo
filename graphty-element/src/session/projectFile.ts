@@ -54,6 +54,7 @@ import type { SessionData } from "./data";
 // The rest of document2/ (the save-files-v2 experiment) is imported on demand from
 // document2/onDemand.ts where a version 2 file is saved or opened, so it stays out of the main entry.
 import { DTYPES, newDocumentId } from "./document2/basics";
+import type { ProjectFileHandle } from "./document2/codecs/fileHandles";
 import type { ProjectFileFacts, ProjectSaveFacts } from "./document2/facts";
 import type { DocumentCode, DocumentProblem, DocumentSection, SourceStorage } from "./document2/types";
 import { expandedGraph, type SavedCollapse } from "./groups";
@@ -161,6 +162,7 @@ export type ProjectProblem = CodedFact<
 >;
 
 export type { AssetStorage, ProjectAssetChoice } from "./assets/projectMember";
+export type { ProjectFileHandle } from "./document2/codecs/fileHandles";
 export type { SectionBinding } from "./document2/document";
 export type {
     DocumentBindFacts,
@@ -274,6 +276,37 @@ export interface ProjectSaveOptions {
      * @beta
      */
     readonly paths?: Readonly<Record<string, string>>;
+    /**
+     * Version 2 only: per file source, by load key or record id, a browser file handle (File System
+     * Access) to reference it by when it has no path. A handle cannot be written into a file, so
+     * graphty-element keeps it in this browser, keyed by the source and its copy, and writes the
+     * source with no `path`; reopening in this browser reads the file through it, checking its
+     * permission without prompting (`W_SOURCE_UNAVAILABLE` reason `needs-permission` until
+     * `data.refresh` asks), and elsewhere lists the source as needing a file. A re-save keeps the
+     * handle it was opened with. A key that names no source is refused with `E_OPTION_RANGE`.
+     *
+     * ```ts
+     * const [handle] = await window.showOpenFilePicker();
+     * await session.data.import({ type: "csv", config: { file: await handle.getFile() } });
+     * const [source] = session.data.sources();
+     * await session.project.save({ format: 2, embed: { [source.key]: "referenced" }, handles: { [source.key]: handle } });
+     * ```
+     * @since 3.40.0
+     * @experimental save-files-v2
+     * @beta
+     */
+    readonly handles?: Readonly<Record<string, ProjectFileHandle>>;
+    /**
+     * Version 2 only: the URL of the file being saved. Every file path an opened project read is
+     * written relative to its folder, resolved against the file the project was opened from; a
+     * file outside that folder loses its path (`W_SOURCE_NO_PATH`): a built source is embedded, a
+     * held one is written with no path, so reopening lists it as needing a file. Absent, paths are
+     * written as they were read.
+     * @since 3.40.0
+     * @experimental save-files-v2
+     * @beta
+     */
+    readonly location?: string;
 }
 
 /** What the session lends the project file for the loads. */
@@ -623,7 +656,9 @@ export interface ProjectApi {
      * @experimental save-files-v2
      * @beta
      */
-    describe(options?: Pick<ProjectSaveOptions, "sections" | "form" | "paths">): Promise<ProjectSaveFacts>;
+    describe(
+        options?: Pick<ProjectSaveOptions, "sections" | "form" | "paths" | "handles" | "location">,
+    ): Promise<ProjectSaveFacts>;
     /**
      * Read a version 2 file without opening it (the `save-files-v2` experiment): its sections,
      * held ones and what each bound one binds to, the runs an open would start, and the sources it
@@ -3568,6 +3603,8 @@ export function projectOf(
                 ...(options.results === undefined ? {} : { results: options.results }),
                 ...(options.embed === undefined ? {} : { embed: options.embed }),
                 ...(options.paths === undefined ? {} : { paths: options.paths }),
+                ...(options.handles === undefined ? {} : { handles: options.handles }),
+                ...(options.location === undefined ? {} : { location: options.location }),
                 extensions,
             },
             isDerived,
@@ -3692,6 +3729,8 @@ export function projectOf(
                 ...(options.sections === undefined ? {} : { sections: options.sections }),
                 ...(options.form === undefined ? {} : { form: options.form }),
                 ...(options.paths === undefined ? {} : { paths: options.paths }),
+                ...(options.handles === undefined ? {} : { handles: options.handles }),
+                ...(options.location === undefined ? {} : { location: options.location }),
             });
         },
         async inspect(source, options = {}) {
@@ -3715,9 +3754,9 @@ export function projectOf(
             });
         },
         save(options = {}) {
-            const versionTwoOnly = (["sections", "form", "results", "embed", "paths"] as const).find(
-                (key) => options[key] !== undefined,
-            );
+            const versionTwoOnly = (
+                ["sections", "form", "results", "embed", "paths", "handles", "location"] as const
+            ).find((key) => options[key] !== undefined);
             if (options.format !== 2 && versionTwoOnly !== undefined) {
                 // Never ignored: a version 1 file cannot hold what the option asks for.
                 return Promise.reject(

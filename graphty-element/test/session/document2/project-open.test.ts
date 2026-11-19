@@ -13,6 +13,7 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 import { createGraphSession, type GraphSession } from "../../../session";
 import { isGraphtyError } from "../../../src/errors";
 import { dataCodec } from "../../../src/session/document2/codecs/data";
+import type { ProjectFileHandle } from "../../../src/session/document2/codecs/fileHandles";
 import type { DocumentProblem, JsonObject } from "../../../src/session/document2/types";
 import { finishAtOnce } from "../runs/harness";
 
@@ -577,7 +578,7 @@ describe("saving", () => {
         session.dispose();
     });
 
-    it("holds the graph sections of a file carrying the reserved graphs member and writes them back", async () => {
+    it("holds the graph sections of a file whose graphs member it cannot read, and writes them back", async () => {
         const file = readJson("examples/card-fraud.graphty.json");
         file.graphs = [{ id: "second" }];
         const sections = file.sections as JsonObject;
@@ -590,7 +591,7 @@ describe("saving", () => {
         assert.strictEqual(session.data.nodes().length, 0, "the held data is not loaded");
 
         const saved = JSON.parse((await session.project.save({ format: 2, markSaved: false })).text) as JsonObject;
-        assert.deepStrictEqual(saved.graphs, file.graphs, "the reserved member is written back");
+        assert.deepStrictEqual(saved.graphs, file.graphs, "the member is written back");
         for (const name of ["data", "results", "notes", "view"]) {
             assert.deepStrictEqual((saved.sections as JsonObject)[name], sections[name], `${name} is written back`);
         }
@@ -732,5 +733,200 @@ describe("the worked example, edited and reopened", () => {
         const reopened = createGraphSession(features);
         const again = await reopened.project.open(saved, { rerun: false });
         assert.deepEqual(codes(again.problems), codes(opened.problems));
+    });
+});
+
+/** A browser file handle over one file's text, counting the permission calls. */
+function fakeHandle(file: File, permission: "granted" | "prompt" = "granted"): ProjectFileHandle & { asked: number } {
+    let state: "granted" | "prompt" | "denied" = permission;
+    return {
+        name: file.name,
+        asked: 0,
+        getFile: () => Promise.resolve(file),
+        queryPermission: () => Promise.resolve(state),
+        requestPermission() {
+            this.asked++;
+            state = "granted";
+            return Promise.resolve(state);
+        },
+    };
+}
+
+describe("copy or reference, by path or by browser file handle", () => {
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
+    it("references a file by its handle with no path, reads it back, and asks for permission only on refresh", async () => {
+        const session = createGraphSession(ON);
+        await session.data.import({ type: "csv", config: { file: new File([FRIENDS_CSV], "friends.csv") } });
+        const [{ key }] = session.data.sources();
+        const handle = fakeHandle(new File([FRIENDS_CSV], "friends.csv"));
+        const facts = await session.project.describe({ handles: { [key]: handle } });
+        assert.isTrue(facts.sources.find((source) => source.key === key)?.referable);
+        const saved = await session.project.save({
+            format: 2,
+            embed: { [key]: "referenced" },
+            handles: { [key]: handle },
+        });
+        assert.deepEqual(saved.report.leftOut, []);
+        const record = loadedRecord(saved.text);
+        assert.notProperty(record, "copy");
+        assert.notProperty(record.origin as JsonObject, "path");
+
+        const reopened = createGraphSession(ON);
+        const report = await reopened.project.open(saved.text, { location: PROJECT_AT });
+        assert.notInclude(codes(report.problems), "W_SOURCE_UNAVAILABLE");
+        assert.deepEqual(rowsOf(reopened), rowsOf(session));
+        // Saved again with no choice, it stays a reference by the same handle.
+        assert.deepEqual(loadedRecord((await reopened.project.save({ format: 2 })).text), record);
+
+        // A handle whose permission lapsed holds the source until a refresh asks.
+        const lapsed = fakeHandle(new File([FRIENDS_CSV], "friends.csv"), "prompt");
+        const again = await session.project.save({
+            format: 2,
+            embed: { [key]: "referenced" },
+            handles: { [key]: lapsed },
+        });
+        const held = createGraphSession(ON);
+        const heldReport = await held.project.open(again.text, { fetchSources: true });
+        const id = String(loadedRecord(again.text).id);
+        assert.deepInclude(heldReport.problems, {
+            code: "W_SOURCE_UNAVAILABLE",
+            params: { source: id, reason: "needs-permission" },
+        });
+        assert.strictEqual(lapsed.asked, 0, "an open never prompts");
+        await held.data.refresh(id);
+        assert.strictEqual(lapsed.asked, 1);
+        assert.deepEqual(rowsOf(held), rowsOf(session));
+        for (const each of [session, reopened, held]) {
+            each.dispose();
+        }
+    });
+
+    it("keeps a copy of a file with neither path nor handle, W_SOURCE_NO_PATH", async () => {
+        const session = createGraphSession(ON);
+        await session.data.import({ type: "csv", config: { file: new File([FRIENDS_CSV], "friends.csv") } });
+        const [{ key }] = session.data.sources();
+        const saved = await session.project.save({ format: 2, embed: { [key]: "referenced" } });
+        const record = loadedRecord(saved.text);
+        assert.property(record, "copy");
+        assert.deepEqual(saved.report.leftOut, [{ code: "W_SOURCE_NO_PATH", params: { source: String(record.id) } }]);
+        session.dispose();
+    });
+
+    it("rebases every path read to the file being saved, and drops one outside its folder", async () => {
+        const session = createGraphSession(ON);
+        await session.data.import({ type: "csv", config: { file: new File([FRIENDS_CSV], "friends.csv") } });
+        const [{ key }] = session.data.sources();
+        const first = await session.project.save({
+            format: 2,
+            embed: { [key]: "referenced" },
+            paths: { [key]: "data/friends.csv" },
+        });
+        vi.stubGlobal("fetch", () => Promise.resolve(new Response(FRIENDS_CSV)));
+        const reopened = createGraphSession(ON);
+        await reopened.project.open(first.text, { fetchSources: true, location: PROJECT_AT });
+
+        const up = await reopened.project.save({ format: 2, location: "https://example.test/x.graphty.json" });
+        assert.strictEqual((loadedRecord(up.text).origin as JsonObject).path, "p/data/friends.csv");
+        const away = await reopened.project.save({ format: 2, location: "https://example.test/q/x.graphty.json" });
+        const embedded = loadedRecord(away.text);
+        assert.property(embedded, "copy");
+        assert.notProperty(embedded.origin as JsonObject, "path");
+        assert.deepInclude(away.report.leftOut, { code: "W_SOURCE_NO_PATH", params: { source: String(embedded.id) } });
+
+        // A held source is written back as read, its path rebased.
+        const held = createGraphSession(ON);
+        await held.project.open(first.text, { location: PROJECT_AT });
+        const heldUp = await held.project.save({ format: 2, location: "https://example.test/x.graphty.json" });
+        const heldRecord = loadedRecord(heldUp.text);
+        assert.notProperty(heldRecord, "copy");
+        assert.strictEqual((heldRecord.origin as JsonObject).path, "p/data/friends.csv");
+        for (const each of [session, reopened, held]) {
+            each.dispose();
+        }
+    });
+});
+
+describe("a file holding several graphs", () => {
+    const TWO = readText("examples/minimal/minimal-graphs.graphty.json");
+    const SECOND = "graph_01JCC0000000000000000000G2";
+
+    it("opens the first graph from the top level and writes the later ones back as read", async () => {
+        const session = createGraphSession(ON);
+        const report = await session.project.open(TWO, { rerun: false });
+        const kept = report.problems.filter((problem) => problem.code === "W_SECTION_KEPT");
+        assert.deepEqual(
+            kept.map((problem) => problem.params),
+            [
+                { section: "data", version: 2, reason: "graphs", graph: SECOND },
+                { section: "view", version: 1, reason: "graphs", graph: SECOND },
+            ],
+        );
+        await session.data.addNodes([{ id: "extra" }]);
+        const saved = JSON.parse((await session.project.save({ format: 2 })).text) as JsonObject;
+        const read = JSON.parse(TWO) as JsonObject;
+        assert.deepEqual(saved.graphs, read.graphs);
+        assert.isDefined(session.data.nodes().find((node) => node.id === "extra"));
+        session.dispose();
+    });
+
+    it("rebases a later graph's file paths, and holds every graph section when graphs is unreadable", async () => {
+        const session = createGraphSession(ON);
+        await session.project.open(TWO, { rerun: false, location: PROJECT_AT });
+        const saved = JSON.parse(
+            (await session.project.save({ format: 2, location: "https://example.test/x.graphty.json" })).text,
+        ) as { graphs: { sections?: { data: { sources: JsonObject[] } } }[] };
+        const [source] = saved.graphs[1].sections?.data.sources ?? [];
+        assert.strictEqual((source.origin as JsonObject).path, "p/data/friends.csv");
+
+        const broken = JSON.parse(TWO) as JsonObject;
+        broken.graphs = [(broken.graphs as JsonObject[])[0]];
+        const held = createGraphSession(ON);
+        const report = await held.project.open(JSON.stringify(broken), { rerun: false });
+        assert.deepInclude(report.problems, {
+            code: "W_SECTION_KEPT",
+            params: { section: "data", version: 2, reason: "graphs" },
+        });
+        session.dispose();
+        held.dispose();
+    });
+});
+
+describe("readable paths in saved styles, filters and runs", () => {
+    it("keeps a layer, a filter and a run reading a path this release does not compute, written back as read", async () => {
+        const file = readJson("examples/card-fraud.graphty.json");
+        const { style, view } = file.sections as Record<string, JsonObject>;
+        const layer = (style.layers as JsonObject[]).find((each) => each.encode !== undefined) as JsonObject;
+        layer.encode = {
+            "node.color": { by: "graphty.type", scale: "passthrough", map: { account: "#0072b2" }, unmapped: "skip" },
+        };
+        const visibility = { filter: { on: "nodes", where: "graphty.space == 'account'" } };
+        view.visibility = visibility;
+        const run = (view.runs as JsonObject[])[0];
+        run.scope = { where: "graphty.key == 'acct-7'" };
+        delete run.replayable;
+        const session = createGraphSession(ON);
+        const report = await session.project.open(JSON.stringify(file), { rerun: true });
+        assert.deepInclude(report.problems, {
+            code: "W_UNKNOWN_MEMBER",
+            params: { section: "view", pointer: "/sections/view/visibility", reason: "E_UNKNOWN_ATTRIBUTE" },
+        });
+        assert.isTrue(
+            report.problems.some(
+                (problem) =>
+                    problem.code === "W_UNKNOWN_MEMBER" &&
+                    problem.params.reason === "E_UNKNOWN_ATTRIBUTE" &&
+                    problem.params.section === "style",
+            ),
+        );
+        assert.deepInclude(report.problems, { code: "W_RUN_NOT_RUN", params: { run: String(run.id) } });
+        assert.isNull(session.visibility.filter);
+        const saved = sectionsOf((await session.project.save({ format: 2 })).text);
+        assert.deepEqual(saved.view.visibility, visibility);
+        assert.deepInclude(saved.style.layers as JsonObject[], layer);
+        assert.deepInclude(saved.view.runs as JsonObject[], run);
+        session.dispose();
     });
 });

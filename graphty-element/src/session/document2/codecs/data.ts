@@ -84,6 +84,7 @@ import {
     SOURCE_ID,
     ULID,
 } from "./dataRefs";
+import { flushHandles } from "./fileHandles";
 import { knownOf } from "./roles";
 import { mintUlid } from "./viewParts";
 
@@ -112,8 +113,6 @@ const JOIN_MEMBERS = new Set([
     "aggregate",
     "unmatchedFrom",
     "unmatchedRows",
-    "compare",
-    "membership",
     "names",
     "read",
     "part",
@@ -208,8 +207,8 @@ const SETTINGS = new Set(["duplicateIds", "unmatched"]);
 const TYPE_MEMBERS = new Set(["name", "kind", "plainName", "rules", "schema"]);
 const RULE_MEMBERS = new Set(["source", "part", "end", "column", "values"]);
 const READER_MEMBERS = new Set(["id", "label", "kind", "origin", "copy", "loaded"]);
+/** A reader `merge` is reserved (spec 4.1.4): a session's merges are folded into the copies it embeds. */
 const OPERATION_MEMBERS: Readonly<Record<string, ReadonlySet<string>>> = {
-    merge: new Set(["op", "into", "from"]),
     remove: new Set(["op", "node", "edge"]),
     add: new Set(["op", "node", "edge", "from", "to", "columns", "dtypes"]),
     edit: new Set(["op", "node", "edge", "column", "value", "was", "picked"]),
@@ -221,6 +220,9 @@ const OPERATION_MEMBERS: Readonly<Record<string, ReadonlySet<string>>> = {
 const CLASH_RULES = new Set(["keep", "overwrite", "both", "min", "max", "mean", "vote"]);
 const NUMERIC = new Set(["f32", "f64", "i32", "u32", "u8"]);
 const REPEATED_EDGES = new Set(["keep", "error", "first", "last", "sum", "min", "max"]);
+
+/** The prefix of the space names reserved for combining graphs (spec 6.1). */
+const RESERVED_SPACE = "graph:";
 
 /** Why a data section cannot be built whole; held, and reported, by its pointer. */
 class Unbuildable extends Error {
@@ -261,7 +263,10 @@ function closed(value: unknown, known: ReadonlySet<string>, pointer: string): as
  */
 function spaceOf(space: unknown, pointer: string): string {
     need(typeof space === "string" && space.length > 0, pointer);
-    return space.normalize("NFC");
+    const read = space.normalize("NFC");
+    // Reserved for combining graphs (spec 6.1).
+    need(!read.startsWith(RESERVED_SPACE), pointer);
+    return read;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -724,6 +729,9 @@ function checkStep(
     if (step.read !== undefined) {
         checkRead(step.read, op, at("read"));
     }
+
+    // A fan-out translation (`mapping.many`) is reserved (spec 4.1.8 rule 10).
+    need(!isPlainObject(step.mapping) || !("many" in step.mapping), at("mapping"));
 }
 
 /**
@@ -1554,31 +1562,6 @@ function applyOperations(operations: readonly JsonObject[], into: Building): voi
         }
     };
 
-    const merge = (operation: JsonObject, at: number): void => {
-        const [kept, gone] = [nodeOf(operation.into), nodeOf(operation.from)];
-        if (kept === undefined || gone === undefined) {
-            absent(at, kept === undefined ? operation.into : operation.from);
-            return;
-        }
-
-        if (kept === gone) {
-            return;
-        }
-
-        for (const [name, value] of Object.entries(gone.columns)) {
-            if (!(name in kept.columns)) {
-                kept.columns[name] = value;
-            }
-        }
-
-        gone.loads.forEach((load) => !kept.loads.includes(load) && kept.loads.push(load));
-        for (const edge of into.edges.values()) {
-            edge.from = edge.from === gone ? kept : edge.from;
-            edge.to = edge.to === gone ? kept : edge.to;
-        }
-
-        into.nodes.delete(recordKey(gone.ref.space, gone.ref.key));
-    };
     const remove = (operation: JsonObject, at: number): void => {
         const node = operation.node === undefined ? undefined : nodeOf(operation.node);
         const edge = operation.edge === undefined ? undefined : edgeOf(operation.edge);
@@ -1620,7 +1603,6 @@ function applyOperations(operations: readonly JsonObject[], into: Building): voi
     };
 
     const apply = new Map<unknown, (operation: JsonObject, at: number) => void>([
-        ["merge", merge],
         ["remove", remove],
         ["add", add],
     ]);
@@ -2126,6 +2108,23 @@ async function apply(
 /** Each body `holds` built, so the open that follows does not build it again. */
 const BUILT = new WeakMap<object, { readonly built: Built; readonly problems: DocumentProblem[] }>();
 
+/**
+ * The saver's choices per source, as the data body takes them, with where the data was opened
+ * from, which every path read is relative to.
+ * @param context - The write context.
+ * @returns The choices.
+ */
+function saveChoicesOf(context: WriteContext): Parameters<typeof dataBodyOf>[1] {
+    const opened = refetchOptionsOf(context.session)?.location;
+    return {
+        embed: context.embed,
+        paths: context.paths ?? {},
+        ...(context.handles === undefined ? {} : { handles: context.handles }),
+        ...(context.location === undefined ? {} : { location: context.location }),
+        ...(opened === undefined ? {} : { opened }),
+    };
+}
+
 /** The bodies a read built under a new build stamp, as a referenced source changed since the save. */
 const CHANGED = new WeakSet();
 
@@ -2147,11 +2146,10 @@ export const dataCodec: SectionCodec = {
         "edgeIds",
         "graph",
     ],
-    write(context: WriteContext) {
-        return Promise.resolve({
-            body: dataBodyOf(context.session, { embed: context.embed, paths: context.paths ?? {} }, context.problems)
-                .body,
-        });
+    async write(context: WriteContext) {
+        const { body } = dataBodyOf(context.session, saveChoicesOf(context), context.problems);
+        await flushHandles();
+        return { body };
     },
     holds(section: ReadSection, problems: DocumentProblem[]) {
         const found: DocumentProblem[] = [];

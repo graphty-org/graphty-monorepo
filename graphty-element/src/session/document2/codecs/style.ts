@@ -38,7 +38,15 @@ import type {
 } from "../types";
 import { typedIds } from "./dataRefs";
 import { layerNamesElements } from "./elementNaming";
-import { asName, columnSchema, dataColumnsIn, isNamespace, namespaceFromId, splitRunId } from "./recipeCommands";
+import {
+    asName,
+    columnSchema,
+    dataColumnsIn,
+    isNamespace,
+    namespaceFromId,
+    splitRunId,
+    unansweredPath,
+} from "./recipeCommands";
 import { fileIdsOf, fileSetId } from "./viewParts";
 
 /** One opened layer: as the file held it, and the session's form of it right after the open. */
@@ -832,13 +840,28 @@ function readChannels(part: JsonObject, encode: boolean, reading: Reading, at: s
 }
 
 /**
- * One layer as the session applies it, or why it is kept instead.
+ * One layer as the session applies it, or why it is kept instead. A layer reading a readable path
+ * this release does not compute, or the reserved `graphty.types`, would paint nothing: it is kept
+ * as read and written back (spec 4.2 rule 4).
  * @param raw - The layer as the file holds it.
  * @param index - Its place in `layers`.
  * @param reading - The read.
  * @returns The spec, or the code that keeps the layer.
  */
 function prepareLayer(raw: unknown, index: number, reading: Reading): Prepared {
+    return isObject(raw) && unansweredPath({ selector: raw.selector, encode: raw.encode }) !== undefined
+        ? { kept: "E_UNKNOWN_ATTRIBUTE" }
+        : readLayer(raw, index, reading);
+}
+
+/**
+ * One layer as the session applies it, or why it is kept instead, its paths all answered.
+ * @param raw - The layer as the file holds it.
+ * @param index - Its place in `layers`.
+ * @param reading - The read.
+ * @returns The spec, or the code that keeps the layer.
+ */
+function readLayer(raw: unknown, index: number, reading: Reading): Prepared {
     const at = `/layers/${index}`;
     if (!isObject(raw) || !isObject(raw.selector) || typeof raw.selector.match !== "string") {
         return { kept: "E_BAD_LAYER" };

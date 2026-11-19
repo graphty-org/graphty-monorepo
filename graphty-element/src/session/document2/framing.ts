@@ -48,10 +48,51 @@ const FIRST_VERSION: Readonly<Record<DocumentSection, number>> = {
 type HeldReason = "version" | "extension" | "data" | "kind" | "unknown" | "malformed" | "graphs";
 
 /**
- * The sections that describe one graph. A wrapper carrying the reserved `graphs` member (a later
- * file holding several graphs) holds them all: this reader knows only a file of one graph.
+ * The sections that describe one graph. A wrapper whose `graphs` member this reader cannot read
+ * holds them all.
  */
 const GRAPH_SECTIONS = new Set<string>(["data", "results", "notes", "view"]);
+
+/** A graph id: `graph_` plus a ULID (spec 3.3). */
+const GRAPH_ID = /^graph_[0-9A-HJKMNP-TV-Z]{26}$/;
+
+/**
+ * The later graphs of a file holding several (spec 2.2 rule 4): an ordered list of two or more
+ * `{ id, name, sections? }` with distinct ids, the first naming the top-level graph and holding no
+ * `sections`, each later one holding only graph sections.
+ * @param graphs - The wrapper's `graphs` member.
+ * @returns Each later graph's id and sections, or undefined when the member is not that.
+ */
+function laterGraphs(graphs: unknown): { readonly id: string; readonly sections: JsonObject }[] | undefined {
+    if (!Array.isArray(graphs) || graphs.length < 2) {
+        return undefined;
+    }
+
+    const ids = new Set<string>();
+    const later: { id: string; sections: JsonObject }[] = [];
+    for (const [at, entry] of graphs.entries()) {
+        const fits =
+            isJsonObject(entry) &&
+            typeof entry.id === "string" &&
+            GRAPH_ID.test(entry.id) &&
+            !ids.has(entry.id) &&
+            typeof entry.name === "string" &&
+            Object.keys(entry).every((member) => ["id", "name", "sections"].includes(member)) &&
+            (at === 0
+                ? entry.sections === undefined
+                : isJsonObject(entry.sections) && Object.keys(entry.sections).every((key) => GRAPH_SECTIONS.has(key)));
+        if (!fits) {
+            return undefined;
+        }
+
+        ids.add(entry.id as string);
+        if (at > 0) {
+            later.push({ id: entry.id as string, sections: entry.sections as JsonObject });
+        }
+    }
+
+    return later;
+}
 
 /** A section kept verbatim and written back on save. */
 export interface HeldSection {
@@ -397,6 +438,30 @@ function bodyOf(
 }
 
 /**
+ * A section's `version` as read, or null when it has none.
+ * @param section - The section.
+ * @returns The version.
+ */
+const versionOf = (section: unknown): number | null =>
+    isJsonObject(section) && typeof section.version === "number" ? section.version : null;
+
+/**
+ * What a reader that opens only the first graph reports for each later graph's sections: kept.
+ * @param later - The later graphs.
+ * @returns One `W_SECTION_KEPT` per section, naming its graph.
+ */
+function keptGraphSections(
+    later: readonly { readonly id: string; readonly sections: JsonObject }[],
+): DocumentProblem[] {
+    return later.flatMap(({ id, sections }) =>
+        Object.entries(sections).map(([key, each]) => ({
+            code: "W_SECTION_KEPT" as const,
+            params: { section: key, version: versionOf(each), reason: "graphs", graph: id },
+        })),
+    );
+}
+
+/**
  * Read a parsed version 2 file into the sections to load and the ones held (spec 2, 8.5).
  * @param value - The parsed file, already within the size and depth limits.
  * @param codecs - The codecs, by section.
@@ -453,10 +518,14 @@ export function parseDocument(value: JsonObject, codecs: CodecRegistry): ParsedD
         throw badDocument({ member: "sections" });
     }
 
-    const severalGraphs = "graphs" in wrapper;
+    // The top-level sections are the first graph; this reader opens it and keeps the later ones in
+    // `graphs`, which is written back as read. A `graphs` it cannot read holds the first graph too.
+    const later = "graphs" in wrapper ? laterGraphs(wrapper.graphs) : [];
+    problems.push(...keptGraphSections(later ?? []));
+
     for (const [key, each] of Object.entries(listed)) {
-        if (severalGraphs && GRAPH_SECTIONS.has(key)) {
-            const version = isJsonObject(each) && typeof each.version === "number" ? each.version : null;
+        if (later === undefined && GRAPH_SECTIONS.has(key)) {
+            const version = versionOf(each);
             problems.push({ code: "W_SECTION_KEPT", params: { section: key, version, reason: "graphs" } });
             held.set(key, { value: each, reason: "graphs" });
         } else {

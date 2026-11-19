@@ -13,7 +13,9 @@ import type { CannedOutcomes } from "../projectFile";
 import { ENGINE_VERSIONS } from "../runs";
 import type { GraphSession, ProjectSlice, TransactionScope } from "../types";
 import { newDocumentId } from "./basics";
-import { dataBindingOf, elementRefsOf } from "./codecs/dataRefs";
+import { refetchOptionsOf } from "./codecs/dataFetch";
+import { dataBindingOf, elementRefsOf, rebasedRecord } from "./codecs/dataRefs";
+import type { ProjectFileHandle } from "./codecs/fileHandles";
 import {
     assembleSection,
     assembleWrapper,
@@ -65,6 +67,10 @@ export interface SaveChoices {
     readonly rewriteRecipe?: boolean;
     /** A file source's path relative to the folder the file is saved in, per source id or load key. */
     readonly paths?: Readonly<Record<string, string>>;
+    /** A file source's browser file handle, per source id or load key. */
+    readonly handles?: Readonly<Record<string, ProjectFileHandle>>;
+    /** The URL of the file being saved: every path read is rebased to it. */
+    readonly location?: string;
 }
 
 /** What a version 2 open loads. */
@@ -126,7 +132,7 @@ export function writeContextOf(
     session: GraphSession,
     state: DocumentState,
     sections: ReadonlySet<DocumentSection>,
-    choices: Pick<SaveChoices, "embed" | "paths" | "rewriteRecipe">,
+    choices: Pick<SaveChoices, "embed" | "paths" | "handles" | "location" | "rewriteRecipe">,
     isDerived: (id: RunId) => boolean,
     problems: DocumentProblem[],
     refs: () => ElementRefs = lazyRefs(session),
@@ -139,6 +145,8 @@ export function writeContextOf(
         sections,
         embed: choices.embed ?? {},
         paths: choices.paths ?? {},
+        ...(choices.handles === undefined ? {} : { handles: choices.handles }),
+        ...(choices.location === undefined ? {} : { location: choices.location }),
         rewriteRecipe: choices.rewriteRecipe === true,
         isDerived,
         bindsTo: (): Promise<BindsTo> => Promise.resolve({ data: dataIdOf(state) }),
@@ -371,7 +379,41 @@ export async function saveDocument2(
         sections,
         now,
     );
+    if (Array.isArray(document.graphs) && choices.location !== undefined) {
+        const where = { location: choices.location, opened: refetchOptionsOf(session)?.location };
+        document.graphs = document.graphs.map((graph: unknown) => rebasedGraph(graph, where, problems));
+    }
+
     return { document: plainNumbers(document), written: Object.keys(sections), problems };
+}
+
+/**
+ * A later graph of the file, written back as read but for its file sources' paths, rebased to the
+ * file being saved (spec 2.2 rule 4): this release never builds it, so a file outside the saved
+ * file's folder loses its path.
+ * @param graph - The `graphs` entry as read.
+ * @param where - The URLs of the file being saved and of the file it was opened from.
+ * @param where.location - The file being saved.
+ * @param where.opened - The file it was opened from.
+ * @param problems - Collects `W_SOURCE_NO_PATH`.
+ * @returns The entry.
+ */
+function rebasedGraph(
+    graph: unknown,
+    where: { readonly location: string; readonly opened: string | undefined },
+    problems: DocumentProblem[],
+): unknown {
+    const data = isJsonObject(graph) && isJsonObject(graph.sections) ? graph.sections.data : undefined;
+    if (!isJsonObject(data) || !Array.isArray(data.sources)) {
+        return graph;
+    }
+
+    const choices = where.opened === undefined ? { location: where.location } : where;
+    const sources = data.sources.map((record: unknown) =>
+        isJsonObject(record) ? rebasedRecord(record, choices, problems) : record,
+    );
+    const sections = (graph as JsonObject).sections as JsonObject;
+    return { ...(graph as JsonObject), sections: { ...sections, data: { ...data, sources } } };
 }
 
 /** What `openDocument2` needs from the project that is not the session. */

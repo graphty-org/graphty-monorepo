@@ -379,6 +379,22 @@ export class NodeIdTarget {
     }
 
     /**
+     * Give a mesh its material for the target's pass, unless it has it already. Setting it resets
+     * the mesh's draw cache for the pass even when the material is the same, which disposes the
+     * compiled effect a frame later through a new `onEndFrameObservable` callback; the render loop
+     * reads a new frame callback as a frame somebody is waiting for, so every mesh added to the
+     * scene drew two extra frames under renderPath "batched" (#9097).
+     * @param mesh - The mesh.
+     * @param pass - The target's render pass.
+     * @param material - Its material in the target.
+     */
+    private static assign(mesh: AbstractMesh, pass: number, material: ShaderMaterial): void {
+        if (mesh.getMaterialForRenderPass(pass) !== material) {
+            mesh.setMaterialForRenderPass(pass, material);
+        }
+    }
+
+    /**
      * Keep the meshes the target draws, each given its material for the target's pass.
      * @param drawn - What the scene draws.
      * @param length - How many of them.
@@ -393,10 +409,10 @@ export class NodeIdTarget {
         for (let i = 0; i < length; i++) {
             const mesh = drawn[i];
             if (isRowBatch(mesh)) {
-                mesh.setMaterialForRenderPass(target.renderPassId, this.rowMaterialFor(mesh));
+                NodeIdTarget.assign(mesh, target.renderPassId, this.rowMaterialFor(mesh));
             } else if (mesh.isPickable) {
                 const owner = mesh.isAnInstance ? (mesh as InstancedMesh).sourceMesh : mesh;
-                owner.setMaterialForRenderPass(target.renderPassId, this.objectMaterial);
+                NodeIdTarget.assign(owner, target.renderPassId, this.objectMaterial);
             } else {
                 continue;
             }

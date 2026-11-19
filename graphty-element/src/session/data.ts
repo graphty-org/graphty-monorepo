@@ -118,6 +118,7 @@ import {
     type DataDeriveCommand,
     derivedColumnsOf,
     derivedRows,
+    derivedValues,
     isTerms,
     scoreExpression,
     type ValuesWhere,
@@ -3464,7 +3465,7 @@ export class SessionData implements SessionDataApi {
                             paths: valuePaths(each.rule),
                             ...(each.source === undefined ? {} : { source: each.source }),
                         })),
-                    computed: new Map(this.derivedColumns().map((c) => [c.name, c.kind])),
+                    derive: (valuesWhere) => derivedValues(this.derivedColumns(), valuesWhere),
                 }),
                 release: () => {
                     // A draft discarded while its commit was landing never releases one opened since.

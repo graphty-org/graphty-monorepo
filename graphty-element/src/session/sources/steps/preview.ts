@@ -4,6 +4,9 @@
  * draft's, counted over every row. Pure, and free of Babylon.js, Lit and the DOM.
  */
 
+import type { Path } from "../../../catalog/types";
+import type { ValuesWhere } from "../../commands/derive";
+import { compileExpressionValue } from "../../styles/predicate";
 import type { DraftState } from "./draft";
 import {
     buildOf,
@@ -131,8 +134,45 @@ export interface PreviewContext {
     readonly refs: ReadonlyMap<string, ElementRef>;
     /** The filter conditions that are on and hide or show. */
     readonly filters: readonly FilterRead[];
-    /** The computed columns, by name, and whether nodes or edges carry them: a commit works them out again. */
-    readonly computed?: ReadonlyMap<string, "node" | "edge">;
+    /**
+     * Works the computed columns out again over an expression reader, as a commit does: their
+     * values per kind, by path and dense index.
+     */
+    readonly derive?: (valuesWhere: ValuesWhere) => {
+        readonly node: ReadonlyMap<Path, readonly unknown[]>;
+        readonly edge: ReadonlyMap<Path, readonly unknown[]>;
+    };
+}
+
+const present = (v: unknown): boolean => v !== undefined && v !== null && v !== "";
+
+/**
+ * Reads an expression over a build's elements, as the query engine reads it over the session's: a
+ * `data.` path reads the element's value. An expression reading anything else (a run's result) is
+ * one the draft leaves as it is, so every element answers it.
+ * @param result - The build.
+ * @returns The reader.
+ */
+function buildValuesWhere(result: BuildResult): ValuesWhere {
+    return (where, target, overlay) => {
+        const els = [...(target === "node" ? result.nodes : result.edges).values()];
+        const value = (index: number, path: Path): unknown => {
+            if (overlay?.has(path) === true) {
+                return overlay.get(path)?.[index];
+            }
+            return path.startsWith("data.") ? els[index].values[path.slice("data.".length)] : undefined;
+        };
+        const compiled = compileExpressionValue(where, {
+            value,
+            has: (index, path) => present(value(index, path)),
+            idOf: null,
+            indexOf: null,
+        });
+        if (compiled.paths.some((p) => !p.startsWith("data.") && overlay?.has(p) !== true)) {
+            return els.map(() => true);
+        }
+        return els.map((_el, index) => compiled.value(index) ?? null);
+    };
 }
 
 /**
@@ -305,20 +345,19 @@ function removedSteps(
  * @param result - The build.
  * @param filters - The conditions.
  * @param removed - The sources the draft takes out, whose conditions its commit takes out too.
- * @param computed - The computed columns, which the commit works out again.
+ * @param derive - Works the computed columns out again, as the commit does.
  * @returns The outcomes.
  */
 function heldFilters(
     result: BuildResult,
     filters: readonly FilterRead[],
     removed: ReadonlySet<string>,
-    computed: ReadonlyMap<string, "node" | "edge"> = new Map(),
+    derive?: PreviewContext["derive"],
 ): PreviewIssue[] {
     const els = [...result.nodes.values(), ...result.edges.values()];
-    // ponytail: a computed column counts as carried whenever its kind has elements, as the commit
-    // works it out again; one whose expression reads nothing the draft keeps would still be held.
+    const fresh = derive?.(buildValuesWhere(result));
     const computes = (col: string): boolean =>
-        computed.get(col) === "node" ? result.nodes.size > 0 : computed.get(col) === "edge" && result.edges.size > 0;
+        [fresh?.node, fresh?.edge].some((kind) => kind?.get(`data.${col}`)?.some((v) => present(v)) === true);
     const out: PreviewIssue[] = [];
     for (const f of filters) {
         if (f.source !== undefined && removed.has(f.source)) {
@@ -331,10 +370,7 @@ function heldFilters(
         const carried = columns.some(
             (col) =>
                 (f.source === undefined && computes(col)) ||
-                els.some((el) => {
-                    const v = f.source === undefined ? el.values[col] : el.own[f.source]?.[col]?.v;
-                    return v !== undefined && v !== null && v !== "";
-                }),
+                els.some((el) => present(f.source === undefined ? el.values[col] : el.own[f.source]?.[col]?.v)),
         );
         if (!carried) {
             out.push({ code: "W_FILTER_HELD", params: { filter: f.filter, column: f.paths[0] } });
@@ -358,7 +394,7 @@ export function contextIssues(
 ): PreviewIssue[] {
     const b1 = buildOf(state.value, state.copies);
     const removed = new Set(Object.keys(base.value.sources).filter((id) => state.value.sources[id] === undefined));
-    return [...unboundRefs(b1, context.refs.values()), ...heldFilters(b1, context.filters, removed, context.computed)];
+    return [...unboundRefs(b1, context.refs.values()), ...heldFilters(b1, context.filters, removed, context.derive)];
 }
 
 /**

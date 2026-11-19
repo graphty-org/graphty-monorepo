@@ -30,6 +30,80 @@ function held(pv: SourceDraftPreview): SourceDraftPreview["issues"][number][] {
 }
 
 describe("source-steps drafts: the preview's review fixes", () => {
+    it("a merge that folds an edge onto a pair another edge joins counts a parallel edge", async () => {
+        const session = createGraphSession({ features: ["source-steps"] });
+        await session.data.import({
+            type: "json",
+            config: {
+                data: JSON.stringify({
+                    nodes: [{ id: "p1" }, { id: "p2" }],
+                    edges: [{ source: "p1", target: "p2" }],
+                }),
+            },
+            name: "people.json",
+        });
+        const s1 = session.data.sources().at(-1)?.key ?? "";
+        const d = session.data.draft();
+        const s2 = await d.stage({
+            type: "json",
+            config: {
+                data: JSON.stringify({
+                    nodes: [
+                        { id: "q1", pid: "p1" },
+                        { id: "q2", pid: "p2" },
+                    ],
+                    edges: [{ source: "q1", target: "q2" }],
+                }),
+            },
+            name: "badges.json",
+        });
+        d.merge({ from: { source: s2, field: "pid" }, into: { source: s1 } });
+        const pv = d.preview();
+        assert.strictEqual(
+            pv.steps.reduce((n, s) => n + (s.buckets?.parallelPairs ?? 0), 0),
+            1,
+        );
+        assert.isTrue(pv.issues.some((i) => i.code === "W_PARALLEL_EDGES"));
+        await d.commit();
+        assert.lengthOf(session.data.edges(), 2);
+        session.dispose();
+    });
+
+    it("a merge that folds both ends of an edge into one node counts a self-loop", async () => {
+        const session = createGraphSession({ features: ["source-steps"] });
+        await session.data.import({
+            type: "json",
+            config: { data: JSON.stringify({ nodes: [{ id: "p1" }], edges: [] }) },
+            name: "people.json",
+        });
+        const s1 = session.data.sources().at(-1)?.key ?? "";
+        const d = session.data.draft();
+        const s2 = await d.stage({
+            type: "json",
+            config: {
+                data: JSON.stringify({
+                    nodes: [
+                        { id: "q1", pid: "p1" },
+                        { id: "q2", pid: "p1" },
+                    ],
+                    edges: [{ source: "q1", target: "q2" }],
+                }),
+            },
+            name: "badges.json",
+        });
+        d.merge({ from: { source: s2, field: "pid" }, into: { source: s1 } });
+        const pv = d.preview();
+        assert.strictEqual(
+            pv.steps.reduce((n, s) => n + (s.buckets?.selfLoops ?? 0), 0),
+            1,
+        );
+        assert.isTrue(pv.issues.some((i) => i.code === "W_SELF_LOOPS"));
+        await d.commit();
+        const [loop] = session.data.edges();
+        assert.strictEqual(loop.source, loop.target);
+        session.dispose();
+    });
+
     it("removing the first of one source's steps names that step removed and keeps the others", async () => {
         const { session } = await phase2();
         const rows = session.data.steps();
@@ -92,6 +166,35 @@ describe("source-steps drafts: the preview's review fixes", () => {
         d.add(b, { overlap: "merge" });
         const said = held(d.preview());
         await d.commit();
+        assert.deepStrictEqual<unknown>(said, session.visibility.held);
+        session.dispose();
+    });
+
+    it("a filter on a computed column whose only input source the draft removes is held in its preview", async () => {
+        const session = createGraphSession({ features: ["source-steps"] });
+        await session.data.import(
+            { type: "csv", config: { data: "id,amt\nc1,5\nc2,10" }, name: "crm.csv" },
+            { key: "id", type: "client" },
+        );
+        const crm = session.data.sources().at(-1)?.key ?? "";
+        const stage = session.data.draft();
+        const erp = await stage.stage(
+            { type: "csv", config: { data: "id,region\nr1,North\nr2,South" }, name: "erp.csv" },
+            { key: "id", type: "region" },
+        );
+        stage.add(erp);
+        await stage.commit();
+        await session.data.derive("double", "data.amt * `2`");
+        await session.visibility.addCondition({
+            effect: "keep",
+            rule: { kind: "range", attribute: "data.double", min: 0, max: 30 },
+        });
+        assert.deepStrictEqual(session.visibility.held, []);
+        const d = session.data.draft();
+        d.removeSource(crm);
+        const said = held(d.preview());
+        await d.commit();
+        assert.lengthOf(said, 1);
         assert.deepStrictEqual<unknown>(said, session.visibility.held);
         session.dispose();
     });

@@ -558,9 +558,8 @@ class Builder {
     private readonly gathered = new WeakMap<BuiltElement, Map<string, Value[]>>();
     // the step that made each element, for its counts by type once the build is done
     private readonly madeBy = new WeakMap<BuiltElement, StepStats>();
-    // `<from>\u0001<to>` of every edge made so far, for parallel pairs
-    // ponytail: pairs are taken when an edge is made; a later merge that retargets ends is not re-counted
-    private readonly joined = new Set<string>();
+    // the merge step that last folded one of an edge's ends, for its parallel pair or self-loop
+    private readonly endFoldedBy = new WeakMap<BuiltEdge, StepStats>();
 
     constructor(
         private readonly input: BuildInput,
@@ -882,6 +881,7 @@ class Builder {
             this.settleTime(n);
         }
         this.countNewTypes();
+        this.countEdgeShapes();
         for (const { src, table, n, read } of this.reads.values()) {
             for (let i = 0; i < n; i++) {
                 if (!read.has(i) && this.fates.get(src)?.has(`${table}#${i}`) !== true) {
@@ -904,6 +904,23 @@ class Builder {
                 if (st !== undefined && el.type !== null) {
                     bump(st[field], el.type);
                 }
+            }
+        }
+    }
+
+    // Parallel pairs and self-loops over the final edges, once merges have settled every end; each is
+    // credited to the merge that folded one of its ends, else to the step that made it.
+    private countEdgeShapes(): void {
+        const joined = new Set<string>();
+        for (const e of this.edges.values()) {
+            const st = this.endFoldedBy.get(e) ?? this.madeBy.get(e);
+            const pair = `${e.from}\u0001${e.to}`;
+            if (st !== undefined && joined.has(pair)) {
+                st.parallelPairs++;
+            }
+            joined.add(pair);
+            if (st !== undefined && e.from === e.to) {
+                st.selfLoops++;
             }
         }
     }
@@ -1406,14 +1423,6 @@ class Builder {
         }
         st.newEdges++;
         this.madeBy.set(e, st);
-        const pair = `${a.from.id}\u0001${a.to.id}`;
-        if (this.joined.has(pair)) {
-            st.parallelPairs++;
-        }
-        this.joined.add(pair);
-        if (a.from.id === a.to.id) {
-            st.selfLoops++;
-        }
         supply(e, a.load);
         this.touch(e, step, si, a.table, a.row, a.index);
         for (const [c, v] of a.values) {
@@ -1534,6 +1543,11 @@ class Builder {
 
     // Node 2 folds into node 1 (3.4 join.merge): edges, sources, aliases, then values.
     private fold(n1: BuiltNode, n2: BuiltNode, at: WriteAt, rows: Row[]): void {
+        for (const e of this.edges.values()) {
+            if (e.from === n2.id || e.to === n2.id) {
+                this.endFoldedBy.set(e, at.st);
+            }
+        }
         retarget(this.edges.values(), n2.id, n1.id);
         n2.loads.forEach((l) => {
             supply(n1, l);

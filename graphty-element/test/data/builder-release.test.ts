@@ -8,9 +8,9 @@ import { assert, describe, it } from "vitest";
 
 import { GraphStore } from "../../src/data/GraphStore";
 
-function storeWith(release: boolean): GraphStore {
+function storeWith(release: boolean, directed: () => boolean | "auto" = () => true): GraphStore {
     return new GraphStore({
-        directed: () => true,
+        directed,
         positionScale: () => 1,
         onReplaced: () => undefined,
         onNodeRemap: () => undefined,
@@ -199,5 +199,22 @@ describe("letting the builder go after a load", () => {
         assert.doesNotThrow(() => store.builder.nodeCount);
         assert.doesNotThrow(() => store.reads.nodeCount);
         assert.doesNotThrow(() => store.holdsNoRows);
+    });
+
+    it("follows a data.directed set while let go, and taking it back restores the file's direction (#9069)", () => {
+        let setting: boolean | "auto" = "auto";
+        const store = storeWith(true, () => setting);
+        // A file that declares itself undirected, read under "auto".
+        store.builder.setDirected(false);
+        load(store, 10, 20);
+        store.getSnapshot();
+        store.releaseIdle();
+        assert.isTrue(release(store).released);
+
+        setting = true;
+        assert.isTrue(store.getSnapshot().directed);
+        setting = "auto";
+        assert.isFalse(store.getSnapshot().directed, "the file's own reading is back");
+        assert.strictEqual(store.getSnapshot().edgeCount, 20);
     });
 });

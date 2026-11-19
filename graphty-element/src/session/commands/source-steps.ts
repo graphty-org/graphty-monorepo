@@ -474,9 +474,9 @@ const dataStepsSet: UndoableDefinition<DataStepsSetCommand> = {
             edit.kind === "restore" ? openedAsBuilt(after, ctx.state.graph.nodes, ctx.state.graph.edges) : null;
         const before = opened?.before ?? projectBuild(buildOf(prior, priorCopies), prior, idPath);
         const diff = diffGraph(before, after, opened?.edgeIds ?? edgeIds);
-        // A build that changes the graph is counted, so a run made over an earlier one reads stale
-        // (8.6); a restore keeps the count the file saved.
-        const next = opened === null && changesGraph(diff) ? counted(edited, copies, (prior.build ?? 0) + 1) : edited;
+        // A build that changes the graph is stamped anew, so a run made over an earlier one reads stale
+        // (8.6); a restore keeps the stamp the file saved.
+        const next = opened === null && changesGraph(diff) ? counted(edited, copies) : edited;
         const apply = (mutation: Parameters<typeof service.apply>[0]): void => {
             service.apply(mutation, ctx.draft, ctx.after);
         };

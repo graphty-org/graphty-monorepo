@@ -883,14 +883,23 @@ export function dataMember(
         new Set(derived.filter((column) => column.kind === kind).map((column) => column.name));
     const nodeKeys = computed("node");
     const edgeKeys = computed("edge");
+    // Under the source-steps experiment each record carries its type, at most one (design 3.7).
+    const typed = <T extends Readonly<Record<string, unknown>>>(
+        record: T,
+        kind: "node" | "edge",
+        id: NodeId | EdgeId,
+    ): T => {
+        const type = file?.typeOf?.(kind, id);
+        return type === undefined ? record : { ...record, "graphty.types": type === null ? [] : [type] };
+    };
     const nodes = (expanded?.nodes ?? session.data.nodes({ scope: "graph" })).map((node) =>
-        withLoads(withoutKeys(node, nodeKeys), session.data.sourcesOf(node.id)),
+        typed(withLoads(withoutKeys(node, nodeKeys), session.data.sourcesOf(node.id)), "node", node.id),
     );
     // The whole graph, as the nodes are: the file is the original, not what a filter shows.
     const edges = (
         expanded?.edges ?? session.data.edges({ scope: "graph" }).map((edge) => ({ id: edge.id, record: edge }))
     ).map(({ id, record }) => ({
-        ...withLoads(withoutKeys(record, edgeKeys), session.data.sourcesOf(id, { kind: "edge" })),
+        ...typed(withLoads(withoutKeys(record, edgeKeys), session.data.sourcesOf(id, { kind: "edge" })), "edge", id),
         id,
     }));
     // Where the graph was loaded from, and what the reader named it: not the rows, which are here.
@@ -1684,6 +1693,24 @@ function stepsOnly(): GraphtyError {
         source: "data",
         details: { kind: SOURCE_RECORD_MEMBER, data: "steps" },
     });
+}
+
+/**
+ * A graph a source-steps save wrote, without the `graphty.types` its records carry: the type is
+ * the build's to give again on open, never a column (design 3.7). A file with no steps keeps it.
+ * @param graph - The graph as read.
+ * @param member - The `graphty-sources` member, when the file has one.
+ * @returns The graph.
+ */
+function withoutTypes(graph: NodeLink, member: Record<string, unknown> | undefined): NodeLink {
+    if (member?.joins === undefined) {
+        return graph;
+    }
+    const strip = (record: Record<string, unknown>): Record<string, unknown> => {
+        const { "graphty.types": _types, ...rest } = record;
+        return rest;
+    };
+    return { ...graph, nodes: graph.nodes.map((n) => strip(n)), links: graph.links.map((l) => strip(l)) };
 }
 
 /**
@@ -3251,7 +3278,7 @@ export function projectOf(
             throw member?.data === "steps" ? stepsOnly() : badDocument({ member: "graphty-data" });
         }
 
-        const graph = nodeLinkOf(data);
+        const graph = withoutTypes(nodeLinkOf(data), member);
         const state = doc.members.get("graphty-session")?.[0];
         // A file cannot approve its own fetches: an older one's saved network policy is ignored.
         if (state?.network !== undefined) {

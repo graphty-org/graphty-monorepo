@@ -99,13 +99,11 @@ export interface SourceSteps {
     readonly types: readonly TypeEntry[];
     /** The reader source's operations, in the order made. */
     readonly reader: readonly ReaderOp[];
-    /** The highest `join.edges` part minted per source, so a deleted step's part is never reused (3.3). */
-    readonly parts?: Readonly<Record<string, number>>;
     /**
-     * Counts the builds that changed the graph, so a run made over one build reads stale after a
-     * later one, even when a refresh brings the same rows back (8.6).
+     * The build stamp, a ULID minted by each build that changed the graph, so a run made over one
+     * build reads stale after a later one, even when a refresh brings the same rows back (8.6).
      */
-    readonly build?: number;
+    readonly build?: string;
 }
 
 /** The rows as read, by copy id. */
@@ -161,7 +159,7 @@ const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
  * A ULID: 48 bits of the time and 80 random bits, in Crockford base 32.
  * @returns The 26 characters.
  */
-function ulid(): string {
+export function mintUlid(): string {
     let time = Date.now();
     let head = "";
     for (let i = 0; i < 10; i++) {
@@ -176,19 +174,19 @@ function ulid(): string {
  * A new source id.
  * @returns `src_` and a ULID.
  */
-export const mintSourceId = (): string => `src_${ulid()}`;
+export const mintSourceId = (): string => `src_${mintUlid()}`;
 
 /**
  * A new copy id.
  * @returns `copy_` and a ULID.
  */
-export const mintCopyId = (): string => `copy_${ulid()}`;
+export const mintCopyId = (): string => `copy_${mintUlid()}`;
 
 /**
  * A new reader operation id.
  * @returns `edit_` and a ULID.
  */
-export const mintEditId = (): string => `edit_${ulid()}`;
+export const mintEditId = (): string => `edit_${mintUlid()}`;
 
 /**
  * Refuse a space a caller may not name: `graph:` spaces are reserved (3.1).
@@ -242,14 +240,13 @@ export function buildOf(value: SourceSteps, copies: Copies): BuildResult {
 }
 
 /**
- * The value with its build count set, sharing its build: the count changes no element.
+ * The value with a new build stamp, sharing its build: the stamp changes no element.
  * @param value - The value, built over `copies`.
  * @param copies - Its copies.
- * @param count - The count.
- * @returns The counted value.
+ * @returns The stamped value.
  */
-export function counted(value: SourceSteps, copies: Copies, count: number): SourceSteps {
-    const next = { ...value, build: count };
+export function counted(value: SourceSteps, copies: Copies): SourceSteps {
+    const next = { ...value, build: mintUlid() };
     builds.set(next, { copies, result: buildOf(value, copies) });
     return next;
 }
@@ -918,11 +915,11 @@ export interface StepRow {
     readonly spaces: readonly string[];
     /** The types its source's rules give what it builds. */
     readonly types: readonly string[];
-    /** Written by the element: kept but not built. */
+    /** The reader turned it off: kept but not built (7.13). */
     readonly off: boolean;
-    /** A source it depends on is held, so it is not built. */
+    /** A source it depends on is held, or it misses a column (`missing`), so it is not built (7.12). */
     readonly held: boolean;
-    /** The columns it reads that its sources' rows no longer hold; a step missing one is off (7.12). */
+    /** The columns it reads that its sources' rows no longer hold; a step missing one is held (7.12). */
     readonly missing: readonly RefreshIssue[];
     /** Its counts in the committed build; null when it was not built. */
     readonly buckets: StepStats | null;
@@ -996,6 +993,7 @@ export function stepRows(value: SourceSteps, result: BuildResult, copies: Copies
                 ),
             )
             .map((t) => t.name);
+        const missing = missingColumns(value, copies, index);
         return Object.freeze({
             index,
             op: step.op,
@@ -1004,8 +1002,8 @@ export function stepRows(value: SourceSteps, result: BuildResult, copies: Copies
             spaces: Object.freeze([...spaces]),
             types: Object.freeze(types),
             off: step.off === true,
-            held: stepSources(step, value).some((id) => value.sources[id]?.held === true),
-            missing: Object.freeze(missingColumns(value, copies, index)),
+            held: missing.length > 0 || stepSources(step, value).some((id) => value.sources[id]?.held === true),
+            missing: Object.freeze(missing),
             buckets: result.stats.find((s) => s.step === index) ?? null,
             valuesDiffer: Object.freeze(report.filter((each) => each.params.step === index)),
         });

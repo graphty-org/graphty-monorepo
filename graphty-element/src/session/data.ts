@@ -2011,10 +2011,13 @@ export class SessionData implements SessionDataApi {
         }
 
         // Under the source-steps experiment the member also carries the sources and steps (section 10).
-        const steps = this.stepsOn() ? stepsMemberFields(this.stepsValue(), this.stepsCopies(), write.idOf) : null;
+        const steps = this.stepsOn() ? stepsMemberFields(this.stepsValue(), this.stepsCopies()) : null;
         if (steps !== null) {
             const member = write.member ?? { kind: SOURCE_RECORD_MEMBER, version: SOURCES_MEMBER_VERSION, loads: [] };
-            return { ...write, member: { ...member, ...steps } };
+            const { nodes, edges } = elementsById(this.stepsBuild().result, this.stepsEdgeIds());
+            const typeOf = (kind: "node" | "edge", id: NodeId | EdgeId): string | null =>
+                (kind === "node" ? nodes.get(String(id)) : edges.get(id as EdgeId))?.type ?? null;
+            return { ...write, member: { ...member, ...steps }, typeOf };
         }
 
         return write;
@@ -3580,7 +3583,7 @@ export class SessionData implements SessionDataApi {
      */
     async connect(options: SourceConnectOptions): Promise<number> {
         await this.stepsAct("connect", { act: "connect", options });
-        return this.stepsValue().parts?.[options.from.source] ?? 0;
+        return this.lastPart(options.from.source);
     }
 
     /**
@@ -3591,7 +3594,19 @@ export class SessionData implements SessionDataApi {
      */
     async extract(source: SourceKey, options: SourceExtractOptions): Promise<number> {
         await this.stepsAct("extract", { act: "extract", source, options });
-        return this.stepsValue().parts?.[source] ?? 0;
+        return this.lastPart(source);
+    }
+
+    /**
+     * The part of a source's newest `join.edges` step: minted above every other, so the highest.
+     * @param source - The source.
+     * @returns The part, or 0 when the source has no such step.
+     */
+    private lastPart(source: SourceKey): number {
+        const parts = this.stepsValue().steps.flatMap((s) =>
+            s.op === "join.edges" && s.source === source ? [s.part] : [],
+        );
+        return Math.max(0, ...parts);
     }
 
     /**

@@ -10,11 +10,11 @@
  * parameters. Pure and free of Babylon.js, Lit and the DOM.
  */
 
-import type { SourceRefreshIssue, SourceRoleName } from "../../types";
-import { build, stepSources } from "./build";
+import type { SourceRefreshIssue } from "../../types";
+import { build, columnsOf, missingColumns as missingOf, stepSources } from "./build";
 import type { Copies, SourceSteps, StepsSource } from "./project";
 import { element, values } from "./provenance";
-import type { BuildResult, CopyTables, ReaderEdit, ReaderOp, Row, Step, TableName, Value } from "./types";
+import type { BuildResult, CopyTables, ReaderEdit, ReaderOp, Step, TableName, Value } from "./types";
 
 /** What a removal, refresh or replace reports, as a code and its parameters. */
 export type RefreshIssue = SourceRefreshIssue;
@@ -48,22 +48,6 @@ export type RefreshEdit =
     /** A held step's way out: a column of the new rows takes the vanished name, or a role is cleared. */
     | { readonly kind: "resolve-step"; readonly index: number; readonly column?: string; readonly none?: true };
 
-/** The roles a mapping or a step's read can name, beyond its keys and ends. */
-const ROLES = new Set([
-    "weight",
-    "time",
-    "timeEnd",
-    "latitude",
-    "longitude",
-    "coordinates",
-    "country",
-    "region",
-    "city",
-]);
-
-/** The keys and ends a mapping or a step's read names. */
-const KEYS = ["key", "source", "target", "edgeId"] as const;
-
 const same = (a: Value | null | undefined, b: Value | null | undefined): boolean =>
     JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 
@@ -95,89 +79,6 @@ export function takenNames(
 }
 
 /**
- * The working names of a table's columns (4.4): every column a row holds, under its `renamed` name.
- * @param rows - The rows as read.
- * @param renamed - The source's renames for the table.
- * @returns The names.
- */
-function workingColumns(
-    rows: readonly Row[] | undefined,
-    renamed: Readonly<Record<string, string>> | undefined,
-): Set<string> {
-    const out = new Set<string>();
-    for (const row of rows ?? []) {
-        for (const k of Object.keys(row)) {
-            out.add(renamed?.[k] ?? k);
-        }
-    }
-    return out;
-}
-
-/**
- * The working columns of each table of a source's copy.
- * @param src - The source.
- * @param tables - Its copy.
- * @returns The names per table.
- */
-function columnsOf(src: StepsSource, tables: CopyTables | undefined): Record<TableName, Set<string>> {
-    return {
-        nodes: workingColumns(tables?.nodes, src.mapping.nodes?.renamed),
-        edges: workingColumns(tables?.edges, src.mapping.edges?.renamed),
-    };
-}
-
-/** One column a step reads: its table, its name and the role it plays, if any. */
-type Need = readonly [TableName, string, string | undefined];
-
-/**
- * The columns one step reads from one source it depends on (7.12): a `join.add` reads its
- * mapping's keys and roles, any other step its own read and `columns`, and a step translating
- * through the source its mapping table's columns.
- * @param step - The step.
- * @param src - The source.
- * @returns The columns.
- */
-function needs(step: Step, src: StepsSource): Need[] {
-    const out = step.source === src.id ? ownNeeds(step, src) : [];
-    if ("mapping" in step && step.mapping !== undefined && (step.via === src.id || step.lookup === src.id)) {
-        const table = step.mapping.table ?? (src.mapping.nodes === undefined ? "edges" : "nodes");
-        for (const c of step.mapping.columns) {
-            out.push([table, c, undefined]);
-        }
-    }
-    return out;
-}
-
-/**
- * The keys, ends, roles and `columns` a step reads from its own source.
- * @param step - The step.
- * @param src - Its source.
- * @returns The columns.
- */
-function ownNeeds(step: Step, src: StepsSource): Need[] {
-    const out: Need[] = [];
-    const named = (table: TableName, read: object | undefined): void => {
-        for (const [k, v] of Object.entries(read ?? {})) {
-            if (typeof v === "string" && ((KEYS as readonly string[]).includes(k) || ROLES.has(k))) {
-                out.push([table, v, ROLES.has(k) ? k : undefined]);
-            }
-        }
-    };
-    if (step.op === "join.add") {
-        named("nodes", src.mapping.nodes);
-        named("edges", src.mapping.edges);
-        return out;
-    }
-    const edgeStep = step.op === "join.edges" || step.op === "join.edge-values";
-    const table = step.read.table ?? (edgeStep ? "edges" : "nodes");
-    named(table, step.read);
-    for (const c of step.columns ?? []) {
-        out.push([table, c, undefined]);
-    }
-    return out;
-}
-
-/**
  * The columns a step reads that the rows of its sources no longer hold.
  * @param value - The sources and steps.
  * @param copies - The rows as read.
@@ -185,33 +86,7 @@ function ownNeeds(step: Step, src: StepsSource): Need[] {
  * @returns One `E_COLUMN_MISSING` or `E_READ_ROLE_MISSING` per missing column.
  */
 export function missingColumns(value: SourceSteps, copies: Copies, index: number): RefreshIssue[] {
-    const step = value.steps[index] as Step | undefined;
-    if (step === undefined) {
-        return [];
-    }
-    const out: RefreshIssue[] = [];
-    for (const id of new Set(stepSources(step))) {
-        const src = value.sources[id] as StepsSource | undefined;
-        const tables = src === undefined ? undefined : copies[src.origin.copy];
-        if (src === undefined || tables === undefined) {
-            continue;
-        }
-        const have = columnsOf(src, tables);
-        for (const [table, column, role] of needs(step, src)) {
-            if (have[table].has(column)) {
-                continue;
-            }
-            out.push(
-                role === undefined
-                    ? { code: "E_COLUMN_MISSING", params: { step: index, source: id, column, table } }
-                    : {
-                          code: "E_READ_ROLE_MISSING",
-                          params: { step: index, source: id, column, role: role as SourceRoleName, table },
-                      },
-            );
-        }
-    }
-    return out;
+    return missingOf(value, (copy) => copies[copy], index);
 }
 
 /**
@@ -243,45 +118,13 @@ function missingRuleColumns(value: SourceSteps, copies: Copies, id: string): Ref
 }
 
 /**
- * The value with each step that depends on a source held while a column it reads is missing, and
- * turned back on once every column it was held for is back.
- * @param prior - The value before the change.
- * @param next - The value after it.
- * @param copies - Every copy either value names.
- * @param ids - The sources whose rows changed.
- * @returns The value with the steps held or let go.
- */
-function holdSteps(prior: SourceSteps, next: SourceSteps, copies: Copies, ids: readonly string[]): SourceSteps {
-    const steps = next.steps.map((step, index) => {
-        if (!stepSources(step).some((id) => ids.includes(id))) {
-            return step;
-        }
-        if (missingColumns(next, copies, index).length > 0) {
-            return step.off === true ? step : { ...step, off: true };
-        }
-        const wasHeld = step.off === true && missingColumns(prior, copies, index).length > 0;
-        if (!wasHeld) {
-            return step;
-        }
-        const { off: _off, ...on } = step;
-        return on;
-    });
-    return { ...next, steps };
-}
-
-/**
  * Swap a source's copy, keeping its id, mapping and steps; a step reading a column the new rows
- * lack is held (7.12).
+ * lack is held by the build until the column is back or resolved (7.12).
  * @param prior - The value.
  * @param edit - The swap.
- * @param copies - Every copy, the new one included.
  * @returns The next value.
  */
-function replaceCopy(
-    prior: SourceSteps,
-    edit: Extract<RefreshEdit, { kind: "replace-copy" }>,
-    copies: Copies,
-): SourceSteps {
+function replaceCopy(prior: SourceSteps, edit: Extract<RefreshEdit, { kind: "replace-copy" }>): SourceSteps {
     const src = prior.sources[edit.id] as StepsSource | undefined;
     if (src === undefined) {
         return prior;
@@ -293,8 +136,8 @@ function replaceCopy(
         ...(edit.input === undefined ? {} : { input: edit.input }),
         ...(edit.tables === undefined ? {} : { tables: edit.tables }),
     };
-    const next = { ...prior, sources: { ...prior.sources, [edit.id]: swapped } };
-    return holdSteps(prior, next, copies, [edit.id]);
+    // A step reading a column the new rows lack is held by the build, never turned off (7.12, 7.13).
+    return { ...prior, sources: { ...prior.sources, [edit.id]: swapped } };
 }
 
 /**
@@ -333,7 +176,7 @@ function resolveStep(
             next = { ...prior, steps: prior.steps.map((s, i) => (i === edit.index ? cleared : s)) };
         }
     }
-    return holdSteps(prior, next, copies, [source]);
+    return next;
 }
 
 /**
@@ -460,7 +303,7 @@ function settleEdit(
 export function applyRefreshEdit(prior: SourceSteps, edit: RefreshEdit, copies: Copies): SourceSteps {
     switch (edit.kind) {
         case "replace-copy":
-            return replaceCopy(prior, edit, copies);
+            return replaceCopy(prior, edit);
         case "settle-edit":
             return settleEdit(prior, edit, copies);
         default:

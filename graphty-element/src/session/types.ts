@@ -4030,11 +4030,11 @@ export interface SourceStepRow {
     readonly spaces: readonly SourceSpaceName[];
     /** The types its source's rules give what it builds. */
     readonly types: readonly SourceTypeName[];
-    /** Kept but not built. */
+    /** The reader turned it off: kept but not built. */
     readonly off: boolean;
-    /** A source it depends on is held, so it is not built. */
+    /** A source it depends on is held, or it misses a column (`missing`), so it is not built. */
     readonly held: boolean;
-    /** The columns it reads that its sources' rows no longer hold; a step missing one is off. */
+    /** The columns it reads that its sources' rows no longer hold; a step missing one is held. */
     readonly missing: readonly SourceRefreshIssue[];
     /** Its counts in the committed build; null when it was not built. */
     readonly buckets: SourceStepCounts | null;

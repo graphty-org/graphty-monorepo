@@ -33,34 +33,46 @@ export interface CopyTables {
     readonly edges?: readonly Row[];
 }
 
-/** The time and location roles a table can carry (3.9). */
-interface RoleColumns {
+/** The time roles a table can carry, and its renames (3.9). */
+interface TimeRoles {
     /** The column holding the element's time. */
     readonly time?: string;
+    /** How the time column's numbers read: `"ms"`, `"s"`, `"year"` or `"ordinal"`; absent means milliseconds. */
+    readonly timeUnit?: "ms" | "s" | "year" | "ordinal";
     /** The column holding the end of the element's time span. */
     readonly timeEnd?: string;
-    /** The zone a time with no zone of its own is read in, such as `"+02:00"`; absent means UTC. */
+    /** The column holding the element's list of time spells. */
+    readonly timeSpells?: string;
+    /** The IANA zone a time with no offset of its own is read in, such as `"Europe/Oslo"`; absent means UTC. */
     readonly timeParseZone?: string;
+    /** Working names for columns, keyed by the name as read (Rename, 4.4). */
+    readonly renamed?: Readonly<Record<string, string>>;
+}
+
+/** The weight roles a table can carry (3.9). */
+interface WeightRoles {
+    /** The column holding the element's weight. */
+    readonly weight?: string;
+    /** What a larger weight means, such as `"strength"` or `"distance"`. */
+    readonly weightMeaning?: string;
+}
+
+/** What a source's node rows are for. */
+interface NodeMapping extends TimeRoles, WeightRoles {
+    /** The key column; absent makes every row its own node keyed `<copy id>#<row>`. */
+    readonly key?: string;
+    /** The id space the keys live in; absent means the source's own space `source:<id>`. */
+    readonly space?: string;
     readonly latitude?: string;
     readonly longitude?: string;
     readonly coordinates?: string;
     readonly country?: string;
     readonly region?: string;
     readonly city?: string;
-    /** Working names for columns, keyed by the name as read (Rename, 4.4). */
-    readonly renamed?: Readonly<Record<string, string>>;
-}
-
-/** What a source's node rows are for. */
-interface NodeMapping extends RoleColumns {
-    /** The key column; absent makes every row its own node keyed `<copy id>#<row>`. */
-    readonly key?: string;
-    /** The id space the keys live in; absent means the source's own space `source:<id>`. */
-    readonly space?: string;
 }
 
 /** What a source's edge rows are for. */
-export interface EdgeMapping extends RoleColumns {
+export interface EdgeMapping extends TimeRoles, WeightRoles {
     /** The column naming the edge's source end. */
     readonly source: string;
     /** The column naming the edge's target end. */
@@ -71,10 +83,6 @@ export interface EdgeMapping extends RoleColumns {
     readonly targetSpace?: string;
     /** The column holding the edge's own key; absent keys each row `<copy id>#<row>`. */
     readonly edgeId?: string;
-    /** The column holding the edge's weight. */
-    readonly weight?: string;
-    /** What a larger weight means, such as `"strength"` or `"distance"`. */
-    readonly weightMeaning?: string;
 }
 
 /** Whether a source's rows are nodes, edges, or both (3.1). */
@@ -85,8 +93,11 @@ export interface Mapping {
 
 /** A source's own settings, which no act writes (3.3). */
 export interface SourceSettings {
-    /** A node row repeating a key: `"first"` (default) keeps the first; `"merge"` fills cells it left empty. */
-    readonly duplicateIds?: "first" | "merge";
+    /**
+     * A node row repeating a key: `"first"` (default) keeps the first; `"merge"` fills cells it left
+     * empty; `"refuse"` refused the load, so the rows hold no repeat.
+     */
+    readonly duplicateIds?: "first" | "merge" | "refuse";
     /** An edge end naming no node: `"add"` (default) makes the node; `"leave-out"` drops the row. */
     readonly unmatched?: "add" | "leave-out";
 }
@@ -124,7 +135,7 @@ interface StepMappingTable {
 /** The choices every step but `join.add` may carry (3.3, 3.4). */
 interface StepChoices {
     readonly source: string;
-    /** Written only by the element: the step is kept but not built (7.12). */
+    /** Set only by the reader's choice: the step is kept but not built (7.12, 7.13). */
     readonly off?: boolean;
     /** The working columns the step brings besides its role columns; absent means every column. */
     readonly columns?: readonly string[];
@@ -138,7 +149,7 @@ interface StepChoices {
 /** `join.add`: every table of the source, through its mapping. */
 export interface AddStep extends StepChoices {
     readonly op: "join.add";
-    readonly duplicateIds?: "first" | "merge";
+    readonly duplicateIds?: "first" | "merge" | "refuse";
 }
 
 /** The key a node step reads, and the space it looks it up in. */
@@ -197,6 +208,8 @@ interface EdgesStepRead {
     readonly weightMeaning?: string;
     /** Absent means the source's time role; `null` means none. */
     readonly time?: string | null;
+    /** How the step's time column's numbers read; absent means the source's `timeUnit`. */
+    readonly timeUnit?: "ms" | "s" | "year" | "ordinal";
 }
 
 /** `join.edges`: each row one edge, keyed `<part>/<key>`. */

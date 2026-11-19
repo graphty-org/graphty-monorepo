@@ -297,10 +297,11 @@ describe("source-steps: replace and refresh keep the source id and swap the copy
         assert.strictEqual(missing[0].params.column, "merchant_name");
         assert.include(codes(report.issues), "W_COLUMN_UNUSED");
         const index = missing[0].params.step ?? -1;
-        assert.isTrue(session.data.steps()[index].off, "held: kept, listed, not built");
+        assert.isTrue(session.data.steps()[index].held, "held: kept, listed, not built");
+        assert.isFalse(session.data.steps()[index].off, "only the reader turns a step off (7.13)");
         assert.isUndefined(session.data.values({ space: "merchant", key: "M-1" }, "merchant_name")?.shown ?? undefined);
         await session.data.resolveStep(index, { column: "shop_name" });
-        assert.isFalse(session.data.steps()[index].off);
+        assert.isFalse(session.data.steps()[index].held);
         assert.deepStrictEqual(session.data.steps()[index].missing, []);
         assert.strictEqual(
             session.data.values({ space: "merchant", key: "M-1" }, "merchant_name")?.shown,
@@ -311,8 +312,8 @@ describe("source-steps: replace and refresh keep the source id and swap the copy
         await session.data.replaceSource(t, csv(TRANSACTIONS.replace("device_id", "dev")));
         assert.isUndefined(spaces(session).device, "the device steps are held");
         assert.isTrue(
-            session.data.steps().some((s) => s.off && s.missing.length > 0),
-            "an off step is kept and listed",
+            session.data.steps().some((s) => s.held && !s.off && s.missing.length > 0),
+            "a held step is kept and listed, and not turned off",
         );
         // The column comes back: the held steps are built again.
         await session.data.replaceSource(t, csv(TRANSACTIONS));

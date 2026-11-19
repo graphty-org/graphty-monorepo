@@ -216,7 +216,7 @@ const STEPS_FIXTURES: readonly RoundTripFixture[] = [
                     steps: [{ op: "join.add", source: STEPS_SOURCE.id }],
                     types: [],
                     reader: [],
-                    build: 3,
+                    build: "01JZ0000000000000000000003",
                 },
             },
             copies: STEPS_COPIES,

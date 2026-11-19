@@ -16,7 +16,7 @@ import type { DataStepsSetCommand } from "../../commands/source-steps";
 import type { SessionCommand } from "../../planning";
 import type { ImportOptions, JoinChoices, JoinRecord, JoinShape, LoadChoices, TableMapping } from "../../types";
 import { applyAct } from "./acts";
-import { isStaged, mintPart, nodeSpace, ownSpace, resolveNode } from "./build";
+import { isStaged, mintPart, nodeSpace, ownSpace, resolveEdge, resolveNode } from "./build";
 import {
     buildOf,
     checkSpace,
@@ -45,6 +45,7 @@ import {
     type NodeRef,
     READER_SOURCE,
     READER_SPACE,
+    type ReaderEdit,
     type ReaderOp,
     type Row,
     type Step,
@@ -159,7 +160,7 @@ function sourceFacts(
 ): Omit<StepsSource, "id" | "origin" | "mapping"> {
     const endTypes = defined({ source: options.edges?.from.type, target: options.edges?.to.type });
     const settings = defined({
-        duplicateIds: command.duplicateIds === "merge" ? ("merge" as const) : undefined,
+        duplicateIds: command.duplicateIds === "first" ? undefined : command.duplicateIds,
         unmatched: command.unmatched === "leave-out" ? ("leave-out" as const) : undefined,
     });
     const { name, type } = importFact(command).params;
@@ -463,15 +464,28 @@ export function readerOps(
                             details: guarded.params,
                         });
                     }
-                    const at = "node" in target ? resolveNode(built, target.node.space, target.node.key) : null;
-                    const was = at?.values[column];
+                    const at =
+                        "node" in target
+                            ? resolveNode(built, target.node.space, target.node.key)
+                            : resolveEdge(built, target.edge.load, target.edge.key);
+                    // `was` is always written, null for an empty cell (version 2, 4.1.4); a cell the
+                    // reader edited before keeps the value the first edit replaced, as a pick does
+                    const prior = [...value.reader]
+                        .reverse()
+                        .find(
+                            (o): o is ReaderEdit =>
+                                o.op === "edit" &&
+                                o.column === column &&
+                                JSON.stringify(o.node ?? o.edge) ===
+                                    JSON.stringify("node" in target ? target.node : target.edge),
+                        );
                     return {
                         id: mintEditId(),
                         op: "edit" as const,
                         ...target,
                         column,
                         value: v as CellValue,
-                        ...(was === undefined ? {} : { was }),
+                        was: prior === undefined ? (at?.values[column] ?? null) : (prior.was ?? null),
                     };
                 });
             });
@@ -691,8 +705,7 @@ export function compileJoin(value: SourceSteps, copies: Copies, join: JoinAsStep
               ...defined({ unmatchedRows: choices.unmatchedRows }),
               ...(through === null ? translation : fieldVia(through, space)),
           };
-    const parts = step.op === "join.edges" ? { parts: { ...next.parts, [id]: step.part } } : {};
-    return { ...next, ...parts, steps: [...next.steps, step] };
+    return { ...next, steps: [...next.steps, step] };
 }
 
 /**
@@ -890,7 +903,7 @@ function edgesStepOf(
     return {
         op: "join.edges",
         source: id,
-        part: mintPart(value, id, { high: value.parts?.[id] }),
+        part: mintPart(value, id),
         read: { table: "edges", source: files[0], sourceSpace: space, target: files[1], targetSpace: space },
         ...options,
     };

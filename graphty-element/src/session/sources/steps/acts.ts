@@ -284,14 +284,13 @@ function addStaged(
 }
 
 /**
- * A new part for a `join.edges` step of a source, recorded so a deleted step's part is never reused.
+ * A new part for a `join.edges` step of a source: one above every part present (3.3).
  * @param value - The value.
  * @param source - The source.
- * @returns The part and the value recording it.
+ * @returns The part and the value.
  */
 function minted(value: SourceSteps, source: string): { part: number; value: SourceSteps } {
-    const part = mintPart(value, source, { high: value.parts?.[source] });
-    return { part, value: { ...value, parts: { ...value.parts, [source]: part } } };
+    return { part: mintPart(value, source), value };
 }
 
 /**

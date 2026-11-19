@@ -9,8 +9,8 @@
  * off turned on. Pure, and free of Babylon.js, Lit and the DOM.
  */
 
-import { type JoinInto, nodeOne, sourceOf } from "./acts";
-import { isEmpty, type MatchOptions, normalize, tableRows } from "./build";
+import { type JoinInto, type NodeOne, nodeOne, sourceOf } from "./acts";
+import { isEmpty, isStaged, type MatchOptions, normalize, resolveNode, tableRows } from "./build";
 import { buildOf, type Copies, copyMap, type SourceSteps } from "./project";
 import type { CellValue, Row } from "./types";
 
@@ -34,11 +34,11 @@ export interface MatchCounts {
     readonly only1: number;
     /** Keys only side 2 holds: rows naming no node 1. */
     readonly only2: number;
-    /** Keys side 1 holds more than once. */
+    /** Keys reaching more than one node 1 (rows of one node holding a key count once). */
     readonly repeated1: number;
     /** Keys side 2 holds more than once. */
     readonly repeated2: number;
-    /** Rows of side 2 whose key side 1 holds more than once: they name several nodes. */
+    /** Rows of side 2 whose key reaches more than one node 1: they name several nodes, so merge nothing. */
     readonly fanOut: number;
     /** Rows of side 2 that match nothing as text but would as numbers, such as `"007"` and `7`. */
     readonly textVersusNumber: number;
@@ -65,13 +65,16 @@ export interface MatchValuesOptions extends MatchOptions {
     readonly limit?: number;
 }
 
-/** One side hashed: per key, how many rows hold it and the value first read. */
-type Hashed = Map<string, { n: number; first: CellValue }>;
+/** One side hashed: per key, how many rows hold it, the value first read and the nodes it reaches. */
+type Hashed = Map<string, { n: number; first: CellValue; nodes: Set<string> }>;
+
+/** A value as read, with the node 1 its row reaches (side 1 only). */
+type Entry = readonly [CellValue | undefined, string?];
 
 /** The values of both sides, as read once. */
 interface Sides {
-    readonly one: Iterable<CellValue | undefined>;
-    readonly two: readonly (CellValue | undefined)[];
+    readonly one: Iterable<Entry>;
+    readonly two: readonly Entry[];
 }
 
 /**
@@ -92,10 +95,10 @@ function rowsOf(value: SourceSteps, copies: Copies, id: string): readonly Row[] 
  * @param field - The column.
  * @returns The cells.
  */
-function column(rows: readonly Row[], field: string): (CellValue | undefined)[] {
-    const out: (CellValue | undefined)[] = [];
+function column(rows: readonly Row[], field: string): Entry[] {
+    const out: Entry[] = [];
     for (const row of rows) {
-        out.push(row[field]);
+        out.push([row[field]]);
     }
     return out;
 }
@@ -115,16 +118,45 @@ function sides(value: SourceSteps, copies: Copies, pair: MatchPair): Sides {
         const { space } = n1;
         // ponytail: a merged node's former keys (aliases) are not counted; add them if a Merge
         // into an already merged space reads short.
-        const keys = function* (): Generator<string> {
+        const keys = function* (): Generator<Entry> {
             for (const n of buildOf(value, copies).nodes.values()) {
                 if (n.space === space) {
-                    yield n.key;
+                    yield [n.key, n.id];
                 }
             }
         };
         return { one: keys(), two };
     }
-    return { one: column(rowsOf(value, copies, pair.into.source), pair.into.field ?? ""), two };
+    return { one: translated(value, copies, pair.into.source, pair.into.field ?? "", n1), two };
+}
+
+/**
+ * Side 1 when the field is not node 1's key: each row's field value with the node its key reaches,
+ * as the build's translator reads it. A row with no key, or whose key reaches no built node, is
+ * skipped; a staged source is not built yet, so its keys stand for the nodes adding it makes.
+ * @param value - The value.
+ * @param copies - The rows as read.
+ * @param source - Node 1's source.
+ * @param field - The column it translates through.
+ * @param n1 - Node 1.
+ * @returns The entries.
+ */
+function translated(value: SourceSteps, copies: Copies, source: string, field: string, n1: NodeOne): Entry[] {
+    const keyCol = n1.keyCol ?? "";
+    const staged = isStaged(value, source);
+    const built = staged ? null : buildOf(value, copies);
+    const out: Entry[] = [];
+    for (const row of rowsOf(value, copies, source)) {
+        const key = row[keyCol];
+        if (isEmpty(row[field]) || isEmpty(key)) {
+            continue;
+        }
+        const node = built === null ? String(key) : resolveNode(built, n1.space, String(key))?.id;
+        if (node !== undefined) {
+            out.push([row[field], node]);
+        }
+    }
+    return out;
 }
 
 /** The three ways one pass hashes a value: as asked, and with each toggle that is off turned on. */
@@ -149,19 +181,38 @@ function waysOf(o: MatchOptions): Ways {
 }
 
 /**
+ * Count one row under its key.
+ * @param table - The table.
+ * @param k - The key.
+ * @param v - The value as read.
+ * @param node - The node 1 the row reaches, for side 1.
+ */
+function add(table: Hashed, k: string, v: CellValue, node: string | undefined): void {
+    let held = table.get(k);
+    if (held === undefined) {
+        held = { n: 0, first: v, nodes: new Set() };
+        table.set(k, held);
+    }
+    held.n++;
+    if (node !== undefined) {
+        held.nodes.add(node);
+    }
+}
+
+/**
  * Hash one side's values every way in one pass.
  * @param values - The values.
  * @param ways - The ways.
  * @returns One table per way, in `asked`, `caseOff`, `spacesOff` order (null for a way not hashed).
  */
-function hash(values: Iterable<CellValue | undefined>, ways: Ways): [Hashed, Hashed | null, Hashed | null] {
+function hash(values: Iterable<Entry>, ways: Ways): [Hashed, Hashed | null, Hashed | null] {
     const out: [Hashed, Hashed | null, Hashed | null] = [
         new Map() as Hashed,
         ways.caseOff ? (new Map() as Hashed) : null,
         ways.spacesOff ? (new Map() as Hashed) : null,
     ];
     const opts = [ways.asked, ways.caseOff, ways.spacesOff];
-    for (const v of values) {
+    for (const [v, node] of values) {
         if (isEmpty(v)) {
             continue;
         }
@@ -171,13 +222,7 @@ function hash(values: Iterable<CellValue | undefined>, ways: Ways): [Hashed, Has
             if (table === null || o === null) {
                 continue;
             }
-            const k = normalize(v, o);
-            const held = table.get(k);
-            if (held === undefined) {
-                table.set(k, { n: 1, first: v });
-            } else {
-                held.n++;
-            }
+            add(table, normalize(v, o), v, node);
         }
     }
     return out;
@@ -200,14 +245,15 @@ function both(a: Hashed, b: Hashed): number {
 }
 
 /**
- * Keys held more than once.
+ * Keys held more than once: by more than one row, or for side 1 reaching more than one node.
  * @param t - The table.
+ * @param byNodes - Count the nodes a key reaches, not the rows holding it.
  * @returns How many.
  */
-function repeats(t: Hashed): number {
+function repeats(t: Hashed, byNodes: boolean): number {
     let n = 0;
-    for (const { n: rows } of t.values()) {
-        if (rows > 1) {
+    for (const held of t.values()) {
+        if ((byNodes ? held.nodes.size : held.n) > 1) {
             n++;
         }
     }
@@ -272,7 +318,7 @@ export function matchCounts(value: SourceSteps, copies: Copies, pair: MatchPair,
     const matched = both(a, b);
     let fanOut = 0;
     for (const [k, { n }] of b) {
-        if ((a.get(k)?.n ?? 0) > 1) {
+        if ((a.get(k)?.nodes.size ?? 0) > 1) {
             fanOut += n;
         }
     }
@@ -280,8 +326,8 @@ export function matchCounts(value: SourceSteps, copies: Copies, pair: MatchPair,
         matched,
         only1: a.size - matched,
         only2: b.size - matched,
-        repeated1: repeats(a),
-        repeated2: repeats(b),
+        repeated1: repeats(a, true),
+        repeated2: repeats(b, false),
         fanOut,
         textVersusNumber: numbersOnly(a, b),
         moreWithIgnoreCase: aCase && bCase ? both(aCase, bCase) - matched : null,

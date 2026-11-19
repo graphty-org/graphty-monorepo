@@ -358,6 +358,8 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
                 "conflicts",
                 "draft",
                 "currentDraft",
+                "matchCounts",
+                "matchValues",
             ],
         },
         {
@@ -387,6 +389,8 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
                 "edits",
                 "commit",
                 "dispose",
+                "matchCounts",
+                "matchValues",
             ],
         },
         { root: "VisibilityApi", members: ["held"] },

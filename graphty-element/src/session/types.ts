@@ -4302,11 +4302,11 @@ export interface SourceMatchCounts {
     readonly only1: number;
     /** Keys only side 2 holds: values naming no node 1. */
     readonly only2: number;
-    /** Keys side 1 holds more than once. */
+    /** Keys reaching more than one node 1 (rows of one node holding a key count once). */
     readonly repeated1: number;
     /** Keys side 2 holds more than once. */
     readonly repeated2: number;
-    /** Rows of side 2 whose key side 1 holds more than once: they name several nodes, so merge nothing. */
+    /** Rows of side 2 whose key reaches more than one node 1: they name several nodes, so merge nothing. */
     readonly fanOut: number;
     /** Rows of side 2 that match nothing as text but would as numbers, such as `"007"` against `7`. */
     readonly textVersusNumber: number;

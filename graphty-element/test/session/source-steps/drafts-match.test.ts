@@ -82,6 +82,50 @@ describe("source-steps: match counts", () => {
         session.dispose();
     });
 
+    it("a Field 1 column counts the nodes a value reaches, not the rows holding it", async () => {
+        const { session, t } = await phase2();
+        const k = await stage(session, "alert_id,holder\nK-0,Ann\nK-1,Cy", "kyc.csv", "alert_id");
+        // Ann is on T-1 and T-2, but both rows name one account, A-1, so connect makes one edge per alert.
+        const c = session.data.matchCounts({
+            from: { source: k, field: "holder" },
+            into: { source: t, field: "holder_name", space: "account" },
+        });
+        assert.strictEqual(c.matched, 2, "Ann and Cy");
+        assert.strictEqual(c.only1, 1, "Bo");
+        assert.strictEqual(c.repeated1, 0, "Ann reaches one account");
+        assert.strictEqual(c.fanOut, 0);
+        session.dispose();
+    });
+
+    it("a repeated key holding one value reaches one node: no fan-out, and the merge merges it", async () => {
+        const session = createGraphSession({ features: ["source-steps"] });
+        await session.data.import(
+            { type: "csv", config: { data: "id,email,badge\np1,a@x,B1\np1,a@x,B1\np2,b@x,B2" }, name: "people.csv" },
+            { key: "id", type: "person" },
+        );
+        const people = session.data.sources().at(-1)?.key ?? "";
+        const e = await stage(session, "entry,badge\ne1,B1\ne2,B2", "entries.csv", "entry");
+        const byBadge = session.data.matchCounts({
+            from: { source: e, field: "badge" },
+            into: { source: people, field: "badge" },
+        });
+        assert.strictEqual(byBadge.matched, 2);
+        assert.strictEqual(byBadge.repeated1, 0);
+        assert.strictEqual(byBadge.fanOut, 0);
+        const b = await stage(session, "badge,email\nB1,a@x\nB2,b@x", "badges.csv", "badge");
+        const pair = { from: { source: b, field: "email" }, into: { source: people, field: "email" } };
+        const c = session.data.matchCounts(pair);
+        assert.strictEqual(c.repeated1, 0);
+        assert.strictEqual(c.fanOut, 0);
+        const d = session.data.draft();
+        d.merge(pair);
+        const st = d.steps().find((s) => s.op === "join.merge")?.buckets;
+        assert.strictEqual(st?.merged, 2);
+        assert.strictEqual(st?.fanOut, 0);
+        d.dispose();
+        session.dispose();
+    });
+
     it("counts text that would match as a number", async () => {
         const session = createGraphSession({ features: ["source-steps"] });
         const one = await stage(session, "id,code\nx,7\ny,9", "one.csv", "id");

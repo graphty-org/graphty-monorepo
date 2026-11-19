@@ -80,7 +80,7 @@ the measuring script that drives the page at 1440 x 900, 1180 x 820 (iPad landsc
     the page, never in the note box. Tab to Accept, press Space twice, and focus is still on Accept;
     press R, type, Enter, then A, and the next item is accepted.
 13. **The passkey approves Finish.** Finish's sheet calls the passkey directly from the tap on its
-    final button (iPad Safari requires that), signs the record the sheet described, and a cancelled
+    final button (iPad Safari requires that), signs the record the sheet described, and a canceled
     Face ID changes nothing. The CI gate refuses an accept whose record has no valid approval
     (design.md section 8).
 14. **Every earlier owner request still holds** (section 7): fit-to-screen side by side, a blank
@@ -297,7 +297,7 @@ the commit status: then it stays available, so Finish can post the status again.
 3. **The passkey.** The final button's click handler calls `navigator.credentials.get` at once,
    with the record hash from step 1 as the challenge and `userVerification: "required"`. Nothing is
    awaited between the tap and that call: iPad Safari refuses WebAuthn outside the user's tap. A
-   cancelled or failed Face ID leaves the sheet open, puts focus back on the final button, and says
+   canceled or failed Face ID leaves the sheet open, puts focus back on the final button, and says
    "Passkey cancelled: nothing was changed."; the same button tries again, and the sheet never asks
    the Finish question twice. The assertion, the challenge and the digest go to `POST /api/finish`.
    The server refuses with "Decisions changed since this sheet opened: check the summary again."
@@ -339,7 +339,7 @@ credential's settings and the file it goes into):
    CI gate require your approval." The key is named by the kind of device that made it and the
    day, never "this device", since the file is read on every device.
 3. Until that pull request merges, the passkey line reads "Passkey waiting for #650 to merge" and
-   Finish already asks for the passkey. A cancelled Face ID says "Passkey not created: nothing was
+   Finish already asks for the passkey. A canceled Face ID says "Passkey not created: nothing was
    changed."
 
 ### Moving on: next project and next target
@@ -727,8 +727,8 @@ No string lives only in a tooltip.
 | Sheet, passkey               | -                                                                                       | "Your passkey confirms this Finish (Face ID or a security key)."                                                                                     |
 | Sheet, no passkey            | -                                                                                       | "Not yet protected: no passkey is registered, so this Finish is not approved by you and the CI gate does not check who accepted. ..."                |
 | Sheet button                 | "Finish #201"                                                                           | "Sign and finish #201" once a passkey is known; otherwise "Finish #201", or "Post 3 rejects to #201" for rejects alone                               |
-| Cancelled                    | "Finish cancelled: nothing was changed."                                                | Unchanged                                                                                                                                            |
-| Passkey cancelled            | -                                                                                       | "Passkey cancelled: nothing was changed."                                                                                                            |
+| Canceled                     | "Finish cancelled: nothing was changed."                                                | Unchanged                                                                                                                                            |
+| Passkey canceled             | -                                                                                       | "Passkey cancelled: nothing was changed."                                                                                                            |
 | Decisions changed            | -                                                                                       | "Decisions changed since this sheet opened: check the summary again."                                                                                |
 | Running (1752)               | "Finishing #201: committing..."                                                         | The step list (section 2), e.g. "Uploading images to LFS: 120 of 214", with "1 min 12 s"; each step "done", "in progress" or "waiting"               |
 | Lost contact (1769)          | "Lost contact with the server (...); Finish goes on there. Retrying..."                 | Unchanged                                                                                                                                            |
@@ -864,7 +864,7 @@ memory limit, so these are checked on the owner's iPad before the redesign is ca
    the status row stay on screen, and Enter sends a waiting reject.
 2. Five projects of 170 items each, each grid scrolled end to end and 20 items of each opened, in
    one tab, without Safari reloading the tab.
-3. Finish with Face ID; Finish with Face ID cancelled ("Passkey cancelled: nothing was changed.");
+3. Finish with Face ID; Finish with Face ID canceled ("Passkey cancelled: nothing was changed.");
    Register passkey.
 4. Safari discards the tab in the background (open many other tabs); returning reopens the same
    item at the same pass position.

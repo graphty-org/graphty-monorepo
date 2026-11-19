@@ -375,6 +375,15 @@ describe("the graphty scene extractor's vocabulary", () => {
         assert.strictEqual(polygonClassOf(undefined), "rect");
     });
 
+    it("counts a corner within 2% of its drawn box's longer side as on the box's corner, as the oracle's side does", () => {
+        // dot-real-crazy "8th Edition": a skewed quadrilateral drawn 195 by 44, one corner 2 units below its box's top
+        // right; as the oracle reads Graphviz's drawing of it, no diamond
+        const eighth = "-0.214,0.845 -0.897,0.031 -0.427,-1.609 1.538,0.733";
+        assert.strictEqual(polygonClassOf(eighth, { x0: 0, y0: 0, x1: 195, y1: 44 }), "other");
+        // the same corners drawn square: that corner is 5% of the side off the box's, a diamond's corner on its side
+        assert.strictEqual(polygonClassOf(eighth, { x0: 0, y0: 0, x1: 100, y1: 100 }), "diamond");
+    });
+
     it("gives every node shape the element has a class, and anything else other", () => {
         for (const shape of NodeShapes.options) {
             assert.isString(shapeClassOf(shape));

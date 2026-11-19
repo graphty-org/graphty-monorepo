@@ -35,7 +35,7 @@ Saw: the box went away.
 
 `--step ... --click "Les Miserables"`
 
-Saw: about 77 blue balls joined by grey lines, no names. Left: a search box, "Selection",
+Saw: about 77 blue balls joined by gray lines, no names. Left: a search box, "Selection",
 "Everything". Right: "Graph / From Les Miserables" with "Style" and "Values" tabs; Values shows
 Nodes 77, Edges 254, density and so on. A toolbar at the bottom with five icons.
 
@@ -75,11 +75,11 @@ Tom: "id or name. I want the character's name, so name."
 `--step ... --click "name"`
 
 Saw: names appear above the dots across the whole drawing (Blacheville, Myriel, Napoleon, Old Man,
-Gervais...). The Label row now reads "Aa Above Abc name" with a minus. Under it, in small grey
+Gervais...). The Label row now reads "Aa Above Abc name" with a minus. Under it, in small gray
 text: "77 labels, 7 hidden to avoid overlap". The middle of the drawing is a knot where names are
 crammed and some dots have none.
 
-Tom: "Names! Small, but there. The middle is a mess though." Leaned in to read the grey line:
+Tom: "Names! Small, but there. The middle is a mess though." Leaned in to read the gray line:
 "'77 labels, 7 hidden to avoid overlap.' So seven aren't showing. They asked for every name."
 
 ### 08 -- try to zoom into the knot
@@ -125,9 +125,9 @@ the other seven."
     - Style on the first screen only had background and "Method". I had to guess that "Everything"
       on the left was what I should click to get at the dots.
     - The plus next to Label is very small and faint; the row looks like a heading, not a button.
-    - The names are tiny, serif, and black on light grey. With my glasses up on my head I could not
+    - The names are tiny, serif, and black on light gray. With my glasses up on my head I could not
       read most of them, especially in the middle.
-    - "7 hidden to avoid overlap" is in tiny grey text, and it tells me there is a problem without
+    - "7 hidden to avoid overlap" is in tiny gray text, and it tells me there is a problem without
       telling me what to do about it. I wanted a "show all" or "bigger names" or at least a hint
       that zooming in would show them.
     - Scrolling on the drawing did not zoom in, so I could not get closer to the crowded middle.

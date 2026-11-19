@@ -392,6 +392,15 @@ const emulateReducedMotion: BrowserCommand<[reduce: boolean]> = async (ctx, redu
 };
 
 /**
+ * Emulate the reader's color scheme (test/browser/color-scheme.test.ts). In the `browser` project's `commands`.
+ * @param ctx - the browser command context
+ * @param dark - true for `prefers-color-scheme: dark`, false for light
+ */
+const emulateColorScheme: BrowserCommand<[dark: boolean]> = async (ctx, dark) => {
+    await ctx.page.emulateMedia({ colorScheme: dark ? "dark" : "light" });
+};
+
+/**
  * The commands the style fidelity harness (test/fidelity/mount.ts) runs around loading a sample, in the `commands` of
  * every project that runs a test file using it (`fidelity`, `browser`, `minimum-work`).
  */
@@ -895,7 +904,7 @@ const config = defineConfig({
                         "test/browser/channel-paints.test.ts",
                         // Reads the shading on a node's surface, which nothing else in the
                         // package can see: the style model, the instance buffer and the mesh all
-                        // report the right colour while the lit half of the node is drawn flat.
+                        // report the right color while the lit half of the node is drawn flat.
                         // It is also the only thing that notices if a Babylon upgrade moves the
                         // line of the stock shader that src/meshes/InstanceColorShading.ts
                         // rewrites -- the rewrite then matches nothing, silently.
@@ -1069,7 +1078,12 @@ const config = defineConfig({
                     fileParallelism: false,
                     browser: {
                         enabled: true,
-                        commands: { ...mapTileCommands, ...samplePictureCommands, emulateReducedMotion },
+                        commands: {
+                            ...mapTileCommands,
+                            ...samplePictureCommands,
+                            emulateReducedMotion,
+                            emulateColorScheme,
+                        },
                         headless: true,
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
                         provider: playwright(),
@@ -1186,6 +1200,7 @@ const config = defineConfig({
                             ...samplePictureCommands,
                             ...heldRequestCommands,
                             emulateReducedMotion,
+                            emulateColorScheme,
                         },
                         headless: true,
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,

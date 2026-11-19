@@ -397,7 +397,7 @@ export function createAccelerator(ctx: GpuContext, options?: AcceleratorOptions)
             return await triangleCount(ctx, gs);
         },
         /**
-         * Label propagation: `maxIterations` and `weighted` are honoured, `tolerance` is refused when
+         * Label propagation: `maxIterations` and `weighted` are honored, `tolerance` is refused when
          * defined (a label propagation stops at a fixed point, not below a tolerance).
          * @param gs - the snapshot
          * @param o - the seam's placeholder `HitsOptionsLike`

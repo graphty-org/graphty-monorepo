@@ -1,11 +1,11 @@
 /**
  * @file Runs as steps: a finished run, its result and its layers are one step; undo keeps the
  * result instead of computing it again; undo while a run is still going cancels it, and a run
- * cancelled that way, or any way, never writes anything, however late its work finishes.
+ * canceled that way, or any way, never writes anything, however late its work finishes.
  *
  * The runs here are the fixture session's fake `degree` and `shortest-path`, with a gate in front
  * of `betweenness` that holds its work until the test opens it. The held work ignores the signal
- * the run is cancelled with, as an accelerator's kernel does, so a cancelled run's value still
+ * the run is canceled with, as an accelerator's kernel does, so a canceled run's value still
  * arrives late. See design/undo/undo-design.md sections 4.8 and 6.1 to 6.3.
  */
 

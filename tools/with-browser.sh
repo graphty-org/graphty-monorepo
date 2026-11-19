@@ -23,12 +23,12 @@
 # older ticket of a live process could take slot N too, so a waiter is never held up behind one that cannot
 # use the slot it could.
 #
-# The low-priority lane: with BROWSER_SLOT_PRIORITY=low (tools/low-priority.sh) the command waits for slot 4
-# only (and the studio's 5 and up), the one every other command tries last, so it never holds more than one of
-# the four and never one an ordinary command would have taken first. Low-lane commands take their slot in the
-# order they began to wait, by the same rule but with tickets of their own (<slot dir>/.low-<epoch ns>-<pid>),
-# so a low-lane waiter never holds up an ordinary one, and a command that looks more often cannot keep the slot
-# from the others.
+# The low-priority lane: with BROWSER_SLOT_PRIORITY=low (tools/low-priority.sh) the command tries slot 4 first
+# (and the studio's 5 and up), the one every other command tries last, then slots 3, 2 and 1, but takes one of
+# those only while no ordinary command waits for it, so it never takes a slot an ordinary waiter wants. One hung
+# holder of slot 4 therefore cannot keep every low-lane command waiting while slots 1 to 3 sit free (#8930).
+# Low-lane commands take their slot in the order they began to wait, by the same rule but with tickets of their
+# own (<slot dir>/.low-<epoch ns>-<pid>), so a command that looks more often cannot keep the slot from the others.
 #
 # The high lane: with BROWSER_SLOT_PRIORITY=high (the cut's screenshot preview, which the owner reviews before
 # a ship: tools/visual-preview.sh sets it) the command takes the next free slot,
@@ -65,6 +65,18 @@ high_waiting() {
         [ "${f##*/.high-}" = "$$" ] && continue
         if kill -0 "${f##*/.high-}" 2>/dev/null; then return 0; fi
         rm -f "$f"
+    done
+    return 1
+}
+
+# Whether an ordinary command waits for slot $1: a ticket of a live process in the ordinary queue that could
+# take it (a ticket that names no slot count could take any).
+ordinary_wants() {
+    local f max
+    for f in "$dir"/queue/*; do
+        [ -e "$f" ] && kill -0 "${f##*-}" 2>/dev/null || continue
+        max=$(head -c 3 "$f" 2>/dev/null | tr -dc 0-9)
+        [ "${max:-16}" -lt "$1" ] || return 0
     done
     return 1
 }
@@ -108,18 +120,23 @@ low)
     ;;
 esac
 [ -z "$ticket" ] || echo "$n" >"$ticket"
+# No trap of its own on TERM, INT or HUP: bash (5.2) that receives a trapped signal while it parses a command
+# substitution, as this loop does on every look, fails to parse the trap's command and carries on, so a
+# waiter told to stop kept waiting with its ticket in the queue (#9010). Left to their default the signals
+# always end it, and bash runs the EXIT trap on the way out; a ticket left behind anyway is a dead one, which
+# every waiter skips.
 trap 'rm -f "$high" "$ticket"' EXIT
-trap 'exit 143' TERM INT HUP
 while :; do
-    slots=$(seq "$first" "$n")
+    slots="$(seq "$first" "$n") $(seq $((first - 1)) -1 1)"
     if [ -z "$high" ] && high_waiting; then slots=""; fi
     for i in $slots; do
+        [ "$i" -ge "$first" ] || ! ordinary_wants "$i" || continue
         [ -z "$ticket" ] || my_turn "$i" || continue
         exec {fd}>"$dir/slot$i"
         if flock -n "$fd"; then
             echo "$$ $(date -u +%Y-%m-%dT%H:%M:%SZ) $PWD :: $*" >"$dir/slot$i.holder"
             rm -f "$high" "$ticket"
-            trap - EXIT TERM INT HUP
+            trap - EXIT
             if [ ${#held_by[@]} -gt 0 ]; then
                 node "$here/wait-log.mjs" browser-slot "$start" "$PWD :: $*" "${held_by[@]}" 2>/dev/null
             fi

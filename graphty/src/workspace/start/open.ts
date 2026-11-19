@@ -278,7 +278,8 @@ export interface Incoming {
  * @returns the source.
  */
 export function incomingFiles(files: readonly File[]): Incoming {
-    const [first, second] = files;
+    const [first] = files;
+    const second = files.at(1);
     if (second === undefined) {
         return { name: first.name, source: { config: { file: first }, name: first.name } };
     }

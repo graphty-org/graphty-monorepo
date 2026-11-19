@@ -284,10 +284,11 @@ export function compileCommand(command: SessionCommand, options: ImportOptions, 
 
 /**
  * The element's `nodeData` / `edgeData` pair as one source of kind `derived` (9.1): the first
- * assignment adds it with `join.add`, a later one replaces that table of its copy in place, so a
- * file loaded after it can merge into its nodes. The step carries the off path's label and fact.
- * @param table - Which half was assigned.
- * @param records - The records.
+ * assignment adds it with `join.add`, a later one replaces the tables it names in its copy in place,
+ * so a file loaded after it can merge into its nodes. The step carries the off path's label and fact.
+ * @param records - The records assigned: the nodes, the edges or both.
+ * @param records.nodes - The nodes.
+ * @param records.edges - The edges.
  * @param values - The graph values: the sources and steps and their copies.
  * @param known - The configured paths: the node id, and the edge ends when configured.
  * @param known.nodeIdPath - Where a node record holds its id.
@@ -297,8 +298,10 @@ export function compileCommand(command: SessionCommand, options: ImportOptions, 
  * @returns The step.
  */
 export function compileRecords(
-    table: "nodes" | "edges",
-    records: readonly Readonly<Record<string, unknown>>[],
+    records: {
+        readonly nodes?: readonly Readonly<Record<string, unknown>>[];
+        readonly edges?: readonly Readonly<Record<string, unknown>>[];
+    },
     values: ReadonlyMap<string, unknown>,
     known: { readonly nodeIdPath: string; readonly source?: string; readonly target?: string },
     setup: boolean,
@@ -307,7 +310,13 @@ export function compileRecords(
     const copies = (values.get(SOURCE_COPIES_VALUE) as Copies | undefined) ?? {};
     const prior = Object.values(value.sources).find((each) => each.kind === "derived");
     const held: CopyTables = prior === undefined ? {} : (copies[prior.origin.copy] ?? {});
-    const tables: CopyTables = { ...held, [table]: records as readonly Row[] };
+    const tables: CopyTables = {
+        ...held,
+        ...(records.nodes === undefined ? {} : { nodes: records.nodes as readonly Row[] }),
+        ...(records.edges === undefined ? {} : { edges: records.edges as readonly Row[] }),
+    };
+    const fact =
+        records.edges === undefined ? "data.replace-nodes" : records.nodes === undefined ? "data.replace-edges" : "data.set";
     const copy = mintCopyId();
     const source: StepsSource = {
         id: prior?.id ?? mintSourceId(),
@@ -326,8 +335,8 @@ export function compileRecords(
             : { kind: "set", value: { ...value, sources: { ...value.sources, [source.id]: source } } };
     return {
         op: "batch",
-        label: table === "nodes" ? "Replaced the nodes" : "Replaced the edges",
-        fact: { code: table === "nodes" ? "data.replace-nodes" : "data.replace-edges", params: {} },
+        label: { "data.replace-nodes": "Replaced the nodes", "data.replace-edges": "Replaced the edges", "data.set": "Set the graph data" }[fact],
+        fact: { code: fact, params: {} },
         steps: [{ op: "data.steps-set", edit, copies: { [copy]: tables } }],
         ...(setup ? { setup } : {}),
     };

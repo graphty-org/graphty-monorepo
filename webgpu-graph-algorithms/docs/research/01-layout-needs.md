@@ -27,7 +27,7 @@ of the undirected snapshot (`2m - selfLoops`), dim = 2 or 3.
   `isSettled` is a `readonly true` and whose `step()` is a no-op
   (`LayoutEngine.ts` lines 302-304, 341). The whole layout is computed
   inside the first `getNodePosition()` call of the first frame. They never
-  animate, never honour pins or drags, and re-run from scratch when nodes
+  animate, never honor pins or drags, and re-run from scratch when nodes
   are added.
 - The two ANIMATED engines the element really uses are third-party:
   `ngraph.forcelayout` (the default, `config/GraphBehavior.ts` line 13) and
@@ -74,7 +74,7 @@ forceatlas2Layout(G, pos = null, maxIter = 100, jitterTolerance = 1.0,
 NAME read through `graph.getEdgeData(source, target, weight) || 1` (lines
 158-160), so a weight of 0 becomes 1.
 
-#### 2.1.2 Initialisation (lines 52-137)
+#### 2.1.2 Initialization (lines 52-137)
 
 - RNG: `new RandomNumberGenerator(seed ?? undefined)` (line 53); see 2.5.1.
 - Positions (three branches):
@@ -113,7 +113,7 @@ d`, towards j) (lines 288-297). - linlog: `attraction_i += -(log(1 + d) / d) * A
    `repulsion_i += (diff_ij / d') * factor`.
    Net magnitude: `scalingRatio * m_i * m_j / d'^2` (see 2.1.9 for why this
    is NOT the FA2 paper's / NetworkX's `1/d`).
-5. Gravity (lines 335-364): centre of mass `c = mean(p)`; `q = p_i - c`;
+5. Gravity (lines 335-364): center of mass `c = mean(p)`; `q = p_i - c`;
    strong: `g_i = -gravity * mass_i * q`; regular: `g_i = -gravity \* mass_i
     - q / |q|`when`|q| > 0.01`, else 0.
 6. `update_i = attraction_i + repulsion_i + gravities_i` (line 375).
@@ -182,7 +182,7 @@ node ORDER (`nodes()` order defines index order and the summation order of
 every reduction). Tests assert same-seed results agree to 0.1 (line
 344-385) and different seeds differ (line 387).
 
-#### 2.1.8 Tests that pin behaviour (`layout/test/forceatlas2-layout.test.ts`)
+#### 2.1.8 Tests that pin behavior (`layout/test/forceatlas2-layout.test.ts`)
 
 Empty graph -> `{}`; single node; disconnected components separated by >
 0.03 after 100 iterations; `maxIter` respected; gravity / strongGravity /
@@ -319,7 +319,7 @@ node-index order so that a seed produces the same start as the CPU path.
 
 Centroid subtraction (NaN-aware), then scale so `max |p - centroid| =
 scale`, then add `center`. FA2, FR (without `fixed`) and KK end with it;
-ARF does not. For a steppable GPU layout this normalisation cannot be
+ARF does not. For a steppable GPU layout this normalization cannot be
 applied per step (it would fight the drag / pin positions and change the
 scene scale every frame); section 5 discusses what replaces it.
 
@@ -354,7 +354,7 @@ what a GPU `LayoutSimulation` will be judged against for feel.
   (`lastMove / bodies <= 0.01`, `ngraph.forcelayout/index.js` lines 62-63)
   OR the 10-step average `<= 0.05` OR `stepCount >= 1000`.
 - ngraph's integrator (`lib/codeGenerators/generateIntegrator.js`):
-  velocity Verlet-ish with `v += dt / mass * F`, velocity normalised when
+  velocity Verlet-ish with `v += dt / mass * F`, velocity normalized when
   `|v| > 1`, `p += dt * v`, pinned bodies skipped, returns `sum(|dp|)^2 /
 n`. Forces: Barnes-Hut quadtree/octree repulsion with `theta`, Hooke
   springs, drag.
@@ -380,9 +380,9 @@ n`. Forces: Barnes-Hut quadtree/octree repulsion with `theta`, Hooke
   here would cause the layout to never settle"); `unpin` clears them and
   reheats; `setNodePosition` writes `x, y, z` and reheats (lines 309-315).
 
-### 3.3 What the two engines have in common (the behaviour to preserve)
+### 3.3 What the two engines have in common (the behavior to preserve)
 
-| Behaviour                  | ngraph                                                                                                                           | d3                           |
+| Behavior                   | ngraph                                                                                                                           | d3                           |
 | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
 | step granularity           | one physics step per `step()`                                                                                                    | one tick per `step()`        |
 | settle signal              | movement-per-node threshold + max steps                                                                                          | alpha decay below `alphaMin` |
@@ -514,7 +514,7 @@ gets `dim` as a uniform and must simply not integrate z when `dim === 2`
 
 ### 4.7 Scene scale
 
-`SimpleLayoutEngine` results are in normalised layout units (unit ball
+`SimpleLayoutEngine` results are in normalized layout units (unit ball
 after `rescaleLayout`) multiplied by `scalingFactor` (default 100, schema
 `z.number().min(1).max(1000)`) at read time (`LayoutEngine.ts` lines
 185-189, 261-267, 352-365). ngraph / d3 work in scene units directly (no
@@ -535,7 +535,7 @@ only the RenderManager itself), so the element renders on WebGL today.
 Consequence: the compute device is NOT Babylon's device; the layout
 package's GPU accelerator owns its own `GPUDevice` and the position
 readback crosses back to the CPU array every frame (section 8.5). Sharing
-a device with a future `WebGPUEngine` (`engine._device`) is an optimisation
+a device with a future `WebGPUEngine` (`engine._device`) is an optimization
 for later, not a requirement.
 
 ---
@@ -605,13 +605,13 @@ type) must satisfy, in order of how visible a miss would be:
    movement test is not usable (never true in floating point); use the
    `maxIter` budget as the hard stop and a movement-per-node threshold
    like ngraph's for early settle (section 8.6).
-4. Pins honoured every step (`setFixed` mask), drag position honoured
+4. Pins honored every step (`setFixed` mask), drag position honored
    (`setPosition`), and resume-after-drag (element sets `running = true`;
    the engine must un-settle itself, e.g. `setPosition` resets the
    iteration budget the way `d3` reheats and `ngraph` resets counters).
 5. Topology change: `load` again (or `reload` with the freeze report)
    without losing the placed coordinates; new rows seeded near their
-   neighbours or randomly (design 14.4 leaves the product choice open).
+   neighbors or randomly (design 14.4 leaves the product choice open).
 6. `dim === 2` keeps `z` untouched (zero).
 7. Deterministic given `seed` and the snapshot (same initial positions as
    the CPU path via the LCG of 2.5.1); the simulation itself need not be
@@ -699,23 +699,23 @@ Read from `layout/src/layouts/force-directed/forceatlas2.ts` (function
 signature) and `graphty-element/src/layout/ForceAtlas2LayoutEngine.ts`
 (zod config lines 99-115 and UI schema lines 10-97).
 
-### 7.1 Must honour in the first GPU version
+### 7.1 Must honor in the first GPU version
 
-| Option                                                | CPU default        | Element schema                     | GPU binding                                             | Notes                                                                                                                                                                          |
-| ----------------------------------------------------- | ------------------ | ---------------------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `maxIter`                                             | 100                | int > 0, default 100               | iteration budget / settle bound                         | in a steppable engine this is the total iteration budget across frames, not a single call                                                                                      |
-| `jitterTolerance`                                     | 1.0                | > 0, default 1.0, advanced         | scalar in the speed controller (CPU side)               |                                                                                                                                                                                |
-| `scalingRatio`                                        | 2.0                | > 0, default 2.0                   | uniform                                                 | repulsion multiplier                                                                                                                                                           |
-| `gravity`                                             | 1.0                | > 0, default 1.0                   | uniform                                                 | the element schema forbids 0 (`positive()`), the CPU accepts 0; accept 0 on the GPU                                                                                            |
-| `strongGravity`                                       | false              | bool, advanced                     | uniform flag or `override`                              | linear vs unit-vector gravity                                                                                                                                                  |
-| `distributedAction`                                   | false              | bool, advanced                     | uniform flag                                            | divides attraction by mass                                                                                                                                                     |
-| `linlog`                                              | false              | bool, advanced                     | uniform flag                                            | `log(1 + d) / d` attraction                                                                                                                                                    |
-| `nodeMass`                                            | null -> degree + 1 | `Record<number, number> \| null`   | `Float32Array(n)` upload                                | design 14.3: accept `Float32Array`, column name or Record; default `outDegree()[i] + 1` computed on the CPU (or in a tiny kernel from `rowPtr`)                                |
-| `weight` (`weightPath` in the element)                | null (unweighted)  | `string \| null`                   | per-arc `Float32Array(A)` or `snapshot.weights` or none | inert in the element today (research note 03 section 8.1: the literal `{nodes, edges}` has no `getEdgeData`); becomes live through the snapshot -- documented behaviour change |
-| `seed`                                                | null (random)      | `number \| null`, advanced         | CPU-side LCG for the initial positions                  | seed 0 == unseeded (LCG quirk)                                                                                                                                                 |
-| `dim`                                                 | 2                  | int 2..3, default 2                | uniform; element overrides from view mode               | 2D must not touch z                                                                                                                                                            |
-| `pos`                                                 | null               | `Record<number, number[]> \| null` | initial upload                                          | the element will pass the current position array instead (design 14.4 `fromPositionColumn`); keep the "missing axis / missing node" fill rules of 2.1.2                        |
-| `scalingFactor` (element-level, `SimpleLayoutConfig`) | 100                | 1..1000                            | scene scale applied on write-back                       | not a layout option; section 4.7                                                                                                                                               |
+| Option                                                | CPU default        | Element schema                     | GPU binding                                             | Notes                                                                                                                                                                         |
+| ----------------------------------------------------- | ------------------ | ---------------------------------- | ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `maxIter`                                             | 100                | int > 0, default 100               | iteration budget / settle bound                         | in a steppable engine this is the total iteration budget across frames, not a single call                                                                                     |
+| `jitterTolerance`                                     | 1.0                | > 0, default 1.0, advanced         | scalar in the speed controller (CPU side)               |                                                                                                                                                                               |
+| `scalingRatio`                                        | 2.0                | > 0, default 2.0                   | uniform                                                 | repulsion multiplier                                                                                                                                                          |
+| `gravity`                                             | 1.0                | > 0, default 1.0                   | uniform                                                 | the element schema forbids 0 (`positive()`), the CPU accepts 0; accept 0 on the GPU                                                                                           |
+| `strongGravity`                                       | false              | bool, advanced                     | uniform flag or `override`                              | linear vs unit-vector gravity                                                                                                                                                 |
+| `distributedAction`                                   | false              | bool, advanced                     | uniform flag                                            | divides attraction by mass                                                                                                                                                    |
+| `linlog`                                              | false              | bool, advanced                     | uniform flag                                            | `log(1 + d) / d` attraction                                                                                                                                                   |
+| `nodeMass`                                            | null -> degree + 1 | `Record<number, number> \| null`   | `Float32Array(n)` upload                                | design 14.3: accept `Float32Array`, column name or Record; default `outDegree()[i] + 1` computed on the CPU (or in a tiny kernel from `rowPtr`)                               |
+| `weight` (`weightPath` in the element)                | null (unweighted)  | `string \| null`                   | per-arc `Float32Array(A)` or `snapshot.weights` or none | inert in the element today (research note 03 section 8.1: the literal `{nodes, edges}` has no `getEdgeData`); becomes live through the snapshot -- documented behavior change |
+| `seed`                                                | null (random)      | `number \| null`, advanced         | CPU-side LCG for the initial positions                  | seed 0 == unseeded (LCG quirk)                                                                                                                                                |
+| `dim`                                                 | 2                  | int 2..3, default 2                | uniform; element overrides from view mode               | 2D must not touch z                                                                                                                                                           |
+| `pos`                                                 | null               | `Record<number, number[]> \| null` | initial upload                                          | the element will pass the current position array instead (design 14.4 `fromPositionColumn`); keep the "missing axis / missing node" fill rules of 2.1.2                       |
+| `scalingFactor` (element-level, `SimpleLayoutConfig`) | 100                | 1..1000                            | scene scale applied on write-back                       | not a layout option; section 4.7                                                                                                                                              |
 
 ### 7.2 Can be deferred (documented as unsupported until a later slice)
 
@@ -723,7 +723,7 @@ signature) and `graphty-element/src/layout/ForceAtlas2LayoutEngine.ts`
 | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
 | `nodeSize` / `adjustSizes`                 | changes the repulsion distance per pair (needs `size` in the tile) and the apply rule (`0.1 * speed`, cap 10); rarely set; its CPU semantics are the sign-suspect line of 2.1.9 | throw or ignore with a warning in v1; add once the CPU rewrite fixes the formula |
 | `dissuadeHubs`                             | ignored by the CPU port and absent from NetworkX; the element still exposes it (schema line 66-73)                                                                              | accept and ignore, exactly like the CPU                                          |
-| `scale` / `center` (`CommonLayoutOptions`) | FA2 today has neither (always `rescaleLayout` to the unit ball); in a steppable engine per-step rescaling is wrong (section 8.4)                                                | honour at `load` time for the initial placement only                             |
+| `scale` / `center` (`CommonLayoutOptions`) | FA2 today has neither (always `rescaleLayout` to the unit ball); in a steppable engine per-step rescaling is wrong (section 8.4)                                                | honor at `load` time for the initial placement only                              |
 | `weight` as a NAMED edge column            | needs the element's `expandEdges` cache (design 14.4)                                                                                                                           | v1 supports `weight === true` (snapshot weights) and `null`                      |
 
 ### 7.3 Options that have no CPU counterpart but the engine needs
@@ -819,9 +819,9 @@ config.ts` lines 390-397, the deprecated `simulationRepulsionTheta`
 
 ### 8.4 Units and `rescaleLayout`
 
-The CPU FA2 simulates in [-1, 1] units and normalises to the unit ball at
+The CPU FA2 simulates in [-1, 1] units and normalizes to the unit ball at
 the END; the element multiplies by `scalingFactor` (100). A steppable
-engine writes scene units every step and cannot renormalise each time
+engine writes scene units every step and cannot renormalize each time
 (it would rescale pinned / dragged nodes and change the camera framing
 every frame). Recommendation: simulate in layout units in the GPU
 buffer, apply `scalingFactor` (and `center`) in the write-back kernel or
@@ -848,7 +848,7 @@ divides by `scale` when seeding, which is exactly the inverse mapping
   `setPosition` writes the dragged row into the GPU buffer (`writeBuffer`,
   12 bytes at offset `12 * i`) AND the element already writes
   `mesh.position` directly during a drag (`NodeBehavior.ts` line 162), so
-  the readback lag does not affect the dragged node; neighbours lag one
+  the readback lag does not affect the dragged node; neighbors lag one
   frame, as they do with ngraph's one-step-per-frame today.
 - `column.markDirty()` once per frame on the position column (design 14.4
   M12) after the copy so any OTHER GPU consumer of the position column

@@ -108,6 +108,8 @@ export interface LoadFacts {
     /** What a URL load read; its address is the listed load's `config.url`. */
     readonly url?: {
         readonly sha256?: string;
+        /** The body's size in bytes. */
+        readonly size?: number;
         readonly fetchedAt: string;
         readonly etag?: string;
         readonly lastModified?: string;
@@ -1124,7 +1126,7 @@ export interface SourcesReadContext {
     readonly links: readonly Record<string, unknown>[];
     /** Whether a source id is registered in this release. */
     readonly isRegistered: (source: string) => boolean;
-    /** Whether a name is one of the catalogue's generators. */
+    /** Whether a name is one of the catalog's generators. */
     readonly isGenerator: (name: string) => boolean;
     /** The time of opening, RFC 3339. */
     readonly now: string;

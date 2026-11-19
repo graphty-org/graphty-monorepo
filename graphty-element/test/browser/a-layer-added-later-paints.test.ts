@@ -4,7 +4,7 @@
  * WHY THIS IS A SEPARATE FILE FROM `channel-paints.test.ts`. That file is the gate over the whole
  * channel table and it asks a deliberately generous question: it counts a channel as painted when
  * the scene graph changed OR when the frame changed. The scene-graph half is what lets it see an
- * effect whose colour lives in a Babylon layer's private map. It is also a way to pass without
+ * effect whose color lives in a Babylon layer's private map. It is also a way to pass without
  * drawing anything: creating an effect layer changes the scene graph, and rebuilding a mesh
  * changes its name and its uniqueId, so a channel can move the structure while leaving the
  * picture exactly as it was.
@@ -15,10 +15,10 @@
  *
  * WHAT WAS WRONG WITH EACH OF THEM, because the five are three separate defects:
  *
- * - `edge.arrowHeadColor` and `edge.arrowTailColor` are the only colours whose role is `mesh`, so
- *   they belong in the number a source mesh is keyed on. A resolved colour is an object, and the
- *   interner's push had branches for a number, a flag and a word -- so a colour fell through to
- *   "nothing painted this". Every colour hashed the same as every other colour and as no colour
+ * - `edge.arrowHeadColor` and `edge.arrowTailColor` are the only colors whose role is `mesh`, so
+ *   they belong in the number a source mesh is keyed on. A resolved color is an object, and the
+ *   interner's push had branches for a number, a flag and a word -- so a color fell through to
+ *   "nothing painted this". Every color hashed the same as every other color and as no color
  *   at all, the key never moved, and `Edge.paintFrom` returned early without rebuilding the cap.
  * - `node.glow` was drawn on the first frame and never again, because `Node.paintFrom` applied a
  *   node's effects only on the branch that rebuilds its mesh.
@@ -83,9 +83,9 @@ describe("a layer written to a graph that is already drawn", () => {
         await graph.setLayout("circular", { scale: 0.2 });
         await operationQueueOf(graph).waitForCompletion();
 
-        // THE PREREQUISITES, which are what each measurement below is a change TO. A cap colour
+        // THE PREREQUISITES, which are what each measurement below is a change TO. A cap color
         // needs a cap, and at the default size a cap is a few dozen pixels -- too near the
-        // threshold for its colour to be measurable at all -- so the caps are drawn large. A
+        // threshold for its color to be measurable at all -- so the caps are drawn large. A
         // glow's strength needs something glowing to be the strength of.
         await session.styles.add({
             name: "prerequisites",
@@ -107,8 +107,8 @@ describe("a layer written to a graph that is already drawn", () => {
     });
 
     /**
-     * Let the last repaint reach the scene, then count the frame's pixels by colour.
-     * @returns How many pixels fall in each coarse colour bucket.
+     * Let the last repaint reach the scene, then count the frame's pixels by color.
+     * @returns How many pixels fall in each coarse color bucket.
      */
     async function frame(): Promise<Uint32Array> {
         // The element's own word that the picture is final -- the queue drained, the layout
@@ -203,7 +203,7 @@ describe("a layer written to a graph that is already drawn", () => {
     }
 
     it("does not change the frame: a glow's strength with no glow under it", async () => {
-        // A strength only scales a glow colour some layer set. On its own it used to switch glow
+        // A strength only scales a glow color some layer set. On its own it used to switch glow
         // on with the renderer's white fallback, on every node the layer painted (#2068).
         const before = await frame();
         const strengthOnly = await session.styles.add({

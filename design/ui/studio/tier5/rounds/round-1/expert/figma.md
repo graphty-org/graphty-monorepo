@@ -75,11 +75,11 @@ sentence at rest is finding 7.
 | 13 | 1 | Value picker untyped | The list stops about 290 px down with about 470 px of empty column below, and cuts the "Results" heading at its foot. | `w1/03.png`, `w2/03.png` | graphty app (`WhichPicker.tsx`) |
 | 14 | 1 | Step and group panes | Captions at about 9 px, below the 11/16 rule: "of all nodes", "Edges", "32 more". | `w1/crop-33-position.png`, `w7/03.png`, `w8/02.png` | graphty app |
 | 15 | 1 | Number and category tests | Spec section 5's drawings are not built: no log axis on a skewed Degree (yeast, `w6/05.png`), no mean and median ticks, integer values drawn as hairlines (`w7/03.png`), and no faint size bar in the category checklist (`w5/02.png`). | as listed | graphty app or compact-mantine HistogramRow |
-| 16 | 1 | Reference picker | The first entries have no heading and sit flush at x 909 while "Nodes 11" is indented to x 929; the disabled "So far" is the same grey as a heading. | `w4/04.png` | graphty app |
-| 17 | 1 | Workspace outline | The "No match" row's chit is a hollow grey square drawn as a checkbox. | `w1/08.png` | graphty app |
+| 16 | 1 | Reference picker | The first entries have no heading and sit flush at x 909 while "Nodes 11" is indented to x 929; the disabled "So far" is the same gray as a heading. | `w4/04.png` | graphty app |
+| 17 | 1 | Workspace outline | The "No match" row's chit is a hollow gray square drawn as a checkbox. | `w1/08.png` | graphty app |
 | 18 | 1 | Searched checklist at 50,000 | Searched, the list shrinks to its 3 matches; spec 4.3 holds the height of its 8 rows. | `w8/04.png` | graphty app |
 | 19 | 1 | Headless title pane | A card named after its only step draws its rows 6 px higher than a step pane (Except at y 124 against y 130, the field at y 154 against y 160), so the pane jumps when a second step is added. | `w6/03.png` against `w6/05.png` | graphty app |
-| 20 | 1 | Step pane fields | Selects are white and outlined; number boxes and the checklist search are grey and filled. If compact-mantine's Figma spec draws them so, this is 0. | `w1/13.png`, `w8/04.png` | compact-mantine if its spec differs; else none |
+| 20 | 1 | Step pane fields | Selects are white and outlined; number boxes and the checklist search are gray and filled. If compact-mantine's Figma spec draws them so, this is 0. | `w1/13.png`, `w8/04.png` | compact-mantine if its spec differs; else none |
 
 Watch item, decided and not counted: "Condition..." adds a narrowing step in the first group
 (`w1/17.png`: Except switch) but a widening "Add" step in an Or group (`w1/15.png`: "Add role").

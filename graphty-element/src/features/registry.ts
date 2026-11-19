@@ -10,7 +10,8 @@
 
 /** The id of an experiment, as `features="..."` and `createGraphSession({ features })` take it. */
 export type FeatureId =
-    "assistant" | "data-management" | "location-map" | "cosmograph" | "file-styles" | "node-models" | "source-steps";
+    "assistant" | "data-management" | "location-map" | "cosmograph" | "file-styles" | "node-models" | "source-steps"
+    | "save-files-v2";
 
 /** One experiment this build can switch on. */
 export interface FeatureDescriptor {
@@ -41,6 +42,10 @@ export const FEATURES: readonly FeatureDescriptor[] = Object.freeze([
     // design/data/multiple-data-sources-design.md, stage 1); off, loads, joins and saved files are
     // as before. `all` does not switch it on (features/resolve.ts); name it to try it.
     { id: "source-steps", plainName: "Sources and steps", issue: 8928, since: "2026-11-18" },
+    // Version 2 save files (spec/README.md): `project.save` with `format: 2` and `project.open` of a
+    // version 2 full or section file. Off, `format: 2` is refused and version 2 files are read as
+    // before (refused as a newer version); version 1 files are written and read exactly as before.
+    { id: "save-files-v2", plainName: "Save files version 2", issue: 8029, since: "2026-11-14" },
 ]);
 
 /** Ids of experiments that have shipped: accepted silently, and they change nothing. */

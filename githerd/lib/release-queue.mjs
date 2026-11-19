@@ -14,7 +14,7 @@
  *   master (done.mjs).
  * - **The requeue.** Once the linked issue closed, or the job is done, githerd comments
  *   `@mergifyio queue` once per dequeue (per draft), while the pull request is open, still
- *   dequeued and not labelled `hold`. A release pull request that closed was re-cut by the release
+ *   dequeued and not labeled `hold`. A release pull request that closed was re-cut by the release
  *   train: its record is dropped and nothing is done.
  *
  * `state.releaseQueue` is `{[pr]: {draft, runIds, tests, issue, requeued}}`: `requeued` the draft

@@ -67,7 +67,7 @@ walked here.
 ## Defects (all walks)
 
 1. **Undo after Cancel on a new filter card brings the card back, switched on**, under the words
-   "Undid deleting a filter condition." The person never made or deleted a card: they cancelled it.
+   "Undid deleting a filter condition." The person never made or deleted a card: they canceled it.
    Someone who presses Control+Z right after Cancel (to undo the edit before it, or to be sure) gets a
    filter they turned down, hiding four gauges. For T72 B a filter card is already not success, so it
    does not spoil this grade, but it adds a card where tasks count cards (T71, T77, T79).

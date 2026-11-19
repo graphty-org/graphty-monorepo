@@ -56,7 +56,7 @@
  * `LD_LIBRARY_PATH=<the extracted libEGL tree> XDG_RUNTIME_DIR=/tmp` in front (the recipe is
  * `webgpu-graph-algorithms/docs/HEADLESS_GPU_REPORT.md`). A SwiftShader
  * measurement is worth recording for information and must never set the default: software WebGPU
- * is a CPU rasteriser wearing a device's clothes.
+ * is a CPU rasterizer wearing a device's clothes.
  *
  * Other options: `--runs` (default 3), `--frames` (300), `--warmup` (30), `--degree` (10),
  * `--port` (9021, inside the 9000-9099 range this machine allows), `--timeout` (the per-arm budget

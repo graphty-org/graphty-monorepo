@@ -10,12 +10,12 @@
  * A SCALE NEVER THROWS AND NEVER GUESSES. It is called once per element from a loop that has no
  * try/catch, so a value it cannot place answers `NaN` -- the miss -- and the layer leaves that
  * element unpainted. `NaN` is the whole mechanism behind `missing: "skip"`, which is the default:
- * an element an algorithm measured nothing about is not painted, not even a muted grey. Painting
+ * an element an algorithm measured nothing about is not painted, not even a muted gray. Painting
  * the unmeasured is a reader's choice and has to be asked for by name.
  *
  * WHAT A SCALE RETURNS is a number in the binding's `range`, which defaults to the unit interval
- * so that a colour binding gets a position on a ramp. A registered scale may instead return a
- * string, which is a finished channel value -- a colour, a shape name -- and bypasses the
+ * so that a color binding gets a position on a ramp. A registered scale may instead return a
+ * string, which is a finished channel value -- a color, a shape name -- and bypasses the
  * palette. That is the whole extension point: code stays code, layers stay data, and nothing
  * here evaluates a string as JavaScript.
  *
@@ -49,13 +49,13 @@ import { clamp } from "../../utils/clamp";
 export interface ScaleContext {
     /** The numeric extent values are read against. Ignored by the categorical scales. */
     domain: [number, number];
-    /** The palette a scale may read when it produces a colour itself. */
+    /** The palette a scale may read when it produces a color itself. */
     palette?: PaletteDescriptor;
     /** Where the output lands. Defaults to the unit interval, which is a position on a ramp. */
     range?: [number, number];
     /** Send the smallest value to the far end of the range instead of the near end. */
     reverse?: boolean;
-    /** The value that lands in the middle, which is what a diverging palette centres on. */
+    /** The value that lands in the middle, which is what a diverging palette centers on. */
     midpoint?: number;
     /** How many equally wide groups a binning scale cuts its domain into. */
     bins?: number;
@@ -294,7 +294,7 @@ function continuous(transform: Transform): ScaleFn {
 /**
  * How many discrete groups a scale cuts its values into.
  *
- * A continuous scale answers 0, which is how a palette decides between picking one colour per
+ * A continuous scale answers 0, which is how a palette decides between picking one color per
  * group and interpolating a ramp.
  * @param name - The scale's name.
  * @param context - The binding's options.
@@ -411,7 +411,7 @@ const ordinalScale: ScaleFn = (value, context) => {
  * The value as it is.
  *
  * It reads neither the domain nor the range: a column that already holds channel values -- a
- * colour per node, a shape per node -- is passed through untouched, which is the only way to
+ * color per node, a shape per node -- is passed through untouched, which is the only way to
  * style from data the element did not compute.
  * @param value - The element's value.
  * @returns The value itself when it is one a channel can carry, and NaN otherwise.
@@ -502,7 +502,7 @@ const indexScale: ScaleFn = (value, context) => {
 /**
  * Every scale the element ships, by name.
  *
- * The names are the catalogue's names: `SCALE_DESCRIPTORS` describes these nine and a registry
+ * The names are the catalog's names: `SCALE_DESCRIPTORS` describes these nine and a registry
  * refuses to seed itself if a described scale has no implementation here.
  */
 export const BUILT_IN_SCALES = {
@@ -521,7 +521,7 @@ export const BUILT_IN_SCALES = {
 /** The name of a scale the element ships. */
 export type BuiltInScaleName = keyof typeof BUILT_IN_SCALES;
 
-/** A scale as a plugin hands it over: the catalogue entry a form renders, and the code. */
+/** A scale as a plugin hands it over: the catalog entry a form renders, and the code. */
 export type ScalePlugin = ScaleDescriptor & { map: ScaleFn };
 
 /**
@@ -538,16 +538,16 @@ export interface ScaleRegistry {
     get(name: string): ScaleFn | undefined;
     /** The scale by that name. Throws `E_UNKNOWN_SCALE`, listing what is registered. */
     require(name: string): ScaleFn;
-    /** The catalogue entry for that name, or undefined when nothing is registered under it. */
+    /** The catalog entry for that name, or undefined when nothing is registered under it. */
     describe(name: string): ScaleDescriptor | undefined;
-    /** Every registered name, built-ins first and in catalogue order. */
+    /** Every registered name, built-ins first and in catalog order. */
     names(): readonly string[];
 }
 
 /**
  * Build a registry holding every scale the element ships.
  * @returns The registry, seeded with the built-ins.
- * @throws When the catalogue describes a scale this module has no implementation for, which
+ * @throws When the catalog describes a scale this module has no implementation for, which
  *   would mean offering a consumer a scale that paints nothing.
  */
 export function createScaleRegistry(): ScaleRegistry {

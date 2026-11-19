@@ -114,10 +114,10 @@ describe("source-steps: today's doors", () => {
         const session = stepsSession();
         const d = dispatcherOf(session);
         await d.dispatch(
-            compileRecords("nodes", [{ id: "a" }, { id: "b" }], d.state.graph.values, { nodeIdPath: "id" }, false),
+            compileRecords({ nodes: [{ id: "a" }, { id: "b" }] }, d.state.graph.values, { nodeIdPath: "id" }, false),
         );
         await d.dispatch(
-            compileRecords("edges", [{ source: "a", target: "b" }], d.state.graph.values, { nodeIdPath: "id" }, false),
+            compileRecords({ edges: [{ source: "a", target: "b" }] }, d.state.graph.values, { nodeIdPath: "id" }, false),
         );
         const sources = session.data.sources();
         assert.strictEqual(sources.length, 1, "the second assignment replaces the source's table in place");
@@ -139,7 +139,7 @@ describe("source-steps: today's doors", () => {
         assert.deepStrictEqual(nodeIds(session), ["a", "b"], "one node per key");
         assert.strictEqual(session.data.node("a")?.score, 1);
         assert.strictEqual(session.data.store.getSnapshot().edgeCount, 1);
-        await d.dispatch(compileRecords("nodes", [{ id: "a" }], d.state.graph.values, { nodeIdPath: "id" }, false));
+        await d.dispatch(compileRecords({ nodes: [{ id: "a" }] }, d.state.graph.values, { nodeIdPath: "id" }, false));
         assert.strictEqual(session.data.sources().length, 2, "a later assignment replaces the derived source in place");
         session.dispose();
     });

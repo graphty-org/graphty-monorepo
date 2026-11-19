@@ -3,6 +3,7 @@ import {
     type ColumnHandle,
     type DerivedGraph,
     edgeIsDirected,
+    type EdgeListView,
     type FreezeReport,
     GraphBuilder,
     type GraphSnapshot,
@@ -480,6 +481,24 @@ function copyEdgeCells(builder: GraphBuilder, columns: Iterable<Column>, row: nu
 }
 
 /**
+ * Add one base edge row to a builder: its endpoints, weight and set cells, not its edge id.
+ * @param builder - The builder written.
+ * @param base - The base snapshot.
+ * @param list - The base's edge list.
+ * @param row - The base row.
+ * @returns The builder row.
+ */
+function addBaseEdge(builder: GraphBuilder, base: GraphSnapshot, list: EdgeListView, row: number): number {
+    const index = builder.addEdge(
+        base.ids.idOf(list.src[row]),
+        base.ids.idOf(list.dst[row]),
+        list.weights === null ? undefined : list.weights[row],
+    );
+    copyEdgeCells(builder, base.edges, row, index);
+    return index;
+}
+
+/**
  * Compose two walks: `target[row] = second[first[row]]`, INVALID_INDEX wherever either has none.
  * @param target - The composed walk, written in place.
  * @param first - The first walk.
@@ -908,12 +927,7 @@ export class GraphStore {
         const list = base.edgeList();
         const edgeIds = base.edges.typed(EDGE_ID_COLUMN, "u32");
         for (let row = 0; row < base.edgeCount; row++) {
-            const index = builder.addEdge(
-                base.ids.idOf(list.src[row]),
-                base.ids.idOf(list.dst[row]),
-                list.weights === null ? undefined : list.weights[row],
-            );
-            copyEdgeCells(builder, base.edges, row, index);
+            const index = addBaseEdge(builder, base, list, row);
             if (edgeIds?.isSet(row) === true) {
                 builder.setEdgeValue(this.edgeIdHandle, index, edgeIds.data[row]);
             }
@@ -2293,13 +2307,8 @@ export class GraphStore {
             if (typeof row !== "number") {
                 this.writeEdge(builder.addEdge(row.source, row.target, row.weight), row.edgeId, row.values);
             } else if (base !== null && list !== null) {
-                const index = builder.addEdge(
-                    base.ids.idOf(list.src[row]),
-                    base.ids.idOf(list.dst[row]),
-                    list.weights === null ? undefined : list.weights[row],
-                );
+                const index = addBaseEdge(builder, base, list, row);
                 baseEdge[row] = index;
-                copyEdgeCells(builder, base.edges, row, index);
                 this.stampEdgeId(index, base.edges.value(EDGE_ID_COLUMN, row) as number);
             }
         }

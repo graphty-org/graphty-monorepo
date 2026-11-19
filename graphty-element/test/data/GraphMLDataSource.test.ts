@@ -229,9 +229,10 @@ ${Array.from({ length: 8 }, (_, i) => `    <edge source="n${i}" target="n${i + 1
             const node = chunks[0].nodes[0];
             assert.strictEqual(node.id, "n0");
             // The node's center, y up: yEd stores the top-left corner, y down.
-            assert.strictEqual(node.position.x, 130.0);
-            assert.strictEqual(node.position.y, -215.0);
-            assert.strictEqual(node.position.z, 0);
+            const position = node.position as { x: number; y: number; z: number };
+            assert.strictEqual(position.x, 130.0);
+            assert.strictEqual(position.y, -215.0);
+            assert.strictEqual(position.z, 0);
             assert.strictEqual(node.label, "Test Node");
             // The look is ordinary data, as the file has it.
             assert.strictEqual(node.width, 60.0);

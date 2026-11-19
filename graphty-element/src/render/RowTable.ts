@@ -19,6 +19,7 @@ import type { Xyz } from "../meshes/edgeRoute";
 import { ROW_EXTENT_ELLIPSE, ROW_EXTENT_ROUND, ROW_EXTENT_SEEN_THROUGH } from "../meshes/edgeTrim";
 import { batchUploadFrames } from "../meshes/FrameRoster";
 import type { Node } from "../Node";
+import type { GraphSceneMetadata } from "../types/sceneMetadata";
 
 /** Texels across both textures: a shader reads texel `i` at `(i % 1024, i / 1024)`. */
 const ROW_TEXTURE_WIDTH = 1024;
@@ -821,7 +822,7 @@ export class RowTable {
             lane.settle();
         }
 
-        const twoD = this.scene.metadata?.twoD === true;
+        const twoD = (this.scene.metadata as GraphSceneMetadata | null)?.twoD === true;
         if (lane.changes !== this.laneChanges || twoD !== this.twoD) {
             this.twoD = twoD;
             this.laneChanges = lane.changes;

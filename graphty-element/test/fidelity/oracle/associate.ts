@@ -2627,17 +2627,26 @@ export function hiddenShapes(prims: readonly Prim[], candidates: readonly Prim[]
             (c.fill?.opacity ?? 0) >= OPAQUE,
     );
     // a line's own arrowheads follow it, the line first (Cytoscape.js, Cytoscape desktop, Graphviz), each by one of its
-    // ends (json-cyjs-perf draws its first node right after its last line, far from either end)
+    // ends (json-cyjs-perf draws its first node right after its last line, far from either end); the pieces of its
+    // other end may come between: yEd draws a line, its source end's bars, circle and crow's foot, then its target
+    // head, which another edge's head of the same make can cover exactly (graphml-synthetic-edges n17 -> n25 and
+    // n19 -> n27 under n8 -> n25's and n10 -> n27's blue heads), and graphty draws both there too
+    const nearEnd = (q: Prim, p: Prim): boolean =>
+        q.kind === "path" &&
+        q.stroke !== null &&
+        [q.points[0], q.points.at(-1)].some((e) => e !== undefined && toBox(e, p.box) <= OWN_HEAD_REACH);
+    // other shapes in between are other heads of the line, three at most: more are other things (json-cyjs-perf's nodes)
     const withLine = (p: Prim): boolean => {
-        for (let i = p.index - 1; i >= p.index - 3; i--) {
+        let shapes = 0;
+        for (let i = p.index - 1; i >= p.index - OWN_PIECES_BACK && shapes < 3; i--) {
             const q = byIndex.get(i);
-            if (q?.kind !== "shape") {
-                return (
-                    q?.kind === "path" &&
-                    q.stroke !== null &&
-                    [q.points[0], q.points.at(-1)].some((e) => e !== undefined && toBox(e, p.box) <= OWN_HEAD_REACH)
-                );
+            if (q === undefined || q.kind === "text") {
+                return false;
             }
+            if (nearEnd(q, p)) {
+                return true;
+            }
+            shapes += q.kind === "shape" ? 1 : 0;
         }
         return false;
     };
@@ -2726,6 +2735,9 @@ function undrawnEnds(guide: PScene, nodes: ReadonlyMap<string, PNode>, fit: Simi
  * stopping a piece short of its base (cys-syn-mappings 408->414: 6 px, 192->204: 3 px).
  */
 const OWN_HEAD_REACH = 8;
+
+/** How many primitives back from a head its own line may be drawn: the line, then its other end's pieces (`hiddenShapes`). */
+const OWN_PIECES_BACK = 8;
 
 /** How many times longer than it is wide an arrowhead drawn alone, with no line, may be. */
 const HEAD_MOST_LONG = 4;

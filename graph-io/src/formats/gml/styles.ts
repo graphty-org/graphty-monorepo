@@ -1466,7 +1466,11 @@ function readLineRoute(
         putArcBends(snapshot, s, t, arc, put);
         return;
     }
+    // OGDF writes no edgeAnchor
+    const anchored = edgeAnchorEnds(snapshot, e, s, t);
     if (!Array.isArray(list) || list.length < (bendsOnly ? 1 : 2)) {
+        // a straight edge yEd attached off its nodes' centers: its ports alone
+        putAnchoredPorts(snapshot, [s, t], anchored, put);
         return;
     }
     const all = list.map((p): BendPoint => (isRec(p) ? [Number(p.x), Number(p.y)] : [Number.NaN, 0]));
@@ -1481,9 +1485,60 @@ function readLineRoute(
         put("bends", bends);
     }
     if (!bendsOnly) {
-        putLinePort(snapshot, "sourcePort", s, all[0], put);
-        putLinePort(snapshot, "targetPort", t, all.at(-1) ?? all[0], put);
+        putLinePort(snapshot, "sourcePort", s, anchored[0] ?? all[0], put);
+        putLinePort(snapshot, "targetPort", t, anchored[1] ?? all.at(-1) ?? all[0], put);
     }
+}
+
+/**
+ * Puts the ports `edgeAnchor` places (`edgeAnchorEnds`), for an edge with no `Line`.
+ * @param snapshot - the graph
+ * @param nodes - its source and target nodes
+ * @param anchored - each end's port, or null
+ * @param put - receives the values
+ */
+function putAnchoredPorts(
+    snapshot: GraphSnapshot,
+    nodes: readonly [number, number],
+    anchored: readonly (BendPoint | null)[],
+    put: (property: string, value: string) => void,
+): void {
+    const [s, t] = anchored;
+    if (s !== null) {
+        putLinePort(snapshot, "sourcePort", nodes[0], s, put);
+    }
+    if (t !== null) {
+        putLinePort(snapshot, "targetPort", nodes[1], t, put);
+    }
+}
+
+/**
+ * Where yEd's `edgeAnchor` attaches an edge to its nodes: `xSource` and `ySource` (`xTarget`, `yTarget`) place the end
+ * off its node's center in halves of the node's width and height, -1 to 1, a missing one at the center. yEd writes the
+ * centers in the `Line` and the ports here (dunnart-planar-orthogonal 58 -> 51: `xSource 0.5556 ySource -1`, the top
+ * side, so the route leaves straight up to its bend).
+ * @param snapshot - the graph
+ * @param e - the edge's row
+ * @param s - its source node
+ * @param t - its target node
+ * @returns each end's port, source first; null where the record places none
+ */
+function edgeAnchorEnds(
+    snapshot: GraphSnapshot,
+    e: number,
+    s: number,
+    t: number,
+): [BendPoint | null, BendPoint | null] {
+    const a = cellOf(snapshot.edges, "edgeAnchor", e);
+    const end = (k: number, x: unknown, y: unknown): BendPoint | null => {
+        if (x === undefined && y === undefined) {
+            return null;
+        }
+        const [c, size] = [centerOf(snapshot, k), sizeOf(snapshot, k)];
+        const p: BendPoint = [c[0] + (Number(x ?? 0) * size[0]) / 2, c[1] + (Number(y ?? 0) * size[1]) / 2];
+        return Number.isFinite(p[0]) && Number.isFinite(p[1]) ? p : null;
+    };
+    return isRec(a) ? [end(s, a.xSource, a.ySource), end(t, a.xTarget, a.yTarget)] : [null, null];
 }
 
 /**
@@ -1701,7 +1756,11 @@ function readYedLabelPlace(
         return;
     }
     const [s, t] = [centerOf(snapshot, source), centerOf(snapshot, target)];
-    const route = list.map((p): BendPoint => (isRec(p) ? [Number(p.x), Number(p.y)] : [Number.NaN, 0]));
+    const read = list.map((p): BendPoint => (isRec(p) ? [Number(p.x), Number(p.y)] : [Number.NaN, 0]));
+    // the line runs between its ports where `edgeAnchor` moves them off the centers, and its label sits along it
+    const [sp, tp] = edgeAnchorEnds(snapshot, e, source, target);
+    const ends = read.length >= 2 ? read : [s, t];
+    const route = [sp ?? ends[0], ...ends.slice(1, -1), tp ?? ends.at(-1) ?? t];
     const text = typeof label.text === "string" ? label.text : "";
     const size = Number(label.fontSize) || 12;
     const lines = text.split("\n");
@@ -1717,7 +1776,7 @@ function readYedLabelPlace(
             [...s, ...sizeOf(snapshot, source)],
             [...t, ...sizeOf(snapshot, target)],
         ],
-        route.length >= 2 ? route : [s, t],
+        route,
         {
             spot,
             stored: stored ? [x, y, width, lines.length * YED_LABEL_LINE * size + YED_LABEL_BOX_PADDING] : null,

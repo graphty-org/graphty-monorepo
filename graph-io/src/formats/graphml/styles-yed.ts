@@ -291,6 +291,8 @@ export interface YedOutline {
     readonly shape: string;
     /** The polygon's corners as neutral `shapePoints` (`x,y` fractions of the half sizes, y up). */
     readonly points?: string;
+    /** False draws the corners where they say, not stretched to the box's sides (`shapePointsStretch`). */
+    readonly stretch?: false;
     /** Its corners at a node's width, where they do not scale with it. */
     readonly pointsAt?: (width: number) => string;
     /** A rounded box's corner radius; `pill` rounds its short sides into half circles. */
@@ -786,6 +788,33 @@ const YED_TYPES: ReadonlyMap<string, YedOutline> = new Map<string, YedOutline>([
     ["fatarrow2", { shape: "polygon", points: "-0.8,1 1,1 0.8,0 1,-1 -0.8,-1 -1,0" }],
     ["triangle2", { shape: "polygon", points: "-1,1 1,1 0,-1" }],
     ["rectangle3d", { shape: "rectangle", borderWidth: 0, raised: true }],
+    // yEd's stars are inscribed in the ellipse of their box, a point straight down (star5, star6) or at each side and
+    // corner (star8), read off yEd 3.25.1's SVG of graphml-synthetic-nodes; graphty-element's own star has five points,
+    // one up, stretched to the box
+    [
+        "star5",
+        {
+            shape: "polygon",
+            points: "0,-1 0.3527,-0.4854 0.9511,-0.309 0.5706,0.1854 0.5878,0.809 0,0.6 -0.5878,0.809 -0.5706,0.1854 -0.9511,-0.309 -0.3527,-0.4854",
+            stretch: false,
+        },
+    ],
+    [
+        "star6",
+        {
+            shape: "polygon",
+            points: "0,-1 0.3,-0.5196 0.866,-0.5 0.6,0 0.866,0.5 0.3,0.5196 0,1 -0.3,0.5196 -0.866,0.5 -0.6,0 -0.866,-0.5 -0.3,-0.5196",
+            stretch: false,
+        },
+    ],
+    [
+        "star8",
+        {
+            shape: "polygon",
+            points: "0,-1 0.2296,-0.5543 0.7071,-0.7071 0.5543,-0.2296 1,0 0.5543,0.2296 0.7071,0.7071 0.2296,0.5543 0,1 -0.2296,0.5543 -0.7071,0.7071 -0.5543,0.2296 -1,0 -0.5543,-0.2296 -0.7071,-0.7071 -0.2296,-0.5543",
+            stretch: false,
+        },
+    ],
 ]);
 
 /**
@@ -813,6 +842,7 @@ export function putOutline(outline: YedOutline, width: number | null, height: nu
     put("shape", outline.shape);
     put("shapePoints", (width === null ? undefined : outline.pointsAt?.(width)) ?? outline.points ?? null);
     put("shapeLines", outline.lines ?? null);
+    put("shapePointsStretch", outline.stretch ?? null);
     put("borderWidth", outline.borderWidth ?? null);
     put("fillOpacity", outline.hollow === true ? 0 : null);
     put("cornerRadius", typeof cornerRadius === "number" ? cornerRadius : null);

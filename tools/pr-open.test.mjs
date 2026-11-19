@@ -614,6 +614,15 @@ describe("pr-open.sh", () => {
         assert.match(r.out, /the review failed/);
     });
 
+    it("refuses a branch that adds a British spelling, pushing nothing, as the push gate does", () => {
+        branch("fix/1251-spelling", { "notes.md": "It honours the seed.\n" });
+        const r = run();
+        assert.equal(r.code, 1, r.out);
+        assert.match(r.out, /notes\.md:1: British spelling honours/);
+        assert.equal(git(work, "branch", "-r", "--list", "origin/fix/1251-spelling"), "", "nothing was pushed");
+        assert.throws(() => readFileSync(ghLog), undefined, "gh was not called");
+    });
+
     it("reminds about the real GPU when webgpu-graph-algorithms changes", () => {
         branch("fix/1242-gpu", { "webgpu-graph-algorithms/src/a.ts": "x\n" });
         const r = run();

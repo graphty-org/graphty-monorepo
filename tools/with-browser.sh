@@ -120,8 +120,12 @@ low)
     ;;
 esac
 [ -z "$ticket" ] || echo "$n" >"$ticket"
+# No trap of its own on TERM, INT or HUP: bash (5.2) that receives a trapped signal while it parses a command
+# substitution, as this loop does on every look, fails to parse the trap's command and carries on, so a
+# waiter told to stop kept waiting with its ticket in the queue (#9010). Left to their default the signals
+# always end it, and bash runs the EXIT trap on the way out; a ticket left behind anyway is a dead one, which
+# every waiter skips.
 trap 'rm -f "$high" "$ticket"' EXIT
-trap 'exit 143' TERM INT HUP
 while :; do
     slots="$(seq "$first" "$n") $(seq $((first - 1)) -1 1)"
     if [ -z "$high" ] && high_waiting; then slots=""; fi
@@ -132,7 +136,7 @@ while :; do
         if flock -n "$fd"; then
             echo "$$ $(date -u +%Y-%m-%dT%H:%M:%SZ) $PWD :: $*" >"$dir/slot$i.holder"
             rm -f "$high" "$ticket"
-            trap - EXIT TERM INT HUP
+            trap - EXIT
             if [ ${#held_by[@]} -gt 0 ]; then
                 node "$here/wait-log.mjs" browser-slot "$start" "$PWD :: $*" "${held_by[@]}" 2>/dev/null
             fi

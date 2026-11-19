@@ -20,7 +20,7 @@ describe("the catalog census", () => {
             ...(await builtInModuleIds()).map((each) => each.kind),
         ]);
         const placed = [
-            ...SELF_CONTAINED_KINDS.map((row) => row.kind),
+            ...SELF_CONTAINED_KINDS.filter((row) => row.catalog !== false).map((row) => row.kind),
             ...lists.exceptions.flatMap((each) => each.catalogs),
             ...Object.keys(lists.notSaved),
         ];

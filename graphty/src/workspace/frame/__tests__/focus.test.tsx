@@ -9,7 +9,14 @@ import { afterEach, assert, beforeEach, describe, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
 import { render, screen, waitFor } from "../../../test/test-utils";
-import { cyclePanel, focusOpenedGraphLater, INSPECTOR_TITLE_ID, installFocusGuard } from "../focus";
+import {
+    cyclePanel,
+    focusMainHeading,
+    focusOpenedGraph,
+    focusOpenedGraphLater,
+    INSPECTOR_TITLE_ID,
+    installFocusGuard,
+} from "../focus";
 
 let stop: () => void = () => undefined;
 
@@ -178,5 +185,218 @@ describe("focus after a graph opens", () => {
         await userEvent.click(screen.getByRole("button", { name: "Elsewhere" }));
         focusLater();
         assert.equal(document.activeElement, screen.getByRole("button", { name: "Elsewhere" }));
+    });
+});
+
+/**
+ * The places rail with the Graph place open, its left panel, and the place's list once it is drawn.
+ * @param props - the page.
+ * @param props.rows - whether the place's list is drawn yet.
+ * @returns the page.
+ */
+function Place({ rows }: { readonly rows: boolean }): React.JSX.Element {
+    return (
+        <div>
+            <nav className="ws-rail">
+                <button type="button" aria-current="page">
+                    Graph
+                </button>
+                <button type="button">Data</button>
+            </nav>
+            <aside className="ws-left">
+                {rows ? (
+                    <div role="tree" aria-label="Layers">
+                        <div role="treeitem" aria-selected="false" tabIndex={0}>
+                            Everything
+                        </div>
+                    </div>
+                ) : null}
+            </aside>
+        </div>
+    );
+}
+
+describe("focus after a graph opens with no heading to take it", () => {
+    it("goes to the open place's list when the inspector shows no graph heading", () => {
+        render(<Place rows />);
+        focusOpenedGraph();
+        assert.equal(document.activeElement, screen.getByRole("treeitem", { name: "Everything" }));
+    });
+
+    it("waits on the rail's open place, then goes to the list's first row once it is drawn", async () => {
+        const view = render(<Place rows={false} />);
+        focusOpenedGraph();
+        assert.equal(document.activeElement, screen.getByRole("button", { name: "Graph" }));
+        view.rerender(<Place rows />);
+        await waitFor(() => {
+            assert.equal(document.activeElement, screen.getByRole("treeitem", { name: "Everything" }));
+        });
+    });
+
+    it("stays where the reader went from the rail before the list was drawn", async () => {
+        const view = render(<Place rows={false} />);
+        focusOpenedGraph();
+        await userEvent.keyboard("{Tab}");
+        const data = screen.getByRole("button", { name: "Data" });
+        assert.equal(document.activeElement, data);
+        view.rerender(<Place rows />);
+        assert.isNotNull(screen.queryByRole("treeitem", { name: "Everything" }));
+        assert.equal(document.activeElement, data, "the drawn list does not take focus from the reader");
+    });
+
+    it("leaves focus alone when there is no list and no open place on the rail", () => {
+        render(<button type="button">Elsewhere</button>);
+        const before = document.activeElement;
+        focusOpenedGraph();
+        assert.equal(document.activeElement, before);
+    });
+
+    it("leaves focus in a dialog the reader is in", () => {
+        render(
+            <div>
+                <div data-inspected="graph">
+                    <h2 id={INSPECTOR_TITLE_ID} tabIndex={-1}>
+                        Karate
+                    </h2>
+                </div>
+                <div role="dialog" aria-label="Settings">
+                    <button type="button">Close</button>
+                </div>
+            </div>,
+        );
+        const close = screen.getByRole("button", { name: "Close" });
+        close.focus();
+        focusOpenedGraph();
+        assert.equal(document.activeElement, close);
+    });
+});
+
+/**
+ * The workspace with its main heading drawn or not yet.
+ * @param props - the page.
+ * @param props.title - whether the inspector's title is drawn.
+ * @returns the page.
+ */
+function Reopened({ title }: { readonly title: boolean }): React.JSX.Element {
+    return (
+        <div>
+            <button type="button">Elsewhere</button>
+            {title ? (
+                <h2 id={INSPECTOR_TITLE_ID} tabIndex={-1}>
+                    Karate
+                </h2>
+            ) : null}
+        </div>
+    );
+}
+
+describe("focus on a reopened tab's main heading", () => {
+    it("goes to the heading at once when it is drawn", () => {
+        render(<Reopened title />);
+        focusMainHeading();
+        assert.equal(document.activeElement, screen.getByRole("heading", { name: "Karate" }));
+    });
+
+    it("waits for the heading to be drawn", async () => {
+        const view = render(<Reopened title={false} />);
+        focusMainHeading();
+        view.rerender(<Reopened title />);
+        await waitFor(() => {
+            assert.equal(document.activeElement, screen.getByRole("heading", { name: "Karate" }));
+        });
+    });
+
+    it("stays where the reader went before the heading was drawn", async () => {
+        const view = render(<Reopened title={false} />);
+        focusMainHeading();
+        await userEvent.click(screen.getByRole("button", { name: "Elsewhere" }));
+        view.rerender(<Reopened title />);
+        assert.isNotNull(screen.queryByRole("heading", { name: "Karate" }));
+        assert.equal(document.activeElement, screen.getByRole("button", { name: "Elsewhere" }));
+    });
+});
+
+/**
+ * The workspace's panels, with the selection workspace open over the left panel or not, and the
+ * drawing as an unregistered element with the drawing's tag.
+ * @param props - the page.
+ * @param props.workspace - whether the selection workspace is open.
+ * @param props.modal - whether a modal dialog is open.
+ * @returns the page.
+ */
+function Panels({
+    workspace,
+    modal = false,
+}: {
+    readonly workspace: boolean;
+    readonly modal?: boolean;
+}): React.JSX.Element {
+    return (
+        <div>
+            <aside className="ws-left">
+                <button type="button">Layers</button>
+            </aside>
+            {workspace ? (
+                <div className="sel-ws">
+                    <div className="sel-ws-head">
+                        <button type="button">Done</button>
+                    </div>
+                    <div className="sel-ws-body">
+                        <button type="button">Step</button>
+                    </div>
+                </div>
+            ) : null}
+            <aside className="ws-right">
+                <button type="button">Title</button>
+            </aside>
+            <div className="ws-canvas">
+                {React.createElement("graphty-element", {
+                    tabIndex: 0,
+                    "aria-label": "Drawing",
+                    style: { display: "block", width: 20, height: 20 },
+                })}
+            </div>
+            {modal ? (
+                <div role="dialog" aria-modal="true" aria-label="Open">
+                    <button type="button">Cancel</button>
+                </div>
+            ) : null}
+        </div>
+    );
+}
+
+describe("F6 between panels", () => {
+    it("puts the drawing right after the selection workspace while it is open", () => {
+        render(<Panels workspace />);
+        screen.getByRole("button", { name: "Step" }).focus();
+        cyclePanel(1);
+        assert.equal(document.activeElement?.getAttribute("aria-label"), "Drawing");
+        cyclePanel(1);
+        assert.equal(document.activeElement, screen.getByRole("button", { name: "Title" }));
+    });
+
+    it("from nowhere in a panel starts at the first with F6 and the last with Shift+F6", () => {
+        render(<Panels workspace={false} />);
+        cyclePanel(1);
+        assert.equal(document.activeElement, screen.getByRole("button", { name: "Layers" }));
+        (document.activeElement as HTMLElement).blur();
+        cyclePanel(-1);
+        assert.equal(document.activeElement?.getAttribute("aria-label"), "Drawing");
+    });
+
+    it("does nothing while a modal dialog is open", () => {
+        render(<Panels workspace={false} modal />);
+        const cancel = screen.getByRole("button", { name: "Cancel" });
+        cancel.focus();
+        cyclePanel(1);
+        assert.equal(document.activeElement, cancel);
+    });
+
+    it("does nothing on a page with no panels", () => {
+        render(<button type="button">Alone</button>);
+        const alone = screen.getByRole("button", { name: "Alone" });
+        alone.focus();
+        cyclePanel(1);
+        assert.equal(document.activeElement, alone);
     });
 });

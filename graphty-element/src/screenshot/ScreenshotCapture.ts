@@ -15,6 +15,7 @@ import type { Scene } from "@babylonjs/core/scene.js";
 
 import type { ViewInsets } from "../camera/types.js";
 import { colorToHex } from "../config/common.js";
+import type { GraphtyError } from "../errors/index.js";
 import { type Graph, operationQueueOf } from "../Graph.js";
 import { CustomLineRenderer } from "../meshes/CustomLineRenderer.js";
 import { RichTextLabel } from "../meshes/RichTextLabel.js";
@@ -482,7 +483,7 @@ export class ScreenshotCapture {
         const { format, quality } = encoding;
         const enhancementState = enhancement?.state;
         // Handle destinations
-        const destinations = finalOptions.destination ?? { blob: true };
+        const destinations = finalOptions.destination ?? {};
         let clipboardStatus: ClipboardStatus = "not-requested";
         let clipboardError: Error | undefined;
 
@@ -512,16 +513,25 @@ export class ScreenshotCapture {
         // Wait for the blob to be ready
         const blob = await blobPromise;
 
+        const errors: GraphtyError[] = [];
+
         // Handle download
-        const downloaded = destinations.download
+        const downloadError = destinations.download
             ? tryDownload(blob, finalOptions.downloadFilename ?? `graph-${Date.now()}.${format}`)
-            : false;
+            : undefined;
+        const downloaded = destinations.download === true && downloadError === undefined;
+        if (downloadError) {
+            errors.push(downloadError);
+        }
 
         // Wait for clipboard operation to complete
         if (clipboardPromise) {
             const result = await clipboardPromise;
             clipboardStatus = result.status;
             clipboardError = result.error;
+            if (result.error) {
+                errors.push(result.error);
+            }
         }
 
         const captureTime = Date.now() - startTime;
@@ -537,6 +547,7 @@ export class ScreenshotCapture {
             downloaded,
             clipboardStatus,
             clipboardError,
+            errors,
             metadata: {
                 width: dimensions.width,
                 height: dimensions.height,
@@ -1001,18 +1012,22 @@ interface Enhancement {
 }
 
 /**
- * Download a blob, reporting whether it went.
+ * Download a blob, reporting why it did not go.
  * @param blob - The picture.
  * @param filename - The file name.
- * @returns true when the download started; a failed download does not fail the capture.
+ * @returns undefined when the download started, else the error; a failed download does not fail the capture.
  */
-function tryDownload(blob: Blob, filename: string): boolean {
+function tryDownload(blob: Blob, filename: string): GraphtyError | undefined {
     try {
         downloadBlob(blob, filename);
-        return true;
-    } catch {
-        // Download failed, but we continue
-        return false;
+        return undefined;
+    } catch (error) {
+        return captureError(
+            "E_CAPTURE_FAILED",
+            "Failed to download the image",
+            { media: "image", destination: "download" },
+            error,
+        );
     }
 }
 

@@ -137,24 +137,34 @@ describe("settings added after the first project files", () => {
             config: { selectionStyle: Record<string, unknown> };
         };
 
-    it("writes one only when it is not its default, so an older graphty-element still opens the file", async () => {
+    it("writes every one, its default included, so a later default never changes the file", async () => {
         const saved = createGraphSession();
         await saved.data.addNodes([{ id: "a" }]);
-        assert.notProperty(sessionOf((await saved.project.save()).text).config.selectionStyle, "edgeColor");
-        await saved.config.set({ selectionStyle: { edgeColor: "#112233" } });
-        assert.strictEqual(sessionOf((await saved.project.save()).text).config.selectionStyle.edgeColor, "#112233");
+        const { selectionStyle } = sessionOf((await saved.project.save()).text).config;
+        assert.strictEqual(selectionStyle.edgeColor, DEFAULT_SELECTION_STYLE.edgeColor);
+        assert.strictEqual(selectionStyle.edgeScale, DEFAULT_SELECTION_STYLE.edgeScale);
+        assert.strictEqual(selectionStyle.edgeOpacity, DEFAULT_SELECTION_STYLE.edgeOpacity);
         saved.dispose();
     });
 
-    it("reads one a file leaves out as its default", async () => {
+    it("reads one an older file leaves out as the default that file was written with", async () => {
         const saved = createGraphSession();
         await saved.data.addNodes([{ id: "a" }]);
-        const { text } = await saved.project.save();
+        const file = JSON.parse((await saved.project.save()).text) as {
+            members: { kind: string; config: { selectionStyle: Record<string, unknown> } }[];
+        };
+        const { selectionStyle } = file.members.find((member) => member.kind === "graphty-session")!.config;
+        Reflect.deleteProperty(selectionStyle, "edgeColor");
+        Reflect.deleteProperty(selectionStyle, "edgeScale");
+        Reflect.deleteProperty(selectionStyle, "edgeOpacity");
         const opened = createGraphSession();
-        await opened.config.set({ selectionStyle: { edgeColor: "#112233" } });
-        const report = await opened.project.open(text, { discard: true });
+        await opened.config.set({ selectionStyle: { edgeColor: "#112233", edgeScale: 9, edgeOpacity: 0.5 } });
+        const report = await opened.project.open(JSON.stringify(file), { discard: true });
         assert.deepStrictEqual(report.problems, []);
-        assert.strictEqual(opened.config.selectionStyle.edgeColor, DEFAULT_SELECTION_STYLE.edgeColor);
+        // Frozen in the reader, never the reading build's default.
+        assert.strictEqual(opened.config.selectionStyle.edgeColor, "#0077BB");
+        assert.strictEqual(opened.config.selectionStyle.edgeScale, 2.5);
+        assert.strictEqual(opened.config.selectionStyle.edgeOpacity, 1);
         saved.dispose();
         opened.dispose();
     });

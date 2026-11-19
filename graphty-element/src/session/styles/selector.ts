@@ -319,6 +319,15 @@ function assertSelector(selector: Selector, sourceSteps: boolean): void {
             return;
         case "member":
         case "rule":
+            if (!sourceSteps && selector.match === "member" && isTypesScope(selector.of)) {
+                throw new GraphtyError({
+                    code: "E_FEATURE_OFF",
+                    message: 'A { types } scope needs the "source-steps" experiment.',
+                    source: "style",
+                    details: { feature: "source-steps", key: "types" },
+                });
+            }
+
             assertScopeSelector(selector);
 
             return;
@@ -574,6 +583,15 @@ function assertScopeSelector(selector: Extract<Selector, { match: "member" | "ru
             },
         );
     }
+}
+
+/**
+ * Whether a scope is the `{ types }` form.
+ * @param scope - The scope.
+ * @returns True for `{ types }`.
+ */
+function isTypesScope(scope: unknown): boolean {
+    return typeof scope === "object" && scope !== null && "types" in scope;
 }
 
 /**

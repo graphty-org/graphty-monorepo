@@ -909,8 +909,13 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
         return empty(spec.define.where) ? [{ code: "W_SCOPE_NO_EDGES", params: { nodes } }] : undefined;
     };
 
-    const scopeOf = (spec: ScopeInput): Scope => {
-        if (sources.sourceSteps?.() === false && typeof spec === "object" && "types" in spec) {
+    /**
+     * A `{ types }` scope in its canonical `{ where }` form, refused while source-steps is off.
+     * @param spec - The `{ types }` scope.
+     * @returns The `{ where }` scope.
+     */
+    const typesScope = (spec: Record<string, unknown>): Scope => {
+        if (sources.sourceSteps?.() === false) {
             throw new GraphtyError({
                 code: "E_FEATURE_OFF",
                 message: 'A { types } scope needs the "source-steps" experiment.',
@@ -919,8 +924,10 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
             });
         }
 
-        return parseScope(stabiliseEdgeRefs(spec, stable));
+        return parseScope(spec);
     };
+
+    const scopeOf = (spec: ScopeInput): Scope => parseScope(stabiliseEdgeRefs(spec, stable, typesScope));
 
     /**
      * The nodes one specification covers, and the edge constraint it came with. Uncached: only an
@@ -1303,7 +1310,8 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
         },
 
         admit<T>(value: T): T {
-            const admitted = stabiliseEdgeRefs(value, stable);
+            // A { types } scope anywhere in it is written as its canonical { where }.
+            const admitted = stabiliseEdgeRefs(value, stable, typesScope);
             assertIssued(admitted as Scope, kept);
             refuseNotePaths(admitted as Scope, sources.pathsOf);
 

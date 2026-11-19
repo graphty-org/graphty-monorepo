@@ -6,8 +6,10 @@
 
 import { assert, describe, it } from "vitest";
 
+import type { Scope } from "../../../src/catalog/types";
 import { createGraphSession, type GraphSession } from "../../../src/session";
-import { full, refused } from "./scenario";
+import { sessionWithRuns } from "../../helpers/project-session";
+import { full, phase6, refused } from "./scenario";
 
 /**
  * A Source scope as the Analyze popover writes it: inside the visible graph (design 8.6).
@@ -202,6 +204,67 @@ describe("source-steps off: readable paths read nothing", () => {
         assert.strictEqual((typed.errors as readonly { code: string }[])[0]?.code, "E_FEATURE_OFF");
         assert.strictEqual(session.styles.list().length, layersBefore, "the refused layer is not saved");
         await refused(() => session.scope.count({ types: ["x"] }), "E_FEATURE_OFF");
+        session.dispose();
+    });
+});
+
+/**
+ * A `{ types }` scope where the type of the position says `Scope` (a filter's member leaf, a
+ * member selector): the runtime accepts it there under the experiment.
+ * @param types - The types.
+ * @returns The scope.
+ */
+const typesAt = (types: string[]): Scope => ({ types }) as unknown as Scope;
+
+describe("{ types } outside session.scope", () => {
+    it("off: a run, a filter's member leaf and a member selector refuse { types }, and nothing is saved", async () => {
+        const session = sessionWithRuns([]);
+        await session.data.addNodes([{ id: "a" }, { id: "b" }, { id: "c" }]);
+        await refused(
+            async () => await session.runs.start("degree", undefined, { scope: { types: ["x"] }, style: false }),
+            "E_FEATURE_OFF",
+        );
+        await refused(
+            async () => await session.visibility.set({ kind: "member", of: typesAt(["x"]) }),
+            "E_FEATURE_OFF",
+        );
+        assert.isNull(session.visibility.filter);
+        const layersBefore = session.styles.list().length;
+        await refused(
+            async () =>
+                await session.styles.add({
+                    name: "Typed",
+                    target: "node",
+                    selector: { match: "member", of: typesAt(["x"]) },
+                    set: { "node.color": "#00ff00" },
+                }),
+            "E_FEATURE_OFF",
+        );
+        assert.strictEqual(session.styles.list().length, layersBefore, "the refused layer is not saved");
+        session.dispose();
+    });
+
+    it("on: a run, a filter's member leaf and a member selector read { types } as the nodes of those types", async () => {
+        const { session } = await phase6(undefined, sessionWithRuns(["source-steps"]));
+        const accounts = (await session.scope.count({ types: ["account"] })).nodes;
+        assert.isAbove(accounts, 0);
+
+        const run = session.runs.start("degree", undefined, { scope: { types: ["account"] }, style: false });
+        await run;
+        assert.strictEqual(session.runs.get(run.id)?.status, "succeeded");
+        assert.strictEqual(session.runs.get(run.id)?.scope.nodes.size, accounts);
+
+        await session.visibility.set({ kind: "member", of: typesAt(["account"]) });
+        assert.strictEqual((await shownNodes(session)).size, accounts);
+        await session.visibility.set(null);
+
+        const layer = await session.styles.add({
+            name: "Accounts",
+            target: "node",
+            selector: { match: "member", of: typesAt(["account"]) },
+            set: { "node.color": "#ff0000" },
+        });
+        assert.strictEqual(session.styles.counts(layer.id).matched, accounts);
         session.dispose();
     });
 });

@@ -1439,12 +1439,22 @@ function typesScope(value: Record<string, unknown>): Scope {
  * @param value - A scope, a set definition, a rule tree or a selector, as given.
  * @param stable - The stable member of a session edge id or an object member; throws for an edge
  * the graph lacks.
+ * @param types - What a `{ types }` scope in any scope position becomes (it is canonicalized or
+ * refused there); left as given when omitted.
  * @returns The value, stable.
  */
-export function stabiliseEdgeRefs<T>(value: T, stable: (ref: string) => unknown): T {
+export function stabiliseEdgeRefs<T>(
+    value: T,
+    stable: (ref: string) => unknown,
+    types?: (scope: Record<string, unknown>) => unknown,
+): T {
     const walk = (node: unknown): unknown => {
         if (!isObject(node)) {
             return node;
+        }
+
+        if (types !== undefined && node.types !== undefined && node.match === undefined && node.kind === undefined) {
+            return types(node);
         }
 
         const swap = (field: string, next: unknown): unknown =>

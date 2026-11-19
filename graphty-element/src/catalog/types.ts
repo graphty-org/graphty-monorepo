@@ -1059,6 +1059,7 @@ export type Channel =
     | "node.xlabelLocation"
     | "node.xlabelOffsetX"
     | "node.xlabelOffsetY"
+    | "node.xlabelTextAlign"
     | "edge.xlabel"
     | "edge.xlabelStyle"
     | "edge.xlabelLocation"

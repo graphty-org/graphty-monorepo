@@ -129,6 +129,7 @@ export const STYLE_PROPERTIES: {
         ["xlabel", "text"],
         ["xlabelOffsetX", "signed"],
         ["xlabelOffsetY", "signed"],
+        ["xlabelTextAlign", "textAlign"],
         ["labelFont", "text"],
         ["labelWeight", "weight"],
         ["labelItalic", "boolean"],

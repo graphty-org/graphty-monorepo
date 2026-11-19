@@ -4954,9 +4954,19 @@ export { Recording }
 export { recordingFrom }
 
 // @public
+export interface RecordMatch {
+    readonly field: Path;
+    readonly rank: RecordMatchRank;
+}
+
+// @public
+export type RecordMatchRank = "exact" | "starts-with" | "contains";
+
+// @public
 export interface RecordPage<TRecord> {
     readonly columns?: readonly PageColumn[];
     readonly issues?: readonly (readonly IssueId[])[];
+    readonly matches?: readonly RecordMatch[];
     readonly offset: number;
     readonly records: readonly TRecord[];
     readonly revision: string;
@@ -4973,6 +4983,7 @@ export interface RecordPageOptions {
         readonly text: string;
         readonly mode?: SelectionTextMode;
         readonly names?: boolean;
+        readonly rank?: boolean;
     };
     readonly offset?: number;
     readonly scope?: ScopeInput;

@@ -753,10 +753,10 @@ describe("session.time: what a window move does to finished runs", () => {
 
         let ended = nextEnd();
         await session.time.stepBy(1);
-        assert.strictEqual((await ended).trigger, "timeline");
+        assert.strictEqual((await ended).trigger, "time-window");
         const rerun = changes.filter((change) => change.run.id === id);
         assert.isTrue(
-            rerun.every((change) => change.trigger === "timeline"),
+            rerun.every((change) => change.trigger === "time-window"),
             "every moment of the re-run",
         );
 
@@ -783,7 +783,7 @@ describe("session.time: what a window move does to finished runs", () => {
         });
 
         await session.time.setSettings({ results: "rerun" });
-        assert.strictEqual((await ended).trigger, "timeline");
+        assert.strictEqual((await ended).trigger, "time-window");
         session.dispose();
     });
 

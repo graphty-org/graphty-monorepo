@@ -35,15 +35,17 @@ storage features only in a secure context).
 The sample datasets the app offers beyond the start screen's own are downloaded from graphty.app
 when a reader opens one.
 
-Usage data: every visitor who has not turned on Share usage data sends a few anonymous counts to
-PostHog (EU region) in its cookieless mode, with no cookies and no stored id: visits, the site that
-sent them, and which sample, file format, layout, measure and export they use (ids only, never file
-names or contents). A reader who shares sends the same counts through PostHog's shared mode instead,
-with its stored id. Masked session replays,
-click, control-change and command events, page speed and survey answers (the same PostHog project) and
-error reports with a masked replay of the moments before an error (Sentry) are sent only after a reader
-turns on Share usage data in the app. The app's
-`/privacy.html` lists every event and property, and how to turn it off.
+Usage data: by default the app sends PostHog nothing, and Share usage data turns on error reports
+(Sentry) only. The `usage-analytics` experiment, switched on in the `features` list of the site's
+`/site.json` or with `?features=usage-analytics` in the address, adds usage counts to PostHog (EU
+region). They are sent only when that `/site.json` also has an `analytics` block with PostHog ids
+and the page is served from that site's own host, so a copy you host yourself sends PostHog nothing.
+Where they are sent, every visitor who has not turned on Share usage data sends a few anonymous
+counts in PostHog's cookieless mode, with no cookies and no stored id: visits, the site that sent
+them, and which sample, file format, layout, measure and export they use (ids only, never file names
+or contents). A reader who shares sends the same counts through PostHog's shared mode instead, with
+its stored id, plus masked session replays, click, control-change and command events, page speed and
+survey answers. The app's `/privacy.html` lists every event and property, and how to turn it off.
 
 ## License
 

@@ -23,6 +23,7 @@ import {
     startPageCounts,
     SURVEYS_KEY,
 } from "../../../lib/analytics";
+import { withFeatures } from "../../../test/features";
 import { openBy } from "../../../test/open";
 import { forgetAutosave, openAutosaved, reload } from "../../../test/reload";
 import { pickSample } from "../../../test/samples-dialog";
@@ -136,6 +137,9 @@ function catchDownloads(): string[] {
     });
     return names;
 }
+
+// The usage-analytics experiment on, in both test configurations: these counts are its own.
+withFeatures(["usage-analytics"]);
 
 describe("usage counts when a project opens", () => {
     beforeEach(async () => {

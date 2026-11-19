@@ -12,6 +12,7 @@ import {
 } from "../../../lib/analytics";
 import * as sentry from "../../../lib/sentry";
 import { loadSiteConfig, resetSiteConfig } from "../../../siteConfig";
+import { withFeatures } from "../../../test/features";
 import { act, renderHook } from "../../../test/test-utils";
 import {
     answerUsageData,
@@ -28,6 +29,7 @@ const stopSentry = vi.fn();
 setUsageSenderForTests({ start: initSentry, stop: stopSentry });
 
 describe("the usage data gate", () => {
+    withFeatures(["usage-analytics"]);
     beforeEach(() => {
         forgetUsageAnswer();
         initSentry.mockClear();
@@ -143,7 +145,7 @@ describe("the live sender", () => {
             privacySignals: () => signals,
         });
         recordAnonymous();
-        const file = { site: "production", features: [], analytics };
+        const file = { site: "production", features: ["usage-analytics"], analytics };
         startPageCounts(await loadSiteConfig(`data:application/json,${encodeURIComponent(JSON.stringify(file))}`));
         sends.length = 0;
     });
@@ -209,5 +211,31 @@ describe("the live sender", () => {
         assert.equal(optOut.mock.calls.length, 1);
         assert.isNull(localStorage.getItem("ph_phc_x_posthog"));
         assert.equal(readUsageAnswer(), "declined");
+    });
+});
+
+describe("the usage data gate with the usage-analytics experiment off", () => {
+    withFeatures([]);
+    beforeEach(() => {
+        forgetUsageAnswer();
+        initSentry.mockClear();
+        stopSentry.mockClear();
+    });
+    afterEach(() => {
+        forgetUsageAnswer();
+    });
+
+    it("starts and stops nothing in this tab when another tab answers", () => {
+        localStorage.setItem("graphty.usageData.v1", "share");
+        globalThis.dispatchEvent(
+            new StorageEvent("storage", {
+                key: "graphty.usageData.v1",
+                oldValue: null,
+                newValue: "share",
+                storageArea: localStorage,
+            }),
+        );
+        assert.equal(initSentry.mock.calls.length, 0);
+        assert.equal(stopSentry.mock.calls.length, 0);
     });
 });

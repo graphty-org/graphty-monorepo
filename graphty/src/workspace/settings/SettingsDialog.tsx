@@ -15,6 +15,7 @@ import {
 } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
+import { useAppFeature } from "../../features";
 import { siteFileStyles } from "../../siteConfig";
 import { AiProviderPage, type PageCommit } from "../assistant-door/AssistantPlace";
 import { AI_PROVIDER_SECTION, assistantOn } from "../assistant-door/commands";
@@ -188,10 +189,14 @@ function General(): React.JSX.Element {
 function Privacy(): React.JSX.Element {
     const on = useUsageAnswer() === "share";
     const sendsTo = useAssistantSendsTo();
-    const usageOff =
-        sendsTo === null
-            ? "Usage data: off. Anonymous counts are still sent: visits, the site that sent you, and which sample, file format, layout, measure and export you use."
-            : "Usage data: off. Anonymous counts are still sent.";
+    const analytics = useAppFeature("usage-analytics");
+    let usageOff = sendsTo === null ? "Usage data: off. Nothing is sent." : "Usage data: off.";
+    if (analytics) {
+        usageOff =
+            sendsTo === null
+                ? "Usage data: off. Anonymous counts are still sent: visits, the site that sent you, and which sample, file format, layout, measure and export you use."
+                : "Usage data: off. Anonymous counts are still sent.";
+    }
     return (
         <Stack gap="md">
             <Stack gap={6}>
@@ -218,14 +223,16 @@ function Privacy(): React.JSX.Element {
                 <Text size="xs">
                     {on ? "Usage data: sent with content masked, only while Share usage data is on." : usageOff}
                 </Text>
-                {on ? null : (
+                {analytics && !on ? (
                     <Text size="xs">
                         Anonymous counts: while Share is off, with no cookies or stored id (PostHog, EU).
                     </Text>
-                )}
-                <Anchor href="/privacy.html" target="_blank" rel="noopener noreferrer" size="xs">
-                    Privacy details
-                </Anchor>
+                ) : null}
+                {analytics ? (
+                    <Anchor href="/privacy.html" target="_blank" rel="noopener noreferrer" size="xs">
+                        Privacy details
+                    </Anchor>
+                ) : null}
             </Stack>
         </Stack>
     );

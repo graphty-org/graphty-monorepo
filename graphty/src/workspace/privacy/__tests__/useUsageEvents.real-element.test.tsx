@@ -21,6 +21,7 @@ import {
     setPostHogClientForTests,
     startPageCounts,
 } from "../../../lib/analytics";
+import { withFeatures } from "../../../test/features";
 import { openSampleFromStart } from "../../../test/open";
 import { dragAcross, wheelOver } from "../../../test/real-pointer";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
@@ -185,6 +186,9 @@ function catchDownloads(): string[] {
     });
     return names;
 }
+
+// The usage-analytics experiment on, in both test configurations: these counts are its own.
+withFeatures(["usage-analytics"]);
 
 describe("usage counts from the real element", () => {
     beforeEach(async () => {
@@ -459,7 +463,7 @@ describe("usage counts from the real element", () => {
         // The timeline re-runs it, as the results policy changes to re-run and the window moves.
         const reruns: unknown[] = [];
         const off = session.on("run:changed", (change) => {
-            if (change.run.id === run.id && change.phase === "end" && change.trigger === "timeline") {
+            if (change.run.id === run.id && change.phase === "end" && change.trigger === "time-window") {
                 reruns.push(change);
             }
         });

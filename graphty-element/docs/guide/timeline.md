@@ -224,7 +224,7 @@ await time.setSettings({ step: "week", mode: "cumulative", results: "rerun", mis
   `"stale"` (the default) marks them out of date, `"keep"` leaves them current, and `"rerun"` runs
   them again over each new window, a play waiting for them at every step. A run the window re-ran
   (a play, a step, a window drag, or switching to `"rerun"`) publishes `run:changed` with
-  `trigger: "timeline"`, so a listener can tell it from a run a caller started, which has no
+  `trigger: "time-window"`, so a listener can tell it from a run a caller started, which has no
   `trigger`.
 - `missing`: `"inside"` (the default) keeps elements with no time in every window; `"outside"` hides
   them.

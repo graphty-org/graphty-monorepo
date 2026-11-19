@@ -8,6 +8,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 
 import { ColorSchemeToggle } from "../../components/ColorSchemeToggle";
 import { START_SAMPLES } from "../../data/sampleManifest";
+import { useAppFeature } from "../../features";
 import { RecoveredWork } from "../autosave/RecoveredWork";
 import { CommandButton } from "../frame/CommandButton";
 import { GLYPHS } from "../glyphs";
@@ -412,10 +413,12 @@ function SampleLibrary(): React.JSX.Element {
 }
 
 /**
- * The foot of the page: the formats it opens, the license, the code, the docs and the privacy page.
+ * The foot of the page: the formats it opens, the license, the code, the docs and, with the
+ * usage-analytics experiment on, the privacy page.
  * @returns The footer
  */
 function PageFoot(): React.JSX.Element {
+    const analytics = useAppFeature("usage-analytics");
     return (
         <footer className="ws-land-foot">
             <span>
@@ -434,10 +437,14 @@ function PageFoot(): React.JSX.Element {
                 <a href={DOCS} target="_blank" rel="noopener noreferrer">
                     Docs
                 </a>{" "}
-                &middot;{" "}
-                <a href={PRIVACY} target="_blank" rel="noopener noreferrer">
-                    Privacy
-                </a>{" "}
+                {analytics ? (
+                    <>
+                        &middot;{" "}
+                        <a href={PRIVACY} target="_blank" rel="noopener noreferrer">
+                            Privacy
+                        </a>{" "}
+                    </>
+                ) : null}
                 &middot; Put it on your own site: <code>npm i @graphty/graphty-element</code>{" "}
                 {/* The footer's other "Docs" is the app's; this one names what it documents. */}
                 <a href={ELEMENT_DOCS} target="_blank" rel="noopener noreferrer" aria-label="Docs for graphty-element">

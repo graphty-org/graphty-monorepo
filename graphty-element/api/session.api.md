@@ -5464,7 +5464,7 @@ export interface RunChange {
     readonly generation: number;
     readonly phase: RunPhase;
     readonly run: RunRecord;
-    readonly trigger?: "timeline" | "project";
+    readonly trigger?: "time-window" | "project";
 }
 
 // @public

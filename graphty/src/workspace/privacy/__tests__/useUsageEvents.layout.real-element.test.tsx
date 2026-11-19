@@ -19,6 +19,7 @@ import {
     startPageCounts,
 } from "../../../lib/analytics";
 import { columnVerb } from "../../../test/column-header";
+import { withFeatures } from "../../../test/features";
 import { dragTo } from "../../../test/real-pointer";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { firstOnPage, type Recorded, recordInto, TEST_ANALYTICS } from "../../../test/usage-recorders";
@@ -97,6 +98,9 @@ function selectionWorkspace(): HTMLElement {
     assert.isNotNull(found, "the selection workspace is open");
     return found;
 }
+
+// The usage-analytics experiment on, in both test configurations: these counts are its own.
+withFeatures(["usage-analytics"]);
 
 describe("usage counts for layout, filters and the timeline on the real element", () => {
     beforeEach(async () => {
@@ -211,7 +215,7 @@ describe("usage counts for layout, filters and the timeline on the real element"
         // Not vacuous: the play moves the window, and the timeline re-runs the run as it does.
         const reruns: unknown[] = [];
         const offRerun = session.on("run:changed", (change) => {
-            if (change.phase === "end" && change.trigger === "timeline") {
+            if (change.phase === "end" && change.trigger === "time-window") {
                 reruns.push(change);
             }
         });

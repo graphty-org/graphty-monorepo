@@ -6,6 +6,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import { flushSync } from "react-dom";
 
 import { bootSignal } from "../bootSignal";
+import { appFeatureOn, useAppFeature } from "../features";
 import { APP_CALLER_KEY } from "../lib/analytics";
 import { findKept, reopenOwn } from "./autosave/autosave";
 import { createRegistry, type WorkspaceRegistration } from "./commands/registry";
@@ -115,6 +116,7 @@ export function Workspace({
     useCommandKeys(value);
     // Anonymous usage counts from the project's element and the panels (lib/analytics.ts).
     useUsageEvents(element.session, store);
+    const usageAnalytics = useAppFeature("usage-analytics");
     // The project the workspace started with (a story's, a test's) is left as its maker set it.
     const [startProjectId] = useState(() => store.get().project?.id);
     // Set while a just-opened project's sample is read, so focus waits for it.
@@ -159,12 +161,16 @@ export function Workspace({
                   }),
             ...(author === "" || session.config.author === author ? {} : { author }),
         };
-        const defaults =
-            project?.id === startProjectId || Object.keys(patch).length === 0
-                ? Promise.resolve()
-                : session.transaction("Starting settings", (tx) => tx.config.set(patch), {
+        // With usage analytics on, the starting choices are one step marked as the app's own, so
+        // they are not counted as the reader's; off, they are written as before.
+        const writeDefaults = (): Promise<unknown> =>
+            appFeatureOn("usage-analytics")
+                ? session.transaction("Starting settings", (tx) => tx.config.set(patch), {
                       callerKey: APP_CALLER_KEY,
-                  });
+                  })
+                : session.config.set(patch);
+        const defaults =
+            project?.id === startProjectId || Object.keys(patch).length === 0 ? Promise.resolve() : writeDefaults();
         if (opening === null) {
             // Nothing waits on the app's starting choices here; a refusal is logged, not shown.
             void defaults.catch((error: unknown) => {
@@ -435,11 +441,16 @@ export function Workspace({
             <ReportDialog />
             {/* One corner for the usage data question (on whatever page a first visit lands, until it
                 is answered) and a short survey, only while usage data is shared (usage-analytics.md
-                section 4.4): stacked, so neither covers or hides the other. */}
-            <div className="ws-usage-corner">
+                section 4.4): stacked, so neither covers or hides the other. With the usage-analytics
+                experiment off, the question alone, with no survey. */}
+            {usageAnalytics ? (
+                <div className="ws-usage-corner">
+                    <UsageDataCard returnFocus={projectOpen ? undefined : firstDoor} />
+                    <SurveyCard />
+                </div>
+            ) : (
                 <UsageDataCard returnFocus={projectOpen ? undefined : firstDoor} />
-                <SurveyCard />
-            </div>
+            )}
             <ProjectDialogs />
             {/* The one status line, outside the start screen, the frame and every surface the Data
                 page hides, so it is on the page, empty, before anything is written to it and a

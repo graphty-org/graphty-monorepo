@@ -1,5 +1,6 @@
 /**
- * What leaves the page for a reader who never shares usage data, with the REAL graphty-element and
+ * What leaves the page with the usage-analytics experiment off (nothing, for any reader), and for a
+ * reader who never shares usage data with it on, with the REAL graphty-element and
  * the app's own analytics wiring (design/graphty/usage-analytics.md, section 11): PostHog's real code
  * loads once after first paint and sends only its anonymous, cookieless counts, none carrying the
  * address bar's secret, a file's name or a label; Sentry never starts. PostHog's ingest host is a
@@ -97,15 +98,19 @@ async function secretFile(): Promise<File> {
     return new File([await response.blob()], "SECRET_GENES.tsv");
 }
 
+/** The address the cases boot from: a secret, and a channel. */
+const SECRET_QUERY = "?url=https://SECRET_URL.example/SECRET_URL.csv&ref=hn";
+
 /**
  * Boots analytics as main.tsx does, for a site with PostHog configured, from an address that
  * carries a secret, then shows the workspace's start page.
+ * @param features - the site's experiments: usage-analytics on, unless a case says otherwise.
  */
-async function boot(): Promise<void> {
-    globalThis.history.replaceState(null, "", "?url=https://SECRET_URL.example/SECRET_URL.csv&ref=hn");
+async function boot(features: readonly string[] = ["usage-analytics"]): Promise<void> {
+    globalThis.history.replaceState(null, "", SECRET_QUERY);
     const site = {
         site: "production",
-        features: [],
+        features,
         analytics: TEST_ANALYTICS,
     };
     startAnalyticsAtBoot(await loadSiteConfig(`data:application/json,${encodeURIComponent(JSON.stringify(site))}`));
@@ -189,34 +194,113 @@ function recordingCalls(): Partial<AnalyticsCalls> {
     };
 }
 
-describe("a reader who never shares usage data", () => {
-    beforeEach(async () => {
-        resetAnalyticsForTests();
-        resetSiteConfig();
-        forgetUsageAnswer();
-        imports = 0;
-        sentryStarts = 0;
-        setAnalyticsCallsForTests(recordingCalls());
-        setSentryCallsForTests({
-            init: () => {
-                sentryStarts++;
-            },
-            defaultConfig: { dsn: "https://public@o0.ingest.sentry.io/0" },
-        } as unknown as Partial<SentryCalls>);
-        await watch.watchOffOriginRequests();
-        network = interceptPostHog();
+/** Starts the recording seams and the request watch, as each case needs. */
+async function startRecording(): Promise<void> {
+    resetAnalyticsForTests();
+    resetSiteConfig();
+    forgetUsageAnswer();
+    imports = 0;
+    sentryStarts = 0;
+    setAnalyticsCallsForTests(recordingCalls());
+    setSentryCallsForTests({
+        init: () => {
+            sentryStarts++;
+        },
+        // Sentry's real replay allows one instance per page, and resetSentryState forgets this
+        // page's: a stand-in lets each case start error reporting again.
+        replayIntegration: () => ({
+            name: "Replay",
+            startBuffering: () => undefined,
+            stop: () => Promise.resolve(),
+        }),
+        defaultConfig: { dsn: "https://public@o0.ingest.sentry.io/0" },
+    } as unknown as Partial<SentryCalls>);
+    await watch.watchOffOriginRequests();
+    network = interceptPostHog();
+}
+
+/** Undoes `startRecording` and the address a case booted from. */
+function stopRecording(): void {
+    network.restore();
+    globalThis.history.replaceState(null, "", address);
+    forgetUsageAnswer();
+    resetAnalyticsForTests();
+    resetSiteConfig();
+    setAnalyticsCallsForTests();
+    resetSentryState();
+    setSentryCallsForTests();
+}
+
+/** The storage keys only analytics writes: PostHog's, its surveys', and the app's visit and survey records. */
+function analyticsKeys(): string[] {
+    return Object.keys(localStorage).filter((key) =>
+        /^(ph_|seenSurvey_|inProgressSurvey_|lastSeenSurveyDate|graphty\.visits\.|graphty\.surveys\.)/.test(key),
+    );
+}
+
+// First in the file, so nothing earlier on this page has loaded PostHog's code.
+describe("with the usage-analytics experiment off", () => {
+    beforeEach(startRecording);
+    afterEach(stopRecording);
+
+    it("sends PostHog nothing, loads none of it and stores nothing for it, while the reader shares", async () => {
+        // A reader who shared on an earlier visit, booting with PostHog's ids configured...
+        localStorage.setItem("graphty.usageData.v1", "share");
+        await boot([]);
+        assert.strictEqual(sentryStarts, 1, "the earlier Share starts error reporting, as before");
+        // ...then uses the app.
+        assert.isNull(screen.queryByRole("complementary", { name: "Usage data" }), "the question was answered");
+        await useTheApp();
+        assert.isNull(screen.queryByRole("complementary", { name: "Survey" }));
+
+        assert.strictEqual(imports, 0, "PostHog's code was never asked for");
+        assert.isEmpty(network.urls, "no request reached PostHog");
+        const offOrigin = await watch.takeOffOriginRequests();
+        assert.isEmpty(offOrigin.filter((url) => /posthog/i.test(url)));
+        assert.isEmpty(analyticsKeys(), "nothing was stored for analytics");
+        assert.strictEqual(globalThis.location.search, SECRET_QUERY, "the address bar is left as it was");
     });
 
-    afterEach(() => {
-        network.restore();
-        globalThis.history.replaceState(null, "", address);
-        forgetUsageAnswer();
-        resetAnalyticsForTests();
-        resetSiteConfig();
-        setAnalyticsCallsForTests();
-        resetSentryState();
-        setSentryCallsForTests();
+    it("starts error reporting alone on a first visit's Share", async () => {
+        await boot([]);
+        const card = screen.getByRole("complementary", { name: "Usage data" });
+        await userEvent.click(within(card).getByRole("button", { name: "Share usage data" }));
+        assert.strictEqual(sentryStarts, 1, "Share starts error reporting, as before");
+        await useTheApp();
+
+        assert.strictEqual(imports, 0, "PostHog's code was never asked for");
+        assert.isEmpty(network.urls, "no request reached PostHog");
+        assert.isEmpty(analyticsKeys(), "nothing was stored for analytics");
+        assert.isNull(screen.queryByRole("complementary", { name: "Survey" }));
     });
+
+    it("deletes what an earlier visit with the experiment on stored, when the reader turns sharing off", async () => {
+        // A reader who shared on a visit with the experiment on, back on a site with it off.
+        localStorage.setItem("graphty.usageData.v1", "share");
+        localStorage.setItem("ph_phc_test_posthog", '{"distinct_id":"someone"}');
+        localStorage.setItem("seenSurvey_x", "true");
+        localStorage.setItem("graphty.visits.v1", '{"first":"2026-01-01","last":"2026-01-02"}');
+        localStorage.setItem("graphty.surveys.v1", '{"seen":[],"use_case":"SECRET_PROJECT"}');
+        await boot([]);
+        // The privacy chip in an open project's status bar leads to Settings > Privacy.
+        await useTheApp();
+        const [chip] = await screen.findAllByRole("button", { name: "Usage data on, content masked" });
+        await userEvent.click(chip);
+        const dialog = await screen.findByRole("dialog", { name: "Settings" });
+        const toggle = within(dialog).getByRole<HTMLInputElement>("switch", { name: "Share usage data" });
+        assert.isTrue(toggle.checked, "Share is on");
+        await userEvent.click(toggle);
+        assert.isFalse(toggle.checked);
+
+        assert.isEmpty(analyticsKeys(), "PostHog's id, the survey keys and the visit and survey records are gone");
+        assert.strictEqual(imports, 0, "PostHog's code was never asked for");
+        assert.isEmpty(network.urls, "no request reached PostHog");
+    });
+});
+
+describe("a reader who never shares usage data", () => {
+    beforeEach(startRecording);
+    afterEach(stopRecording);
 
     it("sends PostHog only anonymous counts and Sentry nothing after No thanks, with no secret", async () => {
         await boot();

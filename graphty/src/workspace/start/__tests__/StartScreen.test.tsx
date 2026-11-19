@@ -7,6 +7,7 @@ import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
 import { count, resetAnalyticsForTests, setPostHogClientForTests, SURVEYS_KEY } from "../../../lib/analytics";
+import { withFeatures, withoutFeatures } from "../../../test/features";
 import { sampleTile } from "../../../test/samples-dialog";
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
 import { USE_CASE_SURVEY } from "../../privacy/__tests__/surveyFixtures";
@@ -20,6 +21,10 @@ import { Workspace } from "../../Workspace";
 const initSentry = vi.fn();
 const stopSentry = vi.fn();
 setUsageSenderForTests({ start: initSentry, stop: stopSentry });
+
+// The words without the usage-analytics experiment, in the On configuration too; the describe that
+// is about the experiment switches it on.
+withoutFeatures(["usage-analytics"]);
 
 const OWNER_WORDS =
     "We will never see the data you analyze, but we would like to collect information about how you use the app so that we can improve the user experience. This data will only ever be used by the author of the application and his Claude Code sessions.";
@@ -152,10 +157,11 @@ describe("the start screen", () => {
         const card = screen.getByRole("complementary", { name: "Usage data" });
         // Pinned to the window, not a card at the foot of the start page.
         assert.isNull(card.closest(".ws-land"));
-        const corner = card.parentElement;
-        assert.exists(corner);
-        assert.equal(getComputedStyle(corner).position, "fixed");
+        assert.equal(getComputedStyle(card).position, "fixed");
         assert.isTrue(card.checkVisibility());
+        assert.isNotNull(within(card).getByText("Nothing is collected until you answer."));
+        // The privacy page belongs to the usage-analytics experiment, off here.
+        assert.isNull(screen.queryByRole("link", { name: "Privacy" }));
         assert.isNotNull(within(card).getByText("Your data is yours, but please help us."));
         assert.isNotNull(within(card).getByText(OWNER_WORDS));
         const collected = within(card).getByText("No file contents ever leave your computer.");
@@ -187,11 +193,8 @@ describe("the start screen", () => {
         await userEvent.click(screen.getByRole("button", { name: "Change this in Settings > Privacy" }));
         const dialog = await screen.findByRole("dialog", { name: "Settings" });
         assert.isFalse(within(dialog).getByRole<HTMLInputElement>("switch", { name: "Share usage data" }).checked);
-        assert.isNotNull(
-            within(dialog).getByText(
-                "Usage data: off. Anonymous counts are still sent: visits, the site that sent you, and which sample, file format, layout, measure and export you use.",
-            ),
-        );
+        assert.isNotNull(within(dialog).getByText("Usage data: off. Nothing is sent."));
+        assert.isNull(within(dialog).queryByRole("link", { name: "Privacy details" }));
     });
 
     it("asks a first visit that lands straight in a project, and the answer line closes", async () => {
@@ -210,46 +213,6 @@ describe("the start screen", () => {
         assert.equal(document.activeElement, close);
         await userEvent.click(close);
         assert.isNull(screen.queryByText(/Usage data stays off/));
-    });
-
-    it("stacks a survey that comes up beside the answer line, hiding neither, and keeps focus", async () => {
-        let undoPostHog: () => void = () => undefined;
-        setUsageSenderForTests({
-            start: () => {
-                undoPostHog = setPostHogClientForTests({
-                    getActiveMatchingSurveys: (callback) => {
-                        callback([USE_CASE_SURVEY]);
-                    },
-                });
-            },
-            stop: () => {
-                undoPostHog();
-            },
-        });
-        try {
-            renderStart({ project: { name: "Les Miserables", id: 1 } });
-            const card = screen.getByRole("complementary", { name: "Usage data" });
-            await userEvent.click(within(card).getByRole("button", { name: "Share usage data" }));
-            const close = screen.getByRole("button", { name: "Close" });
-            assert.equal(document.activeElement, close);
-
-            act(() => {
-                count("algorithm_run", { algorithm: "degree", outcome: "succeeded" });
-            });
-
-            const survey = screen.getByRole("complementary", { name: "Survey" });
-            const line = screen.getByText(/Usage data is on/, { selector: ".ws-start-answer" });
-            assert.isTrue(line.checkVisibility(), "the answer line is still shown");
-            assert.equal(document.activeElement, close, "focus stays on the answer line's close");
-            // Stacked in one corner: the line sits above the survey, never under it.
-            const lineBox = line.getBoundingClientRect();
-            const surveyBox = survey.getBoundingClientRect();
-            assert.isAtMost(lineBox.bottom, surveyBox.top);
-        } finally {
-            undoPostHog();
-            resetAnalyticsForTests();
-            setUsageSenderForTests({ start: initSentry, stop: stopSentry });
-        }
     });
 
     it("does not show the card again once it was answered", async () => {
@@ -355,6 +318,76 @@ describe("the start screen", () => {
         assert.isNotNull(screen.getByRole("button", { name: /^Open a file/ }));
         assert.isNotNull(screen.getByRole("button", { name: "New project" }));
         assert.isNotNull(screen.getByRole("button", { name: "Open network data" }));
+    });
+});
+
+describe("the start screen with the usage-analytics experiment on", () => {
+    withFeatures(["usage-analytics"]);
+
+    it("says anonymous counts are sent, links the privacy page, and stacks the card in its corner", async () => {
+        renderStart();
+
+        const card = screen.getByRole("complementary", { name: "Usage data" });
+        const corner = card.parentElement;
+        assert.exists(corner);
+        assert.equal(getComputedStyle(corner).position, "fixed");
+        assert.isNotNull(within(card).getByText(/^Until you share, anonymous counts are sent/));
+        assert.equal(screen.getByRole("link", { name: "Privacy" }).getAttribute("href"), "/privacy.html");
+
+        await userEvent.click(within(card).getByRole("button", { name: "No thanks" }));
+        assert.isNotNull(
+            screen.getByText(/Usage data stays off\. Anonymous counts are still sent\./, {
+                selector: ".ws-start-answer",
+            }),
+        );
+        await userEvent.click(screen.getByRole("button", { name: "Change this in Settings > Privacy" }));
+        const dialog = await screen.findByRole("dialog", { name: "Settings" });
+        assert.isNotNull(
+            within(dialog).getByText(
+                "Usage data: off. Anonymous counts are still sent: visits, the site that sent you, and which sample, file format, layout, measure and export you use.",
+            ),
+        );
+        assert.isNotNull(within(dialog).getByRole("link", { name: "Privacy details" }));
+    });
+
+    it("stacks a survey that comes up beside the answer line, hiding neither, and keeps focus", async () => {
+        let undoPostHog: () => void = () => undefined;
+        setUsageSenderForTests({
+            start: () => {
+                undoPostHog = setPostHogClientForTests({
+                    getActiveMatchingSurveys: (callback) => {
+                        callback([USE_CASE_SURVEY]);
+                    },
+                });
+            },
+            stop: () => {
+                undoPostHog();
+            },
+        });
+        try {
+            renderStart({ project: { name: "Les Miserables", id: 1 } });
+            const card = screen.getByRole("complementary", { name: "Usage data" });
+            await userEvent.click(within(card).getByRole("button", { name: "Share usage data" }));
+            const close = screen.getByRole("button", { name: "Close" });
+            assert.equal(document.activeElement, close);
+
+            act(() => {
+                count("algorithm_run", { algorithm: "degree", outcome: "succeeded" });
+            });
+
+            const survey = screen.getByRole("complementary", { name: "Survey" });
+            const line = screen.getByText(/Usage data is on/, { selector: ".ws-start-answer" });
+            assert.isTrue(line.checkVisibility(), "the answer line is still shown");
+            assert.equal(document.activeElement, close, "focus stays on the answer line's close");
+            // Stacked in one corner: the line sits above the survey, never under it.
+            const lineBox = line.getBoundingClientRect();
+            const surveyBox = survey.getBoundingClientRect();
+            assert.isAtMost(lineBox.bottom, surveyBox.top);
+        } finally {
+            undoPostHog();
+            resetAnalyticsForTests();
+            setUsageSenderForTests({ start: initSentry, stop: stopSentry });
+        }
     });
 });
 

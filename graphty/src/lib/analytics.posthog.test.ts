@@ -99,7 +99,7 @@ beforeEach(async () => {
     // The site first: it is read through fetch, which the wrappers below replace.
     const site = {
         site: "production",
-        features: [],
+        features: ["usage-analytics"],
         analytics: { posthogKey: KEY, posthogHost: "https://eu.i.posthog.com" },
     };
     await loadSiteConfig(`data:application/json,${encodeURIComponent(JSON.stringify(site))}`);

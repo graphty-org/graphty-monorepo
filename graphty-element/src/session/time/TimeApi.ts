@@ -2373,7 +2373,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
                 runs.map(async (run) => {
                     try {
                         // Marked as the session's own re-run, so `run:changed` says the window did it.
-                        await (run instanceof ManagedRun ? run.rerun("timeline") : run.rerun());
+                        await (run instanceof ManagedRun ? run.rerun("time-window") : run.rerun());
                     } catch (error) {
                         sources.emit("time:rerun-failed", {
                             run: run.id,

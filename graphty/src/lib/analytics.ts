@@ -18,6 +18,7 @@ import type { CaptureResult, PostHog, PostHogConfig } from "posthog-js";
 // The file's URL, not the module: a failed load is retried at a URL the browser has not seen.
 import posthogUrl from "posthog-js/full/no-external?url";
 
+import { appFeatureOn } from "../features";
 import { type SiteConfig, siteConfig } from "../siteConfig";
 import { startUsageDataIfShared } from "../workspace/privacy/usageData";
 import { sentryConfigured } from "./sentry";
@@ -594,6 +595,19 @@ function forgetVisits(): void {
     }
 }
 
+/**
+ * Removes the app's own visit and survey records, for a No with the usage-analytics experiment off:
+ * an earlier visit with it on may have written them, and nothing else removes them while it is off.
+ */
+export function forgetAnalyticsRecords(): void {
+    forgetVisits();
+    try {
+        localStorage.removeItem(SURVEYS_KEY);
+    } catch {
+        // Storage blocked: nothing is stored.
+    }
+}
+
 function countVisit(): void {
     const today = calls.today();
     let record: { first: string; last: string } | null = null;
@@ -682,10 +696,16 @@ export function startPageCounts(config: SiteConfig): void {
 }
 
 /**
- * Everything analytics does at boot (section 3), in order.
+ * Everything analytics does at boot (section 3), in order. With the usage-analytics experiment off
+ * (section 11) only error reporting starts, for a reader who said Share on an earlier visit: no
+ * PostHog, no visit record, and the address bar left as it is.
  * @param config - the site's configuration.
  */
 export function startAnalyticsAtBoot(config: SiteConfig): void {
+    if (!appFeatureOn("usage-analytics", config.features)) {
+        startUsageDataIfShared();
+        return;
+    }
     readChannel();
     startUsageDataIfShared();
     startPageCounts(config);

@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { expect, waitFor } from "storybook/test";
 
+import { loadSiteConfig, resetSiteConfig, siteConfig } from "../../siteConfig";
 import { realInput } from "../../stories/real-input";
 import { answerUsageData, forgetUsageAnswer } from "../privacy/usageData";
 import { clearRecent, rememberRecent } from "../project/recent";
@@ -57,6 +58,18 @@ async function heroDrawn(canvasElement: HTMLElement): Promise<void> {
             `hero caption shown after ${String(captionMs)} ms, then: ${error instanceof Error ? error.message : String(error)}`,
         );
     }
+}
+
+/**
+ * A story's `beforeEach` that switches the usage-analytics experiment on, as a site whose site.json
+ * names it would, keeping whatever else the configuration has on.
+ * @returns the cleanup, which switches it off again.
+ */
+async function withUsageAnalytics(): Promise<() => void> {
+    const features = [...siteConfig().features, "usage-analytics"];
+    resetSiteConfig();
+    await loadSiteConfig(`data:application/json,${encodeURIComponent(JSON.stringify({ features }))}`);
+    return resetSiteConfig;
 }
 
 const meta: Meta<typeof Workspace> = {
@@ -219,6 +232,15 @@ export const SettingsPrivacyOn: Story = {
     beforeEach: () => {
         answerUsageData("share");
     },
+};
+
+/** First launch with the usage-analytics experiment on: the question says anonymous counts are sent. */
+export const UsageAnalyticsFirstRun: Story = { beforeEach: withUsageAnalytics };
+
+/** Settings > Privacy, usage data off, with the usage-analytics experiment on: the counts and the privacy page. */
+export const UsageAnalyticsSettingsPrivacy: Story = {
+    args: { initialState: { dialog: "settings:privacy" } },
+    beforeEach: withUsageAnalytics,
 };
 
 /** Settings > Accessibility and input (`#/settings/accessibility`). */

@@ -20,6 +20,7 @@ import {
     setPostHogClientForTests,
     startPageCounts,
 } from "../../../lib/analytics";
+import { withFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { firstOnPage, type Recorded, recordInto, TEST_ANALYTICS } from "../../../test/usage-recorders";
 import { createWorkspaceStore } from "../../state/store";
@@ -116,6 +117,9 @@ async function pickInAnalyze(name: string): Promise<void> {
 function workCounts(): { runs: number; actions: number } {
     return { runs: sent("algorithm_run").posthog.length, actions: sent("graph_action").posthog.length };
 }
+
+// The usage-analytics experiment on, in both test configurations: these counts are its own.
+withFeatures(["usage-analytics"]);
 
 describe("usage counts from Analyze", () => {
     beforeEach(async () => {

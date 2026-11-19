@@ -35,7 +35,7 @@ beforeEach(async () => {
     forgetUsageAnswer();
     const site = {
         site: "production",
-        features: [],
+        features: ["usage-analytics"],
         analytics: { posthogKey: "phc_retrytest", posthogHost: "https://eu.i.posthog.com" },
     };
     config = await loadSiteConfig(`data:application/json,${encodeURIComponent(JSON.stringify(site))}`);

@@ -3,12 +3,22 @@
  * error reporting, No stops both, here and in every other open tab. Anonymous counts (PostHog's
  * cookieless mode, lib/analytics.ts) are sent whatever the answer, and Share switches the counts to
  * PostHog's shared mode; Share itself is one anonymous count, `usage_data_shared`. The answer is
- * the reader's own preference, kept in this browser.
+ * the reader's own preference, kept in this browser. With the usage-analytics experiment off
+ * (src/features.ts), Share and No start and stop error reporting alone, in this tab alone, and No
+ * still deletes what an earlier visit with it on stored for analytics.
  */
 
 import { useSyncExternalStore } from "react";
 
-import { count, onOwnHost, startPostHog, stopPostHog, stripQueryForRecorders } from "../../lib/analytics";
+import { appFeatureOn } from "../../features";
+import {
+    count,
+    forgetAnalyticsRecords,
+    onOwnHost,
+    startPostHog,
+    stopPostHog,
+    stripQueryForRecorders,
+} from "../../lib/analytics";
 import { initSentry, stopSentry } from "../../lib/sentry";
 
 /** The reader's answer to the usage data card. */
@@ -23,6 +33,11 @@ const live = {
      * @param fresh - false when another tab's Share started this one (see startPostHog).
      */
     start: (fresh = true): void => {
+        // The usage-analytics experiment off: Share starts error reporting alone, as it did before.
+        if (!appFeatureOn("usage-analytics")) {
+            initSentry();
+            return;
+        }
         // Off the site's own host (a local build serving a real site's site.json) nothing starts.
         if (!onOwnHost()) {
             return;
@@ -33,7 +48,14 @@ const live = {
     },
     stop: (): void => {
         stopSentry();
+        // Whatever the experiment says: a reader who shared on a visit with it on (canary,
+        // ?features=usage-analytics, or production before a rollback) has PostHog's id, survey keys
+        // and a visit record stored, and No deletes them. stopPostHog loads and sends nothing.
         stopPostHog();
+        if (!appFeatureOn("usage-analytics")) {
+            // With it on these stay: anonymous counts and their survey record go on after No.
+            forgetAnalyticsRecords();
+        }
     },
 };
 /** The live sender, or the stand-in a test passed in. */
@@ -122,7 +144,8 @@ export function answerUsageData(answer: UsageAnswer): void {
 // deleted it. Another tab's Share starts it here, so this tab's chip and Settings switch, which read
 // the stored answer, never say it sends while it does not.
 globalThis.addEventListener("storage", (event) => {
-    if (event.key !== KEY && event.key !== null) {
+    // The usage-analytics experiment off: each tab acts on its own answer only, as before.
+    if ((event.key !== KEY && event.key !== null) || !appFeatureOn("usage-analytics")) {
         return;
     }
     unsaved = false;

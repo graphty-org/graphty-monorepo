@@ -85,3 +85,8 @@ export const TriangleCount: Story = {
     ...tile("Centrality", "triangleCount"),
     name: "TriangleCount",
 };
+
+export const DistanceMeasures: Story = {
+    ...tile("Centrality", "distanceMeasures"),
+    name: "DistanceMeasures",
+};

@@ -183,6 +183,7 @@ export const KNOWN_ALGORITHMS = [
     "astar",
     "edge-betweenness",
     "removal-impact",
+    "distance-measures",
 ] as const;
 
 /** One of the built-in algorithms. */

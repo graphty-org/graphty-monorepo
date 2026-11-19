@@ -6,7 +6,7 @@
 
 Graph layouts and graph algorithms for [Cytoscape.js](https://js.cytoscape.org/) 3.x, added with one
 `cytoscape.use()` call: 16 layouts registered as `graphty-<name>` (ForceAtlas2, Fruchterman-Reingold, Kamada-Kawai,
-radial, shell and more), 63 algorithm methods on every collection and on the core named `graphty<Name>` (PageRank,
+radial, shell and more), 64 algorithm methods on every collection and on the core named `graphty<Name>` (PageRank,
 betweenness, Louvain, Leiden, Dijkstra, max flow, link prediction and more), seeded graph generators, sample
 datasets, and import and export of GraphML, GEXF, GML, DOT, Pajek, CSV, JSON, Neo4j and CX2 files. The force
 simulations and 17 of the algorithms run on WebGPU when the browser or Node has a usable device, with nothing extra

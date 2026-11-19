@@ -156,6 +156,11 @@ const WORDS: Readonly<Record<string, AlgorithmWords>> = {
         answers: "How far each node is from all the others.",
         aliases: ["distance matrix", "floyd-warshall", "how far apart"],
     },
+    "distance-measures": {
+        name: "Graph distances",
+        answers: "How far each node is from the furthest one, and the graph's diameter, radius and average distance.",
+        aliases: ["diameter", "radius", "eccentricity", "average distance", "how spread out"],
+    },
     bfs: {
         name: "Steps away",
         answers: "Which nodes are one, two or more steps from a start node.",
@@ -253,6 +258,8 @@ export const ALGORITHM_DESCRIPTIONS: Readonly<Partial<Record<string, string>>> =
         "Finds a route from one node to another, optionally steered by how far apart the nodes are drawn. Without that steering it finds the cheapest route.",
     "algorithm.all-pairs-distance":
         "Measures the distance between every pair of nodes, and gives each node the distance to the furthest node it can reach.",
+    "algorithm.distance-measures":
+        "Gives each node the distance to the furthest node it can reach, and measures the graph's diameter, radius and average shortest path length, one search from each node.",
     "algorithm.bfs": "Walks outwards from one node a level at a time, recording how many steps away each node is.",
     "algorithm.dfs":
         "Walks as deep as it can from one node before backtracking, recording the order in which it reached each node.",

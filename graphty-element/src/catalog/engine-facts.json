@@ -369,6 +369,23 @@
             "weightMeaning": "distance",
             "loadedWeightByDefault": true
         },
+        "distance-measures": {
+            "options": [
+                {
+                    "name": "k",
+                    "plainName": "Sampled sources",
+                    "technicalName": "k",
+                    "type": "integer",
+                    "description": "Estimate from this many sources, drawn the same way every time, instead of from every node (empty = exact)",
+                    "default": null,
+                    "min": 1,
+                    "advanced": true
+                }
+            ],
+            "scopeInput": "subgraph",
+            "weightMeaning": "distance",
+            "loadedWeightByDefault": false
+        },
         "girvan-newman": {
             "options": [
                 {

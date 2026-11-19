@@ -22,7 +22,8 @@ import type { OptionsSchema } from "./types/OptionSchema";
  */
 export const EXACT_CLOSENESS_MAX_ACCELERATED_NODES = 30_000;
 
-const closenessOptionsSchema = defineOptions({
+/** The `k` option of a run that may search from a sample of sources: closeness, distance measures. */
+export const sampledSourcesOptionsSchema = defineOptions({
     k: {
         schema: z.number().int().min(1).nullable().default(null),
         meta: {
@@ -33,6 +34,20 @@ const closenessOptionsSchema = defineOptions({
         },
     },
 });
+
+/** The legacy form of {@link sampledSourcesOptionsSchema}. */
+export const SAMPLED_SOURCES_OPTIONS: OptionsSchema = {
+    k: {
+        type: "integer",
+        default: null,
+        label: "Sampled sources",
+        description:
+            "Estimate from this many sources, drawn the same way every time, instead of from every node (empty = exact)",
+        min: 1,
+        required: false,
+        advanced: true,
+    },
+};
 
 /** Options for closeness centrality. */
 interface ClosenessOptions extends Record<string, unknown> {
@@ -68,20 +83,9 @@ export class ClosenessCentralityAlgorithm extends MetricAlgorithm<ClosenessOptio
     static readonly weightMeaning = "distance" as const;
     static readonly loadedWeightByDefault: boolean = false;
 
-    static readonly zodOptionsSchema: ZodOptionsSchema = closenessOptionsSchema;
+    static readonly zodOptionsSchema: ZodOptionsSchema = sampledSourcesOptionsSchema;
 
-    static readonly optionsSchema: OptionsSchema = {
-        k: {
-            type: "integer",
-            default: null,
-            label: "Sampled sources",
-            description:
-                "Estimate from this many sources, drawn the same way every time, instead of from every node (empty = exact)",
-            min: 1,
-            required: false,
-            advanced: true,
-        },
-    };
+    static readonly optionsSchema: OptionsSchema = SAMPLED_SOURCES_OPTIONS;
 
     /**
      * The fields a closeness result publishes.

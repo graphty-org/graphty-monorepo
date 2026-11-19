@@ -20,6 +20,7 @@ import { ConnectedComponentsAlgorithm } from "../../../src/algorithms/ConnectedC
 import { DegreeAlgorithm } from "../../../src/algorithms/DegreeAlgorithm";
 import { DFSAlgorithm } from "../../../src/algorithms/DFSAlgorithm";
 import { DijkstraAlgorithm } from "../../../src/algorithms/DijkstraAlgorithm";
+import { DistanceMeasuresAlgorithm } from "../../../src/algorithms/DistanceMeasuresAlgorithm";
 import { EdgeBetweennessCentralityAlgorithm } from "../../../src/algorithms/EdgeBetweennessCentralityAlgorithm";
 import { EigenvectorCentralityAlgorithm } from "../../../src/algorithms/EigenvectorCentralityAlgorithm";
 import { FloydWarshallAlgorithm } from "../../../src/algorithms/FloydWarshallAlgorithm";
@@ -152,6 +153,7 @@ const CASES: readonly Case[] = [
     declared("dijkstra no route", (g) => new DijkstraAlgorithm(g, { source: "A", target: "D" }), SPLIT),
     declared("bellman-ford", (g) => new BellmanFordAlgorithm(g, { source: "A", target: "F" })),
     declared("floyd-warshall", (g) => new FloydWarshallAlgorithm(g)),
+    declared("distance-measures", (g) => new DistanceMeasuresAlgorithm(g)),
     declared("bfs", (g) => new BFSAlgorithm(g, { source: "A" })),
     declared("bfs reached", (g) => new BFSAlgorithm(g, { source: "A", targetNode: "F" })),
     declared("bfs unreached", (g) => new BFSAlgorithm(g, { source: "A", targetNode: "D" }), SPLIT),

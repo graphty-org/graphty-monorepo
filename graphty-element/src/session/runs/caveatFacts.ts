@@ -98,6 +98,14 @@ import type { CodedFact, CodedFactParam } from "../shared";
  * - `components.undirected-strong` -- the graph is undirected, so its strong components are its
  *   connected ones.
  * - `degree.as-declared` -- degree was counted as the records declared the edges.
+ * - `distance-measures.exact` -- every node was searched from, so every eccentricity, the diameter,
+ *   the radius and the average shortest path length are exact.
+ * - `distance-measures.sampled` -- only sampled sources were searched from: `{ sources, nodes }`.
+ *   Only they carry an eccentricity; the diameter is a lower bound, the radius an upper bound and
+ *   the average shortest path length an estimate.
+ * - `distance-measures.largest-component` -- the graph is in several pieces, and the graph-wide
+ *   diameter, radius and average shortest path length are those of the largest piece:
+ *   `{ components, nodes }`, the number of pieces and the largest piece's node count.
  * - `eigenvector.converged` -- power iteration converged: `{ tolerance, maxIterations }`.
  * - `eigenvector.scored-by` -- which nodes score a node: `{ mode }`, `"in"` (the nodes pointing
  *   at it) or anything else (the nodes it points at).
@@ -188,6 +196,9 @@ export type CaveatCode =
     | "degree.as-declared"
     | "eigenvector.converged"
     | "eigenvector.scored-by"
+    | "distance-measures.exact"
+    | "distance-measures.sampled"
+    | "distance-measures.largest-component"
     | "floyd-warshall.eccentricity"
     | "flow.ends"
     | "flow.ends-chosen"

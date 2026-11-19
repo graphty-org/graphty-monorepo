@@ -17,6 +17,7 @@ import { ConnectedComponentsAlgorithm } from "./ConnectedComponentsAlgorithm";
 import { DegreeAlgorithm } from "./DegreeAlgorithm";
 import { DFSAlgorithm } from "./DFSAlgorithm";
 import { DijkstraAlgorithm } from "./DijkstraAlgorithm";
+import { DistanceMeasuresAlgorithm } from "./DistanceMeasuresAlgorithm";
 import { EdgeBetweennessCentralityAlgorithm } from "./EdgeBetweennessCentralityAlgorithm";
 import { EigenvectorCentralityAlgorithm } from "./EigenvectorCentralityAlgorithm";
 import { FloydWarshallAlgorithm } from "./FloydWarshallAlgorithm";
@@ -90,6 +91,7 @@ Algorithm.register(HierarchicalClusteringAlgorithm);
 Algorithm.register(AStarAlgorithm);
 Algorithm.register(EdgeBetweennessCentralityAlgorithm);
 Algorithm.register(RemovalImpactAlgorithm);
+Algorithm.register(DistanceMeasuresAlgorithm);
 
 // Export base class and types
 export { Algorithm } from "./Algorithm";
@@ -159,6 +161,7 @@ export function getAllAlgorithmInfo(): AlgorithmInfo[] {
         AStarAlgorithm,
         EdgeBetweennessCentralityAlgorithm,
         RemovalImpactAlgorithm,
+        DistanceMeasuresAlgorithm,
     ];
 
     for (const AlgoClass of knownAlgorithms) {

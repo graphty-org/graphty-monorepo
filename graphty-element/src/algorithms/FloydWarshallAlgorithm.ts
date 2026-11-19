@@ -11,8 +11,8 @@ import {
     type AlgorithmRunContext,
     DeclaredAlgorithm,
     declaredCaveats,
+    eccentricityFieldSpecs,
     forEachChunked,
-    metricFieldSpecs,
 } from "./results";
 
 /**
@@ -108,12 +108,7 @@ export class FloydWarshallAlgorithm extends DeclaredAlgorithm {
 
         return {
             shape: "node-metric",
-            fields: [
-                ...metricFieldSpecs("node"),
-                { name: "diameter", kind: "graph", type: "number" },
-                { name: "radius", kind: "graph", type: "number" },
-                { name: "hasNegativeCycle", kind: "graph", type: "boolean" },
-            ],
+            fields: [...eccentricityFieldSpecs(), { name: "hasNegativeCycle", kind: "graph", type: "boolean" }],
             nodes,
             graph: hasNegativeCycle ? { hasNegativeCycle } : { diameter, radius, hasNegativeCycle },
             caveats: declaredCaveats({

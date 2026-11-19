@@ -33,6 +33,7 @@ import {
     depthFirstSearch,
     dijkstra,
     directionOptimizedBfs,
+    distanceMeasures,
     edgeBetweennessCentrality,
     eigenvectorCentrality,
     evaluateAdamicAdar,
@@ -541,6 +542,19 @@ export const ALGORITHMS = {
     },
 
     // Structure
+    distanceMeasures: {
+        name: "distanceMeasures",
+        fn: distanceMeasures,
+        category: "structure",
+        direction: "any",
+        weights: "on-request",
+        inputs: [],
+        requiredOptions: [],
+        result: "node-scores",
+        values: ["eccentricity", "component"],
+        dispatch: null,
+        accelerator: null,
+    },
     triangleCount: {
         name: "triangleCount",
         fn: triangleCount,

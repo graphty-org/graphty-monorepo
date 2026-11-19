@@ -40,6 +40,7 @@ const ENTRIES: readonly Entry[] = [
     { name: "Degree Centrality", directed: false, run: (s) => algorithms.degreeCentrality(s) },
     { name: "Betweenness Centrality", directed: false, run: (s) => algorithms.betweennessCentrality(s).scores },
     { name: "Closeness Centrality", directed: false, run: (s) => algorithms.closenessCentrality(s).scores },
+    { name: "Distance Measures", directed: false, run: (s) => algorithms.distanceMeasures(s).eccentricity },
     { name: "Eigenvector Centrality", directed: false, run: (s) => algorithms.eigenvectorCentrality(s).scores },
     { name: "Katz Centrality", directed: true, run: (s) => algorithms.katzCentrality(s).scores },
     { name: "Connected Components", directed: false, run: (s) => algorithms.connectedComponents(s).count },

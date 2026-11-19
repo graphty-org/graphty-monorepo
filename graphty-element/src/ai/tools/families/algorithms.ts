@@ -284,8 +284,8 @@ export function runAlgorithmTool(catalog: CatalogView): ToolDefinition {
                         .optional()
                         .describe("Run on a set or a selector's nodes only."),
                     style: z.boolean().optional().describe("Only when asked to see or color it."),
-                    exact: z.boolean().optional().describe("Compute exactly even when slow."),
-                    sample: z.number().int().min(1).optional().describe("Sample size for an approximate run."),
+                    exact: z.boolean().optional().describe("Exact even if slow."),
+                    sample: z.number().int().min(1).optional().describe("Approximate from this many."),
                 },
                 effect: "write",
                 reaches: [

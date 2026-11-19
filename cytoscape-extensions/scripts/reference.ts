@@ -437,6 +437,8 @@ const PURPOSE: Readonly<Record<string, string>> = {
         "How often each edge lies on shortest paths: high values mark the bridges between groups.",
     graphtyEigenvectorCentrality: "Influence: a node scores high when its neighbors score high.",
     graphtyEvaluateAdamicAdar: "How well the Adamic-Adar score ranks held-out edges above non-edges.",
+    graphtyDistanceMeasures:
+        "Each node's eccentricity, the distance to the furthest node it reaches, and the diameter, radius and average shortest path length of the largest connected piece.",
     graphtyEvaluateCommonNeighbors: "How well the common-neighbor count ranks held-out edges above non-edges.",
     graphtyFindAllIsomorphisms: "Every way to map this graph's nodes onto `other` so that the edges match.",
     graphtyGirvanNewman: "Communities found by removing the edge with the highest betweenness, round after round.",
@@ -515,6 +517,8 @@ const METHOD_NOTES: Readonly<Record<string, string>> = {
     graphtyAdamicAdarPrediction: DIRECTED_LINKS,
     graphtyTopAdamicAdarCandidatesForNode: DIRECTED_LINKS,
     graphtyTriangleCount: "`score` is the node's number of triangles.",
+    graphtyDistanceMeasures:
+        "`score` is the eccentricity. A graph in several pieces is measured per piece, and `diameter`, `radius` and `averageShortestPathLength` are those of the largest. With `sources` only those nodes are searched from: the rest score nothing, the diameter is a lower bound, the radius an upper bound and the average an estimate.",
     graphtyKCoreDecomposition:
         "`score` is the core number; `core(k)` returns the nodes whose core number is k or more.",
     graphtyHasCycle:

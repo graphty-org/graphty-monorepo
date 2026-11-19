@@ -1,6 +1,6 @@
 import { Group, Stack, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, fireEvent, userEvent, waitFor, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { ToggleIconButton, UiGlyph } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";
@@ -174,13 +174,12 @@ export const Keyboard: Story = {
             await expect(button).toHaveAttribute("aria-pressed", "false");
             return;
         }
-        // In Storybook's own UI a page script cannot make trusted input, so the press is replayed.
-        // React commits a state update from a native pointer event in a microtask, after
-        // fireEvent returns, so wait for the commit before reading the attribute.
-        fireEvent.pointerDown(button, { button: 0 });
+        // In Storybook's own UI a page script cannot make trusted input, so the press is replayed
+        // with Storybook's userEvent, one half of the press at a time.
+        await userEvent.pointer({ keys: "[MouseLeft>]", target: button });
         await waitFor(() => expect(button).toHaveAttribute("aria-pressed", "true"));
-        fireEvent.click(button, { detail: 1 });
-        await new Promise((resolve) => setTimeout(resolve, 0));
+        // The click that ends the same press is swallowed: after its commit the toggle is still on.
+        await userEvent.pointer({ keys: "[/MouseLeft]", target: button });
         await expect(button).toHaveAttribute("aria-pressed", "true");
         button.focus();
         await userEvent.keyboard(" ");

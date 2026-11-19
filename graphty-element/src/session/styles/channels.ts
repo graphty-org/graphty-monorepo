@@ -5100,7 +5100,7 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         exclusiveMin: true,
         stylePath: "line.supportUnit",
         renderable: true,
-        caveat: `How many scene units one support unit is, the unit of the lengths and forces of the support (1 when unset).${SUPPORT_CAVEAT}`,
+        caveat: `How many scene units one support unit is, the unit of the lengths and forces of the support (1 when unset and the support scale is "unit"; with both unset the scale is "drawing").${SUPPORT_CAVEAT}`,
     },
     "edge.supportScale": {
         channel: "edge.supportScale",
@@ -5113,8 +5113,8 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         stylePath: "line.supportScale",
         renderable: true,
         caveat:
-            'What unit the lengths and forces of the support are in: "unit" (when unset), the support unit; ' +
-            '"drawing", the size at which the forces hold the drawn nodes in balance, so an edge bows among ' +
+            'What unit the lengths and forces of the support are in: "unit", the support unit (when unset ' +
+            'and a support unit is set); "drawing" (when both are unset), the size at which the forces hold the drawn nodes in balance, so an edge bows among ' +
             `nodes any layout placed as among nodes those forces placed themselves.${SUPPORT_CAVEAT}`,
     },
     "edge.route": {

@@ -4077,7 +4077,10 @@ export class Edge {
                 centralGravity: line?.supportCentralGravity ?? SUPPORT_DEFAULTS.centralGravity,
                 // a unit of 0 has no size: drawn as unset, as the channel refuses it
                 unit: line?.supportUnit || 1,
-                scale: line?.supportScale ?? "unit",
+                // With neither a unit nor a scale the forces' numbers (vis-network's, in pixels) are
+                // read at the drawing's own size: read as scene units they threw the support points
+                // 5 to 10 graph widths away. A file always writes its unit, so it keeps its result.
+                scale: line?.supportScale ?? (line?.supportUnit ? "unit" : "drawing"),
             },
         };
     }

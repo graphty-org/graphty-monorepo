@@ -398,8 +398,9 @@ const LineStyle = z.strictObject({
      */
     supportUnit: z.number().nonnegative().optional(),
     /**
-     * What unit the support's lengths and forces are in: `"unit"` (when unset), `supportUnit`'s;
-     * `"drawing"`, the drawing's own, the size at which the forces hold the drawn nodes in balance,
+     * What unit the support's lengths and forces are in: `"unit"` (when unset and `supportUnit` is set),
+     * `supportUnit`'s; `"drawing"` (when both are unset), the drawing's own, the size at which the
+     * forces hold the drawn nodes in balance,
      * so a curve bows among nodes any layout placed as among nodes those forces placed themselves
      * (a file whose program lays its nodes out under the same forces, drawn by another layout).
      */

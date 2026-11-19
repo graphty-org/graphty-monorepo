@@ -2522,7 +2522,13 @@ export type GraphtyErrorCode =
 * An edit, pick or rename names a column a key, an end, a role, a type rule or a step reads.
 * `details.column` is the column. Experimental: the source-steps experiment.
 */
-| "E_EDIT_ROLE_COLUMN" | "E_INTERNAL";
+| "E_EDIT_ROLE_COLUMN"
+/**
+* A role setter that names no source could mean several built sources: each carries the
+* column and can carry the role. `details.sources` lists them; the caller names one with the
+* setter's `source` option. Experimental: the source-steps experiment.
+*/
+| "E_ROLE_TARGET_AMBIGUOUS" | "E_INTERNAL";
 
 // @public
 export type GraphtyErrorDetails<C extends GraphtyErrorCode = GraphtyErrorCode> = Readonly<Record<string, unknown>> & (C extends keyof GraphtyErrorDetailsMap ? GraphtyErrorDetailsMap[C] : unknown);
@@ -2858,6 +2864,13 @@ export type GraphtyWarningCode =
 * event. `params.attribute` is the weight's column and `params.meaning` its meaning.
 */
 | "W_WEIGHT_MEANING_MISMATCH"
+/**
+* Under the `source-steps` experiment, a layout that reads edge weights left them unread because
+* the edges' weights do not share one meaning, or some edges' sources read no weight (design
+* 8.6): every edge counts the same. Emitted as a `layout-warning` event. `params.sources` lists
+* the sources of the edges.
+*/
+| "W_WEIGHT_MEANING_MIXED"
 /**
 * A project save left values whose names mark a credential (`api_key`, `token`, ...) out of
 * the `graphty-sources` member: query parameters of a URL load's address, or of a network
@@ -3727,6 +3740,10 @@ export type LoadedSourceKind = "file" | "url" | "server" | "sample" | "join";
 export interface LoadedWeight {
     readonly attribute: string;
     readonly meaning: WeightMeaning["meaning"] | null;
+    // @beta
+    readonly mixed?: {
+        readonly sources: readonly string[];
+    };
 }
 
 // @public
@@ -5877,6 +5894,15 @@ export type ScopeInput = Exclude<Scope, {
     define: unknown;
 }> | {
     define: SetDefinitionInput;
+}
+/**
+* Under the `source-steps` experiment: the nodes whose one type (`graphty.type`) is listed and
+* the edges between them. Read back as its canonical `{ where }` on `graphty.type`.
+* Experimental: may change or be removed in a minor release.
+* @beta
+*/
+| {
+    types: readonly string[];
 };
 
 // @beta
@@ -6210,6 +6236,22 @@ export type Selector = {
     reach?: "node" | "neighbors";
     invert?: boolean;
     orSelected?: boolean;
+}
+/**
+* The elements of some types, under the `source-steps` experiment: those whose one type
+* (the readable path `graphty.type`) is listed, such as the accounts of a graph of accounts and
+* merchants. Matches nothing while the experiment is off.
+*
+* ```ts
+* session.styles.add({ name: "Accounts", target: "node",
+*     selector: { match: "type", types: ["account"] }, set: { "node.color": "#4c6ef5" } });
+* ```
+* Experimental: may change or be removed in a minor release.
+* @beta
+*/
+| {
+    match: "type";
+    types: readonly string[];
 };
 
 // @public
@@ -6263,7 +6305,7 @@ export interface SessionDataApi {
     }): Promise<void>;
     addEdges(records: readonly EdgeRecordInput[]): Promise<void>;
     addNodes(records: readonly NodeRecordInput[]): Promise<void>;
-    attributes(): readonly AttributeDescriptor[];
+    attributes(options?: SourceElementsFilter): readonly AttributeDescriptor[];
     cell(ref: SourceElementRef, column: string): SourceCellState | null;
     checkSource(load: string, options?: SourceLoadOptions): Promise<SourceCheck>;
     clear(): Promise<void>;
@@ -6272,7 +6314,7 @@ export interface SessionDataApi {
     connect(options: SourceConnectOptions): Promise<number>;
     count(options?: {
         readonly scope?: "graph" | "visible";
-    }): {
+    } & SourceElementsFilter): {
         readonly nodes: number;
         readonly edges: number;
     };
@@ -6380,7 +6422,7 @@ export interface SessionDataApi {
     roleCandidate(kind: "node" | "edge", role: ColumnRole): string | null;
     runPendingSourceLoad(id: string, options?: SourceLoadOptions): Promise<void>;
     setHidden(columns: readonly ColumnRef[], hidden: boolean): Promise<void>;
-    setRole(column: ColumnRef, role: ColumnRole | null): Promise<void>;
+    setRole(column: ColumnRef, role: ColumnRole | null, options?: SourceRoleOptions): Promise<void>;
     settleEdit(id: string, choice: SourceEditChoice): Promise<void>;
     setType(column: ColumnRef, type: ValueType): Promise<void>;
     setValueLabel(path: Path, value: string | number | boolean, label: string | null): Promise<void>;
@@ -8558,7 +8600,7 @@ export interface WeightMeaning {
 }
 
 // @public
-export type WeightSkip = CodedFact<"weight.meaning-mismatch">;
+export type WeightSkip = CodedFact<"weight.meaning-mismatch" | "weight.meaning-mixed">;
 
 // @public
 export interface WorkerCapability {

@@ -93,6 +93,7 @@ const CODES_FROM_THE_DESIGN = [
     "E_JOIN_SPACE_SAME",
     "E_STEP_NEEDS_NODES",
     "E_EDIT_ROLE_COLUMN",
+    "E_ROLE_TARGET_AMBIGUOUS",
     "E_UNKNOWN_DATASET",
     "E_UNKNOWN_SINK",
     "E_UNKNOWN_RUN",
@@ -244,6 +245,7 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_UNSUPPORTED":
         case "E_STEP_NEEDS_NODES":
         case "E_EDIT_ROLE_COLUMN":
+        case "E_ROLE_TARGET_AMBIGUOUS":
         case "E_NOT_PLANAR":
         case "E_NOT_CONNECTED":
         case "E_NOT_BIPARTITE":

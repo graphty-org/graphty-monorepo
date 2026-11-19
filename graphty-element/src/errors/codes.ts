@@ -795,6 +795,12 @@ export type GraphtyErrorCode =
      * `details.column` is the column. Experimental: the source-steps experiment.
      */
     | "E_EDIT_ROLE_COLUMN"
+    /**
+     * A role setter that names no source could mean several built sources: each carries the
+     * column and can carry the role. `details.sources` lists them; the caller names one with the
+     * setter's `source` option. Experimental: the source-steps experiment.
+     */
+    | "E_ROLE_TARGET_AMBIGUOUS"
     | "E_INTERNAL";
 
 /**
@@ -1045,6 +1051,13 @@ export type GraphtyWarningCode =
      */
     | "W_WEIGHT_MEANING_MISMATCH"
     /**
+     * Under the `source-steps` experiment, a layout that reads edge weights left them unread because
+     * the edges' weights do not share one meaning, or some edges' sources read no weight (design
+     * 8.6): every edge counts the same. Emitted as a `layout-warning` event. `params.sources` lists
+     * the sources of the edges.
+     */
+    | "W_WEIGHT_MEANING_MIXED"
+    /**
      * A project save left values whose names mark a credential (`api_key`, `token`, ...) out of
      * the `graphty-sources` member: query parameters of a URL load's address, or of a network
      * load's endpoint, cursor or REST mapping. `params.id` is the load's id and `params.names` the
@@ -1132,6 +1145,7 @@ const CODE_TABLE = {
     E_JOIN_SPACE_SAME: "E_JOIN_SPACE_SAME",
     E_STEP_NEEDS_NODES: "E_STEP_NEEDS_NODES",
     E_EDIT_ROLE_COLUMN: "E_EDIT_ROLE_COLUMN",
+    E_ROLE_TARGET_AMBIGUOUS: "E_ROLE_TARGET_AMBIGUOUS",
     E_UNKNOWN_DATASET: "E_UNKNOWN_DATASET",
     E_UNKNOWN_SINK: "E_UNKNOWN_SINK",
     E_UNKNOWN_RUN: "E_UNKNOWN_RUN",

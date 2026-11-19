@@ -4609,7 +4609,13 @@ export type GraphtyErrorCode =
 * An edit, pick or rename names a column a key, an end, a role, a type rule or a step reads.
 * `details.column` is the column. Experimental: the source-steps experiment.
 */
-| "E_EDIT_ROLE_COLUMN" | "E_INTERNAL";
+| "E_EDIT_ROLE_COLUMN"
+/**
+* A role setter that names no source could mean several built sources: each carries the
+* column and can carry the role. `details.sources` lists them; the caller names one with the
+* setter's `source` option. Experimental: the source-steps experiment.
+*/
+| "E_ROLE_TARGET_AMBIGUOUS" | "E_INTERNAL";
 
 // @public
 export type GraphtyErrorDetails<C extends GraphtyErrorCode = GraphtyErrorCode> = Readonly<Record<string, unknown>> & (C extends keyof GraphtyErrorDetailsMap ? GraphtyErrorDetailsMap[C] : unknown);
@@ -4974,6 +4980,13 @@ export type GraphtyWarningCode =
 * event. `params.attribute` is the weight's column and `params.meaning` its meaning.
 */
 | "W_WEIGHT_MEANING_MISMATCH"
+/**
+* Under the `source-steps` experiment, a layout that reads edge weights left them unread because
+* the edges' weights do not share one meaning, or some edges' sources read no weight (design
+* 8.6): every edge counts the same. Emitted as a `layout-warning` event. `params.sources` lists
+* the sources of the edges.
+*/
+| "W_WEIGHT_MEANING_MIXED"
 /**
 * A project save left values whose names mark a credential (`api_key`, `token`, ...) out of
 * the `graphty-sources` member: query parameters of a URL load's address, or of a network

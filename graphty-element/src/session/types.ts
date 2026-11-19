@@ -756,6 +756,15 @@ export interface LoadedWeight {
     readonly attribute: string;
     /** What the weight means, or null when the load did not say. */
     readonly meaning: WeightMeaning["meaning"] | null;
+    /**
+     * Under the `source-steps` experiment: present when the edges' weights do not share one
+     * meaning, or some edges come from a source that reads no weight. Runs and layouts then read no
+     * weight (`caveats.weightSkipped` `weight.meaning-mixed`, a layout's `W_WEIGHT_MEANING_MIXED`).
+     * `sources` lists the sources of the edges.
+     * Experimental: may change or be removed in a minor release.
+     * @beta
+     */
+    readonly mixed?: { readonly sources: readonly string[] };
 }
 
 /** A {@link RecordPage} of neighbors, plus what the numbers measured. */
@@ -1383,9 +1392,12 @@ export interface SessionDataApi {
      * @param options.scope - `"visible"` for what the filter and the time window show, `"graph"`
      *     for the whole graph; absent, the working graph (what the filters show, the time window
      *     aside) while the session's `workingGraph` is on (the default), the whole graph while it is off.
+     *     Under the `source-steps` experiment, `source` and `type` count only one source's or one
+     *     type's elements (see {@link SourceElementsFilter}); naming either with the experiment off
+     *     throws `E_FEATURE_OFF`.
      * @returns the node count and the edge count
      */
-    count(options?: { readonly scope?: "graph" | "visible" }): {
+    count(options?: { readonly scope?: "graph" | "visible" } & SourceElementsFilter): {
         /** The node count. */
         readonly nodes: number;
         /** The edge count. */
@@ -1922,9 +1934,14 @@ export interface SessionDataApi {
     /**
      * Every attribute the graph's records carry, with its type, what it measures, how complete
      * it is and a few sample values. Walked once per revision and cached.
+     * @param options - Under the `source-steps` experiment, only the columns one source gave a
+     *     value for (its clash columns included) or the elements of one type carry; see
+     *     {@link SourceElementsFilter}. Absent, every column.
      * @returns the descriptors, node attributes first, each kind in first-seen order
+     * @throws A `GraphtyError` with `E_FEATURE_OFF` when `options` names a source or a type while
+     *     the experiment is off.
      */
-    attributes(): readonly AttributeDescriptor[];
+    attributes(options?: SourceElementsFilter): readonly AttributeDescriptor[];
     /**
      * Every value a rule or a binding can read, in one list: the node id, every data column and
      * every field a finished run published per element. Each entry carries its path (what a rule
@@ -2015,14 +2032,18 @@ export interface SessionDataApi {
      * ```
      * @param column - the column; an attribute descriptor can be passed as it is
      * @param role - the role, or null for none
+     * @param options - Under the `source-steps` experiment, which source's role it is; see
+     *     {@link SourceRoleOptions}.
      * @returns settles once the step is recorded
      * @throws A `GraphtyError` with `E_UNKNOWN_ATTRIBUTE` for a column no record carries,
      *     `E_BAD_COMMAND` (`details.reason: "role-kind"`, with `details.roles`) for a role the
      *     column's kind has no field for, and `E_UNSUPPORTED` (`details.reason: "reload"`) for
-     *     `key`, `source`, `target` or `edgeId` on rows already loaded.
+     *     `key`, `source`, `target` or `edgeId` on rows already loaded. Under the `source-steps`
+     *     experiment, `E_ROLE_TARGET_AMBIGUOUS` (`details.sources`) for a weight or time role that
+     *     names no source while several built sources carry the column and can carry the role.
      * @since 3.30.0
      */
-    setRole(column: ColumnRef, role: ColumnRole | null): Promise<void>;
+    setRole(column: ColumnRef, role: ColumnRole | null, options?: SourceRoleOptions): Promise<void>;
     /**
      * The column the element would read a role from, when one is obvious: what to offer before
      * a reader picks one for {@link SessionDataApi.setRole}. Changes nothing. Only a column with
@@ -4170,6 +4191,33 @@ export interface SourceRowFilter {
     readonly column: string;
     /** The values; a row whose cell is one of them is named. */
     readonly values: readonly SourceCellValue[];
+}
+
+/**
+ * `data.setRole` under the source-steps experiment (design 3.9): a weight or time role is a member
+ * of one source's mapping, read from that source's own rows. A role written while no source is
+ * built is kept as the setting, and becomes the role of the next source loaded that carries the
+ * column.
+ * @experimental source-steps
+ */
+export interface SourceRoleOptions {
+    /**
+     * The source whose role it is, by the key `data.sources()` lists it with. Absent, the one
+     * built source that carries the column and can carry the role.
+     */
+    readonly source?: string;
+}
+
+/**
+ * Which elements a source-steps reading counts: those one source supplied, and those of one type
+ * (design 3.8, 8.4). Both narrow together.
+ * @experimental source-steps
+ */
+export interface SourceElementsFilter {
+    /** The source, by the key `data.sources()` lists it with. */
+    readonly source?: string;
+    /** The type, as `data.types()` names it; null for untyped elements. */
+    readonly type?: string | null;
 }
 
 /**

@@ -1393,11 +1393,40 @@ export function assertRuleTree(value: unknown): void {
  * {@link parseSetDefinition} gives it for an inline definition.
  */
 export function parseScope(value: unknown): Scope {
+    if (isObject(value) && value.types !== undefined) {
+        return typesScope(value);
+    }
+
     checkScope(value, new Walker("door"));
 
     return isObject(value) && value.define !== undefined
         ? Object.freeze({ define: canonicalSetDefinition(value.define as SetDefinition) })
         : (value as Scope);
+}
+
+/**
+ * A `{ types }` scope (source-steps, design section 3.9) in its canonical form: the nodes whose
+ * one type is listed and the edges between them, a `{ where }` on the readable path
+ * `graphty.type`.
+ * @param value - The scope as given.
+ * @returns The `{ where }` scope.
+ * @throws A `GraphtyError` with `E_BAD_SCOPE` for anything but one non-empty list of type names.
+ */
+function typesScope(value: Record<string, unknown>): Scope {
+    const { types } = value;
+    if (
+        Object.keys(value).length !== 1 ||
+        !Array.isArray(types) ||
+        types.length === 0 ||
+        !types.every((t) => typeof t === "string" && t !== "")
+    ) {
+        throw bad("A { types } scope names one or more types.", { scope: value });
+    }
+
+    const backslash = String.raw`\\`;
+    const quote = String.raw`\'`;
+    const quoted = (t: string): string => `'${t.replaceAll("\\", backslash).replaceAll("'", quote)}'`;
+    return Object.freeze({ where: types.map((t: string) => `graphty.type == ${quoted(t)}`).join(" || ") });
 }
 
 /**

@@ -356,6 +356,15 @@ export interface FilterSources {
         readonly edges: ReadonlySet<EdgeId>;
     };
     /**
+     * Under the source-steps experiment, one source's own values (design 3.8): what a filter
+     * condition naming that `source` reads, so it judges that source's value and only the elements
+     * that source gave a value for. Absent, or undefined for a source, a condition reads the shown
+     * value of every element the source supplied.
+     * @param source - The source.
+     * @returns Its values, or undefined.
+     */
+    readonly own?: (source: SourceKey) => FilterValueSource | undefined;
+    /**
      * The hovered node, else a lone selected node: what a step's `"hovered-or-selected"` names.
      * Absent refuses that reference.
      * @returns The node, or null when there is none.
@@ -2171,6 +2180,10 @@ function compileGroup(context: CompileContext, filter: Extract<RuleTree, { kind:
  * @returns Its halves.
  */
 function compileSourceScoped(context: CompileContext, scoped: SourceScopedRule): CompiledHalves {
+    const own = scoped.withinSources.length === 1 ? context.sources.own?.(scoped.withinSources[0]) : undefined;
+    if (own !== undefined) {
+        return compileOwnScoped(context, scoped, own);
+    }
     const inner = compileOne(scoped.of[0], context);
     const within = sourceTests(context, scoped.withinSources, undefined);
     const { outside } = scoped;
@@ -2178,6 +2191,64 @@ function compileSourceScoped(context: CompileContext, scoped: SourceScopedRule):
         test === null || mine === null ? test : (index) => (mine(index) ? test(index) : outside);
 
     return { node: half(inner.node, within.node), edge: half(inner.edge, within.edge) };
+}
+
+/**
+ * The value paths a rule's leaves read, however deep (`range`, `categories` and `text` leaves).
+ * @param rule - The rule.
+ * @returns The paths.
+ */
+function valuePaths(rule: RuleTree): Path[] {
+    switch (rule.kind) {
+        case "range":
+        case "categories":
+            return [rule.attribute];
+        case "text":
+            return [rule.reads];
+        case "all":
+        case "any":
+            return rule.of.flatMap((each) => valuePaths(each));
+        case "not":
+            return valuePaths(rule.of);
+        default:
+            return [];
+    }
+}
+
+/**
+ * A source-scoped rule over that source's own values (source-steps, design 3.8 and 8.4): it reads
+ * the source's own value, judges only the elements that carry one for a column it reads, and
+ * answers `outside` for every other element. A rule whose columns no element carries is held
+ * (`W_FILTER_HELD`): it judges nothing, so it never hides everything.
+ * @param context - The compile context.
+ * @param scoped - The scoped rule.
+ * @param own - The source's own values.
+ * @returns Its halves.
+ */
+function compileOwnScoped(context: CompileContext, scoped: SourceScopedRule, own: FilterValueSource): CompiledHalves {
+    const inner = compileOne(scoped.of[0], { ...context, sources: { ...context.sources, values: own } });
+    const paths = valuePaths(scoped.of[0]);
+    const { outside } = scoped;
+    const carries =
+        (read: (index: number, path: Path) => unknown): ElementTest =>
+        (index) =>
+            paths.some((path) => {
+                const v = read(index, path);
+                return v !== undefined && v !== null && v !== "";
+            });
+    const half = (test: ElementTest | null, mine: ElementTest): ElementTest | null =>
+        test === null ? null : (index) => (mine(index) ? test(index) : outside);
+
+    return {
+        node: half(
+            inner.node,
+            carries((index, path) => own.nodeValue(index, path)),
+        ),
+        edge: half(
+            inner.edge,
+            carries((index, path) => own.edgeValue(index, path)),
+        ),
+    };
 }
 
 /**

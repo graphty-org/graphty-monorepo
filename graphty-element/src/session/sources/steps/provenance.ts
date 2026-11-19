@@ -7,6 +7,7 @@
  */
 
 import { build, isEmpty, resolveEdge, resolveNode, ruleFits } from "./build";
+import { RECORD_PATHS } from "./paths";
 import {
     type BuildInput,
     type BuildResult,
@@ -54,16 +55,7 @@ const refOf = (el: BuiltNode | BuiltEdge): ElementRef =>
 
 // ---------------------------------------------------------------- readable paths (3.9)
 
-/** The paths every built element answers, besides its own columns. */
-export const READABLE_PATHS = [
-    "graphty.type",
-    "graphty.load",
-    "_source.loads",
-    "graphty.space",
-    "graphty.key",
-    "graphty.time",
-    "graphty.weight",
-] as const;
+export { READABLE_PATHS, RECORD_PATHS } from "./paths";
 
 /**
  * One value of a built element: a readable path, else its shown value for a column.
@@ -90,6 +82,23 @@ export function readPath(el: BuiltNode | BuiltEdge, path: string): Value | reado
         default:
             return el.values[path];
     }
+}
+
+/**
+ * A built element's readable paths as record keys: those it has a value for. `_source.loads` is
+ * left to the save, which writes it from the provenance.
+ * @param el - A built node or edge.
+ * @returns The values by path.
+ */
+export function readableRecord(el: BuiltNode | BuiltEdge): Record<string, Value> {
+    const out: Record<string, Value> = {};
+    for (const path of RECORD_PATHS) {
+        const v = readPath(el, path);
+        if (v !== null && v !== undefined) {
+            out[path] = v;
+        }
+    }
+    return out;
 }
 
 // ---------------------------------------------------------------- provenance (3.8)

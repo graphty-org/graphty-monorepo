@@ -16,6 +16,7 @@ import { GraphtyError } from "../../../errors/GraphtyError";
 import type { JoinRecord } from "../../types";
 import { applyAct, type StepsAct } from "./acts";
 import { build, isStaged, nodeSpace, ownSpace, resolveNode, stepSources } from "./build";
+import { readableRecord } from "./provenance";
 import { applyRefreshEdit, editStates, missingColumns, type RefreshEdit, type RefreshIssue } from "./refresh";
 import {
     type BuildResult,
@@ -598,7 +599,7 @@ export function projectBuild(result: BuildResult, value: SourceSteps, idPath: st
     const nodes = new Map<NodeId, ProjectedNode>();
     for (const n of result.nodes.values()) {
         const id = ids.get(n.id) as NodeId;
-        nodes.set(id, { id, record: { ...n.values, [idPath]: id } });
+        nodes.set(id, { id, record: { ...n.values, ...readableRecord(n), [idPath]: id } });
     }
     const edges = new Map<string, ProjectedEdge>();
     for (const e of result.edges.values()) {
@@ -620,7 +621,12 @@ function projectEdge(e: BuiltEdge, value: SourceSteps, ids: ReadonlyMap<string, 
     const ends = e.ends ?? { source: mapping?.source ?? "source", target: mapping?.target ?? "target" };
     const from = ids.get(e.from) as NodeId;
     const to = ids.get(e.to) as NodeId;
-    const record: Record<string, unknown> = { ...e.values, [ends.source]: from, [ends.target]: to };
+    const record: Record<string, unknown> = {
+        ...e.values,
+        ...readableRecord(e),
+        [ends.source]: from,
+        [ends.target]: to,
+    };
     let weight = mapping?.weight;
     if (e.weight !== null) {
         weight ??= "weight";

@@ -179,6 +179,7 @@ import type { StatusRun } from "./sets/status";
 import type { SetsApi, SetUser } from "./sets/types";
 import { bindShadersController, createSessionShaders, type SessionShaders, type ShadersController } from "./shaders";
 import { type Provenance, PROVENANCE_VALUE, suppliedBy } from "./sources/provenance";
+import { RECORD_PATHS } from "./sources/steps/paths";
 import {
     createAutoApplyPolicy,
     createStylesApi,
@@ -2424,6 +2425,10 @@ function fieldKindsOf(
         return ["node"];
     }
 
+    if (RECORD_PATHS.includes(path)) {
+        return data.readableKinds(path);
+    }
+
     if (path.startsWith("results.")) {
         const rest = path.slice("results.".length);
         const dot = rest.indexOf(".");
@@ -3623,6 +3628,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         result: resultSource,
         values: valueSourceOf(records, snapshot, fieldKinds, () => elements),
         supplied: suppliedNow,
+        own: (source: SourceKey) => data.ownValues(source),
         onChange: (change) => {
             // What the filter keeps is read by the style stack's kept readings (`styles.counts`,
             // `drawnValues`): moved before anyone hears of the change, so a reader answers fresh.
@@ -5496,11 +5502,7 @@ function planningContext(
  * @param nodes - The node references, added to.
  * @param members - The edge references, added to.
  */
-function heldBySetsAndRuns(
-    state: Pick<ProjectState, "sets" | "runs">,
-    nodes: NodeId[],
-    members: EdgeMember[],
-): void {
+function heldBySetsAndRuns(state: Pick<ProjectState, "sets" | "runs">, nodes: NodeId[], members: EdgeMember[]): void {
     for (const { definition } of state.sets.values()) {
         if (definition.kind === "fixed" || definition.kind === "path") {
             nodes.push(...definition.nodes);

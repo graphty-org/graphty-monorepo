@@ -48,6 +48,7 @@ import type { EdgeId, NodeId, Path, RunId, TopTies } from "../../catalog/types";
 import { type NoteFacts, type NoteFactsReader, noteFieldOf } from "../notes/paths";
 import { RESULT_ROOT, type RunResult } from "../results";
 import { edgeSpaceOf } from "../scope/spaces";
+import { RECORD_PATHS } from "../sources/steps/paths";
 import type { SessionRecordSource } from "../types";
 import type { SelectorSource, SelectorTarget } from "./predicate";
 
@@ -324,6 +325,12 @@ function parsePath(path: Path): PathEntry {
 
     if ((STRUCTURE_PATHS as readonly string[]).includes(path)) {
         return { kind: "structure", key: "", runId: "", field: path };
+    }
+
+    // The source-steps experiment writes an element's readable paths (`graphty.type`, ...) on its
+    // record, so they are read as columns; with it off no record holds one and every read is absent.
+    if (RECORD_PATHS.includes(path)) {
+        return { kind: "attribute", key: path, runId: "", field: "" };
     }
 
     if (path.startsWith(ELEMENT_ROOT)) {

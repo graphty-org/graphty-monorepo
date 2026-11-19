@@ -311,6 +311,7 @@ describe("selector refusals", () => {
             "rule",
             "state",
             "hover",
+            "type",
         ]);
     });
 

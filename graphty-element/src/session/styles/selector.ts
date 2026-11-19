@@ -131,7 +131,14 @@ export type Selector =
           readonly reach?: "node" | "neighbors";
           readonly invert?: boolean;
           readonly orSelected?: boolean;
-      };
+      }
+    /**
+     * The elements of some types, under the source-steps experiment: those whose one type
+     * (`graphty.type`, design section 3.7) is listed. Matches nothing while the experiment is off.
+     * Experimental: may change or be removed in a minor release.
+     * @beta
+     */
+    | { readonly match: "type"; readonly types: readonly string[] };
 
 /** Every element state, for a refusal that lists what was allowed. */
 const ELEMENT_STATES: readonly ElementState[] = ["selected", "hovered", "ghosted", "outsideWindow", "pinned"];
@@ -140,7 +147,24 @@ const ELEMENT_STATES: readonly ElementState[] = ["selected", "hovered", "ghosted
 const EMPTY_PATHS: readonly Path[] = Object.freeze([]);
 
 /** Every selector kind, for a refusal that lists what was allowed. */
-const SELECTOR_KINDS = ["everything", "expression", "has", "ids", "top", "member", "rule", "state", "hover"] as const;
+const SELECTOR_KINDS = [
+    "everything",
+    "expression",
+    "has",
+    "ids",
+    "top",
+    "member",
+    "rule",
+    "state",
+    "hover",
+    "type",
+] as const;
+
+/** The readable path holding an element's one type under the source-steps experiment. */
+const TYPE_PATH = "graphty.type";
+
+/** What a `type` selector reads. */
+const TYPE_PATHS: readonly Path[] = Object.freeze([TYPE_PATH]);
 
 /** The prefix of the only paths a top selector ranks: a run's published fields. */
 const RESULT_PATH_PREFIX = "results.";
@@ -285,6 +309,14 @@ function assertSelector(selector: Selector): void {
             return;
         case "hover":
             assertHoverSelector(selector);
+
+            return;
+        case "type":
+            if (!Array.isArray(selector.types) || !selector.types.every((t) => typeof t === "string")) {
+                throw badShape("bad-types", 'A "type" selector needs a list of type names.', {
+                    types: selector.types,
+                });
+            }
 
             return;
         default:
@@ -659,6 +691,15 @@ export function compileSelector(selector: Selector, target: SelectorTarget, sour
                 target,
                 test: hoverPredicate(hover, target, selector.reach ?? "node", selector.invert === true),
                 paths: EMPTY_PATHS,
+            };
+        }
+        case "type": {
+            const types = new Set(selector.types);
+            return {
+                match: "type",
+                target,
+                test: (index) => types.has(String(columns.value(index, TYPE_PATH))),
+                paths: TYPE_PATHS,
             };
         }
         default: {

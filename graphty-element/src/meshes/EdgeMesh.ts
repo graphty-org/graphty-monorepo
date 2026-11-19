@@ -495,6 +495,13 @@ export class EdgeMesh {
             );
         }
 
+        // An animated straight solid line is drawn from thin-instance matrices, with its color on its
+        // material, in both views: its greased line takes its width in world units, as a flat 2D line
+        // does. Asked before the 2D branch, which used to take every solid line in 2D and drew it still.
+        if (!curve && !widened && lineType === "solid" && style.line?.animationSpeed) {
+            return cache.getBatch(styleKey, () => this.createAnimatedLine(options, style, scene), scene);
+        }
+
         // A 2D CURVE IS A RUN OF FLAT RECTANGLES, like a straight 2D line (#125). It used to be
         // a run of slots in the 3D line batch, whose width is screen pixels -- `width * 20` -- so
         // under the 2D camera a curve drew ten pixels per unit of `line.width` at every zoom,
@@ -516,11 +523,6 @@ export class EdgeMesh {
                 ),
                 scene,
             );
-        }
-
-        // An animated line is drawn from thin-instance matrices, with its color on its material.
-        if (!curve && !widened && style.line?.animationSpeed) {
-            return cache.getBatch(styleKey, () => this.createAnimatedLine(options, style, scene), scene);
         }
 
         return cache.getBatch(key, staticLine, scene);

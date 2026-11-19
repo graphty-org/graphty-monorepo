@@ -1147,8 +1147,7 @@ const NODE_HALO_CAVEAT =
  * What an edge animation speed can and cannot move.
  *
  * Only one of the element's line renderers carries a moving texture: the one that draws a
- * straight solid line in 3D. A two-dimensional line, a bezier and all eight patterned line types
- * are built by renderers that have nothing to run along them, so a speed set on one of those is
+ * straight solid line, in either view. A bezier and all eight patterned line types are built by renderers that have nothing to run along them, so a speed set on one of those is
  * accepted and the line stays still.
  *
  * The number is a MULTIPLE of the element's own pace rather than a distance or a frequency. One
@@ -1156,7 +1155,7 @@ const NODE_HALO_CAVEAT =
  * animation off and draws a flat line.
  */
 const EDGE_ANIMATION_CAVEAT =
-    "An edge animates only where it is a straight solid line in 3D; a 2D line, a bezier and a " +
+    "An edge animates only where it is a straight solid line, in 2D and 3D; a bezier and a " +
     "patterned line have no moving texture to run. The value is a multiple of the element's own " +
     "pace -- 1 is that pace, 2 is twice it -- and 0 draws a flat line.";
 

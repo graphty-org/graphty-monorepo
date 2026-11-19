@@ -53,11 +53,13 @@ function oneStep(side: UnionLeaf["side"], rule: RuleTree): UnionLeaf {
  * full-screen workspace.
  * @param where - the layer's selection.
  * @param graph - the graph, as GML.
+ * @param prepare - readies the graph before the layer is added, when given.
  * @returns the session, the layer and the workspace.
  */
 async function openStep(
     where: UnionLeaf,
     graph = lesMiserables,
+    prepare?: (session: GraphSession) => Promise<void>,
 ): Promise<{ session: GraphSession; layer: Layer; modal: HTMLElement }> {
     await page.viewport(1440, 900);
     const store = createWorkspaceStore({ project: { name: "Untitled", id: 1 } });
@@ -72,6 +74,7 @@ async function openStep(
     }
     await session.data.import({ type: "gml", name: "graph.gml", config: { data: graph } });
     await session.config.set({ startingRows: true, editableBase: true, runPlacement: "top" });
+    await prepare?.(session);
     const layer = await session.styles.add({
         name: "Calm",
         target: where.side === "edges" ? "edge" : "node",
@@ -226,6 +229,232 @@ describe("a selection step's controls", () => {
         await userEvent.click(other);
         await waitFor(() => {
             assert.notStrictEqual(measure().field, "community", "the step tests the picked output");
+        });
+    });
+});
+
+describe("a selection step's text, edge-end, run and reference controls", () => {
+    it("Match case makes a text step count case", async () => {
+        const { session, layer, modal } = await openStep(
+            oneStep("nodes", { kind: "text", reads: "data.label", mode: "substring", text: "a" }),
+            PEOPLE_GML,
+        );
+        const settings = await openSettings(modal);
+        await userEvent.click(within(settings).getByRole("checkbox", { name: "Match case" }));
+        await waitFor(() => {
+            assert.isTrue((stepOf(session, layer)?.rule as { caseSensitive?: boolean }).caseSensitive);
+        });
+    });
+
+    it("an edge step on a node value picks whether both ends or either end must pass", async () => {
+        const { session, layer, modal } = await openStep(
+            oneStep("edges", { kind: "range", attribute: "data.age", min: 0 }),
+            PEOPLE_GML,
+        );
+        const settings = await openSettings(modal);
+        const ends = within(settings).getByRole("radiogroup", { name: "Edge ends" });
+        await userEvent.click(within(ends).getByText("Either"));
+        await waitFor(() => {
+            assert.strictEqual(stepOf(session, layer)?.ends, "either");
+        });
+        await userEvent.click(within(ends).getByText("Both"));
+        await waitFor(() => {
+            assert.strictEqual(stepOf(session, layer)?.ends, "both");
+        });
+    });
+
+    it("a run estimated above the limit waits for Run, and Run computes it", async () => {
+        const { modal } = await openStep(
+            oneStep("nodes", { kind: "measure", algorithm: "louvain", field: "community" }),
+            lesMiserables,
+            // Every run waits for Run.
+            async (graph) => {
+                graph.scope.setOptions({ ...graph.scope.options, askAboveMs: 0 });
+                await Promise.resolve();
+            },
+        );
+        // Waiting, the step says no count: the number would be what comes into it.
+        const run = await within(pane(modal)).findByRole("button", { name: /^Run/ });
+        assert.notInclude(pane(modal).getAttribute("aria-label") ?? "", "so far");
+        await userEvent.click(run);
+        await waitFor(() => {
+            assert.isNull(within(pane(modal)).queryByRole("button", { name: /^(Run|Cancel)/ }), "the run is done");
+            assert.include(pane(modal).getAttribute("aria-label") ?? "", "of 77 nodes so far", "its count is said");
+        });
+    });
+
+    it("a path step's From and To are chosen on the card by name", async () => {
+        const { session, layer, modal } = await openStep(
+            oneStep("nodes", { kind: "measure", algorithm: "shortest-path", field: "onPath" }),
+        );
+        const bind = (): Readonly<Record<string, unknown>> =>
+            (stepOf(session, layer)?.rule as Extract<RuleTree, { kind: "measure" }>).bind ?? {};
+        for (const [row, name, node] of [
+            ["From", "source", "Valjean"],
+            ["To", "target", "Myriel"],
+        ] as const) {
+            await userEvent.click(within(pane(modal)).getByRole("button", { name: row }));
+            await screen.findByRole("listbox", { name: "References" });
+            await userEvent.keyboard(node.slice(0, 4));
+            await userEvent.click(await screen.findByRole("option", { name: node }));
+            await waitFor(() => {
+                assert.property(bind(), name, `${row} is bound`);
+            });
+            await within(pane(modal)).findByRole("button", { name: `${row}: ${node}` });
+        }
+    });
+});
+
+/** Five people, three with a joining date and four with a team. */
+const TEAMS_GML = `graph [
+  node [ id 1 label "Ana" joined "1999-03-01" team "red" ]
+  node [ id 2 label "Bo" joined "2003-07-01" team "red" ]
+  node [ id 3 label "Cy" joined "2010-01-15" team "blue" ]
+  node [ id 4 label "Dee" team "green" ]
+  node [ id 5 label "Eve" ]
+  edge [ source 1 target 2 ]
+  edge [ source 2 target 3 ]
+  edge [ source 3 target 4 ]
+  edge [ source 4 target 5 ]
+]`;
+
+/**
+ * Types the joining column as dates.
+ * @param session - the session.
+ */
+async function joinedAsDates(session: GraphSession): Promise<void> {
+    await session.data.setType({ kind: "node", name: "joined" }, "date");
+}
+
+/** Ten nodes, each of its own kind, k1 to k10, in a ring. */
+const KINDS_GML = `graph [
+${Array.from({ length: 10 }, (_, at) => `  node [ id ${String(at)} kind "k${String(at + 1)}" ]`).join("\n")}
+${Array.from({ length: 10 }, (_, at) => `  edge [ source ${String(at)} target ${String((at + 1) % 10)} ]`).join("\n")}
+]`;
+
+describe("a selection step's date and category cards", () => {
+    it("a date step clears its bound when the box is emptied, says Not a date on Escape, and turns to Has a value", async () => {
+        const where: UnionLeaf = {
+            kind: "union",
+            side: "nodes",
+            within: "visible",
+            branches: [
+                {
+                    id: "a",
+                    start: "none",
+                    steps: [
+                        {
+                            id: "s",
+                            op: "add",
+                            mode: "before",
+                            rule: {
+                                kind: "range",
+                                attribute: "data.joined",
+                                as: "time",
+                                max: Date.UTC(2005, 0, 1) - 1,
+                            },
+                        },
+                    ],
+                },
+            ],
+        };
+        const { session, layer, modal } = await openStep(where, TEAMS_GML, joinedAsDates);
+        // Two people have no date: the step says they are left out.
+        await within(pane(modal)).findByText("Not measured: 2");
+        const box = within(pane(modal)).getByRole<HTMLInputElement>("combobox", {
+            name: "joined before, a date or a year",
+        });
+        assert.strictEqual(box.value, "2005");
+        await userEvent.tripleClick(box);
+        await userEvent.keyboard("{Backspace}");
+        await waitFor(() => {
+            assert.isUndefined((stepOf(session, layer)?.rule as { max?: number }).max, "the bound is gone");
+        });
+
+        await userEvent.keyboard("zzz{Escape}");
+        await within(pane(modal)).findByText("Not a date");
+        assert.strictEqual(box.getAttribute("aria-invalid"), "true");
+        assert.isNotNull(document.querySelector(".sel-ws"), "Escape in the box leaves the workspace open");
+
+        await userEvent.click(within(pane(modal)).getByRole("combobox", { name: "joined: how to match" }));
+        await userEvent.click(await screen.findByRole("option", { name: "Has a value" }));
+        await waitFor(() => {
+            assert.notStrictEqual(stepOf(session, layer)?.rule.kind, "range", "no longer a date range");
+        });
+        await session.styles.settled();
+        assert.strictEqual(session.styles.counts(layer.id).matched, 3, "the three with a date");
+        assert.isNull(within(pane(modal)).queryByRole("combobox", { name: /^joined before/ }), "no date box");
+        assert.isNull(within(pane(modal)).queryByText("Not a date"), "the refusal goes with the box");
+    });
+
+    it("a category step lists its values largest first, and ticks a value and the nodes with no value", async () => {
+        const { session, layer, modal } = await openStep(
+            oneStep("nodes", { kind: "categories", attribute: "data.team", values: [] }),
+            TEAMS_GML,
+        );
+        const values = await within(pane(modal)).findByRole("group", { name: "team values" });
+        // Largest first, each with its count, and the node with none last.
+        assert.deepEqual(
+            within(values)
+                .getAllByRole("checkbox")
+                .map((each) => each.getAttribute("aria-label")),
+            ["red, 2 nodes", "blue, 1 node", "green, 1 node", "(no value), 1 node"],
+        );
+        const matched = async (): Promise<number> => {
+            await session.styles.settled();
+            return session.styles.counts(layer.id).matched;
+        };
+        await userEvent.click(within(values).getByRole("checkbox", { name: "blue, 1 node" }));
+        await waitFor(() => {
+            assert.deepEqual((stepOf(session, layer)?.rule as { values?: readonly unknown[] }).values, ["blue"]);
+        });
+        assert.strictEqual(await matched(), 1, "Cy");
+        await userEvent.click(within(values).getByRole("checkbox", { name: "(no value), 1 node" }));
+        await waitFor(() => {
+            assert.isTrue(
+                within(values).getByRole<HTMLInputElement>("checkbox", { name: "(no value), 1 node" }).checked,
+            );
+        });
+        await waitFor(async () => {
+            assert.strictEqual(await matched(), 2, "Cy and Eve");
+        });
+    });
+
+    it("a category step over more than eight values searches them and checks every match at once", async () => {
+        const { session, layer, modal } = await openStep(
+            oneStep("nodes", { kind: "categories", attribute: "data.kind", values: [] }),
+            KINDS_GML,
+        );
+        const search = await within(pane(modal)).findByRole("textbox", { name: "Search kind" });
+        assert.strictEqual(search.getAttribute("placeholder"), "Search 10");
+        // Eight rows drawn, and the rest said.
+        await within(pane(modal)).findByText("2 more");
+        await userEvent.click(search);
+        await userEvent.keyboard("1");
+        // k1 and k10.
+        const matched = 2;
+        await userEvent.click(await within(pane(modal)).findByRole("button", { name: "Check 2" }));
+        await waitFor(() => {
+            const picked = (stepOf(session, layer)?.rule as { values?: readonly unknown[] }).values ?? [];
+            assert.lengthOf(picked, matched, "every match is checked");
+        });
+        const uncheck = await within(pane(modal)).findByRole("button", { name: `Uncheck ${String(matched)}` });
+        await userEvent.click(uncheck);
+        await waitFor(() => {
+            assert.lengthOf((stepOf(session, layer)?.rule as { values?: readonly unknown[] }).values ?? [], 0);
+        });
+    });
+});
+
+describe("a card's count chip", () => {
+    it("selects what the card holds", async () => {
+        const { session, modal } = await openStep(
+            oneStep("nodes", { kind: "range", attribute: "data.age", min: 0 }),
+            PEOPLE_GML,
+        );
+        await userEvent.click(await within(modal).findByRole("button", { name: /^Select 2 of 4 nodes/ }));
+        await waitFor(() => {
+            assert.lengthOf(session.selection.nodes, 2, "Ana and Bo");
         });
     });
 });

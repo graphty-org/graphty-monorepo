@@ -2,7 +2,9 @@
  * Model nodes playing their file's clips: a playing model draws a new picture as time passes, a
  * held pose is drawn where the clip puts it and stays put, two nodes play two clips of one file, a
  * skinned and a rigid model both animate, an unknown clip and a morph target's clip are reported,
- * and a model keeps the frame loop going only while it plays.
+ * and a model keeps the frame loop going only while it plays. Also how a model is fitted to its node
+ * (`node.modelFit`) and whether the backs of its faces are drawn (`node.modelDoubleSided`), on an open,
+ * non-cubic model: one wide, single-sided triangle.
  */
 
 import { assert, describe, it } from "vitest";
@@ -10,6 +12,7 @@ import { assert, describe, it } from "vitest";
 import type { Graphty } from "../../../index.js";
 import { operationQueueOf } from "../../../src/Graph";
 import { everyFrameAnimationsOn } from "../../../src/managers/everyFrameAnimations";
+import { glb } from "../../fixtures/models/fixtures";
 import { drawModel, filesOf, type Frame, mount, nextModelEvent, pixelsChanged, readFrame } from "./helpers";
 
 /**
@@ -210,5 +213,70 @@ describe("model animation", () => {
             "node.modelAnimationSpeed": 0,
         });
         assert.deepInclude(problems, { code: "W_MODEL_ANIMATION_PARTIAL", params: { reason: "morph" } });
+    });
+});
+
+/**
+ * One single-sided triangle twice as wide as it is tall, leaning back: an open model with no two extents equal.
+ * @returns The model's files.
+ */
+function wideTriangle(): Map<string, Uint8Array> {
+    const positions = new Float32Array([0, 0, 0, 2, 0, 0, 0, 1, 0.5]);
+    const json = {
+        asset: { version: "2.0" },
+        scene: 0,
+        scenes: [{ nodes: [0] }],
+        nodes: [{ mesh: 0 }],
+        meshes: [{ primitives: [{ attributes: { POSITION: 0 }, material: 0 }] }],
+        materials: [{ pbrMetallicRoughness: { baseColorFactor: [1, 1, 1, 1] } }],
+        accessors: [{ bufferView: 0, componentType: 5126, count: 3, type: "VEC3", min: [0, 0, 0], max: [2, 1, 0.5] }],
+        bufferViews: [{ buffer: 0, byteLength: positions.byteLength }],
+        buffers: [{ byteLength: positions.byteLength }],
+    };
+    return new Map([["wide.glb", glb(json, new Uint8Array(positions.buffer))]]);
+}
+
+/**
+ * Turn the camera half round its target and read the final picture.
+ * @param element - The element.
+ * @returns The frame.
+ */
+async function fromBehind(element: Graphty): Promise<Frame> {
+    const { graph } = element;
+    const state = graph.getCameraState();
+    const target = state.target ?? { x: 0, y: 0, z: 0 };
+    const position = state.position ?? { x: 0, y: 0, z: -1 };
+    await graph.setCameraState({
+        position: { x: 2 * target.x - position.x, y: position.y, z: 2 * target.z - position.z },
+        target,
+    });
+    return readFrame(element);
+}
+
+describe("model fit and sides", () => {
+    it("draws a wide model stretched to its node, and the backs of its faces when asked", async () => {
+        const element = await mount();
+        await element.setViewMode("3d");
+        const { layer, asset } = await drawModel(element, wideTriangle(), [{ id: "a", x: 0 }]);
+        const contained = await readFrame(element);
+        const stretched = await hold(element, layer, { "node.model": asset, "node.modelFit": "stretch" });
+        assert.isAbove(
+            pixelsChanged(contained, stretched),
+            100,
+            "stretch fills the node's box, contain keeps the shape",
+        );
+
+        // From one side or the other the single-sided triangle shows its back, which only "true" draws.
+        const fileFront = await hold(element, layer, { "node.model": asset, "node.modelDoubleSided": "file" });
+        const bothFront = await hold(element, layer, { "node.model": asset, "node.modelDoubleSided": "true" });
+        const bothBack = await fromBehind(element);
+        const fileBack = await hold(element, layer, { "node.model": asset, "node.modelDoubleSided": "file" });
+        const front = pixelsChanged(fileFront, bothFront);
+        const back = pixelsChanged(fileBack, bothBack);
+        assert.isAbove(
+            Math.max(front, back),
+            100,
+            `two sides draw the back of the face: ${JSON.stringify({ front, back })}`,
+        );
     });
 });

@@ -210,7 +210,7 @@ export const Image: Story = {
     `,
     play: async ({ canvasElement }) => {
         const element = await captures(canvasElement, "Image");
-        const shot = await element.captureScreenshot({ format: "png", destination: { blob: true } });
+        const shot = await element.captureScreenshot({ format: "png" });
 
         await holds(
             shot.metadata.width > 0 && shot.metadata.height > 0,

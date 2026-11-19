@@ -387,7 +387,7 @@ export async function addFolderOf(session: GraphSession, name: string, ids: read
     return session.transaction(`adding ${name}`, async (tx) => {
         const tree = tx.styles.tree();
         const order = topFirst(tree);
-        const top = [...ids].sort((a, b) => order.indexOf(a) - order.indexOf(b))[0];
+        const top = [...ids].sort((a, b) => order.indexOf(a) - order.indexOf(b)).at(0);
         const found = top === undefined ? undefined : findTreeRow(tree, top);
         const parent = found?.folders.at(-1);
         const place =

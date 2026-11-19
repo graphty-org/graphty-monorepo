@@ -1,5 +1,6 @@
 import type { EasingName } from "../camera/tour.js";
 import type { CameraState } from "../camera/types.js";
+import type { GraphtyError } from "../errors/index.js";
 
 /**
  * What happened to a capture's clipboard copy. `"not-requested"` when the clipboard was not one of
@@ -103,10 +104,8 @@ export interface ScreenshotOptions {
      * }
      */
     enhanceQuality?: boolean | QualityEnhancementOptions;
-    /** Where the image goes besides the result. Left out, it is only returned. */
+    /** Where the image goes besides `result.blob`, which every result carries. */
     destination?: {
-        /** Return the image as `result.blob`. Every result carries the blob whatever this says. */
-        blob?: boolean;
         /** Save the image as a file the browser downloads, named by `downloadFilename`. */
         download?: boolean;
         /** Copy the image to the clipboard; `result.clipboardStatus` says how that went. */
@@ -270,8 +269,12 @@ export interface ScreenshotResult {
     clipboardStatus: ClipboardStatus;
     /** Why the clipboard copy failed, when it did. */
     clipboardError?: Error;
-    /** Failures the capture recovered from. The element does not fill it at present. */
-    errors?: Error[];
+    /**
+     * What went wrong with a destination the capture still finished without: a failed download or
+     * clipboard copy, each a `GraphtyError` whose `code` and `details` say what failed. Empty when
+     * every destination asked for went.
+     */
+    errors: GraphtyError[];
     /** Facts about the image. */
     metadata: {
         /** The image width in pixels. */

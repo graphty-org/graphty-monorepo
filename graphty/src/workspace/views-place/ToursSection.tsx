@@ -143,7 +143,7 @@ export function ToursSection({ session, element, store }: ToursProps): React.JSX
                         name={name}
                         tour={tour}
                         problems={plan?.stops.map((stop) => stop.problem) ?? []}
-                        playing={playing ? (progress?.stop ?? null) : null}
+                        playing={playing ? progress.stop : null}
                     />
                 ),
             footer: (

@@ -86,7 +86,7 @@ export function useImagePreview<C extends { size: ImageSize }>(
         let live = true;
         let url: string | null = null;
         // An explicit width wins over the options' 1x multiplier.
-        const options = build({ ...choices, size: "1x" }, { blob: true });
+        const options = build({ ...choices, size: "1x" }, {});
         element
             .captureScreenshot({ ...options, width: PREVIEW_WIDTH, legend, timing: { waitForSettle: false } })
             .then((result) => {
@@ -132,7 +132,7 @@ export function useRefusedSizes<C extends { size: ImageSize }>(
         let live = true;
         void Promise.all(
             SIZES.map(async (size) => {
-                const check = await element.canCaptureScreenshot(build({ ...choices, size }, { blob: true }));
+                const check = await element.canCaptureScreenshot(build({ ...choices, size }, {}));
                 return [size, check.reason === undefined ? undefined : refusalWords(check.reason)] as const;
             }),
         ).then((entries) => {

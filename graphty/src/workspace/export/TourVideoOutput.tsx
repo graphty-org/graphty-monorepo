@@ -172,7 +172,7 @@ function videoTarget(
     choices: TourVideoChoices,
 ): VideoTarget {
     const tours = session === null ? [] : [...session.tours.keys()];
-    const tour = choices.tour ?? tours[0] ?? null;
+    const tour = choices.tour ?? tours.at(0) ?? null;
     const views = viewChoice(element, session, choices.view);
     // With no tours, and none asked for, the camera is still.
     if (tour === null || choices.camera === "still") {

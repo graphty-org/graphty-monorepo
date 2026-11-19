@@ -100,24 +100,24 @@ describe("the Export dialog's choices", () => {
         });
         const thumbnail = screenshotOptions(
             { format: "jpeg", size: "400x300", background: "canvas", view: "topView" },
-            { blob: true },
+            {},
         );
         assert.equal(thumbnail.width, 400);
         assert.equal(thumbnail.height, 300);
         assert.equal(thumbnail.quality, 0.85);
         assert.isUndefined(thumbnail.multiplier);
         assert.deepEqual(thumbnail.camera, { view: "topView" });
-        assert.isUndefined(screenshotOptions(DEFAULT_IMAGE, { blob: true }).camera, "the reader's camera");
+        assert.isUndefined(screenshotOptions(DEFAULT_IMAGE, {}).camera, "the reader's camera");
         assert.deepEqual(
-            cameraScreenshotOptions({ ...DEFAULT_CAMERA_IMAGE, view: "Hub cluster" }, { blob: true }).camera,
+            cameraScreenshotOptions({ ...DEFAULT_CAMERA_IMAGE, view: "Hub cluster" }, {}).camera,
             { view: "Hub cluster" },
         );
-        assert.isUndefined(cameraScreenshotOptions(DEFAULT_CAMERA_IMAGE, { blob: true }).camera, "the reader's camera");
-        assert.deepEqual(screenshotOptions({ ...DEFAULT_IMAGE, view: "fitToGraph" }, { blob: true }).camera, {
+        assert.isUndefined(cameraScreenshotOptions(DEFAULT_CAMERA_IMAGE, {}).camera, "the reader's camera");
+        assert.deepEqual(screenshotOptions({ ...DEFAULT_IMAGE, view: "fitToGraph" }, {}).camera, {
             view: "fitToGraph",
             params: { keepAngle: true },
         });
-        assert.isTrue(screenshotOptions({ ...DEFAULT_IMAGE, size: "4x" }, { blob: true }).enhanceQuality);
+        assert.isTrue(screenshotOptions({ ...DEFAULT_IMAGE, size: "4x" }, {}).enhanceQuality);
     });
 
     it("refuses a transparent background in a format that cannot keep it", () => {

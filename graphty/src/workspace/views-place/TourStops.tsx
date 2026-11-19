@@ -64,7 +64,7 @@ function carryIds(before: StopIds, stops: readonly TourStop[]): readonly string[
         if (id !== undefined) {
             return id;
         }
-        const placed = before.ids[at];
+        const placed = before.ids.at(at);
         return placed !== undefined && !taken.has(placed) ? placed : newStopId();
     });
 }

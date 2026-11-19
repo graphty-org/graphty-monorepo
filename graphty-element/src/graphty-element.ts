@@ -28,6 +28,7 @@ import type {
     ScopeInput,
 } from "./catalog/types";
 import type {
+    ColorScheme,
     FitInsets,
     GraphBackgroundConfig,
     GraphBehaviorConfig,
@@ -4100,6 +4101,39 @@ export class Graphty extends LitElement {
         const oldValue = this.reducedMotion;
         this.#graph.setReducedMotion(value);
         this.requestUpdate("reducedMotion", oldValue);
+    }
+
+    /**
+     * Which of the background's colors the canvas is cleared to.
+     * @remarks
+     * `"light"` (the default) draws the background's `color`; `"dark"` draws its `darkColor`
+     * (absent, `DEFAULT_DARK_BACKGROUND_COLOR`, a near-black gray); `"auto"` follows the page's
+     * `prefers-color-scheme` and repaints when it changes, with nothing reloaded. A preference of
+     * this view, not saved with the project. Anything else is refused and the scheme kept.
+     * @since 3.58.0
+     * @example
+     * ```html
+     * <graphty-element color-scheme="auto"></graphty-element>
+     * ```
+     * @returns "light", "dark" or "auto"
+     */
+    @property({ attribute: "color-scheme" })
+    get colorScheme(): ColorScheme {
+        return this.#graph.getColorScheme();
+    }
+    /**
+     * Sets which background color the canvas draws.
+     */
+    set colorScheme(value: ColorScheme) {
+        const oldValue = this.colorScheme;
+        try {
+            this.#graph.setColorScheme(value);
+        } catch (error) {
+            elementLogger.error("the colorScheme was refused. Keeping the one already set.", asError(error));
+            return;
+        }
+
+        this.requestUpdate("colorScheme", oldValue);
     }
 
     /**

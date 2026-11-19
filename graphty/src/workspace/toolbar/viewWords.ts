@@ -7,7 +7,7 @@
 import type { CodedFact } from "@graphty/graphty-element/session";
 
 /** The app's words for the element's camera view ids, wherever the app shows one. */
-const CAMERA_VIEW_WORDS: Readonly<Record<string, string>> = {
+const CAMERA_VIEW_WORDS: Readonly<Partial<Record<string, string>>> = {
     fitToGraph: "Fit",
     frontView: "Front",
     sideView: "Side",

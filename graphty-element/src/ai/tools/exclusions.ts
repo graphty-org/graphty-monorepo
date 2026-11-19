@@ -273,6 +273,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         members: [
             "setCameraTransitionDuration",
             "setReducedMotion",
+            "setColorScheme",
             "setPixelRatio",
             "setZoomToPointer",
             "setLighting",
@@ -292,6 +293,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
             "globeLook",
             "cameraTransitionDuration",
             "reducedMotion",
+            "colorScheme",
             "zoomToPointer",
             "viewInsets",
             "autosave",

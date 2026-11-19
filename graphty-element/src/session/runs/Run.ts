@@ -8,13 +8,13 @@
  * identity, a label, the scope and caveats that qualify the numbers, a promise that resolves to
  * the result, and a `cancel()` a button can be wired to.
  *
- * Three behaviours here are contracts rather than implementation details, and each exists because
+ * Three behaviors here are contracts rather than implementation details, and each exists because
  * the alternative is a defect a consumer cannot work around:
  *
  * - **A run is a `PromiseLike`, not a `Promise` subclass, and the promise behind it always
  *   carries a rejection handler.** A run fired from a click handler and never awaited cannot
  *   reach the window as an unhandled rejection, while `await run` still throws.
- * - **Cancelling rejects with a `DOMException` named `AbortError`.** Every consumer already knows
+ * - **Canceling rejects with a `DOMException` named `AbortError`.** Every consumer already knows
  *   how to test for that, and a timeout from `AbortSignal.timeout()` arrives as `TimeoutError`,
  *   so "somebody pressed Cancel" and "this took too long" stay distinguishable.
  * - **Stopping early is not failing.** A run that hits its time box RESOLVES with `partial` set
@@ -88,7 +88,7 @@ export interface RunProgressSink {
 
 /** What the queue hands a run's body when its turn comes. */
 export interface RunQueueContext {
-    /** The signal the queue aborts when the operation is cancelled or obsoleted. */
+    /** The signal the queue aborts when the operation is canceled or obsoleted. */
     readonly signal: AbortSignal;
     /** Where to write progress, so the queue's own events carry it. */
     readonly progress: RunProgressSink;
@@ -153,11 +153,11 @@ export interface RunExecutionContext {
     readonly runId: RunId;
     /** Which algorithm to run. */
     readonly algorithm: AlgorithmKey;
-    /** Its parameters, canonicalised. */
+    /** Its parameters, canonicalized. */
     readonly params: Readonly<Record<string, unknown>>;
     /** What it may look at, resolved against the graph as it stands now. */
     readonly scope: ResolvedScope;
-    /** The seed a randomised or sampled method should use, or null. */
+    /** The seed a randomized or sampled method should use, or null. */
     readonly seed: number | null;
     /** Whether the caller refused approximation, or null when it did not say. */
     readonly exact: boolean | null;
@@ -165,7 +165,7 @@ export interface RunExecutionContext {
     readonly sample: number | null;
     /** The time box in milliseconds, or null when the run is not boxed. */
     readonly timeBoxMs: number | null;
-    /** Aborted when the run is cancelled. Throw from here; do not swallow it. */
+    /** Aborted when the run is canceled. Throw from here; do not swallow it. */
     readonly signal: AbortSignal;
     /** Aborted when the time box expires. Stop and return what has been computed. */
     readonly timeBox: AbortSignal | null;
@@ -213,7 +213,7 @@ export interface RunDefinition<T = RunResult> {
     readonly id: RunId;
     /** Which algorithm this run runs. */
     readonly algorithm: AlgorithmKey;
-    /** Its parameters, canonicalised. */
+    /** Its parameters, canonicalized. */
     readonly params: Readonly<Record<string, unknown>>;
     /** The seed it uses, or null. */
     readonly seed: number | null;
@@ -243,7 +243,7 @@ export interface RunDefinition<T = RunResult> {
      */
     readonly onProgress?: (progress: Progress) => void;
     /**
-     * Whether cancelling publishes what was computed instead of rejecting.
+     * Whether canceling publishes what was computed instead of rejecting.
      *
      * False for one algorithm, which has nothing to publish once it is stopped. True for a batch,
      * whose completed members are results somebody paid for and which the element must not throw
@@ -399,7 +399,7 @@ function createDeferred<T>(): Deferred<T> {
 }
 
 /**
- * A run's fields with their paths naming this run. A catalogue descriptor is written before any
+ * A run's fields with their paths naming this run. A catalog descriptor is written before any
  * run exists, so its paths say `results.$.value`; a consumer reading `run.fields` gets
  * `results.<runId>.value`, the path a layer or `session.results.path(run)` uses.
  * @param fields - The fields as the descriptor or the executor declared them.
@@ -559,7 +559,7 @@ export class ManagedRun<T = RunResult> implements Run<T> {
     /** Why the session started the latest execution by itself, when it did; see `RunChange.trigger`. */
     private triggerValue: RunChange["trigger"] = undefined;
 
-    /** Why a cancel is being honoured, when the run publishes what it has instead of rejecting. */
+    /** Why a cancel is being honored, when the run publishes what it has instead of rejecting. */
     private cancelReason: string | null = null;
     /** The reason the caller gave `cancel()`, when it gave one. */
     private cancelGiven: string | undefined;
@@ -586,7 +586,7 @@ export class ManagedRun<T = RunResult> implements Run<T> {
     // -- the facts ----------------------------------------------------------------------------
 
     /**
-     * The parameters the current execution uses, canonicalised.
+     * The parameters the current execution uses, canonicalized.
      * @returns The parameters.
      */
     get params(): Readonly<Record<string, unknown>> {
@@ -1070,8 +1070,8 @@ export class ManagedRun<T = RunResult> implements Run<T> {
     /**
      * Run the same result again with other parameters or another seed, keeping its id, so every
      * style layer and reference bound to the result repaints from the new values. Work still
-     * queued or running is cancelled first: only the latest parameters' answer matters.
-     * @param params - The new parameters, canonicalised.
+     * queued or running is canceled first: only the latest parameters' answer matters.
+     * @param params - The new parameters, canonicalized.
      * @param seed - The new seed, or null.
      * @param caveats - The caveats the new execution starts from.
      * @param trigger - Why the session restarted it by itself, when it did.
@@ -1163,7 +1163,7 @@ export class ManagedRun<T = RunResult> implements Run<T> {
                 },
             });
 
-            // A late value: the run was cancelled, or re-run, while the work went on. Dropped,
+            // A late value: the run was canceled, or re-run, while the work went on. Dropped,
             // so nothing it computed is written anywhere.
             if (this.settledFlag || generation !== this.generationValue) {
                 return;
@@ -1262,7 +1262,7 @@ export class ManagedRun<T = RunResult> implements Run<T> {
         const before = this.result ?? this.surroundings.numberedAfter?.();
         this.resultExecutionValue = this.executionValue ?? undefined;
         this.summaryValue = outcome.summary;
-        // What the run published, with the facts the catalogue declares of each field (that a
+        // What the run published, with the facts the catalog declares of each field (that a
         // group's values are unstable names) kept.
         const declared = new Map(this.fieldsValue.map((field) => [field.name, field]));
         this.fieldsValue = outcome.fields
@@ -1318,7 +1318,7 @@ export class ManagedRun<T = RunResult> implements Run<T> {
     }
 
     /**
-     * Settle the run as cancelled, rejecting with the exception a consumer tests for.
+     * Settle the run as canceled, rejecting with the exception a consumer tests for.
      * @param error - The abort or timeout exception.
      */
     private finishAsCanceled(error: Error): void {

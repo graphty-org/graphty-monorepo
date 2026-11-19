@@ -195,7 +195,7 @@ export class OrbitCameraController {
         } else {
             // Over a globe the turn is about its center, so the camera keeps its height and never
             // enters it, and slows with the height: a full-speed turn swept the camera a fixed
-            // angle of the whole globe, thousands of kilometres a frame at street level.
+            // angle of the whole globe, thousands of kilometers a frame at street level.
             const scale = Math.min(1, this.#heightAbove(sphere.radius) / sphere.radius);
             this.#aboutGlobeCenter(() => {
                 this.pivotController.rotate(dx * speed * scale, dy * speed * scale);

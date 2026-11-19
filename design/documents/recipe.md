@@ -35,10 +35,10 @@ means nothing on the next dataset.
 | Set the layout | yes, `layout.set` | options name no element; with its seed the replayed picture is similar |
 | Run an algorithm while a filter hides part of the graph | converted | the filter is written as `graph.filter` commands before the run when it is made of rules over columns ("Recording" rule 3) |
 | Run with an option naming a node, or on the selection, listed nodes or a kept set | no | the chosen nodes exist only in the data they were chosen from |
-| A run that was cancelled, failed or stopped partway | no | its numbers are not what the command computes |
+| A run that was canceled, failed or stopped partway | no | its numbers are not what the command computes |
 | Load data; select, drag or pin nodes; move the camera; change 2D or 3D | no | the data is what changes between replays; the rest is one-off or presentation |
 | Add, edit or remove style layers | no | appearance travels in a style member; a run's own coloring is kept as its `style` option |
-| Define a kept set, compute a column, randomise, fetch | no | later versions may add commands; an older reader stops at one it does not know ("Replaying" rule 4) |
+| Define a kept set, compute a column, randomize, fetch | no | later versions may add commands; an older reader stops at one it does not know ("Replaying" rule 4) |
 
 ## Data model
 
@@ -159,8 +159,8 @@ nests, so each filter keeps its place in the sequence.
    distance, so a confidence or correlation must not be their weight: the plan says "read as a
    distance" and carries a notice when one is given.
 7. **`seed`, `sample`, `exact`** mean what they mean on graphty-element's run command. Whether an
-   algorithm is randomised is a fact of its descriptor, and `seed` feeds its own seed option, which
-   a recipe never sets in `params` (`E_BAD_COMMAND`). A randomised or sampled command with no
+   algorithm is randomized is a fact of its descriptor, and `seed` feeds its own seed option, which
+   a recipe never sets in `params` (`E_BAD_COMMAND`). A randomized or sampled command with no
    `seed` runs with its seed option's published default, so it replays the same; only when the
    option has no default is a seed drawn and reported. An algorithm that can approximate samples in
    a recipe only when the command gives `sample`; without one it runs exactly and is never switched
@@ -422,14 +422,14 @@ their `results.<as>` paths bind to the runs of the earlier application.
    file to one budget together, whenever and however each `run()` is called, so a file of many
    recipes cannot spend many budgets. A recipe that reaches its budget while running stops, keeping
    the commands that finished.
-5. Cancelling keeps the results of the commands that finished; `run()` again runs the rest.
+5. Canceling keeps the results of the commands that finished; `run()` again runs the rest.
 
 ## Same data, same results
 
 Replaying a recipe on the same data gives the same numbers when all of these hold:
 
 1. **The same release** of graphty-element; the report carries `W_RELEASE_DIFFERS` otherwise.
-2. **A seed on every randomised or sampled command**, or a published default seed ("Commands"
+2. **A seed on every randomized or sampled command**, or a published default seed ("Commands"
    rule 7). The recorder always writes one.
 3. **The same method**: exact, or the same sample size.
 4. **The same precision.** A WebGPU accelerator computes in single precision and the CPU in double,
@@ -561,7 +561,7 @@ document beside the style. The recorder:
 
 1. **Chooses runs.** It writes the `algo.run` command of each selected run at the position of its
    latest start, and the last layout set at the position it was set. Runs that failed, were
-   cancelled or stopped partway are left out, and so is a run that read another run's result
+   canceled or stopped partway are left out, and so is a run that read another run's result
    which was re-run after it (stale), or a run the caller's `runs` left out.
 2. **Leaves out every run a recipe may not hold** ("What a recipe records") and reports each with
    the reason. It never rewrites a run into something it was not: a run on the selection is not
@@ -585,7 +585,7 @@ document beside the style. The recorder:
    them is rewritten to the new names.
 5. **Writes what the run computed**: in `params`, every option whose value differs from the
    published default, or every effective value with `explicitDefaults: true` (which a release
-   lacking one of those options cannot replay); `seed` whenever the run was randomised or sampled;
+   lacking one of those options cannot replay); `seed` whenever the run was randomized or sampled;
    `sample`, or `exact: true` for an approximable algorithm that ran exactly; `recordedCapSeconds`
    when the cap was above the default or the run's estimate or duration passed half of it;
    `recordedPrecision` from the run's caveats; for the layout, the seed the engine used; the

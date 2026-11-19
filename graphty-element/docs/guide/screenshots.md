@@ -158,9 +158,10 @@ A PDF needs no extra package: its text is set in the fonts every PDF reader has 
 or Courier, whichever is nearest each label's font), so characters outside Western European
 alphabets print as `?`; use SVG for those.
 
-A figure draws each node's flat color, without the canvas's lighting, draws edges straight, without
-arrowheads, and draws a label's solid background as a box behind its text; curved edges,
-arrowheads, node borders and gradient label backgrounds are not in it yet.
+A figure draws each node's flat color, without the canvas's lighting, with its border; draws edges
+straight, with their arrowheads in the shape, size and color the canvas draws them; and draws a
+label's solid background as a box behind its text. Curved edges, picture arrowheads and gradient
+label backgrounds are not in it yet.
 
 ## Checking Capabilities
 

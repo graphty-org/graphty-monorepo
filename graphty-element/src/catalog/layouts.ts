@@ -1,12 +1,12 @@
 /**
- * @file The layout catalogue: the arrangements the element offers, and the engines behind them.
+ * @file The layout catalog: the arrangements the element offers, and the engines behind them.
  *
  * A public layout name says what the arrangement IS -- "force", "hierarchical", "circular" --
  * and never which library draws it. The element registers nineteen engines whose registered
  * names ARE their implementations ("ngraph", "d3", "forceatlas2"), and freezing those into the
  * public API makes swapping an implementation a rename every consumer can see. So the engine is
  * data on the descriptor instead: `LayoutDescriptor.engine` names the implementation the element
- * runs today, and replacing it is a catalogue edit rather than a breaking change.
+ * runs today, and replacing it is a catalog edit rather than a breaking change.
  *
  * More than one engine can draw one arrangement. `force` is drawn by ngraph today and could be
  * drawn by any of four others, so each entry lists every engine that can serve it, the default
@@ -85,7 +85,7 @@ export interface LayoutImplementation {
      * Whether this engine arranges a graph differently when its edges carry weights.
      *
      * Read off the engine class's own `static honoursWeights` rather than written here, so the
-     * catalogue cannot claim a weight channel an engine does not have.
+     * catalog cannot claim a weight channel an engine does not have.
      */
     honoursWeights: boolean;
     /** Whether this engine accepts a scope, read off the engine class's own `static scoped`. */
@@ -95,7 +95,7 @@ export interface LayoutImplementation {
      * declares it.
      *
      * `accelerator: true` means the engine is computed on hardware and has no processor
-     * implementation, so a picker greys the entry out when `capabilities.acceleration.state` says
+     * implementation, so a picker grays the entry out when `capabilities.acceleration.state` says
      * nothing is attached. It belongs to the ENGINE rather than to the arrangement: `force` is
      * drawn by six engines, five of which need nothing.
      */
@@ -218,7 +218,7 @@ interface LayoutBase extends Omit<
 }
 
 /**
- * Assemble one catalogue entry, taking the published descriptor's engine and options from the
+ * Assemble one catalog entry, taking the published descriptor's engine and options from the
  * default implementation so the two can never drift apart.
  * @param base - Everything about the layout that is not the implementation.
  * @param primary - The engine the element runs when this layout is asked for by name.
@@ -514,7 +514,7 @@ const locationMap: LayoutImplementationSpec = {
     ...layoutFacts("location-map", LOCATION_OVERRIDE),
 };
 
-/** What each Graphviz engine is, as the catalogue describes it. */
+/** What each Graphviz engine is, as the catalog describes it. */
 const GRAPHVIZ_ENTRIES: Readonly<
     Record<
         GraphvizEngine,
@@ -587,7 +587,7 @@ const GRAPHVIZ_ENTRIES: Readonly<
 };
 
 /**
- * One Graphviz engine as a catalogue entry: the arrangement and its only engine share the id.
+ * One Graphviz engine as a catalog entry: the arrangement and its only engine share the id.
  * @param engine - the engine
  * @returns the entry
  */
@@ -622,7 +622,7 @@ function graphvizEntry(engine: GraphvizEngine): LayoutCatalogEntry {
 }
 
 // ---------------------------------------------------------------------------------------------
-// The catalogue
+// The catalog
 // ---------------------------------------------------------------------------------------------
 
 /** Every arrangement the element can place a graph with, and every engine that can draw it. */
@@ -842,7 +842,7 @@ export const LAYOUT_DESCRIPTORS: readonly LayoutDescriptor[] = LAYOUT_CATALOG.ma
 
 /**
  * The built-in layout names no registered engine draws yet. Listed rather than omitted, because
- * a name that is in the type and missing from the catalogue is otherwise discovered by asking
+ * a name that is in the type and missing from the catalog is otherwise discovered by asking
  * for it and getting an error. Empty today: every built-in name has an engine.
  */
 export const UNSERVED_LAYOUT_IDS: readonly UnservedLayout[] = [];
@@ -904,7 +904,7 @@ export function arrangedDimension(choice: {
  *
  * The element's own arrangements first, then whatever a third party registered. A lookup that
  * missed registered layouts would leave the extension point half built: the entry would be
- * visible in a picker -- `catalog.layouts()` composes both halves -- and then be unrecognised the
+ * visible in a picker -- `catalog.layouts()` composes both halves -- and then be unrecognized the
  * moment a reader chose it.
  * @param id - The layout name.
  * @returns The descriptor, or undefined when nothing answers to that name.
@@ -916,7 +916,7 @@ export function layoutDescriptor(id: LayoutId): LayoutDescriptor | undefined {
 /**
  * Find one layout's whole entry, including the engines that are not the default.
  * @param id - The layout name.
- * @returns The entry, or undefined when nothing in the catalogue answers to that name.
+ * @returns The entry, or undefined when nothing in the catalog answers to that name.
  */
 export function layoutEntry(id: LayoutId): LayoutCatalogEntry | undefined {
     return LAYOUT_CATALOG.find((candidate) => candidate.descriptor.id === id);
@@ -926,7 +926,7 @@ export function layoutEntry(id: LayoutId): LayoutCatalogEntry | undefined {
  * Find the public layout name an engine serves, which is the question a consumer holding a
  * 1.x engine name needs answered to migrate.
  * @param engine - A registered engine name, such as "ngraph".
- * @returns The layout name, or undefined when no catalogue entry lists that engine.
+ * @returns The layout name, or undefined when no catalog entry lists that engine.
  */
 export function layoutIdForEngine(engine: string): LayoutId | undefined {
     const found = LAYOUT_CATALOG.find((candidate) =>

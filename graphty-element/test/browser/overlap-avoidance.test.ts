@@ -10,7 +10,7 @@
  *   a place around its node that covers no other node or edge. Off, a label above its node is
  *   drawn over the node above that.
  *
- * Every measurement is taken independently of the code under test: node centres and radii from the
+ * Every measurement is taken independently of the code under test: node centers and radii from the
  * meshes, label rectangles from each label's world bounding box projected through the scene.
  */
 
@@ -64,7 +64,7 @@ async function settle(g: Graph): Promise<void> {
 }
 
 /**
- * Every pair of nodes whose drawn spheres overlap: centres where the layout put them, radii from
+ * Every pair of nodes whose drawn spheres overlap: centers where the layout put them, radii from
  * each mesh's own bounding box and scaling.
  * @param g - The graph.
  * @param front - Compare only x and y: as seen from the front, along the depth axis.
@@ -431,7 +431,7 @@ function wordsOf(g: Graph, id: string): Rect | null {
 }
 
 /**
- * A node on screen: its centre and radius, from its mesh.
+ * A node on screen: its center and radius, from its mesh.
  * @param g - The graph.
  * @param id - The node.
  * @returns The circle.
@@ -460,7 +460,7 @@ function meetsCircle(rect: Rect, c: { x: number; y: number; r: number }): boolea
     return dx * dx + dy * dy < c.r * c.r;
 }
 
-/** Whether a segment between two node centres crosses a rectangle, sampled finely. */
+/** Whether a segment between two node centers crosses a rectangle, sampled finely. */
 function meetsSegment(rect: Rect, a: { x: number; y: number }, b: { x: number; y: number }): boolean {
     for (let t = 0; t <= 1; t += 0.001) {
         const x = a.x + (b.x - a.x) * t;
@@ -475,7 +475,7 @@ function meetsSegment(rect: Rect, a: { x: number; y: number }, b: { x: number; y
 
 /**
  * "a" with "above" right over it, where a label drawn above "a" lands, and a tie from "a" to
- * "below". Only "a" is labelled. Its own place covers "above"; to its right is clear.
+ * "below". Only "a" is labeled. Its own place covers "above"; to its right is clear.
  */
 const STACKED = [
     { id: "a", position: { x: 0, y: 0, z: 0 } },
@@ -541,7 +541,7 @@ function meetsRect(a: Rect, b: Rect): boolean {
 }
 
 /**
- * Draw "a", labelled, and a box node "corner" at a position, with the label setting given.
+ * Draw "a", labeled, and a box node "corner" at a position, with the label setting given.
  * @param corner - Where the box is.
  * @param behavior - The label behavior.
  * @returns The graph.

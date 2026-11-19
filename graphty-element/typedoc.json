@@ -30,6 +30,7 @@
     "kindSortOrder": ["Class", "Interface", "TypeAlias", "Function", "Variable"],
     "docsRoot": "./docs",
     "blockTags": [
+        "@alias",
         "@defaultValue",
         "@deprecated",
         "@example",

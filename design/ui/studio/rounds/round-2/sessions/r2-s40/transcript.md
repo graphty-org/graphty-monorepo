@@ -16,7 +16,7 @@ Elena: "Oh nice, the Les Mis one is right there. First I'll get rid of the data 
 
 Command: `--step ... --click "No thanks" --click "Les Miserables"` -> 02.png
 
-Seen: the graph opened. Blue dots and grey lines, all one color. A dense knot in the middle, a
+Seen: the graph opened. Blue dots and gray lines, all one color. A dense knot in the middle, a
 fan of dots at the bottom-left hanging off one dot, a smaller group at the top and one on the right.
 Right panel says 77 nodes, 254 edges, Components 1. Bottom toolbar has four icons: a flask, a
 little chart-ish icon, "3D" with a dropdown, and a magnifier. Left panel: Find, Selection, Everything.
@@ -38,13 +38,13 @@ Elena: "Layout -- that's the arranging thing, I think. Clicking it."
 Command: `--step ... --click "Layout"` -> 04.png
 
 Seen: a menu. "Force -- Recommended" is ticked (that's what I have now). Then Circle, Rings around
-a node (grey, "Select a node first"), Grid, Rings by group (grey, "Needs a node attribute to group
+a node (gray, "Select a node first"), Grid, Rings by group (gray, "Needs a node attribute to group
 by"), Spiral, Spectral, No crossings (grey, with the note 'the layout "planar" cannot draw this graph
-without crossings: G is not planar.'), Random, Tree (grey), Two columns (grey), Columns by group
-(grey), Keep positions.
+without crossings: G is not planar.'), Random, Tree (gray), Two columns (gray), Columns by group
+(gray), Keep positions.
 
 Hesitation: "Rings by group" sounds exactly like what I want -- clusters, separated -- but it's
-greyed out and says it needs a "node attribute to group by". I don't know what that is or where I'd
+grayed out and says it needs a "node attribute to group by". I don't know what that is or where I'd
 get one. The "No crossings" note reads like an error message from a programmer ("G is not planar"?).
 "Spectral" means nothing to me. Circle and Grid are words I know.
 
@@ -144,13 +144,13 @@ group needed something to group by -- maybe now it'll work. Back to Layout."
 
 Command: `--step ... --click "Layout"` -> 13.png
 
-Seen: exactly the same menu. "Rings by group", "Two columns" and "Columns by group" are still grey and
+Seen: exactly the same menu. "Rings by group", "Two columns" and "Columns by group" are still gray and
 still say "Needs a node attribute to group by".
 
 Elena: "What? I literally just made six groups and they're sitting in the left panel. Why doesn't
-the layout know about them? Maybe the grey text is just stale. Let me click Rings by group anyway."
+the layout know about them? Maybe the gray text is just stale. Let me click Rings by group anyway."
 
-## Step 14 -- click the grey "Rings by group"
+## Step 14 -- click the gray "Rings by group"
 
 Command: `--step ... --click "Rings by group"` -> 14.png
 
@@ -166,7 +166,7 @@ Command: `--step ... --click "Force"` -> 15.png
 
 Seen: "Pulls connected nodes together and pushes unconnected ones apart until the shape stops moving,
 in three dimensions or, with 'dim: 2', flat." Shape 3D/2D, Spring length 30, Gravity -1.2, Advanced,
-button "Applied" (greyed).
+button "Applied" (grayed).
 
 Hesitation: "with 'dim: 2'" reads like code. Gravity is negative, which is odd. Spring length I can
 guess at: longer springs, more space between things.
@@ -177,7 +177,7 @@ Elena: "Let me make the springs longer so the knot opens up -- 80 instead of 30 
 
 Command: `--step ... --click "Spring length" --key Control+a --type "80"` -> 16.png
 
-Seen: the field now reads 80, but the button at the bottom still says "Applied" and is grey, as if
+Seen: the field now reads 80, but the button at the bottom still says "Applied" and is gray, as if
 nothing changed.
 
 Elena: "Hmm, it still says Applied. Maybe it hasn't noticed my typing yet. I'll press Tab to leave
@@ -243,7 +243,7 @@ after that worked against me.
 **What confused me:**
 
 - "Rings by group", "Columns by group" and "Two columns" sound exactly like what I wanted, but stay
-  greyed out with "Needs a node attribute to group by" -- even after I had made six groups with
+  grayed out with "Needs a node attribute to group by" -- even after I had made six groups with
   Louvain and they were listed in the left panel. Nothing tells me what a "node attribute" is or how
   to make one.
 - Spectral's description promised "densely connected groups land near each other". In practice it

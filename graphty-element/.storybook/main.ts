@@ -49,7 +49,7 @@ const config: StorybookConfig = {
                     // No @babylonjs/core subpath here: vite.config.ts excludes @babylonjs/core, so
                     // Vite never discovers its subpaths mid-run, and pre-bundling one gives it a
                     // second copy of Babylon -- an InstancedMesh the element's deep imports fail
-                    // `instanceof` against, so every node reads as uncoloured.
+                    // `instanceof` against, so every node reads as uncolored.
                     // Imported only by the Graphviz layouts' Worker, which a Layout/Graphviz story
                     // starts after the page has loaded.
                     "@hpcc-js/wasm-graphviz",

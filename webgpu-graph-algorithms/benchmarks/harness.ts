@@ -54,7 +54,7 @@ export interface BenchResult {
 export interface BenchCase<T> {
     /** Build the input (not timed). Called once per run, the warm-up included. */
     readonly setup: () => T | Promise<T>;
-    /** The timed body; its return value is kept alive until the timing ends so it cannot be optimised away. */
+    /** The timed body; its return value is kept alive until the timing ends so it cannot be optimized away. */
     readonly run: (input: T) => unknown;
     /** Runs after the timing of each run (release what the run uploaded); not timed. */
     readonly teardown?: ((input: T) => void | Promise<void>) | undefined;
@@ -326,7 +326,7 @@ export interface BenchSession {
     readonly exposeGc: boolean;
     /** The adapter the session ran on. */
     readonly gpu: GpuSessionInfo;
-    /** runnerClass(gpu) at the time of the run (GRAPHTY_RUNNER_CLASS honoured). */
+    /** runnerClass(gpu) at the time of the run (GRAPHTY_RUNNER_CLASS honored). */
     readonly runnerClass: string;
     /** The results. */
     readonly results: readonly BenchResult[];

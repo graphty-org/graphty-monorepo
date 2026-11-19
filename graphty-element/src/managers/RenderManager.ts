@@ -60,8 +60,8 @@ import { FlashCounter, FlashReadback, QUALITY_LEVELS, RenderTargetBudget, Shader
  */
 interface RenderManagerConfig {
     /**
-     * The engine to draw with, already initialised. Left out, a WebGL engine is built on the
-     * canvas. A WebGPU engine has to be passed in: its initialisation is asynchronous and a scene
+     * The engine to draw with, already initialized. Left out, a WebGL engine is built on the
+     * canvas. A WebGPU engine has to be passed in: its initialization is asynchronous and a scene
      * cannot be built on it before that finishes -- see {@link openWebGPUEngine}.
      */
     engine?: Engine | WebGPUEngine;
@@ -235,7 +235,7 @@ async function loadShaderCompilers(): Promise<ShaderCompilers> {
  * @param sharesDevice - Asked of the adapter, before the device exists, whether the layout's
  *     accelerator will run on it too: that needs every limit and feature the adapter has.
  * @param antialias - Whether the engine multisamples (4x); the element's `antialias`.
- * @returns The initialised engine, or the reason there is none.
+ * @returns The initialized engine, or the reason there is none.
  */
 export async function openWebGPUEngine(
     canvas: HTMLCanvasElement,
@@ -376,7 +376,7 @@ function forgetDisposedScene(): void {
  * frame still queued for the context. On a software GPU a graph of 1000 labels that was drawn
  * faster than SwiftShader keeps up with leaves minutes of frames queued, and losing the context
  * at once blocked `dispose()` for that long. So a fence goes in after the last command, and the
- * context is lost only once the fence has signalled, which costs the page nothing.
+ * context is lost only once the fence has signaled, which costs the page nothing.
  * @param gl - The context of an engine that has just been disposed.
  */
 function releaseWhenIdle(gl: WebGLRenderingContext | WebGL2RenderingContext): void {
@@ -477,9 +477,13 @@ interface ShaderBackground {
     readonly dome: PhotoDome | null;
 }
 
-/** The session events after which the group outlines may draw other groups or members. */
+/**
+ * The session events after which the group outlines may draw other groups or members. A branches
+ * view starting or ending changes the painted stack without a `style:changed` (issue #8922).
+ */
 const OUTLINE_EVENTS = [
     "style:changed",
+    "style:branches-shown-changed",
     "history:changed",
     "project:changed",
     "run:changed",
@@ -990,7 +994,7 @@ export class RenderManager implements Manager {
         }
     };
     private readonly resizeHandler: () => void;
-    /** The one skybox dome, and the image it shows; null while the background is a colour. */
+    /** The one skybox dome, and the image it shows; null while the background is a color. */
     private dome: { readonly url: string; readonly dome: PhotoDome } | null = null;
     /** The background shader asked for, kept until {@link bindShaderScene} gives it a graph. */
     private shaderBackground: ShaderBackground | null = null;
@@ -1015,6 +1019,19 @@ export class RenderManager implements Manager {
     private readonly focusOnPointer = (): void => {
         this.canvas.style.outline = "none";
         this.canvas.focus({ preventScroll: true });
+    };
+
+    /**
+     * A release focuses the canvas only when its press began on the canvas. A press that began on
+     * the host page and ends over the drawing -- a menu item or a segmented option that acts on
+     * mouse-down and closes the popover above the canvas -- is the host's gesture: taking focus on
+     * its release threw away the focus the host had just moved (issue #8920).
+     * @param event - the release
+     */
+    private readonly focusOnRelease = (event: PointerEvent): void => {
+        if (this.pointersHeld.has(event.pointerId)) {
+            this.focusOnPointer();
+        }
     };
 
     /** The canvas lost focus, or took a key: from now on it shows the browser's ring. */
@@ -1059,7 +1076,7 @@ export class RenderManager implements Manager {
         this.scene.preventDefaultOnPointerDown = false;
         this.scene.preventDefaultOnPointerUp = false;
         this.canvas.addEventListener("pointerdown", this.focusOnPointer);
-        this.canvas.addEventListener("pointerup", this.focusOnPointer);
+        this.canvas.addEventListener("pointerup", this.focusOnRelease);
         this.canvas.addEventListener("blur", this.restoreFocusRing);
         this.canvas.addEventListener("keydown", this.restoreFocusRing);
         for (const type of READER_INPUT_EVENTS) {
@@ -1105,7 +1122,7 @@ export class RenderManager implements Manager {
         };
 
         // Store camera manager in scene metadata for access by other components
-        this.scene.metadata = this.scene.metadata ?? {};
+        this.scene.metadata ??= {};
         this.scene.metadata.cameraManager = this.camera;
 
         // Setup cameras
@@ -1177,7 +1194,7 @@ export class RenderManager implements Manager {
         globalThis.removeEventListener("pointerup", this.releasePointer);
         globalThis.removeEventListener("pointercancel", this.releasePointer);
         globalThis.removeEventListener("blur", this.releaseAllPointers);
-        this.canvas.removeEventListener("pointerup", this.focusOnPointer);
+        this.canvas.removeEventListener("pointerup", this.focusOnRelease);
         this.canvas.removeEventListener("blur", this.restoreFocusRing);
         this.canvas.removeEventListener("keydown", this.restoreFocusRing);
         for (const type of READER_INPUT_EVENTS) {
@@ -1518,7 +1535,8 @@ export class RenderManager implements Manager {
         // change that keeps the render size are not. An XR session draws in its own frames, so
         // nothing is drawn outside them.
         const resized = width !== this.engine.getRenderWidth() || height !== this.engine.getRenderHeight();
-        const xrState: WebXRState | undefined = this.scene.metadata?.xrHelper?.baseExperience?.state;
+        const xrState = (this.scene.metadata as { xrHelper?: { baseExperience?: { state?: WebXRState } } } | null)
+            ?.xrHelper?.baseExperience?.state;
         if (resized && (xrState === undefined || xrState === WebXRState.NOT_IN_XR)) {
             this.drawNow();
         }
@@ -1571,7 +1589,7 @@ export class RenderManager implements Manager {
      * Skipping a tick while {@link WEBGL_FRAMES_IN_FLIGHT} frames are unfinished keeps the queue
      * at that many frames. On WebGPU the same holds, at one frame, through
      * `queue.onSubmittedWorkDone()`, when `pacesWebGpuFrames` asks for it.
-     * @returns True while the fences of {@link WEBGL_FRAMES_IN_FLIGHT} frames are unsignalled.
+     * @returns True while the fences of {@link WEBGL_FRAMES_IN_FLIGHT} frames are unsignaled.
      */
     private gpuBehind(): boolean {
         if (this.webGpuFrameInFlight !== null) {
@@ -1584,7 +1602,7 @@ export class RenderManager implements Manager {
 
     /**
      * Drop the fences of the frames the GPU has finished. Fences signal in order, so the oldest
-     * unsignalled one means every newer one is too. A lost context answers null rather than a
+     * unsignaled one means every newer one is too. A lost context answers null rather than a
      * status; the fence is dropped as finished.
      */
     private forgetFinishedFences(): void {
@@ -1618,7 +1636,7 @@ export class RenderManager implements Manager {
      * picture called final, while an older frame is still on the GPU; a wait for the final picture
      * asks this so it ends only once that frame is done (issues #8344, #8346).
      * @param frame - The frame's number, from {@link fencedFrames}.
-     * @returns True once its fence, or a newer one, has signalled, or the context that made it is gone.
+     * @returns True once its fence, or a newer one, has signaled, or the context that made it is gone.
      * @internal
      */
     gpuFinishedFrame(frame: number): boolean {
@@ -1643,7 +1661,7 @@ export class RenderManager implements Manager {
         }
 
         // A frame drawn by drawNow while the GPU was behind pushes out the oldest fence still
-        // unsignalled; the newer ones signal after it, so it is no longer needed.
+        // unsignaled; the newer ones signal after it, so it is no longer needed.
         if (this.frameFences.length >= WEBGL_FRAMES_IN_FLIGHT) {
             gl.deleteSync(this.frameFences.shift()?.sync ?? null);
         }
@@ -1811,7 +1829,7 @@ export class RenderManager implements Manager {
      * ready to draw, an every-frame animation, the reader's input on
      * the canvas, an event the element announced, a new callback waiting for the next frame, or
      * anything the last frame drawn moved while it was drawn -- the camera, the canvas size, the
-     * background colour. The last is what keeps a camera gliding to rest when something moves it
+     * background color. The last is what keeps a camera gliding to rest when something moves it
      * only inside a frame (an onBeforeRender observer), so the loop draws until a frame leaves it
      * where it began.
      * @returns True when this tick draws nothing.
@@ -2110,11 +2128,11 @@ export class RenderManager implements Manager {
     }
 
     /**
-     * Draw the graph against a background, bottom to top: the clear colour (its own, else the
+     * Draw the graph against a background, bottom to top: the clear color (its own, else the
      * default), a photo-dome skybox, and a background shader drawn over them once it compiled.
      * While the shader draws, the shader pass draws the skybox image beneath it and the dome hides.
      *
-     * The scene holds at most one dome. A colour disposes it; a different skybox replaces it; the
+     * The scene holds at most one dome. A color disposes it; a different skybox replaces it; the
      * skybox already shown is left alone, so drawing the same background again (a redo, a repeat)
      * builds nothing.
      * @param background - The background, parsed.
@@ -2246,16 +2264,16 @@ export class RenderManager implements Manager {
         this.requestFrame();
     }
 
-    /** The graph's own background colour, last applied. */
+    /** The graph's own background color, last applied. */
     #backgroundColor = DEFAULT_BACKGROUND_COLOR;
 
-    /** A colour drawn in place of the graph's background (a globe's look), or null. */
+    /** A color drawn in place of the graph's background (a globe's look), or null. */
     #backgroundOverride: string | null = null;
 
     /**
-     * Clear the canvas to a colour in place of the graph's background colour, or null to draw the
+     * Clear the canvas to a color in place of the graph's background color, or null to draw the
      * graph's own again. A skybox, when the graph has one, still covers it.
-     * @param color - Hex colour string, or null.
+     * @param color - Hex color string, or null.
      */
     set backgroundOverride(color: string | null) {
         if (color === this.#backgroundOverride) {

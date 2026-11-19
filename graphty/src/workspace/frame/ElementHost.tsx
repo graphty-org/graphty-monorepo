@@ -124,9 +124,10 @@ export function ElementHost({
         }),
         [allLabelsShown, labelsAvoid, sizeSpace, layoutShownOnly, followSelection],
     );
-    // A reader who prefers less motion gets camera moves without the glide, and the globe is drawn
-    // as the earth from space (constants/globe.ts). View settings, written on the element; they
-    // record no step.
+    // A reader who prefers less motion gets camera moves without the glide and a layout drawn once
+    // it has settled instead of moving into place (graphty-element follows the platform's setting),
+    // and the globe is drawn as the earth from space (constants/globe.ts). View settings, written on
+    // the element; they record no step.
     const still = useReducedMotion();
     useEffect(() => {
         const element = ref.current;
@@ -134,6 +135,7 @@ export function ElementHost({
             return undefined;
         }
 
+        element.reducedMotion = "auto";
         element.cameraTransitionDuration = still ? 0 : undefined;
         element.globeLook = APP_GLOBE_LOOK;
         return undefined;

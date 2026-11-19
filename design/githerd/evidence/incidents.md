@@ -31,9 +31,9 @@ trouble below comes from that second period, which is the load githerd will see.
 | Merged PRs that never had a failed CI run | 166 of 265 (63%) |
 | Median merge time, no CI failure vs at least one | 0.6 h vs 11.2 h |
 | CI runs on pull requests that failed | 276 of 677 (41%) |
-| Master CI: separate red stretches | 19, totalling 192 h |
+| Master CI: separate red stretches | 19, totaling 192 h |
 | Master CI red share, last 10 days | about 63 h of 240 h (26%) |
-| Release workflow runs that failed | 114 of 439 (the rest: 177 success, 122 skipped, 26 cancelled) |
+| Release workflow runs that failed | 114 of 439 (the rest: 177 success, 122 skipped, 26 canceled) |
 | Hours during which no release could go out | 221 h across 28 stretches; longest 105 h |
 | Issues filed | 470 (307 of them in one bulk filing on 09-24); 252 closed |
 | Issue open-to-close time | median 53 h; critical 9.6 h; high 45 h; medium 62 h |
@@ -61,7 +61,7 @@ The other required lanes on master:
 
 | Lane | Red time | Main causes |
 |---|---|---|
-| GPU (NVIDIA T4) | 75 h in 6 stretches | A temporary "verify a crash writes no core dump" step that failed on every run for 9 h (`ulimit` not permitted on the runner) and blocked every release until it was removed; a test import failure after the graph-format migration; the runner provider's free plan killing the job at 30 minutes. 118 of 256 runs were cancelled by newer pushes. |
+| GPU (NVIDIA T4) | 75 h in 6 stretches | A temporary "verify a crash writes no core dump" step that failed on every run for 9 h (`ulimit` not permitted on the runner) and blocked every release until it was removed; a test import failure after the graph-format migration; the runner provider's free plan killing the job at 30 minutes. 118 of 256 runs were canceled by newer pushes. |
 | Hosts (Windows / macOS) | 19 h in 4 stretches | Windows-only failures: a bench-groups test that compares file paths with forward slashes and receives `src\accelerator.ts`. This lane runs only on master and only when certain paths change, so the first time anyone sees a Windows failure is after merge. |
 | Coverage | 0.7 h | Coveralls returned HTTP 500. |
 
@@ -190,9 +190,9 @@ master and merged when the required checks pass.
 - 218 open: 64 bugs (12 critical or high), 108 enhancements, 18 infrastructure. 13 carry
   `needs-decision` and 14 `blocked`; most of those date from the 09-24 bulk filing and have not been
   revisited.
-- Re-triage already proved necessary: on 09-24, 48 issues were labelled `needs-decision` because
+- Re-triage already proved necessary: on 09-24, 48 issues were labeled `needs-decision` because
   their text said "the owner decides"; after review against the one-way-door rule only 4 remained.
-  On 09-26 the whole queue was relabelled when the effort label was introduced.
+  On 09-26 the whole queue was relabeled when the effort label was introduced.
 - Issue topics: GPU and WebGPU (74 titles), API and documentation gaps (40), CI and release (36),
   visual and Storybook (30), performance (17), contrast and accessibility (10). Since 10-02 new
   issues also come from SonarQube burn-down stages and the Cytoscape integration study.
@@ -395,7 +395,7 @@ same master commit, so every red master is also a stopped release.
 | 1 | 09-20 ~04:00 | Master release failed after merging PR 13 | Agent watching the release, minutes | T4 benchmark compare flagged a 4-byte round-trip row at 7.8x its baseline; the row measures cloud-VM submit latency and is noise | New baseline session appended from the PR's lane run | The benchmark job conclusion on master |
 | 2 | 09-20 05:46 | Release that should cut layout 1.7.0 died before publishing | Agent watching the release | `nx release` refuses a dependent's peer range (`^1.7.0`) that excludes the dependency's current version (1.6.2) | Owner-signed fix commit widening to `^1.6.2`, narrowing commit later | The release job log; a release dry run on the PR would have shown it |
 | 3 | 09-20 06:39 | Master CI red | Agent | Unseeded spectral layout test (random start vector) | Re-run; seeded test later | CI conclusion on master |
-| 4 | 09-20 15:23 | The merge commit's release would have published 1.0.0 of a 0.x package | Agent, before it ran | nx release major bump on a breaking marker in a 0.x package | Watcher cancelled the release run; nx option committed (owner-signed) | A release dry run on the PR |
+| 4 | 09-20 15:23 | The merge commit's release would have published 1.0.0 of a 0.x package | Agent, before it ran | nx release major bump on a breaking marker in a 0.x package | Watcher canceled the release run; nx option committed (owner-signed) | A release dry run on the PR |
 | 5 | 09-21 23:23 | GPU lane killed on master and on the PR: "free plan runners are limited to 30 minutes" | Agent, while watching the PR | machine.dev free plan cap; the phase roughly doubled the lane's work | See section 4 (split, credits, subscription) | Job duration trending toward 30 minutes over earlier runs |
 | 6 | 09-22 ~19:50 | Master red on three shards; release failed | Agent, while doing other work | 20 test jobs x 9 artifact downloads = 180 calls in one second; three got HTTP 403 | Re-run of failed jobs; GPU lane re-dispatched on master; owner re-ran the release (publishing was the owner's call) | CI conclusion on master |
 | 7 | 09-22 to 09-23 | Master carried a crashing test file, a logger port flake, the Windows scan defect and a blind benchmark gate, while all fixes lived on a phase branch | Nobody watching master; found 09-23 06:59 when a docs-only PR went red | Fixes stranded on an unmerged branch | Landed when the phase PR merged 09-23 21:32 | Master CI conclusion; "a docs-only PR fails" is a master signal |
@@ -484,7 +484,7 @@ environment PR cannot merge.
 | app College football | intermittent | layout paced per frame on a slow renderer | PR 624 |
 | camera framing | intermittent on slow CI | pending framing request fired after explicit placement | PR 699 |
 | glibc futex abort in a GPU shard | intermittent | newer Mesa than ever validated | re-run; environment phase |
-| compact-mantine glyph story | blocked any PR capturing compact-mantine | zero-radius stroke rasterised nondeterministically | PR 605 (and a duplicate PR 606 from the other session) |
+| compact-mantine glyph story | blocked any PR capturing compact-mantine | zero-radius stroke rasterized nondeterministically | PR 605 (and a duplicate PR 606 from the other session) |
 | unseeded story status flip | blocked unrelated PRs | a story with no baseline flipped between "new" and "no baseline yet" on alternate master runs | fixed inside PR 628 |
 | fake-GPU and AI Control stories | timed out or unstable in capture | idle scenes redrawn every frame; data added in two steps | PR 607 |
 
@@ -514,7 +514,7 @@ minus files reported" printed on any non-zero exit.
 
 Eighteen files failed only on the Windows host leg. Three shader rewrites, about 4.5 hours of
 80 to 90 minute runner rounds, were built on a compiler-bug theory. The cause was Microsoft's
-in-box WARP software renderer (a synchronisation bug, nondeterministic between two runs in the
+in-box WARP software renderer (a synchronization bug, nondeterministic between two runs in the
 same job), fixed by copying a newer WARP DLL next to Node. A 15-minute dispatch-only lane made
 each question cheap once it existed. Earliest signal: two different wrong answers from identical
 code in one job, and a public issue with the same symptom on the same renderer.
@@ -561,7 +561,7 @@ only in CI.
 | 09-30, 10-01 | Push and gate failed on network: "could not resolve github.com", "release-assets.githubusercontent.com" | DNS or connectivity flakes on this host | |
 | 10-01 08:27 | A subagent's push failed on DNS after the gate passed; the classifier then blocked its retries; pushed 4 hours later after owner approval | | |
 | 10-02 19:05 | A test that runs `git init` during the pre-push checks could flip the MAIN checkout to `core.bare=true` until the other session's fix (PR 725) | Hook environment variables leaking into test git commands | `git config core.bare` on the main checkout |
-| 10-02 20:19 to 01:33 | Pushes waited 60 to 120 minutes in the machine-wide push lock (a subagent's push ~1 h; githerd's owner-only change ~76 min; the prioritization change ~2 h) | One lock serialising 15-minute gates across two sessions and their subagents | Lock queue depth and wait time |
+| 10-02 20:19 to 01:33 | Pushes waited 60 to 120 minutes in the machine-wide push lock (a subagent's push ~1 h; githerd's owner-only change ~76 min; the prioritization change ~2 h) | One lock serializing 15-minute gates across two sessions and their subagents | Lock queue depth and wait time |
 | 09-27 | Two gates bypassed with `--no-verify` under load | Load made the gate impractical | |
 | 10-01 15:15 | A subagent skipped the commit hook to get past the interactive prompt on a merge commit | Same Commitizen hook | |
 
@@ -716,13 +716,13 @@ for checks that could never appear (09-26).
 | When | What happened | Resolution |
 |---|---|---|
 | 09-20 | nx refused a peer range excluding the current version | interim range, narrowed later |
-| 09-20 | 0.x package would have gone to 1.0.0 | release run cancelled; nx option |
+| 09-20 | 0.x package would have gone to 1.0.0 | release run canceled; nx option |
 | 09-24 | A merge landing mid-release broke a release with a non-fast-forward push (reported by the other session) | |
 | 09-29 to 09-30 | Grouped breaking release split: half published as 3.0.0 | version plan file, temporary release group, a guard that fails if the group outlives its plan |
 | 09-30 | Release stuck: tags pushed, version commit refused, nothing published | manual landing PR, then a cleanup PR that had to wait until npm had 3.1.0 or npm's "latest" would go backwards |
 | 09-30 | npm 403 for a new package with no trusted publisher; owner also had to tick "allow npm publish" | owner on npmjs.com |
 | 09-28 | nx release writes unformatted CHANGELOGs that the gate rejects | formatted by hand |
-| 10-02 | Breaking PRs must not auto-merge: PR 676 (element 4.0 alone), PR 409 (compact-mantine major), PR 702 (AI key store, discovered breaking only after it was built). PR 690 (remote-logger 2.0) was let through because it unblocked every PR's audit | held and labelled by hand |
+| 10-02 | Breaking PRs must not auto-merge: PR 676 (element 4.0 alone), PR 409 (compact-mantine major), PR 702 (AI key store, discovered breaking only after it was built). PR 690 (remote-logger 2.0) was let through because it unblocked every PR's audit | held and labeled by hand |
 | 10-01 | Seeded-result changes in two algorithms needed an owner call: fix or breaking | owner chose fix |
 
 ---
@@ -833,7 +833,7 @@ GPU PRs untouched for two days; built GPU work that no consumer routed to, so it
 | 09-20 | Coverage on the dev box crashed a vitest worker at default parallelism |
 | 09-23 18:35 | Load average above 500 during whole-project runs; local reds were the box |
 | 09-23 19:45 | Load 60+ from the other session |
-| 09-26 23:26 | Every headless Chromium benchmark on this machine had silently run on a software rasteriser or hung: no system `libEGL.so.1`. "Cost an afternoon to rediscover" |
+| 09-26 23:26 | Every headless Chromium benchmark on this machine had silently run on a software rasterizer or hung: no system `libEGL.so.1`. "Cost an afternoon to rediscover" |
 | 09-27 10:47 | Load 30 to 186 during a whole batch; individual passes 5,000 ms for 20 ms of work; a PR that set thresholds from timings was invalid |
 | 10-01 12:14 | Out of memory (section 13) |
 | 10-02 14:17 | Load 81 on 32 threads |

@@ -473,7 +473,7 @@ ordinary data columns (`data.graphty.notes.count`), never as notes.
   is an `i32` column, unset (not zero) on an element no note names.
 - The 64 KB cap is 65,536 UTF-8 bytes, cut back to a code point boundary.
 - `W_GRAPHTY_CSV_NEUTRALIZED` was not reported by the CSV writer before this step, though
-  export-mapping.md requires it. It is now reported for every neutralised cell (data, results,
+  export-mapping.md requires it. It is now reported for every neutralized cell (data, results,
   ids, headers and note text), with `count` the number of cells; a header is counted once per
   record that carries the key.
 - Not changed, and recorded here: GML refuses the two column names unless the caller passes

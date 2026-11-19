@@ -8,7 +8,7 @@
  * switches on rather than a string it has to invent.
  *
  * Both are the element's job rather than the consumer's, and the evidence is on the record: the
- * one consumer carries 449 lines modelling this package's internals, and its own history says
+ * one consumer carries 449 lines modeling this package's internals, and its own history says
  * the model was wrong by 6.9x at 200,000 nodes, so a graph it estimated at 2.10 seconds locked
  * the frame for 10.4.
  */

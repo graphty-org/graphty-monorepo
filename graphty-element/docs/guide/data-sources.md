@@ -936,8 +936,8 @@ Left unset -- the default -- a repeat is decided by the ordered endpoint pair al
 
 ## Large Dataset Tips
 
-The element holds at most `DEFAULT_LIMITS.renderCeiling` nodes (50,000) and
-`DEFAULT_LIMITS.edgesDrawn` edges (100,000), exported from `@graphty/graphty-element/session`. A
+The element holds at most `DEFAULT_LIMITS.renderCeiling` nodes (100,000) and
+`DEFAULT_LIMITS.edgesDrawn` edges (1,000,000), exported from `@graphty/graphty-element/session`. A
 load that would cross either fails with `E_TOO_LARGE`; `details` carry the limit, the count the
 load would have reached and the counts the graph holds. The refusal is decided before the graph
 is touched: nothing from the refused batch is held, and assigning `edgeData` past the ceiling

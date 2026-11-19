@@ -2,7 +2,7 @@
  * @file What attributes the graph's records carry, described as data, and the counters that track
  * writes to them.
  *
- * An options form, a filter builder, a colour encoding and a column picker all need the same
+ * An options form, a filter builder, a color encoding and a column picker all need the same
  * four facts about every attribute: what it is called, what type its values are, how many
  * records actually carry it, and what a few of its values look like. Each of those is a walk
  * over the graph, so each of them is the element's to do once rather than every consumer's to do
@@ -148,7 +148,7 @@ function accumulate(accumulator: Accumulator, value: unknown, id?: string | numb
  *
  * A column of integers and fractions is a number column, not a mixed one -- that is one type of
  * thing measured two ways. A column of numbers and strings is genuinely mixed, and saying so is
- * what stops a colour scale being offered for it.
+ * what stops a color scale being offered for it.
  * @param types - the value types seen
  * @returns the attribute's type
  */
@@ -165,12 +165,17 @@ function settleType(types: ReadonlySet<AttributeType>): AttributeType {
     return "mixed";
 }
 
+/** At most this many distinct values still make groups on a small graph, as a ten-color legend shows them. */
+const FEW_GROUPS = 10;
+
 /**
  * Whether a string attribute is a category rather than free text.
  *
  * The test is "few distinct values, many records", because that is what makes a legend readable
  * and a group-by useful. A column of 400 distinct labels over 400 nodes is an identifier; a
- * column of 4 over 400 is a category, and a palette should be offered for it.
+ * column of 4 over 400 is a category, and a palette should be offered for it. On a small graph the
+ * square root is too strict (3 values over 6 nodes would be text), so a column of at most
+ * {@link FEW_GROUPS} values that each come back twice on average is a category too.
  * @param accumulator - what the walk saw
  * @param total - how many records of that kind there are
  * @returns true when the attribute should be described as a category
@@ -180,7 +185,8 @@ function isCategorical(accumulator: Accumulator, total: number): boolean {
         return false;
     }
 
-    return accumulator.unique.size <= Math.max(2, Math.sqrt(total));
+    const distinct = accumulator.unique.size;
+    return distinct <= Math.max(2, Math.sqrt(total)) || (distinct <= FEW_GROUPS && distinct * 2 <= accumulator.present);
 }
 
 /**
@@ -442,7 +448,7 @@ export function describeShownFigures(
  * One session-wide counter that moves whenever any input a set's resolution can read moves: an
  * attribute revision, a visibility or selection mask version, an execution token or a freeze.
  *
- * A memo keyed on it can never outlive an input it summarises, which is its whole job: a reader
+ * A memo keyed on it can never outlive an input it summarizes, which is its whole job: a reader
  * that saw the same tick twice knows nothing it could have read has changed in between.
  */
 export class InputTick {

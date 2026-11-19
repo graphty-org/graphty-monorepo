@@ -7,7 +7,7 @@
  * with the element -- JSON, GraphML, GEXF, CSV, GML, DOT and Pajek -- and every one of them is a
  * subclass of the same `DataSource` base that is published to third parties. Registering a
  * subclass files the reader under a name AND publishes the format's description, which is what
- * puts it in the catalogue a picker is built from and in the detection a dropped file goes
+ * puts it in the catalog a picker is built from and in the detection a dropped file goes
  * through. A host then reaches it by name -- `element.dataSource`, `addDataFromSource` -- or by
  * handing the element a file and letting it work the format out.
  *
@@ -21,7 +21,7 @@
  * "roster" format: one verb per line, `person <id> <team> <score>` and `knows <a> <b> <bond>`,
  * with an optional `roster directed` header. It is deliberately trivial to parse, because what is
  * under test is never the parsing. What is under test is everything the element wraps around a
- * parser: appearing in the catalogue and being found by name and by extension, being recognised
+ * parser: appearing in the catalog and being found by name and by extension, being recognized
  * from a file name and from a file's first bytes with no format argument at all, streaming chunk
  * by chunk into a graph that grows as they arrive, progress and completion reported to the host
  * under the format's own name, per-record validation that drops a bad row instead of the whole
@@ -37,7 +37,7 @@
  * sniffer throws, so a broken guess can be shown to be an answer rather than a failed import.
  *
  * ONE STATED LIMIT, so it is found as a decision rather than as an absence. An import cannot be
- * cancelled part-way through -- not this one, and not any of the element's own seven, which carry
+ * canceled part-way through -- not this one, and not any of the element's own seven, which carry
  * no cancellation seam either. Parity holds because there is nothing to be at parity with, and
  * there is no test below for it because a test that passes whichever way the code goes is worth
  * nothing.
@@ -103,7 +103,7 @@ const ROSTER_FORMAT = "roster";
  * What a host may pass when it asks for this format.
  *
  * The members come from the element: `data` / `file` / `url` and `chunkSize` / `errorLimit` are
- * declared by `BaseDataSourceConfig` and are honoured by the base class, so a format author
+ * declared by `BaseDataSourceConfig` and are honored by the base class, so a format author
  * writes none of the code behind them. `scoreScale` is this format's own, and it is here to prove
  * that a host can pass a source an option the element knows nothing about -- a real format needs
  * that for a delimiter, a projection, a credential.
@@ -114,13 +114,13 @@ interface RosterConfig extends BaseDataSourceConfig {
 }
 
 /**
- * What the catalogue publishes about the roster format.
+ * What the catalog publishes about the roster format.
  *
  * This is plain data of a type the element already publishes, and it is everything a file picker,
  * a drop target and an import dialog need: what the format is called in words, what its files are
  * called, what a server calls it, whether it can be read and written, and what can be configured
  * about reading it. `scoreScale` is declared here once and is therefore the same declaration the
- * catalogue hands a form, the same one defaults are filled from, and the same one a bad value is
+ * catalog hands a form, the same one defaults are filled from, and the same one a bad value is
  * refused against.
  */
 const ROSTER_DESCRIPTOR: FormatDescriptor = {
@@ -149,7 +149,7 @@ const ROSTER_DESCRIPTOR: FormatDescriptor = {
  *
  * A streaming source is defined by what happens BETWEEN chunks, and a test can only observe that
  * from inside the gap. It is a module-level hook rather than a member of {@link RosterConfig}
- * because the roster format declares its options to the catalogue and refuses one it did not
+ * because the roster format declares its options to the catalog and refuses one it did not
  * declare, and a test hook is not an option any host would ever set.
  */
 let beforeChunk: ((chunkIndex: number) => void) | null = null;
@@ -264,18 +264,18 @@ function parseRoster(text: string, scoreScale: number): ParsedRoster {
  *
  * Fetching the bytes, retrying a failed fetch, splitting the records into chunks, validating each
  * record against the schemas below, collecting the rejects, publishing the description to the
- * catalogue and checking the host's options against it are all inherited. What this class adds is
+ * catalog and checking the host's options against it are all inherited. What this class adds is
  * the parser and nothing else.
  */
 class RosterDataSource extends DataSource {
     /** The name a host asks for this format by, and the name the reader is filed under. */
     static type = ROSTER_FORMAT;
 
-    /** What the catalogue publishes about it. Registration refuses a reader without one. */
+    /** What the catalog publishes about it. Registration refuses a reader without one. */
     static descriptor: FormatDescriptor = ROSTER_DESCRIPTOR;
 
     /**
-     * Recognise a roster by its first bytes, so a file whose name says nothing still loads.
+     * Recognize a roster by its first bytes, so a file whose name says nothing still loads.
      *
      * Asked only after every one of the element's own sniffers has been asked, which is what
      * stops a third party's guess from taking a file the element already reads.
@@ -382,7 +382,7 @@ class AcmeXmlDataSource extends DataSource {
     /** The name a host asks for this format by. */
     static type = ACME_XML_FORMAT;
 
-    /** What the catalogue publishes about it. */
+    /** What the catalog publishes about it. */
     static descriptor: FormatDescriptor = {
         id: ACME_XML_FORMAT,
         plainName: "Acme Roster XML",
@@ -394,7 +394,7 @@ class AcmeXmlDataSource extends DataSource {
     };
 
     /**
-     * Recognise the dialect by its root element, which is what tells it from the other two XML
+     * Recognize the dialect by its root element, which is what tells it from the other two XML
      * formats that claim the same extension.
      * @param sample - The first bytes of the file, as text.
      * @returns Whether this is an Acme roster.
@@ -457,7 +457,7 @@ class GreedyDataSource extends RosterDataSource {
     /** The name a host asks for this format by. */
     static override type = GREEDY_FORMAT;
 
-    /** What the catalogue publishes about it. */
+    /** What the catalog publishes about it. */
     static override descriptor: FormatDescriptor = {
         ...ROSTER_DESCRIPTOR,
         id: GREEDY_FORMAT,
@@ -489,7 +489,7 @@ class BrokenSnifferDataSource extends RosterDataSource {
     /** The name a host asks for this format by. */
     static override type = BROKEN_SNIFFER_FORMAT;
 
-    /** What the catalogue publishes about it. */
+    /** What the catalog publishes about it. */
     static override descriptor: FormatDescriptor = {
         ...ROSTER_DESCRIPTOR,
         id: BROKEN_SNIFFER_FORMAT,

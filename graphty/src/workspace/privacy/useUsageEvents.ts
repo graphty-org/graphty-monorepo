@@ -49,7 +49,7 @@ const PATCH_ACTIONS: ReadonlySet<string> = new Set<Extract<SessionCommand, { op:
  * The ids `panel_opened` may send (section 4.2): every dialog id the app sets in the store, the
  * places and the pages. The dialogs that have a constant are named by it.
  */
-export const PANEL_IDS: ReadonlySet<string> = new Set([
+const PANEL_IDS: ReadonlySet<string> = new Set([
     // dialogs
     ...TOOLBAR_POPOVERS,
     "about",
@@ -93,7 +93,7 @@ export function panelId(id: string): string {
  * @param code - the code, if any.
  * @returns the code or "other".
  */
-export function knownCode(code: unknown): string {
+function knownCode(code: unknown): string {
     return isGraphtyErrorCode(code) ? code : "other";
 }
 
@@ -103,7 +103,7 @@ export function knownCode(code: unknown): string {
  * @param session - the project's session.
  * @returns the allowlists.
  */
-export function loadAllowlists(session: GraphSession): LoadAllowlists {
+function loadAllowlists(session: GraphSession): LoadAllowlists {
     const { catalog } = session;
     return {
         datasets: new Set(catalog.datasets().map((dataset) => dataset.name)),
@@ -132,7 +132,7 @@ export function layoutChanged(session: GraphSession, layout: string, outcome: "a
  * @param session - the project's session.
  * @param loaded - the event.
  */
-export function countLoaded(session: GraphSession, loaded: SourceLoaded): void {
+function countLoaded(session: GraphSession, loaded: SourceLoaded): void {
     const mapped = sourceLoadedEvent(loaded, loadAllowlists(session));
     if (mapped !== null) {
         count(mapped.name, mapped.props);
@@ -172,7 +172,7 @@ function selectionTarget(nodes: number, edges: number): string {
  * @param session - the project's session.
  * @returns a function that unsubscribes every one.
  */
-export function watchSession(session: GraphSession): () => void {
+function watchSession(session: GraphSession): () => void {
     // The last graph_action sent, by its coalesceKey and the undo step it went into: one slider
     // drag sends one event, at its start. The key alone names a target (a layer's color, a
     // filter), not a gesture, so a later edit of the same target is a new gesture once the
@@ -270,7 +270,7 @@ export function watchSession(session: GraphSession): () => void {
  * @param store - the workspace store.
  * @returns a function that stops listening.
  */
-export function watchPanels(store: WorkspaceStore): () => void {
+function watchPanels(store: WorkspaceStore): () => void {
     let { dialog, place, page, project, opened } = store.get();
     let opening = false;
     const follow = (run: Promise<void> | null): void => {

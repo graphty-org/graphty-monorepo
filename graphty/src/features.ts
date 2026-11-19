@@ -7,9 +7,7 @@
  * get the same checks as graphty-element's `FEATURES`.
  */
 
-import { useSyncExternalStore } from "react";
-
-import { onSiteConfig, siteConfig } from "./siteConfig";
+import { siteConfig } from "./siteConfig";
 
 /** An experiment of the app alone. */
 interface AppFeature {
@@ -24,7 +22,10 @@ interface AppFeature {
 /** The ids of the app's own experiments. */
 export type AppFeatureId = "usage-analytics";
 
-/** The app's own experiments, with their tracking issues. */
+/**
+ * The app's own experiments, with their tracking issues. Exported for tools/check-features.mjs, which reads it as text.
+ * @public
+ */
 export const APP_FEATURES: readonly AppFeature[] = Object.freeze([
     // PostHog's anonymous counts and shared mode, surveys, and the words and links that describe
     // them (design/graphty/usage-analytics.md); off, the app sends PostHog nothing and loads none of it.
@@ -39,13 +40,4 @@ export const APP_FEATURES: readonly AppFeature[] = Object.freeze([
  */
 export function appFeatureOn(id: AppFeatureId, features: readonly string[] = siteConfig().features): boolean {
     return features.includes(id) || features.includes("all");
-}
-
-/**
- * `appFeatureOn` for a component: renders again once the site configuration has loaded.
- * @param id - the experiment.
- * @returns true when it is on.
- */
-export function useAppFeature(id: AppFeatureId): boolean {
-    return useSyncExternalStore(onSiteConfig, () => appFeatureOn(id));
 }

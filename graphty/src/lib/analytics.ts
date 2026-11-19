@@ -29,7 +29,7 @@ type Value = string | number | boolean;
 export type UsageProps = Readonly<Record<string, Value | undefined>>;
 
 /** The `ref` and `utm_*` values kept; any other non-empty value is sent as "other". Extend by editing. */
-export const KNOWN_CHANNELS: readonly string[] = [
+const KNOWN_CHANNELS: ReadonlySet<string> = new Set([
     "hn",
     "reddit",
     "x",
@@ -40,7 +40,7 @@ export const KNOWN_CHANNELS: readonly string[] = [
     "newsletter",
     "email",
     "producthunt",
-];
+]);
 const CHANNEL_PARAMS = ["ref", "utm_source", "utm_medium", "utm_campaign"] as const;
 
 /** The PostHog survey names the app looks for (the owner names the surveys exactly these). */
@@ -199,7 +199,7 @@ export function isGraphActionOp(op: string): boolean {
 }
 
 /** Control ids for clickable controls that run no registered command (decision 15). */
-export const FIXED_CONTROL_IDS: ReadonlySet<string> = new Set([
+const FIXED_CONTROL_IDS: ReadonlySet<string> = new Set([
     "usage-data.share",
     "usage-data.decline",
     "start.open-file",
@@ -419,7 +419,7 @@ function channelValue(value: string | null): string | undefined {
         return undefined;
     }
     const lower = value.toLowerCase();
-    return KNOWN_CHANNELS.includes(lower) ? lower : "other";
+    return KNOWN_CHANNELS.has(lower) ? lower : "other";
 }
 
 /**

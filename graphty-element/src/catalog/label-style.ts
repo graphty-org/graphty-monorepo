@@ -21,6 +21,7 @@
 
 import { DEFAULT_LABEL_GRADIENT_COLORS, defaultRichTextLabelStyle } from "../config/RichTextStyle";
 import type { LabelLookId } from "./label-looks";
+import type { Channel } from "./types";
 
 /**
  * Where a label sits relative to the node or edge it belongs to: beyond a side or a corner of it, in its middle
@@ -767,6 +768,13 @@ export interface LabelStyleFieldDescriptor {
      */
     readonly drawnWhen?: readonly LabelFieldCondition[];
     /**
+     * The label style channels (`node.labelStyle`, `edge.arrowHeadTextStyle`, ...) whose text the field draws on,
+     * where that is not every one: `declutter` thins node labels only, and a tooltip is always drawn on top, so
+     * `onTop` does nothing there. Absent on a field drawn on every text kind.
+     * @since 3.62.0
+     */
+    readonly drawnOn?: readonly Channel[];
+    /**
      * The field's first value when a style editor adds it, where its default draws too little to
      * see: a label three node sizes tall reads at the default camera on a fitted graph, where the
      * default (one node size) is a few pixels. Absent where the default is a fine first value.
@@ -788,7 +796,27 @@ export type LabelFieldCondition =
     | { readonly field: keyof LabelStyle; readonly unset: true }
     | { readonly dimension: "2d" | "3d" };
 
-type FieldRow = Omit<LabelStyleFieldDescriptor, "field" | "default" | "drawnWhen" | "start">;
+type FieldRow = Omit<LabelStyleFieldDescriptor, "field" | "default" | "drawnWhen" | "drawnOn" | "start">;
+
+const NODE_TEXTS: readonly Channel[] = ["node.labelStyle", "node.xlabelStyle", "node.tooltipStyle"];
+
+/** Each field drawn on some text kinds only: see {@link LabelStyleFieldDescriptor.drawnOn}. */
+const FIELD_DRAWN_ON: Partial<Record<keyof LabelStyle, readonly Channel[]>> = {
+    // thins overlapping node labels
+    declutter: ["node.labelStyle"],
+    // an edge has no node size to measure, nor a node's box to fill
+    minNodeScreenSize: NODE_TEXTS,
+    box: NODE_TEXTS,
+    // a tooltip is always drawn on top
+    onTop: [
+        "node.labelStyle",
+        "node.xlabelStyle",
+        "edge.labelStyle",
+        "edge.xlabelStyle",
+        "edge.arrowHeadTextStyle",
+        "edge.arrowTailTextStyle",
+    ],
+};
 
 /** Each field's first value where its default draws too little: see {@link LabelStyleFieldDescriptor.start}. */
 const FIELD_START: Partial<Record<keyof LabelStyle, number>> = { size: 3, sizePx: 3 * 48 };
@@ -1010,11 +1038,13 @@ export const LABEL_STYLE_DESCRIPTORS: readonly LabelStyleFieldDescriptor[] = Obj
     LABEL_STYLE_FIELDS.map((field): LabelStyleFieldDescriptor => {
         const value = LABEL_STYLE_DEFAULTS[field];
         const drawnWhen = FIELD_DRAWN_WHEN[field];
+        const drawnOn = FIELD_DRAWN_ON[field];
         return Object.freeze({
             field,
             ...FIELD_ROWS[field],
             ...(value === undefined ? {} : { default: value }),
             ...(drawnWhen === undefined ? {} : { drawnWhen }),
+            ...(drawnOn === undefined ? {} : { drawnOn }),
             ...(FIELD_START[field] === undefined ? {} : { start: FIELD_START[field] }),
         });
     }),

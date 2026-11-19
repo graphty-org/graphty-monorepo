@@ -7,19 +7,11 @@
  */
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
-import type { LabelStyle } from "../../src/catalog";
 import { Graph, operationQueueOf } from "../../src/Graph";
 import { silentFields, type TextKind } from "../helpers/label-fields";
 import { asData } from "../helpers/testSetup";
 
-/** What no edge text draws, with the documented reason. */
-const NOT_ON_EDGES: Partial<Record<keyof LabelStyle, string>> = {
-    declutter: "LabelStyle.declutter: node labels only.",
-    minNodeScreenSize: "LabelStyle.minNodeScreenSize: node labels only (an edge has no node size).",
-    box: "LabelStyle.box: a label with no box of a target to measure (on an edge) keeps the box round its words.",
-};
-
-const KINDS: readonly (TextKind & { skip?: Partial<Record<keyof LabelStyle, string>> })[] = [
+const KINDS: readonly TextKind[] = [
     // at 3 the label is wider than the 2D canvas, and its panel's corners are off it
     {
         name: "label",
@@ -27,7 +19,6 @@ const KINDS: readonly (TextKind & { skip?: Partial<Record<keyof LabelStyle, stri
         styleChannel: "edge.labelStyle",
         textChannel: "edge.label",
         size: 2,
-        skip: NOT_ON_EDGES,
     },
     {
         name: "xlabel",
@@ -35,21 +26,18 @@ const KINDS: readonly (TextKind & { skip?: Partial<Record<keyof LabelStyle, stri
         styleChannel: "edge.xlabelStyle",
         textChannel: "edge.xlabel",
         size: 2,
-        skip: NOT_ON_EDGES,
     },
     {
         name: "head caption",
         target: "edge",
         styleChannel: "edge.arrowHeadTextStyle",
         textChannel: "edge.arrowHeadText",
-        skip: NOT_ON_EDGES,
     },
     {
         name: "tail caption",
         target: "edge",
         styleChannel: "edge.arrowTailTextStyle",
         textChannel: "edge.arrowTailText",
-        skip: NOT_ON_EDGES,
     },
 ];
 
@@ -90,13 +78,10 @@ for (const view of ["2d", "3d"] as const) {
             it(`draws every field on the edge ${kind.name}`, async () => {
                 const edge = [...graph.getDataManager().edges.values()][0];
                 assert.isDefined(edge);
-                const silent = await silentFields(
-                    graph,
-                    kind,
-                    view,
-                    { one: { match: "ids", edges: [edge.id] }, every: { match: "everything" } },
-                    kind.skip,
-                );
+                const silent = await silentFields(graph, kind, view, {
+                    one: { match: "ids", edges: [edge.id] },
+                    every: { match: "everything" },
+                });
                 assert.deepEqual(
                     silent,
                     [],

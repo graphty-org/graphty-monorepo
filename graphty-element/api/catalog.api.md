@@ -2047,6 +2047,7 @@ export interface LabelStyle {
 export interface LabelStyleFieldDescriptor {
     readonly accepts: LabelFieldValueKind;
     readonly default?: string | number | boolean | readonly string[];
+    readonly drawnOn?: readonly Channel[];
     readonly drawnWhen?: readonly LabelFieldCondition[];
     readonly exclusiveMin?: boolean;
     readonly field: keyof LabelStyle;

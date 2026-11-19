@@ -7,13 +7,12 @@
  */
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
-import type { LabelStyle } from "../../src/catalog";
 import { Graph, operationQueueOf } from "../../src/Graph";
 import { silentFields, type TextKind } from "../helpers/label-fields";
 import { hover, nodePoint } from "../helpers/real-input";
 import { asData } from "../helpers/testSetup";
 
-const KINDS: readonly (TextKind & { skip?: Partial<Record<keyof LabelStyle, string>> })[] = [
+const KINDS: readonly TextKind[] = [
     { name: "label", target: "node", styleChannel: "node.labelStyle", textChannel: "node.label" },
     {
         name: "xlabel",
@@ -22,7 +21,6 @@ const KINDS: readonly (TextKind & { skip?: Partial<Record<keyof LabelStyle, stri
         textChannel: "node.xlabel",
         // above the node, where a label sits, so it crosses the node in front of it and stays on the canvas
         base: { location: "top" },
-        skip: { declutter: "LabelStyle.declutter: node labels only." },
     },
     {
         name: "tooltip",
@@ -31,10 +29,6 @@ const KINDS: readonly (TextKind & { skip?: Partial<Record<keyof LabelStyle, stri
         textChannel: "node.tooltip",
         // a tooltip sits further above its node than a label: at 3 it is drawn above the canvas
         size: 1,
-        skip: {
-            declutter: "LabelStyle.declutter: node labels only.",
-            onTop: "A tooltip is always drawn on top (Node.showTooltip).",
-        },
     },
 ];
 
@@ -86,7 +80,6 @@ for (const view of ["2d", "3d"] as const) {
                     kind,
                     view,
                     { one: { match: "ids", nodes: ["a"] }, every: { match: "everything" } },
-                    kind.skip,
                     before,
                 );
                 assert.deepEqual(

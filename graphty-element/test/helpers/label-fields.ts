@@ -8,7 +8,7 @@
  */
 import { assert } from "vitest";
 
-import { LABEL_STYLE_DESCRIPTORS, type LabelStyle } from "../../src/catalog";
+import { type Channel, LABEL_STYLE_DESCRIPTORS, type LabelStyle } from "../../src/catalog";
 import type { Graph } from "../../src/Graph";
 import { pixelsOverBar, readCanvas } from "./whole-canvas";
 
@@ -180,7 +180,6 @@ export interface TextKind {
  * @param selectors - What the layer paints: the one element measured, and every element (`everyOne`).
  * @param selectors.one - The one element.
  * @param selectors.every - Every element.
- * @param skip - The fields this kind does not draw, each with the documented reason.
  * @param before - Called before each frame is read (a tooltip's hover).
  * @returns The fields that drew nothing.
  */
@@ -189,13 +188,15 @@ export async function silentFields(
     kind: TextKind,
     view: "2d" | "3d",
     selectors: { one: object; every: object },
-    skip: Readonly<Partial<Record<keyof LabelStyle, string>>> = {},
     before: () => Promise<void> = async () => {},
 ): Promise<string[]> {
     const session = graph.getSession();
-    const fields = LABEL_STYLE_DESCRIPTORS.map((d) => d.field).filter(
-        (f) => NOT_A_PICTURE[f] === undefined && skip[f] === undefined,
-    );
+    // A field the catalog says draws on other text kinds only (`drawnOn`) is not measured on this one.
+    const fields = LABEL_STYLE_DESCRIPTORS.filter(
+        (d) => d.drawnOn === undefined || d.drawnOn.includes(kind.styleChannel as Channel),
+    )
+        .map((d) => d.field)
+        .filter((f) => NOT_A_PICTURE[f] === undefined);
     // Words on the measured element beneath the measured layer, so removing that layer never takes the text away (a
     // tooltip's words gone and back would need the pointer to arrive again).
     const words = await session.styles.add({

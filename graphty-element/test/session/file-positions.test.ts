@@ -128,6 +128,22 @@ describe("a file loaded and saved is drawn the same way when loaded again", () =
     }
 });
 
+describe("an export writes the file's own coordinates when the fixed layout spread them", () => {
+    it("divides the drawing's spread out", async () => {
+        const first = await loaded("dot", DOT);
+        // The session holds the drawing as stored; a drawing spread 3 times holds three times that.
+        await first.session.positions.set(
+            [...first.at].map(([id, [x, y, z]]) => ({ id, x: 3 * x, y: 3 * y, z: 3 * z })),
+        );
+
+        const saved = await exportSession(first.session, "dot", {}, { positionFactor: () => 3 }).text();
+        const second = await loaded("dot", saved);
+        assert.deepEqual([...second.at.values()], [...first.at.values()], saved);
+        first.session.dispose();
+        second.session.dispose();
+    });
+});
+
 describe("JSON node positions take the same path as every other format's", () => {
     /**
      * Import a JSON document with `layout: "recommended"` and read every node's position.

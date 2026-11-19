@@ -178,6 +178,7 @@ import {
     type XRSessionStartedEvent,
 } from "./events";
 import { attachRegionGesture } from "./input/RegionSelectGesture";
+import { FixedLayout } from "./layout/FixedLayoutEngine";
 import { layoutEngineInternals } from "./layout/LayoutEngine";
 import {
     type AddEdgesOptions,
@@ -10655,6 +10656,10 @@ export class Graph implements GraphContext {
             edgeStyle: (row) => {
                 const { style } = painter.edgePaint(row) ?? bootstrapEdgePaint();
                 return { color: toColorValue(style.line?.color), width: style.line?.width };
+            },
+            positionFactor: () => {
+                const engine = this.layoutManager.layoutEngine;
+                return engine instanceof FixedLayout ? engine.spread : 1;
             },
         });
     }

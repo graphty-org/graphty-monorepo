@@ -172,8 +172,8 @@ export const SECTIONS: Readonly<Record<Kind, readonly SectionSpec[]>> = {
         {
             id: "shape",
             title: "Shape",
-            // Wireframe, Outline, Glow, Halo and Border are style options of the shape, never shaders.
-            // Border is here because the Selected and Pinned starting rows draw their ring with it.
+            // Wireframe, Outline, Glow, Halo and the outer border are style options of the shape, never shaders.
+            // The outer border is here because the Selected and Pinned starting rows draw their ring with it.
             channels: [
                 "node.shape",
                 "node.size",
@@ -189,9 +189,9 @@ export const SECTIONS: Readonly<Record<Kind, readonly SectionSpec[]>> = {
                 "node.haloColor",
                 "node.haloScale",
                 "node.haloOpacity",
-                "node.borderColor",
-                "node.borderWidth",
-                "node.borderOpacity",
+                "node.outerBorderColor",
+                "node.outerBorderWidth",
+                "node.outerBorderOpacity",
             ],
         },
         { id: "visibility", title: "Visibility", channels: ["node.visible"] },

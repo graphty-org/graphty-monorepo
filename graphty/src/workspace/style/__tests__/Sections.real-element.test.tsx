@@ -198,7 +198,7 @@ describe("the Style tab's sections", () => {
 
         await openStyle("Selected");
         const shape = section("node", "shape");
-        assert.isNotNull(shape.querySelector('.ws-row[data-line="node.borderColor"]'), "a Border row");
+        assert.isNotNull(shape.querySelector('.ws-row[data-line="node.outerBorderColor"]'), "a ring row");
         assert.isNull(shape.querySelector('.ws-row[data-line="node.glow"]'), "Selected writes no glow");
         assert.isNull(shape.querySelector('.ws-row[data-line="node.shape"]'), "Selected writes no shape");
     });

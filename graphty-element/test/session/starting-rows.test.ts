@@ -135,7 +135,7 @@ describe("the starting rows", () => {
         assert.deepStrictEqual(session.styles.tree(), [], "one undo takes the setting and its rows back");
     });
 
-    it("Selected follows the selection with no step, and draws a border ring and a band with no glow", async () => {
+    it("Selected follows the selection with no step, and draws a ring outside the border and a band with no glow", async () => {
         const session = await lesMis();
         await session.config.set({ startingRows: true });
         const node = part(session, "Selected", "node");
@@ -147,11 +147,11 @@ describe("the starting rows", () => {
         await session.selection.apply({ ids: ["Valjean"] });
         await session.styles.settled();
         assert.strictEqual(session.styles.counts(node).matched, 1);
-        assert.strictEqual(session.styles.counts(node).painted["node.borderColor"], 1);
+        assert.strictEqual(session.styles.counts(node).painted["node.outerBorderColor"], 1);
         assert.deepStrictEqual(session.styles.get(node)?.set, {
-            "node.borderColor": "#0077BB",
-            "node.borderWidth": 0.225,
-            "node.borderOpacity": 1,
+            "node.outerBorderColor": "#0077BB",
+            "node.outerBorderWidth": 0.225,
+            "node.outerBorderOpacity": 1,
         });
 
         await session.selection.apply({ scope: { define: { kind: "path", nodes: ["Valjean", "Javert"] } } });
@@ -165,6 +165,25 @@ describe("the starting rows", () => {
         assert.strictEqual(session.styles.counts(node).matched, 0, "deselecting leaves Selected matching nothing");
         assert.strictEqual(session.styles.counts(edge).matched, 0);
         assert.strictEqual(session.history.steps.length, steps, "the selection is view state, never a step");
+    });
+
+    it("a node keeps the border a lower row gives it while it is selected", async () => {
+        const session = await lesMis();
+        await session.config.set({ startingRows: true });
+        await session.styles.add({
+            name: "Data border",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.borderColor": "#E00000", "node.borderWidth": 0.1 },
+        });
+        await session.selection.apply({ ids: ["Valjean"] });
+        await session.styles.settled();
+
+        const { merged } = session.styles.explain({ node: "Valjean" });
+        assert.strictEqual(merged["node.borderColor"]?.hex.toUpperCase(), "#E00000", "the data border stays");
+        assert.strictEqual(merged["node.borderWidth"], 0.1);
+        assert.strictEqual(merged["node.outerBorderColor"]?.hex.toUpperCase(), "#0077BB", "the ring sits outside it");
+        session.dispose();
     });
 
     it("Hovered follows the node under the pointer", async () => {

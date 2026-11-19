@@ -108,12 +108,12 @@ describe("the Selected starting row's ring", () => {
         const session = await lesMis();
         await session.config.set({ startingRows: true });
         const set = selectedPart(session, "node")?.set ?? {};
-        const ring = set["node.borderColor"] as string;
+        const ring = set["node.outerBorderColor"] as string;
 
         assert.strictEqual(ring, session.config.selectionStyle.color);
         assert.strictEqual(ring, "#0077BB", "the selected edge's blue: one color marks nodes and edges");
         assert.notProperty(set, "node.glow", "the owner's choice (#7448): no dark glow under the ring");
-        assert.strictEqual(set["node.borderOpacity"], 1, "solid, so the ring is the color measured");
+        assert.strictEqual(set["node.outerBorderOpacity"], 1, "solid, so the ring is the color measured");
         const band = selectedPart(session, "edge")?.set?.["edge.bandColor"] as string;
         assert.strictEqual(band, session.config.selectionStyle.edgeColor);
         // Measured, with no second tone (#811): ring and band read 3:1 or better on the light
@@ -124,7 +124,7 @@ describe("the Selected starting row's ring", () => {
         }
         // One tone cannot also stand 3:1 off the default node color, whose lightness is the ring's:
         // the ring reads by its hue and its outline there. A consumer that wants a second tone
-        // adds a glow or a second ring (`node.outerBorder*`) to the Selected row.
+        // adds a glow or a border (`node.border*`) to the Selected row.
         assert.isBelow(contrast(ring, DEFAULT_NODE_COLOR), 3, `the ring on ${DEFAULT_NODE_COLOR}`);
         session.dispose();
     });
@@ -136,7 +136,7 @@ describe("a legend block's painted count", () => {
         await session.config.set({ startingRows: true });
         const id = selectedPart(session, "node")?.id;
         const ring = (): number | undefined =>
-            session.styles.legend().find((block) => block.layerId === id && block.channel === "node.borderColor")
+            session.styles.legend().find((block) => block.layerId === id && block.channel === "node.outerBorderColor")
                 ?.painted;
 
         assert.strictEqual(ring(), 0);

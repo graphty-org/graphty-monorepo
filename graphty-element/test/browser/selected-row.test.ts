@@ -2,7 +2,7 @@
  * @file The Selected and Hovered starting rows on a real canvas, driven by the real pointer.
  *
  * With the project setting `startingRows` on, the selection look is no longer drawn by the
- * selection settings: the Selected row draws it, as a node border ring written through a style
+ * selection settings: the Selected row draws it, as a ring outside the node's border, written through a style
  * layer. A click must then draw the row's ring and no halo from the settings, a write to the row
  * must repaint it, and deselecting must leave nothing behind. The pointer resting on a
  * node is what the Hovered row reads.
@@ -156,7 +156,7 @@ describe("the Selected and Hovered rows", () => {
         const element = await mounted();
         const { session } = element;
         await session.styles.writeRow(rowId(element, "Selected"), {
-            set: { "node.borderColor": PROBE, "node.borderOpacity": 1 },
+            set: { "node.outerBorderColor": PROBE, "node.outerBorderOpacity": 1 },
         });
         await settle(element);
         const before = await greenPixels(element);
@@ -171,14 +171,14 @@ describe("the Selected and Hovered rows", () => {
         assert.isAbove(green.left, 0, "the ring is drawn around the clicked node");
         assert.strictEqual(green.right, 0, "and nowhere else");
 
-        await session.styles.writeRow(rowId(element, "Selected"), { set: { "node.borderColor": "#FF0000" } });
+        await session.styles.writeRow(rowId(element, "Selected"), { set: { "node.outerBorderColor": "#FF0000" } });
         await settle(element);
         const after = await greenPixels(element);
         assert.strictEqual(after.left + after.right, 0, "the new color repainted the ring already on screen");
 
         // The ring's off value, a width of 0: still selected, and no ring drawn.
         await session.styles.writeRow(rowId(element, "Selected"), {
-            set: { "node.borderColor": PROBE, "node.borderWidth": 0 },
+            set: { "node.outerBorderColor": PROBE, "node.outerBorderWidth": 0 },
         });
         await settle(element);
         const off = await greenPixels(element);

@@ -285,13 +285,13 @@ export const STARTING_GHOST_LOOK = {
 } as const;
 
 /**
- * The border width that rings a node as far out as a halo drawn at a scale would: a halo's ring is
- * the node's radius times (scale - 1) wide, and a border's width is in the units of the node's
- * size, twice its radius.
+ * The ring width that reaches as far out as a halo drawn at a scale would: a halo's ring is the
+ * node's radius times (scale - 1) wide, and a ring's width (`node.outerBorderWidth`, in the units
+ * of `node.borderWidth`) is in the units of the node's size, twice its radius.
  * @param scale - The halo's size, as a multiple of the node's drawn radius.
- * @returns The border width, never below 0, to a thousandth.
+ * @returns The ring width, never below 0, to a thousandth.
  */
-function borderWidthOfScale(scale: number): number {
+function ringWidthOfScale(scale: number): number {
     return Math.max(0, Math.round((scale - 1) * 500) / 1000);
 }
 
@@ -301,15 +301,16 @@ function borderWidthOfScale(scale: number): number {
  * `outsideWindow`), and nothing keeps it in step with a setting afterwards.
  * @param look - What the rows are written with.
  * @param look.selection - The selection settings' node halo and edge band. Selected draws the
- *   halo as a node border of the same color, as far out as the halo would reach (a halo and a
- *   border look the same; the halo is drawn only by the selection settings themselves).
+ *   halo as a ring outside the node's border (`node.outerBorder*`) of the same color, as far out as
+ *   the halo would reach, so a border a lower row gives the node stays in view and edges still stop
+ *   where they did (the halo itself is drawn only by the selection settings).
  * @param look.selection.color - The halo's color.
  * @param look.selection.scale - The halo's size, as a multiple of the node's drawn radius.
  * @param look.selection.edgeColor - The band's color.
  * @param look.selection.edgeScale - The band's width, as a multiple of twice the line's width.
  * @param look.everything - The values Everything holds (the base look while `editableBase` is on).
- * @param look.pinned - The pinned settings' halo, which Pinned draws as a node border the same
- *   way; no Pinned row when absent.
+ * @param look.pinned - The pinned settings' halo, which Pinned draws as a ring outside the node's
+ *   border the same way; no Pinned row when absent.
  * @param look.pinned.color - The halo's color.
  * @param look.pinned.scale - The halo's size.
  * @param look.pinned.opacity - How solid the halo is.
@@ -380,9 +381,9 @@ export function startingRows(
                           target: "node",
                           selector: { match: "state", state: "pinned" },
                           set: {
-                              "node.borderColor": pinned.color,
-                              "node.borderWidth": borderWidthOfScale(pinned.scale),
-                              "node.borderOpacity": pinned.opacity,
+                              "node.outerBorderColor": pinned.color,
+                              "node.outerBorderWidth": ringWidthOfScale(pinned.scale),
+                              "node.outerBorderOpacity": pinned.opacity,
                           },
                           source: source(PINNED_ROW_ID),
                       },
@@ -396,9 +397,9 @@ export function startingRows(
                 target: "both",
                 selector: { match: "state", state: "selected" },
                 set: {
-                    "node.borderColor": selection.color,
-                    "node.borderWidth": borderWidthOfScale(selection.scale),
-                    "node.borderOpacity": 1,
+                    "node.outerBorderColor": selection.color,
+                    "node.outerBorderWidth": ringWidthOfScale(selection.scale),
+                    "node.outerBorderOpacity": 1,
                     "edge.bandColor": selection.edgeColor,
                     "edge.bandWidth": selection.edgeScale,
                     "edge.bandOpacity": 1,

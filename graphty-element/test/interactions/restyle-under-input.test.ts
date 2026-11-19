@@ -101,7 +101,7 @@ function selectedNodeLayer(element: Graphty): string {
 async function restyleRing(element: Graphty, color: string): Promise<void> {
     const id = selectedNodeLayer(element);
     const layer = element.session.styles.get(id);
-    await element.session.styles.update(id, { set: { ...layer?.set, "node.borderColor": color } });
+    await element.session.styles.update(id, { set: { ...layer?.set, "node.outerBorderColor": color } });
     await element.session.styles.settled();
     await operationQueueOf(element.graph).waitForCompletion();
     await element.waitForStableFrame();

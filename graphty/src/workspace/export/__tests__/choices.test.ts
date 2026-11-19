@@ -84,18 +84,18 @@ describe("the Export dialog's choices", () => {
         });
         const thumbnail = screenshotOptions(
             { format: "jpeg", size: "400x300", background: "canvas", view: "topView" },
-            { blob: true },
+            {},
         );
         assert.equal(thumbnail.width, 400);
         assert.equal(thumbnail.height, 300);
         assert.equal(thumbnail.quality, 0.85);
         assert.isUndefined(thumbnail.multiplier);
         assert.deepEqual(thumbnail.camera, { preset: "topView" });
-        assert.deepEqual(screenshotOptions({ ...DEFAULT_IMAGE, view: "fitToGraph" }, { blob: true }).camera, {
+        assert.deepEqual(screenshotOptions({ ...DEFAULT_IMAGE, view: "fitToGraph" }, {}).camera, {
             preset: "fitToGraph",
             params: { keepAngle: true },
         });
-        assert.isTrue(screenshotOptions({ ...DEFAULT_IMAGE, size: "4x" }, { blob: true }).enhanceQuality);
+        assert.isTrue(screenshotOptions({ ...DEFAULT_IMAGE, size: "4x" }, {}).enhanceQuality);
     });
 
     it("refuses a transparent background in a format that cannot keep it", () => {

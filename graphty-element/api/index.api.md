@@ -8090,7 +8090,6 @@ export interface ScreenshotOptions {
         params?: Readonly<Record<string, unknown>>;
     };
     destination?: {
-        blob?: boolean;
         download?: boolean;
         clipboard?: boolean;
     };
@@ -8121,7 +8120,7 @@ export interface ScreenshotResult {
     clipboardError?: Error;
     clipboardStatus: ClipboardStatus;
     downloaded: boolean;
-    errors?: Error[];
+    errors: GraphtyError[];
     metadata: {
         width: number;
         height: number;

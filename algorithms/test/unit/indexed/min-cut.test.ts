@@ -156,7 +156,7 @@ describe("indexed.kargerMinCut", () => {
         }
     });
 
-    // Karger is randomised on both sides and the two draw differently, so only the minimum is
+    // Karger is randomized on both sides and the two draw differently, so only the minimum is
     // comparable: with enough trials both find it, and it is the Stoer-Wagner value.
     for (const { name, graph } of [
         ...undirectedFixtures().filter((f) => f.graph.nodeCount <= 34),

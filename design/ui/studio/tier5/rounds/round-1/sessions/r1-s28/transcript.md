@@ -59,7 +59,7 @@ Thought: I'll click the little square in the Color box to get a color chooser.
 
 ## Step 12
 Command: --step <folder> --click-at 1269,435 ("Pick node color")
-Screenshot 12.png: a Color window with a big square, a rainbow strip, "Hex 6366F1", and six little swatches (blue, grey, grey, dark blue, yellow, black). No orange swatch.
+Screenshot 12.png: a Color window with a big square, a rainbow strip, "Hex 6366F1", and six little swatches (blue, gray, gray, dark blue, yellow, black). No orange swatch.
 Thought: No orange to just click. I'll click the orange part of the rainbow strip, near the left.
 
 ## Step 13

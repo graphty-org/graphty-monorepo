@@ -22,7 +22,7 @@ not just who has the most friends. The hint points at the flask, so that's where
     node tool/real.mjs --step rounds/round-3/sessions/r3-s44 --click-at 680,864
 
 Saw: a list headed "Rank nodes and edges": Degree, Betweenness, Edge betweenness, Closeness,
-PageRank (with a "Start here" tag), Eigenvector, Katz, HITS, All-pairs distance, and some greyed
+PageRank (with a "Start here" tag), Eigenvector, Katz, HITS, All-pairs distance, and some grayed
 items below. Each has a one-line plain description, which I appreciate -- no formulas.
 
 Hesitation: the app wants me to "Start here" on PageRank. But "how much the whole club depends on

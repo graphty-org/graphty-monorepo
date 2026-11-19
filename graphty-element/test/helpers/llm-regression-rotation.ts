@@ -4,11 +4,11 @@
  *
  * Each case belongs to one of `slices` slices by a hash of its full name (`<file> > <suite> > <test>`, vitest's
  * `task.fullName`), so its slice never changes while its name does not. The release job runs one slice a run and
- * moves to the next slice the run after (tools/llm-rotation.mjs), so every case runs at least once every `slices`
+ * moves to the next slice the run after (tools/test-rotation.mjs), so every case runs at least once every `slices`
  * runs at about 1/slices of the cost. A random sample was not used: a seeded random pick leaves some cases unrun
  * for many runs in a row, a fixed rotation never does.
  *
- * `LLM_REGRESSION_SELECTION` names a JSON file `{ full, slice, slices, also }` (tools/llm-rotation.mjs plan). With
+ * `LLM_REGRESSION_SELECTION` names a JSON file `{ full, slice, slices, also }` (tools/test-rotation.mjs llm plan). With
  * no such variable every case runs, as a run by hand or a bisect point does.
  */
 

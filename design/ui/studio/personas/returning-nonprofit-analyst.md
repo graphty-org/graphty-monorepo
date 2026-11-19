@@ -38,7 +38,7 @@ directly; source 1 of her first file). She is the study's main returning spreads
 - **Silent changes.** She checks counts against Excel's row count (her first file's rules); a
   number that changed without saying why makes her distrust everything after it.
 
-## Behaviour rules for playing Grace, returning
+## Behavior rules for playing Grace, returning
 
 - **Starts where she remembers.** She goes first to the places she used before (opening a file,
   the toolbar, the right-hand panel) and only then looks around.

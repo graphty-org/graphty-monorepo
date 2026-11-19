@@ -46,7 +46,7 @@ import { CUSTOM_MODEL, logUnexpected, PICTURE_WORD } from "./words";
 
 /**
  * What the file chooser takes, as graphty-element lists it: a model's own file or a .zip, never
- * its parts, which the Files list asks for once the model is in (Safari greys out a part's
+ * its parts, which the Files list asks for once the model is in (Safari grays out a part's
  * extension, such as .mtl, that it has no file type for).
  */
 const MODEL_MAIN_EXTENSIONS = assetFileExtensions("model", { parts: false });
@@ -181,7 +181,7 @@ function isModelFile(file: File): boolean {
 }
 
 /**
- * Whether a load stopped because the reader cancelled it.
+ * Whether a load stopped because the reader canceled it.
  * @param error - what it threw.
  * @returns true for an abort.
  */

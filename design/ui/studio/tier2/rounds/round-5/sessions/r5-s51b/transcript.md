@@ -30,7 +30,7 @@ Now to make the drawing show only them. There's a "Filter to neighbors" button r
 
 ## Step 8 -> 09.png
 Command: `--click "Filter to neighbors"`
-The five unlit balls at the top right are gone. The top bar now says "15 of 20 nodes" -- Ava plus her 14. That's what I wanted, and it says plainly that 5 are hidden, not deleted. The legend box now says "PageRank, full graph", and a little clock icon showed up next to PageRank on the left; I don't know what that icon means, but the colours didn't change so I'm leaving it. The button greyed out, so it took. Done.
+The five unlit balls at the top right are gone. The top bar now says "15 of 20 nodes" -- Ava plus her 14. That's what I wanted, and it says plainly that 5 are hidden, not deleted. The legend box now says "PageRank, full graph", and a little clock icon showed up next to PageRank on the left; I don't know what that icon means, but the colors didn't change so I'm leaving it. The button grayed out, so it took. Done.
 
 Command: `--end` (session ended)
 
@@ -42,5 +42,5 @@ Command: `--end` (session ended)
   - "Neighborhood" was tucked behind the "..." button. I found it because it was the only button there, not because anything pointed me to it.
   - "Hops" is not a word I use. I guessed 2 meant one step further out than her own people, and the names in the list confirmed it -- I wouldn't have trusted the number without seeing the names.
   - When I went to 2, the "weight" numbers next to the names disappeared and I don't know why.
-  - After filtering, a little clock icon appeared next to PageRank on the left and the legend started saying "full graph". I don't know if my colours are now wrong or just the same as before. I'd probably ask about that bit.
+  - After filtering, a little clock icon appeared next to PageRank on the left and the legend started saying "full graph". I don't know if my colors are now wrong or just the same as before. I'd probably ask about that bit.
   - It was good that the count (14) and Selection (15) and "15 of 20 nodes" all agreed. I could tell someone the number without counting.

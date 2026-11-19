@@ -64,7 +64,7 @@ export class IndexedMaxHeap {
     }
 
     /**
-     * Remove and return the node with the largest key. Undefined behaviour on an empty heap;
+     * Remove and return the node with the largest key. Undefined behavior on an empty heap;
      * callers guard with `isEmpty()`.
      * @returns The node index
      */

@@ -123,7 +123,7 @@ export function summarizeAdapter(adapter: GPUAdapter): AdapterSummary {
 /**
  * Step 1 of create(): requestAdapter with the power preference; null -> E_NO_ADAPTER.
  * @param gpu - navigator.gpu or the Dawn handle
- * @param powerPreference - honoured by browsers, ignored by Dawn-node
+ * @param powerPreference - honored by browsers, ignored by Dawn-node
  * @returns an UNUSED adapter
  */
 export async function requestAdapter(gpu: GPU, powerPreference: GPUPowerPreference): Promise<GPUAdapter> {

@@ -69,7 +69,7 @@ export type FigureShape = (
     opacity: number;
 };
 
-/** One label's lines of text, centred on its point, over its panel when it has a solid one. */
+/** One label's lines of text, centered on its point, over its panel when it has a solid one. */
 export interface FigureText {
     x: number;
     y: number;
@@ -83,7 +83,7 @@ export interface FigureText {
     background?: { x: number; y: number; w: number; h: number; radius: number; fill: string; opacity: number };
 }
 
-/** One mark of the key: a box, a color ramp, a filled outline or a line of text centred on its `y`. */
+/** One mark of the key: a box, a color ramp, a filled outline or a line of text centered on its `y`. */
 export type FigureMark =
     | {
           rect: { x: number; y: number; w: number; h: number; radius?: number };
@@ -528,7 +528,7 @@ function lineWidthPx(width: number, mid: Vector3, camera: Camera, is2D: boolean,
     return (width * 10) / Math.max(clipW, 1e-6);
 }
 
-/** A visible node as the figure reads it: where it is on screen, and its centre in the world. */
+/** A visible node as the figure reads it: where it is on screen, and its center in the world. */
 interface ShownNode {
     readonly at: NodeScreenPosition;
     readonly centre: Vector3;
@@ -570,7 +570,7 @@ function* drawnEdges(graph: Graph): Generator<FigureEdge> {
 }
 
 /**
- * Every visible edge as a straight line between its ends' centres, its label added to `texts` and
+ * Every visible edge as a straight line between its ends' centers, its label added to `texts` and
  * its arrow caps to `caps`.
  * @param graph - The graph.
  * @param shown - Where each visible node is drawn, by row.
@@ -628,7 +628,7 @@ function edgeLines(
  * shader or its slot's matrix places them, then projected. Heads, tails, middle caps and stacks.
  * @param graph - The graph.
  * @param edge - The edge.
- * @param style - Its style, for each cap's colour and an open cap's inside colour.
+ * @param style - Its style, for each cap's color and an open cap's inside color.
  * @param camera - The camera.
  * @returns The caps, each its inside (when it has a fill) before its frame.
  */

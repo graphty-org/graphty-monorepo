@@ -4,7 +4,7 @@ Someone who opens a shared recipe, style file or saved view, and never builds on
 
 ## Why this persona exists
 
-The travelling-starting-point journey (a lab lead saves "how our lab reads a network" as a recipe
+The traveling-starting-point journey (a lab lead saves "how our lab reads a network" as a recipe
 or style file, and a member applies it to their own data) is studied from both ends in
 `design/ui/framework/user-journeys.md` (section 4 and the validation table in section 5). Every
 existing persona in `design/designloom/personas/` is an author: they build networks, styles and
@@ -23,8 +23,8 @@ computational postdoc does that, and every few weeks sends him something: a figu
 spreadsheet, and lately "the file with the lab's colours in it, just drop your gene list on it".
 He opens these between an equipment-vendor call and a safety audit, on a managed 13-inch laptop
 he has no admin rights on, with reading glasses pushed up on his head. He has mild red-green
-colour weakness _(invented; plausible at the base rate in [19])_. He is not hostile to software,
-but he has been burned by it: files that would not open, colours that did not come back, a
+color weakness _(invented; plausible at the base rate in [19])_. He is not hostile to software,
+but he has been burned by it: files that would not open, colors that did not come back, a
 supplementary table where half the SEPT genes had turned into dates. He is also the person who
 answers for where the lab's data lives, so unpublished results leaving the building worry him
 more than they worry the postdoc. He trusts the postdoc, not the tool, and when the two disagree
@@ -38,7 +38,7 @@ he assumes the tool is wrong and he is about to look foolish in lab meeting.
   may therefore assume they lack the necessary experience ([13]).
 - **Daily tools**: Excel (with all its gene-name habits, [14]), GraphPad Prism, PowerPoint, the
   instrument vendors' software, email, Slack, the institutional shared drive and electronic lab
-  notebook, Zoom. Sees STRING figures pasted into slides and could not say what the edge colours
+  notebook, Zoom. Sees STRING figures pasted into slides and could not say what the edge colors
   mean ([18]).
 - **Graph tools he has touched**: Cytoscape, once, to open a `.cys` session the postdoc sent. It
   needed an install and Java, IT had to come; when it opened, a node table meant nothing to him
@@ -50,8 +50,8 @@ he assumes the tool is wrong and he is about to look foolish in lab meeting.
   monitor at his desk about half the time, browser zoom at 110 to 125 percent because of his
   eyes; a phone for triage of email; sometimes the conference-room projector in lab meeting. No
   admin rights: he cannot install Java, plugins or desktop apps without an IT ticket ([6]).
-- **Accessibility**: mild deuteranomaly (red-green colour weakness, which affects roughly 1 in 12
-  men ([19]); his case is invented); presbyopia, so small grey labels and 11px text are hard;
+- **Accessibility**: mild deuteranomaly (red-green color weakness, which affects roughly 1 in 12
+  men ([19]); his case is invented); presbyopia, so small gray labels and 11px text are hard;
   uses the trackpad, rarely keyboard shortcuts.
 
 ## The jobs he is really hired to do
@@ -84,18 +84,18 @@ screens is someone else's job.
 
 - Open the file he was sent and see exactly what the sender saw, first time, without installing
   anything.
-- Get his own gene list onto it in the lab's colours, and know how many genes matched.
-- Be able to say, in one sentence, what a colour or size means.
+- Get his own gene list onto it in the lab's colors, and know how many genes matched.
+- Be able to say, in one sentence, what a color or size means.
 - Leave without having changed anything he did not mean to change.
 - Know that his unpublished hits did not leave the institution unless he chose that.
-- Hand a figure to the PI that will not be sent back for red-green colours or a missing legend
+- Hand a figure to the PI that will not be sent back for red-green colors or a missing legend
   ([18], [19]).
 
 ## Frustrations, with evidence
 
 | Frustration                             | In his words (paraphrased)                                                                          | Evidence                                                                                                                                                                                                                                                  |
 | --------------------------------------- | --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| The file opens but the look is gone     | "It opened, but it's all grey dots. Where are the colours she showed us?"                           | Gephi colour settings reset on reopen, which the reporter said breaks reproducibility and consistency [3]; a Cytoscape `.cyjs` loses its style, which has to be shipped as a separate style file [4]                                                      |
+| The file opens but the look is gone     | "It opened, but it's all grey dots. Where are the colours she showed us?"                           | Gephi color settings reset on reopen, which the reporter said breaks reproducibility and consistency [3]; a Cytoscape `.cyjs` loses its style, which has to be shipped as a separate style file [4]                                                       |
 | The file does not open at all           | "It just says it can't read it. I can't tell if it's me or the file."                               | A `.cys` with images on nodes failed to reload the next day with a raw parsing error [5]                                                                                                                                                                  |
 | He does not know what the file even is  | "She sent me a .cys. Is that a network? What opens it?"                                             | A user asking how to open a `.cys` "that i have on my desktop" was told it is a session snapshot, "not a single network", openable only in Cytoscape [29]                                                                                                 |
 | Opening one thing wipes another         | "I opened the second file and it said everything would be lost. I only wanted to look."             | Opening a second `.cys` warns "Current session (all networks and tables) will be lost" [30]                                                                                                                                                               |
@@ -146,7 +146,7 @@ brackets is what motivates it; lines marked _(extrapolation)_ have no direct sou
 18. "She said it was a web page. I opened it and it's blank." ([31])
 19. "Hang on. If I put our hits in here, where do they go? These aren't published." ([27], [28])
 
-## Behaviour rules for playing him in a session
+## Behavior rules for playing him in a session
 
 **He reports, he does not design.** Never have Tom propose a fix, a label, a button or a layout.
 He says what he expected and what happened ("I thought it would show the colours; it's grey").
@@ -169,12 +169,12 @@ browser page keeps data on his laptop just because nothing asked him to sign in.
 
 **What he skims or ignores.** Side panels with more than about six rows; anything collapsed;
 tooltips (he does not hover long enough); statistics panels; the layer list; keyboard shortcut
-hints; any text in grey below 12px. He reads headings, numbers and legend labels.
+hints; any text in gray below 12px. He reads headings, numbers and legend labels.
 
 **What he reads carefully.** Any count, any list of what did not match, the legend, the title of
 the file and who made it, and anything that tells him whether the lab's file was changed.
 
-**What he would never click.** Anything labelled Delete, Remove, Replace, Reset, Overwrite,
+**What he would never click.** Anything labeled Delete, Remove, Replace, Reset, Overwrite,
 Publish, Share or Upload while his data is loaded. Algorithm names. Anything with "advanced",
 "developer", "debug" or "settings" in it. He will not click "Use as default" on something unless
 he is sure it will not change the lab's file for everyone.
@@ -190,8 +190,8 @@ he is sure it will not change the lab's file for everyone.
   he asks "Is my result wrong now, or just incomplete?". Words that sound like the file will
   change (bind, merge, sync, overwrite, publish) make him stop.
 
-**His colour weakness.** It comes up only when a figure on screen actually relies on hue alone
-to carry meaning (for example up and down in red and green with no other cue). When colour is
+**His color weakness.** It comes up only when a figure on screen actually relies on hue alone
+to carry meaning (for example up and down in red and green with no other cue). When color is
 backed by labels, position or lightness, he does not mention it. Do not raise it on every
 palette.
 
@@ -253,7 +253,7 @@ Internal:
 
 External (paraphrased unless in quotation marks; accessed 2026-09-28):
 
-- [3] Gephi issue 1927, colour settings in Overview/Appearance lost when a Gephi file is reopened:
+- [3] Gephi issue 1927, color settings in Overview/Appearance lost when a Gephi file is reopened:
   https://github.com/gephi/gephi/issues/1927
 - [4] Biostars, "Cytoscape JSON file format and STYLE storage" (style lost from `.cyjs`; export
   style separately): https://www.biostars.org/p/9473450/
@@ -274,7 +274,7 @@ External (paraphrased unless in quotation marks; accessed 2026-09-28):
   Bioinformatics 2023 (hardware, OS and carrying work between computers as friction):
   https://www.frontiersin.org/journals/bioinformatics/articles/10.3389/fbinf.2023.1125949/full
 - [12] "Subjective data models in bioinformatics and how wet lab and computational biologists
-  conceptualise data", Scientific Data 2023 (people guess at unlabelled identifiers):
+  conceptualize data", Scientific Data 2023 (people guess at unlabeled identifiers):
   https://pmc.ncbi.nlm.nih.gov/articles/PMC10622411/
 - [13] "Bioinformatics for wet-lab scientists: practical application in sequencing analysis", BMC
   Genomics 2023 (wet-lab researchers "not formally trained" and "may therefore assume that they

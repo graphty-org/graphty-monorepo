@@ -80,9 +80,9 @@ algorithm run of every `algorithms-` story, its status, its graph values and eve
 edge's values; the runs of the two builds are paired by algorithm and by their place among that
 algorithm's runs, and a run on one side only or a status that differs is reported). Every run
 succeeded on both builds and no story gained or lost a run. Combined Edge Flow runs no algorithm on
-either build (it colours edges by their `value`), and Palette Picker holds no graph. Apart from
+either build (it colors edges by their `value`), and Palette Picker holds no graph. Apart from
 Louvain and the matching above, the only differences are in the last one or two digits of a float
-(PageRank, betweenness, eigenvector, HITS, link-prediction scores), too small to move a colour or
+(PageRank, betweenness, eigenvector, HITS, link-prediction scores), too small to move a color or
 a size. Every node and edge value of Label Propagation, Floyd Warshall, Prim, Bellman Ford, SCC,
 Max Flow and Min Cut is identical.
 
@@ -145,13 +145,13 @@ hold an element with no data, so they show an empty canvas on every build.
 The algorithms Storybook is not a visual-review project, but it runs the functions the migration
 replaced, so it was compared too.
 
-| Story                         | What changed                                      | Why                                                                                              | On master now |
-| ----------------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------ | ------------- |
-| Centrality / Page Rank        | "14 iterations" where it said 13                  | recorded in [algorithms-stories](../algorithms-stories/README.md)                                | no            |
-| Community / Louvain           | three communities where there were four           | recorded in [algorithms-stories](../algorithms-stories/README.md)                                | no            |
-| Community / Label Propagation | "2 iterations" where it said 3; same three groups | the port stops as soon as every label is dominant                                                | yes           |
-| Matching / Isomorphism        | nodes 2, 3 and 4 and their images change colour   | the same mapping, now listed in node order; the story colours each pair by its place in the list | no            |
-| Matching / Bipartite          | the pairs listed in another order; the same pairs | the 3.0 matching returns its pairs in node order                                                 | no            |
+| Story                         | What changed                                      | Why                                                                                             | On master now |
+| ----------------------------- | ------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ------------- |
+| Centrality / Page Rank        | "14 iterations" where it said 13                  | recorded in [algorithms-stories](../algorithms-stories/README.md)                               | no            |
+| Community / Louvain           | three communities where there were four           | recorded in [algorithms-stories](../algorithms-stories/README.md)                               | no            |
+| Community / Label Propagation | "2 iterations" where it said 3; same three groups | the port stops as soon as every label is dominant                                               | yes           |
+| Matching / Isomorphism        | nodes 2, 3 and 4 and their images change color    | the same mapping, now listed in node order; the story colors each pair by its place in the list | no            |
+| Matching / Bipartite          | the pairs listed in another order; the same pairs | the 3.0 matching returns its pairs in node order                                                | no            |
 
 The order in the last two rows is not one of the three matching and isomorphism differences the
 owner accepted on 2026-09-28. It comes with the 3.0 result shape: a mapping or a matching is a

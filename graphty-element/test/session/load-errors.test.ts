@@ -1,6 +1,6 @@
 /**
  * @file `LoadReport.errors`: what a load met, as codes and facts, on `lastImport()` and on a
- * draft's `report()`. A recognisable GraphML or GEXF file that breaks off is refused whole, with
+ * draft's `report()`. A recognizable GraphML or GEXF file that breaks off is refused whole, with
  * `E_PARSE_FAILED` and the line it broke on, and adds nothing to the graph (#1218).
  */
 
@@ -87,10 +87,10 @@ describe("LoadReport.errors", () => {
 
     it("lists a refused draft row", async () => {
         const session = createGraphSession();
-        const draft = await session.data.prepare({ type: "csv", config: { data: "id,name\n,A\nb,B\n" } });
+        const draft = await session.data.prepare({ type: "csv", config: { data: "source,target\n,A\nb,B\n" } });
 
         const report = await draft.report();
-        assert.deepInclude(report.errors, { code: "refused-row", params: { rowsAre: "nodes" } });
+        assert.deepInclude(report.errors, { code: "refused-row", params: { rowsAre: "edges" } });
         session.dispose();
     });
 

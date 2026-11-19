@@ -80,6 +80,7 @@ export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "node.shaders": at("Nodes, Shaders, one row per use, added from the gallery"),
     "edge.shaders": at("Edges, Shaders, one row per use, added from the gallery"),
     "edge.taper": at("Edges, Line, Taper"),
+    "edge.taperSource": at("Edges, Line, Source taper"),
     "edge.lift": at("Edges, Line, Lift"),
     "edge.color": at("Edges, Line, Color"),
     "edge.width": at("Edges, Line, Width"),

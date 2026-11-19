@@ -30,13 +30,13 @@ fix list sees it again on the frozen build, not as a new proposal.
 | #  | Sev | Screen                                   | Finding                                                                                     | Owner                 | Status |
 | -- | --- | ---------------------------------------- | ------------------------------------------------------------------------------------------- | --------------------- | ------ |
 | 1  | 2   | Workspace, both hosts, node table open   | The preview keeps the hidden data table's height: a 240 px blank band above the strip       | graphty app           | Known  |
-| 2  | 2   | Workspace outline, both hosts            | The No match chit is drawn as a grey, unticked checkbox                                     | graphty app           | New    |
+| 2  | 2   | Workspace outline, both hosts            | The No match chit is drawn as a gray, unticked checkbox                                     | graphty app           | New    |
 | 3  | 2   | Sidebar outline at rest, two groups      | "Except" sits flush with the title, out of A's column; value names at three left edges      | graphty app           | New    |
 | 4  | 2   | Workspace, value picker while typing     | The picker jumps up over the header and its own field                                       | graphty app           | Known  |
 | 5  | 2   | Workspace, value picker                  | The list is cut mid-row under "Results" with no scrollbar, 490 px of free space below       | graphty app           | Known  |
 | 6  | 2   | Within hops, preview                     | The reference node is drawn like every other member; nothing marks the center              | graphty app           | New    |
 | 7  | 2   | Graph at rest after Fill                 | The key grows over a node                                                                   | graphty app           | Known  |
-| 8  | 2   | Workspace preview at 50,000 nodes        | Members in the middle sit under the faint non-members' grey fog                            | graphty-element       | Known  |
+| 8  | 2   | Workspace preview at 50,000 nodes        | Members in the middle sit under the faint non-members' gray fog                            | graphty-element       | Known  |
 | 9  | 1   | Workspace header                         | The result count is the lightest thing in the header                                        | graphty app           | New    |
 | 10 | 1   | Workspace header                         | Table "on" and Done share one green                                                         | compact-mantine       | New    |
 | 11 | 1   | Reference picker                         | The picker is narrower than its field and hangs past the pane's left edge                   | graphty app           | New    |
@@ -74,10 +74,10 @@ layout.
 
 ### 2. The No match chit looks like a checkbox (sev 2, new)
 
-The outline's last row, No match, starts with a 13 px grey rounded square with a darker edge: the
+The outline's last row, No match, starts with a 13 px gray rounded square with a darker edge: the
 size, radius and edge of an unticked checkbox. With one group nothing else in the outline has a
 chit, so the row reads as an option that is turned off. On a filter card it sits one row below the
-card's real on box, the same shape (dark mode makes them almost identical). Its grey (206, 206,
+card's real on box, the same shape (dark mode makes them almost identical). Its gray (206, 206,
 206) is also not the color the preview draws non-members in (lavender, about 209, 210, 232), so it
 does not work as a legend either.
 
@@ -163,7 +163,7 @@ covers a corner of the drawing.
 
 ### 8. Members under the fog at 50,000 nodes (sev 2, known)
 
-With "Grants" ticked, the faint non-members and their edges form a grey slab in the middle of the
+With "Grants" ticked, the faint non-members and their edges form a gray slab in the middle of the
 preview, and the green members inside it are dimmed by it; only the ones near the edge read at
 full color.
 
@@ -173,7 +173,7 @@ full color.
 
 ### 9. The header's count is the lightest thing in it (sev 1, new)
 
-"Which nodes -- Layer 1" is bold, the result "5 of 24" after it is regular, the same grey-black, at
+"Which nodes -- Layer 1" is bold, the result "5 of 24" after it is regular, the same gray-black, at
 the same size; the green Table toggle and Done carry far more weight. The header is the one place
 the result count is drawn while the workspace is open (spec 3.0).
 
@@ -224,7 +224,7 @@ In the layer inspector "Which nodes" and its rows start at x 1225 (1440 wide), e
 
 ### 15. "32 more" is the smallest text on the checklist (sev 1, new)
 
-The 50,000-node checklist shows 8 of 40 values and "32 more" in about 8 px grey. The search box
+The 50,000-node checklist shows 8 of 40 values and "32 more" in about 8 px gray. The search box
 above it does the work, but the only sign that 32 values are not shown is the least visible text
 on the pane.
 
@@ -242,8 +242,8 @@ layer row "1,076" and the Everything row "50,000".
 
 ### 17. The key: three sizes, two edges (sev 1, new)
 
-The key's five lines use 11 px (title, gradient ends), about 8 px grey (count), 8 px semibold
-(PageRank title) and 8 px grey (coverage); the swatch title is indented 24 px while the lines under
+The key's five lines use 11 px (title, gradient ends), about 8 px gray (count), 8 px semibold
+(PageRank title) and 8 px gray (coverage); the swatch title is indented 24 px while the lines under
 it start at the card's edge.
 
 - Evidence: `visual/v1/15.png` (crop `tmp/visual-t5/v1-15-key.png`).
@@ -273,6 +273,6 @@ In the node table and the strip, lon reads "-73.2" in a column of "-73.21"; dept
 - The Except switch's off state: its thumb edge measures 3.6:1 on white, above 3:1.
 - The group B color (vermillion) is close to the round's orange fill; the Okabe-Ito palette and
   the Styled toggle are decided, and no task reads the preview as the result.
-- Number boxes filled grey beside white selects are compact-mantine's Figma inputs.
+- Number boxes filled gray beside white selects are compact-mantine's Figma inputs.
 - The filter card left without a value titles itself "trained pick yes or no" (`visual/v1/20.png`);
   words are the content designer's.

@@ -157,13 +157,13 @@ exported and replayed binds and reads as it did.
 
 **Text is never markup.** Text from the data or a document -- labels, names, column values -- is
 written as a quoted string in every format, never as a DOT HTML-like label or a yFiles HTML label,
-which those tools render as HTML. Each value neutralised is counted and reported with
+which those tools render as HTML. Each value neutralized is counted and reported with
 `W_GRAPHTY_TEXT_QUOTED`.
 
 **CSV cells.** In every format whose output is CSV -- `csv` and the neo4j-admin files of `neo4j` --
 a cell that begins with `=`, `+`, `-`, `@`, a tab or a carriage return is written prefixed with a
 single quote, so a spreadsheet does not run it as a formula; the count is reported with
-`W_GRAPHTY_CSV_NEUTRALIZED`. Header cells are cells and are neutralised the same way. A caller whose
+`W_GRAPHTY_CSV_NEUTRALIZED`. Header cells are cells and are neutralized the same way. A caller whose
 consumer is not a spreadsheet MAY turn this off.
 
 ## Notes
@@ -180,7 +180,7 @@ true })` adds two node and edge columns on the elements notes name: `graphty.not
    notes about sets, items, results or the graph, which elements a multi-target note joins, and
    every field but the text go nowhere but a `.graphty.json` saved beside the export.
 3. **Text is text.** `graphty.notes.text` is written as a quoted string where a format could read it
-   as markup, and a CSV cell is neutralised as any other ("Per format", CSV cells).
+   as markup, and a CSV cell is neutralized as any other ("Per format", CSV cells).
 4. **No collision.** A loaded column whose name starts `graphty.` is never exported, so the two
    columns cannot collide with one. Read back, they are ordinary columns
    (`data.graphty.notes.count`); they do not become notes.

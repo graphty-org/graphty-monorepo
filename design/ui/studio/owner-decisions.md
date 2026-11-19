@@ -3608,7 +3608,7 @@ exported image. The published contract is master's, so there is nothing to appro
 **Why.** After Degree and then Louvain, every node shows its group color, and a "Color:
 Connections" key for paint no node shows is a false claim. Master now reports the cover as a coded
 fact, which is the option this entry used to list as the alternative: the element states the fact,
-and each consumer decides what to show. A layer panel that wants to grey a covered layer can read
+and each consumer decides what to show. A layer panel that wants to gray a covered layer can read
 the same fact.
 
 **Alternatives.** Keep the branch's element change and drop covered blocks inside the element
@@ -3632,7 +3632,7 @@ several); record it as the generic `transaction` (the app could not say what mov
 ## 2026-10-07 -- A GraphML or GEXF file that breaks off is refused, not loaded in part
 
 **What.** Master (issue #1218) and the studio branch settled the same defect two opposite ways. On
-master, a recognisable GraphML or GEXF file that breaks off -- a stray end tag, a tag or quote left
+master, a recognizable GraphML or GEXF file that breaks off -- a stray end tag, a tag or quote left
 open, garbage after the last tag, a file cut off mid-tag -- keeps every node and edge read before
 the break, and `LoadReport.errors` gets a `"parse-error"` entry with the line. On the studio branch
 the load is refused with `E_PARSE_FAILED`, with the line in `details.line`, and nothing is added.

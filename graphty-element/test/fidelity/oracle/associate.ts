@@ -34,6 +34,7 @@ import {
     type PShape,
     type PStop,
     type PStray,
+    type PStroke,
     type Pt,
     type PText,
     shapeId,
@@ -1156,12 +1157,19 @@ function arrowFrom(p: Prim, path: readonly Pt[], end: ArrowEnd, background: stri
  * A path carried on to the tip of the arrowhead at one end, when the program stopped the line at
  * the arrow's base (Graphviz does), so its route is judged to the same place graphty's is: graphty
  * reports an edge as ending at its arrow's tip. It is carried along the head's axis, which runs through the tip.
+ * A head drawn with a stroke ends where its stroke does, past its outline's tip (`strokeReach`).
  * @param path - the edge's path, source end first
  * @param outline - the arrowhead's points
  * @param end - which end it caps
+ * @param stroke - the arrowhead's stroke, or null for a head drawn by its fill alone
  * @returns the path, extended when the tip lies beyond its end
  */
-export function extendToTip(path: readonly Pt[], outline: readonly Pt[], end: "source" | "target"): Pt[] {
+export function extendToTip(
+    path: readonly Pt[],
+    outline: readonly Pt[],
+    end: "source" | "target",
+    stroke: PStroke | null = null,
+): Pt[] {
     const pts = end === "target" ? [...path] : [...path].reverse();
     const last = pts.at(-1);
     const run = capRun(pts, outline);
@@ -1179,11 +1187,56 @@ export function extendToTip(path: readonly Pt[], outline: readonly Pt[], end: "s
     const along = (q: Pt): number => (q[0] - last[0]) * dx + (q[1] - last[1]) * dy;
     // the head's reach along the line, on the line: a flat head (a tee's bar, a half circle) has its farthest points at
     // its corners, beside the line, and a line bent to one of them reads as curved
-    const reach = Math.max(...outline.map(along));
+    const tipReach = Math.max(...outline.map(along));
+    const reach = tipReach + strokeReach(outline, [dx, dy], last, tipReach, stroke);
     if (reach > 0.5) {
         pts.push([last[0] + dx * reach, last[1] + dy * reach]);
     }
     return end === "target" ? pts : pts.reverse();
+}
+
+/** SVG's default `stroke-miterlimit`: a sharper corner is drawn beveled. */
+const MITER_LIMIT = 4;
+
+/** How far behind a head's tip a point of its outline must lie to say how sharp the tip is, in the side's units. */
+const TIP_LEVEL = 0.25;
+
+/**
+ * How far a head's stroke reaches past its outline's tip, along its axis. A stroke wider than a pixel draws the tip on
+ * past the outline: Graphviz moves a thick-stroked arrowhead back so the stroke's mitered point, not the outline's,
+ * lands where the line ends (dot-real-linux-kernel `HI -> HI_`, penwidth 5: the outline's tip 6.2 points short of
+ * it), where graphty draws its head's tip. Only a pointed head's mitered corner is read, w/2/sin(a) for a half
+ * angle a: a round, beveled or flat front reaches at most half the stroke past its outline, which programs place
+ * either way (Cytoscape desktop strokes a ring head across its node's outline, associate-lineless-edges).
+ * @param outline - the head's points
+ * @param dir - its axis, back to tip
+ * @param from - a point on the axis
+ * @param tip - the outline's reach along the axis from that point
+ * @param stroke - the head's stroke, or null
+ * @returns the reach past the tip, 0 for an unstroked head
+ */
+function strokeReach(outline: readonly Pt[], dir: Pt, from: Pt, tip: number, stroke: PStroke | null): number {
+    if (stroke === null || !(stroke.width > 0) || stroke.join !== undefined) {
+        return 0;
+    }
+    // pointed as seen from well behind it on its axis: the line's end may lie a rounding past the outline's tip
+    const span = Math.max(...outline.map(([x, y]) => Math.hypot(x - from[0], y - from[1])));
+    if (pointedAxis(outline, [from[0] - dir[0] * 2 * span, from[1] - dir[1] * 2 * span]) === null) {
+        return 0;
+    }
+    const half = stroke.width / 2;
+    // the corner's half angle at the tip: the steepest the outline falls away from it, across over back, which on a
+    // triangle is its sides' slope and on a flat front nearly square (points level with the tip are a rounding off it)
+    let slope = 0;
+    for (const [x, y] of outline) {
+        const back = tip - ((x - from[0]) * dir[0] + (y - from[1]) * dir[1]);
+        const across = Math.abs((x - from[0]) * -dir[1] + (y - from[1]) * dir[0]);
+        if (back > TIP_LEVEL) {
+            slope = Math.max(slope, across / back);
+        }
+    }
+    const sin = slope / Math.hypot(1, slope);
+    return sin > 0 && 1 / sin <= MITER_LIMIT ? half / sin : 0;
 }
 
 /** How far outside an arrowhead's outline a point of its line may lie and still be under it: a coordinate's rounding. */
@@ -2021,7 +2074,7 @@ export function arrowheadEdge(
             size <= lineCapSize(e) && (toBox(endOf(e, "source"), p.box) <= 1 || toBox(endOf(e, "target"), p.box) <= 1),
     );
     // A shape holding a node's center, or centered in a node and half its size, is part of the node's drawing. A flat
-    // node's size is not its thickness: vis-network's 5 px arrowheads lying over a neighbour's 26 x 7 box, drawn after
+    // node's size is not its thickness: vis-network's 5 px arrowheads lying over a neighbor's 26 x 7 box, drawn after
     // every node, are their lines' (json-vis-siblings, 31 of 284 read as free shapes)
     // Two arms drawn out and back have no inside to hold anything: a plain head as wide as the small node it meets only
     // spans its middle (gml-synthetic-coverage, 29->40).
@@ -3034,7 +3087,7 @@ export function associate(
                         return arrowFrom(h, points, covered.end, canvas);
                     }
                     const end = endOf(h);
-                    points = extendToTip(points, h.points, end);
+                    points = extendToTip(points, h.points, end, h.stroke);
                     return arrowFrom(h, line.points, end, canvas);
                 });
                 // Graphviz's curve and icurve (and their l / r halves): a stroked stem along the line to the tip and
@@ -4120,7 +4173,7 @@ export function associate(
                 ownArrows.add(arrow);
             }
             if (best.end !== "middle") {
-                best.e.points = extendToTip(best.e.points, p.points, best.end);
+                best.e.points = extendToTip(best.e.points, p.points, best.end, p.stroke);
             }
         }
     }
@@ -4194,7 +4247,7 @@ export function associate(
 
     // ---- labels by geometry: graphty's label text near the node it belongs to. Every line goes to
     // the nearest node that wants those words, closest pairs first, so a node met early cannot take
-    // a neighbour's line that sits nearer the neighbour (two labels ending in the same word).
+    // a neighbor's line that sits nearer the neighbor (two labels ending in the same word).
     const guideById = new Map(guide.nodes.map((n) => [n.id, n]));
     const guideWords = new Set(guide.texts.map((t) => norm(t.content)).filter((t) => t !== ""));
     const wanting = nodeList
@@ -4280,7 +4333,7 @@ export function associate(
             // node wants those words: an end label drawn over its own node (Cytoscape.js's source label at its
             // default offset, cytoscapejs-specimen-edge-labels' source-text-rotation-none) is the edge's
             // nor are words graphty draws as a text of their own (a text-only node over a box, cx2-wp1449-tlr's
-            // "Peptidoglycan(G+)" over the unlabelled group box 136935)
+            // "Peptidoglycan(G+)" over the unlabeled group box 136935)
             const endWords = endWordsAt(guide, w.n.id);
             const box = nodeBox(w.n);
             const hit = free()
@@ -4301,7 +4354,7 @@ export function associate(
             apartAsGraphty(w.picked, guideById.get(w.n.id)?.label ?? null),
         );
     }
-    // one guide edge per pair, a labelled one where parallel edges are not all labelled
+    // one guide edge per pair, a labeled one where parallel edges are not all labeled
     const guideEdges = new Map<string, (typeof guide.edges)[number]>();
     for (const e of guide.edges) {
         const k = `${e.source}\u0000${e.target}`;
@@ -4429,19 +4482,26 @@ export function associate(
                 twin.box = { x0: twin.box.x0 - d, y0: twin.box.y0 - d, x1: twin.box.x1 + d, y1: twin.box.y1 + d };
             }
             twin.fill ??= p.fill;
+            // a ring painted as a fill round a group (yEd Live's tab and frame) is its band, not its outline, where the
+            // program strokes the outline over the same box too (yed-live-graphml-specimen-groups-p3)
+            if (twin.stroke?.painted === true && p.stroke !== null && p.stroke.painted !== true) {
+                twin.stroke = p.stroke;
+            }
             twin.stroke ??= p.stroke;
             twin.panel ??= p.panel;
             continue;
         }
         // inside the outline itself, not only its box: a wide edge drawn as a filled band has a box over the nodes it
-        // passes, but holds none of them
-        const holds = (q: Pt): boolean => inside(q, p.box) && (p.points.length < 3 || inPolygon(q, p.points));
+        // passes, but holds none of them. An outline painted as a filled ring holds what is inside its hole (yEd's
+        // DemoGroup, a frame with an open inside, yed-graphml-specimen-groups).
+        const ring = p.tag === PAINTED_OUTLINE;
+        const holds = (q: Pt): boolean => inside(q, p.box) && (ring || p.points.length < 3 || inPolygon(q, p.points));
         const members = nodeList.filter(
             (n) => holds([n.cx, n.cy]) && n.w <= bw(p.box) && n.h <= bh(p.box) && area(nodeBox(n)) < 0.8 * area(p.box),
         );
         // each of graphty's boxes stands for one box of the program's
         const guided = members.length === 1 ? guideBoxes.findIndex((b) => boxIoU(b, p.box) >= 0.5) : -1;
-        if ((members.length >= 2 || guided >= 0) && polygonArea(p.points) >= 0.5 * area(p.box)) {
+        if ((members.length >= 2 || guided >= 0) && (ring || polygonArea(p.points) >= 0.5 * area(p.box))) {
             if (guided >= 0) {
                 guideBoxes.splice(guided, 1);
             }
@@ -5178,7 +5238,7 @@ function besideTexts(texts: readonly Prim[], gap = 0.5): Prim[] {
 /** Where a guide node should be in the oracle's frame, how big, and how far its body may sit from there (in sizes). */
 /**
  * graphty's groups that are containers: drawn, holding two or more nodes, and at least twice the
- * area of the largest of them. A node that merely covers its neighbours in a dense drawing holds
+ * area of the largest of them. A node that merely covers its neighbors in a dense drawing holds
  * them too, but is no box drawn around them.
  * @param guide - graphty's drawing
  * @returns the groups
@@ -5307,7 +5367,7 @@ function spotsOf(guideNodes: readonly PNode[], predict: Predict): Map<PNode, Non
         return at === null ? [] : [{ n, at }];
     });
     byId.sort((a, b) => compareIds(a.n.id, b.n.id));
-    // in buckets of a pixel, so each node is compared with its neighbours only
+    // in buckets of a pixel, so each node is compared with its neighbors only
     const bucket = new Map<string, { x: number; y: number }[]>();
     const key = (x: number, y: number): string => `${String(Math.floor(x))},${String(Math.floor(y))}`;
     for (const { n, at } of byId) {

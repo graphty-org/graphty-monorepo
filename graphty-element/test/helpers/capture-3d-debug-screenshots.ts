@@ -13,37 +13,14 @@
  * - top-left-2: Halfway between top and left (closer to left)
  *
  * Usage:
- *   npx tsx test/helpers/capture-3d-debug-screenshots.ts <story-id> [--axes]
+ *   npx tsx test/helpers/capture-3d-debug-screenshots.ts <story-id>
  *
  * Examples:
  *   npx tsx test/helpers/capture-3d-debug-screenshots.ts styles-edge--circle-arrow-head
- *   npx tsx test/helpers/capture-3d-debug-screenshots.ts styles-edge--circle-arrow-head --axes
- *
- * Options:
- *   --axes    Enable BabylonJS AxesViewer to show coordinate system
  */
 
 import { resolve } from "path";
 import { chromium, type Page } from "playwright";
-
-/** One axis of a Babylon.js `AxesViewer`, as far as this script colors it. */
-interface AxisNode {
-    getChildMeshes(): { material: { emissiveColor: unknown; diffuseColor: unknown } | null }[];
-}
-
-/** The parts of the page's global Babylon.js namespace this script uses. */
-interface BabylonGlobal {
-    AxesViewer: new (
-        scene: unknown,
-        size: number,
-    ) => {
-        _xAxis: AxisNode;
-        _yAxis: AxisNode;
-        _zAxis: AxisNode;
-        dispose: () => void;
-    };
-    Color3: new (r: number, g: number, b: number) => unknown;
-}
 
 const STORYBOOK_URL = process.env.STORYBOOK_URL ?? "https://localhost:6006";
 const TMP_DIR = resolve(process.cwd(), "tmp");
@@ -206,67 +183,6 @@ async function setupCamera(page: Page, position: CameraPosition): Promise<void> 
 }
 
 /**
- * Enable axes viewer at the origin
- */
-async function enableAxesViewer(page: Page): Promise<void> {
-    await page.evaluate(() => {
-        const elem = document.querySelector("graphty-element");
-        const graphty = elem as {
-            graph: { scene: { metadata?: { axesViewer?: { dispose: () => void } }; render: () => void } };
-        } | null;
-        if (!graphty?.graph) {
-            console.error("Graph not found");
-            return;
-        }
-
-        const { scene } = graphty.graph;
-
-        // Remove any existing axes viewer
-        if (scene.metadata?.axesViewer) {
-            scene.metadata.axesViewer.dispose();
-        }
-
-        // Create AxesViewer using global BABYLON namespace
-        // Size 5 makes axes visible but not too large
-
-        const { BABYLON } = globalThis as typeof globalThis & { BABYLON: BabylonGlobal };
-        const axes = new BABYLON.AxesViewer(scene, 5);
-
-        // Make the colors bright and vivid (graphty-element's scene settings can wash out colors)
-        // Set both emissive and diffuse colors to full brightness
-        const paint = (axis: AxisNode, r: number, g: number, b: number): void => {
-            for (const mesh of axis.getChildMeshes()) {
-                if (mesh.material) {
-                    mesh.material.emissiveColor = new BABYLON.Color3(r, g, b);
-                    mesh.material.diffuseColor = new BABYLON.Color3(r, g, b);
-                }
-            }
-        };
-        paint(axes._xAxis, 1, 0, 0); // Bright red
-        paint(axes._yAxis, 0, 1, 0); // Bright green
-        paint(axes._zAxis, 0, 0, 1); // Bright blue
-
-        // Store reference
-        scene.metadata ??= {};
-
-        scene.metadata.axesViewer = axes;
-
-        // Force render
-        scene.render();
-    });
-
-    // The axes were drawn by the render above; let the element's own loop draw one frame with them
-    await page.evaluate(
-        () =>
-            new Promise<void>((done) => {
-                requestAnimationFrame(() => {
-                    done();
-                });
-            }),
-    );
-}
-
-/**
  * Generate timestamp for filename
  */
 function getTimestamp(): string {
@@ -277,7 +193,7 @@ function getTimestamp(): string {
 /**
  * Main capture function
  */
-async function captureScreenshots(storyId: string, showAxes = false): Promise<void> {
+async function captureScreenshots(storyId: string): Promise<void> {
     const browser = await chromium.launch({ headless: true });
     const page = await browser.newPage();
 
@@ -297,10 +213,6 @@ async function captureScreenshots(storyId: string, showAxes = false): Promise<vo
         const positions = getCameraPositions();
 
         console.log(`\nCapturing ${positions.length} screenshots with timestamp: ${timestamp}`);
-        if (showAxes) {
-            console.log("AxesViewer enabled (Red=X, Green=Y, Blue=Z)\n");
-            await enableAxesViewer(page);
-        }
 
         // Capture images from each camera position
         for (const position of positions) {
@@ -343,26 +255,19 @@ async function main(): Promise<void> {
 
     if (args.length === 0 || args.includes("--help") || args.includes("-h")) {
         console.log(`
-Usage: npx tsx test/helpers/capture-3d-debug-screenshots.ts <story-id> [--axes]
+Usage: npx tsx test/helpers/capture-3d-debug-screenshots.ts <story-id>
 
 Arguments:
   story-id    Storybook story ID (e.g., styles-edge--circle-arrow-head)
 
-Options:
-  --axes      Enable BabylonJS AxesViewer to show coordinate system
-              Red = X axis, Green = Y axis, Blue = Z axis
-
 Examples:
   npx tsx test/helpers/capture-3d-debug-screenshots.ts styles-edge--circle-arrow-head
-  npx tsx test/helpers/capture-3d-debug-screenshots.ts styles-edge--circle-arrow-head --axes
         `);
         process.exit(0);
     }
 
     const storyId = args[0];
-    const showAxes = args.includes("--axes");
-
-    await captureScreenshots(storyId, showAxes);
+    await captureScreenshots(storyId);
 }
 
 main().catch(console.error);

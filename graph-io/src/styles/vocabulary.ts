@@ -269,6 +269,7 @@ export const STYLE_PROPERTIES: {
         ["waveAmplitude", "number"],
         ["wavePeriod", "number"],
         ["taper", "number"],
+        ["taperSource", "number"],
         ["sourceArrow", "arrow"],
         ["targetArrow", "arrow"],
         ["midTargetArrow", "arrow"],

@@ -157,7 +157,7 @@ export interface GlobeLook {
      */
     readonly sun?: { readonly lat: number; readonly lon: number } | null;
     /**
-     * A colour (`#rrggbb`) the canvas is cleared to while the globe is drawn, in place of the
+     * A color (`#rrggbb`) the canvas is cleared to while the globe is drawn, in place of the
      * graph's own background, which comes back with a 2D map or another layout. Default none.
      */
     readonly background?: string | null;

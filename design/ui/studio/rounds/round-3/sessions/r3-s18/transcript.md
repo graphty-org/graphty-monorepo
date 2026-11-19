@@ -50,7 +50,7 @@ sample -- acceptable, the order was predictable. Enter to open it.
 
 Command: `--step ... --key Enter` -> 06.png
 
-Sam: The graph opened: 115 blue dots and grey lines, no names anywhere, as the task said. Left:
+Sam: The graph opened: 115 blue dots and gray lines, no names anywhere, as the task said. Left:
 a find box, "Selection", "Everything". Right: a panel with "Style" and "Values" (Values is
 selected, showing an overview: 115 nodes, 613 edges). A toolbar at the bottom with four icons.
 Names on dots sounds like appearance, so "Style" is my guess. Problem: I cannot see where focus

@@ -76,6 +76,40 @@ describe("source-steps: the simple path", () => {
         session.dispose();
     });
 
+    it("a direct edit naming a key two spaces hold is refused with E_AMBIGUOUS_ID and changes nothing (8.3, 9.1)", async () => {
+        const session = stepsSession();
+        await session.data.import(csv("people.csv", "id\na\n"), { type: "person" });
+        await session.data.import(csv("pets.csv", "id\na\n"), { mode: "merge", type: "pet" });
+        const before = nodeIds(session);
+        const refused = (error: unknown): void =>
+            assert.strictEqual((error as { code?: string }).code, "E_AMBIGUOUS_ID");
+        await session.data
+            .updateNodes([{ id: "a", values: { score: 5 } }])
+            .then(() => assert.fail("updateNodes must name the space"), refused);
+        await session.data
+            .addEdges([{ source: "a", target: "pet:a" }])
+            .then(() => assert.fail("addEdges must name the space"), refused);
+        await session.data.removeNodes(["a"]).then(() => assert.fail("removeNodes must name the space"), refused);
+        assert.deepStrictEqual(session.data.edits(), []);
+        assert.deepStrictEqual(nodeIds(session), before);
+        await session.data.updateNodes([{ id: "pet:a", values: { score: 5 } }]);
+        assert.deepStrictEqual(nodeIds(session), before, "the spelled NodeId edits the pet, minting nothing");
+        session.dispose();
+    });
+
+    it("two plain imports sharing a key: an edge to the bare key is refused, not drawn to a new reader node", async () => {
+        const session = stepsSession();
+        await session.data.import(csv("1.csv", "source,target\na,b\n"));
+        await session.data.import(csv("2.csv", "source,target\nb,c\n"), { mode: "merge" });
+        const before = nodeIds(session);
+        await session.data.addEdges([{ source: "b", target: "c" }]).then(
+            () => assert.fail("b is held in two spaces"),
+            (error: unknown) => assert.strictEqual((error as { code?: string }).code, "E_AMBIGUOUS_ID"),
+        );
+        assert.deepStrictEqual(nodeIds(session), before);
+        session.dispose();
+    });
+
     it("a replacing load takes every source out first, so the app's open-a-file keeps working", async () => {
         const session = stepsSession();
         await session.data.import(csv("one.csv", "source,target\na,b\nb,c\n"));

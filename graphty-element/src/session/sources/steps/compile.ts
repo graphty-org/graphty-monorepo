@@ -24,6 +24,7 @@ import {
     mintEditId,
     mintSourceId,
     nodeOfId,
+    refOf,
     SOURCE_COPIES_VALUE,
     SOURCE_STEPS_VALUE,
     type SourceSteps,
@@ -32,6 +33,7 @@ import {
     type StepsSourceKind,
 } from "./project";
 import {
+    type BuildResult,
     type CellValue,
     type CopyTables,
     type NodeRef,
@@ -301,15 +303,18 @@ export function compileRecords(
 }
 
 /**
- * The `{ space, key }` a NodeId names in the committed build, or the reader space for one no node holds.
- * @param value - The value.
- * @param copies - Its copies.
+ * The `{ space, key }` a NodeId names in the committed build: the exact NodeId, else the one space holding the key,
+ * else the reader space for a key no node holds.
+ * @param built - The committed build.
  * @param id - The NodeId.
  * @returns The reference.
+ * @throws A `GraphtyError` with `E_AMBIGUOUS_ID` when nodes in several spaces hold the key.
  */
-function nodeRef(value: SourceSteps, copies: Copies, id: NodeId): NodeRef {
-    const n = nodeOfId(buildOf(value, copies), id);
-    return n === null ? { space: READER_SPACE, key: String(id) } : { space: n.space, key: n.key };
+function nodeRef(built: BuildResult, id: NodeId): NodeRef {
+    const n = nodeOfId(built, id);
+    return n === null
+        ? (refOf(built, String(id)) ?? { space: READER_SPACE, key: String(id) })
+        : { space: n.space, key: n.key };
 }
 
 /**
@@ -369,14 +374,14 @@ export function readerOps(
                     id,
                     op: "add-edge",
                     edge: { load: READER_SOURCE, key: id },
-                    from: nodeRef(value, copies, record[ends.source] as NodeId),
-                    to: nodeRef(value, copies, record[ends.target] as NodeId),
+                    from: nodeRef(built, record[ends.source] as NodeId),
+                    to: nodeRef(built, record[ends.target] as NodeId),
                     columns: cells(record, []),
                 };
             });
         }
         case "remove-nodes":
-            return mutation.ids.map((id) => ({ id: mintEditId(), op: "remove", node: nodeRef(value, copies, id) }));
+            return mutation.ids.map((id) => ({ id: mintEditId(), op: "remove", node: nodeRef(built, id) }));
         case "remove-edges":
             return mutation.ids.flatMap((id) => {
                 const edge = edgeRef(edgeIds, id);
@@ -391,7 +396,7 @@ export function readerOps(
             return rows.flatMap((row) => {
                 const target =
                     mutation.target === "node"
-                        ? { node: nodeRef(value, copies, row.id) }
+                        ? { node: nodeRef(built, row.id) }
                         : (() => {
                               const edge = edgeRef(edgeIds, String(row.id));
                               return edge === null ? null : { edge };

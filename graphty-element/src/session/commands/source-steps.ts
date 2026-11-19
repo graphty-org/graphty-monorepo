@@ -277,7 +277,7 @@ const dataStepsSet: UndoableDefinition<DataStepsSetCommand> = {
         const declared = adds?.source.declared;
         if (declared !== undefined) {
             // As an import of the file does: taken only while no edge is drawn yet.
-            service.direct?.(declared.directed, declared.statedBy, ctx.draft);
+            service.direct(declared.directed, declared.statedBy, ctx.draft);
         }
         if (diff.addNodes.length > 0) {
             apply({ kind: "add-nodes", records: diff.addNodes, idPath });

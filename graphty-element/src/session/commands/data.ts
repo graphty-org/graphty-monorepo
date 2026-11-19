@@ -567,7 +567,7 @@ export interface DataService {
      * @param statedBy - The part of the file that said so.
      * @param draft - The command's draft.
      */
-    direct?(directed: boolean, statedBy: string, draft: Draft): void;
+    direct(directed: boolean, statedBy: string, draft: Draft): void;
 }
 
 /** A session's stable edge identity, read from its current snapshot. */

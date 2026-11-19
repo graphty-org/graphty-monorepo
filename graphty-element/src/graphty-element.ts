@@ -1582,7 +1582,7 @@ export class Graphty extends LitElement {
             this.#featuresValue = value.split(/\s+/).filter((id) => id !== "");
         } else {
             // A copy, so the caller changing its array afterwards does not change what was set.
-            this.#featuresValue = Array.isArray(value) ? Object.freeze([...value]) : undefined;
+            this.#featuresValue = value === null || value === undefined ? undefined : Object.freeze([...value]);
         }
         this.requestUpdate("features", oldValue);
     }

@@ -3,19 +3,19 @@
     "headroomPercent": 10,
     "minimumHeadroomBytes": 1024,
     "entries": {
-        ".": 1157171,
-        "./session": 696453,
-        "./schema": 17518,
-        "./catalog": 163940,
+        ".": 1161250,
+        "./session": 697371,
+        "./schema": 17564,
+        "./catalog": 164343,
         "./commands": 1669,
-        "./extend": 124381,
+        "./extend": 124484,
         "./format": 1267,
-        "./logging": 11417,
+        "./logging": 11439,
         "./react": 1044,
-        "./webgpu": 12880,
-        "./ai": 268311,
-        "./credentials": 6422,
-        "./bundle": 5618967
+        "./webgpu": 13184,
+        "./ai": 268634,
+        "./credentials": 6437,
+        "./bundle": 5624194
     },
     "lazyChunks": {
         "models": {

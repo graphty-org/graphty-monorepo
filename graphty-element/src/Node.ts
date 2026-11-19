@@ -101,6 +101,7 @@ import {
 } from "./session/styles/channels";
 import { transitionsOf } from "./transitions/LayoutTransitionRunner";
 
+/** A node's id, as the data gave it: a string or a number. */
 export type NodeIdType = string | number;
 
 /**
@@ -240,6 +241,7 @@ function groupRegionPaint(meshKey: string, style: NodeStyleConfig): { meshKey: s
 }
 
 interface NodeOpts {
+    /** Whether dropping the node after a drag pins it in place; defaults to true. */
     pinOnDrag?: boolean;
 }
 
@@ -455,8 +457,11 @@ function exactOf(stored: number, measured: number | null): number {
  * Manages node rendering, styling, drag behavior, and interactions with the layout engine.
  */
 export class Node implements ModelUser {
+    /** The graph this node belongs to. */
     parentGraph: Graph | GraphContext;
+    /** The options the node was created with. */
     opts: NodeOpts;
+    /** The node's id, as the data gave it. */
     readonly id: NodeIdType;
 
     private row: number = INVALID_INDEX;
@@ -504,6 +509,10 @@ export class Node implements ModelUser {
         return this.row;
     }
 
+    /**
+     * Moves the node to a new row and marks the edges drawn from it as changed.
+     * @param row - The new row.
+     */
     private set index(row: number) {
         this.row = row;
         // the edge ID target draws each line from its nodes' rows
@@ -587,6 +596,7 @@ export class Node implements ModelUser {
     /** The shared mesh a batch draws this node from, or null while it has its own. */
     private batchSource: AbstractMesh | null = null;
     private batchOpacity = 1;
+    /** The node's label on screen, or undefined while it shows none. */
     label?: RichTextLabel;
 
     /** The further texts on screen (`shape.texts`), one label each. */
@@ -737,8 +747,11 @@ export class Node implements ModelUser {
         this.pointerHandler = handler;
     }
 
+    /** Whether a pointer drag is moving the node right now. */
     dragging = false;
+    /** Whether dropping the node after a drag pins it in place, from the node's options. */
     pinOnDrag!: boolean;
+    /** The shape size the node is drawn at, from its style (`shape.size`); 0 when the style sets none. */
     size!: number;
 
     /**
@@ -1847,7 +1860,7 @@ export class Node implements ModelUser {
         to.rotation.copyFrom(from.rotation);
         to.rotationQuaternion = from.rotationQuaternion?.clone() ?? null;
         to.parent = from.parent;
-        to.metadata = from.metadata;
+        to.metadata = from.metadata as unknown;
         to.setEnabled(from.isEnabled(false));
         for (const child of from.getChildren()) {
             child.parent = to;
@@ -3977,7 +3990,14 @@ export class Node implements ModelUser {
      * `ngraph`'s `nodeGap` and by edge self-loops. Measured once per mesh and scaling.
      * @returns The half-extents; the style's own size on every axis when the mesh has no bounds yet.
      */
-    get drawnHalfExtents(): Readonly<{ x: number; y: number; z: number }> {
+    get drawnHalfExtents(): Readonly<{
+        /** Half the drawn width. */
+        x: number;
+        /** Half the drawn height. */
+        y: number;
+        /** Half the drawn depth. */
+        z: number;
+    }> {
         const batched = this.batchTable;
         if (batched !== null) {
             const { half } = batched.extentOf(this.row);
@@ -4819,7 +4839,14 @@ export class Node implements ModelUser {
      * {@link Graph.waitForStableFrame} before reading it.
      * @returns An object containing the x, y, and z coordinates of the node
      */
-    getPosition(): { x: number; y: number; z: number } {
+    getPosition(): {
+        /** The x coordinate. */
+        x: number;
+        /** The y coordinate. */
+        y: number;
+        /** The z coordinate. */
+        z: number;
+    } {
         this.followRow();
         return {
             x: this.#anchor.position.x,

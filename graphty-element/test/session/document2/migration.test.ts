@@ -191,7 +191,10 @@ describe("a version 1 project file, migrated", () => {
         // The run records the build it ran on and the copy ids, which equal the data's.
         assert.strictEqual(run.bindsTo.build, data.build);
         const copies = Object.fromEntries(
-            (data.sources as JsonObject[]).map((source) => [source.id, (source.origin as JsonObject).copy]),
+            (data.sources as JsonObject[]).map((source): [string, unknown] => [
+                String(source.id),
+                (source.origin as JsonObject).copy,
+            ]),
         );
         assert.deepStrictEqual(run.bindsTo.sources, copies);
 

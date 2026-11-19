@@ -834,7 +834,7 @@ async function modelTurn(
 
     // A provider that ignores the signal may still answer after a cancel: the answer is dropped.
     if (abort.signal.aborted || !finished) {
-        const cause = abort.signal.aborted
+        const cause: unknown = abort.signal.aborted
             ? abort.signal.reason
             : new Error("The model's turn ended without finishing.");
         throw new TurnFailed(providerFailure(cause, engine.providerName, abort.signal), text);

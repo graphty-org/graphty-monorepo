@@ -90,4 +90,62 @@ describe("the Filters words", () => {
             'Filter: 9 of 22 nodes, filtered by "weight is at least 4", "in the largest component"',
         );
     });
+
+    it("reads every other kind of rule, and a union of steps by its groups", () => {
+        const named: Namer = {
+            ...NAMES,
+            value: (path, value) => (value === "true" ? "Yes" : value),
+            source: (key) => `load ${key}`,
+        };
+        assert.equal(ruleWords({ kind: "range", attribute: "data.weight" }, NAMES), "weight has a value");
+        assert.equal(
+            ruleWords({ kind: "text", reads: "data.name", mode: "regex", text: "^M" }, NAMES),
+            "name matches ^M",
+        );
+        assert.equal(ruleWords({ kind: "text", reads: "data.ok", mode: "exact", text: "true" }, named), "ok is Yes");
+        assert.equal(
+            ruleWords({ kind: "categories", attribute: "data.ok", values: ["true", "false"] }, named),
+            "ok is Yes or false",
+        );
+        assert.equal(ruleWords({ kind: "threshold", path: "data.age", above: 40 }, NAMES), "age is above 40");
+        assert.equal(
+            ruleWords({ kind: "not", of: { kind: "member", of: "largest-component" } }, NAMES),
+            "not: in the largest component",
+        );
+        assert.equal(
+            ruleWords({ kind: "all", of: [{ kind: "isolated" }, { kind: "self-loop" }] }, NAMES),
+            "Isolated and Self-loops",
+        );
+        assert.equal(ruleWords({ kind: "repeated-edge" }, NAMES), "Repeated edges");
+        assert.equal(ruleWords({ kind: "component", id: 3 }, NAMES), "in component 3");
+        assert.equal(ruleWords({ kind: "source", sources: ["a", "b"] }, named), "from load a or load b");
+        assert.equal(ruleWords({ kind: "source", sources: ["a"] }, NAMES), "from a");
+        assert.equal(ruleWords({ kind: "degree" }, NAMES), "Degree");
+        assert.equal(ruleWords({ kind: "degree", max: 2, direction: "out" }, NAMES), "Out degree max 2");
+        const isolated = { kind: "isolated" } as const;
+        const loops = { kind: "self-loop" } as const;
+        assert.equal(
+            ruleWords(
+                {
+                    kind: "union",
+                    side: "nodes",
+                    within: "graph",
+                    branches: [
+                        {
+                            start: "none",
+                            steps: [
+                                { op: "add", rule: isolated },
+                                { op: "except", rule: loops },
+                            ],
+                        },
+                        { start: "all", steps: [{ op: "keep", rule: loops }] },
+                        { start: "none", steps: [] },
+                    ],
+                },
+                NAMES,
+            ),
+            "Isolated, except Self-loops or keep Self-loops",
+        );
+        assert.equal(ruleWords({ kind: "union", side: "nodes", within: "graph", branches: [] }, NAMES), "a selection");
+    });
 });

@@ -1032,26 +1032,49 @@ function FileSettings({ page }: PartProps): React.JSX.Element {
                                     }}
                                 />
                             ) : null}
-                            <NumberInput
-                                label="Error limit"
-                                description="Bad rows read past before the file is refused"
-                                size="sm"
-                                min={0}
-                                allowDecimal={false}
-                                placeholder="100"
-                                value={settings.errorLimit ?? ""}
-                                onChange={(value) => {
-                                    page.setSettings({
-                                        ...settings,
-                                        errorLimit: typeof value === "number" ? value : undefined,
-                                    });
-                                }}
-                            />
+                            <ErrorLimit page={page} />
                         </Stack>
                     </Popout.Content>
                 </Popout.Panel>
             </Popout>
         </Group>
+    );
+}
+
+/**
+ * File settings' Error limit. The number is used once the reader is done with it (Enter, or
+ * leaving the box): reading the file again takes File settings off the page while it reads, so a
+ * read on each keystroke kept only the first digit typed.
+ * @param props - Component props
+ * @param props.page - The page state
+ * @returns The box
+ */
+function ErrorLimit({ page }: PartProps): React.JSX.Element {
+    const { settings } = page;
+    const [typed, setTyped] = useState<string | number>(settings.errorLimit ?? "");
+    const commit = (): void => {
+        const errorLimit = typeof typed === "number" ? typed : undefined;
+        if (errorLimit !== settings.errorLimit) {
+            page.setSettings({ ...settings, errorLimit });
+        }
+    };
+    return (
+        <NumberInput
+            label="Error limit"
+            description="Bad rows read past before the file is refused"
+            size="sm"
+            min={0}
+            allowDecimal={false}
+            placeholder="100"
+            value={typed}
+            onChange={setTyped}
+            onBlur={commit}
+            onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                    commit();
+                }
+            }}
+        />
     );
 }
 

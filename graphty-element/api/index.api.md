@@ -162,7 +162,7 @@ export const ACCELERATION_POLICY_DEFAULT: AccelerationPolicy;
 export type AccelerationCapabilities = Pick<Capabilities, "acceleration">;
 
 // @public
-export type AccelerationErrorCode = "E_NO_WEBGPU" | "E_NO_ADAPTER" | "E_SOFTWARE_ONLY" | "E_DEVICE_INCORRECT" | "E_DEVICE_LOST" | "E_TOO_LARGE" | "E_NO_ACCELERATOR_REGISTERED" | "E_ACCELERATOR_FAILED";
+export type AccelerationErrorCode = "E_NO_WEBGPU" | "E_NO_ADAPTER" | "E_SOFTWARE_ONLY" | "E_DEVICE_INCORRECT" | "E_DEVICE_LOST" | "E_TOO_LARGE" | "E_NO_ACCELERATOR_REGISTERED" | "E_ACCELERATOR_FAILED" | "E_ACCELERATOR_INCOMPATIBLE" | "E_MISSING_PACKAGE";
 
 // @public
 export type AccelerationPolicy = "auto" | "off" | "required";
@@ -179,6 +179,7 @@ export interface AccelerationStatus {
     readonly backend?: "webgpu" | (string & {});
     readonly code?: AccelerationErrorCode;
     readonly device?: string;
+    readonly params?: Readonly<Record<string, CodedFactParam>>;
     readonly policy: AccelerationPolicy;
     readonly reason?: string;
     readonly state: AccelerationState;
@@ -573,49 +574,34 @@ export interface CalibrationRecord {
     machine: string;
 }
 
-// @public (undocumented)
+// @public
 export interface CameraAnimationOptions {
-    // (undocumented)
     animate?: boolean;
-    // (undocumented)
     description?: string;
-    // (undocumented)
     duration?: number;
-    // (undocumented)
     easing?: "linear" | "easeIn" | "easeOut" | "easeInOut";
-    // (undocumented)
     skipQueue?: boolean;
 }
 
 // @public
 export interface CameraState {
     alpha?: number;
-    // (undocumented)
     beta?: number;
-    // (undocumented)
     cameraDistance?: number;
-    // (undocumented)
     fov?: number;
-    // (undocumented)
     orthoBottom?: number;
-    // (undocumented)
     orthoLeft?: number;
-    // (undocumented)
     orthoRight?: number;
-    // (undocumented)
     orthoTop?: number;
-    // (undocumented)
     pan?: {
         x: number;
         y: number;
     };
-    // (undocumented)
     pivotRotation?: {
         x: number;
         y: number;
         z: number;
     };
-    // (undocumented)
     position?: {
         x: number;
         y: number;
@@ -623,13 +609,11 @@ export interface CameraState {
     };
     radius?: number;
     rotation?: number;
-    // (undocumented)
     target?: {
         x: number;
         y: number;
         z: number;
     };
-    // (undocumented)
     type?: "arcRotate" | "free" | "universal" | "orthographic";
     zoom?: number;
 }
@@ -1176,7 +1160,7 @@ export class Edge {
     xlabelLabel: RichTextLabel | null;
 }
 
-// @public (undocumented)
+// @public
 export const EDGE_CONSTANTS: {
     readonly DEFAULT_LINE_WIDTH: 8;
     readonly DEFAULT_LINE_COLOR: "#FFFFFF";
@@ -1369,6 +1353,10 @@ export const EdgeStyle: z.ZodObject<{
             borderAlign: z.ZodOptional<z.ZodEnum<{
                 center: "center";
                 outside: "outside";
+            }>>;
+            borderStyle: z.ZodOptional<z.ZodEnum<{
+                readonly solid: "solid";
+                readonly double: "double";
             }>>;
             backgroundShape: z.ZodOptional<z.ZodEnum<{
                 rectangle: "rectangle";
@@ -1663,6 +1651,10 @@ export const EdgeStyle: z.ZodObject<{
                 center: "center";
                 outside: "outside";
             }>>;
+            borderStyle: z.ZodOptional<z.ZodEnum<{
+                readonly solid: "solid";
+                readonly double: "double";
+            }>>;
             backgroundShape: z.ZodOptional<z.ZodEnum<{
                 rectangle: "rectangle";
                 circle: "circle";
@@ -1952,6 +1944,7 @@ export const EdgeStyle: z.ZodObject<{
         type: z.ZodOptional<z.ZodEnum<{
             solid: "solid";
             dot: "dot";
+            double: "double";
             box: "box";
             diamond: "diamond";
             star: "star";
@@ -1959,7 +1952,6 @@ export const EdgeStyle: z.ZodObject<{
             "dash-dot": "dash-dot";
             sinewave: "sinewave";
             zigzag: "zigzag";
-            double: "double";
             "forward-slash": "forward-slash";
             "backward-slash": "backward-slash";
             "vertical-slash": "vertical-slash";
@@ -2015,6 +2007,7 @@ export const EdgeStyle: z.ZodObject<{
         bezier: z.ZodOptional<z.ZodBoolean>;
         bends: z.ZodOptional<z.ZodString>;
         taper: z.ZodOptional<z.ZodNumber>;
+        taperSource: z.ZodOptional<z.ZodNumber>;
         lift: z.ZodOptional<z.ZodNumber>;
         fanSpacing: z.ZodOptional<z.ZodNumber>;
         fanned: z.ZodOptional<z.ZodBoolean>;
@@ -2107,6 +2100,10 @@ export const EdgeStyle: z.ZodObject<{
         borderAlign: z.ZodOptional<z.ZodEnum<{
             center: "center";
             outside: "outside";
+        }>>;
+        borderStyle: z.ZodOptional<z.ZodEnum<{
+            readonly solid: "solid";
+            readonly double: "double";
         }>>;
         backgroundShape: z.ZodOptional<z.ZodEnum<{
             rectangle: "rectangle";
@@ -2346,6 +2343,10 @@ export const EdgeStyle: z.ZodObject<{
         borderAlign: z.ZodOptional<z.ZodEnum<{
             center: "center";
             outside: "outside";
+        }>>;
+        borderStyle: z.ZodOptional<z.ZodEnum<{
+            readonly solid: "solid";
+            readonly double: "double";
         }>>;
         backgroundShape: z.ZodOptional<z.ZodEnum<{
             rectangle: "rectangle";
@@ -4280,9 +4281,10 @@ export type GraphtyErrorCode =
 */
 | "E_NO_ACCELERATOR"
 /**
-* No accelerator factory is registered, so the element never looked for a GPU. Usually
-* `import "@graphty/graphty-element/webgpu"` was never evaluated -- not written, or its module
-* failed to load (a network error, a blocked request, a stale dev-server cache). Reported
+* No accelerator factory is registered, so the element never looked for a GPU. The root entry
+* point registers one for `@graphty/webgpu-graph-algorithms` by itself, so this means the
+* element was used only through an entry point that does not (`./session` and the other
+* Node-safe entries) and nothing called `import "@graphty/graphty-element/webgpu"`. Reported
 * through `capabilities.acceleration`; a registration that arrives later switches
 * acceleration on without the consumer doing anything.
 */
@@ -4291,9 +4293,20 @@ export type GraphtyErrorCode =
 * A registered accelerator factory threw while setting up, with an error that is not one of
 * the other acceleration codes -- a module of the backend that failed to load, or a defect in
 * the backend. `reason` carries what it threw. Reported through `capabilities.acceleration`;
-* the CPU path runs.
+* the CPU path runs. Also what an installed `@graphty/webgpu-graph-algorithms` reports when
+* it is present and fails to load (a syntax error, a throw while its module evaluates, an
+* import-map URL that does not answer); `params.package` names it.
 */
 | "E_ACCELERATOR_FAILED"
+/**
+* The installed accelerator package loaded but lacks what this graphty-element needs: an
+* export it calls is missing, usually because the installed version is older or newer than
+* the range graphty-element declares as its peer, or because a bundler alias replaced it with
+* an empty module. Reported through `capabilities.acceleration` with `params.package` and
+* `params.missing` (the export names); the CPU path runs. The caller installs a version in
+* the declared peer range.
+*/
+| "E_ACCELERATOR_INCOMPATIBLE"
 /**
 * The runtime exposes no WebGPU at all: no `navigator.gpu`, usually because the page is not
 * in a secure context or the browser does not implement it. Reported through
@@ -4362,8 +4375,10 @@ export type GraphtyErrorCode =
 /**
 * A feature the caller asked for needs an optional peer package that is not installed.
 * `details.package` names the package to install and `details.feature` the feature that
-* needs it (for the in-browser AI provider, `"webllm"`). The caller installs the package, or
-* picks a feature that does not need it.
+* needs it (for the in-browser AI provider, `"webllm"`; for acceleration, `"webgpu"`). The
+* caller installs the package, or picks a feature that does not need it. Also reported, not
+* thrown, on `capabilities.acceleration` when `@graphty/webgpu-graph-algorithms` is not
+* installed, with `params.package`; nothing is printed then, because nothing asked for a GPU.
 */
 | "E_MISSING_PACKAGE"
 /**
@@ -5040,7 +5055,7 @@ export interface HighlightSuggestion {
     readonly spec: HighlightSpec;
 }
 
-// @public (undocumented)
+// @public
 const ImageData_2: z.ZodUnion<[z.ZodURL, z.ZodString]>;
 export { ImageData_2 as ImageData }
 
@@ -5551,7 +5566,6 @@ class Node_2 implements ModelUser {
     // @internal
     get decorationPieces(): readonly NodeDecorationPiece[];
     dispose(): void;
-    // (undocumented)
     dragging: boolean;
     get dragHandler(): NodeDragHandler | undefined;
     set dragHandler(handler: NodeDragHandler | undefined);
@@ -5629,7 +5643,6 @@ class Node_2 implements ModelUser {
     hideTooltip(): void;
     // @internal
     holdOffBatch(): void;
-    // (undocumented)
     readonly id: NodeIdType;
     // @internal
     imageDrawn(): BaseTexture | null;
@@ -5643,7 +5656,6 @@ class Node_2 implements ModelUser {
     isDrawnInFrustum(planes: Plane[]): boolean;
     isPinned(): boolean;
     isSelected(): boolean;
-    // (undocumented)
     label?: RichTextLabel;
     // @internal
     get layoutRadius(): number;
@@ -5658,7 +5670,6 @@ class Node_2 implements ModelUser {
         readonly colored: boolean;
         readonly clip: string | null;
     };
-    // (undocumented)
     opts: NodeOpts;
     // @internal
     get outlineHalfExtents(): Readonly<{
@@ -5672,10 +5683,8 @@ class Node_2 implements ModelUser {
     get paintedOpacity(): number;
     // @internal
     get paintedSourceMesh(): AbstractMesh;
-    // (undocumented)
     parentGraph: Graph | GraphContext;
     pin(): void;
-    // (undocumented)
     pinOnDrag: boolean;
     // @internal
     get reachOutline(): readonly (readonly [x: number, y: number])[] | null;
@@ -5702,7 +5711,6 @@ class Node_2 implements ModelUser {
     shapeTextLabels: RichTextLabel[];
     shapeType?: NonNullable<NodeStyleConfig["shape"]>["type"];
     showTooltip(): void;
-    // (undocumented)
     size: number;
     // @internal
     get sizeSpace(): NodeSizeSpace | undefined;
@@ -5816,7 +5824,7 @@ export interface NodeHoverEvent {
 // @public
 export type NodeId = string | number;
 
-// @public (undocumented)
+// @public
 export type NodeIdType = string | number;
 
 // @public
@@ -6107,10 +6115,10 @@ export const NodeStyle: z.ZodObject<{
         opacity: z.ZodOptional<z.ZodNumber>;
         style: z.ZodOptional<z.ZodEnum<{
             solid: "solid";
+            double: "double";
             "dash-dot": "dash-dot";
             sinewave: "sinewave";
             zigzag: "zigzag";
-            double: "double";
             "forward-slash": "forward-slash";
             "backward-slash": "backward-slash";
             "vertical-slash": "vertical-slash";
@@ -6133,10 +6141,10 @@ export const NodeStyle: z.ZodObject<{
         opacity: z.ZodOptional<z.ZodNumber>;
         style: z.ZodOptional<z.ZodEnum<{
             solid: "solid";
+            double: "double";
             "dash-dot": "dash-dot";
             sinewave: "sinewave";
             zigzag: "zigzag";
-            double: "double";
             "forward-slash": "forward-slash";
             "backward-slash": "backward-slash";
             "vertical-slash": "vertical-slash";
@@ -6444,6 +6452,10 @@ export const NodeStyle: z.ZodObject<{
             center: "center";
             outside: "outside";
         }>>;
+        borderStyle: z.ZodOptional<z.ZodEnum<{
+            readonly solid: "solid";
+            readonly double: "double";
+        }>>;
         backgroundShape: z.ZodOptional<z.ZodEnum<{
             rectangle: "rectangle";
             circle: "circle";
@@ -6683,6 +6695,10 @@ export const NodeStyle: z.ZodObject<{
             center: "center";
             outside: "outside";
         }>>;
+        borderStyle: z.ZodOptional<z.ZodEnum<{
+            readonly solid: "solid";
+            readonly double: "double";
+        }>>;
         backgroundShape: z.ZodOptional<z.ZodEnum<{
             rectangle: "rectangle";
             circle: "circle";
@@ -6921,6 +6937,10 @@ export const NodeStyle: z.ZodObject<{
         borderAlign: z.ZodOptional<z.ZodEnum<{
             center: "center";
             outside: "outside";
+        }>>;
+        borderStyle: z.ZodOptional<z.ZodEnum<{
+            readonly solid: "solid";
+            readonly double: "double";
         }>>;
         backgroundShape: z.ZodOptional<z.ZodEnum<{
             rectangle: "rectangle";
@@ -7422,37 +7442,22 @@ export type PixelRatio = number | "device";
 // @public
 export const PLASMA_COLORS: readonly ["#0d0887", "#5302a3", "#8b0aa5", "#b83289", "#db5c68", "#f48849", "#febd2a", "#f0f921"];
 
-// @public (undocumented)
+// @public
 export enum PolyhedronType {
-    // (undocumented)
     DODECAHEDRON = 2,
-    // (undocumented)
     ELONGATED_PENTAGONAL_CUPOLA = 14,
-    // (undocumented)
     ELONGATED_PENTAGONAL_DIPYRAMID = 13,
-    // (undocumented)
     ELONGATED_SQUARE_DIPYRAMID = 12,
-    // (undocumented)
     HEXAGONAL_PRISM = 7,
-    // (undocumented)
     ICOSAHEDRON = 3,
-    // (undocumented)
     OCTAHEDRON = 1,
-    // (undocumented)
     PENTAGONAL_DIPYRAMID = 11,
-    // (undocumented)
     PENTAGONAL_PRISM = 6,
-    // (undocumented)
     PENTAGONAL_PYRAMID = 9,
-    // (undocumented)
     RHOMBICUBOCTAHEDRON = 4,
-    // (undocumented)
     SQUARE_PYRAMID = 8,
-    // (undocumented)
     TETRAHEDRON = 0,
-    // (undocumented)
     TRIANGULAR_DIPYRAMID = 10,
-    // (undocumented)
     TRIANGULAR_PRISM = 5
 }
 
@@ -7844,6 +7849,10 @@ export const RichTextStyle: z.ZodObject<{
         center: "center";
         outside: "outside";
     }>>;
+    borderStyle: z.ZodOptional<z.ZodEnum<{
+        readonly solid: "solid";
+        readonly double: "double";
+    }>>;
     backgroundShape: z.ZodOptional<z.ZodEnum<{
         rectangle: "rectangle";
         circle: "circle";
@@ -8081,63 +8090,46 @@ export interface ScreenshotLegendSection {
     title: string;
 }
 
-// @public (undocumented)
+// @public
 export interface ScreenshotOptions {
     backgroundColor?: string;
     camera?: CameraState | {
         preset: string;
         params?: Readonly<Record<string, unknown>>;
     };
-    // (undocumented)
     destination?: {
         blob?: boolean;
         download?: boolean;
         clipboard?: boolean;
     };
-    // (undocumented)
     downloadFilename?: string;
     enhanceQuality?: boolean | QualityEnhancementOptions;
-    // (undocumented)
     format?: "png" | "jpeg" | "webp";
-    // (undocumented)
     height?: number;
     legend?: boolean | "auto" | ScreenshotLegendOptions | readonly ScreenshotLegendSection[];
-    // (undocumented)
     multiplier?: number;
-    // (undocumented)
     preset?: "print" | "web-share" | "thumbnail" | "documentation";
-    // (undocumented)
     quality?: number;
     showSelection?: boolean;
     signal?: AbortSignal;
-    // (undocumented)
     strictAspectRatio?: boolean;
-    // (undocumented)
     timing?: {
         waitForSettle?: boolean;
         waitForOperations?: boolean;
         settleTimeoutMs?: number;
         captureNow?: AbortSignal;
     };
-    // (undocumented)
     transparentBackground?: boolean;
-    // (undocumented)
     width?: number;
 }
 
-// @public (undocumented)
+// @public
 export interface ScreenshotResult {
-    // (undocumented)
     blob: Blob;
-    // (undocumented)
     clipboardError?: Error;
-    // (undocumented)
     clipboardStatus: ClipboardStatus;
-    // (undocumented)
     downloaded: boolean;
-    // (undocumented)
     errors?: Error[];
-    // (undocumented)
     metadata: {
         width: number;
         height: number;
@@ -8189,7 +8181,7 @@ export interface ShaderSettings {
     readonly untrusted?: "hold" | "run" | "refuse";
 }
 
-// @public (undocumented)
+// @public
 export const SHAPE_CONSTANTS: {
     readonly GOLDEN_RATIO: 1.618;
     readonly DEFAULT_NODE_SIZE: 1;
@@ -8518,13 +8510,11 @@ export interface StableFrameOptions {
 // @public
 export class StatsManager implements Manager {
     constructor(eventManager: EventManager);
-    // (undocumented)
     arrowCapUpdate: PerfCounter;
     decrementCounter(label: string, amount?: number): void;
     disableFrameProfiling(): void;
     disableProfiling(): void;
     dispose(): void;
-    // (undocumented)
     edgeUpdate: PerfCounter;
     enableFrameProfiling(): void;
     enableProfiling(): void;
@@ -8552,20 +8542,16 @@ export class StatsManager implements Manager {
         edgeUpdateCount: number;
         arrowCapUpdateCount: number;
     };
-    // (undocumented)
     graphStep: PerfCounter;
     incrementCounter(label: string, amount?: number): void;
     init(): Promise<void>;
     initializeBabylonInstrumentation(scene: Scene, engine: Engine | WebGPUEngine): void;
     // @internal
     _injectMockInstrumentation(engineInstrumentation?: EngineInstrumentation | null, sceneInstrumentation?: SceneInstrumentation | null): void;
-    // (undocumented)
     intersectCalc: PerfCounter;
-    // (undocumented)
     loadTime: PerfCounter;
     measure<T>(label: string, fn: () => T): T;
     measureAsync<T>(label: string, fn: () => Promise<T>): Promise<T>;
-    // (undocumented)
     nodeUpdate: PerfCounter;
     reportDetailed(): void;
     reset(): void;
@@ -8578,7 +8564,6 @@ export class StatsManager implements Manager {
     startMeasurement(label: string): void;
     step(): void;
     toString(): string;
-    // (undocumented)
     totalUpdates: number;
     updateCacheStats(hits: number, misses: number): void;
     updateCounts(nodeCount: number, edgeCount: number): void;
@@ -8728,13 +8713,9 @@ export const VIEW_MODE_VALUES: readonly ["2d", "3d", "ar", "vr"];
 
 // @public
 export interface ViewInsets {
-    // (undocumented)
     readonly bottom?: number;
-    // (undocumented)
     readonly left?: number;
-    // (undocumented)
     readonly right?: number;
-    // (undocumented)
     readonly top?: number;
 }
 

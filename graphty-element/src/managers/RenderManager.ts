@@ -1119,7 +1119,7 @@ export class RenderManager implements Manager {
         this.camera = new CameraManager(this.scene);
 
         // Store camera manager in scene metadata for access by other components
-        this.scene.metadata = this.scene.metadata ?? {};
+        this.scene.metadata ??= {};
         this.scene.metadata.cameraManager = this.camera;
 
         // Setup cameras
@@ -1532,7 +1532,8 @@ export class RenderManager implements Manager {
         // change that keeps the render size are not. An XR session draws in its own frames, so
         // nothing is drawn outside them.
         const resized = width !== this.engine.getRenderWidth() || height !== this.engine.getRenderHeight();
-        const xrState: WebXRState | undefined = this.scene.metadata?.xrHelper?.baseExperience?.state;
+        const xrState = (this.scene.metadata as { xrHelper?: { baseExperience?: { state?: WebXRState } } } | null)
+            ?.xrHelper?.baseExperience?.state;
         if (resized && (xrState === undefined || xrState === WebXRState.NOT_IN_XR)) {
             this.drawNow();
         }

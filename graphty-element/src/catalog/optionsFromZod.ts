@@ -350,7 +350,9 @@ function flatten(node: JsonSchemaNode, depth: number): FlatUnion {
     const branches =
         node.anyOf ??
         node.oneOf ??
-        (Array.isArray(node.type) ? node.type.map((type) => ({ ...node, type })) : undefined);
+        (node.type === undefined || typeof node.type === "string"
+            ? undefined
+            : node.type.map((type) => ({ ...node, type })));
     if (branches === undefined) {
         if (node.type === "null") {
             return { arms: [], nullable: true, unresolvedRef: false };

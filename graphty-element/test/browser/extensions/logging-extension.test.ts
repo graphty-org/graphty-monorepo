@@ -467,7 +467,7 @@ describe("a third party's log destination", () => {
         GraphtyLogger.getLogger(["graphty", "test"]).info("one event, one line");
 
         const [entry] = collector.kept;
-        const printed = consoleInfo.mock.calls.at(-1)?.[0];
+        const printed: unknown = consoleInfo.mock.calls.at(-1)?.[0];
 
         assert.isDefined(entry);
         assert.strictEqual(

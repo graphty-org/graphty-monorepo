@@ -325,6 +325,7 @@ import { XRUIManager } from "./ui/XRUIManager";
 import { asError } from "./utils/asError";
 import { downloadBlob } from "./utils/download";
 import type { QueueableOptions, RunAlgorithmOptions, SetLayoutOptions } from "./utils/queue-migration";
+import { inXR } from "./xr/inXR";
 import { XrAvailability } from "./xr/XrAvailability";
 import { type XRSessionEndCause, XRSessionManager } from "./xr/XRSessionManager";
 
@@ -5822,9 +5823,7 @@ export class Graph implements GraphContext {
 
         this.scene.onPrePointerObservable.add((pointerInfo) => {
             // Skip in XR mode - XR has its own input handling
-            const xrHelper = this.scene.metadata?.xrHelper;
-            if (xrHelper?.baseExperience?.state === 2) {
-                // WebXRState.IN_XR
+            if (inXR(this.scene)) {
                 return;
             }
 
@@ -6097,7 +6096,7 @@ export class Graph implements GraphContext {
      * @param twoD - Whether the scene is 2D.
      */
     private writeSceneDimension(twoD: boolean): void {
-        this.scene.metadata = this.scene.metadata ?? {};
+        this.scene.metadata ??= {};
         this.scene.metadata.twoD = twoD;
         this.scene.metadata.viewMode = this.viewSettings.graph.immersive ?? (twoD ? "2d" : "3d");
     }
@@ -11102,7 +11101,7 @@ export class Graph implements GraphContext {
         }
 
         // Store XR helper in scene metadata for isXRMode() detection
-        this.scene.metadata = this.scene.metadata ?? {};
+        this.scene.metadata ??= {};
         this.scene.metadata.xrHelper = xrHelper;
 
         // Create XR pivot camera controller (handles input via pivot-based system)

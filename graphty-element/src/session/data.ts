@@ -5473,7 +5473,10 @@ export class SessionData implements SessionDataApi {
      */
     async deriveScore(name: string, terms: readonly ScoreTerm[], options: DeriveOptions = {}): Promise<void> {
         this.requireLive("deriveScore");
-        if (!Array.isArray(terms) || terms.length === 0) {
+        // Checked as unknown: a caller's terms may break their type, and narrowing `terms` itself
+        // would leave it an any[].
+        const given: unknown = terms;
+        if (!Array.isArray(given) || given.length === 0) {
             throw new GraphtyError({
                 code: "E_BAD_COMMAND",
                 message: "A score has at least one term.",
@@ -5776,10 +5779,10 @@ export class SessionData implements SessionDataApi {
     groupTable(groupBy: Path, options: GroupTableOptions = {}): GroupTable {
         const summaries = Object.entries(options.summaries ?? {});
         for (const [path, asked] of summaries) {
-            const unknown = (Array.isArray(asked) ? asked : [asked]).find(
-                (each) => !GROUP_SUMMARIES.includes(each as GroupSummary),
-            );
-            if (!Array.isArray(asked) || unknown !== undefined) {
+            const given: unknown = asked;
+            const list: readonly unknown[] = Array.isArray(given) ? given : [given];
+            const unknown = list.find((each) => !GROUP_SUMMARIES.includes(each as GroupSummary));
+            if (!Array.isArray(given) || unknown !== undefined) {
                 throw new GraphtyError({
                     code: "E_OPTION_RANGE",
                     message: `summaries of ${path} must be a list of ${GROUP_SUMMARIES.join(", ")}`,

@@ -25,7 +25,9 @@
  * - `@graphty/graphty-element/logging` -- the logger, the levels, the record, the destinations
  *   the element ships and `lazy`.
  * - `@graphty/graphty-element/ai` -- the natural-language layer and its optional peers.
- * - `@graphty/graphty-element/webgpu` -- one import that switches on GPU acceleration.
+ * - `@graphty/graphty-element/webgpu` -- optional: registers GPU acceleration statically. This
+ *   entry finds an installed `@graphty/webgpu-graph-algorithms` by itself, the first time the
+ *   element probes for acceleration.
  *
  * Each of the first six resolves in Node with no renderer anywhere in its import graph.
  *
@@ -40,6 +42,9 @@
 // and registers the <graphty-element> custom element. This prevents tree-shaking from removing
 // the custom element registration when consumers do `import "@graphty/graphty-element";`
 import "./src/graphty-element";
+// Registers the lazy WebGPU loader: an installed @graphty/webgpu-graph-algorithms is used with no
+// consumer code. Nothing is imported until the element first probes for acceleration.
+import "./src/acceleration/autoload";
 
 // =============================================================================
 // Core classes

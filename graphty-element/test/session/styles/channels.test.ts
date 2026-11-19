@@ -68,6 +68,7 @@ const DECLARED = [
     "node.labelLineHeight",
     "node.labelLineBox",
     "node.labelBorderAlign",
+    "node.labelBorderStyle",
     "node.labelBackgroundShape",
     "node.labelOffsetX",
     "node.labelOffsetY",
@@ -398,6 +399,7 @@ const DECLARED = [
     "edge.labelLineHeight",
     "edge.labelLineBox",
     "edge.labelBorderAlign",
+    "edge.labelBorderStyle",
     "edge.labelBackgroundShape",
     "edge.labelOffsetX",
     "edge.labelOffsetY",
@@ -409,6 +411,7 @@ const DECLARED = [
     "node.shaders",
     "edge.shaders",
     "edge.taper",
+    "edge.taperSource",
     "edge.lift",
     "node.xlabel",
     "node.xlabelStyle",
@@ -447,9 +450,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into two hundred and seventeen node channels and one hundred and seventy-five edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 217);
-        assert.strictEqual(channelsFor("edge").length, 175);
+    it("splits into two hundred and eighteen node channels and one hundred and seventy-seven edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 218);
+        assert.strictEqual(channelsFor("edge").length, 177);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -878,6 +881,7 @@ describe("what a style editor needs to draw a row", () => {
         "node.labelLineHeight",
         "node.labelLineBox",
         "node.labelBorderAlign",
+        "node.labelBorderStyle",
         "node.labelBackgroundShape",
         "node.labelOffsetX",
         "node.labelOffsetY",
@@ -914,6 +918,7 @@ describe("what a style editor needs to draw a row", () => {
         "edge.labelLineHeight",
         "edge.labelLineBox",
         "edge.labelBorderAlign",
+        "edge.labelBorderStyle",
         "edge.labelBackgroundShape",
         "edge.labelOffsetX",
         "edge.labelOffsetY",

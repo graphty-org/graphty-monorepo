@@ -1747,7 +1747,8 @@ function nodeLinkOf(member: Record<string, unknown>): NodeLink {
     if (
         !Array.isArray(graph?.nodes) ||
         !Array.isArray(graph.links) ||
-        ![...graph.nodes, ...graph.links].every(isObject)
+        !graph.nodes.every(isObject) ||
+        !graph.links.every(isObject)
     ) {
         throw badDocument({ member: "graphty-data" });
     }
@@ -1920,7 +1921,10 @@ function provenanceInto(saved: unknown, edgeIds: readonly (EdgeId | undefined)[]
                             .map((at) => (typeof at === "number" ? edgeIds[at] : undefined))
                             .filter((id): id is EdgeId => id !== undefined),
                     ),
-                    ...(Array.isArray(supplied.held) ? { held: Object.freeze([...supplied.held]) } : {}),
+                    // a file's `held` is checked as unknown: narrowing it in place would leave an any[]
+                    ...(Array.isArray(supplied.held as unknown)
+                        ? { held: Object.freeze([...(supplied.held ?? [])]) }
+                        : {}),
                 }),
             ]),
         ),

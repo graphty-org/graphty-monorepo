@@ -115,6 +115,19 @@ export function written(session: GraphSession, channel: string): unknown {
 }
 
 /**
+ * Waits until graphty-element reports the model the "Shapes" layer names drawn, whatever id the
+ * layer names by then (a supplied part can make a new record).
+ * @param session - the element's session.
+ */
+export async function drawn(session: GraphSession): Promise<void> {
+    await waitFor(() => {
+        const ref = written(session, "node.model");
+        assert.isString(ref);
+        assert.equal(session.assets.states().find((change) => change.ref === ref)?.state, "drawn");
+    });
+}
+
+/**
  * The Shape field.
  * @param tab - the Style tab.
  * @returns the combobox.

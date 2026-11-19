@@ -18,7 +18,17 @@ import { withoutFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
 import policeUrl from "../__fixtures__/car-kit/police.glb?url";
 import colormapUrl from "../__fixtures__/car-kit/Textures/colormap.png?url";
-import { addModel, choose, dropOn, openCustom, openShapes, previewOf, shapeField, written } from "./modelHarness";
+import {
+    addModel,
+    choose,
+    drawn,
+    dropOn,
+    openCustom,
+    openShapes,
+    previewOf,
+    shapeField,
+    written,
+} from "./modelHarness";
 import { tooltipOf } from "./tooltip";
 
 // These tests drive the Style panel the app shows with file styles off; the panel by part of the
@@ -130,18 +140,6 @@ function storedZip(files: ReadonlyMap<string, Uint8Array>): Uint8Array<ArrayBuff
         at += part.length;
     }
     return out;
-}
-
-/**
- * Waits until graphty-element reports the model the layer names drawn.
- * @param session - the element's session.
- */
-async function drawn(session: GraphSession): Promise<void> {
-    await waitFor(() => {
-        const ref = written(session, "node.model");
-        assert.isString(ref);
-        assert.equal(session.assets.states().find((change) => change.ref === ref)?.state, "drawn");
-    });
 }
 
 /**

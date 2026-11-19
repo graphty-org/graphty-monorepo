@@ -214,6 +214,7 @@ import { refreshReport } from "./sources/refreshReport";
 import type { StepsAct } from "./sources/steps/acts";
 import { resolveNode } from "./sources/steps/build";
 import { compileCommand, compileImport, compileJoin, readerOps, withoutJoin } from "./sources/steps/compile";
+import type { DraftMark, DraftMarks } from "./sources/steps/draft";
 import { matchCounts, matchValues } from "./sources/steps/match";
 import { RECORD_PATHS } from "./sources/steps/paths";
 import {
@@ -998,6 +999,12 @@ export class SessionData implements SessionDataApi {
     private heldDraft: Draft | null = null;
     /** The draft of the sources and steps open now, under the source-steps experiment. */
     private sourceDraft: SourceDraftHandle | null = null;
+    /** The drawn draft's edge marks by session id, kept for the marks and edge ids they came from. */
+    private shownMarks: {
+        readonly marks: DraftMarks;
+        readonly ids: Readonly<Record<string, EdgeId>>;
+        readonly edges: ReadonlyMap<string, DraftMark>;
+    } | null = null;
     /** Row orders computed for pages, by what they were asked with, for the current revision. */
     private readonly orders: RevisionCache<Uint32Array>;
     /** The last few neighbor lists, by node and options, for the current revision. */
@@ -3592,6 +3599,30 @@ export class SessionData implements SessionDataApi {
             Object.keys(a).length === Object.keys(b).length &&
             Object.entries(a).every(([key, value]) => b[key] === value);
         return move === undefined && same(settings.types, now.types) && same(settings.renamed, now.renamed);
+    }
+
+    /**
+     * The draft drawn now (`draft.display(true)`): what its commit does to each element, by session
+     * id, and the side it draws. Never written anywhere, so a save, the history and runs read none of it.
+     * @returns The marks and the side, or null while no draft is drawn or the experiment is off.
+     */
+    shownDraft(): {
+        readonly nodes: ReadonlyMap<string, DraftMark>;
+        readonly edges: ReadonlyMap<string, DraftMark>;
+        readonly side: "before" | "after";
+    } | null {
+        const draft = this.sourceDraft;
+        const marks = this.stepsOn() ? (draft?.marks() ?? null) : null;
+        if (draft === null || marks === null) {
+            return null;
+        }
+        const ids = this.stepsEdgeIds();
+        if (this.shownMarks?.marks !== marks || this.shownMarks.ids !== ids) {
+            // A drawn edge goes by its session id; one only the draft builds keeps its built id.
+            const edges = new Map([...marks.edges].map(([built, mark]) => [ids[built] ?? built, mark]));
+            this.shownMarks = { marks, ids, edges };
+        }
+        return { nodes: marks.nodes, edges: this.shownMarks.edges, side: draft.side };
     }
 
     /** Discard the open draft, if any: a project opened or the graph cleared replaces what it drafted. */

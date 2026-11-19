@@ -5190,10 +5190,49 @@ export interface SourceDraft {
     commit(): Promise<void>;
     /** Close the draft, leaving the graph, the history and the saved file as they were. */
     dispose(): void;
+    /** Whether the draft is drawn on the graph: set by {@link SourceDraft.display}, off at first. */
+    readonly displayed: boolean;
+    /** Which side of the commit a displayed draft draws: set by {@link SourceDraft.show}, `"after"` at first. */
+    readonly side: "before" | "after";
+    /**
+     * Draw the draft on the graph, or stop. While it is drawn, every element reads the path
+     * `graphty.draft` as what the commit would do to it -- `"merged"` (a node the commit folds
+     * more keys into), `"new"`, `"changed"` (other values), `"removed"` or `"unchanged"` -- so a
+     * style layer or a rule can show it; while it is not, the path reads nothing. Nothing is
+     * written: the history, the saved file and every run stay as they were.
+     * @example
+     * ```ts
+     * const draft = session.data.draft();
+     * draft.merge({ from: { source: "people", field: "badge" }, into: { space: "person" } });
+     * draft.display(true);
+     * await session.styles.add({
+     *     name: "Merged",
+     *     target: "node",
+     *     selector: { match: "expression", where: "graphty.draft == 'merged'" },
+     *     set: { "node.haloColor": "#7048e8", "node.haloScale": 1.4, "node.haloOpacity": 1 },
+     * });
+     * draft.show("before"); // the graph as it is now
+     * draft.show("after"); // the graph as the commit would leave it
+     * ```
+     * @param on - True to draw it.
+     * @throws A `GraphtyError` with `E_BAD_COMMAND` (reason `draft-closed`) once the draft is closed.
+     */
+    display(on: boolean): void;
+    /**
+     * Choose which side of the commit a displayed draft draws: `"before"` draws the graph as it
+     * is; `"after"` also hides what the commit would remove. Nodes and edges the commit would add
+     * are not drawn on either side until it is committed; the preview counts them. View only:
+     * nothing is recorded or saved, and runs, statistics and the legend read the committed graph
+     * either way.
+     * @param side - The side.
+     * @throws A `GraphtyError` with `E_BAD_COMMAND`, reason `side` for any other value, or reason
+     *   `draft-closed` once the draft is closed.
+     */
+    show(side: "before" | "after"): void;
 }
 
 /**
- * `data:draft-changed`: a draft opened, changed, was committed or was discarded.
+ * `data:draft-changed`: a draft opened, changed, was drawn otherwise, was committed or was discarded.
  * @experimental source-steps
  */
 export interface SourceDraftChange {
@@ -5201,9 +5240,10 @@ export interface SourceDraftChange {
     readonly draft: string;
     /**
      * What happened: `"opened"` by `session.data.draft()`, `"changed"` by an act on it, `"committed"`
-     * by its commit, or `"discarded"` by `dispose()`, opening a project or clearing the graph.
+     * by its commit, `"discarded"` by `dispose()`, opening a project or clearing the graph, or
+     * `"displayed"` by `display` or `show` changing how it is drawn.
      */
-    readonly reason: "opened" | "changed" | "committed" | "discarded";
+    readonly reason: "opened" | "changed" | "committed" | "discarded" | "displayed";
 }
 
 /**

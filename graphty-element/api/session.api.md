@@ -3574,7 +3574,7 @@ export interface LayerReach {
 // @public
 export type LayerSource = {
     by: "element";
-    reason: "default" | "selection" | "hover" | "notes";
+    reason: "default" | "selection" | "hover" | "notes" | "draft";
 } | {
     by: "run";
     runId: RunId;
@@ -7292,6 +7292,8 @@ export interface SourceDraft {
     commit(): Promise<void>;
     connect(options: SourceConnectOptions): number;
     declareType(entry: SourceTypeEntry): void;
+    display(on: boolean): void;
+    readonly displayed: boolean;
     dispose(): void;
     edits(): readonly ReaderEditRow[];
     editStep(index: number, patch: SourceStepPatch): void;
@@ -7319,6 +7321,8 @@ export interface SourceDraft {
         readonly source: SourceKey;
     }): void;
     setMapping(source: SourceKey, patch: SourceMappingPatch): void;
+    show(side: "before" | "after"): void;
+    readonly side: "before" | "after";
     stage(source: DataSourceInput, options?: ImportOptions): Promise<string>;
     steps(): readonly SourceStepRow[];
     types(): readonly SourceTypeEntry[];
@@ -7353,7 +7357,7 @@ export interface SourceDraftCellsQuery {
 // @public
 export interface SourceDraftChange {
     readonly draft: string;
-    readonly reason: "opened" | "changed" | "committed" | "discarded";
+    readonly reason: "opened" | "changed" | "committed" | "discarded" | "displayed";
 }
 
 // @public
@@ -8388,7 +8392,7 @@ export interface StyleProblem {
 }
 
 // @public
-export type StyleRepaintCause = "selection" | "hover" | "peek" | "sets" | "branches" | "hidden" | "layer";
+export type StyleRepaintCause = "selection" | "hover" | "peek" | "sets" | "branches" | "hidden" | "layer" | "draft";
 
 // @public
 export interface StyleRepaintFailure {

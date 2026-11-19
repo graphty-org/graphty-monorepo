@@ -24,6 +24,7 @@ import type {
     StaticStyle,
 } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
+import { DRAFT_PATH } from "../sources/steps/paths";
 import { channelDescriptor } from "./channels";
 import type { CompiledLayer, PathDirectory } from "./Layer";
 import type { SelectorTarget } from "./predicate";
@@ -249,10 +250,25 @@ type StartingRowId =
     | "graphty:starting-selected"
     | "graphty:starting-hovered"
     | typeof PINNED_ROW_ID
+    | typeof DRAFT_ROW_ID
     | typeof TIMELINE_HIDDEN_ROW_ID;
 
 /** The template id the Pinned row carries. */
 const PINNED_ROW_ID = "graphty:starting-pinned";
+
+/** The template id the Draft row carries (experimental: source-steps). */
+const DRAFT_ROW_ID = "graphty:starting-draft";
+
+/**
+ * The Draft row's look: a ring on the nodes a drawn source draft's commit would merge, and the edges
+ * it would add drawn dashed.
+ */
+export const STARTING_DRAFT_LOOK = {
+    "node.haloColor": "#7048E8",
+    "node.haloScale": 1.4,
+    "node.haloOpacity": 1,
+    "edge.style": "dash",
+} as const;
 
 /** One default row: its template id, where it is pinned, and what it is written with. */
 export interface StartingRow {
@@ -299,8 +315,10 @@ export const STARTING_GHOST_LOOK = {
  * @param look.pinned.color - The halo's color.
  * @param look.pinned.scale - The halo's size.
  * @param look.pinned.opacity - How solid the halo is.
+ * @param look.draft - Whether to add the Draft row (the source-steps experiment): it selects on
+ *   `graphty.draft`, which reads nothing until a source draft is drawn.
  * @returns The rows, in the order they are added: Everything (pinned to the bottom), then Pinned,
- *   Selected and Hovered, each pinned to the top above the one before. Given `timelineHidden`
+ *   Draft, Selected and Hovered, each pinned to the top above the one before. Given `timelineHidden`
  *   instead, the timeline's one row, Timeline Hidden, pinned to the top: `"hidden"` sets
  *   `visible: false`; `"ghost"` draws what lies outside the time window gray and faint.
  */
@@ -315,6 +333,7 @@ export function startingRows(
               };
               readonly everything?: StaticStyle;
               readonly pinned?: { readonly color: string; readonly scale: number; readonly opacity: number };
+              readonly draft?: boolean;
           }
         | { readonly timelineHidden: TimelineHiddenLook },
 ): readonly StartingRow[] {
@@ -374,6 +393,26 @@ export function startingRows(
                       },
                   } as const,
               ]),
+        ...(look.draft === true
+            ? [
+                  {
+                      templateId: DRAFT_ROW_ID,
+                      pin: "top",
+                      spec: {
+                          name: "Draft",
+                          target: "both",
+                          // Read per element by each part: the node part rings merged and new
+                          // nodes, the edge part dashes new edges (no edge is merged).
+                          selector: {
+                              match: "expression",
+                              where: `${DRAFT_PATH} == 'merged' || ${DRAFT_PATH} == 'new'`,
+                          },
+                          set: STARTING_DRAFT_LOOK,
+                          source: source(DRAFT_ROW_ID),
+                      },
+                  } as const,
+              ]
+            : []),
         {
             templateId: "graphty:starting-selected",
             pin: "top",

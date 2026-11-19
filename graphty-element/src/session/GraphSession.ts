@@ -180,7 +180,7 @@ import type { StatusRun } from "./sets/status";
 import type { SetsApi, SetUser } from "./sets/types";
 import { bindShadersController, createSessionShaders, type SessionShaders, type ShadersController } from "./shaders";
 import { type Provenance, PROVENANCE_VALUE, suppliedBy } from "./sources/provenance";
-import { RECORD_PATHS } from "./sources/steps/paths";
+import { DRAFT_PATH, RECORD_PATHS } from "./sources/steps/paths";
 import type { StepsEdit } from "./sources/steps/project";
 import {
     createAutoApplyPolicy,
@@ -2649,6 +2649,53 @@ function peekLayersOf(peeked: {
 }
 
 /**
+ * The layers a drawn draft's After draws with: what its commit would remove, not drawn. Base
+ * layers, so a key never lists them, as a peek's.
+ * @param shown - The drawn draft's marks.
+ * @param shown.nodes - Each node's mark, by its NodeId spelled as text.
+ * @param shown.edges - Each edge's mark, by its EdgeId.
+ * @param graph - The committed graph, whose node ids the marks spell.
+ * @returns The layers.
+ */
+function draftHideLayersOf(
+    shown: { readonly nodes: ReadonlyMap<string, string>; readonly edges: ReadonlyMap<string, string> },
+    graph: GraphSnapshot,
+): ElementLayerSpec[] {
+    const nodes: NodeId[] = [];
+    for (let index = 0; index < graph.nodeCount; index++) {
+        const id = graph.ids.idOf(index);
+        if (shown.nodes.get(String(id)) === "removed") {
+            nodes.push(id);
+        }
+    }
+    const edges = [...shown.edges].filter(([, mark]) => mark === "removed").map(([id]) => id);
+    const made: ElementLayerSpec[] = [];
+    if (nodes.length > 0) {
+        made.push({
+            name: "Draft removed nodes",
+            kind: "base",
+            source: { by: "element", reason: "draft" },
+            target: "node",
+            selector: { match: "ids", nodes },
+            set: { "node.visible": false },
+        });
+    }
+
+    if (edges.length > 0) {
+        made.push({
+            name: "Draft removed edges",
+            kind: "base",
+            source: { by: "element", reason: "draft" },
+            target: "edge",
+            selector: { match: "ids", edges },
+            set: { "edge.visible": false },
+        });
+    }
+
+    return made;
+}
+
+/**
  * Every path this session can answer for one kind of element.
  * @param data - The session's data surface, which lists the attributes.
  * @param runs - The runs, which publish the rest.
@@ -2790,15 +2837,21 @@ function ruleCheckOf(where: Query, read: readonly Path[], paths: PathDirectory, 
  * consumer can say why a layer paints nothing rather than showing a confident empty screen.
  * @param data - The session's data surface.
  * @param runs - The runs this session holds.
+ * @param sourceSteps - Whether the source-steps experiment is on, under which `graphty.draft` answers.
  * @returns The directory.
  */
-function pathDirectoryOf(data: SessionData, runs: RunsApi): PathDirectory {
+function pathDirectoryOf(data: SessionData, runs: RunsApi, sourceSteps: () => boolean): PathDirectory {
     return {
-        // A note value is always answerable: it reads nothing until a note names the element.
+        // A note value is always answerable: it reads nothing until a note names the element. So is
+        // `graphty.draft` under the source-steps experiment: it reads nothing until a draft is drawn.
         answers: (path: Path, target: "node" | "edge"): boolean => {
             const end = edgeEndPathOf(path);
             if (end !== undefined) {
                 return target === "edge" && answersReadable(data, runs, end.node, "node");
+            }
+
+            if (path === DRAFT_PATH && sourceSteps()) {
+                return true;
             }
 
             return noteFieldOf(path) !== undefined || answersReadable(data, runs, path, target);
@@ -3217,6 +3270,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // Set once the stack exists; until then no layer reads the pointer.
     let repaintHover = (): void => undefined;
     let repaintPeek = (_dirty: ElementIndices): void => undefined;
+    // Set once the style stack exists: draws a source draft again after it changed or was shown otherwise.
+    let redrawDraft = (): void => undefined;
     // Moves whenever the selection, the filter, or an element's state a `{match:"state"}` layer reads, moves:
     // the style stack keeps its readings until it does.
     let stateRevision = 0;
@@ -3321,6 +3376,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             },
             send: (command) => dispatcher.dispatch(command),
             emit: (event, detail) => {
+                if (event === "data:draft-changed") {
+                    redrawDraft();
+                }
                 publish(watchers, event, detail);
             },
             readers: () => ({
@@ -4019,6 +4077,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         results: (runId) => runs.get(runId)?.result,
         records,
         sourceSteps: sourceStepsOn,
+        draft: (target, id) => {
+            const shown = data.shownDraft();
+            return shown === null ? undefined : (target === "node" ? shown.nodes : shown.edges).get(id);
+        },
         notes: createNoteFacts(
             () => dispatcher.state.notes,
             () => dispatcher.lane.writes("notes"),
@@ -4027,7 +4089,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     });
     // ONE query engine, over the same source the style layers read, so a layer selector and a
     // scope, a selection or a filter with the same expression match the same elements.
-    const paths = pathDirectoryOf(data, runs);
+    const paths = pathDirectoryOf(data, runs, sourceStepsOn);
     query = createQueryEngine({
         snapshot,
         revision: () => inputs.tick.value,
@@ -4051,6 +4113,23 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // Settled on first asking, as the session's `features` is.
     let peekable: boolean | undefined;
     let peekLayers: readonly ElementLayerSpec[] = NO_LAYERS;
+    // The layers a drawn source draft's After hides what its commit removes with; none otherwise.
+    let draftLayers: readonly ElementLayerSpec[] = NO_LAYERS;
+    // Both, as one array that stays the same object until either changes, so it compiles once.
+    let transientHeld: {
+        readonly peek: readonly ElementLayerSpec[];
+        readonly draft: readonly ElementLayerSpec[];
+        readonly both: readonly ElementLayerSpec[];
+    } | null = null;
+    const transientLayersNow = (): readonly ElementLayerSpec[] => {
+        if (draftLayers.length === 0) {
+            return peekLayers;
+        }
+        if (transientHeld?.peek !== peekLayers || transientHeld.draft !== draftLayers) {
+            transientHeld = { peek: peekLayers, draft: draftLayers, both: [...peekLayers, ...draftLayers] };
+        }
+        return transientHeld.both;
+    };
     selection = createSelectionApi({
         snapshot,
         scope,
@@ -4248,6 +4327,41 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         painter
             .repaintElements(stack.compiled(), dirty, { signal: teardown.signal, report: () => undefined })
             .catch(repaintFailed("peek"));
+    };
+    // A drawn source draft: every element reads `graphty.draft` afresh, and After hides what the
+    // commit would remove. Nothing is written, so the history, the digest and a save never see it.
+    // ponytail: repaints every element per draft act while one is drawn; repaint only the marks
+    // that moved if a large graph's drafting feels it.
+    let draftDrawn = false;
+    redrawDraft = (): void => {
+        const shown = data.shownDraft();
+        if (!draftDrawn && shown === null) {
+            return;
+        }
+        draftDrawn = shown !== null;
+        draftLayers = shown?.side === "after" ? draftHideLayersOf(shown, snapshot()) : NO_LAYERS;
+        // Every element's `graphty.draft` moved, as a write to that field would move it: what a rule,
+        // a set or a count read of it is stale now.
+        const { field } = dependencyOf(DRAFT_PATH) as { readonly field: string };
+        inputs.nodes.bump([field]);
+        inputs.edges.bump([field]);
+        notifier.notify({ kind: "attributes", element: "node", fields: [field] });
+        notifier.notify({ kind: "attributes", element: "edge", fields: [field] });
+        stateRevision++;
+        if (stack === null) {
+            return;
+        }
+        const graph = snapshot();
+        const all = (count: number): number[] => Array.from({ length: count }, (_, index) => index);
+        // A layer reading the path matched other elements before, as after a note changed.
+        painter.invalidate();
+        painter
+            .repaintElements(
+                stack.compiled(),
+                { node: all(graph.nodeCount), edge: all(graph.edgeCount) },
+                { signal: teardown.signal, report: () => undefined },
+            )
+            .catch(repaintFailed("draft"));
     };
     // A pin or a release moves nodes in or out of a `{ match: "state", state: "pinned" }` layer.
     dispatcher.lane.register("pins", (_rendered, _target, dirty) => {
@@ -4483,7 +4597,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         admitScope: (spec: unknown) => scope.admit(spec),
         admitRule: (rule: unknown) => scope.canonicalUnions(rule),
         base: elementBaseLayers(),
-        transient: () => peekLayers,
+        transient: () => transientLayersNow(),
         // Any edge directed: a file can mix directed and undirected edges (graph-format's role
         // "directed" column), and a head no layer chose is drawn on each directed one.
         directed: () => directedness(snapshot()) !== "undirected",

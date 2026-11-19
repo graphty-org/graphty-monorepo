@@ -17,6 +17,8 @@ import {
     draftAdd,
     draftAnswer,
     draftApply,
+    type DraftMarks,
+    draftMarks,
     type DraftState,
     mappingEdit,
     openQuestions,
@@ -102,6 +104,10 @@ export class SourceDraftHandle implements SourceDraft {
     private readonly base: DraftState;
     private readonly history: DraftState[] = [];
     private closed = false;
+    // Whether the draft is drawn, and which side of its commit.
+    private shown: { readonly on: boolean; readonly side: "before" | "after" } = { on: false, side: "after" };
+    // The marks of the current state, kept until an act or an undo changes it.
+    private marked: { readonly state: DraftState; readonly marks: DraftMarks } | null = null;
     // the preview of the current state, kept until an act, an undo or the session's references and
     // filters (the outcomes `context` spells) change it
     private previewed: {
@@ -131,6 +137,56 @@ export class SourceDraftHandle implements SourceDraft {
      */
     get open(): boolean {
         return !this.closed;
+    }
+
+    /** @inheritdoc */
+    get displayed(): boolean {
+        return this.shown.on;
+    }
+
+    /** @inheritdoc */
+    get side(): "before" | "after" {
+        return this.shown.side;
+    }
+
+    /** @inheritdoc */
+    display(on: boolean): void {
+        this.live("display");
+        if (this.shown.on !== on) {
+            this.shown = { ...this.shown, on };
+            this.host.emit({ draft: this.id, reason: "displayed" });
+        }
+    }
+
+    /** @inheritdoc */
+    show(side: "before" | "after"): void {
+        this.live("show");
+        if (side !== "before" && side !== "after") {
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: `A draft shows "before" or "after", not ${JSON.stringify(side)}.`,
+                source: "data",
+                details: { reason: "side", side },
+            });
+        }
+        if (this.shown.side !== side) {
+            this.shown = { ...this.shown, side };
+            this.host.emit({ draft: this.id, reason: "displayed" });
+        }
+    }
+
+    /**
+     * What committing the draft does to each element, while the draft is open and displayed.
+     * @returns The marks, or null.
+     */
+    marks(): DraftMarks | null {
+        if (this.closed || !this.shown.on) {
+            return null;
+        }
+        if (this.marked?.state !== this.state) {
+            this.marked = { state: this.state, marks: draftMarks(this.base, this.state) };
+        }
+        return this.marked.marks;
     }
 
     /**

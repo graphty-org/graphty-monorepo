@@ -1241,6 +1241,9 @@ export const READ_ONLY: readonly string[] = [
     "SourceDraft.steps",
     "SourceDraft.types",
     "SourceDraft.undo",
+    // Drawing a draft repaints what is drawn and writes nothing a project saves or records.
+    "SourceDraft.display",
+    "SourceDraft.show",
     "SourceDraft.use",
     "SessionDataApi.types",
     "SessionDataApi.valueCounts",

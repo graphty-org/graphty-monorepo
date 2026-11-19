@@ -1391,11 +1391,12 @@ export type Selector =
 /**
  * Who put a layer in the stack. Every layer names its source. An element layer's `reason` says
  * what it is for: `"default"` the look every element is drawn from, `"selection"`, `"hover"` and
- * `"notes"` what they paint, and `"time"` the two
- * locked layers that hide what lies outside a time window.
+ * `"notes"` what they paint, `"time"` the two
+ * locked layers that hide what lies outside a time window, and `"draft"` the layers a drawn source
+ * draft's After hides what its commit would remove with (experimental: source-steps).
  */
 export type LayerSource =
-    | { by: "element"; reason: "default" | "selection" | "hover" | "notes" }
+    | { by: "element"; reason: "default" | "selection" | "hover" | "notes" | "draft" }
     | { by: "run"; runId: RunId; algorithm: AlgorithmKey; params: Record<string, unknown> }
     | { by: "user" }
     | { by: "template"; templateId: string }

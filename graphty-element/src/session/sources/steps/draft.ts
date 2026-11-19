@@ -18,13 +18,14 @@ import {
     buildOf,
     checkSpace,
     type Copies,
+    nodeIdsOf,
     type OverlapQuestion,
     overlapQuestion,
     type SourceSteps,
     type StepsEdit,
     withSourceRules,
 } from "./project";
-import type { ClashRule, Mapping, RowFilter, Step } from "./types";
+import type { BuiltEdge, BuiltNode, ClashRule, Mapping, RowFilter, Step } from "./types";
 
 /** A draft's value, its copies, and the sources whose mapping it may change. */
 export interface DraftState {
@@ -488,4 +489,90 @@ export function mappingEdit(value: SourceSteps, id: string, patch: MappingPatch)
         );
     }
     return { kind: "set", value: { ...value, sources: { ...value.sources, [id]: next }, types } };
+}
+
+/** What a draft's commit does to one element (design 10, row 12), as `graphty.draft` reads it. */
+export type DraftMark = "merged" | "new" | "changed" | "removed" | "unchanged";
+
+/** Each element's mark: nodes by NodeId, edges by built edge id. */
+export interface DraftMarks {
+    readonly nodes: ReadonlyMap<string, DraftMark>;
+    readonly edges: ReadonlyMap<string, DraftMark>;
+}
+
+/**
+ * What committing a draft does to each element, from the committed build and the draft's: a node
+ * the draft's build folds more keys into is `merged`, one it builds with other values `changed`, one
+ * only it builds `new`, one only the committed build holds `removed`, and the rest `unchanged`;
+ * edges likewise, never merged. Committed nodes are named by their committed NodeId, new ones by
+ * the draft's.
+ * @param base - The committed value and copies.
+ * @param state - The draft.
+ * @returns The marks.
+ */
+export function draftMarks(base: Omit<DraftState, "owned">, state: DraftState): DraftMarks {
+    const b0 = buildOf(base.value, base.copies);
+    const b1 = buildOf(state.value, state.copies);
+    const ids0 = nodeIdsOf(b0);
+    const ids1 = nodeIdsOf(b1);
+    const nodes = new Map<string, DraftMark>();
+    for (const [id, o] of b0.nodes) {
+        nodes.set(String(ids0.get(id)), nodeMark(o, b1.nodes.get(id)));
+    }
+    // A new node whose draft NodeId spells a committed node's keeps the drawn node's mark.
+    for (const id of b1.nodes.keys()) {
+        const key = String(ids1.get(id));
+        if (!b0.nodes.has(id) && !nodes.has(key)) {
+            nodes.set(key, "new");
+        }
+    }
+    const edges = new Map<string, DraftMark>();
+    for (const [id, o] of b0.edges) {
+        edges.set(id, edgeMark(o, b1.edges.get(id)));
+    }
+    for (const id of b1.edges.keys()) {
+        if (!b0.edges.has(id)) {
+            edges.set(id, "new");
+        }
+    }
+    return { nodes, edges };
+}
+
+/**
+ * Whether two builds of one element hold the same values.
+ * @param a - One.
+ * @param b - The other.
+ * @returns True when they do.
+ */
+function sameValues(a: BuiltNode | BuiltEdge, b: BuiltNode | BuiltEdge): boolean {
+    return JSON.stringify(a.values) === JSON.stringify(b.values);
+}
+
+/**
+ * What a draft does to one committed node.
+ * @param was - The committed node.
+ * @param now - The draft's build of it, if any.
+ * @returns Its mark.
+ */
+function nodeMark(was: BuiltNode, now: BuiltNode | undefined): DraftMark {
+    if (now === undefined) {
+        return "removed";
+    }
+    if (now.aliases.length > was.aliases.length) {
+        return "merged";
+    }
+    return sameValues(was, now) ? "unchanged" : "changed";
+}
+
+/**
+ * What a draft does to one committed edge.
+ * @param was - The committed edge.
+ * @param now - The draft's build of it, if any.
+ * @returns Its mark.
+ */
+function edgeMark(was: BuiltEdge, now: BuiltEdge | undefined): DraftMark {
+    if (now === undefined) {
+        return "removed";
+    }
+    return sameValues(was, now) && was.from === now.from && was.to === now.to ? "unchanged" : "changed";
 }

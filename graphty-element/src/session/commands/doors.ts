@@ -3629,6 +3629,14 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             include: DRAFT_ACT,
             commit: SOURCE_STEPS_WRITE,
             dispose: exempt("closes the draft, writing nothing"),
+            displayed: READ,
+            side: READ,
+            display: exempt(
+                "Experimental (source-steps): draws the draft on the graph, which is view state no project file saves.",
+            ),
+            show: exempt(
+                "Experimental (source-steps): picks the side of the commit a drawn draft shows, view state no project file saves.",
+            ),
         },
     },
     {

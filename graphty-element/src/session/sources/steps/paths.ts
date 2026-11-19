@@ -21,3 +21,10 @@ export const READABLE_PATHS = [
  * provenance.
  */
 export const RECORD_PATHS: readonly string[] = READABLE_PATHS.filter((path) => path !== "_source.loads");
+
+/**
+ * The path a style or filter reads to tell what a shown draft does to an element (design 10, row
+ * 12): `"merged"`, `"new"`, `"changed"`, `"removed"` or `"unchanged"`, and nothing while no draft
+ * is shown. Answered by the session from the draft, never written on a record or saved.
+ */
+export const DRAFT_PATH = "graphty.draft";

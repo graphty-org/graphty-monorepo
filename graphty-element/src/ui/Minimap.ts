@@ -1,6 +1,6 @@
 /**
  * @file The minimap `<graphty-element minimap>` draws: a canvas in the shadow root, exposed as
- * `::part(minimap)`, drawn from `getOverview()` and redrawn on `overview-changed`. A click centres
+ * `::part(minimap)`, drawn from `getOverview()` and redrawn on `overview-changed`. A click centers
  * the view there, a drag scrubs, and the arrow keys step the view (issue #293). Its colors come
  * from CSS: points and the viewport rectangle in the part's `color`, the backdrop its `background`.
  */
@@ -24,7 +24,7 @@ const STEPS: Readonly<Record<string, readonly [number, number]>> = {
 /** How far one arrow key moves the view: this share of the viewport's own size. */
 const STEP_SHARE = 0.25;
 
-/** The square the unit frame is drawn in, inside a canvas of any shape: centred, as big as fits. */
+/** The square the unit frame is drawn in, inside a canvas of any shape: centered, as big as fits. */
 interface Square {
     left: number;
     top: number;

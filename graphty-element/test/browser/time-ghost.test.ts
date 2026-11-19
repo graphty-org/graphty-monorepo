@@ -1,7 +1,7 @@
 /**
  * @file Ghosts on a real canvas: what lies outside the time window stays in the graph and visible,
  * and only the style layers selecting the state "outsideWindow" change how it looks: the Timeline
- * Hidden row hides it, or in its ghost look draws it grey at low opacity, the elements inside
+ * Hidden row hides it, or in its ghost look draws it gray at low opacity, the elements inside
  * keeping their own look; with no such layer it looks as any other. Moving the window moves which
  * are which, and moves no node and no camera.
  */

@@ -16,6 +16,7 @@ import type { RequestedLayout } from "@graphty/graph-io";
 
 import { unknownFormat } from "../../catalog/detect";
 import type { EdgeId, NodeId, SourceKey } from "../../catalog/types";
+import { CSVDataSource } from "../../data/CSVDataSource";
 import { DataSource, type DataSourceChunk, type DeclaredDirection, setReaderSignal } from "../../data/DataSource";
 import { decideRepeat, edgeCounterOf, edgeIdOf, pairKey } from "../../data/edgeIdentity";
 import { readEndpoint, type ResolvedEndpoints, resolveEndpoints, searchRecord } from "../../data/endpoints";
@@ -144,6 +145,26 @@ export const HELD_KINDS = new WeakMap<HeldRows, NonNullable<LoadReport["kinds"]>
  */
 function inputOf(command: { readonly input?: string }): { readonly input?: string } {
     return command.input === undefined ? {} : { input: command.input };
+}
+
+/**
+ * The style choices a load was given, as its stored entry keeps them out of sight of the entry's
+ * type, so a version 2 save can name them among the options its file is read again with.
+ * @param command - The import.
+ * @returns `{ drawn }`, or nothing when the load was given no `styles`.
+ */
+function drawnOf(command: DataImportCommand): { readonly drawn?: Pick<DataImportCommand, "styles" | "styleOptions"> } {
+    const { styles, styleOptions } = command;
+    return styles === undefined ? {} : { drawn: { styles, ...(styleOptions === undefined ? {} : { styleOptions }) } };
+}
+
+/**
+ * The header columns a CSV reader read its table by, if the reader is one.
+ * @param reader - The load's reader.
+ * @returns The columns, or undefined.
+ */
+function csvReadBy(reader: unknown): CSVDataSource["readBy"] {
+    return reader instanceof CSVDataSource ? reader.readBy : undefined;
 }
 
 /**
@@ -640,6 +661,7 @@ function tableFacts(
         ...(command.choices === undefined ? {} : { choices: command.choices }),
         ...(command.mapping === undefined ? {} : { mapping: command.mapping }),
         ...inputOf(command),
+        ...drawnOf(command),
         tables: tablesOf(command),
         ...(command.tableRows === undefined ? {} : { tableRows: Object.freeze([...command.tableRows]) }),
     };
@@ -745,6 +767,9 @@ export class Ingest<K extends KnownEdge> {
     /** What writes beside a running load added, so the load does not count them as its own. */
     private besideAdded = { nodes: 0, edges: 0 };
 
+    /** The last number a keyless node row's id was made from. */
+    private keylessSerial = 0;
+
     /** The highest load key number handed out, so a key is never handed out twice. */
     private sourceSerial = 0;
 
@@ -844,6 +869,7 @@ export class Ingest<K extends KnownEdge> {
                     this.applyDeclaredDirection("data.apply", { directed, statedBy, conflictingEdges: 0 }, writer);
                 }
 
+                writer.store.reserveEdgeIds(mutation.reserve ?? []);
                 this.addEdges(mutation.records, addEdgesOptions(mutation), writer, mutation.ids);
                 return;
             case "set-attributes":
@@ -898,7 +924,7 @@ export class Ingest<K extends KnownEdge> {
      * is loaded.
      * @param command - The import.
      * @param writer - The command's writer.
-     * @param signal - Fires when the import is cancelled; it stops before the next chunk.
+     * @param signal - Fires when the import is canceled; it stops before the next chunk.
      * @returns Settles once the last chunk is written.
      */
     async importSource(
@@ -965,6 +991,7 @@ export class Ingest<K extends KnownEdge> {
                     : undefined;
             this.recordLoad(command, writer, {
                 described,
+                readBy: csvReadBy(outcome.reader),
                 type,
                 added,
                 leftOut,
@@ -1020,6 +1047,7 @@ export class Ingest<K extends KnownEdge> {
      * @param writer - The command's writer.
      * @param load - What the load read and did.
      * @param load.described - Where it came from.
+     * @param load.readBy - The header columns a CSV table was read by.
      * @param load.type - The data source that read it.
      * @param load.added - How many nodes and edges it added.
      * @param load.leftOut - The edge rows it left out, when it left any out.
@@ -1033,6 +1061,8 @@ export class Ingest<K extends KnownEdge> {
         writer: GraphWriter,
         load: {
             readonly described: DataSourceDescriptor;
+            /** The header columns a CSV table was read by, kept for a version 2 save. */
+            readonly readBy: CSVDataSource["readBy"];
             readonly type: string;
             readonly added: LoadedSource["added"];
             readonly leftOut: LoadedSource["leftOut"];
@@ -1042,7 +1072,7 @@ export class Ingest<K extends KnownEdge> {
             readonly same: number;
         },
     ): void {
-        const { described, type, added, leftOut, supplied, earlier, earlierProvenance, same } = load;
+        const { described, readBy, type, added, leftOut, supplied, earlier, earlierProvenance, same } = load;
         const key: SourceKey = command.key ?? `s${String(++this.sourceSerial)}`;
         const kind: LoadedSourceKind = command.origin ?? kindOf(type, command.source.config);
         const loaded: LoadedSource = Object.freeze({
@@ -1050,6 +1080,7 @@ export class Ingest<K extends KnownEdge> {
             key,
             kind,
             ...tableFacts(command),
+            ...(readBy === undefined ? {} : { readBy }),
             added,
             ...(leftOut === undefined ? {} : { leftOut }),
             loadedAt: new Date().toISOString(),
@@ -1267,7 +1298,7 @@ export class Ingest<K extends KnownEdge> {
         // A node an earlier edge created is in the builder, and so in `heldCounts`, without a
         // render object yet: its row is not fresh, or the ceiling counts it twice.
         const { builder } = this.host.store();
-        const ids = nodes.map((node) => searchRecord(node, query) as NodeIdType);
+        const ids = nodes.map((node) => this.keyedId(searchRecord(node, query) as NodeIdType));
         const fresh = new Set(ids.filter((id) => !this.hasNode(id) && !(isStorableId(id) && builder.hasNode(id))));
         this.refuseAboveCeiling("nodes", this.heldCounts().nodes, fresh.size, this.ceilings().renderCeiling);
 
@@ -1308,6 +1339,26 @@ export class Ingest<K extends KnownEdge> {
         if (nodes.length > 0) {
             this.host.nodesArrived(nodes.length);
         }
+    }
+
+    /**
+     * A node row's id: the one it gave, or, for a load's row with a null or empty id, a new id of
+     * its own. Such a row is keyless (version 2 save files key it `<copy id>#<row>`); its record
+     * keeps the null or empty id cell, which is how a save tells it apart.
+     * @param id - The id the row gave.
+     * @returns The id the node is held under.
+     */
+    private keyedId(id: NodeIdType): NodeIdType {
+        if (this.loadTally === null || (id !== null && id !== undefined && id !== "")) {
+            return id;
+        }
+
+        const { builder } = this.host.store();
+        let minted: string;
+        do {
+            minted = `#${String(++this.keylessSerial)}`;
+        } while (this.hasNode(minted) || builder.hasNode(minted));
+        return minted;
     }
 
     /**
@@ -1359,7 +1410,12 @@ export class Ingest<K extends KnownEdge> {
         }
 
         if (this.duplicateIds === "merge" && this.measure === null) {
-            writer.setAttributes("node", id, frozenRecord(record));
+            // The first row's values stand; a repeat only fills a column the first left unset.
+            const held = writer.nodeRecord(id) ?? {};
+            const unset = Object.entries(record).filter(([name]) => held[name] === undefined || held[name] === null);
+            if (unset.length > 0) {
+                writer.setAttributes("node", id, frozenRecord(Object.fromEntries(unset)));
+            }
         }
 
         return true;
@@ -1615,6 +1671,27 @@ export class Ingest<K extends KnownEdge> {
     ): boolean {
         const { policy, tally } = batch;
         const known = this.knownEdgeFor(repeat.sourceId, repeat.targetId, recordId);
+        if (known !== null && this.foldsRow(known.edgeIndex, recordId, writer)) {
+            // Under `duplicateIds: "merge"`, a row repeating an edge id an earlier row of the load
+            // gave is that edge: the first row's values stand, the repeat only fills unset columns.
+            tally.repeatedSeen++;
+            tally.repeatedMerged++;
+            const held = writer.edgeRecord(known.edgeIndex) ?? {};
+            const unset = Object.entries(repeat.record).filter(
+                ([name]) => held[name] === undefined || held[name] === null,
+            );
+            if (unset.length > 0) {
+                writer.setAttributes(
+                    "edge",
+                    edgeIdOf(writer.store.edgeIdAt(known.edgeIndex)),
+                    Object.fromEntries(unset),
+                );
+            }
+
+            tally.edgeIds.push(null);
+            return true;
+        }
+
         if (known !== null) {
             tally.repeatedSeen++;
             const own = batch.ownEdges?.has(known.edgeIndex) === true;
@@ -1634,6 +1711,23 @@ export class Ingest<K extends KnownEdge> {
 
         tally.repeatedSeen++;
         return this.countRepeat(policy, tally);
+    }
+
+    /**
+     * Whether an edge row folds into the edge an earlier row of the same load gave its edge id:
+     * the load merges repeated ids, and the row names its edge by id.
+     * @param edgeIndex - The edge the row's id names.
+     * @param recordId - The row's edge id.
+     * @param writer - The graph primitives to write through.
+     * @returns True when it folds.
+     */
+    private foldsRow(edgeIndex: number, recordId: unknown, writer: GraphWriter): boolean {
+        return (
+            this.duplicateIds === "merge" &&
+            this.measure === null &&
+            isStorableRecordId(recordId) &&
+            this.supplied?.edges.has(edgeIdOf(writer.store.edgeIdAt(edgeIndex))) === true
+        );
     }
 
     /**
@@ -1996,7 +2090,7 @@ export class Ingest<K extends KnownEdge> {
 
         // "the repeat's weight and attributes replace the existing edge's" under `last`. The other
         // three reducers keep the survivor's attributes, because there is no reading of `sum`
-        // under which the last record's colour is the group's colour.
+        // under which the last record's color is the group's color.
         writer.mergeEdge(known.edgeIndex, decision.weight, decision.replaceRecord ? record : null);
         if (decision.replaceRecord) {
             this.host.replaceEdgeRecord(known, record);
@@ -2169,7 +2263,7 @@ export class Ingest<K extends KnownEdge> {
      * @param reader - The source
      * @param load - The format, the cancel signal, the graph primitives and how records name their ids and endpoints
      * @param load.type - The format
-     * @param load.signal - Fires when the load is cancelled
+     * @param load.signal - Fires when the load is canceled
      * @param load.writer - The graph primitives to write through
      * @param load.nodeIdPath - Where a node record holds its id, or undefined for the default
      * @param load.endpointOverrides - Where an edge record names its endpoints and weight
@@ -2195,7 +2289,7 @@ export class Ingest<K extends KnownEdge> {
         let directionSettled = false;
 
         for await (const chunk of untilAborted(reader.getData(), signal)) {
-            // Nothing is written once the load has been cancelled: its writes are being
+            // Nothing is written once the load has been canceled: its writes are being
             // taken back, and a chunk written after that would outlive them.
             signal?.throwIfAborted();
             // BEFORE this chunk's edges, every time: the builder accepts a direction only
@@ -2207,7 +2301,7 @@ export class Ingest<K extends KnownEdge> {
             }
 
             this.addNodeRows(chunk.nodes, load.nodeIdPath, writer);
-            // The endpoint names a caller passed to the SOURCE are honoured here rather
+            // The endpoint names a caller passed to the SOURCE are honored here rather
             // than inside each of the seven importers: whatever shape a source produces,
             // the consumer who named the columns named them for the records that come out.
             this.addEdgeRows(chunk.edges, load.endpointOverrides, writer);
@@ -2233,11 +2327,11 @@ export class Ingest<K extends KnownEdge> {
      * @param error - What the read threw
      * @param signal - The load's cancel signal
      * @param progress - How far the load got
-     * @throws The error itself when the load was cancelled or the error is coded; otherwise an
+     * @throws The error itself when the load was canceled or the error is coded; otherwise an
      *     Error naming the source and how many chunks it read
      */
     private failLoad(type: string, error: unknown, signal: AbortSignal | undefined, progress: LoadProgress): never {
-        // A cancelled load did not fail: whoever cancelled it says why.
+        // A canceled load did not fail: whoever canceled it says why.
         if (signal?.aborted === true) {
             throw error;
         }
@@ -2275,7 +2369,7 @@ export class Ingest<K extends KnownEdge> {
      * @param type - Data source type identifier
      * @param opts - Options to pass to the data source
      * @param writer - the graph primitives to write through
-     * @param signal - Fires when the load is cancelled; it stops at once, even while the source
+     * @param signal - Fires when the load is canceled; it stops at once, even while the source
      *     is still waiting for its next chunk
      * @param replacing - Whether the load replaces the graph, so reading only part of the file
      *     is a failure
@@ -2557,7 +2651,7 @@ export class Ingest<K extends KnownEdge> {
      * the renderer process and produces no further frame -- measured for issue #405 at 18,000
      * nodes / 180,000 edges on an RTX 4070 SUPER, where the renderer process reached 4.7 GB and
      * died while 17,000 / 170,000 loaded in 17 s. Until the degraded draw lands, the honest
-     * behaviour at the ceiling is a coded error the consumer can show, so `DEFAULT_LIMITS` is
+     * behavior at the ceiling is a coded error the consumer can show, so `DEFAULT_LIMITS` is
      * the number the element enforces rather than a number it merely publishes.
      *
      * `E_TOO_LARGE` is the code because the ceiling is a hard limit of this renderer, and the
@@ -2587,11 +2681,11 @@ export class Ingest<K extends KnownEdge> {
 const EMPTY = { nodes: new Set<NodeIdType>(), edges: 0 } as const;
 
 /**
- * What a load that failed before or around its read throws: a coded or cancelled failure
+ * What a load that failed before or around its read throws: a coded or canceled failure
  * unchanged, anything else wrapped in a coded one.
  * @param error - what was thrown
  * @param type - the source type
- * @param signal - fires when the load is cancelled
+ * @param signal - fires when the load is canceled
  * @returns the error to throw
  */
 function initFailure(error: unknown, type: string, signal: AbortSignal | undefined): unknown {
@@ -2729,7 +2823,7 @@ interface ChunkReader {
 
 /**
  * A source's chunks, ending with the signal's reason as soon as it aborts, rather than when the
- * source next yields: a cancelled load must let go of the queue even when its source is waiting
+ * source next yields: a canceled load must let go of the queue even when its source is waiting
  * on a slow network or a stalled reader.
  * @param chunks - The source's chunks.
  * @param signal - The load's signal.
@@ -2748,8 +2842,8 @@ export async function* untilAborted<T>(
     let stop: () => void = () => undefined;
     const aborted = new Promise<never>((_, reject) => {
         stop = (): void => {
-            const { reason } = signal;
-            reject(reason instanceof Error ? reason : new Error(String(reason)));
+            const cause: unknown = signal.reason;
+            reject(cause instanceof Error ? cause : new Error(String(cause)));
         };
         signal.addEventListener("abort", stop, { once: true });
     });

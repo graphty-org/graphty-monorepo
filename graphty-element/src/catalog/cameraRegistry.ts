@@ -8,7 +8,7 @@
  * screenshot framing are already built around. A camera CONTROLLER is a Babylon camera plus an
  * input handler; it cannot be published without Babylon types in its signature, the element does
  * not use its own controller seam for its third camera, and six branches decide a controller's
- * behaviour by duck-typing its property names. Views are the extension point; controllers stay
+ * behavior by duck-typing its property names. Views are the extension point; controllers stay
  * internal.
  *
  * So a registration is plain data and one function, and this module names no Babylon type. The

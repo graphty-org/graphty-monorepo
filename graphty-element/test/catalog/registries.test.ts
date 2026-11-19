@@ -51,7 +51,7 @@ const registeredFormats = DataSource.getRegisteredTypes();
 /**
  * Collect every place a value stops being plain JSON: a function, a class instance, a Map, a
  * Date, an undefined. Reported as paths rather than as one boolean, because "a descriptor is not
- * serialisable" is useless without the field that made it so.
+ * serializable" is useless without the field that made it so.
  */
 function nonJsonPaths(value: unknown, path: string, found: string[]): string[] {
     if (value === null || typeof value === "string" || typeof value === "number" || typeof value === "boolean") {

@@ -1,6 +1,6 @@
 /**
  * The oracle comparison's pure half -- association of raw SVG primitives with graph elements,
- * the similarity fit and the per-property judgement -- on hand-built primitives, so each rule is
+ * the similarity fit and the per-property judgment -- on hand-built primitives, so each rule is
  * pinned without a browser: a markup-named drawing and an unnamed one associate the same way, a
  * drawing judged against itself under a similarity passes everything, and each defect the owner
  * reported (a fivefold arrowhead, a bold label, a missing outline, a missing annotation box, a
@@ -1368,7 +1368,7 @@ describe("oracle comparison", () => {
         const g = graphtyScene();
         const labelled = { ...g.edges[0], id: "e3", arrows: [], label: text("L", 300, 100) };
         g.edges.push(labelled);
-        // the program drew the labelled edge first: the same two lines, the label on the other one
+        // the program drew the labeled edge first: the same two lines, the label on the other one
         const o: PScene = {
             ...g,
             side: "oracle",
@@ -1544,6 +1544,19 @@ describe("an outline a program drew as a filled path", () => {
         return clockwise ? pts.reverse() : pts;
     };
 
+    it("reads a box frame with one wide side as a line as wide as its narrowest side (yEd's DemoGroup)", () => {
+        // a 1 px frame whose top is a 20 px band, as yEd draws a DemoGroup with its header
+        const hole: Pt[] = [
+            [71, 90],
+            [71, 129],
+            [129, 129],
+            [129, 90],
+        ];
+        const frame = outlinePaintedAsFill([square(100, 100, 30), hole]);
+        assert.strictEqual(frame?.dashClass, "solid");
+        assert.closeTo(frame?.width ?? 0, 1, 1e-9);
+    });
+
     it("reads a ring as a solid line of the ring's width, dots as a dotted line, and bars across it as slashes", () => {
         const ring = outlinePaintedAsFill([square(100, 100, 21), square(100, 100, 19, true)]);
         assert.strictEqual(ring?.dashClass, "solid");
@@ -1675,7 +1688,7 @@ describe("bodies found by geometry", () => {
             ...oraclePrims({ named: false }),
             prim({ points: dot, stroke: stroke("#cccccc", 0.6) }),
             prim({ points: dot, fill: fill("#ffffff") }),
-            // a neighbour's arrowhead beside it
+            // a neighbor's arrowhead beside it
             prim({
                 tag: "polygon",
                 corners: 3,

@@ -11,7 +11,7 @@ the graphty-element API it needs, and the mock that now draws it. The mocks are
 ## Terms used here
 
 - **Set**: a tree row whose members are a list of nodes and edges (a filter result, a path, a
-  neighbourhood, a hand-made list). A **rule Set** re-computes its members from a rule; a
+  neighborhood, a hand-made list). A **rule Set** re-computes its members from a rule; a
   **fixed Set** holds a list the reader made by hand.
 - **Armed tool**: a toolbar tool that has been clicked (or its key pressed). It turns blue and
   opens the **secondary bar**, the dark one-line sentence above the toolbar that says what will
@@ -23,7 +23,7 @@ the graphty-element API it needs, and the mock that now draws it. The mocks are
   it. It drives every "Matches 23 nodes" count and the canvas preview while a tool is armed.
 - **Preview**: while a tool is armed, the canvas draws the would-be members at full strength
   and everything else faded. It is a transient view owned by the element, not a style layer,
-  and it disappears when the tool is cancelled or snaps back.
+  and it disappears when the tool is canceled or snaps back.
 - **Inspector tabs**: every Set has Define (what makes the members), Members (what the members
   are), Style (how they are painted) and Record (provenance and export).
 - **Size** in the API column: tiny (under a day), small (days), medium (a week or two), large
@@ -37,7 +37,7 @@ Each is a two-way door: an edit to these documents, or a change inside the app.
 |---|---|
 | Pattern search and All routes each hand back **one** Set (the union of every match or route) with a per-match list, not one Set per match | 45 triangles or 14 routes as 45 or 14 tree rows would bury the tree; the union paints as one layer, and the list steps through the parts. A row in the list can still become its own Set ("Make a set") |
 | **Tab steps through the parts** of a Set that has parts (pattern matches, routes), as it already steps through members (`revision.md` 3.3) | one gesture for "next one", and it needs no new control on the canvas |
-| The Neighbours tool gets an **Options popover** like every other tool | the round-2 bar had no room for the edge-type choice, the "keep edges" choice or the step-by-step size, and the popover is the design's one home for options |
+| The Neighbors tool gets an **Options popover** like every other tool | the round-2 bar had no room for the edge-type choice, the "keep edges" choice or the step-by-step size, and the popover is the design's one home for options |
 | **Subtract states its order in words** ("Path minus Group 2") with a Swap link | round 2 made the result depend silently on row order, which a reader cannot see |
 | An edge filter has a **"Their nodes"** choice: keep all nodes, or only the endpoints of the kept edges | the two readings of "show me the heavy edges" differ, and the element must be told which |
 | The **rule Set's Define tab is the popover's rows** (same order, same controls) | a reader who learned the popover already knows how to edit the result |
@@ -109,7 +109,7 @@ Measure and the band already set).
 numeric attribute and every Measure in the tree, Measures marked "(Measure)"); the histogram
 (208 x 40, lin | log); Min | Max fields; Invert; the live count; the note that dragging sets the
 band; buttons. Dragging across the histogram draws a tinted band with two handles; the handles
-and the fields write each other. Bars inside the band are the brand colour, bars outside grey.
+and the fields write each other. Bars inside the band are the brand color, bars outside gray.
 
 A Measure's range can be Selected today; **Create on a Measure reads "Create (not yet)"**,
 disabled, with #192 in its tooltip, until the element can keep a range over a run field as a
@@ -188,8 +188,8 @@ kept edges at full strength and the rest faded; nodes are untouched unless "Only
 endpoints" is chosen.
 
 **Result.** An **edge Set** ("weight >= 4"), counted in edges in the tree ("35 edges"), with a
-line chip, whose Style tab paints EDGES rows first (Colour, Width) and whose first paint is an
-edge Width (the Set kind order Outline, Colour, Glow has no meaning on an edge). Focus on an
+line chip, whose Style tab paints EDGES rows first (Color, Width) and whose first paint is an
+edge Width (the Set kind order Outline, Color, Glow has no meaning on an edge). Focus on an
 edge Set shows the kept edges and, by "Their nodes", all nodes or their endpoints.
 
 **Element API.**
@@ -221,7 +221,7 @@ match faintly.
 summary reads "45 matches, 32 nodes", and whose Define tab is the pattern editor (so editing a
 constraint re-runs on Enter). The dock opens on Table with a **"Matches 45"** sub-tab: one row per
 match, one column per slot, plus a column per Grouping ("Group 2" or "mixed"). Clicking a row, or
-Tab and Shift+Tab on the canvas, makes that match current: its edges thick, its nodes labelled,
+Tab and Shift+Tab on the canvas, makes that match current: its edges thick, its nodes labeled,
 the status bar "Match 3 of 45 (Tab steps)". A row's "..." has "Make a set" and "Zoom to".
 
 **Errors.** A search over the match cap (default 10,000) stops and says "Stopped at 10,000
@@ -236,23 +236,23 @@ the cost gate (30 s) lands waiting, as every expensive run does (`revision.md` 4
 | The union as a run-result Set | settled decision S2 (the run-result set kind) |
 | The per-match list as a run result the Table reads | part of the same gap |
 
-## 6. The Neighbours tool
+## 6. The Neighbors tool
 
 **Screen 64.**
 
-**Entry points.** The Neighbours tool (E); a node's Links tab "Neighbours (E)" button; a node's
-right-click "Neighbours"; double-click on a node selects neighbours when no server fetcher is
+**Entry points.** The Neighbors tool (E); a node's Links tab "Neighbours (E)" button; a node's
+right-click "Neighbours"; double-click on a node selects neighbors when no server fetcher is
 configured (round-2 decision T6).
 
 **Main state.** The tool arms seeded with the selected node or nodes (with nothing selected the
 bar reads "Click a node to start from"). The bar reads
-`Neighbours of [BrighamYoung] within [1 v] steps, [All directions v], edges [All types v]
+`Neighbors of [BrighamYoung] within [1 v] steps, [All directions v], edges [All types v]
 13 nodes  35 edges  [Options]  [Select] [Create] [Create and focus]  Cancel`. The Direction select
 is disabled with "Undirected data" on undirected graphs; the edge-type select appears only when
 an edge type role is set (#299). Clicking another node re-seeds; Shift+click adds a seed.
 
 The **Options popover** repeats Steps, Direction and Edges, adds **Keep edges [Among all | To
-centre]** (all edges among the members, or only the spanning ones back towards the seed), and
+center]** (all edges among the members, or only the spanning ones back towards the seed), and
 shows a small table of the size at 1 and 2 steps ("1 step 13 nodes 35 edges; 2 steps 62 nodes 234
 edges") so the reader sees the jump before choosing. The preview shows the members, the kept
 edges dark.
@@ -271,10 +271,10 @@ showing [Search everything]" (the empty-results screen 48 owns the drawing).
 
 | Need | Status |
 |---|---|
-| Selecting neighbours with depth 1 to 3 and a direction: the `{ neighborsOf, depth, direction }` selection target | exists |
-| The neighbourhood as a Set: `{ kind: "neighborhood", seeds, depth }` | exists, but **lacks direction, an edge predicate and the keep-edges rule**: gap, small |
-| The size per step without selecting: `scope.count(spec)` per depth | exists (`ScopeApi.count`) once the neighbourhood is a scope kind (S2) |
-| A node's neighbour list for the Links tab: `session.data.neighbours(id, { direction })` | gap, small (`revision.md` 8) |
+| Selecting neighbors with depth 1 to 3 and a direction: the `{ neighborsOf, depth, direction }` selection target | exists |
+| The neighborhood as a Set: `{ kind: "neighborhood", seeds, depth }` | exists, but **lacks direction, an edge predicate and the keep-edges rule**: gap, small |
+| The size per step without selecting: `scope.count(spec)` per depth | exists (`ScopeApi.count`) once the neighborhood is a scope kind (S2) |
+| A node's neighbor list for the Links tab: `session.data.neighbours(id, { direction })` | gap, small (`revision.md` 8) |
 
 ## 7. Combine Sets
 
@@ -299,7 +299,7 @@ and the reading states the overlap ("3 nodes are in both (12, 1, 3)"). One tab, 
 
 A Path, an edge Set, contributes its nodes and edges; a node Set its nodes and their induced
 edges; the result counts both when both are present. **Disabled state:** with a Measure or a
-Grouping among the selected rows, the four verbs are grey and the table's first row reads
+Grouping among the selected rows, the four verbs are gray and the table's first row reads
 "Combine needs Sets or Groups; a Measure is selected". Every other row still works.
 
 **Result.** A Set "Group 2 and Path: 12 -> 30" (Intersect), "... or ..." (Union), "... minus ..."
@@ -327,7 +327,7 @@ created it, and Group rows always open on Members (round-2 decision P2); the tab
 Locate frames the members); Nodes | Edges; **Inside | Cut** (edges among the members, and edges
 with one end inside; each with an (i) that defines it); Density | Weighted; **Hops | Cost** (a
 path only; Total weight for a network); the member list, up to 6 rows, in the order the Set
-defines: hop order with the running cost for a path, step for a neighbourhood, rank for a Top N,
+defines: hop order with the running cost for a path, step for a neighborhood, rank for a Top N,
 value for a filter, match for a pattern; "Open all N in table" (the dock's Table, filtered to
 this Set); **Profile** (a disclosure, #193) with its summary "Mostly Group 2 (3 of 6)": how the
 members split over each Grouping and categorical column, with the expected share and an adjusted
@@ -340,7 +340,7 @@ Clicking a member row selects that node and haloes it; Tab steps down the list.
 | Need | Status |
 |---|---|
 | Inside, cut, density without touching the selection: `scope.statistics(spec)` | gap, small (round-2 decision I9) |
-| Member order and per-member value (hop, cost, step, rank) from the run | exists for runs that carry ordered results (path, ranking); the neighbourhood step needs the section 6 filter change |
+| Member order and per-member value (hop, cost, step, rank) from the run | exists for runs that carry ordered results (path, ranking); the neighborhood step needs the section 6 filter change |
 | Profile (over-representation per Grouping and column) | #193 |
 
 ## 9. All routes between two nodes, and endpoints typed by name
@@ -389,12 +389,12 @@ inspector's "Add to [set v]".
 **Main state (edit mode on the Members tab).** The first row reads "Editing  [Add selection (3)]
 [Done]"; the count reads "Nodes 12  2 removed" and the next row names them; every member row
 carries a remove button (x); the list scrolls; the undo note. The canvas keeps the members'
-paint; members just removed stay faded and labelled until Done so the reader can see what went;
+paint; members just removed stay faded and labeled until Done so the reader can see what went;
 the current selection is haloed and "Add selection (N)" adds it. Delete or Backspace removes the
 highlighted row. Each removal and each Add is one undo step (Ctrl+Z). Done (or Escape) leaves
 edit mode.
 
-A rule, path, neighbourhood or group Set has no Edit: its members come from its definition. Its
+A rule, path, neighborhood or group Set has no Edit: its members come from its definition. Its
 Define tab offers "Freeze as fixed set" instead, which copies the members into a fixed Set that
 can then be edited.
 
@@ -415,10 +415,10 @@ In addition to the items already listed in `revision.md` sections 8 and 9.3:
 | Item | Size | Needed by |
 |---|---|---|
 | `session.data.distribution(path, { scope, bins, scale })`: value counts for a categorical attribute or bins for a numeric one, node or edge, attribute or run field | small | sections 1, 2, 4 |
-| `session.visibility.preview(filter \| scope)`: a transient faded preview that never touches the mask | small | every armed Filter, Neighbours and Path |
+| `session.visibility.preview(filter \| scope)`: a transient faded preview that never touches the mask | small | every armed Filter, Neighbors and Path |
 | `catalog.format(filter)` and `catalog.parse(text)`: the Build to Expression round trip | small | section 3 |
 | Edge categories and ranges, and an edge filter's node rule (all nodes or endpoints) | small | section 4 |
-| The neighbourhood filter gains direction, an edge predicate and a keep-edges rule | small | section 6 |
+| The neighborhood filter gains direction, an edge predicate and a keep-edges rule | small | section 6 |
 | `session.data.match(pattern, ...)` as a run | large (needs an issue) | section 5 |
 | `session.data.find(text, { limit })`: candidates without selecting | small | section 9, and the Ctrl+F lookup |
 | `scope.update(id, spec)` (or `setMembers` on the objects API) | tiny | section 10 |
@@ -426,7 +426,7 @@ In addition to the items already listed in `revision.md` sections 8 and 9.3:
 Two of these are published API members and so one-way doors once built: `distribution` and
 `find` are new session members a third party will call. Their shapes above are proposals for the
 owner to confirm before the element work starts. Nothing in this cluster asks the app to count
-values, bin numbers, walk neighbours, match patterns or search labels: each of those is an
+values, bin numbers, walk neighbors, match patterns or search labels: each of those is an
 element call.
 
 ## Resolution lines for the gap register
@@ -441,7 +441,7 @@ For `design/ui/object-first-ux/round-3/gaps.md`, cluster 6, and the matching row
 | Filter by an expression or several rules | 61 | 3 |
 | Filter edges rather than nodes | 62 | 4 |
 | Pattern search | 63 | 5 |
-| Neighbours tool armed | 64 | 6 |
+| Neighbors tool armed | 64 | 6 |
 | Combine Sets | 65 | 7 |
 | Set, Group or Path Members tab | 66 | 8 |
 | All routes and endpoints typed by name | 67 | 9 |
@@ -449,6 +449,6 @@ For `design/ui/object-first-ux/round-3/gaps.md`, cluster 6, and the matching row
 
 ## What the mocks draw
 
-All of these are now drawn: the screen generator was extended once for every cluster (dark menus anchored to any control, insets for a second moment, text fields, radios, charts, the History and Assistant docks, coloured status chips, canvas marks, a split canvas, Present mode). A dark tag above a card or a menu marks a second moment on the same screen. The generator's spec keys are listed in `design/ui/object-first-ux/gen/README.md`, "Round 3 additions".
+All of these are now drawn: the screen generator was extended once for every cluster (dark menus anchored to any control, insets for a second moment, text fields, radios, charts, the History and Assistant docks, colored status chips, canvas marks, a split canvas, Present mode). A dark tag above a card or a menu marks a second moment on the same screen. The generator's spec keys are listed in `design/ui/object-first-ux/gen/README.md`, "Round 3 additions".
 
-The after-Create states of screens 59, 62, 65 and 67, a Group's Profile (66) and the node About tab's "Member of" x (68) are insets; the histogram band (60), the pattern diagram (63), the rule lines with a Not toggle and the code field with its error and completion (61), and the bars of 62, 64 and 67 (edge units, a removable centre chip, a typed name field) are drawn with their own parts. The armed Pattern popover is still not drawn: screen 63 draws the result, whose Define tab holds the same editor.
+The after-Create states of screens 59, 62, 65 and 67, a Group's Profile (66) and the node About tab's "Member of" x (68) are insets; the histogram band (60), the pattern diagram (63), the rule lines with a Not toggle and the code field with its error and completion (61), and the bars of 62, 64 and 67 (edge units, a removable center chip, a typed name field) are drawn with their own parts. The armed Pattern popover is still not drawn: screen 63 draws the result, whose Define tab holds the same editor.

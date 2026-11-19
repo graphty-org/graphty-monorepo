@@ -52,7 +52,7 @@ Fill now has "Color" with a code "6366F1" and a little blue-violet square. The s
 
 ## Step 13 -- color picker (14.png)
 Command: --click-at 1268,415 (button "Pick node color")
-A color box with a rainbow bar and five little squares: blue-violet, grey, blue, yellow, black. No purple square, and it says "Hex". The current color is already bluish-purple like every other dot -- that's the trouble. I'll click the rainbow bar a bit further toward the pink end, where purple should be.
+A color box with a rainbow bar and five little squares: blue-violet, gray, blue, yellow, black. No purple square, and it says "Hex". The current color is already bluish-purple like every other dot -- that's the trouble. I'll click the rainbow bar a bit further toward the pink end, where purple should be.
 
 ## Step 14 -- picked a purple (15.png)
 Command: --click-at 1146,692 (slider "Hue")

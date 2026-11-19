@@ -253,7 +253,7 @@ makes ci.yml's `release-due` job dispatch release.yml with `mode: restart`. A re
 previously failing tests on the new tip; only when they pass does it run the full run there. Other
 merges wait for the next slot.
 
-**Concurrency.** release.yml keeps `concurrency: release-train` (no cancelling), which holds one
+**Concurrency.** release.yml keeps `concurrency: release-train` (no canceling), which holds one
 running and one pending run; a newer pending run replaces the older, silently. So release.yml loses
 its `workflow_run` trigger: the last job of ci.yml's master push run, `release-due` (no concurrency
 group), reads the store and the open red issue and dispatches release.yml only when a restart or a

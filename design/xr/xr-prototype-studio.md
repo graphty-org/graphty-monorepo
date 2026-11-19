@@ -663,7 +663,7 @@ Severity measures what happens to the person, whichever lens finds it:
 - When two reviewers report the same defect, triage keeps one finding at the higher severity.
 
 A severity 4 finding is CLEARED only when a revision fixes it while keeping the idea, and a reviewer
-of the next round agrees. Relabelling it 3 without a change does not clear it.
+of the next round agrees. Relabeling it 3 without a change does not clear it.
 
 ### The bar for RECOMMENDED for implementation
 
@@ -738,7 +738,7 @@ After the pilot check, the criteria are frozen.
 | 2026-10-10 | Extensibility: graphty's team, not a plugin author, adds the new object type                                                                                                                                                                                      | graphty-element's extension points register algorithms, layouts, data sources, format writers and palettes, never object types, so every design would fail "a plugin adds an object type" for a reason that is not about its controls. The pilot reviewer worked around it by switching authors            |
 | 2026-10-10 | Onboarding fixes the persona (explorer-elena), the device (Quest 3, hands, seated) and the start (empty, journey 1); tours count only where the file says when they appear; a missed control with a visible alternative is a hesitation, not an invisible control | "elena or alex" and an unstated device would make onboarding scores incomparable. The pilot reviewer made these choices well; they are now the rule                                                                                                                                                        |
 | 2026-10-10 | Ergonomics: with no stated text size, assume platform-default panel text and judge distance and placement                                                                                                                                                         | Paper designs rarely state text size, so "readable at the stated distance" could not be scored                                                                                                                                                                                                             |
-| 2026-10-10 | Severity 2 and 3 now cover accidents (noticed and undone in one act, versus unnoticed, cancelling work or costly); dependencies are not findings by themselves; extensibility severities defined; duplicates take the higher severity                             | The table only described blocked tasks, so the pilot used severity 3 for Midas touch and for an architectural dependency (desktop panels) with no rule behind either                                                                                                                                       |
+| 2026-10-10 | Severity 2 and 3 now cover accidents (noticed and undone in one act, versus unnoticed, canceling work or costly); dependencies are not findings by themselves; extensibility severities defined; duplicates take the higher severity                              | The table only described blocked tasks, so the pilot used severity 3 for Midas touch and for an architectural dependency (desktop panels) with no rule behind either                                                                                                                                       |
 
 ## Appendix B: the triage after screening
 

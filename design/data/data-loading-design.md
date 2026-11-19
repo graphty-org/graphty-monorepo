@@ -254,7 +254,7 @@ abstract class BaseParser {
 
 - Enables streaming (memory efficient)
 - Allows progress reporting
-- Can be cancelled
+- Can be canceled
 - Consistent interface for all parsers
 
 #### DataSourceInput

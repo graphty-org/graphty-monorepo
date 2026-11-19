@@ -157,7 +157,7 @@ async function enterVR(): Promise<void> {
 }
 
 /**
- * Put a node where the right controller's ray points, three metres out.
+ * Put a node where the right controller's ray points, three meters out.
  * @param id - The node's id.
  */
 async function nodeOnRightRay(id: string): Promise<void> {

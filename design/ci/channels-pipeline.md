@@ -575,13 +575,13 @@ runners:
 - **A newer master push replaces a waiting master build** (#3855). In ci.yml every first attempt of a
   push to master shares the concurrency group `master-push` with `cancel-in-progress: false`, so a
   newer push replaces a build still waiting to start, and a build already running finishes
-  (#3938: cancelling running builds left master with no finished build while merges came faster than
+  (#3938: canceling running builds left master with no finished build while merges came faster than
   one build). A re-run, a dispatch and the release train's call each run in a group of their own and
-  are never cancelled. master-guard treats a replaced build as superseded, not red, and
+  are never canceled. master-guard treats a replaced build as superseded, not red, and
   `release-due.mjs` reads every merge since the last finished master build, so a replaced build's
   `Fixes #N` still starts its restart. Nobody cancels a master build by hand.
 - **Fewer pushes per pull request** (#3930). On 2026-10-26, 99 of 244 pull request runs were
-  cancelled by a newer push to the same branch, a median 6 minutes later. Now `tools/branch-push.sh`
+  canceled by a newer push to the same branch, a median 6 minutes later. Now `tools/branch-push.sh`
   (the post-commit hook) does not push a branch that has an open pull request, and `tools/pr-open.sh`
   merges master into a branch only on a conflict or with `--merge-master`.
 - **Unneeded screenshot captures stop** once a pull request's verdict is in (#3858), and the old

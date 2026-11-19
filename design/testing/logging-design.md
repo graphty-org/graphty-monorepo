@@ -469,7 +469,7 @@ This section provides a comprehensive analysis of all modules in graphty-element
 | Operation completed | DEBUG | After successful execution | `{id, category, elapsedMs}`           |
 | Operation failed    | ERROR | On execution error         | `{id, category, error}`               |
 | Operation obsoleted | DEBUG | When made obsolete         | `{id, category, reason, byId}`        |
-| Operation cancelled | WARN  | When aborted               | `{id, category, progress}`            |
+| Operation canceled  | WARN  | When aborted               | `{id, category, progress}`            |
 | Batch started       | DEBUG | `startBatch()`             | `{batchId}`                           |
 | Batch committed     | DEBUG | `commitBatch()`            | `{batchId, operationCount}`           |
 | Queue idle          | DEBUG | When queue becomes empty   | `{completedCount}`                    |

@@ -12,7 +12,7 @@ function fold(metric: string, item: RawItem): Contribution[] {
         .flatMap((s) => [(s.fold as (i: RawItem) => Contribution | Contribution[] | null)(item) ?? []].flat());
 }
 
-// GitHub gives a job cancelled before any runner took it (runner_id 0, no steps) started_at == created_at, so a
+// GitHub gives a job canceled before any runner took it (runner_id 0, no steps) started_at == created_at, so a
 // pull request push superseded while 170 of its jobs queued read as 12,000 runner-minutes it never spent (#5085).
 describe("jobs that never got a runner", () => {
     const queuedThenCancelled = job(1, {

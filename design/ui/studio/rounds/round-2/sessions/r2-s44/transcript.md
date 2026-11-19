@@ -45,7 +45,7 @@ Next: click "New from data..." and see what it asks for.
 
 Command: `--step --click "New from data..."` -> 05.png
 
-What I see: a page "Open as a new graph", an empty "Tables" list with a +, "Drop a file here, or choose a file...", a Direction box "As the file says", and Cancel / Load (Load greyed, "Choose a file first"). The title bar now says "Untitled". The error message from before is gone -- glad I wrote it down.
+What I see: a page "Open as a new graph", an empty "Tables" list with a +, "Drop a file here, or choose a file...", a Direction box "As the file says", and Cancel / Load (Load grayed, "Choose a file first"). The title bar now says "Untitled". The error message from before is gone -- glad I wrote it down.
 
 Next: "choose a file..." and give it the same club-members.graphml.
 
@@ -53,7 +53,7 @@ Next: "choose a file..." and give it the same club-members.graphml.
 
 Command: `--step --click "choose a file..." --upload club-members.graphml` -> 06.png
 
-What I see: a red box: "club-members.graphml could not be read as GraphML. Check the file, or pick another format in File settings." Below it a "File settings" bar. Load stays grey: "The file could not be read". The Tables list is empty, so again nothing came in.
+What I see: a red box: "club-members.graphml could not be read as GraphML. Check the file, or pick another format in File settings." Below it a "File settings" bar. Load stays gray: "The file could not be read". The Tables list is empty, so again nothing came in.
 
 The two doors agree that it fails, but they do not say the same thing. The first said "incomplete or damaged near line 9" and "ask for the file again". This one says only "could not be read as GraphML", without the line, and suggests picking another format -- which makes me wonder whether the file is fine and the program guessed the wrong kind. "Says who?" Which one do I believe?
 

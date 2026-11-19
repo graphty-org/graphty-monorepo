@@ -34,6 +34,7 @@ const SESSION_PARTS: Readonly<Record<string, string>> = {
     project: "ProjectApi",
     time: "TimeApi",
     shaders: "SessionShaders",
+    assets: "AssetsApi",
 };
 
 /** The root a call's result is, by the root and member called. */

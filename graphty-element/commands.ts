@@ -149,6 +149,11 @@ export const COMMANDS = Object.freeze({
         /** "undoable": a step in the history. */
         undo: "undoable",
     },
+    /** `asset.defaults`: change one model's own settings. */
+    "asset.defaults": {
+        /** "undoable": a step in the history. */
+        undo: "undoable",
+    },
     /** `visibility.set`: apply a filter, or clear it with null. */
     "visibility.set": {
         /** "undoable": a step in the history. */

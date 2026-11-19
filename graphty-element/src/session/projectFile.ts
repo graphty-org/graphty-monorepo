@@ -196,9 +196,9 @@ export interface ProjectSaveOptions {
      * the file's digest, so the file is fetched again when the project opens (after the reader
      * allows it) and reported with `W_MODEL_CHANGED` when it is no longer the same file.
      * `session.assets.list()` gives each asset's `url`, and `project.assetChoices()` lists the ones
-     * to ask about. A URL with no entry is embedded; with the `node-models` experiment on, it is
-     * kept as the project last kept it (as the file it was opened from, or the last written save
-     * that had an entry for it), else embedded.
+     * to ask about. A URL with no entry is kept as the project last kept it
+     * (as the file it was opened from, or the last written save that had an entry for it), else
+     * embedded.
      */
     readonly assets?: Readonly<Record<string, AssetStorage>>;
     /**

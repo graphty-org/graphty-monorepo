@@ -1,3 +1,9 @@
+// EncodeImageAsync draws on Babylon's own dump engine (a WebGL ThinEngine) with the "postprocess"
+// vertex shader looked up by name. Since Babylon 9 nothing on its import path registers that
+// shader, and an unregistered name is fetched as a URL (the app's HTML comes back), so the
+// encode never resolves. Registering it here keeps a node thumbnail independent of load order.
+import "@babylonjs/core/Shaders/postprocess.vertex.js";
+
 import type { Camera } from "@babylonjs/core/Cameras/camera.js";
 import { Constants } from "@babylonjs/core/Engines/constants.js";
 import type { Engine } from "@babylonjs/core/Engines/engine.js";

@@ -22,6 +22,7 @@ import type {
     Scope,
     SetId,
 } from "../../catalog/types";
+import type { ModelDefaults } from "../assets/AssetsApi";
 import type { Note, NoteId, NoteStatus } from "../notes/types";
 import type { AlgorithmRunCommand } from "../planning";
 import type { RunResult } from "../results/types";
@@ -209,6 +210,8 @@ export interface ProjectState {
      * is the session's, not the project's, so it is not here.
      */
     readonly shaders: ReadonlyMap<string, ProjectShaderEntry>;
+    /** Each model's own settings (`session.assets.setDefaults`), by its asset id. */
+    readonly modelDefaults: ReadonlyMap<string, ModelDefaults>;
 }
 
 /** One saved camera tour: its name and the tour. */
@@ -268,5 +271,6 @@ export function createProjectState(init: Partial<ProjectState> = {}): ProjectSta
         attributes: new Map(init.attributes),
         valueLabels: new Map(init.valueLabels),
         shaders: new Map(init.shaders),
+        modelDefaults: new Map(init.modelDefaults),
     };
 }

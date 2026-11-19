@@ -756,6 +756,19 @@ const LIFECYCLE = exempt("Lifecycle of the element or a part of it; the history 
 const PROFILING = exempt("Profiling measures the renderer; it changes nothing a project file saves.");
 const MACHINE = exempt("A preference about this machine's hardware, not about the graph.");
 const CAPTURE = exempt("A capture reads the picture; it changes nothing.");
+
+/** What adding, removing or naming a model file is about undo. */
+const ASSET_FILES = exempt(
+    "Model files are kept beside the project, not in it: they are not commands, so adding or removing one is no step and no recipe entry, and limits and hosts are the page's own settings.",
+);
+
+/** The model the doors test gives settings to. */
+const DOOR_MODEL = "asset:door-model";
+
+/** One triangle as an ASCII STL: the smallest model `session.assets` accepts. */
+const DOOR_STL = new TextEncoder().encode(
+    "solid door\nfacet normal 0 0 1\nouter loop\nvertex 0 0 0\nvertex 1 0 0\nvertex 0 1 0\nendloop\nendfacet\nendsolid door\n",
+);
 const PREVIEW = exempt(
     "A model preview draws in a canvas and scene of its own; it changes nothing a project file saves.",
 );
@@ -768,6 +781,22 @@ export const RENDER = exempt(
 const HISTORY = exempt("Moves through the history or groups commands into a step; it is not a step itself.");
 const INPUT = exempt("Input handling and input preferences; the gestures it drives are doors of their own.");
 const IN_FLIGHT = exempt("Stops or pauses work in flight; work in flight is not saved.");
+
+/** The picture, model-check and animation-capture members the element and its graph both expose. */
+const CAPTURE_DOORS: Readonly<Record<string, Door>> = {
+    nodeThumbnail: CAPTURE,
+    modelThumbnail: CAPTURE,
+    modelPreview: CAPTURE,
+    checkModel: READ,
+    canCaptureScreenshot: READ,
+    captureAnimation: CAPTURE,
+    cancelAnimationCapture: CAPTURE,
+    stopAnimationCapture: CAPTURE,
+    cancelCameraAnimation: IN_FLIGHT,
+    playTour: CAMERA,
+    isAnimationCapturing: READ,
+    estimateAnimationCapture: READ,
+};
 const VIEW_SETTING = exempt("A rendering preference of this view, not saved in a project file.");
 const WORKING_GRAPH = exempt(
     "Which part of the graph readers read when they name none; a session setting, not saved in a project file.",
@@ -1607,18 +1636,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             xr: XR,
             captureScreenshot: CAPTURE,
             exportFigure: CAPTURE,
-            nodeThumbnail: CAPTURE,
-            modelThumbnail: CAPTURE,
-            modelPreview: CAPTURE,
-            canCaptureScreenshot: READ,
-            captureAnimation: CAPTURE,
-            cancelAnimationCapture: CAPTURE,
-            stopAnimationCapture: CAPTURE,
-            cancelCameraAnimation: IN_FLIGHT,
-            playTour: CAMERA,
+            ...CAPTURE_DOORS,
             planTour: READ,
-            isAnimationCapturing: READ,
-            estimateAnimationCapture: READ,
             getViewMode: READ,
             setViewMode: calls(["2d"], [DIMENSION_2D]),
             isVRSupported: READ,
@@ -2003,20 +2022,10 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             waitForStableFrame: READ,
             waitForPainted: READ,
             captureScreenshot: CAPTURE,
-            nodeThumbnail: CAPTURE,
-            modelThumbnail: CAPTURE,
-            modelPreview: CAPTURE,
-            canCaptureScreenshot: READ,
-            captureAnimation: CAPTURE,
-            cancelAnimationCapture: CAPTURE,
-            stopAnimationCapture: CAPTURE,
-            cancelCameraAnimation: IN_FLIGHT,
-            playTour: CAMERA,
+            ...CAPTURE_DOORS,
+            planTour: READ,
             replaceTour: CAMERA,
             applyCaptureCamera: CAMERA,
-            planTour: READ,
-            isAnimationCapturing: READ,
-            estimateAnimationCapture: READ,
             getCameraState: READ,
             setCameraState: CAMERA,
             setCameraPosition: CAMERA,
@@ -3809,9 +3818,46 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         name: "AssetsApi",
         file: "src/session/assets/AssetsApi.ts",
         half: "session",
-        whole: exempt(
-            "Model files are kept beside the project, not in it: they are not commands, so adding or removing one is no step and no recipe entry, and limits and hosts are the page's own settings.",
-        ),
+        doors: {
+            ...Object.fromEntries(
+                [
+                    "accept",
+                    "add",
+                    "addEach",
+                    "copy",
+                    "dropPart",
+                    "allowHosts",
+                    "files",
+                    "offer",
+                    "ready",
+                    "remove",
+                    "rename",
+                    "setLimits",
+                    "supply",
+                ].map((name) => [name, ASSET_FILES]),
+            ),
+            find: READ,
+            get: READ,
+            inspect: READ,
+            list: READ,
+            states: READ,
+            usedBy: READ,
+            waiting: READ,
+            setDefaults: {
+                kind: "dispatches",
+                op: "asset.defaults",
+                call: {
+                    kind: "call",
+                    args: [DOOR_MODEL, { style: { "node.modelTurn": 90 } }],
+                    around: async (target) => {
+                        const assets = target as { add(source: unknown, options: unknown): Promise<unknown> };
+                        await assets.add({ files: new Map([["door.stl", DOOR_STL]]) }, { name: DOOR_MODEL });
+                        return () => Promise.resolve();
+                    },
+                },
+                expect: [{ op: "asset.defaults", id: DOOR_MODEL, patch: { style: { "node.modelTurn": 90 } } }],
+            },
+        },
     },
     {
         name: "NetworkApi",

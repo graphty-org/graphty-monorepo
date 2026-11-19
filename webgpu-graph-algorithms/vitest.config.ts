@@ -4,7 +4,9 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { playwright } from "@vitest/browser-playwright";
+import { webdriverio } from "@vitest/browser-webdriverio";
 import { defineConfig } from "vitest/config";
+import type { BrowserInstanceOption } from "vitest/node";
 
 import { workerShare } from "../tools/test-slots.mjs";
 import { withTestGuards } from "../tools/test-wait-guard.mjs";
@@ -60,8 +62,16 @@ const here = dirname(fileURLToPath(import.meta.url));
 const browserGpuEnv = process.env.GRAPHTY_BROWSER_GPU;
 const browserGpu: keyof typeof BROWSER_FLAGS =
     browserGpuEnv === "nvidia" || browserGpuEnv === "metal" || browserGpuEnv === "warp" ? browserGpuEnv : "swiftshader";
-/** GRAPHTY_BROWSER=webkit runs the browser project in Playwright's WebKit (the host lane's Safari proxy); default chromium. */
-const browserName: "chromium" | "webkit" = process.env.GRAPHTY_BROWSER === "webkit" ? "webkit" : "chromium";
+/**
+ * GRAPHTY_BROWSER=webkit runs the browser project in Playwright's WebKit (the host lane's Safari proxy, which has no
+ * navigator.gpu); GRAPHTY_BROWSER=safari in real Safari through safaridriver (WebdriverIO; macOS only, after
+ * `safaridriver --enable`), the only browser here on WebKit's own WebGPU (work-protection-macos.yml's safari job,
+ * issue #8276); default chromium.
+ */
+const browserName: "chromium" | "webkit" | "safari" =
+    process.env.GRAPHTY_BROWSER === "webkit" || process.env.GRAPHTY_BROWSER === "safari"
+        ? process.env.GRAPHTY_BROWSER
+        : "chromium";
 const gpuRequire = process.env.GRAPHTY_GPU_REQUIRE ?? "";
 const noiseFloorWrite = process.env.GRAPHTY_NOISE_FLOOR_WRITE ?? "";
 /**
@@ -94,6 +104,30 @@ function browserLaunchEnv(): Record<string, string> | undefined {
     }
     env.LD_LIBRARY_PATH = [eglDir, process.env.LD_LIBRARY_PATH].filter((v) => v !== undefined && v !== "").join(":");
     return env;
+}
+
+/**
+ * The browser project's one instance, by GRAPHTY_BROWSER: real Safari (WebdriverIO drives safaridriver), Playwright's
+ * WebKit, or Chromium under the GRAPHTY_BROWSER_GPU flag set.
+ * @returns the instance for `browser.instances`
+ */
+function browserInstance(): BrowserInstanceOption {
+    if (browserName === "safari") {
+        return { browser: "safari" };
+    }
+    if (browserName === "webkit") {
+        return { browser: "webkit", provider: playwright({ launchOptions: { env: browserLaunchEnv() } }) };
+    }
+    return {
+        browser: "chromium",
+        provider: playwright({
+            launchOptions: {
+                args: [...BROWSER_FLAGS[browserGpu]],
+                channel: BROWSER_CHANNEL[browserGpu],
+                env: browserLaunchEnv(),
+            },
+        }),
+    };
 }
 
 /**
@@ -405,26 +439,11 @@ const config = defineConfig({
                     fileParallelism: false,
                     browser: {
                         enabled: true,
-                        headless: true,
-                        provider: playwright(),
+                        // Safari has no headless mode (the WebdriverIO provider refuses one).
+                        headless: browserName !== "safari",
+                        provider: browserName === "safari" ? webdriverio() : playwright(),
                         commands: { appendBenchRecord, writeNoiseFixture, recordNoiseRow },
-                        instances: [
-                            browserName === "webkit"
-                                ? {
-                                      browser: "webkit",
-                                      provider: playwright({ launchOptions: { env: browserLaunchEnv() } }),
-                                  }
-                                : {
-                                      browser: "chromium",
-                                      provider: playwright({
-                                          launchOptions: {
-                                              args: [...BROWSER_FLAGS[browserGpu]],
-                                              channel: BROWSER_CHANNEL[browserGpu],
-                                              env: browserLaunchEnv(),
-                                          },
-                                      }),
-                                  },
-                        ],
+                        instances: [browserInstance()],
                     },
                 },
             },

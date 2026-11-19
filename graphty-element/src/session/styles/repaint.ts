@@ -982,6 +982,8 @@ interface PreparedChannel {
     readonly combine: Combine | null;
     /** Whether it is a template, whose binding reads the element through a function. */
     readonly template: boolean;
+    /** The label style field it writes, for a label field channel (`node.labelSize`); null otherwise. */
+    readonly labelField: LabelFieldName | null;
 }
 
 /** A number channel's combine mode, with what to combine with where nothing beneath painted. */
@@ -1058,9 +1060,18 @@ function combineOf(descriptor: ChannelDescriptor, binding: Binding): Combine | n
  * @param painted - What the channel painted (never undefined).
  */
 function writeChannel(channel: PreparedChannel, index: number, painted: unknown): void {
-    const { column, combine } = channel;
+    const { column, combine, labelField } = channel;
     if (combine !== null && column.kind === "number" && typeof painted === "number") {
         column.values[index] = combined(combine, column.values[index], painted);
+        return;
+    }
+
+    // A label field combines with the same field of the label style beneath, which its column holds: written over
+    // it, "label size x 1.5" drew every label 1.5 pixels tall.
+    if (combine !== null && labelField !== null && typeof painted === "number") {
+        const beneath = (readColumn(column, index) as Record<string, unknown> | undefined)?.[labelField];
+        const value = combined(combine, typeof beneath === "number" ? beneath : Number.NaN, painted);
+        writeColumn(column, index, channel.toColumn === null ? value : channel.toColumn(value), channel.plainText);
         return;
     }
 
@@ -1492,6 +1503,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
                 path,
                 plainText: path !== null && isNotePath(path),
                 combine: combineOf(descriptor, binding),
+                labelField: labelField?.field ?? null,
                 template: "template" in binding,
                 binding: prepareBinding({
                     channel: name as Channel,

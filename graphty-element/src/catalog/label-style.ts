@@ -713,7 +713,7 @@ export const RICH_TEXT_KEYS = {
  * @example
  * ```ts
  * import { LABEL_STYLE_DEFAULTS } from "@graphty/graphty-element/catalog";
- * LABEL_STYLE_DEFAULTS.font; // "Verdana"
+ * LABEL_STYLE_DEFAULTS.font; // "Verdana, sans-serif"
  * LABEL_STYLE_DEFAULTS.marginTop; // 5
  * ```
  */

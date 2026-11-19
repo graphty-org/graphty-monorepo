@@ -98,7 +98,7 @@ export const RichTextStyle = z.strictObject({
     text: z.string().optional(),
 
     // Font settings
-    font: z.string().default("Verdana").optional(),
+    font: z.string().default("Verdana, sans-serif").optional(),
     fontSize: z.number().min(1).default(48).optional(),
     // How tall one line is drawn in the scene, in the units of a node's size; unset, fontSize / 48.
     size: z.number().positive().optional(),

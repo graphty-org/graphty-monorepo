@@ -1281,8 +1281,8 @@ const NODE_RAISED_BORDER_CAVEAT =
     "`node.raisedBorderWidth` above 0, in the units of `node.borderWidth`.";
 
 const ARROW_CAPTION_CAVEAT =
-    "A caption hangs from the cap at that end of the edge, so an end drawn with no arrow carries " +
-    'none: a tail caption needs `edge.arrowTail` set to something other than "none". The words ' +
+    "A caption is drawn at that end of the edge, beside its cap where it has one; an end drawn with " +
+    'no arrow (`edge.arrowTail` "none", the default) carries its caption all the same. The words ' +
     "are what switch a caption on, so a layer that writes only the caption's appearance and no " +
     "words draws nothing.";
 

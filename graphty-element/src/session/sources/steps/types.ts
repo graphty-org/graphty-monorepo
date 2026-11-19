@@ -392,6 +392,8 @@ export interface BuiltEdge extends BuiltElement {
     /** The edge's own source reads a weight but had none for it, so it reads 1. */
     weightDefault: boolean;
     timeEnd?: number;
+    /** The columns the step that made it read its ends from. */
+    ends?: { readonly source: string; readonly target: string };
 }
 
 /** What became of one row a source holds. */

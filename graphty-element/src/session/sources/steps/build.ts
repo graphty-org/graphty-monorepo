@@ -430,6 +430,8 @@ interface EdgeArgs {
     readonly roles: EdgeRole;
     readonly read?: EdgeRole;
     readonly table: TableName;
+    // the columns the step reads the ends from
+    readonly ends: { readonly source: string; readonly target: string };
     // the step's `repeated` on join.edges; absent leaves repeats to repeatedEdges
     readonly repeated?: "first" | "last" | "both";
 }
@@ -1038,6 +1040,7 @@ class Builder {
                 ctx: { source: s.source },
                 roles: m,
                 table: "edges",
+                ends: { source: m.source, target: m.target },
             });
         });
     }
@@ -1140,6 +1143,7 @@ class Builder {
                 roles: src.mapping[table] ?? {},
                 read: rd,
                 table,
+                ends: { source: rd.source, target: rd.target },
                 repeated: s.repeated,
             });
         }
@@ -1270,6 +1274,7 @@ class Builder {
             weightDefault,
             time: null,
             timeFrom: null,
+            ends: a.ends,
         };
         this.edges.set(id, e);
         if (!this.pairs.has(pairKey(e.weightMeaning))) {

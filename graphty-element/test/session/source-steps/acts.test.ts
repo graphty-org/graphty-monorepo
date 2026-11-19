@@ -312,6 +312,19 @@ describe("source-steps: the acts", () => {
         merged.session.dispose();
     });
 
+    it("an extracted edge's record holds its ends only in the columns its step reads, whatever act follows", async () => {
+        const session = createGraphSession({ features: ["source-steps"] });
+        const t = await edgeFile(session, TRANSACTIONS, "transactions.csv");
+        await session.data.extract(t, { column: "device_id", type: "device" });
+        const k = await session.data.stage({ type: "csv", config: { data: KYC }, name: "kyc.csv" }, { key: "alert_id" });
+        await session.data.connect({ from: { source: k, field: "account_id" }, into: { space: "account" } });
+        const device = session.data.edges().find((e) => e.target === "D-1");
+        assert.isDefined(device);
+        assert.isUndefined(device?.merchant_id, "an account-device edge names no merchant");
+        assert.isNull(session.data.values({ load: t, key: "1/A-1|D-1" }, "merchant_id")?.shown ?? null);
+        session.dispose();
+    });
+
     it("Make an edge (3.6 conformance): edges keyed <part>/<node 2 key>, from node 1 to node 2", async () => {
         const { session } = await phase6();
         const k = await session.data.stage(
@@ -492,12 +505,12 @@ describe("source-steps: the acts", () => {
         const edge = session.data.edges().find((e) => e.txn_id === "T-1");
         const id = edge?.id ?? "";
         const details = await refused(
-            () => session.data.updateEdges([{ id, values: { account_id: "A-2" } }]),
+            () => session.data.updateEdges([{ id, values: { "account_id": "A-2" } }]),
             "E_EDIT_ROLE_COLUMN",
         );
         assert.strictEqual(details.column, "account_id");
         await refused(
-            () => session.data.updateNodes([{ id: "A-1", values: { account_id: "Z" } }]),
+            () => session.data.updateNodes([{ id: "A-1", values: { "account_id": "Z" } }]),
             "E_EDIT_ROLE_COLUMN",
         );
         await session.data.extract(t, { column: "category", type: "cat" });

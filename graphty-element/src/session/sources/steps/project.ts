@@ -561,7 +561,7 @@ export interface ProjectedGraph {
 
 /**
  * A build as the session's nodes and edges: each node's values with its NodeId at `idPath`, each
- * edge's values with its ends' NodeIds in the columns its source reads them from.
+ * edge's values with its ends' NodeIds in the columns the step that made it reads them from.
  * @param result - The build.
  * @param value - The value it was built from.
  * @param idPath - Where a node record holds its id.
@@ -590,7 +590,8 @@ export function projectBuild(result: BuildResult, value: SourceSteps, idPath: st
  */
 function projectEdge(e: BuiltEdge, value: SourceSteps, ids: ReadonlyMap<string, NodeId>): ProjectedEdge {
     const mapping = value.sources[e.load]?.mapping.edges;
-    const ends = { source: mapping?.source ?? "source", target: mapping?.target ?? "target" };
+    // The columns the step that made it reads, not its source's: an extracted edge runs between other ends.
+    const ends = e.ends ?? { source: mapping?.source ?? "source", target: mapping?.target ?? "target" };
     const from = ids.get(e.from) as NodeId;
     const to = ids.get(e.to) as NodeId;
     const record: Record<string, unknown> = { ...e.values, [ends.source]: from, [ends.target]: to };

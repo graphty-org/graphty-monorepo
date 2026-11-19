@@ -499,19 +499,13 @@ body[data-picking-node] .ws-canvas[data-sel-preview] .ws-canvas-surface::after {
     pointer-events: none;
 }
 
-.sel-summary-row .sel-value {
-    flex: 1 1 auto;
-}
-
-/* At rest the heading and its value sit close, the value and Edit on one line, flush with the
-   panel's other rows (the approved prototype). */
+/* The sidebar's title row sits flush with the panel's other rows (the approved prototype). */
 .sel-rest:not(.sel-rest-inline) .sel-row {
     height: 24px;
     padding-inline: 0;
 }
 
-/* The sidebar title row's Edit is always drawn: it is how a reader finds a layer's selection, as the
-   approved design has it. The title takes the row's width, so Edit and any count sit at its end. */
+/* The sidebar title row's name takes the row's width, so its Editing word sits at its end. */
 .sel-rest:not(.sel-rest-inline) .sel-title-row .sel-title {
     flex: 1 1 0;
 }

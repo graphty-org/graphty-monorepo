@@ -485,6 +485,16 @@ interface DrawnSimulation {
     readonly landedDrawnTransform?: DrawnTransform | null;
     /** The landed slot's rows read back to the host, when the ring was set with `readBack`. */
     readonly landedDrawnRows?: Float32Array | null;
+    /**
+     * The landed batch's finite rows measured on the device, while the simulation's array holds that landing
+     * (issue #8801): count, sums, box (min then max) and the furthest squared distance from their mean.
+     */
+    readonly landedEnvelope?: {
+        readonly placed: number;
+        readonly sum: readonly [number, number, number];
+        readonly box: readonly [number, number, number, number, number, number];
+        readonly furthestSquared: number;
+    } | null;
     setDrawn(output: { slots: number; rows: Float32Array; readBack?: boolean } | null): void;
     setDrawnTransform(transform: DrawnTransform): void;
     setDrawnSkip(mask: Uint32Array): void;
@@ -717,6 +727,21 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * @internal
      */
     rowsWalked = 0;
+    /**
+     * Rows the fit-to-view measure walked on the CPU. A landing the device measured walks none (issue #8801).
+     * @internal
+     */
+    envelopeRowsWalked = 0;
+    /**
+     * Fit from the envelope the device measured when it holds (issue #8801); false walks every row on the
+     * CPU as before, for a test that compares the two fits. Even when true, the walk still fits every landing
+     * the device did not measure: those before the drawn ring's first batch lands, any after a row was written
+     * or held, and every one under renderPath "objects".
+     * @internal
+     */
+    deviceEnvelope = true;
+    /** The simulation's array was written by the element since the last landing, so a device measure no longer holds. */
+    #adoptedSinceLanding = false;
     #landedPublished = 0;
 
     /** Set by `LayoutManager` while it is not stepping this layout. See {@link paused}. */
@@ -834,6 +859,16 @@ export class SimulationLayoutEngine extends LayoutEngine {
      */
     get landedBatchesPublished(): number {
         return this.#landedPublished;
+    }
+
+    /**
+     * Whether a batch can still land and publish new positions: a simulation is loaded, no batch
+     * of it has failed, and it is being stepped or has a batch in flight. A failed batch leaves
+     * the layout running with nothing to land, so a frame waiting for a landing would wait for good.
+     * @returns True while a landing can still come.
+     */
+    get canLand(): boolean {
+        return this.#simulation !== null && !this.#failed && !(this.#paused && this.#inFlight === 0);
     }
 
     /**
@@ -1056,6 +1091,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
                     // The batch has landed, so the simulation knows by now whether it settled.
                     this.#inFlight -= 1;
                     this.#landed += 1;
+                    this.#adoptedSinceLanding = false;
                     this.#syncWork();
                     // Submitted before a restore, it read back coordinates the restore replaced:
                     // take the element's array again, which still holds the restored ones.
@@ -1840,7 +1876,9 @@ export class SimulationLayoutEngine extends LayoutEngine {
                       this.isFollower(this.#elementRow(row));
         const radii = this.#collisionRadii(snapshot.nodeCount);
         const radius = Math.max(this.#options.scalingFactor, this.#packedRadius);
-        const measured = measureEnvelope(simPositions, snapshot.nodeCount, radius, held);
+        const measured =
+            (held === null && this.deviceEnvelope ? this.#deviceEnvelope(snapshot.nodeCount, radius) : null) ??
+            this.#walkEnvelope(simPositions, snapshot.nodeCount, radius, held);
         this.#simBox = measured.box;
 
         // NOTHING LEFT TO MEASURE KEEPS THE LAST MAP rather than resetting it to the identity. A
@@ -1857,6 +1895,79 @@ export class SimulationLayoutEngine extends LayoutEngine {
         if (radii !== null) {
             this.#setCollision(radii, this.#envelopeScale);
         }
+    }
+
+    /**
+     * The envelope the device measured over the landing the simulation's array holds, as {@link measureEnvelope}
+     * would measure it there to f32 rounding (the box exactly), so that landing is fitted with no row walked on
+     * the CPU (issue #8801). The fits before the first measured landing, and after a write or with a held row,
+     * still walk.
+     * @param nodeCount - The loaded snapshot's node count.
+     * @param scalingFactor - The scene-unit radius the arrangement is published at.
+     * @returns The envelope, or null when the array holds rows the device did not measure.
+     */
+    #deviceEnvelope(nodeCount: number, scalingFactor: number): LayoutEnvelope | null {
+        // Only a run whose rows are the snapshot's has a drawn ring, and only a ring measures (`#attachDrawn`).
+        const run = this.#drawnRun();
+        if (this.#adoptedSinceLanding || run?.n !== nodeCount) {
+            return null;
+        }
+
+        const device = run.simulation.landedEnvelope ?? null;
+        if (device === null) {
+            return null;
+        }
+
+        const { placed, sum, box, furthestSquared } = device;
+        if (placed === 0) {
+            return { scale: 1, centre: [0, 0, 0], placed, box: [] };
+        }
+
+        const radius = Math.sqrt(furthestSquared);
+        return {
+            scale: radius > POINT_RADIUS ? scalingFactor / radius : 1,
+            centre: [sum[0] / placed, sum[1] / placed, sum[2] / placed],
+            placed,
+            box: [...box],
+        };
+    }
+
+    /**
+     * The fit the device measured for the landing the simulation's array holds, beside a CPU walk of that array:
+     * what proves the two agree on a running layout. Changes nothing but the walk's count.
+     * @returns Both envelopes (the device's null when it measured none), or null before a load.
+     * @internal
+     */
+    envelopeAgreement(): { device: LayoutEnvelope | null; walked: LayoutEnvelope } | null {
+        const snapshot = this.#snapshot;
+        const simPositions = this.#simPositions;
+        if (snapshot === null || simPositions === null) {
+            return null;
+        }
+
+        const radius = Math.max(this.#options.scalingFactor, this.#packedRadius);
+        return {
+            device: this.#deviceEnvelope(snapshot.nodeCount, radius),
+            walked: this.#walkEnvelope(simPositions, snapshot.nodeCount, radius, null),
+        };
+    }
+
+    /**
+     * {@link measureEnvelope} on the CPU, counted.
+     * @param simPositions - The simulation's coordinates, three per row.
+     * @param nodeCount - How many rows.
+     * @param scalingFactor - The scene-unit radius.
+     * @param held - The rows to leave out, or null.
+     * @returns The envelope.
+     */
+    #walkEnvelope(
+        simPositions: F32,
+        nodeCount: number,
+        scalingFactor: number,
+        held: ((row: number) => boolean) | null,
+    ): LayoutEnvelope {
+        this.envelopeRowsWalked += nodeCount;
+        return measureEnvelope(simPositions, nodeCount, scalingFactor, held);
     }
 
     /**
@@ -2003,12 +2114,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * submitted, so the device is idle until the layout resumes.
      */
     #syncWork(): void {
-        const working =
-            this.#accelerated &&
-            this.#simulation !== null &&
-            !this.#failed &&
-            !this.isSettled &&
-            !(this.#paused && this.#inFlight === 0);
+        const working = this.#accelerated && this.canLand && !this.isSettled;
 
         if (working === (this.#endWork !== null)) {
             return;
@@ -2395,6 +2501,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
         }
 
         this.#simPositions = simPositions;
+        this.#adoptedSinceLanding = true;
 
         return simPositions;
     }

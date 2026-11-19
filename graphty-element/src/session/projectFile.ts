@@ -3,11 +3,11 @@
  *
  * A project file is a `graphty-document` (design/documents/container.md) holding every member:
  * the data (`graphty-data`), the settings, layout, filter, sets and views (`graphty-session`),
- * where each node stands (`graphty-arrangement`), every finished run with its result as columns
+ * where each node stands (`graphty-arrangement`), every finished run as the command that started it
  * (`graphty-results`), the style layers (`graphty-style`), the notes (`graphty-notes`) and the
  * selection (`graphty-view-state`, never required to open the file), and the model files a layer
- * names (`graphty-assets`, required when present). A saved run is not computed
- * again on open: its result is handed to the run in place of the work.
+ * names (`graphty-assets`, required when present). A saved run names its algorithm and options and
+ * is computed again on open; its result is not saved (design/owner-standing-rules.md, rule 6).
  *
  * Nothing here writes words for a reader. Every problem is a code and its values.
  *
@@ -20,11 +20,9 @@ import { GENERATOR_CATALOG } from "@graphty/graph-samples";
 import { sourceDescriptors } from "../catalog/sources";
 import {
     type EdgeId,
-    type FieldDescriptor,
     type FilterStep,
     type NodeId,
     PROJECT_FILE,
-    type ResultShape,
     type RuleTree,
     type RunId,
     type Scope,
@@ -68,8 +66,8 @@ import { ISSUES_VALUE, type IssueState } from "./issues";
 import { loadLineOf } from "./loadLine";
 import { projectBoundary } from "./project/boundary";
 import type { Dispatcher, TransactionOptions } from "./project/Dispatcher";
-import { createRunResult, type ResultElementValues } from "./results/RunResult";
-import { type Caveats, ENGINE_VERSIONS, type RunExecutionContext, type RunExecutor, type RunOutcome } from "./runs";
+import { ENGINE_VERSIONS, type RunExecutionContext, type RunExecutor, type RunOutcome } from "./runs";
+import type { RunLiveScope } from "./runs/types";
 import { edgeSpaceOf } from "./scope/spaces";
 import type { CodedFact } from "./shared";
 import { SOURCE_RECORD_MEMBER, sourceLoadsOf, SOURCES_MEMBER_VERSION } from "./sources/ids";
@@ -691,16 +689,6 @@ function badDocument(details: Readonly<Record<string, unknown>> = {}): GraphtyEr
 // ---------------------------------------------------------------------------------------------
 
 /**
- * One column per field the rows carry.
- * @param rows - Each row's values; undefined for a row with none.
- * @returns The columns by field.
- */
-function columns(rows: readonly (Readonly<Record<string, unknown>> | undefined)[]): Record<string, SavedColumn> {
-    const fields = new Set(rows.flatMap((row) => (row === undefined ? [] : Object.keys(row))));
-    return Object.fromEntries([...fields].map((field) => [field, encodeColumn(rows.map((row) => row?.[field]))]));
-}
-
-/**
  * The project settings worth saving: everything but who is writing, which belongs to the person,
  * and the name, which the document carries.
  * @param session - The session.
@@ -1139,47 +1127,27 @@ export function arrangementMember(session: GraphSession, ids: GraphIds): Record<
 }
 
 /**
- * One finished run as the results member keeps it: its command, its result as columns.
+ * One finished run as the results member keeps it: the command that started it, and its name. Its
+ * result is not saved: an open runs it again (design/owner-standing-rules.md, rule 6).
  * @param sources - The session and its dispatcher.
  * @param id - The run.
- * @param ids - The graph's ids.
  * @returns The run, or undefined for one that has not finished.
  */
-export function runEntry(sources: ProjectSources, id: RunId, ids: GraphIds): Record<string, unknown> | undefined {
+export function runEntry(sources: ProjectSources, id: RunId): Record<string, unknown> | undefined {
     const entry = sources.dispatcher.state.runs.get(id);
     if (entry === undefined) {
         return undefined;
     }
 
-    const { result } = entry;
     const { op: _op, as: _as, applySuggestedStyles: _style, restoreLayer: _restore, ...command } = entry.command;
-    const nodeColumn: NodeId[] = [];
-    const nodeValues: Readonly<Record<string, unknown>>[] = [];
-    for (const node of ids.nodes) {
-        const values = result.node(node);
-        if (values !== undefined) {
-            nodeColumn.push(node);
-            nodeValues.push(values);
-        }
-    }
-
     return {
         id,
         derived: sources.isDerived(id),
         ...command,
-        shape: result.shape,
-        fields: result.fields,
-        measured: result.measured,
-        // How many elements it ran over, so an open restores it over the same ones (current) or
-        // marks it out of date, whichever the filter the file holds makes it.
-        ranOn: { nodes: entry.record.scope.nodes, edges: entry.record.scope.edges },
-        graph: result.graph,
-        caveats: entry.record.caveats,
-        durationMs: entry.record.durationMs ?? 0,
+        // What "visible" or "selection" stood for when it ran, so an open computes it under the same.
+        ...(entry.record.scope.live === undefined ? {} : { live: entry.record.scope.live }),
         // The reader's own name (`runs.rename`); a run without one writes no key.
         ...(entry.name === undefined ? {} : { name: entry.name }),
-        nodes: { ids: nodeColumn, columns: columns(nodeValues) },
-        edges: { columns: columns(ids.edges.map((edge) => result.edge(edge))) },
     };
 }
 
@@ -1308,7 +1276,7 @@ function write(
         resultsMember(
             session,
             [...dispatcher.state.runs.keys()].flatMap((id): Record<string, unknown>[] => {
-                const run = runEntry(sources, id, ids);
+                const run = runEntry(sources, id);
                 return run === undefined ? [] : [run];
             }),
         ),
@@ -2354,7 +2322,6 @@ async function readOldLooks(
  * @param doc - The document.
  * @param graph - Its data, checked.
  * @param name - The project's name.
- * @param canned - Where the saved results wait for their runs.
  * @param loads - What the file's sources member held.
  */
 async function readProject(
@@ -2362,7 +2329,6 @@ async function readProject(
     doc: ReadDocument,
     graph: NodeLink,
     name: string | null,
-    canned: CannedOutcomes,
     loads: SourcesRead,
 ): Promise<void> {
     // A sources member that was read says where the data came from; else the data member's own fields do.
@@ -2371,7 +2337,7 @@ async function readProject(
     const { sources, provenance } = opened;
     // Sources and steps name every source, so the graph's own source is the one the file saved.
     const source = loads.steps === undefined ? opened.source : legacy.source;
-    const { tx } = opening;
+    const { tx, problems } = opening;
     const first = (kind: MemberKind): Record<string, unknown> => doc.members.get(kind)?.[0] ?? {};
     const state = first("graphty-session");
 
@@ -2407,8 +2373,10 @@ async function readProject(
     await readArrangement(opening, doc.members.get("graphty-arrangement")?.[0], nodeIds);
     await restoreHidden(opening, state.visibility, nodeIds);
 
-    // Before the runs: a run over the selection reads it. The selection is not project state.
-    await readSelection(opening, doc.members.get("graphty-view-state")?.[0]?.selection, nodeIds, edgeIds);
+    // Before the runs: a run saved without its live scope reads the selection. The selection is
+    // not project state.
+    const savedSelection = doc.members.get("graphty-view-state")?.[0]?.selection;
+    await readSelection(opening, savedSelection, nodeIds, edgeIds);
 
     // Sets before the runs, so a run over a set finds it. A set is minted a new id when the session
     // has already issued its old one, so every `{ set }` the file names is rewritten to the new id.
@@ -2432,35 +2400,52 @@ async function readProject(
         }
     });
 
-    // Each run is restored over the elements it ran on: a run made before the filter (its scope
-    // held as many elements as it holds with no filter; a filter only takes elements away) before
-    // the filter, so it comes back out of date as it was saved;
-    // the rest after it, so a run over what the file shows comes back current. A file written
-    // before runs saved their counts restores them all before the filter, as it always did. A
-    // filter naming a set that waits for a run's result waits with it.
-    const restoreVisibility = (): Promise<void> => restoreVisibilityOf(opening, state, remap);
-
+    // A run from a file that saved its element count (ranOn) but not its live scope is reopened
+    // as that file was: one whose scope held as many elements as it holds with no filter ran
+    // before the filter, so it is computed before the filter is back and comes back out of date.
     const results = first("graphty-results");
-    const sameData = results.fingerprint === tx.data.fingerprint();
-    const restoreRun = (run: SavedRun): Promise<void> =>
-        attempt(opening, "runs", () => readRun(opening, run, { sameData, nodeIds, edgeIds, remap }, canned), run.id);
+    const runs = (results.runs ?? []) as SavedRun[];
     const ranBefore = (run: SavedRun): boolean =>
-        run.ranOn === undefined || sameCount(run.ranOn, opening.scopeCountOf(remap(run).scope));
-    const after: SavedRun[] = [];
-    for (const run of (results.runs ?? []) as SavedRun[]) {
-        if (waiting.length > 0 || ranBefore(run)) {
-            await restoreRun(run);
-        } else {
-            after.push(run);
+        run.live === undefined &&
+        run.ranOn !== undefined &&
+        sameCount(run.ranOn, opening.scopeCountOf(remap(run).scope));
+    const before = new Set(runs.filter(ranBefore));
+    for (const run of before) {
+        await attempt(opening, "runs", () => readRun(opening, run, remap, () => Promise.resolve()), run.id);
+    }
+
+    // The filter and window before the other runs, for a run saved without its live scope. Each run
+    // saved with one is computed under the filter or selection it ran under, and the project's own
+    // are restored after them all, where a failure is reported.
+    const visibility = state.visibility as Record<string, unknown> | undefined;
+    // Its problems are reported by that restore, so this try keeps none.
+    await readFilter({ ...opening, problems: [] }, visibility ?? {}, remap).catch(() => undefined);
+
+    let selectionMoved = false;
+    const underLive = async (run: SavedRun): Promise<void> => {
+        const { live, id } = run;
+        try {
+            if (live?.visible !== undefined) {
+                const conditions = { version: CONDITIONS_VERSION, list: live.visible.conditions };
+                await readFilter(opening, { ...live.visible, conditions }, remap);
+            }
+
+            if (live?.selection !== undefined) {
+                selectionMoved = true;
+                await tx.selection.apply({ nodes: live.selection.filter((node) => nodeIds.has(node)), edges: [] });
+            }
+        } catch (error) {
+            // The run is still computed, under what is in force, and the reader is told.
+            problems.push({ code: isGraphtyError(error) ? error.code : "E_INTERNAL", params: { slice: "runs", id } });
         }
+    };
+
+    for (const run of runs.filter((saved) => !before.has(saved))) {
+        await attempt(opening, "runs", () => readRun(opening, run, remap, underLive), run.id);
     }
 
-    if (waiting.length === 0) {
-        await restoreVisibility();
-    }
-
-    for (const run of after) {
-        await restoreRun(run);
+    if (selectionMoved) {
+        await readSelection(opening, savedSelection, nodeIds, edgeIds);
     }
 
     // After the runs, whose results a computed column may read; before what may read it.
@@ -2481,9 +2466,7 @@ async function readProject(
     // The collapses, made again once the runs they group by are back, inside the open's own step.
     await readGroups(opening, state.groups);
 
-    if (waiting.length > 0) {
-        await restoreVisibility();
-    }
+    await readPlayback(opening, visibility, () => readFilter(opening, visibility ?? {}, remap));
 
     // A layer that read an older load's looks reads the columns they are carried into.
     await addStylesAndNotes(opening, doc.members, (value) => rewriteOldPaths(remap(value), lookPaths), name);
@@ -2572,55 +2555,6 @@ async function restoreSteps(tx: TransactionScope, steps: NonNullable<SourcesRead
         copies: steps.copies,
     });
     return readGraphText(tx) === embedded;
-}
-
-/**
- * Restore the filter, the time window and the filter conditions a `graphty-session` member holds.
- * @param opening - The open.
- * @param state - The `graphty-session` member.
- * @param remap - Rewrites the set ids a rule names to the ones this session gave.
- */
-async function restoreVisibilityOf(
-    opening: Opening,
-    state: Readonly<Record<string, unknown>>,
-    remap: <T>(value: T) => T,
-): Promise<void> {
-    const { tx } = opening;
-    const visibility = state.visibility as Record<string, unknown> | undefined;
-    if (visibility === undefined) {
-        return;
-    }
-
-    await attempt(opening, "visibility", async () => {
-        if (visibility.filter !== null && visibility.filter !== undefined) {
-            await tx.visibility.set(remap(visibility.filter) as never);
-        }
-
-        if (visibility.window !== null && visibility.window !== undefined) {
-            await (tx.visibility as SessionVisibilityApi).restoreWindow(visibility.window as TimeWindow);
-        }
-
-        await readFilterConditions(opening, visibility, remap);
-    });
-    // Read on their own, so a filter that cannot be read never loses them.
-    await attempt(opening, "visibility", async () => {
-        if (typeof visibility.playback === "object" && visibility.playback !== null) {
-            // How what lies outside the window draws lives in the style layers now
-            // (`outsideWindowLayers`).
-            const { outside: _outside, ...playback } = visibility.playback as Record<string, unknown>;
-            await (tx.visibility as SessionVisibilityApi).restorePlayback(
-                Object.keys(playback).length === 0 ? null : playback,
-            );
-        }
-
-        // Dispatched and awaited, not set through `showContext`, whose setter cannot hand back its
-        // promise: an open aborted meanwhile (the element disposed) left that promise rejected
-        // with no one to catch it.
-        const show = visibility.showContext === true;
-        if (tx.visibility.showContext !== show) {
-            await tx.execute({ op: "visibility.context", show });
-        }
-    });
 }
 
 /**
@@ -2781,6 +2715,75 @@ async function readGroups(opening: Opening, saved: unknown): Promise<void> {
 }
 
 /**
+ * Put in force the filter, time window and filter conditions a `graphty-session` member's
+ * `visibility` (or a saved run's live scope) holds, clearing each it does not hold.
+ * @param opening - The open.
+ * @param visibility - The member's `visibility`.
+ * @param remap - Rewrites the set ids a rule names to the ones this session gave.
+ */
+async function readFilter(
+    opening: Opening,
+    visibility: Readonly<Record<string, unknown>>,
+    remap: <T>(value: T) => T,
+): Promise<void> {
+    const shown = opening.tx.visibility as SessionVisibilityApi;
+    const filter = visibility.filter ?? null;
+    if (filter !== null || shown.filter !== null) {
+        await shown.set(remap(filter) as never);
+    }
+
+    if (visibility.window !== null && visibility.window !== undefined) {
+        await shown.restoreWindow(visibility.window as TimeWindow);
+    } else if (shown.window !== null) {
+        await shown.setWindow(null);
+    }
+
+    await readFilterConditions(opening, visibility, remap);
+}
+
+/**
+ * Finish a `graphty-session` member's `visibility` after the runs: the project's own filter, which
+ * the runs may have moved, then the playback and context, read on their own so a filter that
+ * cannot be read never loses them.
+ * @param opening - The open.
+ * @param visibility - The member's `visibility`, or undefined for none.
+ * @param restoreFilter - Restores the filter, or clears it for none.
+ */
+async function readPlayback(
+    opening: Opening,
+    visibility: Record<string, unknown> | undefined,
+    restoreFilter: () => Promise<void>,
+): Promise<void> {
+    if (visibility === undefined) {
+        // Cleared, should a run have put its own in force.
+        await restoreFilter();
+        return;
+    }
+
+    const { tx } = opening;
+    await attempt(opening, "visibility", restoreFilter);
+
+    await attempt(opening, "visibility", async () => {
+        if (typeof visibility.playback === "object" && visibility.playback !== null) {
+            // How what lies outside the window draws lives in the style layers now
+            // (`outsideWindowLayers`).
+            const { outside: _outside, ...playback } = visibility.playback as Record<string, unknown>;
+            await (tx.visibility as SessionVisibilityApi).restorePlayback(
+                Object.keys(playback).length === 0 ? null : playback,
+            );
+        }
+
+        // Dispatched and awaited, not set through `showContext`, whose setter cannot hand back its
+        // promise: an open aborted meanwhile (the element disposed) left that promise rejected
+        // with no one to catch it.
+        const show = visibility.showContext === true;
+        if (tx.visibility.showContext !== show) {
+            await tx.execute({ op: "visibility.context", show });
+        }
+    });
+}
+
+/**
  * Read the filter steps and conditions of a `graphty-session` member's `visibility`: the
  * conditions when the file holds ones this reader can read, else the steps, as every writer since
  * the steps were added writes them (`readSavedConditions`).
@@ -2812,6 +2815,8 @@ async function readFilterConditions(
         await (tx.visibility as SessionVisibilityApi).restoreConditions(read.conditions);
     } else if (steps.length > 0) {
         await tx.visibility.setSteps(steps);
+    } else if (tx.visibility.conditions.length > 0) {
+        await (tx.visibility as SessionVisibilityApi).restoreConditions([]);
     }
 }
 
@@ -2946,83 +2951,45 @@ async function readColumnSettings(opening: Opening, columns: unknown): Promise<v
     );
 }
 
-/** What reading one saved run needs to know about the data it opens over. */
-interface RunReading {
-    /** Whether the data is the data the run was saved over. */
-    readonly sameData: boolean;
-    readonly nodeIds: ReadonlySet<NodeId>;
-    readonly edgeIds: readonly (EdgeId | undefined)[];
-    /** Rewrites the set ids a run names to the ones this session gave. */
-    readonly remap: <T>(value: T) => T;
-}
-
 /**
- * Restart one saved run with its saved result waiting (or, over data that differs, computed
- * again), then give it back its reader's name.
+ * Run one saved run again, then give it back its reader's name. A file written before runs were
+ * saved as commands also holds the run's result; it is not read: the run is computed again
+ * (design/owner-standing-rules.md, rule 6).
  * @param opening - The open.
  * @param run - The saved run.
- * @param reading - The data it opens over.
- * @param canned - Where the saved results wait for their runs.
+ * @param remap - Rewrites the set ids a run names to the ones this session gave.
+ * @param underLive - Puts in force the filter or selection the run ran under, when it saved one.
  */
-async function readRun(opening: Opening, run: SavedRun, reading: RunReading, canned: CannedOutcomes): Promise<void> {
-    const { tx, problems } = opening;
-    const { sameData, nodeIds, edgeIds, remap } = reading;
-    if (sameData) {
-        // A file written before caveats carried facts has none to read back.
-        const caveats: Caveats = { facts: [], ...run.caveats };
-        const result = createRunResult({
-            runId: run.id,
-            shape: run.shape,
-            fields: run.fields,
-            measured: run.measured,
-            graph: run.graph,
-            nodes: rowsOf(run.nodes.ids, run.nodes.columns, (node) => (nodeIds.has(node) ? node : undefined)),
-            // Edges are keyed by position in the data.
-            edges: rowsOf(
-                edgeIds.map((_, at) => at),
-                run.edges.columns,
-                (at) => edgeIds[at],
-            ),
-            caveats,
-            durationMs: run.durationMs,
-        });
-        // The summary too, as a fresh execution hands it over: the run's record (its count,
-        // its groups) is read from it.
-        canned.set(run.id, { result, summary: result.summary(), caveats, fields: run.fields });
-    } else {
-        // Data that differs from what the run was saved over (a hand edit, or a build whose
-        // fingerprint hash changed) gets no saved result: the run is computed again over it, so
-        // it comes back whole and a change to the hash never loses a result.
-        problems.push({ code: "W_DATA_DIFFERS", params: { slice: "runs", id: run.id } });
-    }
-
+async function readRun(
+    opening: Opening,
+    run: SavedRun,
+    remap: <T>(value: T) => T,
+    underLive: (run: SavedRun) => Promise<void>,
+): Promise<void> {
+    const { tx } = opening;
+    await underLive(run);
     const { algorithm, params, scope, seed, sample, exact } = remap(run);
-    try {
-        const restoring = tx.runs.start(algorithm, params, {
-            as: run.id,
-            style: false,
-            ...(scope === undefined ? {} : { scope }),
-            ...(seed === undefined ? {} : { seed }),
-            ...(sample === undefined ? {} : { sample }),
-            ...(exact === undefined ? {} : { exact }),
-        });
-        // Before it is recorded: a minted id stays minted, so a later start of the
-        // same question answers to it rather than minting a second one (#6227).
-        if (run.derived === true) {
-            opening.restoreDerived(run.id);
-        }
-        await restoring;
-    } finally {
-        canned.delete(run.id);
+    const restoring = tx.runs.start(algorithm, params, {
+        as: run.id,
+        style: false,
+        ...(scope === undefined ? {} : { scope }),
+        ...(seed === undefined ? {} : { seed }),
+        ...(sample === undefined ? {} : { sample }),
+        ...(exact === undefined ? {} : { exact }),
+    });
+    // Before it is recorded: a minted id stays minted, so a later start of the
+    // same question answers to it rather than minting a second one (#6227).
+    if (run.derived === true) {
+        opening.restoreDerived(run.id);
     }
 
+    await restoring;
     // A file written before runs carried the reader's name has none to give back.
     if (typeof run.name === "string") {
         await tx.runs.rename(run.id, run.name);
     }
 }
 
-/** One finished run as a results member keeps it. */
 /** How many nodes and edges a scope holds. */
 interface ElementCount {
     readonly nodes: number;
@@ -3039,6 +3006,7 @@ function sameCount(a: ElementCount, b: ElementCount | null): boolean {
     return b !== null && a.nodes === b.nodes && a.edges === b.edges;
 }
 
+/** One finished run as a results member keeps it: the command that started it. */
 interface SavedRun {
     readonly id: RunId;
     /** Whether the element minted the id rather than the author naming it. */
@@ -3049,50 +3017,15 @@ interface SavedRun {
     readonly seed?: number;
     readonly sample?: number;
     readonly exact?: boolean;
-    readonly shape: ResultShape;
-    readonly fields: readonly FieldDescriptor[];
-    readonly measured: { readonly nodes: number; readonly edges: number };
-    /** How many elements its scope held when it ran; absent in files written before it was saved. */
+    /**
+     * How many elements its scope held when it ran: written by files from #6201 until runs saved
+     * their live scope, and read only for a run with no `live`.
+     */
     readonly ranOn?: ElementCount;
-    readonly graph: Readonly<Record<string, unknown>>;
-    readonly caveats: Caveats | Omit<Caveats, "facts">;
-    readonly durationMs: number;
     /** The reader's own name for the run (`runs.rename`); absent in older files and unnamed runs. */
     readonly name?: string;
-    readonly nodes: { readonly ids: readonly NodeId[]; readonly columns: Readonly<Record<string, unknown>> };
-    readonly edges: { readonly columns: Readonly<Record<string, unknown>> };
-}
-
-/**
- * Read columns back as element values.
- * @param keys - The rows' keys, in order.
- * @param columns - The columns, one value per key.
- * @param mapId - Turns a key into the id this session holds, or undefined for one it lost.
- * @returns The values of the rows that have any.
- */
-function rowsOf<Key, Id extends NodeId>(
-    keys: readonly Key[],
-    columns: Readonly<Record<string, unknown>>,
-    mapId: (key: Key) => Id | undefined,
-): ResultElementValues<Id>[] {
-    const decoded = Object.entries(columns).map(
-        ([field, column]) => [field, decodeColumn(column, keys.length)] as const,
-    );
-    const out: ResultElementValues<Id>[] = [];
-    keys.forEach((key, at) => {
-        const id = mapId(key);
-        const values: Record<string, unknown> = {};
-        for (const [field, column] of decoded) {
-            if (column[at] !== null && column[at] !== undefined) {
-                values[field] = column[at];
-            }
-        }
-
-        if (id !== undefined && Object.keys(values).length > 0) {
-            out.push({ id, values });
-        }
-    });
-    return out;
+    /** What its live keywords stood for when it ran; absent in older files and other scopes. */
+    readonly live?: RunLiveScope;
 }
 
 export { PROJECT_FILE } from "../catalog/types";
@@ -3369,7 +3302,6 @@ export function projectOf(
                         doc,
                         graph,
                         name,
-                        canned,
                         loads,
                     ),
                 opening,

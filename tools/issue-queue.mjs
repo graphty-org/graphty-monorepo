@@ -642,6 +642,12 @@ const OWNER_ONLY =
     /^(visual-baselines\/|visual-review-approvals\/|visual-review\/(passkeys\.json|trusted\/)|compact-mantine\/|design\/brand\/|\.github\/workflows\/ci\.yml$)/;
 const HELD_LABELS = ["ux-owner", "needs-decision", "blocked"];
 const citedPaths = (text) => [...text.matchAll(/[\w.-]+(?:\/[\w.*-]+)*\/[\w.*-]*/g)].map((m) => m[0]);
+// #9056: a reason comment cites merged pull requests as history ("the element part merged (#8899)"); only a number
+// it says the issue waits on ("blocked on #N", "waits for #N and #M", "until #N merges") is a pull request blocker
+const BLOCKER =
+    /\b(?:blocked (?:on|by)|wait(?:s|ing)? (?:on|for)|until|depends on|unblock(?:s|ed)? (?:when|once))\s+(?:(?:pull request|PR)\s+)?(#\d+(?:(?:\s*,\s*|\s+(?:and|or)\s+)#\d+)*)/gi;
+const blockerCites = (text) =>
+    [...text.matchAll(BLOCKER)].flatMap((m) => [...m[1].matchAll(/#(\d+)/g)].map((d) => Number(d[1])));
 
 /**
  * Why an issue is held only by an owner label (ux-owner, needs-decision, blocked) or an enhancement's missing ux
@@ -667,7 +673,8 @@ export function heldBy(issue) {
  * `misheld` when it is blocked for GUARD_PATHS files alone (no owner-only path).
  * @param issue a GraphQL Issue with comments
  * @param guard GUARD_PATHS
- * @returns `{ number, title, held, author, ownerComment, reasonComment, cites, misheld }`
+ * @returns `{ number, title, held, author, ownerComment, reasonComment, cites, blockers, misheld }`; blockers are
+ *   the numbers the reason says the issue waits on (blockerCites)
  */
 export function heldEntry(issue, guard) {
     // liftBlocked passes every blocked issue, also one an alarm title or another label still skips (heldBy null)
@@ -691,6 +698,7 @@ export function heldEntry(issue, guard) {
         ownerComment: brief(owner),
         reasonComment: brief(reason),
         cites: reason ? [...reason.body.matchAll(/#(\d+)/g)].map((m) => Number(m[1])) : [],
+        blockers: reason ? blockerCites(reason.body) : [],
         misheld,
     };
 }
@@ -963,16 +971,17 @@ export function claimsCommand(o = {}) {
 }
 
 /**
- * Lifts `blocked` from an issue whose reason comment cites pull requests that have all closed or merged (never
- * because a date passed: an owner decision does not expire).
+ * Lifts `blocked` from an issue whose reason comment names pull requests it waits on (blockerCites) that have all
+ * closed or merged (never because a date passed: an owner decision does not expire). A number cited only as history,
+ * or a reason naming no pull request, keeps the label (#9056).
  * @param run the GraphQL runner
  * @returns the issue numbers lifted
  */
 function liftBlocked(run) {
     const blocked = fetchLabeled("blocked", run);
     const guard = /$^/; // misheld is a listing only; it never lifts a label
-    const entries = blocked.map((i) => ({ issue: i, e: heldEntry(i, guard) })).filter((x) => x.e.cites.length);
-    const cited = [...new Set(entries.flatMap((x) => x.e.cites))];
+    const entries = blocked.map((i) => ({ issue: i, e: heldEntry(i, guard) })).filter((x) => x.e.blockers.length);
+    const cited = [...new Set(entries.flatMap((x) => x.e.blockers))];
     if (!cited.length) return [];
     const states = new Map();
     for (let k = 0; k < cited.length; k += 40) {
@@ -987,8 +996,9 @@ function liftBlocked(run) {
         for (const n of part) states.set(n, data?.repository?.[`p${n}`] ?? null);
     }
     const lift = entries.filter(({ e }) => {
-        const prs = e.cites.map((n) => states.get(n)).filter((v) => v?.__typename === "PullRequest");
-        return prs.length && prs.every((p) => p.state !== "OPEN");
+        const all = e.blockers.map((n) => states.get(n));
+        // an issue or an unreadable number among the blockers is still a blocker: keep the label
+        return all.every((v) => v?.__typename === "PullRequest" && v.state !== "OPEN");
     });
     const items = lift.map(({ issue }) => ({
         id: issue.id,

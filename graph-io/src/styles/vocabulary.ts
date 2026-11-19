@@ -369,6 +369,7 @@ export const STYLE_PROPERTIES: {
         ["targetLabelOpacity", "opacity"],
         ["dashLength", "number"],
         ["dashGap", "number"],
+        ["dashArray", "text"],
         ["sourceArrowExtent", "number"],
         ["targetArrowExtent", "number"],
         ["midSourceArrowExtent", "number"],

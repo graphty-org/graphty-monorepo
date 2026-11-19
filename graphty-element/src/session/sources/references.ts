@@ -588,14 +588,28 @@ export interface FillInput {
 }
 
 /**
- * Where an entry is read from: a URL entry's address, or an application's own sample's.
+ * Where an entry is read from: a URL entry's address, or an application's own sample's, which is
+ * saved as a path from the page's origin and read from the origin that opens it.
  * @param entry - The entry.
  * @returns The address, or undefined for a generated graph, a dataset or a network load.
  */
 function addressOf(entry: Readonly<Record<string, unknown>>): string | undefined {
     const part = isObject(entry.url) ? entry.url.address : undefined;
-    const address = part ?? (isObject(entry.sample) ? entry.sample.url : undefined);
-    return typeof address === "string" ? address : undefined;
+    if (typeof part === "string") {
+        return part;
+    }
+
+    const sample = isObject(entry.sample) ? entry.sample.url : undefined;
+    if (typeof sample !== "string") {
+        return undefined;
+    }
+
+    const base = (globalThis as { document?: { baseURI?: string } }).document?.baseURI;
+    try {
+        return new URL(sample, base).href;
+    } catch {
+        return sample;
+    }
 }
 
 /**

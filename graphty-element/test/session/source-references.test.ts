@@ -576,11 +576,40 @@ describe("a sample read by URL, as an application opens its own samples", () => 
         session.data.setCopy(key, "reference");
         const saved = await session.project.save();
         assert.isTrue(dataOf(saved.text).nodes.every((node) => node["_source.ref"] === key));
-        assert.deepEqual(sourcesOf(saved.text).loads[0]?.sample, { url: SAMPLE });
+        assert.deepEqual(sourcesOf(saved.text).loads[0]?.sample, { url: "/samples/graph.json" });
 
         const { session: opened, problems } = await reopen(saved.text);
         assert.deepEqual(problems, []);
         assert.deepEqual(labels(opened), labels(session));
+    });
+
+    it("reopens a sample saved on one host from another host serving the app", async () => {
+        vi.stubGlobal("document", { baseURI: "https://dev.example.com:9694/start/" });
+        stubSite({ "/samples/graph.json": GRAPH, "https://dev.example.com:9694/samples/graph.json": GRAPH });
+        const session = createGraphSession({ features: ["source-references"] });
+        await session.data.import(
+            { type: "json", name: "Sample", config: { url: "/samples/graph.json" } },
+            { origin: "sample" },
+        );
+        const key = session.data.sources()[0]?.key ?? "";
+        session.data.setCopy(key, "reference");
+        const saved = await session.project.save();
+
+        // Another host serves the app; the first one is gone.
+        vi.stubGlobal("document", { baseURI: "https://app.example.org/" });
+        const fetched = stubSite({ "https://app.example.org/samples/graph.json": GRAPH });
+        const opened = createGraphSession({ features: ["source-references"] });
+        // The old host is another origin now: a question about it is denied, so nothing waits.
+        const asked: string[] = [];
+        opened.on("network:pending", (request) => {
+            asked.push(request.params.url);
+            opened.network.deny(request.params.id);
+        });
+        const report = await opened.project.open(saved.text);
+        assert.deepEqual(asked, []);
+        assert.deepEqual(report.problems, []);
+        assert.deepEqual(labels(opened), labels(session));
+        assert.strictEqual(fetched.get("https://app.example.org/samples/graph.json"), 1);
     });
 });
 

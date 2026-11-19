@@ -209,6 +209,22 @@ export function sampleAddress(load: LoadedSource, facts: LoadFacts | undefined):
 }
 
 /**
+ * An address on the page's own origin as a path from that origin, so a file saved on one host
+ * reads the application's sample from whichever host opens it; any other address as it is.
+ * @param address - The absolute address.
+ * @returns The path and query, or the address.
+ */
+function originRelative(address: string): string {
+    const base = (globalThis as { document?: { baseURI?: string } }).document?.baseURI;
+    try {
+        const url = new URL(address);
+        return base !== undefined && url.origin === new URL(base).origin ? `${url.pathname}${url.search}` : address;
+    } catch {
+        return address;
+    }
+}
+
+/**
  * A URL as an entry writes it: no user name, password or fragment, and none of the query
  * parameters whose names mark a credential.
  * @param raw - The URL as the load read it.
@@ -625,7 +641,7 @@ function localPart(
     const address = facts.copy === "reference" ? sampleAddress(load, facts) : undefined;
     if (address !== undefined) {
         const { address: url, dropped } = redactUrl(address);
-        return { kind: "sample", part: { url }, dropped };
+        return { kind: "sample", part: { url: originRelative(url) }, dropped };
     }
 
     const url = load.config?.url;

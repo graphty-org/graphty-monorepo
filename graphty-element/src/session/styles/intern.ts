@@ -283,6 +283,7 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "edge.wavePeriod": "mesh",
     "edge.dashLength": "mesh",
     "edge.dashGap": "mesh",
+    "edge.dashArray": "mesh",
     "edge.curvature": "mesh",
     "edge.animationSpeed": "mesh",
 

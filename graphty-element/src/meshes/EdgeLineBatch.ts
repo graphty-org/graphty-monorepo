@@ -96,6 +96,8 @@ export interface EdgeLineMeta {
         elementLength: number;
         count?: number | undefined;
         gap?: number | undefined;
+        /** Dashes and gaps of several lengths (`line.dashArray`, world units), repeating every `elementLength + gap`. */
+        dashes?: readonly number[] | undefined;
     };
     /**
      * A joined line drawn with a shader or a taper (`edgeJoinShader`'s `EDGE_WIDENED`): each slot

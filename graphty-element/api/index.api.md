@@ -1974,6 +1974,7 @@ export const EdgeStyle: z.ZodObject<{
         wavePeriod: z.ZodOptional<z.ZodNumber>;
         dashLength: z.ZodOptional<z.ZodNumber>;
         dashGap: z.ZodOptional<z.ZodNumber>;
+        dashArray: z.ZodOptional<z.ZodString>;
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
         opacity: z.ZodOptional<z.ZodNumber>;
         fade: z.ZodOptional<z.ZodObject<{
@@ -7761,6 +7762,7 @@ export class RenderManager implements Manager {
         rested: number;
         gpuBehind: number;
         smooth: number;
+        awaitedLanding: number;
     };
 }
 
@@ -8651,6 +8653,7 @@ export class UpdateManager implements Manager {
     // @internal
     adoptBuiltNode(node: Node_2): void;
     autoTurning: boolean;
+    get awaitsLanding(): boolean;
     bindViewMasks(masks: ViewMasks | null): void;
     // @internal
     buildPlainRow(id: NodeIdType_2): void;

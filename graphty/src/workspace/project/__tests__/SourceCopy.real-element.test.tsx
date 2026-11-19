@@ -212,7 +212,7 @@ describe("Copy or Reference, with the experiment on", () => {
         });
         assert.deepEqual(choices(session), ["copy", "copy", "copy"]);
 
-        // Open again: the switch shows what graphty-element holds, not the cancelled pick.
+        // Open again: the switch shows what graphty-element holds, not the canceled pick.
         dialog = await openSaveAs();
         const all = within(dialog).getByRole("radiogroup", { name: "Data sources" });
         assert.equal(chosen(all), "Copy");

@@ -121,7 +121,7 @@ import {
     NODES_ADDED,
     ROWS_MOVED,
 } from "./project/graphOps";
-import type { GraphSlice, LayoutChoice } from "./project/state";
+import type { GraphSlice, LayoutChoice, ProjectState } from "./project/state";
 import { reportCaught } from "./project/strict";
 import { answeringFromProject, type CannedOutcomes, type ProjectApi, projectOf } from "./projectFile";
 import { createQueryEngine, type QueryEngine } from "./query";
@@ -3295,6 +3295,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                         }
                     }
                 }
+                heldBySetsAndRuns(dispatcher.state, nodes, members);
                 return { nodes, edges: dispatcher.services.edgeIdentity?.idsOf(members) ?? [] };
             },
         },
@@ -5486,4 +5487,35 @@ function planningContext(
         calibration: runsOptions.calibration ?? currentCalibration,
         ...(runsOptions.measurements === undefined ? {} : { measurements: runsOptions.measurements }),
     };
+}
+
+/**
+ * Add what kept sets and runs name to a rebuild's references: a fixed set's or a path's members,
+ * and the nodes a run's node-id parameters hold (a shortest path's source and target).
+ * @param state - The project state.
+ * @param nodes - The node references, added to.
+ * @param members - The edge references, added to.
+ */
+function heldBySetsAndRuns(
+    state: Pick<ProjectState, "sets" | "runs">,
+    nodes: NodeId[],
+    members: EdgeMember[],
+): void {
+    for (const { definition } of state.sets.values()) {
+        if (definition.kind === "fixed" || definition.kind === "path") {
+            nodes.push(...definition.nodes);
+            const edges: readonly (EdgeMember | readonly EdgeMember[] | null)[] = definition.edges ?? [];
+            members.push(...edges.flat().filter((edge) => edge !== null));
+        }
+    }
+    const algorithms = SESSION_CATALOG_TABLES.algorithms();
+    for (const { command } of state.runs.values()) {
+        const options = algorithms.find((each) => each.key === command.algorithm)?.options ?? [];
+        for (const option of options) {
+            const value = command.params?.[option.name];
+            if (option.type === "node-id" && (typeof value === "string" || typeof value === "number")) {
+                nodes.push(value);
+            }
+        }
+    }
 }

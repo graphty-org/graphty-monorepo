@@ -3977,6 +3977,34 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
+     * Refuse a replace under the source-steps experiment that asks to read the newer copy another
+     * way than the source's mapping reads it: a new mapping, or a key, ends, type or id space
+     * other than the source's own. Changing how a source is read is not taken yet.
+     * @param key - The source's id.
+     * @param choices - The replace's choices.
+     * @throws A `GraphtyError` with `E_UNSUPPORTED` (reason `later`) for a new reading, or
+     *   `E_SOURCE_UNKNOWN` for a key the sources do not hold.
+     */
+    private refuseNewReading(key: SourceKey, choices: LoadChoices): void {
+        const src = this.stepsValue().sources[key] as StepsSource | undefined;
+        if (src === undefined) {
+            throw this.unknownSource(key);
+        }
+        const own: LoadChoices = readChoicesOf(src);
+        const changed = (["mapping", "key", "edges", "type", "space"] as const).filter(
+            (name) => choices[name] !== undefined && JSON.stringify(choices[name]) !== JSON.stringify(own[name]),
+        );
+        if (changed.length > 0) {
+            throw new GraphtyError({
+                code: "E_UNSUPPORTED",
+                message: `Load ${JSON.stringify(key)} cannot be read another way by a replace here.`,
+                source: "data",
+                details: { reason: "later", key, choices: changed },
+            });
+        }
+    }
+
+    /**
      * `E_SOURCE_UNKNOWN` for a key the sources do not hold.
      * @param key - The key.
      * @returns The error.
@@ -4312,7 +4340,11 @@ export class SessionData implements SessionDataApi {
     ): Promise<ReplaceReport> {
         this.requireLive("replaceSource");
         if (this.stepsOn()) {
-            return this.afterLoads(() => this.replaceStepsSource(key, source));
+            choices.signal?.throwIfAborted();
+            return this.afterLoads(() => {
+                this.refuseNewReading(key, choices);
+                return this.replaceStepsSource(key, source);
+            });
         }
 
         return this.afterLoads(() => this.replaceSourceNow(key, source, choices));

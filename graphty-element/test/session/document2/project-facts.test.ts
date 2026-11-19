@@ -292,11 +292,11 @@ describe("project.inspect binding", () => {
         const session = createGraphSession(ON);
         await session.data.addNodes([{ id: "a" }, { id: "b" }, { id: "c", category: "5947" }]);
         await session.data.addEdges([
-            { source: "a", target: "b", amount_usd: 900 },
-            { source: "b", target: "c", amount_usd: 20 },
+            { source: "a", target: "b", amountUsd: 900 },
+            { source: "b", target: "c", amountUsd: 20 },
         ]);
         const text = readText("examples/card-fraud.graphty-style.json");
-        const columns = { edge: { amount: "amount_usd" }, node: { mcc: "category" } };
+        const columns = { edge: { amount: "amountUsd" }, node: { mcc: "category" } };
         const [style] = (await session.project.inspect(text, { columns }))?.sections ?? [];
         assert.deepEqual(
             style.needs.filter((need) => need.kind === "column").map((need) => [need.name, need.found]),
@@ -308,13 +308,13 @@ describe("project.inspect binding", () => {
 
         await session.project.open(text, { columns });
         const big = session.styles.list().find((layer) => layer.name === "Big payments");
-        assert.deepEqual(big?.selector, { match: "expression", where: "data.amount_usd > `500`" });
+        assert.deepEqual(big?.selector, { match: "expression", where: "data.amountUsd > `500`" });
         session.dispose();
     });
 
     it("refuses a column mapped to no column, and reads one mapped to a column the data lacks as missing", async () => {
         const session = createGraphSession(ON);
-        await session.data.addEdges([{ source: "a", target: "b", amount_usd: 900 }]);
+        await session.data.addEdges([{ source: "a", target: "b", amountUsd: 900 }]);
         const text = readText("examples/card-fraud.graphty-style.json");
         for (const columns of [{ edge: { amount: "" } }, { edges: {} }] as never[]) {
             for (const call of [session.project.inspect(text, { columns }), session.project.open(text, { columns })]) {

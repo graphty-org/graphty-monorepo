@@ -138,6 +138,31 @@ import type { GraphRecord } from "./state";
 export const HELD_KINDS = new WeakMap<HeldRows, NonNullable<LoadReport["kinds"]>>();
 
 /**
+ * The header columns a draft read a CSV file's one table by, by the rows it hands over: the
+ * load's `readBy` when no CSV reader read them. Kept beside the rows, out of the command's shape.
+ */
+const HELD_READ_BY = new WeakMap<HeldRows, NonNullable<CSVDataSource["readBy"]>>();
+
+/**
+ * Keep the header columns a draft read its rows' one CSV table by, beside those rows.
+ * @param held - The rows the draft hands over.
+ * @param readBy - The columns.
+ */
+export function holdReadBy(held: HeldRows, readBy: NonNullable<CSVDataSource["readBy"]>): void {
+    HELD_READ_BY.set(held, readBy);
+}
+
+/**
+ * The header columns a load's rows were read by: its CSV reader's, else the ones its draft kept.
+ * @param reader - The load's reader.
+ * @param held - The rows a draft handed over, if any.
+ * @returns The columns, or undefined.
+ */
+function readByOfLoad(reader: unknown, held: HeldRows | undefined): CSVDataSource["readBy"] {
+    return csvReadBy(reader) ?? (held === undefined ? undefined : HELD_READ_BY.get(held));
+}
+
+/**
  * A load's input token as its `data.sources()` entry keeps it, out of sight of the entry's type.
  * @param command - The import.
  * @param command.input - The token, when the rows were read from something the session holds.
@@ -991,7 +1016,7 @@ export class Ingest<K extends KnownEdge> {
                     : undefined;
             this.recordLoad(command, writer, {
                 described,
-                readBy: csvReadBy(outcome.reader) ?? command.held?.readBy,
+                readBy: readByOfLoad(outcome.reader, command.held),
                 type,
                 added,
                 leftOut,

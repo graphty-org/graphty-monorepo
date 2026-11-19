@@ -22,7 +22,7 @@ import type { BatchCommand } from "./commands";
 import { type DataImportCommand, type HeldRows, importCommand, type ImportSource } from "./commands/data";
 import { type JoinGraph, joinReport, type JoinTable, suggestJoin } from "./join";
 import { historyMark } from "./loadLine";
-import { HELD_KINDS, isStorableId, unreadableSource, untilAborted } from "./project/ingest";
+import { HELD_KINDS, holdReadBy, isStorableId, unreadableSource, untilAborted } from "./project/ingest";
 import { documentKind } from "./projectFile";
 import { HELD_READERS } from "./styles/fileStyles/apply";
 import { looksLikeTime } from "./time/parse";
@@ -395,7 +395,7 @@ function heldTable(
  * @param key - The node table's id column, or null.
  * @returns The columns, or undefined when the table names none.
  */
-function readByOf(edgeRoles: TableMappingRead | undefined, key: string | null): HeldRows["readBy"] {
+function readByOf(edgeRoles: TableMappingRead | undefined, key: string | null): CSVDataSource["readBy"] {
     if (edgeRoles?.source !== undefined && edgeRoles.target !== undefined) {
         return { source: edgeRoles.source.column, target: edgeRoles.target.column };
     }
@@ -1361,8 +1361,10 @@ export class Draft implements LoadDraft {
             ...(edgeRoles?.source === undefined ? {} : { source: keyExpression(edgeRoles.source.column) }),
             ...(edgeRoles?.target === undefined ? {} : { target: keyExpression(edgeRoles.target.column) }),
             ...(edgeRoles === undefined ? {} : { weight: edgeRoles.weight ?? null }),
-            ...(readBy === undefined ? {} : { readBy }),
         };
+        if (readBy !== undefined) {
+            holdReadBy(held, readBy);
+        }
         if (kinds.report !== undefined) {
             HELD_KINDS.set(held, kinds.report);
         }

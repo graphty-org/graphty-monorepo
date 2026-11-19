@@ -972,7 +972,8 @@ class Builder {
         if (repeat && (s.duplicateIds ?? src.settings?.duplicateIds ?? "first") === "first") {
             return;
         }
-        for (const [c, v] of Object.entries(r)) {
+        const roles = new Set(Object.values(m).filter((v): v is string => typeof v === "string"));
+        for (const [c, v] of Object.entries(r).filter(([c]) => !s.columns || s.columns.includes(c) || roles.has(c))) {
             if (!repeat || isEmpty(n.own[s.source]?.[c]?.v)) {
                 this.write(n, c, v, { src: s.source, si, row: i, step: s, st });
             }

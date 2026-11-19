@@ -398,14 +398,15 @@ describe("source-steps: the acts", () => {
 
     it("a staged node-plus-edge source's ends in its proposed space follow its nodes (late findings, settled 3.6)", async () => {
         const { session } = await phase6();
-        const nodes = ["alert_id,account_id", "K-1,A-1", "K-2,A-2"].join("\n");
-        const k = await session.data.stage(
-            { type: "csv", config: { data: nodes }, name: "k.csv" },
-            { key: "alert_id", type: "account" },
-        );
+        const data =
+            '{"nodes":[{"id":"K-1","account_id":"A-1"},{"id":"K-2","account_id":"A-2"}],' +
+            '"edges":[{"source":"K-1","target":"K-2"}]}';
+        const k = await session.data.stage({ type: "json", config: { data }, name: "k.json" }, { type: "account" });
         assert.strictEqual(session.data.sources().find((s) => s.key === k)?.state, "staged");
         await session.data.merge({ from: { source: k, field: "account_id" }, into: { space: "account" } });
         assert.isNull(session.data.lineage({ space: "account", key: "K-1" }), "no stray account node");
+        assert.include(ends(session), "A-1>A-2", "the staged edge follows its merged ends");
+        assert.notInclude(ends(session).join(" "), "K-1", "no edge end is left on a merged key");
         assert.deepStrictEqual(session.data.lineage({ space: "account", key: "A-1" })?.supplied.at(-1), k);
         session.dispose();
     });
@@ -465,11 +466,16 @@ describe("source-steps: the acts", () => {
         await refused(() => rename("amount", "amt"), "E_EDIT_ROLE_COLUMN");
         // A reader edit on a value column moves with the rename.
         const edge = session.data.edges().find((e) => e.txn_id === "T-1");
-        await session.data.updateEdges([{ id: edge?.id ?? "", values: { note: "x" } }]);
+        await session.data.updateEdges([{ id: edge?.id ?? "", values: { category: "drink" } }]);
         await session.data.declareType({ name: "noted", kind: "edge", rules: [{ source: t }] });
         const history = session.history.steps.length;
-        await rename("os", "platform");
+        await rename("category", "kind");
         assert.lengthOf(session.history.steps, history + 1);
+        assert.strictEqual(session.data.edits().at(-1)?.column, "kind", "the reader edit names the new column");
+        const renamed = session.data.edges().find((e) => e.txn_id === "T-1");
+        assert.strictEqual(renamed?.kind, "drink");
+        assert.isUndefined(renamed?.category);
+        await rename("os", "platform");
         assert.strictEqual(session.data.values({ space: "device", key: "D-1" }, "platform")?.shown, "ios");
         session.dispose();
     });

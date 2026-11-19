@@ -550,7 +550,6 @@ export function compileJoin(value: SourceSteps, copies: Copies, join: JoinAsStep
     };
     const next: SourceSteps = { ...value, sources: { ...value.sources, [id]: source } };
     if (shape === "merge") {
-        const { columns: _columns, ...merge } = options;
         return applyAct(
             next,
             {
@@ -558,7 +557,7 @@ export function compileJoin(value: SourceSteps, copies: Copies, join: JoinAsStep
                 options: {
                     from: { source: id, field: files[0] },
                     into: { space },
-                    ...merge,
+                    ...options,
                     ...(choices.unmatchedFrom === undefined ? {} : { unmatchedFrom: choices.unmatchedFrom }),
                 },
             },

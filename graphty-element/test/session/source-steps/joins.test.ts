@@ -124,6 +124,25 @@ describe("source-steps: today's joins as steps", () => {
         session.dispose();
     });
 
+    it("a merge join brings only the columns the reader picked, as it does with the experiment off", async () => {
+        const nodesWith = async (features: string[]): Promise<unknown[]> => {
+            const session = createGraphSession({ features });
+            await session.data.import(csv("one.csv", "source,target\na,b\na,c\n"));
+            await join(session, "id,label,extra\na,Ann,x\nq,Quinn,y\n", {
+                join: { shape: "merge", keys: [{ file: "id", graph: "id" }], columns: ["label"] },
+            });
+            const nodes = session.data.nodes().map((n) => ({ ...n }));
+            session.dispose();
+            return nodes;
+        };
+        const on = await nodesWith(["source-steps"]);
+        assert.deepStrictEqual(on, await nodesWith([]));
+        assert.isFalse(
+            on.some((n) => "extra" in (n as object)),
+            "a column the reader left out stays off the nodes",
+        );
+    });
+
     it("a join choice the steps do not express yet is refused with E_UNSUPPORTED (later)", async () => {
         const session = await graph();
         let code: unknown;

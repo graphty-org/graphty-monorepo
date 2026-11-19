@@ -37,6 +37,8 @@ export interface MergeAct {
     readonly except?: RowFilter;
     readonly ignoreCase?: boolean;
     readonly ignoreSpaces?: boolean;
+    /** The working columns a staged source 2 brings besides its key; absent means every column. */
+    readonly columns?: readonly string[];
 }
 
 /** Make an edge (3.6): each row of the source becomes an edge between its node and node 1. */
@@ -241,6 +243,7 @@ function withRule(
  * @param space - The space.
  * @param type - Its node type, or none.
  * @param mergeDuplicates - Whether repeated keys fill each other's empty cells.
+ * @param columns - The working columns its node rows bring besides their roles; absent brings every one.
  * @returns The value with the source added.
  */
 function addStaged(
@@ -249,6 +252,7 @@ function addStaged(
     space: string,
     type: string | null | undefined,
     mergeDuplicates = false,
+    columns?: readonly string[],
 ): SourceSteps {
     const proposed = src.mapping.nodes?.space;
     const { edges } = src.mapping;
@@ -268,7 +272,12 @@ function addStaged(
         sources: { ...value.sources, [src.id]: moved },
         steps: [
             ...value.steps,
-            { op: "join.add", source: src.id, ...(mergeDuplicates ? { duplicateIds: "merge" } : {}) },
+            {
+                op: "join.add",
+                source: src.id,
+                ...(mergeDuplicates ? { duplicateIds: "merge" } : {}),
+                ...(columns === undefined ? {} : { columns }),
+            },
         ],
     };
     return withRule(next, "node", type, { source: src.id });
@@ -308,7 +317,7 @@ function merge(value: SourceSteps, copies: Copies, o: MergeAct): SourceSteps {
     let next = value;
     if (isStaged(value, s2.id)) {
         const type = s2.stagedType ?? typeIn(value, copies, n1.space);
-        next = addStaged(next, s2, ownSpace(s2.id), type, o.from.field === s2.mapping.nodes?.key);
+        next = addStaged(next, s2, ownSpace(s2.id), type, o.from.field === s2.mapping.nodes?.key, o.columns);
     }
     const step: MergeStep = {
         op: "join.merge",

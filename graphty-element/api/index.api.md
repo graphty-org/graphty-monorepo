@@ -4691,7 +4691,15 @@ export type GraphtyErrorCode =
 * would have undone it. `details.draft` names the draft, which stays open. The caller discards
 * it and opens a new one. Experimental: the source-steps experiment.
 */
-| "E_DRAFT_STALE" | "E_INTERNAL";
+| "E_DRAFT_STALE"
+/**
+* A draft opened with `askOverlap` holds a key-overlap question nobody answered: a source it
+* added meets nodes another source's node rows built (`W_SPACE_OVERLAP`). `details.space` and
+* `details.source` name the space and the source. The caller answers it with
+* `draft.answerOverlap(source, "merge" | "separate")` and commits again. Experimental: the
+* source-steps experiment.
+*/
+| "E_OVERLAP_UNANSWERED" | "E_INTERNAL";
 
 // @public
 export type GraphtyErrorDetails<C extends GraphtyErrorCode = GraphtyErrorCode> = Readonly<Record<string, unknown>> & (C extends keyof GraphtyErrorDetailsMap ? GraphtyErrorDetailsMap[C] : unknown);
@@ -4829,8 +4837,10 @@ export type GraphtyWarningCode =
 /**
 * A source's keys meet nodes already in the id space it would join (`params.space`,
 * `params.count` of `params.of` keys; `params.other` names the other source for an untyped
-* one). Kept in the source's own space unless the load asked `overlap: "merge"`.
-* Experimental: the source-steps experiment.
+* one). Kept in the source's own space unless the load asked `overlap: "merge"`. In a draft's
+* preview `questions`, an open question a draft opened with `askOverlap` waits on:
+* `params.source` is the source asked about and `params.sources` the sources whose node rows
+* built the nodes it meets. Experimental: the source-steps experiment.
 */
 | "W_SPACE_OVERLAP"
 /**

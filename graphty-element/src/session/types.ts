@@ -1675,12 +1675,13 @@ export interface SessionDataApi {
     /**
      * Open a draft of the sources and steps: the same acts as these doors, applied to a copy until
      * its `commit()`, which records them as one undoable step. See {@link SourceDraft}.
+     * @param options - Whether its adds ask the key-overlap question; see {@link SourceDraftOptions}.
      * @returns The draft.
      * @throws A `GraphtyError` with `E_DRAFT_OPEN` while another draft is open, or `E_FEATURE_OFF`
      *   while the source-steps experiment is off.
      * @experimental source-steps
      */
-    draft(): SourceDraft;
+    draft(options?: SourceDraftOptions): SourceDraft;
     /**
      * The draft open now.
      * @returns It, or null when none is open.
@@ -4256,6 +4257,11 @@ export interface SourceDraftPreview {
     readonly edits: readonly ReaderEditRow[];
     readonly issues: readonly SourceDraftPreviewIssue[];
     /**
+     * The key-overlap questions still open, in a draft opened with `askOverlap`; `commit()` is
+     * refused while any is. Always empty otherwise.
+     */
+    readonly questions: readonly SourceOverlapQuestion[];
+    /**
      * The rows behind one count of one step (design 5.4): one entry per thing the count counted, so
      * `total` is the count. Each names the row read, the key it matched by, the element it reached
      * and that element's values in the committed graph (`held`) and in the draft (`shown`).
@@ -4910,6 +4916,48 @@ export interface SourceMappingPatch {
 }
 
 /**
+ * How `session.data.draft()` opens a draft.
+ * @experimental source-steps
+ */
+export interface SourceDraftOptions {
+    /**
+     * Whether adding a source whose keys meet nodes another source's node rows built asks the
+     * key-overlap question instead of settling it (design 5.5). Asked, the source is kept separate
+     * meanwhile, the question is listed in `preview().questions`, and `commit()` throws
+     * `E_OVERLAP_UNANSWERED` until `answerOverlap` answers it. Default false: such an add keeps the
+     * source separate and records `W_SPACE_OVERLAP` on it, as `data.add` does. An add given an
+     * `overlap` is answered and never asks.
+     *
+     * ```ts
+     * const draft = session.data.draft({ askOverlap: true });
+     * draft.add(bankB);
+     * for (const q of draft.preview().questions) {
+     *     draft.answerOverlap(q.params.source, "merge");
+     * }
+     * await draft.commit();
+     * ```
+     */
+    readonly askOverlap?: boolean;
+}
+
+/**
+ * An open key-overlap question in a draft's preview (design 5.5): `source`'s `count` of `of` keys
+ * meet nodes in `space` that the node rows of `sources` built (`"reader"` for nodes the reader
+ * added).
+ * @experimental source-steps
+ */
+export interface SourceOverlapQuestion {
+    readonly code: "W_SPACE_OVERLAP";
+    readonly params: {
+        readonly space: SourceSpaceName;
+        readonly count: number;
+        readonly of: number;
+        readonly source: SourceKey;
+        readonly sources: readonly SourceKey[];
+    };
+}
+
+/**
  * A draft of the sources and steps, from `session.data.draft()`: the same acts as the data doors,
  * applied to a copy of the committed sources and steps only. Nothing changes the graph, the undo
  * history or a saved file until {@link SourceDraft.commit}, which applies everything the draft did
@@ -4959,6 +5007,16 @@ export interface SourceDraft {
      * @param options.overlap - The answer.
      */
     add(source: SourceKey, options?: { readonly overlap?: "separate" | "merge" }): void;
+    /**
+     * Answer the key-overlap question an add asked in a draft opened with `askOverlap`: `"merge"`
+     * puts the source's meeting keys, and its edge ends in that space, on the nodes they meet;
+     * `"separate"` keeps them in the source's own space. An answer can be changed until the commit.
+     * @param source - The source asked about, as `preview().questions` names it.
+     * @param answer - The answer.
+     * @throws A `GraphtyError` with `E_BAD_COMMAND` (`details.reason` `"no-question"`) when the
+     *   draft asked that source nothing.
+     */
+    answerOverlap(source: SourceKey, answer: "merge" | "separate"): void;
     /**
      * Merge (as `data.merge` does).
      * @param options - The source and field, the nodes they fold into, and the choices.
@@ -5125,7 +5183,9 @@ export interface SourceDraft {
      * are refused with `E_DRAFT_OPEN`, as they are while the draft is open.
      * @returns Settles once the graph is rebuilt and drawn.
      * @throws A `GraphtyError` with `E_DRAFT_STALE { draft }` when a data write already on its way
-     *   when the draft opened landed first; the draft stays open, to be discarded.
+     *   when the draft opened landed first; the draft stays open, to be discarded. Or
+     *   `E_OVERLAP_UNANSWERED { space, source }` while a key-overlap question is open; the draft
+     *   stays open.
      */
     commit(): Promise<void>;
     /** Close the draft, leaving the graph, the history and the saved file as they were. */

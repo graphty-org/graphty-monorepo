@@ -1774,7 +1774,15 @@ export type GraphtyErrorCode =
 * would have undone it. `details.draft` names the draft, which stays open. The caller discards
 * it and opens a new one. Experimental: the source-steps experiment.
 */
-| "E_DRAFT_STALE" | "E_INTERNAL";
+| "E_DRAFT_STALE"
+/**
+* A draft opened with `askOverlap` holds a key-overlap question nobody answered: a source it
+* added meets nodes another source's node rows built (`W_SPACE_OVERLAP`). `details.space` and
+* `details.source` name the space and the source. The caller answers it with
+* `draft.answerOverlap(source, "merge" | "separate")` and commits again. Experimental: the
+* source-steps experiment.
+*/
+| "E_OVERLAP_UNANSWERED" | "E_INTERNAL";
 
 // @public
 export type GroupMatchCode = "group.new" | "group.gone";

@@ -1217,6 +1217,7 @@ export const READ_ONLY: readonly string[] = [
     "SourceDraftPreview.rows",
     // A source draft's acts change only the draft, which nothing saves; its commit is MUTATING.
     "SourceDraft.add",
+    "SourceDraft.answerOverlap",
     "SourceDraft.clearPicks",
     "SourceDraft.exclude",
     "SourceDraft.include",

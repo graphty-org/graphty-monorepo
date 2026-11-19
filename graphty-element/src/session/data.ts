@@ -348,6 +348,7 @@ import type {
     SourceConflictQuery,
     SourceConnectOptions,
     SourceDraft,
+    SourceDraftOptions,
     SourceEditChoice,
     SourceElementRef,
     SourceElementsFilter,
@@ -3441,11 +3442,12 @@ export class SessionData implements SessionDataApi {
 
     /**
      * Open a draft of the sources and steps (design 5.6).
+     * @param options - Whether its adds ask the key-overlap question.
      * @returns The draft.
      * @throws A `GraphtyError` with `E_DRAFT_OPEN` while one is open, or `E_FEATURE_OFF` while the
      *   source-steps experiment is off.
      */
-    draft(): SourceDraft {
+    draft(options: SourceDraftOptions = {}): SourceDraft {
         this.requireSteps("draft");
         if (this.sourceDraft !== null) {
             throw draftOpenError(this.sourceDraft.id);
@@ -3476,6 +3478,7 @@ export class SessionData implements SessionDataApi {
                 emit: (change) => this.writes.emit?.("data:draft-changed", change),
             },
             { value: this.stepsValue(), copies: this.stepsCopies() },
+            { ...(options.askOverlap === undefined ? {} : { askOverlap: options.askOverlap }) },
         );
         this.sourceDraft = draft;
         this.writes.emit?.("data:draft-changed", { draft: draft.id, reason: "opened" });

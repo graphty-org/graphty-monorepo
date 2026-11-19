@@ -12,7 +12,16 @@ import type { SourceKey } from "../catalog/types";
 import { GraphtyError } from "../errors/GraphtyError";
 import type { ColumnRef } from "./shared";
 import type { StepsAct } from "./sources/steps/acts";
-import { built, draftApply, type DraftState, mappingEdit, stepEdit } from "./sources/steps/draft";
+import {
+    built,
+    draftAdd,
+    draftAnswer,
+    draftApply,
+    type DraftState,
+    mappingEdit,
+    openQuestions,
+    stepEdit,
+} from "./sources/steps/draft";
 import { clearPicksEdit, drillCells, drillElements, drillRows, exceptOf, pickAllEdit } from "./sources/steps/drill";
 import { matchCounts, matchValues } from "./sources/steps/match";
 import { contextIssues, type PreviewContext, previewOf } from "./sources/steps/preview";
@@ -34,6 +43,7 @@ import type {
     SourceConnectOptions,
     SourceDraft,
     SourceDraftChange,
+    SourceDraftOptions,
     SourceDraftPreview,
     SourceElementRef,
     SourceExtractOptions,
@@ -104,10 +114,12 @@ export class SourceDraftHandle implements SourceDraft {
      * Open a draft over the committed sources and steps.
      * @param host - The session.
      * @param base - The committed value and copies.
+     * @param options - Whether its adds ask the key-overlap question.
      */
     constructor(
         private readonly host: SourceDraftHost,
         base: Omit<DraftState, "owned">,
+        private readonly options: SourceDraftOptions = {},
     ) {
         this.base = { ...base, owned: new Set() };
         this.state = this.base;
@@ -203,17 +215,24 @@ export class SourceDraftHandle implements SourceDraft {
         }
         const { id } = read.source;
         this.act("import", (state) =>
-            draftApply(draftApply(state, { kind: "add", source: read.source, staged: true }, read.copies), {
-                kind: "act",
-                act: { act: "add-staged", source: id, ...(overlap === undefined ? {} : { overlap }) },
-            }),
+            draftAdd(
+                draftApply(state, { kind: "add", source: read.source, staged: true }, read.copies),
+                id,
+                overlap,
+                this.options.askOverlap === true,
+            ),
         );
         return id;
     }
 
     /** @inheritdoc */
     add(source: SourceKey, options: { readonly overlap?: "separate" | "merge" } = {}): void {
-        this.stepsAct("add", { act: "add-staged", source, ...options });
+        this.act("add", (state) => draftAdd(state, source, options.overlap, this.options.askOverlap === true));
+    }
+
+    /** @inheritdoc */
+    answerOverlap(source: SourceKey, answer: "merge" | "separate"): void {
+        this.act("answerOverlap", (state) => draftAnswer(state, source, answer));
     }
 
     /** @inheritdoc */
@@ -392,8 +411,12 @@ export class SourceDraftHandle implements SourceDraft {
             // The internal counts are the public ones; the public types name their spellings.
             const { base, state } = this;
             // The drill-down reads the state the preview describes; kept off the enumerable data.
+            const questions = openQuestions(state).map(({ space, count, of, source, sources }) => ({
+                code: "W_SPACE_OVERLAP" as const,
+                params: { space, count, of, source, sources },
+            }));
             const preview = Object.defineProperties(
-                { draft: this.id, ...data },
+                { draft: this.id, ...data, questions },
                 {
                     rows: { value: (q: DrillQueryArg) => drillRows(base, state, q) },
                     elements: { value: (q: DrillQueryArg) => drillElements(state, q) },
@@ -408,6 +431,15 @@ export class SourceDraftHandle implements SourceDraft {
     /** @inheritdoc */
     async commit(): Promise<void> {
         this.live("commit");
+        const [open] = openQuestions(this.state);
+        if (open !== undefined) {
+            throw new GraphtyError({
+                code: "E_OVERLAP_UNANSWERED",
+                message: `Source ${open.source} meets keys in ${open.space}: answer the overlap question first.`,
+                source: "data",
+                details: { space: open.space, source: open.source },
+            });
+        }
         const { value, copies } = this.state;
         // The draft keeps holding the data until its set lands, so a write waiting ahead of it in
         // line is refused rather than landing first and being replaced by the draft's copy.

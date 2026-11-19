@@ -11,11 +11,14 @@
 
 import { GraphtyError } from "../../../errors/GraphtyError";
 import { checkClash, refuseBoth } from "./acts";
+import { isStaged, ownSpace } from "./build";
 import {
     applyEdit,
     buildOf,
     checkSpace,
     type Copies,
+    type OverlapQuestion,
+    overlapQuestion,
     type SourceSteps,
     type StepsEdit,
     withSourceRules,
@@ -33,6 +36,16 @@ export interface DraftState {
      * step is at its own committed place.
      */
     readonly origins?: readonly (number | null)[];
+    /** The key-overlap questions its adds asked (a draft opened with `askOverlap`), by source. */
+    readonly questions?: Readonly<Record<string, AskedOverlap>>;
+}
+
+/** A key-overlap question a draft's add asked, and its answer so far. */
+export interface AskedOverlap extends OverlapQuestion {
+    /** Null until answered; the source is kept separate meanwhile. */
+    readonly answer: "merge" | "separate" | null;
+    /** The edge ends Keep separate moved out of the proposed space with the nodes. */
+    readonly ends: readonly ("sourceSpace" | "targetSpace")[];
 }
 
 /** What `editStep` may change on one step. A `null` or `false` takes the choice off. */
@@ -119,7 +132,94 @@ export function draftApply(state: DraftState, edit: StepsEdit, more?: Copies): D
     const copies = more === undefined ? state.copies : Object.freeze({ ...state.copies, ...more });
     const value = applyEdit(state.value, edit, copies);
     const origins = carried(state.value.steps, value.steps, state.origins);
-    return { value, copies, owned: new Set([...state.owned, ...touched(edit)]), origins };
+    return { ...state, value, copies, owned: new Set([...state.owned, ...touched(edit)]), origins };
+}
+
+/**
+ * Add a staged source (5.5). Asked, a key overlap is kept separate and recorded as an open question
+ * instead of settled; an `overlap` given answers it at once, as the committed door does.
+ * @param state - The draft now.
+ * @param id - The staged source.
+ * @param overlap - The caller's answer, if any.
+ * @param ask - Whether the draft asks the question.
+ * @returns The next state.
+ */
+export function draftAdd(
+    state: DraftState,
+    id: string,
+    overlap: "separate" | "merge" | undefined,
+    ask: boolean,
+): DraftState {
+    const src = state.value.sources[id] as SourceSteps["sources"][string] | undefined;
+    const asked =
+        ask && overlap === undefined && src !== undefined && isStaged(state.value, id)
+            ? overlapQuestion(state.value, src, state.copies)
+            : null;
+    const next = draftApply(state, {
+        kind: "act",
+        act: { act: "add-staged", source: id, ...(overlap === undefined ? {} : { overlap }) },
+    });
+    if (asked === null || src === undefined) {
+        return next;
+    }
+    const was = src.mapping.edges;
+    const now = next.value.sources[id].mapping.edges;
+    const ends = (["sourceSpace", "targetSpace"] as const).filter((end) => was?.[end] !== now?.[end]);
+    return { ...next, questions: { ...next.questions, [id]: { ...asked, answer: null, ends } } };
+}
+
+/**
+ * Answer a key-overlap question the draft asked: Merge moves the source's keys, and the edge ends
+ * Keep separate moved, back into the space it proposed; Keep separate leaves them in its own.
+ * @param state - The draft now.
+ * @param id - The source asked about.
+ * @param answer - The answer.
+ * @returns The next state.
+ * @throws A `GraphtyError` with `E_BAD_COMMAND` (reason `no-question`) when the draft asked the
+ *   source nothing, or the source is no longer added.
+ */
+export function draftAnswer(state: DraftState, id: string, answer: "merge" | "separate"): DraftState {
+    const q = state.questions?.[id];
+    const src = state.value.sources[id] as SourceSteps["sources"][string] | undefined;
+    if (q === undefined || src === undefined || isStaged(state.value, id)) {
+        throw refused("E_BAD_COMMAND", `The draft asked source ${id} no key-overlap question.`, {
+            reason: "no-question",
+            source: id,
+        });
+    }
+    let next = state;
+    if (answer !== (q.answer ?? "separate")) {
+        const [from, to] = answer === "merge" ? [ownSpace(id), q.space] : [q.space, ownSpace(id)];
+        const move = (space: string | undefined): string | undefined => (space === from ? to : space);
+        const { nodes, edges } = src.mapping;
+        const moved = edges === undefined ? undefined : { ...edges };
+        for (const end of q.ends) {
+            if (moved !== undefined) {
+                moved[end] = move(moved[end]);
+            }
+        }
+        const mapping = {
+            ...src.mapping,
+            ...(nodes === undefined ? {} : { nodes: { ...nodes, space: move(nodes.space) } }),
+            ...(moved === undefined ? {} : { edges: moved }),
+        };
+        next = draftApply(state, {
+            kind: "set",
+            value: { ...state.value, sources: { ...state.value.sources, [id]: { ...src, mapping } } },
+        });
+    }
+    return { ...next, questions: { ...next.questions, [id]: { ...q, answer } } };
+}
+
+/**
+ * The key-overlap questions still open: asked, unanswered, of a source the draft still adds.
+ * @param state - The draft.
+ * @returns Each source asked about with its question.
+ */
+export function openQuestions(state: DraftState): readonly (AskedOverlap & { readonly source: string })[] {
+    return Object.entries(state.questions ?? {})
+        .filter(([id, q]) => q.answer === null && id in state.value.sources && !isStaged(state.value, id))
+        .map(([source, q]) => ({ ...q, source }));
 }
 
 /**

@@ -2574,7 +2574,15 @@ export type GraphtyErrorCode =
 * would have undone it. `details.draft` names the draft, which stays open. The caller discards
 * it and opens a new one. Experimental: the source-steps experiment.
 */
-| "E_DRAFT_STALE" | "E_INTERNAL";
+| "E_DRAFT_STALE"
+/**
+* A draft opened with `askOverlap` holds a key-overlap question nobody answered: a source it
+* added meets nodes another source's node rows built (`W_SPACE_OVERLAP`). `details.space` and
+* `details.source` name the space and the source. The caller answers it with
+* `draft.answerOverlap(source, "merge" | "separate")` and commits again. Experimental: the
+* source-steps experiment.
+*/
+| "E_OVERLAP_UNANSWERED" | "E_INTERNAL";
 
 // @public
 export type GraphtyErrorDetails<C extends GraphtyErrorCode = GraphtyErrorCode> = Readonly<Record<string, unknown>> & (C extends keyof GraphtyErrorDetailsMap ? GraphtyErrorDetailsMap[C] : unknown);
@@ -2683,8 +2691,10 @@ export type GraphtyWarningCode =
 /**
 * A source's keys meet nodes already in the id space it would join (`params.space`,
 * `params.count` of `params.of` keys; `params.other` names the other source for an untyped
-* one). Kept in the source's own space unless the load asked `overlap: "merge"`.
-* Experimental: the source-steps experiment.
+* one). Kept in the source's own space unless the load asked `overlap: "merge"`. In a draft's
+* preview `questions`, an open question a draft opened with `askOverlap` waits on:
+* `params.source` is the source asked about and `params.sources` the sources whose node rows
+* built the nodes it meets. Experimental: the source-steps experiment.
 */
 | "W_SPACE_OVERLAP"
 /**
@@ -6447,7 +6457,7 @@ export interface SessionDataApi {
     derive(name: string, expression: Query, options?: DeriveOptions): Promise<void>;
     derivedColumns(): readonly DerivedColumn[];
     deriveScore(name: string, terms: readonly ScoreTerm[], options?: DeriveOptions): Promise<void>;
-    draft(): SourceDraft;
+    draft(options?: SourceDraftOptions): SourceDraft;
     edge(id: EdgeId): EdgeRecord | undefined;
     edgeName(edge: {
         readonly source: NodeId_2;
@@ -7277,6 +7287,7 @@ export interface SourceDraft {
     add(source: SourceKey, options?: {
         readonly overlap?: "separate" | "merge";
     }): void;
+    answerOverlap(source: SourceKey, answer: "merge" | "separate"): void;
     clearPicks(options: SourceClearPicksOptions): number;
     commit(): Promise<void>;
     connect(options: SourceConnectOptions): number;
@@ -7353,6 +7364,11 @@ export interface SourceDraftElementsQuery {
 }
 
 // @public
+export interface SourceDraftOptions {
+    readonly askOverlap?: boolean;
+}
+
+// @public
 export interface SourceDraftPreview {
     readonly after: SourceDraftPreviewTotals;
     readonly before: SourceDraftPreviewTotals;
@@ -7366,6 +7382,7 @@ export interface SourceDraftPreview {
     readonly issues: readonly SourceDraftPreviewIssue[];
     // (undocumented)
     readonly nodes: SourceDraftPreviewChanges;
+    readonly questions: readonly SourceOverlapQuestion[];
     rows(query: SourceDraftRowsQuery): SourceDraftRows;
     readonly sources: readonly SourceDraftPreviewSource[];
     readonly steps: readonly SourceDraftPreviewStep[];
@@ -7819,6 +7836,20 @@ export { SourceNodeRecord }
 export interface SourceNodeRef {
     readonly key: string;
     readonly space: SourceSpaceName;
+}
+
+// @public
+export interface SourceOverlapQuestion {
+    // (undocumented)
+    readonly code: "W_SPACE_OVERLAP";
+    // (undocumented)
+    readonly params: {
+        readonly space: SourceSpaceName;
+        readonly count: number;
+        readonly of: number;
+        readonly source: SourceKey;
+        readonly sources: readonly SourceKey[];
+    };
 }
 
 export { SourceParamDescriptor }

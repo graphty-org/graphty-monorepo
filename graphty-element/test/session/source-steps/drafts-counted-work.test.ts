@@ -72,6 +72,36 @@ describe("source-steps drafts: counted work", () => {
         session.dispose();
     });
 
+    it("an add that asks the overlap question, and its answer, each build the draft once and dispatch nothing", async () => {
+        const session = createGraphSession({ features: ["source-steps"] });
+        await session.data.import(
+            { type: "csv", config: { data: "id,amt\np1,1\np2,2" }, name: "crm.csv" },
+            { key: "id", type: "person" },
+        );
+        const b = await session.data.stage(
+            { type: "csv", config: { data: "id,amt\np1,3\np9,4" }, name: "erp.csv" },
+            { key: "id", type: "person" },
+        );
+        const builds = vi.mocked(build);
+        const dispatcher = dispatcherOf(session);
+        let sent = 0;
+        dispatcher.events.dispatched = () => {
+            sent++;
+        };
+        const d = session.data.draft({ askOverlap: true });
+        d.preview();
+        builds.mockClear();
+        d.add(b);
+        assert.strictEqual(builds.mock.calls.length, 1, "the add builds the draft once");
+        assert.lengthOf(d.preview().questions, 1);
+        builds.mockClear();
+        d.answerOverlap(b, "merge");
+        assert.strictEqual(builds.mock.calls.length, 1, "the answer builds the draft once");
+        assert.strictEqual(sent, 0, "neither dispatches");
+        d.dispose();
+        session.dispose();
+    });
+
     it("a committed one-cell pick retains the same bytes however large the graph", async () => {
         await assertScalesLinearly(
             async (size) => {

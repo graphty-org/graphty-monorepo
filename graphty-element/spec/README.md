@@ -79,7 +79,7 @@ SHOULD be `<name>.graphty.json`.
 | `sections`                                                                                                  | yes      | an object of sections keyed by section name; any subset; may be empty                |
 | `$schema`, `id`, `name`, `description`, `created`, `modified`, `authors`, `license`, `keywords`, `language` | no       | as in the section header; `id` names the project                                     |
 | `extensions`                                                                                                | no       | extension data only, keyed by reverse-domain name; never a section (3, `extensions`) |
-| `graphs`                                                                                                    | no       | reserved for a later file that holds several graphs (rule 4); never written today    |
+| `graphs`                                                                                                    | no       | the graphs of a file holding two or more, in order (rule 4)                          |
 
 1. **The key decides** what a section is. A key the reader knows holds the section of that name,
    so there is at most one section of each known kind. A section carries its own `kind` in both
@@ -92,10 +92,28 @@ SHOULD be `<name>.graphty.json`.
    history) as new keys; a third party's section goes under `sections`, keyed by
    its reverse-domain kind. Its value has a `kind` and an integer `version`.
 3. There is no `requires`: any subset of sections is a valid full file.
-4. `graphs` is reserved for a later file that holds several graphs. A file of one graph MUST NOT
-   write it. A version 2 reader that finds it MUST hold the file's graph sections (`data`,
-   `results`, `notes`, `view`) unchanged (8.4), write them back, and report `W_SECTION_KEPT` with
-   `reason` `graphs`.
+4. **Several graphs.** A file holding two or more graphs writes `graphs`, an ordered list of
+   `{ "id", "name", "sections" }`; a file of one graph MUST NOT write it. The first graph stays
+   where a file of one graph puts it, in the top-level `sections`, and its entry has no
+   `sections`: it only names that graph. Each later entry's `sections` holds that graph's own
+   `data`, `view`, `notes` and `results` and nothing else, each exactly as a top-level section of
+   that key; style, recipe and settings belong to the whole file. `id` is `graph_` plus a ULID
+   (3.3), unique in the file; `name` is the reader's words. A one-graph project has no graph name:
+   its name is the project's. Every graph saves its own sources by their own embed or reference
+   choice, so no graph depends on another's. graphty-element opens the first graph and writes the
+   later ones back exactly as read, but for their file paths (8.1 rule 4), reporting each of their
+   sections `W_SECTION_KEPT` with `reason` `graphs` and `graph` its graph id. A reader that cannot
+   read `graphs` (not such a list) MUST hold every graph section, the top-level ones included
+   (8.4), and write them back with `graphs`, reporting `W_SECTION_KEPT` with `reason` `graphs`.
+   A writer keeps the graphs a save includes, autosave included.
+
+    ```json
+    "graphs": [
+      { "id": "graph_01JCC0000000000000000000G1", "name": "People" },
+      { "id": "graph_01JCC0000000000000000000G2", "name": "Friends from a file",
+        "sections": { "data": { "kind": "graphty-data", "version": 2, "...": "..." } } }
+    ]
+    ```
 
 ### 2.3 The byte-for-byte rule
 
@@ -165,7 +183,8 @@ published at `spec/schemas/<kind>/v<version>.json` in the `@graphty/graphty-elem
   copied section keeps its `id`.
 - **Minted ids.** A source id is `src_` plus a ULID, minted by graphty-element, never chosen by
   hand and never reused; the reader source's id is always `reader`. A name the caller gives a
-  source goes in its `label`. A set id is `set_` plus a ULID; a note id is `note_` plus a ULID.
+  source goes in its `label`. A set id is `set_` plus a ULID; a note id is `note_` plus a ULID;
+  a graph id (2.2 rule 4) is `graph_` plus a ULID.
   A run id is any string matching `[A-Za-z0-9_.:-]+`, in graphty-element's own minted form
   (`<namespace>__<as>` for a recipe-made run); run ids are restored as saved, and a new one never
   reuses an id a loaded section names.
@@ -299,7 +318,12 @@ A source record has exactly these fields: `id`, `label`, `kind`, `format`, `opti
    file's styles: they decide which columns the read makes, and every format's reader reads them.
 6. A `file` source's `origin.path` is a POSIX path relative to the folder of the file being saved,
    never absolute and never above that folder, written only when the writer knows both locations.
-   An `origin` member the writer does not know is left out, never invented.
+   An `origin` member the writer does not know is left out, never invented. A file may instead be
+   referenced by a browser file handle (File System Access), which cannot be written into a file:
+   the writer keeps it in the browser's storage, keyed by source id and copy id, and writes the
+   referenced source with no `path`. A referenced `file` source with no `path` is read through the
+   handle the opening browser keeps for it, else it needs a file (8.3). A source with nothing to
+   name, neither path nor handle, is embedded (`W_SOURCE_NO_PATH`, 8.1 rule 4).
 7. **A network source's `origin`** is closed: `copy`, `url`, `credentials` (`{ "slot" }`, the
    credential slot's name, never a secret), `etag`, `lastModified` and `ledger`, the request
    history a refresh replays, written as graphty-element's `SourceLoadRecord` with its `key` set to
@@ -373,13 +397,13 @@ conversions:
 
 | `op`     | Members                                                                                                           | What it does                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | -------- | ----------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `merge`  | `into`, `from`: node references                                                                                   | merges `from` into `into`; `into` is kept, with its key                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `remove` | `node` or `edge`: a reference                                                                                     | drops the element; a node takes its edges with it, whatever `unmatched` says                                                                                                                                                                                                                                                                                                                                                                              |
 | `add`    | `node: { space, key }`, or `edge: { "load": "reader", key }` with `from` and `to`; `columns`; `dtypes` (REQUIRED) | adds an element; a node's `key` is its id as the reader gave it (a JSON string, its typed value in `columns.id`), or a ULID when another reader node's id has the same text (6.1), an edge's its edge-id cell when the data has an edge-id role and no other reader edge repeats it, else a ULID minted when it is made and kept from then on; `dtypes` gives each column's graph-format dtype, and cells are written and read as a copy's (4.1.2 rule 3) |
 | `edit`   | `node` or `edge`: a reference; `column`; `value`; `was`; `picked`                                                 | sets one cell; `was` is the value it replaced; `picked`, the source whose value a pick or Use took (a typed value has none)                                                                                                                                                                                                                                                                                                                               |
 
 An operation naming an absent element applies to nothing and is reported. Operations are written
-as recorded. `picked` names a source of the section; a pick of a source that is later removed
+as recorded. The `op` `merge` is reserved (10): a writer writes none (a merge the reader made is
+folded into the copies it embeds, 4.1.2 rule 1), and a reader meeting one holds the section. `picked` names a source of the section; a pick of a source that is later removed
 stays as the reader's own value, written without `picked`. A reader applies a pick like any edit;
 a refresh that changes the picked source's value for that cell reports it rather than applying the
 old value silently. An edit to a column a type rule, or a key, end or edge-id role, reads MUST be refused
@@ -503,7 +527,11 @@ then row order.
    field value, and its former space and key become its alias.
 10. **Refused.** A step that makes elements from no row (a link step, `join.link`), connect's "a
     node per row" form, and the choice `keys` onto a graph column have no version 2 spelling:
-    saving one refuses that part and reports it, and a reader meeting one holds the section.
+    saving one refuses that part and reports it, and a reader meeting one holds the section. The
+    step members `compare`, `membership` and `action`, a step `mapping`'s member `many`, and the
+    `read` members `latitude`, `longitude`, `coordinates`, `country`, `region`, `city` and
+    `renamed` (and `time` and `timeUnit` on a step that makes no edges) are reserved (10): a
+    reader meeting one holds the section.
 11. **Clashes (`clash`).** When a step's source gives an element a value for a column (by working
     name) that an earlier source already filled, the step's `clash` decides what shows. `clash` is
     one rule for every column the step writes, or an object of rules keyed by working column name
@@ -616,14 +644,35 @@ A style section holds `layers` (REQUIRED), `palettes`, `shaders`, `tree`, `value
    has no `kind`: there are no special layers. `source.by` is `run`, `template` or `plugin`; a
    layer no run, template or plugin made writes no `source`, in style and view alike.
 2. `set` maps channel names (`node.color`) to values; `encode` maps channel names to bindings
-   (`{ "by": <path>, "scale", "palette", ... }`). A value naming a built-in (a node shape, an
+   (`{ "by": <path>, "scale", "palette", ... }`). A binding with a `map` may carry
+   `"unmapped": "skip"`: an element whose value the map holds no entry for is left as the layers
+   beneath paint it (absent, the value goes on through the scale); `unmapped` needs a `map`. A value naming a built-in (a node shape, an
    arrowhead, a line pattern, a label look) MUST be a name from `builtins.md`.
 3. Selectors: `everything`, `has` (`path`), `expression` (`where`), `top` (`path`, `n`), `member`
    (`of`: `graph`, `largest-component`, `{ "set": <set id> }`, `{ "where" }` or `{ "types" }`),
    `rule` (`where`: a rule tree), `state`, `hover`, and `type` (`types`: matches an element
    holding any listed type). The `ids` selector never appears in a style section.
-4. A path reads `data.<column>` or `results.<as>.<field>`: a style section names a run by its name
-   (`as`), and so does a layer's `source.runId`. A bare set id names a recipe's set.
+4. A path reads `data.<column>`, `results.<as>.<field>` or a readable path: a style section
+   names a run by its name (`as`), and so does a layer's `source.runId`. A bare set id names a
+   recipe's set. The **readable paths** are values graphty-element computes for every node or
+   edge, read by their bare names, in styles, filters, time windows and runs alike:
+
+    | Path                           | Reads                                                                                         |
+    | ------------------------------ | --------------------------------------------------------------------------------------------- |
+    | `graphty.type`                 | the element's one type (4.1.5)                                                                |
+    | `graphty.load`                 | the first source in `_source.loads`                                                           |
+    | `_source.loads`                | every source that supplied it, in step order (4.1.9)                                          |
+    | `graphty.space`, `graphty.key` | its record key (6.1)                                                                          |
+    | `graphty.time`                 | its resolved time, from its sources' time roles (4.1.3)                                       |
+    | `graphty.weight`               | an edge's own weight, never rescaled, from the step that made it                              |
+    | `graphty.draft`                | while a draft is displayed: `new`, `changed`, `merged`, `removed` or `unchanged`; never saved |
+
+    `graphty.types`, the saved graph's plural, is reserved and is never a path. graphty-element
+    today computes none of the readable paths per element: a layer reading one (or `graphty.types`)
+    is kept as read and written back, reported `W_UNKNOWN_MEMBER` with `reason`
+    `E_UNKNOWN_ATTRIBUTE`, and so is a view `visibility` member; a run reading one is not run
+    (`W_RUN_NOT_RUN`) and kept.
+
 5. A style section MUST NOT name an element or a dataset. A writer MUST leave out, and report
    (`W_ELEMENT_NAMING_LEFT_OUT`, params `{ section, pointer }`, the writer's own `layer` id when it has one, and `movedTo: "view"` when the same save writes the view section that carries the layer), every layer section 5 rule 5
    places in view.
@@ -764,7 +813,7 @@ View is the record a file is opened to. It holds `bindsTo` (REQUIRED) and any of
    references, with no nested `version`. `hidden` holds the nodes hidden from the drawing.
 5. **Run records.** Each carries its run `id`; a recipe-made run its `namespace` and `as`; the
    reader's `name` when it has one; `algorithm`; `params` (element-naming options as element
-   references); `seed`; `scope`; `"derived": true` when graphty-element minted the run's id, as
+   references: a node as `{ "space", "key" }`); `seed`; `scope`; `"derived": true` when graphty-element minted the run's id, as
    version 1 records it; and, when it cannot be replayed exactly, `"replayable": false`.
    A view run record has no `style`. `scope` is one of graphty-element's `Scope` forms:
    `"graph"`, `"largest-component"`, `{ "set" }`, `{ "where" }`, `{ "nodes": [<node ref>] }`,
@@ -837,7 +886,8 @@ source whose row made it.
 
 - A **space** is an opaque string, always written for the node key, `sourceSpace` and
   `targetSpace`, compared exactly after Unicode NFC normalization (applied when read), never
-  inferred and never parsed. A type name (`account`), `shared:<name>` and `source:<id>` are only
+  inferred and never parsed. Names beginning `graph:` are reserved (10): a reader meeting one holds
+  the data section. A type name (`account`), `shared:<name>` and `source:<id>` are only
   the names a writer proposes. Only the node-key column of a `join.add` step asks about its
   space: when it would add keys to a space that already holds another source's keys, the load plan
   reports the overlap count and the caller chooses merge (keep the proposed space) or keep
@@ -953,7 +1003,13 @@ of the view section.
    A record or archive save includes them.
 4. **Embed or reference** is chosen per source (4.1.2 rule 4); the default is embed and there is
    no size-based switch. A `file` source the saver asked to reference but whose `path` is not known
-   is embedded instead, and the save report names it (`W_SOURCE_NO_PATH`, params `{ source }`).
+   and that has no browser file handle is embedded instead, and the save report names it
+   (`W_SOURCE_NO_PATH`, params `{ source }`). Every `path` written, also one written back as read
+   (a held source's, a later graph's), is resolved against the file the project was opened from
+   and written relative to the file being saved (graphty-element's `location` save option); a file
+   outside that folder loses its path, reported `W_SOURCE_NO_PATH`: a built source is embedded,
+   and a held source or a later graph's source, which this writer has no rows for, is written with
+   no `path`, so reopening asks for the file.
 5. **Re-saving an opened file keeps its choices**: results are written if the file had a results
    section, and each source stays embedded or referenced as its record was. A recipe section
    opened from a file is written back as read unless the reader asks to rewrite it from the
@@ -1003,7 +1059,10 @@ Opening fetches each referenced `file` and `url` source again, through the usual
 before the data section is built, and parses it with its `format`, `options` and roles. A file the
 caller picked for a source is read in its place. A `file` source's `path` and a relative `url`
 resolve against the location of the file being opened (graphty-element's `location` open option),
-when the caller gives one. Otherwise the load plan lists the source as needing a file, with its
+when the caller gives one. A `file` source with no `path` is read through the browser file handle
+the opening browser keeps for it (4.1.2 rule 6); an open only checks the handle's read permission
+and never prompts, so one that needs permission is held (`needs-permission`) until a refresh asks
+during the reader's click. Otherwise the load plan lists the source as needing a file, with its
 saved name.
 
 Nothing a file names is fetched without the caller's consent (graphty-element's `fetchSources`
@@ -1036,7 +1095,7 @@ source is read no further than the open's size limit.
 A reader MUST skip a section whole, and **hold** it, when its `version` is newer than the reader
 knows (`W_SECTION_KEPT`, params `{ section, version, reason }`), when it lists an extension the
 reader lacks (`W_EXTENSION_REQUIRED`), when a known key holds another `kind`, when a data
-section cannot be built whole (4.1.10), or, for a graph section, when the wrapper carries `graphs`
+section cannot be built whole (4.1.10), or, for a graph section, when the wrapper carries a `graphs` it cannot read
 (2.2 rule 4). Skipping a data section leaves the sections bound to it
 unbound, which is reported. The rest of the file loads.
 
@@ -1149,6 +1208,14 @@ Closed objects:
 - Element references, note targets and cites, a view run's `scope` and a set record: one with an
   unknown member is kept, unbound, unsupported or not replayed.
 
+**Reserved names.** These have no shape yet, so a later version can give them one without breaking
+a saved file; a reader refuses each today, as the rule for its object says: space names beginning
+`graph:`; `graphty.types` as a style, filter or scope path (the saved graph still writes it,
+4.1.9); the members `match` and `named` on a `{ types }` scope and on a `source` leaf (a
+selector's own `match` is unaffected); the join step members `action`, `membership` and
+`compare`; the `read` members of 4.1.8 rule 10; a step `mapping`'s `many`; and the reader
+operation `merge`.
+
 The schemas mark closed objects with `unevaluatedProperties: false` and leave open ones open. A
 schema is normative for what a writer produces; a reader MUST NOT reject a whole document because
 it fails a schema, and acts by the rules above instead.
@@ -1191,12 +1258,12 @@ application words them.
 | `W_UNKNOWN_KIND`              | an unknown `sections` key                                                    | `section`                                 |
 | `W_UNKNOWN_MEMBER`            | an unknown member of an open object, selector, binding, palette or run style | `section`, `pointer`                      |
 | `W_SCHEMA_MISMATCH`           | `$schema` disagrees with `kind` and `version`                                | `section`, `schema`                       |
-| `W_SECTION_KEPT`              | a section is held, or a local change to a held kind was not saved            | `section`, `version`, `reason`            |
+| `W_SECTION_KEPT`              | a section is held, or a local change to a held kind was not saved            | `section`, `version`, `reason`, `graph`   |
 | `W_EXTENSION_REQUIRED`        | a section lists an extension the reader lacks                                | `section`, `extension`                    |
 | `W_SECTION_UPGRADED`          | an older version was migrated on read                                        | `section`, `from`, `to`                   |
 | `W_ELEMENT_NAMING_LEFT_OUT`   | a writer left element-naming content out of a reusable section               | `section`, `pointer`, `layer`, `movedTo`  |
 | `W_MEMBER_LEFT_OUT`           | a save, or a version 1 migration, could not carry something over             | `kind` or `section`, `field` or `pointer` |
-| `W_SOURCE_NO_PATH`            | a file source asked to be referenced was embedded: its `path` is not known   | `source`                                  |
+| `W_SOURCE_NO_PATH`            | a file source has nothing to name it by: embedded, or written with no `path` | `source`                                  |
 | `W_SOURCE_UNAVAILABLE`        | a referenced source is held: not read, or its copy changed (8.3)             | `source`, `reason`, `size`                |
 | `W_SOURCE_EMBEDDED`           | a source asked to be referenced was embedded: its rows are not its bytes     | `source`, `reason`                        |
 | `W_SPACE_OVERLAP`             | a node key would add keys to a space another source already holds            | `source`, `space`, `count`                |
@@ -1227,4 +1294,5 @@ application words them.
 | `examples/card-fraud.graphty.json`                                                                                                                                               | a worked example holding all seven sections                                                    |
 | `examples/card-fraud.graphty-*.json`                                                                                                                                             | each of its sections as a section file                                                         |
 | `examples/minimal/`                                                                                                                                                              | the smallest valid file of each form                                                           |
+| `examples/minimal/minimal-graphs.graphty.json`                                                                                                                                   | a full file holding two graphs, the second referencing a file by its path                      |
 | `examples/minimal/minimal-referenced.graphty-data.json`                                                                                                                          | a data section holding one referenced source                                                   |

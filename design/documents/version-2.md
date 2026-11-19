@@ -319,10 +319,21 @@ reader can say what is missing instead of failing.
 The wrapper takes the header's optional fields (`$schema`, `id` naming the project, `name`,
 `description`, `created`, `modified`, `authors`, `license`, `keywords`, `language`) plus
 `sections` and `extensions`. Its `version` covers only this envelope: all content is versioned per
-section, so the wrapper is expected never to bump again. The top-level member `graphs` is
-reserved for a later file that holds several graphs: a one-graph file never writes it, and a
-version 2 reader that finds it holds the file's graph sections (data, results, notes, view)
-unchanged, writes them back, and reports `W_SECTION_KEPT` with the reason `graphs`.
+section, so the wrapper is expected never to bump again.
+
+**Several graphs.** A file holding two or more graphs writes the top-level member `graphs`, an
+ordered list of `{ "id", "name", "sections" }`; a one-graph file never writes it. The first graph
+stays where a one-graph file puts it, in the top-level `sections`, so a reader that knows nothing
+of several graphs still opens it; its entry carries no `sections` and only names it. Each later
+entry's `sections` holds that graph's own data, view, notes and results, each exactly as the
+top-level section of that key; style, recipe and settings belong to the whole file. A graph id is
+`graph_` plus a ULID, unique in the file, and its name is the reader's words; a one-graph project
+has no graph name of its own. Every graph saves its own sources by its own embed or reference
+choice, so no graph depends on another's. graphty-element opens the first graph and writes the
+later ones back exactly as read, but for their file paths (see Saving), and reports each of their
+sections `W_SECTION_KEPT` with the reason `graphs` and the graph's id; switching between graphs is
+not built yet. A `graphs` member that is not such a list holds every graph section, the top-level
+ones included, and is written back.
 
 Version 1's `requires` goes away: any subset of sections is a valid file. A section a reader must
 not misapply by ignoring it uses a new section major version, or lists the extension it needs in
@@ -491,12 +502,14 @@ timeSpells, timeParseZone, renamed }`. `timeEnd` and `timeSpells` are columns; `
   input only, never read for meaning.
 - **`path`**: a `file` source's `origin` may carry a POSIX path relative to the saved file's own
   folder, never absolute (absolute paths leak user names) and never above that folder, written
-  when the writer knows both locations (Node, or a File System Access directory handle).
+  when the writer knows both locations (Node, or a File System Access directory handle). A file
+  may instead be referenced by a browser file handle, which cannot be written into a file: the
+  writer keeps it in the browser's storage by source id and copy id and writes the source with no
+  `path`, and the browser that saved it reads the file back through it.
 - **The reader source** holds the reader's own changes as one source of kind `reader`, at most one
   per data section. It has `id` (`reader`), `label`, `kind`, `origin` (`copy` alone), `copy` and
   `loaded`; any other field holds the data section. Its copy is `{ "operations": [...] }`, in the
   order made, applied in order after the join steps and the conversions:
-    - `{ "op": "merge", "into", "from" }`: node references; `into` is kept;
     - `{ "op": "remove", "node" | "edge" }`: a node takes its edges with it, whatever `unmatched`
       says;
     - `{ "op": "add", "node": { "space", "key" } | "edge": { "load": "reader", "key" }, "from",
@@ -604,6 +617,19 @@ style.md's layers, selectors, encodings and palettes, with these changes:
   one special behavior.
 - `valueLabels` is a list of `{ path, value, label }`, `path` a value path (`data.<column>`,
   `results.<as>.<field>`), as graphty-element keys value labels.
+- A binding with a `map` may carry `"unmapped": "skip"`: an element whose value the map has no
+  entry for keeps what the layers beneath paint, so a style by type names only the types it knows
+  and a type declared later is left alone.
+- **Readable paths.** Besides `data.<column>` and `results.<as>.<field>`, a style, a filter, a
+  time window or a run may read values graphty-element computes for every element, by their bare
+  names: `graphty.type` (its one type), `graphty.load` (its first supplying source),
+  `_source.loads` (every supplying source, in step order), `graphty.space` and `graphty.key` (its
+  record key), `graphty.time` (its resolved time), `graphty.weight` (an edge's own weight, never
+  rescaled) and `graphty.draft` (`new`, `changed`, `merged`, `removed` or `unchanged` while a
+  draft is displayed, never saved). A saved run parameter naming a node is `{ space, key }`.
+  `graphty.types`, the saved graph's plural, is never a path. graphty-element does not compute
+  these per element yet, so a layer, a view filter or window, or a run reading one is kept as read
+  and written back, and reported.
 
 ### recipe
 
@@ -642,8 +668,8 @@ recipe.md's `commands` (`graph.filter`, `algo.run` with `params`, `layout.set` w
   `both` the incoming value is kept in the clash column `<column> (<source id>)`, which exists
   whenever the held cell is filled. graphty-element's own joins take the same rules and the same
   `keep` default (`JoinChoices.clash`; a number rule named for a column of other values is refused
-  with `E_CLASH_RULE_TYPE`). A reader merge stays in the data
-  section's reader source;
+  with `E_CLASH_RULE_TYPE`). The reader's own merge of two nodes is folded into the copies the
+  data section embeds; the reader operation `merge` is reserved;
 - `set.define`, for rule sets whose rule names no element, carrying the set's bare `id`, `name`,
   rule and edge reading;
 - `dimension` (2 or 3) on `layout.set`.
@@ -800,9 +826,13 @@ frame later would be a view major version.
   the user: embed files or store references"), per source, whatever its size. Embedded: the rows
   are in the data section. Referenced: the source and how it was joined, without the rows, plus its
   copy id so a refetch that returns different data is reported. Default: embedded, so a file stands
-  alone. There is no size-based automatic switch. A file source with no known `path` cannot be
-  referenced: it is saved embedded even when a reference was asked for, and the save report names
-  it (`W_SOURCE_NO_PATH`). A referenced network source gets a new copy id on every open, so its keyless
+  alone. There is no size-based automatic switch. A file is referenced by its `path` or by a
+  browser file handle; a file source with neither cannot be referenced: it is saved embedded even
+  when a reference was asked for, and the save report names it (`W_SOURCE_NO_PATH`). Every path,
+  also one written back as read (a held source, a later graph), is resolved against the file the
+  project was opened from and written relative to the file being saved (the `location` save
+  option); a file outside that folder loses its path: a built source is embedded, a held one is
+  written with no path, so reopening asks for the file, and the report names it. A referenced network source gets a new copy id on every open, so its keyless
   rows get new keys; when a saved reference or reader operation names one, the save report says it
   will not bind after reopening and suggests embedding the source or mapping an edge id.
 - **Re-saving an opened file keeps its choices.** When a project was opened from a file, the save
@@ -879,8 +909,10 @@ frame later would be a view major version.
   unbound, which is reported. The rest of the file loads.
 - **Referenced sources.** Opening fetches each again, through the usual network consent. A file
   source's `path`, and a relative `url`, resolve against the location of the file being opened,
-  when the caller gives one. Otherwise the load plan lists the source as needing a file, with its
-  saved name, so the app can ask the reader to pick it; a picked file whose copy id differs is
+  when the caller gives one. A file source saved with no `path` is read through the browser file
+  handle the opening browser keeps for it; opening only checks its permission and never prompts,
+  so one that needs permission is held (`needs-permission`) until a refresh asks during the
+  reader's click. Otherwise the load plan lists the source as needing a file, with its saved name, so the app can ask the reader to pick it; a picked file whose copy id differs is
   treated as a refresh. Only a source still not found reports `{ code: "W_SOURCE_UNAVAILABLE",
 params: { source } }`, supplies no elements and leaves references to them unbound.
 
@@ -959,6 +991,14 @@ its parser does not read. Three `options` keys are spelled as parser conformance
 source it would parse again with one holds the section. Ignoring any
 of these would build a different graph -- an unknown `settings.directionColumn` would give edges
 the wrong direction -- under the same build stamp, so saved results would still count as a match.
+
+**Reserved names** have no shape yet, so a later version can give them one without breaking a
+saved file, and a reader refuses each today: space names beginning `graph:` (for combining
+graphs); `graphty.types` as a style, filter or scope path; the members `match` and `named` on a
+type scope and a `source` leaf (for matching "only" a source, or nodes it only named); the join
+step members `action` (turning steps off by hand, reordering), `membership` and `compare`
+(comparing graphs); the `read` members for location, time and renames on one step; a step
+mapping's `many` (fan-out edges); and the reader operation `merge` (merging two selected nodes).
 
 The other closed objects are those of container.md, "Unknown object members" (a recipe command
 and its `scope`, a style's selectors, bindings and carried palettes, a run's `style` parts), plus
@@ -1114,8 +1154,8 @@ space overlap, which file to pick for a missing source) and words the reports.
   self-contained-save-files.md): with built-in changes handled by versions and migrations, some of
   those issues (carrying a named palette instead of naming it) may no longer be needed. Each is to
   be re-checked against Versions rule 5 before it is worked.
-- **Several graphs in one file** (#828) and **version history** (#825): not in version 2. A later
-  version adds them as new `sections` keys without breaking it; `sections.data` stays the primary
-  graph older readers open, and every bound section already names its data through `bindsTo.data`.
+- **Switching between several graphs** (#828): the file spells them (The wrapper, "Several
+  graphs"), but graphty-element opens only the first and writes the rest back. **Version history**
+  (#825) is not in version 2; a later version adds it as a new `sections` key.
 - **A preview image** for file browsers: additive later, as an optional wrapper field naming an
   asset, when a surface shows one.

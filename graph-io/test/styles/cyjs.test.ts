@@ -231,6 +231,17 @@ describe("the Cytoscape.js style engine against real Cytoscape.js", () => {
                 // other beziers join the same two nodes (curved-edges.test.ts), which a headless core cannot show
                 const straightBezier = (prop: string, truth: unknown, i: number): boolean =>
                     prop === "curved" && truth === false && raw.get("curve-style")?.[i] === "bezier";
+                // a haystack loop's line stays inside its node (a line of no length at the default radius), so the engine
+                // draws it at opacity 0 where Cytoscape.js reports the element's opacity
+                const insideLoop = (prop: string, truth: unknown, i: number): boolean => {
+                    const data = t.elements[i]?.data;
+                    return (
+                        prop === "opacity" &&
+                        truth === 0 &&
+                        data?.source === data?.target &&
+                        raw.get("curve-style")?.[i] === "haystack"
+                    );
+                };
                 const base = defaults(target);
                 for (const [prop, want] of values) {
                     const got = t.values[prop];
@@ -245,7 +256,7 @@ describe("the Cytoscape.js style engine against real Cytoscape.js", () => {
                                     Array.isArray(x.elements) &&
                                     x.elements.includes(i),
                             );
-                        if (errors.has(i) || straightBezier(prop, truth, i)) {
+                        if (errors.has(i) || straightBezier(prop, truth, i) || insideLoop(prop, truth, i)) {
                             continue;
                         }
                         const w = want[i];
@@ -869,6 +880,24 @@ describe("property aliases", () => {
             }
         });
         expect(all["node.label"][nodeOf("a0s")]).toBe("Label");
+    });
+});
+
+describe("haystack loops", () => {
+    it("draws a haystack loop's line at opacity 0, as its line stays inside its node", () => {
+        const doc = {
+            elements: [
+                { data: { id: "a" }, position: { x: 0, y: 0 } },
+                { data: { id: "b" }, position: { x: 100, y: 0 } },
+                { data: { id: "aa", source: "a", target: "a" } },
+                { data: { id: "ab", source: "a", target: "b" } },
+                // Cytoscape.js's own stylesheet curves a loop no rule sets a curve style for
+                { data: { id: "bb", source: "b", target: "b" } },
+            ],
+            style: [{ selector: "edge[id != 'bb']", style: { "curve-style": "haystack" } }],
+        };
+        const r = evaluateCytoscapeJs(doc);
+        expect(r.edge.values.opacity).toEqual([0, null, null]);
     });
 });
 

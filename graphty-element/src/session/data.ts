@@ -5493,16 +5493,8 @@ export class SessionData implements SessionDataApi {
         }
         const undo = previous === undefined ? undefined : this.unjoin(previous);
         const graph = this.joinGraph(undo?.restored, undo?.gone);
-        const planned = planJoin(table, graph, choices, shape);
+        const planned = planTableJoin(table, graph, choices, shape);
         const { plan } = planned;
-        if (plan.kind === "rows") {
-            throw new GraphtyError({
-                code: "E_BAD_COMMAND",
-                message: `Rows read as ${planned.shape} are a load, not a join: load the draft with a mode instead.`,
-                source: "data",
-                details: { reason: "not-a-join", shape: planned.shape },
-            });
-        }
 
         const stored = this.storedSources();
         if (previous === undefined) {
@@ -5515,17 +5507,7 @@ export class SessionData implements SessionDataApi {
         const record: JoinRecord = frozen({
             source: key,
             onto,
-            shape: planned.shape,
-            choices: { ...choices, shape: planned.shape },
-            rows: table.rows.length,
-            matched: planned.matched,
-            columns: plan.columns,
-            table: {
-                name: table.name,
-                columns: [...table.columns],
-                rows: [...table.rows],
-                ...(table.unreadRows ? { unreadRows: table.unreadRows } : {}),
-            },
+            ...joinRecordFields(planned, choices, table),
             ...(plan.kind === "values" || Object.keys(plan.before).length > 0 ? { before: plan.before } : {}),
             ...(plan.kind === "edges" ? { made: nodesEdgesMake(plan, graph) } : {}),
         });
@@ -5603,16 +5585,8 @@ export class SessionData implements SessionDataApi {
     ): Promise<void> {
         const unjoined = previous === undefined ? undefined : this.stepsUnjoin(previous.key);
         const graph = this.joinGraph(unjoined?.restored, unjoined?.gone);
-        const planned = planJoin(table, graph, choices, shape);
+        const planned = planTableJoin(table, graph, choices, shape);
         const { plan } = planned;
-        if (plan.kind === "rows") {
-            throw new GraphtyError({
-                code: "E_BAD_COMMAND",
-                message: `Rows read as ${planned.shape} are a load, not a join: load the draft with a mode instead.`,
-                source: "data",
-                details: { reason: "not-a-join", shape: planned.shape },
-            });
-        }
         if (previous === undefined) {
             refuseJoinedAlready(this.storedSources(), table);
         }
@@ -5621,17 +5595,7 @@ export class SessionData implements SessionDataApi {
         const record: JoinRecord = frozen({
             source: id,
             onto: previous === undefined ? this.ontoOf(plan, graph) : (previous.join?.onto ?? null),
-            shape: planned.shape,
-            choices: { ...choices, shape: planned.shape },
-            rows: table.rows.length,
-            matched: planned.matched,
-            columns: plan.columns,
-            table: {
-                name: table.name,
-                columns: [...table.columns],
-                rows: [...table.rows],
-                ...(table.unreadRows ? { unreadRows: table.unreadRows } : {}),
-            },
+            ...joinRecordFields(planned, choices, table),
         });
         const rows = table.rows as readonly Readonly<Record<string, SourceCellValue>>[];
         const tables = { [planned.shape === "edges" ? "edges" : "nodes"]: rows };
@@ -7670,6 +7634,64 @@ interface JoinSteps {
     readonly leftProvenance: Provenance;
     readonly described: ImportSource;
     readonly previous: LoadedSource | undefined;
+}
+
+/** A planned join that writes onto the graph: not rows read as a load. */
+interface TableJoin {
+    readonly shape: JoinShape;
+    readonly plan: Exclude<JoinPlan, { kind: "rows" }>;
+    readonly matched: number;
+}
+
+/**
+ * Plan a join, refusing rows that read as a load rather than a join.
+ * @param table - The table.
+ * @param graph - The graph the join reads.
+ * @param choices - The join.
+ * @param shape - The shape when the choices give none.
+ * @returns The plan, its shape and how many rows matched.
+ * @throws A `GraphtyError` with `E_BAD_COMMAND` when the rows read as a load.
+ */
+function planTableJoin(table: JoinedTable, graph: JoinGraph, choices: JoinChoices, shape: JoinShape): TableJoin {
+    const planned = planJoin(table, graph, choices, shape);
+    const { plan } = planned;
+    if (plan.kind === "rows") {
+        throw new GraphtyError({
+            code: "E_BAD_COMMAND",
+            message: `Rows read as ${planned.shape} are a load, not a join: load the draft with a mode instead.`,
+            source: "data",
+            details: { reason: "not-a-join", shape: planned.shape },
+        });
+    }
+    return { ...planned, plan };
+}
+
+/**
+ * The fields of a join's record that its plan and table give.
+ * @param planned - The planned join.
+ * @param choices - The join.
+ * @param table - The table.
+ * @returns The record's shape, choices, counts, columns and table copy.
+ */
+function joinRecordFields(
+    planned: TableJoin,
+    choices: JoinChoices,
+    table: JoinedTable,
+): Omit<JoinRecord, "source" | "onto" | "before" | "made"> {
+    const { plan } = planned;
+    return {
+        shape: planned.shape,
+        choices: { ...choices, shape: planned.shape },
+        rows: table.rows.length,
+        matched: planned.matched,
+        columns: plan.columns,
+        table: {
+            name: table.name,
+            columns: [...table.columns],
+            rows: [...table.rows],
+            ...(table.unreadRows ? { unreadRows: table.unreadRows } : {}),
+        },
+    };
 }
 
 /**

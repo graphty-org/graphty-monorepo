@@ -8,9 +8,11 @@
 
 import { assert, describe, it } from "vitest";
 
+import { quotePath, resultPath } from "../../../session";
 import { createGraphSession, type GraphSession, type SourceDraftChange } from "../../../src/session";
 import { dispatcherOf } from "../../../src/session/dispatchers";
 import { stateDigest } from "../../../src/session/project/digest";
+import { sessionWithRuns } from "../../helpers/project-session";
 import { ACCOUNTS, phase2, refused } from "./scenario";
 
 const ACCOUNTS_CSV = { type: "csv", config: { data: ACCOUNTS }, name: "accounts.csv" } as const;
@@ -187,8 +189,8 @@ describe("source-steps drafts: the session around a draft", () => {
         session.dispose();
     });
 
-    it("a note and a style written while a draft is open survive its commit", async () => {
-        const session = createGraphSession({ features: ["source-steps"] });
+    it("a note, a style and a run made while a draft is open survive its commit", async () => {
+        const session = sessionWithRuns(["source-steps"]);
         await session.data.import(
             { type: "csv", config: { data: "id,name\na1,Ann\na2,Bo" }, name: "accounts.csv" },
             { key: "id", type: "account" },
@@ -205,12 +207,62 @@ describe("source-steps drafts: the session around a draft", () => {
             selector: { match: "everything" },
             set: { "node.color": "#ff0000" },
         });
+        const run = session.runs.start("degree", undefined, { style: false });
+        await run;
         await d.commit();
         assert.lengthOf(session.notes.list(), 1, "the commit kept the note written while the draft was open");
+        assert.isDefined(session.runs.get(run.id), "and the run");
         assert.isDefined(
             session.styles.list().find((layer) => layer.name === "draft-time layer"),
             "and the style layer",
         );
+        session.dispose();
+    });
+
+    it("a draft commit fills the computed columns of the rows it adds, as the committed door does", async () => {
+        const build = async (): Promise<{ session: GraphSession; b: string }> => {
+            const session = createGraphSession({ features: ["source-steps"] });
+            await session.data.import(
+                { type: "csv", config: { data: "id,amt\np1,10\np2,20" }, name: "crm.csv" },
+                { key: "id", type: "person" },
+            );
+            await session.data.derive("double", "data.amt * `2`");
+            const b = await session.data.stage(
+                { type: "csv", config: { data: "id,amt\np3,7" }, name: "erp.csv" },
+                { key: "id", type: "person" },
+            );
+            return { session, b };
+        };
+        const direct = await build();
+        await direct.session.data.add(direct.b, { overlap: "merge" });
+        await direct.session.styles.settled();
+        assert.strictEqual(direct.session.data.node("p3")?.double, 14);
+
+        const drafted = await build();
+        const d = drafted.session.data.draft();
+        d.add(drafted.b, { overlap: "merge" });
+        await d.commit();
+        await drafted.session.styles.settled();
+        assert.strictEqual(drafted.session.data.node("p3")?.double, 14, "the commit's computed values follow it");
+        direct.session.dispose();
+        drafted.session.dispose();
+    });
+
+    it("removing a run while a draft is open clears the computed values that read it", async () => {
+        const session = sessionWithRuns(["source-steps"]);
+        await session.data.import(
+            { type: "csv", config: { data: "id,name\na,Ann\nb,Bo" }, name: "people.csv" },
+            { key: "id", type: "person" },
+        );
+        const run = session.runs.start("degree", undefined, { style: false });
+        await run;
+        await session.data.derive("seen", `${quotePath(resultPath(run.id, "value"))} >= \`0\``);
+        assert.strictEqual(session.data.node("a")?.seen, true);
+        const d = session.data.draft();
+        session.runs.remove(run.id);
+        await session.styles.settled();
+        assert.isNull(session.data.node("a")?.seen, "a removed run's values read as nothing");
+        d.dispose();
         session.dispose();
     });
 

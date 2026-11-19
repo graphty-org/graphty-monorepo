@@ -311,6 +311,8 @@ export interface LaneStore extends Omit<SessionGraphStore, "positions"> {
      * @returns stops the delivery
      */
     readonly followRenumbering?: (follower: FreezeFollower) => () => void;
+    /** Let the builder go while nothing writes the graph; see `GraphStore.releaseIdle`. */
+    readonly releaseIdle?: () => void;
 }
 
 /**
@@ -758,6 +760,10 @@ class Session implements ElementSession {
                 slices: change.slices as readonly ProjectSlice[],
                 cause: change.cause,
             });
+            // Quiet: no command runs and every pass has run, so the builder may go until the next write.
+            if (this.dispatcher.idle) {
+                this.store.releaseIdle?.();
+            }
         };
         // A command that replaces the project is announced before it runs (autosave keeps the
         // work it replaces); chained, because a test may spy here too.

@@ -73,17 +73,26 @@ interface RenderManagerConfig {
      */
     pictureIsFinal?: () => boolean;
     /**
-     * Asked while drawing on demand, when the picture is not final: true when the only thing
+     * Asked while drawing on demand or while `restsBetweenLandings` says so, when the picture is
+     * not final: true when the only thing
      * changing it is a running layout that has published nothing new since the last frame drawn,
      * so the tick runs its update but draws nothing, as it would on a final picture. Left out,
      * such ticks draw.
      */
     awaitsLanding?: () => boolean;
     /**
-     * Whether drawing on demand is switched on. While it is not, the loop draws every tick and
-     * does none of the bookkeeping drawing on demand needs. Left out, it is off.
+     * Whether drawing on demand is switched on. While it is not (and `restsBetweenLandings` says
+     * false), the loop draws every tick and does none of the bookkeeping drawing on demand needs.
+     * Left out, it is off.
      */
     drawsOnDemand?: () => boolean;
+    /**
+     * Whether ticks between two landings of a running layout skip their frame even while drawing
+     * on demand is off, as `awaitsLanding` lets them when it is on; nothing else of drawing on
+     * demand comes with it. Asked each tick; the element answers true under renderPath "batched".
+     * Left out, never.
+     */
+    restsBetweenLandings?: () => boolean;
     /**
      * Whether to flush right after each frame's fence, so the GPU sees the fence at once rather
      * than at the browser's next flush (about every 18 ms in Chromium, which set an 18 ms floor
@@ -912,6 +921,11 @@ export class RenderManager implements Manager {
     private readonly pictureIsFinal: (() => boolean) | null;
     /** See `RenderManagerConfig.drawsOnDemand`. */
     private readonly drawsOnDemand: () => boolean;
+    /**
+     * Whether the loop keeps the record of the last frame drawn that resting needs: while drawing
+     * on demand, or while ticks between landings may rest (`restsBetweenLandings`).
+     */
+    private readonly tracksFrames: () => boolean;
     /** See `RenderManagerConfig.flushesFrameFence`. */
     private readonly flushesFrameFence: () => boolean;
     /** See `RenderManagerConfig.pacesWebGpuFrames`. */
@@ -1069,6 +1083,8 @@ export class RenderManager implements Manager {
         const onDemand = this.config.drawsOnDemand ?? ((): boolean => false);
         // "at-rest" holds its multisampled frame by not drawing another: drawing on demand.
         this.drawsOnDemand = (): boolean => this.antialiasAtRest() || onDemand();
+        const betweenLandings = this.config.restsBetweenLandings ?? ((): boolean => false);
+        this.tracksFrames = (): boolean => this.drawsOnDemand() || betweenLandings();
         this.flushesFrameFence = this.config.flushesFrameFence ?? ((): boolean => false);
         this.pacesWebGpuFrames = this.config.pacesWebGpuFrames ?? ((): boolean => false);
 
@@ -1437,7 +1453,7 @@ export class RenderManager implements Manager {
         const drawnReady = this.readyToDrawChange();
         // What the frame begins with, so the frame can tell afterwards whether drawing it moved
         // anything; see noteDrawnFrom.
-        if (this.pictureIsFinal !== null && this.drawsOnDemand()) {
+        if (this.pictureIsFinal !== null && this.tracksFrames()) {
             this.recordView();
         }
 
@@ -1853,14 +1869,15 @@ export class RenderManager implements Manager {
     private mayRest(): boolean {
         if (
             this.pictureIsFinal === null ||
-            !this.drawsOnDemand() ||
+            !this.tracksFrames() ||
             this.drawOwed ||
             (this.lastFrameMoved && this.inView)
         ) {
             return false;
         }
 
-        this.restsFinal = this.pictureIsFinal();
+        // With drawing on demand off, only a tick between two landings rests.
+        this.restsFinal = this.drawsOnDemand() && this.pictureIsFinal();
         if (!this.restsFinal && this.config.awaitsLanding?.() !== true) {
             return false;
         }
@@ -1964,7 +1981,7 @@ export class RenderManager implements Manager {
      * @returns True when this frame draws a change to the scene's contents whole.
      */
     private readyToDrawChange(): boolean {
-        if (this.pictureIsFinal === null || !this.drawsOnDemand()) {
+        if (this.pictureIsFinal === null || !this.tracksFrames()) {
             return false;
         }
 
@@ -1982,7 +1999,7 @@ export class RenderManager implements Manager {
      *     to draw; see {@link readyToDrawChange}.
      */
     private noteDrawnFrom(drawnReady = false): void {
-        if (this.pictureIsFinal === null || !this.drawsOnDemand()) {
+        if (this.pictureIsFinal === null || !this.tracksFrames()) {
             // Switched on later, the first frame then is compared with nothing and draws again.
             this.lastFrameMoved = true;
             return;

@@ -570,7 +570,7 @@ export function Inspector(): React.JSX.Element {
     const resolved = gone ? resolveInspected(null, selection) : opened;
     // A source stays open while it is briefly unlisted: a Replace takes the load off the list and
     // lists it again in one step, and the row must come back to the same source.
-    const closes = gone && opened?.kind !== "source";
+    const closes = gone && opened.kind !== "source";
     useEffect(() => {
         if (closes) {
             store.set({ inspected: null });

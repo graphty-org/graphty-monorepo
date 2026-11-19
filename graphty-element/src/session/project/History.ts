@@ -1266,7 +1266,7 @@ export function frozenFact(fact: CodedFact<HistoryCode>): CodedFact<HistoryCode>
     }
 
     const params = Object.fromEntries(
-        Object.entries(fact.params).map(([name, value]): [string, CodedFactParam] => [
+        Object.entries(fact.params).map(([name, value]): [string, CodedFactParam | undefined] => [
             name,
             typeof value === "object" && value !== null ? Object.freeze([...value]) : value,
         ]),

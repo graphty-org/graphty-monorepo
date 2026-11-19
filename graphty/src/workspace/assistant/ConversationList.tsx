@@ -224,7 +224,8 @@ export function ConversationList({ id, rows, openId, reload, onClose }: Conversa
             });
     };
     const remove = (row: ChatRow, index: number): void => {
-        const next = rows[index + 1] ?? rows[index - 1];
+        const near: readonly (ChatRow | undefined)[] = rows;
+        const next = near[index + 1] ?? near[index - 1];
         element
             ?.deleteAiConversation(row.id)
             .then(() => {

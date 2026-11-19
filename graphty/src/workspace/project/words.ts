@@ -114,7 +114,7 @@ function tooLarge(details: Details): string {
 }
 
 /** Why a load did not open, by the element's code (graph-io's arrive as these): a clause after "could not be opened: ". */
-const LOAD_REASONS: Readonly<Record<string, (details: Details) => string>> = {
+const LOAD_REASONS: Readonly<Partial<Record<string, (details: Details) => string>>> = {
     E_UNKNOWN_FORMAT: () => "graphty cannot tell what kind of file it is",
     E_BAD_DOCUMENT: () => "it is not a graphty project file",
     E_UNSUPPORTED_VERSION: () => "it was saved by a newer graphty; update graphty to open it",
@@ -148,12 +148,13 @@ const LOAD_REASONS: Readonly<Record<string, (details: Details) => string>> = {
     },
     E_AUTOSAVE_ENTRY_TAKEN: () => "another tab has this work open",
     E_AUTOSAVE_UNKNOWN_ENTRY: () => "this browser no longer keeps that work",
+    E_AUTOSAVE_STALLED: () => "the browser's storage did not answer; close other graphty tabs, then reload",
     E_SUPERSEDED: () => "another load took its place",
     E_DISPOSED: () => "the project closed before it finished",
 };
 
 /** Why a join choice was refused (`E_BAD_COMMAND` with a `reason`), by that reason. */
-const COMMAND_REASONS: Readonly<Record<string, (details: Details) => string>> = {
+const COMMAND_REASONS: Readonly<Partial<Record<string, (details: Details) => string>>> = {
     "unknown-column": (details) => {
         const column = text(details.column);
         return column === undefined ? "the table has no such column" : `the table has no column ${column}`;

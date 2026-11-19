@@ -1,10 +1,10 @@
 /**
- * @file Catalogue descriptor types.
+ * @file Catalog descriptor types.
  *
  * Everything the element can offer -- an algorithm, a layout, a file format, a palette, a
  * scale, a theme, an expression function, an option -- is published as a plain-JSON
  * descriptor. A descriptor is data: no classes, no methods, no library objects. That is what
- * lets it be serialised, posted to a worker, diffed, cached, stored in a document or rendered
+ * lets it be serialized, posted to a worker, diffed, cached, stored in a document or rendered
  * by a consumer that never imports this package's runtime.
  *
  * Option schemas in particular cross the package boundary as {@link OptionDescriptor}, never as
@@ -23,8 +23,9 @@ import type { DatasetMeta, GeneratorDescriptor } from "@graphty/graph-samples";
 import type { DrawingMode } from "../camera/types";
 import type { EdgeStyleConfig } from "../config/EdgeStyle";
 import type { GraphtyErrorCode } from "../errors/codes";
+import type { EstimateRefusalCode } from "../session/cost/estimate";
+import type { CodedFact } from "../session/shared";
 import type { ChannelDescriptor } from "../session/styles/channels";
-import type { FileStyleOrigin } from "../session/styles/fileStyles/origin";
 import type { TransitionDescriptor } from "../transitions/registry";
 import type { ChannelValueDescriptor } from "./channelValues";
 import type { LabelStyle } from "./label-style";
@@ -148,10 +149,7 @@ export type Query = string;
 
 /**
  * The built-in algorithms. The list is also available at runtime so a consumer can enumerate
- * the built-in set without a catalogue instance.
- *
- * One of these names is deprecated: `all-paths` is reserved but not implemented, and starting it
- * fails with `E_UNSUPPORTED`. See {@link DEPRECATED_ALGORITHMS}.
+ * the built-in set without a catalog instance.
  */
 export const KNOWN_ALGORITHMS = [
     "degree",
@@ -167,7 +165,6 @@ export const KNOWN_ALGORITHMS = [
     "components",
     "shortest-path",
     "all-pairs-distance",
-    "all-paths",
     "max-flow",
     "min-cut",
     "k-core",
@@ -184,27 +181,11 @@ export const KNOWN_ALGORITHMS = [
     "hierarchical-clustering",
     "astar",
     "edge-betweenness",
+    "removal-impact",
 ] as const;
 
-/**
- * One of the built-in algorithms. `all-paths` is deprecated and does not run; see
- * {@link DEPRECATED_ALGORITHMS}.
- */
+/** One of the built-in algorithms. */
 export type KnownAlgorithm = (typeof KNOWN_ALGORITHMS)[number];
-
-/**
- * The built-in algorithm names the element reserves but does not run.
- *
- * Nothing implements this one yet. The name stays in {@link KNOWN_ALGORITHMS}, so no plugin can
- * claim it and no code that names it stops compiling, but starting it fails with `E_UNSUPPORTED`
- * rather than `E_UNKNOWN_ALGORITHM`. It is removed at the next major release unless it is
- * implemented first; `all-paths` is tracked by issue #329. `clustering-coefficient`, reserved here
- * until issue #330, now runs.
- */
-export const DEPRECATED_ALGORITHMS = ["all-paths"] as const satisfies readonly KnownAlgorithm[];
-
-/** A built-in algorithm name the element reserves but does not run, and will remove. */
-export type DeprecatedAlgorithm = (typeof DEPRECATED_ALGORITHMS)[number];
 
 /**
  * An algorithm key. The built-in names keep autocomplete alive; the string arm accepts a
@@ -301,7 +282,7 @@ export type FormatId = (typeof KNOWN_FORMAT_IDS)[number] | (string & {});
  *
  * All nineteen are here because this list is what autocomplete offers. Four of them used to be,
  * so a consumer typing a palette name was shown a quarter of the element's own palettes and had
- * to read the catalogue table to find the rest.
+ * to read the catalog table to find the rest.
  */
 export const KNOWN_PALETTE_IDS = [
     "viridis",
@@ -360,17 +341,17 @@ export type AttributeType = (typeof ATTRIBUTE_TYPES)[number];
  *
  * OPEN UNION: values may be added in a minor release; treat one you do not know as no measurement.
  */
-export type Measurement = "categorical" | "ordinal" | "quantitative" | "time" | (string & {}); // NOSONAR(S4335): the open-union idiom; keeps the known literals in autocomplete while accepting others
+export type Measurement = "categorical" | "ordinal" | "quantitative" | "time" | (string & {}); // the open-union idiom; keeps the known literals in autocomplete while accepting others
 
 /**
  * Who said what a column measures, highest precedence first: a `data.declare` call, the algorithm
- * catalogue, the file format, or the element's inference from the values. A data column reports
+ * catalog, the file format, or the element's inference from the values. A data column reports
  * `"declared"` or `"inferred"` today; `"catalog"` and `"file"` are reserved for results and for
  * formats that write a column's measurement down.
  *
  * OPEN UNION: values may be added in a minor release.
  */
-export type MeasurementSource = "declared" | "catalog" | "file" | "inferred" | (string & {}); // NOSONAR(S4335): the open-union idiom; keeps the known literals in autocomplete while accepting others
+export type MeasurementSource = "declared" | "catalog" | "file" | "inferred" | (string & {}); // the open-union idiom; keeps the known literals in autocomplete while accepting others
 
 /** What `session.data.declare` says a column measures. An ordinal column lists its values in order. */
 export type MeasurementDeclaration =
@@ -389,7 +370,7 @@ export type CostClass = (typeof COST_CLASSES)[number];
 /**
  * The ten declared result shapes. A shape fixes the field names a result publishes and the
  * primary action a consumer can offer for it, so a result path is guessable without opening
- * the catalogue.
+ * the catalog.
  */
 export const RESULT_SHAPES = [
     "node-metric",
@@ -500,7 +481,7 @@ export interface FieldDescriptor {
      * by. Experimental: may change or be removed in a minor release.
      * @beta
      */
-    missing?: "unreached" | "unmeasured" | (string & {}); // NOSONAR(S4335): keeps the named codes in autocomplete while open to others
+    missing?: "unreached" | "unmeasured" | (string & {}); // keeps the named codes in autocomplete while open to others
     /**
      * Present (true) when its values are names a re-run may spell differently (a community's
      * number), so a group is saved by a member it holds rather than by its number.
@@ -557,6 +538,8 @@ export const OPTION_TYPES = [
     "ordering",
     /** A color, `#rrggbb`: a shader parameter's type. @since 3.36.0 */
     "color",
+    /** A list of edge ids. @since 3.40.0 */
+    "edge-set",
     "unknown",
 ] as const;
 
@@ -674,7 +657,7 @@ export interface OptionUnsupported {
 /**
  * Every property a layer can paint.
  *
- * The label channels `labelColor`, `labelSize`, `labelLetterSize`, `labelFont`, `labelWeight`, `labelItalic`, `labelWrapWidth`, `labelWrapTrailingSpace`, `labelWrapEllipsis`, `labelWrapAnywhere`, `labelWrapSpaceCount`, `labelMinScreenSize`, `labelOnTop`, `labelRotation`, `labelBackground`, `labelOutline`, `labelOutlineWidth`, `labelBorder`, `labelBorderWidth`, `labelOpacity`, `labelBackgroundOpacity`, `labelOutlineOpacity`, `labelBorderOpacity`, `labelPadding`, `labelCornerRadius`, `labelLineHeight`, `labelOffsetX`, `labelOffsetY`, `labelShiftX`, `labelShiftY`, `labelShiftOf` and `labelGapOf` are
+ * The label channels `labelColor`, `labelSize`, `labelLetterSize`, `labelFont`, `labelWeight`, `labelItalic`, `labelWrapWidth`, `labelWrapTrailingSpace`, `labelWrapSkipEndSpace`, `labelWrapEllipsis`, `labelWrapAnywhere`, `labelWrapSpaceCount`, `labelMaxLines`, `labelMaxLinesEllipsis`, `labelMinScreenSize`, `labelOnTop`, `labelRotation`, `labelBackground`, `labelOutline`, `labelOutlineWidth`, `labelBorder`, `labelBorderWidth`, `labelOpacity`, `labelBackgroundOpacity`, `labelOutlineOpacity`, `labelBorderOpacity`, `labelPadding`, `labelCornerRadius`, `labelLineHeight`, `labelLineBox`, `labelBorderAlign`, `labelBorderStyle`, `labelBackgroundShape`, `labelOffsetX`, `labelOffsetY`, `labelShiftX`, `labelShiftY`, `labelShiftOf` and `labelGapOf` are
  * single fields of the label style, so they can be bound to a column (`encode`) where the whole
  * `labelStyle` can only be set. They land in the same label style the `labelStyle` channel
  * writes, field by field, the higher layer winning each field.
@@ -687,6 +670,7 @@ export type Channel =
     | "node.color"
     | "node.size"
     | "node.sizeMode"
+    | "node.sizeSpace"
     | "node.shape"
     | "node.label"
     | "node.labelStyle"
@@ -698,9 +682,12 @@ export type Channel =
     | "node.labelItalic"
     | "node.labelWrapWidth"
     | "node.labelWrapTrailingSpace"
+    | "node.labelWrapSkipEndSpace"
     | "node.labelWrapEllipsis"
     | "node.labelWrapAnywhere"
     | "node.labelWrapSpaceCount"
+    | "node.labelMaxLines"
+    | "node.labelMaxLinesEllipsis"
     | "node.labelRunAlign"
     | "node.labelMinScreenSize"
     | "node.labelOnTop"
@@ -721,6 +708,10 @@ export type Channel =
     | "node.labelPadding"
     | "node.labelCornerRadius"
     | "node.labelLineHeight"
+    | "node.labelLineBox"
+    | "node.labelBorderAlign"
+    | "node.labelBorderStyle"
+    | "node.labelBackgroundShape"
     | "node.labelOffsetX"
     | "node.labelOffsetY"
     | "node.labelShiftX"
@@ -803,6 +794,7 @@ export type Channel =
     | "node.labelFitQuantum"
     | "node.labelFitImage"
     | "node.labelFitImagePadding"
+    | "node.imageAspect"
     | "node.gradientColor"
     | "node.gradientDirection"
     | "node.gradientColors"
@@ -868,6 +860,10 @@ export type Channel =
     | "node.modelSourceUp"
     | "node.modelTurn"
     | "node.modelTint"
+    | "node.modelDoubleSided"
+    | "node.modelAnimation"
+    | "node.modelAnimationSpeed"
+    | "node.modelAnimationOffset"
     | "node.modelFit"
     | "node.modelCenter"
     | "node.texture"
@@ -1017,12 +1013,16 @@ export type Channel =
     | "node.shaders"
     | "edge.shaders"
     | "edge.taper"
+    | "edge.taperSource"
     | "edge.lift"
     | "edge.labelWrapWidth"
     | "edge.labelWrapTrailingSpace"
+    | "edge.labelWrapSkipEndSpace"
     | "edge.labelWrapEllipsis"
     | "edge.labelWrapAnywhere"
     | "edge.labelWrapSpaceCount"
+    | "edge.labelMaxLines"
+    | "edge.labelMaxLinesEllipsis"
     | "edge.labelRunAlign"
     | "edge.labelMinScreenSize"
     | "edge.labelOnTop"
@@ -1041,6 +1041,10 @@ export type Channel =
     | "edge.labelTable"
     | "edge.labelCornerRadius"
     | "edge.labelLineHeight"
+    | "edge.labelLineBox"
+    | "edge.labelBorderAlign"
+    | "edge.labelBorderStyle"
+    | "edge.labelBackgroundShape"
     | "edge.labelOffsetX"
     | "edge.labelOffsetY"
     | "edge.labelShiftX"
@@ -1071,7 +1075,7 @@ export type Channel =
 export type EdgeLinePattern = NonNullable<NonNullable<EdgeStyleConfig["line"]>["type"]>;
 
 /**
- * A pre-parsed colour. Components are 0..255 and alpha is 0..1. The repaint reads this form;
+ * A pre-parsed color. Components are 0..255 and alpha is 0..1. The repaint reads this form;
  * the string form is for authoring and export, because parsing a hex string once per element
  * is a cost the encoding already knows how to avoid.
  */
@@ -1116,24 +1120,24 @@ export type ShaderParamAddress = `${"node" | "edge"}.shaders.${string}.${string}
 export type StaticStyle = Partial<Record<Channel, ChannelValue>>;
 
 /**
- * What a categorical colour encoding does when the column holds more groups than the palette has
- * colours. N is the palette's capacity: 8 for the default, Okabe-Ito.
+ * What a categorical color encoding does when the column holds more groups than the palette has
+ * colors. N is the palette's capacity: 8 for the default, Okabe-Ito.
  *
- * - `"other"`: the N largest groups keep the palette's colours in palette order, largest group
- *   first, and every remaining group is painted one mid grey (#686868). The legend lists the
- *   grey as its last row, marked `role: "other"` with the elements it paints in `count`.
- * - `"shape"`: node encodings only. Group i is painted colour i mod N and drawn in shape
+ * - `"other"`: the N largest groups keep the palette's colors in palette order, largest group
+ *   first, and every remaining group is painted one mid gray (#686868). The legend lists the
+ *   gray as its last row, marked `role: "other"` with the elements it paints in `count`.
+ * - `"shape"`: node encodings only. Group i is painted color i mod N and drawn in shape
  *   floor(i / N) from a fixed list (icosphere, box, octahedron, cylinder, cone, torus), so the
- *   first N groups keep the element's default shape. Groups past N x 6 fold into the grey. On an
+ *   first N groups keep the element's default shape. Groups past N x 6 fold into the gray. On an
  *   edge encoding it is refused, because an edge has no shape to cycle. A layer that varies only
- *   the colour this way is drawn in the shapes too, whether or not it stores the shape half.
+ *   the color this way is drawn in the shapes too, whether or not it stores the shape half.
  * - `"pattern"`: edge encodings only, the edge counterpart of `"shape"`. Group i is painted
- *   colour i mod N and drawn in line pattern floor(i / N) from a fixed list (solid, dash, dot,
- *   dash-dot, wave, diamonds), so two groups that share a colour never share a pattern. On a node
+ *   color i mod N and drawn in line pattern floor(i / N) from a fixed list (solid, dash, dot,
+ *   dash-dot, wave, diamonds), so two groups that share a color never share a pattern. On a node
  *   encoding it is refused, because a node has no line. @since 3.27.0
- * - `"extend"`: every group gets a colour of its own. With no palette named, the smallest
+ * - `"extend"`: every group gets a color of its own. With no palette named, the smallest
  *   categorical palette that fits, else the sequential default sampled once per group; with a
- *   palette named, its colours and then samples of the sequential default. Distinctness is NOT
+ *   palette named, its colors and then samples of the sequential default. Distinctness is NOT
  *   guaranteed past the palette's capacity.
  *
  * Ignored by a scale that reads numbers, which has no groups to overflow.
@@ -1224,9 +1228,9 @@ export type Binding =
               | (string & {});
           palette?: PaletteId;
           /**
-           * The binding's own palette: two or more colours, lowest first, saved with the layer.
-           * Given, `palette` is not: a binding names a catalogue palette or carries its colors. A
-           * scale that names groups reads them as a categorical palette (one colour per group, so
+           * The binding's own palette: two or more colors, lowest first, saved with the layer.
+           * Given, `palette` is not: a binding names a catalog palette or carries its colors. A
+           * scale that names groups reads them as a categorical palette (one color per group, so
            * as many colors as groups), a binding with a `midpoint` as a diverging one, and anything
            * else as a sequential ramp. The legend names it `custom`.
            * @since 3.26.0
@@ -1245,7 +1249,7 @@ export type Binding =
           otherwise?: string | number;
           other?: { threshold: number; value: string | number };
           /**
-           * What a categorical colour binding does with more groups than its palette can keep
+           * What a categorical color binding does with more groups than its palette can keep
            * apart. See {@link BindingOverflow}. Absent, a palette the binding names is refused with
            * `E_CAP_EXCEEDED` and one it leaves to the element is chosen large enough.
            */
@@ -1288,7 +1292,7 @@ export type Binding =
            * The values a scale's groups paint, lowest group first, on a channel that carries one
            * of a fixed list (a line pattern, a node shape, an arrow): group 0 paints the first,
            * group 1 the second. Each must be one the channel takes. Absent, the groups walk the
-           * channel's own list in catalogue order. `styles.proposeEncoding` writes an ordered set
+           * channel's own list in catalog order. `styles.proposeEncoding` writes an ordered set
            * here when it steps a number onto such a channel.
            * @since 3.26.0
            */
@@ -1343,8 +1347,9 @@ export type Selector =
     | { match: "rule"; where: RuleTree; edges?: EdgeReading }
     /**
      * The elements a reader is pointing at now: selected (`"selected"`, the selection's nodes and
-     * edges), under the pointer (`"hovered"`, one node at most), or drawn outside the time window
-     * (`"ghosted"`, while `session.time.settings.outside` is `"ghost"`), or pinned in place
+     * edges), under the pointer (`"hovered"`, one node at most), drawn while a held filter
+     * condition would remove it (`"ghosted"`), outside the time window (`"outsideWindow"`:
+     * a layer selecting it decides how it looks: hidden, faint, or as any other), or pinned in place
      * (`"pinned"`, nodes only, as `session.positions.pinned` holds them). View state: the layer
      * follows each change with no step. The same elements as a rule: a {@link StateLeaf}, which
      * `selectorRule` reads this selector as with its `states` option.
@@ -1369,7 +1374,12 @@ export type Selector =
      */
     | { match: "hover"; reach?: "node" | "neighbors"; invert?: boolean; orSelected?: boolean };
 
-/** Who put a layer in the stack. Every layer names its source. */
+/**
+ * Who put a layer in the stack. Every layer names its source. An element layer's `reason` says
+ * what it is for: `"default"` the look every element is drawn from, `"selection"`, `"hover"` and
+ * `"notes"` what they paint, and `"time"` the two
+ * locked layers that hide what lies outside a time window.
+ */
 export type LayerSource =
     | { by: "element"; reason: "default" | "selection" | "hover" | "notes" }
     | { by: "run"; runId: RunId; algorithm: AlgorithmKey; params: Record<string, unknown> }
@@ -1380,7 +1390,7 @@ export type LayerSource =
 /** What a layer is for. */
 export type LayerKind = "base" | "encoding" | "highlight" | "custom";
 
-/** A layer as it is authored, imported or exported: data, never an object with behaviour. */
+/** A layer as it is authored, imported or exported: data, never an object with behavior. */
 export interface LayerSpec {
     name: string;
     target?: "node" | "edge";
@@ -1391,13 +1401,6 @@ export interface LayerSpec {
     source?: LayerSource;
     enabled?: boolean;
     userData?: Record<string, unknown>;
-    /**
-     * Where a layer made from a file's styles came from: the element's facts about it, set when
-     * a load makes the layer, saved and restored with it, and read with `fileStyleOf(layer)`.
-     * Absent on every other layer. An update that does not name it keeps it.
-     * @experimental file-styles
-     */
-    fileStyle?: FileStyleOrigin;
     /**
      * The row this layer is a part of: the id of the row's node part. Two layers sharing a row
      * are one entry that paints nodes and edges (`styles.addRow` with target `"both"`), and
@@ -1439,7 +1442,7 @@ export interface LayerUnmatchedGroup {
     };
 }
 
-/** A portable stack of layers, with any palettes it depends on travelling beside it. */
+/** A portable stack of layers, with any palettes it depends on traveling beside it. */
 export interface StyleDocument {
     version: 1;
     layers: readonly LayerSpec[];
@@ -1486,7 +1489,7 @@ export type StyleDocumentRow = (
 };
 
 // ---------------------------------------------------------------------------------------------
-// The catalogue descriptors
+// The catalog descriptors
 // ---------------------------------------------------------------------------------------------
 
 /** One algorithm the element can run. */
@@ -1716,7 +1719,7 @@ export interface FormatExportVariant {
     options: readonly OptionDescriptor[];
 }
 
-/** One colour palette. */
+/** One color palette. */
 export interface PaletteDescriptor {
     id: PaletteId;
     plainName: string;
@@ -1729,7 +1732,7 @@ export interface PaletteDescriptor {
 
 /**
  * What `registerPalette` accepts: a {@link PaletteDescriptor} whose derived and optional members
- * may be left off. `capacity` is derived from the kind and the colours, and a missing
+ * may be left off. `capacity` is derived from the kind and the colors, and a missing
  * `colorblindSafe` is no claim.
  */
 export type PaletteRegistration = Omit<PaletteDescriptor, "capacity" | "colorblindSafe"> & {
@@ -2115,16 +2118,19 @@ export type RuleTestKind = "range" | "top" | "above" | "categories" | "text";
 /**
  * Whether a metric can be computed on this graph, what it would cost, and whether it has
  * already been run. Metrics that have never been run are listed too, which is what makes the
- * catalogue self-describing: a stranger can see everything the element could compute, with a
- * cost and an availability reason beside each entry, before computing anything.
+ * catalog self-describing: a stranger can see everything the element could compute, with a
+ * cost and why it is unavailable beside each entry, before computing anything.
  */
 export interface MetricAvailability {
     key: AlgorithmKey;
     plainName: string;
     technicalName: string;
     available: boolean;
-    /** Why it is unavailable on this graph. Present only when `available` is false. */
-    reason?: string;
+    /**
+     * Why it is unavailable on this graph, as a code and the values it is about, as
+     * `CostEstimate.refusal` reports it. Present only when `available` is false.
+     */
+    refusal?: CodedFact<EstimateRefusalCode>;
     costClass: CostClass;
     estimateSeconds: number;
     hasRun: boolean;
@@ -2187,7 +2193,7 @@ export type ScopeInput = Exclude<Scope, { define: unknown }> | { define: SetDefi
 
 /**
  * Which way an edge is followed: arriving (`in`), leaving (`out`) or both (`all`). What a degree
- * leaf counts and which way a neighbourhood selection walks.
+ * leaf counts and which way a neighborhood selection walks.
  */
 export type SelectionDirection = "in" | "out" | "all";
 
@@ -2337,6 +2343,14 @@ export type RuleTree =
            * @beta
            */
           readonly missing?: MissingValues;
+          /**
+           * Which elements are ranked: `"graph"` (the default) ranks the whole column, so a node's
+           * place does not move as a filter changes; `"visible"` ranks only what the filter and the
+           * time window leave shown. Inside a step, the step's own population is ranked. A filter
+           * cannot rank within what it shows itself.
+           * @since 3.40.0
+           */
+          readonly within?: "graph" | "visible";
       }
     /**
      * The elements whose text for one value passes a text test: "name contains bob", "id matches
@@ -2387,11 +2401,12 @@ export type RuleTree =
     | { readonly kind: "not"; readonly of: RuleTree };
 
 /**
- * What a reader is doing to an element now: selected, under the pointer, drawn outside the time
- * window, or pinned in place.
+ * What a reader is doing to an element now: selected, under the pointer, drawn while a held filter
+ * condition would remove it (`"ghosted"`), outside the time window (`"outsideWindow"`), or pinned
+ * in place.
  * @since 3.36.0
  */
-export type ElementState = "selected" | "hovered" | "ghosted" | "pinned";
+export type ElementState = "selected" | "hovered" | "ghosted" | "outsideWindow" | "pinned";
 
 /**
  * The elements in a state now, as a calculated value: what `{ match: "state", state }` paints,
@@ -2646,7 +2661,7 @@ export interface MeasureLeaf {
 export type RuleSide = "nodes" | "edges";
 
 /** A load's stable key, as `session.data.sources()` lists it and a `source` rule names it. */
-export type SourceKey = string; // NOSONAR(S6564): a named public type in the API report; removing it breaks consumers
+export type SourceKey = string; // eslint-disable-line sonarjs/redundant-type-aliases -- a named public type in the API report; removing it breaks consumers
 
 /**
  * One step of a stepped visibility filter: a rule that can be switched off without being lost.
@@ -2945,7 +2960,7 @@ export type SetCreatedFrom =
 export type PathKind = "simple" | "trail" | "walk" | "cycle";
 
 /**
- * The catalogue: everything the element can offer, as data.
+ * The catalog: everything the element can offer, as data.
  *
  * `session.catalog` implements every method here except the ones named in
  * {@link DeprecatedCatalogMethod}, which nothing implements yet.
@@ -3092,15 +3107,6 @@ export type DeprecatedCatalogMethod = "themes" | "functions" | "applicable";
  */
 export function isOptionType(value: unknown): value is OptionType {
     return typeof value === "string" && (OPTION_TYPES as readonly string[]).includes(value);
-}
-
-/**
- * Tell whether an algorithm key names a built-in the element reserves but does not run.
- * @param key - The algorithm key.
- * @returns True when the key is a member of DEPRECATED_ALGORITHMS.
- */
-export function isDeprecatedAlgorithm(key: string): key is DeprecatedAlgorithm {
-    return (DEPRECATED_ALGORITHMS as readonly string[]).includes(key);
 }
 
 /**

@@ -91,8 +91,11 @@ export type StepReasonCode =
  * @beta
  */
 export interface StepReading {
+    /** The step's id. */
     readonly id: string;
+    /** Where the step stands. */
     readonly state: StepState;
+    /** Why it is inert or pending, or a note on an applied step; null when there is nothing to say. */
     readonly reason: CodedFact<StepReasonCode> | null;
     /** How many elements the branch holds after this step (while it waits, the count before it). */
     readonly count: number;
@@ -127,8 +130,11 @@ export interface StepReading {
  * @beta
  */
 export interface BranchReading {
+    /** The branch's id. */
     readonly id: string;
+    /** The color the branch's members are drawn in. */
     readonly color: string;
+    /** Where the branch stands. */
     readonly state: BranchState;
     /** Why it is pending: the first pending step's reason. */
     readonly reason: CodedFact<StepReasonCode> | null;
@@ -140,7 +146,9 @@ export interface BranchReading {
      * no branch holds add up to the base.
      */
     readonly drawn: number;
+    /** The elements the branch holds. */
     readonly members: Scope;
+    /** The branch's steps, in order. */
     readonly steps: readonly StepReading[];
 }
 
@@ -152,12 +160,24 @@ export interface BranchReading {
 export interface StepsReading {
     /** The rule as the element holds it: ids and colors filled. */
     readonly rule: UnionLeaf;
-    /** The elements in a ready branch that is on, out of the base. */
-    readonly total: { readonly count: number; readonly of: number };
+    /**
+     * The elements in a ready branch that is on, out of the base, and how many of them are shown
+     * now (`shown`): those the filter and the time window leave drawn. A rule read over the whole
+     * graph (a filter's own) can count elements that are hidden; `shown` says how many are not.
+     */
+    readonly total: {
+        /** How many elements a ready branch that is on holds. */
+        readonly count: number;
+        /** How many elements the base holds. */
+        readonly of: number;
+        /** How many of `count` are drawn now. */
+        readonly shown: number;
+    };
     /** The ids of the branches that are on and wait on a run. */
     readonly pending: readonly string[];
     /** Everything in a ready branch that is on. */
     readonly result: Scope;
+    /** The branches, in order. */
     readonly branches: readonly BranchReading[];
     /** How many more branches the rule can take before the branch palette is used up. */
     readonly branchesLeft: number;
@@ -175,6 +195,7 @@ export interface StepsReading {
  * @beta
  */
 export interface StepsWatch {
+    /** The reading as it stands now. */
     readonly current: StepsReading;
     /** Stop watching. */
     end(): void;
@@ -206,7 +227,9 @@ export interface ScopeStepOptions {
  * @beta
  */
 export interface StepCheckOptions {
+    /** Which half the step would select: `"nodes"` or `"edges"`. */
     readonly side: UnionLeaf["side"];
+    /** The base it would read: `"visible"` or `"graph"`. */
     readonly within: UnionLeaf["within"];
     /** A style layer's selector, or a visibility filter condition. */
     readonly host: "selector" | "filter";
@@ -224,16 +247,29 @@ export interface StepCheckOptions {
  * @beta
  */
 export type ValueHistogram =
-    | (Histogram & { readonly kind: "numeric"; readonly missing: number; readonly of: number })
+    | (Histogram & {
+          /** The values are numbers, binned. */
+          readonly kind: "numeric";
+          /** How many elements of the scope have no value. */
+          readonly missing: number;
+          /** How many elements the scope holds. */
+          readonly of: number;
+      })
     | {
+          /** The values are counted by value. */
           readonly kind: "categorical";
+          /** Each value and how many elements hold it, most elements first. */
           readonly values: readonly {
+              /** The value. */
               readonly value: string | number | boolean;
+              /** How many elements hold it. */
               readonly count: number;
               /** The best-connected node holding the value, for a field whose values are unstable names. */
               readonly member?: NodeId;
           }[];
+          /** How many elements of the scope have no value. */
           readonly missing: number;
+          /** How many elements the scope holds. */
           readonly of: number;
       };
 
@@ -627,6 +663,12 @@ interface ReadingSources {
      * @returns The histogram, or null.
      */
     valuesOf?(step: UnionStep, input: Bytes): ValueHistogram | null;
+    /**
+     * Whether an element of a side is shown now; absent: everything is.
+     * @param side - The side.
+     * @returns The test, by dense index.
+     */
+    shownOn?(side: UnionLeaf["side"]): (index: number) => boolean;
 }
 
 /**
@@ -640,6 +682,24 @@ function ones(bytes: Bytes): number {
         count += byte;
     }
 
+    return count;
+}
+
+/**
+ * How many members are shown.
+ * @param bytes - The members.
+ * @param shown - Whether an index is shown; absent: all are.
+ * @returns The count.
+ */
+function shownOf(bytes: Bytes, shown: ((index: number) => boolean) | undefined): number {
+    if (shown === undefined) {
+        return ones(bytes);
+    }
+
+    let count = 0;
+    bytes.forEach((byte, index) => {
+        count += byte === 1 && shown(index) ? 1 : 0;
+    });
     return count;
 }
 
@@ -728,7 +788,7 @@ function stepsReadingOf(
 
     return {
         rule: leaf,
-        total: { count: ones(read.total), of: ones(read.base) },
+        total: { count: ones(read.total), of: ones(read.base), shown: shownOf(read.total, sources.shownOn?.(side)) },
         pending: read.branches.flatMap((branch, at) =>
             branch.state === "pending" ? [leaf.branches[at].id ?? ""] : [],
         ),

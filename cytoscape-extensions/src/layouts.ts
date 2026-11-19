@@ -381,16 +381,16 @@ function box(bb: BoundingBox12 | BoundingBoxWH | undefined, cy: Core): BoundingB
 }
 
 /**
- * The radius and centre the layout fills inside a box.
+ * The radius and center the layout fills inside a box.
  * @param b - the box
- * @returns half the shorter side (at least 1) and the centre
+ * @returns half the shorter side (at least 1) and the center
  */
 function frame(b: BoundingBoxWH): { radius: number; center: [number, number, number] } {
     return { radius: Math.max(Math.min(b.w, b.h) / 2, 1), center: [b.x1 + b.w / 2, b.y1 + b.h / 2, 0] };
 }
 
 /**
- * The x-y pairs of `n` rows of `stride` values, rescaled so the farthest placed node is `radius` from the centre. NaN
+ * The x-y pairs of `n` rows of `stride` values, rescaled so the farthest placed node is `radius` from the center. NaN
  * rows (unplaced nodes) stay NaN.
  * @param rows - the rows
  * @param stride - values per row (2 or 3)

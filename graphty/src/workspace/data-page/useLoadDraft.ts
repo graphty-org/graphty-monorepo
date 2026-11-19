@@ -69,8 +69,10 @@ export function sourceInput(source: PageSource, settings: ReadSettings): DataSou
     const type = settings.type === undefined ? {} : { type: settings.type };
     switch (source.kind) {
         case "files": {
-            const [first, second] = source.files;
-            // Pick order decides which file is read as nodes until the element guesses it (#911).
+            const [first] = source.files;
+            const second = source.files.at(1);
+            // The element tells a pair's nodes file from its edges file by their columns; pick order
+            // decides only when the columns do not say.
             const config = second === undefined ? { file: first } : { nodeFile: first, edgeFile: second };
             return { ...type, config: { ...config, ...extra }, name: second === undefined ? first.name : undefined };
         }
@@ -231,7 +233,7 @@ export function useLoadDraft(
         return () => {
             stale = true;
         };
-    }, [draft, choices, mode, fileStyles]);
+    }, [session, draft, choices, mode, fileStyles]);
 
     // The grid's rows. The unmatched and rejected filters are read under the same choices the
     // report counted with: without them the element reads a load that replaces the graph, so an
@@ -257,7 +259,7 @@ export function useLoadDraft(
         return () => {
             stale = true;
         };
-    }, [draft, tableId, filter, choices, mode, fileStyles]);
+    }, [session, draft, tableId, filter, choices, mode, fileStyles]);
 
     const load = useCallback(
         async (history?: LoadChoices["history"]): Promise<boolean> => {

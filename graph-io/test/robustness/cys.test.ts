@@ -18,12 +18,9 @@ import { XgmmlParser } from "../../src/formats/xgmml/document.js";
 import { importAllGraphs, listGraphs } from "../../src/registry.js";
 import { type CommonImportOptions, ImportError, type ImportReport } from "../../src/types.js";
 import { makeZip, type ZipInput } from "../helpers/zip.js";
+import { codes } from "./helpers.js";
 
 type Options = CysImportOptions & CommonImportOptions;
-
-function codes(report: ImportReport): string[] {
-    return report.issues.map((i) => i.code);
-}
 
 function cell(snapshot: GraphSnapshot, table: "nodes" | "edges", column: string, row: number | string): unknown {
     const c = snapshot[table].get(column);
@@ -81,7 +78,7 @@ function networkFile(
     return `${DECL}<graph ${rootAttrs} cy:registered="0" cy:documentVersion="3.0" ${NS}><att>${subs.join("")}</att></graph>`;
 }
 
-/** The entries of a one-network 3.x session (network SUID 2, labelled Net) around a body. */
+/** The entries of a one-network 3.x session (network SUID 2, labeled Net) around a body. */
 function sessionEntries(body: string, root = ROOT): ZipInput[] {
     return [
         { name: `${root}3.0.0.version`, data: "" },

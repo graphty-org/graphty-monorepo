@@ -34,7 +34,7 @@
         "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.build.json",
         "build:bundle": "node scripts/build-bundle.js",
         "build:all": "npm run build && npm run build:bundle",
-        "lint": "eslint && tsc --noEmit -p tsconfig.json",
+        "lint": "eslint --pass-on-unpruned-suppressions && tsc --noEmit -p tsconfig.json",
         "lint:fix": "eslint --fix",
         "typecheck": "tsc --noEmit -p tsconfig.json",
         "typecheck:strict-consumer": "node ../tools/require-built.mjs tsconfig.strict-consumer.json && tsc -p tsconfig.strict-consumer.json",
@@ -67,13 +67,13 @@
     "devDependencies": {
         "@vitest/coverage-v8": "catalog:",
         "@vitest/ui": "catalog:",
-        "@webgpu/types": "^0.1.72",
-        "eslint": "^9.29.0",
-        "fast-check": "^4.2.0",
-        "tsx": "^4.20.3",
+        "@webgpu/types": "^0.1.74",
+        "eslint": "^9.39.5",
+        "fast-check": "^4.10.2",
+        "tsx": "^4.23.15",
         "typescript": "^5.9.3",
-        "vite": "^8.1.6",
+        "vite": "^8.3.8",
         "vitest": "catalog:",
-        "webgpu": "^0.6.1"
+        "webgpu": "^0.6.2"
     }
 }

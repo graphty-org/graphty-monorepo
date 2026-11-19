@@ -21,7 +21,7 @@ export function roveTiles(event: React.KeyboardEvent<HTMLElement>, columns = 1, 
     if (at < 0) {
         return;
     }
-    const moves: Readonly<Record<string, number>> = {
+    const moves: Readonly<Partial<Record<string, number>>> = {
         ArrowRight: at + 1,
         ArrowLeft: at - 1,
         ArrowDown: at + columns,

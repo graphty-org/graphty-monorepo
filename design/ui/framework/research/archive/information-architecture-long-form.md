@@ -12,7 +12,7 @@ citations use. This table is the only migration map for it.
 | 1, rule 4 (Shift+click, "Select"), rule 9's keeping verbs | `interaction-patterns.md` |
 | 1, rules 5, 6 and 9 (rows, verb cap, popover width) | `interface-specification.md` |
 | 2, the frame | places: `information-architecture.md` 4; widths, positions and Preferences contents: `interface-specification.md`; notices: `content-design.md`; Minimize UI, autosave, Delete never asks, focus regions: `interaction-patterns.md`; autosave storage and the GPU policy: `element-contract.md` |
-| 3, the rail | collections and schemes: `information-architecture.md` 3; panel anatomy: `interface-specification.md`; row behaviour and running from the catalogue: `interaction-patterns.md`; run-state marks: `state-matrix.md`; argument and parameter rows: `options-and-encodings.md` |
+| 3, the rail | collections and schemes: `information-architecture.md` 3; panel anatomy: `interface-specification.md`; row behavior and running from the catalog: `interaction-patterns.md`; run-state marks: `state-matrix.md`; argument and parameter rows: `options-and-encodings.md` |
 | 4, the inspector | the per-selection table, the result editor's per-kind table, Appearance, Used by and the other editors: `interface-specification.md`; the style-layer editor: `options-and-encodings.md`; pairs and candidate edges: `interaction-patterns.md` |
 | 5, the table | tabs, columns, menus and the histogram: `interface-specification.md`; the aggregate list: `element-contract.md` |
 | 6, export | output homes: `output-homes.md`; the Export section, dialog and formats: `interface-specification.md`; report and methods text: `element-contract.md` |
@@ -37,7 +37,7 @@ selection, where results and their items are read, where secondary objects live,
 lives before it is kept, and how the analyst knows where they are.
 
 graphty is laid out like the Figma editor: a nav rail and left panel, the canvas, a right-hand
-inspector, a small floating toolbar at the bottom centre, a command palette. That layout is already
+inspector, a small floating toolbar at the bottom center, a command palette. That layout is already
 decided. This document decides what goes in it. Every placement follows from three sources, in this
 order:
 
@@ -72,7 +72,7 @@ recorded departure or a mistake.
    main menu, the command palette, keyboard shortcuts and Find are routes, never second homes; so
    is a surface that shows the home's rows filtered to one target, as an object's Notes section
    shows that object's rows of the Notes panel.
-2. **An output's home is where it is read.** Where it is launched is a route. The catalogue
+2. **An output's home is where it is read.** Where it is launched is a route. The catalog
    launches betweenness; the betweenness result editor is its home. A command with no object to
    start from follows the same rule: a load's home is the import report it produces, a
    transform's home is the new graph, and the main menu that launched either is a route.
@@ -148,14 +148,14 @@ header answers "what do I do with the whole file?". graphty keeps all four.
 | **Header, row 1** (above the inspector) | What do I do with the whole project? | **Export...**, the one filled button. It opens the Export dialog (Ctrl+Shift+E) over the whole project, every row checked, as Figma's does. An object's own export is the button in its Export section, which names what it exports ("Export selection"), so the two never share a label (section 6) |
 | **Header, row 2** | What is the whole canvas showing? | The **filter chip** in the slot where Figma has its Design and Prototype tabs, then the **zoom and view menu** (section 10) |
 | **Inspector** (240 px, right) | What is this? | The selection's properties; with nothing selected, the graph's (section 4). Two modes change it until Done |
-| **Editor popover** (240 px) | Detail for one row, or the inputs of one command | One device for every editor: a type row with its menu, a state line, property and input rows, the cost word and Run, then a body with at most one chart. It edits a result, a Statistics reading, a style layer, a note, the filter steps and layout settings; it takes the inputs of every command that ends in "..."; it shows the transient readings of rule 9. Opened from a row of the inspector or the chip, it sits left of the inspector, aligned to that row, as Figma's right-panel popovers do (`design/ui/figma/popovers-and-menus/README.md`, placement); from a left-panel row, right of the panel; from a menu or the palette, docked left of the inspector. One open at a time, with one nested picker (colour, palette) inside it |
-| **Floating toolbar** (bottom centre) | What can I make by pointing? | **Select** (V; its flyout holds Select, **Lasso** (Q) and **Hand** (H), and Space is a temporary Hand; dragging on empty canvas with Select draws a box, as in Figma), **Path** (P), **Note** (C), the **command palette** (Ctrl+K), and the **view-mode button** showing its value ("3D"), which expands to 2D, 3D, VR and AR. Like Figma's toolbelt, it holds pointing tools plus the palette and the mode control |
+| **Editor popover** (240 px) | Detail for one row, or the inputs of one command | One device for every editor: a type row with its menu, a state line, property and input rows, the cost word and Run, then a body with at most one chart. It edits a result, a Statistics reading, a style layer, a note, the filter steps and layout settings; it takes the inputs of every command that ends in "..."; it shows the transient readings of rule 9. Opened from a row of the inspector or the chip, it sits left of the inspector, aligned to that row, as Figma's right-panel popovers do (`design/ui/figma/popovers-and-menus/README.md`, placement); from a left-panel row, right of the panel; from a menu or the palette, docked left of the inspector. One open at a time, with one nested picker (color, palette) inside it |
+| **Floating toolbar** (bottom center) | What can I make by pointing? | **Select** (V; its flyout holds Select, **Lasso** (Q) and **Hand** (H), and Space is a temporary Hand; dragging on empty canvas with Select draws a box, as in Figma), **Path** (P), **Note** (C), the **command palette** (Ctrl+K), and the **view-mode button** showing its value ("3D"), which expands to 2D, 3D, VR and AR. Like Figma's toolbelt, it holds pointing tools plus the palette and the mode control |
 | **Secondary bar** (8 px above the toolbar) | What does the armed tool need? | Only while a tool is armed, at most 546 px wide, the width of Figma's widest secondary bar (vector edit). Path: **From** and **To** (each takes a click, a typed name, a set or a group; a To equal to From finds the cycles through that node), one **Options** dropdown, as Figma's bar folds tools into "More" (the variant with its bound: shortest; k shortest with k; all paths up to N hops, 5 by default; the weight and its role; on a directed graph the direction, along edges, against edges or ignoring direction, the graph's declared direction by default), then Run, with its cost word at 10 s or more. The outcome is read where the query is kept (section 4), never in the bar |
 | **Bottom dock** | Many rows, with the canvas kept visible | The **table** with its Between groups and Scatter views (section 5), the **time slider** (section 8.2) and the **keyboard shortcuts** panel. Closed at rest. It pushes the canvas up, and the toolbar rides above it, as Figma's does over the Motion timeline |
 | **Comparison surface** | How do two drawings differ? | A focused view, as Figma's branch review is, for two graphs, two data versions, two windows, or two scopes of one graph (section 8.1). Its header holds Save comparison, Export and Done |
 | **Chevron menu** (beside the project name) | The project as a file | A first line saying when a copy was last downloaded and what a copy would hold (graphs, results, style layers, views and notes, each counted), then Rename, Duplicate, Project details..., Export..., Download project file, **Version history**, Close |
-| **Main menu** (top of the rail) | The complete inventory | Command palette... (Ctrl+K), then File (Open..., Open recent, Open sample, Connect to data source..., Export...), Edit (Undo, Redo, Copy as PNG, Find, then Select all, Select none, Invert selection, Select edges between), View, Data (routes to the data operations, section 11), Analyze (the catalogue by family), Preferences (a submenu of toggles), Help. File, Edit and View lead and Preferences and Help close, as in Figma; Data and Analyze take the slots of Figma's Object, Text and Arrange |
-| **Command palette** (Ctrl+K) | Anything, by name | Every command, algorithm, layout and kept object, with recents. Rejected synonyms are aliases ("brokers" finds betweenness). It keeps Figma's 529 x 354 px panel, centred over the toolbar, and never shrinks to the toolbar's width. It is never a home |
+| **Main menu** (top of the rail) | The complete inventory | Command palette... (Ctrl+K), then File (Open..., Open recent, Open sample, Connect to data source..., Export...), Edit (Undo, Redo, Copy as PNG, Find, then Select all, Select none, Invert selection, Select edges between), View, Data (routes to the data operations, section 11), Analyze (the catalog by family), Preferences (a submenu of toggles), Help. File, Edit and View lead and Preferences and Help close, as in Figma; Data and Analyze take the slots of Figma's Object, Text and Arrange |
+| **Command palette** (Ctrl+K) | Anything, by name | Every command, algorithm, layout and kept object, with recents. Rejected synonyms are aliases ("brokers" finds betweenness). It keeps Figma's 529 x 354 px panel, centered over the toolbar, and never shrinks to the toolbar's width. It is never a home |
 | **Context menu** (right-click, Shift+F10 or the Menu key) | What applies to the thing under the pointer or the focused row? | The selection's type-row verbs and its overflow; a list row's commands; on the empty canvas, view commands, Run layout and Add node here |
 | **Toast** (one) | Something finished elsewhere | A run finished or failed ("Go to result", "Re-run"); a load's progress with how the file is being read and Cancel ("Reading edges.csv as an edge list: source = from, target = to", with Re-map); the counts that end a load, Add data, Join or Combine, with Details, which opens the import report; after Use selection as start, "N results out of date" with Re-run all; after a Delete, how many objects it detached, with Undo; after Open, how many references could not be reconnected, with Details, which opens the restore report (section 4) |
 | **Dialog** | A step that leaves the canvas | Only three: Connect to data source (a Neo4j server, a STRING query), the Export dialog, and the AI provider credential. Loading commits at once with detected defaults and is corrected afterwards, with undo |
@@ -201,7 +201,7 @@ below is derived from the collections the ontology defines.
 | Collection | Test | Home |
 |---|---|---|
 | Graphs, and the kept sets and paths | the file's own contents (Figma's File panel: Pages above Layers) | **Rail: Graph** |
-| The tree of analysis results, and the catalogue that fills it | a long, growing list of definitions the analyst returns to | **Rail: Results** |
+| The tree of analysis results, and the catalog that fills it | a long, growing list of definitions the analyst returns to | **Rail: Results** |
 | Notes | the only list of every note, and the only one whose rows select their targets | **Rail: Notes**, an exception stated below |
 | The assistant's conversations | Figma's Agents panel | **Rail: Assistant**, only when configured, last in the rail |
 | Style layers | applied definitions, like Figma's local styles | the graph's inspector (section 4) |
@@ -269,7 +269,7 @@ file's own items first, the library below (`design/ui/figma/left-sidebar/README.
     by" on its column header) joins it as a partition with no run.
   - Run state shows on the row: Queued, a progress bar with Cancel, Failed, Out of date. Two runs
     can be in flight at once. The header's "..." holds "Re-run all out of date".
-- **The catalogue** below, grouped by family, every family closed in every state; the panel
+- **The catalog** below, grouped by family, every family closed in every state; the panel
   remembers the last family opened. The families are the element's own categories (centrality,
   community detection, paths and flow, structure, similarity and link prediction, time). The
   structure family includes the **neighborhood aggregate** (which opens unrun because it needs an
@@ -281,12 +281,12 @@ file's own items first, the library below (`design/ui/figma/left-sidebar/README.
   precondition mark ("disconnected" on closeness), shown before anything runs. A cost word shows
   on the row only for 10 s or more (`principles.md`, departures), so no word means fast, as Figma
   shows no badge in the ordinary case. A row whose algorithm has already run goes to its result.
-- Degree, core number and the graph statistics are not catalogue rows: they are always available
+- Degree, core number and the graph statistics are not catalog rows: they are always available
   (`conceptual-model.md` 3.4, 4.6). Layouts are not either: a layout makes positions, not a result
   (`conceptual-model.md` 5.2).
-- **"+"** on the panel header scrolls to the catalogue and focuses its search.
+- **"+"** on the panel header scrolls to the catalog and focuses its search.
 
-**Running from the catalogue.** Clicking a row runs it at once, with default parameters, on the
+**Running from the catalog.** Clicking a row runs it at once, with default parameters, on the
 chip's scope, and opens its editor, as Figma's "+" adds first and configures afterwards. Two
 kinds of row open the editor **unrun** instead, with its argument or parameter rows and a Run
 button, and Enter runs it: a row whose algorithm cannot run without an argument (source nodes, a
@@ -296,9 +296,9 @@ their combined cost word before it starts, runs the rows that need nothing, and 
 selected row that needs an argument or costs "a few minutes" or longer, opening their editors
 afterwards (`conceptual-model.md` 7.3).
 
-Why results and the catalogue share one panel: the analyst thinks "the betweenness I ran" and "run
+Why results and the catalog share one panel: the analyst thinks "the betweenness I ran" and "run
 betweenness" in one breath, and every run lands in the list it was started from. Figma's Tools
-panel holds plugins from outside the file; graphty's catalogue produces the file's own contents,
+panel holds plugins from outside the file; graphty's catalog produces the file's own contents,
 which is the Assets shape.
 
 ### Notes panel
@@ -390,7 +390,7 @@ opens the series editor with that element's line drawn. The degree row reads the
 the degree histogram (total, in, out, weighted).
 
 **"+" on Attributes** writes an authored value (a triage status, a determination) by rule 8, as one
-undoable step ("Add attribute"). A verdict is data that colours, filters and exports, not prose in
+undoable step ("Add attribute"). A verdict is data that colors, filters and exports, not prose in
 a note.
 
 ### Nothing selected: the graph
@@ -405,7 +405,7 @@ Style layers                               +
 Export                                     +
 ```
 
-- **Name row.** The background colour swatch (Figma's page colour row, as a swatch) and "...":
+- **Name row.** The background color swatch (Figma's page color row, as a swatch) and "...":
   Add note, Compare with..., Combine graphs..., Rename. A derived graph adds a **Created from** row, whose
   editor reopens the transform's inputs.
 - **Layout row.** The method's name as its value, a Run icon, and the settings (method,
@@ -445,10 +445,10 @@ Export                                     +
   the top, present only once something has been overridden; it collects every Override and offers
   Select overridden and Clear all. **Default look** is always the bottom row, shown only when "N
   more" expands the stack; it cannot be deleted, and its editor holds the default channels (node
-  colour, size and shape, edge colour and width, labels). Each row's eye shows on hover and stays
+  color, size and shape, edge color and width, labels). Each row's eye shows on hover and stays
   while the layer is hidden, as in Figma; hovering outlines what it paints and shows
   a **Select painted** icon beside the eye, which replaces the selection with what the layer
-  paints, as a Figma Selection colors row selects the layers using a colour; clicking opens its
+  paints, as a Figma Selection colors row selects the layers using a color; clicking opens its
   editor; its context menu holds Rename, Duplicate and Delete. A row's state shows as its result's
   mark icon, with the word in the tooltip.
 - **Export.** Heading and "+", as Figma's resting Export section is. "+" adds export settings with
@@ -592,7 +592,7 @@ section 13.
 
 | Definition | Its editor holds |
 |---|---|
-| **Style layer** | Selector (the rule editor of section 9, so "not in the working set" is its ordinary NOT), channels (colour, size, shape, **outline** colour and width and **opacity** for nodes, **width** and opacity for edges, label, arrow, and group marks for a layer that applies to groups), the palette or scale drawn over the bound attribute's histogram with draggable endpoints and midpoint, legend, the count of what it paints, and for a bound channel a **No value** row: how many elements have no value and the look they keep from the layers beneath, with its legend entry on by default. The No value look can be set only on a layer the analyst made, never on an automatic layer, so an algorithm's layer never paints what its result says nothing about. Fading what lies outside a working set or an ego network is such an analyst layer; nothing faded leaves the counts |
+| **Style layer** | Selector (the rule editor of section 9, so "not in the working set" is its ordinary NOT), channels (color, size, shape, **outline** color and width and **opacity** for nodes, **width** and opacity for edges, label, arrow, and group marks for a layer that applies to groups), the palette or scale drawn over the bound attribute's histogram with draggable endpoints and midpoint, legend, the count of what it paints, and for a bound channel a **No value** row: how many elements have no value and the look they keep from the layers beneath, with its legend entry on by default. The No value look can be set only on a layer the analyst made, never on an automatic layer, so an algorithm's layer never paints what its result says nothing about. Fading what lies outside a working set or an ego network is such an analyst layer; nothing faded leaves the counts |
 | **Default look** | The default channels; no selector, because it paints everything beneath every other layer |
 | **Edges reading** | Direction (directed or undirected, and how a per-edge "directed" attribute is read); Weight (the attribute and its role, distance, similarity or capacity, with the similarity's conversion) |
 | **View** | Title, caption, the notes it shows in their order, its export settings; "Changed since applied" with Update view (Revert view is in its menu) |
@@ -731,7 +731,7 @@ the saved views in order, or plays the time slider.
 
 **The project file** has one home, "Download project file" in the chevron menu. It is also the
 interactive deliverable: opened in graphty-element, it is the graph a reader can explore. Project
-metadata (title, authors, licence), which GraphML carries, is in "Project details...".
+metadata (title, authors, license), which GraphML carries, is in "Project details...".
 
 ## 7. Homes for the secondary objects
 
@@ -805,7 +805,7 @@ Its home is one per case.
    by the key rules of section 11, and the header counts those that did not match, so a case
    mismatch shows as a count and not as phantom additions. Positions are aligned (shared, for two
    scopes of one graph) and selection is linked across the sides. Both sides are drawn with side
-   A's style stack, named in the legend title, so one colour means one thing on both; each layer
+   A's style stack, named in the legend title, so one color means one thing on both; each layer
    is rebound on side B by attribute name and marked where B lacks the attribute, whichever way the
    ownership question of section 14 is settled. It leads with the list of differences: elements
    added, elements removed, then **Changed**, one row per numeric attribute and per reading
@@ -918,18 +918,18 @@ kept, Graph after (section 2).
 | 5. Take a note | C then a click on the target; or Add note in the selection's overflow | 1 to 2 |
 | 6. Filter, then characterize what is left | Filter to selection on any type row, a column header, a histogram band, a legend entry, or the chip; Statistics updates in place beside the popover | 1 to 2 |
 | 7. Make the layout readable | the Run icon on the Layout row of the graph, a set, a group or a partition | 1 |
-| 8. Colour or size by a value | automatic on a run; a column header's Color by; an Appearance row's picker | 1 to 2 |
+| 8. Color or size by a value | automatic on a run; a column header's Color by; an Appearance row's picker | 1 to 2 |
 | 9. Create and combine sets | Ctrl+G; the boolean split button on several sets | 1 |
 | 10. Compare with... | two selected objects' inspector; a result editor's menu, a column header, a set's type row, a node's overflow, a graph's context menu | 0 to 2 |
 | 11. Find the shortest path | Find path from... on a node arms the Path tool with the start filled in; or P | 2 |
 | 12. Re-run an analysis on new data | Data, Replace data | 2 |
 | Bookends: load, export | the empty canvas, File, a dropped or pasted file; an Export section's button, or Export... in the header | 1 |
-| Tail tasks | the catalogue, the palette, overflow and context menus, the main menu | -- |
+| Tail tasks | the catalog, the palette, overflow and context menus, the main menu | -- |
 
 **The Path tool** keeps its toolbar slot, although shortest path ranks 11th: it is the only
 operation whose input is pointing at two things on the canvas, the shape of Figma's Comment tool,
 and three investigation workflows start from an unselected node ("Path Investigation", "Fraud
-Ring Investigation", "Criminal Network Analysis"). It obeys the catalogue's cost rule: every
+Ring Investigation", "Criminal Network Analysis"). It obeys the catalog's cost rule: every
 variant is bounded, Run shows the cost word, and the output is cut at a declared cap. A usage check
 decides whether it stays (section 14).
 
@@ -946,14 +946,14 @@ node types.
 Wayfinding:
 
 - **What is selected.** The inspector's type row, the canvas outline in the one reserved
-  selection colour, the highlighted row in the object list and in the table: four views of one
+  selection color, the highlighted row in the object list and in the table: four views of one
   selection. A selected set's or group's members get Figma's fainter secondary outline.
 - **What mode I am in.** The view-mode button shows its value. An armed tool shows its secondary
   bar; Esc disarms it. The comparison surface and Version history have their own Done.
 - **What the numbers are computed on.** The filter chip, always. A result whose scope differs
   says so on its state line ("on: without Supplier X, 5,290"); the legend title names its scope
   when it differs.
-- **Where a value came from.** Three clicks at most: a node's Colour row names its style layer;
+- **Where a value came from.** Three clicks at most: a node's Color row names its style layer;
   the layer names its result; the result editor's state line and Details give the record. Sets,
   paths, items and derived graphs carry a Created from row.
 - **Where I put it.** Find (Ctrl+F) searches every kind of kept thing by name, grouped by kind.
@@ -982,14 +982,14 @@ bundles several (rule 1), with each output's one home and its routes.
 | animated-transitions | the canvas | reduced motion in Preferences |
 | annotation: notes | the Notes panel | the Note tool (C); Add note; each object's Notes section; canvas markers; the palette |
 | annotation: free text, shapes, canvas anchors | rejected (appendix) | -- |
-| anomaly-detection | its result editor (a node list or a metric) | the catalogue; the palette; the SD bands of any histogram |
+| anomaly-detection | its result editor (a node list or a metric) | the catalog; the palette; the SD bands of any histogram |
 | basic-statistics: headline readings and counts | the graph's inspector, Statistics | Esc returns to it |
 | basic-statistics: average, minimum and maximum degree | the degree histogram's caption | the degree distribution in Statistics |
-| centrality-betweenness, -closeness, -eigenvector, -pagerank | the metric result editor | the catalogue; the palette |
+| centrality-betweenness, -closeness, -eigenvector, -pagerank | the metric result editor | the catalog; the palette |
 | centrality-degree | the attribute histogram on degree, with its variant row | a node's degree row; the degree column; the degree distribution in Statistics |
-| clustering-coefficient: local clustering | its metric editor | the catalogue; catalogue search |
-| clustering-coefficient: transitivity, average clustering | their Statistics readings | catalogue search |
-| community-detection | the partition result editor | the catalogue; the palette |
+| clustering-coefficient: local clustering | its metric editor | the catalog; catalog search |
+| clustering-coefficient: transitivity, average clustering | their Statistics readings | catalog search |
+| community-detection | the partition result editor | the catalog; the palette |
 | community-profiling | the Groups tab, with its Between groups view and group columns | a partition editor's "N more"; a group's inspector |
 | comparison-view: two selected objects | their inspector | Shift+click; the set picker's "another set or group" |
 | comparison-view: a reading or what-if | the editor popover where it was asked | "Compare with..." on a result, reading, node or set |
@@ -1015,16 +1015,16 @@ bundles several (rule 1), with each output's one home and its routes.
 | hover-highlight | the canvas | -- |
 | keyboard-shortcuts | the shortcuts panel in the dock | the Help button |
 | large-graph-rendering | the canvas, with its status line while something is not drawn | Performance mode in Preferences |
-| layout-force-directed, -hierarchical, -radial | the Layout row (graph, set, group or partition), whose popover holds its settings; a root or centre accepts the selection | "Run layout" on the empty canvas; the palette |
+| layout-force-directed, -hierarchical, -radial | the Layout row (graph, set, group or partition), whose popover holds its settings; a root or center accepts the selection | "Run layout" on the empty canvas; the palette |
 | legend-display | the canvas legend | its toggle in the view menu |
-| link-prediction | the pair-list result editor | the catalogue; the palette |
+| link-prediction | the pair-list result editor | the catalog; the palette |
 | metric-histograms | the attribute histogram popover | column headers; Attributes values; the metric editor |
 | neighborhood-expansion | the several-elements Statistics that Select neighbors lands on | Select neighbors' split button (hops, direction, edge type, from server); the context menu |
 | node-merging | the merged node's inspector | Merge nodes in the several-elements overflow; a Pairs row's context menu; Merge nodes... in the pair-list editor; the palette |
 | node-selection | the inspector's type row ("N selected") | the canvas outline; the Select tool; Find; the table; the Edit menu; list rows |
 | overview-minimap | the minimap on the canvas | its toggle in the view menu |
 | path-highlighting | the path's row in Style layers | the path's Appearance; the eye on its query row |
-| pattern-search | not placed: pattern search is outside the model until a catalogue algorithm exists (`conceptual-model.md` 1.5) | -- |
+| pattern-search | not placed: pattern search is outside the model until a catalog algorithm exists (`conceptual-model.md` 1.5) | -- |
 | progressive-loading | the load toast | -- |
 | removal-impact-analysis: one scenario | the what-if in the editor popover | "Compare with..." with "Without this" |
 | removal-impact-analysis: every scenario | the scenario table of the comparison result | Scope "Without each of..." |
@@ -1047,7 +1047,7 @@ bundles several (rule 1), with each output's one home and its routes.
 
 | Output | Home | Routes |
 |---|---|---|
-| The neighborhood aggregate (an account's exposure to flagged neighbors, a supplier's concentration by region) | its metric result editor | the catalogue's structure family; New column, Aggregate over neighbors... |
+| The neighborhood aggregate (an account's exposure to flagged neighbors, a supplier's concentration by region) | its metric result editor | the catalog's structure family; New column, Aggregate over neighbors... |
 | A graph's declared direction and weight | the Edges reading's editor | Re-map columns; the "weight: unknown" mark; each result's Direction and Weight rows (a per-run override) |
 | Group columns from member statistics | the Groups tab column | New column, From expression... on the Groups tab |
 | Per-scope and difference columns of a list-scope run | the Nodes or Edges tab | the result editor's Scope row; the comparison surface's Changed list |
@@ -1101,7 +1101,7 @@ reads and draws.
    pairs with scores and rank within source, saved comparisons, each item's own attributes, and
    group columns from member statistics over the aggregate list of section 5, stored as their
    expression, as every expression column is.
-3. **Memberships and neighbors**: `memberships(id)`, a selection's memberships summarised per
+3. **Memberships and neighbors**: `memberships(id)`, a selection's memberships summarized per
    result or set, and `neighbors(id, hops, direction, edgeType)`, with incident edges and distinct
    neighbors told apart.
 4. **Rank with its denominator and deviation over the scope of the run that wrote the value**, for
@@ -1119,7 +1119,7 @@ reads and draws.
    whether the live value differs.
 9. **The views collection**, with "changed since applied" state, each view's note order and its
    export settings.
-10. **Catalogue metadata**: family, (i) text, a cost band, whether arguments are required, and
+10. **Catalog metadata**: family, (i) text, a cost band, whether arguments are required, and
     precondition marks that can be read before a run. Family and description exist
     (`graphty-element/src/catalog/types.ts`); the rest do not.
 11. **Statistics of any scope**, including a subset's boundary, each reading of a subset beside
@@ -1171,7 +1171,7 @@ reads and draws.
     DOT, Pajek, JSON), with each attribute's declared role and the project metadata block.
     Today the element registers no exporter (`graphty-element/src/catalog/formats.ts`). CX is not
     written by graph-io and is not offered.
-26. **Two catalogue metrics** in the structure family: the participation coefficient over a chosen
+26. **Two catalog metrics** in the structure family: the participation coefficient over a chosen
     partition, and Burt's constraint.
 
 **What changes the project file.** Items 1, 2, 5 (what a Delete detaches), 6 (the filter pipeline,
@@ -1235,7 +1235,7 @@ to 9, within their sub-budget of 10.
 
 **Targets at rest**, the same screen, directed graph, against Figma's resting editor. Figma's
 right column with nothing selected carries 24 targets: the Design and Prototype tabs, zoom, the
-variable-mode button, the page colour's swatch, hex, opacity and visibility, Show in exports, the
+variable-mode button, the page color's swatch, hex, opacity and visibility, Show in exports, the
 Styles header and Create style, Add export settings, two export rows of five controls each, the
 Export button and Preview (`design/ui/figma/right-sidebar-selection/dump-nothing-selected.txt`,
 Help and the agents prompt excluded). Its toolbelt carries 17 (six tool groups of tool and
@@ -1334,7 +1334,7 @@ The rest are settled by a test or a count, and undoing any of them is an edit.
 
 | Question | What settles it | If it fails |
 |---|---|---|
-| Is the catalogue findable below 30 results? | A first-click test, "run Louvain", palette hidden, on a project with 30 results; pass at 80% within two clicks | a fixed "Algorithms" row under the search field that drills into the catalogue |
+| Is the catalog findable below 30 results? | A first-click test, "run Louvain", palette hidden, on a project with 30 results; pass at 80% within two clicks | a fixed "Algorithms" row under the search field that drills into the catalog |
 | Is opening on Results while nothing is kept right? | A first-click test, "run a centrality", from a fresh load, against a build that opens on Graph | open on Graph always, as Figma does |
 | Do returning analysts review notes from the rail? | A first-click test, "what did you conclude last week?" | Notes opens from the Note tool's flyout and from Find, with no rail button |
 | Does the Path tool earn its slot? | Count, over the investigation workflows, how often the first endpoint is not already selected | drop it; P and Find path from... arm the same secondary bar |
@@ -1370,7 +1370,7 @@ unplaced, with its home. "Rejected" gives the reason the model refuses it.
 | A nodes file and an edges file together | File, Open... with both chosen |
 | Choose id and label columns; declare endpoint node types, direction or weight | detected; corrected by Re-map columns..., and direction and weight in the Edges reading's editor |
 | The same id under two node types | counted in the import report; identity rule pending (section 14) |
-| A preview gate before import | rejected: loading commits at once and is corrected with Re-map columns... and undo; the toast states the reading while it loads, so a wrong guess is cancelled in the first second |
+| A preview gate before import | rejected: loading commits at once and is corrected with Re-map columns... and undo; the toast states the reading while it loads, so a wrong guess is canceled in the first second |
 | Parsing options; unreadable rows | Re-map columns... and the rejected lines in the import report |
 | A load that fails entirely | the toast with Details; the canvas keeps its state |
 | Progress with Cancel | the load toast |
@@ -1425,7 +1425,7 @@ unplaced, with its home. "Rejected" gives the reason the model refuses it.
 | Cycles through a node (round-tripping) | the Path tool with To equal to From; each cycle is a found path |
 | The neighbors tool: steps, direction, edge types, preview | Select neighbors' split button |
 | An ego network's size and density; the star of edges to the ego | the several-elements Statistics after Select neighbors; the degree count opens the incident edges, then Ctrl+A and Create set |
-| Burt's constraint (structural holes) | the catalogue's structure family |
+| Burt's constraint (structural holes) | the catalog's structure family |
 | What a node's neighbors are like (exposure, share of churned contacts, which audiences it reaches) | the neighborhood aggregate over the aggregate list (share where, most common value, number of distinct values) |
 | Share of a node's edges into other communities (bridges) | the participation coefficient in the structure family |
 | Combine sets | the boolean split button |
@@ -1436,9 +1436,9 @@ unplaced, with its home. "Rejected" gives the reason the model refuses it.
 | Top nodes per community | Members sorted by the last metric; a rule with population "each group of" |
 | "Top member by" a group column | the Members order |
 | Group profiles: "most common", mean, sum, most frequent words | New column, From expression... on the Groups tab, over the aggregate list (section 5) |
-| Functional enrichment per cluster | an ordinary registered algorithm in the catalogue; otherwise Export table on the Nodes tab with the community column, then Join... on the Groups tab by group key |
+| Functional enrichment per cluster | an ordinary registered algorithm in the catalog; otherwise Export table on the Nodes tab with the community column, then Join... on the Groups tab by group key |
 | A heat map of member values | rejected as a view: the table scoped to the selection, with its numeric columns, is the reading, and Export table feeds heat-map tools |
-| Pie or donut charts on nodes for membership | rejected: Memberships reads a node's several memberships, and a categorical colour channel and group marks draw them; a pie is not legible at the node sizes drawn |
+| Pie or donut charts on nodes for membership | rejected: Memberships reads a node's several memberships, and a categorical color channel and group marks draw them; a pie is not legible at the node sizes drawn |
 | All routes between two nodes; typed endpoints; direction; bounded enumeration | the Path tool's Options (variant with k or a hop limit, weight, direction); the cap "first N" |
 | Common intermediaries of several paths | Intersect on selected found paths; the "on N of M paths" attribute |
 | Hop numbers along a path | the Members section's ordered hops |
@@ -1456,7 +1456,7 @@ unplaced, with its home. "Rejected" gives the reason the model refuses it.
 | The record | Details on the state line |
 | Weighted or unweighted per run; which weight a run used | the result editor's Weight row; Details |
 | Export one result | "N more", then Export table |
-| Several algorithms at once; a parameter sweep | several catalogue rows, then Run; Sweep parameter... |
+| Several algorithms at once; a parameter sweep | several catalog rows, then Run; Sweep parameter... |
 | Run on a set, the selection, each graph, or both sides of a comparison | the Scope row, including "Each of..."; Filter to, then run |
 | Diameter, radius, mean path; self-loops and parallel edges; missing links; unusual nodes | Statistics "N more"; self-loop, parallel-edge and negative-weight counts as mark rows when non-zero; link prediction; anomaly detection |
 | How far a value is from typical | the rank tooltip's deviation ("3.4 SD above the mean") |
@@ -1487,9 +1487,9 @@ unplaced, with its home. "Rejected" gives the reason the model refuses it.
 | Label control | the label channel of a style layer; Show labels in the view menu |
 | Hover: tooltip and neighbor highlight | the canvas |
 | A diverging palette on a midpoint | the style-layer editor's scale |
-| Grey for elements with no value | the style-layer editor's No value row and legend entry |
+| Gray for elements with no value | the style-layer editor's No value row and legend entry |
 | A thicker border on a few nodes | the outline channel of a style layer |
-| Edge width or colour by an attribute | a style layer that applies to edges |
+| Edge width or color by an attribute | a style layer that applies to edges |
 | Node shape by attribute; channel menus | style-layer channels |
 | Style one node | the Appearance picker's Override, collected in the Overrides row |
 | Save a style, apply elsewhere, export and import | style layers live with their graph until the ownership question is settled (section 14); a project as template; a library is deferred |

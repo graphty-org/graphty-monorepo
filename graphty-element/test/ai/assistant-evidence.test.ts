@@ -139,6 +139,8 @@ describe("effects", () => {
 
     it("counts the matched elements a filter hides", async () => {
         const session = await assistantSession(undefined, ON);
+        // Over the whole graph: with the working graph on, a style reaches only what is shown.
+        session.workingGraph = false;
         const assistant = new ScriptedAssistant(session, { history: "memory" });
         await assistant.say("hide team blue, then color the servers", [
             { tool: "filter", args: { action: "hide", where: "data.team == 'blue'" } },
@@ -480,6 +482,8 @@ describe("scope", () => {
 
     it("names the selection by reference, limits a rule to it, and counts hidden members", async () => {
         const session = await assistantSession(ring(60), ON);
+        // Over the whole graph: with the working graph on, a filter drops the hidden members.
+        session.workingGraph = false;
         await selectFirst(session, 42);
         await session.visibility.set({ kind: "not", of: { kind: "member", of: { nodes: ["n0", "n1"] } } });
         const assistant = new ScriptedAssistant(session, { history: "memory" });

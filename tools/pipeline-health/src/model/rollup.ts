@@ -398,7 +398,7 @@ async function writePeriod(store: Store, step: Step, start: number, buckets: Buc
     }
     // The buckets before the index: an index never holds the hash of a bucket that failed to be stored.
     await store.batch(ops);
-    const metrics = [...buckets.keys()].sort(); // NOSONAR(S2871): code-unit order, the same in every locale, keeps the index stable
+    const metrics = [...buckets.keys()].sort(); // eslint-disable-line sonarjs/no-alphabetical-sort -- code-unit order, the same in every locale, keeps the index stable
     await store.put({ ...idxKey(step, start), metrics, sums, ttl });
     return written;
 }

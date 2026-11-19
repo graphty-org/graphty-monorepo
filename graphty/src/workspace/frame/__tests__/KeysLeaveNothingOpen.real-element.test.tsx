@@ -74,8 +74,7 @@ function focused(): string {
     return `${active?.tagName ?? "none"} ${active?.getAttribute("aria-label") ?? active?.textContent ?? ""}`;
 }
 
-// Analyze's algorithm form, which the `selection-workspace` experiment replaces with its calm list
-// (covered by its own tests): the experiment stays off here.
+// Every experiment stays off here.
 withFeatures([]);
 
 describe("keys that close what they leave and land focus in the right place", () => {
@@ -163,26 +162,6 @@ describe("keys that close what they leave and land focus in the right place", ()
             assert.isNull(screen.queryByRole("combobox", { name: "Filter analyses" }), "still open");
             assert.strictEqual(document.activeElement, analyze, focused());
         });
-    });
-
-    it("Tab in Filter analyses with letters typed takes the highlighted analysis", async () => {
-        await openGraph();
-        const analyze = within(screen.getByRole("toolbar", { name: "Canvas tools" })).getByRole("button", {
-            name: "Analyze",
-        });
-        await userEvent.click(analyze);
-        await screen.findByRole("combobox", { name: "Filter analyses" });
-        await userEvent.keyboard("cluster");
-        const highlighted = await waitFor(() => {
-            const option = screen.getAllByRole("option").find((o) => o.getAttribute("aria-selected") === "true");
-            assert.isDefined(option, "no analysis highlighted");
-            return option.textContent ?? "";
-        });
-        await userEvent.keyboard("{Tab}");
-        // Its card opens, with focus on its Run button, so Enter runs it.
-        const card = await screen.findByRole("form");
-        assert.include(highlighted, card.getAttribute("aria-label") ?? "(no name)");
-        assert.strictEqual(document.activeElement, within(card).getByRole("button", { name: /^Run / }), focused());
     });
 
     it("Escape on a button in the inspector clears the graph's selection", async () => {

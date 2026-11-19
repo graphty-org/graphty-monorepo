@@ -47,7 +47,7 @@ vi.mock("@graphty/algorithms", async (importOriginal) => {
     };
 });
 
-/** A square: two sides, two unjoined pairs that share neighbours, and a cut of two. */
+/** A square: two sides, two unjoined pairs that share neighbors, and a cut of two. */
 const SQUARE: MockGraphOpts = {
     nodes: [{ id: "A" }, { id: "B" }, { id: "C" }, { id: "D" }],
     edges: [

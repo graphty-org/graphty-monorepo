@@ -143,7 +143,7 @@ While a write is outstanding or failing, the element asks the reader before the 
 asks and stays eligible for the browser's back/forward cache.
 
 The same listener keeps Firefox from unloading the tab to save memory while its work is unwritten:
-Firefox's low-memory tab unloader skips a background tab whose `beforeunload` is cancelled, and
+Firefox's low-memory tab unloader skips a background tab whose `beforeunload` is canceled, and
 unloads it once the work is saved; selecting the tab again loads the page and restores the work.
 
 - `unloadGuard: "unexported"` asks whenever the work was never saved to a file.
@@ -198,7 +198,10 @@ await element.autosaver.flush(); // write everything now
 `restore()` refuses with `E_UNSAVED_CHANGES` when the current work was never saved to a file,
 unless `discard: true` is passed; the current work then ends and stays listed. `remove()` and
 `restore()` refuse an entry another tab is writing with `E_AUTOSAVE_ENTRY_TAKEN`, and a missing
-one with `E_AUTOSAVE_UNKNOWN_ENTRY`.
+one with `E_AUTOSAVE_UNKNOWN_ENTRY`. When the browser's database does not answer (another tab holds
+it, or the browser's storage stalled), `restore()` refuses with `E_AUTOSAVE_STALLED` instead of
+waiting: `details.step` is `"list"` or `"read"` (finding or reading the entry) or `"restore"`
+(writing the attempt). The entry is left as it was, so a later `restore()` can open it.
 
 ### Before there is an element
 

@@ -42,7 +42,7 @@
   the result switch, RT-8 for the section header, which now carries the Builder / Expression door, Add a rule
   and More. Inspector: RT-10 reading, RT-8 headers, RT-6 tables, RT-7 for the action block. Rail, top bar,
   minimap, legend and status bar are untouched; the canvas keeps its graph and its two overlays, and its
-  navigation cluster became the bottom-centre canvas toolbar in 1.7. The portal tooltip that also sat over the
+  navigation cluster became the bottom-center canvas toolbar in 1.7. The portal tooltip that also sat over the
   canvas is gone in 1.8 (F-25).
   ONE POINTER STATE AND ONE KEYBOARD STATE, deliberately: the rule pop-out is drawn OPEN on the first rule
   row, which is a click state and carries the selected-row fill #28364e (POP-13b); the Expression door in the
@@ -62,7 +62,7 @@
   cannot both be open; a Filters library section arrived under the builder with one installed row and a
   resident + (SAV-1, SAV-2, SAV-3); the inspector's Attribute profile stayed inline on floor 7 (A3 cut 1) and
   Selection statistics stayed inline because no pin is active; and the navigation cluster became the
-  bottom-centre canvas toolbar at bottom offset 12 (TB-1, TB-2, TB-3, TB-4, TB-8).
+  bottom-center canvas toolbar at bottom offset 12 (TB-1, TB-2, TB-3, TB-4, TB-8).
   Revision 1.8, two review findings applied. F-08: the inspector's Attribute profile drew ONE attribute and put
   a bare numeral "9" in the header's trailing slot with the words "Show all 9 attributes" hidden in a title.
   5.4 fixes that section at five attributes with "Show all" inline at every density and puts the count on the
@@ -76,7 +76,7 @@
   place and whose own chevron is the door (Rule 9), so retuning two thresholds against each other no longer
   needs two pop-outs.
   Revision 1.8, the door-test pass. NOT applied, and the rule that forbids it: E2 closes the pin's set at four
-  -- the colour and gradient picker, Selection statistics with a pin active, the group profile, the AI console
+  -- the color and gradient picker, Selection statistics with a pin active, the group profile, the AI console
   -- and a rule editor is not among them, so the pin is deleted from this pop-out's header and from the
   expression pop-out's specification below. E2's reason is exactly this surface: "a pop-out whose content is
   the parameters of the row that opened it has nothing to hold still, and pinning it produces a stale panel
@@ -2836,7 +2836,7 @@
                and its overlays, which is what it had before the tooltip was drawn over it. -->
 
                                 <!-- CANVAS TOOLBAR (5.6, TB-1). The vertical 56-wide navigation cluster that sat at left: 12px;
-               bottom: 120px is deleted; its contents are one horizontal floating bar centred on the live
+               bottom: 120px is deleted; its contents are one horizontal floating bar centered on the live
                canvas rect. Order left to right, by how long the effect lasts: [2D | 3D] segmented (5 toggles
                it, 3D selected); divider; Zoom out (-), Zoom in (=), Zoom to fit (0), Zoom to selection (F);
                divider; Views. Zoom out precedes Zoom in because magnitude increases rightward on a horizontal
@@ -2846,7 +2846,7 @@
                1 x 16 rule. 3 + 60 + 12 + (28*4 + 2*3) + 12 + 36 + 3 + 2 borders = 246. The bar carries the
                tooltip shadow token and is the only canvas overlay that does; the minimap and the legend stay
                flat at radius 4, which sorts them as content boxes and the bar as an instrument.
-               The item set is FIXED: nothing appears or disappears with selection, because a centred container
+               The item set is FIXED: nothing appears or disappears with selection, because a centered container
                that changes width moves every item under the pointer. Zoom to selection is therefore always
                drawn and merely disables. Here it is ENABLED -- 38 nodes are selected -- so it takes
                color: #a3a8b1, cursor: pointer and the bare register title "Zoom to selection (F)", not the
@@ -2854,7 +2854,7 @@
                TB-4 bottom stack: no time slider and no Data table drawer on this board, so the offset is the
                plain 12 (82 with the slider, 272 with the drawer, 342 with both).
                TB-8: the Views caret points UP and its menu opens upward, bottom edge 4 px above the bar,
-               centred on the Views button and clamped 12 px inside the canvas's left, right and top edges. No
+               centered on the Views button and clamped 12 px inside the canvas's left, right and top edges. No
                Views list is printed on this board; the anchoring is recorded here instead.
                The zoom percentage is not in the bar: the status bar owns it, sits 12 below, and a numeric
                readout would change the bar's width as the number changed (TB-7). -->
@@ -3247,7 +3247,7 @@
                widths; 256 is the one. It is the smallest 8px step whose
                content box -- 256 less 16 of padding and 2 of border, so 238 -- holds every name pair in
                the set on one line but two (the longest is the 230.5px "Arrow: payment direction (edge
-               direction)"), and it still clears the centred 246px toolbar by 25px against the 16px
+               direction)"), and it still clears the centered 246px toolbar by 25px against the 16px
                minimum 5.6 sets.
                A quantitative block is MIN / MEDIAN / MAX, which is what 5.1 asks for and what the
                one-line "1 to 44" string could not say -- 1 / 6 / 44 and 1 / 22 / 44 print the same
@@ -3282,7 +3282,7 @@
                THIS BOARD'S EXPORT LEGEND, so the count is checkable: 1 channel -- Size: Most connected
                (Degree centrality), 1 / median 5 / 41, sqrt scale -- plus one state row, Selected, and,
                because a filter is live in the frame, the Matches filter state row too, both with their
-               colour-agnostic swatches, because a static figure has no filter strip and no status bar. -->
+               color-agnostic swatches, because a static figure has no filter strip and no status bar. -->
                                 <div
                                     style="
                                         position: absolute;
@@ -3525,7 +3525,7 @@
                                     <!-- RT-8 + RT-6: Attribute profile. REBUILT IN 1.8 (F-08). It drew ONE attribute and a bare
                  numeral "9" in the header's trailing slot, with the words "Show all 9 attributes" living only
                  in the header's title. Both halves of that were wrong:
-                   - 5.4 fixes this section's shape and it is not a judgement call: "top three values per
+                   - 5.4 fixes this section's shape and it is not a judgment call: "top three values per
                      categorical attribute with percentages, FIVE attributes shown, 'Show all' -- inline at
                      every density, because nine rows of the user's own attribute names and top values is a
                      scan surface made of floor-7 data and a reader comparing five attributes cannot open five
@@ -4920,7 +4920,7 @@
                (Shift+T) / Style selection, new layer / Invert selection (I) / Copy ids, 38 ids / Clear
                selection (Esc) / Save as subgraph... (Coming) / Select neighbors (Shift+E, Coming) / Remove
                selected (Coming)
-               WHAT IT COSTS, stated rather than hidden: the block goes from 131px to 207px, and the inspector's content column -- a flex: 1 1 auto, min-height: 0, overflow: hidden scroll region -- now holds 659px of content in 593, so the Notes section sits below the fold and is reached by scrolling. That is the same state ExplorerExpert's inspector is already in (796 in 727) and it is the trade 12.1 settles: no arrangement of labelled rows fits this column, because even two rows overrun it by 9px, so the choice was the labels or the glyphs, not the labels or the scroll. Nothing is unreachable: More carries all ten verbs in full text, and the Notes section is drawn in full on the boards whose inspector has the room. -->
+               WHAT IT COSTS, stated rather than hidden: the block goes from 131px to 207px, and the inspector's content column -- a flex: 1 1 auto, min-height: 0, overflow: hidden scroll region -- now holds 659px of content in 593, so the Notes section sits below the fold and is reached by scrolling. That is the same state ExplorerExpert's inspector is already in (796 in 727) and it is the trade 12.1 settles: no arrangement of labeled rows fits this column, because even two rows overrun it by 9px, so the choice was the labels or the glyphs, not the labels or the scroll. Nothing is unreachable: More carries all ten verbs in full text, and the Notes section is drawn in full on the boards whose inspector has the room. -->
                                 <div
                                     style="
                                         flex: 0 0 auto;
@@ -5407,9 +5407,9 @@
        has geometry attached. B3 and VOCAB 14.2 add the second mark of the tether: a 6px caret on the pop-out's
        LEFT edge, the edge nearest the panel it belongs to, drawn as the pop-out's SIBLING at left 330 / top
        293 so this shell's own overflow: hidden cannot clip it. Top 293 is the pop-out's 277 plus VOCAB 14.2's
-       own 16, which puts it on the vertical centre of the opener row. It sits beside the #28364e selected-row
+       own 16, which puts it on the vertical center of the opener row. It sits beside the #28364e selected-row
        fill the opener already carries, because a lit row 362px away is not a visible relationship.
-       NO PIN, and the rule is E2, not Multiplicity. E2's closed set of four -- the colour and gradient picker,
+       NO PIN, and the rule is E2, not Multiplicity. E2's closed set of four -- the color and gradient picker,
        Selection statistics with a pin active, the group profile, the AI console -- does not include a rule
        editor, and E2 names this surface in its reason: a pop-out whose content is the parameters of the row
        that opened it has nothing to hold still, and pinning it produces a stale panel that lies. The header's

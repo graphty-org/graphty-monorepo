@@ -3,5 +3,5 @@ import type { CountedWork } from "../cost-coverage/counted-work";
 
 export default {
     file: "test/browser/layout-visible-only-scaling.test.ts",
-    methods: ["LayoutEngine.setLeftOut"],
+    methods: ["VisibilityApi.set"],
 } satisfies CountedWork;

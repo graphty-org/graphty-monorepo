@@ -51,7 +51,7 @@ Tool: `node tool/real.mjs` from `design/ui/studio`, session folder
 10. `--step <S> --hover-at 1381,256` -> tooltip "Size by attribute".
 
 11. `--step <S> --click-at 1381,256` -> 11.png. A picker: Influence, Influence rank, Influence
-    percentile; "id" greyed out as "holds groups, not amounts".
+    percentile; "id" grayed out as "holds groups, not amounts".
 
 12. `--step <S> --click-at 1193,324` (Influence) -> 12.png. Size reads "1 to 3"; Ava and Farah are
     now big dark balls. The key now shows "Size: Influence" above "Color: Influence".

@@ -168,7 +168,8 @@ describe("Centrality Algorithm Options", () => {
                 const schema = KatzCentralityAlgorithm.getOptionsSchema();
                 assert.isDefined(schema.alpha);
                 assert.strictEqual(schema.alpha.type, "number");
-                assert.strictEqual(schema.alpha.default, 0.1);
+                // Empty: the run derives an alpha that converges on its graph (0.1 wherever that does).
+                assert.strictEqual(schema.alpha.default, null);
                 assert.strictEqual(schema.alpha.min, 0.01);
                 assert.strictEqual(schema.alpha.max, 0.5);
                 assert.strictEqual(schema.alpha.step, 0.01);
@@ -293,7 +294,7 @@ describe("Centrality Algorithm Options", () => {
                 const algo = new KatzCentralityAlgorithm(graph, { alpha: 0.2, beta: 2.0, normalized: false });
                 await algo.run();
 
-                // Every node of a triangle has two neighbours, so its Katz score is the series
+                // Every node of a triangle has two neighbors, so its Katz score is the series
                 // beta * sum((2 alpha)^k) = beta / (1 - 2 alpha) = 2 / 0.6. The defaults
                 // (alpha 0.1, beta 1) would give 1.25.
                 for (const id of ["A", "B", "C"]) {

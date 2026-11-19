@@ -1,4 +1,5 @@
-import { Box, Checkbox, Group, Radio, SegmentedControl, Slider, Stack, Switch, Text } from "@mantine/core";
+import { SegmentedControl, Slider } from "@graphty/compact-mantine";
+import { Box, Checkbox, Group, Radio, Stack, Switch, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 
 /**
@@ -43,7 +44,7 @@ const COMPACT_ALIAS_NOTE = "legacy alias of sm";
 interface SizeLabelProps {
     /** The size token the row renders. */
     readonly token: string;
-    /** Why the row may match its neighbour; omitted for rows that stand alone. */
+    /** Why the row may match its neighbor; omitted for rows that stand alone. */
     readonly note?: string;
 }
 

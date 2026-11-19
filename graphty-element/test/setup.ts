@@ -1,11 +1,8 @@
 import type { AbstractEngine } from "@babylonjs/core/Engines/abstractEngine.js";
 import { EngineStore } from "@babylonjs/core/Engines/engineStore.js";
-import { Vector2, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 import { Logger } from "@babylonjs/core/Misc/logger.js";
 import { afterAll, afterEach, beforeAll, beforeEach, expect, vi } from "vitest";
 
-import type { Graph } from "../src/Graph";
-import { MockDeviceInputSystem } from "../src/input/mock-device-input-system";
 import { caughtFailure, installCaughtErrors, takeCaughtErrors } from "./helpers/caught-errors";
 import { pinLabelFont } from "./helpers/pin-label-font";
 
@@ -86,11 +83,6 @@ if (typeof window !== "undefined") {
 
         originalWarn.apply(console, args);
     };
-}
-
-// Global test utilities
-export function createMockInputSystem(): MockDeviceInputSystem {
-    return new MockDeviceInputSystem();
 }
 
 // Every Babylon engine a test creates must be disposed by that test (#1970): a leaked graph keeps
@@ -193,39 +185,3 @@ afterEach(async (context) => {
         throw leakError(leakedEngines, `The test "${context.task.name}"`);
     }
 });
-
-// Test helpers
-export function createTestContainer(): HTMLElement {
-    const container = document.createElement("div");
-    container.style.width = "800px";
-    container.style.height = "600px";
-    container.style.position = "relative";
-    document.body.appendChild(container);
-    return container;
-}
-
-export function waitForGraph(graph: Graph): Promise<void> {
-    return new Promise((resolve) => {
-        // Check if graph has initialized property
-        if (graph.initialized) {
-            resolve();
-        } else {
-            // Wait a frame for initialization
-            requestAnimationFrame(() => {
-                resolve();
-            });
-        }
-    });
-}
-
-// Assertion helpers
-export function expectVector2Near(actual: Vector2, expected: Vector2, tolerance = 0.01): void {
-    expect(Math.abs(actual.x - expected.x)).toBeLessThan(tolerance);
-    expect(Math.abs(actual.y - expected.y)).toBeLessThan(tolerance);
-}
-
-export function expectVector3Near(actual: Vector3, expected: Vector3, tolerance = 0.01): void {
-    expect(Math.abs(actual.x - expected.x)).toBeLessThan(tolerance);
-    expect(Math.abs(actual.y - expected.y)).toBeLessThan(tolerance);
-    expect(Math.abs(actual.z - expected.z)).toBeLessThan(tolerance);
-}

@@ -11,12 +11,12 @@
  * depends on it.
  *
  * It also means this entry point carries the renderer, so it needs a DOM and a 3D engine. The
- * parts of the package that do not are published separately, and a consumer that wants a colour
+ * parts of the package that do not are published separately, and a consumer that wants a color
  * ramp, a palette, an options list or a plugin base class should import one of those instead of
  * this:
  *
  * - `@graphty/graphty-element/schema` -- palettes, shapes, style defaults, the style document
- *   vocabulary and the colour helpers, the colour-vision simulators among them.
+ *   vocabulary and the color helpers, the color-vision simulators among them.
  * - `@graphty/graphty-element/catalog` -- the algorithms, layouts, formats, palettes and scales
  *   the element offers, as plain JSON descriptors.
  * - `@graphty/graphty-element/extend` -- the registration surface for a plugin.
@@ -25,13 +25,15 @@
  * - `@graphty/graphty-element/logging` -- the logger, the levels, the record, the destinations
  *   the element ships and `lazy`.
  * - `@graphty/graphty-element/ai` -- the natural-language layer and its optional peers.
- * - `@graphty/graphty-element/webgpu` -- one import that switches on GPU acceleration.
+ * - `@graphty/graphty-element/webgpu` -- optional: registers GPU acceleration statically. This
+ *   entry finds an installed `@graphty/webgpu-graph-algorithms` by itself, the first time the
+ *   element probes for acceleration.
  *
  * Each of the first six resolves in Node with no renderer anywhere in its import graph.
  *
  * TWO GROUPS OF NAMES USED TO BE HERE AND ARE NOT ANY MORE, because each was published from two
  * addresses at once and a consumer reading two import lines for one symbol has no way to tell
- * they are the same object. The logging vocabulary is at `/logging`. The seven colour-vision
+ * they are the same object. The logging vocabulary is at `/logging`. The seven color-vision
  * simulators are at `/schema`, beside the palettes they exist to check. Reaching either through
  * this file cost a 3D engine for code that never draws anything.
  */
@@ -40,6 +42,9 @@
 // and registers the <graphty-element> custom element. This prevents tree-shaking from removing
 // the custom element registration when consumers do `import "@graphty/graphty-element";`
 import "./src/graphty-element";
+// Registers the lazy WebGPU loader: an installed @graphty/webgpu-graph-algorithms is used with no
+// consumer code. Nothing is imported until the element first probes for acceleration.
+import "./src/acceleration/autoload";
 
 // =============================================================================
 // Core classes
@@ -48,7 +53,7 @@ export type { AccessibleAnnouncement, AccessibleGraphFacts, AccessibleSelection 
 export { Edge, type EdgeCapEnd } from "./src/Edge";
 // what `Edge.mesh` is for a line drawn as pattern elements, so a consumer can narrow it (issue #7127)
 export type { GraphOverview, OverviewOptions, OverviewRect } from "./src/camera/overview";
-export type { NodeScreenPosition } from "./src/Graph";
+export type { NodeScreenPosition, StableFrameOptions } from "./src/Graph";
 export { Graph } from "./src/Graph";
 export type {
     GraphtyCapabilitiesChangeDetail,
@@ -84,6 +89,8 @@ export type {
     BasemapConfig,
     BasemapSourceId,
     BasemapStatus,
+    // Which background color the canvas draws, as `element.colorScheme` takes it
+    ColorScheme,
     EdgeStyleConfig,
     // The room `element.fitInsets` keeps clear when the graph is framed
     FitInsets,
@@ -98,6 +105,8 @@ export type {
     Lighting,
     LocationSourceFact,
     MapFrameFact,
+    // How a node's drawn size follows the camera, as `node.sizeSpace` takes it
+    NodeSizeSpace,
     NodeStyleConfig,
     RichTextStyleType,
     // View mode types
@@ -134,6 +143,7 @@ export {
     isViewMode,
     LIGHTING_VALUES,
     NodeShapes,
+    NodeSizeSpaces,
     NodeStyle,
     RichTextStyle,
     VIEW_MODE_VALUES,
@@ -203,6 +213,8 @@ export type {
 // The project file: the whole session as one graphty document, as `element.session.project`
 export type {
     AssetStorage,
+    DocumentCode,
+    DocumentSection,
     ProjectApi,
     ProjectAssetChoice,
     ProjectOpenOptions,
@@ -213,6 +225,7 @@ export type {
     ProjectSource,
     ProjectStatus,
     SavedProject,
+    SourceStorage,
 } from "./src/session/projectFile";
 export { PROJECT_FILE, projectFileName } from "./src/session/projectFile";
 // What autosave reports: its status, its codes, its entries and what a restore found.
@@ -340,6 +353,7 @@ export type {
     NodeEventType,
     NodeGenericEvent,
     NodeHoverEvent,
+    OperationCanceledEvent,
     OperationCancelledEvent,
     OverviewChangedEvent,
     RenderLostEvent,
@@ -400,6 +414,7 @@ export type {
 } from "./src/screenshot/types";
 
 // One node drawn alone, for a key or a picker (element.nodeThumbnail)
+export type { ModelPreview, ModelPreviewOptions } from "./src/meshes/ModelPreview";
 export type { ModelThumbnailOptions, NodeThumbnailOptions } from "./src/meshes/NodeThumbnail";
 
 // Capability check for screenshot support
@@ -408,7 +423,7 @@ export type { CapabilityCheck, ScreenshotWarningCode } from "./src/screenshot/ca
 // =============================================================================
 // Video capture exports
 // =============================================================================
-export { AnimationCancelledError } from "./src/video/MediaRecorderCapture";
+export { AnimationCanceledError, AnimationCancelledError } from "./src/video/MediaRecorderCapture";
 export type { AnimationOptions, AnimationResult, CameraWaypoint, ViewWaypoint } from "./src/video/VideoCapture";
 
 // Video capture estimation
@@ -424,6 +439,7 @@ export type { CaptureEstimate } from "./src/video/estimation";
  * array of five cannot.
  */
 export { BUILTIN_PRESETS } from "./src/camera/presets";
+export { linkCameras, type LinkedCameraView } from "./src/cameras/linkCameras";
 
 // =============================================================================
 // Errors
@@ -459,6 +475,7 @@ export type {
     RendererStatus,
 } from "./src/managers/RenderManager";
 export type { RenderPath, RowCounts } from "./src/meshes/NodeBatch";
+export type { Antialias } from "./src/meshes/PulledLineBatch";
 
 // =============================================================================
 // Acceleration

@@ -76,7 +76,6 @@ import type {
     Rgba,
     StaticStyle,
 } from "../../catalog/types";
-import { MIN_DRAWN_FONT_SIZE } from "../../config/RichTextStyle";
 import { isGraphtyError } from "../../errors";
 import type { GraphtyWarningCode } from "../../errors/codes";
 import { isPlainObject } from "../../utils/isPlainObject";
@@ -95,7 +94,6 @@ import {
     toColorValue,
 } from "./channels";
 import { type RuleBinding, stopsProblem } from "./encoding";
-import type { FileStyleOrigin } from "./fileStyles/origin";
 import { parseTemplate, TEMPLATE_CHANNELS } from "./labelTemplate";
 import { colorsProblem } from "./palettes";
 import { columnsFor, type CompiledSelector, type SelectorSource, type SelectorTarget } from "./predicate";
@@ -109,8 +107,8 @@ import { compileSelector, type Selector } from "./selector";
 /**
  * One layer of the style stack: what it paints, where it paints it, and who put it there.
  *
- * Data, not an object with behaviour. Everything that happens to a layer happens through the
- * styles API, so a layer handed to a consumer can be read, kept, diffed and serialised without
+ * Data, not an object with behavior. Everything that happens to a layer happens through the
+ * styles API, so a layer handed to a consumer can be read, kept, diffed and serialized without
  * any of it being able to change the picture behind the element's back.
  */
 export interface Layer {
@@ -174,17 +172,10 @@ export interface Layer {
      * when the row is shown. Absent while the row is shown.
      */
     readonly hidden?: true;
-    /**
-     * Where a layer made from a file's styles came from, read with `fileStyleOf(layer)`; absent
-     * on every other layer. The element's own facts, kept apart from `userData` so a consumer's
-     * bag is never shared with them. Never used to paint.
-     * @experimental file-styles
-     */
-    readonly fileStyle?: FileStyleOrigin;
 }
 
 /**
- * Where a layer goes when it is added, said as a neighbour rather than as a number.
+ * Where a layer goes when it is added, said as a neighbor rather than as a number.
  *
  * Exactly one of the two, or neither for the top of the stack. A position expressed as an index
  * is a position that goes wrong the moment anything else moves.
@@ -226,6 +217,12 @@ export interface LayerProblem {
      * @since 3.36.0
      */
     readonly fact?: ShaderProblem;
+    /**
+     * The selector that makes the layer acceptable, when the remedy is to scope it: for
+     * `E_UNSCOPED_RUN_ENCODING`, `{ match: "has", path }` on the run path the encoding reads.
+     * @since 3.40.0
+     */
+    readonly scope?: Selector;
 }
 
 /**
@@ -265,9 +262,6 @@ export interface ValidationResult {
      *
      * `W_ALPHA_IGNORED`: a color with an alpha written to a channel that cannot draw it
      * translucent (`node.outline`), so it is drawn opaque. `params.channel` and `params.path`.
-     *
-     * `W_TEXT_TOO_SMALL`: a text size under 1 written to a label, tooltip or caption size, which
-     * draws no text. `params.channel`, `params.path` and `params.value`.
      *
      * `W_LABEL_STYLE_BOUND`: a whole label style channel (`node.labelStyle`) bound to a path. No
      * scale produces a whole label style, so the binding paints nothing. `params.channel` is the
@@ -417,7 +411,7 @@ export interface RepaintRequest {
 
 /** The live handles a repaint needs, kept out of the request so the request stays plain data. */
 export interface RepaintContext {
-    /** Aborted when the edit is cancelled. Stop and throw; do not finish quietly. */
+    /** Aborted when the edit is canceled. Stop and throw; do not finish quietly. */
     readonly signal: AbortSignal;
     /**
      * Report how far along the pass is, so a large graph shows progress rather than a freeze.
@@ -446,7 +440,7 @@ export interface RepaintReport {
  * hands none in, and that is not a degraded mode: the stack is the session's, the paint is the
  * renderer's, and a headless session legitimately has nothing to paint. What the styles API
  * guarantees is the order -- a repaint is awaited BEFORE the new stack is committed, so a
- * cancelled or failed repaint leaves the model exactly as it was rather than leaving the list
+ * canceled or failed repaint leaves the model exactly as it was rather than leaving the list
  * saying one thing and the screen showing another.
  * @param request - What changed, and what to paint from.
  * @param context - The signal to stop on, and where to report progress.
@@ -530,35 +524,6 @@ function alphaWarnings(spec: LayerSpec): readonly CodedFact<GraphtyWarningCode>[
     }).map((channel) =>
         Object.freeze({ code: "W_ALPHA_IGNORED" as const, params: Object.freeze({ channel, path: `set.${channel}` }) }),
     );
-}
-
-/** The text size channels: each draws no text under {@link MIN_DRAWN_FONT_SIZE}. */
-const TEXT_SIZE_CHANNELS: readonly string[] = [
-    "node.labelSize",
-    "node.tooltipSize",
-    "edge.labelSize",
-    "edge.arrowHeadTextSize",
-    "edge.arrowTailTextSize",
-];
-
-/**
- * The warnings a layer's literal text sizes earn: a size under 1 draws no text.
- * @param spec - The specification.
- * @returns The warnings; none when every literal size draws.
- */
-function textSizeWarnings(spec: LayerSpec): readonly CodedFact<GraphtyWarningCode>[] {
-    return TEXT_SIZE_CHANNELS.flatMap((channel) => {
-        const value = spec.set?.[channel as keyof typeof spec.set];
-
-        return typeof value === "number" && value < MIN_DRAWN_FONT_SIZE
-            ? [
-                  Object.freeze({
-                      code: "W_TEXT_TOO_SMALL" as const,
-                      params: Object.freeze({ channel, path: `set.${channel}`, value }),
-                  }),
-              ]
-            : [];
-    });
 }
 
 /**
@@ -648,7 +613,7 @@ function channelsWritten(spec: LayerSpec): readonly string[] {
 }
 
 /**
- * A colour value as {@link toColorValue} takes one, or null when the value is not a colour at all.
+ * A color value as {@link toColorValue} takes one, or null when the value is not a color at all.
  * @param value - Whatever the specification carried.
  * @returns The string or components, or null.
  */
@@ -1110,6 +1075,7 @@ function checkBinding(
                 "with a value for a missing result, which would paint elements the run never measured. Scope it to " +
                 `the elements that carry the result with { match: "has", path: "${binding.by}" }, or drop missing.`,
             path: "selector",
+            scope: { match: "has", path: binding.by },
         });
     }
 }
@@ -1162,7 +1128,7 @@ function checkBindingOptions(
        layer naming a palette nothing registered was accepted at the edit, written onto the layer,
        and then failed one repaint later as a layer that paints nothing -- with the failure
        arriving somewhere a settings form is not listening. The list of candidates is read from
-       the catalogue, so a reader who registered their own palette and mistyped it is shown their
+       the catalog, so a reader who registered their own palette and mistyped it is shown their
        own palette among the near misses rather than only the element's seventeen. */
     if (binding.palette !== undefined && paletteDescriptor(binding.palette) === undefined) {
         report(log, {
@@ -1814,12 +1780,7 @@ export function checkLayerSpec(given: LayerSpec, options: LayerCheckOptions): La
         };
     }
 
-    const warnings = [
-        ...log.warnings,
-        ...selectorWarnings(spec, target, options.elements),
-        ...alphaWarnings(spec),
-        ...textSizeWarnings(spec),
-    ];
+    const warnings = [...log.warnings, ...selectorWarnings(spec, target, options.elements), ...alphaWarnings(spec)];
 
     return {
         result: Object.freeze({
@@ -1869,7 +1830,6 @@ function buildLayer(
         // and a consumer keeping a live object in here gets the same object back.
         ...(spec.userData === undefined ? {} : { userData: spec.userData }),
         ...(spec.row === undefined ? {} : { row: spec.row }),
-        ...(spec.fileStyle === undefined ? {} : { fileStyle: frozen(spec.fileStyle) }),
     });
 
     return Object.freeze({ layer, selector, reads: Object.freeze([...reads]) });
@@ -1893,6 +1853,5 @@ export function specOf(layer: Layer): LayerSpec {
         ...(layer.encode === undefined ? {} : { encode: layer.encode }),
         ...(layer.userData === undefined ? {} : { userData: layer.userData }),
         ...(layer.row === undefined ? {} : { row: layer.row }),
-        ...(layer.fileStyle === undefined ? {} : { fileStyle: layer.fileStyle }),
     };
 }

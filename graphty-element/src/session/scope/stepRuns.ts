@@ -193,7 +193,7 @@ export function createStepRuns(sources: StepRunsSources): StepRuns {
     const localKeys = new Map<string, string>();
     /** The cache key of each So far step's own computation by definition and input. */
     const inputKeys = new Map<string, string>();
-    /** Step definitions whose own computation the reader cancelled: they wait for consent. */
+    /** Step definitions whose own computation the reader canceled: they wait for consent. */
     const cancelled = new Set<string>();
 
     const measureOf = (step: UnionStep): MeasureLeaf | null => (step.rule.kind === "measure" ? step.rule : null);
@@ -332,7 +332,7 @@ export function createStepRuns(sources: StepRunsSources): StepRuns {
     };
 
     /**
-     * Why a cancelled or removed run waits: for Run, with its estimate when there is one, as a run
+     * Why a canceled or removed run waits: for Run, with its estimate when there is one, as a run
      * held back before it began says it.
      * @param leaf - The measure.
      * @param params - The bound params.
@@ -488,7 +488,7 @@ export function createStepRuns(sources: StepRunsSources): StepRuns {
             return pending({ code: "run-failed", params: { error: run.error?.code ?? null } });
         }
 
-        // Removed in Analyze, or cancelled: never restarted unasked.
+        // Removed in Analyze, or canceled: never restarted unasked.
         if (known !== undefined && (run === undefined || run.status === "removed" || run.status === "canceled")) {
             if (!consent.has(key)) {
                 return pending(runNeeded(leaf, params, scope));

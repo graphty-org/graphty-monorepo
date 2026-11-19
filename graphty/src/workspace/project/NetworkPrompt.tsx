@@ -1,6 +1,6 @@
 import { ModalFooter } from "@graphty/compact-mantine";
 import type { NetworkRequest } from "@graphty/graphty-element/session";
-import { Button, Modal, Stack, Text } from "@mantine/core";
+import { Button, getDefaultZIndex, Modal, Stack, Text } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
 import {
@@ -62,7 +62,7 @@ export function NetworkPrompt(): React.JSX.Element | null {
     if (session === null) {
         return null;
     }
-    const [request] = waiting;
+    const request = waiting.at(0);
     const settle = (answer: () => void | Promise<void>): void => {
         void Promise.resolve(answer())
             .catch(() => undefined)
@@ -76,10 +76,14 @@ export function NetworkPrompt(): React.JSX.Element | null {
             opened={request !== undefined}
             onClose={() => {
                 settle(() => {
-                    session.network.deny(request.params.id);
+                    if (request !== undefined) {
+                        session.network.deny(request.params.id);
+                    }
                 });
             }}
             title="Open a web address?"
+            // Asked while another dialog may be open (Load custom model's part rows): above it.
+            zIndex={getDefaultZIndex("modal") + 1}
         >
             {request === undefined ? null : (
                 <Stack gap="xs">

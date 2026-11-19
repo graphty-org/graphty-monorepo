@@ -1,5 +1,5 @@
 /**
- * @file What the catalogue reads from the built-in algorithm and layout classes, without importing
+ * @file What the catalog reads from the built-in algorithm and layout classes, without importing
  * them.
  *
  * The classes stay the one place their options, weight handling and scoping are written. This
@@ -14,7 +14,7 @@
 import ENGINE_FACTS from "./engine-facts.json";
 import type { AlgorithmDescriptor, OptionDescriptor } from "./types";
 
-/** The static fields the catalogue reads from one algorithm class. */
+/** The static fields the catalog reads from one algorithm class. */
 export interface AlgorithmClassFacts {
     /** Its Zod options schema, emitted by `optionsFromZod` with no overrides. */
     readonly options: readonly OptionDescriptor[];
@@ -24,7 +24,7 @@ export interface AlgorithmClassFacts {
     readonly loadedWeightByDefault: boolean;
 }
 
-/** The static fields the catalogue reads from one layout engine class. */
+/** The static fields the catalog reads from one layout engine class. */
 export interface LayoutClassFacts {
     /** Its Zod options schema, emitted by `optionsFromZod` with no overrides. */
     readonly options: readonly OptionDescriptor[];
@@ -53,7 +53,15 @@ export type OptionOverrides = Readonly<Record<string, Partial<OptionDescriptor>>
 function withOverrides(options: readonly OptionDescriptor[], overrides: OptionOverrides): readonly OptionDescriptor[] {
     return options.map((option) => {
         const override = overrides[option.name];
-        return override === undefined ? option : { ...option, ...override };
+        if (override === undefined) {
+            return option;
+        }
+        // An override that types an option the schema could not drops the reason it could not.
+        if (option.type === "unknown" && override.type !== undefined && override.type !== "unknown") {
+            const { unsupported: _dropped, ...typed } = option;
+            return { ...typed, ...override };
+        }
+        return { ...option, ...override };
     });
 }
 

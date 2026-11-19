@@ -316,7 +316,7 @@ def edges_file():
                    '      </data>\n    </edge>\n')
         e += 1
 
-    # every arrow at the target and at the source, straight polylines between row neighbours
+    # every arrow at the target and at the source, straight polylines between row neighbors
     for k, a in enumerate(ARROWS):
         s, t = k % n, (k + 1) % n
         edge(s, t, "PolyLineEdge", ("none", a), ("#000000", "line", 1.0))

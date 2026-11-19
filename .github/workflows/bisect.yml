@@ -6,13 +6,14 @@
 # One run is one round. The first confirms: only the failing test files, 5 runs on the red commit (2 for the LLM
 # lane), under the full run's own runner class. Each later round runs at most 8 points of the range's first-parent
 # merges at once, a matrix job each, then `judge` folds the results in and, while no answer is reached, dispatches
-# this workflow again with the new state. A lane workflow (gpu, hosts, macOS) is called for one point a round, with
-# a concurrency group per point; the T4 only after the local NVIDIA card (`after_local_card`) and never past 4 paid
+# this workflow again naming the run whose `bisect-next` artifact holds the new state. A lane workflow (gpu, hosts,
+# macOS) is called for one point a round, with a concurrency group per point; the T4 only after the local NVIDIA card (`after_local_card`) and never past 4 paid
 # hours a bisect. The answer -- the culprit merge, or why no merge is named -- is the last round's job summary and
 # its `bisect-answer` artifact; the pipeline round opens the revert.
 name: Bisect
-# the lane in the run name: tools/llm-spend.mjs and the health dashboard count an llm-lane bisect's points as paid LLM runs
-run-name: Bisect (${{ inputs.lane }} lane)
+# the lane in the run name: tools/llm-spend.mjs and the health dashboard count an llm-lane bisect's points as paid LLM runs;
+# the range's green commit too: tools/full-run.mjs (bisectRunName) dispatches no second paid llm bisect from it (#8314)
+run-name: Bisect (${{ inputs.lane }} lane) from ${{ inputs.good }}
 on:
     workflow_dispatch:
         inputs:
@@ -45,8 +46,14 @@ on:
                 description: "gpu: the local NVIDIA card did not reproduce it, so bisect on the T4"
                 type: boolean
                 default: false
+            # The state goes by reference: a later round's state passed by value passed GitHub's 65 KB limit on
+            # a dispatch's inputs and stopped the bisect after its first round (#8733).
+            state_run:
+                description: "set only by this workflow: the run whose bisect-next artifact holds the next round's state"
+                type: string
+                default: ""
             state:
-                description: "set only by this workflow: the bisect's state for its next round"
+                description: "set only by a round from before state_run: the bisect's state for its next round"
                 type: string
                 default: ""
 permissions: { contents: read }
@@ -66,6 +73,7 @@ jobs:
         name: Plan the round
         runs-on: ubuntu-24.04
         timeout-minutes: 10
+        permissions: { contents: read, actions: read } # the last round's bisect-next artifact; the red run's jobs, for an LLM red the account caused
         outputs:
             done: ${{ steps.plan.outputs.done }}
             points: ${{ steps.plan.outputs.points }}
@@ -74,8 +82,28 @@ jobs:
         steps:
             - uses: actions/checkout@v7
               with: { fetch-depth: 0 } # the range's first-parent merges and their parents
+            - uses: actions/download-artifact@v8
+              if: ${{ inputs.state_run != '' }}
+              with:
+                  name: bisect-next
+                  path: next
+                  run-id: ${{ inputs.state_run }}
+                  github-token: ${{ github.token }}
+            # An LLM red the provider's refusal of the account caused (release.yml's llm job runs its "LLM account
+            # refused" step then) has no culprit commit: the first round answers so, with no confirming run.
+            - name: Was the LLM red the account's
+              id: refused
+              if: ${{ inputs.lane == 'llm' && inputs.state == '' && inputs.state_run == '' }}
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  RUN_ID: ${{ inputs.run_id }}
+              run: |
+                  n=$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/jobs?filter=latest&per_page=100" \
+                      --jq '.jobs[] | select(.name == "LLM regression") | .steps[]? | select(.name == "LLM account refused" and .conclusion == "success") | .name' | wc -l) || n=0
+                  echo "refused=$([ "${n:-0}" -gt 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
             - id: plan
               env:
+                  ACCOUNT_REFUSED: ${{ steps.refused.outputs.refused }}
                   LANE: ${{ inputs.lane }}
                   GOOD: ${{ inputs.good }}
                   BAD: ${{ inputs.bad }}
@@ -84,7 +112,7 @@ jobs:
                   AFTER_LOCAL_CARD: ${{ inputs.after_local_card }}
                   STATE: ${{ inputs.state }}
               run: |
-                  node tools/bisect-ci.mjs plan --out state.json
+                  node tools/bisect-ci.mjs plan $([ -f next/next.json ] && echo --state next/next.json) --out state.json
                   echo "started=$(date +%s)" >> "$GITHUB_OUTPUT"
             - uses: actions/upload-artifact@v7
               with: { name: bisect-state, path: state.json, retention-days: 14 }
@@ -129,7 +157,7 @@ jobs:
               run: mv .bisect-tools "$RUNNER_TEMP/bisect-tools"
             - uses: actions/download-artifact@v8
               with: { name: bisect-state, path: "${{ runner.temp }}/state" }
-            - uses: pnpm/action-setup@v6
+            - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
             - uses: actions/setup-node@v7
               with: { node-version: 22.x, cache: pnpm }
             - run: pnpm install --frozen-lockfile
@@ -253,7 +281,7 @@ jobs:
                   [ -n "$id" ] || { echo "::error::no ${WF} run started on ${BRANCH}"; exit 1; }
                   echo "::notice::point ${SHA} runs as $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/${id}"
                   gh run watch "$id" --interval 60 > /dev/null || true
-                  # success or failure is the point's verdict; anything else (cancelled, lost) is no run, tested again
+                  # success or failure is the point's verdict; anything else (canceled, lost) is no run, tested again
                   echo "result=$(gh run view "$id" --json conclusion --jq .conclusion)" >> "$GITHUB_OUTPUT"
             - name: Delete the point's branch
               if: ${{ always() && steps.dispatch.outputs.branch }}
@@ -318,6 +346,9 @@ jobs:
               id: judge
               if: ${{ needs.plan.outputs.done != 'true' }}
               run: mkdir -p results && node tools/bisect-ci.mjs judge --state state/state.json --results results --out next.json
+            - uses: actions/upload-artifact@v7
+              if: ${{ needs.plan.outputs.done != 'true' && steps.judge.outputs.done == 'false' }}
+              with: { name: bisect-next, path: next.json, retention-days: 14 }
             - name: Dispatch the next round
               if: ${{ needs.plan.outputs.done != 'true' && steps.judge.outputs.done == 'false' }}
               env:
@@ -328,7 +359,7 @@ jobs:
                   RUN_ID: ${{ inputs.run_id }}
               run: |
                   gh workflow run bisect.yml --ref "$GITHUB_REF_NAME" -f lane="$LANE" -f good="$GOOD" -f bad="$BAD" \
-                      -f run_id="$RUN_ID" -f state="$(cat next.json)"
+                      -f run_id="$RUN_ID" -f state_run="$GITHUB_RUN_ID"
             - name: Keep the answer
               if: ${{ needs.plan.outputs.done == 'true' || steps.judge.outputs.done == 'true' }}
               run: cp "$([ -f next.json ] && echo next.json || echo state/state.json)" answer.json

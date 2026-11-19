@@ -80,7 +80,7 @@ describe("the neighbors guide's example", () => {
 
         // The guide's listener, verbatim.
         element.addEventListener("graphty-node-click", ((e: CustomEvent<NodeEventDetail>) => {
-            const page = element.session.data.neighbors(e.detail.nodeId, { limit: 10 });
+            const page = element.session.data.neighbors(e.detail.nodeId, { limit: 10, scope: "graph" });
             list.replaceChildren(
                 ...page.records.map((n) => {
                     const li = document.createElement("li");

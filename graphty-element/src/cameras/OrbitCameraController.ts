@@ -195,7 +195,7 @@ export class OrbitCameraController {
         } else {
             // Over a globe the turn is about its center, so the camera keeps its height and never
             // enters it, and slows with the height: a full-speed turn swept the camera a fixed
-            // angle of the whole globe, thousands of kilometres a frame at street level.
+            // angle of the whole globe, thousands of kilometers a frame at street level.
             const scale = Math.min(1, this.#heightAbove(sphere.radius) / sphere.radius);
             this.#aboutGlobeCenter(() => {
                 this.pivotController.rotate(dx * speed * scale, dy * speed * scale);
@@ -576,6 +576,28 @@ export class OrbitCameraController {
         this.pivot.position.copyFrom(this.#onPlane(this.pivot.position));
         this.pivot.computeWorldMatrix(true);
         this.cameraDistance = this.clampDistance(this.cameraDistance + along);
+    }
+
+    /**
+     * Slide the pivot along the line from the camera through it to where it passes nearest a point,
+     * the camera staying where it is, so the view does not move. Framed on a globe's data, the pivot
+     * sat among the arcs above the surface and the camera stopped short of the surface, at
+     * `minZoomDistance` from the pivot; slid to near the globe's center, the camera comes down to
+     * the surface floor along its line of sight, as it does from a whole-sphere framing.
+     * @param point - The point, in world space.
+     */
+    public slidePivotNear(point: Vector3): void {
+        // The camera stands at pivot - shifted * distance, where shifted carries the lens shift, so
+        // moving the pivot by shifted * a and the distance by a leaves the camera where it is.
+        const { tanX, tanY } = this.#halfFovTangents();
+        const free = this.#freeArea();
+        const world = this.pivot.computeWorldMatrix(true);
+        const shifted = Vector3.TransformNormal(new Vector3(free.x * tanX, free.y * tanY, 1), world);
+        const a = Vector3.Dot(point.subtract(this.pivot.position), shifted) / shifted.lengthSquared();
+        this.pivot.position.addInPlace(shifted.scale(a));
+        this.pivot.computeWorldMatrix(true);
+        this.cameraDistance = this.clampDistance(this.cameraDistance + a);
+        this.updateCameraPosition();
     }
 
     /**

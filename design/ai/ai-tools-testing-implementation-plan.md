@@ -1,5 +1,14 @@
 # Implementation Plan: AI Tools LLM Regression Testing
 
+Status: historical design, written in January 2026. What runs today differs: graphty-element's
+`llm-regression` vitest project sends each case to Google Gemini (the model is set in
+graphty-element/test/helpers/llm-regression-env.ts), and only in the release full run
+(`llm` job in .github/workflows/release.yml), never on a pull request, because every case is a paid
+call. A missing `GOOGLE_API_KEY` secret fails that job; locally, without a key, the suite skips.
+tools/llm-spend.mjs warns when a month's spend passes $60. The harness asks again only when the
+provider rate limited (429) or failed on its side (5xx); a failed assertion is never retried, and
+no test sets its own timeout (tools/README.md, "Testing").
+
 ## Overview
 
 This plan details the implementation of an automated LLM regression testing framework that verifies real LLM providers (OpenAI) correctly call our graph commands. The tests will run actual LLM API calls to ensure tool calling works correctly, catching regressions in prompt engineering, tool definitions, and parameter parsing.
@@ -426,8 +435,7 @@ This plan details the implementation of an automated LLM regression testing fram
     ```typescript
     interface RetryOptions {
         maxRetries?: number; // Default: 2
-        retryDelayMs?: number; // Default: 1000
-        retryOn?: (error: Error) => boolean;
+        retryOn?: (failure: RequestFailure) => boolean; // Default: 429, 5xx and network failures only
     }
     ```
 
@@ -485,27 +493,18 @@ This plan details the implementation of an automated LLM regression testing fram
 | **LLM Non-Determinism** | Use `temperature: 0`, allow alternative valid tools, flexible param matching |
 | **Rate Limiting**       | Sequential test execution, configurable delay, retry with backoff            |
 | **API Costs**           | Use `gpt-4o-mini`, keep prompts short, log token usage                       |
-| **Flaky Tests**         | Allow 1 retry per test, document expected variability                        |
+| **Flaky Tests**         | Never retry a failed assertion; find why the case varies and fix it          |
 | **API Key Exposure**    | Environment variables only, sanitize error messages                          |
 | **OpenAI API Changes**  | Pin model version, abstract through VercelAiProvider                         |
-| **CI/CD Integration**   | Require `VITE_OPENAI_API_KEY` secret, fail tests if not set                  |
+| **CI/CD Integration**   | Release job fails when the secret is missing; tests skip locally without one |
 
 ---
 
 ## CI/CD Integration Notes
 
-1. **GitHub Actions Secret**: Add `VITE_OPENAI_API_KEY` as repository secret
-2. **Test Job Configuration**:
-    ```yaml
-    test-llm-regression:
-        runs-on: ubuntu-latest
-        env:
-            VITE_OPENAI_API_KEY: ${{ secrets.VITE_OPENAI_API_KEY }}
-        steps:
-            - run: npm run test:llm-regression
-    ```
-3. **PR Requirements**: LLM regression tests must pass to merge
-4. **Cost Monitoring**: Track token usage in CI logs
+The real job is `llm` in .github/workflows/release.yml: it runs `npx vitest run --project llm-regression`
+in the release full run with the `GOOGLE_API_KEY` secret, fails when the secret is missing, and logs
+what the run spent. It never runs on a pull request.
 
 ---
 

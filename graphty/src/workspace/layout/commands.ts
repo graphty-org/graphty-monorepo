@@ -1,6 +1,6 @@
 import { defineRegistration } from "../commands/registry";
+import { nothingDrawn } from "../toolbar/disabledReasons";
 import { togglePopover } from "../toolbar/popover";
-import { nothingDrawn } from "../toolbar/useSessionVersion";
 import { randomSeed, takesSeed } from "./methods";
 
 /** The Layout package's commands (tier1-design.md 5.T11). */

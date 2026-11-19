@@ -97,7 +97,7 @@ async function load(graph: Graph, nodeCount: number, edgeCount: number): Promise
  *
  * It reads the frame the render loop drew, rather than drawing one more: every caller has waited
  * for a stable frame, so that frame is the finished picture, and on a software GPU one more frame of
- * the 10,000-node graph is seconds of rasterising still queued when the test ends, which the next
+ * the 10,000-node graph is seconds of rasterizing still queued when the test ends, which the next
  * test's first frame waits behind.
  * @param graph - The graph to measure.
  * @returns The counts, and the frame time for the log.

@@ -161,6 +161,10 @@ const SLA = {
     shardsOver: { target: cmp("==", 0), red: cmp(">=", 3) } satisfies Sla,
     groupDeadline: { target: cmp("<=", 80, "pct"), red: cmp(">", 90, "pct") } satisfies Sla,
     runnerMinutes: { target: cmp("<=", 400, "min"), red: cmp(">", 600, "min") } satisfies Sla,
+    issuesPerMerge: { target: cmp(">=", 1.3, "ratio"), red: cmp("<", 0.88, "ratio") } satisfies Sla,
+    multiIssue: { target: cmp(">=", 15, "pct"), red: cmp("<", 2.3, "pct") } satisfies Sla,
+    minutesPerIssue: { target: cmp("<=", 800, "min") } satisfies Sla,
+    groupReleased: { target: cmp("<=", 10, "pct"), red: cmp(">", 15, "pct") } satisfies Sla,
     blocked: { target: cmp("==", 0), red: f("sla.blocked") } satisfies Sla,
     noIssue: { target: cmp("==", 0), red: cmp(">=", 3) } satisfies Sla,
     flakeRate: { target: cmp("<", 2, "per1000"), red: cmp(">", 10, "per1000"), needs6h: true } satisfies Sla,
@@ -292,6 +296,47 @@ const prMembers: Member[] = [
         state: "slow",
         value: { n: 9, of: 112 },
         sla: SLA.prCaused,
+        link: "/pull-requests",
+    }),
+    member({
+        id: "pull-requests.issues_per_merge",
+        window: "7d",
+        state: "slow",
+        value: num(1.12, "ratio"),
+        sla: SLA.issuesPerMerge,
+        link: "/pull-requests",
+    }),
+    member({
+        id: "pull-requests.multi_issue_share",
+        window: "7d",
+        state: "slow",
+        value: num(8.2, "pct"),
+        sla: SLA.multiIssue,
+        link: "/pull-requests",
+    }),
+    member({
+        id: "pull-requests.runner_minutes_per_issue",
+        window: "7d",
+        state: "slow",
+        value: num(346, "min"),
+        n: 146,
+        minN: 10,
+        sla: SLA.minutesPerIssue,
+        link: "/ci/runner-minutes",
+    }),
+    member({
+        id: "pull-requests.group_released_share",
+        state: "slow",
+        value: num(0.3, "pct"),
+        sla: SLA.groupReleased,
+        link: "/pull-requests",
+    }),
+    member({ id: "pull-requests.groups_ready", state: "slow", value: num(16), link: "/pull-requests" }),
+    member({
+        id: "pull-requests.groups_combinable",
+        state: "slow",
+        value: num(3),
+        note: f("note.combinable_branches", { n: 7 }),
         link: "/pull-requests",
     }),
     member({ id: "pull-requests.automerge_green_stuck", value: num(0), sla: SLA.greenStuck, link: "/pull-requests" }),
@@ -2344,7 +2389,7 @@ write("test-history", history);
 function fixtureIssues(): IssueItem[] {
     let seed = 20261101;
     const rnd = (): number => {
-        seed = (seed + 0x6d2b79f5) | 0; // NOSONAR(S7767): wraps to int32 (mulberry32), which Math.trunc does not
+        seed = (seed + 0x6d2b79f5) | 0; // eslint-disable-line unicorn/prefer-math-trunc -- wraps to int32 (mulberry32), which Math.trunc does not
         let x = Math.imul(seed ^ (seed >>> 15), 1 | seed);
         x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x;
         return ((x ^ (x >>> 14)) >>> 0) / 4294967296;

@@ -6,6 +6,7 @@ import {
     bindResultPath,
     checkShapeContract,
     isHighlightShape,
+    pathParts,
     RESULT_FIELD_CONTRACT,
     RESULT_FIELD_NAMES,
     RESULT_PATH_RUN_PLACEHOLDER,
@@ -327,6 +328,15 @@ describe("result paths", () => {
     it("binds a descriptor's placeholder path to a run", () => {
         assert.strictEqual(bindResultPath("results.$.value", "betweenness"), "results.betweenness.value");
         assert.strictEqual(bindResultPath("data.weight", "betweenness"), "data.weight");
+    });
+
+    it("splits a path into what it reads, and is the inverse of resultPath", () => {
+        assert.deepEqual(pathParts("data.minutes"), { from: "data", column: "minutes" });
+        assert.deepEqual(pathParts("data.a.b"), { from: "data", column: "a.b" });
+        assert.deepEqual(pathParts(resultPath("louvain", "group")), { from: "run", runId: "louvain", field: "group" });
+        for (const other of ["id", "source", "data.", "results.louvain", "results.louvain.a.b", "results..x"]) {
+            assert.isUndefined(pathParts(other), other);
+        }
     });
 });
 

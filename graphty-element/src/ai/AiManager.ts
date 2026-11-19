@@ -334,7 +334,7 @@ export interface AiManagerConfig {
     allowImportUrl?: (url: URL) => boolean;
     /**
      * Where the assistant's `load_dataset` downloads graph-samples' datasets from (the
-     * `baseUrl` of `session.data.loadDataset`). Absent, that action fails with `E_OPTION_RANGE`.
+     * `baseUrl` of `session.data.loadDataset`). Absent, that action fails with `AI_ARG_OUT_OF_RANGE`.
      */
     datasetBaseUrl?: string;
     /** Optional custom provider instance (e.g., pre-initialized WebLlmProvider) */
@@ -724,7 +724,7 @@ export class AiManager {
                 };
             },
         });
-        void this.voiceSessionNow?.checkSupport(); // NOSONAR(S3735): void marks a deliberate fire-and-forget for no-floating-promises; rule off in graphty-way.xml
+        void this.voiceSessionNow?.checkSupport(); // void marks a deliberate fire-and-forget for no-floating-promises
     }
 
     /** Leave the immersive session: unbind, close a held microphone without sending, stop speaking. */
@@ -981,7 +981,7 @@ export class AiManager {
      * `ctx.tx` (`ctx.tx.styles.add`, `ctx.tx.layout.set`, `ctx.tx.run`): those changes are undone
      * with the rest of the message, and rolled back if a command throws. A change made through
      * `ctx.graph` is a step of its own and is not rolled back. A command stops when
-     * `ctx.abortSignal` fires, which happens when the message is cancelled or undone while it is
+     * `ctx.abortSignal` fires, which happens when the message is canceled or undone while it is
      * still going.
      * @param command - The command to register
      */
@@ -1108,7 +1108,7 @@ export class AiManager {
      * @param act - What to do with it.
      */
     private withVoice(act: (session: VoiceSession) => void): void {
-        void this.voiceSession?.then(act); // NOSONAR(S3735): void marks a deliberate fire-and-forget for no-floating-promises; rule off in graphty-way.xml
+        void this.voiceSession?.then(act); // void marks a deliberate fire-and-forget for no-floating-promises
     }
 
     /** Stop speaking an answer (`ai-speech-end` `{ code: "AI_CANCELLED" }`); nothing speaks without `voice`. */
@@ -1277,7 +1277,7 @@ export class AiManager {
         }
 
         // A key can make provider transcription or speech usable.
-        void this.voiceSessionNow?.checkSupport(); // NOSONAR(S3735): void marks a deliberate fire-and-forget for no-floating-promises; rule off in graphty-way.xml
+        void this.voiceSessionNow?.checkSupport(); // void marks a deliberate fire-and-forget for no-floating-promises
     }
 
     /**

@@ -24,6 +24,7 @@ import {
     readCorpusText,
     readMalformedBytes,
 } from "../../helpers/corpus.js";
+import { expectImportError } from "../../helpers/import-error.js";
 
 type Options = GraphmlImportOptions & CommonImportOptions;
 
@@ -44,13 +45,7 @@ async function load(
 }
 
 async function importError(input: ImportInput, options?: Options): Promise<ImportError> {
-    try {
-        await load(input, options);
-    } catch (err) {
-        expect(err).toBeInstanceOf(ImportError);
-        return err as ImportError;
-    }
-    throw new Error("expected an ImportError");
+    return expectImportError(() => load(input, options), { format: "graphml" });
 }
 
 function codes(report: ImportReport): string[] {
@@ -233,8 +228,11 @@ describe("graphmlImporter malformed corpus", () => {
         "missing-node-id.graphml": { code: GRAPHML_ISSUE.MISSING_ID, nodes: 2, edges: 1 },
     };
 
-    // a malformed file need not be listed in either table
     const recoverableByName: Partial<typeof recoverable> = recoverable;
+
+    it("covers every malformed file", () => {
+        expect([...malformedFiles("graphml")]).toEqual([...Object.keys(fatal), ...Object.keys(recoverable)].sort());
+    });
     for (const name of malformedFiles("graphml")) {
         it(`${name}: ImportError with a report under errorLimit 0`, async () => {
             const bytes = readMalformedBytes("graphml", name);
@@ -645,7 +643,7 @@ describe("graphmlImporter ids and endpoints", () => {
         expect(codes(report)).toEqual([SINK_OPTION_CODE, "E_UNKNOWN_NODE"]);
         expect(report.issues[0]).toMatchObject({ element: "selfLoops", category: "coercion" });
         expect(report.issues[0].message).toMatch(/selfLoops: "drop" requested but the sink uses "keep"/);
-        // addMissingNodes: true against a refusing sink cannot be honoured; nodeIdFrom has no GraphML meaning
+        // addMissingNodes: true against a refusing sink cannot be honored; nodeIdFrom has no GraphML meaning
         const strict = await load(
             doc(body),
             { nodeIdFrom: "label", addMissingNodes: true },

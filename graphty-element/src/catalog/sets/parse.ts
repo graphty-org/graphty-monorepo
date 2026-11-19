@@ -28,7 +28,6 @@
 
 import { GraphtyError } from "../../errors/GraphtyError";
 import { noteFieldOf } from "../../session/notes/paths";
-import { parseFileStylePath } from "../../session/styles/fileStyles/path";
 import type { EdgeMember, EdgeReading, Scope, SetDefinition } from "../types";
 import { canonicalSetDefinition, DEFINITION_FIELDS, EDGE_MEMBER_FIELDS, runIdOfRef } from "./canonical";
 
@@ -320,7 +319,17 @@ function isValuePath(path: unknown): boolean {
  * @param walker - The pass.
  */
 function checkThreshold(value: Loose, walker: Walker): void {
-    walker.fields(value, "threshold", ["kind", "path", "top", "above", "ties", "percentile", "from", "missing"]);
+    walker.fields(value, "threshold", [
+        "kind",
+        "path",
+        "top",
+        "above",
+        "ties",
+        "percentile",
+        "from",
+        "missing",
+        "within",
+    ]);
     checkRoot(value.path);
 
     if (!isValuePath(value.path)) {
@@ -359,6 +368,10 @@ function checkThreshold(value: Loose, walker: Walker): void {
     if (value.ties !== undefined && value.ties !== "fewer" && value.ties !== "all") {
         throw bad('A "threshold" leaf\'s ties is "fewer" or "all".', { ties: value.ties });
     }
+
+    if (value.within !== undefined && value.within !== "graph" && value.within !== "visible") {
+        throw bad('A "threshold" leaf\'s within is "graph" or "visible".', { within: value.within });
+    }
 }
 
 /**
@@ -371,13 +384,13 @@ const FIELD_ROOTS = new Set(["data", "results"]);
 const STRUCTURE_PATHS: ReadonlySet<string> = new Set(["graphty.degree", "graphty.inDegree", "graphty.outDegree"]);
 
 /**
- * Whether a `graphty.` path names a value graphty-element provides today: a degree, a note value
- * or a file's style value. Each already has its meaning, so a rule may read it (#6630).
+ * Whether a `graphty.` path names a value graphty-element provides today: a degree or a note
+ * value. Each already has its meaning, so a rule may read it (#6630).
  * @param path - The candidate path.
  * @returns True for a known element path.
  */
 function isElementPath(path: string): boolean {
-    return STRUCTURE_PATHS.has(path) || noteFieldOf(path) !== undefined || parseFileStylePath(path) !== undefined;
+    return STRUCTURE_PATHS.has(path) || noteFieldOf(path) !== undefined;
 }
 
 /**
@@ -813,7 +826,7 @@ function checkStepEnums(step: Loose): void {
 }
 
 /** The states a `state` leaf reads. */
-const ELEMENT_STATES: ReadonlySet<string> = new Set(["selected", "hovered", "ghosted", "pinned"]);
+const ELEMENT_STATES: ReadonlySet<string> = new Set(["selected", "hovered", "ghosted", "outsideWindow", "pinned"]);
 
 /**
  * Check one rule tree node, all the way down.
@@ -1390,7 +1403,7 @@ export function parseScope(value: unknown): Scope {
 /**
  * A write door's value with every edge reference inside an inline definition passed through
  * `stable` (a session edge id becomes its stable member; an object member is handed over as
- * given, for the door to canonicalise), at any depth: a scope's `{ define }`, a fixed or path definition's edges, a
+ * given, for the door to canonicalize), at any depth: a scope's `{ define }`, a fixed or path definition's edges, a
  * rule's tree, the `member` leaves of a rule tree and a `{ match: "member" }` selector. Everything
  * else is returned as given for the validator to judge, and a value `stable` changes nothing in is
  * returned unchanged (the same object).

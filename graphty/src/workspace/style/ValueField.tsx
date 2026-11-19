@@ -2,7 +2,7 @@ import { ComboInput, CompactColorInput, PanelField } from "@graphty/compact-mant
 import type { ChannelDescriptor } from "@graphty/graphty-element/catalog";
 import type { Channel, ChannelValue } from "@graphty/graphty-element/schema";
 import type { GraphSession } from "@graphty/graphty-element/session";
-import { Text, TextInput } from "@mantine/core";
+import { TextInput, VisuallyHidden } from "@mantine/core";
 import React from "react";
 
 import { useModelPicture } from "../canvas/models";
@@ -169,9 +169,8 @@ export function ValueField({
         return <TextValueField {...props} />;
     }
     return (
-        <Text size="xs" c="dimmed" aria-label={`${label}: ${channelWord(descriptor.channel)} has no field`}>
-            -
-        </Text>
+        // No visible stand-in in the sidebar (#8739): a screen reader still hears why there is no field.
+        <VisuallyHidden>{`${label}: ${channelWord(descriptor.channel)} has no field`}</VisuallyHidden>
     );
 }
 
@@ -312,11 +311,11 @@ function ChoiceValueField(props: KindFieldProps): React.JSX.Element {
         GLYPH_TABLES[descriptor.channel] === undefined
             ? undefined
             : Object.fromEntries([
-                  ...options.map((o) => [
+                  ...options.map((o): [string, React.ReactNode] => [
                       o.value,
                       <CatalogGlyph key={o.value} channel={descriptor.channel} value={o.value} />,
                   ]),
-                  ...extraChoices.map((o) => [
+                  ...extraChoices.map((o): [string, React.ReactNode] => [
                       o.value,
                       o.picture === undefined ? (
                           (o.glyph ?? null)

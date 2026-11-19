@@ -28,8 +28,6 @@ export interface FieldCase {
     readonly text?: string;
     /** Every node's or edge's text is styled, for a field that acts between labels (declutter). */
     readonly everyOne?: boolean;
-    /** Only in this view: a field whose drawing the element documents for one view only. */
-    readonly view?: "2d" | "3d";
 }
 
 /**
@@ -138,9 +136,9 @@ export const FIELD_CASES: Readonly<Record<keyof LabelStyle, FieldCase>> = {
     panelShadowOffsetY: { value: 10, base: { panelShadow: true, ...BACKGROUND } },
     animation: { value: "shake" },
     animationSpeed: { value: 5, base: { animation: "shake" } },
-    depthFade: { value: true, view: "3d" },
-    depthFadeNear: { value: 0, base: { depthFade: true }, view: "3d" },
-    depthFadeFar: { value: 1, base: { depthFade: true }, view: "3d" },
+    depthFade: { value: true },
+    depthFadeNear: { value: 0, base: { depthFade: true } },
+    depthFadeFar: { value: 1, base: { depthFade: true } },
     pickable: { value: true },
     badge: { value: "notification" },
     icon: { value: "A" },
@@ -208,10 +206,6 @@ export async function silentFields(
     const silent: string[] = [];
     for (const field of fields) {
         const test = FIELD_CASES[field];
-        if (test.view !== undefined && test.view !== view) {
-            continue;
-        }
-
         const layer = await session.styles.add({
             name: `${kind.name} ${field}`,
             target: kind.target,

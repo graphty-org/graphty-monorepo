@@ -143,6 +143,7 @@ function groupings(source: OptionsForSource, graph: GraphSnapshot): OptionDescri
         return grouping.map((field) => ({
             value: field.path,
             label: grouping.length === 1 ? root.runId : `${root.runId}: ${field.plainName}`,
+            runField: { runId: root.runId, field: field.name },
         }));
     });
     return [...attributes, ...fields];

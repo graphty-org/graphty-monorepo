@@ -500,6 +500,7 @@ function linkColumnsOf(table: JoinTable, key: ColumnMatch, loose: Loose): string
  * @param graph - The graph.
  * @param matches - Each column's best match on the nodes.
  * @param loose - How keys are compared.
+ * @param stepsOnly - Leave out keys on the edges, which the source steps do not join yet.
  * @returns The best values key, or undefined when no value meets.
  */
 function bestValuesKey(
@@ -507,6 +508,7 @@ function bestValuesKey(
     graph: JoinGraph,
     matches: Iterable<ColumnMatch>,
     loose: Loose,
+    stepsOnly: boolean,
 ): { shape: JoinShape; key: JoinKey; share: number } | undefined {
     let best: { shape: JoinShape; key: JoinKey; share: number } | undefined;
     for (const match of matches) {
@@ -515,7 +517,7 @@ function bestValuesKey(
         }
     }
 
-    for (const path of pathsOf(graph.edges)) {
+    for (const path of stepsOnly ? [] : pathsOf(graph.edges)) {
         const keys = indexOf(graph.edges, [path], loose);
         for (const column of table.columns) {
             const share = overlapOf(table, column, keys);
@@ -536,12 +538,14 @@ function bestValuesKey(
  * @param endpoints - The table's source and target columns, when its own reading found a pair.
  * @param endpoints.source - The source column.
  * @param endpoints.target - The target column.
+ * @param stepsOnly - Suggest only joins the source steps express: edges between node ids and values onto nodes.
  * @returns The suggestion.
  */
 export function suggestJoin(
     table: JoinTable,
     graph: JoinGraph,
     endpoints?: { readonly source: string; readonly target: string },
+    stepsOnly = false,
 ): JoinSuggestion {
     const loose = { ignoreCase: true, ignoreSpaces: true };
     const nodePaths = pathsOf(graph.nodes).map((path) => ({ path, index: indexOf(graph.nodes, [path], loose) }));
@@ -569,37 +573,65 @@ export function suggestJoin(
             : undefined;
     const given: readonly [ColumnMatch, ColumnMatch] | undefined =
         endpoints === undefined ? undefined : [matchOf(endpoints.source), matchOf(endpoints.target)];
+    // Under source steps an edges join reads its ends as node ids, and edge values are not a step yet.
     const pair = given ?? guessed;
-    if (pair !== undefined) {
-        const ends = { source: pair[0].column, target: pair[1].column };
-        const valuesOnEdges = pairValues(table, graph, ends);
-        if (valuesOnEdges !== undefined) {
-            return valuesOnEdges;
-        }
-
-        const share = Math.min(pair[0].share, pair[1].share);
-        if (share > 0) {
-            return Object.freeze({
-                shape: "edges",
-                keys: Object.freeze(pair.map((end) => Object.freeze({ file: end.column, graph: end.path }))),
-                confident: share >= CONFIDENT,
-                ...(repeatsDiffer(table, ends) ? { repeated: "both" as const } : {}),
-            });
-        }
+    const onEdges =
+        pair === undefined || (stepsOnly && pair.some((end) => end.path !== "id"))
+            ? undefined
+            : edgesSuggestion(table, graph, pair, stepsOnly);
+    if (onEdges !== undefined) {
+        return onEdges;
     }
 
-    const best = bestValuesKey(table, graph, matches.values(), loose);
+    const best = bestValuesKey(table, graph, matches.values(), loose, stepsOnly);
     if (best === undefined) {
         return Object.freeze({ shape: "rows", keys: Object.freeze([]), confident: false });
     }
 
     const keyMatch = matches.get(best.key.file);
-    const link = best.shape === "node-values" && keyMatch !== undefined ? linkColumnsOf(table, keyMatch, loose) : [];
+    const link =
+        !stepsOnly && best.shape === "node-values" && keyMatch !== undefined
+            ? linkColumnsOf(table, keyMatch, loose)
+            : [];
     return Object.freeze({
         shape: best.shape,
         keys: Object.freeze([Object.freeze(best.key)]),
         confident: best.share >= CONFIDENT,
         ...(link.length === 0 ? {} : { link: Object.freeze({ columns: Object.freeze(link) }) }),
+    });
+}
+
+/**
+ * A join of the table as edges between the nodes its two columns name, or of its values onto the
+ * edges they name.
+ * @param table - The table.
+ * @param graph - The graph.
+ * @param pair - The table's source and target columns, with their best matches on the nodes.
+ * @param stepsOnly - Suggest only what the source steps express: no edge values, no `repeated: "both"`.
+ * @returns The suggestion, or undefined when the columns meet no node.
+ */
+function edgesSuggestion(
+    table: JoinTable,
+    graph: JoinGraph,
+    pair: readonly [ColumnMatch, ColumnMatch],
+    stepsOnly: boolean,
+): JoinSuggestion | undefined {
+    const ends = { source: pair[0].column, target: pair[1].column };
+    const valuesOnEdges = stepsOnly ? undefined : pairValues(table, graph, ends);
+    if (valuesOnEdges !== undefined) {
+        return valuesOnEdges;
+    }
+
+    const share = Math.min(pair[0].share, pair[1].share);
+    if (share <= 0) {
+        return undefined;
+    }
+
+    return Object.freeze({
+        shape: "edges",
+        keys: Object.freeze(pair.map((end) => Object.freeze({ file: end.column, graph: end.path }))),
+        confident: share >= CONFIDENT,
+        ...(!stepsOnly && repeatsDiffer(table, ends) ? { repeated: "both" as const } : {}),
     });
 }
 

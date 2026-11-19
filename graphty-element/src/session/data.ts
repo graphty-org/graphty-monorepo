@@ -2182,6 +2182,7 @@ export class SessionData implements SessionDataApi {
                 ...(options.onto === "graph"
                     ? {
                           joinGraph: () => this.joinGraph(),
+                          joinsAsSteps: () => this.stepsOn(),
                           joiner: () => {
                               const send = this.sender("join a table");
                               return (table, choices, shape) => this.applyJoin(send, table, choices, shape);

@@ -743,6 +743,8 @@ export function sourceState(value: SourceSteps, id: string): SourceState {
 export interface SourceFacts {
     readonly nodes: readonly NodeId[];
     readonly edges: readonly EdgeId[];
+    /** How many nodes and edges it made: the ones no earlier source supplied (today's `LoadedSource.added`). */
+    readonly added: { readonly nodes: number; readonly edges: number };
     /** How many nodes it only named. */
     readonly named: number;
     /** Its rows the build left out, by reason. */
@@ -762,13 +764,26 @@ export function sourceFacts(
     edgeIds: Readonly<Record<string, EdgeId>>,
 ): ReadonlyMap<string, SourceFacts> {
     const ids = nodeIdsOf(result);
-    const out = new Map<string, { nodes: NodeId[]; edges: EdgeId[]; named: number; leftOut: Record<string, number> }>();
+    const out = new Map<
+        string,
+        {
+            nodes: NodeId[];
+            edges: EdgeId[];
+            added: { nodes: number; edges: number };
+            named: number;
+            leftOut: Record<string, number>;
+        }
+    >();
     // The reader source is in no list of sources, but supplies what the reader adds (3.1).
     for (const id of [...Object.keys(value.sources), READER_SOURCE]) {
-        out.set(id, { nodes: [], edges: [], named: 0, leftOut: {} });
+        out.set(id, { nodes: [], edges: [], added: { nodes: 0, edges: 0 }, named: 0, leftOut: {} });
     }
     for (const n of result.nodes.values()) {
         n.loads.forEach((id) => out.get(id)?.nodes.push(ids.get(n.id) as NodeId));
+        const maker = out.get(n.loads[0] ?? "");
+        if (maker) {
+            maker.added.nodes++;
+        }
         n.named.forEach((id) => {
             const facts = out.get(id);
             if (facts) {
@@ -779,6 +794,10 @@ export function sourceFacts(
     for (const e of result.edges.values()) {
         const edge = edgeIds[e.id] as EdgeId | undefined;
         e.loads.forEach((id) => edge !== undefined && out.get(id)?.edges.push(edge));
+        const maker = out.get(e.loads[0] ?? "");
+        if (maker && edge !== undefined) {
+            maker.added.edges++;
+        }
     }
     for (const [id, fates] of result.fates) {
         const leftOut = out.get(id)?.leftOut ?? {};

@@ -199,7 +199,7 @@ function listed(
             tables: src.tables,
             ...(src.tableRows === undefined ? {} : { tableRows: src.tableRows }),
             ...(src.input === undefined ? {} : { input: src.input }),
-            added: counts,
+            added: Object.freeze({ nodes: own?.added.nodes ?? 0, edges: own?.added.edges ?? 0 }),
             counts,
             state: sourceState(value, src.id),
             named: own?.named ?? 0,
@@ -308,8 +308,13 @@ const dataStepsSet: UndoableDefinition<DataStepsSetCommand> = {
     op: "data.steps-set",
     undo: { kind: "undoable", label: labelOf, fact: factOf },
     moves: false,
-    // A replacing load begins a new dataset, whose step keeps the arrangement it replaced.
-    movesWhen: (command) => command.edit.kind === "add" && command.edit.replace === true,
+    // A replacing load begins a new dataset, whose step keeps the arrangement it replaced. With a
+    // layout drawing the graph, every edit takes the arrangement it began from: the rebuild writes
+    // records back, a layout answers a written record by laying the graph out again, and the edit's
+    // undo writes them once more, so only the captured arrangement puts every node back. A session
+    // with no layout takes none.
+    movesWhen: (command, services) =>
+        (command.edit.kind === "add" && command.edit.replace === true) || services.layout !== undefined,
     draws: true,
     variants: [
         "set",

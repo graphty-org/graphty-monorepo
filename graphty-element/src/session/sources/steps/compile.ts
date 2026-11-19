@@ -16,7 +16,7 @@ import type { DataStepsSetCommand } from "../../commands/source-steps";
 import type { SessionCommand } from "../../planning";
 import type { ImportOptions, JoinChoices, JoinRecord, JoinShape } from "../../types";
 import { applyAct } from "./acts";
-import { ownSpace, resolveNode } from "./build";
+import { isStaged, mintPart, nodeSpace, ownSpace, resolveNode } from "./build";
 import {
     buildOf,
     checkSpace,
@@ -39,11 +39,13 @@ import {
     type BuildResult,
     type CellValue,
     type CopyTables,
+    type EdgesStep,
     type NodeRef,
     READER_SOURCE,
     READER_SPACE,
     type ReaderOp,
     type Row,
+    type Step,
 } from "./types";
 
 /** The endpoint column pairs probed when a load names none, as the CSV reader probes them. */
@@ -478,6 +480,49 @@ function spaceOfKeys(value: SourceSteps, copies: Copies, keys: readonly unknown[
     return best ?? spaceById.values().next().value ?? ownSpace(id);
 }
 
+/** Where a graph field a join key names is read: the source holding it, its node space and key column. */
+interface FieldSource {
+    readonly source: string;
+    readonly space: string;
+    readonly key: string;
+}
+
+/**
+ * The built source whose node rows hold a column most of a table's key values appear in: a join
+ * keyed on a graph field (`data.<column>`) translates through its rows to the nodes they key.
+ * @param value - The value.
+ * @param copies - The rows as read.
+ * @param column - The column.
+ * @param keys - The key values.
+ * @returns The source, or null when no built source's node rows hold the column.
+ */
+function fieldSourceOf(
+    value: SourceSteps,
+    copies: Copies,
+    column: string,
+    keys: readonly unknown[],
+): FieldSource | null {
+    const wanted = new Set(keys.map(String));
+    let best: FieldSource | null = null;
+    let most = -1;
+    for (const src of Object.values(value.sources)) {
+        const key = src.mapping.nodes?.key;
+        const rows = copies[src.origin.copy]?.nodes;
+        if (key === undefined || rows === undefined || isStaged(value, src.id) || !rows.some((r) => column in r)) {
+            continue;
+        }
+        const hits = rows.filter((r) => wanted.has(String(r[column]))).length;
+        if (hits > most) {
+            best = { source: src.id, space: nodeSpace(src), key };
+            most = hits;
+        }
+    }
+    return best;
+}
+
+/** The prefix of a graph path naming a working column. */
+const DATA_PATH = "data.";
+
 /**
  * The value without a joined table: its source and every step reading it. Its type rules stay.
  * @param value - The value.
@@ -506,36 +551,68 @@ export function withoutJoin(value: SourceSteps, id: string): SourceSteps {
  */
 export function compileJoin(value: SourceSteps, copies: Copies, join: JoinAsSteps): SourceSteps {
     const { choices, shape, id } = join;
-    const later = LATER_CHOICES.filter((k) => choices[k] !== undefined);
     const edges = shape === "edges";
-    const supported =
-        (shape === "node-values" || shape === "merge" || edges) &&
-        choices.keys.length === (edges ? 2 : 1) &&
-        choices.keys.every((k) => k.graph === "id") &&
-        choices.repeated !== "both";
-    if (!supported || later.length > 0) {
-        throw new GraphtyError({
-            code: "E_UNSUPPORTED",
-            message: "This join is not available under the source-steps experiment yet.",
-            source: "data",
-            details: { reason: "later", shape, choices: later },
-        });
-    }
     const files = choices.keys.map((k) => k.file);
-    const space = spaceOfKeys(
-        value,
-        copies,
-        join.rows.flatMap((row) => files.map((f) => row[f])),
-        id,
-    );
+    const keyValues = join.rows.flatMap((row) => files.map((f) => row[f]));
+    // A node join keyed on a graph field reads its key through the rows of the source holding it (3.5).
+    const graphKey = choices.keys[0]?.graph ?? "id";
+    const column = !edges && graphKey.startsWith(DATA_PATH) ? graphKey.slice(DATA_PATH.length) : null;
+    const field = column === null ? null : fieldSourceOf(value, copies, column, keyValues);
+    refuseUnexpressed(choices, shape, field !== null);
+    const space = field?.space ?? spaceOfKeys(value, copies, keyValues, id);
     const options = defined({
         columns: choices.columns,
-        clash: choices.clash,
-        repeated: choices.repeated,
+        // Today's join keeps a clashing value both ways unless the reader says otherwise (section 10 item 23).
+        clash: { "*": "both" as const, ...choices.clash },
+        repeated: choices.repeated === "both" ? undefined : (choices.repeated ?? "first"),
         ignoreCase: choices.ignoreCase,
         ignoreSpaces: choices.ignoreSpaces,
     });
-    const source: StepsSource = {
+    const next: SourceSteps = { ...value, sources: { ...value.sources, [id]: joinedSource(join, files, space) } };
+    const through = field === null || column === null ? null : { ...field, column };
+    if (shape === "merge") {
+        return applyAct(
+            next,
+            {
+                act: "merge",
+                options: {
+                    from: { source: id, field: files[0] },
+                    into: through === null ? { space } : { source: through.source, field: through.column },
+                    ...options,
+                    ...(choices.unmatchedFrom === undefined ? {} : { unmatchedFrom: choices.unmatchedFrom }),
+                },
+            },
+            copies,
+        );
+    }
+    const step: Step = edges
+        ? edgesStepOf(next, id, files, space, { ...options, ...defined({ unmatchedRows: choices.unknownEnds }) })
+        : {
+              op: "join.node-values",
+              source: id,
+              read: { table: "nodes", key: files[0], space },
+              ...options,
+              ...defined({ unmatchedRows: choices.unmatchedRows }),
+              ...(through === null
+                  ? {}
+                  : { via: through.source, mapping: { columns: [through.column, through.key] as const, space } }),
+          };
+    const parts = step.op === "join.edges" ? { parts: { ...next.parts, [id]: step.part } } : {};
+    return { ...next, ...parts, steps: [...next.steps, step] };
+}
+
+/**
+ * The joined table as a source: its rows are nodes keyed by the file's column (in its own space for
+ * a merge, else the space the key is read in), or edges between the nodes its two columns name.
+ * @param join - The join.
+ * @param files - Its key columns.
+ * @param space - The space its keys are read in.
+ * @returns The source.
+ */
+function joinedSource(join: JoinAsSteps, files: readonly string[], space: string): StepsSource {
+    const { id, shape, choices } = join;
+    const edges = shape === "edges";
+    return {
         id,
         origin: { copy: join.copy },
         kind: "file",
@@ -548,36 +625,57 @@ export function compileJoin(value: SourceSteps, copies: Copies, join: JoinAsStep
             : { nodes: { key: files[0], space: shape === "merge" ? ownSpace(id) : space } },
         ...(edges && choices.unknownEnds === "leave-out" ? { settings: { unmatched: "leave-out" as const } } : {}),
     };
-    const next: SourceSteps = { ...value, sources: { ...value.sources, [id]: source } };
-    if (shape === "merge") {
-        return applyAct(
-            next,
-            {
-                act: "merge",
-                options: {
-                    from: { source: id, field: files[0] },
-                    into: { space },
-                    ...options,
-                    ...(choices.unmatchedFrom === undefined ? {} : { unmatchedFrom: choices.unmatchedFrom }),
-                },
-            },
-            copies,
-        );
+}
+
+/**
+ * Refuse a join the steps do not express yet: a shape or key count other than a values, merge or
+ * edges join, a key on anything but a node id or a graph field a source holds, `repeated: "both"`,
+ * or a choice from the later list.
+ * @param choices - The join's choices.
+ * @param shape - Its shape.
+ * @param fieldHeld - Whether its graph field key names a column a built source holds.
+ * @throws A `GraphtyError` with `E_UNSUPPORTED` (reason `later`).
+ */
+function refuseUnexpressed(choices: JoinChoices, shape: JoinShape, fieldHeld: boolean): void {
+    const later = LATER_CHOICES.filter((k) => choices[k] !== undefined);
+    const edges = shape === "edges";
+    const supported =
+        (shape === "node-values" || shape === "merge" || edges) &&
+        choices.keys.length === (edges ? 2 : 1) &&
+        (choices.keys.every((k) => k.graph === "id") || fieldHeld) &&
+        choices.repeated !== "both";
+    if (!supported || later.length > 0) {
+        throw new GraphtyError({
+            code: "E_UNSUPPORTED",
+            message: "This join is not available under the source-steps experiment yet.",
+            source: "data",
+            details: { reason: "later", shape, choices: later },
+        });
     }
-    if (edges) {
-        return { ...next, steps: [...next.steps, { op: "join.add", source: id, ...options }] };
-    }
+}
+
+/**
+ * An edges join as `join.edges`, not `join.add`: only it reads `repeated`, `ignoreCase`,
+ * `ignoreSpaces` and what to do with an unknown end (3.4).
+ * @param value - The value with the joined source in it.
+ * @param id - The joined source.
+ * @param files - Its source and target columns.
+ * @param space - The space both ends are read in.
+ * @param options - The step's choices.
+ * @returns The step, with a part never used by the source before.
+ */
+function edgesStepOf(
+    value: SourceSteps,
+    id: string,
+    files: readonly string[],
+    space: string,
+    options: Partial<Omit<EdgesStep, "op" | "source" | "part" | "read">>,
+): EdgesStep {
     return {
-        ...next,
-        steps: [
-            ...next.steps,
-            {
-                op: "join.node-values",
-                source: id,
-                read: { table: "nodes", key: files[0], space },
-                ...options,
-                ...(choices.unmatchedRows === undefined ? {} : { unmatchedRows: choices.unmatchedRows }),
-            },
-        ],
+        op: "join.edges",
+        source: id,
+        part: mintPart(value, id, { high: value.parts?.[id] }),
+        read: { table: "edges", source: files[0], sourceSpace: space, target: files[1], targetSpace: space },
+        ...options,
     };
 }

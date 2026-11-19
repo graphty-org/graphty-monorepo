@@ -1111,9 +1111,10 @@ class Builder {
         }
         const tr = this.translator(s);
         const empties = new Map<string, number>();
+        const loose = s.ignoreCase === true || s.ignoreSpaces === true ? new Map<string, Map<string, string>>() : null;
         for (const [r, i] of rows) {
-            const a = this.edgeEnd(s, st, tr, r, "source");
-            const b = this.edgeEnd(s, st, tr, r, "target");
+            const a = this.edgeEnd(s, st, tr, r, "source", loose);
+            const b = this.edgeEnd(s, st, tr, r, "target", loose);
             if ("miss" in a || "miss" in b) {
                 // an empty end counts first, then fan-out, then unmatched
                 const misses = [a, b].map((x) => ("miss" in x ? x.miss : null));
@@ -1156,8 +1157,16 @@ class Builder {
         }
     }
 
-    // The node one end of a join.edges row reaches, through `via` on `viaEnd`.
-    private edgeEnd(s: EdgesStep, st: StepStats, tr: Lookup | null, r: Row, which: "source" | "target"): EndHit {
+    // The node one end of a join.edges row reaches, through `via` on `viaEnd`; under `ignoreCase` or
+    // `ignoreSpaces` an end meets the node of its space whose key compares equal, kept per space in `loose`.
+    private edgeEnd(
+        s: EdgesStep,
+        st: StepStats,
+        tr: Lookup | null,
+        r: Row,
+        which: "source" | "target",
+        loose: Map<string, Map<string, string>> | null,
+    ): EndHit {
         const rd = s.read;
         const v = r[which === "source" ? rd.source : rd.target];
         if (isEmpty(v)) {
@@ -1173,8 +1182,28 @@ class Builder {
         }
         const space = which === "source" ? rd.sourceSpace : rd.targetSpace;
         const how = s.unmatchedRows ?? this.source(s.source).settings?.unmatched ?? "add";
-        const n = this.node(space, text(v), { source: s.source, part: s.part, end: which }, r, st, how);
+        const idx = loose === null ? null : this.looseKeys(loose, space, s);
+        const key = idx?.get(normalize(v, s)) ?? text(v);
+        const n = this.node(space, key, { source: s.source, part: s.part, end: which }, r, st, how);
+        if (n && idx && !idx.has(normalize(v, s))) {
+            idx.set(normalize(v, s), n.key);
+        }
         return n ? { n } : { miss: "left-out:unmatched" };
+    }
+
+    // Each node key of a space, by its compared form, built once per step.
+    private looseKeys(loose: Map<string, Map<string, string>>, space: string, o: MatchOptions): Map<string, string> {
+        let idx = loose.get(space);
+        if (!idx) {
+            idx = new Map();
+            for (const n of this.nodes.values()) {
+                if (n.space === space && !idx.has(normalize(n.key, o))) {
+                    idx.set(normalize(n.key, o), n.key);
+                }
+            }
+            loose.set(space, idx);
+        }
+        return idx;
     }
 
     // ---- join.edge-values (3.4)

@@ -76,6 +76,8 @@ interface DraftHost {
     released(draft: Draft): void;
     /** For a draft prepared `onto: "graph"`: the graph as a join reads it. */
     joinGraph?(): JoinGraph;
+    /** Whether a join runs as source steps (the `source-steps` experiment), so only joins they express are suggested. */
+    joinsAsSteps?(): boolean;
     /**
      * For a draft prepared `onto: "graph"`: taken synchronously, as `importer` is; joins a table
      * onto the graph as one step.
@@ -1098,7 +1100,12 @@ export class Draft implements LoadDraft {
                 roles.source === undefined || roles.target === undefined
                     ? undefined
                     : { source: roles.source.column, target: roles.target.column };
-            this.suggestion = suggestJoin(tableOf(read, held), host.joinGraph?.() ?? NO_GRAPH, endpoints);
+            this.suggestion = suggestJoin(
+                tableOf(read, held),
+                host.joinGraph?.() ?? NO_GRAPH,
+                endpoints,
+                host.joinsAsSteps?.() === true,
+            );
         }
 
         return this.suggestion;

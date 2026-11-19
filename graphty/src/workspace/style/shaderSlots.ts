@@ -391,6 +391,37 @@ export function writeGroupBy(ctx: RowContext, entry: ShaderEntry, path: string |
 }
 
 /**
+ * Draws a row's use in another place, or in its shader's own place again, as one step.
+ * @param ctx - the row.
+ * @param entry - the row.
+ * @param place - the place, or undefined for the shader's own.
+ * @returns when it is written.
+ */
+export function writePlace(ctx: RowContext, entry: ShaderEntry, place: ShaderPlace | undefined): Promise<void> {
+    return changeUse(ctx, entry, SHADER_STEP_WORDS.add(nameOf(ctx.session, entry.use.shader)), (use) => {
+        const { place: _was, ...rest } = use;
+        return place === undefined ? rest : { ...rest, place };
+    });
+}
+
+/**
+ * Draws another shader in a row's use, as one step: the use's fields named in `keep` stay (a group
+ * outline family's shared `groupBy`), its parameters and everything else go.
+ * @param ctx - the row.
+ * @param entry - the row.
+ * @param id - the project shader to draw.
+ * @param keep - the use's fields that stay.
+ * @returns when it is written.
+ */
+export function swapShader(ctx: RowContext, entry: ShaderEntry, id: string, keep: readonly string[]): Promise<void> {
+    const words = SHADER_STEP_WORDS.swap(nameOf(ctx.session, entry.use.shader), nameOf(ctx.session, id));
+    return changeUse(ctx, entry, words, (use) => ({
+        ...Object.fromEntries(Object.entries(use).filter(([key]) => keep.includes(key))),
+        shader: id,
+    }));
+}
+
+/**
  * The parameter values a row sets.
  * @param entry - the row.
  * @returns its values, clock bindings included.

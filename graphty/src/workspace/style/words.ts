@@ -34,6 +34,7 @@ import {
     renamePaths,
     rulePath,
 } from "@graphty/graphty-element/session";
+import type React from "react";
 
 import { wordsFor } from "../analyze/words";
 import { formatNumber } from "../inspector/words";
@@ -68,6 +69,8 @@ export interface SectionSpec {
     readonly shapeOwnsReplace?: boolean;
     /** Which of the layer's shader uses the Shaders list draws; absent, every one. */
     readonly listed?: (entry: ShaderEntry) => boolean;
+    /** Draws one use's row in place of today's shader row (Style panel v2's thing row). */
+    readonly renderRow?: (entry: ShaderEntry) => React.ReactNode;
     /**
      * Properties the section sets from inside one of its lines (the Shape field's Model... and Model
      * settings), never a "+" item of their own.

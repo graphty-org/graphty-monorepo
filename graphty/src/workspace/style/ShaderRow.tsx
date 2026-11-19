@@ -54,7 +54,7 @@ function ShaderThumb({ src }: Readonly<{ src: string | undefined }>): React.JSX.
 }
 
 /** Posts a failed write's notice, given the verb of what failed. */
-type Fail = (verb: string) => (error: unknown) => void;
+export type Fail = (verb: string) => (error: unknown) => void;
 
 /** Props for ShaderRow. */
 interface ShaderRowProps {
@@ -200,6 +200,65 @@ function pathOf(ctx: RowContext, choice: DataChoice): string | undefined {
 }
 
 /**
+ * A group outline's Group by picker: one outline per value the members share, or one around all
+ * of them. The trigger is the caller's.
+ * @param props - Component props
+ * @param props.ctx - the row
+ * @param props.entry - the outline's use
+ * @param props.fail - posts a failed write's notice
+ * @param props.renderTrigger - the button that opens it, given its words
+ * @returns The picker
+ */
+export function GroupByPopout({
+    ctx,
+    entry,
+    fail,
+    renderTrigger,
+}: Readonly<{
+    ctx: RowContext;
+    entry: ShaderEntry;
+    fail: Fail;
+    renderTrigger: (word: string | undefined) => React.ReactNode;
+}>): React.JSX.Element {
+    const [open, setOpen] = useState(false);
+    const { groupBy } = entry.use;
+    const word = groupBy === undefined ? undefined : (sourceName(ctx.session, { by: groupBy }) ?? groupBy);
+    const write = (path: string | undefined): void => {
+        setOpen(false);
+        writeGroupBy(ctx, entry, path).catch(fail("changed"));
+    };
+    return (
+        <Popout opened={open} onOpenChange={setOpen}>
+            <Popout.Trigger>{renderTrigger(word)}</Popout.Trigger>
+            <Popout.Panel
+                width={POPOUT_WIDTH}
+                placement="left"
+                alignment="start"
+                header={{ variant: "title", title: GROUP_BY_WORDS.title }}
+                closeLabel={`Close ${GROUP_BY_WORDS.title}`}
+            >
+                <ValuePicker
+                    title={GROUP_BY_WORDS.title}
+                    target="node"
+                    inUse={groupBy === undefined ? [] : [groupBy]}
+                    fixedLabel={GROUP_BY_WORDS.none}
+                    fixedInForce={groupBy === undefined}
+                    onFixed={() => {
+                        write(undefined);
+                    }}
+                    onPick={(choice) => {
+                        write(pathOf(ctx, choice));
+                    }}
+                    onClose={() => {
+                        setOpen(false);
+                    }}
+                />
+            </Popout.Panel>
+        </Popout>
+    );
+}
+
+/**
  * The Group by line under a group outline's row: one outline per value the members share, or one
  * around all of them.
  * @param props - Component props
@@ -213,48 +272,20 @@ function GroupByLine({
     entry,
     fail,
 }: Readonly<{ ctx: RowContext; entry: ShaderEntry; fail: Fail }>): React.JSX.Element {
-    const [open, setOpen] = useState(false);
-    const { groupBy } = entry.use;
-    const word = groupBy === undefined ? GROUP_BY_WORDS.none : (sourceName(ctx.session, { by: groupBy }) ?? groupBy);
-    const write = (path: string | undefined): void => {
-        setOpen(false);
-        writeGroupBy(ctx, entry, path).catch(fail("changed"));
-    };
     return (
         <div className="ws-row" data-line={`${entry.key}.groupBy`} data-set="">
             <div className="ws-field ws-field-sub">
                 <div className="ws-field-control">
-                    <Popout opened={open} onOpenChange={setOpen}>
-                        <Popout.Trigger>
+                    <GroupByPopout
+                        ctx={ctx}
+                        entry={entry}
+                        fail={fail}
+                        renderTrigger={(word) => (
                             <Button size="compact-xs" variant="default" fullWidth justify="flex-start">
-                                {GROUP_BY_WORDS.line(word)}
+                                {GROUP_BY_WORDS.line(word ?? GROUP_BY_WORDS.none)}
                             </Button>
-                        </Popout.Trigger>
-                        <Popout.Panel
-                            width={POPOUT_WIDTH}
-                            placement="left"
-                            alignment="start"
-                            header={{ variant: "title", title: GROUP_BY_WORDS.title }}
-                            closeLabel={`Close ${GROUP_BY_WORDS.title}`}
-                        >
-                            <ValuePicker
-                                title={GROUP_BY_WORDS.title}
-                                target="node"
-                                inUse={groupBy === undefined ? [] : [groupBy]}
-                                fixedLabel={GROUP_BY_WORDS.none}
-                                fixedInForce={groupBy === undefined}
-                                onFixed={() => {
-                                    write(undefined);
-                                }}
-                                onPick={(choice) => {
-                                    write(pathOf(ctx, choice));
-                                }}
-                                onClose={() => {
-                                    setOpen(false);
-                                }}
-                            />
-                        </Popout.Panel>
-                    </Popout>
+                        )}
+                    />
                 </div>
                 <span className="ws-slot" />
                 <span className="ws-slot" />

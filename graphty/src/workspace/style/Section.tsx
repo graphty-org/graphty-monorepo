@@ -617,18 +617,22 @@ function ShadersSection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
                     )
                 }
             >
-                {entries.map((entry) => (
-                    <ShaderRow
-                        key={entry.key}
-                        ctx={ctx}
-                        entry={entry}
-                        count={entries.length}
-                        onMove={(from, to) => {
-                            moveShader(ctx, from, to).catch(fail("changed"));
-                        }}
-                        onCode={setCode}
-                    />
-                ))}
+                {entries.map((entry) =>
+                    spec.renderRow === undefined ? (
+                        <ShaderRow
+                            key={entry.key}
+                            ctx={ctx}
+                            entry={entry}
+                            count={entries.length}
+                            onMove={(from, to) => {
+                                moveShader(ctx, from, to).catch(fail("changed"));
+                            }}
+                            onCode={setCode}
+                        />
+                    ) : (
+                        <React.Fragment key={entry.key}>{spec.renderRow(entry)}</React.Fragment>
+                    ),
+                )}
             </ControlSection>
             <Popout
                 opened={gallery}

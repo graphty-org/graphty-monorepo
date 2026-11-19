@@ -45,6 +45,11 @@ interface ShaderParamsProps {
     readonly onUnbind?: (name: string) => void;
     /** Whether its Uses and Cost lines are drawn under the parameters (not in Style panel v2, #8739). */
     readonly facts?: boolean;
+    /**
+     * Style panel v2: a parameter the use does not set is drawn empty, never with its default as a
+     * value, and the minus of one it sets reads Remove.
+     */
+    readonly unsetEmpty?: boolean;
 }
 
 /** How far a whole bounded range is scrubbed across, in CSS pixels. */
@@ -229,9 +234,29 @@ function ChoiceGrid({
  */
 function listValue(option: ShaderParamDescriptor, value: unknown): string | null {
     if (option.type === "boolean") {
+        if (value === undefined) {
+            return null;
+        }
         return value === true ? "on" : "off";
     }
     return typeof value === "string" ? value : null;
+}
+
+/** The minus's word: Remove where an unset parameter is empty, else Reset to the default. */
+const MINUS_WORDS: Readonly<Record<string, string>> = { true: "Remove", false: "Reset" };
+
+/**
+ * The value a parameter's control shows: the one the use sets, else its default unless unset is empty.
+ * @param option - the parameter.
+ * @param value - the value the use sets.
+ * @param unsetEmpty - whether an unset parameter is drawn empty.
+ * @returns the value shown.
+ */
+function shownValue(option: ShaderParamDescriptor, value: Value | undefined, unsetEmpty: boolean): Value | undefined {
+    if (value !== undefined || unsetEmpty) {
+        return value;
+    }
+    return option.default as Value | undefined;
 }
 
 /** Props for one parameter's row. */
@@ -244,6 +269,7 @@ interface ParamRowProps {
     readonly binding: DataBinding | undefined;
     readonly onChange: (name: string, value: Value | undefined) => void;
     readonly onUnbind: ((name: string) => void) | undefined;
+    readonly unsetEmpty: boolean;
 }
 
 /**
@@ -259,6 +285,7 @@ interface ParamRowProps {
  * @param props.binding - the parameter's binding to data
  * @param props.onChange - sets or clears it
  * @param props.onUnbind - stops it varying
+ * @param props.unsetEmpty - an unset parameter is drawn empty, never with its default, and its minus reads Remove
  * @returns The row
  */
 function ParamRow({
@@ -270,11 +297,13 @@ function ParamRow({
     binding,
     onChange,
     onUnbind,
+    unsetEmpty,
 }: Readonly<ParamRowProps>): React.JSX.Element {
     const { store } = useWorkspace();
     const label = option.plainName;
     const lower = option.plainName.toLowerCase();
-    const shown = value ?? (option.default as Value | undefined);
+    const shown = shownValue(option, value, unsetEmpty);
+    const minusWord = MINUS_WORDS[String(unsetEmpty)];
     const set = value !== undefined;
     const write = (next: Value): void => {
         onChange(option.name, next);
@@ -317,11 +346,11 @@ function ParamRow({
     const minus = (
         <span className="ws-slot">
             {set && binding === undefined && (
-                <Tooltip label={`Reset ${lower}`} position="top">
+                <Tooltip label={`${minusWord} ${lower}`} position="top">
                     <ActionIcon
                         variant="subtle"
                         size="sm"
-                        aria-label={`Reset ${lower}`}
+                        aria-label={`${minusWord} ${lower}`}
                         onClick={() => {
                             onChange(option.name, undefined);
                         }}
@@ -378,7 +407,16 @@ function ParamRow({
             </NumberParam>
         );
     } else {
-        const control = <ParamControl ctx={ctx} option={option} label={label} shown={shown} write={write} />;
+        const control = (
+            <ParamControl
+                ctx={ctx}
+                option={option}
+                label={label}
+                shown={shown}
+                write={write}
+                empty={unsetEmpty && !set}
+            />
+        );
         body = (
             <>
                 {name()}
@@ -406,6 +444,7 @@ function ParamRow({
  * @param props.label - its name
  * @param props.shown - the value shown
  * @param props.write - sets it
+ * @param props.empty - unset and drawn empty: a color shows an empty swatch, whose picker opens on the default
  * @returns The control
  */
 export function ParamControl({
@@ -414,30 +453,35 @@ export function ParamControl({
     label,
     shown,
     write,
+    empty = false,
 }: Readonly<{
     ctx: RowContext | undefined;
     option: ShaderParamDescriptor;
     label: string;
     shown: unknown;
     write: (next: Value) => void;
+    empty?: boolean;
 }>): React.ReactNode {
     let control: React.ReactNode;
     if (option.choices !== undefined) {
         control = <ChoiceGrid option={option} label={label} value={shown} onPick={write} />;
     } else if (option.type === "color") {
-        const hex = typeof shown === "string" ? shown.toUpperCase() : "#000000";
+        const fallback = typeof option.default === "string" ? option.default.toUpperCase() : "#000000";
+        const hex = typeof shown === "string" ? shown.toUpperCase() : fallback;
         control = (
             <CompactColorInput
                 aria-label={label}
-                valueText={colorName(hex)}
+                valueText={empty ? undefined : colorName(hex)}
                 width="100%"
-                color={hex}
+                color={empty ? undefined : hex}
                 defaultColor={hex}
+                emptySwatch={empty}
+                emptyText={empty ? "" : undefined}
                 showOpacity={false}
                 showReset={false}
                 swatches={ctx?.documentColors}
                 onChangeEnd={(next) => {
-                    if (next !== undefined && next.toUpperCase() !== hex) {
+                    if (next !== undefined && (empty || next.toUpperCase() !== hex)) {
                         write(next.toUpperCase());
                     }
                 }}
@@ -515,6 +559,7 @@ function FactRow({
  * @param props.onChange - sets or clears one parameter
  * @param props.onUnbind - stops one varying
  * @param props.facts - whether its Uses and Cost lines are drawn
+ * @param props.unsetEmpty - an unset parameter is drawn empty, never with its default, and its minus reads Remove
  * @returns The rows
  */
 export function ShaderParams({
@@ -526,6 +571,7 @@ export function ShaderParams({
     onChange,
     onUnbind,
     facts = true,
+    unsetEmpty = false,
 }: Readonly<ShaderParamsProps>): React.JSX.Element {
     const box = useRef<HTMLDivElement>(null);
     // The pop-out puts focus on the field marked to take it: the first parameter's.
@@ -545,6 +591,7 @@ export function ShaderParams({
                     binding={bindings[option.name]}
                     onChange={onChange}
                     onUnbind={onUnbind}
+                    unsetEmpty={unsetEmpty}
                 />
             ))}
             {facts && (

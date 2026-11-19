@@ -20,14 +20,14 @@ import { PickerNamesOnly } from "../pickerNames";
 import type { RowContext } from "../PropertyRow";
 import { startForOrNone, writeIn, writeLine } from "../row";
 import { AddButton, type AddOption, Section } from "../Section";
-import { ShaderRow } from "../ShaderRow";
-import { addShader, moveShader, pickedShader, placeOf, shaderEntries, type ShaderEntry } from "../shaderSlots";
+import { addShader, pickedShader, placeOf, shaderEntries, type ShaderEntry } from "../shaderSlots";
 import { focusLineNext } from "../useFocusLine";
 import { channelWord, experimentChannelsOff, failureWords } from "../words";
 import { groupOutlineShaders, isGroupOutline, replaceUse } from "./families";
 import { ITEM_LISTS, LISTS, nextColor } from "./lists";
 import { FIT_TO_LABEL, lineFor, V2_LABELS } from "./rubric";
 import { RubricLine } from "./RubricLine";
+import { ShaderUseRow } from "./ShaderUseRow";
 import { ThingRow } from "./ThingRow";
 import { mainOf, SECTIONS, type SectionThings, setOn, type ThingSpec } from "./things";
 import { sectionsOf } from "./valueSections";
@@ -304,20 +304,7 @@ function ThingSection({
                     />
                 ))}
                 {outlines.map((entry) => (
-                    <div key={entry.key} data-thing={GROUP_OUTLINE}>
-                        <ShaderRow
-                            ctx={ctx}
-                            entry={entry}
-                            count={outlines.length}
-                            onMove={(from, to) => {
-                                moveShader(ctx, from, to).catch((error: unknown) => {
-                                    store.set({
-                                        notice: { message: failureWords("Group outline", "moved", error), error: true },
-                                    });
-                                });
-                            }}
-                        />
-                    </div>
+                    <ShaderUseRow key={entry.key} ctx={ctx} entry={entry} outline />
                 ))}
             </ControlSection>
         </div>
@@ -378,6 +365,7 @@ export function StylePanelV2({ ctx: row }: Readonly<{ ctx: RowContext }>): React
                             shaders: true,
                             shapeOwnsReplace: true,
                             listed: (entry) => !isGroupOutline(ctx, entry),
+                            renderRow: (entry) => <ShaderUseRow ctx={ctx} entry={entry} />,
                         }}
                     />
                 ) : (

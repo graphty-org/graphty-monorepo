@@ -6,7 +6,13 @@
  */
 
 import { ComboInput, PanelField, SegmentedControl, ToggleIconButton } from "@graphty/compact-mantine";
-import type { Channel, ChannelDescriptor, ChannelValue } from "@graphty/graphty-element/catalog";
+import {
+    type Channel,
+    type ChannelDescriptor,
+    type ChannelValue,
+    readChannelItems,
+    writeChannelItems,
+} from "@graphty/graphty-element/catalog";
 import { ActionIcon, Checkbox, Group, Tooltip, VisuallyHidden } from "@mantine/core";
 import React from "react";
 
@@ -20,7 +26,7 @@ import { ValueField } from "../ValueField";
 import { channelWord, failureWords, fieldName, FONTS, isPercent } from "../words";
 import { ItemListEditor, PointPair } from "./ItemList";
 import { moveUnit, ruleOf, unsetIn } from "./lineWrites";
-import { coordinateDescriptor, ITEM_LISTS, readPoints, writePoints } from "./lists";
+import { coordinateDescriptor, ITEM_LISTS } from "./lists";
 import { isPictured, type LineSpec, type Rule, segmentOptions, VALUE_GLYPHS } from "./rubric";
 import { setOn } from "./things";
 import { sectionsOf } from "./valueSections";
@@ -449,13 +455,14 @@ function fontControl(args: ControlArgs): React.ReactNode {
  */
 function pointControl(args: ControlArgs): React.ReactNode {
     const { descriptor, value, label, write } = args;
+    const port = descriptor.channel as "edge.sourcePort" | "edge.targetPort";
     return (
         <PointPair
             descriptor={coordinateDescriptor(descriptor)}
             label={label}
-            point={readPoints(value)[0]}
+            point={readChannelItems(port, value)[0]}
             onWrite={(point) => {
-                write(descriptor.channel, point === undefined ? undefined : writePoints([point]));
+                write(descriptor.channel, point === undefined ? undefined : writeChannelItems(port, [point]));
             }}
         />
     );

@@ -2,12 +2,22 @@
  * Style panel v2's list editor for structured text channels (design/ui/style-panel-v2/design.md,
  * section 6, R15): inner lines and shape parts (polylines), polygon points and bends (points), a
  * Record's fields, an end's stack of caps and an edge Record's table rows. Each item is a line
- * with a "-"; "+" on the list's legend adds one. The channel keeps graphty-element's own text form
- * (`lists.ts` reads and writes it), one write an edit.
+ * with a "-"; "+" on the list's legend adds one. The channel keeps graphty-element's own text form,
+ * read and written by its `readChannelItems` and `writeChannelItems`, one write an edit.
  */
 
 import { ControlGroup } from "@graphty/compact-mantine";
-import type { Channel, ChannelDescriptor } from "@graphty/graphty-element/catalog";
+import {
+    type Channel,
+    type ChannelDescriptor,
+    type ChannelItemTypes,
+    type ChannelPoint,
+    type ItemChannel,
+    type LabelTableRow,
+    readChannelItems,
+    type ShapeTextItem,
+    writeChannelItems,
+} from "@graphty/graphty-element/catalog";
 import { ActionIcon, Group, TextInput, Tooltip } from "@mantine/core";
 import React from "react";
 
@@ -19,23 +29,7 @@ import type { RowContext } from "../PropertyRow";
 import { lineIn, writeIn } from "../row";
 import { failureWords } from "../words";
 import { unsetIn } from "./lineWrites";
-import {
-    type Cap,
-    coordinateDescriptor,
-    type ItemList,
-    type Point,
-    readCaps,
-    readPoints,
-    readPolylines,
-    readShapeTexts,
-    readTable,
-    type ShapeText,
-    writeCaps,
-    writePoints,
-    writePolylines,
-    writeShapeTexts,
-    writeTable,
-} from "./lists";
+import { coordinateDescriptor, type ItemList } from "./lists";
 import { LineFrame, NumberLine } from "./RubricLine";
 import { sectionsOf } from "./valueSections";
 
@@ -106,21 +100,13 @@ export function PointPair({
 }: Readonly<{
     descriptor: ChannelDescriptor;
     label: string;
-    point: Point | undefined;
-    onWrite: (point: Point | undefined) => void;
+    point: ChannelPoint | undefined;
+    onWrite: (point: ChannelPoint | undefined) => void;
 }>): React.JSX.Element {
-    const [x, y] = point ?? ["", ""];
-    const coordinate = (text: string): number | undefined =>
-        text === "" || !Number.isFinite(Number(text)) ? undefined : Number(text);
-    const write = (at: 0 | 1, next: number | undefined): void => {
-        const both: [string, string] = [x, y];
-        both[at] = next === undefined ? "" : String(next);
-        // Both emptied takes the point off; one emptied reads as 0.
-        onWrite(
-            both[0] === "" && both[1] === ""
-                ? undefined
-                : [both[0] === "" ? "0" : both[0], both[1] === "" ? "0" : both[1]],
-        );
+    const write = (at: "x" | "y", next: number | undefined): void => {
+        // Both emptied takes the point off; one emptied reads as 0. A length after a fraction stays.
+        const other = at === "x" ? point?.y : point?.x;
+        onWrite(next === undefined && other === undefined ? undefined : { ...(point ?? ORIGIN), [at]: next ?? 0 });
     };
     return (
         <Group grow gap={4} wrap="nowrap">
@@ -130,16 +116,22 @@ export function PointPair({
                     descriptor={descriptor}
                     label={`${label} ${letter.toLowerCase()}`}
                     percent={false}
-                    value={coordinate(at === 0 ? x : y)}
+                    value={at === 0 ? point?.x : point?.y}
                     glyph={letter}
                     onWrite={(next) => {
-                        write(at === 0 ? 0 : 1, next);
+                        write(at === 0 ? "x" : "y", next);
                     }}
                 />
             ))}
         </Group>
     );
 }
+
+/** A point at the middle. */
+const ORIGIN: ChannelPoint = { x: 0, y: 0 };
+
+/** A table cell with empty words. */
+const NEW_CELL = { lines: [{ text: "" }] };
 
 /** What each kind's lines need. */
 interface KindArgs {
@@ -148,6 +140,24 @@ interface KindArgs {
     readonly descriptor: ChannelDescriptor;
     readonly value: unknown;
     readonly write: (text: string | undefined) => void;
+}
+
+/**
+ * A list's items as graphty-element reads them, and the write of new ones in its text form.
+ * @param args - the list.
+ * @param channel - its channel, as the kind's channels.
+ * @returns the items, and their write.
+ */
+function itemsIn<C extends ItemChannel>(
+    args: KindArgs,
+    channel: C,
+): { items: readonly ChannelItemTypes[C][]; put: (next: readonly ChannelItemTypes[C][]) => void } {
+    return {
+        items: readChannelItems(channel, args.value),
+        put: (next) => {
+            args.write(next.length === 0 ? undefined : writeChannelItems(channel, next, args.value));
+        },
+    };
 }
 
 /**
@@ -191,14 +201,11 @@ function itemLine(
  * @returns The lines, and what "+" adds.
  */
 function pointsKind(args: KindArgs): { lines: React.ReactNode; add: () => void } {
-    const { list, descriptor, value, write } = args;
-    const points = readPoints(value);
-    const put = (next: readonly Point[]): void => {
-        write(next.length === 0 ? undefined : writePoints(next));
-    };
+    const { list, descriptor } = args;
+    const { items: points, put } = itemsIn(args, list.channel as "node.shapePoints" | "edge.bends");
     return {
         add: () => {
-            put([...points, ["0", "0"]]);
+            put([...points, ORIGIN]);
         },
         lines: points.map((point, at) => {
             const name = `${list.item} ${String(at + 1)}`;
@@ -236,15 +243,13 @@ function pointsKind(args: KindArgs): { lines: React.ReactNode; add: () => void }
  * @returns The lines, and what "+" adds.
  */
 function polylinesKind(args: KindArgs): { lines: React.ReactNode; add: () => void } {
-    const { list, descriptor, value, write } = args;
-    const lines = readPolylines(value);
-    const put = (next: readonly (readonly Point[])[]): void => {
-        write(next.length === 0 ? undefined : writePolylines(next));
-    };
+    const { list, descriptor } = args;
+    const channel = list.channel as "node.shapeLines" | "node.shapeParts";
+    const { items: lines, put } = itemsIn(args, channel);
     const coordinates = coordinateDescriptor(descriptor);
     return {
         add: () => {
-            put([...lines, ...readPolylines(list.fresh)]);
+            put([...lines, ...readChannelItems(channel, list.fresh)]);
         },
         lines: lines.flatMap((points, at) => {
             const name = `${list.item} ${String(at + 1)}`;
@@ -267,7 +272,7 @@ function polylinesKind(args: KindArgs): { lines: React.ReactNode; add: () => voi
                       }
                     : undefined;
             };
-            const setPoint = (index: number, next: Point | undefined): void => {
+            const setPoint = (index: number, next: ChannelPoint | undefined): void => {
                 const kept =
                     next === undefined
                         ? points.filter((_, i) => i !== index)
@@ -292,7 +297,7 @@ function polylinesKind(args: KindArgs): { lines: React.ReactNode; add: () => voi
                         <AddItemButton
                             label={`Add a point to ${name.toLowerCase()}`}
                             onClick={() => {
-                                put(lines.map((each, i) => (i === at ? [...each, each.at(-1) ?? ["0", "0"]] : each)));
+                                put(lines.map((each, i) => (i === at ? [...each, each.at(-1) ?? ORIGIN] : each)));
                             }}
                         />
                     ) : null,
@@ -308,17 +313,14 @@ function polylinesKind(args: KindArgs): { lines: React.ReactNode; add: () => voi
  * @returns The lines, and what "+" adds.
  */
 function textsKind(args: KindArgs): { lines: React.ReactNode; add: () => void } {
-    const { list, descriptor, value, write } = args;
-    const texts = readShapeTexts(value);
-    const put = (next: readonly ShapeText[]): void => {
-        write(next.length === 0 ? undefined : writeShapeTexts(next));
-    };
-    const change = (at: number, next: Partial<ShapeText>): void => {
+    const { list, descriptor } = args;
+    const { items: texts, put } = itemsIn(args, "node.shapeTexts");
+    const change = (at: number, next: Partial<ShapeTextItem>): void => {
         put(texts.map((each, i) => (i === at ? { ...each, ...next } : each)));
     };
     return {
         add: () => {
-            put([...texts, { point: ["0", "0"], text: "" }]);
+            put([...texts, { ...ORIGIN, text: "" }]);
         },
         lines: texts.flatMap((field, at) => {
             const name = `${list.item} ${String(at + 1)}`;
@@ -348,9 +350,9 @@ function textsKind(args: KindArgs): { lines: React.ReactNode; add: () => void } 
                     <PointPair
                         descriptor={coordinateDescriptor(descriptor)}
                         label={`${name} point`}
-                        point={field.point}
+                        point={field}
                         onWrite={(point) => {
-                            change(at, { point: point ?? ["0", "0"] });
+                            change(at, { x: point?.x ?? 0, y: point?.y ?? 0 });
                         }}
                     />,
                 ),
@@ -365,15 +367,13 @@ function textsKind(args: KindArgs): { lines: React.ReactNode; add: () => void } 
  * @returns The lines, and what "+" adds.
  */
 function capsKind(args: KindArgs): { lines: React.ReactNode; add: () => void } {
-    const { ctx, list, descriptor, value, write } = args;
-    const caps = readCaps(value);
+    const { ctx, list, descriptor } = args;
+    const channel = list.channel as "edge.arrowHeadStack" | "edge.arrowTailStack";
+    const { items: caps, put } = itemsIn(args, channel);
     const arrow = shownChannel(ctx.session, ctx.side, descriptor.channel.replace(/Stack$/, "") as Channel, true);
-    const put = (next: readonly Cap[]): void => {
-        write(next.length === 0 ? undefined : writeCaps(next));
-    };
     return {
         add: () => {
-            put([...caps, ...readCaps(list.fresh)]);
+            put([...caps, ...readChannelItems(channel, list.fresh)]);
         },
         lines: caps.map((cap, at) => {
             const name = `${list.item} ${String(at + 1)}`;
@@ -413,24 +413,29 @@ function capsKind(args: KindArgs): { lines: React.ReactNode; add: () => void } {
  * @returns The lines, and what "+" adds.
  */
 function tableKind(args: KindArgs): { lines: React.ReactNode; add: () => void } {
-    const { list, descriptor, value, write } = args;
-    const { table, rows } = readTable(value);
-    const put = (next: readonly (readonly string[])[]): void => {
-        write(next.length === 0 ? undefined : writeTable(table, next));
-    };
+    const { list, descriptor } = args;
+    const { items: rows, put } = itemsIn(args, list.channel as "node.labelTable" | "edge.labelTable");
     return {
         add: () => {
-            put([...rows, [""]]);
+            put([...rows, { cells: [NEW_CELL] }]);
         },
-        lines: rows.flatMap((cells, at) => {
+        lines: rows.flatMap((row, at) => {
             const name = `${list.item} ${String(at + 1)}`;
-            const setCell = (index: number, words: string | undefined): void => {
-                const kept =
-                    words === undefined
-                        ? cells.filter((_, i) => i !== index)
-                        : cells.map((c, i) => (i === index ? words : c));
-                put(rows.map((each, i) => (i === at ? kept : each)));
+            const putCells = (cells: LabelTableRow["cells"]): void => {
+                put(rows.map((each, i) => (i === at ? { ...each, cells } : each)));
             };
+            // A cell's words are its first line's; its other lines and settings stay.
+            const setCell = (index: number, words: string | undefined): void => {
+                putCells(
+                    words === undefined
+                        ? row.cells.filter((_, i) => i !== index)
+                        : row.cells.map((cell, i) => {
+                              const [first, ...more] = cell.lines ?? [];
+                              return i === index ? { ...cell, lines: [{ ...first, text: words }, ...more] } : cell;
+                          }),
+                );
+            };
+            const cells = row.cells.map((cell) => cell.lines?.[0]?.text ?? "");
             return cells.map((words, index) =>
                 itemLine(
                     `${String(at)}-${String(index)}`,
@@ -460,7 +465,7 @@ function tableKind(args: KindArgs): { lines: React.ReactNode; add: () => void } 
                         <AddItemButton
                             label={`Add a cell to ${name.toLowerCase()}`}
                             onClick={() => {
-                                put(rows.map((each, i) => (i === at ? [...each, ""] : each)));
+                                putCells([...row.cells, NEW_CELL]);
                             }}
                         />
                     ) : null,

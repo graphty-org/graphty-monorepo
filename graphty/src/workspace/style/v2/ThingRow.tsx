@@ -17,7 +17,16 @@ import { PicturePopover } from "../PicturePopover";
 import { Field, type RowContext } from "../PropertyRow";
 import { lineIn, writeIn } from "../row";
 import { ShaderParams } from "../ShaderParams";
-import { bindingsOf, paramsOf, placeOf, shaderEntries, shadersChannel, unbindParam, writeParam } from "../shaderSlots";
+import {
+    bindingsOf,
+    paramsOf,
+    placeOf,
+    shaderEntries,
+    type ShaderEntry,
+    shadersChannel,
+    unbindParam,
+    writeParam,
+} from "../shaderSlots";
 import { failureWords } from "../words";
 import { familyOf, pickReplace, replaceUse } from "./families";
 import { ItemListEditor } from "./ItemList";
@@ -33,15 +42,16 @@ import { FirstLines, ThingPopover } from "./ThingPopover";
 import { mainOf, setOn, type ThingSpec } from "./things";
 
 /**
- * The parameters of the shader drawn in the shapes' place, in the Shape pop-over's Main (design 7.1).
+ * A shader use's parameters in Style panel v2 (design 7.1, R16): no Uses or Cost lines, and a
+ * parameter the use does not set is empty, its "-" there once it is written.
  * @param props - Component props
  * @param props.ctx - the row
+ * @param props.entry - the use
  * @returns The parameters, or nothing for a shader the catalog does not know
  */
-function ReplaceParams({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.Element | null {
+export function UseParams({ ctx, entry }: Readonly<{ ctx: RowContext; entry: ShaderEntry }>): React.JSX.Element | null {
     const { store } = useWorkspace();
-    const entry = shaderEntries(ctx).find((each) => placeOf(each) === "replace");
-    if (entry?.descriptor === undefined) {
+    if (entry.descriptor === undefined) {
         return null;
     }
     const fail = (error: unknown): void => {
@@ -57,6 +67,7 @@ function ReplaceParams({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.Elemen
             values={paramsOf(entry)}
             bindings={bindingsOf(ctx, entry)}
             facts={false}
+            unsetEmpty
             onChange={(param, value) => {
                 writeParam(ctx, entry, param, value).catch(fail);
             }}
@@ -65,6 +76,17 @@ function ReplaceParams({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.Elemen
             }}
         />
     );
+}
+
+/**
+ * The parameters of the shader drawn in the shapes' place, in the Shape pop-over's Main (design 7.1).
+ * @param props - Component props
+ * @param props.ctx - the row
+ * @returns The parameters, or nothing when no shader draws there
+ */
+function ReplaceParams({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.Element | null {
+    const entry = shaderEntries(ctx).find((each) => placeOf(each) === "replace");
+    return entry === undefined ? null : <UseParams ctx={ctx} entry={entry} />;
 }
 
 /**

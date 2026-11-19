@@ -34,6 +34,7 @@ const REPLACE_PLACES: readonly ShaderPlace[] = ["replace"];
  * @param props.ctx - the row
  * @param props.anchor - the line it opens beside
  * @param props.title - its header
+ * @param props.places - the places it lists; the shapes' place when left out
  * @param props.onPick - picks a shader by id
  * @param props.onClose - closes it with nothing picked
  * @returns The gallery
@@ -42,12 +43,14 @@ export function ReplaceGallery({
     ctx,
     anchor,
     title,
+    places = REPLACE_PLACES,
     onPick,
     onClose,
 }: Readonly<{
     ctx: RowContext;
     anchor: React.RefObject<HTMLElement | null>;
     title: string;
+    places?: readonly ShaderPlace[];
     onPick: (id: string) => void;
     onClose: () => void;
 }>): React.JSX.Element {
@@ -69,7 +72,7 @@ export function ReplaceGallery({
                 closeLabel={`Close ${title}`}
             >
                 <Popout.Content>
-                    <ShaderGallery session={ctx.session} tab={ctx.side} bare places={REPLACE_PLACES} onPick={onPick} />
+                    <ShaderGallery session={ctx.session} tab={ctx.side} bare places={places} onPick={onPick} />
                 </Popout.Content>
             </Popout.Panel>
         </Popout>

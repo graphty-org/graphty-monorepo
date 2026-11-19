@@ -522,7 +522,6 @@ async function draw({ name, data, source, example, layout, width, height, emphas
         width,
         height,
         transparentBackground: true,
-        destination: { blob: true },
     });
     // A picture for a tile in either color scheme: fail loudly when the background was drawn.
     const corner = new globalThis.OffscreenCanvas(1, 1).getContext("2d");

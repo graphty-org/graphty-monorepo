@@ -101,16 +101,15 @@ describe("Sentry initialization", () => {
         });
 
         expect(isSentryEnabled()).toBe(true);
-        expect(mockInit).toHaveBeenCalledWith(
-            expect.objectContaining({
-                dsn: "https://test@test.ingest.sentry.io/123",
-                environment: "test",
-                replaysSessionSampleRate: 0,
-                replaysOnErrorSampleRate: 1,
-                sendClientReports: false,
-                dataCollection: expect.objectContaining({ userInfo: false }),
-            }),
-        );
+        expect(mockInit).toHaveBeenCalledOnce();
+        expect(mockInit.mock.calls[0]?.[0]).toMatchObject({
+            dsn: "https://test@test.ingest.sentry.io/123",
+            environment: "test",
+            replaysSessionSampleRate: 0,
+            replaysOnErrorSampleRate: 1,
+            sendClientReports: false,
+            dataCollection: { userInfo: false },
+        });
     });
 
     it("buffers for replay-on-error only, with every text, input and medium and the reader's attributes masked", () => {

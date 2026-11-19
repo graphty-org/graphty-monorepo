@@ -16,8 +16,8 @@ import type { XRPivotCameraController } from "./XRPivotCameraController";
 const GLIDE = 0.16;
 
 /**
- * Move a point a share of the way to a target, and onto it once it is within a thousandth of a
- * unit, so a pivot that has arrived stops changing and a frame drawn on demand can rest.
+ * Move a point a share of the way to a target, and onto it once that leaves it within a thousandth
+ * of a unit, so a pivot that has arrived stops changing and a frame drawn on demand can rest.
  * @param from - The point, moved in place.
  * @param to - The target.
  * @param frames - How many nominal 60 Hz frames this pass stands for, so the glide takes the same
@@ -30,10 +30,10 @@ export function glideTowards(from: Vector3, to: Vector3, frames = 1): boolean {
         return false;
     }
 
+    Vector3.LerpToRef(from, to, 1 - (1 - GLIDE) ** (frames > 0 ? frames : 1), from);
+    // Snapped in the same pass that comes within reach, not the one after: a frame saved at the end.
     if (Vector3.DistanceSquared(from, to) < 1e-6) {
         from.copyFrom(to);
-    } else {
-        Vector3.LerpToRef(from, to, 1 - (1 - GLIDE) ** (frames > 0 ? frames : 1), from);
     }
 
     return true;

@@ -28,6 +28,7 @@ import type { CodedFact } from "../session/shared";
 import type { ChannelDescriptor } from "../session/styles/channels";
 import type { TransitionDescriptor } from "../transitions/registry";
 import type { ChannelValueDescriptor } from "./channelValues";
+import type { LabelLookDescriptor } from "./label-looks";
 import type { LabelStyle } from "./label-style";
 import type { ModelDescriptor } from "./models";
 import type { ScreenshotPreset } from "./screenshotPresets";
@@ -657,7 +658,7 @@ export interface OptionUnsupported {
 /**
  * Every property a layer can paint.
  *
- * The label channels `labelColor`, `labelSize`, `labelLetterSize`, `labelFont`, `labelWeight`, `labelItalic`, `labelWrapWidth`, `labelWrapTrailingSpace`, `labelWrapSkipEndSpace`, `labelWrapEllipsis`, `labelWrapAnywhere`, `labelWrapSpaceCount`, `labelMaxLines`, `labelMaxLinesEllipsis`, `labelMinScreenSize`, `labelOnTop`, `labelRotation`, `labelBackground`, `labelOutline`, `labelOutlineWidth`, `labelBorder`, `labelBorderWidth`, `labelOpacity`, `labelBackgroundOpacity`, `labelOutlineOpacity`, `labelBorderOpacity`, `labelPadding`, `labelCornerRadius`, `labelLineHeight`, `labelLineBox`, `labelBorderAlign`, `labelBackgroundShape`, `labelOffsetX`, `labelOffsetY`, `labelShiftX`, `labelShiftY`, `labelShiftOf` and `labelGapOf` are
+ * The label channels `labelColor`, `labelSize`, `labelLetterSize`, `labelFont`, `labelWeight`, `labelItalic`, `labelWrapWidth`, `labelWrapTrailingSpace`, `labelWrapSkipEndSpace`, `labelWrapEllipsis`, `labelWrapAnywhere`, `labelWrapSpaceCount`, `labelMaxLines`, `labelMaxLinesEllipsis`, `labelMinScreenSize`, `labelOnTop`, `labelRotation`, `labelBackground`, `labelOutline`, `labelOutlineWidth`, `labelBorder`, `labelBorderWidth`, `labelOpacity`, `labelBackgroundOpacity`, `labelOutlineOpacity`, `labelBorderOpacity`, `labelPadding`, `labelCornerRadius`, `labelLineHeight`, `labelLineBox`, `labelBorderAlign`, `labelBorderStyle`, `labelBackgroundShape`, `labelOffsetX`, `labelOffsetY`, `labelShiftX`, `labelShiftY`, `labelShiftOf` and `labelGapOf` are
  * single fields of the label style, so they can be bound to a column (`encode`) where the whole
  * `labelStyle` can only be set. They land in the same label style the `labelStyle` channel
  * writes, field by field, the higher layer winning each field.
@@ -710,6 +711,7 @@ export type Channel =
     | "node.labelLineHeight"
     | "node.labelLineBox"
     | "node.labelBorderAlign"
+    | "node.labelBorderStyle"
     | "node.labelBackgroundShape"
     | "node.labelOffsetX"
     | "node.labelOffsetY"
@@ -1042,6 +1044,7 @@ export type Channel =
     | "edge.labelLineHeight"
     | "edge.labelLineBox"
     | "edge.labelBorderAlign"
+    | "edge.labelBorderStyle"
     | "edge.labelBackgroundShape"
     | "edge.labelOffsetX"
     | "edge.labelOffsetY"
@@ -1444,7 +1447,19 @@ export interface LayerUnmatchedGroup {
 export interface StyleDocument {
     version: 1;
     layers: readonly LayerSpec[];
+    /**
+     * Every palette a layer names, built-ins included, as the writing build painted it. A layer's
+     * palette name resolves here before the reader's own catalog, so a file opens with the same
+     * colors on a build that no longer ships a palette, or ships it changed. A document written
+     * before 3.40 carries only registered palettes, and its other names resolve in the catalog.
+     */
     palettes?: readonly PaletteDescriptor[];
+    /**
+     * Every label look a layer names (`LabelStyle.look`), with the fields it set, resolved here
+     * before the reader's catalog in the same way as `palettes`. Absent when no layer names one.
+     * @since 3.40.0
+     */
+    labelLooks?: readonly LabelLookDescriptor[];
     /**
      * The style tree: folders, pins, the reader's locks and hidden rows, bottom first. A layer row
      * names its layer by its place in `layers`. Absent when the tree is one plain row per layer.
@@ -1600,6 +1615,11 @@ export interface LayoutDescriptor {
      * offering a weight control on the other fourteen would advertise a setting that changes
      * nothing.
      */
+    honorsWeights: boolean;
+    /**
+     * The British spelling of {@link LayoutDescriptor.honorsWeights}, always the same value.
+     * @deprecated Read `honorsWeights`. Removed in the next major.
+     */
     honoursWeights: boolean;
     /**
      * Whether the default engine accepts a scope: `setLayout(type, opts, { scope })` moves only
@@ -1633,11 +1653,11 @@ export interface LayoutRequirements {
 /**
  * A layout descriptor as a third party's engine class authors it.
  *
- * `honoursWeights` and `scoped` are missing from it because the engine class already declares
+ * `honorsWeights` (and its British spelling `honoursWeights`) and `scoped` are missing from it because the engine class already declares
  * those facts as statics, and a fact written in two places is a fact that can disagree with
  * itself. `LayoutEngine.register` reads the statics and publishes the complete descriptor.
  */
-export type AuthoredLayoutDescriptor = Omit<LayoutDescriptor, "honoursWeights" | "scoped">;
+export type AuthoredLayoutDescriptor = Omit<LayoutDescriptor, "honorsWeights" | "honoursWeights" | "scoped">;
 
 /** One file format the element can read, write, or both. */
 export interface FormatDescriptor {

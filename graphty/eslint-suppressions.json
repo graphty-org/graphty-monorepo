@@ -114,11 +114,6 @@
       "count": 2
     }
   },
-  "src/workspace/canvas/models.ts": {
-    "unicorn/no-array-callback-reference": {
-      "count": 3
-    }
-  },
   "src/workspace/data-page/DataPage.tsx": {
     "jsx-a11y/prefer-tag-over-role": {
       "count": 3
@@ -233,9 +228,6 @@
     }
   },
   "src/workspace/options/OptionsForm.tsx": {
-    "sonarjs/cognitive-complexity": {
-      "count": 1
-    },
     "unicorn/no-array-callback-reference": {
       "count": 1
     }
@@ -260,7 +252,7 @@
   },
   "src/workspace/selection/StepPane.tsx": {
     "jsx-a11y/no-noninteractive-element-interactions": {
-      "count": 2
+      "count": 1
     },
     "sonarjs/cognitive-complexity": {
       "count": 1
@@ -289,9 +281,6 @@
   "src/workspace/style/CustomModelDialog.tsx": {
     "sonarjs/cognitive-complexity": {
       "count": 1
-    },
-    "unicorn/no-array-callback-reference": {
-      "count": 3
     }
   },
   "src/workspace/style/Groups.tsx": {
@@ -350,11 +339,6 @@
       "count": 3
     }
   },
-  "src/workspace/style/Section.tsx": {
-    "unicorn/no-array-callback-reference": {
-      "count": 1
-    }
-  },
   "src/workspace/style/ShaderEditorDialog.tsx": {
     "eslint-comments/require-description": {
       "count": 1
@@ -389,10 +373,10 @@
   },
   "src/workspace/style/WhichPicker.tsx": {
     "jsx-a11y/prefer-tag-over-role": {
-      "count": 9
+      "count": 7
     },
     "sonarjs/cognitive-complexity": {
-      "count": 2
+      "count": 1
     },
     "unicorn/no-array-callback-reference": {
       "count": 3
@@ -428,9 +412,6 @@
   },
   "src/workspace/style/row.ts": {
     "max-params": {
-      "count": 1
-    },
-    "unicorn/no-array-callback-reference": {
       "count": 1
     }
   },

@@ -52,7 +52,7 @@ export function DocumentOutput({ kind, onCancel, onDone }: Readonly<DocumentOutp
         }
         if (kind === "recipe") {
             const recipe = session.recipe();
-            const leftOut = recipe.leftOut.reduce((sum, fact) => sum + Number(fact.params?.count ?? 1), 0);
+            const leftOut = recipe.leftOut.reduce((sum, fact) => sum + Number(fact.params.count ?? 1), 0);
             return {
                 rows: [
                     { label: "Data sources", value: recipe.sources.length },

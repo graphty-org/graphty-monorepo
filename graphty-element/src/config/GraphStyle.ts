@@ -13,6 +13,20 @@ const SHADER_PARAM_NAME = /^(?!.*__)[A-Za-z]\w{0,63}$/;
  */
 export const DEFAULT_BACKGROUND_COLOR = "#F5F5F5";
 
+/**
+ * The color the element clears its canvas to under a dark color scheme when the background
+ * names no `darkColor`: a near-black gray. See `colorScheme` on the element.
+ * @since 3.58.0
+ */
+export const DEFAULT_DARK_BACKGROUND_COLOR = "#121212";
+
+/**
+ * Which color of the background the canvas is cleared to: `"light"` (the default) draws `color`,
+ * `"dark"` draws `darkColor`, and `"auto"` follows the page's `prefers-color-scheme` as it changes.
+ * @since 3.58.0
+ */
+export type ColorScheme = "light" | "dark" | "auto";
+
 /** A background shader drawn over the color and the image: its id and its parameters. */
 const GraphBackgroundShaderLook = z.strictObject({
     /**
@@ -32,6 +46,11 @@ const GraphBackgroundColor = z.strictObject({
     backgroundType: z.literal("color"),
     /** Absent, the element draws {@link DEFAULT_BACKGROUND_COLOR}. */
     color: ColorStyle.optional(),
+    /**
+     * Drawn in place of `color` while the element's color scheme is dark; absent, the element
+     * draws {@link DEFAULT_DARK_BACKGROUND_COLOR}. @since 3.58.0
+     */
+    darkColor: ColorStyle.optional(),
     /** A shader drawn over the color; where its alpha is low, the color shows. @since 3.36.0 */
     shader: GraphBackgroundShaderLook.optional(),
 });
@@ -41,6 +60,8 @@ const GraphBackgroundSkybox = z.strictObject({
     data: ImageData,
     /** Drawn while the image loads, and wherever it is transparent. @since 3.36.0 */
     color: ColorStyle.optional(),
+    /** `color` under a dark color scheme, as on a color background. @since 3.58.0 */
+    darkColor: ColorStyle.optional(),
     /** A shader drawn over the image; where its alpha is low, the image shows. @since 3.36.0 */
     shader: GraphBackgroundShaderLook.optional(),
 });
@@ -148,13 +169,17 @@ export const DEFAULT_SELECTION_STYLE: GraphSelectionStyleConfig = GraphSelection
 const ViewModeSchema = z.enum(["2d", "3d", "ar", "vr"]);
 
 /**
- * The color a background draws: its own, else {@link DEFAULT_BACKGROUND_COLOR}.
+ * The color a background draws: its own, else {@link DEFAULT_BACKGROUND_COLOR}; under a dark
+ * scheme its `darkColor`, else {@link DEFAULT_DARK_BACKGROUND_COLOR}.
  * @param background - The background.
+ * @param dark - Whether the color scheme is dark.
  * @returns The color, hex.
  * @internal
  */
-export function backgroundColorOf(background: GraphBackgroundConfig): string {
-    return background.color ?? DEFAULT_BACKGROUND_COLOR;
+export function backgroundColorOf(background: GraphBackgroundConfig, dark = false): string {
+    return dark
+        ? (background.darkColor ?? DEFAULT_DARK_BACKGROUND_COLOR)
+        : (background.color ?? DEFAULT_BACKGROUND_COLOR);
 }
 
 /**

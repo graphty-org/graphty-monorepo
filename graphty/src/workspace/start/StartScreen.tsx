@@ -529,7 +529,7 @@ export function StartScreen(): React.JSX.Element {
     const { over: dragging } = useFileDrop("window", onDrop);
 
     const returning = recent.length > 0;
-    const [latest] = recent;
+    const latest = recent.at(0);
     // Focus goes with the scroll, to the library's heading: not editable, so Home, End and the Page
     // keys still scroll the page, and the next Tab reaches the search.
     const showSamples = (): void => {

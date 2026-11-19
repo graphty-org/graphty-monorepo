@@ -4182,7 +4182,8 @@ export class SessionData implements SessionDataApi {
         snapshot: GraphSnapshot,
         space: ReturnType<typeof edgeSpaceOf>,
     ): Set<string> {
-        const columns = new Set<string>();
+        // The id and end columns are read into the graph's structure, not its records.
+        const columns = new Set<string>(roleColumns(entry));
         const nodeRows = (entry.tableRows ?? []).includes("nodes");
         for (const id of supplied.nodes) {
             const row = snapshot.ids.indexOf(id);
@@ -6141,6 +6142,19 @@ function countHeldEnds(
  */
 function sameColumns(columns: readonly string[], header: ReadonlySet<string>): boolean {
     return columns.length === header.size && columns.every((name) => header.has(name));
+}
+
+/**
+ * The columns a load read as node ids or edge ends.
+ * @param entry - The load.
+ * @returns The column names; none when the load kept no mapping (a graph file, a plain `import`).
+ */
+function roleColumns(entry: LoadedSource): string[] {
+    return Object.values(entry.mapping?.tables ?? {}).flatMap((table) =>
+        [table.key, table.source, table.target].flatMap((role) =>
+            role === undefined || role === null ? [] : [typeof role === "string" ? role : role.column],
+        ),
+    );
 }
 
 /**

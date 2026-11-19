@@ -227,7 +227,7 @@ export interface GraphtyElementJSXProps {
      * A value the schema refuses is REPORTED AND DROPPED rather than thrown, on the same terms
      * as `acceleration`: this setter is reached from `attributeChangedCallback`, and a throw
      * there escapes as an unhandled rejection that reaches nobody, leaving the page with an
-     * element that never rendered. A wrong colour in markup must not take the graph down.
+     * element that never rendered. A wrong color in markup must not take the graph down.
      */
     background?: Graphty["background"];
     /**
@@ -242,6 +242,10 @@ export interface GraphtyElementJSXProps {
      * Sets whether the graph reduces motion.
      */
     reducedMotion?: Graphty["reducedMotion"];
+    /**
+     * Sets which background color the canvas draws.
+     */
+    colorScheme?: Graphty["colorScheme"];
     /**
      * Sets the starting camera distance.
      */
@@ -281,7 +285,7 @@ export interface GraphtyElementJSXProps {
     /**
      * Sets the acceleration policy and applies it immediately.
      *
-     * An unrecognised value is reported and then ignored, leaving the previous policy in
+     * An unrecognized value is reported and then ignored, leaving the previous policy in
      * force. It is not thrown. Lit drives this setter from `attributeChangedCallback`, so a
      * throw here would abort attribute processing and leave the element unrendered -- a typo
      * in markup would take the whole graph down. HTML has never behaved that way about an
@@ -299,7 +303,7 @@ export interface GraphtyElementJSXProps {
     /**
      * Sets the renderer the element opens when it is first drawn.
      *
-     * An unrecognised value, or a change once the element is drawing, is reported and ignored
+     * An unrecognized value, or a change once the element is drawing, is reported and ignored
      * rather than thrown, for the reason given on `acceleration`: Lit drives this setter from
      * `attributeChangedCallback`, and a throw there would leave the element unrendered.
      */
@@ -472,6 +476,10 @@ export interface GraphtyElementJSXProps {
      */
     "reduced-motion"?: string;
     /**
+     * Sets which background color the canvas draws.
+     */
+    "color-scheme"?: string;
+    /**
      * Sets the starting camera distance.
      */
     "starting-camera-distance"?: string;
@@ -534,6 +542,10 @@ export interface GraphtyElementJSXProps {
     "onai-capability-unavailable"?: (event: CustomEvent<EventOfType<"ai-capability-unavailable">>) => void;
     /**
      * Emitted when an AI command is canceled
+     */
+    "onai-command-canceled"?: (event: CustomEvent<EventOfType<"ai-command-canceled">>) => void;
+    /**
+     * The British spelling of `ai-command-canceled`, emitted right after it with the same fields.
      */
     "onai-command-cancelled"?: (event: CustomEvent<EventOfType<"ai-command-cancelled">>) => void;
     /**
@@ -612,6 +624,10 @@ export interface GraphtyElementJSXProps {
      * Emitted when voice transcript is available
      */
     "onai-voice-transcript"?: (event: CustomEvent<EventOfType<"ai-voice-transcript">>) => void;
+    /**
+     * The graph's lifecycle, operation, animation and screenshot events, which carry no declared fields beyond their name; any facts they carry are extra properties.
+     */
+    "onanimation-canceled"?: (event: CustomEvent<EventOfType<"animation-canceled">>) => void;
     /**
      * The graph's lifecycle, operation, animation and screenshot events, which carry no declared fields beyond their name; any facts they carry are extra properties.
      */
@@ -796,6 +812,10 @@ export interface GraphtyElementJSXProps {
     "onoperation-batch-complete"?: (event: CustomEvent<EventOfType<"operation-batch-complete">>) => void;
     /**
      * Emitted when a queued operation is aborted before it finished.
+     */
+    "onoperation-canceled"?: (event: CustomEvent<EventOfType<"operation-canceled">>) => void;
+    /**
+     * The British spelling of `operation-canceled`: emitted right after it for every aborted operation, with `"cancelled"` where that one says `"canceled"`.
      */
     "onoperation-cancelled"?: (event: CustomEvent<EventOfType<"operation-cancelled">>) => void;
     /**

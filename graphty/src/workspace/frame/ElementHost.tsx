@@ -250,12 +250,9 @@ export function ElementHost({
  * @returns True when the system says so.
  */
 function useReducedMotion(): boolean {
-    const query = useMemo(() => globalThis.matchMedia?.("(prefers-reduced-motion: reduce)"), []);
-    const [still, setStill] = useState(query?.matches ?? false);
+    const query = useMemo(() => globalThis.matchMedia("(prefers-reduced-motion: reduce)"), []);
+    const [still, setStill] = useState(query.matches);
     useEffect(() => {
-        if (query === undefined) {
-            return undefined;
-        }
         const changed = (): void => {
             setStill(query.matches);
         };

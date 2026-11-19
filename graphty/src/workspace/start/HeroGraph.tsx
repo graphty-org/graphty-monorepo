@@ -251,7 +251,7 @@ async function finished(run: Run): Promise<RunResult | null> {
  * @returns True when the system says so.
  */
 function prefersStill(): boolean {
-    return globalThis.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+    return globalThis.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
 /** The room kept under the buttons for the caption: two lines of it, in CSS pixels. */
@@ -487,6 +487,9 @@ function HeroGraphBody({
             onDrawn();
         }
         let live = true;
+        // Read through a call: the cleanup below clears it while the load awaits, which
+        // TypeScript's narrowing cannot see.
+        const isLive = (): boolean => live;
         void (async () => {
             definePalette(GROUP_PALETTE);
             await next.styles.setDefaultPalettes({ categorical: GROUP_PALETTE.id });
@@ -499,19 +502,19 @@ function HeroGraphBody({
             await next.layout.set("force", { options: { seed: HERO_SEED } });
             await next.data.import({ config: { url: sample.url }, name: sample.name });
             performance.mark("graphty:hero-data-loaded");
-            if (!live) {
+            if (!isLive()) {
                 return;
             }
             setSession(next);
             onSession?.(next);
             const communities = await finished(next.runs.start("louvain"));
-            if (live && communities !== null) {
+            if (isLive() && communities !== null) {
                 setSaid((before) => ({ ...before, communities: communities.summary().groupCount }));
             }
         })().catch((error: unknown) => {
             // Unmounted mid-load: the element aborts the import it no longer needs, which is no
             // failure to report.
-            if (!live) {
+            if (!isLive()) {
                 return;
             }
             console.error("[start] the start page's graph could not be drawn:", error);
@@ -790,7 +793,7 @@ async function showKeyPlayers(session: GraphSession, mine: Picked): Promise<Foun
         return null;
     }
     await session.styles.encode({ run: run.id, channel: "node.size", range: [NODE_SIZE * 0.625, NODE_SIZE * 2.5] });
-    const top = result.summary().top[0];
+    const top = result.summary().top.at(0);
     if (top === undefined) {
         return { said: {}, nodes: [] };
     }

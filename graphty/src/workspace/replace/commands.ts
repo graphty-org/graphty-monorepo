@@ -80,7 +80,7 @@ export async function replaceWith(
         incoming.source,
         incoming.callerKey === undefined ? choices : { ...choices, callerKey: incoming.callerKey },
     );
-    const [first] = report.unbound;
+    const first = report.unbound.at(0);
     workspace.set({
         notice: {
             message: replacedWords(before, incoming.name, report),
@@ -113,7 +113,7 @@ export async function replaceWith(
  */
 async function chooseReplacement(ctx: CommandContext, key: SourceKey): Promise<void> {
     const { session, workspace } = ctx;
-    const [file] = await pickFiles();
+    const file = (await pickFiles()).at(0);
     if (session === null || file === undefined) {
         return;
     }

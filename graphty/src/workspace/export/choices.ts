@@ -461,11 +461,12 @@ export interface RecentExport {
 }
 
 /** A section the reader can put in the report or leave out. */
-export type ReportSection = "notes" | "validation" | "changes" | "methods" | "tables";
+export type ReportSection = "notes" | "pinned" | "validation" | "changes" | "methods" | "tables";
 
 /** The sections, in the report's order, with the checklist's names. */
 export const REPORT_SECTIONS: readonly { readonly id: ReportSection; readonly name: string }[] = [
     { id: "notes", name: "Notes" },
+    { id: "pinned", name: "Pinned items" },
     { id: "validation", name: "Validation report" },
     { id: "changes", name: "Data changes" },
     { id: "methods", name: "Methods" },

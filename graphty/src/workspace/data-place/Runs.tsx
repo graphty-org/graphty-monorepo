@@ -160,6 +160,7 @@ function ResultRow({
     inspected,
 }: Readonly<{ session: GraphSession; store: WorkspaceStore; run: Run; inspected: boolean }>): React.JSX.Element {
     const [asking, setAsking] = useState(false);
+    const pins = useWorkspaceState((state) => state.reportPins);
     const name = runName(session, run);
     const readers = session.runs.readers(run.id);
     const layers = session.runs.bindings(run.id);
@@ -194,7 +195,7 @@ function ResultRow({
                 again.then(undefined, () => undefined);
             },
         },
-        ...resultItems(session, store, run),
+        ...resultItems(session, store, run, pins),
         {
             id: "remove",
             label: "Remove result",

@@ -44,7 +44,8 @@ async function run(session: GraphSession): Promise<{ sources: unknown; events: u
 
 describe("source-steps off: nothing changes", () => {
     it("gives the pinned sources, events and saved bytes", async () => {
-        const session = createGraphSession();
+        // Pinned off, so the On test configuration (every experiment on) checks the off path too.
+        const session = createGraphSession({ features: [] });
         const { sources, events, saved } = await run(session);
         assert.notInclude(saved, "sourceSteps");
         assert.notInclude(saved, "join.add");

@@ -4810,7 +4810,20 @@ export interface ReadableValue {
 export type ReadableValueKind = "number" | "category" | "text" | "yes-no";
 
 // @public
-export type ReaderEditRow = EditRow;
+export interface ReaderEditRow {
+    readonly column?: string;
+    readonly id: string;
+    readonly op: "add" | "add-edge" | "remove" | "edit";
+    readonly picked?: SourceKey;
+    readonly target: {
+        readonly space: SourceSpaceName;
+        readonly key: string;
+    } | {
+        readonly load: SourceKey;
+        readonly key: string;
+    };
+    readonly value?: SourceCellValue;
+}
 
 // @public
 export type ReadingCode = "reading.metric" | "reading.metric-empty" | "reading.groups" | "reading.groups-empty" | "reading.path" | "reading.path-none" | "reading.set" | "reading.pairs" | "reading.series" | "reading.coverage";
@@ -6915,12 +6928,15 @@ export const SOURCE_RECORD_MEMBER = "graphty-sources";
 export const SOURCE_RECORD_VERSION = 1;
 
 // @public
-export type SourceBuildState = SourceState;
+export type SourceBuildState = "staged" | "built" | "off" | "held";
 
 // @public
 export interface SourceCatalogEntry extends SourceInfo {
     readonly features: SourceFeatures;
 }
+
+// @public
+export type SourceCellValue = string | number | boolean | null;
 
 // @public
 export interface SourceCheck {
@@ -7005,6 +7021,12 @@ export { SourceFinish }
 
 export { SourceFreshness }
 
+// @public
+export interface SourceHubValue {
+    readonly rows: number;
+    readonly value: string;
+}
+
 export { SourceInfo }
 
 // @public
@@ -7074,7 +7096,10 @@ export interface SourceMoreOptions extends SourceLoadOptions {
 export { SourceNodeRecord }
 
 // @public
-export type SourceNodeRef = NodeRef;
+export interface SourceNodeRef {
+    readonly key: string;
+    readonly space: SourceSpaceName;
+}
 
 export { SourceParamDescriptor }
 
@@ -7139,22 +7164,83 @@ export type SourceSettings = Pick<SourceLoadRecord, "source" | "endpoint" | "con
 export type SourceSpaceName = string;
 
 // @public
-export type SourceSpaceOverlap = SpaceOverlap;
+export interface SourceSpaceOverlap {
+    readonly code: "W_SPACE_OVERLAP";
+    readonly params: {
+        readonly space: SourceSpaceName;
+        readonly count: number;
+        readonly of: number;
+        readonly other?: SourceKey;
+    };
+}
 
 // @public
-export type SourceSpaceRow = SpaceRow;
+export interface SourceSpaceRow {
+    readonly nodes: number;
+    readonly sources: readonly SourceKey[];
+    readonly space: SourceSpaceName;
+}
 
 // @public
-export type SourceStepRow = StepRow;
+export interface SourceStepCounts {
+    readonly emptyKey: number;
+    readonly fanOut: number;
+    readonly groups: readonly number[];
+    readonly hub: readonly SourceHubValue[];
+    readonly matched: number;
+    readonly merged: number;
+    readonly newEdges: number;
+    readonly newNodes: number;
+    readonly op: SourceStepOp;
+    readonly part?: number;
+    readonly repeatedKept: number;
+    readonly rowsDiffer: number;
+    readonly ruleType: Readonly<Record<string, number>>;
+    readonly selfLoops: number;
+    readonly source: SourceKey;
+    readonly step: number;
+    readonly typeDiffers: number;
+    readonly unmatched: number;
+    readonly untouched: number;
+    readonly valuesDiffer: Readonly<Record<string, number>>;
+}
 
 // @public
-export type SourceTypeEntry = TypeEntry;
+export type SourceStepOp = "join.add" | "join.merge" | "join.node-values" | "join.edge-values" | "join.edges";
+
+// @public
+export interface SourceStepRow {
+    readonly buckets: SourceStepCounts | null;
+    readonly held: boolean;
+    readonly index: number;
+    readonly off: boolean;
+    readonly op: SourceStepOp;
+    readonly reads: readonly Path[];
+    readonly source: SourceKey;
+    readonly spaces: readonly SourceSpaceName[];
+    readonly types: readonly SourceTypeName[];
+}
+
+// @public
+export interface SourceTypeEntry {
+    readonly kind: "node" | "edge";
+    readonly name: SourceTypeName;
+    readonly plainName?: string;
+    readonly rules: readonly SourceTypeRule[];
+    readonly schema?: Readonly<Record<string, unknown>>;
+}
 
 // @public
 export type SourceTypeName = string;
 
 // @public
-export type SourceTypeRule = TypeRule;
+export interface SourceTypeRule {
+    readonly column?: string;
+    readonly end?: "source" | "target";
+    readonly part?: number;
+    readonly source: SourceKey;
+    readonly values?: readonly SourceCellValue[];
+}
 
 export { SourceValidators }
 

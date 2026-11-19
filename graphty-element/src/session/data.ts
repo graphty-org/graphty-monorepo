@@ -92,10 +92,12 @@ import {
     type DataService,
     declarationKey,
     describeSource,
+    factOf as mutationFact,
     type HeldRows,
     importCommand,
     importFact,
     type ImportSource,
+    labelOf as mutationLabel,
     mergeNodesCommand,
     NO_COLUMN_SETTINGS,
     SOURCE_VALUE,
@@ -1120,15 +1122,8 @@ export class SessionData implements SessionDataApi {
      */
     async mergeNodes(ids: readonly NodeId[], options: MergeNodesOptions = {}): Promise<void> {
         this.requireLive("mergeNodes");
-        if (this.stepsOn()) {
-            // Section 11: merging two nodes by hand under the source-steps experiment comes later.
-            throw new GraphtyError({
-                code: "E_UNSUPPORTED",
-                message: "mergeNodes is not available under the source-steps experiment yet.",
-                source: "data",
-                details: { reason: "later" },
-            });
-        }
+        // Section 11: merging two nodes by hand under the source-steps experiment comes later.
+        this.refuseUnderSteps("mergeNodes");
         if (!Array.isArray(ids)) {
             throw mergeRefusal("ids is not an array");
         }
@@ -1225,15 +1220,20 @@ export class SessionData implements SessionDataApi {
             const send = this.writes.importer();
             return this.loadLine.edit(() => {
                 const { knownFields } = this.readConfig();
-                const ends = this.lastImport()?.endpoints ?? { source: "source", target: "target" };
+                // The configured end columns, as the off path's ingest reads them.
                 const ops = readerOps(mutation, this.stepsValue(), this.stepsCopies(), this.stepsEdgeIds(), {
                     nodeIdPath: knownFields.nodeIdPath,
-                    source: ends.source,
-                    target: ends.target,
+                    ...(knownFields.edgeSrcIdPath === null ? {} : { source: knownFields.edgeSrcIdPath }),
+                    ...(knownFields.edgeDstIdPath === null ? {} : { target: knownFields.edgeDstIdPath }),
                 });
+                // Under the off path's label and fact, so the history reads the same edit the same way.
                 return ops.length === 0
                     ? Promise.resolve()
-                    : send({ op: "data.steps-set", edit: { kind: "reader", ops } });
+                    : send({
+                          op: "data.steps-set",
+                          edit: { kind: "reader", ops },
+                          as: { label: mutationLabel(mutation), fact: mutationFact(mutation) },
+                      });
             }, undefined);
         }
         const send = this.writes.applier();
@@ -1769,6 +1769,11 @@ export class SessionData implements SessionDataApi {
      */
     refresh(load: string, options: SourceLoadOptions = {}): Promise<SourceRefreshReport> {
         this.requireLive("refresh");
+        try {
+            this.refuseUnderSteps("refresh");
+        } catch (error) {
+            return Promise.reject(error);
+        }
 
         const host = this.sourceHost();
         return import("./sources/load").then((module) => module.refreshSource(host, load, options));
@@ -3047,6 +3052,23 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
+     * Refuse a call the source-steps experiment does not compile to steps yet, while it is on, so
+     * the old path never runs over a graph the steps built.
+     * @param verb - The call.
+     * @throws A `GraphtyError` with `E_UNSUPPORTED`, reason `later`.
+     */
+    private refuseUnderSteps(verb: string): void {
+        if (this.stepsOn()) {
+            throw new GraphtyError({
+                code: "E_UNSUPPORTED",
+                message: `${verb} is not available under the source-steps experiment yet.`,
+                source: "data",
+                details: { reason: "later", verb },
+            });
+        }
+    }
+
+    /**
      * Refuse a source-steps call while the experiment is off.
      * @param verb - The call.
      * @throws A `GraphtyError` with `E_FEATURE_OFF`.
@@ -3613,6 +3635,9 @@ export class SessionData implements SessionDataApi {
      */
     private async removeSourceNow(key: SourceKey): Promise<RemoveSourceResult> {
         this.requireLive("removeSource");
+        if (this.stepsOn()) {
+            return this.removeStepsSource(key);
+        }
         const sources = this.sources();
         const entry = sources.find((each) => each.key === key);
         if (entry === undefined) {
@@ -3679,6 +3704,37 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
+     * removeSource under the source-steps experiment: the source and every step reading it taken
+     * out, and the graph rebuilt without them.
+     * @param key - The source's id.
+     * @returns How many of its nodes and edges went and stayed.
+     * @throws A `GraphtyError` with `E_LOAD_UNKNOWN` for a source the steps do not hold.
+     */
+    private async removeStepsSource(key: SourceKey): Promise<RemoveSourceResult> {
+        const entry = this.sources().find((each) => each.key === key);
+        if (entry === undefined || this.stepsValue().sources[key] === undefined) {
+            throw new GraphtyError({
+                code: "E_LOAD_UNKNOWN",
+                message: `No load still in the graph has key ${JSON.stringify(key)}.`,
+                source: "data",
+                details: { key, known: Object.keys(this.stepsValue().sources) },
+            });
+        }
+        const before = this.current();
+        await this.sender("remove a load")({ op: "data.steps-set", edit: { kind: "remove-source", id: key } });
+        const after = this.current();
+        const removed = { nodes: before.nodeCount - after.nodeCount, edges: before.edgeCount - after.edgeCount };
+        return Object.freeze({
+            removed: Object.freeze(removed),
+            kept: Object.freeze({
+                nodes: Math.max(0, entry.counts.nodes - removed.nodes),
+                edges: Math.max(0, entry.counts.edges - removed.edges),
+            }),
+            alsoRemoved: Object.freeze([]),
+        });
+    }
+
+    /**
      * The layers that read only columns the removed nodes and edges held and no element left holds.
      * @param nodes - The nodes going.
      * @param edges - The edges going.
@@ -3718,6 +3774,7 @@ export class SessionData implements SessionDataApi {
         choices: LoadChoices & SourceLoadOptions = {},
     ): Promise<ReplaceReport> {
         this.requireLive("replaceSource");
+        this.refuseUnderSteps("replaceSource");
 
         return this.afterLoads(() => this.replaceSourceNow(key, source, choices));
     }
@@ -4159,6 +4216,7 @@ export class SessionData implements SessionDataApi {
      */
     async reloadSource(key: SourceKey, choices: LoadChoices): Promise<ReplaceReport> {
         this.requireLive("reloadSource");
+        this.refuseUnderSteps("reloadSource");
         return this.afterLoads(() => this.reloadSourceNow(key, choices));
     }
 
@@ -4170,6 +4228,7 @@ export class SessionData implements SessionDataApi {
      */
     async remap(options: RemapOptions): Promise<ReplaceReport> {
         this.requireLive("remap");
+        this.refuseUnderSteps("remap");
         const mapping = (options as Partial<RemapOptions> | undefined)?.mapping;
         if (typeof mapping !== "object" || mapping === null) {
             throw new GraphtyError({
@@ -4602,6 +4661,8 @@ export class SessionData implements SessionDataApi {
         shape: JoinShape,
         previous?: LoadedSource,
     ): Promise<void> {
+        // Joins compile to steps in a later slice; the old join over a steps-built graph is wrong.
+        this.refuseUnderSteps("join");
         const undo = previous === undefined ? undefined : this.unjoin(previous);
         const graph = this.joinGraph(undo?.restored, undo?.gone);
         const planned = planJoin(table, graph, choices, shape);
@@ -7172,6 +7233,9 @@ export function headlessDataService(
             ingest.oneAtATime(() => ingest.importSource(command, dispatcher.graph.writer(draft, store), signal)),
         values: (values, draft) => {
             dispatcher.graph.writer(draft, store).setGraphValues(values);
+        },
+        direct: (directed, statedBy, draft) => {
+            dispatcher.graph.writer(draft, store).setDirected(directed, statedBy);
         },
     };
 }

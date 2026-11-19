@@ -10,7 +10,8 @@ as it would without that experiment's code.
 <graphty-element features="file-styles location-map"></graphty-element>
 ```
 
-- `features` takes space-separated ids. `all` switches on every experiment this build has.
+- `features` takes space-separated ids. `all` switches on every experiment this build has except
+  `source-steps`, which is switched on only by its own id.
 - From a framework, set the property: `element.features = ["file-styles"]`.
 - Without a browser: `createGraphSession({ features: ["file-styles"] })` from
   `@graphty/graphty-element/session`.

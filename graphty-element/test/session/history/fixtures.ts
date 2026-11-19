@@ -137,6 +137,13 @@ const STEPS_FIXTURES: readonly RoundTripFixture[] = [
         command: { op: "data.steps-set", edit: { kind: "remove-edit", id: "edit_r" } },
     },
     {
+        name: "data.steps-set: a source removed with its step",
+        variant: "remove-source",
+        tags: ["session", "renderer"],
+        before: stepsSource,
+        command: { op: "data.steps-set", edit: { kind: "remove-source", id: STEPS_SOURCE.id } },
+    },
+    {
         name: "data.steps-set: a type declared",
         variant: "declare-type",
         tags: ["session", "renderer"],

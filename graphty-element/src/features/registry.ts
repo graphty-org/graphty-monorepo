@@ -39,7 +39,7 @@ export const FEATURES: readonly FeatureDescriptor[] = Object.freeze([
     { id: "node-models", plainName: "Node models", issue: 3396, since: "2026-11-07" },
     // Sources kept as read and the graph rebuilt from ordered steps (design
     // design/data/multiple-data-sources-design.md, stage 1); off, loads, joins and saved files are
-    // as before.
+    // as before. `all` does not switch it on (features/resolve.ts); name it to try it.
     { id: "source-steps", plainName: "Sources and steps", issue: 8928, since: "2026-11-18" },
 ]);
 

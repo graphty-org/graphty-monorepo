@@ -78,6 +78,8 @@ export interface StepsSource extends Source {
     readonly endTypes?: { readonly source?: string; readonly target?: string };
     /** The key overlaps it met when it was added. */
     readonly issues?: readonly SpaceOverlap[];
+    /** The direction its file declares, and the part of the file that said so. */
+    readonly declared?: { readonly directed: boolean; readonly statedBy: string };
 }
 
 /** Sources and steps: what the graph is built from. */
@@ -121,6 +123,8 @@ export type StepsEdit =
     | { readonly kind: "reader"; readonly ops: readonly ReaderOp[] }
     /** Take back one reader operation. */
     | { readonly kind: "remove-edit"; readonly id: string }
+    /** Take out one source, every step that reads it and its type rules (section 8, removal). */
+    | { readonly kind: "remove-source"; readonly id: string }
     /** A type entry, or more rules for one already declared. */
     | { readonly kind: "declare-type"; readonly entry: TypeEntry };
 
@@ -404,9 +408,28 @@ export function applyEdit(prior: SourceSteps, edit: StepsEdit, copies: Copies): 
             return { ...prior, reader: [...prior.reader, ...edit.ops] };
         case "remove-edit":
             return { ...prior, reader: prior.reader.filter((op) => op.id !== edit.id) };
+        case "remove-source":
+            return withoutSource(prior, edit.id);
         default:
             return { ...prior, types: declared(prior.types, edit.entry) };
     }
+}
+
+/**
+ * The value without one source: its entry, every step that reads it and every type rule naming it.
+ * Reader operations stay; one on a node the source alone built binds to nothing.
+ * @param prior - The value.
+ * @param id - The source's id.
+ * @returns The value without it.
+ */
+function withoutSource(prior: SourceSteps, id: string): SourceSteps {
+    const sources = Object.fromEntries(Object.entries(prior.sources).filter(([each]) => each !== id));
+    return {
+        ...prior,
+        sources,
+        steps: prior.steps.filter((step) => !stepSources(step, prior).includes(id)),
+        types: prior.types.map((entry) => ({ ...entry, rules: entry.rules.filter((rule) => rule.source !== id) })),
+    };
 }
 
 /**

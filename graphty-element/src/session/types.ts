@@ -95,18 +95,6 @@ import type { SetChange, SetsApi } from "./sets/types";
 import type { RenderQualityChange, SessionShaders, ShaderStatus } from "./shaders";
 import type { CodedFact, ColumnRef, ProgressChange, ResultRef } from "./shared";
 import type {
-    EditRow as StepsEditRow,
-    SourceState as StepsSourceState,
-    SpaceOverlap as StepsSpaceOverlap,
-    SpaceRow as StepsSpaceRow,
-    StepRow as StepsStepRow,
-} from "./sources/steps/project";
-import type {
-    NodeRef as StepsNodeRef,
-    TypeEntry as StepsTypeEntry,
-    TypeRule as StepsTypeRule,
-} from "./sources/steps/types";
-import type {
     CollapseResult,
     ExpandOptions,
     NodeSource,
@@ -3773,52 +3761,210 @@ export type SourceSpaceName = string;
 export type SourceTypeName = string;
 
 /**
+ * A key value many rows of a step share, so it would link or fan out to many elements
+ * (`W_VALUE_HUB`).
+ * @experimental source-steps
+ */
+export interface SourceHubValue {
+    /** The key value, as the rows spell it. */
+    readonly value: string;
+    /** How many rows hold it. */
+    readonly rows: number;
+}
+
+/**
+ * What one step did in the committed build: its buckets (design 9.2). A count a step's kind never
+ * makes stays 0.
+ * @experimental source-steps
+ */
+export interface SourceStepCounts {
+    /** The step's place in the ordered list, from 0. */
+    readonly step: number;
+    /** The step's kind. */
+    readonly op: SourceStepOp;
+    /** The source the step reads. */
+    readonly source: SourceKey;
+    /** For a `join.edges` step: the part its edge keys are minted under. */
+    readonly part?: number;
+    /** Nodes the step made that no earlier step had made. */
+    readonly newNodes: number;
+    /** Edges the step made. */
+    readonly newEdges: number;
+    /** Rows whose key found the element they write to. */
+    readonly matched: number;
+    /** Rows whose key found no element. */
+    readonly unmatched: number;
+    /** Rows whose key found more than one element, so they were left out. */
+    readonly fanOut: number;
+    /** Repeated keys within the source whose rows hold different values. */
+    readonly rowsDiffer: number;
+    /** Cells that met a different value another source wrote, by column. */
+    readonly valuesDiffer: Readonly<Record<string, number>>;
+    /** Cells a numeric conflict rule (min, max, mean) met that are not numbers, by column. */
+    readonly ruleType: Readonly<Record<string, number>>;
+    /** For `join.merge`: nodes folded into the node they matched. */
+    readonly merged: number;
+    /** Elements this step gave a type other than the one an earlier step gave them. */
+    readonly typeDiffers: number;
+    /** For `join.merge`: nodes of the space merged into that no row reached. */
+    readonly untouched: number;
+    /** For `join.merge`: how many nodes each merged node was made from, largest first. */
+    readonly groups: readonly number[];
+    /** Edges whose two ends are one node. */
+    readonly selfLoops: number;
+    /** Rows left out because their key cell is empty (`W_KEY_EMPTY`). */
+    readonly emptyKey: number;
+    /** Rows kept apart because their key repeats and nothing settles one row for it. */
+    readonly repeatedKept: number;
+    /** Key values many rows share (`W_VALUE_HUB`). */
+    readonly hub: readonly SourceHubValue[];
+}
+
+/**
+ * The kind of a step: add a source's rows, merge one space into another, write node or edge
+ * values, or make edges. OPEN UNION: kinds may be added.
+ * @experimental source-steps
+ */
+export type SourceStepOp = "join.add" | "join.merge" | "join.node-values" | "join.edge-values" | "join.edges";
+
+/**
  * A step as `data.steps()` lists it, with its counts in the committed build.
  * @experimental source-steps
  */
-export type SourceStepRow = StepsStepRow;
+export interface SourceStepRow {
+    /** Its place in the ordered list, from 0. */
+    readonly index: number;
+    /** Its kind. */
+    readonly op: SourceStepOp;
+    /** The source it reads. */
+    readonly source: SourceKey;
+    /** The columns it reads its keys, ends and roles from. */
+    readonly reads: readonly Path[];
+    /** The id spaces it writes nodes in. */
+    readonly spaces: readonly SourceSpaceName[];
+    /** The types its source's rules give what it builds. */
+    readonly types: readonly SourceTypeName[];
+    /** Kept but not built. */
+    readonly off: boolean;
+    /** A source it depends on is held, so it is not built. */
+    readonly held: boolean;
+    /** Its counts in the committed build; null when it was not built. */
+    readonly buckets: SourceStepCounts | null;
+}
 
 /**
  * An id space as `data.spaces()` lists it.
  * @experimental source-steps
  */
-export type SourceSpaceRow = StepsSpaceRow;
+export interface SourceSpaceRow {
+    /** The space's name. */
+    readonly space: SourceSpaceName;
+    /** How many nodes the build holds in it. */
+    readonly nodes: number;
+    /** The sources whose rows built or named its nodes. */
+    readonly sources: readonly SourceKey[];
+}
 
 /**
  * A reader operation as `data.edits()` lists it.
  * @experimental source-steps
  */
-export type ReaderEditRow = StepsEditRow;
+export interface ReaderEditRow {
+    /** The operation's id: what `data.removeEdit` takes. */
+    readonly id: string;
+    /** `"add"` a node, `"add-edge"`, `"remove"` a node or edge, or `"edit"` one cell. */
+    readonly op: "add" | "add-edge" | "remove" | "edit";
+    /** The node (`{ space, key }`) or edge (`{ load, key }`: the source that made it, and its key there) it names. */
+    readonly target:
+        { readonly space: SourceSpaceName; readonly key: string } | { readonly load: SourceKey; readonly key: string };
+    /** For an edit: the column it writes. */
+    readonly column?: string;
+    /** For an edit: the value it writes. */
+    readonly value?: SourceCellValue;
+    /** For a pick: the source whose value it took. */
+    readonly picked?: SourceKey;
+}
 
 /**
- * Where a source stands in the build: `"staged"` (no step reads it), `"built"`, `"off"` or `"held"`.
+ * One cell of a source's rows as read: text, a number, a truth value or empty.
  * @experimental source-steps
  */
-export type SourceBuildState = StepsSourceState;
+export type SourceCellValue = string | number | boolean | null;
 
 /**
- * A type declared in the type registry, and the rules that give elements it.
+ * Where a source stands in the build: `"staged"` (no step reads it), `"built"`, `"off"` (every
+ * step reading it is off) or `"held"` (its rows cannot be read).
  * @experimental source-steps
  */
-export type SourceTypeEntry = StepsTypeEntry;
+export type SourceBuildState = "staged" | "built" | "off" | "held";
 
 /**
- * One rule of a {@link SourceTypeEntry}.
+ * A type declared in the type registry, and the rules that give elements it. A type is declared,
+ * never guessed; an element has one type.
  * @experimental source-steps
  */
-export type SourceTypeRule = StepsTypeRule;
+export interface SourceTypeEntry {
+    /** The type's id, read as `graphty.type`. */
+    readonly name: SourceTypeName;
+    /** Whether nodes or edges carry it. */
+    readonly kind: "node" | "edge";
+    /** The type's default name for a reader; absent means `name`. An application may show it or replace it. */
+    readonly plainName?: string;
+    /** Which rows or ends of which source carry the type. */
+    readonly rules: readonly SourceTypeRule[];
+    /** What the type's elements are expected to carry, by column; kept and saved, not checked by the build. */
+    readonly schema?: Readonly<Record<string, unknown>>;
+}
+
+/**
+ * One rule of a {@link SourceTypeEntry}: every row of a source, or only some of them. A rule naming
+ * a column and its values wins over a whole-source rule; otherwise registry order decides.
+ * @experimental source-steps
+ */
+export interface SourceTypeRule {
+    /** The id of the source whose rows the rule types. */
+    readonly source: SourceKey;
+    /** With `values`: only rows whose cell in this column is listed. */
+    readonly column?: string;
+    /** With `column`: the cell values that give the type. */
+    readonly values?: readonly SourceCellValue[];
+    /** Only the nodes the source's edges reach at this end. */
+    readonly end?: "source" | "target";
+    /** Only what the `join.edges` step with this `part` makes. */
+    readonly part?: number;
+}
 
 /**
  * A node named by its id space and key.
  * @experimental source-steps
  */
-export type SourceNodeRef = StepsNodeRef;
+export interface SourceNodeRef {
+    /** The id space the key lives in. */
+    readonly space: SourceSpaceName;
+    /** The key, as text. */
+    readonly key: string;
+}
 
 /**
- * A key overlap a source met when it was added.
+ * A key overlap a source met when it was added: its keys meet nodes another source built in the
+ * space it proposed. Unless the load asked for `overlap: "merge"`, its keys stay in its own space.
  * @experimental source-steps
  */
-export type SourceSpaceOverlap = StepsSpaceOverlap;
+export interface SourceSpaceOverlap {
+    /** The code. */
+    readonly code: "W_SPACE_OVERLAP";
+    /** Its parameters. */
+    readonly params: {
+        /** The space the keys met in. */
+        readonly space: SourceSpaceName;
+        /** How many of the source's keys met a node there. */
+        readonly count: number;
+        /** How many keys the source holds. */
+        readonly of: number;
+        /** For an untyped source: the other source whose own space holds the same keys. */
+        readonly other?: SourceKey;
+    };
+}
 
 /** A node record to add: its id is read through `data.knownFields.nodeIdPath`. */
 export type NodeRecordInput = Readonly<Record<string, unknown>>;

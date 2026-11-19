@@ -9,6 +9,7 @@
  */
 
 import type { EdgeId, NodeId } from "../../../catalog/types";
+import type { BatchCommand } from "../../commands";
 import { type DataImportCommand, type DataMutation, importFact } from "../../commands/data";
 import type { DataStepsSetCommand } from "../../commands/source-steps";
 import type { SessionCommand } from "../../planning";
@@ -18,10 +19,13 @@ import {
     buildOf,
     checkSpace,
     type Copies,
+    EMPTY_STEPS,
     mintCopyId,
     mintEditId,
     mintSourceId,
     nodeOfId,
+    SOURCE_COPIES_VALUE,
+    SOURCE_STEPS_VALUE,
     type SourceSteps,
     type StepsEdit,
     type StepsSource,
@@ -134,6 +138,7 @@ function sourceFacts(
         unmatched: command.unmatched === "leave-out" ? ("leave-out" as const) : undefined,
     });
     const { name, type } = importFact(command).params;
+    const direction = command.held?.declaredDirection ?? undefined;
     return {
         kind: kindOf(command),
         label: typeof name === "string" ? name : null,
@@ -146,6 +151,8 @@ function sourceFacts(
             stagedType: options.type,
             endTypes: Object.keys(endTypes).length === 0 ? undefined : endTypes,
             settings: Object.keys(settings).length === 0 ? undefined : settings,
+            declared:
+                direction === undefined ? undefined : { directed: direction.directed, statedBy: direction.statedBy },
         }),
     };
 }
@@ -243,6 +250,57 @@ export function compileCommand(command: SessionCommand, options: ImportOptions, 
 }
 
 /**
+ * The element's `nodeData` / `edgeData` pair as one source of kind `derived` (9.1): the first
+ * assignment adds it with `join.add`, a later one replaces that table of its copy in place, so a
+ * file loaded after it can merge into its nodes. The step carries the off path's label and fact.
+ * @param table - Which half was assigned.
+ * @param records - The records.
+ * @param values - The graph values: the sources and steps and their copies.
+ * @param known - The configured paths: the node id, and the edge ends when configured.
+ * @param known.nodeIdPath - Where a node record holds its id.
+ * @param known.source - Where an edge record names its source; probed when absent.
+ * @param known.target - Where an edge record names its target; probed when absent.
+ * @param setup - Whether the assignment is part of the element's setup.
+ * @returns The step.
+ */
+export function compileRecords(
+    table: "nodes" | "edges",
+    records: readonly Readonly<Record<string, unknown>>[],
+    values: ReadonlyMap<string, unknown>,
+    known: { readonly nodeIdPath: string; readonly source?: string; readonly target?: string },
+    setup: boolean,
+): BatchCommand {
+    const value = (values.get(SOURCE_STEPS_VALUE) as SourceSteps | undefined) ?? EMPTY_STEPS;
+    const copies = (values.get(SOURCE_COPIES_VALUE) as Copies | undefined) ?? {};
+    const prior = Object.values(value.sources).find((each) => each.kind === "derived");
+    const held: CopyTables = prior === undefined ? {} : (copies[prior.origin.copy] ?? {});
+    const tables: CopyTables = { ...held, [table]: records as readonly Row[] };
+    const copy = mintCopyId();
+    const source: StepsSource = {
+        id: prior?.id ?? mintSourceId(),
+        origin: { copy },
+        kind: "derived",
+        label: null,
+        tables: (["nodes", "edges"] as const).filter((name) => tables[name] !== undefined),
+        mapping: {
+            ...(tables.nodes === undefined ? {} : { nodes: { key: known.nodeIdPath } }),
+            ...(tables.edges === undefined ? {} : { edges: endsOf(tables.edges, known.source, known.target) }),
+        },
+    };
+    const edit: StepsEdit =
+        prior === undefined
+            ? { kind: "add", source }
+            : { kind: "set", value: { ...value, sources: { ...value.sources, [source.id]: source } } };
+    return {
+        op: "batch",
+        label: table === "nodes" ? "Replaced the nodes" : "Replaced the edges",
+        fact: { code: table === "nodes" ? "data.replace-nodes" : "data.replace-edges", params: {} },
+        steps: [{ op: "data.steps-set", edit, copies: { [copy]: tables } }],
+        ...(setup ? { setup } : {}),
+    };
+}
+
+/**
  * The `{ space, key }` a NodeId names in the committed build, or the reader space for one no node holds.
  * @param value - The value.
  * @param copies - Its copies.
@@ -276,10 +334,10 @@ function edgeRef(edgeIds: Readonly<Record<string, EdgeId>>, id: EdgeId): { load:
  * @param value - The value now.
  * @param copies - Its copies.
  * @param edgeIds - The session edge id of each built edge.
- * @param known - The configured paths: the node id, and the edge ends.
+ * @param known - The configured paths: the node id, and the edge ends when configured.
  * @param known.nodeIdPath - Where a node record holds its id.
- * @param known.source - Where an edge record names its source.
- * @param known.target - Where an edge record names its target.
+ * @param known.source - Where an edge record names its source; probed when absent.
+ * @param known.target - Where an edge record names its target; probed when absent.
  * @returns The operations, in order.
  */
 export function readerOps(
@@ -287,7 +345,7 @@ export function readerOps(
     value: SourceSteps,
     copies: Copies,
     edgeIds: Readonly<Record<string, EdgeId>>,
-    known: { readonly nodeIdPath: string; readonly source: string; readonly target: string },
+    known: { readonly nodeIdPath: string; readonly source?: string; readonly target?: string },
 ): ReaderOp[] {
     const cells = (record: Readonly<Record<string, unknown>>, drop: readonly string[]): Record<string, CellValue> =>
         Object.fromEntries(Object.entries(record).filter(([k]) => !drop.includes(k))) as Record<string, CellValue>;
@@ -299,7 +357,12 @@ export function readerOps(
                 return { id: mintEditId(), op: "add", node: { space: READER_SPACE, key }, columns: cells(record, []) };
             });
         case "add-edges": {
-            const ends = { source: mutation.source ?? known.source, target: mutation.target ?? known.target };
+            // The edit's own ends, else the configured ones, else a pair the records hold, as ingest reads them.
+            const ends = endsOf(
+                mutation.records as readonly Row[],
+                mutation.source ?? known.source,
+                mutation.target ?? known.target,
+            );
             return mutation.records.map((record) => {
                 const id = mintEditId();
                 return {

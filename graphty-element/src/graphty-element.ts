@@ -99,6 +99,7 @@ import { type RenderQuality, shadersControllerOf, type ShaderSettings } from "./
 import type { CodedFact, ProgressChange } from "./session/shared";
 import { attachCredentials } from "./session/sources/credentialLookup";
 import { SOURCE_EVENT_DOM_NAMES } from "./session/sources/ids";
+import { compileRecords } from "./session/sources/steps/compile";
 import type { SourceExpanded, SourceExpandFailed, SourceExpandStart, SourceLoadOptions } from "./session/sources/types";
 import type { DefaultPalettes } from "./session/styles";
 import type { FileStyleOptions } from "./session/styles/fileStyles/translate";
@@ -2021,7 +2022,9 @@ export class Graphty extends LitElement {
             const { nodeIdPath } = this.#graph.getStyles().config.data.knownFields;
             this.#pageLoad({ kind: "rows", nodes: value }, (setup) =>
                 this.#replaceData(
-                    (state, asSetup) => replaceNodesCommand(state.nodes, value, nodeIdPath, asSetup),
+                    (state, asSetup) =>
+                        this.#derivedRecords("nodes", value, state, asSetup) ??
+                        replaceNodesCommand(state.nodes, value, nodeIdPath, asSetup),
                     setup,
                 ),
             );
@@ -2113,7 +2116,9 @@ export class Graphty extends LitElement {
         if (value && Array.isArray(value)) {
             this.#pageLoad({ kind: "rows", edges: value }, (setup) =>
                 this.#replaceData(
-                    (state, asSetup) => replaceEdgesCommand([...state.edges.keys()], value, {}, asSetup),
+                    (state, asSetup) =>
+                        this.#derivedRecords("edges", value, state, asSetup) ??
+                        replaceEdgesCommand([...state.edges.keys()], value, {}, asSetup),
                     setup,
                 ),
             );
@@ -2554,6 +2559,38 @@ export class Graphty extends LitElement {
      * @param setup - Whether the page declared it before the first update, so it is baseline.
      * @returns Settles once the step is recorded, or failed and was reported.
      */
+    /**
+     * Under the source-steps experiment, `nodeData` or `edgeData` as the one derived source the
+     * pair owns (design 9.1); with it off, null, and the records replace the graph's as before.
+     * @param table - Which half was assigned.
+     * @param records - The records.
+     * @param state - The graph slice now.
+     * @param setup - Whether this is part of the element's setup.
+     * @returns The step, or null with the experiment off.
+     */
+    #derivedRecords(
+        table: "nodes" | "edges",
+        records: readonly Record<string, unknown>[],
+        state: GraphSlice,
+        setup: boolean,
+    ): BatchCommand | null {
+        if (!this.session.features.has("source-steps")) {
+            return null;
+        }
+        const known = this.#graph.getStyles().config.data.knownFields;
+        return compileRecords(
+            table,
+            records,
+            state.values,
+            {
+                nodeIdPath: known.nodeIdPath,
+                ...(known.edgeSrcIdPath === null ? {} : { source: known.edgeSrcIdPath }),
+                ...(known.edgeDstIdPath === null ? {} : { target: known.edgeDstIdPath }),
+            },
+            setup,
+        );
+    }
+
     #replaceData(build: (state: GraphSlice, setup: boolean) => BatchCommand, setup = this.#settingUp): Promise<void> {
         const dispatcher = dispatcherOf(this.#graph.getSession());
         const dispatch = (): Promise<unknown> => dispatcher.dispatch(build(dispatcher.state.graph, setup));

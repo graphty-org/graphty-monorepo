@@ -560,6 +560,14 @@ export interface DataService {
      * @param draft - The command's draft.
      */
     values?(values: Readonly<Record<string, unknown>>, draft: Draft): void;
+    /**
+     * Take the direction a file declares, as an import of it does: kept only while the graph holds
+     * no edges and the configuration has not settled one.
+     * @param directed - Whether the file declares a directed graph.
+     * @param statedBy - The part of the file that said so.
+     * @param draft - The command's draft.
+     */
+    direct?(directed: boolean, statedBy: string, draft: Draft): void;
 }
 
 /** A session's stable edge identity, read from its current snapshot. */
@@ -796,7 +804,7 @@ function sizeOf(mutation: Exclude<DataMutation, { kind: "clear" }>): number {
  * @param mutation - The mutation.
  * @returns "Added 3 nodes" and the like.
  */
-function labelOf(mutation: DataMutation): string {
+export function labelOf(mutation: DataMutation): string {
     if (mutation.kind === "clear") {
         return "Cleared the graph";
     }
@@ -821,7 +829,7 @@ function labelOf(mutation: DataMutation): string {
  * @param mutation - The mutation.
  * @returns `data.add-nodes` with its count, and the like.
  */
-function factOf(mutation: DataMutation): CodedFact<HistoryCode> {
+export function factOf(mutation: DataMutation): CodedFact<HistoryCode> {
     if (mutation.kind === "clear") {
         return { code: "data.clear", params: {} };
     }

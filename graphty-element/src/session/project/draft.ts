@@ -22,6 +22,7 @@
 import type { CameraState } from "../../camera/types";
 import type { MeasurementDeclaration, RunId, SetId } from "../../catalog/types";
 import { isPlainObject } from "../../utils/isPlainObject";
+import type { ModelDefaults } from "../assets/AssetsApi";
 import { retentionOf } from "../results/RunResult";
 import { recordBytes } from "../sets/prepare";
 import type { ElementSet } from "../sets/types";
@@ -48,7 +49,8 @@ type ValueSlice =
     | "notes"
     | "attributes"
     | "valueLabels"
-    | "shaders";
+    | "shaders"
+    | "modelDefaults";
 
 /** One key a patch wrote: what it held before, and what the patch left in it. */
 interface PatchEntry {
@@ -333,6 +335,7 @@ export interface Draft {
     readonly attributes: KeyedWriter<string, MeasurementDeclaration>;
     readonly valueLabels: KeyedWriter<string, string>;
     readonly shaders: KeyedWriter<string, ProjectShaderEntry>;
+    readonly modelDefaults: KeyedWriter<string, ModelDefaults>;
     readonly visibility: {
         set<K extends keyof VisibilityState>(key: K, value: VisibilityState[K]): void;
     };
@@ -442,6 +445,7 @@ export function createProjectStore(
         attributes: state.attributes as Map<string, unknown>,
         valueLabels: state.valueLabels as Map<string, unknown>,
         shaders: state.shaders as Map<string, unknown>,
+        modelDefaults: state.modelDefaults as Map<string, unknown>,
     };
     /** Which open draft holds each key, by `slice/key`. */
     const owners = new Map<string, OpenDraft>();
@@ -604,6 +608,7 @@ export function createProjectStore(
                 attributes: keyed(draft, "attributes"),
                 valueLabels: keyed(draft, "valueLabels"),
                 shaders: keyed(draft, "shaders"),
+                modelDefaults: keyed(draft, "modelDefaults"),
                 visibility: {
                     set: (key, value) => {
                         write(draft, "visibility", key, value);

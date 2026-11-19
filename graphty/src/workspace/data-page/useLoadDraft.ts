@@ -12,6 +12,7 @@ import type {
     LoadChoices,
     LoadDraft,
     LoadReport,
+    ProgressChange,
     RecordPage,
     SourceKey,
 } from "@graphty/graphty-element/session";
@@ -92,6 +93,8 @@ export interface LoadDraftState {
     readonly settings: ReadSettings;
     /** Reading the source. */
     readonly reading: boolean;
+    /** How far the read has come, from 0 to 1, or null while the size is not known. */
+    readonly readProgress: number | null;
     readonly draft: LoadDraft | null;
     /** What `prepare` refused with. */
     readonly readError: unknown;
@@ -141,6 +144,7 @@ export function useLoadDraft(
     const [settings, setSettings] = useState<ReadSettings>({});
     const [draft, setDraft] = useState<LoadDraft | null>(null);
     const [reading, setReading] = useState(false);
+    const [readProgress, setReadProgress] = useState<number | null>(null);
     const [readError, setReadError] = useState<unknown>(null);
     const [choices, setChoices] = useState<PageChoices>(() => freshChoices(fileStylesOn(session)));
     const [report, setReport] = useState<LoadReport | null>(null);
@@ -194,7 +198,13 @@ export function useLoadDraft(
         const abort = new AbortController();
         let held: LoadDraft | null = null;
         setReading(true);
-        session.data.prepare(sourceInput(source, settings), { signal: abort.signal }).then(
+        setReadProgress(null);
+        const onProgress = (change: ProgressChange): void => {
+            if (!abort.signal.aborted) {
+                setReadProgress(change.fraction);
+            }
+        };
+        session.data.prepare(sourceInput(source, settings), { signal: abort.signal, onProgress }).then(
             (next) => {
                 if (abort.signal.aborted) {
                     next.dispose();
@@ -307,6 +317,7 @@ export function useLoadDraft(
         source,
         settings,
         reading,
+        readProgress,
         draft,
         readError,
         choices,

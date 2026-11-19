@@ -15,7 +15,14 @@
     user-select: none;
 }
 
-.ws-app :is(input, textarea, [contenteditable]:not([contenteditable="false"])) {
+/* Dialogs, popovers and menus are portaled to the body, outside .ws-app: the same holds for them, or
+   a drag across a dialog paints it in the selection color (#8612). */
+[data-portal] {
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+:is(.ws-app, [data-portal]) :is(input, textarea, [contenteditable]:not([contenteditable="false"])) {
     -webkit-user-select: text;
     user-select: text;
 }

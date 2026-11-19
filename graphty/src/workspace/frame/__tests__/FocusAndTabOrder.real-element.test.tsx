@@ -15,7 +15,6 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { withoutFeatures } from "../../../test/features";
-import { siteFeatures } from "../../../test/siteFeatures";
 import { act, render, screen, waitFor, type Within, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -58,6 +57,19 @@ async function openRings(): Promise<{ session: GraphSession; store: WorkspaceSto
     await session.data.addEdges(EDGES);
     await session.styles.settled();
     return { session, store };
+}
+
+/**
+ * Fills the Everything layer's Fill: it sets Color already, and a picture here, so Fill's "+" has
+ * nothing left to add.
+ * @param session - the element's session.
+ */
+async function fillEverything(session: GraphSession): Promise<void> {
+    const everything = session.styles.list().find((layer) => layer.name === "Everything" && layer.target === "node");
+    if (everything === undefined) {
+        throw new Error("no Everything layer");
+    }
+    await session.styles.update(everything.id, { set: { ...everything.set, "node.texture": "asset:not-held" } });
 }
 
 /**
@@ -228,13 +240,12 @@ describe("focus and Tab order in the workspace, on the real element", () => {
     });
 
     it("a section's + with nothing left to add is no Tab stop and says why", async () => {
-        // Fill full needs the node models experiment off: on, Fill also offers Picture.
-        await siteFeatures([]);
-        await openRings();
+        const { session } = await openRings();
+        await fillEverything(session);
         await userEvent.click(await treeRow("Everything"));
         await userEvent.click(await inspector().findByRole("tab", { name: "Style" }));
         await userEvent.click(await inspector().findByRole("tab", { name: /^Node/ }));
-        // Fill holds one property, Color, which Everything sets (Shape's "+" still offers a sprite).
+        // Fill holds Color and Picture, which Everything sets (Shape's "+" still offers a sprite).
         const add = await inspector().findByRole("button", { name: "Add to node fill" });
         assert.strictEqual(add.getAttribute("aria-disabled"), "true");
         assert.strictEqual(add.tabIndex, -1, "a + that adds nothing is a dead stop");

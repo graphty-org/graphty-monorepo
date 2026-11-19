@@ -268,7 +268,7 @@ function manyOf(
         },
         count: (channel) => linesOf(channel).filter((line) => line !== undefined).length,
         of: rows.length,
-        write: (channel, write) => record(channel, write),
+        write: (channel, write, after) => record(channel, write, after),
         clear: async (channel) => {
             const patches = rows.flatMap((row) => {
                 const layer = lineOfRow(row, channel)?.layer;

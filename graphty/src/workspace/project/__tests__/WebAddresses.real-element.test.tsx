@@ -18,7 +18,7 @@ import { withoutFeatures } from "../../../test/features";
 import { cleanup, render, screen, waitFor, within } from "../../../test/test-utils";
 import { OPEN_PROJECT_URLS, PROJECT_HOSTS_KEY, readPreference, readProjectHosts } from "../../settings/preferences";
 import { createWorkspaceStore } from "../../state/store";
-import { addModel, openCustom, openShapes, written } from "../../style/__tests__/modelHarness";
+import { addModel, openCustom, openModels, openShapes, written } from "../../style/__tests__/modelHarness";
 import { dotPng, quadGlb } from "../../style/__tests__/quadGlb";
 import { Workspace } from "../../Workspace";
 import { clearRecent } from "../recent";
@@ -214,7 +214,7 @@ async function keptEntries(): Promise<Record<string, unknown>[]> {
     return saved.members.find((member) => member.kind === "graphty-assets")?.assets ?? [];
 }
 
-describe("web addresses in the Style tab, with the node models experiment", () => {
+describe("web addresses in the Style tab, with node models", () => {
     it("draws a model pasted by URL in the Load custom model dialog, asking nothing", async () => {
         const { session, tab } = await openShapes();
         await pasteModel(session, tab);
@@ -267,6 +267,31 @@ describe("web addresses in the Style tab, with the node models experiment", () =
         assert.isNull(screen.queryByRole("dialog", { name: "Save files from the web" }));
         const [again] = await keptEntries();
         assert.equal(again?.stored, "url");
+    });
+
+    it("names a model added by URL from the Main menu by its URL when picked in the project, so Save asks", async () => {
+        await clearRecent();
+        const { session, tab } = await openShapes();
+        await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Add custom model..." }));
+        const dialog = await screen.findByRole("dialog", { name: "Load custom model" });
+        await userEvent.type(within(dialog).getByRole("textbox", { name: "Model address" }), `${MODEL}{Enter}`);
+        await addModel(dialog, "Add to project");
+
+        const models = await openModels(tab);
+        const own = within(models).getByRole("group", { name: "In this project" });
+        await userEvent.click(within(own).getByRole("button", { name: "panel" }));
+        await waitFor(() => {
+            assert.equal(written(session, "node.model"), MODEL);
+        });
+        await reaches(session, MODEL, "drawn");
+
+        await userEvent.keyboard("{Control>}s{/Control}");
+        const saveAs = await screen.findByRole("dialog", { name: "Save Models as" });
+        await userEvent.click(within(saveAs).getByRole("button", { name: "Save" }));
+        const keep = await screen.findByRole("dialog", { name: "Save files from the web" });
+        assert.isNotNull(within(keep).getByTitle(MODEL));
+        await userEvent.click(within(keep).getByRole("button", { name: "Cancel" }));
     });
 
     it("Cancel in the question saves nothing and keeps the project's name", async () => {

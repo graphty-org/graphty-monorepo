@@ -139,6 +139,7 @@ export class ScreenshotCapture {
         );
 
         const controller = new AbortController();
+        const stop = options.onProgress && operationQueueOf(this.graph).watchPendingWork(options.onProgress);
         try {
             return await new Promise<ScreenshotResult>((resolve, reject) => {
                 const run = (): void => {
@@ -164,6 +165,7 @@ export class ScreenshotCapture {
                 }, reject);
             });
         } finally {
+            stop?.();
             controller.abort();
         }
     }

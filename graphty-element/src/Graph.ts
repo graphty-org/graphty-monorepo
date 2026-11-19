@@ -10632,7 +10632,8 @@ export class Graph implements GraphContext {
      * it is built as one string and read back by `session.project.open`.
      * @param format - The format id, as `session.catalog.formats()` lists it.
      * @param options - The writer's options, plus graph-io's `sanitizeIds` and `onMixedDirection`
-     * and the element's `notes` and `styles`.
+     * and the element's `notes`, `styles` and `onProgress` (told what queued work the export waits
+     * behind, as `PENDING_WORK` facts, until it starts writing).
      * @returns What the export loses (`losses`, coded facts), and the document as text or as UTF-8
      * chunks.
      * @throws A `GraphtyError` (as a rejection): `E_UNKNOWN_FORMAT` when nothing writes the format,
@@ -10641,9 +10642,15 @@ export class Graph implements GraphContext {
      * options. A refusal found only while writing rejects `text()` or `bytes` instead.
      */
     async exportGraph(format: FormatId, options?: ExportGraphOptions): Promise<ExportResult> {
-        await this.operationQueue.waitForCompletion();
+        const { onProgress, ...writeOptions } = options ?? {};
+        const stop = onProgress === undefined ? undefined : this.operationQueue.watchPendingWork(onProgress);
+        try {
+            await this.operationQueue.waitForCompletion();
+        } finally {
+            stop?.();
+        }
         const painter = this.getStylePainter();
-        return exportSession(this.session, format, options, {
+        return exportSession(this.session, format, writeOptions, {
             nodeStyle: (row) => {
                 const paint = painter.nodePaint(row) ?? bootstrapNodePaint();
                 return {

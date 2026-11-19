@@ -1,9 +1,10 @@
+import type { GraphtyError } from "../errors/index.js";
 import { captureError } from "./captureError.js";
 import type { ClipboardStatus } from "./types.js";
 
 interface ClipboardResult {
     status: ClipboardStatus;
-    error?: Error;
+    error?: GraphtyError;
 }
 
 /**

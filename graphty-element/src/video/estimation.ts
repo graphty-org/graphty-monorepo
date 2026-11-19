@@ -12,7 +12,12 @@ export interface CaptureEstimate {
      * A size to record at instead, when frames are likely to drop: the same aspect, scaled down to
      * about 1920x1080's pixel count.
      */
-    recommendedResolution?: { width: number; height: number };
+    recommendedResolution?: {
+        /** The width in pixels. */
+        width: number;
+        /** The height in pixels. */
+        height: number;
+    };
     /** The file's approximate size in bytes, from the bitrate and the length. */
     estimatedFileSize?: number;
 }

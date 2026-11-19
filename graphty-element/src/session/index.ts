@@ -38,6 +38,13 @@ export type { BackgroundImageProblem, PrepareBackgroundImageOptions, PreparedBac
 export { DEFAULT_BACKGROUND_IMAGE_SIZE, prepareBackgroundImage } from "./backgroundImage";
 export type { BrowserProjects, BrowserProjectSaveOptions, StoredProject } from "./browserProjects";
 export { browserProjects } from "./browserProjects";
+export type {
+    TourCommand,
+    TourMoveCommand,
+    TourRemoveCommand,
+    TourRenameCommand,
+    TourSaveCommand,
+} from "./commands/tour";
 export { COLUMN_ROLES } from "./data";
 export { LOAD_ROLES } from "./draft";
 export { createElementSession, createGraphSession } from "./GraphSession";
@@ -51,13 +58,6 @@ export { DEFAULT_LIMITS } from "./limits";
 export type { NetworkApi, NetworkPolicy, NetworkRequest, NetworkRequestAsker, NetworkRequestKind } from "./network";
 export type { AlgorithmRunCommand, Plan, PlanBlock, PlanEffect, SessionCommand } from "./planning";
 export { isAlgorithmRunCommand } from "./planning";
-export type {
-    TourCommand,
-    TourMoveCommand,
-    TourRemoveCommand,
-    TourRenameCommand,
-    TourSaveCommand,
-} from "./commands/tour";
 export type { SavedTour } from "./project/state";
 export type { CodedFact, ColumnRef, ProgressChange, ResultRef } from "./shared";
 export type { LoadStyleReport } from "./styles/fileStyles/apply";

@@ -37,7 +37,12 @@ export interface TourPause {
  * options it is the whole recording's length. Code that reads `stop.view` narrows first
  * (`"view" in stop`).
  */
-export type TourStop = (ViewWaypoint & { view: string }) | TourPause;
+export type TourStop =
+    | (ViewWaypoint & {
+          /** The view flown to: a camera view's id or a saved view's name. */
+          view: string;
+      })
+    | TourPause;
 
 /** A tour: its stops in order, and how each flight eases. */
 export interface Tour {

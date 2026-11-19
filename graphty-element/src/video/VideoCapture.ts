@@ -115,7 +115,16 @@ export interface AnimationOptions {
      * drawing mode is refused as `setCameraState` refuses it.
      * @default the camera as it is
      */
-    camera?: CameraState | { view: string } | { preset: string };
+    camera?:
+        | CameraState
+        | {
+              /** A camera view's id or a saved view's name. */
+              view: string;
+          }
+        | {
+              /** The older spelling of `view`. */
+              preset: string;
+          };
     /**
      * Waypoints for camera animation path (animated mode), flown with the same camera moves as
      * `playTour`; see {@link ViewWaypoint}.
@@ -149,7 +158,12 @@ export interface AnimationOptions {
      * `filename` (the extension follows the format recorded). Wins over the top-level `download`
      * and `downloadFilename`.
      */
-    destination?: { download?: boolean; filename?: string };
+    destination?: {
+        /** Save the video as a file the browser downloads. */
+        download?: boolean;
+        /** The downloaded file's name. */
+        filename?: string;
+    };
     /**
      * Cancels the recording when it aborts, as `cancelAnimationCapture()` does: the call rejects
      * with `E_CANCELED` and no file is made.

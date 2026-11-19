@@ -4763,7 +4763,7 @@ export class Graphty extends LitElement {
             restoreCamera?: boolean;
             signal?: AbortSignal;
         },
-    ): Promise<{ reason: import("./camera/tour.js").TourEndReason }> {
+    ): Promise<{ /** How the tour ended. */ reason: import("./camera/tour.js").TourEndReason }> {
         return this.#graph.playTour(tour, options);
     }
 
@@ -5125,6 +5125,7 @@ export class Graphty extends LitElement {
      * @deprecated Use `session.views.save`.
      */
     importCameraPresets(presets: Record<string, import("./screenshot/types.js").CameraState>): {
+        /** The presets left out, each with why. */
         skipped: SkippedPreset[];
     } {
         // eslint-disable-next-line @typescript-eslint/no-deprecated -- the deprecated element method forwards to Graph's own
@@ -5167,7 +5168,14 @@ export class Graphty extends LitElement {
      * label.textContent = `${width * 2} x ${height * 2}`;
      * ```
      */
-    getCanvasSize(): { width: number; height: number; devicePixelRatio: number } {
+    getCanvasSize(): {
+        /** The width in device pixels. */
+        width: number;
+        /** The height in device pixels. */
+        height: number;
+        /** Device pixels per CSS pixel. */
+        devicePixelRatio: number;
+    } {
         return this.#graph.getCanvasSize();
     }
 

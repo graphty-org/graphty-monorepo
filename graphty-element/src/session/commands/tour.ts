@@ -14,26 +14,35 @@ import type { SavedTour } from "../project/state";
 
 /** `tour.save`: keep tours under names, replacing a tour already under one in its place. */
 export interface TourSaveCommand {
+    /** The op. */
     readonly op: "tour.save";
+    /** The tours to keep, each under its name. */
     readonly tours: readonly SavedTour[];
 }
 
 /** `tour.remove`: forget saved tours. */
 export interface TourRemoveCommand {
+    /** The op. */
     readonly op: "tour.remove";
+    /** The names of the tours to forget. */
     readonly names: readonly string[];
 }
 
 /** `tour.rename`: give a saved tour a new name, keeping its place. */
 export interface TourRenameCommand {
+    /** The op. */
     readonly op: "tour.rename";
+    /** The tour's name now. */
     readonly from: string;
+    /** Its new name. */
     readonly to: string;
 }
 
 /** `tour.move`: put a saved tour at a place in the order. */
 export interface TourMoveCommand {
+    /** The op. */
     readonly op: "tour.move";
+    /** The tour to move. */
     readonly name: string;
     /** The 0-based place, clamped to the order. */
     readonly index: number;

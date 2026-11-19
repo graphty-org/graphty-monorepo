@@ -373,7 +373,6 @@ export interface AnimationOptions {
 // @public
 export interface AnimationProgressEvent {
     progress: number;
-    // (undocumented)
     type: "animation-progress";
 }
 
@@ -4723,8 +4722,7 @@ export type GraphtyErrorCode =
 /**
 * A recording (`captureAnimation`) was canceled: its `signal` aborted, or
 * `cancelAnimationCapture()` or `cancelCameraAnimation()` was called. No file is made. Thrown as
-* an `AnimationCancelledError`, a `GraphtyError` with this code.
-* @since 3.58.0
+* an `AnimationCancelledError`, a `GraphtyError` with this code. Added in 3.58.0.
 */
 | "E_CANCELED" | "E_INTERNAL";
 
@@ -7759,7 +7757,6 @@ export const RED_BLUE_COLORS: readonly ["#67001f", "#b2182b", "#d6604d", "#f4a58
 // @public
 export interface ReducedMotionChangedEvent {
     reduced: boolean;
-    // (undocumented)
     type: "reduced-motion-changed";
 }
 
@@ -8332,9 +8329,7 @@ export type SimpleLayoutOpts = Partial<SimpleLayoutConfigType>;
 
 // @public
 export interface SkippedPreset {
-    // (undocumented)
     code: "E_PROTECTED" | "E_BAD_COMMAND";
-    // (undocumented)
     name: string;
 }
 
@@ -8774,10 +8769,8 @@ export interface Tour {
 
 // @public
 export interface TourEndedEvent {
-    // (undocumented)
     reason: TourEndReason;
     tour: string | null;
-    // (undocumented)
     type: "tour-ended";
 }
 
@@ -8814,7 +8807,6 @@ export interface TourProgressEvent {
     stop: number;
     stops: number;
     tour: string | null;
-    // (undocumented)
     type: "tour-progress";
     view?: string;
 }
@@ -8923,7 +8915,6 @@ export type ViewMode = (typeof VIEW_MODE_VALUES)[number];
 
 // @public
 export interface ViewsChangedEvent {
-    // (undocumented)
     type: "views-changed";
 }
 

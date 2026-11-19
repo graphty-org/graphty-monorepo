@@ -651,7 +651,6 @@ export type {
 // ---------------------------------------------------------------------------------------------
 
 export type { AlgorithmRunCommand, Plan, PlanBlock, PlanEffect, SessionCommand } from "./src/session";
-export { isAlgorithmRunCommand } from "./src/session";
 export type {
     SavedTour,
     TourCommand,
@@ -660,6 +659,7 @@ export type {
     TourRenameCommand,
     TourSaveCommand,
 } from "./src/session";
+export { isAlgorithmRunCommand } from "./src/session";
 export type {
     CostBasis,
     CostConfidence,

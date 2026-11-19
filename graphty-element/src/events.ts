@@ -740,6 +740,7 @@ export interface StatsUpdateEvent {
  * @since 3.58.0
  */
 export interface ReducedMotionChangedEvent {
+    /** The event's name. */
     type: "reduced-motion-changed";
     /** Whether motion is reduced now. */
     reduced: boolean;
@@ -751,6 +752,7 @@ export interface ReducedMotionChangedEvent {
  * @since 3.58.0
  */
 export interface AnimationProgressEvent {
+    /** The event's name. */
     type: "animation-progress";
     /** How far the recording has got, from 0 to 100. */
     progress: number;

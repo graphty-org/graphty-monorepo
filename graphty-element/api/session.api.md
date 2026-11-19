@@ -2547,8 +2547,7 @@ export type GraphtyErrorCode =
 /**
 * A recording (`captureAnimation`) was canceled: its `signal` aborted, or
 * `cancelAnimationCapture()` or `cancelCameraAnimation()` was called. No file is made. Thrown as
-* an `AnimationCancelledError`, a `GraphtyError` with this code.
-* @since 3.58.0
+* an `AnimationCancelledError`, a `GraphtyError` with this code. Added in 3.58.0.
 */
 | "E_CANCELED" | "E_INTERNAL";
 
@@ -5790,6 +5789,12 @@ export interface SavedScope {
 }
 
 // @public
+export interface SavedTour {
+    readonly name: string;
+    readonly tour: Tour;
+}
+
+// @public
 export interface SavedView {
     readonly camera?: CameraState;
     readonly follows?: string;
@@ -8045,8 +8050,37 @@ export interface Tour {
 }
 
 // @public
+export type TourCommand = TourSaveCommand | TourRemoveCommand | TourRenameCommand | TourMoveCommand;
+
+// @public
+export interface TourMoveCommand {
+    readonly index: number;
+    readonly name: string;
+    readonly op: "tour.move";
+}
+
+// @public
 export interface TourPause {
     readonly pause: number;
+}
+
+// @public
+export interface TourRemoveCommand {
+    readonly names: readonly string[];
+    readonly op: "tour.remove";
+}
+
+// @public
+export interface TourRenameCommand {
+    readonly from: string;
+    readonly op: "tour.rename";
+    readonly to: string;
+}
+
+// @public
+export interface TourSaveCommand {
+    readonly op: "tour.save";
+    readonly tours: readonly SavedTour[];
 }
 
 // @public

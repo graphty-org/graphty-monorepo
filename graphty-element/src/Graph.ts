@@ -8722,7 +8722,7 @@ export class Graph implements GraphContext {
     async playTour(
         tour: TourInput,
         options?: { easing?: EasingName; restoreCamera?: boolean; signal?: AbortSignal },
-    ): Promise<{ reason: TourEndReason }> {
+    ): Promise<{ /** How the tour ended. */ reason: TourEndReason }> {
         const flown = this.#checkedTour(tour);
         const { signal } = options ?? {};
         if (signal?.aborted === true) {
@@ -10340,7 +10340,14 @@ export class Graph implements GraphContext {
      *     CSS pixels.
      * @since 3.58.0
      */
-    getCanvasSize(): { width: number; height: number; devicePixelRatio: number } {
+    getCanvasSize(): {
+        /** The width in device pixels. */
+        width: number;
+        /** The height in device pixels. */
+        height: number;
+        /** Device pixels per CSS pixel. */
+        devicePixelRatio: number;
+    } {
         const width = this.engine.getRenderWidth();
         const height = this.engine.getRenderHeight();
         const css = this.canvas.clientWidth;
@@ -10562,6 +10569,7 @@ export class Graph implements GraphContext {
      * @deprecated Use `session.views.save`.
      */
     importCameraPresets(presets: Record<string, import("./screenshot/types.js").CameraState>): {
+        /** The presets left out, each with why. */
         skipped: SkippedPreset[];
     } {
         const { views, skipped } = splitPresetImport(presets);

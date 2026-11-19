@@ -6,7 +6,7 @@
 
 import { assert, describe, it } from "vitest";
 
-import { createGraphSession, type GraphSession } from "../../../src/session";
+import { createGraphSession, type GraphSession, type JoinChoices } from "../../../src/session";
 
 type LoadArgument = Parameters<Awaited<ReturnType<GraphSession["data"]["prepare"]>>["load"]>[0];
 
@@ -149,5 +149,69 @@ describe("source-steps: today's joins give the graph they give with the experime
         await draft.load({ join: { keys: suggestion.keys, shape: suggestion.shape } });
         assert.lengthOf(session.data.joins(), 1);
         session.dispose();
+    });
+});
+
+/** Genes by their Ensembl id. */
+const GENES = "id,chrom\nENSG1,17\nENSG2,13\nENSG3,1\nENSG4,2";
+
+/** Symbol (the node id) to Ensembl id; MULTI names two genes. */
+const MAPPING = "id,ensembl\nTP53,ENSG1\nBRCA1,ENSG2\nMULTI,ENSG3\nMULTI,ENSG4";
+
+/** Expression by symbol; FOO is in no mapping. */
+const EXPRESSION = "symbol,logFC\nTP53,1.5\nBRCA1,2\nFOO,3\nMULTI,4";
+
+/**
+ * A session holding the genes and the mapping, with the expression joined through it (`via`).
+ * @param on - Whether the source-steps experiment is on.
+ * @param choices - More join choices.
+ * @returns The session.
+ */
+async function crosswalked(on: boolean, choices: Partial<JoinChoices> = {}): Promise<GraphSession> {
+    const session = createGraphSession({ features: on ? ["source-steps"] : [] });
+    await session.data.import(csv("genes.csv", GENES));
+    await session.data.import(csv("mapping.csv", MAPPING), { mode: "merge" });
+    const via = session.data.sources().at(-1)?.key ?? "";
+    const draft = await session.data.prepare(csv("expression.csv", EXPRESSION), { onto: "graph" });
+    try {
+        await draft.load({ join: { keys: [{ file: "symbol", graph: "id" }], shape: "node-values", via, ...choices } });
+    } finally {
+        draft.dispose();
+    }
+    return session;
+}
+
+describe("source-steps: a join translating its keys through a loaded source (via, design 3.5)", () => {
+    it("translates each key through the source's rows as the join screen's mapping does", async () => {
+        const off = await crosswalked(false);
+        const on = await crosswalked(true);
+        for (const id of ["ENSG1", "ENSG2"]) {
+            assert.strictEqual(on.data.node(id)?.logFC, off.data.node(id)?.logFC, id);
+        }
+        assert.strictEqual(on.data.node("ENSG1")?.logFC, 1.5);
+        // Design 3.5: a key the rows map to two genes is never resolved by row order (fan-out).
+        assert.isUndefined(on.data.node("ENSG3")?.logFC);
+        assert.isUndefined(on.data.node("FOO"), "a key the mapping lacks matches as it is, and names no gene");
+        assert.lengthOf(on.data.joins(), 1);
+
+        await on.data.removeSource(on.data.joins()[0].source);
+        assert.isUndefined(on.data.node("ENSG1")?.logFC, "removing the join takes its values back");
+        off.dispose();
+        on.dispose();
+    });
+
+    it("merges each row into the gene its translated key names", async () => {
+        const on = await crosswalked(true, { shape: "merge" });
+        assert.strictEqual(on.data.node("ENSG2")?.logFC, 2);
+        on.dispose();
+    });
+
+    it("refuses mapping.many, which section 11 reserves", async () => {
+        const error = await crosswalked(true, { mapping: { many: "list" } }).then(
+            () => null,
+            (e: unknown) => e as { code?: string; details?: Record<string, unknown> },
+        );
+        assert.strictEqual(error?.code, "E_UNSUPPORTED");
+        assert.deepInclude(error?.details, { reason: "later" });
     });
 });

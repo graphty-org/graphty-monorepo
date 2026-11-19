@@ -20,6 +20,18 @@ describe("keys (4.3)", () => {
     });
 });
 
+describe("renames (4.4, 7.12)", () => {
+    it("never reads two columns under one working name: a rename onto a column the rows carry is not applied", () => {
+        const f = new Fixture();
+        const eur = "amount_eur";
+        f.import(
+            { nodes: csv(`id,amount,${eur}\np1,10,9\n`) },
+            { key: "id", type: "payment", mapping: { nodes: { key: "id", renamed: { [eur]: "amount" } } } },
+        );
+        assert.deepInclude(nodeIn(f.built(), "payment", "p1")?.values, { amount: "10", [eur]: "9" });
+    });
+});
+
 describe("repeats within one source (3.3)", () => {
     it("takes the first value when `repeated` is absent, and counts rows that differ", () => {
         const { f } = phase1([10000, 10001]);

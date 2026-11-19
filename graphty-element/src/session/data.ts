@@ -140,7 +140,15 @@ import {
     type IssueState,
     NO_ISSUE_STATE,
 } from "./issues";
-import { frozen, type JoinGraph, type JoinPlan, joinReport, type JoinTable, planJoin } from "./join";
+import {
+    frozen,
+    type JoinGraph,
+    joinMappingColumns,
+    type JoinPlan,
+    joinReport,
+    type JoinTable,
+    planJoin,
+} from "./join";
 import type { RenderLimits } from "./limits";
 import { historyMark, type LoadLine, type LoadTurn, supersededError } from "./loadLine";
 import { overRepresentedValues } from "./overRepresented";
@@ -228,7 +236,14 @@ import {
     readPath,
     values as stepsValues,
 } from "./sources/steps/provenance";
-import { type ChangeCounts, changeCounts, refreshIssues, removedSteps, sameRows } from "./sources/steps/refresh";
+import {
+    type ChangeCounts,
+    changeCounts,
+    refreshIssues,
+    removedSteps,
+    sameRows,
+    takenNames,
+} from "./sources/steps/refresh";
 import { stepsMemberFields } from "./sources/steps/saved";
 import type { BuildResult, BuiltEdge, BuiltNode, CopyTables, Row } from "./sources/steps/types";
 import type {
@@ -4310,6 +4325,15 @@ export class SessionData implements SessionDataApi {
         const value = this.stepsValue();
         const copies = this.stepsCopies();
         const src = value.sources[key];
+        const [taken] = takenNames(src, tables);
+        if (taken !== undefined) {
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: `The newer copy brings a column ${JSON.stringify(taken.column)}, a name the source gives a renamed column: rename one first.`,
+                source: "data",
+                details: { reason: "name-taken", source: key, ...taken },
+            });
+        }
         if (sameRows(tables, copies[src.origin.copy])) {
             const zero = Object.freeze({ added: 0, removed: 0, changed: 0 });
             const issues = Object.freeze(refreshIssues(value, value, copies, key));
@@ -5570,6 +5594,7 @@ export class SessionData implements SessionDataApi {
                 choices,
                 shape: planned.shape,
                 record,
+                mapping: planned.shape === "edges" ? undefined : joinMappingColumns(table, graph, choices),
             },
         );
         await send({

@@ -209,6 +209,8 @@ interface Translation {
     readonly unmapped: number;
     /** Distinct incoming keys the table maps to more than one value. */
     readonly mappedToMany: number;
+    /** The mapping table's column holding the incoming keys, then its column holding the graph's. */
+    readonly columns?: readonly [string, string];
 }
 
 /** No mapping table: every key is itself. */
@@ -283,7 +285,28 @@ function translator(
         },
         unmapped: [...incoming].filter((key) => !map.has(key)).length,
         mappedToMany: [...incoming].filter((key) => (map.get(key)?.length ?? 0) > 1).length,
+        columns: [from, to],
     };
+}
+
+/**
+ * The columns a node join reads its mapping table (`via` or `lookup`) by: the ones the reader
+ * named, else the column holding the most of the incoming keys and the one holding the most of
+ * the graph's.
+ * @param table - The incoming table.
+ * @param graph - The graph.
+ * @param choices - The join.
+ * @returns The incoming-key column, then the graph-key column; undefined without a mapping table.
+ */
+export function joinMappingColumns(
+    table: JoinTable,
+    graph: JoinGraph,
+    choices: JoinChoices,
+): readonly [string, string] | undefined {
+    const via = viaOf(graph, choices);
+    return via === undefined
+        ? undefined
+        : matchValues(table, graph.nodes, choices, looseOf(choices), via, graph.directed).translation.columns;
 }
 
 /**

@@ -126,7 +126,10 @@ describe("source-steps: removal as a rebuild", () => {
         assert.lengthOf(session.history.steps, history + 1, "one undo step");
         await session.undo();
         assert.deepStrictEqual(session.visibility.conditions.map((c) => c.id).sort(), ["fa", "ft"]);
-        assert.isDefined(session.data.sources().find((s) => s.key === a), "the source is back too");
+        assert.isDefined(
+            session.data.sources().find((s) => s.key === a),
+            "the source is back too",
+        );
         session.dispose();
     });
 
@@ -331,6 +334,27 @@ describe("source-steps: replace and refresh keep the source id and swap the copy
         assert.lengthOf(session.history.steps, history + 1, "one undo step");
         await session.undo();
         assert.strictEqual(session.data.edges().find((e) => e.txn_id === "T-4")?.amount, 7);
+        session.dispose();
+    });
+
+    it("7.12: a replace bringing a column under a renamed column's name is refused until one is renamed", async () => {
+        const session = createGraphSession({ features: ["source-steps"] });
+        await session.data.import(csv("id,amount_eur\np1,9\np2,18", "fx.csv"), { key: "id", type: "payment" });
+        const [s] = session.data.sources();
+        await session.data.renameColumn({ kind: "node", name: "amount_eur" }, "amount", { source: s.key });
+        const newer = csv("id,amount,amount_eur\np1,10,9\np2,20,18", "fx.csv");
+        const error = await session.data.replaceSource(s.key, newer).then(
+            () => null,
+            (e: unknown) => e as { code?: string; details?: Record<string, unknown> },
+        );
+        assert.strictEqual(error?.code, "E_BAD_COMMAND");
+        assert.deepInclude(error?.details, { reason: "name-taken", column: "amount", table: "nodes" });
+        assert.deepStrictEqual(session.data.node("p1"), { id: "p1", amount: 9 }, "the graph is left as it was");
+
+        const old = "amount_eur_old";
+        await session.data.renameColumn({ kind: "node", name: "amount" }, old, { source: s.key });
+        await session.data.replaceSource(s.key, newer);
+        assert.deepInclude(session.data.node("p1"), { amount: 10, [old]: 9 });
         session.dispose();
     });
 

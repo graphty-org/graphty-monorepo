@@ -109,7 +109,13 @@ function tableRows(src: Source, copies: ReadonlyMap<string, CopyTables>, table: 
     if (Object.keys(renamed).length === 0) {
         return rows;
     }
-    return rows.map((r) => Object.fromEntries(Object.entries(r).map(([k, v]) => [renamed[k] ?? k, v])));
+    // A rename onto a name the row also carries as read is not applied: two columns never share
+    // one working name, and neither one's values replace the other's (7.12).
+    const name = (r: Row, k: string): string => {
+        const w = renamed[k];
+        return w === undefined || (w in r && (renamed[w] ?? w) === w) ? k : w;
+    };
+    return rows.map((r) => Object.fromEntries(Object.entries(r).map(([k, v]) => [name(r, k), v])));
 }
 
 // ---------------------------------------------------------------- dependence (3.2)

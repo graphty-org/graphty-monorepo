@@ -465,18 +465,7 @@ export function readerOps(
 }
 
 /** Join choices the steps do not express yet; a join naming one is refused under the experiment. */
-const LATER_CHOICES = [
-    "via",
-    "lookup",
-    "mapping",
-    "endKinds",
-    "kindIds",
-    "compare",
-    "membership",
-    "aggregate",
-    "link",
-    "names",
-] as const;
+const LATER_CHOICES = ["lookup", "endKinds", "kindIds", "compare", "membership", "aggregate", "link", "names"] as const;
 
 /** A join, as the draft's join screen and `editJoin` make it, ready to compile to steps. */
 export interface JoinAsSteps {
@@ -488,6 +477,55 @@ export interface JoinAsSteps {
     readonly choices: JoinChoices;
     readonly shape: JoinShape;
     readonly record: JoinRecord;
+    /**
+     * For a join with `via`: the mapping table's column holding the incoming keys, then its column
+     * holding the graph's, as the join reads the table (a load's records name its ends `source` and
+     * `target` and a node's key `id`).
+     */
+    readonly mapping?: readonly [string, string];
+}
+
+/** How a step translates a join's keys through a loaded source (3.5). */
+interface Translation {
+    readonly lookup: string;
+    readonly mapping: {
+        readonly columns: readonly [string, string];
+        readonly table: "nodes" | "edges";
+        readonly space: string;
+    };
+}
+
+/**
+ * A join's `via` as the step translation 3.5 describes: the source's own rows, looked up by the
+ * columns the join reads (a load's record fields turned back into the columns its rows are read
+ * by). A key the rows lack passes through as it is, as today's `via` matches it (`lookup`).
+ * @param value - The value.
+ * @param copies - The rows as read.
+ * @param join - The join.
+ * @param id - The joined source's id.
+ * @returns The translation, or null when the join names no `via` or no source holds it.
+ */
+function translationOf(value: SourceSteps, copies: Copies, join: JoinAsSteps, id: string): Translation | null {
+    const { via } = join.choices;
+    const src = via === undefined ? undefined : (value.sources[via] as StepsSource | undefined);
+    if (src === undefined || join.mapping === undefined) {
+        return null;
+    }
+    const { nodes, edges } = src.mapping;
+    const table = nodes === undefined ? "edges" : "nodes";
+    // A joined table is read as its rows; another load as its records (design 3.5, `JoinChoices.via`).
+    const records: Record<string, string | undefined> =
+        table === "edges" ? { source: edges?.source, target: edges?.target } : { id: nodes?.key };
+    const field = src.join === undefined ? records : {};
+    const [from, to] = join.mapping.map((c) => field[c] ?? c) as [string, string];
+    const rows = copies[src.origin.copy]?.[table] ?? [];
+    const space = spaceOfKeys(
+        value,
+        copies,
+        rows.map((r) => r[to]),
+        id,
+    );
+    return { lookup: src.id, mapping: { columns: [from, to], table, space } };
 }
 
 /**
@@ -597,8 +635,9 @@ export function compileJoin(value: SourceSteps, copies: Copies, join: JoinAsStep
     const graphKey = choices.keys[0]?.graph ?? "id";
     const column = !edges && graphKey.startsWith(DATA_PATH) ? graphKey.slice(DATA_PATH.length) : null;
     const field = column === null ? null : fieldSourceOf(value, copies, column, keyValues);
-    refuseUnexpressed(choices, shape, field !== null);
-    const space = field?.space ?? spaceOfKeys(value, copies, keyValues, id);
+    const translation = translationOf(value, copies, join, id);
+    refuseUnexpressed(choices, shape, field !== null, translation !== null);
+    const space = translation?.mapping.space ?? field?.space ?? spaceOfKeys(value, copies, keyValues, id);
     const options = defined({
         columns: choices.columns,
         // Today's join keeps a clashing value both ways unless the reader says otherwise (section 10 item 23).
@@ -610,7 +649,7 @@ export function compileJoin(value: SourceSteps, copies: Copies, join: JoinAsStep
     const next: SourceSteps = { ...value, sources: { ...value.sources, [id]: joinedSource(join, files, space) } };
     const through = field === null || column === null ? null : { ...field, column };
     if (shape === "merge") {
-        return applyAct(
+        const merged = applyAct(
             next,
             {
                 act: "merge",
@@ -618,11 +657,12 @@ export function compileJoin(value: SourceSteps, copies: Copies, join: JoinAsStep
                     from: { source: id, field: files[0] },
                     into: through === null ? { space } : { source: through.source, field: through.column },
                     ...options,
-                    ...(choices.unmatchedFrom === undefined ? {} : { unmatchedFrom: choices.unmatchedFrom }),
+                    ...defined({ unmatchedFrom: choices.unmatchedFrom }),
                 },
             },
             copies,
         );
+        return translation === null ? merged : translatedMerge(merged, translation);
     }
     const step: Step = edges
         ? edgesStepOf(next, id, files, space, { ...options, ...defined({ unmatchedRows: choices.unknownEnds }) })
@@ -632,12 +672,37 @@ export function compileJoin(value: SourceSteps, copies: Copies, join: JoinAsStep
               read: { table: "nodes", key: files[0], space },
               ...options,
               ...defined({ unmatchedRows: choices.unmatchedRows }),
-              ...(through === null
-                  ? {}
-                  : { via: through.source, mapping: { columns: [through.column, through.key] as const, space } }),
+              ...(through === null ? translation : fieldVia(through, space)),
           };
     const parts = step.op === "join.edges" ? { parts: { ...next.parts, [id]: step.part } } : {};
     return { ...next, ...parts, steps: [...next.steps, step] };
+}
+
+/**
+ * A node-values step's read of a graph field through the rows of the source holding it (3.5).
+ * @param through - The source, its key column and the field's column.
+ * @param space - The space the key is read in.
+ * @returns The step's `via` and `mapping`.
+ */
+function fieldVia(
+    through: FieldSource & { readonly column: string },
+    space: string,
+): { readonly via: string; readonly mapping: { readonly columns: readonly [string, string]; readonly space: string } } {
+    return { via: through.source, mapping: { columns: [through.column, through.key], space } };
+}
+
+/**
+ * The value with its last step, the merge a join's act wrote, translating its keys first (3.5).
+ * @param value - The value.
+ * @param translation - The translation.
+ * @returns The value.
+ */
+function translatedMerge(value: SourceSteps, translation: Translation): SourceSteps {
+    const last = value.steps.length - 1;
+    const steps = value.steps.map((step, at) =>
+        at === last && step.op === "join.merge" ? { ...step, ...translation } : step,
+    );
+    return { ...value, steps };
 }
 
 /**
@@ -669,20 +734,27 @@ function joinedSource(join: JoinAsSteps, files: readonly string[], space: string
 /**
  * Refuse a join the steps do not express yet: a shape or key count other than a values, merge or
  * edges join, a key on anything but a node id or a graph field a source holds, `repeated: "both"`,
- * or a choice from the later list.
+ * a `via` on edges, on a graph field or naming no source, or a choice from the later list
+ * (`mapping.many` among them: section 11 reserves it).
  * @param choices - The join's choices.
  * @param shape - Its shape.
  * @param fieldHeld - Whether its graph field key names a column a built source holds.
+ * @param translated - Whether its `via` names a source the steps translate through.
  * @throws A `GraphtyError` with `E_UNSUPPORTED` (reason `later`).
  */
-function refuseUnexpressed(choices: JoinChoices, shape: JoinShape, fieldHeld: boolean): void {
-    const later = LATER_CHOICES.filter((k) => choices[k] !== undefined);
+function refuseUnexpressed(choices: JoinChoices, shape: JoinShape, fieldHeld: boolean, translated: boolean): void {
+    const later = [
+        ...LATER_CHOICES.filter((k) => choices[k] !== undefined),
+        ...(choices.mapping?.many === undefined ? [] : ["mapping.many"]),
+    ];
     const edges = shape === "edges";
+    const viaFits = choices.via === undefined || (translated && !edges && choices.keys[0]?.graph === "id");
     const supported =
         (shape === "node-values" || shape === "merge" || edges) &&
         choices.keys.length === (edges ? 2 : 1) &&
         (choices.keys.every((k) => k.graph === "id") || fieldHeld) &&
-        choices.repeated !== "both";
+        choices.repeated !== "both" &&
+        viaFits;
     if (!supported || later.length > 0) {
         throw notYet(shape, later);
     }
@@ -716,7 +788,7 @@ function notYet(shape: JoinShape, later: readonly string[]): GraphtyError {
  */
 function compileEdgeValues(value: SourceSteps, copies: Copies, join: JoinAsSteps): SourceSteps {
     const { choices, shape, id } = join;
-    const later = LATER_CHOICES.filter((k) => choices[k] !== undefined);
+    const later = (["via", "mapping", ...LATER_CHOICES] as const).filter((k) => choices[k] !== undefined);
     const [key] = choices.keys;
     const load =
         choices.keys.length === 1 && choices.repeated !== "both" && later.length === 0

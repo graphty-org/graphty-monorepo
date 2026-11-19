@@ -68,6 +68,33 @@ const same = (a: Value | null | undefined, b: Value | null | undefined): boolean
     JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 
 /**
+ * Each working name two read columns of one table would share (7.12): a rename took a name the
+ * source's rows also carry, as when a newer file brings a column under a renamed column's name.
+ * @param src - The source.
+ * @param tables - Its rows as read.
+ * @returns One table and working name per collision.
+ */
+export function takenNames(
+    src: StepsSource,
+    tables: CopyTables | undefined,
+): { readonly table: TableName; readonly column: string }[] {
+    const out: { readonly table: TableName; readonly column: string }[] = [];
+    for (const table of ["nodes", "edges"] as const) {
+        const renamed = src.mapping[table]?.renamed ?? {};
+        const read = new Set((tables?.[table] ?? []).flatMap((r) => Object.keys(r)));
+        const seen = new Set<string>();
+        for (const k of read) {
+            const w = renamed[k] ?? k;
+            if (seen.has(w)) {
+                out.push({ table, column: w });
+            }
+            seen.add(w);
+        }
+    }
+    return out;
+}
+
+/**
  * The working names of a table's columns (4.4): every column a row holds, under its `renamed` name.
  * @param rows - The rows as read.
  * @param renamed - The source's renames for the table.
@@ -205,7 +232,8 @@ function missingRuleColumns(value: SourceSteps, copies: Copies, id: string): Ref
             .filter((r) => r.source === id && r.column !== undefined)
             .filter((r) => !have.nodes.has(r.column as string) && !have.edges.has(r.column as string))
             .map((r): RefreshIssue => {
-                const table: TableName = t.kind === "node" && r.end === undefined && src.mapping.nodes ? "nodes" : "edges";
+                const table: TableName =
+                    t.kind === "node" && r.end === undefined && src.mapping.nodes ? "nodes" : "edges";
                 return {
                     code: "E_COLUMN_MISSING",
                     params: { source: id, column: r.column as string, table, type: t.name },

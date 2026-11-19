@@ -1,5 +1,6 @@
 import type { EffectLayer } from "@babylonjs/core";
 import { Camera } from "@babylonjs/core/Cameras/camera.js";
+import { Constants } from "@babylonjs/core/Engines/constants.js";
 import { HighlightLayer } from "@babylonjs/core/Layers/highlightLayer.js";
 import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial.js";
 import { Color3 } from "@babylonjs/core/Maths/math.color.js";
@@ -61,7 +62,8 @@ const TO_CAMERA = new Vector3();
 
 /**
  * The narrowest and the widest a glow is spread, as multiples of {@link GLOW_SPREAD}. The blur
- * takes seven samples, so a wider spacing breaks the glow into blotches.
+ * takes seven samples, so a wider spacing breaks the glow into blotches. A strength past the widest
+ * reaches further by its intensity instead: see {@link NodeEffects.syncGlowStrengths}.
  */
 const GLOW_SPREAD_LIMITS = [0.5, 1.25] as const;
 
@@ -99,6 +101,8 @@ class NodeGlowLayer extends HighlightLayer {
             blurHorizontalSize: GLOW_SPREAD,
             blurVerticalSize: GLOW_SPREAD,
             renderingGroupId: GRAPH_RENDERING_GROUP,
+            // Half-float, so a glow intensity above 1 (a strength above 1) is not clipped to 1.
+            mainTextureType: Constants.TEXTURETYPE_HALF_FLOAT,
         });
         this.innerGlow = false;
         this.onBeforeRenderMeshToEffect.add((mesh) => {
@@ -584,10 +588,9 @@ export class NodeEffects {
     /**
      * Draw every glowing source mesh at its own strength, with one layer.
      *
-     * The layer's spread belongs to the layer, so it follows the LARGEST strength on screen, and
-     * each mesh is drawn at its share of that strength as an opacity, times its color's own
-     * opacity -- never above 1. One glowing style alone is drawn opaque and as wide as its
-     * strength; two at different strengths differ in opacity.
+     * The layer's spread belongs to the layer, so it follows the LARGEST strength on screen, up to
+     * its widest. Each mesh is drawn at an intensity of its own strength times its color's own
+     * opacity, so a stronger glow is always brighter and reaches further.
      *
      * Only source meshes that still draw a node count toward the largest strength. MeshCache
      * never evicts a source mesh, so a strength that is no longer used (a slider dragged from 100
@@ -629,8 +632,15 @@ export class NodeEffects {
             glowLayer.blurVerticalSize = spread;
         }
 
+        // A GLOW'S INTENSITY IS ITS OWN STRENGTH, never divided by the strongest one on screen.
+        // Divided, a lone glow was always drawn at 1, and as the spread is held at its widest
+        // past 1.25 (see GLOW_SPREAD_LIMITS) every strength from 1.25 up drew the same picture.
+        // The glow map is half-float, so an intensity above 1 survives into the blur and a strong
+        // glow's faint edge becomes visible further out: it reaches further and is brighter.
+        // Drawing the glow map smaller to reach further was tried: a small node then fell between
+        // the map's texels and drew no glow at all.
         for (const [mesh, { strength, alpha }] of strengths) {
-            glowLayer.alphas.set(mesh.uniqueId, max > 0 ? (alpha * strength) / max : 0);
+            glowLayer.alphas.set(mesh.uniqueId, alpha * strength);
         }
     }
 

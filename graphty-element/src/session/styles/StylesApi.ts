@@ -3539,6 +3539,34 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     };
 
     /**
+     * Name, in a specification being saved, the palette each color binding that names none was
+     * painted through, so a file never depends on the reading build's default (issue #6514). Only
+     * this version's own paint answers, never the last paint of an earlier version that a held
+     * repaint stands in with, and only for a binding reading the same path through the same scale;
+     * a layer not painted yet keeps its bindings as written.
+     * @param spec - The specification.
+     * @param id - The layer it was read from.
+     * @returns The specification with every painted default named.
+     */
+    const withResolvedPalettes = (spec: LayerSpec, id: LayerId): LayerSpec => {
+        const own = byId().get(id);
+        const fresh = own === undefined || sources.encoding === undefined ? NO_BINDINGS : sources.encoding(own);
+        let encode: Record<string, Binding> | undefined;
+        for (const { channel, binding } of unnamedPalettes(spec)) {
+            const by = "by" in binding ? binding.by : undefined;
+            const scale = ("scale" in binding ? binding.scale : undefined) ?? "linear";
+            const palette = fresh.find((each) => each.channel === channel && each.path === by && each.scale === scale)
+                ?.palette?.id;
+            if (palette !== undefined) {
+                encode ??= { ...(spec.encode as Record<string, Binding>) };
+                encode[channel] = { ...binding, palette };
+            }
+        }
+
+        return encode === undefined ? spec : { ...spec, encode };
+    };
+
+    /**
      * The refusal of a specification, told to whoever watches as well: a run nobody awaited
      * rejects with no trace, so a layer refused for its shaders went unseen (issue #5972).
      * @param name - What the layer was called.
@@ -6161,7 +6189,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
 
         toDocument(): StyleDocument {
             const mine = current().filter((entry) => !entry.layer.locked);
-            const layers = mine.map((entry) => specOf(entry.layer));
+            const layers = mine.map((entry) => withResolvedPalettes(specOf(entry.layer), entry.layer.id));
             const carried = carriedPalettes(layers);
             // The project's shaders travel with its look, verbatim, beside the palettes. A write
             // that names a catalog shader copies it into the project, so this is every shader used.

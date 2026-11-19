@@ -819,16 +819,25 @@ export const recipeCodec: SectionCodec = {
     },
     async read(section, context) {
         const header = section.header as unknown as JsonObject;
-        opened.set(context.session, {
-            header: Object.fromEntries(
-                [...IDENTITY, "dependencies"].flatMap((member) => (member in header ? [[member, header[member]]] : [])),
-            ),
-            body: Object.fromEntries(
-                Object.entries(section.body).filter(([member]) => recipeCodec.members.includes(member)),
-            ),
-            applied: context.applyRecipe === true,
-        });
-        if (context.applyRecipe !== true) {
+        const applied = context.applyRecipe === true;
+        // An applied recipe never replaces a recipe the project kept as read: that one is still
+        // written back as read. With none kept, the save writes the session's steps under the
+        // applied recipe's identity.
+        if (!applied || opened.get(context.session) === undefined) {
+            opened.set(context.session, {
+                header: Object.fromEntries(
+                    [...IDENTITY, "dependencies"].flatMap((member) =>
+                        member in header ? [[member, header[member]]] : [],
+                    ),
+                ),
+                body: Object.fromEntries(
+                    Object.entries(section.body).filter(([member]) => recipeCodec.members.includes(member)),
+                ),
+                applied,
+            });
+        }
+
+        if (!applied) {
             // Opening never applies a recipe (spec 8.2 rule 4): it is kept, and the plan says so.
             context.problems.push({ code: "W_RECIPE_NOT_APPLIED", params: { section: "recipe" } });
             return;

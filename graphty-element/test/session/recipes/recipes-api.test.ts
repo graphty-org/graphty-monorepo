@@ -127,6 +127,27 @@ describe("session.recipes", () => {
         second.dispose();
     });
 
+    it("never replaces a recipe the project kept as read", async () => {
+        const first = createGraphSession(ON);
+        await addGraph(first, "");
+        await first.runs.start("degree", undefined, { as: "lab__deg", style: false });
+        const { text } = await first.recipes.export();
+
+        const second = createGraphSession(ON);
+        await addGraph(second, "x");
+        const kept = example("card-fraud.graphty-recipe.json");
+        await second.project.open(kept, { sections: ["recipe"] });
+        await second.recipes.apply(text);
+        const saved = JSON.parse((await second.project.save({ format: 2 })).text) as {
+            sections: { recipe: { id: string; commands: unknown[] } };
+        };
+        const read = JSON.parse(kept) as { id: string; commands: unknown[] };
+        assert.strictEqual(saved.sections.recipe.id, read.id);
+        assert.deepEqual(saved.sections.recipe.commands, read.commands);
+        first.dispose();
+        second.dispose();
+    });
+
     it("RecipesApi.apply: no more than linear in the graph", async () => {
         const source = createGraphSession(ON);
         await addGraph(source, "");

@@ -104,10 +104,9 @@ describe("the Export dialog's choices", () => {
         assert.equal(thumbnail.quality, 0.85);
         assert.isUndefined(thumbnail.multiplier);
         assert.deepEqual(thumbnail.camera, { view: "topView" });
-        assert.deepEqual(
-            cameraScreenshotOptions({ ...DEFAULT_CAMERA_IMAGE, view: "Hub cluster" }, {}).camera,
-            { view: "Hub cluster" },
-        );
+        assert.deepEqual(cameraScreenshotOptions({ ...DEFAULT_CAMERA_IMAGE, view: "Hub cluster" }, {}).camera, {
+            view: "Hub cluster",
+        });
         assert.isUndefined(cameraScreenshotOptions(DEFAULT_CAMERA_IMAGE, {}).camera, "the reader's camera");
         assert.deepEqual(cameraScreenshotOptions({ ...DEFAULT_CAMERA_IMAGE, view: "fitToGraph" }, {}).camera, {
             view: "fitToGraph",

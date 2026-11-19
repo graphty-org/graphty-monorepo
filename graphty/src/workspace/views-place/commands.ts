@@ -68,7 +68,7 @@ function cameraKeyCommand(key: (typeof CAMERA_KEYS)[number]): Command {
         group: "View",
         keys: [key],
         inPalette: false,
-                disabled: (ctx) => {
+        disabled: (ctx) => {
             const name = cameraOnKey(ctx.session, key);
             const active = immersiveMode(ctx.session);
             if (name === undefined) {
@@ -97,7 +97,7 @@ export const registration = defineRegistration({
             label: "Views",
             group: "Go to",
             keywords: ["camera", "tour", "video", "hotkey"],
-                        // A door (Quick actions, All cameras...) moves focus into Cameras, unless it asked for
+            // A door (Quick actions, All cameras...) moves focus into Cameras, unless it asked for
             // another section first (the Export dialog asks for Video tours). The rail clears it.
             run: ({ workspace }) => {
                 const viewsFocus = workspace.get().viewsFocus ?? "cameras";
@@ -111,7 +111,7 @@ export const registration = defineRegistration({
             group: "View",
             keys: ["V"],
             keywords: ["view", "save view"],
-                        // The element refuses to save while immersive: the headset's camera is no 2D or 3D state.
+            // The element refuses to save while immersive: the headset's camera is no 2D or 3D state.
             disabled: ({ session }) => {
                 const active = immersiveMode(session);
                 return nothingDrawn(session) ?? (active === null ? null : `Not in ${active.toUpperCase()}`);

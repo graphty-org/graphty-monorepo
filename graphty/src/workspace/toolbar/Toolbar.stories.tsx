@@ -240,9 +240,7 @@ export const TourPlayingCameraIsStop: Story = {
         const element = await loadRings(canvasElement);
         await saveCamerasAndTour(element);
         // A hold far past the capture, on a jump with no flight, so the camera stands still.
-        await element.session.tours.save([
-            { name: "Hold", tour: { stops: [{ view: "Overview", hold: 3_600_000 }] } },
-        ]);
+        await element.session.tours.save([{ name: "Hold", tour: { stops: [{ view: "Overview", hold: 3_600_000 }] } }]);
         void element.playTour("Hold");
         const toolbar = await within(canvasElement).findByRole("toolbar", { name: "Canvas tools" });
         await within(toolbar).findByRole("button", { name: "Stop tour" });

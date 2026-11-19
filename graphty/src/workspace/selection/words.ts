@@ -98,6 +98,7 @@ const REASONS: Readonly<Record<StepReasonCode, { short: string; long: string }>>
     "input-empty": { short: "Passes none", long: "Nothing comes into this step" },
     "reference-empty": { short: "Passes none", long: "The reference holds no node now" },
     "frozen-from": { short: "Frozen", long: "Frozen to the nodes it held when written" },
+    "unknown-algorithm": { short: "Unknown", long: "This algorithm is not available here: the step passes none" },
 };
 
 /**
@@ -127,7 +128,7 @@ export function reasonWords(
             return { short: `Run (${about})`, long: `${words.long} (${about})` };
         }
     }
-    return words ?? { short: reason.code, long: reason.code };
+    return words;
 }
 
 /**

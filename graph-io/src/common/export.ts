@@ -1,6 +1,6 @@
 /**
  * The exporter-side machinery of design section 8.5: the ExportCapabilities table helper, the
- * generic check() that turns capability gaps into LossNotes with shared codes, and id sanitising
+ * generic check() that turns capability gaps into LossNotes with shared codes, and id sanitizing
  * (`sanitizeIds: "error"` by default; an exporter never silently renames a node; "mangle" rewrites
  * the ids the format cannot hold and hands the exporter the originals to write into its
  * `graphty:originalId` attribute).
@@ -1110,7 +1110,7 @@ export function countParallelArcs(snapshot: GraphSnapshot): number {
     return snapshot.directed ? count : Math.ceil(count / 2);
 }
 
-// ============================================================ id sanitising
+// ============================================================ id sanitizing
 
 /**
  * The id charsets of ExportCapabilities.
@@ -1120,7 +1120,7 @@ export function countParallelArcs(snapshot: GraphSnapshot): number {
 export type IdCharset = ExportCapabilities["idCharset"];
 
 /**
- * The ids to write for every node after sanitising.
+ * The ids to write for every node after sanitizing.
  * @public
  * @category Writing a format
  */
@@ -1267,7 +1267,7 @@ export function countUnrepresentableIds(snapshot: GraphSnapshot, charset: IdChar
 }
 
 /**
- * Sanitise the node ids for a charset. Under "error" any id the charset
+ * Sanitize the node ids for a charset. Under "error" any id the charset
  * cannot hold is E_INVALID_ID (details.reason "charset"), and under "nmtoken" or "any" so is an id
  * whose text an earlier id already has (the string "1" after the number 1; details.reason
  * "collision"), and nothing is written; under "mangle" the later id is suffixed `_2`, `_3`..., and

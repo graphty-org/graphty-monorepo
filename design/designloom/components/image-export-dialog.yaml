@@ -3,7 +3,8 @@ name: Image Export Dialog
 category: dialog
 description: Modal dialog for exporting graph visualization as an image. Supports format selection, resolution, and
     background options.
-status: planned
+status: implemented
+notes: "Ships: graphty/src/workspace/export/ExportDialog.tsx and ImageOutput.tsx."
 implements_capabilities:
     - export-image
 used_in_workflows:

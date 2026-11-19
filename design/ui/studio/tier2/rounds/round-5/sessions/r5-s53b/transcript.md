@@ -14,7 +14,7 @@ Command: `real.mjs --step $S --click "No thanks"` -> 02.png. Banner dismissed.
 
 ## Step 03
 Command: `real.mjs --step $S --click "New from data..."` -> 03.png.
-"Open as a new graph" page with a "Tables" list and a + -- so maybe more than one sheet. Tiny grey "Drop a file here, or choose a file..." text, hard to read. I'll choose people.csv first.
+"Open as a new graph" page with a "Tables" list and a + -- so maybe more than one sheet. Tiny gray "Drop a file here, or choose a file..." text, hard to read. I'll choose people.csv first.
 
 ## Step 04
 Command: `real.mjs --step $S --click "choose a file..." --upload people.csv` -> 04.png.
@@ -93,5 +93,5 @@ Command: `real.mjs --end $S`. The session ended and was copied to the design fol
 - "Higher means: Not set / Closer / Farther / Capacity": I didn't know what "Capacity" means for emails. After I clicked Closer, the sentence "such as more emails between two people" settled it.
 - "Weight: none" is easy to skim past. The tool does not prompt you to treat a column of counts as a weight.
 - The table under the picture shows only four rows at a time, so I had to scroll to find p13.
-- There are no names on the circles, and the small grey labels ("Each row is", "text", "whole number") are hard to read without my glasses.
+- There are no names on the circles, and the small gray labels ("Each row is", "text", "whole number") are hard to read without my glasses.
 - Still the usual questions: will IT approve it, and can I get this into Power BI? It says "Local only" and "files are read on this computer", which helps with IT.

@@ -149,6 +149,12 @@ picture or transparency, say) stays a mesh, and so do the other nodes of its sha
 const { batchedNodes, objectNodes } = element.rowCounts;
 ```
 
+While a layout runs on the GPU, the batched path draws a frame only when a new batch of positions
+lands or something else changes the picture (the camera, hover, a style), even with
+`render-on-demand` off: a frame in between would show the same positions again and take GPU time
+from the layout. Once the layout settles it draws every frame again, unless `render-on-demand` is
+on.
+
 ### Loading past the size caps
 
 A load past 100,000 nodes or 1,000,000 edges is refused with `E_TOO_LARGE`. On the batched path

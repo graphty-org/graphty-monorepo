@@ -3,7 +3,7 @@
  * graphty-element's (`visibility.summary`, `visibility.conditionCounts`); every word is the app's.
  */
 
-import type { HistoryCode, NodeId, RuleTree } from "@graphty/graphty-element/session";
+import type { HistoryCode, NodeId, RuleTree, TextMatchMode } from "@graphty/graphty-element/session";
 
 import { formatCount } from "../settings/numberFormat";
 
@@ -122,7 +122,7 @@ function rangeWords(rule: Extract<RuleTree, { kind: "range" }>, names: Namer): s
 }
 
 /** A text test in words, by its mode. */
-const TEXT_MODE_WORDS: Readonly<Record<string, string>> = {
+const TEXT_MODE_WORDS: Readonly<Record<TextMatchMode, string>> = {
     substring: "contains",
     "starts-with": "starts with",
     "ends-with": "ends with",
@@ -142,7 +142,7 @@ function textWords(rule: Extract<RuleTree, { kind: "text" }>, names: Namer): str
         return `${name} has a value`;
     }
     const value = names.value?.(rule.reads, rule.text) ?? rule.text;
-    return `${name} ${TEXT_MODE_WORDS[rule.mode ?? "exact"] ?? "is"} ${value}`;
+    return `${name} ${TEXT_MODE_WORDS[rule.mode]} ${value}`;
 }
 
 /**

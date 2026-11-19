@@ -112,7 +112,7 @@ and periodically regardless.
 | `issue_comment` | A new comment on an issue or PR (the owner answering a question) | `GET /repos/{r}/issues/comments?since=` |
 | `push` | Branch updated (master moved, a PR branch pushed) | `GET /repos/{r}/events` or branch refs |
 | `merge_group` | Merge-queue run (only if a merge queue is used) | none practical |
-| `repository_vulnerability_alert` | Dependabot alert (deprecated in favour of `dependabot_alert`) | `GET /repos/{r}/dependabot/alerts` |
+| `repository_vulnerability_alert` | Dependabot alert (deprecated in favor of `dependabot_alert`) | `GET /repos/{r}/dependabot/alerts` |
 | `security_advisory` | A GitHub-wide advisory published; this is an app/global event, not a repository webhook event | `GET /advisories` |
 | `release`, `create`, `delete` | Release published, tags and branches created/deleted | `GET /repos/{r}/releases`, refs |
 
@@ -356,7 +356,7 @@ Rules found in the binary's messages:
   above on every start. `--channels` accepts only approved plugins ("not on the approved
   channels allowlist"). Packaging githerd's server as a plugin in a marketplace the owner
   approves is the way to avoid the dialog; that path was not tested.
-- Organisations can disable channels (`channelsEnabled` in managed settings); channels are
+- Organizations can disable channels (`channelsEnabled` in managed settings); channels are
   unavailable on Bedrock, Vertex and Foundry.
 
 ### 4.3 A channel message is untrusted data, and a busy session will not act on it
@@ -549,7 +549,7 @@ pane:
 Second case: the user's own words contradict the reason. With `AskUserQuestion` allowed, Opus
 asked through the picker instead (pane: "Which indentation should the new config file use? > 1. 2
 spaces 2. 4 spaces 3. Type something. 4. Chat about this / Enter to select ... Esc to cancel";
-registry `{"status":"waiting","waitingFor":"input needed"}`). Escape cancelled it ("User declined to
+registry `{"status":"waiting","waitingFor":"input needed"}`). Escape canceled it ("User declined to
 answer questions") and the Stop hook was NOT called for that interrupted turn (`count` unchanged).
 With `--disallowedTools AskUserQuestion`:
 
@@ -1155,8 +1155,8 @@ Verdict: fields present, but the pass condition's "null `started_at` while queue
 GitHub fills `started_at` with `created_at` until a runner takes the job, so "queued" is
 `status == "queued"` with `runner_name == null`, and queue age is now minus `created_at`. The
 worst pickup recorded on the rented label is 926 s (about 15.5 minutes), which seeds that label's
-bound; a cancelled queued job ends with zero steps and conclusion `cancelled`. (A run superseded
-by `concurrency` is cancelled before any job exists: three such runs on 10-03 have zero jobs.)
+bound; a canceled queued job ends with zero steps and conclusion `cancelled`. (A run superseded
+by `concurrency` is canceled before any job exists: three such runs on 10-03 have zero jobs.)
 Design: the queue-age signal in 3.10 and 4.3 changed.
 
 ### 9.9 S11: the token sends no expiration header

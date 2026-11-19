@@ -164,6 +164,12 @@ const INVENTORY: Record<string, Covered> = {
         reason: "a capture read back for the AI; it never reaches the canvas",
     },
     "src/ai/providers/index.ts": { count: 2, reason: "an AI provider's module; it draws nothing" },
+    "src/acceleration/autoload.ts": {
+        count: 2,
+        reason:
+            "the optional GPU package's two modules, imported at the first acceleration probe; the probe only " +
+            "publishes capabilities.acceleration and draws nothing (a layout run on the accelerator is held as layout)",
+    },
     "src/ai/providers/WebLlmProvider.ts": {
         count: 2,
         reason: "the in-browser model's module and the AI SDK it converts tools with; it draws nothing",

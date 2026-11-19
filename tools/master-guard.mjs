@@ -8,7 +8,7 @@
 //   introduced it, so the revert is of that commit. When the failure looks external (outsideCause: an outside
 //   service's error, a lost runner, or the same job failing on an earlier commit with a pass in between), it
 //   does not revert: it re-runs the failed jobs once and files the issue with the evidence.
-// - CI cancelled or never started on a master commit (`cancelled`, `startup_failure`; a job that runs into its
+// - CI canceled or never started on a master commit (`cancelled`, `startup_failure`; a job that runs into its
 //   timeout-minutes ends the run `cancelled`): the same red-master issue, with no revert, since no
 //   failed step names a culprit. Not when a newer master push replaced it (superseded): ci.yml lets a newer push
 //   replace a waiting master build (a running one finishes, #3938), which is expected and never a red master.
@@ -130,7 +130,7 @@ export function decide(run) {
  * Whether a stopped master CI run was superseded: it was still waiting, with no job started, when a push run for
  * another commit replaced it. Every first attempt of a master push run shares one concurrency group (ci.yml) that
  * never cancels a running build (#3938): a newer push only replaces the waiting one. So a run that started a job and
- * then stopped (a job ran into its timeout, or a person cancelled it) is never superseded, and alarms. A re-run has
+ * then stopped (a job ran into its timeout, or a person canceled it) is never superseded, and alarms. A re-run has
  * its commit's own group, so it is never superseded either.
  * @param gh - Calls the repository's REST API: gh(path, init).
  * @param run - The workflow_run payload's run.

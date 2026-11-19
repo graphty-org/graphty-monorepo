@@ -87,7 +87,7 @@ export interface Chrome {
     extension<T>(expression: string): Promise<T>;
     /** Resolves when the browser process has exited. */
     readonly exited: Promise<void>;
-    /** Close the browser (SIGTERM, then wait). */
+    /** Close the browser (SIGTERM), and resolve once it and every helper process it started has exited. */
     close(): Promise<void>;
 }
 
@@ -165,6 +165,10 @@ export async function launchChrome(userDataDir: string, args: readonly string[] 
     );
     // Interrupted or failed, the run's browsers are reaped by profile (./processes).
     const exited = new Promise<void>((resolve) => child.on("exit", () => resolve()));
+    // Every helper Chrome starts (zygotes, renderers, the storage and network services, crashpad)
+    // inherits its stderr, so the pipe closes, and Node emits "close", only once the last of them has
+    // exited -- even one started after a snapshot of the process tree.
+    const closed = new Promise<void>((resolve) => child.on("close", () => resolve()));
     let stderr = (): string => "";
     // A launch that fails after the spawn kills what it started: the caller has no browser to close.
     const orKill = <T>(step: Promise<T>): Promise<T> =>
@@ -383,14 +387,18 @@ export async function launchChrome(userDataDir: string, args: readonly string[] 
             socket.close();
             child.kill("SIGTERM");
             await exited;
-            // Helpers that outlive the browser would keep writing into the profile.
-            for (const proc of tree) {
+            // Helpers that outlive the browser would keep writing into the profile: those it had when
+            // asked to close, and any it started while shutting down, orphaned and found by profile.
+            for (const proc of [...tree, ...browserProcesses(userDataDir)]) {
                 try {
                     process.kill(proc.pid, "SIGKILL");
                 } catch {
                     // Gone with the browser.
                 }
             }
+
+            // A kill is delivered, not finished: the profile is free only once every helper has exited.
+            await closed;
         },
     };
     return chrome;

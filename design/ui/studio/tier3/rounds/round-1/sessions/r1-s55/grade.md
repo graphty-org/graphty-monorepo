@@ -26,7 +26,7 @@ own color, and say which color the board is.
   opened at step 8 (`08.png`: volunteer orange, staff light blue, board green). The key lists
   board as `#009e73`; the answer key accepts green or teal. "Dark" is recorded, not graded.
 - Ties and every other look unchanged: 63 ties `#a9a9a9` (`key.json`), the edge half of
-  Everything still darkgrey, width 8; node size 1 and icosphere kept; `changes.changed` is empty.
+  Everything still darkgray, width 8; node size 1 and icosphere kept; `changes.changed` is empty.
   The "gone" and "added" layer lists are the start page's demo replaced by the loaded file.
 - Final screen (`08.png`): Everything's Style with Color bound to "role" and three squares under
   it, the key over the drawing, three colors on the canvas. The participant's closing claim

@@ -17,10 +17,10 @@ import type { GraphBounds, Vec3 } from "./types";
 /**
  * Half the width of the box an unmeasured graph is framed against.
  *
- * Twenty units square, centred on the origin, is the box the element has always used when there
+ * Twenty units square, centered on the origin, is the box the element has always used when there
  * was nothing to measure, and every built-in view's arithmetic is calibrated against it. A view
  * that wants to behave differently for "nothing to frame" reads `measured === 0` rather than
- * recognising these numbers.
+ * recognizing these numbers.
  */
 const DEFAULT_EXTENT = 10;
 
@@ -44,8 +44,8 @@ function defaultBounds(): GraphBounds {
  * The axis-aligned box around a set of points, grown to take in the boxes the elements are drawn in.
  * @param points - Where the elements being framed are, in world units.
  * @param boxes - The boxes the elements take up, in world units: a big node at the edge of the
- *   graph reaches past its centre. They never shrink the box the points give.
- * @returns The box, its centre and its sides. With no points at all this is the element's default
+ *   graph reaches past its center. They never shrink the box the points give.
+ * @returns The box, its center and its sides. With no points at all this is the element's default
  *   box with `measured` zero, which is what the built-in views have always framed an empty graph
  *   against. When every point is in the same place it is that default box moved onto the point.
  */
@@ -139,7 +139,7 @@ function measurePoints(points: Iterable<Vec3>): GraphBounds {
     if (minX === maxX && minY === maxY && minZ === maxZ) {
         // A box around one point has no size, and every view divides by or scales with it: the
         // 2D zoom came out infinite and the 3D camera stood on the node. Framing one node is
-        // what `zoomToNodes(id)` is for, so a point gets the default box, centred on it.
+        // what `zoomToNodes(id)` is for, so a point gets the default box, centered on it.
         const center = { x: minX, y: minY, z: minZ };
         const offset = (by: number): Vec3 => ({ x: minX + by, y: minY + by, z: minZ + by });
 

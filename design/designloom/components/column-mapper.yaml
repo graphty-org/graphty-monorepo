@@ -3,7 +3,8 @@ name: Column Mapper
 category: control
 description: Interface for mapping source data columns to graph properties. Used during CSV import to specify source,
     target, and attribute columns.
-status: planned
+status: implemented
+notes: "Ships: column roles (setRole) in graphty/src/workspace/data-page/DataPage.tsx."
 implements_capabilities:
     - data-import
 used_in_workflows:

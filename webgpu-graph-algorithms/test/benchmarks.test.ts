@@ -1222,7 +1222,7 @@ describe("benchmarks/layout-run.ts (contract 6.3)", () => {
         expect(text).toMatch(
             /^metrics: spread=33\.0000 edgeQ10=[\d.]+ edgeQ50=[\d.]+ edgeQ90=[\d.]+ nnBins\(1 in 32 nodes\)=\[/,
         );
-        // 34 nodes sampled every 32nd: two nodes (0 and 32), each the other's nearest neighbour at the mean distance
+        // 34 nodes sampled every 32nd: two nodes (0 and 32), each the other's nearest neighbor at the mean distance
         expect(text).toContain(
             "nnBins(1 in 32 nodes)=[0.0000, 0.0000, 0.0000, 0.0000, 1.0000, 0.0000, 0.0000, 0.0000]",
         );

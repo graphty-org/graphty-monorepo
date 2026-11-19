@@ -2,7 +2,8 @@ id: legend-item
 name: Legend Item
 category: display
 description: Single entry in a legend showing a visual symbol and its meaning. Supports color, shape, and size encodings.
-status: planned
+status: implemented
+notes: "Ships: graphty/src/workspace/canvas/LegendCard.tsx."
 implements_capabilities:
     - legend-display
 used_in_workflows:

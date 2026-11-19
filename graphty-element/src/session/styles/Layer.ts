@@ -45,8 +45,8 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import { LABEL_LOOKS, labelLook } from "../../catalog/label-looks";
-import { knownPaletteIds, paletteDescriptor } from "../../catalog/palettes";
+import { LABEL_LOOKS } from "../../catalog/label-looks";
+import { knownPaletteIds } from "../../catalog/palettes";
 import { projectShaderDescriptor, shaderIdsFor } from "../../catalog/shaderRegistry";
 import {
     isClockBinding,
@@ -83,6 +83,7 @@ import { deepFreeze } from "../project/draft";
 import type { RunProgressReport } from "../runs";
 import { trimTrailingSeparators } from "../runs/runId";
 import type { CodedFact } from "../shared";
+import { type CarriedLooks, resolveLabelLook, resolvePalette } from "./carried";
 import {
     type ChannelDescriptor,
     channelDescriptor,
@@ -107,8 +108,8 @@ import { compileSelector, type Selector } from "./selector";
 /**
  * One layer of the style stack: what it paints, where it paints it, and who put it there.
  *
- * Data, not an object with behaviour. Everything that happens to a layer happens through the
- * styles API, so a layer handed to a consumer can be read, kept, diffed and serialised without
+ * Data, not an object with behavior. Everything that happens to a layer happens through the
+ * styles API, so a layer handed to a consumer can be read, kept, diffed and serialized without
  * any of it being able to change the picture behind the element's back.
  */
 export interface Layer {
@@ -175,7 +176,7 @@ export interface Layer {
 }
 
 /**
- * Where a layer goes when it is added, said as a neighbour rather than as a number.
+ * Where a layer goes when it is added, said as a neighbor rather than as a number.
  *
  * Exactly one of the two, or neither for the top of the stack. A position expressed as an index
  * is a position that goes wrong the moment anything else moves.
@@ -411,7 +412,7 @@ export interface RepaintRequest {
 
 /** The live handles a repaint needs, kept out of the request so the request stays plain data. */
 export interface RepaintContext {
-    /** Aborted when the edit is cancelled. Stop and throw; do not finish quietly. */
+    /** Aborted when the edit is canceled. Stop and throw; do not finish quietly. */
     readonly signal: AbortSignal;
     /**
      * Report how far along the pass is, so a large graph shows progress rather than a freeze.
@@ -440,7 +441,7 @@ export interface RepaintReport {
  * hands none in, and that is not a degraded mode: the stack is the session's, the paint is the
  * renderer's, and a headless session legitimately has nothing to paint. What the styles API
  * guarantees is the order -- a repaint is awaited BEFORE the new stack is committed, so a
- * cancelled or failed repaint leaves the model exactly as it was rather than leaving the list
+ * canceled or failed repaint leaves the model exactly as it was rather than leaving the list
  * saying one thing and the screen showing another.
  * @param request - What changed, and what to paint from.
  * @param context - The signal to stop on, and where to report progress.
@@ -613,7 +614,7 @@ function channelsWritten(spec: LayerSpec): readonly string[] {
 }
 
 /**
- * A colour value as {@link toColorValue} takes one, or null when the value is not a colour at all.
+ * A color value as {@link toColorValue} takes one, or null when the value is not a color at all.
  * @param value - Whatever the specification carried.
  * @returns The string or components, or null.
  */
@@ -696,9 +697,15 @@ function problemFrom(error: unknown, path: string): LayerProblem {
  * @param descriptor - The channel, as the renderer describes it.
  * @param value - The value the specification carried.
  * @param path - Where in the specification the value sits.
+ * @param carried - What an opened file carried, for a label look this build lacks.
  * @returns The problem, or null when the value is one the channel takes.
  */
-function checkStaticValue(descriptor: ChannelDescriptor, value: ChannelValue, path: string): LayerProblem | null {
+function checkStaticValue(
+    descriptor: ChannelDescriptor,
+    value: ChannelValue,
+    path: string,
+    carried: CarriedLooks,
+): LayerProblem | null {
     // An effect's off value is a value of the channel, whatever kind it otherwise takes.
     if (descriptor.off !== undefined && value === descriptor.off) {
         return null;
@@ -726,7 +733,7 @@ function checkStaticValue(descriptor: ChannelDescriptor, value: ChannelValue, pa
         case "enum":
             return checkEnum(descriptor, value, path);
         case "labelStyle":
-            return checkLabelStyle(descriptor, value, path);
+            return checkLabelStyle(descriptor, value, path, carried);
         default:
             return {
                 code: "E_UNSUPPORTED",
@@ -737,13 +744,19 @@ function checkStaticValue(descriptor: ChannelDescriptor, value: ChannelValue, pa
 }
 
 /**
- * Check a label style: an object, naming no look the catalog lacks.
+ * Check a label style: an object, naming no look the session lacks (carried or in the catalog).
  * @param descriptor - The channel.
  * @param value - The value.
  * @param path - Where it sits in the specification.
+ * @param carried - What an opened file carried.
  * @returns The problem, or null.
  */
-function checkLabelStyle(descriptor: ChannelDescriptor, value: ChannelValue, path: string): LayerProblem | null {
+function checkLabelStyle(
+    descriptor: ChannelDescriptor,
+    value: ChannelValue,
+    path: string,
+    carried: CarriedLooks,
+): LayerProblem | null {
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
         return {
             code: "E_BAD_LAYER",
@@ -754,11 +767,11 @@ function checkLabelStyle(descriptor: ChannelDescriptor, value: ChannelValue, pat
 
     const { look } = value as LabelStyle;
 
-    if (look === undefined || labelLook(look) !== undefined) {
+    if (look === undefined || resolveLabelLook(carried, look) !== undefined) {
         return null;
     }
 
-    const candidates = LABEL_LOOKS.map((entry) => entry.id);
+    const candidates = [...new Set([...carried.labelLooks.keys(), ...LABEL_LOOKS.map((entry) => entry.id)])];
 
     return {
         code: "E_OPTION_RANGE",
@@ -1037,7 +1050,7 @@ function checkBinding(
             return;
         }
 
-        const problem = checkStaticValue(descriptor, binding.value, `${path}.value`);
+        const problem = checkStaticValue(descriptor, binding.value, `${path}.value`, options.scales.carried);
 
         if (problem !== null) {
             report(log, problem);
@@ -1128,14 +1141,15 @@ function checkBindingOptions(
        layer naming a palette nothing registered was accepted at the edit, written onto the layer,
        and then failed one repaint later as a layer that paints nothing -- with the failure
        arriving somewhere a settings form is not listening. The list of candidates is read from
-       the catalogue, so a reader who registered their own palette and mistyped it is shown their
+       the catalog, so a reader who registered their own palette and mistyped it is shown their
        own palette among the near misses rather than only the element's seventeen. */
-    if (binding.palette !== undefined && paletteDescriptor(binding.palette) === undefined) {
+    const { carried } = options.scales;
+    if (binding.palette !== undefined && resolvePalette(carried, binding.palette) === undefined) {
         report(log, {
             code: "E_UNKNOWN_PALETTE",
             message: `There is no palette called "${binding.palette}".`,
             path: `${path}.palette`,
-            candidates: knownPaletteIds(),
+            candidates: [...new Set([...carried.palettes.keys(), ...knownPaletteIds()])],
         });
     }
 
@@ -1318,6 +1332,7 @@ function admitSelectorScope(spec: LayerSpec, options: LayerCheckOptions, log: Pr
  * @param value - The value it is set to.
  * @param target - The layer's target, or null when it could not be settled.
  * @param catalog - Whether shader ids are checked against the catalog.
+ * @param carried - What an opened file carried, for a label look this build lacks.
  * @param log - Where problems and paths are collected.
  */
 function checkSetChannel(
@@ -1325,6 +1340,7 @@ function checkSetChannel(
     value: ChannelValue | undefined,
     target: SelectorTarget | null,
     catalog: boolean,
+    carried: CarriedLooks,
     log: ProblemLog,
 ): void {
     const path = `set.${channel}`;
@@ -1333,7 +1349,7 @@ function checkSetChannel(
     if (descriptor?.shaderTarget !== undefined && value !== undefined) {
         checkShaderValue(descriptor, value, path, catalog, log);
     } else if (descriptor !== null && value !== undefined) {
-        const problem = checkStaticValue(descriptor, value, path);
+        const problem = checkStaticValue(descriptor, value, path, carried);
 
         if (problem !== null) {
             report(log, problem);
@@ -1376,7 +1392,7 @@ function checkChannels(
 ): void {
     const catalog = options.shaders !== "report";
     for (const [channel, value] of Object.entries(spec.set ?? {})) {
-        checkSetChannel(channel, value, target, catalog, log);
+        checkSetChannel(channel, value, target, catalog, options.scales.carried, log);
     }
 
     for (const [channel, binding] of Object.entries(spec.encode ?? {})) {

@@ -5,7 +5,8 @@
 // workflow dispatches itself with the new state.
 //
 //   node tools/bisect-ci.mjs plan  --out <state.json>           the first round's state from LANE, GOOD, BAD,
-//                                                                TARGETS, FAILED_BEFORE; or STATE (a later round)
+//                                                                TARGETS, FAILED_BEFORE; a later round's from
+//                                                                --state <f> (the last round's bisect-next) or STATE
 //   node tools/bisect-ci.mjs run   --state <f> --sha <s> --out <f>   runs the targets `next.runs` times here
 //   node tools/bisect-ci.mjs setup-failed --state <f> --sha <s> --out <f>   the result of a point that could not build
 //   node tools/bisect-ci.mjs judge --state <f> --results <dir> --out <f>   folds the results in, says what is next
@@ -28,7 +29,7 @@ const ROOT = process.env.BISECT_ROOT || join(dirname(fileURLToPath(import.meta.u
 export const MAX_ROUNDS = 12;
 
 /**
- * Times one point may end with no result (its job lost, cancelled or cut off before it wrote one) before the bisect
+ * Times one point may end with no result (its job lost, canceled or cut off before it wrote one) before the bisect
  * stops: each such run of an LLM or T4 point is paid for, and a point that keeps ending the same way would otherwise
  * be tested again every round until MAX_ROUNDS (#5062).
  */
@@ -168,6 +169,15 @@ export function start(a, git) {
         t.shard ? t : { ...t, shard: lane.shard ?? null },
     );
     const s = { ...a, targets, failedBefore: a.failedBefore ?? [], candidates, parents, results: {}, t4Minutes: 0 };
+    // a provider that refused the account (no credit, a rejected key) fails every case on every commit: no merge
+    // caused it, and confirming it would only send more refused calls
+    if (a.lane === "llm" && a.accountRefused)
+        return finish(s, {
+            status: "account-refused",
+            culprit: null,
+            noLanding:
+                "the LLM lane's red was the provider refusing the account (a key or billing problem), not a commit",
+        });
     if (a.lane === "gpu" && !a.afterLocalCard)
         return finish(s, {
             status: "local",
@@ -184,9 +194,9 @@ export function start(a, git) {
 
 // Adds a point's runs to what the state already holds for that commit (a parent can be run again, for more runs).
 function addResult(s, r) {
-    // a lost or cancelled T4 point is paid for too, so the cap counts it before the result is set aside
+    // a lost or canceled T4 point is paid for too, so the cap counts it before the result is set aside
     if (s.lane === "gpu") s.t4Minutes += r.minutes ?? T4_POINT_MINUTES;
-    if ("status" in r && !["success", "failure"].includes(r.status)) return; // cancelled or lost: no run, test it again
+    if ("status" in r && !["success", "failure"].includes(r.status)) return; // canceled or lost: no run, test it again
     const ids = (s.followed ?? s.targets).map((t) => t.id);
     const got =
         "status" in r
@@ -431,6 +441,30 @@ function output(s, out) {
     console.log(summary(s));
 }
 
+/**
+ * The round's state: a later round's from `file` (the last round's bisect-next artifact) or, from a round dispatched
+ * by a bisect.yml from before state_run that passed it by value, STATE (#8733); else the first round's from the env.
+ * @param file the --state file, if any
+ * @param env the process environment
+ * @returns the state the round plans from
+ */
+function planState(file, env) {
+    const later = file ? readFileSync(file, "utf8") : env.STATE;
+    if (later) return JSON.parse(later);
+    return start(
+        {
+            lane: env.LANE,
+            good: env.GOOD,
+            bad: env.BAD,
+            targets: JSON.parse(env.TARGETS || "[]"),
+            failedBefore: JSON.parse(env.FAILED_BEFORE || "[]"),
+            afterLocalCard: env.AFTER_LOCAL_CARD === "true",
+            accountRefused: env.ACCOUNT_REFUSED === "true",
+        },
+        realGit(),
+    );
+}
+
 async function main() {
     const [cmd, ...rest] = process.argv.slice(2);
     const { values: v } = parseArgs({
@@ -445,19 +479,7 @@ async function main() {
     const env = process.env;
     const read = (f) => JSON.parse(readFileSync(f, "utf8"));
     if (cmd === "plan") {
-        const s = env.STATE
-            ? JSON.parse(env.STATE)
-            : start(
-                  {
-                      lane: env.LANE,
-                      good: env.GOOD,
-                      bad: env.BAD,
-                      targets: JSON.parse(env.TARGETS || "[]"),
-                      failedBefore: JSON.parse(env.FAILED_BEFORE || "[]"),
-                      afterLocalCard: env.AFTER_LOCAL_CARD === "true",
-                  },
-                  realGit(),
-              );
+        const s = planState(v.state, env);
         const off = offMaster(s, realGit().masterFirstParents());
         if (off.length) {
             console.error(`::error::bisect.yml tests only master's first-parent commits; not: ${off.join(", ")}`);
@@ -475,7 +497,7 @@ async function main() {
         // POINT_DEADLINE (epoch s, bisect.yml): when the job must have its result
         const deadline = env.POINT_DEADLINE ? Number(env.POINT_DEADLINE) * 1000 : Infinity;
         const r = await runPoint(s, v.sha, s.next.runs, spawnSync, undefined, deadline);
-        // no run finished: no result, so the point is lost and picked again, as a cancelled job's is
+        // no run finished: no result, so the point is lost and picked again, as a canceled job's is
         if (r.runs === 0) return;
         return writeFileSync(v.out, JSON.stringify(r));
     }

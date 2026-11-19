@@ -69,7 +69,8 @@ export function sourceInput(source: PageSource, settings: ReadSettings): DataSou
     const type = settings.type === undefined ? {} : { type: settings.type };
     switch (source.kind) {
         case "files": {
-            const [first, second] = source.files;
+            const [first] = source.files;
+            const second = source.files.at(1);
             // The element tells a pair's nodes file from its edges file by their columns; pick order
             // decides only when the columns do not say.
             const config = second === undefined ? { file: first } : { nodeFile: first, edgeFile: second };
@@ -154,10 +155,24 @@ export function useLoadDraft(
     /** Whether loads carry a file's styles: a boolean, so the hooks below re-run only when it flips. */
     const fileStyles = fileStylesOn(session);
 
-    const chooseSource = useCallback((next: PageSource | null) => {
-        setSource(next);
-        setSettings({});
-    }, []);
+    // A new source or new file settings say "reading" in the same render that takes away the
+    // control that chose them, so the footer hands focus to Load in that commit: a frame later the
+    // workspace's focus guard would find focus lost and send it back to "+" (#9005).
+    const chooseSource = useCallback(
+        (next: PageSource | null) => {
+            setSource(next);
+            setSettings({});
+            setReading(session !== null && next !== null);
+        },
+        [session],
+    );
+    const chooseSettings = useCallback(
+        (next: ReadSettings) => {
+            setSettings(next);
+            setReading(session !== null && source !== null);
+        },
+        [session, source],
+    );
 
     // Read the source once per source and file settings; the element drops the draft before.
     useEffect(() => {
@@ -303,7 +318,7 @@ export function useLoadDraft(
         loading,
         loadError,
         setSource: chooseSource,
-        setSettings,
+        setSettings: chooseSettings,
         setChoices,
         setTableId,
         setFilter,

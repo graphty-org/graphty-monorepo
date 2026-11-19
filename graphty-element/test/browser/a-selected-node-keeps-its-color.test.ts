@@ -1,5 +1,5 @@
 /**
- * @file A selected node is drawn in its own colour, ringed by the selection halo. The halo is a
+ * @file A selected node is drawn in its own color, ringed by the selection halo. The halo is a
  * translucent sphere larger than the node; drawing its near side blended it over the whole node,
  * so the click-to-expand story's seed -- selected by the double-click that expanded it -- drew
  * gray-brown (its blue under 40% gold) after the expansion completed or was collapsed, while the
@@ -16,13 +16,13 @@ import type { SourceExpanded } from "../../src/session/sources/types";
 import { loadRecordedSeed, PEOPLE_SEED } from "../../stories/fixtures/expand/source";
 import { doubleClick } from "../helpers/real-input";
 
-/** How far a channel may move before a pixel counts as another colour: rounding, not a tint. */
+/** How far a channel may move before a pixel counts as another color: rounding, not a tint. */
 const CHANNEL_TOLERANCE = 3;
 
-/** The default node colour, which the seed has when no layer matches it. */
+/** The default node color, which the seed has when no layer matches it. */
 const NODE_BLUE = [99, 102, 241];
 
-/** The story's layer colour for a node with more to fetch. */
+/** The story's layer color for a node with more to fetch. */
 const PARTIAL_ORANGE = [232, 89, 12];
 
 const cleanups: (() => void)[] = [];
@@ -70,9 +70,9 @@ async function mounted(): Promise<Graphty> {
 }
 
 /**
- * The colour drawn at a distance from the seed's centre, to its right.
+ * The color drawn at a distance from the seed's center, to its right.
  * @param element - The element.
- * @param radii - How far from the centre, in the seed's drawn radii.
+ * @param radii - How far from the center, in the seed's drawn radii.
  * @returns [r, g, b].
  */
 async function seedPixel(element: Graphty, radii: number): Promise<number[]> {
@@ -90,7 +90,7 @@ async function seedPixel(element: Graphty, radii: number): Promise<number[]> {
 }
 
 /**
- * Whether two colours are the same but for rounding.
+ * Whether two colors are the same but for rounding.
  * @param actual - What was drawn.
  * @param expected - What should have been.
  * @returns True when every channel is within the tolerance.

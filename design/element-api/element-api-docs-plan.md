@@ -21,8 +21,8 @@ There are two tests. The first is for a person:
 The second is for a coding agent:
 
 > An agent has the docs and no ability to read this repository. It needs names that are
-> guessable, a machine-readable catalogue of everything the element can do, and one
-> serialisation for every operation.
+> guessable, a machine-readable catalog of everything the element can do, and one
+> serialization for every operation.
 
 Both fail today, and they fail for the same reason: **the documentation is prose that was
 written once and never executed, and the machine-readable artifacts are either absent or
@@ -424,7 +424,7 @@ links are no longer ignored, means every PR is link-checked), and keep the `if:`
 **TypeDoc documents the implementation tree, not the package.**
 File: `graphty-element/typedoc.json`.
 Change: replace the 11 `src/*` `entryPoints` with the real public entries, drop
-`entryPointStrategy: "expand"` in favour of `"resolve"`, and emit JSON alongside markdown:
+`entryPointStrategy: "expand"` in favor of `"resolve"`, and emit JSON alongside markdown:
 
 ```json
 {
@@ -467,11 +467,11 @@ Files: `graphty-element/typedoc.json` (`"docsRoot": "./docs"`); `package.json:33
 Change: delete `docsRoot` and the `--out` override; let the `outputs` block above be the
 single source. The current sidebar emits links like
 `/../../docs/graphty-element/api/generated/algorithms/Algorithm/`, which resolve only
-because browsers normalise `/docs/../../docs/...` back to the right path. That works by
-accident of URL normalisation; any change to `base` breaks the entire generated sidebar at
+because browsers normalize `/docs/../../docs/...` back to the right path. That works by
+accident of URL normalization; any change to `base` breaks the entire generated sidebar at
 once.
 
-**The angle-bracket sanitiser is a lossy regex over generated markdown.**
+**The angle-bracket sanitizer is a lossy regex over generated markdown.**
 Files: `graphty-element/scripts/sanitize-api-docs.js`, `tools/sanitize-api-docs.js`.
 Change: delete both. They exist because VitePress runs markdown through the Vue template
 compiler and `Promise<Foo>` parses as an unknown component; the correct fix is a VitePress
@@ -581,7 +581,7 @@ order they arrive.
 | 3   | `guide/install.md`         | npm, CDN, bundler, peer deps, sizing, CSP, SSR                    | 5 minutes                     |
 | 4   | `guide/data.md`            | What shape is my data, and how do I load a file?                  | 10 minutes                    |
 | 5   | `guide/algorithms.md`      | How do I measure the graph, and what does a `Run` give me?        | 10 minutes                    |
-| 6   | `guide/styling.md`         | How do I colour and size things by what I measured?               | 10 minutes                    |
+| 6   | `guide/styling.md`         | How do I color and size things by what I measured?                | 10 minutes                    |
 | 7   | `guide/layouts.md`         | How do I arrange it, and which layout should I pick?              | 5 minutes                     |
 | 8   | `guide/selection.md`       | How do I select, and how do my UI and the graph stay in sync?     | 5 minutes                     |
 | 9   | `guide/filters.md`         | How do I hide things, including over time?                        | 5 minutes                     |
@@ -925,8 +925,8 @@ order is by how often the question comes up, not by API area.
 | #   | `recipes/<file>.md` -- the title is the question          | Primary API                                                  |
 | --- | --------------------------------------------------------- | ------------------------------------------------------------ |
 | 1   | How do I load a CSV / GraphML / GEXF file?                | `data.inspect` + `data.import`                               |
-| 2   | How do I colour nodes by a property?                      | `styles.encode` with `by: "data.x"`                          |
-| 3   | How do I colour nodes by a metric I computed?             | `run()` + `encode({ run })`                                  |
+| 2   | How do I color nodes by a property?                       | `styles.encode` with `by: "data.x"`                          |
+| 3   | How do I color nodes by a metric I computed?              | `run()` + `encode({ run })`                                  |
 | 4   | How do I handle a click and show my own panel?            | `graphty-node-click`, `data.neighbors`                       |
 | 5   | How do I render 100,000 nodes without freezing the tab?   | `acceleration`, `status.loading`, `view.rendered`            |
 | 6   | How do I search for a node and select it?                 | `data.find`, `selection.set`, `camera.zoomToNodes`           |
@@ -937,7 +937,7 @@ order is by how often the question comes up, not by API area.
 | 11  | How do I export my results as CSV?                        | `data.export("csv", { include: { results: "all" } })`        |
 | 12  | How do I use this in React?                               | `./react`, or React 19 props                                 |
 | 13  | How do I turn on WebGPU, and how do I know it is on?      | `import ".../webgpu"`, `capabilities.acceleration`           |
-| 14  | How do I expand a neighbourhood one hop at a time?        | `data.expand`, `plan()` preview, `data.collapse`             |
+| 14  | How do I expand a neighborhood one hop at a time?         | `data.expand`, `plan()` preview, `data.collapse`             |
 | 15  | How do I save a view and come back to it?                 | `camera.bookmark`, `positions.snapshot`, `styles.toDocument` |
 | 16  | How do I undo a change?                                   | `MutationReceipt.inverse`, `session.run(inverse)`            |
 | 17  | How do I record what I did and replay it on another file? | `journal.export`, `journal.replay({ onData })`               |
@@ -1245,7 +1245,7 @@ There are roughly 20 such commands across eight files in
 LayoutCommands, ModeCommands, QueryCommands, SchemaCommands, StyleCommands), registered in
 `CommandRegistry.ts`.
 
-**What 2.0 does with it.** In 2.0 the `Command` union is the canonical serialisation of every
+**What 2.0 does with it.** In 2.0 the `Command` union is the canonical serialization of every
 operation -- every method is a command, and every command is a method -- and the union plus a
 JSON Schema is emitted at build to `dist/graphty-commands.json`. The AI command registry
 stops being a parallel hand-written list and becomes a _projection_ of that union.
@@ -1419,7 +1419,7 @@ drift.
 
 Most of this the 2.0 API already requires: descriptors are plain JSON crossing the element
 boundary, `CatalogApi` returns descriptor arrays, and `KnownAlgorithm` is generated from the
-built-in catalogue at build time. Three surfaces had no owner and get one here: attributes,
+built-in catalog at build time. Three surfaces had no owner and get one here: attributes,
 events and errors.
 
 **The union types are generated, not hand-written.** `KnownAlgorithm`, `LayoutId`,
@@ -1528,7 +1528,7 @@ generator's input list and the real surface. Three tests close that:
   a source test asserts the dispatcher cannot emit a name not in the table. This is the
   mechanical form of the contract sentence, and it is what makes the four throw-on-subscribe
   events (`src/managers/EventManager.ts:450`) and the twelve never-emitted events impossible.
-- **The catalogue test: every catalogue entry is runnable.** For each `algorithmDescriptors`
+- **The catalog test: every catalog entry is runnable.** For each `algorithmDescriptors`
   entry, a node test in the `docs` project runs it on a 34-node fixture and asserts the
   declared `fields[]` all appear on the result. A descriptor for an algorithm that is not
   wired fails the build, which is the honest version of "23 of 130 algorithms are wired".
@@ -1764,7 +1764,7 @@ block, so a migration instruction that no longer compiles fails the build.
 
 The migration guide is worth little if a consumer only discovers the breakage at install
 time -- but a deprecation-warning bridge can only warn about things that have a 1.x
-replacement, and almost nothing here does. `1.10.1` ships before 2.0, changes no behaviour
+replacement, and almost nothing here does. `1.10.1` ships before 2.0, changes no behavior
 and no signature, and does three things:
 
 1. Carries the documentation fixes listed under "Ship now", so the _published_ README on
@@ -1945,7 +1945,7 @@ what is broken for the people reading the docs today.
 - [ ] Add `graphty-element/src/api/global.d.ts` with `HTMLElementTagNameMap` and
       `GraphtyEventMap`; export it from the `.` entry, so a TypeScript consumer stops needing
       a hand-written shim.
-- [ ] Add the packaging test, the event-contract test and the catalogue test.
+- [ ] Add the packaging test, the event-contract test and the catalog test.
 
 ### Phase C -- the prose, the tests and the agent surface
 
@@ -2053,7 +2053,7 @@ a 2.x example, and the failure is silent.
 **It does not hand-write a reference page.** The cost: setting up six generators before the
 first reference page exists, and prose that must link rather than enumerate. The reason: the
 three factual errors in the current quickstart are all hand-typed lists, and the only fix
-that generalises is to stop typing lists.
+that generalizes is to stop typing lists.
 
 **It does not add a docs-site search index, a tutorial video, or an interactive playground.**
 The cost: a reader who wants to try before installing still goes to Storybook, which is

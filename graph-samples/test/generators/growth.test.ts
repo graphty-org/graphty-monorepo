@@ -51,8 +51,8 @@ function adjacency(g: SampleGraph): Set<number>[] {
 
 /**
  * Replay a forest fire: node v's arcs come as one run in v order, all to earlier nodes, and every
- * target after the first (the ambassador) is an out-neighbour (or, when backward burning is on, an
- * in-neighbour) of an earlier target of v in the graph before v arrived.
+ * target after the first (the ambassador) is an out-neighbor (or, when backward burning is on, an
+ * in-neighbor) of an earlier target of v in the graph before v arrived.
  * @param g - the graph
  * @param backward - whether in-links may burn
  */
@@ -184,7 +184,7 @@ describe("duplicationDivergenceGraph", () => {
         expectSimple(g);
         expect(componentCount(g)).toBe(1);
         expect([g.src[0], g.dst[0]]).toEqual([0, 1]);
-        // replay: new node i's neighbours must all be neighbours of one earlier node
+        // replay: new node i's neighbors must all be neighbors of one earlier node
         const adj = Array.from({ length: g.nodeCount }, () => new Set<number>());
         adj[0].add(1);
         adj[1].add(0);

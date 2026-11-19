@@ -40,8 +40,8 @@ import { afterAll, assert, beforeAll, beforeEach, describe, it, onTestFailed } f
 
 import { kill } from "./engines";
 import { type Fixture, keptWork, startFixture } from "./fixture";
-import { bootSimulator, simctl } from "./ios-device";
 import { ownChild, processes } from "./processes";
+import { bootSimulator, simctl } from "./simulator";
 
 const MACOS = process.platform === "darwin" && process.env.GRAPHTY_LIFECYCLE_MACOS === "1";
 const SAFARI = "com.apple.mobilesafari";
@@ -230,8 +230,8 @@ describe.skipIf(!MACOS)("Safari in the iOS Simulator", () => {
     let safariLog: SafariLog;
 
     beforeAll(async () => {
-        // The workflow boots it in a step of its own first (ios-device.ts), so a slow first boot is not
-        // counted against this file's hang guard; then this returns at once.
+        // Booted already by the workflow's step before this file (simulator.ts says why); booting here
+        // is for a run by hand.
         udid = bootSimulator();
         safariLog = followSafari(udid);
         // The stream is running once it printed anything (`log stream` starts with "Filtering the log

@@ -61,6 +61,14 @@ async function pickMember(line: HTMLElement, member: string): Promise<void> {
 }
 
 /**
+ * Picks the Sticker from the shader gallery Switch to opens beside the pop-over (design 5, rule 1).
+ */
+async function pickSticker(): Promise<void> {
+    const gallery = await screen.findByRole("dialog", { name: "Sticker" });
+    await userEvent.click(within(gallery).getByRole("button", { name: "Sticker", exact: true }));
+}
+
+/**
  * The shaders the layer draws in its shapes' place.
  * @param session - the session.
  * @param id - the layer.
@@ -99,6 +107,10 @@ describe("Style panel v2's Switch to", () => {
         assert.isNotNull(row.querySelector('[data-line="node.size"]'), "Size is the row's common line");
 
         await pickMember(await openSwitch(row, "Node shape settings"), "Sticker");
+        // The row keeps its basic shape until a sticker is picked.
+        await screen.findByRole("dialog", { name: "Sticker" });
+        assert.equal(written(session, id, "node.shape"), "star", "nothing switches before the pick");
+        await pickSticker();
         await waitFor(() => {
             assert.deepEqual(replacing(session, id), ["icon-sticker"], "a sticker draws in the shapes' place");
             assert.isUndefined(written(session, id, "node.shape"), "the basic shape is taken off");
@@ -131,6 +143,7 @@ describe("Style panel v2's Switch to", () => {
         const tab = await openStyle("Key people");
         const row = await rowOf(sectionOf(tab, "node-shape"), "shape");
         await pickMember(await openSwitch(row, "Node shape settings"), "Sticker");
+        await pickSticker();
         await waitFor(() => {
             assert.isUndefined(written(session, id, "node.shape"));
         });

@@ -862,6 +862,16 @@ export class SimulationLayoutEngine extends LayoutEngine {
     }
 
     /**
+     * Whether a batch can still land and publish new positions: a simulation is loaded, no batch
+     * of it has failed, and it is being stepped or has a batch in flight. A failed batch leaves
+     * the layout running with nothing to land, so a frame waiting for a landing would wait for good.
+     * @returns True while a landing can still come.
+     */
+    get canLand(): boolean {
+        return this.#simulation !== null && !this.#failed && !(this.#paused && this.#inFlight === 0);
+    }
+
+    /**
      * The node masses the running simulation was handed, when the element resolved them itself.
      *
      * A reader may give `nodeMass` as a number per node ID, as the name of a numeric node column,
@@ -2104,12 +2114,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * submitted, so the device is idle until the layout resumes.
      */
     #syncWork(): void {
-        const working =
-            this.#accelerated &&
-            this.#simulation !== null &&
-            !this.#failed &&
-            !this.isSettled &&
-            !(this.#paused && this.#inFlight === 0);
+        const working = this.#accelerated && this.canLand && !this.isSettled;
 
         if (working === (this.#endWork !== null)) {
             return;

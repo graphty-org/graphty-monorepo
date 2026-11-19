@@ -7399,7 +7399,10 @@ export class Graphty extends LitElement {
      * the layout's batches, even with `renderOnDemand` off: such a frame would show the same
      * positions again and take GPU time from the layout. A camera move, hover, a restyle or other
      * work still draws at once, and a settled graph is drawn every frame unless `renderOnDemand` is
-     * on. `"objects"` draws every frame.
+     * on. `"objects"` draws every frame. The one change not drawn at once is your own code setting
+     * a property of something already in the Babylon.js scene (through `graph.scene`, a material's
+     * color, say): during the layout that waits for its next landing. Use `"objects"` if it must
+     * show at once.
      * @returns The path asked for.
      * @example
      * ```html

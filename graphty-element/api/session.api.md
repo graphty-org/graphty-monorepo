@@ -6452,7 +6452,9 @@ export interface SessionDataApi {
     loadedWeight(): LoadedWeight | null;
     loadExample(source: string, example: string, options?: LoadChoices & SourceLoadOptions): Promise<void>;
     loads(): readonly SourceLoadRecord[];
+    matchCounts(pair: SourceMatchPair, options?: SourceMatchOptions): SourceMatchCounts;
     matchesSource(source: DataSourceInput): Promise<SourceKey | null>;
+    matchValues(pair: SourceMatchPair, options?: SourceMatchValuesOptions): SourceMatchValues;
     merge(options: SourceMergeOptions): Promise<void>;
     mergeNodes(ids: readonly NodeId_2[], options?: MergeNodesOptions): Promise<void>;
     more(options?: SourceMoreOptions): Promise<void>;
@@ -7238,6 +7240,8 @@ export interface SourceDraft {
     import(source: DataSourceInput, options?: ImportOptions & {
         readonly overlap?: "separate" | "merge";
     }): Promise<string>;
+    matchCounts(pair: SourceMatchPair, options?: SourceMatchOptions): SourceMatchCounts;
+    matchValues(pair: SourceMatchPair, options?: SourceMatchValuesOptions): SourceMatchValues;
     merge(options: SourceMergeOptions): void;
     moveColumns(source: SourceKey, options: SourceMoveColumnsOptions): void;
     readonly open: boolean;
@@ -7461,6 +7465,51 @@ export interface SourceMappingPatch {
     };
     readonly space?: SourceSpaceName;
     readonly type?: SourceTypeName | null;
+}
+
+// @public
+export interface SourceMatchCounts {
+    readonly fanOut: number;
+    readonly matched: number;
+    readonly moreWithIgnoreCase: number | null;
+    readonly moreWithIgnoreSpaces: number | null;
+    readonly only1: number;
+    readonly only2: number;
+    readonly repeated1: number;
+    readonly repeated2: number;
+    readonly textVersusNumber: number;
+}
+
+// @public
+export interface SourceMatchOptions {
+    readonly ignoreCase?: boolean;
+    readonly ignoreSpaces?: boolean;
+}
+
+// @public
+export interface SourceMatchPair {
+    readonly from: SourceField;
+    readonly into: SourceJoinInto;
+}
+
+// @public
+export interface SourceMatchValue {
+    readonly count1: number;
+    readonly count2: number;
+    readonly value: SourceCellValue;
+}
+
+// @public
+export interface SourceMatchValues {
+    readonly total: number;
+    readonly values: readonly SourceMatchValue[];
+}
+
+// @public
+export interface SourceMatchValuesOptions extends SourceMatchOptions {
+    readonly limit?: number;
+    readonly offset?: number;
+    readonly only?: "matched" | "only1" | "only2";
 }
 
 // @public

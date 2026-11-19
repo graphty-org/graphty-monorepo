@@ -13,6 +13,7 @@ import { GraphtyError } from "../errors/GraphtyError";
 import type { ColumnRef } from "./shared";
 import type { StepsAct } from "./sources/steps/acts";
 import { built, draftApply, type DraftState, mappingEdit, stepEdit } from "./sources/steps/draft";
+import { matchCounts, matchValues } from "./sources/steps/match";
 import {
     buildOf,
     type Copies,
@@ -32,6 +33,11 @@ import type {
     SourceElementRef,
     SourceExtractOptions,
     SourceMappingPatch,
+    SourceMatchCounts,
+    SourceMatchOptions,
+    SourceMatchPair,
+    SourceMatchValues,
+    SourceMatchValuesOptions,
     SourceMergeOptions,
     SourceMoveColumnsOptions,
     SourceStepPatch,
@@ -295,6 +301,18 @@ export class SourceDraftHandle implements SourceDraft {
     /** @inheritdoc */
     edits(): readonly ReaderEditRow[] {
         return editRows(this.state.value, this.state.copies);
+    }
+
+    /** @inheritdoc */
+    matchCounts(pair: SourceMatchPair, options: SourceMatchOptions = {}): SourceMatchCounts {
+        this.live("matchCounts");
+        return matchCounts(this.state.value, this.state.copies, pair, options);
+    }
+
+    /** @inheritdoc */
+    matchValues(pair: SourceMatchPair, options: SourceMatchValuesOptions = {}): SourceMatchValues {
+        this.live("matchValues");
+        return matchValues(this.state.value, this.state.copies, pair, options);
     }
 
     /** @inheritdoc */

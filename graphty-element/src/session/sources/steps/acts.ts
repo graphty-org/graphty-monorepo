@@ -23,7 +23,7 @@ interface FieldRef {
  * The node 1 side of Merge or Make an edge: a source's key (or another field of it, translated
  * through the source's rows), or every node of an id space.
  */
-type JoinInto =
+export type JoinInto =
     | { readonly source: string; readonly field?: string; readonly space?: string }
     | { readonly space: string; readonly source?: undefined; readonly field?: undefined };
 
@@ -103,7 +103,7 @@ function refused(code: GraphtyErrorCode, message: string, details: Record<string
  * @param id - The source's id.
  * @returns The source.
  */
-function sourceOf(value: SourceSteps, id: string): StepsSource {
+export function sourceOf(value: SourceSteps, id: string): StepsSource {
     const src = value.sources[id] as StepsSource | undefined;
     if (src === undefined) {
         throw refused("E_LOAD_UNKNOWN", `No source has key ${JSON.stringify(id)}.`, {
@@ -144,7 +144,7 @@ function edgeMapping(value: SourceSteps, id: string): NonNullable<StepsSource["m
 }
 
 /** What an act needs to know of node 1. */
-interface NodeOne {
+export interface NodeOne {
     readonly space: string;
     /** Whether the field named is node 1's key, so no translation is needed. */
     readonly isKey: boolean;
@@ -160,7 +160,7 @@ interface NodeOne {
  * @returns What the act needs.
  * @throws A `GraphtyError` with `E_AMBIGUOUS_ID` when the field names no one end's nodes.
  */
-function nodeOne(value: SourceSteps, into: JoinInto): NodeOne {
+export function nodeOne(value: SourceSteps, into: JoinInto): NodeOne {
     if (into.source === undefined) {
         return { space: into.space, isKey: true };
     }

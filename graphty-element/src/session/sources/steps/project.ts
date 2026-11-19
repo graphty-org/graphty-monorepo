@@ -223,7 +223,7 @@ const copyMaps = new WeakMap<Copies, ReadonlyMap<string, CopyTables>>();
  * @param copies - The copies by id.
  * @returns A map, the same one for the same object.
  */
-function copyMap(copies: Copies): ReadonlyMap<string, CopyTables> {
+export function copyMap(copies: Copies): ReadonlyMap<string, CopyTables> {
     let map = copyMaps.get(copies);
     if (map === undefined) {
         map = new Map(Object.entries(copies));

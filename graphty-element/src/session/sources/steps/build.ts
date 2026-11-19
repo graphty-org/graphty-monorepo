@@ -77,11 +77,19 @@ const escapeKey = (k: string): string => k.replaceAll(/[\\|]/g, String.raw`\$&`)
 export const isEmpty = (v: Value | undefined): v is null | undefined | "" => v === undefined || v === null || v === "";
 const text = (v: CellValue | undefined): string => (v === undefined || v === null ? "" : String(v));
 
-interface MatchOptions {
+/** How two keys compare: exactly, or ignoring case or spaces. */
+export interface MatchOptions {
     readonly ignoreCase?: boolean;
     readonly ignoreSpaces?: boolean;
 }
-function normalize(v: CellValue | undefined, o: MatchOptions = {}): string {
+
+/**
+ * A cell as the text a key compares by.
+ * @param v - The cell.
+ * @param o - Whether case and spaces count.
+ * @returns The text, Unicode-normalized.
+ */
+export function normalize(v: CellValue | undefined, o: MatchOptions = {}): string {
     let s = text(v).normalize("NFC");
     if (o.ignoreCase === true) {
         s = s.toLowerCase();
@@ -100,7 +108,11 @@ const listed = (f: RowFilter, r: Row): boolean => f.values.some((v) => normalize
  * @param table - Which table.
  * @returns The rows, or null when the source's copy has no such table.
  */
-function tableRows(src: Source, copies: ReadonlyMap<string, CopyTables>, table: TableName): readonly Row[] | null {
+export function tableRows(
+    src: Source,
+    copies: ReadonlyMap<string, CopyTables>,
+    table: TableName,
+): readonly Row[] | null {
     const rows = copies.get(src.origin.copy)?.[table];
     if (!rows) {
         return null;

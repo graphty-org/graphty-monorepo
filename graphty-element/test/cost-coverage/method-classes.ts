@@ -1204,6 +1204,11 @@ export const READ_ONLY: readonly string[] = [
     "SessionDataApi.steps",
     "SessionDataApi.currentDraft",
     "SessionDataApi.draft",
+    // Live match counts hash two columns and build nothing (match-counted-work.test.ts).
+    "SessionDataApi.matchCounts",
+    "SessionDataApi.matchValues",
+    "SourceDraft.matchCounts",
+    "SourceDraft.matchValues",
     // A source draft's acts change only the draft, which nothing saves; its commit is MUTATING.
     "SourceDraft.add",
     "SourceDraft.connect",

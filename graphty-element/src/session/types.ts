@@ -1689,6 +1689,38 @@ export interface SessionDataApi {
      */
     currentDraft(): SourceDraft | null;
     /**
+     * Live match counts of two fields, from hashing both columns, building nothing (design 5.2):
+     * what a join card shows before a Merge or Make an edge is chosen. Side 1 is `into` (with
+     * `{ space }`, or a source's key, the keys the graph's nodes in that space hold now), side 2
+     * the incoming field.
+     *
+     * ```ts
+     * const c = session.data.matchCounts({
+     *     from: { source: accounts, field: "account_id" },
+     *     into: { space: "account" },
+     * });
+     * // { matched: 2, only1: 1, only2: 1, repeated1: 0, repeated2: 0, ... }
+     * ```
+     * @param pair - The two fields.
+     * @param options - Whether case and spaces count.
+     * @returns The counts.
+     * @throws A `GraphtyError` with `E_LOAD_UNKNOWN` for an unknown source, `E_AMBIGUOUS_ID` when
+     *   `into` names no one end of an edge source, or `E_FEATURE_OFF` while the source-steps
+     *   experiment is off.
+     * @experimental source-steps
+     */
+    matchCounts(pair: SourceMatchPair, options?: SourceMatchOptions): SourceMatchCounts;
+    /**
+     * The value-overlap list of two fields: each value either side holds, with how many rows of
+     * each hold it, building nothing (design 5.2).
+     * @param pair - The two fields, as `matchCounts` takes them.
+     * @param options - Which values, which page, and whether case and spaces count.
+     * @returns The page and the total.
+     * @throws As `matchCounts`.
+     * @experimental source-steps
+     */
+    matchValues(pair: SourceMatchPair, options?: SourceMatchValuesOptions): SourceMatchValues;
+    /**
      * Where one node or edge came from.
      * @param ref - The element.
      * @returns Its lineage, or null when no element answers the reference.
@@ -4235,6 +4267,93 @@ export type SourceJoinInto =
     | { readonly space: SourceSpaceName; readonly source?: undefined; readonly field?: undefined };
 
 /**
+ * The two fields a Merge or Make an edge would compare, for `data.matchCounts` and
+ * `data.matchValues`: field 2 on the incoming source, and node 1 as a merge names it.
+ * @experimental source-steps
+ */
+export interface SourceMatchPair {
+    /** The incoming source and the field naming node 1 (side 2). */
+    readonly from: SourceField;
+    /** The nodes it would join onto (side 1): a space's keys, a source's key, or a field of it. */
+    readonly into: SourceJoinInto;
+}
+
+/**
+ * How the keys of `data.matchCounts` compare. Both default to false.
+ * @experimental source-steps
+ */
+export interface SourceMatchOptions {
+    /** Compare keys ignoring case. */
+    readonly ignoreCase?: boolean;
+    /** Compare keys ignoring spaces. */
+    readonly ignoreSpaces?: boolean;
+}
+
+/**
+ * Live match counts of two fields, counted by hashing both columns with no build (design 5.2).
+ * Side 1 is node 1 (`into`), side 2 the incoming field (`from`); a key counts once however many
+ * rows hold it.
+ * @experimental source-steps
+ */
+export interface SourceMatchCounts {
+    /** Keys both sides hold. */
+    readonly matched: number;
+    /** Keys only side 1 holds: node 1s no row would reach. */
+    readonly only1: number;
+    /** Keys only side 2 holds: values naming no node 1. */
+    readonly only2: number;
+    /** Keys side 1 holds more than once. */
+    readonly repeated1: number;
+    /** Keys side 2 holds more than once. */
+    readonly repeated2: number;
+    /** Rows of side 2 whose key side 1 holds more than once: they name several nodes, so merge nothing. */
+    readonly fanOut: number;
+    /** Rows of side 2 that match nothing as text but would as numbers, such as `"007"` against `7`. */
+    readonly textVersusNumber: number;
+    /** How many more keys would match with `ignoreCase` on; null while it is on. */
+    readonly moreWithIgnoreCase: number | null;
+    /** How many more keys would match with `ignoreSpaces` on; null while it is on. */
+    readonly moreWithIgnoreSpaces: number | null;
+}
+
+/**
+ * Which values `data.matchValues` lists, and which page of them.
+ * @experimental source-steps
+ */
+export interface SourceMatchValuesOptions extends SourceMatchOptions {
+    /** Keep only values both sides hold, only side 1's, or only side 2's; absent keeps all. */
+    readonly only?: "matched" | "only1" | "only2";
+    /** How many values to skip; default 0. */
+    readonly offset?: number;
+    /** How many values to return at most; absent returns the rest. */
+    readonly limit?: number;
+}
+
+/**
+ * One value of the value-overlap list.
+ * @experimental source-steps
+ */
+export interface SourceMatchValue {
+    /** The value as first read, from side 1 when it holds it. */
+    readonly value: SourceCellValue;
+    /** How many nodes or rows of side 1 hold it. */
+    readonly count1: number;
+    /** How many rows of side 2 hold it. */
+    readonly count2: number;
+}
+
+/**
+ * A page of the value-overlap list: values most held first, ties in the order first read.
+ * @experimental source-steps
+ */
+export interface SourceMatchValues {
+    /** How many values the `only` filter keeps in all. */
+    readonly total: number;
+    /** The page. */
+    readonly values: readonly SourceMatchValue[];
+}
+
+/**
  * Rows named by one column's values.
  * @experimental source-steps
  */
@@ -4578,6 +4697,21 @@ export interface SourceDraft {
      * @returns The edits.
      */
     edits(): readonly ReaderEditRow[];
+    /**
+     * Live match counts of two fields in the draft, as `data.matchCounts` counts them: a source
+     * the draft staged can be side 2.
+     * @param pair - The two fields.
+     * @param options - Whether case and spaces count.
+     * @returns The counts.
+     */
+    matchCounts(pair: SourceMatchPair, options?: SourceMatchOptions): SourceMatchCounts;
+    /**
+     * The value-overlap list of two fields in the draft, as `data.matchValues` lists it.
+     * @param pair - The two fields.
+     * @param options - Which values, which page, and whether case and spaces count.
+     * @returns The page and the total.
+     */
+    matchValues(pair: SourceMatchPair, options?: SourceMatchValuesOptions): SourceMatchValues;
     /**
      * Apply everything the draft did to the graph as one undoable step, and close the draft. A
      * draft that changed nothing records nothing. Data writes waiting in line ahead of the commit

@@ -213,6 +213,7 @@ import { refreshReport } from "./sources/refreshReport";
 import type { StepsAct } from "./sources/steps/acts";
 import { resolveNode } from "./sources/steps/build";
 import { compileCommand, compileImport, compileJoin, readerOps, withoutJoin } from "./sources/steps/compile";
+import { matchCounts, matchValues } from "./sources/steps/match";
 import { RECORD_PATHS } from "./sources/steps/paths";
 import {
     applyEdit,
@@ -351,6 +352,11 @@ import type {
     SourceElementsFilter,
     SourceExtractOptions,
     SourceLineage,
+    SourceMatchCounts,
+    SourceMatchOptions,
+    SourceMatchPair,
+    SourceMatchValues,
+    SourceMatchValuesOptions,
     SourceMergeOptions,
     SourceMoveColumnsOptions,
     SourceNodeRef,
@@ -3498,6 +3504,31 @@ export class SessionData implements SessionDataApi {
     currentDraft(): SourceDraft | null {
         this.requireSteps("currentDraft");
         return this.sourceDraft;
+    }
+
+    /**
+     * Live match counts of two fields in the committed sources, building nothing (design 5.2).
+     * @param pair - The two fields.
+     * @param options - Whether case and spaces count.
+     * @returns The counts.
+     * @throws A `GraphtyError` with `E_FEATURE_OFF` while the source-steps experiment is off,
+     *   `E_LOAD_UNKNOWN` or `E_AMBIGUOUS_ID`.
+     */
+    matchCounts(pair: SourceMatchPair, options: SourceMatchOptions = {}): SourceMatchCounts {
+        this.requireSteps("matchCounts");
+        return matchCounts(this.stepsValue(), this.stepsCopies(), pair, options);
+    }
+
+    /**
+     * The value-overlap list of two fields in the committed sources, building nothing (design 5.2).
+     * @param pair - The two fields.
+     * @param options - Which values, which page, and whether case and spaces count.
+     * @returns The page and the total.
+     * @throws As {@link matchCounts}.
+     */
+    matchValues(pair: SourceMatchPair, options: SourceMatchValuesOptions = {}): SourceMatchValues {
+        this.requireSteps("matchValues");
+        return matchValues(this.stepsValue(), this.stepsCopies(), pair, options);
     }
 
     /**

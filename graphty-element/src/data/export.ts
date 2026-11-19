@@ -245,7 +245,7 @@ interface ExportViewState {
      * What the drawing multiplies positions by on top of positionScale: the fixed layout's spread.
      * @returns The factor; 1 when absent.
      */
-    positionFactor?(): number;
+    readonly positionFactor?: () => number;
 }
 
 type AnyExporter = GraphExporter<Record<string, unknown> & CommonExportOptions>;
@@ -1199,7 +1199,9 @@ export function exportSession(
     let styles: StylesToWrite | null = null;
     try {
         // With styles, the style writer is the only path: the drawn color, size and width columns are left out.
-        built = buildExportSnapshot(session, writer.build.styles === true ? {} : view, build);
+        // The drawing's spread still comes out of the positions.
+        const looks = writer.build.styles === true ? { positionFactor: view.positionFactor } : view;
+        built = buildExportSnapshot(session, looks, build);
         if (writer.build.styles === true) {
             styles = sessionStyles(session, built.snapshot, writer.exporter, rows);
         }

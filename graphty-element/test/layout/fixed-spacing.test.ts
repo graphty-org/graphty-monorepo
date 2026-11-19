@@ -16,7 +16,25 @@ import { LayoutEngine, layoutEngineInternals } from "../../src/layout/LayoutEngi
 import { fakeEdge, fakeNode } from "../helpers/layout-fakes";
 
 /**
- * Lay out a three-node path whose nodes the data puts `gap` apart on x.
+ * A directed path over the nodes named.
+ * @param ids - the nodes, in path order
+ * @returns the frozen graph
+ */
+function path(ids: string[]): GraphSnapshot {
+    const builder = new GraphBuilder({ directed: true });
+    for (const id of ids) {
+        builder.addNode(id);
+    }
+
+    for (let i = 1; i < ids.length; i++) {
+        builder.addEdge(ids[i - 1], ids[i]);
+    }
+
+    return builder.freeze({ label: "test" });
+}
+
+/**
+ * Lay out a path whose nodes the data puts `gap` apart on x.
  * @param gap - the data's distance between neighbors
  * @param options - the fixed layout's options
  * @returns each node's x, the spread applied and how often the undirected graph was built
@@ -25,14 +43,7 @@ function layOut(
     gap: number,
     options: Record<string, unknown> = {},
 ): { xs: number[]; spread: number; undirected: number } {
-    const builder = new GraphBuilder({ directed: true });
-    for (const id of ["a", "b", "c"]) {
-        builder.addNode(id);
-    }
-
-    builder.addEdge("a", "b");
-    builder.addEdge("b", "c");
-    const stored = builder.freeze({ label: "test" });
+    const stored = path(["a", "b", "c"]);
     let undirected = 0;
     const source = {
         getSnapshot: (): GraphSnapshot => stored,
@@ -42,14 +53,14 @@ function layOut(
         },
     };
     const parentGraph = { getDataManager: () => source };
-    const nodes = ["a", "b", "c"].map((id, index) =>
+    const node = (id: string, index: number): ReturnType<typeof fakeNode> =>
         fakeNode(id, {
             index,
             parentGraph,
             data: { position: { x: index * gap, y: 0, z: 0 } },
             setMeshPosition: () => undefined,
-        }),
-    );
+        });
+    const nodes = ["a", "b", "c"].map(node);
 
     const engine = LayoutEngine.get("fixed", options);
     assert.instanceOf(engine, FixedLayout);

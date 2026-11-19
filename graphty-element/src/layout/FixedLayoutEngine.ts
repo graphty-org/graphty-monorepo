@@ -1,4 +1,4 @@
-import type { F32 } from "@graphty/graph-format";
+import { type F32, maskTest } from "@graphty/graph-format";
 import { z } from "zod";
 
 import { defineOptions, type OptionsSchema } from "../config";
@@ -129,7 +129,7 @@ export class FixedLayout extends SnapshotLayoutEngine {
         const position = (n.data as Record<string, unknown>).position as
             { x?: number; y?: number; z?: number } | undefined;
         if (position) {
-            const { scale } = this.config;
+            const scale = this.config.scale * this.spread;
             n.setMeshPosition((position.x ?? 0) * scale, (position.y ?? 0) * scale, (position.z ?? 0) * scale);
         }
     }
@@ -236,6 +236,10 @@ export class FixedLayout extends SnapshotLayoutEngine {
             input.warn({ code: "W_NO_POSITION", params: { missing, total: positions.length / 3 } });
         }
 
+        if (seeds === null) {
+            this.placeNewcomers(input, positions);
+        }
+
         return positions;
     }
 
@@ -255,6 +259,30 @@ export class FixedLayout extends SnapshotLayoutEngine {
         }
 
         return seeds;
+    }
+
+    /**
+     * Put each node added since the first run at its data position times `scale` and the spread,
+     * as the first run drew the others: the element seeds a newcomer at its data position times
+     * `positionScale` only.
+     * @param input - the graph, its data positions and the rows added
+     * @param positions - the coordinates, written in place
+     */
+    private placeNewcomers(input: SnapshotLayoutInput, positions: F32): void {
+        const factor = this.config.scale * this.spread;
+        const { added } = input;
+        if (factor === 1 || added === null) {
+            return;
+        }
+
+        const data = input.dataPositions();
+        for (let row = 0; 3 * row < positions.length; row++) {
+            if (maskTest(added, row) && !Number.isNaN(data[3 * row])) {
+                for (let k = 3 * row; k < 3 * row + 3; k++) {
+                    positions[k] = data[k] * factor;
+                }
+            }
+        }
     }
 
     /**

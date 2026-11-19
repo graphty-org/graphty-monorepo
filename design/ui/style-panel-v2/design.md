@@ -182,7 +182,7 @@ Opened from the tree footer button "Graph settings"; v2 switches in both `case "
 | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
 | Background                             | One row, family Color / Sky (5); Sky opens `PicturePopover`. No `drawnIn` caption or sentence. Keep on import (R7)                                                                                                                                                | today's keys                                                                                           |
 | View (Canvas section)                  | `ControlGroup`s: **View** lighting, rotation (R5, degrees; 2D, dims in 3D), highlight color (R1). **Framing** extent (R8 Drawn / Centers, unnamed line), padding (R5). **Marks** same size at any depth (R7), node outline width (R5), smallest mark node \| edge | `styles.setHighlightColor`, `viewRotation`, `framing.*`, `behavior.node.outlineWidth`, `minMarkSize.*` |
-| Labels                                 | sample cell (R5); label text (R9 Canvas / Glyphs)                                                                                                                                                                                                                 | `behavior.labels.*`                                                                                    |
+| Labels                                 | Hide overlaps (R7), Avoid nodes and edges (R7): the reader's label preferences; sample cell (R5); label text (R9 Canvas / Glyphs)                                                                                                                                 | app preferences; `behavior.labels.*`                                                                   |
 | Shaders                                | as today                                                                                                                                                                                                                                                          | -                                                                                                      |
 | Annotations (new)                      | "+" adds one (many). Row: kind (R9); popover lines by kind: text R14, font R13, fill and border R1, arrow ends R10, picture R16, position X \| Y                                                                                                                  | `session.annotations`                                                                                  |
 | Map                                    | the Layout panel's map fields, unchanged                                                                                                                                                                                                                          | -                                                                                                      |
@@ -194,6 +194,12 @@ View mode stays in the toolbar.
 (10.2); Map and Layout motion stay in the Layout panel; the label sample cell, label text and node outline width
 are `behavior.*` settings the app writes as reader preferences through `ElementHost`, so each needs its
 preference and element attribute wiring before Graph settings can show it.
+
+Also waiting on graphty-element, and left out of v2 until it lands (each a 10.2 change): the **Show** line of
+Drop shadow, Underlay and Overlay (their off fields); Glyph's **italic** toggle (the element has no glyph
+italic channel); the end **Image** picker (an end's image takes a URL, not an asset id, so it stays a typed
+address); a Record field's **text source** (R12: `shapeTexts` holds literal words, no template); and a chart's
+values from data fields (R12: the element binds the whole `chartValues` list, not one value).
 
 ### 4.4 Layer-wide
 

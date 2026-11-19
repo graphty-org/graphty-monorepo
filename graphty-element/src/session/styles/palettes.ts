@@ -164,11 +164,12 @@ export function colorsProblem(stops: unknown): string | null {
         return 'A binding\'s own colors are two or more colors, lowest first, such as ["#fff7bc", "#993404"].';
     }
 
-    const bad = stops.find((stop) => typeof stop !== "string" || toColorValue(stop) === null);
+    const authored: readonly unknown[] = stops;
+    const bad = authored.find((stop) => typeof stop !== "string" || toColorValue(stop) === null);
 
     return bad === undefined
         ? null
-        : `"${String(bad)}" is not a colour, so it cannot be one of a binding's own colors.`;
+        : `"${typeof bad === "string" ? bad : JSON.stringify(bad)}" is not a colour, so it cannot be one of a binding's own colors.`;
 }
 
 /** A color binding with everything knowable worked out, ready to be asked once per element. */

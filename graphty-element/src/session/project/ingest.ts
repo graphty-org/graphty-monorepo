@@ -2842,8 +2842,8 @@ export async function* untilAborted<T>(
     let stop: () => void = () => undefined;
     const aborted = new Promise<never>((_, reject) => {
         stop = (): void => {
-            const { reason } = signal;
-            reject(reason instanceof Error ? reason : new Error(String(reason)));
+            const cause: unknown = signal.reason;
+            reject(cause instanceof Error ? cause : new Error(String(cause)));
         };
         signal.addEventListener("abort", stop, { once: true });
     });

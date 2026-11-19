@@ -19,8 +19,8 @@ const PACKAGE_ROOT = path.resolve(import.meta.dirname, "../..");
 describe("stories are type-checked", () => {
     it("the package tsconfig includes every file under stories/", () => {
         const configPath = path.join(PACKAGE_ROOT, "tsconfig.json");
-        const { config } = ts.readConfigFile(configPath, (file) => ts.sys.readFile(file));
-        const project = ts.parseJsonConfigFileContent(config, ts.sys, PACKAGE_ROOT);
+        const parsed: unknown = ts.readConfigFile(configPath, (file) => ts.sys.readFile(file)).config;
+        const project = ts.parseJsonConfigFileContent(parsed, ts.sys, PACKAGE_ROOT);
         const inProject = new Set(project.fileNames.map((file) => path.resolve(file)));
         const stories = ts.sys
             .readDirectory(path.join(PACKAGE_ROOT, "stories"), [".ts"])

@@ -20,6 +20,7 @@ import type { Xyz } from "../meshes/edgeRoute";
 import { ROW_EXTENT_ELLIPSE, ROW_EXTENT_ROUND, ROW_EXTENT_SEEN_THROUGH } from "../meshes/edgeTrim";
 import { batchUploadFrames } from "../meshes/FrameRoster";
 import type { Node } from "../Node";
+import type { GpuBufferHandle, GpuDeviceHandle } from "./gpuHandles";
 
 /** Texels across both textures: a shader reads texel `i` at `(i % 1024, i / 1024)`. */
 const ROW_TEXTURE_WIDTH = 1024;
@@ -77,7 +78,7 @@ export interface DrawnTarget {
      * the renderer draws elsewhere (WebGL, or WebGPU on its own device), so a landing's drawn rows come back in
      * the batch's readback and go up as they came ({@link RowTable.uploadLanded}).
      */
-    readonly device: GPUDevice | null;
+    readonly device: GpuDeviceHandle | null;
     /** A layout transition is drawing rows off their lanes: landings go up by upload, not by copy. */
     readonly suspended?: boolean;
 }
@@ -449,12 +450,14 @@ export class RowTable {
      * Fill the first `rows` rows of the `rowPosition` texture from a layout's drawn buffer on the
      * card (design/rendering/row-renderer.md 4.5): one copy, no upload. The CPU copy follows at
      * the next repack, which then sends none of its rows.
-     * @param device - The device the texture and the buffer live on.
-     * @param buffer - Four floats per row, x, y, z and w, as `rowPosition` holds them.
+     * @param handle - The device the texture and the buffer live on.
+     * @param landed - Four floats per row, x, y, z and w, as `rowPosition` holds them.
      * @param rows - Rows to copy.
      * @returns False when the texture is not on the card yet, so nothing was copied.
      */
-    copyLanded(device: GPUDevice, buffer: GPUBuffer, rows: number): boolean {
+    copyLanded(handle: GpuDeviceHandle, landed: GpuBufferHandle, rows: number): boolean {
+        const device = handle as GPUDevice;
+        const buffer = landed as GPUBuffer;
         const texture = this.positions.texture.getInternalTexture()?._hardwareTexture?.underlyingResource as
             GPUTexture | undefined;
         if (texture === undefined || rows <= 0) {

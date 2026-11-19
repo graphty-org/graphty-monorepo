@@ -4,11 +4,11 @@
 // Babylon.js and @webgpu/types.
 //
 // Why the exception: Babylon.js 9's own declarations do not compile with skipLibCheck off. They name WebGPU types
-// that TypeScript 5's DOM library lacks, and with @webgpu/types (which the config adds, as a consumer on TypeScript 5
-// must) the two disagree about a few limits; TAAJitterMaterialPlugin.getUniforms also fails
+// that TypeScript 5's DOM library lacks, which the config deliberately leaves out of scope (a GPU type in
+// graphty-element's own declarations must fail here), and TAAJitterMaterialPlugin.getUniforms also fails
 // exactOptionalPropertyTypes. Those are Babylon's to fix and every consumer meets them, so consumers keep skipLibCheck
 // on (docs/guide/installation.md). graphty-element's own published declarations, and the consumer files compiled
-// against them, are still checked in full.
+// against them, are still checked in full: an unresolved GPU name in them fails.
 import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 

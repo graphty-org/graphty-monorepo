@@ -227,7 +227,7 @@ describe("a node's further parts and lines (shape.parts, shape.lines)", () => {
         assert.deepEqual(shapeLinePieces({ lines: "-1,-1 1,-1" }, { color: "#000000" }, 20, 10), []);
     });
 
-    test("draws a halo under each line, wider, in its own color, and none without a halo width or color", () => {
+    test("draws a halo under each line, wider, in its own color (black unset), and none without a halo width", () => {
         const [halo, line] = shapeLinePieces(
             { lines: "-1,0 1,0", lineWidth: 1, lineHaloWidth: 2, lineHaloColor: "#f7f7f7" },
             { width: 0, color: "#c8c8c8" },
@@ -240,7 +240,9 @@ describe("a node's further parts and lines (shape.parts, shape.lines)", () => {
         assert.approximately(boxOf(line.outline).y1 - boxOf(line.outline).y0, 1, 1e-9);
         const plain = { width: 1, color: "#000000" };
         assert.equal(shapeLinePieces({ lines: "-1,0 1,0", lineHaloColor: "#f7f7f7" }, plain, 36, 36).length, 1);
-        assert.equal(shapeLinePieces({ lines: "-1,0 1,0", lineHaloWidth: 2 }, plain, 36, 36).length, 1);
+        const [black] = shapeLinePieces({ lines: "-1,0 1,0", lineHaloWidth: 2 }, plain, 36, 36);
+        assert.deepEqual(black.rgb, [0, 0, 0]);
+        assert.approximately(boxOf(black.outline).y1 - boxOf(black.outline).y0, 2, 1e-9);
     });
 
     test("closes a line that ends where it starts: a square ring of four sides meeting at their miters", () => {
@@ -358,6 +360,10 @@ describe("a chart", () => {
             outlined.filter((p) => p.line !== true),
             3,
         );
+        // a border width with no color outlines in the catalog's default, black
+        const black = chartPieces({ ...bars, borderWidth: 0.125 }, 60, 60).filter((p) => p.line === true);
+        assert.lengthOf(black, 12);
+        assert.deepEqual(black[0].rgb, [0, 0, 0]);
         const [down] = chartPieces({ ...bars, values: "-3", min: -10 }, 60, 60).map((p) => boxOf(p.outline));
         assert.approximately(down.y1, 0, 1e-9);
         assert.approximately(down.y0, -7.815, 0.01);

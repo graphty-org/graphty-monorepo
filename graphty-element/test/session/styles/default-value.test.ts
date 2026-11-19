@@ -46,4 +46,15 @@ describe("styles.defaultValue", () => {
         assert.strictEqual(layer.set?.["node.labelBackground"], "none");
         session.dispose();
     });
+
+    it("draws an unset gradient color as the node's color, the channel it follows", () => {
+        const { session } = makeSession();
+        assert.strictEqual(channelDescriptor("node.gradientColor")?.follows, "node.color");
+        assert.strictEqual(
+            session.styles.defaultValue("node.gradientColor"),
+            session.styles.defaultValue("node.color"),
+        );
+        assert.isDefined(session.styles.defaultValue("node.gradientColor"));
+        session.dispose();
+    });
 });

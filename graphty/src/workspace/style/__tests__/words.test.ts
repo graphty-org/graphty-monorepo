@@ -36,7 +36,7 @@ describe("the Style tab's words and arrangement", () => {
         );
         assert.deepEqual(
             SECTIONS.edge.map((section) => section.title),
-            ["Visibility", "Text", "Line", "Arrowheads", "Shaders"],
+            ["Visibility", "Text", "Line", "Path", "Arrowheads", "Shaders"],
         );
     });
 

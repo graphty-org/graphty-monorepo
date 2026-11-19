@@ -144,12 +144,21 @@ export const TEXT_KINDS: Readonly<Record<Kind, readonly TextKindSpec[]>> = {
 };
 
 /**
+ * Every channel of one text kind: its words, its look, its size, color and background.
+ * @param kind - the kind.
+ * @returns the channels.
+ */
+export function textKindChannels(kind: TextKindSpec): Channel[] {
+    return [kind.words, kind.style, kind.size, kind.color, kind.background];
+}
+
+/**
  * Every channel of a group's text kinds.
  * @param kind - nodes or edges.
  * @returns the channels.
  */
 function textChannels(kind: Kind): Channel[] {
-    return TEXT_KINDS[kind].flatMap((t) => [t.words, t.style, t.size, t.color, t.background]);
+    return TEXT_KINDS[kind].flatMap((t) => textKindChannels(t));
 }
 
 /**
@@ -161,7 +170,8 @@ export const SECTIONS: Readonly<Record<Kind, readonly SectionSpec[]>> = {
         {
             id: "shape",
             title: "Shape",
-            // Wireframe, Outline, Glow and Halo are style options of the shape, never shaders.
+            // Wireframe, Outline, Glow, Halo and the lighting options are style options of the
+            // shape, never shaders.
             channels: [
                 "node.shape",
                 "node.size",
@@ -177,6 +187,14 @@ export const SECTIONS: Readonly<Record<Kind, readonly SectionSpec[]>> = {
                 "node.haloColor",
                 "node.haloScale",
                 "node.haloOpacity",
+                "node.halo",
+                "node.unlit",
+                "node.flat",
+                "node.sizeMode",
+                "node.sizeSpace",
+                "node.shapeLineHaloColor",
+                "node.shapeLineHaloWidth",
+                "node.meshDetail",
             ],
         },
         { id: "visibility", title: "Visibility", channels: ["node.visible"] },
@@ -206,6 +224,12 @@ export const SECTIONS: Readonly<Record<Kind, readonly SectionSpec[]>> = {
                 "edge.bandWidth",
                 "edge.bandOpacity",
             ],
+        },
+        {
+            id: "path",
+            title: "Path",
+            // Where the line runs: its route, and how high an arc route bows.
+            channels: ["edge.route", "edge.arcHeight"],
         },
         {
             id: "ends",
@@ -293,6 +317,21 @@ export const OPACITY_OF: Partial<Readonly<Record<Channel, Channel>>> = {
 };
 
 /**
+ * The row a property is a setting of, where graphty-element names none (its `modifies`): the
+ * property is added from that row's own "+" and drawn under it, as Halo size is under Halo. Which
+ * row a setting sits under is the panel's choice, so it is the app's table.
+ */
+export const SETTING_OF: Partial<Readonly<Record<Channel, Channel>>> = {
+    "node.sizeMode": "node.size",
+    "node.sizeSpace": "node.size",
+    "node.shapeLineHaloColor": "node.shape",
+    "node.shapeLineHaloWidth": "node.shape",
+    "node.meshDetail": "node.wireframe",
+    "node.halo": "node.haloColor",
+    "edge.arcHeight": "edge.route",
+};
+
+/**
  * The two words of each yes-or-no property, in the order its select lists them. Empty means not
  * set, as in every other field, so a yes-or-no property is a select and never a switch.
  */
@@ -322,6 +361,21 @@ export const TWO_WORDS: Partial<Readonly<Record<Channel, readonly (readonly [boo
         [false, "Off"],
     ],
 };
+
+/** The words of a yes-or-no property that names none of its own in {@link TWO_WORDS}. */
+const ON_OFF: readonly (readonly [boolean, string])[] = [
+    [true, "On"],
+    [false, "Off"],
+];
+
+/**
+ * The two words of a yes-or-no property: its own in {@link TWO_WORDS}, else On and Off.
+ * @param descriptor - the property.
+ * @returns the words, or undefined for a property that is not yes-or-no.
+ */
+export function twoWords(descriptor: ChannelDescriptor): readonly (readonly [boolean, string])[] | undefined {
+    return TWO_WORDS[descriptor.channel] ?? (descriptor.accepts === "boolean" ? ON_OFF : undefined);
+}
 
 /**
  * A field's full name, kind first: "Node size", "Edge head".
@@ -420,7 +474,8 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.outlineWidth": "Outline width",
     "node.glow": "Glow",
     "node.glowStrength": "Glow strength",
-    "node.halo": "Halo",
+    // "Shown" under the Halo row, so the Shape menu never lists "Halo" twice.
+    "node.halo": "Halo shown",
     "node.haloScale": "Halo size",
     "node.wireframe": "Wireframe",
     "node.meshDetail": "Mesh detail",
@@ -1197,6 +1252,8 @@ export const GLYPH_TABLES: Partial<Readonly<Record<Channel, readonly GlyphDescri
     "node.shape": NODE_SHAPE_DESCRIPTORS,
     "edge.arrowHead": EDGE_ARROW_DESCRIPTORS,
     "edge.arrowTail": EDGE_ARROW_DESCRIPTORS,
+    "edge.arrowMiddleHead": EDGE_ARROW_DESCRIPTORS,
+    "edge.arrowMiddleTail": EDGE_ARROW_DESCRIPTORS,
     "edge.style": EDGE_LINE_DESCRIPTORS,
 };
 
@@ -1228,7 +1285,7 @@ export function valueWords(descriptor: ChannelDescriptor, value: unknown): strin
         const hex = hexOf(value);
         return hex === null ? String(value) : colorName(hex);
     }
-    const two = TWO_WORDS[descriptor.channel];
+    const two = twoWords(descriptor);
     if (two !== undefined && typeof value === "boolean") {
         return two.find(([v]) => v === value)?.[1] ?? String(value);
     }

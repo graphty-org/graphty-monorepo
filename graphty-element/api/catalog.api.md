@@ -620,6 +620,7 @@ export interface ChannelDescriptor {
     readonly follows?: Channel;
     readonly group: ChannelGroup;
     readonly integer?: boolean;
+    readonly labelField?: keyof LabelStyle;
     readonly listOf?: "color" | "number";
     readonly max?: number;
     readonly min?: number;

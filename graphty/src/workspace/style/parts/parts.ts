@@ -693,6 +693,8 @@ export const PART_WORDS: Readonly<Partial<Record<Channel, string>>> = {
     "node.drawOrder": "Draw order",
     "node.zIndex": "Stacking",
     "node.cornerRadius": "Corner",
+    // The classic Shape tab calls it "Halo shown"; under the Halo item it is the item's own switch.
+    "node.halo": "Halo",
     "edge.arrowHead": "Target",
     "edge.arrowHeadSize": "Size",
     "edge.arrowTail": "Source",

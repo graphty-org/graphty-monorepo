@@ -39,13 +39,13 @@ function pinnedLayer(session: GraphSession): string | undefined {
 }
 
 /**
- * The halo color a node is drawn with.
+ * The border color a node is drawn with.
  * @param session - The session.
  * @param node - The node.
  * @returns The color as upper-case hex, or undefined.
  */
-function halo(session: GraphSession, node: string): string | undefined {
-    return session.styles.explain({ node }).merged["node.haloColor"]?.hex.toUpperCase();
+function ring(session: GraphSession, node: string): string | undefined {
+    return session.styles.explain({ node }).merged["node.borderColor"]?.hex.toUpperCase();
 }
 
 describe("the Pinned row", () => {
@@ -73,16 +73,16 @@ describe("the Pinned row", () => {
             ["Everything", "Pinned", "Selected", "Hovered"],
         );
         assert.deepStrictEqual(session.styles.get(pinnedLayer(session) ?? "")?.set, {
-            "node.haloColor": "#868E96",
-            "node.haloScale": 1.12,
-            "node.haloOpacity": 1,
+            "node.borderColor": "#868E96",
+            "node.borderWidth": 0.06,
+            "node.borderOpacity": 1,
         });
 
         // Clearing or changing the setting leaves the row as it is.
         await session.config.set({ pinnedStyle: undefined });
         assert.isDefined(pinnedLayer(session));
         await session.config.set({ pinnedStyle: { ...LOOK, color: "#ff0000" } });
-        assert.strictEqual(session.styles.get(pinnedLayer(session) ?? "")?.set?.["node.haloColor"], "#868E96");
+        assert.strictEqual(session.styles.get(pinnedLayer(session) ?? "")?.set?.["node.borderColor"], "#868E96");
 
         // Deleted, it stays deleted whatever the setting says; undo brings it back.
         const row = session.styles.tree().find((each) => each.name === "Pinned");
@@ -103,12 +103,12 @@ describe("the Pinned row", () => {
             name: "Held in place",
             target: "node",
             selector: { match: "state", state: "pinned" },
-            set: { "node.haloColor": "#123456", "node.haloScale": 1.2, "node.haloOpacity": 1 },
+            set: { "node.borderColor": "#123456", "node.borderWidth": 0.1, "node.borderOpacity": 1 },
         });
         await session.positions.pin(["a"]);
         await session.styles.settled();
-        assert.strictEqual(halo(session, "a"), "#123456");
-        assert.isUndefined(halo(session, "b"));
+        assert.strictEqual(ring(session, "a"), "#123456");
+        assert.isUndefined(ring(session, "b"));
         session.dispose();
     });
 
@@ -116,18 +116,18 @@ describe("the Pinned row", () => {
         const session = await triangle({ pinnedStyle: LOOK });
         const layer = pinnedLayer(session) ?? "";
         assert.strictEqual(session.styles.counts(layer).matched, 0);
-        assert.isUndefined(halo(session, "a"));
+        assert.isUndefined(ring(session, "a"));
 
         await session.positions.pin(["a"]);
         await session.styles.settled();
         assert.strictEqual(session.styles.counts(layer).matched, 1);
-        assert.strictEqual(halo(session, "a"), "#868E96");
-        assert.isUndefined(halo(session, "b"));
+        assert.strictEqual(ring(session, "a"), "#868E96");
+        assert.isUndefined(ring(session, "b"));
 
         await session.positions.unpin(["a"]);
         await session.styles.settled();
         assert.strictEqual(session.styles.counts(layer).matched, 0);
-        assert.isUndefined(halo(session, "a"));
+        assert.isUndefined(ring(session, "a"));
 
         // Undo pins it again.
         await session.undo();

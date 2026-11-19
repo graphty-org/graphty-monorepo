@@ -31,12 +31,15 @@ console.log(session.styles.counts(hovered.id).matched); // 1
 | Selected   | the selected nodes and edges | top    | a ring on nodes and a band on edges (below) |
 | Hovered    | the node under the pointer   | top    | nothing                                     |
 
-The Selected ring is a solid halo and the band a solid band, both in the `selectionStyle` colors
-and sizes (blue, `#0077BB`, by default). That blue stands at least 3:1 off the light default
+The Selected ring is a solid node border (`node.borderColor`, `node.borderWidth`,
+`node.borderOpacity`) and the band a solid band, both in the `selectionStyle` colors and sizes
+(blue, `#0077BB`, by default); the border reaches as far out as the `selectionStyle` halo would,
+a width of `(scale - 1) / 2`. That blue stands at least 3:1 off the light default
 background and off dark ones such as `#202020`, the contrast WCAG 1.4.11 asks of a state
 indicator. On a mid-gray background, or for a ring that also stands off the node it surrounds, set
-`selectionStyle` (or edit the Selected row) to a color of your own, or add a glow or border to the
-row.
+`selectionStyle` (or edit the Selected row) to a color of your own, or add a glow or a second
+ring (`node.outerBorder*`) to the row. While a node is selected, the row's border takes the place
+of any border a layer beneath gives it.
 
 To stop drawing the selection, delete the Selected row (or hide it); the selection itself is
 unchanged:
@@ -52,8 +55,8 @@ change, and following them is not an undo step. Nothing else sets them apart: ea
 calculated value, so you can rename, move, hide or delete them or narrow them with more conditions
 (the `state` rule leaf in [Selections Built From Steps](./selection-steps.md)).
 
-With `startingRows` on, the selection look is drawn by the Selected row, so recoloring the halo is
-a write to that row (`"node.haloColor"`, `"edge.bandColor"`), and the `selectionStyle` setting
+With `startingRows` on, the selection look is drawn by the Selected row, so recoloring the ring is
+a write to that row (`"node.borderColor"`, `"edge.bandColor"`), and the `selectionStyle` setting
 draws nothing itself. With it off (the default), nothing changes: there are no starting rows and
 `selectionStyle` draws the selection as before.
 
@@ -83,7 +86,7 @@ beforehand and the row is never added.
 
 Set `pinnedStyle` (the same shape as `selectionStyle`; its `color`, `scale` and `opacity` are read)
 when `startingRows` turns on -- in the same `config.set`, or before it -- and the starting rows
-include a Pinned row, directly below Selected. It paints a halo on every node pinned in place, by
+include a Pinned row, directly below Selected. It paints a border ring (drawn the way Selected's is) on every node pinned in place, by
 a drag or by `session.positions.pin`, and follows each pin and unpin with no undo step of its own.
 Setting, changing or clearing `pinnedStyle` later adds, removes or rewrites no row. It is unset by
 default, so a pinned node looks like any other until you choose a look:

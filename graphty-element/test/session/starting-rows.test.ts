@@ -135,7 +135,7 @@ describe("the starting rows", () => {
         assert.deepStrictEqual(session.styles.tree(), [], "one undo takes the setting and its rows back");
     });
 
-    it("Selected follows the selection with no step, and draws a halo and a band with no glow", async () => {
+    it("Selected follows the selection with no step, and draws a border ring and a band with no glow", async () => {
         const session = await lesMis();
         await session.config.set({ startingRows: true });
         const node = part(session, "Selected", "node");
@@ -147,11 +147,11 @@ describe("the starting rows", () => {
         await session.selection.apply({ ids: ["Valjean"] });
         await session.styles.settled();
         assert.strictEqual(session.styles.counts(node).matched, 1);
-        assert.strictEqual(session.styles.counts(node).painted["node.haloColor"], 1);
+        assert.strictEqual(session.styles.counts(node).painted["node.borderColor"], 1);
         assert.deepStrictEqual(session.styles.get(node)?.set, {
-            "node.haloColor": "#0077BB",
-            "node.haloScale": 1.45,
-            "node.haloOpacity": 1,
+            "node.borderColor": "#0077BB",
+            "node.borderWidth": 0.225,
+            "node.borderOpacity": 1,
         });
 
         await session.selection.apply({ scope: { define: { kind: "path", nodes: ["Valjean", "Javert"] } } });

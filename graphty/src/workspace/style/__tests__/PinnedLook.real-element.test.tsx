@@ -27,13 +27,13 @@ withoutFeatures(["file-styles"]);
 const RING = "#868e96";
 
 /**
- * The halo color the style layers give a node now.
+ * The ring (border) color the style layers give a node now.
  * @param session - the element's session.
  * @param node - the node.
- * @returns the color in lower case, or undefined when no layer gives it a halo.
+ * @returns the color in lower case, or undefined when no layer gives it a ring.
  */
 function halo(session: GraphSession, node: string | number): string | undefined {
-    return session.styles.explain({ node }).merged["node.haloColor"]?.hex.toLowerCase();
+    return session.styles.explain({ node }).merged["node.borderColor"]?.hex.toLowerCase();
 }
 
 beforeAll(async () => {

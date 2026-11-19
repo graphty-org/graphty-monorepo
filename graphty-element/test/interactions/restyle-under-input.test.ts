@@ -94,14 +94,14 @@ function selectedNodeLayer(element: Graphty): string {
 }
 
 /**
- * Restyle the Selected row's halo color and let the repaint land.
+ * Restyle the Selected row's ring color and let the repaint land.
  * @param element - The element.
  * @param color - The new color.
  */
-async function restyleHalo(element: Graphty, color: string): Promise<void> {
+async function restyleRing(element: Graphty, color: string): Promise<void> {
     const id = selectedNodeLayer(element);
     const layer = element.session.styles.get(id);
-    await element.session.styles.update(id, { set: { ...layer?.set, "node.haloColor": color } });
+    await element.session.styles.update(id, { set: { ...layer?.set, "node.borderColor": color } });
     await element.session.styles.settled();
     await operationQueueOf(element.graph).waitForCompletion();
     await element.waitForStableFrame();
@@ -124,10 +124,10 @@ describe("a restyle", () => {
             assert.isTrue(element.cameraPlaced, "the reader's wheel placed the camera");
             const zoomed = JSON.stringify(element.getCameraState());
 
-            await restyleHalo(element, "#ff00ff");
-            assert.strictEqual(JSON.stringify(element.getCameraState()), zoomed, "the halo color changed nothing else");
+            await restyleRing(element, "#ff00ff");
+            assert.strictEqual(JSON.stringify(element.getCameraState()), zoomed, "the ring color changed nothing else");
 
-            await restyleHalo(element, "#00ffff");
+            await restyleRing(element, "#00ffff");
             assert.strictEqual(JSON.stringify(element.getCameraState()), zoomed, "nor did a second change");
         },
     );
@@ -169,10 +169,10 @@ describe("a restyle", () => {
         await frames(element);
         assert.strictEqual(element.session.selection.hovered, "a", "pointing at a hovers it");
 
-        // A click selects the hovered node, which restyles it; so does a halo change.
+        // A click selects the hovered node, which restyles it; so does a ring change.
         await click(element, at(element, "a"));
         await frames(element);
-        await restyleHalo(element, "#ff00ff");
+        await restyleRing(element, "#ff00ff");
         assert.strictEqual(element.session.selection.hovered, "a", "still under the pointer");
 
         await hover(element, EMPTY);

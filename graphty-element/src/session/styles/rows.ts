@@ -285,17 +285,31 @@ export const STARTING_GHOST_LOOK = {
 } as const;
 
 /**
+ * The border width that rings a node as far out as a halo drawn at a scale would: a halo's ring is
+ * the node's radius times (scale - 1) wide, and a border's width is in the units of the node's
+ * size, twice its radius.
+ * @param scale - The halo's size, as a multiple of the node's drawn radius.
+ * @returns The border width, never below 0, to a thousandth.
+ */
+function borderWidthOfScale(scale: number): number {
+    return Math.max(0, Math.round((scale - 1) * 500) / 1000);
+}
+
+/**
  * The default rows a project starts with, as plain data written once: each is an ordinary row
  * selecting on a calculated value (`everything`, or the state `selected`, `hovered`, `pinned`,
  * `outsideWindow`), and nothing keeps it in step with a setting afterwards.
  * @param look - What the rows are written with.
- * @param look.selection - The selection settings' node halo and edge band, which Selected draws.
+ * @param look.selection - The selection settings' node halo and edge band. Selected draws the
+ *   halo as a node border of the same color, as far out as the halo would reach (a halo and a
+ *   border look the same; the halo is drawn only by the selection settings themselves).
  * @param look.selection.color - The halo's color.
  * @param look.selection.scale - The halo's size, as a multiple of the node's drawn radius.
  * @param look.selection.edgeColor - The band's color.
  * @param look.selection.edgeScale - The band's width, as a multiple of twice the line's width.
  * @param look.everything - The values Everything holds (the base look while `editableBase` is on).
- * @param look.pinned - The halo Pinned draws; no Pinned row when absent.
+ * @param look.pinned - The pinned settings' halo, which Pinned draws as a node border the same
+ *   way; no Pinned row when absent.
  * @param look.pinned.color - The halo's color.
  * @param look.pinned.scale - The halo's size.
  * @param look.pinned.opacity - How solid the halo is.
@@ -366,9 +380,9 @@ export function startingRows(
                           target: "node",
                           selector: { match: "state", state: "pinned" },
                           set: {
-                              "node.haloColor": pinned.color,
-                              "node.haloScale": pinned.scale,
-                              "node.haloOpacity": pinned.opacity,
+                              "node.borderColor": pinned.color,
+                              "node.borderWidth": borderWidthOfScale(pinned.scale),
+                              "node.borderOpacity": pinned.opacity,
                           },
                           source: source(PINNED_ROW_ID),
                       },
@@ -382,9 +396,9 @@ export function startingRows(
                 target: "both",
                 selector: { match: "state", state: "selected" },
                 set: {
-                    "node.haloColor": selection.color,
-                    "node.haloScale": selection.scale,
-                    "node.haloOpacity": 1,
+                    "node.borderColor": selection.color,
+                    "node.borderWidth": borderWidthOfScale(selection.scale),
+                    "node.borderOpacity": 1,
                     "edge.bandColor": selection.edgeColor,
                     "edge.bandWidth": selection.edgeScale,
                     "edge.bandOpacity": 1,

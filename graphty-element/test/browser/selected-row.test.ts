@@ -2,9 +2,9 @@
  * @file The Selected and Hovered starting rows on a real canvas, driven by the real pointer.
  *
  * With the project setting `startingRows` on, the selection look is no longer drawn by the
- * selection settings: the Selected row draws it, as a node halo written through a style layer.
- * A click must then draw exactly one halo (never the settings' halo beside the row's), a write to
- * the row must repaint it, and deselecting must leave nothing behind. The pointer resting on a
+ * selection settings: the Selected row draws it, as a node border ring written through a style
+ * layer. A click must then draw the row's ring and no halo from the settings, a write to the row
+ * must repaint it, and deselecting must leave nothing behind. The pointer resting on a
  * node is what the Hovered row reads.
  */
 
@@ -30,7 +30,7 @@ const NODES = [
 /** A spot with no node under it. */
 const EMPTY: Point = { x: 30, y: HEIGHT - 30 };
 
-/** A halo color nothing else on the canvas is drawn in. */
+/** A ring color nothing else on the canvas is drawn in. */
 const PROBE = "#00FF00";
 
 const cleanups: (() => void)[] = [];
@@ -152,35 +152,37 @@ function nodePart(element: Graphty, name: string): string {
 }
 
 describe("the Selected and Hovered rows", () => {
-    it("a real click draws exactly one halo, a write to Selected repaints it, and deselecting clears it", async () => {
+    it("a real click draws the Selected row's ring and no halo, a write repaints it, and deselecting clears it", async () => {
         const element = await mounted();
         const { session } = element;
         await session.styles.writeRow(rowId(element, "Selected"), {
-            set: { "node.haloColor": PROBE, "node.haloOpacity": 1 },
+            set: { "node.borderColor": PROBE, "node.borderOpacity": 1 },
         });
         await settle(element);
         const before = await greenPixels(element);
-        assert.strictEqual(before.left + before.right, 0, "nothing is selected, so no halo is drawn");
+        assert.strictEqual(before.left + before.right, 0, "nothing is selected, so no ring is drawn");
 
         await click(element, at(element, "a"));
         await settle(element);
 
         assert.deepStrictEqual([...session.selection.nodes], ["a"]);
-        assert.lengthOf(drawnHalos(element), 1, "one halo: the Selected row's, and none from the selection settings");
+        assert.lengthOf(drawnHalos(element), 0, "the selection settings draw no halo beside the row's ring");
         const green = await greenPixels(element);
-        assert.isAbove(green.left, 0, "the halo is drawn around the clicked node");
+        assert.isAbove(green.left, 0, "the ring is drawn around the clicked node");
         assert.strictEqual(green.right, 0, "and nowhere else");
 
-        await session.styles.writeRow(rowId(element, "Selected"), { set: { "node.haloColor": "#FF0000" } });
+        await session.styles.writeRow(rowId(element, "Selected"), { set: { "node.borderColor": "#FF0000" } });
         await settle(element);
         const after = await greenPixels(element);
-        assert.strictEqual(after.left + after.right, 0, "the new color repainted the halo already on screen");
-        assert.lengthOf(drawnHalos(element), 1);
+        assert.strictEqual(after.left + after.right, 0, "the new color repainted the ring already on screen");
 
-        // The halo's off value, node.halo false: still selected, and no halo drawn.
-        await session.styles.writeRow(rowId(element, "Selected"), { set: { "node.halo": false } });
+        // The ring's off value, a width of 0: still selected, and no ring drawn.
+        await session.styles.writeRow(rowId(element, "Selected"), {
+            set: { "node.borderColor": PROBE, "node.borderWidth": 0 },
+        });
         await settle(element);
-        assert.lengthOf(drawnHalos(element), 0, "a halo written off draws nothing");
+        const off = await greenPixels(element);
+        assert.strictEqual(off.left + off.right, 0, "a ring written to width 0 draws nothing");
 
         await click(element, EMPTY);
         await settle(element);

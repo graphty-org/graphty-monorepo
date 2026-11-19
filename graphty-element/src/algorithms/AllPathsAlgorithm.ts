@@ -1,3 +1,5 @@
+// The route algorithms import the same helper set, so this list is a deliberate parallel of DijkstraAlgorithm.ts.
+// jscpd:ignore-start
 import { allSimplePaths, SIMPLE_PATHS_DEFAULT_MAX_PATHS } from "@graphty/algorithms";
 import { INVALID_INDEX } from "@graphty/graph-format";
 import { z } from "zod";
@@ -8,7 +10,7 @@ import type { ResultElementValues } from "../session/results";
 import { caveat } from "../session/runs/caveatFacts";
 import { Algorithm } from "./Algorithm";
 import type { SimplifyPolicy } from "./input/derivedInputs";
-import { scopeEdges, type ScopeInputDeclaration, scopeNodeIds } from "./input/ScopedInput";
+import { scopeEdges, type ScopeInputDeclaration } from "./input/ScopedInput";
 import {
     type AlgorithmOutput,
     type AlgorithmRunContext,
@@ -20,6 +22,8 @@ import {
 } from "./results";
 import type { OptionsSchema } from "./types/OptionSchema";
 import { routeEdgeRows } from "./utils/routeEdges";
+import { endpointIds, endpointOptions, endpointSchema, routeInput } from "./utils/routeEndpoints";
+// jscpd:ignore-end
 
 const SOURCE_DESCRIPTION = "Node every path starts at (uses first node if not set)";
 const TARGET_DESCRIPTION = "Node every path ends at (uses last node if not set)";
@@ -29,14 +33,7 @@ const DIRECTION_DESCRIPTION =
     "On a directed graph, which way a path may cross an edge: out (source to target), in (target to source) or all (either way). An undirected graph is always read either way";
 
 const allPathsOptionsSchema = defineOptions({
-    source: {
-        schema: z.union([z.string(), z.number()]).nullable().default(null),
-        meta: { label: "Source Node", description: SOURCE_DESCRIPTION },
-    },
-    target: {
-        schema: z.union([z.string(), z.number()]).nullable().default(null),
-        meta: { label: "Target Node", description: TARGET_DESCRIPTION },
-    },
+    ...endpointOptions(SOURCE_DESCRIPTION, TARGET_DESCRIPTION),
     maxLength: {
         schema: z.number().int().min(1).nullable().default(null),
         meta: { label: "Max Length", description: MAX_LENGTH_DESCRIPTION },
@@ -99,20 +96,7 @@ export class AllPathsAlgorithm extends DeclaredAlgorithm<AllPathsOptions> {
     static readonly zodOptionsSchema: ZodOptionsSchema = allPathsOptionsSchema;
 
     static readonly optionsSchema: OptionsSchema = {
-        source: {
-            type: "nodeId",
-            default: null,
-            label: "Source Node",
-            description: SOURCE_DESCRIPTION,
-            required: false,
-        },
-        target: {
-            type: "nodeId",
-            default: null,
-            label: "Target Node",
-            description: TARGET_DESCRIPTION,
-            required: false,
-        },
+        ...endpointSchema(SOURCE_DESCRIPTION, TARGET_DESCRIPTION),
         maxLength: {
             type: "integer",
             default: null,
@@ -149,20 +133,15 @@ export class AllPathsAlgorithm extends DeclaredAlgorithm<AllPathsOptions> {
      * @returns The paths, or null when there are no nodes to search.
      */
     async compute(context: AlgorithmRunContext): Promise<AlgorithmOutput | null> {
-        // "all", or any value on a graph loaded undirected: a path may cross an edge either way.
-        const { direction } = this.schemaOptions;
-        const directed = direction !== "all" && this.input("declared").graph.directed;
-        const input = this.input(directed ? "declared" : "undirected");
-        const nodeIds = scopeNodeIds(input);
+        const { direction, maxLength, maxPaths } = this.schemaOptions;
+        const { directed, input, nodeIds } = routeInput((orientation) => this.input(orientation), direction);
         if (nodeIds.length === 0) {
             return null;
         }
 
         const { snapshot, edgeRemap } = input.derived();
         const { ids } = snapshot;
-        const { maxLength, maxPaths } = this.schemaOptions;
-        const source = this.schemaOptions.source ?? ids.idOf(0);
-        const target = this.schemaOptions.target ?? ids.idOf(snapshot.nodeCount - 1);
+        const { source, target } = endpointIds(snapshot, this.schemaOptions);
         const sourceIndex = this.nodeIndex(snapshot, "source", source);
         const targetIndex = this.nodeIndex(snapshot, "target", target);
 

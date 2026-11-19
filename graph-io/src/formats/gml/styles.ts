@@ -1656,17 +1656,16 @@ function readOgdfLabelPlace(
 }
 
 /**
- * A yEd GML edge label's model and position, as `putYedEdgeLabel` keys them: a side slider with no stored box is at
- * its line's start; a center slider with none sits somewhere along the line that the file does not say, and a free
- * label's box is not in the file's coordinates, so neither is read.
+ * A yEd GML edge label's model and position, as `putYedEdgeLabel` keys them: a side or center slider with no stored box
+ * is at its line's start; a free label's box is not in the file's coordinates, so it is not read.
  * @param model - the label's `model`
  * @param position - its `position`
  * @param stored - whether the file stores its box
  * @returns the spot, or null for a place not read
  */
 function yedLabelSpot(model: string, position: unknown, stored: boolean): string | null {
-    if (!stored && model === "side_slider") {
-        return "side_slider/start";
+    if (!stored && (model === "side_slider" || model === "center_slider")) {
+        return `${model}/start`;
     }
     if (model === "free" || (!stored && model.endsWith("_slider"))) {
         return null;

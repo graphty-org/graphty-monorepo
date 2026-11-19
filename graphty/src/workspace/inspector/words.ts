@@ -378,6 +378,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.wavePeriod": "Wave period",
     "edge.dashLength": "Dash length",
     "edge.dashGap": "Dash gap",
+    "edge.dashArray": "Dash array",
     "edge.bendCurve": "Bend curve",
     "edge.arcRadius": "Arc radius",
     "edge.route": "Route",

@@ -128,6 +128,20 @@ export interface ReadbackRequest {
     readonly offset: number;
 }
 
+/**
+ * The mapped bytes copied out before the unmap detaches them: into `into` when it holds them all, else a new buffer.
+ * @param mapped - the mapped range
+ * @param into - the caller's destination, or undefined
+ * @returns the buffer holding the bytes at their offsets
+ */
+function copyOut(mapped: ArrayBuffer, into: ArrayBuffer | undefined): ArrayBuffer {
+    if (into === undefined || into.byteLength < mapped.byteLength) {
+        return mapped.slice(0);
+    }
+    new Uint8Array(into, 0, mapped.byteLength).set(new Uint8Array(mapped));
+    return into;
+}
+
 /** What submit() returns. `readback` resolves with the mapped bytes COPIED out (one ArrayBuffer holding every request at its offset) after allocator.check(); it rejects with E_VALIDATION { batchId } when the pending-error slot held an error right after submit and with E_DEVICE_LOST after loss; a discarded batch resolves an empty ArrayBuffer (see discard()). */
 export interface SubmittedBatch {
     readonly id: number;
@@ -274,11 +288,21 @@ export class CommandBatch {
     }
 
     /**
+     * Bytes the readback of this batch holds so far: what a destination handed to submit() must hold.
+     * @returns the byte count
+     */
+    get readbackBytes(): number {
+        return this.stagingBytes;
+    }
+
+    /**
      * Ends passes, records the staging copies, submits, checks the pending-error slot, returns the handle.
      * A batch can be submitted once; submit() after device loss throws E_DEVICE_LOST.
+     * @param into - where the readback is copied, when it holds {@link readbackBytes}: a caller that lands a batch a
+     * frame reuses its buffers instead of allocating the readback anew each time (issue #8801). Else a new buffer.
      * @returns the submitted-batch handle
      */
-    submit(): SubmittedBatch {
+    submit(into?: ArrayBuffer): SubmittedBatch {
         this.assertOpen("submit");
         this.submitted = true;
         this.endPass();
@@ -314,7 +338,7 @@ export class CommandBatch {
         const pendingAfter = this.host.takePendingError();
         const pending = pendingBefore ?? pendingAfter;
         const state: DiscardState = { discarded: false };
-        let readback = pending === null ? this.awaitReadback(slot, state) : this.rejectReadback(pending);
+        let readback = pending === null ? this.awaitReadback(slot, state, into) : this.rejectReadback(pending);
         if (scope !== null) {
             readback = this.landAfterScope(scope, readback);
         }
@@ -358,7 +382,11 @@ export class CommandBatch {
         return Promise.reject(this.attribute(pending));
     }
 
-    private async awaitReadback(slot: StagingSlot | null, state: DiscardState): Promise<ArrayBuffer> {
+    private async awaitReadback(
+        slot: StagingSlot | null,
+        state: DiscardState,
+        into: ArrayBuffer | undefined,
+    ): Promise<ArrayBuffer> {
         const facts = { batch: this.label, id: this.id };
         if (slot === null) {
             await traced(this.host.allocator.check(), this.host.trace, "allocator check", facts);
@@ -378,7 +406,7 @@ export class CommandBatch {
         try {
             await traced(Promise.race([mapped, lost]), this.host.trace, "map", facts);
             this.host.assertReady();
-            bytes = state.discarded ? new ArrayBuffer(0) : slot.buffer.getMappedRange(0, total).slice(0);
+            bytes = state.discarded ? new ArrayBuffer(0) : copyOut(slot.buffer.getMappedRange(0, total), into);
         } catch (error) {
             // the loss may have won the race: let the runtime settle the map before the slot is unmapped and returned
             await settled(mapped, LOSS_GRACE_MS);

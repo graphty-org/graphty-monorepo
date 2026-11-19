@@ -27,6 +27,11 @@ Set `render-path="batched"` as an attribute, or `renderPath = "batched"` as a pr
 The path can be changed at any time; `"objects"` is the default. Everything else -- styles,
 selection, hover, dragging, layouts, algorithms, events, undo -- works the same on both paths.
 
+One thing differs while a layout runs on the GPU: the batched path skips the frames between two
+landings of the layout's batches, even with `render-on-demand` off, because such a frame shows the
+same positions again and takes GPU time from the layout. A camera move, hover or restyle still draws
+at once, and a settled graph is drawn every frame unless `render-on-demand` is on.
+
 ## What it covers
 
 `rowCounts` tells you how each node and edge is being drawn: `batchedNodes` and `pulledEdges`

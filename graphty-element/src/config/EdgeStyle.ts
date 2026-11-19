@@ -245,6 +245,15 @@ const LineStyle = z.strictObject({
      * @experimental file-styles
      */
     dashGap: z.number().nonnegative().optional(),
+    /**
+     * A pattern of several dash lengths: dashes and gaps alternating from the line's start, in the line's own width
+     * units, separated by spaces or commas ("8 1 2 1" draws a dash 8 widths long, a gap of 1, a dash of 2 and a gap of
+     * 1, then repeats). An odd count is repeated once, as an SVG dash array is; up to 8 numbers are drawn. Set on a
+     * "dash", "dot" or "dash-dot" line, the line is drawn as these square-ended dashes in place of its own elements,
+     * `dashLength`, `dashGap` and `patternCount`; unset, or on any other line type, it changes nothing.
+     * @experimental file-styles
+     */
+    dashArray: z.string().optional(),
     color: ColorStyle.optional(),
     opacity: z.number().min(0).max(1).optional(),
     /**

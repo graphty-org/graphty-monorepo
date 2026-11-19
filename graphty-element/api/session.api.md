@@ -7226,6 +7226,7 @@ export interface SourceConflict {
     readonly rule: SourceClashRule;
     readonly shown: SourceValue | null;
     readonly step: number;
+    readonly steps: readonly number[];
     readonly values: readonly {
         readonly source: SourceKey;
         readonly value: SourceValue;

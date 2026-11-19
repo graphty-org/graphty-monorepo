@@ -758,7 +758,11 @@ class Builder {
             return;
         }
         const differ = el.values[col] !== v;
-        if (differ) {
+        el.differAt ??= {};
+        const differAt = (el.differAt[col] ??= []);
+        // a cell counts once per step, however many of the step's rows write it (5.4)
+        if (differ && !differAt.includes(at.si)) {
+            differAt.push(at.si);
             st.valuesDiffer[col] = (st.valuesDiffer[col] ?? 0) + 1;
             this.mark(st, "valuesDiffer", { source: src, row: at.row, element: el.id, name: col });
         }
@@ -1652,6 +1656,10 @@ class Builder {
             reach(n1, l);
         });
         n1.touch.push(...n2.touch);
+        for (const [col, steps] of Object.entries(n2.differAt ?? {})) {
+            n1.differAt ??= {};
+            n1.differAt[col] = [...new Set([...(n1.differAt[col] ?? []), ...steps])];
+        }
         n1.aliases.push({ space: n2.space, key: n2.key, type: n2.type }, ...n2.aliases);
         if (n2.type !== n1.type) {
             n1.otherTypes.push(n2.type);

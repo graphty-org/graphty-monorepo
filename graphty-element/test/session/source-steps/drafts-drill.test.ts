@@ -107,6 +107,33 @@ function savedClash(doc: unknown, source: string): unknown[] {
     return out;
 }
 
+/**
+ * Check that each step's Values differ count by column, its `W_VALUES_DIFFER` outcome, its cell
+ * list and its batch pick all count the same cells.
+ * @param d - The draft; a batch pick is tried and taken back.
+ * @returns How many cells were checked.
+ */
+function valuesDifferAddsUp(d: SourceDraft): number {
+    const pv = d.preview();
+    let checked = 0;
+    for (const st of pv.steps) {
+        for (const [column, n] of Object.entries(st.buckets?.valuesDiffer ?? {})) {
+            const where = `step ${String(st.index)} ${column}`;
+            assert.strictEqual(pv.rows({ step: st.index, bucket: "valuesDiffer", name: column }).total, n, where);
+            assert.strictEqual(pv.cells({ step: st.index, column }).total, n, `${where} cells`);
+            const outcome = st.valuesDiffer.find((o) => o.params.column === column);
+            assert.strictEqual(outcome?.params.count, n, `${where} outcome`);
+            const picked = d.pickAll({ column, source: st.source, step: st.index });
+            assert.strictEqual(picked, n, `${where} pickAll`);
+            if (picked > 0) {
+                d.undo();
+            }
+            checked += n;
+        }
+    }
+    return checked;
+}
+
 describe("source-steps drafts: drill-down and exclusion (5.4)", () => {
     it("phase 5: Exclude selected keeps the selected rows their own node 2s; Untouched rises by the same count", async () => {
         const { session, a } = await renamedAndStaged();
@@ -276,6 +303,27 @@ describe("source-steps drafts: rules and picks per column (3.10)", () => {
         session.dispose();
     });
 
+    it("a third source merged onto the same cells: each step's Values differ, cells, outcome and pickAll agree", async () => {
+        const {
+            session,
+            ids: [, b, c],
+        } = await people(S2, S3);
+        const d = session.data.draft();
+        assert.strictEqual(valuesDifferAddsUp(d), 5, "erp: name 1, amt 2; hr: name 1, amt 1");
+        const pv = d.preview();
+        assert.deepStrictEqual(
+            pv.cells({ step: stepOf(session, b), column: "name" }).cells.map((x) => x.ref),
+            [P1],
+            "erp's Anne differs from crm's Ann, though hr's step settles the cell",
+        );
+        assert.deepStrictEqual(
+            pv.cells({ step: stepOf(session, c), column: "amt" }).cells.map((x) => x.ref),
+            [P1],
+        );
+        d.dispose();
+        session.dispose();
+    });
+
     it("pickAll takes only the cells of the elements it names", async () => {
         const {
             session,
@@ -341,6 +389,7 @@ describe("source-steps drafts: every count's rows add up to it", () => {
             }
         }
         assert.isAbove(checked, 0);
+        assert.isAbove(valuesDifferAddsUp(d), 0);
         const edges = pv.steps.find((s) => s.op === "join.edges" && s.source === entries);
         assert.isDefined(edges);
         assert.deepStrictEqual(

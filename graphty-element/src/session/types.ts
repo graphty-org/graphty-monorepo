@@ -4363,7 +4363,7 @@ export interface SourceDraftRows {
 export interface SourceDraftCellsQuery {
     /** The column. */
     readonly column: string;
-    /** Only cells this step's rule settles. */
+    /** Only cells this step counts under its Values differ (see {@link SourceConflict.steps}). */
     readonly step?: number;
     /** `"all"` (default), `"open"`: no reader decision, or `"decided"`. */
     readonly only?: "all" | "open" | "decided";
@@ -4403,7 +4403,7 @@ export interface SourcePickAllOptions {
     readonly source: SourceKey;
     /** `"open"` (default): cells no reader decision settles; `"decided"`; `"all"`. */
     readonly only?: "all" | "open" | "decided";
-    /** Only cells this step's rule settles. */
+    /** Only cells this step counts under its Values differ (see {@link SourceConflict.steps}). */
     readonly step?: number;
     /** Only these elements' cells, such as the rows selected in a cell list. */
     readonly refs?: readonly SourceElementRef[];
@@ -5208,6 +5208,11 @@ export interface SourceConflict {
     readonly ref: SourceElementRef;
     /** The place of the step whose rule settles the cell. */
     readonly step: number;
+    /**
+     * The places of the steps that count the cell under their Values differ: each step whose value
+     * differed from the one shown before it.
+     */
+    readonly steps: readonly number[];
     /** The column. */
     readonly column: string;
     /** Each source's value. */
@@ -5225,7 +5230,7 @@ export interface SourceConflict {
  * @experimental source-steps
  */
 export interface SourceConflictQuery {
-    /** Only cells this step settles. */
+    /** Only cells this step counts (see {@link SourceConflict.steps}). */
     readonly step?: number;
     /** Only this column. */
     readonly column?: string;

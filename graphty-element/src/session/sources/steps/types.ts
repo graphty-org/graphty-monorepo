@@ -362,6 +362,8 @@ export interface BuiltElement {
     rule?: Record<string, ClashRule>;
     /** The step whose rule settled each such column. */
     ruleStep?: Record<string, number>;
+    /** The steps whose value for each column differed from the one shown before it, in order. */
+    differAt?: Record<string, number[]>;
     /** The reader edit that sets each edited column. */
     edited?: Record<string, ReaderEdit>;
     clashColumns?: Record<string, ClashColumn>;

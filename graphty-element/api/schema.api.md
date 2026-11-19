@@ -1655,7 +1655,7 @@ export type GroupMatchCode = "group.new" | "group.gone";
 // @public
 export function hexToRgb(hex: string | null | undefined): RgbColor | null;
 
-// @public (undocumented)
+// @public
 const ImageData_2: z.ZodUnion<[z.ZodURL, z.ZodString]>;
 export { ImageData_2 as ImageData }
 

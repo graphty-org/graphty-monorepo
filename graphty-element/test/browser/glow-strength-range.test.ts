@@ -3,9 +3,11 @@
  *
  * The glow layer used to clamp its spread at strength 1.25 and divide each glow's opacity by the
  * strongest one on screen, so a lone glow drew the same at 1.25, 2 and 4, and a stronger one only
- * got wider and fainter. This file draws one glowing node at 0.5, 1, 2 and 4 and sums what the
- * glow adds outside the node: it must rise by a fifth at every step, and the glow at 4 must reach
- * farther out than at 1.
+ * got wider and fainter. Later the glow was blurred into 8-bit textures (an intensity above 1 cut
+ * back to 1) by a blur that could not reach past its widest spacing, so 2 and 4 drew the same
+ * picture at a normal zoom. This file draws one glowing node, a few dozen pixels across as in a
+ * real graph, at 0.5, 1, 2 and 4 and sums what the glow adds outside the node: it must rise by a
+ * fifth at every step, and each strength from 1 up must reach farther out than the one before.
  */
 
 import { afterAll, assert, beforeAll, describe, it } from "vitest";
@@ -20,6 +22,11 @@ const STRENGTHS = [0.5, 1, 2, 4];
 const STEP_GROWTH = 1.2;
 /** The summed channel change that counts a pixel as reached by the glow. */
 const REACH_CHANGE = 6;
+/**
+ * How wide the glowing node is drawn, in pixels: the size of a node in a real graph. Framed far
+ * out, a node a few pixels wide hid that the glow stopped growing past 2.
+ */
+const NODE_WIDTH = [20, 80] as const;
 
 for (const view of ["2d", "3d"] as const) {
     describe(`glow strength range (${view})`, () => {
@@ -36,11 +43,12 @@ for (const view of ["2d", "3d"] as const) {
             await graph.init();
             await graph.setViewMode(view);
             session = graph.getSession();
-            // Three nodes in a circle frame the camera far enough out that one node's glow fits
-            // on the canvas at every strength.
-            await graph.addNodes([{ id: "a" }, { id: "b" }, { id: "c" }]);
-            await graph.setLayout("circular", { scale: 1 });
+            // Two nodes apart frame the camera so each is drawn a few dozen pixels wide, as in a
+            // real graph, with room on the canvas for one node's glow at every strength.
+            await graph.addNodes([{ id: "a" }, { id: "b" }]);
+            await graph.setLayout("circular", { scale: 0.05 });
             await operationQueueOf(graph).waitForCompletion();
+            graph.zoomToFit();
         });
 
         afterAll(() => {
@@ -115,6 +123,13 @@ for (const view of ["2d", "3d"] as const) {
 
         it("adds more glow outside the node at every step from 0.5 to 4", async () => {
             const baseline = await frame();
+            const at = graph.nodeScreenPosition("a");
+            assert.isDefined(at, "node a is drawn");
+            const nodeWidth = at.bounds.right - at.bounds.left;
+            assert.isTrue(
+                nodeWidth >= NODE_WIDTH[0] && nodeWidth <= NODE_WIDTH[1],
+                `each node is drawn ${String(NODE_WIDTH[0])} to ${String(NODE_WIDTH[1])} pixels wide: ${String(nodeWidth)}`,
+            );
             const layer = await session.styles.add({
                 name: "glow",
                 target: "node",
@@ -143,9 +158,13 @@ for (const view of ["2d", "3d"] as const) {
                 );
             }
 
-            const at1 = reaches[STRENGTHS.indexOf(1)];
-            const at4 = reaches[STRENGTHS.indexOf(4)];
-            assert.isAbove(at4, at1 * STEP_GROWTH, `a glow of 4 reaches farther than 1: ${JSON.stringify(reaches)}`);
+            for (let i = STRENGTHS.indexOf(1) + 1; i < reaches.length; i++) {
+                assert.isAbove(
+                    reaches[i],
+                    reaches[i - 1] * STEP_GROWTH,
+                    `a glow of ${String(STRENGTHS[i])} reaches farther than ${String(STRENGTHS[i - 1])}: ${JSON.stringify(reaches)}`,
+                );
+            }
         });
     });
 }

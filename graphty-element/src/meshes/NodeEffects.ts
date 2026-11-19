@@ -2,14 +2,16 @@ import type { EffectLayer } from "@babylonjs/core";
 import { Camera } from "@babylonjs/core/Cameras/camera.js";
 import { Constants } from "@babylonjs/core/Engines/constants.js";
 import { HighlightLayer } from "@babylonjs/core/Layers/highlightLayer.js";
+import { ThinGlowBlurPostProcess } from "@babylonjs/core/Layers/thinEffectLayer.js";
 import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial.js";
 import { Color3 } from "@babylonjs/core/Maths/math.color.js";
-import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import { Vector2, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 import { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
 import { InstancedMesh } from "@babylonjs/core/Meshes/instancedMesh.js";
 import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 import { VertexData } from "@babylonjs/core/Meshes/mesh.vertexData.js";
 import { TransformNode } from "@babylonjs/core/Meshes/transformNode.js";
+import { PostProcess } from "@babylonjs/core/PostProcesses/postProcess.js";
 import { Scene } from "@babylonjs/core/scene.js";
 
 import type { NodeStyleConfig } from "../config";
@@ -63,9 +65,23 @@ const TO_CAMERA = new Vector3();
 /**
  * The narrowest and the widest a glow is spread, as multiples of {@link GLOW_SPREAD}. The blur
  * takes seven samples, so a wider spacing breaks the glow into blotches. A strength past the widest
- * reaches further by its intensity instead: see {@link NodeEffects.syncGlowStrengths}.
+ * reaches further through more blurs: see {@link GLOW_REACH_MAX}.
  */
 const GLOW_SPREAD_LIMITS = [0.5, 1.25] as const;
+
+/**
+ * The first blur's sample spacing, in glow-map texels, once a strength passes the widest spread
+ * and the blurs after it take over the reach. One texel, so the first blur alone draws no
+ * blotches and the next one's samples land on a smooth glow, not on the first one's samples.
+ */
+const GLOW_SMOOTH_SPACING = 1;
+
+/**
+ * The widest sample spacing of each blur after the first, in glow-map texels, in order. Each is
+ * about as wide as the smooth glow the blur before it leaves; wider, its samples fall apart into a
+ * grid of blotches. Past their sum a stronger glow only gets brighter.
+ */
+const GLOW_REACH_MAX = [3.5, 10] as const;
 
 /**
  * The rendering group outlines and glows are drawn at the end of: the graph's own. Babylon's
@@ -92,6 +108,12 @@ class NodeGlowLayer extends HighlightLayer {
     readonly alphas = new Map<number, number>();
 
     /**
+     * The sample spacing of each blur after the first, in glow-map texels, in the order of
+     * {@link GLOW_REACH_MAX}; 0 (every sample on the same texel) leaves the glow as it is.
+     */
+    readonly reach = GLOW_REACH_MAX.map(() => 0);
+
+    /**
      * A glow layer that draws only outside the node, with a per-mesh opacity.
      * @param name - The layer name.
      * @param scene - The scene.
@@ -111,6 +133,60 @@ class NodeGlowLayer extends HighlightLayer {
                 this._emissiveTextureAndColor.color.a = alpha;
             }
         });
+    }
+
+    /**
+     * Babylon's downsample, then its horizontal and vertical blur, then a horizontal and vertical
+     * blur for each spacing in {@link reach}, every step into a half-float texture.
+     *
+     * Babylon blurs into 8-bit textures, so a glow intensity above 1 was clipped to 1 right after
+     * the downsample and a strength above 1 drew no brighter. And its blur alone cannot reach past
+     * seven samples at its widest spacing, so every strength past that drew the same picture; the
+     * blurs after it widen the glow further, and smoothly.
+     */
+    protected override _createTextureAndPostProcesses(): void {
+        super._createTextureAndPostProcesses();
+        const [downsample, horizontal, vertical] = this._postProcesses;
+        horizontal.dispose();
+        vertical.dispose();
+        const x = new Vector2(1, 0);
+        const y = new Vector2(0, 1);
+        this._postProcesses = [
+            downsample,
+            this.blurPass(x, () => this.blurHorizontalSize),
+            this.blurPass(y, () => this.blurVerticalSize),
+            ...GLOW_REACH_MAX.flatMap((_, i) => [
+                this.blurPass(x, () => this.reach[i] ?? 0),
+                this.blurPass(y, () => this.reach[i] ?? 0),
+            ]),
+        ];
+    }
+
+    /**
+     * One blur step of the glow, into a half-float texture where the engine can render one.
+     * @param direction - The direction it blurs in.
+     * @param spacing - The spacing of its samples, in texels, read each time it draws.
+     * @returns The post-process.
+     */
+    private blurPass(direction: Vector2, spacing: () => number): PostProcess {
+        const engine = this._scene.getEngine();
+        const blur = new ThinGlowBlurPostProcess("NodeGlowBlur", engine, direction, 0);
+        const pass = new PostProcess("NodeGlowBlur", ThinGlowBlurPostProcess.FragmentUrl, {
+            uniforms: ThinGlowBlurPostProcess.Uniforms,
+            engine,
+            effectWrapper: blur,
+            textureType: engine.getCaps().textureHalfFloatRender
+                ? Constants.TEXTURETYPE_HALF_FLOAT
+                : Constants.TEXTURETYPE_UNSIGNED_BYTE,
+        });
+        pass.onApplyObservable.add(() => {
+            blur.textureWidth = pass.width;
+            blur.textureHeight = pass.height;
+            blur.kernel = spacing();
+        });
+        pass.autoClear = false;
+
+        return pass;
     }
 }
 
@@ -625,20 +701,34 @@ export class NodeEffects {
             return;
         }
 
+        // Up to the widest spread, one blur spaced by strength. Past it the first blur closes up
+        // and the blurs after it take the rest: blurs in a row spread as far as one blur whose
+        // spacing is the root of the sum of their squares. Past the widest spread the width grows
+        // with the root of the strength, so the glow's area grows as fast as its intensity does
+        // and a stronger glow is never fainter beside its node.
         const [low, high] = GLOW_SPREAD_LIMITS;
-        const spread = GLOW_SPREAD * Math.min(high, Math.max(low, max));
+        const past = max > high;
+        const wanted = GLOW_SPREAD * (past ? high * Math.sqrt(max / high) : Math.max(low, max));
+        const spread = past ? GLOW_SMOOTH_SPACING : wanted;
         if (glowLayer.blurHorizontalSize !== spread) {
             glowLayer.blurHorizontalSize = spread;
             glowLayer.blurVerticalSize = spread;
         }
 
+        let left = past ? wanted ** 2 - spread ** 2 : 0;
+        GLOW_REACH_MAX.forEach((widest, i) => {
+            const spacing = Math.min(widest, Math.sqrt(left));
+            glowLayer.reach[i] = spacing;
+            left = Math.max(0, left - spacing ** 2);
+        });
+
         // A GLOW'S INTENSITY IS ITS OWN STRENGTH, never divided by the strongest one on screen.
         // Divided, a lone glow was always drawn at 1, and as the spread is held at its widest
         // past 1.25 (see GLOW_SPREAD_LIMITS) every strength from 1.25 up drew the same picture.
-        // The glow map is half-float, so an intensity above 1 survives into the blur and a strong
-        // glow's faint edge becomes visible further out: it reaches further and is brighter.
-        // Drawing the glow map smaller to reach further was tried: a small node then fell between
-        // the map's texels and drew no glow at all.
+        // The glow map and its blurs are half-float, so an intensity above 1 survives into the
+        // blur, which the blurs after the first (reach) spread wider. Drawing the glow map
+        // smaller to reach further was tried: a small node then fell between the map's texels
+        // and drew no glow at all.
         for (const [mesh, { strength, alpha }] of strengths) {
             glowLayer.alphas.set(mesh.uniqueId, alpha * strength);
         }

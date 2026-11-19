@@ -5734,7 +5734,12 @@ const DRAWN_WHEN: ReadonlyMap<string, readonly ChannelCondition[]> = new Map<Cha
     ["edge.arrowTailImage", [{ channel: "edge.arrowTail", values: ["image"] }]],
     ["edge.arrowMiddleHeadImage", [{ channel: "edge.arrowMiddleHead", values: ["image"] }]],
     ["edge.arrowMiddleTailImage", [{ channel: "edge.arrowMiddleTail", values: ["image"] }]],
-    // A picture drawn at a size of its own (`node.imageFit` "none").
+    // An underlay's or overlay's corners are rounded only on a round-cornered shape of its own; unset, it follows the node.
+    ["node.underlayCornerRadius", [{ channel: "node.underlayShape", values: ROUND_CORNER_SHAPES }]],
+    ["node.overlayCornerRadius", [{ channel: "node.overlayShape", values: ROUND_CORNER_SHAPES }]],
+    // A picture drawn at a size of its own (`node.imageFit` "none"). `node.imageClip` has no entry: under
+    // every fit it decides whether the picture is cut to the node's outline (a "contain" picture's corners
+    // stick out past a sphere's), NodeDecorationMesh.buildImage.
     ["node.imageWidth", [IMAGE_AT_OWN_SIZE]],
     ["node.imageHeight", [IMAGE_AT_OWN_SIZE]],
     ["node.imagePixelSize", [IMAGE_AT_OWN_SIZE]],

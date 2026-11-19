@@ -1392,6 +1392,13 @@ describe("ChannelDescriptor.drawnWhen", () => {
         assert.deepStrictEqual(CHANNEL_DESCRIPTORS["edge.supportModel"].drawnWhen, [
             { channel: "edge.curvature", values: ["true"] },
         ]);
+        for (const kind of ["underlay", "overlay"] as const) {
+            const condition = CHANNEL_DESCRIPTORS[`node.${kind}CornerRadius`].drawnWhen?.[0];
+            assert.strictEqual(
+                condition !== undefined && "channel" in condition ? condition.channel : undefined,
+                `node.${kind}Shape`,
+            );
+        }
     });
 });
 

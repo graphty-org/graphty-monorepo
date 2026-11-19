@@ -2920,7 +2920,7 @@ export class Node implements ModelUser {
                 const all = [shape?.lines, ...lines].filter((l) => l !== undefined && l !== "").join("; ");
                 // ponytail: one width for every outline, the table's or the first cell's; per-cell widths when a file
                 // mixes them
-                const lineWidth = shape?.lineWidth ?? outline[0]?.border ?? drawn.frames[0]?.border;
+                const lineWidth = shape?.lineWidth ?? outline.at(0)?.border ?? drawn.frames.at(0)?.border;
                 style = { ...style, shape: { ...style.shape, lines: all, lineWidth } };
                 key = `${key}|table:${hashText(all)}`;
             }

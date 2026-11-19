@@ -171,22 +171,12 @@
       "count": 1
     }
   },
-  "src/workspace/export/CameraImageOutput.tsx": {
-    "jsx-a11y/prefer-tag-over-role": {
-      "count": 1
-    }
-  },
   "src/workspace/export/ImageOutput.tsx": {
     "jsx-a11y/prefer-tag-over-role": {
       "count": 1
     }
   },
   "src/workspace/export/VideoOutput.tsx": {
-    "jsx-a11y/prefer-tag-over-role": {
-      "count": 1
-    }
-  },
-  "src/workspace/export/TourVideoOutput.tsx": {
     "jsx-a11y/prefer-tag-over-role": {
       "count": 1
     }

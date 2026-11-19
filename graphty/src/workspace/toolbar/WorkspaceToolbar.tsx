@@ -237,25 +237,15 @@ function CameraRows(): React.JSX.Element | null {
 }
 
 /**
- * The Camera menu with the camera-views experiment on (design/ui/camera-views-tours-and-capture.md,
- * section 3.2): every camera, Fit and Frame selection, Zoom in and Zoom out in 2D, then the
- * Auto-rotate and Follow selection switches.
- * @param props - Component props
- * @param props.session - The element's session, or null
- * @returns The menu's rows
+ * The Camera menu's Auto-rotate and Follow selection switches.
+ * @returns The rows
  */
-function CameraViewsMenuRows({ session }: Readonly<{ session: GraphSession | null }>): React.JSX.Element {
-    const flat = session?.layout.dimension === "2d";
+function CameraSwitchRows(): React.JSX.Element {
     const autoRotate = useWorkspaceState((state) => state.autoRotate);
     const followSelection = useWorkspaceState((state) => state.followSelection);
     const { element } = useWorkspace();
     return (
         <>
-            {session === null ? null : <CameraRows />}
-            <Sections
-                sections={[["view.fit", "view.frame-selection", ...(flat ? ["view.zoom-in", "view.zoom-out"] : [])]]}
-            />
-            <Menu.Divider />
             <CheckItem
                 command="view.auto-rotate"
                 label="Auto-rotate"
@@ -269,6 +259,28 @@ function CameraViewsMenuRows({ session }: Readonly<{ session: GraphSession | nul
                 checked={followSelection}
                 radio={false}
             />
+        </>
+    );
+}
+
+/**
+ * The Camera menu with the camera-views experiment on (design/ui/camera-views-tours-and-capture.md,
+ * section 3.2): every camera, Fit and Frame selection, Zoom in and Zoom out in 2D, then the
+ * Auto-rotate and Follow selection switches.
+ * @param props - Component props
+ * @param props.session - The element's session, or null
+ * @returns The menu's rows
+ */
+function CameraViewsMenuRows({ session }: Readonly<{ session: GraphSession | null }>): React.JSX.Element {
+    const flat = session?.layout.dimension === "2d";
+    return (
+        <>
+            {session === null ? null : <CameraRows />}
+            <Sections
+                sections={[["view.fit", "view.frame-selection", ...(flat ? ["view.zoom-in", "view.zoom-out"] : [])]]}
+            />
+            <Menu.Divider />
+            <CameraSwitchRows />
         </>
     );
 }
@@ -328,9 +340,6 @@ function SavedViewRows({ session }: Readonly<{ session: GraphSession }>): React.
  */
 function CameraMenuRows({ session }: Readonly<{ session: GraphSession | null }>): React.JSX.Element {
     const flat = session?.layout.dimension === "2d";
-    const autoRotate = useWorkspaceState((state) => state.autoRotate);
-    const followSelection = useWorkspaceState((state) => state.followSelection);
-    const { element } = useWorkspace();
     const recording = useWorkspaceState((state) => state.recording);
     const record = useCommand("view.record-video");
     return (
@@ -345,19 +354,7 @@ function CameraMenuRows({ session }: Readonly<{ session: GraphSession | null }>)
             {session === null ? null : <SavedViewRows session={session} />}
             <Sections sections={[["view.save"], ...(flat ? [["view.zoom-in", "view.zoom-out"]] : [])]} />
             <Menu.Divider />
-            <CheckItem
-                command="view.auto-rotate"
-                label="Auto-rotate"
-                checked={autoRotate && element?.isMotionReduced() !== true}
-                shortcut="9"
-                radio={false}
-            />
-            <CheckItem
-                command="view.follow-selection"
-                label="Follow selection"
-                checked={followSelection}
-                radio={false}
-            />
+            <CameraSwitchRows />
             <Menu.Divider />
             <Sections sections={[["view.export-image"]]} />
             {record === null ? null : (

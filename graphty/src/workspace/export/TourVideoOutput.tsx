@@ -1,13 +1,15 @@
-import { ModalFooter, SegmentedControl } from "@graphty/compact-mantine";
+import { SegmentedControl } from "@graphty/compact-mantine";
 import type { AnimationProgressEvent, CaptureEstimate, TourPlan } from "@graphty/graphty-element";
 import { isGraphtyError } from "@graphty/graphty-element/session";
-import { Alert, Button, Input, Progress, Select, Text, Tooltip } from "@mantine/core";
+import { Alert, Input, Progress, Select, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useId, useRef, useState } from "react";
 
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { useViewsChanged } from "../toolbar/useViewsChanged";
 import { lengthWords, tourProblemWords } from "../toolbar/viewWords";
 import { failureWords, fileName, framesWords, tourAnimationOptions, type TourVideoChoices } from "./choices";
+import { recorded } from "./outputHooks";
+import { FrameRateField, LengthField, RecordFooter } from "./outputParts";
 import { type ViewChoice, viewChoice } from "./viewChoice";
 import { ViewSelect } from "./ViewSelect";
 
@@ -213,17 +215,13 @@ function CameraFields({ target, choices, recording, set }: CameraFieldsProps): R
                         set({ view });
                     }}
                 />
-                <Input.Wrapper size="xs" label="Length">
-                    <SegmentedControl
-                        fullWidth
-                        value={String(choices.seconds)}
-                        disabled={recording}
-                        data={["3", "5", "10"].map((value) => ({ value, label: `${value} s` }))}
-                        onChange={(value) => {
-                            set({ seconds: Number(value) });
-                        }}
-                    />
-                </Input.Wrapper>
+                <LengthField
+                    seconds={choices.seconds}
+                    disabled={recording}
+                    onChange={(seconds) => {
+                        set({ seconds });
+                    }}
+                />
             </>
         );
     }
@@ -313,9 +311,7 @@ export function TourVideoOutput({
         const name = fileName(project, camera === "tour" && tour !== null ? tour : views.chosen.label, "webm");
         try {
             const result = await element.captureAnimation(tourAnimationOptions(asked, name));
-            const file = name.replace(/\.webm$/, `.${result.metadata.format}`);
-            const dropped = result.metadata.framesDropped;
-            onDone(dropped > 0 ? `Exported ${file}, ${String(dropped)} frames dropped` : `Exported ${file}`, file);
+            recorded(name, result.metadata, onDone);
         } catch (error) {
             setFailure(isGraphtyError(error) && error.code === "E_CANCELLED" ? null : failureWords(error));
         } finally {
@@ -344,45 +340,28 @@ export function TourVideoOutput({
                         />
                     </Input.Wrapper>
                     <CameraFields target={target} choices={choices} recording={recording} set={set} />
-                    <Input.Wrapper size="xs" label="Frame rate">
-                        <SegmentedControl
-                            fullWidth
-                            value={String(choices.fps)}
-                            disabled={recording}
-                            data={[
-                                { value: "30", label: "30 fps" },
-                                { value: "60", label: "60 fps" },
-                            ]}
-                            onChange={(value) => {
-                                set({ fps: value === "60" ? 60 : 30 });
-                            }}
-                        />
-                    </Input.Wrapper>
+                    <FrameRateField
+                        fps={choices.fps}
+                        disabled={recording}
+                        onChange={(fps) => {
+                            set({ fps });
+                        }}
+                    />
                     <FramesRow estimate={estimate} />
                 </div>
                 {recording ? <RecordingBar tour={camera === "tour" ? tour : null} /> : null}
                 {failure === null ? null : <Alert color="red" role="alert" title={failure} />}
             </section>
-            <ModalFooter className="ws-export-footer">
-                <Text size="sm" c="dimmed" className="ws-export-note" />
-                {recording ? (
-                    <Button
-                        variant="default"
-                        onClick={() => {
-                            element?.cancelAnimationCapture();
-                        }}
-                    >
-                        Stop
-                    </Button>
-                ) : (
-                    <Button variant="default" onClick={onCancel}>
-                        Cancel
-                    </Button>
-                )}
-                <Button disabled={recording || element === null || reason !== null} onClick={() => void record()}>
-                    Record
-                </Button>
-            </ModalFooter>
+            <RecordFooter
+                recording={recording}
+                note={null}
+                disabled={recording || element === null || reason !== null}
+                onStop={() => {
+                    element?.cancelAnimationCapture();
+                }}
+                onCancel={onCancel}
+                onRecord={() => void record()}
+            />
         </>
     );
 }

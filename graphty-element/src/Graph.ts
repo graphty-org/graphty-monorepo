@@ -118,6 +118,7 @@ import type {
 } from "./catalog/types";
 import {
     AdHocData,
+    type ColorScheme,
     defaultXRConfig,
     FetchEdgesFn,
     FetchNodesFn,
@@ -6474,6 +6475,53 @@ export class Graph implements GraphContext {
         this.layoutManager.reducedMotion = reduced;
         this.updateManager.reducedMotion = reduced;
     }
+
+    /**
+     * Which background color the canvas is cleared to; see {@link setColorScheme}.
+     * @returns The setting: "light", "dark" or "auto".
+     */
+    getColorScheme(): ColorScheme {
+        return this.#colorScheme;
+    }
+
+    /**
+     * Clear the canvas to the background's `color` (`"light"`, the default) or its `darkColor`
+     * (`"dark"`); `"auto"` follows the page's `prefers-color-scheme` as it changes. Repaints at
+     * once, with nothing reloaded. A preference of the view, not saved in a project file.
+     * @param scheme - "light", "dark" or "auto".
+     * @throws TypeError when the scheme is none of the three; nothing is changed then.
+     * @since 3.58.0
+     */
+    setColorScheme(scheme: ColorScheme): void {
+        if (scheme !== "light" && scheme !== "dark" && scheme !== "auto") {
+            throw new TypeError(`colorScheme must be "light", "dark" or "auto", not ${JSON.stringify(scheme)}`);
+        }
+
+        this.#colorScheme = scheme;
+        this.#schemeQuery?.abort();
+        this.#schemeQuery = null;
+        const query =
+            scheme === "auto" && typeof globalThis.matchMedia === "function"
+                ? matchMedia("(prefers-color-scheme: dark)")
+                : null;
+        const apply = (): void => {
+            this.renderManager.darkScheme = scheme === "dark" || (query?.matches ?? false);
+        };
+        if (query !== null) {
+            this.#schemeQuery = new AbortController();
+            query.addEventListener("change", apply, {
+                signal: AbortSignal.any([this.#schemeQuery.signal, this.#teardown.signal]),
+            });
+        }
+
+        apply();
+    }
+
+    /** See {@link setColorScheme}. */
+    #colorScheme: ColorScheme = "light";
+
+    /** Ends the platform-preference listener `"auto"` adds. */
+    #schemeQuery: AbortController | null = null;
 
     /**
      * Where the active map layout read its locations, and how it lays the map, as plain facts:

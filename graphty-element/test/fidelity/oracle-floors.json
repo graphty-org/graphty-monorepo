@@ -11947,7 +11947,7 @@
             "label.anchor": 1,
             "label.outline": 1,
             "label.background": 1,
-            "label.backgroundBox": 0.938,
+            "label.backgroundBox": 1,
             "label.backgroundBorder": 1,
             "stray.present": 0,
             "frame.mirror": 1,
@@ -11989,7 +11989,7 @@
             "label.anchor": 1,
             "label.outline": 1,
             "label.background": 1,
-            "label.backgroundBox": 0.938,
+            "label.backgroundBox": 1,
             "label.backgroundBorder": 1,
             "stray.present": 0,
             "frame.mirror": 1,
@@ -13779,7 +13779,7 @@
             "background": 1,
             "raster.arrowhead": 0.95,
             "raster.canvas": 0.99,
-            "raster.edge": 0.88,
+            "raster.edge": 0.9,
             "raster.label": 0.94,
             "raster.nodeBody": 0.98,
             "raster.nodeOutline": 0.94,
@@ -14288,7 +14288,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.9,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -14348,7 +14348,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.9,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -17306,11 +17306,11 @@
             "edge.dashPeriod": 1,
             "edge.gradient": 0.99,
             "edge.arrow": 1,
-            "edge.arrowShape": 0.951,
+            "edge.arrowShape": 1,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
             "edge.arrowFill": 1,
-            "edge.arrowColor": 0.99,
+            "edge.arrowColor": 1,
             "edge.arrowLength": 1,
             "edge.arrowWidth": 0.99,
             "edge.arrowToSpacing": 1,
@@ -17336,7 +17336,7 @@
             "raster.edge": 0.91,
             "raster.arrowhead": 0.9,
             "raster.label": 0.97,
-            "raster.canvas": 0.98
+            "raster.canvas": 0.99
         },
         "dot-synth-edges-clusters@matched": {
             "node.present": 1,
@@ -17382,11 +17382,11 @@
             "edge.dashPeriod": 1,
             "edge.gradient": 0.99,
             "edge.arrow": 1,
-            "edge.arrowShape": 0.951,
+            "edge.arrowShape": 1,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
             "edge.arrowFill": 1,
-            "edge.arrowColor": 0.99,
+            "edge.arrowColor": 1,
             "edge.arrowLength": 1,
             "edge.arrowWidth": 0.99,
             "edge.arrowToSpacing": 1,
@@ -29064,7 +29064,7 @@
             "background": 1,
             "raster.nodeBody": 0.98,
             "raster.nodeOutline": 0.96,
-            "raster.edge": 0.92,
+            "raster.edge": 0.93,
             "raster.arrowhead": 0.94,
             "raster.label": 0.94,
             "raster.canvas": 0.99
@@ -29805,7 +29805,7 @@
             "node.stroke": 1,
             "label.present": 1,
             "edge.present": 1,
-            "edge.extra": 0.999,
+            "edge.extra": 1,
             "edge.route": 1,
             "edge.curve": 1,
             "edge.color": 1,
@@ -29847,7 +29847,7 @@
             "node.stroke": 1,
             "label.present": 1,
             "edge.present": 1,
-            "edge.extra": 0.999,
+            "edge.extra": 1,
             "edge.route": 1,
             "edge.curve": 1,
             "edge.color": 1,
@@ -39283,11 +39283,11 @@
             "label.opacity": 1,
             "label.family": 1,
             "label.lines": 1,
-            "label.alongLine": 0.976,
+            "label.alongLine": 1,
             "label.offLine": 1,
             "label.outline": 1,
             "label.background": 1,
-            "label.backgroundBox": 0.5,
+            "label.backgroundBox": 1,
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
@@ -39345,11 +39345,11 @@
             "label.opacity": 1,
             "label.family": 1,
             "label.lines": 1,
-            "label.alongLine": 0.976,
+            "label.alongLine": 1,
             "label.offLine": 1,
             "label.outline": 1,
             "label.background": 1,
-            "label.backgroundBox": 0.5,
+            "label.backgroundBox": 1,
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
@@ -39395,7 +39395,7 @@
             "label.present": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.976,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.wiggle": 1,
             "edge.color": 1,
@@ -39420,7 +39420,7 @@
             "raster.nodeBody": 0.96,
             "raster.nodeOutline": 0.95,
             "raster.edge": 0.92,
-            "raster.arrowhead": 0.95,
+            "raster.arrowhead": 0.96,
             "raster.canvas": 0.99,
             "edge.outline": 1
         },
@@ -39442,7 +39442,7 @@
             "label.present": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.976,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.wiggle": 1,
             "edge.color": 1,
@@ -40331,7 +40331,7 @@
             "label.present": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.964,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.wiggle": 1,
             "edge.color": 0.964,
@@ -40376,7 +40376,7 @@
             "label.present": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.952,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.wiggle": 1,
             "edge.color": 0.952,
@@ -40421,7 +40421,7 @@
             "label.present": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.952,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.wiggle": 1,
             "edge.color": 0.952,
@@ -40461,7 +40461,7 @@
             "label.present": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.964,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.wiggle": 1,
             "edge.color": 0.964,
@@ -56265,54 +56265,6 @@
                 "date": "2026-11-01"
             }
         },
-        "dot-real-depcruise": {
-            "group.stroke": {
-                "floor": 1,
-                "to": 0.895,
-                "reason": "drawing, issue #5756: a rounded group's fill is the shared group mesh stretched over its box (Node.drawAsGroup), so its corners stretch into long ellipses, while its border is rebuilt at the box's own size (NodeMesh.createGroupBorder) with small round corners; the drawn-border reader (#5364) measures the ring against the stretched fill's sides and reads it wider (cluster_rounded 1.73 px against 1.10 px drawn; cluster_src and cluster_src/formats 0.65 px against 0.216 px, so outlined where Graphviz's 0.237 px line counts as none). Fix: draw a group's fill at its box's size, as its border is",
-                "date": "2026-11-04"
-            }
-        },
-        "dot-real-depcruise@matched": {
-            "group.stroke": {
-                "floor": 1,
-                "to": 0.895,
-                "reason": "drawing, issue #5756: a rounded group's fill is the shared group mesh stretched over its box (Node.drawAsGroup), so its corners stretch into long ellipses, while its border is rebuilt at the box's own size (NodeMesh.createGroupBorder) with small round corners; the drawn-border reader (#5364) measures the ring against the stretched fill's sides and reads it wider (cluster_rounded 1.73 px against 1.10 px drawn; cluster_src and cluster_src/formats 0.65 px against 0.216 px, so outlined where Graphviz's 0.237 px line counts as none). Fix: draw a group's fill at its box's size, as its border is",
-                "date": "2026-11-04"
-            }
-        },
-        "dot-specimen-edges-lines": {
-            "edge.dash": {
-                "floor": 1,
-                "to": 0.946,
-                "reason": "Graphviz tapered edges (style=tapered, one filled polygon, lib/common/taper.c) are now read by the comparator as the edge's line; graphty draws them as plain solid lines (no reader feeds edge.taper), so their dash differs",
-                "date": "2026-11-09"
-            }
-        },
-        "dot-specimen-edges-lines@matched": {
-            "edge.dash": {
-                "floor": 1,
-                "to": 0.946,
-                "reason": "Graphviz tapered edges (style=tapered, one filled polygon, lib/common/taper.c) are now read by the comparator as the edge's line; graphty draws them as plain solid lines (no reader feeds edge.taper), so their dash differs",
-                "date": "2026-11-09"
-            }
-        },
-        "dot-synth-edges-clusters": {
-            "group.strokeWidth": {
-                "floor": 1,
-                "to": 0.9,
-                "reason": "drawing, issue #5756: a rounded group's fill is the shared group mesh stretched over its box (Node.drawAsGroup), so its corners stretch into long ellipses, while its border is rebuilt at the box's own size (NodeMesh.createGroupBorder) with small round corners; the drawn-border reader (#5364) measures the ring against the stretched fill's sides and reads it wider (cluster_rounded 1.73 px against 1.10 px drawn; cluster_src and cluster_src/formats 0.65 px against 0.216 px, so outlined where Graphviz's 0.237 px line counts as none). Fix: draw a group's fill at its box's size, as its border is",
-                "date": "2026-11-04"
-            }
-        },
-        "dot-synth-edges-clusters@matched": {
-            "group.strokeWidth": {
-                "floor": 1,
-                "to": 0.9,
-                "reason": "drawing, issue #5756: a rounded group's fill is the shared group mesh stretched over its box (Node.drawAsGroup), so its corners stretch into long ellipses, while its border is rebuilt at the box's own size (NodeMesh.createGroupBorder) with small round corners; the drawn-border reader (#5364) measures the ring against the stretched fill's sides and reads it wider (cluster_rounded 1.73 px against 1.10 px drawn; cluster_src and cluster_src/formats 0.65 px against 0.216 px, so outlined where Graphviz's 0.237 px line counts as none). Fix: draw a group's fill at its box's size, as its border is",
-                "date": "2026-11-04"
-            }
-        },
         "dot-synth-nodes": {
             "node.position": {
                 "floor": 1,
@@ -56515,6 +56467,12 @@
                 "to": 0.97,
                 "reason": "comparator (#8189): yEd's head on 19->30 is now read along its own axis where the line stops on its notch, so it reads as yEd's vee; graphty's line hooks 7 px down and right past the head (its edge.route failure), which turns graphty's head off its line and misreads its length and width",
                 "date": "2026-11-17"
+            },
+            "label.alongLine": {
+                "floor": 0.5,
+                "to": 0.375,
+                "reason": "drawing (#8190): yEd edge labels now get yEd's box (2 px padding, line height 1), which drops the words of e2 (a side_slider label) 1.6 px on its diagonal line; its place along the line was already at the edge of tolerance (yEd 0.228, graphty 0.389), as for the other side_slider labels here that yEd slides toward their source",
+                "date": "2026-11-19"
             }
         },
         "gml-synthetic-coverage@matched": {
@@ -56535,6 +56493,12 @@
                 "to": 0.97,
                 "reason": "comparator (#8189): yEd's head on 19->30 is now read along its own axis where the line stops on its notch, so it reads as yEd's vee; graphty's line hooks 7 px down and right past the head (its edge.route failure), which turns graphty's head off its line and misreads its length and width",
                 "date": "2026-11-17"
+            },
+            "label.alongLine": {
+                "floor": 0.5,
+                "to": 0.375,
+                "reason": "drawing (#8190): yEd edge labels now get yEd's box (2 px padding, line height 1), which drops the words of e2 (a side_slider label) 1.6 px on its diagonal line; its place along the line was already at the edge of tolerance (yEd 0.228, graphty 0.389), as for the other side_slider labels here that yEd slides toward their source",
+                "date": "2026-11-19"
             }
         },
         "graphml-yfiles-html-ss13-tree": {

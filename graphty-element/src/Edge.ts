@@ -352,13 +352,23 @@ function alongUsesOf(
 }
 
 /**
- * The taper a style asks for: the width at the target over the width at the source.
+ * The taper a style asks for at one end: the width there over the line's width.
  * @param style - The resolved style.
+ * @param end - `taper` for the target, `taperSource` for the source.
  * @returns The taper, 1 for none.
  */
-function taperOf(style: EdgeStyleConfig | null): number {
-    const taper = style?.line?.taper;
+function taperOf(style: EdgeStyleConfig | null, end: "taper" | "taperSource" = "taper"): number {
+    const taper = style?.line?.[end];
     return typeof taper === "number" && Number.isFinite(taper) ? Math.min(Math.max(taper, 0), 4) : 1;
+}
+
+/**
+ * Whether a style narrows its line at both ends, so it is widest at its middle.
+ * @param style - The resolved style.
+ * @returns True when both tapers are below 1.
+ */
+function tapersBothEnds(style: EdgeStyleConfig | null): boolean {
+    return taperOf(style) < 1 && taperOf(style, "taperSource") < 1;
 }
 
 /**
@@ -383,7 +393,7 @@ function flavorOf(style: EdgeStyleConfig | null): string {
  * @returns True for a taper or a fade.
  */
 function widensLine(style: EdgeStyleConfig | null): boolean {
-    return taperOf(style) !== 1 || EdgeMesh.fadeOf(style) !== undefined;
+    return taperOf(style) !== 1 || taperOf(style, "taperSource") !== 1 || EdgeMesh.fadeOf(style) !== undefined;
 }
 
 /**
@@ -1701,14 +1711,21 @@ export class Edge {
         const batch = lays ? this.lineBatch : null;
         const stored = this.lineRoute;
         const bent = lays && stored !== null && this.placeBent(batch, src, dst, stored);
-        // a patterned line (no batch) follows the route as its elements (issue #3102)
+        // a patterned line (no batch) follows the route as its elements (issue #3102); a self-loop's laid bends lie
+        // round its node (Graphviz's splines=ortho rectangle), cut where they cross its outline
         const followsLayout =
             !bent &&
             lays &&
             stored === null &&
             laid !== undefined &&
-            !this.isLoop &&
-            this.placeBent(batch, src, dst, Edge.laidRoute(laid ?? [], laidEnds));
+            this.placeBent(
+                batch,
+                src,
+                dst,
+                this.isLoop
+                    ? { bends: [...laid], srcPort: null, dstPort: null, loop: true }
+                    : Edge.laidRoute(laid, laidEnds),
+            );
         const route = !bent && !followsLayout && lays ? this.bundleRoute(src, dst) : null;
         this.bundled = followsLayout || (route !== null && this.placeRoute(batch, src, dst, route));
         if (!bent && !this.bundled) {
@@ -2498,6 +2515,7 @@ export class Edge {
             seed: edgeSeedOf(this.id),
             bits,
             taper: taperOf(style),
+            taperSource: taperOf(style, "taperSource"),
             times: [entered, EDGE_NEVER, this.changedStamp],
         };
     }
@@ -3931,8 +3949,15 @@ export class Edge {
             this.placeGradient(curve);
         } else if (this.lineBatch) {
             // One straight piece: a run left from a lift, a fan or a loop is handed back to one slot.
+            // A line tapered at both ends is two, so its middle can be its widest.
             const straight = [srcPoint.x, srcPoint.y, srcPoint.z, dstPoint.x, dstPoint.y, dstPoint.z];
-            if (this.lineSlots.length > 1) {
+            if (tapersBothEnds(this.drawnStyle)) {
+                const middle = Vector3.Center(srcPoint, dstPoint);
+                const halves = [...straight.slice(0, 3), middle.x, middle.y, middle.z, ...straight.slice(3)];
+                this.placeRun(this.lineBatch, this.lineSlots, halves, (slot) => {
+                    this.prepareLineSlot(slot);
+                });
+            } else if (this.lineSlots.length > 1) {
                 this.placeRun(this.lineBatch, this.lineSlots, straight);
             } else {
                 this.lineBatch.place(this.lineSlots[0], srcPoint, dstPoint);

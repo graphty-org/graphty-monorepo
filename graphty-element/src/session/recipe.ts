@@ -32,6 +32,7 @@ import type { GraphSession, JoinChoices, JoinShape, LoadedSourceKind } from "./t
 export interface RecipeSource {
     /** Its key, as `data.sources()` lists it. */
     readonly key: SourceKey;
+    /** How it was loaded, as `data.sources()` gives it. */
     readonly kind: LoadedSourceKind;
     /** The format that read it. */
     readonly format?: FormatId;
@@ -47,27 +48,39 @@ export interface RecipeSource {
 
 /** One column, as a recipe lists it: its name, roles, type and what was said about it. */
 export interface RecipeColumn {
+    /** Whether it is a node column or an edge column. */
     readonly kind: "node" | "edge";
+    /** The column's name. */
     readonly name: string;
+    /** The column's value type. */
     readonly type: AttributeType;
+    /** The roles it plays (an id, a label, ...); absent when it has none. */
     readonly roles?: readonly AttributeRole[];
     /** What it measures, when someone declared it. */
     readonly measurement?: Measurement;
+    /** Present when the column was hidden. */
     readonly hidden?: true;
 }
 
 /** One join, as a recipe lists it: its keys and choices, not its rows. */
 export interface RecipeJoin {
+    /** The source that was joined. */
     readonly source: SourceKey;
+    /** The load it was joined onto, or null when the graph had none. */
     readonly onto: SourceKey | null;
+    /** How its rows were matched. */
     readonly shape: JoinShape;
+    /** The choices the join was made with. */
     readonly choices: JoinChoices;
 }
 
 /** An ignored data issue, by what it is about. */
 export interface RecipeIgnoredIssue {
+    /** The issue's code. */
     readonly code: IssueCode;
+    /** The column it is about, when it is about one. */
     readonly column?: ColumnRef;
+    /** The source it is about, when it is about one. */
     readonly source?: SourceKey;
 }
 
@@ -80,7 +93,9 @@ export type RecipeLeftOutCode = "names-elements";
 
 /** The recipe: `session.recipe()`. Plain, frozen data; `JSON.stringify` writes it whole. */
 export interface RecipeDocument {
+    /** Marks the document as a recipe. */
     readonly kind: "graphty-recipe";
+    /** The recipe format's version. */
     readonly version: 1;
     /** What was loaded, oldest first. */
     readonly sources: readonly RecipeSource[];
@@ -95,7 +110,9 @@ export interface RecipeDocument {
      * steps are their keep and exclude half).
      */
     readonly filter: {
+        /** The visibility filter, or null when none is set. */
         readonly rule: RuleTree | null;
+        /** The filter's steps. */
         readonly steps: readonly FilterStep[];
         /**
          * The filter conditions. Experimental: may change or be removed in a minor release.

@@ -2293,6 +2293,12 @@
             "reason": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.8819, 2026-10-20)",
             "date": "2026-11-13"
         },
+        "json-cyjs-perf/edgeOpacity": {
+            "floor": 1,
+            "to": 0.999,
+            "reason": "measured against the sample's reference scene, Cytoscape.js's computed style, which keeps a haystack loop's opacity (e1165 at 0.333) although Cytoscape.js draws that loop inside its node with no length (findHaystackPoints); graphty is asked to draw it at opacity 0, and the oracle report (oracle-report.test.ts, against the program's drawing) judges this edge (edge.extra 1) (#8910)",
+            "date": "2026-11-18"
+        },
         "json-cyjs-synth-nodes/borderStyle": {
             "floor": 1,
             "to": 0.8571428571428571,

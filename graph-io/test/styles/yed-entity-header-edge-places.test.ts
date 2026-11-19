@@ -130,12 +130,25 @@ describe("a yEd GraphML edge label", () => {
         expect(at).toEqual(["center", -10, -15.5]);
     });
 
-    it("is at the stored box for a smart label off the line's middle, and on the middle for one on it", async () => {
+    it("puts a smart label centered on its line at its ratio, whatever box the file stores", async () => {
+        // yed-graphml-specimen-edge-labels model-smart-ratio-0-2: the ratio slides the box's middle from its half width
+        // plus 5 past the line's start to as far short of its end; the line here is 60 long, the label 20 wide
         const smart = (ratio: string): string =>
             `<y:ModelParameter><y:SmartEdgeLabelModelParameter position="center" ratio="${ratio}"/></y:ModelParameter>`;
         const label = 'modelName="custom" x="-10" y="0"';
-        expect(await placeOf("graphml", edge(STRAIGHT, label, smart("0.0")))).toEqual(["center", -30, 8.5]);
+        expect(await placeOf("graphml", edge(STRAIGHT, label, smart("0.0")))).toEqual(["center", -15, null]);
         expect(await placeOf("graphml", edge(STRAIGHT, label, smart("0.5")))).toEqual(["center", null, null]);
+        expect(await placeOf("graphml", edge(STRAIGHT, label, smart("0.2")))).toEqual(["center", -9, null]);
+    });
+
+    it("keeps the stored box for a smart label off its line", async () => {
+        const off =
+            '<y:ModelParameter><y:SmartEdgeLabelModelParameter position="right" ratio="0.0"/></y:ModelParameter>';
+        expect(await placeOf("graphml", edge(STRAIGHT, 'modelName="custom" x="-10" y="0"', off))).toEqual([
+            "center",
+            -30,
+            8.5,
+        ]);
     });
 
     it("sits below the line's middle for a smart label with no parameter, flipped on a leftward edge", async () => {

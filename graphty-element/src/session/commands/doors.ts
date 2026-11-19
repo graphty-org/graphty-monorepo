@@ -2834,6 +2834,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             pick: SOURCE_STEPS_WRITE,
             use: SOURCE_STEPS_WRITE,
             removeStep: SOURCE_STEPS_WRITE,
+            setStepOff: SOURCE_STEPS_WRITE,
             add: SOURCE_STEPS_WRITE,
             lineage: READ,
             values: READ,
@@ -4491,7 +4492,7 @@ export const GESTURE_DOORS: Readonly<Record<string, string>> = {
     "data.steps-set":
         "Every data door that changes the graph (import, generate, loadDataset, loadExample, importColumns, a " +
         "draft's load and join, editJoin, addNodes and the other direct edits, stage, declareType, removeEdit, merge, " +
-        "connect, extract, moveColumns, a renameColumn naming a source, pick, use, removeStep, add, removeSource, " +
+        "connect, extract, moveColumns, a renameColumn naming a source, pick, use, removeStep, setStepOff, add, removeSource, " +
         "replaceSource, reloadSource, a network refresh, settleEdit, resolveStep) while the " +
         "source-steps " +
         "experiment is on; the door rows here run with it off. Checked by test/session/source-steps/*.test.ts.",

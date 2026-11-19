@@ -93,6 +93,7 @@ function actSource(act: StepsAct): string | null {
         case "rename":
             return act.rename.source;
         case "remove-step":
+        case "set-step-off":
             return null;
         default:
             return act.source;
@@ -108,6 +109,7 @@ const ACT_LABELS: Readonly<Record<StepsAct["act"], string>> = {
     rename: "Renamed a column",
     pick: "Picked a value",
     "remove-step": "Deleted a step",
+    "set-step-off": "Turned a step off or on",
     "add-staged": "Added a staged source",
 };
 
@@ -445,6 +447,7 @@ const dataStepsSet: UndoableDefinition<DataStepsSetCommand> = {
         "rename",
         "pick",
         "remove-step",
+        "set-step-off",
         "add-staged",
         "replace-copy",
         "settle-edit",

@@ -1660,6 +1660,23 @@ export interface SessionDataApi {
      */
     removeStep(index: number): Promise<void>;
     /**
+     * Turn one step off or back on, as one undoable step. An off step is kept, listed (`off` on its
+     * `steps()` row) and saved, but builds nothing; turning it on builds it again, and a source
+     * whose only steps were off is then listed as built. A staged joined table reopens from a saved
+     * project as its join's steps, off: turning them on commits the join.
+     *
+     * ```ts
+     * const at = session.data.steps().findIndex((s) => s.off);
+     * await session.data.setStepOff(at, false); // build it
+     * ```
+     * @param index - The step's place, as `steps()` lists it.
+     * @param off - True to turn it off, false to turn it on.
+     * @returns Settles once the graph is rebuilt.
+     * @throws A `GraphtyError` with `E_BAD_COMMAND` when no step is at `index`.
+     * @experimental source-steps
+     */
+    setStepOff(index: number, off: boolean): Promise<void>;
+    /**
      * Add a staged source to the graph with its own `join.add`, as one undoable step. Keys that meet
      * nodes another source built in its space are reported on its `data.sources()` entry
      * (`W_SPACE_OVERLAP`) and kept in its own space unless `overlap` is `"merge"`.

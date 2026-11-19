@@ -14,6 +14,7 @@ export default {
         "SessionDataApi.pick",
         "SessionDataApi.use",
         "SessionDataApi.removeStep",
+        "SessionDataApi.setStepOff",
         "SessionDataApi.add",
         "SessionDataApi.settleEdit",
         "SessionDataApi.resolveStep",

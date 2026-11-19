@@ -84,6 +84,8 @@ export type StepsAct =
           readonly source: string;
       }
     | { readonly act: "remove-step"; readonly index: number }
+    /** Turn one step off (kept and listed, not built) or back on (7.13). */
+    | { readonly act: "set-step-off"; readonly index: number; readonly off: boolean }
     | { readonly act: "add-staged"; readonly source: string; readonly overlap?: "separate" | "merge" };
 
 /**
@@ -522,6 +524,27 @@ function removeStep(value: SourceSteps, index: number): SourceSteps {
 }
 
 /**
+ * Turn one step off or back on (7.13): an off step is kept, listed and saved but not built; on, it
+ * builds again, and a source whose only steps were off is built with it.
+ * @param value - The value.
+ * @param index - The step's place.
+ * @param off - True to turn it off.
+ * @returns The next value; the same value when the step is already so.
+ */
+function setStepOff(value: SourceSteps, index: number, off: boolean): SourceSteps {
+    const step = value.steps[index] as Step | undefined;
+    if (step === undefined) {
+        throw refused("E_BAD_COMMAND", `No step at ${String(index)}.`, { reason: "no-step", index });
+    }
+    if ((step.off === true) === off) {
+        return value;
+    }
+    const { off: _off, ...on } = step;
+    const next: Step = off ? { ...step, off: true } : on;
+    return { ...value, steps: value.steps.map((s, i) => (i === index ? next : s)) };
+}
+
+/**
  * A pick or Use (3.10): a reader edit taking one source's value for a cell.
  * @param value - The value.
  * @param copies - The rows as read.
@@ -581,6 +604,8 @@ export function applyAct(value: SourceSteps, act: StepsAct, copies: Copies): Sou
             }
             return addSource(value, src, copies, act.overlap);
         }
+        case "set-step-off":
+            return setStepOff(value, act.index, act.off);
         default:
             return removeStep(value, act.index);
     }

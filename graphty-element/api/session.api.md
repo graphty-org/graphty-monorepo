@@ -6500,6 +6500,7 @@ export interface SessionDataApi {
     runPendingSourceLoad(id: string, options?: SourceLoadOptions): Promise<void>;
     setHidden(columns: readonly ColumnRef[], hidden: boolean): Promise<void>;
     setRole(column: ColumnRef, role: ColumnRole | null, options?: SourceRoleOptions): Promise<void>;
+    setStepOff(index: number, off: boolean): Promise<void>;
     settleEdit(id: string, choice: SourceEditChoice): Promise<void>;
     setType(column: ColumnRef, type: ValueType): Promise<void>;
     setValueLabel(path: Path, value: string | number | boolean, label: string | null): Promise<void>;

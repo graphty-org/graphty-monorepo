@@ -348,6 +348,37 @@ describe("source-steps: save and reopen", () => {
         q.dispose();
     });
 
+    it("7.13: a staged joined table reopened as an off step builds as the committed join once turned on", async () => {
+        const session = createGraphSession({ features: ["source-steps"] });
+        await session.data.import({ type: "csv", config: { data: "source,target\na,b\na,c\n" }, name: "one.csv" });
+        const draft = await session.data.prepare(
+            { type: "csv", config: { data: "id,score\na,1\nb,2\n" }, name: "values.csv" },
+            { onto: "graph" },
+        );
+        try {
+            await draft.load({ join: { keys: [{ file: "id", graph: "id" }] } });
+        } finally {
+            draft.dispose();
+        }
+        const joined = session.data.joins()[0]?.source ?? "";
+        const committed = graphOf(session);
+        await session.data.removeStep(session.data.steps().findIndex((s) => s.source === joined));
+        const staged = graphOf(session);
+        const { q } = await reopen(session);
+        const state = (): string | undefined => q.data.sources().find((s) => s.key === joined)?.state;
+        assert.strictEqual(state(), "off");
+        const at = q.data.steps().findIndex((s) => s.source === joined);
+        await q.data.setStepOff(at, false);
+        assert.strictEqual(state(), "built");
+        assert.strictEqual(graphOf(q), committed, "the same graph as the join committed before the save");
+        await q.data.setStepOff(at, true);
+        assert.strictEqual(graphOf(q), staged, "off again, it builds nothing");
+        assert.strictEqual(state(), "off");
+        await q.undo();
+        assert.strictEqual(graphOf(q), committed, "undo turns it back on");
+        q.dispose();
+    });
+
     it("save, reopen, save is a fixed point", async () => {
         const { session, t } = await full();
         await session.data.addNodes([{ id: "X-1", score: 1 }]);

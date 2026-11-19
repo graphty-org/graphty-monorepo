@@ -128,6 +128,21 @@ describe("source-steps: counted work of the diff apply", () => {
         );
     });
 
+    it("turning a step off and back on retains bytes in step with the rows it builds", async () => {
+        await assertScalesLinearly(
+            async (size) => {
+                const session = await loaded(size);
+                await session.data.setStepOff(0, true);
+                let bytes = stepBytes(session);
+                await session.data.setStepOff(0, false);
+                bytes += stepBytes(session);
+                session.dispose();
+                return bytes;
+            },
+            { sizes: [500, 2_000], counter: "bytes the two steps retain" },
+        );
+    });
+
     it("settling an edit after a one-cell refresh retains the same bytes however large the graph", async () => {
         await assertScalesLinearly(
             async (size) => {

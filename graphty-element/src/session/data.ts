@@ -3675,6 +3675,16 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
+     * Turn one step off or back on, as one undoable step (7.13).
+     * @param index - The step's place, as `steps()` lists it.
+     * @param off - True to turn it off, false to turn it on.
+     * @returns Settles once the graph is rebuilt.
+     */
+    async setStepOff(index: number, off: boolean): Promise<void> {
+        await this.stepsAct("setStepOff", { act: "set-step-off", index, off });
+    }
+
+    /**
      * Where one node or edge came from.
      * @param ref - The element.
      * @returns Its lineage, or null.

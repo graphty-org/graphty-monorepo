@@ -163,9 +163,13 @@ ones in force. The rules that are easy to get wrong:
   not the project's); `startingRows` and `editableBase` (they act when a project is created, and
   the rows they write are saved as plain style rows); `name` (the wrapper's `name`). No `data.*`
   config key is written to the settings section. Each has its data-section home: `directed`, a
-  mapping role, `repeatedEdges`, or the key rule (data-store-options.md 4.3). A key with no home
-  (`idCoercion` other than canonical, `positionScale`, the time end, spells and parse-zone paths)
-  is refused on save and reported, by the refusal rule (Saving).
+  mapping role, `repeatedEdges`, or the key rule (data-store-options.md 4.3). The weight, time and
+  location settings are views of each source's roles: the writer writes each as the role of every
+  source whose rows carry its column, and the reader sets it from the built sources' roles when
+  they agree, else null (`W_ROLES_DIFFER { table, role, sources }` when they differ, each source's
+  role written back as read while the setting stays null). A key with no home (`idCoercion` other
+  than canonical, `positionScale`, a whole-location column read as `auto`) is refused on save and
+  reported, by the refusal rule (Saving).
 - **Column settings.** Renames belong to each source's `mapping`, so a refresh applies them again.
   Type conversions are the data section's `conversions`. Hidden columns are a table-view choice and
   go in view.
@@ -462,10 +466,12 @@ header:
       renames. A column's source name appears only in `mapping.<table>.renamed` and in its
       `ColumnDecl.origin.title`.
     - `mapping` is, per table, graphty-element's `TableMapping` names, one value per table:
-      `nodes: { key, space, weight, weightMeaning, time, timeUnit, latitude, longitude, coordinates,
-country, region, city, renamed }` (the location roles are graphty-element's `LocationKind`
-      names, one column each) and `edges: { edgeId, source, sourceSpace, target, targetSpace,
-weight, weightMeaning, time, timeUnit, renamed }`. With `key` absent, every node row is
+      `nodes: { key, space, weight, weightMeaning, time, timeUnit, timeEnd, timeSpells,
+timeParseZone, latitude, longitude, coordinates, country, region, city, renamed }` (the location
+      roles are graphty-element's `LocationKind` names, one column each) and `edges: { edgeId,
+source, sourceSpace, target, targetSpace, weight, weightMeaning, time, timeUnit, timeEnd,
+timeSpells, timeParseZone, renamed }`. `timeEnd` and `timeSpells` are columns; `timeParseZone`
+      is an IANA zone name, the zone time text without an offset reads in (absent, UTC). With `key` absent, every node row is
       keyless, always in the space `source:<source id>`, and `nodes.space` is written exactly when
       `nodes.key` is; `sourceSpace` and `targetSpace` are always written. Nothing is read from a
       column the mapping does not name. A `label` role is saved as the version 1 migration saves it,
@@ -495,7 +501,9 @@ weight, weightMeaning, time, timeUnit, renamed }`. With `key` absent, every node
       says;
     - `{ "op": "add", "node": { "space", "key" } | "edge": { "load": "reader", "key" }, "from",
 "to", "columns" }`: its key a minted ULID, since the reader copy id changes on every edit;
-    - `{ "op": "edit", "node" | "edge", "column", "value", "was" }`.
+    - `{ "op": "edit", "node" | "edge", "column", "value", "was", "picked" }`: `picked`, written
+      only for a pick or Use, is the source whose value it took; a typed value has none, and a
+      pick of a source later removed stays as the reader's own value, without `picked`.
 
     An operation naming an absent element applies to nothing and is reported. Operations are written
     as recorded. An edit to a column a type rule, or a key, end or edge-id role, reads is refused and
@@ -626,8 +634,15 @@ recipe.md's `commands` (`graph.filter`, `algo.run` with `params`, `layout.set` w
   connect's "a node per row" form, and the choice `keys` onto a graph column have no version 2
   spelling: saving one refuses that part and reports it. graphty-element today builds only
   `join.add` (with its own `duplicateIds`); a file holding any other step that is not off, or a
-  `join.add` with `columns`, opens with its data section held and is written back as read. A
-  clashing column kept twice is named `<column> (<source id>)`. A reader merge stays in the data
+  `join.add` with `columns`, opens with its data section held and is written back as read. Every
+  step may carry `clash`: one rule, or rules keyed by working column name with `"*"` for the rest,
+  each `keep` (the default, absent too), `overwrite`, `both`, `min`, `max`, `mean` or `vote`; the
+  computing rules read every supplying source's own value of the cell, and a cell a number rule
+  cannot read keeps the held value (`W_CLASH_RULE_TYPE { step, column, rule, cells }`). Under
+  `both` the incoming value is kept in the clash column `<column> (<source id>)`, which exists
+  whenever the held cell is filled. graphty-element's own joins take the same rules and the same
+  `keep` default (`JoinChoices.clash`; a number rule named for a column of other values is refused
+  with `E_CLASH_RULE_TYPE`). A reader merge stays in the data
   section's reader source;
 - `set.define`, for rule sets whose rule names no element, carrying the set's bare `id`, `name`,
   rule and edge reading;

@@ -324,10 +324,15 @@ A source record has exactly these fields: `id`, `label`, `kind`, `format`, `opti
 
 #### 4.1.3 The mapping
 
-`nodes` holds `key`, `space`, `weight`, `weightMeaning`, `time`, `timeUnit`, `latitude`,
-`longitude`, `coordinates`, `country`, `region`, `city` and `renamed`; `edges` holds `edgeId`,
-`source`, `sourceSpace`, `target`, `targetSpace`, `weight`, `weightMeaning`, `time`, `timeUnit` and
-`renamed`. Each role is a working column name; `renamed` maps source column name to working name.
+`nodes` holds `key`, `space`, `weight`, `weightMeaning`, `time`, `timeUnit`, `timeEnd`,
+`timeSpells`, `timeParseZone`, `latitude`, `longitude`, `coordinates`, `country`, `region`, `city`
+and `renamed`; `edges` holds `edgeId`, `source`, `sourceSpace`, `target`, `targetSpace`, `weight`,
+`weightMeaning`, `time`, `timeUnit`, `timeEnd`, `timeSpells`, `timeParseZone` and `renamed`. Each
+role is a working column name; `renamed` maps source column name to working name. `weightMeaning`
+(`distance`, `strength`, `capacity`), `timeUnit` (`ms`, `s`, `year`, `ordinal`) and
+`timeParseZone` (an IANA zone name, the zone a time column's text reads in when it carries no
+offset; absent, UTC) are values, not columns. `timeEnd` names the column saying where each row's
+time ends and `timeSpells` the column holding its list of spells.
 
 1. An absent role means none, never graphty-element's guess. Nothing is read from a column the
    mapping does not name.
@@ -345,6 +350,18 @@ A source record has exactly these fields: `id`, `label`, `kind`, `format`, `opti
 6. A column a load made from the file's styles is named `<name> (<format>)` when another load took
    `<name>` first, which a read into an empty graph does not repeat. Read again, such a column
    takes the name `columns` saved it under.
+7. **Roles belong to sources.** Weight, time and location are each source's own roles, read from
+   that source's rows in its own unit; graphty-element's graph-wide `data.knownFields` settings
+   (`edgeWeightPath`, `edgeWeightMeaning`, the node and edge time path, unit, end, spells and parse
+   zone, and the location paths) are only their view, and no section saves them. A writer writes
+   each setting as the role of every source whose table carries the column it names (a value
+   role beside its column role); a whole-location column read without a kind of place has no
+   role and is reported (`W_MEMBER_LEFT_OUT`). A reader sets each setting from the roles of the
+   sources a step builds: the value when every source naming the role agrees, else null. When
+   they differ the reader reports `W_ROLES_DIFFER` (params `{ table, role, sources }`), and a
+   writer that kept them writes each source's role back as read while the setting stays null.
+   Conformance case: two sources, one timed by `when` and one by `at`; open, save, and each still
+   names its own column.
 
 #### 4.1.4 The reader source
 
@@ -359,10 +376,13 @@ conversions:
 | `merge`  | `into`, `from`: node references                                                                                   | merges `from` into `into`; `into` is kept, with its key                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `remove` | `node` or `edge`: a reference                                                                                     | drops the element; a node takes its edges with it, whatever `unmatched` says                                                                                                                                                                                                                                                                                                                                                                              |
 | `add`    | `node: { space, key }`, or `edge: { "load": "reader", key }` with `from` and `to`; `columns`; `dtypes` (REQUIRED) | adds an element; a node's `key` is its id as the reader gave it (a JSON string, its typed value in `columns.id`), or a ULID when another reader node's id has the same text (6.1), an edge's its edge-id cell when the data has an edge-id role and no other reader edge repeats it, else a ULID minted when it is made and kept from then on; `dtypes` gives each column's graph-format dtype, and cells are written and read as a copy's (4.1.2 rule 3) |
-| `edit`   | `node` or `edge`: a reference; `column`; `value`; `was`                                                           | sets one cell; `was` is the value it replaced                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `edit`   | `node` or `edge`: a reference; `column`; `value`; `was`; `picked`                                                 | sets one cell; `was` is the value it replaced; `picked`, the source whose value a pick or Use took (a typed value has none)                                                                                                                                                                                                                                                                                                                               |
 
 An operation naming an absent element applies to nothing and is reported. Operations are written
-as recorded. An edit to a column a type rule, or a key, end or edge-id role, reads MUST be refused
+as recorded. `picked` names a source of the section; a pick of a source that is later removed
+stays as the reader's own value, written without `picked`. A reader applies a pick like any edit;
+a refresh that changes the picked source's value for that cell reports it rather than applying the
+old value silently. An edit to a column a type rule, or a key, end or edge-id role, reads MUST be refused
 and never saved. A fix is saved as what it did: `edit` operations or a `conversions` entry.
 
 #### 4.1.5 Types
@@ -484,14 +504,38 @@ then row order.
 10. **Refused.** A step that makes elements from no row (a link step, `join.link`), connect's "a
     node per row" form, and the choice `keys` onto a graph column have no version 2 spelling:
     saving one refuses that part and reports it, and a reader meeting one holds the section.
-11. A clashing column kept twice is named `<column> (<source id>)`: when a step's source gives a
-    node a value for a column the node already holds from an earlier source, and the two differ,
-    the later value is kept under that name. When that name is taken too (one source giving two
-    values of one name), ` 2`, ` 3`, ... is appended until it is free (`<column> (<source id>) 2`).
+11. **Clashes (`clash`).** When a step's source gives an element a value for a column (by working
+    name) that an earlier source already filled, the step's `clash` decides what shows. `clash` is
+    one rule for every column the step writes, or an object of rules keyed by working column name
+    with `"*"` for the rest (`{ "*": "keep", "amount": "max" }`); absent, and for a column an
+    object neither names nor covers with `"*"`, the rule is `keep`. An empty held cell is filled
+    and is no clash; equal values are no clash.
+
+    | Rule        | Shows                                                                       |
+    | ----------- | --------------------------------------------------------------------------- |
+    | `keep`      | the held value: the first source's in step order                            |
+    | `overwrite` | the incoming value                                                          |
+    | `both`      | the held value, and the incoming one in its clash column (below)            |
+    | `min`/`max` | the smallest or largest of the sources' values (numbers, or ISO 8601 dates) |
+    | `mean`      | the mean of the sources' values (numbers)                                   |
+    | `vote`      | the value most sources hold; a tie keeps the held value                     |
+
+    `min`, `max`, `mean` and `vote` read every supplying source's own value of the cell up to and
+    including the step, so the result never depends on which two met first. A cell a number rule
+    cannot read (a value that is not a number, or not a date for `min` and `max`) keeps the held
+    value, and the reader reports `W_CLASH_RULE_TYPE` (params `{ step, column, rule, cells }`,
+    `step` the step's index in `joins`). A rule a reader does not know holds the section. Every
+    source's own value stays in its copy whatever shows.
+
+    The clash column of `both` is named `<column> (<source id>)`, and exists whenever the held cell
+    is filled, even when the values are equal, so a refresh never deletes a column a saved layer
+    reads. When that name is taken too (one source giving two values of one name), ` 2`, ` 3`, ...
+    is appended until it is free (`<column> (<source id>) 2`).
     The names `id` (and on edges `source` and `target`) are held by an element record's own
     fields, so a column added to a copy beside the source's own columns that would take one of
     them is named `<column> (<source id>)` instead; a source's own key and end columns keep their
     names.
+
 12. The recipe's join steps (4.3) share this spelling. Opening a file rebuilds the data from its
     own history; the recipe's steps apply to new data only when the caller asks.
 
@@ -1167,6 +1211,8 @@ application words them.
 | `W_KEY_EMPTY`                 | rows whose key or end cell is null or empty were left out                    | `source`, `column`, `rows`                |
 | `W_EDGE_END_MISSING`          | edges naming missing nodes were left out                                     | `source`, `count`                         |
 | `W_COLUMN_WIDENED`            | two types declare one column with different dtypes                           | `column`                                  |
+| `W_ROLES_DIFFER`              | built sources name a weight, time or location role differently               | `table`, `role`, `sources`                |
+| `W_CLASH_RULE_TYPE`           | a number clash rule met a cell it cannot read; the held value stays          | `step`, `column`, `rule`, `cells`         |
 
 ## 14. Files in this directory
 

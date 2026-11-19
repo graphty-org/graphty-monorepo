@@ -260,7 +260,12 @@
                                                             "minLength": 1
                                                         },
                                                         "value": true,
-                                                        "was": true
+                                                        "was": true,
+                                                        "picked": {
+                                                            "type": "string",
+                                                            "pattern": "^src_[0-9A-HJKMNP-TV-Z]{26}$",
+                                                            "description": "The source whose value a pick or Use took; absent for a typed value."
+                                                        }
                                                     },
                                                     "required": ["op", "column", "value", "was"],
                                                     "oneOf": [
@@ -416,6 +421,21 @@
                                             "type": "string",
                                             "minLength": 1
                                         },
+                                        "timeEnd": {
+                                            "type": "string",
+                                            "minLength": 1,
+                                            "description": "The column saying where each row's time ends."
+                                        },
+                                        "timeSpells": {
+                                            "type": "string",
+                                            "minLength": 1,
+                                            "description": "The column holding each row's list of time spells."
+                                        },
+                                        "timeParseZone": {
+                                            "type": "string",
+                                            "minLength": 1,
+                                            "description": "The IANA zone the time column's text reads in when it carries no offset; absent, UTC."
+                                        },
                                         "latitude": {
                                             "type": "string",
                                             "minLength": 1
@@ -492,6 +512,21 @@
                                         "timeUnit": {
                                             "type": "string",
                                             "minLength": 1
+                                        },
+                                        "timeEnd": {
+                                            "type": "string",
+                                            "minLength": 1,
+                                            "description": "The column saying where each row's time ends."
+                                        },
+                                        "timeSpells": {
+                                            "type": "string",
+                                            "minLength": 1,
+                                            "description": "The column holding each row's list of time spells."
+                                        },
+                                        "timeParseZone": {
+                                            "type": "string",
+                                            "minLength": 1,
+                                            "description": "The IANA zone the time column's text reads in when it carries no offset; absent, UTC."
                                         },
                                         "renamed": {
                                             "type": "object",

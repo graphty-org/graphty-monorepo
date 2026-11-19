@@ -2498,6 +2498,76 @@ const STUB_TOUCH = 3;
 const END_TIE = 2;
 
 /**
+ * Re-pairs the lines read by geometry for the best total, not the first come: each line takes the pair of nodes
+ * its ends land on in drawing order, and a pair graphty draws once is gone once taken, so an end tied between two
+ * nodes can take the one a later line needs, leaving that line the far one (cys-annotation-example: a line from 169397
+ * whose end is as near 169396 as 169391 took 169396 first, and the line ending on 169396 alone got 169391). Two lines
+ * that share a node swap their other ends where each then lands on its nearest node (or one tied with it) and the
+ * two ends lie nearer in all. An end its own arrowhead caps keeps its node: the head, not the line, decided it.
+ * @param pieces - every line read by geometry, in drawing order
+ * @param edges - the edges found so far; only the geometric ones between two nodes are re-paired
+ * @param ownCaps - the arrowheads drawn with each line, by the end they cap
+ * @param near - the nodes a point lands on, with how far, nearest first
+ * @returns whether any line changed its ends (their `#g` ids then need numbering again)
+ */
+function pairBestTotal(
+    pieces: readonly PEdge[],
+    edges: readonly PEdge[],
+    ownCaps: ReadonlyMap<Prim, { e: PEdge; end: "source" | "target" }>,
+    near: (q: Pt) => { n: PNode; d: number }[],
+): boolean {
+    const listed = new Set(edges);
+    const capped = new Set([...ownCaps.values()].map(({ e, end }) => `${e.id}\u0000${end}`));
+    const lines = pieces.filter((e) => listed.has(e) && e.id.includes("#g") && e.source !== e.target);
+    type End = "source" | "target";
+    const landing = new Map<string, { n: PNode; d: number }[]>();
+    const at = (e: PEdge, end: End): { n: PNode; d: number }[] => {
+        const k = `${e.id}\u0000${end}`;
+        let list = landing.get(k);
+        if (list === undefined) {
+            list = near(end === "source" ? e.points[0] : (e.points.at(-1) ?? e.points[0]));
+            landing.set(k, list);
+        }
+        return list;
+    };
+    const gap = (e: PEdge, end: End, id: string): number =>
+        at(e, end).find((x) => x.n.id === id)?.d ?? Number.POSITIVE_INFINITY;
+    const nearest = (e: PEdge, end: End, id: string): boolean =>
+        gap(e, end, id) <= (at(e, end)[0]?.d ?? Number.POSITIVE_INFINITY) + END_TIE;
+    let changed = false;
+    for (const a of lines) {
+        for (const ea of ["source", "target"] as const) {
+            const shared = ea === "source" ? a.target : a.source;
+            const y = a[ea];
+            if (capped.has(`${a.id}\u0000${ea}`) || nearest(a, ea, y)) {
+                continue;
+            }
+            // another line from the shared node whose free end lands where this one's should, and that can take y
+            for (const b of lines) {
+                if (b === a || (b.source !== shared && b.target !== shared)) {
+                    continue;
+                }
+                const eb: End = b.source === shared ? "target" : "source";
+                if (capped.has(`${b.id}\u0000${eb}`)) {
+                    continue;
+                }
+                const z = b[eb];
+                if (z === y || z === shared || !nearest(a, ea, z) || !nearest(b, eb, y)) {
+                    continue;
+                }
+                if (gap(a, ea, z) + gap(b, eb, y) < gap(a, ea, y) + gap(b, eb, z) - END_TIE) {
+                    a[ea] = z;
+                    b[eb] = y;
+                    changed = true;
+                    break;
+                }
+            }
+        }
+    }
+    return changed;
+}
+
+/**
  * Whether a line came to its end through a node: a point back along it, half the node's size or the line's length
  * from the end, is inside the node's box, and the end is not at its middle (a program that runs its lines to the
  * centers ends them there).
@@ -3899,6 +3969,17 @@ export function associate(
             }
         } else if (box === undefined && a === b) {
             strokes.set(p, edge);
+        }
+    }
+    if (pairBestTotal(withPieces, edges, ownCaps, (q) => nodesOn(q))) {
+        geoEdges.clear();
+        for (const e of withPieces) {
+            if (!e.id.includes("#g-outline")) {
+                const key = `${e.source}->${e.target}`;
+                const k = geoEdges.get(key) ?? 0;
+                geoEdges.set(key, k + 1);
+                e.id = `${key}#g${String(k)}`;
+            }
         }
     }
     // A self-loop a program draws as a whole circle on its node's outline (vis-network's selfReference) is a closed

@@ -92,6 +92,7 @@ export interface GraphtyElementJSXProps {
     "auto-rotate"?: string;
     "autosave-restore"?: string;
     "camera-transition-duration"?: string;
+    "color-scheme"?: string;
     "data-source"?: string;
     "data-source-config"?: string;
     "edge-data"?: string;
@@ -276,6 +277,7 @@ export interface GraphtyElementJSXProps {
     autosaveRestore?: Graphty["autosaveRestore"];
     background?: Graphty["background"];
     cameraTransitionDuration?: Graphty["cameraTransitionDuration"];
+    colorScheme?: Graphty["colorScheme"];
     dataSource?: Graphty["dataSource"];
     dataSourceConfig?: Graphty["dataSourceConfig"];
     directed?: Graphty["directed"];

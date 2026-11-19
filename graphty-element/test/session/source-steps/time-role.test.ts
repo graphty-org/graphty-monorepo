@@ -68,7 +68,10 @@ describe("source-steps: time roles", () => {
         const session = createGraphSession({ features: ["source-steps"] });
         await load(session, T, "t.csv", "when");
         await load(session, U.replace("at", "when"), "u.csv", "when", "merge");
-        const details = await refused(() => session.time.setField({ edges: { start: "when" } }), "E_ROLE_TARGET_AMBIGUOUS");
+        const details = await refused(
+            () => session.time.setField({ edges: { start: "when" } }),
+            "E_ROLE_TARGET_AMBIGUOUS",
+        );
         assert.sameMembers(
             details.sources as string[],
             session.data.sources().map((s) => s.key),

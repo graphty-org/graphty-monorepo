@@ -1008,8 +1008,9 @@ function drawnAsSecond(first: unknown, label: unknown): boolean {
         stored &&
         treeChild(model, "ColumnNodeLabelModel") === undefined &&
         treeChild(model, "RowNodeLabelModel") === undefined &&
-        treeAttr(label, "hasBackgroundColor") === "false" &&
-        treeAttr(label, "hasLineColor") === "false" &&
+        // as readLabelLook draws a box: a color, not switched off
+        (treeAttr(label, "hasBackgroundColor") === "false" || treeAttr(label, "backgroundColor") === undefined) &&
+        (treeAttr(label, "hasLineColor") === "false" || treeAttr(label, "lineColor") === undefined) &&
         SECOND_LABEL_SHARED.every((k) => treeAttr(first, k) === treeAttr(label, k))
     );
 }

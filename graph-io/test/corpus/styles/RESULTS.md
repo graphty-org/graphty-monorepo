@@ -225,7 +225,7 @@ Tool values are elements drawn with the writing program's default.
 | graphml/SleepyTrousers_EnderIO-1.5-1.12__TileEntities.graphml | ok | 70 | 72 | 6 | 7 | 164 | 84% | 2% | 0 | 789 | 0 |  |
 | graphml/StateSmith_StateSmith__Spec1Sm.graphml | ok | 14 | 7 | 2 | 3 | 49 | 100% | 0% | 0 | 121 | 0 | W_STYLE_NO_FILL |
 | graphml/a-little-srdjan_grapher__bleve.graphml.gz | ok | 39 | 120 | 3 | 3 | 229 | 100% | 0% | 0 | 636 | 0 |  |
-| graphml/architolk_mimtools__fbm-mim2.graphml.gz | ok | 73 | 38 | 6 | 6 | 150 | 63% | 14% | 0 | 733 | 0 |  |
+| graphml/architolk_mimtools__fbm-mim2.graphml.gz | ok | 73 | 38 | 6 | 6 | 150 | 63% | 14% | 0 | 733 | 0 | W_STYLE_EXTRA_LABELS |
 | graphml/color-key/iVis-at-Bilkent__chilay__circle.graphml | ok | 64 | 64 | - | - | 0 | - | - | 0 | 0 | 0 |  |
 | graphml/cytoscape/Multiomics-Analytics-Group__MicW2Graph__Wastewater_assembly_nosinglt_cclasso_10.graphml | ok | 4 | 6 | 2 | 1 | 0 | - | - | 0 | 204 | 0 |  |
 | graphml/cytoscape/Thakar-Lab__WikiNetworks__WP3935_cytoscape.graphml | ok | 24 | 14 | 2 | 1 | 0 | - | - | 0 | 784 | 0 |  |
@@ -238,7 +238,7 @@ Tool values are elements drawn with the writing program's default.
 | graphml/fidelity/open-archaeo.graphml | ok | 61 | 54 | 6 | 5 | 148 | 61% | 9% | 0 | 675 | 0 | W_STYLE_NO_FILL |
 | graphml/fidelity/scala-collection-mutable.graphml | ok | 42 | 42 | 4 | 6 | 69 | 46% | 0% | 0 | 479 | 0 | W_STYLE_NO_FILL |
 | graphml/fidelity/synthetic-edges.graphml | ok | 40 | 109 | 3 | 2 | 354 | 100% | 0% | 0 | 893 | 0 | W_STYLE_UNKNOWN_VALUE |
-| graphml/fidelity/synthetic-nodes.graphml | ok | 74 | 24 | 2 | 3 | 363 | 100% | 0% | 0 | 481 | 0 | W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
+| graphml/fidelity/synthetic-nodes.graphml | ok | 74 | 24 | 2 | 3 | 363 | 100% | 0% | 0 | 481 | 0 | W_STYLE_EXTRA_LABELS, W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
 | graphml/generated/fill-oddities.graphml | ok | 15 | 3 | 4 | 2 | 18 | 100% | 11% | 0 | 165 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NO_FILL |
 | graphml/generated/graphty-written.graphml | ok | 50 | 50 | 4 | 3 | 326 | 87% | 0% | 0 | 400 | 0 |  |
 | graphml/generated/labels-multi.graphml | ok | 6 | 0 | 3 | 1 | 0 | - | - | 0 | 49 | 0 | W_STYLE_ALPHA_DROPPED, W_STYLE_EXTRA_LABELS |
@@ -256,7 +256,7 @@ Tool values are elements drawn with the writing program's default.
 | graphml/gephi-rgb/nielmclaren__constellation.js__data.graphml | ok | 47 | 57 | 8 | 4 | 102 | 0% | 0% | 0 | 775 | 0 |  |
 | graphml/inbloom_secure-data-service__index.graphml | ok | 100 | 51 | 4 | 5 | 560 | 39% | 0% | 0 | 820 | 0 | W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
 | graphml/java-graphml-lib/ZUGFeRD__mustangproject__mustangArchitecture.graphml | ok | 10 | 4 | 6 | 2 | 20 | 75% | 20% | 0 | 78 | 0 |  |
-| graphml/java-graphml-lib/boschglobal__dse.clib__arch__fmi_library.graphml | ok | 33 | 5 | 8 | 3 | 55 | 84% | 24% | 0 | 197 | 0 | W_STYLE_NO_FILL |
+| graphml/java-graphml-lib/boschglobal__dse.clib__arch__fmi_library.graphml | ok | 33 | 5 | 8 | 3 | 55 | 84% | 24% | 0 | 197 | 0 | W_STYLE_EXTRA_LABELS, W_STYLE_NO_FILL |
 | graphml/java-graphml-lib/domondi1__KEVGraph__guin-D__Library-Management-System.graphml | ok | 16 | 15 | - | - | 0 | - | - | 0 | 0 | 0 |  |
 | graphml/yed-genericnode/Accenture__reactive-interaction-gateway__overview.graphml | ok | 13 | 4 | 5 | 3 | 29 | 79% | 0% | 0 | 115 | 0 |  |
 | graphml/yed-genericnode/CERT-Polska__ursadb__dataset.graphml | ok | 11 | 0 | 4 | 1 | 18 | 44% | 0% | 0 | 44 | 0 |  |

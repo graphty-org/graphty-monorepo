@@ -3576,7 +3576,10 @@ export class Graphty extends LitElement {
      * Off (the default), the graph is drawn on every animation frame, still or not. On, it stops
      * drawing once the layout has settled, the styles are painted and the camera is at rest, and
      * draws again as soon as anything changes the picture: data, styles, the layout, the camera,
-     * the selection, an animation, or the reader's pointer, wheel or keys on the canvas. A still
+     * the selection, an animation, or the reader's pointer, wheel or keys on the canvas. While a
+     * layout runs on the GPU it also skips the frames between two landings of the layout's
+     * batches, which would show the same positions again, so the layout has more of the GPU and
+     * reaches its result sooner. A still
      * graph then costs the page nothing per frame -- on a software GPU (a virtual machine, a CI
      * runner, a headless browser) that is tens to hundreds of milliseconds of every frame, and
      * the page's own controls answer that much faster.

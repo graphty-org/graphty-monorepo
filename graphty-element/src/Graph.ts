@@ -1079,6 +1079,13 @@ export class Graph implements GraphContext {
         this.updateManager.frameIsStable &&
         !(this.updateManager.autoTurning && this.renderManager.canvasInView) &&
         (this.xrSessionManager?.getActiveMode() ?? null) === null;
+    /**
+     * Whether a tick drawing on demand may skip its frame because the running layout landed nothing
+     * new since the last one, and no headset is showing the picture. See `RenderManager.mayRest`.
+     * @returns True when only a layout landing would change the picture.
+     */
+    private readonly awaitsLanding = (): boolean =>
+        this.updateManager.awaitsLanding && (this.xrSessionManager?.getActiveMode() ?? null) === null;
     /** How many `batchOperations` callbacks are open. */
     private openBatches = 0;
     private readonly selectionManager: SelectionManager;
@@ -1232,6 +1239,7 @@ export class Graph implements GraphContext {
         this.renderManager = new RenderManager(this.canvas, this.eventManager, {
             pixelRatio: this.#pixelRatio,
             pictureIsFinal: this.pictureIsFinal,
+            awaitsLanding: this.awaitsLanding,
             drawsOnDemand: this.drawsOnDemand,
             flushesFrameFence: this.#batchedFrames,
             pacesWebGpuFrames: this.#batchedFrames,
@@ -2574,6 +2582,7 @@ export class Graph implements GraphContext {
             engine: opened,
             pixelRatio: this.#pixelRatio,
             pictureIsFinal: this.pictureIsFinal,
+            awaitsLanding: this.awaitsLanding,
             drawsOnDemand: this.drawsOnDemand,
             flushesFrameFence: this.#batchedFrames,
             pacesWebGpuFrames: this.#batchedFrames,

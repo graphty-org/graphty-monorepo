@@ -158,6 +158,26 @@ describe("the layout filling the row table from a separate device", () => {
         });
     });
 
+    it("draws every landing of a running layout on demand (issue #8801)", async () => {
+        const graph = await running("batched", undefined, "webgl");
+        graph.setLayoutBehavior({ rendering: { onDemand: true } });
+        const engine = layoutOf(graph);
+        const drawn: number[] = [];
+        const watch = graph.scene.onAfterRenderObservable.add(() => {
+            drawn.push(engine.landedBatchesPublished);
+        });
+        for (let i = 0; i < 5; i++) {
+            await landed(graph);
+        }
+        // the newest landing reaches the screen
+        while (drawn.at(-1) !== engine.landedBatchesPublished) {
+            await nextFrame();
+        }
+        graph.scene.onAfterRenderObservable.remove(watch);
+
+        assert.isAtLeast(new Set(drawn).size, 5, "every landing was drawn");
+    });
+
     it("publishes every landing on the CPU under renderPath objects", async () => {
         const graph = await running("objects", undefined, "webgl");
         const lane = graph.getDataManager()[WRITABLE_LANE];

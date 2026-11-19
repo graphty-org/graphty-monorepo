@@ -251,6 +251,27 @@ export class PendingWork {
     }
 
     /**
+     * Whether everything that holds the frame and is still pending is of one of these kinds.
+     * @param kinds - The kinds of work allowed to be pending.
+     * @returns True when no open token or pending watch of another kind holds the frame.
+     */
+    pendingOnly(kinds: ReadonlySet<string>): boolean {
+        for (const item of this.#open.values()) {
+            if (item.scope === "picture" && !kinds.has(item.kind)) {
+                return false;
+            }
+        }
+
+        for (const entry of this.#watches) {
+            if (entry.scope === "picture" && !kinds.has(entry.kind) && entry.pending()) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
      * Whether nothing that holds the frame is pending.
      * @returns True when no such token is open and no such watch says work is on its way.
      */

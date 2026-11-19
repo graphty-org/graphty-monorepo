@@ -657,6 +657,7 @@ export class LabelDeclutter {
      */
     place(camera: Camera): void {
         this.placeNodes(camera);
+        this.followOwnLabels();
         this.placeEdges(this.context.getStyles().config.behavior.labels.declutter);
     }
 
@@ -1201,14 +1202,33 @@ export class LabelDeclutter {
         }
     }
 
+    /**
+     * A node's further labels (`node.labels`) are drawn exactly when its own label is: the pass
+     * thins and shows them with it. A node with no own label keeps every further label.
+     */
+    private followOwnLabels(): void {
+        for (const { node } of this.entries.values()) {
+            const own = node.label?.labelMesh;
+            const shown = !own || own.isDisposed() || own.isVisible;
+            for (const extra of node.extraLabels.values()) {
+                const mesh = extra.labelMesh;
+                if (mesh && !mesh.isDisposed()) {
+                    mesh.isVisible = shown;
+                }
+            }
+        }
+    }
+
     /** The setting was turned off: every label is drawn again. */
     private showAll(): void {
         this.wasOn = false;
         this.dirty = true;
         for (const entry of this.entries.values()) {
-            const mesh = entry.node.label?.labelMesh;
-            if (mesh && !mesh.isDisposed()) {
-                mesh.isVisible = true;
+            for (const label of [entry.node.label, ...entry.node.extraLabels.values()]) {
+                const mesh = label?.labelMesh;
+                if (mesh && !mesh.isDisposed()) {
+                    mesh.isVisible = true;
+                }
             }
         }
 

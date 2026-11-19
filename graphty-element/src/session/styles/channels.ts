@@ -2552,7 +2552,7 @@ export const LABEL_CAP = 8;
 const LABEL_LIST_THINNING = {
     node:
         "Label sampling (`labels.sampleCell`) holds them back with the node's label; label decluttering " +
-        "(`labels.declutter`) thins only the node's own label, never its further labels.",
+        "(`labels.declutter`) shows or hides them with it.",
     edge: "Label decluttering (`labels.declutter`) thins them with the edge's other texts.",
 } as const;
 
@@ -2574,7 +2574,7 @@ function labelListChannel(target: "node" | "edge"): ChannelDescriptor {
         caveat:
             `Several labels on one ${target}, each { id, text?, style?, off? }. Entries merge by id across ` +
             `layers, field by field; \`${target}.labelStyle\` and the label field channels are the base style ` +
-            `of every entry. The entry with id "label" is \`${target}.label\`'s own label. ` +
+            `of every entry. The entry with id "label" is \`${target}.label\`'s own label; an entry with no text draws its words. ` +
             `A field of one label varies by data through the encode key "${target}.labels.<id>.<field>". ` +
             `At most ${String(LABEL_CAP)} further labels are drawn per element. ${LABEL_LIST_THINNING[target]}`,
     };

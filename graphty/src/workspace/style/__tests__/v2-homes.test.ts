@@ -60,9 +60,9 @@ describe("Style panel v2's home table", () => {
         });
 
         it(`${side}: every channel the element offers has a place in the panel`, () => {
-            // Channels with no place yet. This list may only shrink: the label lists get their rows
-            // with the panel's several-labels work, which empties it.
-            const knownGaps = new Set<Channel>(["node.labels", "edge.labels"]);
+            // Channels with no place yet, exactly: a channel that gains a place must leave this
+            // list. The label lists get their rows with the panel's several-labels work.
+            const knownGaps: Channel[] = [`${side}.labels`];
             const placed = new Set<Channel>([
                 ...Object.values(RUBRICS[side]).flatMap((rubric) => rubricChannels(rubric)),
                 ...SECTIONS[side].flatMap((section) => section.groups.flat().flatMap((thing) => thing.main)),
@@ -72,9 +72,8 @@ describe("Style panel v2's home table", () => {
             const unplaced = channelsFor(side)
                 .filter(({ renderable }) => renderable)
                 .map(({ channel }) => channel)
-                .filter((channel) => !placed.has(channel) && labelFieldOf(channel) === undefined)
-                .filter((channel) => !knownGaps.has(channel));
-            assert.deepEqual(unplaced, []);
+                .filter((channel) => !placed.has(channel) && labelFieldOf(channel) === undefined);
+            assert.deepEqual(unplaced, knownGaps);
         });
     }
 

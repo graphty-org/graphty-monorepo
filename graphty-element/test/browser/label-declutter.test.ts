@@ -274,6 +274,34 @@ describe("node labels do not overlap", () => {
         assert.deepEqual([...drawnLabels(g).keys()], ["hub", "left", "right"], "turned off: every label is back");
     });
 
+    it("shows and hides a node's further labels with its own label", async () => {
+        const g = await draw(PILED, false, PILED_VIEW);
+        await g.getSession().styles.add({
+            name: "further",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.labels": [{ id: "top", text: "TOP", style: { location: "top" } }] },
+        });
+        await operationQueueOf(g).waitForCompletion();
+        await g.waitForStableFrame();
+        const furtherShown = (): string[] =>
+            ["hub", "left", "right"].filter((id) => {
+                const mesh = g.getNode(id)?.extraLabels.get("top")?.labelMesh;
+                assert.isOk(mesh, `node ${id} has its further label`);
+                return mesh.isVisible;
+            });
+        assert.deepEqual(furtherShown(), ["hub", "left", "right"]);
+
+        g.setLayoutBehavior({ labels: { declutter: true } });
+        g.scene.render();
+        assert.deepEqual([...drawnLabels(g).keys()], ["hub"]);
+        assert.deepEqual(furtherShown(), ["hub"], "a hidden label's further labels are hidden with it");
+
+        g.setLayoutBehavior({ labels: { declutter: false } });
+        g.scene.render();
+        assert.deepEqual(furtherShown(), ["hub", "left", "right"], "turned off: every further label is back");
+    });
+
     it("keeps a hidden label hidden when its animation starts", async () => {
         // The element starts every label's animation once the layout settles, or on the first
         // frame that finds it at rest. Neither moves a node or the camera, so the pass does not

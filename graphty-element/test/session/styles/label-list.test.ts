@@ -125,6 +125,18 @@ describe("a label list", () => {
         assert.strictEqual(style?.label?.text, "Named", "and leaves its words to the layers beneath");
     });
 
+    it("draws node.label's words in an entry with no text of its own", async () => {
+        const held = painterHarness(NODES, EDGES);
+        await held.styles.add({
+            name: "Echo",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.label": "Main", "node.labels": [{ id: "top", style: { location: "top" } }] },
+        });
+        await held.paintAll();
+        assert.strictEqual(labelsOf(held.painter.nodePaint(0)).get("top")?.text, "Main");
+    });
+
     it("varies one field of one label by data through its address", async () => {
         const held = painterHarness(NODES, EDGES);
         await held.styles.add({

@@ -2503,11 +2503,13 @@ const END_TIE = 2;
  * nodes can take the one a later line needs, leaving that line the far one (cys-annotation-example: a line from 169397
  * whose end is as near 169396 as 169391 took 169396 first, and the line ending on 169396 alone got 169391). Two lines
  * that share a node swap their other ends where each then lands on its nearest node (or one tied with it) and the
- * two ends lie nearer in all. An end its own arrowhead caps keeps its node: the head, not the line, decided it.
+ * two ends lie nearer in all. An end its own arrowhead caps keeps its node: the head, not the line, decided it; and
+ * neither line may take a pair whose edges graphty draws at another width or color than one it has now (#8382).
  * @param pieces - every line read by geometry, in drawing order
  * @param edges - the edges found so far; only the geometric ones between two nodes are re-paired
  * @param ownCaps - the arrowheads drawn with each line, by the end they cap
  * @param near - the nodes a point lands on, with how far, nearest first
+ * @param paintFits - how well a line's width and color fit the edges graphty draws between two nodes (higher fits)
  * @returns whether any line changed its ends (their `#g` ids then need numbering again)
  */
 function pairBestTotal(
@@ -2515,6 +2517,7 @@ function pairBestTotal(
     edges: readonly PEdge[],
     ownCaps: ReadonlyMap<Prim, { e: PEdge; end: "source" | "target" }>,
     near: (q: Pt) => { n: PNode; d: number }[],
+    paintFits: (e: PEdge, u: string, v: string) => number,
 ): boolean {
     const listed = new Set(edges);
     const capped = new Set([...ownCaps.values()].map(({ e, end }) => `${e.id}\u0000${end}`));
@@ -2555,7 +2558,10 @@ function pairBestTotal(
                 if (z === y || z === shared || !nearest(a, ea, z) || !nearest(b, eb, y)) {
                     continue;
                 }
-                if (gap(a, ea, z) + gap(b, eb, y) < gap(a, ea, y) + gap(b, eb, z) - END_TIE) {
+                const keeps =
+                    paintFits(a, shared, z) >= paintFits(a, shared, y) &&
+                    paintFits(b, shared, y) >= paintFits(b, shared, z);
+                if (keeps && gap(a, ea, z) + gap(b, eb, y) < gap(a, ea, y) + gap(b, eb, z) - END_TIE) {
                     a[ea] = z;
                     b[eb] = y;
                     changed = true;
@@ -3971,7 +3977,11 @@ export function associate(
             strokes.set(p, edge);
         }
     }
-    if (pairBestTotal(withPieces, edges, ownCaps, (q) => nodesOn(q))) {
+    // how well a line's paint fits the edges graphty draws between two nodes: at its width, in its color
+    const paintFits = (e: PEdge, u: string, v: string): number =>
+        (e.stroke !== null && widthDrawn(pairOf(u, v), e.stroke.width) ? 1 : 0) +
+        (guideColors.get(pairOf(u, v))?.has(e.stroke?.color ?? "") === true ? 1 : 0);
+    if (pairBestTotal(withPieces, edges, ownCaps, (q) => nodesOn(q), paintFits)) {
         geoEdges.clear();
         for (const e of withPieces) {
             if (!e.id.includes("#g-outline")) {

@@ -1,0 +1,117 @@
+name: Actions caches
+
+# Keeps the repository's Actions caches under GitHub's 10 GB limit, where it evicts the least recently used
+# entry first and a cache read less often than about once an hour never restored (#9090, #8841).
+# - Baseline images: master holds one copy of each project's baseline images and pinned fonts from Git LFS,
+#   under the key the Stories and Story tests jobs in ci.yml restore. A pull request restores master's copy and,
+#   since its key is an exact hit, saves none of its own. Without it every open pull request saved its own
+#   copy, about 1.2 GB each. It runs when the baselines or fonts change on master, and on a dispatch.
+# - Pruning: CodeQL's default setup saves an overlay database of about 1.9 GB for every master commit, and
+#   only the newest is ever restored. tools/cache-hygiene.mjs deletes the superseded ones (and closed pull
+#   requests' caches) as soon as a master CodeQL run finishes; ci.yml's Cache hygiene job ran only after a
+#   green master build, before that commit's CodeQL run had saved, so two or three databases sat side by side.
+#   The hourly run is the fallback in case GitHub does not deliver the CodeQL run's completion.
+
+on:
+    push:
+        branches: [master]
+        paths:
+            - "visual-baselines/**"
+            - "visual-fonts/**"
+            - ".github/workflows/actions-caches.yml"
+    workflow_run:
+        workflows: [CodeQL]
+        branches: [master]
+        types: [completed]
+    schedule:
+        - cron: "41 * * * *" # hourly
+    workflow_dispatch:
+
+permissions:
+    contents: read
+
+env:
+    # A failed Actions cache restore waits one minute here, not 10 (#5098; see ci.yml).
+    SEGMENT_DOWNLOAD_TIMEOUT_MINS: "1"
+
+jobs:
+    baseline-images:
+        name: Baseline images (${{ matrix.project }})
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        runs-on: ubuntu-24.04
+        timeout-minutes: 15
+        concurrency:
+            group: actions-caches-baselines-${{ matrix.project }}
+            cancel-in-progress: true
+        strategy:
+            fail-fast: false
+            # the Storybook projects under visual-baselines/ (the stories and story-tests matrices' projects)
+            matrix:
+                project:
+                    [
+                        algorithms,
+                        compact-mantine,
+                        cytoscape-extensions,
+                        graph-io-fidelity,
+                        graphty,
+                        graphty-element,
+                        layout,
+                    ]
+        steps:
+            - uses: actions/checkout@v7
+
+            # The key is computed here, over the LFS pointer files, exactly as ci.yml's restore steps compute it.
+            - name: Look up master's copy
+              id: lookup
+              uses: actions/cache/restore@v6
+              with:
+                  path: .git/lfs/objects
+                  key: lfs-${{ matrix.project }}-${{ hashFiles(format('visual-baselines/{0}/**/*.png', matrix.project), 'visual-fonts/fonts/**') }}
+                  lookup-only: true
+
+            # the previous copy, so the pull below fetches only what changed
+            - name: Restore the previous copy
+              if: steps.lookup.outputs.cache-hit != 'true'
+              uses: actions/cache/restore@v6
+              with:
+                  path: .git/lfs/objects
+                  key: ${{ steps.lookup.outputs.cache-primary-key }}
+                  restore-keys: lfs-${{ matrix.project }}-
+
+            - name: Fetch this project's baseline images and the pinned fonts from Git LFS
+              if: steps.lookup.outputs.cache-hit != 'true'
+              run: git lfs pull --include "visual-baselines/${{ matrix.project }}/**,visual-fonts/**"
+
+            - name: Save master's copy
+              if: steps.lookup.outputs.cache-hit != 'true'
+              uses: actions/cache/save@v6
+              with:
+                  path: .git/lfs/objects
+                  key: ${{ steps.lookup.outputs.cache-primary-key }}
+
+    prune:
+        name: Prune superseded caches
+        if: github.event_name != 'push'
+        runs-on: ubuntu-24.04
+        timeout-minutes: 10
+        concurrency:
+            group: actions-caches-prune
+            cancel-in-progress: false
+        # actions: write to list and delete caches; pull-requests: read for the open ones
+        permissions:
+            contents: read
+            actions: write
+            pull-requests: read
+        steps:
+            - uses: actions/checkout@v7
+              with:
+                  # cone mode also checks out the root files, ci-budgets.json among them
+                  sparse-checkout: tools
+
+            - name: Delete superseded and closed pull requests' cache keys
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: |
+                  gh api --paginate "repos/$GITHUB_REPOSITORY/actions/caches?per_page=100" --jq '.actions_caches[]' > "$RUNNER_TEMP/caches.ndjson"
+                  gh pr list --repo "$GITHUB_REPOSITORY" --state open --limit 1000 --json number --jq '.[].number' > "$RUNNER_TEMP/open-prs.txt"
+                  node tools/cache-hygiene.mjs "$RUNNER_TEMP/caches.ndjson" "$RUNNER_TEMP/open-prs.txt" --apply

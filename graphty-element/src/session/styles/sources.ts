@@ -828,6 +828,7 @@ export function createSelectorSource(parts: SelectorSourceParts): SessionSelecto
     };
 
     return {
+        sourceSteps: parts.sourceSteps,
         nodeValue: (index: number, path: Path): unknown => valueOf("node", index, path),
         edgeValue: (index: number, path: Path): unknown => valueOf("edge", index, path),
         nodeHas: (index: number, path: Path): boolean => presentAt("node", index, path),

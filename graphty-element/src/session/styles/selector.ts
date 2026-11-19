@@ -160,6 +160,18 @@ const SELECTOR_KINDS = [
     "type",
 ] as const;
 
+/** The selector kinds while the source-steps experiment is off, which leave out "type". */
+const KINDS_WITHOUT_TYPE = SELECTOR_KINDS.filter((kind) => kind !== "type");
+
+/**
+ * The selector kinds a session accepts, for a refusal that lists them.
+ * @param sourceSteps - Whether the source-steps experiment is on.
+ * @returns The kinds.
+ */
+function kindsFor(sourceSteps: boolean): readonly string[] {
+    return sourceSteps ? SELECTOR_KINDS : KINDS_WITHOUT_TYPE;
+}
+
 /** The readable path holding an element's one type under the source-steps experiment. */
 const TYPE_PATH = "graphty.type";
 
@@ -238,8 +250,11 @@ function assertIdList(ids: unknown, field: string): void {
 /**
  * Refuse a value that is not even an object with a "match", such as a legacy selector string.
  * @param given - The value offered as a selector.
+ * @param sourceSteps - Whether the source-steps experiment is on, which decides the kinds named.
  */
-function assertSelectorObject(given: unknown): void {
+function assertSelectorObject(given: unknown, sourceSteps: boolean): void {
+    const kinds = kindsFor(sourceSteps).join(", ");
+
     // Read through `unknown` because these refusals are about a value the type system was
     // told is a Selector and that arrived as something else -- a legacy selector string, most of
     // all, which is the shape every layer in the element carries today.
@@ -249,15 +264,13 @@ function assertSelectorObject(given: unknown): void {
                 ? 'The empty string matched every element, so write { match: "everything" } if that is what it meant.'
                 : `Write { match: "expression", where: ${JSON.stringify(given)} }.`;
 
-        throw badShape(
-            "bare-string",
-            `A selector is an object naming one of ${SELECTOR_KINDS.join(", ")}, not a bare string. ${advice}`,
-            { selector: given },
-        );
+        throw badShape("bare-string", `A selector is an object naming one of ${kinds}, not a bare string. ${advice}`, {
+            selector: given,
+        });
     }
 
     if (typeof given !== "object" || given === null || !("match" in given)) {
-        throw badShape("not-a-selector", `A selector is an object with a "match" of ${SELECTOR_KINDS.join(", ")}.`, {
+        throw badShape("not-a-selector", `A selector is an object with a "match" of ${kinds}.`, {
             selector: given,
         });
     }
@@ -269,10 +282,12 @@ function assertSelectorObject(given: unknown): void {
  * Separate from compiling it so the shape is refused at the call that offered it, which is what
  * lets a form show the mistake where it was typed.
  * @param selector - The selector to check.
- * @throws A `GraphtyError` with code `E_BAD_SELECTOR`, or `E_SELECTOR_EMPTY` for an empty one.
+ * @param sourceSteps - Whether the source-steps experiment is on; off, a `type` selector is refused.
+ * @throws A `GraphtyError` with code `E_BAD_SELECTOR`, `E_SELECTOR_EMPTY` for an empty one, or
+ *     `E_FEATURE_OFF` for a `type` selector while the source-steps experiment is off.
  */
-function assertSelector(selector: Selector): void {
-    assertSelectorObject(selector);
+function assertSelector(selector: Selector, sourceSteps: boolean): void {
+    assertSelectorObject(selector, sourceSteps);
 
     // Kept as a plain string beside the switch so the refusal below can name a kind the union
     // does not contain, which is exactly the case this check exists for.
@@ -312,6 +327,15 @@ function assertSelector(selector: Selector): void {
 
             return;
         case "type":
+            if (!sourceSteps) {
+                throw new GraphtyError({
+                    code: "E_FEATURE_OFF",
+                    message: 'A "type" selector needs the "source-steps" experiment.',
+                    source: "style",
+                    details: { feature: "source-steps", key: "type" },
+                });
+            }
+
             if (!Array.isArray(selector.types) || !selector.types.every((t) => typeof t === "string")) {
                 throw badShape("bad-types", 'A "type" selector needs a list of type names.', {
                     types: selector.types,
@@ -322,7 +346,7 @@ function assertSelector(selector: Selector): void {
         default:
             throw badShape("unknown-kind", `"${String(kind)}" is not a selector kind.`, {
                 match: kind,
-                kinds: SELECTOR_KINDS,
+                kinds: kindsFor(sourceSteps),
             });
     }
 }
@@ -596,7 +620,7 @@ function assertHoverSelector(selector: Extract<Selector, { match: "hover" }>): v
  *     or a `top` selector to one that cannot rank a run's column.
  */
 export function compileSelector(selector: Selector, target: SelectorTarget, source: SelectorSource): CompiledSelector {
-    assertSelector(selector);
+    assertSelector(selector, source.sourceSteps?.() === true);
 
     const columns = columnsFor(source, target);
 

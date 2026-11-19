@@ -178,23 +178,29 @@ describe("source-steps: scopes and readable paths", () => {
 });
 
 describe("source-steps off: readable paths read nothing", () => {
-    it("a record's own graphty.type key matches no selector and { types } is refused", async () => {
+    it("a record's own graphty.type key matches no selector, and a type selector and { types } are refused", async () => {
         const session = createGraphSession({ features: [] });
         await session.data.addNodes([{ id: "a", "graphty.type": "x" }, { id: "b" }, { id: "c" }]);
+        const layersBefore = session.styles.list().length + 1;
         const has = await session.styles.add({
             name: "Has",
             target: "node",
             selector: { match: "has", path: "graphty.type" },
             set: { "node.color": "#ff0000" },
         });
-        const typed = await session.styles.add({
-            name: "Typed",
-            target: "node",
-            selector: { match: "type", types: ["x"] },
-            set: { "node.color": "#00ff00" },
-        });
         assert.strictEqual(session.styles.counts(has.id).matched, 0);
-        assert.strictEqual(session.styles.counts(typed.id).matched, 0);
+        const typed = await refused(
+            async () =>
+                await session.styles.add({
+                    name: "Typed",
+                    target: "node",
+                    selector: { match: "type", types: ["x"] },
+                    set: { "node.color": "#00ff00" },
+                }),
+            "E_FEATURE_OFF",
+        );
+        assert.strictEqual((typed.errors as readonly { code: string }[])[0]?.code, "E_FEATURE_OFF");
+        assert.strictEqual(session.styles.list().length, layersBefore, "the refused layer is not saved");
         await refused(() => session.scope.count({ types: ["x"] }), "E_FEATURE_OFF");
         session.dispose();
     });

@@ -64,6 +64,10 @@ export type SelectorTarget = "node" | "edge";
  */
 export interface SelectorSource {
     /**
+     * Whether the source-steps experiment is on. Off or absent, a `type` selector is refused.
+     */
+    readonly sourceSteps?: () => boolean;
+    /**
      * The value one node carries for a path.
      * @param index - The dense node index.
      * @param path - The column path, such as `results.louvain.group`.

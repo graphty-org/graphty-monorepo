@@ -311,8 +311,18 @@ describe("selector refusals", () => {
             "rule",
             "state",
             "hover",
-            "type",
         ]);
+    });
+
+    it("refuses a type selector while the source-steps experiment is off, and takes it while on", () => {
+        const harness = makeSource([{ id: "n1" }]);
+        const refusal = refusalOf(() => compileSelector({ match: "type", types: ["x"] }, "node", harness.source));
+
+        assert.strictEqual(refusal.code, "E_FEATURE_OFF");
+        assert.deepStrictEqual(refusal.details, { feature: "source-steps", key: "type" });
+
+        const on = { ...harness.source, sourceSteps: () => true };
+        assert.strictEqual(compileSelector({ match: "type", types: ["x"] }, "node", on).match, "type");
     });
 
     it("refuses an id list that is not a list of ids", () => {

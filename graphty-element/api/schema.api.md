@@ -3767,7 +3767,7 @@ export type Selector = {
 /**
 * The elements of some types, under the `source-steps` experiment: those whose one type
 * (the readable path `graphty.type`) is listed, such as the accounts of a graph of accounts and
-* merchants. Matches nothing while the experiment is off.
+* merchants. Refused with `E_FEATURE_OFF` while the experiment is off.
 *
 * ```ts
 * session.styles.add({ name: "Accounts", target: "node",

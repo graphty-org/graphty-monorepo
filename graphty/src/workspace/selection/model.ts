@@ -180,7 +180,7 @@ export function moveBranch(rule: UnionLeaf, id: string, to: number): UnionLeaf {
  */
 export function duplicateBranch(rule: UnionLeaf, id: string): { rule: UnionLeaf; id: string } {
     const at = rule.branches.findIndex((branch) => branch.id === id);
-    const source = rule.branches[at];
+    const source = at === -1 ? undefined : rule.branches[at];
     if (source === undefined) {
         return { rule, id };
     }

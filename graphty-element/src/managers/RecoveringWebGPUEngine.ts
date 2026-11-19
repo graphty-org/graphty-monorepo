@@ -80,18 +80,20 @@ export class RecoveringWebGPUEngine extends WebGPUEngine {
                 return;
             }
 
-            // Typed as returning nothing, but the initEngine Babylon passes is async.
-            (initEngine as unknown as () => Promise<void>)().then(
-                () => {
+            // Typed as returning nothing, but the initEngine Babylon passes is async. A rebuild on
+            // the new device that throws fails the restore as a refused device does: left as an
+            // unhandled rejection, nothing said the graph had stopped drawing and every wait for
+            // the restore waited forever (issue #6422).
+            (initEngine as unknown as () => Promise<void>)()
+                .then(() => {
                     this.finishRestore(loss);
-                },
-                (error: unknown) => {
+                })
+                .catch((error: unknown) => {
                     if (loss === this.losses && !this.isDisposed) {
                         this.onRestoreFailed?.(error);
                         this.giveUp(error);
                     }
-                },
-            );
+                });
         });
     }
 

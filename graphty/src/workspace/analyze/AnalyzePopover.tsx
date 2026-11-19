@@ -152,7 +152,7 @@ export function AnalyzePopover({
     };
 
     useEffect(() => {
-        listRef.current?.querySelector('[aria-selected="true"]')?.scrollIntoView?.({ block: "nearest" });
+        listRef.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: "nearest" });
     });
 
     const onKeyDown = (event: React.KeyboardEvent): void => {

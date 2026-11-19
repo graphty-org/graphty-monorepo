@@ -2,14 +2,16 @@
  * A result row's Run again and Copy items (#177), on the REAL graphty-element and Les Miserables:
  * each Copy item puts graphty-element's own form of the result on the clipboard, TSV at full
  * stored precision, and Run again with changes... opens Analyze on the result's algorithm, whose
- * Run adds a second result. The inspector's header "..." for a result holds the same items.
+ * Run adds a second result. The inspector's header "..." for a result holds the same items. Pin to
+ * report puts the result in the Export dialog's Report as a pinned item with the reader's note
+ * (#177, #187).
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
-import { assert, describe, it } from "vitest";
+import { afterEach, assert, describe, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
@@ -21,6 +23,10 @@ import { Workspace } from "../../Workspace";
 
 // Every experiment stays off here.
 withFeatures([]);
+
+afterEach(() => {
+    vi.restoreAllMocks();
+});
 
 /**
  * The workspace on Les Miserables, with one finished result.
@@ -203,5 +209,55 @@ describe("a result row's Combine into a score...", () => {
         const values = session.data.nodes().map((node) => node.Score as number);
         assert.isTrue(values.every((value) => value >= 0 && value <= 3));
         assert.strictEqual(Math.max(...values) > 0, true);
+    });
+});
+
+describe("a result row's Pin to report", () => {
+    it("pins the result into the Report's Pinned items, with the reader's note, and unpins it there", async () => {
+        const { session, id } = await withResult("pagerank");
+        const result = session.runs.get(id)?.result;
+        // The report's Markdown, caught where the page hands it to the browser; the download itself does nothing.
+        const files: Blob[] = [];
+        const create = URL.createObjectURL.bind(URL);
+        vi.spyOn(URL, "createObjectURL").mockImplementation((object: Blob | MediaSource) => {
+            if (object instanceof Blob) {
+                files.push(object);
+            }
+            return create(object);
+        });
+        vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+
+        await pick(id, "Pin to report");
+        await screen.findByText("Pinned to report");
+        // The inspector's header "..." for it now offers the way back.
+        await openResult(id);
+        await userEvent.click(await screen.findByRole("button", { name: "Measure actions" }));
+        await screen.findByRole("menuitem", { name: /^Unpin from report/ });
+        await userEvent.keyboard("{Escape}");
+
+        await userEvent.keyboard("{Control>}e{/Control}");
+        const dialog = await screen.findByRole("dialog", { name: "Export" });
+        await userEvent.click(within(within(dialog).getByRole("grid", { name: "What to export" })).getByText("Report"));
+        const sections = await within(dialog).findByRole("group", { name: "Sections" });
+        assert.isNotNull(within(sections).getByRole("checkbox", { name: "Pinned items (1)" }));
+        const pinned = within(dialog).getByRole("group", { name: "Pinned items" });
+        await userEvent.type(within(pinned).getByRole("textbox", { name: "PageRank" }), "Valjean leads");
+        await userEvent.click(within(dialog).getByRole("button", { name: "Generate report" }));
+        await screen.findByText("Exported untitled_report.md", { selector: ".cm-toast-message" });
+
+        const report = (await files.at(-1)?.text()) ?? "";
+        const [header = "", first = ""] = result?.toTsv().split("\n") ?? [];
+        assert.include(report, "## Pinned items\n\n### PageRank (first 20 of 77)\n\nValjean leads\n");
+        // Its values as graphty-element writes them, at full stored precision.
+        assert.include(report, `| ${header.split("\t").join(" | ")} |`);
+        assert.include(report, `| ${first.split("\t").join(" | ")} |`);
+
+        // Unpinned in the Report, it leaves the Pinned items.
+        await userEvent.keyboard("{Control>}e{/Control}");
+        const again = await screen.findByRole("dialog", { name: "Export" });
+        await userEvent.click(within(within(again).getByRole("grid", { name: "What to export" })).getByText("Report"));
+        await userEvent.click(await within(again).findByRole("button", { name: "Unpin PageRank" }));
+        await within(again).findByRole("checkbox", { name: "Pinned items (0)" });
+        assert.isNull(within(again).queryByRole("group", { name: "Pinned items" }));
     });
 });

@@ -340,7 +340,8 @@ export function FiltersSection({
                             }}
                             onRemoved={() => {
                                 const at = conditions.findIndex((c) => c.id === each.id);
-                                pendingFocus = { target: conditions[at + 1]?.id ?? conditions[at - 1]?.id ?? PLUS };
+                                const near: readonly ((typeof conditions)[number] | undefined)[] = conditions;
+                                pendingFocus = { target: near[at + 1]?.id ?? near[at - 1]?.id ?? PLUS };
                             }}
                         />
                     ))}

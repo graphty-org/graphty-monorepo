@@ -491,7 +491,7 @@ export function WhichPicker({
                     onOpen={(key) => {
                         // With no card, focus lands on Add a condition, whose list opens on a
                         // press: open already, the press would close it.
-                        setFocusKey(key ?? shown[0]?.key ?? "add");
+                        setFocusKey(key ?? shown.at(0)?.key ?? "add");
                         setOnCards(true);
                         setOpen(true);
                     }}
@@ -855,11 +855,12 @@ function Cards({
         const at = list.findIndex((each) => each.key === key);
         const next = list.filter((each) => each.key !== key);
         commit(next);
-        setFocus(next[at]?.key ?? next[at - 1]?.key ?? "add");
+        const near: readonly (Shown | undefined)[] = next;
+        setFocus(near[at]?.key ?? near[at - 1]?.key ?? "add");
         // The last condition gone, the layer styles every element of the kind: said, with Undo.
         const narrows = (cards: readonly Shown[]): boolean =>
             cards.some((each) => each.card.type !== "ends" && isFinished(each.card));
-        const removed = list[at];
+        const removed = at === -1 ? undefined : list[at];
         if (!bulk && removed !== undefined && narrows(list) && !narrows(next)) {
             // Undo gives the layer back its cards and the name it had with them.
             const row = rows[0];
@@ -3113,10 +3114,9 @@ function drawnColor(
     _painted: number,
 ): string | undefined {
     const where: RuleTree = { kind: "categories", attribute: path, values: [value] };
-    const [color] = session.styles.agreement(
-        { define: { kind: "rule", where, reading: "listed" } },
-        `${side}.color`,
-    ).channels;
+    const color = session.styles
+        .agreement({ define: { kind: "rule", where, reading: "listed" } }, `${side}.color`)
+        .channels.at(0);
     if (color?.state !== "agree" || color.unpainted > 0) {
         return undefined;
     }

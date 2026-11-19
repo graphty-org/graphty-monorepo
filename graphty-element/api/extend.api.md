@@ -442,27 +442,22 @@ export type CameraId = (typeof KNOWN_CAMERA_IDS)[number] | (string & {});
 // @public
 export interface CameraState {
     alpha?: number;
-    // (undocumented)
     beta?: number;
-    // (undocumented)
     cameraDistance?: number;
     fov?: number;
     orthoBottom?: number;
     orthoLeft?: number;
     orthoRight?: number;
     orthoTop?: number;
-    // (undocumented)
     pan?: {
         x: number;
         y: number;
     };
-    // (undocumented)
     pivotRotation?: {
         x: number;
         y: number;
         z: number;
     };
-    // (undocumented)
     position?: {
         x: number;
         y: number;
@@ -470,13 +465,11 @@ export interface CameraState {
     };
     radius?: number;
     rotation?: number;
-    // (undocumented)
     target?: {
         x: number;
         y: number;
         z: number;
     };
-    // (undocumented)
     type?: "arcRotate" | "free" | "universal" | "orthographic";
     zoom?: number;
 }
@@ -496,7 +489,6 @@ export interface CameraViewInput {
     };
     readonly fov?: number;
     readonly insets?: Required<ViewInsets>;
-    // (undocumented)
     readonly mode: DrawingMode;
     readonly options: Readonly<Record<string, unknown>>;
     readonly viewport: {
@@ -507,9 +499,7 @@ export interface CameraViewInput {
 
 // @public
 export interface CameraViewRegistration {
-    // (undocumented)
     readonly compute: (input: CameraViewInput) => CameraState;
-    // (undocumented)
     readonly descriptor: CameraDescriptor;
 }
 
@@ -906,11 +896,8 @@ export interface EdgePosition {
 // @public
 export interface EdgeScoreDefinition<O extends OptionsShorthand> extends AlgorithmDefinitionBase<O> {
     readonly edge: (edge: EdgeView, context: AlgorithmContext<OptionValuesOf<O>>) => Score;
-    // (undocumented)
     readonly groups?: never;
-    // (undocumented)
     readonly node?: never;
-    // (undocumented)
     readonly nodes?: never;
 }
 
@@ -1105,16 +1092,12 @@ export interface GraphAccelerator {
 
 // @public
 export interface GraphBounds {
-    // (undocumented)
     readonly center: Vec3;
-    // (undocumented)
     readonly max: Vec3;
     readonly maxDimension: number;
     readonly measured: number;
-    // (undocumented)
     readonly min: Vec3;
     readonly points?: readonly Vec3[];
-    // (undocumented)
     readonly size: Vec3;
 }
 
@@ -2005,12 +1988,9 @@ export interface GraphView {
 
 // @public
 export interface GroupingDefinition<O extends OptionsShorthand> extends AlgorithmDefinitionBase<O> {
-    // (undocumented)
     readonly edge?: never;
     readonly groups: (graph: GraphView, context: AlgorithmContext<OptionValuesOf<O>>) => ReadonlyMap<NodeId, string | number | null | undefined> | Promise<ReadonlyMap<NodeId, string | number | null | undefined>>;
-    // (undocumented)
     readonly node?: never;
-    // (undocumented)
     readonly nodes?: never;
 }
 
@@ -2320,7 +2300,6 @@ class Node_2 implements ModelUser {
     // @internal
     get decorationPieces(): readonly NodeDecorationPiece[];
     dispose(): void;
-    // (undocumented)
     dragging: boolean;
     get dragHandler(): NodeDragHandler | undefined;
     set dragHandler(handler: NodeDragHandler | undefined);
@@ -2398,7 +2377,6 @@ class Node_2 implements ModelUser {
     hideTooltip(): void;
     // @internal
     holdOffBatch(): void;
-    // (undocumented)
     readonly id: NodeIdType;
     // @internal
     imageDrawn(): BaseTexture | null;
@@ -2412,7 +2390,6 @@ class Node_2 implements ModelUser {
     isDrawnInFrustum(planes: Plane[]): boolean;
     isPinned(): boolean;
     isSelected(): boolean;
-    // (undocumented)
     label?: RichTextLabel;
     // @internal
     get layoutRadius(): number;
@@ -2427,7 +2404,6 @@ class Node_2 implements ModelUser {
         readonly colored: boolean;
         readonly clip: string | null;
     };
-    // (undocumented)
     opts: NodeOpts;
     // @internal
     get outlineHalfExtents(): Readonly<{
@@ -2441,10 +2417,8 @@ class Node_2 implements ModelUser {
     get paintedOpacity(): number;
     // @internal
     get paintedSourceMesh(): AbstractMesh;
-    // (undocumented)
     parentGraph: Graph | GraphContext;
     pin(): void;
-    // (undocumented)
     pinOnDrag: boolean;
     // @internal
     get reachOutline(): readonly (readonly [x: number, y: number])[] | null;
@@ -2471,7 +2445,6 @@ class Node_2 implements ModelUser {
     shapeTextLabels: RichTextLabel[];
     shapeType?: NonNullable<NodeStyleConfig["shape"]>["type"];
     showTooltip(): void;
-    // (undocumented)
     size: number;
     // @internal
     get sizeSpace(): NodeSizeSpace | undefined;
@@ -2507,7 +2480,7 @@ export { Node_2 as Node }
 // @public
 export type NodeId = string | number;
 
-// @public (undocumented)
+// @public
 export type NodeIdType = string | number;
 
 export { NodeMask }
@@ -2517,12 +2490,9 @@ export function nodeMetricFields(value: MetricValueName): readonly FieldDescript
 
 // @public
 export interface NodeScoreDefinition<O extends OptionsShorthand> extends AlgorithmDefinitionBase<O> {
-    // (undocumented)
     readonly edge?: never;
-    // (undocumented)
     readonly groups?: never;
     readonly node: (node: NodeView, context: AlgorithmContext<OptionValuesOf<O>>) => Score;
-    // (undocumented)
     readonly nodes?: never;
 }
 
@@ -3464,23 +3434,16 @@ export function validateOption(key: string, value: unknown, def: OptionDefinitio
 
 // @public
 export interface Vec3 {
-    // (undocumented)
     readonly x: number;
-    // (undocumented)
     readonly y: number;
-    // (undocumented)
     readonly z: number;
 }
 
 // @public
 export interface ViewInsets {
-    // (undocumented)
     readonly bottom?: number;
-    // (undocumented)
     readonly left?: number;
-    // (undocumented)
     readonly right?: number;
-    // (undocumented)
     readonly top?: number;
 }
 
@@ -3496,11 +3459,8 @@ export type WeightSkip = CodedFact<"weight.meaning-mismatch">;
 
 // @public
 export interface WholeGraphScoreDefinition<O extends OptionsShorthand> extends AlgorithmDefinitionBase<O> {
-    // (undocumented)
     readonly edge?: never;
-    // (undocumented)
     readonly groups?: never;
-    // (undocumented)
     readonly node?: never;
     readonly nodes: (graph: GraphView, context: AlgorithmContext<OptionValuesOf<O>>) => ReadonlyMap<NodeId, Score> | Promise<ReadonlyMap<NodeId, Score>>;
 }

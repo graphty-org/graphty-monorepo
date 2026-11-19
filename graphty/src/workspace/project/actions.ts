@@ -21,7 +21,6 @@ import {
 import { forgetKeptWork } from "../autosave/autosave";
 import type { CommandContext } from "../commands/registry";
 import { openDataPage } from "../data-page/request";
-import { nodeModelsOn } from "../features";
 import { focusOpenedGraphLater } from "../frame/focus";
 import { runHeld, withHeldShaders } from "../settings/heldShaders";
 import { addSource, incomingFiles } from "../start/open";
@@ -81,8 +80,8 @@ export function assetQuestion(store: WorkspaceStore): AssetQuestion | undefined 
 /**
  * Asks how to keep each model or picture the layers name by web address (embed it, or keep only
  * its address), before a save. graphty-element lists what to ask about
- * (`project.assetChoices()`) and takes the answer (`save({ assets })`). Only the node models
- * experiment asks, and only about addresses not answered before in this session; an answered one
+ * (`project.assetChoices()`) and takes the answer (`save({ assets })`). It asks only about
+ * addresses not answered before in this session; an answered one
  * is kept as the element reports it was last kept.
  * @param store - the workspace store.
  * @param session - the project's session.
@@ -90,9 +89,6 @@ export function assetQuestion(store: WorkspaceStore): AssetQuestion | undefined 
  *     canceled.
  */
 export function askAssetChoices(store: WorkspaceStore, session: GraphSession): Promise<AssetChoices | null> {
-    if (!nodeModelsOn(session)) {
-        return Promise.resolve({});
-    }
     const choices = session.project.assetChoices();
     const known = answeredFor(session);
     const kept: AssetChoices = Object.fromEntries(
@@ -125,15 +121,11 @@ export function askAssetChoices(store: WorkspaceStore, session: GraphSession): P
 
 /**
  * The saved notice, with what of the models the save could not keep as asked.
- * @param session - the project's session.
  * @param message - the notice's sentence.
  * @param report - what the save reported, when it reported.
  * @returns the notice's words.
  */
-function withModelsLeftOut(session: GraphSession, message: string, report: ProjectSaveReport | undefined): string {
-    if (!nodeModelsOn(session)) {
-        return message;
-    }
+function withModelsLeftOut(message: string, report: ProjectSaveReport | undefined): string {
     const lines = (report?.leftOut ?? []).filter((fact) => /^[EW]_MODEL_/.test(fact.code)).map(chipLine);
     return [message, ...lines].join(" ");
 }
@@ -328,7 +320,7 @@ async function writeProject(
     });
     fileState(workspace).target = saved.id;
     await refreshStored();
-    workspace.set({ notice: { message: withModelsLeftOut(session, `Saved ${name} in this browser.`, saved.report) } });
+    workspace.set({ notice: { message: withModelsLeftOut(`Saved ${name} in this browser.`, saved.report) } });
     return true;
 }
 

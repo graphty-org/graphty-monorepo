@@ -1,3 +1,4 @@
+/// <reference types="@webgpu/types" />
 // Force side-effect imports to not be tree-shaken
 import "./data/index"; // register all internal data sources
 import "./layout/index"; // register all internal layouts
@@ -15,7 +16,6 @@ import { Engine } from "@babylonjs/core/Engines/engine.js";
 import { NullEngine } from "@babylonjs/core/Engines/nullEngine.js";
 import { WebGPUEngine } from "@babylonjs/core/Engines/webgpuEngine.js";
 import { PointerEventTypes } from "@babylonjs/core/Events/pointerEvents.js";
-import type { Effect } from "@babylonjs/core/Materials/effect.js";
 import { type Matrix, Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 import { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
 import type { SubMesh } from "@babylonjs/core/Meshes/subMesh.js";
@@ -142,7 +142,7 @@ import { type ExportGraphOptions, type ExportResult, exportSession } from "./dat
 import { WRITABLE_LANE, writableLane } from "./data/lane";
 import { fetchBytes, sampleOf } from "./data/source-bytes";
 import type { Edge } from "./Edge";
-import { GraphtyError } from "./errors";
+import { GraphtyError, isGraphtyError } from "./errors";
 import {
     EventCallbackType,
     EventOfType,
@@ -208,7 +208,14 @@ import { payLabelAnimations } from "./meshes/labelAnimationDebt";
 import { closeRectOnScreen, hasCloseLabels, inRect, isCloseLabel } from "./meshes/labelClose";
 import { labelFontsLoading, watchFontLoads } from "./meshes/labelFonts";
 import { MeshCache } from "./meshes/MeshCache";
-import { LiveModelPreview, type ModelPreview, type ModelPreviewOptions, PreviewEngines } from "./meshes/ModelPreview";
+import {
+    LiveModelPreview,
+    type ModelCheck,
+    type ModelCheckOptions,
+    type ModelPreview,
+    type ModelPreviewOptions,
+    PreviewEngines,
+} from "./meshes/ModelPreview";
 import { type ColumnRow, NodeBatches, type RenderPath, renderPathDefault, type RowCounts } from "./meshes/NodeBatch";
 import { forgetGlyphs } from "./meshes/NodeDecorationMesh";
 import { NodeEffects } from "./meshes/NodeEffects";
@@ -295,6 +302,7 @@ import { reportCaught, strictStateEnabled, strictViolation } from "./session/pro
 import type { Run, StartOptions } from "./session/runs";
 import type { SelectionDelta, SelectionOp, SelectionTarget } from "./session/selection";
 import { shadersControllerOf } from "./session/shaders";
+import type { CodedFact } from "./session/shared";
 import { PROVENANCE_VALUE } from "./session/sources/provenance";
 import type { StyleSuggestion } from "./session/styles";
 import { suggestionCommand } from "./session/styles/autoApply";
@@ -855,6 +863,8 @@ export class Graph implements GraphContext {
     readonly #previewEngines = new PreviewEngines();
     /** The last thumbnail drawing in line. */
     #thumbnailQueue: Promise<unknown> = Promise.resolve();
+    /** Whether each model's template could be built, by digest and stand-ins (`checkModel`). */
+    readonly #modelChecks = new Map<string, Promise<ModelCheck>>();
     /** Margins of the canvas something else covers, in CSS pixels; see {@link setViewInsets}. */
     #viewInsets: Required<ViewInsets> = fullInsets(undefined);
     skybox?: string;
@@ -1203,6 +1213,8 @@ export class Graph implements GraphContext {
         this.stylePainter = new StylePainter(
             (row) => this.dataManager.edgeDirected(row),
             () => this.session.config.minMarkSize,
+            // eslint-disable-next-line unicorn/no-array-callback-reference -- the session's find, not Array.find
+            (model) => this.session.assets.find(model)?.defaults,
             () => this.dataManager.nodes.size > DEFAULT_LIMITS.largeGraphThreshold,
             () => this.#darkScheme,
         );
@@ -1521,6 +1533,13 @@ export class Graph implements GraphContext {
             // Every mark is drawn again at the new minimum; the painter drops its old paints itself.
             return changed("minMarkSize") ? this.repaintFromSession() : undefined;
         });
+
+        // A model's own settings changed (an edit, an undo): its nodes are drawn again with them.
+        dispatcherOf(this.session).lane.register("modelDefaults", (rendered, target, dirty) =>
+            [...dirty].some((id) => rendered.modelDefaults.get(id) !== target.modelDefaults.get(id))
+                ? this.repaintFromSession()
+                : undefined,
+        );
 
         // `view.camera` moves this renderer's camera; a session with no renderer refuses it.
         dispatcherOf(this.session).services.camera = {
@@ -2681,30 +2700,14 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Reports a shader the GLSL compiler stops on. Babylon compiles in an async method it never
-     * awaits, so the failure is a rejection nobody holds and the effect is never told: its material
-     * stays not ready for good and nothing waiting on it ever hears. The effect is told here, as a
-     * synchronous failure would have told it, and everything listening to it hears as it does
-     * under WebGL. An effect with its own `onError` is the shader check's, which has its own report.
+     * Reports a shader the GLSL compiler stops on. Babylon.js 9 hands the effect a rejection of its
+     * async compile as it would a synchronous failure, so everything listening to the effect hears
+     * as it does under WebGL; this reports it. An effect with its own `onError` is the shader
+     * check's, which has its own report. (Babylon 8 dropped the rejection, and this wrapped the
+     * engine's compile to tell the effect.)
      * @param engine - The engine that compiles the graph's shaders.
      */
     private watchShaderCompiles(engine: WebGPUEngine): void {
-        const prepare = engine._preparePipelineContextAsync.bind(engine);
-        engine._preparePipelineContextAsync = async (context, ...rest) => {
-            try {
-                await prepare(context, ...rest);
-            } catch (error) {
-                const { _compiledEffects: effects } = engine as unknown as { _compiledEffects: Record<string, Effect> };
-                const failed = Object.values(effects).find((effect) => effect.getPipelineContext() === context);
-                if (failed === undefined) {
-                    this.reportRefusedShader("compiler", [String(error)]);
-                } else {
-                    (
-                        failed as unknown as { _processCompilationErrors(cause: unknown): void }
-                    )._processCompilationErrors(error);
-                }
-            }
-        };
         engine.onEffectErrorObservable.add(({ effect, errors }) => {
             if (!effect.onError) {
                 this.reportRefusedShader("compiler", [errors]);
@@ -7857,7 +7860,11 @@ export class Graph implements GraphContext {
             });
         }
 
-        const record = await assets.ready(ref);
+        // A model held while its pictures still download is drawn now, with them stood in for.
+        const record =
+            standInMissing && held?.state === "rejected" && (assets as AssetsApiInternal).standIn(held.id) !== undefined
+                ? held
+                : await assets.ready(ref);
         const problem =
             record.kind === "image"
                 ? {
@@ -7888,6 +7895,7 @@ export class Graph implements GraphContext {
      * @param record - The model's record.
      * @param standIn - What stands in for a waiting model's missing parts.
      * @param style - The node's style values.
+     * @param hidden - The pictures drawn without.
      * @returns The template, the caller's to dispose.
      */
     async #modelTemplate(
@@ -7896,6 +7904,7 @@ export class Graph implements GraphContext {
         record: AssetRecord,
         standIn: ReturnType<AssetsApiInternal["standIn"]>,
         style: Readonly<Partial<Record<Channel, ChannelValue>>>,
+        hidden: readonly string[] = [],
     ): Promise<ModelTemplate> {
         const { assets } = this.getSession();
         const shape = {
@@ -7915,6 +7924,7 @@ export class Graph implements GraphContext {
             standIn?.main ?? record.path ?? "",
             standIn?.format ?? record.format,
             standIn?.skipped ?? record.skipped,
+            hidden,
         ).catch((error: unknown) => {
             if (!(error instanceof ModelLoadFailure)) {
                 throw error;
@@ -7936,19 +7946,31 @@ export class Graph implements GraphContext {
         if (image !== null && typeof picture === "string") {
             textures?.hold(picture, 1);
         }
-        return chunk.prepareTemplate(
-            scene,
-            container,
-            `graphty-model-preview-${record.digest.slice(0, 8)}`,
-            {
-                ...optionsOf(shape, standIn === undefined ? assets.inspect(record.id).upAxis : "unknown", {
-                    unlit: style["node.unlit"] === true,
-                    wireframe: style["node.wireframe"] === true,
-                }),
-                image,
-            },
-            () => chunk.neutralEnvironment(scene),
-        );
+        return chunk
+            .prepareTemplate(
+                scene,
+                container,
+                `graphty-model-preview-${record.digest.slice(0, 8)}`,
+                {
+                    ...optionsOf(shape, standIn === undefined ? assets.inspect(record.id).upAxis : "unknown", {
+                        unlit: style["node.unlit"] === true,
+                        wireframe: style["node.wireframe"] === true,
+                    }),
+                    image,
+                },
+                () => chunk.neutralEnvironment(scene),
+            )
+            .catch((error: unknown) => {
+                // As a node reports it (ModelCache): a file that loads but cannot be built into a
+                // template is E_MODEL_PARSE, never a bare error that reads as "no WebGL".
+                throw new GraphtyError({
+                    code: "E_MODEL_PARSE",
+                    source: "data",
+                    message: `The model ${ref} could not be drawn.`,
+                    details: { format: record.format },
+                    cause: error,
+                });
+            });
     }
 
     /**
@@ -7962,11 +7984,13 @@ export class Graph implements GraphContext {
      */
     async modelPreview(ref: string, host: HTMLElement, options: ModelPreviewOptions = {}): Promise<ModelPreview> {
         const { record, standIn } = await this.#drawableModel(ref, options.standInMissing === true);
+        const hidden = options.hiddenTextures ?? record.defaults?.hiddenTextures ?? [];
         const preview = new LiveModelPreview(
             host,
-            async (scene, style) => this.#modelTemplate(scene, ref, record, standIn, style),
+            async (scene, style) => this.#modelTemplate(scene, ref, record, standIn, style, hidden),
             this.#lighting,
             this.#previewEngines,
+            record.defaults?.style,
         );
         try {
             await preview.update(options.style ?? {});
@@ -7992,11 +8016,14 @@ export class Graph implements GraphContext {
      */
     async modelThumbnail(ref: string, options: ModelThumbnailOptions = {}): Promise<string> {
         const { record, standIn } = await this.#drawableModel(ref, options.standInMissing === true);
-        const style = options.style ?? {};
+        const style = { ...record.defaults?.style, ...options.style };
+        const hidden = options.hiddenTextures ?? record.defaults?.hiddenTextures ?? [];
         const is2D = this.getViewMode() === "2d";
         const key = JSON.stringify([
             standIn === undefined ? "model" : "model-stand-in",
-            record.digest,
+            record.digest === "" ? record.id : record.digest,
+            standIn?.skipped ?? [],
+            hidden,
             options.size,
             style["node.color"],
             style["node.modelSourceUp"],
@@ -8016,7 +8043,7 @@ export class Graph implements GraphContext {
         let shot = this.#thumbnails.get(key);
         if (shot === undefined) {
             shot = this.#thumbnailQueue.then(async () => {
-                const template = await this.#modelTemplate(this.scene, ref, record, standIn, style);
+                const template = await this.#modelTemplate(this.scene, ref, record, standIn, style, hidden);
                 try {
                     // As nodeThumbnail: the instance is made now, so the frozen list must not leave it out.
                     this.updateManager.thawActiveMeshes();
@@ -8036,6 +8063,78 @@ export class Graph implements GraphContext {
             });
         }
         return shot;
+    }
+
+    /**
+     * Whether a model can be drawn, without drawing it: its template is built once and freed. See
+     * {@link ModelCheck}. Kept by the model's files, so asking again, or for every member of a set,
+     * costs one build each.
+     * @param ref - What `node.model` takes.
+     * @param options - A signal, and whether a waiting model's stand-ins count.
+     * @returns Whether it can be drawn, and why not.
+     */
+    async checkModel(ref: string, options: ModelCheckOptions = {}): Promise<ModelCheck> {
+        const { signal } = options;
+        signal?.throwIfAborted();
+        if (this.engine instanceof NullEngine) {
+            return { drawable: null };
+        }
+
+        const failed = (error: unknown): ModelCheck => {
+            if (!isGraphtyError(error)) {
+                throw error;
+            }
+
+            return {
+                drawable: false,
+                failure: { code: error.code, params: (error.details ?? {}) as CodedFact["params"] },
+            };
+        };
+        const found = await this.#drawableModel(ref, options.standInMissing === true).catch(failed);
+        signal?.throwIfAborted();
+        if ("drawable" in found) {
+            return found;
+        }
+
+        const { record, standIn } = found;
+        // A model waiting by address has no digest yet: its provisional id names it.
+        const key = JSON.stringify([
+            record.digest === "" ? record.id : record.digest,
+            standIn === undefined ? "model" : "model-stand-in",
+            standIn?.skipped ?? [],
+        ]);
+        let check = this.#modelChecks.get(key);
+        if (check === undefined) {
+            check = this.#thumbnailQueue.then(async () => {
+                try {
+                    (await this.#modelTemplate(this.scene, ref, record, standIn, {})).dispose();
+                    return { drawable: true };
+                } catch (error) {
+                    return failed(error);
+                }
+            });
+            this.#thumbnailQueue = check.catch(() => undefined);
+            this.#modelChecks.set(key, check);
+            // Only a success belongs to the digest: a failure can come from the record leaving the
+            // assets mid-check (E_MODEL_UNKNOWN_ASSET), and the same files added again must be checked anew.
+            const settled = check;
+            settled.then(
+                (result) => {
+                    if (result.drawable !== true && this.#modelChecks.get(key) === settled) {
+                        this.#modelChecks.delete(key);
+                    }
+                },
+                () => {
+                    if (this.#modelChecks.get(key) === settled) {
+                        this.#modelChecks.delete(key);
+                    }
+                },
+            );
+        }
+
+        const result = await check;
+        signal?.throwIfAborted();
+        return result;
     }
 
     /**

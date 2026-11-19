@@ -5642,6 +5642,11 @@ export class SessionData implements SessionDataApi {
      * @returns settles once it is recorded
      */
     private async send(command: SessionCommand, verb: string): Promise<void> {
+        // Records written straight onto the graph are not in any source, so the next build would undo
+        // them for some elements and not others: a column-wide write waits for its steps form.
+        if (writesRecords(command)) {
+            this.refuseUnderSteps(verb);
+        }
         if (this.writes.send === undefined) {
             throw new GraphtyError({
                 code: "E_UNSUPPORTED",
@@ -7957,4 +7962,13 @@ function mergeRefusal(field: string): GraphtyError {
         message: `The mergeNodes argument is malformed: ${field}.`,
         details: { door: "mergeNodes", field },
     });
+}
+
+/**
+ * Whether a command, or a step of a batch, writes records straight onto the graph.
+ * @param command - The command.
+ * @returns True for a `data.apply` anywhere in it.
+ */
+function writesRecords(command: SessionCommand): boolean {
+    return command.op === "data.apply" || (command.op === "batch" && command.steps.some((step) => writesRecords(step)));
 }

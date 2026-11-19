@@ -157,4 +157,31 @@ describe("source-steps: today's joins as steps", () => {
         assert.lengthOf(session.data.joins(), 0);
         session.dispose();
     });
+
+    it("removing a join's step lists no join, and the same table joins again", async () => {
+        const session = await graph();
+        const values = "id,score\na,1\nb,2\n";
+        await join(session, values, { join: { keys: [{ file: "id", graph: "id" }] } });
+        await session.data.removeStep(session.data.steps().length - 1);
+        assert.isUndefined(session.data.node("a")?.score);
+        assert.lengthOf(session.data.joins(), 0, "a source no step reads is no join");
+        await join(session, values, { join: { keys: [{ file: "id", graph: "id" }] } });
+        assert.strictEqual(session.data.node("a")?.score, 1);
+        assert.lengthOf(session.data.joins(), 1);
+        session.dispose();
+    });
+
+    it("joins() names a per-source rename, and editJoin with the listed choices keeps it", async () => {
+        const session = await graph();
+        await join(session, "id,score\na,1\nb,2\n", { join: { keys: [{ file: "id", graph: "id" }] } });
+        const key = session.data.joins()[0]?.source ?? "";
+        await session.data.renameColumn({ kind: "node", name: "score" }, "pts", { source: key });
+        assert.strictEqual(session.data.node("a")?.pts, 1);
+        const [record] = session.data.joins();
+        assert.deepStrictEqual(record?.columns, ["pts"]);
+        await session.data.editJoin(key, record?.choices ?? { keys: [] });
+        assert.strictEqual(session.data.node("a")?.pts, 1);
+        assert.isUndefined(session.data.node("a")?.score);
+        session.dispose();
+    });
 });

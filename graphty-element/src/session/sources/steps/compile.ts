@@ -35,6 +35,7 @@ import {
     type StepsSource,
     type StepsSourceKind,
 } from "./project";
+import { checkEdit } from "./provenance";
 import {
     type BuildResult,
     type CellValue,
@@ -410,6 +411,16 @@ export function readerOps(
                     return [];
                 }
                 return Object.entries(row.values).map(([column, v]) => {
+                    // A key, end or a column a step reads is the source's to say, not the reader's (3.8).
+                    const guarded = checkEdit(value, built, "node" in target ? target.node : target.edge, column);
+                    if (guarded !== null) {
+                        throw new GraphtyError({
+                            code: "E_EDIT_ROLE_COLUMN",
+                            message: `${column} is read by a key, a role or a step, so it is not edited directly.`,
+                            source: "data",
+                            details: guarded.params,
+                        });
+                    }
                     const at = "node" in target ? resolveNode(built, target.node.space, target.node.key) : null;
                     const was = at?.values[column];
                     return {

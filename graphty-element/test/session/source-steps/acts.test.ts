@@ -487,6 +487,54 @@ describe("source-steps: the acts", () => {
         session.dispose();
     });
 
+    it("reader edits (3.8): a direct edit of an end or a column a step reads is refused; a value column is not", async () => {
+        const { session, t } = await phase1();
+        const edge = session.data.edges().find((e) => e.txn_id === "T-1");
+        const id = edge?.id ?? "";
+        const details = await refused(
+            () => session.data.updateEdges([{ id, values: { account_id: "A-2" } }]),
+            "E_EDIT_ROLE_COLUMN",
+        );
+        assert.strictEqual(details.column, "account_id");
+        await refused(
+            () => session.data.updateNodes([{ id: "A-1", values: { account_id: "Z" } }]),
+            "E_EDIT_ROLE_COLUMN",
+        );
+        await session.data.extract(t, { column: "category", type: "cat" });
+        await refused(() => session.data.updateEdges([{ id, values: { category: "drink" } }]), "E_EDIT_ROLE_COLUMN");
+        assert.lengthOf(session.data.edits(), 0, "a refused edit records nothing");
+        await session.data.updateEdges([{ id, values: { amount: 99 } }]);
+        assert.strictEqual(session.data.edges().find((e) => e.txn_id === "T-1")?.amount, 99);
+        session.dispose();
+    });
+
+    it("a rename of the whole column is refused for later, so a merge never splits it across two names", async () => {
+        const session = createGraphSession({ features: ["source-steps"] });
+        await session.data.import(
+            { type: "csv", config: { data: "id,name,score\na,Ann,1\nb,Bo,2" }, name: "a.csv" },
+            { key: "id" },
+        );
+        const a = session.data.sources()[0]?.key ?? "";
+        const details = await refused(
+            () => session.data.renameColumn({ kind: "node", name: "name" }, "label"),
+            "E_UNSUPPORTED",
+        );
+        assert.strictEqual(details.reason, "later");
+        const b = await session.data.stage(
+            { type: "csv", config: { data: "pid,score,city\na,9,Oslo" }, name: "b.csv" },
+            { key: "pid" },
+        );
+        await session.data.merge({ from: { source: b, field: "pid" }, into: { source: a, field: "id" } });
+        assert.deepStrictEqual(
+            session.data.nodes().map((n) => [n.name, n.label]),
+            [
+                ["Ann", undefined],
+                ["Bo", undefined],
+            ],
+        );
+        session.dispose();
+    });
+
     it("4.4: renaming a column onto a name its own table carries is refused with name-taken", async () => {
         const session = createGraphSession({ features: ["source-steps"] });
         await session.data.import(

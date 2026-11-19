@@ -11,7 +11,7 @@
 
 import type { EdgeId } from "../../catalog/types";
 import { featureOff } from "../../features/resolve";
-import type { HistoryCode, LoadedSource } from "../../session/types";
+import type { HistoryCode, JoinChoices, JoinRecord, LoadedSource } from "../../session/types";
 import type { SessionCommand } from "../planning";
 import type { CommandDefinition, UndoableContext, UndoableDefinition } from "../project/Dispatcher";
 import type { CodedFact } from "../shared";
@@ -159,14 +159,48 @@ function labelOf(command: DataStepsSetCommand): string {
 /**
  * The kind `data.sources()` lists a source as.
  * @param src - The source.
+ * @param join - Its join as the steps say now.
  * @returns A joined table's `join`; the derived source an element's nodeData / edgeData pair owns
  * is a file until the public kinds name it.
  */
-function listedKind(src: StepsSource): LoadedSource["kind"] {
-    if (src.join !== undefined) {
+function listedKind(src: StepsSource, join: JoinRecord | undefined): LoadedSource["kind"] {
+    if (join !== undefined) {
         return "join";
     }
     return src.kind === "derived" ? "file" : src.kind;
+}
+
+/**
+ * A joined table's join as its steps say now: none once no step reads the source, and its columns,
+ * choices and table under the names the source's per-source renames give them, so `editJoin` with
+ * the listed choices keeps a rename.
+ * @param value - The value.
+ * @param src - The source.
+ * @returns The join, or undefined.
+ */
+function joinNow(value: SourceSteps, src: StepsSource): JoinRecord | undefined {
+    const { join } = src;
+    if (join === undefined || sourceState(value, src.id) === "staged") {
+        return undefined;
+    }
+    const renamed = src.mapping[join.shape === "edges" ? "edges" : "nodes"]?.renamed ?? {};
+    if (Object.keys(renamed).length === 0) {
+        return join;
+    }
+    const col = (c: string): string => renamed[c] ?? c;
+    const keys = (o: Readonly<Record<string, unknown>>): Record<string, unknown> =>
+        Object.fromEntries(Object.entries(o).map(([k, v]) => [col(k), v]));
+    const { choices, table } = join;
+    return Object.freeze({
+        ...join,
+        columns: join.columns.map((c) => col(c)),
+        choices: {
+            ...choices,
+            ...(choices.columns === undefined ? {} : { columns: choices.columns.map((c) => col(c)) }),
+            ...(choices.clash === undefined ? {} : { clash: keys(choices.clash) as JoinChoices["clash"] }),
+        },
+        table: { ...table, columns: table.columns.map((c) => col(c)), rows: table.rows.map((row) => keys(row)) },
+    });
 }
 
 /**
@@ -186,13 +220,14 @@ function listed(
     const sources = Object.values(value.sources).map((src) => {
         const own = facts.get(src.id);
         const counts = Object.freeze({ nodes: own?.nodes.length ?? 0, edges: own?.edges.length ?? 0 });
+        const join = joinNow(value, src);
         provenance[src.id] = Object.freeze({
             nodes: Object.freeze([...(own?.nodes ?? [])]),
             edges: Object.freeze([...(own?.edges ?? [])]),
         });
         return Object.freeze({
             key: src.id,
-            kind: listedKind(src),
+            kind: listedKind(src, join),
             ...(src.type === undefined ? {} : { type: src.type }),
             ...(src.label === null ? {} : { name: src.label }),
             ...(src.config === undefined ? {} : { config: src.config }),
@@ -205,9 +240,7 @@ function listed(
             named: own?.named ?? 0,
             rowsLeftOut: Object.freeze({ ...own?.leftOut }),
             ...(src.issues === undefined ? {} : { issues: src.issues }),
-            ...(src.join === undefined
-                ? {}
-                : { join: src.join, ...(src.join.onto === null ? {} : { joinedOnto: src.join.onto }) }),
+            ...(join === undefined ? {} : { join, ...(join.onto === null ? {} : { joinedOnto: join.onto }) }),
         });
     });
     const reader = facts.get(READER_SOURCE);

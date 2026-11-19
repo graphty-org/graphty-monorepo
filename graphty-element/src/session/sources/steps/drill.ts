@@ -258,7 +258,10 @@ export function drillRows(
     const rows = page(units, query.offset, query.limit).map((u): DrillRow => {
         const source = u.source ?? step.source;
         const now = u.element === undefined ? null : resolved(b1, u.element);
-        const was = u.element === undefined ? null : resolved(b0, u.element);
+        // A merged row is marked with node 2's id, an alias only in the draft build: look the
+        // committed element up by the id the draft resolved it to first.
+        const was =
+            (now === null ? null : resolved(b0, now.id)) ?? (u.element === undefined ? null : resolved(b0, u.element));
         const touch = u.row === undefined ? undefined : now?.touch.find((t) => t.source === source && t.row === u.row);
         const table = u.table ?? touch?.table ?? null;
         const src = state.value.sources[source] as SourceSteps["sources"][string] | undefined;

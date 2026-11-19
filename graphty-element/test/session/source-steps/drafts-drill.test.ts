@@ -125,6 +125,11 @@ describe("source-steps drafts: drill-down and exclusion (5.4)", () => {
             merged.rows.map((r) => r.source),
             [a, a],
         );
+        for (const r of merged.rows) {
+            assert.isNotNull(r.held, `merged row ${String(r.key)} folds into a node that already exists`);
+            assert.notStrictEqual(r.effect, "added");
+            assert.include(["changed", "unchanged"], r.effect);
+        }
         // The values-differ row: the held holder, the incoming one and the one shown.
         const differ = pv.rows({ step: st.index, bucket: "valuesDiffer", name: "holder" });
         assert.strictEqual(differ.total, 1);

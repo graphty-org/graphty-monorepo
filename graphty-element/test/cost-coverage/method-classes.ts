@@ -1209,6 +1209,8 @@ export const READ_ONLY: readonly string[] = [
     "SessionDataApi.matchValues",
     "SourceDraft.matchCounts",
     "SourceDraft.matchValues",
+    // A preview diffs the committed build and the draft's, which its acts already built.
+    "SourceDraft.preview",
     // A source draft's acts change only the draft, which nothing saves; its commit is MUTATING.
     "SourceDraft.add",
     "SourceDraft.connect",

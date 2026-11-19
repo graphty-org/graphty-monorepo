@@ -2714,6 +2714,47 @@ export type GraphtyWarningCode =
 * source-steps experiment.
 */
 | "W_REFERENCE_UNBOUND"
+/**
+* Rows of a step name more than one element, so they join nothing (`params.step`,
+* `params.rows`). Reported by a draft's preview. Experimental: the source-steps experiment.
+*/
+| "W_FAN_OUT"
+/**
+* Rows of a step meet no element (`params.step`, `params.rows`). Reported by a draft's preview.
+* Experimental: the source-steps experiment.
+*/
+| "W_UNMATCHED"
+/**
+* Nodes of the space a merge folds into that no row reached (`params.step`, `params.nodes`).
+* Reported by a draft's preview. Experimental: the source-steps experiment.
+*/
+| "W_UNTOUCHED"
+/**
+* A step joins end pairs an earlier edge already joins (`params.step`, `params.pairs`). Reported
+* by a draft's preview. Experimental: the source-steps experiment.
+*/
+| "W_PARALLEL_EDGES"
+/**
+* A step makes edges whose two ends are one node (`params.step`, `params.count`). Reported by a
+* draft's preview. Experimental: the source-steps experiment.
+*/
+| "W_SELF_LOOPS"
+/**
+* Rows of one repeated key hold different values in a column (`params.step`, `params.column`,
+* `params.keys`). Reported by a draft's preview. Experimental: the source-steps experiment.
+*/
+| "W_ROWS_DIFFER"
+/**
+* A source's edges name nodes of its own space its node rows lack (`params.step`,
+* `params.source`, `params.nodes`); a merge leaves them unmerged. Reported by a draft's preview.
+* Experimental: the source-steps experiment.
+*/
+| "W_NODE_NAMED_ONLY"
+/**
+* Edge ends of a step found no node in a space (`params.step`, `params.space`, `params.ends`).
+* Reported by a draft's preview. Experimental: the source-steps experiment.
+*/
+| "W_EDGE_END_MISSING"
 /** A run was still computing when the project was saved, so the file does not hold it. */
 | "W_RUN_PENDING"
 /**
@@ -7246,6 +7287,7 @@ export interface SourceDraft {
     moveColumns(source: SourceKey, options: SourceMoveColumnsOptions): void;
     readonly open: boolean;
     pick(ref: SourceElementRef, column: string, source: SourceKey): void;
+    preview(): SourceDraftPreview;
     removeEdit(id: string): void;
     removeSource(source: SourceKey): void;
     removeStep(index: number): void;
@@ -7704,17 +7746,26 @@ export interface SourceSpaceRow {
 // @public
 export interface SourceStepCounts {
     readonly emptyKey: number;
+    readonly endsMeet: Readonly<Record<SourceSpaceName, number>>;
+    readonly endsMissing: Readonly<Record<SourceSpaceName, number>>;
     readonly fanOut: number;
     readonly groups: readonly number[];
     readonly hub: readonly SourceHubValue[];
     readonly matched: number;
     readonly merged: number;
+    readonly namedOnly: number;
     readonly newEdges: number;
+    readonly newEdgeTypes: Readonly<Record<SourceTypeName, number>>;
     readonly newNodes: number;
+    readonly newNodeTypes: Readonly<Record<SourceTypeName, number>>;
     readonly op: SourceStepOp;
+    readonly parallelPairs: number;
     readonly part?: number;
+    readonly repeated1: number;
+    readonly repeated2: number;
     readonly repeatedKept: number;
     readonly rowsDiffer: number;
+    readonly rowsDifferIn: Readonly<Record<string, number>>;
     readonly ruleType: Readonly<Record<string, number>>;
     readonly selfLoops: number;
     readonly source: SourceKey;

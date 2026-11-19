@@ -372,7 +372,55 @@ function newStats(step: Step, si: number): StepStats {
         emptyKey: 0,
         repeatedKept: 0,
         hub: [],
+        rowsDifferIn: {},
+        parallelPairs: 0,
+        endsMeet: {},
+        endsMissing: {},
+        namedOnly: 0,
+        repeated1: 0,
+        repeated2: 0,
+        newNodeTypes: {},
+        newEdgeTypes: {},
     };
+}
+
+/**
+ * Add one to a per-name count.
+ * @param counts - The counts.
+ * @param name - The name.
+ */
+function bump(counts: Record<string, number>, name: string): void {
+    counts[name] = (counts[name] ?? 0) + 1;
+}
+
+/**
+ * How many values a list holds more than once.
+ * @param values - The values.
+ * @returns The number of distinct repeated values.
+ */
+function repeats(values: Iterable<string>): number {
+    const seen = new Set<string>();
+    const twice = new Set<string>();
+    for (const v of values) {
+        (seen.has(v) ? twice : seen).add(v);
+    }
+    return twice.size;
+}
+
+/**
+ * The key values a merge's node 2s fold by: each one's first row of the source, unless the step
+ * leaves the row out or its key is empty.
+ * @param s - The merge.
+ * @param node2s - Its node 2s.
+ * @returns The keys, one per node 2.
+ */
+function mergeKeys(s: MergeStep, node2s: readonly BuiltNode[]): string[] {
+    return node2s.flatMap((n2) => {
+        const r = n2.touch.find((t) => t.source === s.source && t.table === "nodes")?.cells;
+        const v = r?.[s.read.key];
+        const out = r === undefined || isEmpty(v) || (s.except !== undefined && listed(s.except, r));
+        return out || (s.rows !== undefined && !listed(s.rows, r)) ? [] : [text(v)];
+    });
 }
 
 const supply = (el: BuiltElement, src: string): void => {
@@ -508,6 +556,11 @@ class Builder {
     private readonly types: readonly TypeEntry[];
     // the rows each `aggregate` column read so far, per element (see gather)
     private readonly gathered = new WeakMap<BuiltElement, Map<string, Value[]>>();
+    // the step that made each element, for its counts by type once the build is done
+    private readonly madeBy = new WeakMap<BuiltElement, StepStats>();
+    // `<from>\u0001<to>` of every edge made so far, for parallel pairs
+    // ponytail: pairs are taken when an edge is made; a later merge that retargets ends is not re-counted
+    private readonly joined = new Set<string>();
 
     constructor(
         private readonly input: BuildInput,
@@ -607,7 +660,9 @@ class Builder {
             return null;
         }
         st.newNodes++;
-        return this.mkNode(space, key, typeOf(this.types, "node", ctx, row));
+        const made = this.mkNode(space, key, typeOf(this.types, "node", ctx, row));
+        this.madeBy.set(made, st);
+        return made;
     }
 
     // 3.7: the first step to give a node a type sets it; a different type a later step gives stays in its lineage.
@@ -640,6 +695,7 @@ class Builder {
             // a repeat within one source: `repeated` decides, absent means first (3.3)
             if (mine.v !== v) {
                 st.rowsDiffer++;
+                bump(st.rowsDifferIn, col);
             }
             if (!("repeated" in step) || step.repeated !== "last") {
                 return;
@@ -825,6 +881,7 @@ class Builder {
         for (const n of this.nodes.values()) {
             this.settleTime(n);
         }
+        this.countNewTypes();
         for (const { src, table, n, read } of this.reads.values()) {
             for (let i = 0; i < n; i++) {
                 if (!read.has(i) && this.fates.get(src)?.has(`${table}#${i}`) !== true) {
@@ -834,6 +891,26 @@ class Builder {
         }
         const { nodes, edges, aliases, edgeAliases, stats, issues, fates, readerResults } = this;
         return { nodes, edges, aliases, edgeAliases, stats, issues, fates, readerResults };
+    }
+
+    // The elements each step made that the graph still holds, by their final type.
+    private countNewTypes(): void {
+        for (const [els, field] of [
+            [this.nodes, "newNodeTypes"],
+            [this.edges, "newEdgeTypes"],
+        ] as const) {
+            for (const el of els.values()) {
+                const st = this.madeBy.get(el);
+                if (st !== undefined && el.type !== null) {
+                    bump(st[field], el.type);
+                }
+            }
+        }
+    }
+
+    // One edge end: whether it found a node already built, by the space it looks in.
+    private end(st: StepStats, space: string, met: boolean): void {
+        bump(met ? st.endsMeet : st.endsMissing, space);
     }
 
     private bind(op: Extract<ReaderOp, { op: "remove" | "edit" }>): BuiltNode | BuiltEdge | null {
@@ -964,6 +1041,10 @@ class Builder {
         nodeRows?.forEach((r, i) => {
             this.addNodeRow(s, src, { si, st, seen, empties }, r, i);
         });
+        const key = src.mapping.nodes?.key;
+        if (nodeRows && key !== undefined) {
+            st.repeated2 = repeats(nodeRows.filter((r) => !isEmpty(r[key])).map((r) => text(r[key])));
+        }
         this.addEdges(s, si, st, src, empties);
         this.reportEmpty(s.source, empties);
     }
@@ -1025,6 +1106,8 @@ class Builder {
         const sSpace = m.sourceSpace ?? ownSpace(src.id);
         const tSpace = m.targetSpace ?? ownSpace(src.id);
         const how = src.settings?.unmatched ?? "add";
+        const own = src.mapping.nodes === undefined ? null : nodeSpace(src);
+        const named = new Set<BuiltNode>();
         rows.forEach((r, i) => {
             const a = r[m.source];
             const b = r[m.target];
@@ -1035,8 +1118,15 @@ class Builder {
                 this.fate(s.source, "edges", i, "left-out:empty-end");
                 return;
             }
+            this.end(st, sSpace, this.resolve(sSpace, text(a)) !== undefined);
             const na = this.node(sSpace, text(a), { source: s.source, end: "source" }, r, st, how);
+            this.end(st, tSpace, this.resolve(tSpace, text(b)) !== undefined);
             const nb = this.node(tSpace, text(b), { source: s.source, end: "target" }, r, st, how);
+            for (const n of [na, nb]) {
+                if (n?.space === own) {
+                    named.add(n);
+                }
+            }
             if (!na || !nb) {
                 st.unmatched++;
                 this.fate(s.source, "edges", i, "left-out:unmatched");
@@ -1061,6 +1151,9 @@ class Builder {
                 ends: { source: m.source, target: m.target },
             });
         });
+        st.namedOnly = [...named].filter(
+            (n) => !n.touch.some((t) => t.source === s.source && t.table === "nodes"),
+        ).length;
     }
 
     // ---- join.node-values (3.4)
@@ -1076,12 +1169,19 @@ class Builder {
             }
         }
         let empty = 0;
+        const keys: string[] = [];
+        const fanned = new Set<string>();
         for (const [r, i] of rows) {
             if (isEmpty(r[s.read.key])) {
                 empty++;
                 continue;
             }
+            keys.push(text(r[s.read.key]));
+            const fans = st.fanOut;
             const n = this.nodeValuesTarget(s, st, look, r, i);
+            if (st.fanOut > fans) {
+                fanned.add(text(r[s.read.key]));
+            }
             if (!n) {
                 continue;
             }
@@ -1093,6 +1193,8 @@ class Builder {
             }
         }
         st.emptyKey += empty;
+        st.repeated1 = fanned.size;
+        st.repeated2 = repeats(keys);
         this.reportEmpty(s.source, new Map(empty > 0 ? [[s.read.key, empty]] : []));
         if (table === "edges") {
             st.hub.push(...hubs(rows, s.read.key));
@@ -1194,18 +1296,20 @@ class Builder {
         if (isEmpty(v)) {
             return { miss: "left-out:empty-end" };
         }
+        const space = which === "source" ? rd.sourceSpace : rd.targetSpace;
         if (tr && which === (s.viaEnd ?? "target")) {
             const ids = tr(v);
             if (ids.length > 1) {
                 return { miss: "left-out:fan-out" };
             }
             const n = ids.length === 1 ? this.nodes.get(ids[0]) : undefined;
+            this.end(st, n?.space ?? space, n !== undefined);
             return n ? { n } : { miss: "left-out:unmatched" };
         }
-        const space = which === "source" ? rd.sourceSpace : rd.targetSpace;
         const how = s.unmatchedRows ?? this.source(s.source).settings?.unmatched ?? "add";
         const idx = loose === null ? null : this.looseKeys(loose, space, s);
         const key = idx?.get(normalize(v, s)) ?? text(v);
+        this.end(st, space, this.resolve(space, key) !== undefined);
         const n = this.node(space, key, { source: s.source, part: s.part, end: which }, r, st, how);
         if (n && idx && !idx.has(normalize(v, s))) {
             idx.set(normalize(v, s), n.key);
@@ -1231,7 +1335,9 @@ class Builder {
     // ---- join.edge-values (3.4)
     private edgeValues(s: EdgeValuesStep, si: number, st: StepStats): void {
         const table = s.read.table ?? "edges";
-        for (const [r, i] of this.filtered(s, table)) {
+        const rows = this.filtered(s, table);
+        st.repeated2 = repeats(rows.filter(([r]) => !isEmpty(r[s.read.edgeId])).map(([r]) => text(r[s.read.edgeId])));
+        for (const [r, i] of rows) {
             const e = this.edges.get(edgeId(s.edges, text(r[s.read.edgeId])));
             if (!e) {
                 st.unmatched++;
@@ -1299,6 +1405,12 @@ class Builder {
             this.pairs.set(pairKey(e.weightMeaning), id);
         }
         st.newEdges++;
+        this.madeBy.set(e, st);
+        const pair = `${a.from.id}\u0001${a.to.id}`;
+        if (this.joined.has(pair)) {
+            st.parallelPairs++;
+        }
+        this.joined.add(pair);
         if (a.from.id === a.to.id) {
             st.selfLoops++;
         }
@@ -1346,6 +1458,7 @@ class Builder {
         const kept = new Map<string, BuiltNode[]>();
         const reached = new Set<string>();
         const before = [...this.nodes.values()].filter((n) => n.space === space).map((n) => n.id);
+        const fanned = new Set<string>();
         for (const n2 of node2s) {
             const rows = n2.touch.filter((t) => t.source === s.source && t.table === "nodes").map((t) => t.cells);
             const [r] = rows;
@@ -1356,6 +1469,7 @@ class Builder {
             const n1 = ids.length === 1 ? this.nodes.get(ids[0]) : undefined;
             if (ids.length > 1) {
                 st.fanOut++;
+                fanned.add(text(v));
             } else if (n1) {
                 this.fold(n1, n2, { src: s.source, si, row: 0, step: s, st }, rows);
                 reached.add(n1.id);
@@ -1375,6 +1489,8 @@ class Builder {
         }
         st.untouched = before.filter((id) => !reached.has(id) && this.nodes.has(id)).length;
         st.groups = [...groups.values()].sort((a, b) => b - a);
+        st.repeated1 = fanned.size;
+        st.repeated2 = repeats(mergeKeys(s, node2s));
     }
 
     // Only 2: Drop drops it; Keep, when field 1 is node 1's key, moves it into node 1's space later (3.6 item 3).

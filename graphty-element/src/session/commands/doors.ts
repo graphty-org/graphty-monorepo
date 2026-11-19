@@ -3621,6 +3621,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             edits: READ,
             matchCounts: READ,
             matchValues: READ,
+            preview: READ,
             commit: SOURCE_STEPS_WRITE,
             dispose: exempt("closes the draft, writing nothing"),
         },

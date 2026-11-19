@@ -434,6 +434,24 @@ export interface StepStats {
     emptyKey: number;
     repeatedKept: number;
     hub: { value: string; rows: number }[];
+    /** Rows of one repeated key whose values differ, by column (the cells `rowsDiffer` counts). */
+    rowsDifferIn: Record<string, number>;
+    /** End pairs this step joined with an edge when an earlier edge already joined them. */
+    parallelPairs: number;
+    /** Edge ends that found a node already built, by the space they look in. */
+    endsMeet: Record<string, number>;
+    /** Edge ends that found no node, so made one or left the row out, by space. */
+    endsMissing: Record<string, number>;
+    /** For `join.add`: nodes of the source's own space its edges name but its node rows lack. */
+    namedOnly: number;
+    /** Key values reaching more than one node (the keys behind `fanOut`). */
+    repeated1: number;
+    /** Key values the step's own rows hold more than once. */
+    repeated2: number;
+    /** Nodes this step made that the graph holds, by type; untyped ones are left out. */
+    newNodeTypes: Record<string, number>;
+    /** Edges this step made that the graph holds, by type; untyped ones are left out. */
+    newEdgeTypes: Record<string, number>;
 }
 
 /** A build outcome, as a code and its parameters. */

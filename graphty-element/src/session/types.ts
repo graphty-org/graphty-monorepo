@@ -4053,6 +4053,208 @@ export interface SourceStepCounts {
     readonly repeatedKept: number;
     /** Key values many rows share (`W_VALUE_HUB`). */
     readonly hub: readonly SourceHubValue[];
+    /** Repeated keys within the source whose rows hold different values, by column. */
+    readonly rowsDifferIn: Readonly<Record<string, number>>;
+    /** End pairs the step joined with an edge when an earlier edge already joined them. */
+    readonly parallelPairs: number;
+    /** Edge ends that found a node already built, by the id space they look in. */
+    readonly endsMeet: Readonly<Record<SourceSpaceName, number>>;
+    /** Edge ends that found no node, so made one or left the row out, by id space. */
+    readonly endsMissing: Readonly<Record<SourceSpaceName, number>>;
+    /** For `join.add`: nodes of the source's own space its edges name but its node rows lack. */
+    readonly namedOnly: number;
+    /** Key values reaching more than one node: the keys behind {@link SourceStepCounts.fanOut}. */
+    readonly repeated1: number;
+    /** Key values the step's own rows hold more than once. */
+    readonly repeated2: number;
+    /** Nodes the step made that the graph holds, by type; untyped nodes are left out. */
+    readonly newNodeTypes: Readonly<Record<SourceTypeName, number>>;
+    /** Edges the step made that the graph holds, by type; untyped edges are left out. */
+    readonly newEdgeTypes: Readonly<Record<SourceTypeName, number>>;
+}
+
+/** The counts of {@link SourceStepCounts} that are numbers, besides the step's place and part. */
+type SourceStepNumber = Exclude<
+    {
+        [K in keyof SourceStepCounts]-?: SourceStepCounts[K] extends number | undefined ? K : never;
+    }[keyof SourceStepCounts],
+    "step" | "part"
+>;
+
+/** The counts of {@link SourceStepCounts} kept by name (a column, a space or a type). */
+type SourceStepByName =
+    "valuesDiffer" | "ruleType" | "rowsDifferIn" | "endsMeet" | "endsMissing" | "newNodeTypes" | "newEdgeTypes";
+
+/**
+ * How a step's counts in a draft differ from the same step's counts in the committed build: the
+ * draft's count minus the committed one. A count by name lists only the names whose count moved.
+ * @experimental source-steps
+ */
+export type SourceStepCountsChange = { readonly [K in SourceStepNumber]: number } & {
+    readonly [K in SourceStepByName]: Readonly<Record<string, number>>;
+};
+
+/**
+ * How many nodes and edges a build holds, in all and by type (untyped elements are in the totals only).
+ * @experimental source-steps
+ */
+export interface SourceDraftPreviewTotals {
+    readonly nodes: number;
+    readonly edges: number;
+    readonly nodeTypes: Readonly<Record<SourceTypeName, number>>;
+    readonly edgeTypes: Readonly<Record<SourceTypeName, number>>;
+}
+
+/**
+ * How many elements of one kind a draft adds, removes, and keeps with different values.
+ * @experimental source-steps
+ */
+export interface SourceDraftPreviewChanges {
+    readonly added: number;
+    readonly removed: number;
+    readonly changed: number;
+}
+
+/**
+ * One step of a draft, as `draft.preview()` describes it: the step as {@link SourceDraft.steps}
+ * lists it, with how it stands against the committed steps.
+ * @experimental source-steps
+ */
+export interface SourceDraftPreviewStep extends SourceStepRow {
+    /** `"new"`: the committed steps hold no such step; `"edited"`: its choices changed; `"kept"`: as committed. */
+    readonly state: "new" | "edited" | "kept";
+    /** The same step's place in the committed list; null for a new step. */
+    readonly committed: number | null;
+    /** Its counts minus the committed ones; null for a new step. */
+    readonly change: SourceStepCountsChange | null;
+}
+
+/**
+ * One source, as `draft.preview()` describes it: what it supplies and names in the draft, and the
+ * change from the committed build.
+ * @experimental source-steps
+ */
+export interface SourceDraftPreviewSource {
+    readonly source: SourceKey;
+    /** Where it stands in the draft; `"removed"` for a committed source the draft takes out. */
+    readonly state: "staged" | "built" | "off" | "held" | "removed";
+    /** Nodes it supplies. */
+    readonly nodes: number;
+    /** Edges it supplies. */
+    readonly edges: number;
+    /** Nodes it only names. */
+    readonly named: number;
+    /** Its rows no step reads (fate `no-step`). */
+    readonly noStep: number;
+    /** Each count minus the committed one. */
+    readonly change: {
+        readonly nodes: number;
+        readonly edges: number;
+        readonly named: number;
+        readonly noStep: number;
+    };
+}
+
+/**
+ * One outcome a draft's preview reports, as a code and its parameters:
+ *
+ * - `W_STEP_REMOVED`: committed step `step` is gone from the draft, or not built there: `reason`
+ *   `"source-removed"` (its source is taken out), `"step-removed"` or `"source-held"`.
+ * - `W_REFERENCE_UNBOUND`: a note, a pin or a reader edit names `ref`, which the draft no longer holds.
+ * - `W_FILTER_HELD`: filter condition `filter` reads `column`, which no element of the draft carries,
+ *   so it would be held off.
+ * - `W_EDIT_SOURCE_CHANGED`: the value under reader edit `edit` would move from `was` to `now`.
+ * - `W_VALUES_DIFFER`: values from different sources differ in a column of a step.
+ * - `W_FAN_OUT`, `W_UNMATCHED`: `rows` of step `step` name several elements, or meet nothing.
+ * - `W_UNTOUCHED`: `nodes` of the space a merge folds into that no row reached.
+ * - `W_PARALLEL_EDGES`: step `step` joins `pairs` end pairs an earlier edge already joins.
+ * - `W_SELF_LOOPS`: step `step` makes `count` edges whose two ends are one node.
+ * - `W_ROWS_DIFFER`: `keys` repeated keys of step `step` hold different values in `column`.
+ * - `W_NODE_NAMED_ONLY`: `source`'s edges name `nodes` of its own space its node rows lack.
+ * - `W_EDGE_END_MISSING`: `ends` edge ends of step `step` found no node in `space`.
+ * - `W_KEY_EMPTY`, `W_VALUE_HUB`, `E_EDGE_KEY_COLLISION`: what the build reports.
+ *
+ * A step's count is reported when the draft makes it: for a new or edited step, or a count that
+ * moved. OPEN UNION: codes may be added.
+ * @experimental source-steps
+ */
+export type SourceDraftPreviewIssue =
+    | {
+          readonly code: "W_STEP_REMOVED";
+          readonly params: {
+              readonly step: number;
+              readonly reason: "source-removed" | "step-removed" | "source-held";
+              readonly source: SourceKey;
+          };
+      }
+    | { readonly code: "W_REFERENCE_UNBOUND"; readonly params: { readonly ref: SourceElementRef } }
+    | { readonly code: "W_FILTER_HELD"; readonly params: { readonly filter: string; readonly column: Path } }
+    | Extract<SourceRefreshIssue, { readonly code: "W_EDIT_SOURCE_CHANGED" }>
+    | SourceValuesDiffer
+    | { readonly code: "W_FAN_OUT"; readonly params: { readonly step: number; readonly rows: number } }
+    | { readonly code: "W_UNMATCHED"; readonly params: { readonly step: number; readonly rows: number } }
+    | { readonly code: "W_UNTOUCHED"; readonly params: { readonly step: number; readonly nodes: number } }
+    | { readonly code: "W_PARALLEL_EDGES"; readonly params: { readonly step: number; readonly pairs: number } }
+    | { readonly code: "W_SELF_LOOPS"; readonly params: { readonly step: number; readonly count: number } }
+    | {
+          readonly code: "W_ROWS_DIFFER";
+          readonly params: { readonly step: number; readonly column: string; readonly keys: number };
+      }
+    | {
+          readonly code: "W_NODE_NAMED_ONLY";
+          readonly params: { readonly step: number; readonly source: SourceKey; readonly nodes: number };
+      }
+    | {
+          readonly code: "W_EDGE_END_MISSING";
+          readonly params: { readonly step: number; readonly space: SourceSpaceName; readonly ends: number };
+      }
+    | {
+          readonly code: "W_KEY_EMPTY";
+          readonly params: { readonly source: SourceKey; readonly column: string; readonly rows: number };
+      }
+    | {
+          readonly code: "W_VALUE_HUB";
+          readonly params: {
+              readonly source: SourceKey;
+              readonly column: string;
+              readonly value: string;
+              readonly rows: number;
+          };
+      }
+    | {
+          readonly code: "E_EDGE_KEY_COLLISION";
+          readonly params: { readonly load: SourceKey; readonly key: string; readonly steps: readonly number[] };
+      };
+
+/**
+ * What a draft would do, as `draft.preview()` returns it (design 5.3, 5.6): the difference between
+ * the committed build and the draft's, counted over every row. Its `after` is what the graph holds
+ * once the draft is committed.
+ *
+ * ```ts
+ * const p = draft.preview();
+ * p.after.nodes - p.before.nodes; // nodes the commit adds
+ * p.steps.find((s) => s.op === "join.merge")?.buckets?.merged; // nodes it merges
+ * if (!p.issues.some((i) => i.code.startsWith("E_"))) await draft.commit();
+ * ```
+ * @experimental source-steps
+ */
+export interface SourceDraftPreview {
+    /** The draft it describes. */
+    readonly draft: string;
+    /** The committed graph. */
+    readonly before: SourceDraftPreviewTotals;
+    /** The graph once committed. */
+    readonly after: SourceDraftPreviewTotals;
+    readonly nodes: SourceDraftPreviewChanges;
+    readonly edges: SourceDraftPreviewChanges;
+    /** Every step of the draft, with its buckets and their change from the committed counts. */
+    readonly steps: readonly SourceDraftPreviewStep[];
+    /** Every source of the draft or the committed project. */
+    readonly sources: readonly SourceDraftPreviewSource[];
+    /** Each reader edit of the draft, with its state. */
+    readonly edits: readonly ReaderEditRow[];
+    readonly issues: readonly SourceDraftPreviewIssue[];
 }
 
 /**
@@ -4712,6 +4914,14 @@ export interface SourceDraft {
      * @returns The page and the total.
      */
     matchValues(pair: SourceMatchPair, options?: SourceMatchValuesOptions): SourceMatchValues;
+    /**
+     * What committing the draft would do: totals before and after, each step's buckets counted
+     * over every row and their change from the committed counts, each source's counts, reader
+     * edits' states and the outcomes. Builds nothing it has not built for the draft's current
+     * acts, and returns the same object until the draft changes.
+     * @returns The preview.
+     */
+    preview(): SourceDraftPreview;
     /**
      * Apply everything the draft did to the graph as one undoable step, and close the draft. A
      * draft that changed nothing records nothing. Data writes waiting in line ahead of the commit

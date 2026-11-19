@@ -372,7 +372,7 @@ import type {
     ValueType,
 } from "./types";
 import { typedValueLabelsAt, valueLabelsAt } from "./valueLabels";
-import type { FilterValueSource } from "./visibility/filter";
+import { type FilterValueSource, valuePaths } from "./visibility/filter";
 import { wholeGraph } from "./working/graphs";
 import type { WorkingGraph, WorkingScope, WorkingView } from "./working/view";
 
@@ -3454,6 +3454,17 @@ export class SessionData implements SessionDataApi {
                 read: (source, options) => this.readStaged(source, options),
                 send: (edit, copies, removed) => this.draftCommit(edit, copies, removed),
                 committedCopies: () => this.stepsCopies(),
+                previewContext: () => ({
+                    refs: this.boundNow().refs,
+                    filters: this.writes
+                        .readers()
+                        .visibility.conditions.filter((each) => each.on && each.effect !== "select")
+                        .map((each) => ({
+                            filter: each.id,
+                            paths: valuePaths(each.rule),
+                            ...(each.source === undefined ? {} : { source: each.source }),
+                        })),
+                }),
                 release: () => {
                     // A draft discarded while its commit was landing never releases one opened since.
                     if (this.sourceDraft === draft) {

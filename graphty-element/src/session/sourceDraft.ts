@@ -14,6 +14,7 @@ import type { ColumnRef } from "./shared";
 import type { StepsAct } from "./sources/steps/acts";
 import { built, draftApply, type DraftState, mappingEdit, stepEdit } from "./sources/steps/draft";
 import { matchCounts, matchValues } from "./sources/steps/match";
+import { type PreviewContext, previewOf } from "./sources/steps/preview";
 import {
     buildOf,
     type Copies,
@@ -30,6 +31,7 @@ import type {
     SourceConnectOptions,
     SourceDraft,
     SourceDraftChange,
+    SourceDraftPreview,
     SourceElementRef,
     SourceExtractOptions,
     SourceMappingPatch,
@@ -65,6 +67,8 @@ export interface SourceDraftHost {
     send(edit: StepsEdit, copies: Copies, removed: readonly string[]): Promise<unknown>;
     /** The rows as read the committed project holds, by copy id. */
     committedCopies(): Copies;
+    /** The references and filters the session holds, which a preview checks against the draft. */
+    previewContext(): PreviewContext;
     /** The draft stops holding the data: called once it is committed or discarded. */
     release(): void;
     /**
@@ -81,6 +85,8 @@ export class SourceDraftHandle implements SourceDraft {
     private readonly base: DraftState;
     private readonly history: DraftState[] = [];
     private closed = false;
+    // the preview of the current state, kept until an act or an undo changes it
+    private previewed: { readonly state: DraftState; readonly preview: SourceDraftPreview } | null = null;
 
     /**
      * Open a draft over the committed sources and steps.
@@ -313,6 +319,18 @@ export class SourceDraftHandle implements SourceDraft {
     matchValues(pair: SourceMatchPair, options: SourceMatchValuesOptions = {}): SourceMatchValues {
         this.live("matchValues");
         return matchValues(this.state.value, this.state.copies, pair, options);
+    }
+
+    /** @inheritdoc */
+    preview(): SourceDraftPreview {
+        this.live("preview");
+        if (this.previewed?.state !== this.state) {
+            const data = previewOf(this.base, this.state, this.host.previewContext());
+            // The internal counts are the public ones; the public types name their spellings.
+            const preview = { draft: this.id, ...data } as unknown as SourceDraftPreview;
+            this.previewed = { state: this.state, preview };
+        }
+        return this.previewed.preview;
     }
 
     /** @inheritdoc */

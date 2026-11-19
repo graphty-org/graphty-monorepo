@@ -939,6 +939,9 @@ describe("model load progress", () => {
             send(chunk);
             await arrived;
         }
+        // Every byte has arrived, so the idle timer has nothing left to test. Babylon.js polls a scene's
+        // readiness on setTimeout while its shaders compile, so the model is drawn on the real clock.
+        vi.useRealTimers();
         send(null);
         const record = await adding;
         assert.strictEqual(record.state, "accepted", JSON.stringify(record.problems));

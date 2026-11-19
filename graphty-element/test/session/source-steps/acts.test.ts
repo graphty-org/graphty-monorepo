@@ -28,6 +28,9 @@ const MERCHANTS = ["merchant_id,city", "M-1,Oslo", "M-2,Bergen"].join("\n");
 
 const BANK_B = ["txn_id,account_id,merchant_id,amount", "X-1,A-1,M-1,4", "X-2,B-7,M-9,6"].join("\n");
 
+/** The column the transactions read their source end from. */
+const ACCOUNT = "account_id";
+
 const KYC = ["alert_id,account_id,score", "K-0,A-1,5", "K-1,A-2,3", "K-2,A-77,1"].join("\n");
 
 /**
@@ -316,7 +319,10 @@ describe("source-steps: the acts", () => {
         const session = createGraphSession({ features: ["source-steps"] });
         const t = await edgeFile(session, TRANSACTIONS, "transactions.csv");
         await session.data.extract(t, { column: "device_id", type: "device" });
-        const k = await session.data.stage({ type: "csv", config: { data: KYC }, name: "kyc.csv" }, { key: "alert_id" });
+        const k = await session.data.stage(
+            { type: "csv", config: { data: KYC }, name: "kyc.csv" },
+            { key: "alert_id" },
+        );
         await session.data.connect({ from: { source: k, field: "account_id" }, into: { space: "account" } });
         const device = session.data.edges().find((e) => e.target === "D-1");
         assert.isDefined(device);
@@ -505,12 +511,12 @@ describe("source-steps: the acts", () => {
         const edge = session.data.edges().find((e) => e.txn_id === "T-1");
         const id = edge?.id ?? "";
         const details = await refused(
-            () => session.data.updateEdges([{ id, values: { "account_id": "A-2" } }]),
+            () => session.data.updateEdges([{ id, values: { [ACCOUNT]: "A-2" } }]),
             "E_EDIT_ROLE_COLUMN",
         );
         assert.strictEqual(details.column, "account_id");
         await refused(
-            () => session.data.updateNodes([{ id: "A-1", values: { "account_id": "Z" } }]),
+            () => session.data.updateNodes([{ id: "A-1", values: { [ACCOUNT]: "Z" } }]),
             "E_EDIT_ROLE_COLUMN",
         );
         await session.data.extract(t, { column: "category", type: "cat" });

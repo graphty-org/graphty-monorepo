@@ -32,7 +32,11 @@ function memoryIndexedDb(): { factory: IDBFactory; records: Map<string, unknown>
         },
         get: (key: string) => succeeded(records.get(key)),
     };
-    const db = { transaction: () => ({ objectStore: () => store }), close: () => undefined };
+    const db = {
+        createObjectStore: () => store,
+        transaction: () => ({ objectStore: () => store }),
+        close: () => undefined,
+    };
     const factory = {
         open: () => {
             const request = { result: db } as { result: unknown; onupgradeneeded?: () => void; onsuccess?: () => void };

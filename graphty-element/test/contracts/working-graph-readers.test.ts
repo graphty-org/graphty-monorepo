@@ -423,8 +423,11 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "positions.set()": "writes",
     "positions.snapshot()": "not the graph",
     "positions.unpin()": "writes",
+    // Facts about the file a save would write (sizes, sources, refusals), and about a file not opened yet.
+    "project.describe()": "not the graph",
     "project.dirty": "not the graph",
     "project.id": "not the graph",
+    "project.inspect()": "not the graph",
     "project.markSaved()": "writes",
     "project.name": "not the graph",
     "project.open()": "writes",

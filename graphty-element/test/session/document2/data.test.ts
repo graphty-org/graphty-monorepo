@@ -672,6 +672,26 @@ describe("data section version 2", () => {
         session.dispose();
     });
 
+    it("keeps a node one source's rows give values out of the copy of a source whose edges only name it", async () => {
+        const body = rowsBody([
+            rowsSource(SRC_A, { nodes: { id: ["a"], tag: ["x"] } }),
+            rowsSource(SRC_B, { edges: { source: ["a"], target: ["z"], w: [1] } }),
+        ]);
+        const session = createGraphSession(ON);
+        await readBody(session, body);
+        const { body: written } = await writeBody(session);
+        const loads = Object.fromEntries(
+            ((written.graph as JsonObject).nodes as JsonObject[]).map((node) => [
+                node["graphty.key"],
+                node["_source.loads"],
+            ]),
+        );
+        assert.deepStrictEqual(loads, { a: [SRC_A], z: [SRC_B] }, "B only names a");
+        const b = (written.sources as JsonObject[]).find((source) => source.id === SRC_B) as JsonObject;
+        assert.notProperty(b.copy, "nodes", "a is no node row of B's copy");
+        session.dispose();
+    });
+
     it("keeps a reduced edge's first key under last, and every row's key an alias of it", async () => {
         const body = rowsBody(
             [

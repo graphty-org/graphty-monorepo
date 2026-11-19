@@ -1277,14 +1277,14 @@ function suppliersOf(
         readonly sources: readonly ModelSource[];
     },
 ): { readonly loads: readonly ModelSource[]; readonly named: boolean } {
-    const bare = Object.keys(node).every((name) => name === "id");
-    const rows = supplied.filter((source) => !bare || index.named.get(source.load.key)?.has(node.id) !== true);
+    const rows = supplied.filter((source) => index.named.get(source.load.key)?.has(node.id) !== true);
     if (rows.length > 0) {
         return { loads: rows, named: false };
     }
 
+    const bare = Object.keys(node).every((name) => name === "id");
     const reaching = index.sources.filter((source) => index.reach.get(node.id)?.has(source.id) === true);
-    return reaching.length > 0 ? { loads: reaching, named: true } : { loads: supplied, named: false };
+    return bare && reaching.length > 0 ? { loads: reaching, named: true } : { loads: supplied, named: false };
 }
 
 /**

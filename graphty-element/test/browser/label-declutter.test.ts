@@ -2,8 +2,8 @@
  * @file Node labels that would overlap on screen are not drawn on top of each other.
  *
  * Every node label is its own plane, and nothing used to check whether two of them landed in the
- * same place, so two labelled nodes near each other drew their words over one another. With the
- * graph's `labels.declutter` behaviour on, the element thins them out: the label of the node with
+ * same place, so two labeled nodes near each other drew their words over one another. With the
+ * graph's `labels.declutter` behavior on, the element thins them out: the label of the node with
  * more edges is kept and the one it would cover is hidden. It is off by default, and off means
  * every label a style asks for is drawn.
  *
@@ -364,7 +364,7 @@ describe("node labels do not overlap", () => {
     });
 
     it("never draws two labels whose words overlap, and keeps the selected one", async () => {
-        // A tight grid of forty labelled nodes: plenty of collisions to resolve.
+        // A tight grid of forty labeled nodes: plenty of collisions to resolve.
         const nodes = [];
         const ids: string[] = [];
         for (let i = 0; i < 40; i++) {

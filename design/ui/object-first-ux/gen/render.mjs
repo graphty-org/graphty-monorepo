@@ -74,7 +74,7 @@ export const icon = (id, size = 24, extra = "") => {
 };
 const cls = (...xs) => xs.filter(Boolean).join(" ");
 const attr = (k, v) => (v == null ? "" : ` ${k}="${esc(v)}"`);
-// "ink" is the theme's outline and label colour (#1e1e1e light, #ffffff
+// "ink" is the theme's outline and label color (#1e1e1e light, #ffffff
 // dark), so one spec serves both themes.
 export const col = (c) => (c === "ink" ? "var(--k-canvas-ink)" : c);
 
@@ -126,7 +126,7 @@ export function stateHtml(o) {
 }
 
 // The one Style chip (14 x 14). chip: { type, color, colors, width, dash,
-// locked, override, faded }. A colour may be "ink".
+// locked, override, faded }. A color may be "ink".
 export function chipHtml(chip) {
   if (!chip) return "";
   const faded = chip.faded ? " is-faded" : "";
@@ -146,7 +146,7 @@ export function chipHtml(chip) {
   }
 }
 
-// A chit: the 14 x 14 colour button of a paint row, which may carry the
+// A chit: the 14 x 14 color button of a paint row, which may carry the
 // override dot.
 const chitHtml = (color, override) => `<button class="k-chit">${chipHtml({ type: "swatch", color, override })}</button>`;
 
@@ -291,7 +291,7 @@ export function leftPanel(spec) {
 
 // ---------------------------------------------------------------- canvas
 
-// A colour on a ramp: t in 0..1 between the stops.
+// A color on a ramp: t in 0..1 between the stops.
 export function rampAt(colors, t) {
   const hex2 = (v) => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, "0");
   const p = Math.max(0, Math.min(1, t)) * (colors.length - 1), i = Math.min(Math.floor(p), colors.length - 2), f = p - i;
@@ -372,7 +372,7 @@ export function nodeAt(spec, id) {
   const { P } = fitOf(c, w, h, { legend: !!c.overlays?.legend, insetRight: insetRight(spec) });
   return { x: P[id][0], y: P[id][1] };
 }
-// Every node whose centre falls inside a stage rectangle { x, y, w, h }.
+// Every node whose center falls inside a stage rectangle { x, y, w, h }.
 export function nodesIn(spec, r) {
   const G = drawingOf(spec.canvas);
   return G.NODES.map((nd) => nd.id).filter((id) => { const p = nodeAt(spec, id); return p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h; });
@@ -394,7 +394,7 @@ export function graphSvg(c = {}, w = 959, h = 852, o = {}) {
   const { G, P, depth } = fitOf(c, w, h, o);
   const nodeSpec = (id) => ({ ...(c.nodes?.default || {}), ...((c.nodes?.byId || {})[id] || {}) });
   // Summary nodes: canvas.nodes.meta [{ members, label, fill, r }] hide their
-  // members and draw one node at the members' centre; canvas.edges.merged
+  // members and draw one node at the members' center; canvas.edges.merged
   // [{ from, to, width }] joins them ("m0" is meta node 0, a number a node).
   const metas = (c.nodes?.meta || []).map((m) => {
     const xs = m.members.map((id) => P[id]);
@@ -464,7 +464,7 @@ export function graphSvg(c = {}, w = 959, h = 852, o = {}) {
     let out = "";
     for (const ol of outlines) { out += shapeSvg(ns.shape, x, y, ring + ol.width / 2, ` fill="none" stroke="${esc(col(ol.color))}" stroke-width="${ol.width}"`); ring += ol.width; }
     // The keyboard focus ring: 2 px brand outside every outline, with a
-    // canvas-coloured gap, never the gold selection halo.
+    // canvas-colored gap, never the gold selection halo.
     if (ns.focus) { out += `<circle cx="${x}" cy="${y}" r="${(ring + 2).toFixed(1)}" fill="none" stroke="var(--k-canvas)" stroke-width="2"/><circle cx="${x}" cy="${y}" r="${(ring + 4).toFixed(1)}" fill="none" stroke="var(--k-border-selected)" stroke-width="2"/>`; ring += 4; }
     if (ns.halo) halos += `<circle cx="${x}" cy="${y}" r="${(ring + 3.5).toFixed(1)}" fill="none" stroke="var(--k-halo)" stroke-width="2"/>`;
     nodes += shapeSvg(ns.shape, x, y, r, ` fill="${esc(fillOf(nd.id, ns))}"${ns.opacity != null ? ` opacity="${ns.opacity}"` : ""} data-node="${esc(nd.id)}"`) + out;
@@ -558,8 +558,8 @@ export function welcomeSheet(wl) {
 // secondary: {tool, ...} }. Round 4 (section 3): icon-only 32 px tools, each
 // with at most one chevron, the Time and Actions buttons, and one view-mode
 // button whose face is the mode. A spec that names a tool that left the bar
-// (hand, neighbours, note, ask) is drawn with its new home (toolbar.mjs
-// MOVED): Hand is Select's variant, Neighbours is Filter's "Around a node".
+// (hand, neighbors, note, ask) is drawn with its new home (toolbar.mjs
+// MOVED): Hand is Select's variant, Neighbors is Filter's "Around a node".
 export function timeOf(t = {}, spec = {}) {
   const auto = spec.canvas?.overlays?.transport ? "on" : spec.file === "Email network";
   const v = t.time ?? auto;
@@ -621,7 +621,7 @@ export function modeMenu(t = {}) {
 }
 
 // The command palette (round-4 section 4; compact-mantine QuickActions):
-// 529 x 354, light, radius 13, 8 px above the toolbar and centred on it.
+// 529 x 354, light, radius 13, 8 px above the toolbar and centered on it.
 // palette: { query (typed text; empty shows the placeholder), scope: "All",
 // sections: [{ title, rows: [{ icon, label, note, key, active }] }] }.
 export function paletteHtml(p) {
@@ -739,7 +739,7 @@ export function popoverHtml(p, ctx = {}) {
   return `<div class="k-popover${anchored}${caret}${p.card ? " is-card" : ""}${p.aboveScrim ? " is-above-scrim" : ""}" style="${pos}${caretVar}${width}"${data}>${head}<div class="k-popover-body">${(p.rows || []).map(rowHtml).join("")}${foot}</div></div>`;
 }
 
-// A modal dialog centred on the stage over a scrim (the Import dialog, the
+// A modal dialog centered on the stage over a scrim (the Import dialog, the
 // reload dialog). dialog: { title, size: "sm" (the kit's 320 px
 // confirmation), tabs: [..], tab, rows: [row types], footer: [{label,
 // primary, disabled, danger}], note (a line at the footer's left) }
@@ -902,7 +902,7 @@ function stageOverlays(ov, c) {
   }
   // The drop overlay: a dashed brand outline over the whole stage and one line.
   if (ov.drop) out += `<div class="k-drop"><span>${icon("data", 16)}${esc(ov.drop.text)}</span></div>`;
-  // A centred card with no close button (a load in progress).
+  // A centered card with no close button (a load in progress).
   if (ov.stageCard) out += `<div class="k-stage-card">${popoverHtml({ ...ov.stageCard, noClose: true, card: true })}</div>`;
   if (ov.minimap) out += minimapHtml(ov.minimap, c);
   return out;

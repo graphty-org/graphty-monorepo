@@ -72,7 +72,7 @@ With `startingRows` on, the timeline adds one more row the first time it turns o
 set with `session.time.setField`, data that declares one is loaded, or `startingRows` turns on
 while a field is set): Timeline Hidden, pinned to the top below Pinned, Selected and Hovered. It
 paints the nodes and edges outside the time window, with the selector
-`{ match: "state", state: "outsideWindow" }`: hidden by default, or grey and faint with
+`{ match: "state", state: "outsideWindow" }`: hidden by default, or gray and faint with
 `timelineHiddenLook: "ghost"`. A project without a timeline never gets it.
 
 The row is added once. The project setting `timelineHiddenAdded` records that it was, so turning

@@ -55,7 +55,7 @@ function idPart(text: string): string {
 
 /**
  * A built-in's suggestion: its named setting, once that differs from the declared default.
- * @param descriptor - The algorithm's catalogue entry.
+ * @param descriptor - The algorithm's catalog entry.
  * @param params - The run's canonical parameters.
  * @returns The suggestion, or undefined for the plain name.
  */
@@ -100,7 +100,7 @@ function plainId(key: string): string {
 
 /**
  * What an unnamed run of this algorithm, with these parameters, should be called.
- * @param descriptor - The algorithm's catalogue entry.
+ * @param descriptor - The algorithm's catalog entry.
  * @param params - The run's canonical parameters, the declared defaults filled in.
  * @returns The id to try first, the label, and the option a built-in's name was suggested by.
  * @throws A `GraphtyError` with code `E_BAD_COMMAND` when a registered algorithm suggests an id a
@@ -136,7 +136,7 @@ export function suggestRunName(descriptor: AlgorithmDescriptor, params: Readonly
 
 /**
  * The name of a run its algorithm suggests nothing for.
- * @param descriptor - The algorithm's catalogue entry.
+ * @param descriptor - The algorithm's catalog entry.
  * @returns Its key as the id, its plain name as the label.
  */
 function plainName(descriptor: AlgorithmDescriptor): RunName {

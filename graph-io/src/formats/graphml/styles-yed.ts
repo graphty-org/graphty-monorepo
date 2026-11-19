@@ -40,6 +40,7 @@ import { STYLE_ISSUE } from "../../styles/codes.js";
 import { type ValueColumns, valueColumns } from "../../styles/columns.js";
 import { JAVA_MONO, JAVA_SANS, JAVA_SERIF, javaFamily } from "../../styles/cytoscape/lexicon.js";
 import { StyleApproximations } from "../../styles/io/approximations.js";
+import { STYLE_BLOCK_NAME } from "../../styles/io/block.js";
 import { elementValues, takeFromBlock } from "../../styles/io/round-trip.js";
 import type { ExporterStyleInput } from "../../styles/io/writer.js";
 import { StyleNotes } from "../../styles/notes.js";
@@ -1616,7 +1617,7 @@ function readTable(real: Realizer, put: PutValue, at: SiteOf): void {
         ][]
     )
         .filter(([size]) => size > 0)
-        // yEd paints neighbouring lanes of one color as one band
+        // yEd paints neighboring lanes of one color as one band
         .reduce<[number, string][]>((merged, [size, color]) => {
             const last = merged.at(-1);
             if (last?.[1] === color) {
@@ -2216,7 +2217,7 @@ function readShadow(real: Realizer, put: PutValue, at: SiteOf): void {
 }
 
 /**
- * The fill an outline darkens, and the raised and bevelled borders it draws round it.
+ * The fill an outline darkens, and the raised and beveled borders it draws round it.
  * @param r - the node realizer element
  * @param outline - the node's outline, or null for a plain shape
  * @param border - its y:BorderStyle
@@ -2859,23 +2860,36 @@ export function putYedEdgeLabel(
 
 /**
  * Reads where yEd draws an edge's label, from the model the file names; a free label and a SmartEdgeLabelModel off the
- * line's middle by the box the file stores. A curved line, a self-loop or a label naming no model (as graphty writes
- * one, its place in the styles block) keeps graphty's place.
+ * line's middle by the box the file stores. A label naming no model is drawn by yEd's default one, six_pos at tail:
+ * on the middle of the line, clear of it on its right (yed-graphml-specimen-edge-labels `default`), unless graphty
+ * wrote the file, which keeps the label's place in its styles block. A curved line or a self-loop keeps graphty's place.
  * @param real - the edge realizer
  * @param nodes - each node's center x and y, width and height
- * @param source - the source node's index
- * @param target - the target node's index
+ * @param ends - the source's and the target's node indexes
+ * @param graphtyBlock - whether the file holds graphty's styles block
  * @param put - receives the values
  */
-function readEdgeLabelPlace(real: Realizer, nodes: Float64Array, source: number, target: number, put: PutValue): void {
+function readEdgeLabelPlace(
+    real: Realizer,
+    nodes: Float64Array,
+    ends: readonly [number, number],
+    graphtyBlock: boolean,
+    put: PutValue,
+): void {
+    const [source, target] = ends;
     const label = treeChildren(real.r, "EdgeLabel").find(labelShown);
     const path = treeChild(real.r, "Path");
     const points = treeChildren(path, "Point").map((p): BendPoint => [
         Number(treeAttr(p, "x")),
         Number(treeAttr(p, "y")),
     ]);
-    const model = treeAttr(label, "modelName");
-    if (model === undefined || source === target || (real.type !== "PolyLineEdge" && points.length > 0)) {
+    const model = treeAttr(label, "modelName") ?? (graphtyBlock ? undefined : "six_pos");
+    if (
+        label === undefined ||
+        model === undefined ||
+        source === target ||
+        (real.type !== "PolyLineEdge" && points.length > 0)
+    ) {
         return;
     }
     const box = (k: number): number[] => [...nodes.subarray(4 * k, 4 * k + 4)];
@@ -3107,6 +3121,7 @@ export function readYedStyles(snapshot: GraphSnapshot, notes: StyleNotes, budget
     const icons = yedIconSizes(snapshot, resources);
     // each node's center, width and height, read with the node, for its edges' routes; NaN without yEd graphics
     const boxes = new Float64Array(4 * snapshot.nodeCount).fill(Number.NaN);
+    const graphtyBlock = snapshot.graph.has(STYLE_BLOCK_NAME);
     const groups = graphmlGroupBounds(snapshot);
     const folded = closedFolderMembers(snapshot);
     // the nodes whose outline is their box, where an edge from a port inside leaves the box
@@ -3133,7 +3148,7 @@ export function readYedStyles(snapshot: GraphSnapshot, notes: StyleNotes, budget
     const readEdgeRow = (i: number, real: Realizer, put: PutValue, at: SiteOf): void => {
         readEdge(real, put, at);
         readEdgeRoute(real, boxes, snapshot.edgeSource(i), snapshot.edgeTarget(i), put, boxOutlined);
-        readEdgeLabelPlace(real, boxes, snapshot.edgeSource(i), snapshot.edgeTarget(i), put);
+        readEdgeLabelPlace(real, boxes, [snapshot.edgeSource(i), snapshot.edgeTarget(i)], graphtyBlock, put);
     };
     const read = (target: StyleTarget): ValueColumns => {
         const table = target === "node" ? snapshot.nodes : snapshot.edges;

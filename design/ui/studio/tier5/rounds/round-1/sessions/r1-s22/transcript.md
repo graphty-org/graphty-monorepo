@@ -91,8 +91,8 @@ Tom: "The chooser shut by itself after one click, and the box now says 'F18463' 
   - I had to guess that "telemetry" means "sends its readings by itself". Nothing on the screen says that in plain words.
   - "Condition..." vs "Or..." -- I picked "Condition" because I didn't want "or", but I wasn't sure it meant "and also". The count dropping told me it did.
   - Leaving out the nineties: there was no "not between", so I had to find the "Except" switch. I was worried it would flip the telemetry line too. It only flipped the date line, and the count going from 2 to 5 is what reassured me, not the wording.
-  - After "Done", nothing went orange. I had to find "Fill" and press its plus. I'd assumed choosing the gauges would be the colouring.
-  - The colour chooser had no orange in the little squares, and it closed after one click on the rainbow, so I couldn't nudge it. What I got is reddish-orange (F18463). I'm not certain the council would call that orange.
+  - After "Done", nothing went orange. I had to find "Fill" and press its plus. I'd assumed choosing the gauges would be the coloring.
+  - The color chooser had no orange in the little squares, and it closed after one click on the rainbow, so I couldn't nudge it. What I got is reddish-orange (F18463). I'm not certain the council would call that orange.
   - I didn't see "orange" written anywhere, only the code F18463. The card that says "5 of 11 nodes" was the most useful thing. That gives me the number.
 
 ## Follow-up

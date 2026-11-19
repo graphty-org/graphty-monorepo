@@ -122,6 +122,16 @@
                     "description": "Target node for early termination (optional - searches all nodes if not set)",
                     "default": null,
                     "advanced": true
+                },
+                {
+                    "name": "maxDepth",
+                    "plainName": "Max Depth",
+                    "technicalName": "maxDepth",
+                    "type": "integer",
+                    "description": "Stop the walk this many steps from the source (optional - walks everything reachable if not set)",
+                    "default": null,
+                    "min": 0,
+                    "advanced": true
                 }
             ],
             "scopeInput": "subgraph",

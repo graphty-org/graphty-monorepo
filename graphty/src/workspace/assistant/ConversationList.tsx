@@ -42,7 +42,7 @@ interface ChatListRowProps {
  * @param props.row - the chat
  * @param props.current - whether it is the open chat
  * @param props.onOpen - opens it
- * @param props.onRename - takes the new name, or null when the rename was cancelled, and how it ended
+ * @param props.onRename - takes the new name, or null when the rename was canceled, and how it ended
  * @param props.onDelete - deletes it, once confirmed
  * @returns the row
  */

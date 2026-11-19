@@ -1,9 +1,9 @@
 // Screen 9: a node selected, with the data table drawer open
 // (round-2/screens.md), on College football with the objects of screen 5
 // finished: Top 10 by Bridges (a Set linked to the Measure), Bridges
-// (Betweenness) sized 0.8x to 2.4x, Conference coloured. The selected node is
+// (Betweenness) sized 0.8x to 2.4x, Conference colored. The selected node is
 // BrighamYoung (id 0), clicked in the table: rank 2 by the real betweenness
-// of football.gml, 12 neighbours, in the top-ten Set. (screens.md names
+// of football.gml, 12 neighbors, in the top-ten Set. (screens.md names
 // FloridaState, which the real values put at rank 25, outside the Set.)
 
 import { NODES, BETWEENNESS, DEGREE } from "../football.mjs";
@@ -90,7 +90,7 @@ export default {
       { type: "keyValue", pairs: [{ label: "Bridges", value: fmt(BETWEENNESS[SELECTED]), note: `rank ${rank} of 115`, chevron: true }] },
       { type: "keyValue", pairs: [{ label: "Conference", value: String(CONF_OF[SELECTED]), chevron: true }] },
       { type: "chips", title: "Member of", chips: [{ chip: { type: "ring", color: "ink" }, label: "Top 10 by Bridges" }] },
-      // screens.md's summary ("Colour from Conference, Size from Bridges, Outline from Top 10
+      // screens.md's summary ("Color from Conference, Size from Bridges, Outline from Top 10
       // by Bridges") is about 400 px of 11 px text in a 216 px row, so the collapsed row names
       // the three painted channels; opening it shows one row per channel with its source.
       { type: "disclosure", title: "Look", summary: "Colour, Size, Outline" },

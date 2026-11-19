@@ -26,7 +26,7 @@ import {
 import type { LocationMapFrame } from "../../../src/layout/locationMap/place";
 import { detectSource } from "../../../src/layout/locationMap/source";
 import { LocationMapLayout } from "../../../src/layout/LocationMapLayoutEngine";
-import type { Node } from "../../../src/Node";
+import { fakeNode } from "../../helpers/layout-fakes";
 
 const FIXTURES = join(import.meta.dirname, "fixtures");
 const FIXTURE_FILES: Record<PlaceRole, string> = {
@@ -89,9 +89,7 @@ async function place(
     options: Record<string, unknown> = {},
 ): Promise<{ at: (id: string) => { x: number; y: number }; frame: LocationMapFrame | null }> {
     const parentGraph = { getStyles: () => ({ config: session.config }) };
-    const nodes = session.data
-        .nodes()
-        .map((record) => ({ id: record.id, index: -1, data: record, parentGraph }) as unknown as Node);
+    const nodes = session.data.nodes().map((record) => fakeNode(record.id, { index: -1, data: record, parentGraph }));
     const layout = new LocationMapLayout({ gazetteer: FIXTURE, dim: 2, ...options });
     layoutEngineInternals.addNodes(layout, nodes);
     layoutEngineInternals.addEdges(layout, [] as Edge[]);

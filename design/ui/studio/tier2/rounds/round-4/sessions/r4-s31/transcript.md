@@ -29,7 +29,7 @@ Session folder: tmp/studio-sessions/tier2/rounds/round-4/sessions/r4-s31 (all co
 **Ease: 6 of 7.** Nothing I had to guess at except one thing.
 
 **What confused me or slowed me down:**
-- On load the minutes column was quietly set to "Attribute" with "Weight: none (each edge counts 1)". If I hadn't been told to care about minutes I'd have clicked Load and got a hop-count answer. The line is there, but it's small grey text, not a question the program puts to me.
+- On load the minutes column was quietly set to "Attribute" with "Weight: none (each edge counts 1)". If I hadn't been told to care about minutes I'd have clicked Load and got a hop-count answer. The line is there, but it's small gray text, not a question the program puts to me.
 - I had to know that "Role of minutes" was the dropdown and that "Weight" was in it -- fine for me because I was looking, but nothing points at it.
 - Once Weight was picked, the "Higher means: Not set / Closer / Farther / Capacity" choice was clear, and the explanation under "Farther" is exactly the wording I'd put on a slide.
 - No stop names on the map, so I couldn't eyeball the route on the picture -- I relied on the Nodes in order list. For a deck I'd want the names drawn on the highlighted path.

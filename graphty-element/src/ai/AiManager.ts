@@ -981,7 +981,7 @@ export class AiManager {
      * `ctx.tx` (`ctx.tx.styles.add`, `ctx.tx.layout.set`, `ctx.tx.run`): those changes are undone
      * with the rest of the message, and rolled back if a command throws. A change made through
      * `ctx.graph` is a step of its own and is not rolled back. A command stops when
-     * `ctx.abortSignal` fires, which happens when the message is cancelled or undone while it is
+     * `ctx.abortSignal` fires, which happens when the message is canceled or undone while it is
      * still going.
      * @param command - The command to register
      */

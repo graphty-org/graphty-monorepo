@@ -8,7 +8,7 @@ a1e6b91ff, build 0196d46212aa) at `/?next`, driven by `tool/real.mjs`, one live 
 **End state NOT reached. The task cannot be run with the study tool as it is.** The first save of
 a project opens the browser's own save-file picker (the File System Access API, which the app uses
 in Chromium). In the tool's headless Chromium that picker never appears and is treated as
-cancelled, so the app's "Save as" dialog simply stays open. Nothing is saved, nothing enters
+canceled, so the app's "Save as" dialog simply stays open. Nothing is saved, nothing enters
 Recent projects, and the rest of the path (close, reopen from Recent projects) cannot be walked.
 Every participant would fail or give up at step 3 for a reason that is the tool's, not the app's.
 Per the task's own rule ("if the tool cannot, the session is void (tool fault)"), T14 must not be
@@ -38,7 +38,7 @@ Screenshots are in this folder; `session.json` records the build and the setup a
    `page.on("filechooser")` for opening files and `page.on("download")` for downloads, but the
    app's first save calls `window.showSaveFilePicker`. Headless Chromium rejects it at once as a
    cancel, and `saveProjectAs` (`graphty/src/workspace/project/actions.ts`) then returns false and
-   leaves the dialog open, by design for a reader who cancelled. The same will hit Recent projects:
+   leaves the dialog open, by design for a reader who canceled. The same will hit Recent projects:
    reopening reads a stored file handle, and "Locate..." calls `showOpenFilePicker`. The tool needs
    one of: a stub of `showSaveFilePicker` / `showOpenFilePicker` injected with `addInitScript`
    that writes to and reads from the session folder (keeping the handle in IndexedDB as Chromium

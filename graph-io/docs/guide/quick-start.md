@@ -321,7 +321,7 @@ file as text, for example to show it in a page, use `exportGraphToString()`:
 
 ## When something goes wrong
 
-Every error graph-io throws is a `GraphFormatError`, except the reason of a cancelled load. It has
+Every error graph-io throws is a `GraphFormatError`, except the reason of a canceled load. It has
 a `code` (a stable string), a `message` (plain English) and `details` (an object, possibly empty).
 
 - `ImportError` is the `GraphFormatError` you get when the input could not be loaded: the URL
@@ -335,7 +335,7 @@ a `code` (a stable string), a `message` (plain English) and `details` (an object
   or `E_COLUMN_TYPE` when the format cannot hold the graph under your options (the save's
   `checkExport()` returned an `E_` note).
 - If you pass a `signal` and it aborts, the signal's reason is thrown unchanged.
-  `isAbortError(err)` tells a cancelled load from a failed one.
+  `isAbortError(err)` tells a canceled load from a failed one.
 
 Warnings are never thrown and never logged. They are in `result.report.issues`.
 
@@ -390,7 +390,7 @@ Small files written for this guide:
 
 - [Reading the graph](./reading.md): attributes, labels, weights and degrees.
 - [Loading graphs](./loading.md): strings, bytes, streams, format options, files that hold several
-  graphs, cancelling a slow load, and loading in a React component.
+  graphs, canceling a slow load, and loading in a React component.
 - [Saving graphs](./saving.md): streaming large graphs to a file, choosing a format from a file
   name, and ids or edge directions a format cannot hold.
 - [All formats](./formats/index.md): what each format keeps, and which one to pick.

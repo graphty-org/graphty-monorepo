@@ -17,7 +17,7 @@ Only problems seen on screen or read in the code are listed. Blockers first.
 
 - **Evidence.** Before any edit the PageRank layer has its legend ("Color: PageRank", `s1/01.png`)
   and the Legend button is pressed. Changing its test (`s1/09.png`) or adding a step
-  (`s1/23.png`, and in dark `s2/03.png`) at once: the Fill swatch turns grey with "Covered by
+  (`s1/23.png`, and in dark `s2/03.png`) at once: the Fill swatch turns gray with "Covered by
   Everything on 24 of 24", the layer row's count becomes the covered glyph with the tooltip
   "Painted over by Everything" (`s1/11.png`), and the Legend button unpresses. After Done the canvas
   still paints PageRank's colors (so PageRank does win), but the legend stays gone (`s1/12.png`,
@@ -169,7 +169,7 @@ Only problems seen on screen or read in the code are listed. Blockers first.
 ### M9. The value picker is unlike graphty's other listboxes
 
 - **Evidence.** The keyboard highlight is a full-bleed lime band with white text that runs to the
-  dropdown's edge (`s1/21.png`), while the pointer highlight is a grey pill (`crop-19-20-picker.png`)
+  dropdown's edge (`s1/21.png`), while the pointer highlight is a gray pill (`crop-19-20-picker.png`)
   and the card's Select listbox highlights lime with dark text (`s1/08.png`). Section labels draw a
   rule ("Data ---", "Find groups ---"). A used value says "(already a condition)" in the row instead
   of the dimmed check (spec 4). Long entries wrap to two lines ("Label propagation: / Community").

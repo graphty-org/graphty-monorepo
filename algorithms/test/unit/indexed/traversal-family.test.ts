@@ -337,7 +337,7 @@ function powerLaw(n: number, m: number): GraphSnapshot {
     return snap(false, n, edges);
 }
 
-/** An undirected Watts-Strogatz ring: each node links to its next k neighbours, a fraction p rewired at random. */
+/** An undirected Watts-Strogatz ring: each node links to its next k neighbors, a fraction p rewired at random. */
 function smallWorld(n: number, k: number, p: number): GraphSnapshot {
     const rand = mulberry32(7);
     const edges: [number, number][] = [];

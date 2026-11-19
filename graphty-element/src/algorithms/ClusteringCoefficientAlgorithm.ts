@@ -12,12 +12,12 @@ import {
 } from "./results";
 
 /**
- * The clustering coefficient: how many of a node's neighbours are also neighbours of each other.
+ * The clustering coefficient: how many of a node's neighbors are also neighbors of each other.
  *
  * Counts the triangles every node lies in and publishes, per node, the local clustering
  * coefficient as `value` -- `2 T(v) / (d(v) (d(v) - 1))`, the share of the pairs of its `d(v)`
- * distinct neighbours that are joined by an edge -- with the triangle count `triangles` beside it.
- * A node with fewer than two neighbours has a coefficient of 0, a defined value rather than a
+ * distinct neighbors that are joined by an edge -- with the triangle count `triangles` beside it.
+ * A node with fewer than two neighbors has a coefficient of 0, a defined value rather than a
  * missing one. The graph-level `mean` of the values is the average clustering coefficient, and
  * two graph facts ride along: `transitivity`, the share of connected triples that close into a
  * triangle, and `triangleCount`, the triangles in the graph.

@@ -245,8 +245,8 @@ describe("what the load report says about the repeats it saw", () => {
 
 describe("re-adding data the graph already holds", () => {
     test("the expand path is still idempotent, because it asks for first", async () => {
-        // Under `keep`, an additive re-add of a node's neighbourhood would double every edge
-        // already present -- and the double-click expand handler fetches a neighbourhood and adds
+        // Under `keep`, an additive re-add of a node's neighborhood would double every edge
+        // already present -- and the double-click expand handler fetches a neighborhood and adds
         // it on every expand. The element knows that about its own call site, so it passes the
         // policy rather than leaving the consumer to discover the doubling.
         const graph = await makeGraph();

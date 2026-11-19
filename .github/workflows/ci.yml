@@ -4,8 +4,7 @@ on:
     push:
         branches: [master]
     pull_request:
-        # No "labeled": no job reads labels, and Mergify adds
-        # and removes labels (queued, dequeued) on every queued pull request, each of which re-ran all of CI.
+        # No "labeled": no job reads labels, and every label added or removed would re-run all of CI.
         # A draft runs like any other pull request (agents open them ready, with tools/pr-open.sh);
         # "ready_for_review" stays so a draft someone opened by hand starts a run when it is marked ready.
         types: [opened, synchronize, reopened, ready_for_review]
@@ -40,9 +39,9 @@ on:
                 type: string
                 required: false
                 default: ""
-        # The caller's needs.<job>.result is cancelled when any job here ended cancelled, an advisory
+        # The caller's needs.<job>.result is canceled when any job here ended canceled, an advisory
         # (continue-on-error) one included: continue-on-error covers a failure, not a cancel. So the release train
-        # judges a cancelled call by this instead (#4556): All Checks Pass needs every job that gates.
+        # judges a canceled call by this instead (#4556): All Checks Pass needs every job that gates.
         outputs:
             checks:
                 description: "All Checks Pass's result: success when every job that gates passed"
@@ -66,14 +65,14 @@ on:
 # merge anything, and the runners it holds are what every other pull request is queued behind.
 # Master push runs share one group but never cancel a running build (design/ci/channels-pipeline.md section
 # 7.1, #3938): a running master build always finishes, and a newer push replaces only the waiting one, so
-# master always finishes building its newest commit however often merges land. Cancelling the running build
+# master always finishes building its newest commit however often merges land. Canceling the running build
 # starved master of any finished build while merges came faster than one build (2026-10-26). A replaced
 # waiting build only means the newest one is built instead. tools/master-guard.mjs reads such a run as
 # superseded (no red-master issue), and tools/release-due.mjs reads every merge since the last green master
-# build, so a cancelled build's Fixes #N or Refs #N still restarts the full run. A re-run of a master push build
+# build, so a canceled build's Fixes #N or Refs #N still restarts the full run. A re-run of a master push build
 # (run_attempt above 1: master-guard re-runs an outside failure, a person re-runs a stopped build) runs in its
-# commit's own group, so it never cancels a newer build and is never cancelled. A dispatch runs in its commit's own
-# group, and the release train's call (inputs.ref) has a group of its own, so neither is ever cancelled.
+# commit's own group, so it never cancels a newer build and is never canceled. A dispatch runs in its commit's own
+# group, and the release train's call (inputs.ref) has a group of its own, so neither is ever canceled.
 concurrency:
     group: ci-${{ github.event.pull_request.number || inputs.ref && format('release-{0}', inputs.ref) || github.event_name == 'push' && github.run_attempt == '1' && 'master-push' || github.sha }}
     cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -85,23 +84,17 @@ concurrency:
 
 # Every job names ubuntu-24.04 rather than ubuntu-latest. The label is not a constant: it became 24.04 during
 # 2026 with no change here, which is how the webgpu-graph-algorithms node shard came to judge its kernels on a
-# Mesa software rasteriser (25.2.8 / LLVM 20) two major versions newer than the one every gate record measured
+# Mesa software rasterizer (25.2.8 / LLVM 20) two major versions newer than the one every gate record measured
 # (23.2.1 / LLVM 15) -- see webgpu-graph-algorithms/docs/decisions/G-ENV.md. GitHub has announced the same move
 # again: ubuntu-latest becomes Ubuntu 26 from 2026-10-19 (actions/runner-images#14748). Naming the image makes
 # that a commit we review rather than a Tuesday morning. Pinning is a no-op today; ubuntu-latest IS 24.04.
 # Three kinds of run (design/ci/ci-cd-plan.md, sections 3, 5 and 8):
 # - a pull request into master (tools/pr-open.sh opens it ready, with auto-merge on): the affected
 #   build, lint, checks and test shards, and the screenshots, which are reported and never block.
-# - a Mergify merge-queue run: a draft pull request on a mergify/merge-queue/* branch, holding master
-#   plus the pull requests being merged. It runs the FULL suite, every shard of every package, and is
-#   held to master's rule that every job succeeds.
-# - a push to master: NO tests. The merge queue already ran the full suite on exactly this tree. The build
+# - a push to master: NO tests. The release train's full run (release.yml) tests master. The build
 #   job builds every package, Storybook and docs site (deploy-pages.yml publishes them) and skips every
 #   test job; "All Checks Pass" counts the skipped ones as passing. Owner decision, 2026-10-06.
 # - a manual dispatch, or the release train's call (release.yml, on the candidate commit): the full suite.
-# A Mergify merge-queue run: a draft on a mergify/merge-queue/* branch of this repository, opened by
-# Mergify's app. The branch name alone is not enough: anyone can push a branch with that prefix. A job's
-# `if` cannot read env, so the build job repeats this test.
 # The jobs read the repository and download this run's artifacts; checks: write lets a failed job mark the
 # summary checks failed at once (.github/actions/early-verdict), and a passing summary job clears them
 # (its "Clear this check's early verdicts" step).
@@ -117,7 +110,7 @@ env:
     SEGMENT_DOWNLOAD_TIMEOUT_MINS: "1"
     # git has no low-speed limit by default, so an HTTPS transfer that stops delivering bytes waits forever:
     # actions/checkout's fetch of every branch, 24 s in a sibling shard, sat silent until its Test job's
-    # 30-minute limit cancelled it, and the cancelled job turned the full run's CI lane red (run 43924294024,
+    # 30-minute limit canceled it, and the canceled job turned the full run's CI lane red (run 43924294024,
     # #8526). Under 1 KB/s for two minutes now fails the fetch, and actions/checkout retries it.
     GIT_HTTP_LOW_SPEED_LIMIT: "1000"
     GIT_HTTP_LOW_SPEED_TIME: "120"
@@ -130,7 +123,6 @@ env:
     SAVE_CACHES: ${{ (!inputs.ref || inputs.ref == github.sha) && github.event_name != 'pull_request' }}
     # Chromium crashes at launch (SIGSEGV) unless this is preset: see vitest.base.mjs (#3787).
     FC_FONTATIONS: "1"
-    MERGE_QUEUE: ${{ startsWith(github.head_ref, 'mergify/merge-queue/') && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'mergify[bot]' }}
 
 jobs:
     # The cap on concurrent pull request runs (tools/ci-run-cap.mjs). On a pull request it waits, on one small
@@ -138,7 +130,7 @@ jobs:
     # jobs, while CI_PR_RUN_CAP (default 2) or more of them are active, or while a release.yml run waits for a
     # runner, so the full run goes first. Every other job needs the Build job, which needs this one, so a waiting
     # run holds nothing else. It never fails the run: an API error proceeds, and the wait ends (the run proceeds)
-    # at the script's MAX_WAIT_MINUTES, before this job's timeout, since a timed-out job is cancelled and that
+    # at the script's MAX_WAIT_MINUTES, before this job's timeout, since a timed-out job is canceled and that
     # skips Build and every job after it (#8219). A push to master, a dispatch and the release train's call
     # skip the wait. Change the limits with `gh variable set CI_PR_JOB_BUDGET --body <n|off>` and
     # `gh variable set CI_PR_RUN_CAP --body <n|off>`.
@@ -283,7 +275,7 @@ jobs:
                   checks=$(jq -c --arg today "$(date -u +%F)" '[.advisory[] | select(.enforce > $today) | .job + (if .step then "/" + .step else "" end)]' <<<"$registry")
                   echo "checks=$checks" | tee -a "$GITHUB_OUTPUT"
 
-            - uses: pnpm/action-setup@v6
+            - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
 
             - name: Setup Node.js
               uses: actions/setup-node@v7
@@ -307,7 +299,7 @@ jobs:
             # changed are walked again. A miss walks every package (slower, never wrong).
             - name: Key of the selector's import graphs
               id: graphs-key
-              if: github.event_name == 'pull_request' && env.MERGE_QUEUE != 'true'
+              if: github.event_name == 'pull_request'
               continue-on-error: true
               run: echo "key=test-select-graphs-$(node tools/test-select.mjs --cache-key)" >> "$GITHUB_OUTPUT"
 
@@ -322,19 +314,17 @@ jobs:
 
             # Plan which packages this run tests. A pull request tests only what nx calls affected: the
             # packages it changed plus every package that depends on them. Each pull request run used to be
-            # about 30 jobs against an organisation limit of about 60 concurrent jobs, so two open pull
+            # about 30 jobs against an organization limit of about 60 concurrent jobs, so two open pull
             # requests queued each other; a pull request confined to graph-io now runs one test shard, not
             # twenty-one. A manual dispatch and the release train's call pass every project as "affected", so
             # they run every shard; the release train runs it on the exact commit it publishes. A push to
-            # master passes none: it builds and tests nothing (the merge queue tested that tree).
+            # master passes none: it builds and tests nothing (the release train's full run tests master).
             # What counts as "everything" on a pull request is nx.json's sharedGlobals: the root TypeScript,
             # ESLint, Vite and Vitest configs, pnpm-workspace.yaml, .npmrc and every file under
             # .github/workflows (nx already treats nx.json, package.json and pnpm-lock.yaml that way). A
             # change to any of them affects every project, so it runs the full set here too.
             # The shard list itself lives in tools/ci-test-matrix.mjs, which filters it; the base is named
-            # explicitly for the same reason as "Build affected (PR)" below. A merge-queue run is a pull
-            # request event but tests everything, like master: full=true selects the master path for the
-            # build and lint steps below as well.
+            # explicitly for the same reason as "Build affected (PR)" below.
             # A called run (inputs.ref: the release train, golden-verify.yml) is full even when the caller was
             # started by a push: a called workflow sees its caller's event, and golden-verify.yml runs on a push
             # to golden-candidate. Only a push of master itself (no inputs.ref) is the build-only run.
@@ -359,7 +349,7 @@ jobs:
                       # master: build only, test nothing (the "light" run)
                       { echo "full=true"; echo "light=true"; } >> "$GITHUB_OUTPUT"
                       affected='[]'
-                  elif [[ "$EVENT" == "pull_request" && "$MERGE_QUEUE" != "true" ]]; then
+                  elif [[ "$EVENT" == "pull_request" ]]; then
                       echo "full=false" >> "$GITHUB_OUTPUT"
                       affected=$(pnpm exec nx show projects --affected --base="origin/$BASE_REF" --head=HEAD --json)
                   else
@@ -372,9 +362,9 @@ jobs:
                       only=(--only "$SHARDS")
                   fi
                   pr=()
-                  [[ "$EVENT" == "pull_request" && "$MERGE_QUEUE" != "true" ]] && pr=(--pull-request)
+                  [[ "$EVENT" == "pull_request" ]] && pr=(--pull-request)
                   node tools/ci-test-matrix.mjs "$all" "$affected" "${only[@]}" "${pr[@]}" | tee -a "$GITHUB_OUTPUT"
-                  PULL_REQUEST=$([[ "$EVENT" == "pull_request" && "$MERGE_QUEUE" != "true" ]] && echo true || echo false) \
+                  PULL_REQUEST=$([[ "$EVENT" == "pull_request" ]] && echo true || echo false) \
                       node tools/visual-capture-plan.mjs "$all" "$affected" | tee -a "$GITHUB_OUTPUT"
 
             # The light check's optional jobs (design/ci/channels-pipeline/merging.md 4.1): on a pull request, Docs runs
@@ -391,7 +381,7 @@ jobs:
                   BASE_REF: ${{ github.base_ref }}
                   AFFECTED: ${{ steps.plan.outputs.affected }}
               run: |
-                  if [[ "$EVENT" != "pull_request" || "$MERGE_QUEUE" == "true" ]]; then
+                  if [[ "$EVENT" != "pull_request" ]]; then
                       printf 'docs=true\ncost-accuracy=true\n' | tee -a "$GITHUB_OUTPUT"
                       exit 0
                   fi
@@ -425,7 +415,7 @@ jobs:
             # (tools/capture-impact.sh changed).
             - name: Plan the capture impact check
               id: capture
-              if: github.event_name == 'pull_request' && env.MERGE_QUEUE != 'true'
+              if: github.event_name == 'pull_request'
               env:
                   BASE_REF: ${{ github.base_ref }}
               run: echo "capture-impact=$(tools/capture-impact.sh changed "origin/$BASE_REF" HEAD)" | tee -a "$GITHUB_OUTPUT"
@@ -443,7 +433,7 @@ jobs:
             # next one. A failure here is a full run.
             - name: Reuse an earlier run's results when only screenshot records changed
               id: reuse
-              if: github.event_name == 'pull_request' && env.MERGE_QUEUE != 'true'
+              if: github.event_name == 'pull_request'
               continue-on-error: true
               env:
                   GH_TOKEN: ${{ github.token }}
@@ -634,7 +624,7 @@ jobs:
                   retention-days: 7
                   if-no-files-found: ignore
 
-            # Master, every manual dispatch and every merge-queue run (full=true from the plan step): build
+            # Master, every manual dispatch and the release train (full=true from the plan step): build
             # every project (the lint job lints them).
             # graphty build needs Sentry env vars for error tracking. SENTRY_RELEASE names the release its
             # events are filed under (graphty/vite.config.ts); the source maps are uploaded under the same
@@ -648,7 +638,7 @@ jobs:
             # download (run 35943267536, this branch). A branch dispatch cannot take the pull request's
             # `nx affected` path, which needs a base ref to diff against and a dispatch has none, so it takes
             # this one and builds every project -- which is what the shards need from it anyway.
-            - name: Build all (master, a manual dispatch or the merge queue)
+            - name: Build all (master, a manual dispatch or the release train)
               if: steps.plan.outputs.full == 'true' && steps.reuse-build.outputs.artifacts-run == ''
               run: pnpm exec nx run-many -t build --parallel=3
               env:
@@ -668,7 +658,7 @@ jobs:
             # as the plugin did. The .map files stay in the site, as they did with the plugin.
             # Not a correctness check: a Sentry outage or a hang must never cancel or fail the build (on
             # 2026-10-25 `set-commits` walked the local git tree for 10 minutes and the Build job's timeout
-            # cancelled six master builds in a row, so no site was deployed). Every call is bounded, a
+            # canceled six master builds in a row, so no site was deployed). Every call is bounded, a
             # failure is a warning, and the step itself has a timeout and continue-on-error.
             - name: Upload graphty's source maps to Sentry (master push)
               if: steps.plan.outputs.full == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/master' && !inputs.ref
@@ -763,7 +753,7 @@ jobs:
                   retention-days: 1
 
             - name: Upload babylonjs-map build
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-babylonjs-map
                   path: babylonjs-map/dist/
@@ -884,7 +874,7 @@ jobs:
                   RUN: ${{ inputs.reuse_build_run }}
               run: node tools/ci-reuse-plan.mjs --build-run "$RUN" | tee -a "$GITHUB_OUTPUT"
 
-            - uses: pnpm/action-setup@v6
+            - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
               if: steps.reuse-build.outputs.artifacts-run == ''
 
             - name: Setup Node.js
@@ -1106,7 +1096,7 @@ jobs:
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
-            - uses: pnpm/action-setup@v6
+            - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
 
             - name: Setup Node.js
               uses: actions/setup-node@v7
@@ -1196,7 +1186,7 @@ jobs:
               if: needs.packages.outputs.full == 'false' && contains(fromJSON(needs.packages.outputs.affected), 'graphty-element') && !contains(fromJSON(needs.packages.outputs.affected), 'graph-io')
               run: pnpm exec nx run graph-io:lint --exclude-task-dependencies
 
-            - name: Lint all (master, a manual dispatch or the merge queue)
+            - name: Lint all (master, a manual dispatch or the release train)
               if: needs.packages.outputs.full == 'true'
               run: pnpm exec nx run-many -t lint --parallel=3 --exclude-task-dependencies
 
@@ -1281,7 +1271,7 @@ jobs:
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
-            - uses: pnpm/action-setup@v6
+            - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
 
             - name: Setup Node.js
               uses: actions/setup-node@v7
@@ -1306,7 +1296,7 @@ jobs:
                   name: build-packages
                   path: .
 
-            # The shard groups, the draft and merge-queue conditions and the title check's queue exemption.
+            # The shard groups and the conditions that decide what a pull request, master and a full run do.
             # The files run side by side, one per core (tools/run-ci-workflow-tests.mjs): about 1 minute, not 3.5.
             - name: CI workflow tests
               if: needs.packages.outputs.light != 'true'
@@ -1399,6 +1389,15 @@ jobs:
               env:
                   BASE_REF: ${{ github.base_ref }}
               run: git diff --name-only --diff-filter=d -z "$(git merge-base "origin/$BASE_REF" HEAD)" HEAD | xargs -0 -r pnpm exec prettier --check --ignore-unknown
+
+            # American spelling in the prose and comments of the lines a pull request adds (tools/check-spelling.mjs,
+            # #671; .husky/pre-push runs it too). Spelling already on untouched lines never blocks.
+            # `node tools/check-spelling.mjs --fix <file>` rewrites a file.
+            - name: American spelling (added lines)
+              if: github.event_name == 'pull_request'
+              env:
+                  BASE_REF: ${{ github.base_ref }}
+              run: node tools/check-spelling.mjs --diff "origin/$BASE_REF"
 
             - name: Bundle size (graphty-element)
               if: steps.scope.outputs.bundle == 'true'
@@ -1541,7 +1540,7 @@ jobs:
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
-            - uses: pnpm/action-setup@v6
+            - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
 
             - name: Setup Node.js
               uses: actions/setup-node@v7
@@ -1651,7 +1650,7 @@ jobs:
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
-            - uses: pnpm/action-setup@v4
+            - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
 
             - name: Setup Node.js
               uses: actions/setup-node@v7
@@ -1745,7 +1744,7 @@ jobs:
         # test-2 runs these same steps (*test-steps)
         steps: &test-steps
             # A hang guard on a network step: the checkout's fetch sometimes stalls before the pack arrives, even
-            # with the low-speed limit in env, and held the job until its 30-minute limit cancelled it (runs
+            # with the low-speed limit in env, and held the job until its 30-minute limit canceled it (runs
             # 44125048943 and 44146383151, #8743). A healthy checkout takes under a minute; after 5 the step
             # stops and the next one checks out again into the same directory.
             - uses: actions/checkout@v7
@@ -1777,7 +1776,7 @@ jobs:
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
-            - uses: pnpm/action-setup@v6
+            - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
 
             - name: Setup Node.js
               uses: actions/setup-node@v7
@@ -1980,7 +1979,7 @@ jobs:
                   python="$(tools/schema-python.sh "$RUNNER_TEMP/schema-python")"
                   { echo "GRAPH_IO_SCHEMA_PYTHON=$python"; echo "GRAPH_IO_REQUIRE_SCHEMAS=1"; } >> "$GITHUB_ENV"
 
-            # The software rasteriser this lane judges every kernel on is whatever apt resolves on the day, and it
+            # The software rasterizer this lane judges every kernel on is whatever apt resolves on the day, and it
             # moved two major Mesa versions (23.2.1 / LLVM 15 -> 25.2.8 / LLVM 20) without anything recording it.
             # Print the image, the C library and the installed Mesa version so a lane's environment is readable
             # from its own log instead of inferred from the runner label. Never fails the step.
@@ -2093,17 +2092,6 @@ jobs:
                   name: junit-${{ matrix.shard }}
                   path: test-results/junit-*.xml
                   retention-days: 7
-                  if-no-files-found: ignore
-                  overwrite: true
-
-            - name: Upload blob report
-              if: ${{ !cancelled() && startsWith(matrix.shard, 'graphty-element') }}
-              uses: actions/upload-artifact@v7
-              with:
-                  name: blob-report-${{ matrix.shard }}
-                  path: graphty-element/.vitest-reports/*
-                  include-hidden-files: true
-                  retention-days: 1
                   if-no-files-found: ignore
                   overwrite: true
 
@@ -2319,8 +2307,8 @@ jobs:
     # never hold up the end of a full run (design/ci/channels-pipeline/channels.md section 5).
     # Advisory: release.yml, deploy-pages.yml and coverage.yml read the run's conclusion, and a
     # measurement with no pass/fail role must not hold them. continue-on-error absorbs a failed job but not a
-    # cancelled one, and a job that reaches its timeout-minutes is cancelled, which makes the whole run conclude
-    # cancelled (issue #7986). So the benchmarks stop themselves first: each runs under tools/before-deadline.sh,
+    # canceled one, and a job that reaches its timeout-minutes is canceled, which makes the whole run conclude
+    # canceled (issue #7986). So the benchmarks stop themselves first: each runs under tools/before-deadline.sh,
     # which fails its step at DEADLINE (44 minutes in), and the steps after them carry their own
     # timeout-minutes, all inside the job's 50.
     # Two jobs, side by side: the algorithms table alone takes about 16 minutes and graphty-element's
@@ -2354,7 +2342,7 @@ jobs:
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
-            - uses: pnpm/action-setup@v6
+            - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
 
             - name: Setup Node.js
               uses: actions/setup-node@v7
@@ -2536,7 +2524,7 @@ jobs:
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
-            - uses: pnpm/action-setup@v6
+            - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
 
             - name: Setup Node.js
               uses: actions/setup-node@v7
@@ -3532,10 +3520,10 @@ jobs:
     # Gate job - ensures all required checks pass before release/deploy. It is the required status check,
     # so it runs even when a job it needs failed (if: always()) and decides for itself.
     # On a pull request a job this run chose not to start (a test job for an unaffected
-    # package) is "skipped", and skipped counts as passing; failure and cancelled never do. Build is needed
+    # package) is "skipped", and skipped counts as passing; failure and canceled never do. Build is needed
     # here and must succeed, because when it fails every other job is skipped too, and without it that
     # would read as a pass. A push to master (light=true) skips every test job by design, so skipped passes
-    # there too, and Build must still succeed. On dispatch, the release train and the merge queue every job
+    # there too, and Build must still succeed. On dispatch and the release train every job
     # must succeed: nothing is meant to be skipped there, so a skip means the plan went wrong and must
     # not pass silently. When Build did not run at all this job still runs, and FAILS: GitHub counts a
     # skipped required check as passing, so a skip here could let a pull request merge with no CI at all.

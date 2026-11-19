@@ -46,6 +46,7 @@ import { jsonExporter, jsonImporter } from "./formats/json/index.js";
 import { neo4jExporter, neo4jImporter } from "./formats/neo4j/index.js";
 import { oboExporter, oboImporter } from "./formats/obo/index.js";
 import { pajekExporter, pajekImporter } from "./formats/pajek/index.js";
+import { sifExporter, sifImporter } from "./formats/sif/index.js";
 import { xgmmlExporter, xgmmlImporter } from "./formats/xgmml/index.js";
 import { type FormatName, rankFormats, SNIFF_HEAD_BYTES, type SniffHints, type SniffResult } from "./sniff.js";
 import { builtinSources } from "./sources/builtins.js";
@@ -1157,7 +1158,9 @@ function withBuiltinFormats(formats: FormatRegistry): FormatRegistry {
         .registerImporter(oboImporter)
         .registerExporter(oboExporter)
         .registerImporter(cysImporter)
-        .registerExporter(cysExporter);
+        .registerExporter(cysExporter)
+        .registerImporter(sifImporter)
+        .registerExporter(sifExporter);
 }
 
 /**

@@ -50,7 +50,7 @@ interface LinkPredictionOptions extends Record<string, unknown> {
 }
 
 /**
- * Link prediction: scores every pair of nodes that is not already joined by how many neighbours
+ * Link prediction: scores every pair of nodes that is not already joined by how many neighbors
  * the two share, and keeps the best.
  */
 export class LinkPredictionAlgorithm extends DeclaredAlgorithm<LinkPredictionOptions> {

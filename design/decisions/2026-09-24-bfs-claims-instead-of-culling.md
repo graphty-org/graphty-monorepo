@@ -38,7 +38,7 @@ entry against itself and remove nothing. The safety net the design describes has
 catch.
 
 What the net was behind -- workgroup hash culling of the EDGE queue -- is a bandwidth
-optimisation that removes some duplicate arcs before the claim, saving an atomic per removed
+optimization that removes some duplicate arcs before the claim, saving an atomic per removed
 entry. It is exact only with the ownership pass behind it (a hash can drop a distinct vertex on a
 collision), which is why the design pairs them. This phase does not attempt the culling, so it
 does not need the net, and the atomics it would have saved are the ones the level pays anyway on
@@ -54,7 +54,7 @@ PD-18), not the contraction.
 ## What we are giving up, and why it is acceptable
 
 The rejected argument was the design's: the edge queue holds a vertex once per frontier
-neighbour, so a vertex with `k` neighbours in the frontier costs `k` atomic read-modify-writes at
+neighbor, so a vertex with `k` neighbors in the frontier costs `k` atomic read-modify-writes at
 the contract, and on a scale-free level the emitted buffer is a multiple of `n`. Culling before
 the claim cuts those atomics, and 16.2's bitmap path cuts them to one `atomicOr` per set bit.
 
@@ -65,7 +65,7 @@ It is acceptable because the traversal's peak levels do not run this path at all
 switches the peak levels to the bottom-up sweep, which claims from the unvisited side with one
 plain store per newly reached vertex (the list holds each vertex once, so there is no race to
 win), and the levels that stay top-down are the small ones
-where the fused kernel runs and the edge queue is never materialised. The two-phase contract
+where the fused kernel runs and the edge queue is never materialized. The two-phase contract
 runs on the levels between, whose duplicate ratio is modest. T-10 is the measurement that would
 say otherwise, and it is recorded on the reference card with the choice counters beside it.
 

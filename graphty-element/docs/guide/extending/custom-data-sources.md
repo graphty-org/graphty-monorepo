@@ -542,7 +542,7 @@ application reads it to warn a reader before a save loses their styles.
 claims `canExport: true` on its own is refused, so a "Save as" menu never offers a format nothing
 writes.
 
-**An import cannot be cancelled.** No built-in import can be either, so nothing is being withheld
+**An import cannot be canceled.** No built-in import can be either, so nothing is being withheld
 -- but it is an absence worth knowing about rather than discovering.
 
 **Progress is at parity and partly fictional.** Your format's per-chunk progress reaches the

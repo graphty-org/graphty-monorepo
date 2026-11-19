@@ -215,8 +215,11 @@ export class StatsManager implements Manager {
     graphStep = new PerfCounter();
     nodeUpdate = new PerfCounter();
     edgeUpdate = new PerfCounter();
+    /** Time spent placing an edge's arrowheads and trimming its line beside them, one sample per edge placed. */
     arrowCapUpdate = new PerfCounter();
+    /** Time spent finding where an edge meets its nodes' surfaces, one sample per edge end search. */
     intersectCalc = new PerfCounter();
+    /** Time each data load took, from its first read to its last record, one sample per finished load. */
     loadTime = new PerfCounter();
     totalUpdates = 0;
 
@@ -395,6 +398,7 @@ export class StatsManager implements Manager {
         meshCacheMisses: number;
         nodeUpdateCount: number;
         edgeUpdateCount: number;
+        /** How many times an edge's arrowheads were placed (`arrowCapUpdate`'s count). */
         arrowCapUpdateCount: number;
     } {
         return {
@@ -451,7 +455,7 @@ export class StatsManager implements Manager {
 
         // Graph engine performance
         statsSection("Graph Engine Performance");
-        appendPerf("JSON Load Time", this.loadTime);
+        appendPerf("Data Load Time", this.loadTime);
         appendPerf("Graph Physics Engine Time", this.graphStep);
         appendPerf("Node Update Time", this.nodeUpdate);
         appendPerf("Edge Update Time", this.edgeUpdate);

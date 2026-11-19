@@ -444,7 +444,7 @@ export function Workspace({
             {/* One corner for the usage data question (on whatever page a first visit lands, until it
                 is answered) and a short survey, only while usage data is shared (usage-analytics.md
                 section 4.4): stacked, so neither covers or hides the other. Where the page sends PostHog
-                nothing (the usage-analytics experiment off, or canary, which has no PostHog ids), the
+                nothing (the usage-analytics experiment off, or a site with no PostHog ids), the
                 question alone, with no survey, in a plain wrapper that draws nothing: the card keeps
                 its place in the tree when site.json switches PostHog on, so it is not remounted and
                 keeps its answer line and focus. */}

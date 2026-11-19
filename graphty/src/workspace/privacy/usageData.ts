@@ -4,7 +4,7 @@
  * cookieless mode, lib/analytics.ts) are sent whatever the answer, and Share switches the counts to
  * PostHog's shared mode; Share itself is one anonymous count, `usage_data_shared`. The answer is
  * the reader's own preference, kept in this browser. Where the page sends PostHog nothing
- * (analyticsSends: the usage-analytics experiment off, a site with no PostHog ids such as canary, or
+ * (analyticsSends: the usage-analytics experiment off, a site with no PostHog ids, or
  * off the site's own host), Share and No start and stop error reporting alone (nothing at all off
  * the site's own host with the experiment on), in this tab alone,
  * with the address bar left as it is, and No still deletes what an earlier visit that sent PostHog

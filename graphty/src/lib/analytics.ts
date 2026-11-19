@@ -673,7 +673,7 @@ function postHogTarget(config: SiteConfig): { key: string; host: string } | unde
 /**
  * Whether this page sends PostHog anything: the usage-analytics experiment on, a PostHog key and
  * host in site.json, and the site's own host. The words that say what is sent follow this, so a
- * site with the experiment on and nothing to send to (canary) says what it does: nothing.
+ * site with the experiment on and nothing to send to (no PostHog ids) says what it does: nothing.
  * @param config - the site's configuration; the loaded one by default.
  * @returns true when PostHog may run on this page.
  */
@@ -716,7 +716,7 @@ export function startPageCounts(config: SiteConfig): void {
 
 /**
  * Everything analytics does at boot (section 3), in order. Where the page sends PostHog nothing (the
- * usage-analytics experiment off, a site with no PostHog ids such as canary, or off the site's own
+ * usage-analytics experiment off, a site with no PostHog ids, or off the site's own
  * host; section 11) only error reporting starts, for a reader who said Share on an earlier visit: no
  * PostHog, no visit record, and the address bar left as it is.
  * @param config - the site's configuration.

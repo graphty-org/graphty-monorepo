@@ -16,6 +16,7 @@ import {
     type ModelDefaultsPatch,
 } from "../assets/AssetsApi";
 import type { UndoableDefinition } from "../project/Dispatcher";
+import { createCarriedLooks } from "../styles/carried";
 import { channelDescriptor } from "../styles/channels";
 import { checkStaticValue } from "../styles/Layer";
 
@@ -70,7 +71,7 @@ export function patchedDefaults(
         }
 
         const descriptor = channelDescriptor(channel);
-        if (descriptor !== undefined && checkStaticValue(descriptor, value, channel) !== null) {
+        if (descriptor !== undefined && checkStaticValue(descriptor, value, channel, createCarriedLooks()) !== null) {
             throw badPatch(id, `${name} does not take ${JSON.stringify(value)}`);
         }
 

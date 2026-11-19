@@ -930,6 +930,30 @@ describe("the Data page on the real element", () => {
         assert.isNull(screen.queryByRole("textbox", { name: "Address" }), "the URL panel closed");
     });
 
+    it("an address that cannot be fetched leaves focus on Load, where the reader finds the refusal", async () => {
+        await openFromEmptyApp();
+        await userEvent.click(screen.getByRole("button", { name: "Add a table" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "From a URL..." }));
+        const address = await screen.findByRole("textbox", { name: "Address" });
+        // Load takes focus in the task that closes the field, so the workspace's focus guard, which
+        // hands lost focus on a frame later, never finds it lost and sends it to "+" (#9005).
+        const afterClose = new Promise<Element | null>((resolve) => {
+            address.addEventListener(
+                "focusout",
+                () => {
+                    queueMicrotask(() => {
+                        resolve(document.activeElement);
+                    });
+                },
+                { once: true },
+            );
+        });
+        await userEvent.type(address, "https://example.invalid/no-such-file.csv{Enter}");
+        assert.equal(await afterClose, loadButton(), "Load holds focus once the field closes");
+        await screen.findByRole("alert");
+        assert.equal(document.activeElement, loadButton(), "focus stays on Load after the refusal");
+    });
+
     it("refuses three files dropped at once and keeps the page empty", async () => {
         await openFromEmptyApp();
         await chooseFiles(

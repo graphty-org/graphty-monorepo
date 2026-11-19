@@ -2137,7 +2137,8 @@ export class RenderManager implements Manager {
      *     (true) or failed to (false).
      */
     applyBackground(background: GraphBackgroundConfig, onSkybox: (url: string, loaded: boolean) => void): void {
-        const color = backgroundColorOf(background);
+        this.#applied = { background, onSkybox };
+        const color = backgroundColorOf(background, this.#darkScheme);
         this.setBackgroundColor(color);
         if (background.backgroundType === "skybox") {
             const url = background.data;
@@ -2259,6 +2260,28 @@ export class RenderManager implements Manager {
         }
 
         this.requestFrame();
+    }
+
+    /** The background last applied, so a change of color scheme can draw it again. */
+    #applied: { background: GraphBackgroundConfig; onSkybox: (url: string, loaded: boolean) => void } | null = null;
+
+    /** See {@link darkScheme}. */
+    #darkScheme = false;
+
+    /**
+     * Draw the background's dark color (true) or its light one (false, the default).
+     * @param dark - Whether the color scheme is dark.
+     */
+    set darkScheme(dark: boolean) {
+        if (dark === this.#darkScheme) {
+            return;
+        }
+
+        this.#darkScheme = dark;
+        if (this.#applied !== null) {
+            this.applyBackground(this.#applied.background, this.#applied.onSkybox);
+            this.requestFrame();
+        }
     }
 
     /** The graph's own background color, last applied. */

@@ -108,9 +108,15 @@ export function askedShapeClass(shape: unknown, points: unknown): ShapeClass {
  * The shape class of a polygon node, from its corners as a reader tells them apart: by how many
  * there are, and four as a rectangle when three sit on their box's corners, else a diamond.
  * @param points - the polygon's `shape.points`
+ * @param drawn - the box it is drawn in on screen, so a corner counts as on its box's corner within 2% of the box's
+ * longer side, as the oracle's outlines are classed (associate.ts `shapeOf`); without it the corners are taken as drawn
+ * at their own scale
  * @returns the class; "rect", the box graphty draws, without usable corners
  */
-export function polygonClassOf(points: string | undefined): ShapeClass {
+export function polygonClassOf(
+    points: string | undefined,
+    drawn?: Pick<ScreenBox, "x0" | "y0" | "x1" | "y1">,
+): ShapeClass {
     const corners = polygonPoints(points);
     if (corners === null) {
         // without usable corners graphty draws the node's box (shapeOutlines.flatShapeOutline)
@@ -119,12 +125,20 @@ export function polygonClassOf(points: string | undefined): ShapeClass {
     if (corners.length === 4) {
         const xs = corners.map(([x]) => x);
         const ys = corners.map(([, y]) => y);
-        const near = (v: number, ends: readonly number[]): boolean => ends.some((e) => Math.abs(v - e) < 1e-3);
+        const [spanX, spanY] = [Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)];
+        // the corners stretched to the drawn box: a node is drawn its own width and height, not square
+        const [w, h] = drawn === undefined ? [spanX, spanY] : [drawn.x1 - drawn.x0, drawn.y1 - drawn.y0];
+        const slack = 0.02 * Math.max(w, h);
+        const near = (v: number, ends: readonly number[], scale: number): boolean =>
+            ends.some((e) => Math.abs(v - e) * scale < slack);
         const onBox = corners.filter(
-            ([x, y]) => near(x, [Math.min(...xs), Math.max(...xs)]) && near(y, [Math.min(...ys), Math.max(...ys)]),
+            ([x, y]) =>
+                near(x, [Math.min(...xs), Math.max(...xs)], spanX > 0 ? w / spanX : 1) &&
+                near(y, [Math.min(...ys), Math.max(...ys)], spanY > 0 ? h / spanY : 1),
         ).length;
         // as the oracle's outlines are classed (associate.ts): a diamond touches its box at no corner, and a
-        // parallelogram or a trapezium, at one or two, is neither
+        // parallelogram or a trapezium, at one or two, is neither (a skewed Graphviz polygon, dot-real-crazy
+        // "8th Edition", with one corner 1% of its width off its box's)
         if (onBox >= 3) {
             return "rect";
         }
@@ -324,7 +338,7 @@ function boxInside(inner: ScreenBox, outer: ScreenBox): boolean {
  */
 const drawnShapeClass = (d: DrawnNode): ShapeClass =>
     d.shapeType === "polygon"
-        ? polygonClassOf(d.polygon)
+        ? polygonClassOf(d.polygon, d.box)
         : shapeClassOf(SHAPE_NAMES.has(d.meshName) ? d.meshName : d.shapeType);
 
 /**

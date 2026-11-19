@@ -162,7 +162,7 @@ export const ACCELERATION_POLICY_DEFAULT: AccelerationPolicy;
 export type AccelerationCapabilities = Pick<Capabilities, "acceleration">;
 
 // @public
-export type AccelerationErrorCode = "E_NO_WEBGPU" | "E_NO_ADAPTER" | "E_SOFTWARE_ONLY" | "E_DEVICE_INCORRECT" | "E_DEVICE_LOST" | "E_TOO_LARGE" | "E_NO_ACCELERATOR_REGISTERED" | "E_ACCELERATOR_FAILED" | "E_ACCELERATOR_INCOMPATIBLE" | "E_MISSING_PACKAGE";
+export type AccelerationErrorCode = "E_NO_WEBGPU" | "E_NO_ADAPTER" | "E_SOFTWARE_ONLY" | "E_DEVICE_INCORRECT" | "E_DEVICE_LOST" | "E_GPU_TIMEOUT" | "E_TOO_LARGE" | "E_NO_ACCELERATOR_REGISTERED" | "E_ACCELERATOR_FAILED" | "E_ACCELERATOR_INCOMPATIBLE" | "E_MISSING_PACKAGE";
 
 // @public
 export type AccelerationPolicy = "auto" | "off" | "required";
@@ -728,6 +728,9 @@ export interface CollapseResult {
     readonly removedEdges: number;
     readonly removedNodes: readonly NodeId[];
 }
+
+// @public
+export type ColorScheme = "light" | "dark" | "auto";
 
 // @public
 export function colorToHex(s: string): string | undefined;
@@ -2950,6 +2953,7 @@ export class Graph implements GraphContext {
     }>;
     getCameraState(): CameraState;
     getCameraTransitionDuration(): number | undefined;
+    getColorScheme(): ColorScheme;
     getConfig(): GraphContextConfig;
     getDataManager(): DataManager;
     // @internal
@@ -3148,6 +3152,7 @@ export class Graph implements GraphContext {
     }, options?: CameraAnimationOptions): Promise<void>;
     setCameraTransitionDuration(ms: number | undefined): void;
     setCameraZoom(zoom: number, options?: CameraAnimationOptions): Promise<void>;
+    setColorScheme(scheme: ColorScheme): void;
     setData(data: {
         nodes: Record<string, unknown>[];
         edges: Record<string, unknown>[];
@@ -3238,6 +3243,7 @@ export interface GraphAccelerator {
 export const GraphBackground: z.ZodDiscriminatedUnion<[z.ZodObject<{
     backgroundType: z.ZodLiteral<"color">;
     color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+    darkColor: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
     shader: z.ZodOptional<z.ZodObject<{
         id: z.ZodString;
         params: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnion<readonly [z.ZodNumber, z.ZodString, z.ZodBoolean]>>>;
@@ -3246,6 +3252,7 @@ export const GraphBackground: z.ZodDiscriminatedUnion<[z.ZodObject<{
     backgroundType: z.ZodLiteral<"skybox">;
     data: z.ZodUnion<[z.ZodURL, z.ZodString]>;
     color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+    darkColor: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
     shader: z.ZodOptional<z.ZodObject<{
         id: z.ZodString;
         params: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnion<readonly [z.ZodNumber, z.ZodString, z.ZodBoolean]>>>;
@@ -3457,6 +3464,8 @@ export class Graphty extends LitElement {
         readonly database?: string;
     }): Promise<void>;
     clearData(): void;
+    get colorScheme(): ColorScheme;
+    set colorScheme(value: ColorScheme);
     connectedCallback(): void;
     static createApiKeyManager(): Promise<ApiKeyManager>;
     get credentials(): CredentialStore;
@@ -4345,6 +4354,16 @@ export type GraphtyErrorCode =
 */
 | "E_DEVICE_LOST"
 /**
+* An accelerated run got no answer from the GPU within its time limit, and the device never
+* reported itself lost either. WebGPU has no event for a device that stops answering without
+* being lost, so the element waits for a limit it scales from the run's size, then fails the
+* run rather than wait forever. `details` carry `capability`, `nodeCount`, `edgeCount`,
+* `elapsedMs` and `limitMs`. The element releases the device as suspect and tries a fresh one
+* for the next run; it never finishes the stuck run on the CPU. Change the limit with
+* `getAcceleration().setRunTimeout(ms)`.
+*/
+| "E_GPU_TIMEOUT"
+/**
 * The graphics device the graph is drawn with was lost: the WebGL context or the WebGPU
 * device. `params.renderer` (on the `render-lost` event) or `details.renderer` names which.
 * The session and its data are untouched; the element asks for the device back, and
@@ -4748,7 +4767,7 @@ export type GraphtyWarningCode =
 * know: kept and never run (`params.kind`, `params.pointer`, `params.found`).
 */
 | "W_UNKNOWN_KIND"
-/** A project's data is not the data its results were saved against: the results keyed by edge position were left out. */
+/** A project's data is not the data its results were saved against: each such run was computed again over the open data. */
 | "W_DATA_DIFFERS"
 /** A run was still computing when the project was saved, so the file does not hold it. */
 | "W_RUN_PENDING"
@@ -7703,6 +7722,7 @@ export class RenderManager implements Manager {
     camera: CameraManager;
     // @internal
     get canvasInView(): boolean;
+    set darkScheme(dark: boolean);
     dispose(): void;
     // @internal
     drawHeld: (() => boolean) | null;
@@ -8098,7 +8118,6 @@ export interface ScreenshotOptions {
         params?: Readonly<Record<string, unknown>>;
     };
     destination?: {
-        blob?: boolean;
         download?: boolean;
         clipboard?: boolean;
     };
@@ -8129,7 +8148,7 @@ export interface ScreenshotResult {
     clipboardError?: Error;
     clipboardStatus: ClipboardStatus;
     downloaded: boolean;
-    errors?: Error[];
+    errors: GraphtyError[];
     metadata: {
         width: number;
         height: number;

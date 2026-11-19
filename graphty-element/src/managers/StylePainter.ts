@@ -214,6 +214,39 @@ const EDGE_PAINT_CACHE_LIMIT = 4096;
  */
 const EDGE_BASE_DIRECTED: EdgeStyleConfig = EdgeStyle.parse({ ...defaultEdgeStyle, arrowHead: { type: "normal" } });
 
+/**
+ * The color a label's words are drawn in under a dark color scheme when no layer chose one and the
+ * label has no panel: the schema's black would vanish on the dark canvas. Light gray, not white,
+ * so it reads on the dark default (#121212) without glaring.
+ */
+const DARK_LABEL_COLOR = "#E6E6E6";
+
+/**
+ * A base style whose label words are drawn in {@link DARK_LABEL_COLOR}.
+ * @param base - The light base.
+ * @returns The dark base.
+ */
+function darkBaseOf<T extends NodeStyleConfig | EdgeStyleConfig>(base: T): T {
+    return { ...base, label: { ...base.label, textColor: DARK_LABEL_COLOR } };
+}
+
+const NODE_BASE_DARK = darkBaseOf(NODE_BASE);
+/** The edge bases, with and without the head a directed graph draws. */
+const EDGE_BASES = { directed: EDGE_BASE_DIRECTED, undirected: EDGE_BASE };
+const EDGE_BASES_DARK = { directed: darkBaseOf(EDGE_BASE_DIRECTED), undirected: darkBaseOf(EDGE_BASE) };
+
+/**
+ * Whether the dark base fills a label: under a dark scheme, unless a layer gave the label a panel,
+ * whose own color the default black words were chosen against.
+ * @param bag - What the layers wrote.
+ * @param dark - Whether the color scheme is dark.
+ * @returns True to fill from the dark base.
+ */
+function darkLabel(bag: Record<string, unknown>, dark: boolean): boolean {
+    const label = bag.label as { backgroundColor?: unknown } | undefined;
+    return dark && label?.backgroundColor === undefined;
+}
+
 /** No elements were repainted, which is what an unbound painter drains. */
 const NOTHING: readonly number[] = Object.freeze([]);
 
@@ -657,9 +690,15 @@ const FILL_READERS: Partial<Record<Channel, (fill: FillChannels, value: unknown)
  * @param resolved - Everything the stack painted this node.
  * @param meshKey - The key the interner gave this node's geometry.
  * @param plainText - Whether a text channel's words are drawn as plain text.
+ * @param dark - Whether the color scheme is dark, so a label no layer colored is drawn light.
  * @returns The paint.
  */
-function nodePaintOf(resolved: ResolvedStyle, meshKey: number, plainText: (channel: Channel) => boolean): NodePaint {
+function nodePaintOf(
+    resolved: ResolvedStyle,
+    meshKey: number,
+    plainText: (channel: Channel) => boolean,
+    dark = false,
+): NodePaint {
     const bag: Record<string, unknown> = {};
     const fill: FillChannels = {};
 
@@ -716,7 +755,7 @@ function nodePaintOf(resolved: ResolvedStyle, meshKey: number, plainText: (chann
 
     return {
         meshKey: key.join(""),
-        style: resolveRelativeExtents(fillDefaults(bag, NODE_BASE)),
+        style: resolveRelativeExtents(fillDefaults(bag, darkLabel(bag, dark) ? NODE_BASE_DARK : NODE_BASE)),
         color: filled ? null : color,
     };
 }
@@ -836,6 +875,7 @@ function coarsened(resolved: ResolvedStyle, large: boolean): ResolvedStyle {
  * @param meshKey - The key the interner gave this edge's geometry.
  * @param plainText - Whether a text channel's words are drawn as plain text.
  * @param directed - Whether the graph is directed, which is what gives an edge a head no layer chose.
+ * @param dark - Whether the color scheme is dark, so a label no layer colored is drawn light.
  * @returns The paint.
  */
 function edgePaintOf(
@@ -843,6 +883,7 @@ function edgePaintOf(
     meshKey: number,
     plainText: (channel: Channel) => boolean,
     directed: boolean,
+    dark = false,
 ): EdgePaint {
     const bag: Record<string, unknown> = {};
 
@@ -851,7 +892,8 @@ function edgePaintOf(
     }
 
     const headed = edgeHeaded(resolved, directed);
-    const base = headed ? EDGE_BASE_DIRECTED : EDGE_BASE;
+    const bases = darkLabel(bag, dark) ? EDGE_BASES_DARK : EDGE_BASES;
+    const base = headed ? bases.directed : bases.undirected;
 
     return {
         meshKey: edgeIdentity(resolved, meshKey, directed),
@@ -1329,12 +1371,15 @@ export class StylePainter {
      * @param largeGraph - Whether the graph holds more nodes than `Limits.largeGraphThreshold`, so
      *     a node no layer gives a detail is drawn at low detail ({@link coarsened}); asked once per
      *     node painted, so it must be cheap.
+     * @param dark - Whether the color scheme is dark, so a label no layer colored is drawn light;
+     *     asked as often as the minimums.
      */
     constructor(
         private readonly directed: (row: number) => boolean = () => true,
         private readonly minimums: () => MarkMinimums | undefined = () => undefined,
         private readonly modelDefaults: (model: string) => ModelDefaults | undefined = () => undefined,
         private readonly largeGraph: () => boolean = () => false,
+        private readonly dark: () => boolean = () => false,
     ) {}
 
     /**
@@ -1357,7 +1402,7 @@ export class StylePainter {
         };
     }
 
-    /** The minimums the cached paints were built at; see {@link StylePainter.floorOf}. */
+    /** The minimums and the scheme the cached paints were built at; see {@link StylePainter.floorOf}. */
     private floorSeen = "";
 
     /** What the last pass painted, or null while no session is bound. */
@@ -1630,7 +1675,8 @@ export class StylePainter {
 
     /**
      * The smallest size one kind of mark is drawn at, now. A change of the setting drops every
-     * cached paint, which was built at the old minimum under the same mesh key.
+     * cached paint, which was built at the old minimum under the same mesh key; so does a change of
+     * color scheme, which changes a label's default color.
      * @param target - Nodes or edges.
      * @returns The minimum, 0 for none.
      */
@@ -1638,7 +1684,7 @@ export class StylePainter {
         const minimums = this.minimums();
         const node = minimums?.node ?? 0;
         const edge = minimums?.edge ?? 0;
-        const seen = `${String(node)}|${String(edge)}`;
+        const seen = `${String(node)}|${String(edge)}|${String(this.dark())}`;
         if (seen !== this.floorSeen) {
             this.floorSeen = seen;
             this.edgePaints.clear();
@@ -1678,7 +1724,7 @@ export class StylePainter {
         const meshKey = paint.meshKeyOf("node", index);
         const make = (): NodePaint => {
             const made = keyedByFloor(
-                nodePaintOf(resolved, meshKey, (channel) => paint.plainText("node", index, channel)),
+                nodePaintOf(resolved, meshKey, (channel) => paint.plainText("node", index, channel), this.dark()),
                 resolved,
                 floor,
             );
@@ -1762,7 +1808,13 @@ export class StylePainter {
 
         const make = (): EdgePaint =>
             keyedByFloor(
-                edgePaintOf(resolved, meshKey, (channel) => paint.plainText("edge", index, channel), directed),
+                edgePaintOf(
+                    resolved,
+                    meshKey,
+                    (channel) => paint.plainText("edge", index, channel),
+                    directed,
+                    this.dark(),
+                ),
                 resolved,
                 floor,
             );

@@ -3051,8 +3051,10 @@ export class UpdateManager implements Manager {
             return;
         }
 
-        // A camera still gliding to the selection is a picture that is not final yet.
-        const frames = Math.min(MAX_CATCH_UP_ROUNDS, frameMs / NOMINAL_FRAME_MS);
+        // A camera still gliding to the selection is a picture that is not final yet. Not capped as
+        // the layout's catch-up is: a glide round is one multiplication, so a slow frame covers all
+        // the time it took. Capped, a page drawing a frame a second glided for seven (issue #9032).
+        const frames = frameMs / NOMINAL_FRAME_MS;
         this.followingSelection = this.camera.followPoint(selectionCenter(nodes), frames);
     }
 

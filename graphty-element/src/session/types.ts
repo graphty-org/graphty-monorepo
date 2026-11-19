@@ -3921,8 +3921,9 @@ export interface SessionConfig extends ProjectConfig {
     set(values: ProjectConfigPatch): Promise<void>;
     /**
      * The color the element draws the background in, beneath any image or shader, as hex: the
-     * background's own `color`, else `DEFAULT_BACKGROUND_COLOR`. A settings panel shows it when
-     * the background sets no color of its own.
+     * background's own `color`, else `DEFAULT_BACKGROUND_COLOR`; under a dark color scheme
+     * (`colorScheme` on the element) its `darkColor`, else `DEFAULT_DARK_BACKGROUND_COLOR`. A
+     * settings panel shows it when the background sets no color of its own.
      * @since 3.36.0
      */
     readonly backgroundColor: string;

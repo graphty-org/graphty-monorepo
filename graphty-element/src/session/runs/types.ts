@@ -391,8 +391,11 @@ export interface RunScopeRecord {
     readonly live?: {
         /** For `"visible"`: the filter, its conditions and the time window in force. */
         readonly visible?: {
+            /** The filter rule tree in force, or null when there was none. */
             readonly filter: RuleTree | null;
+            /** The filter conditions in force, in order; empty when there were none. */
             readonly conditions: readonly FilterCondition[];
+            /** The time window in force, or null when there was none. */
             readonly window: TimeWindow | null;
         };
         /** For `"selection"`: the selected node ids, sorted. */

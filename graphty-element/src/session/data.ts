@@ -7054,7 +7054,7 @@ export function headlessDataService(
         ceilings: () => ceilings?.overrides,
         dataConfig: readConfig,
         hasNode: (id) => dispatcher.graph.slice.nodes.has(id),
-        nodeCount: () => store.builder.nodeCount,
+        nodeCount: () => store.reads.nodeCount,
         edgesBetween: (source, target) => {
             const { builder } = store;
             if (!builder.hasNode(source) || !builder.hasNode(target)) {
@@ -7065,7 +7065,7 @@ export function headlessDataService(
                 edgeIndex,
             }));
         },
-        edgeAt: (edgeIndex) => (store.builder.hasEdge(edgeIndex) ? { edgeIndex } : null),
+        edgeAt: (edgeIndex) => (store.reads.hasEdge(edgeIndex) ? { edgeIndex } : null),
         replaceEdgeRecord: () => undefined,
         rowsRemoved: () => undefined,
         cleared: () => undefined,

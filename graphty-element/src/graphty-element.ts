@@ -3634,7 +3634,11 @@ export class Graphty extends LitElement {
      * Off (the default), the graph is drawn on every animation frame, still or not. On, it stops
      * drawing once the layout has settled, the styles are painted and the camera is at rest, and
      * draws again as soon as anything changes the picture: data, styles, the layout, the camera,
-     * the selection, an animation, or the reader's pointer, wheel or keys on the canvas. A still
+     * the selection, an animation, or the reader's pointer, wheel or keys on the canvas. While a
+     * layout runs on the GPU it also skips the frames between two landings of the layout's
+     * batches, which would show the same positions again, so the layout has more of the GPU and
+     * reaches its result sooner. Under renderPath "batched" those frames between landings are
+     * skipped even with this off. A still
      * graph then costs the page nothing per frame -- on a software GPU (a virtual machine, a CI
      * runner, a headless browser) that is tens to hundreds of milliseconds of every frame, and
      * the page's own controls answer that much faster.
@@ -7279,6 +7283,15 @@ export class Graphty extends LitElement {
      * How nodes are drawn: `"objects"` (the default), a mesh per node, or `"batched"`, every
      * eligible node of one look in one draw call. A node a batch cannot draw stays an object, with
      * no change to the picture. It can change at any time.
+     *
+     * While a layout runs on the GPU, `"batched"` also skips the frames between two landings of
+     * the layout's batches, even with `renderOnDemand` off: such a frame would show the same
+     * positions again and take GPU time from the layout. A camera move, hover, a restyle or other
+     * work still draws at once, and a settled graph is drawn every frame unless `renderOnDemand` is
+     * on. `"objects"` draws every frame. The one change not drawn at once is your own code setting
+     * a property of something already in the Babylon.js scene (through `graph.scene`, a material's
+     * color, say): during the layout that waits for its next landing. Use `"objects"` if it must
+     * show at once.
      * @returns The path asked for.
      * @example
      * ```html

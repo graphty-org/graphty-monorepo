@@ -488,7 +488,7 @@ type GraphvizLayoutClass = (new (opts: object) => SnapshotLayoutEngine) & {
     readonly type: string;
     readonly maxDimensions: number;
     readonly zodOptionsSchema: OptionsSchema;
-    readonly honoursWeights: boolean;
+    readonly honorsWeights: boolean;
     readonly scoped: boolean;
 };
 

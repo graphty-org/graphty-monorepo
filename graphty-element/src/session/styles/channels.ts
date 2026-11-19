@@ -606,6 +606,7 @@ export interface ChannelValues {
     "edge.wavePeriod": number;
     "edge.dashLength": number;
     "edge.dashGap": number;
+    "edge.dashArray": string;
     "edge.curvature": boolean;
     "edge.bends": string;
     "edge.fanSpacing": number;
@@ -4735,6 +4736,20 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "The clear space between two dashes of a dashed edge or two dots of a dotted one, in the units of " +
             "`edge.width`, repeating from the edge's start, the last dash cut where the edge ends. Unset, the " +
             "first and last touch the edge's ends and the rest spread between them.",
+    },
+    "edge.dashArray": {
+        channel: "edge.dashArray",
+        target: "edge",
+        plainName: "Edge Dash Array",
+        shortName: "Dash array",
+        group: "line",
+        accepts: "text",
+        stylePath: "line.dashArray",
+        renderable: true,
+        caveat:
+            "A pattern of several dash lengths on a dashed, dotted or dash-dot edge: dashes and gaps alternating from " +
+            "the edge's start, in the units of `edge.width`, separated by spaces or commas (`8 1 2 1`). It replaces " +
+            "the edge's own elements, dash length and gap; unset, they hold.",
     },
     "edge.curvature": {
         channel: "edge.curvature",

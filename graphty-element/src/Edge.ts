@@ -56,6 +56,7 @@ import {
     raisedArc,
     roundCorners,
     routeEnds,
+    routeMiddle,
     routeOutside,
     surfaceReach,
     type Xyz,
@@ -1073,6 +1074,13 @@ export class Edge {
     /** Whether the line is drawn lifted out of a flat layout's plane now (`edge.lift`): a run of slots. */
     private lifted = false;
 
+    /**
+     * Where the label hangs on a line drawn through its bends, solid or patterned: the middle of its route through its
+     * ends and bends ({@link routeMiddle}), which an importer measures a label's offset from (issue #8190); null for
+     * any other line.
+     */
+    private bentMiddle: Vector3 | null = null;
+
     /** When something last happened to this edge that a shader's entrance plays for, by `performance.now()`. */
     private causedAt = Number.NEGATIVE_INFINITY;
 
@@ -1565,7 +1573,7 @@ export class Edge {
             return Vector3.FromArray(bendPoints(src, dst, labelAt));
         }
 
-        return (bent || this.bundled ? this.routeMiddle() : null) ?? Vector3.Center(src, dst);
+        return (bent || this.bundled ? (this.bentMiddle ?? this.routeMiddle()) : null) ?? Vector3.Center(src, dst);
     }
 
     /**
@@ -1657,6 +1665,7 @@ export class Edge {
         const dst = new Vector3(lnk.dst.x, lnk.dst.y, lnk.dst.z ?? 0);
         const lift = this.liftDrawn();
         const bentBefore = this.bundled || this.lifted;
+        this.bentMiddle = null;
         this.lifted = lift !== 0 && this.laysRoute();
         let bent = this.lifted;
         if (this.lifted) {
@@ -4444,6 +4453,10 @@ export class Edge {
         if (span === null) {
             return false;
         }
+        // a line drawn through its bends (straight or with its corners rounded) hangs its label on them, not on a curve
+        // that uses them as control points
+        const throughBends = line?.bezier !== true || (!sampled && line.bendCurve !== "midpoints");
+        this.bentMiddle = throughBends ? Vector3.FromArray(routeMiddle(through)) : null;
 
         const a = Vector3.FromArray(route, 3 * span.first);
         const b = Vector3.FromArray(route, 3 * span.last);

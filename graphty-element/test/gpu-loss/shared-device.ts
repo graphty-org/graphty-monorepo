@@ -116,8 +116,9 @@ export async function startLayout(graph: Graph, maxIter = 1_000_000): Promise<vo
  * its first batch, without waiting for one to land.
  * @param graph - The graph.
  * @param maxIter - Iterations before it rests; by default more than any test waits for.
+ * @param seed - The layout's seed, for a test that compares two runs; unseeded by default.
  */
-export async function submitLayout(graph: Graph, maxIter = 1_000_000): Promise<void> {
+export async function submitLayout(graph: Graph, maxIter = 1_000_000, seed?: number): Promise<void> {
     // Boxes and no arrowheads, not the default icosphere and arrows: on SwiftShader with two cores the
     // icosphere's 960 vertices a node cost about 70 ms of a 90 ms frame and the arrows another 15, and
     // the device queue runs some 300 frames behind the page, so every landing waited out 300 of those
@@ -136,7 +137,7 @@ export async function submitLayout(graph: Graph, maxIter = 1_000_000): Promise<v
     });
     await graph.addNodes(NODES);
     await graph.addEdges(EDGES);
-    await graph.setLayout("forceatlas2", { maxIter });
+    await graph.setLayout("forceatlas2", seed === undefined ? { maxIter } : { maxIter, seed });
     while (!layoutOf(graph).isAccelerated || layoutOf(graph).iterationsDone === 0) {
         await nextFrame();
     }

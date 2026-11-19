@@ -146,7 +146,8 @@ import {
     type RunsApi,
     type SessionRunsApi,
 } from "./runs";
-import { canonicalize, frozenSelection, type LiveKeyword } from "./runs/runId";
+import { canonicalize, freezeScope, frozenSelection, type LiveKeyword } from "./runs/runId";
+import type { RunLiveScope } from "./runs/types";
 import {
     type ComponentLabels,
     createScopeApi,
@@ -308,6 +309,8 @@ export interface LaneStore extends Omit<SessionGraphStore, "positions"> {
      * @returns stops the delivery
      */
     readonly followRenumbering?: (follower: FreezeFollower) => () => void;
+    /** Let the builder go while nothing writes the graph; see `GraphStore.releaseIdle`. */
+    readonly releaseIdle?: () => void;
 }
 
 /**
@@ -439,6 +442,8 @@ interface SessionParts {
     readonly readProject: () => ProjectConfig;
     /** The renderer's graph-wide node size space, for `config.inEffect`; absent with no renderer. */
     readonly nodeSizeSpace: (() => string | undefined) | undefined;
+    /** Whether the renderer's color scheme is dark, for `config.backgroundColor`; absent with no renderer. */
+    readonly darkScheme: (() => boolean) | undefined;
     /** The controller whose capabilities and policy this session publishes. */
     readonly controller: AccelerationControllerLike;
     /** The controller when this session built it, so that disposal releases it. */
@@ -505,6 +510,8 @@ interface SessionInternals {
     readonly batched?: () => boolean;
     /** The renderer's graph-wide node size space (`layoutBehavior.node.sizeSpace`); absent with no renderer. */
     readonly nodeSizeSpace?: () => string | undefined;
+    /** Whether the renderer's color scheme is dark (`Graph.setColorScheme`); absent with no renderer. */
+    readonly darkScheme?: () => boolean;
 }
 
 /**
@@ -751,6 +758,10 @@ class Session implements ElementSession {
                 slices: change.slices as readonly ProjectSlice[],
                 cause: change.cause,
             });
+            // Quiet: no command runs and every pass has run, so the builder may go until the next write.
+            if (this.dispatcher.idle) {
+                this.store.releaseIdle?.();
+            }
         };
         // A command that replaces the project is announced before it runs (autosave keeps the
         // work it replaces); chained, because a test may spy here too.
@@ -856,7 +867,13 @@ class Session implements ElementSession {
             const base = advice.layout.scoped ? advised : { id: DEFAULT_LAYOUT.id, engine: DEFAULT_LAYOUT.engine };
             return { ...base, unplaced, placed: partial.placed };
         };
-        this.config = configOf(this.dispatcher, parts.readProject, parts.controller, parts.nodeSizeSpace);
+        this.config = configOf(
+            this.dispatcher,
+            parts.readProject,
+            parts.controller,
+            parts.nodeSizeSpace,
+            parts.darkScheme,
+        );
         this.project = projectOf(this, this.dispatcher, parts.canned, {
             announce: (change) => {
                 publish(this.watchers, "project:status", change);
@@ -2053,6 +2070,7 @@ function projectConfigReader(dispatcher: Dispatcher, base: () => SessionDataConf
  * @param read - Reads the project settings.
  * @param controller - The acceleration controller.
  * @param nodeSizeSpace - Reads the renderer's graph-wide node size space, for `inEffect`.
+ * @param darkScheme - Whether the renderer's color scheme is dark, for `backgroundColor`.
  * @returns The settings.
  */
 function configOf(
@@ -2060,6 +2078,7 @@ function configOf(
     read: () => ProjectConfig,
     controller: AccelerationControllerLike,
     nodeSizeSpace: (() => string | undefined) | undefined,
+    darkScheme?: () => boolean,
 ): SessionConfig {
     return Object.freeze({
         get data() {
@@ -2072,7 +2091,7 @@ function configOf(
             return read().background;
         },
         get backgroundColor() {
-            return backgroundColorOf(read().background);
+            return backgroundColorOf(read().background, darkScheme?.() ?? false);
         },
         get selectionStyle() {
             return read().selectionStyle;
@@ -3652,6 +3671,29 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     const canned: CannedOutcomes = new Map();
     // What a run compares to tell "the data changed under me" from "my scope moved".
     const dataNow = (): string => dataDigest(dispatcher.state.graph, snapshot);
+    // What the live keywords a scope names stand for now, so a saved run can be resolved again
+    // under them on open.
+    const liveScopeOf = (spec: Scope): { live?: RunLiveScope } => {
+        const used = new Set<LiveKeyword>();
+        freezeScope(spec, (keyword) => used.add(keyword));
+        if (used.size === 0) {
+            return {};
+        }
+
+        const visible = used.has("visible")
+            ? {
+                  visible: {
+                      filter: visibility.filter,
+                      conditions: visibility.conditions,
+                      window: visibility.window,
+                  },
+              }
+            : {};
+        const selected = used.has("selection")
+            ? { selection: frozenSelection(requireSelection(selection).nodeMembers().ids()) }
+            : {};
+        return { live: { ...visible, ...selected } };
+    };
     const runs = createRunsApi({
         queue,
         // Finished runs are the `runs` slice, recorded in this session's history.
@@ -3684,9 +3726,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                                   : { ...bounds, nodes: inside.nodes, edges: inside.edges },
                       };
 
+            const live = liveScopeOf(spec);
             return kept === undefined
-                ? { reading, dataDigest: data, ...window }
-                : { set: { id: kept.id, revision: kept.revision }, reading, dataDigest: data, ...window };
+                ? { reading, dataDigest: data, ...window, ...live }
+                : { set: { id: kept.id, revision: kept.revision }, reading, dataDigest: data, ...window, ...live };
         },
         dataDigest: () => dataNow(),
         defaultWeight: () => data.weightKey(),
@@ -4795,6 +4838,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             SESSION_CATALOG_TABLES.algorithms()
                 .find((descriptor) => descriptor.key === algorithm)
                 ?.options.find((descriptor) => descriptor.name === option)?.type,
+        registered: (algorithm) =>
+            SESSION_CATALOG_TABLES.algorithms().some((descriptor) => descriptor.key === algorithm),
         options: () => scope.options,
         hovering: () => (selection?.hovered ?? null) !== null,
         moved: () => {
@@ -4920,6 +4965,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         features: settleFeatures,
         readProject,
         nodeSizeSpace: internals.nodeSizeSpace,
+        darkScheme: internals.darkScheme,
         controller: acceleration.controller,
         ownedAcceleration: acceleration.owned,
         xr: options.xr ?? HEADLESS_XR,

@@ -12,7 +12,6 @@ export const GEMSTONE: ShaderDescriptor = Object.freeze({
     id: "gemstone",
     plainName: "Gemstone",
     target: "node",
-    views: Object.freeze(["3d"] as const),
     place: "paint",
     categories: Object.freeze(["Sparkle"]),
     tags: Object.freeze(["shiny", "3D", "glass"]),

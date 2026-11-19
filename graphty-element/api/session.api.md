@@ -6888,6 +6888,7 @@ export type SettingEffectCode = "setting.inEffect" | "setting.notIn2d";
 export interface SetUser {
     readonly id?: string;
     readonly kind: "set" | "layer" | "filter" | "layout" | "run" | "note";
+    // @deprecated
     readonly label: string;
 }
 

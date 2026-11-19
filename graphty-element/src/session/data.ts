@@ -6576,7 +6576,16 @@ export class SessionData implements SessionDataApi {
         } else if (typeof edgeWeightPath === "string") {
             edit = this.roleTarget(edgeWeightPath, "weight", {}, base()) ?? edit;
         }
-        for (const path of [edgeTimePath, nodeTimePath]) {
+        for (const [path, table] of [
+            [edgeTimePath, "edges"],
+            [nodeTimePath, "nodes"],
+        ] as const) {
+            if (path === null) {
+                // A null time setting turns that table's timeline off: its time roles go too.
+                const cleared = this.rolesCleared((member) => member === "time", table, base());
+                edit = cleared ?? edit;
+                continue;
+            }
             // A readable path such as graphty.time is the build's own, never a source's column.
             if (typeof path === "string" && !(READABLE_PATHS as readonly string[]).includes(path)) {
                 edit = this.roleTarget(path, "time", {}, base()) ?? edit;
@@ -6588,13 +6597,18 @@ export class SessionData implements SessionDataApi {
     /**
      * Under source-steps, the edit that takes some roles out of every source's mapping.
      * @param drops - Whether a mapping member, with its value, goes.
+     * @param only - The one mapping table to strip; both by default.
+     * @param value - The sources and steps to strip; the graph's own by default.
      * @returns The edit, or null when no mapping holds one.
      */
-    private rolesCleared(drops: (member: string, value: unknown) => boolean): StepsEdit | null {
-        const value = this.stepsValue();
+    private rolesCleared(
+        drops: (member: string, value: unknown) => boolean,
+        only?: "nodes" | "edges",
+        value: SourceSteps = this.stepsValue(),
+    ): StepsEdit | null {
         let changed = false;
-        const strip = <T extends object>(table: T | undefined): T | undefined => {
-            if (table === undefined) {
+        const strip = <T extends object>(table: T | undefined, name: "nodes" | "edges"): T | undefined => {
+            if (table === undefined || (only !== undefined && only !== name)) {
                 return undefined;
             }
             const kept = Object.entries(table).filter(([member, v]) => !drops(member, v));
@@ -6603,8 +6617,8 @@ export class SessionData implements SessionDataApi {
         };
         const sources = Object.fromEntries(
             Object.entries(value.sources).map(([id, source]) => {
-                const nodes = strip(source.mapping.nodes);
-                const edges = strip(source.mapping.edges);
+                const nodes = strip(source.mapping.nodes, "nodes");
+                const edges = strip(source.mapping.edges, "edges");
                 const mapping = {
                     ...source.mapping,
                     ...(nodes === undefined ? {} : { nodes }),

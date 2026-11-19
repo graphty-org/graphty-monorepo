@@ -90,4 +90,28 @@ describe("source-steps: time roles", () => {
         assert.strictEqual(session.time.field?.edges?.start, "graphty.time");
         session.dispose();
     });
+    it("time.setField(null) takes the time role away in one undo step, and undo brings it back", async () => {
+        const session = createGraphSession({ features: ["source-steps"] });
+        await load(session, T, "t.csv", "when");
+        assert.strictEqual(session.time.field?.edges?.start, "graphty.time");
+        const steps = session.history.steps.length;
+        const field = () => session.time.field;
+        await session.time.setField(null);
+        assert.strictEqual(session.history.steps.length, steps + 1, "one undo step");
+        assert.isNull(field());
+        assert.strictEqual(session.data.valueCounts("graphty.time", { kind: "edge" }).missing, 2);
+        await session.undo();
+        assert.strictEqual(field()?.edges?.start, "graphty.time");
+        await session.time.ready;
+        assert.strictEqual(session.time.extent()?.edges.timed, 2);
+        session.dispose();
+    });
+
+    it("config.set with a null edge time path takes the time role away too", async () => {
+        const session = createGraphSession({ features: ["source-steps"] });
+        await load(session, T, "t.csv", "when");
+        await session.config.set({ data: { knownFields: { edgeTimePath: null } } });
+        assert.isNull(session.time.field);
+        session.dispose();
+    });
 });

@@ -31,7 +31,7 @@ describe("session.graphs", () => {
     it("starts with the one graph the session holds", () => {
         const session = createGraphSession();
         assert.deepStrictEqual(session.graphs.list(), [{ id: "graph-1", name: null, current: true }]);
-        assert.strictEqual(session.graphs.current, "graph-1");
+        assert.strictEqual(session.graphs.currentId, "graph-1");
         session.dispose();
     });
 
@@ -84,7 +84,7 @@ describe("session.graphs", () => {
         const session = await path();
         const error: unknown = await session.graphs.switch("graph-9").catch((thrown: unknown) => thrown);
         assert.isTrue(isGraphtyError(error) && error.code === "E_BAD_COMMAND");
-        assert.strictEqual(session.graphs.current, "graph-1");
+        assert.strictEqual(session.graphs.currentId, "graph-1");
         assert.lengthOf(ids(session), 4);
         session.dispose();
     });

@@ -638,7 +638,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     // Showing another graph replaces the session's graph and starts its history afresh, as an open does.
     {
         root: "SessionGraphs",
-        members: ["current", "list", "create", "switch"],
+        members: ["currentId", "list", "create", "switch"],
         reason: "replaces-project",
         kind: BY_DESIGN,
     },

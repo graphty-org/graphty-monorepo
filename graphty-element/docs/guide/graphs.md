@@ -34,7 +34,7 @@ session.graphs.list(); // [{ id: "graph-1", name: null, current: false }, { id: 
 | Call                   | What it does                                                                                                                                       |
 | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `graphs.list()`        | Every graph, in the order they were made: `{ id, name, current }`. A session starts with one, `graph-1`.                                           |
-| `graphs.current`       | The id of the graph shown.                                                                                                                         |
+| `graphs.currentId`     | The id of the graph shown.                                                                                                                         |
 | `graphs.create(opts?)` | Copies the graph shown into a new graph and shows it. `from` takes any scope (`"selection"`, `{ set: id }`, `{ where }`); default the whole graph. |
 | `graphs.switch(id)`    | Shows another graph. An id no graph has is refused with `E_BAD_COMMAND`.                                                                           |
 

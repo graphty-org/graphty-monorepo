@@ -6538,7 +6538,7 @@ export interface SessionGraphCreateOptions {
 // @public
 export interface SessionGraphs {
     create(options?: SessionGraphCreateOptions): Promise<SessionGraph>;
-    readonly current: string;
+    readonly currentId: string;
     list(): readonly SessionGraph[];
     switch(id: string): Promise<void>;
 }

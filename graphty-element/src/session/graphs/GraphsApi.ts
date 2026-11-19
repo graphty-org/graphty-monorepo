@@ -58,7 +58,7 @@ export interface SessionGraphCreateOptions {
  */
 export interface SessionGraphs {
     /** The id of the graph shown now. */
-    readonly current: string;
+    readonly currentId: string;
     /**
      * Every graph, in the order they were made.
      * @returns The graphs.
@@ -131,7 +131,7 @@ export function graphsOf(host: GraphsHost): SessionGraphs {
     };
 
     return Object.freeze({
-        get current() {
+        get currentId() {
             return current;
         },
         list: () => [...graphs.keys()].map((id) => describe(id)),

@@ -3945,7 +3945,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         file: "src/session/graphs/GraphsApi.ts",
         half: "session",
         doors: {
-            current: READ,
+            currentId: READ,
             list: READ,
             create: exempt(
                 "Saves the graph shown and opens its copy through project.save and project.open, whose rows " +

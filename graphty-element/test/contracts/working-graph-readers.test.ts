@@ -171,7 +171,7 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "data.derivedColumns()": "not the graph",
     // A collapse or an expand edits the original graph, hidden members included, so nothing is lost.
     "graphs.create()": "writes",
-    "graphs.current": "state",
+    "graphs.currentId": "state",
     "graphs.list()": "state",
     "graphs.switch()": "writes",
     "groups.collapse()": "writes",

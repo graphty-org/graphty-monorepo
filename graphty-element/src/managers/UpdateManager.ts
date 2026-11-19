@@ -2906,7 +2906,8 @@ export class UpdateManager implements Manager {
      * published no new landing since the last frame drawn (issue #8801). Its batches land frames
      * apart, and a frame drawn in between shows the same positions again while taking GPU time
      * from the batches still computing. Pending work of any other kind (a style repaint, sizing, a
-     * transition, a model loading) says false, and so does work that ended since that frame
+     * transition, a model loading) says false, as does a layout that can land nothing more (a
+     * failed batch), and so does work that ended since that frame
      * without owing an event -- a token released (the last batch of a repaint applied over several
      * passes), or work of another kind that was pending when it was drawn -- since the frame
      * drawn does not show it yet. Framing is left to the render loop, which draws whenever the
@@ -2920,6 +2921,7 @@ export class UpdateManager implements Manager {
             engine !== undefined &&
             engine === this.layoutManager.layoutEngine &&
             engine.isAccelerated &&
+            engine.canLand &&
             engine.landedBatchesPublished === drawn?.landed &&
             drawn.quiet &&
             this.pending.released === drawn.released &&

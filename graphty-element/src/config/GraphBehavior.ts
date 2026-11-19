@@ -259,7 +259,8 @@ export const RenderSettingsOpts = z.strictObject({
      * is tens to hundreds of milliseconds of every frame. Something added to or removed from the
      * scene from outside the element is drawn; a property changed on something already in it
      * is not seen until something else asks for a frame. Under renderPath "batched", the frames
-     * between two landings of a running GPU layout are skipped even while this is off.
+     * between two landings of a running GPU layout are skipped even while this is off, so such a
+     * property change waits for the layout's next landing then.
      */
     onDemand: z.boolean().default(false),
 });

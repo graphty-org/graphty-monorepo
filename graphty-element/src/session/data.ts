@@ -3446,7 +3446,7 @@ export class SessionData implements SessionDataApi {
         const draft = new SourceDraftHandle(
             {
                 read: (source, options) => this.readStaged(source, options),
-                send: (edit, copies) => this.stepsEdit(() => edit, copies),
+                send: (edit, copies, removed) => this.draftCommit(edit, copies, removed),
                 committedCopies: () => this.stepsCopies(),
                 release: () => {
                     // A draft discarded while its commit was landing never releases one opened since.
@@ -3461,6 +3461,33 @@ export class SessionData implements SessionDataApi {
         this.sourceDraft = draft;
         this.writes.emit?.("data:draft-changed", { draft: draft.id, reason: "opened" });
         return draft;
+    }
+
+    /**
+     * Dispatch a draft's commit: its `data.steps-set`, and the filters of the sources it removes
+     * taken out in the same step, so one Undo gives both back (7.12), as `removeSource` does.
+     * @param edit - The whole value.
+     * @param copies - The rows as read of the sources the draft staged.
+     * @param removed - The committed sources the draft removes.
+     * @returns Settles once it is recorded and drawn.
+     */
+    private draftCommit(edit: StepsEdit, copies: Copies, removed: readonly string[]): Promise<unknown> {
+        const send = this.writes.importer();
+        return this.loadLine.edit(() => {
+            const step = { op: "data.steps-set", edit, copies } as const;
+            const { conditions } = this.writes.readers().visibility;
+            const kept = conditions.filter((each) => each.source === undefined || !removed.includes(each.source));
+            return send(
+                kept.length === conditions.length
+                    ? step
+                    : {
+                          op: "batch",
+                          label: "Set the sources",
+                          fact: { code: "data.steps-set", params: { kind: "set", source: null, name: null } },
+                          steps: [step, { op: "visibility.conditions", conditions: kept }],
+                      },
+            );
+        }, undefined);
     }
 
     /**

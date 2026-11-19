@@ -486,9 +486,11 @@ const dataStepsSet: UndoableDefinition<DataStepsSetCommand> = {
             removeStrays(ctx, before, edgeIds);
         }
         removeAndPatch(diff, apply);
-        const declared = adds?.source.declared;
+        const declared = edit.kind === "restore" ? undefined : newlyDeclared(prior, edited);
         if (declared !== undefined) {
-            // As an import of the file does: taken only while no edge is drawn yet.
+            // As an import of the file does: taken only while no edge is drawn yet. A source a
+            // step reads for the first time (an add, a staged source added, a draft's commit)
+            // brings the direction its file declares.
             service.direct(declared.directed, declared.statedBy, ctx.draft);
         }
         if (diff.addNodes.length > 0) {
@@ -515,6 +517,25 @@ const dataStepsSet: UndoableDefinition<DataStepsSetCommand> = {
         refreshDerivedAfter(ctx);
     },
 };
+
+/**
+ * The direction declared by the first source a step reads now that none read before.
+ * @param prior - The value before the edit.
+ * @param edited - The value after it.
+ * @returns The direction, or undefined when no newly read source declares one.
+ */
+function newlyDeclared(prior: SourceSteps, edited: SourceSteps): StepsSource["declared"] {
+    const unread = (value: SourceSteps, id: string): boolean => {
+        if (value.sources[id] === undefined) {
+            return true;
+        }
+        const state = sourceState(value, id);
+        return state === "staged" || state === "held";
+    };
+    return Object.values(edited.sources).find(
+        (src) => src.declared !== undefined && !unread(edited, src.id) && unread(prior, src.id),
+    )?.declared;
+}
 
 /** The source-steps ops' definitions. */
 export const SOURCE_STEPS_DEFINITIONS: readonly CommandDefinition<SessionCommand>[] = [dataStepsSet];

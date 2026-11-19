@@ -49,12 +49,14 @@ export interface SourceDraftHost {
      */
     read(source: DataSourceInput, options: ImportOptions): Promise<{ source: StepsSource; copies: Copies } | null>;
     /**
-     * Dispatch the commit: one `data.steps-set`.
+     * Dispatch the commit: one `data.steps-set`, with the filters of the sources it removes taken
+     * out in the same step, as `removeSource` takes them out (design 7.12).
      * @param edit - The whole value.
      * @param copies - The rows as read of the sources the draft staged.
+     * @param removed - The committed sources the draft removes.
      * @returns Settles once it is recorded and drawn.
      */
-    send(edit: StepsEdit, copies: Copies): Promise<unknown>;
+    send(edit: StepsEdit, copies: Copies, removed: readonly string[]): Promise<unknown>;
     /** The rows as read the committed project holds, by copy id. */
     committedCopies(): Copies;
     /** The draft stops holding the data: called once it is committed or discarded. */
@@ -305,10 +307,12 @@ export class SourceDraftHandle implements SourceDraft {
         if (value !== this.base.value) {
             const held = this.host.committedCopies();
             const staged = Object.fromEntries(Object.entries(copies).filter(([id]) => !(id in held)));
+            const removed = Object.keys(this.base.value.sources).filter((id) => value.sources[id] === undefined);
             try {
                 await this.host.send(
                     { kind: "set", value, draftBase: { value: this.base.value, draft: this.id } },
                     staged,
+                    removed,
                 );
             } catch (error) {
                 // Nothing was applied: the draft stays open with everything it did.

@@ -7,7 +7,7 @@
 import { assert, describe, it } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../../src/session";
-import { ACCOUNTS, edgeFile, phase1, phase2, refused } from "./scenario";
+import { ACCOUNTS, edgeFile, phase1, phase2, phase6, refused } from "./scenario";
 
 /** Accounts on the transactions' keys: A-1 and A-2 meet, A-9 does not; A-2's holder differs. */
 const ACCOUNTS_CSV = { type: "csv", config: { data: ACCOUNTS }, name: "accounts.csv" } as const;
@@ -364,5 +364,52 @@ describe("source-steps drafts: acts on a copy", () => {
         assert.strictEqual(session.data.edits().at(-1)?.column, "kind");
         assert.strictEqual(session.data.edges().find((e) => e.txn_id === "T-4")?.kind, "cash");
         session.dispose();
+    });
+    it("7.12: removing a source in a draft takes its section filters with it, and one Undo brings both back", async () => {
+        const { session, a } = await phase6();
+        await session.visibility.addCondition({
+            effect: "keep",
+            source: a,
+            rule: { kind: "categories", attribute: "data.opened", values: ["2020"] },
+        });
+        const d = session.data.draft();
+        d.removeSource(a);
+        await d.commit();
+        assert.notInclude(
+            session.data.sources().map((s) => s.key),
+            a,
+        );
+        assert.lengthOf(
+            session.visibility.conditions.filter((c) => c.source === a),
+            0,
+            "its section filter goes with it",
+        );
+        assert.notInclude((await session.project.save()).text, a);
+        await session.undo();
+        assert.include(
+            session.data.sources().map((s) => s.key),
+            a,
+        );
+        assert.lengthOf(
+            session.visibility.conditions.filter((c) => c.source === a),
+            1,
+            "one Undo brings the filter back",
+        );
+        session.dispose();
+    });
+
+    it("a file imported through a draft keeps the direction it declares, as data.import does", async () => {
+        const gml = "graph [ node [ id 1 ] node [ id 2 ] edge [ source 1 target 2 ] ]";
+        const door = createGraphSession({ features: ["source-steps"] });
+        await door.data.import({ type: "gml", config: { data: gml } });
+        const drafted = createGraphSession({ features: ["source-steps"] });
+        const d = drafted.data.draft();
+        await d.import({ type: "gml", config: { data: gml } });
+        await d.commit();
+        assert.strictEqual(drafted.data.edges().length, 1);
+        assert.strictEqual(drafted.status.directed, door.status.directed);
+        assert.isFalse(drafted.status.directed);
+        door.dispose();
+        drafted.dispose();
     });
 });

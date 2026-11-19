@@ -96,7 +96,7 @@ function notLoaded(tip: string): () => ModelChipWords {
  * What each limit of `E_MODEL_TOO_LARGE` measures (`params.what`), in a reader's words, and
  * whether it is bytes (said as a size). A count names what it counted in `params.item`.
  */
-const LIMIT_WORDS: Readonly<Record<string, { readonly word: string; readonly bytes?: true }>> = {
+const LIMIT_WORDS: Readonly<Partial<Record<string, { readonly word: string; readonly bytes?: true }>>> = {
     bytes: { word: "", bytes: true },
     unzipped: { word: "unzipped", bytes: true },
     triangles: { word: "triangles" },
@@ -242,7 +242,7 @@ export function modelChip(fact: CodedFact): ModelChipWords {
  * @returns the chip, or undefined for none.
  */
 export function countChip(facts: readonly CodedFact[]): ModelChipWords | undefined {
-    const [first] = facts;
+    const first = facts.at(0);
     if (first === undefined) {
         return undefined;
     }

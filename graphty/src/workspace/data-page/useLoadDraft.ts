@@ -70,7 +70,8 @@ export function sourceInput(source: PageSource, settings: ReadSettings): DataSou
     const type = settings.type === undefined ? {} : { type: settings.type };
     switch (source.kind) {
         case "files": {
-            const [first, second] = source.files;
+            const [first] = source.files;
+            const second = source.files.at(1);
             // The element tells a pair's nodes file from its edges file by their columns; pick order
             // decides only when the columns do not say.
             const config = second === undefined ? { file: first } : { nodeFile: first, edgeFile: second };

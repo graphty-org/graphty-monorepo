@@ -544,7 +544,7 @@ export function writeIn(
     const stepNow = (): HistoryStepId | undefined => ctx.session.history.steps[ctx.session.history.position - 1]?.id;
     return many.write(channel, write, after).then(async () => {
         const first = stepNow();
-        for (const [c, value] of Object.entries(also ?? {})) {
+        for (const [c, value] of Object.entries<ChannelValue | undefined>(also ?? {})) {
             if (value !== undefined && (alsoReplaces || many.line(c as Channel) === undefined)) {
                 await many.write(c as Channel, { value }, first);
             }
@@ -1052,7 +1052,7 @@ function startingBinding(session: GraphSession, descriptor: ChannelDescriptor, c
     // The first group palette with a color for every layer, so ten layers never draw three
     // near-identical colors past an eight-color palette's end; the first when none has room.
     const palettes = groupPalettes(session);
-    const palette = isColor ? (palettes.find((p) => p.colors.length >= count) ?? palettes[0])?.id : undefined;
+    const palette = isColor ? (palettes.find((p) => p.colors.length >= count) ?? palettes.at(0))?.id : undefined;
     const { range } = appRange(descriptor.channel);
     return {
         ...(palette === undefined ? {} : { palette }),

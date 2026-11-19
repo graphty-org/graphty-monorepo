@@ -3,14 +3,14 @@
  * never move (random masks incl. the all-fixed mask, which settles within settleWindow + 1 steps, PLAN DECISION 12);
  * setPosition visible in the next readback and never clobbered by an older batch; settled within maxIter; reheat on
  * unpin / setPosition / load, not on pin; speed NOT reset by setPosition (untouched at the call, and the next
- * iteration continues from it through the re-synchronised oracle, PLAN DECISIONS 13 / 17); pin A, remove B < A,
+ * iteration continues from it through the re-synchronized oracle, PLAN DECISIONS 13 / 17); pin A, remove B < A,
  * load(next) with the remapped array and a re-issued mask -> A still fixed; results ArrayBuffer-typed of exact
  * length; z === center.z in 2D; per-node displacement <= speed |F| / (1 + sqrt(speed swing_i)).
  *
  * Sizing (spec 11.3 property row: "generators sized by gpuScale()"): karate cannot shrink (34 nodes), so on a
  * software adapter (gpuScale() < 1) the per-run submission counts shrink instead -- stepBound() bounds the before / after
  * step generators of the fixed-node property (4 -> 2) and halfSpan() the speed-continuity horizon on each side of the
- * setPosition (5 -> 3; the re-synchronised oracles follow). numRuns stays at the spec's 200 on every adapter.
+ * setPosition (5 -> 3; the re-synchronized oracles follow). numRuns stays at the spec's 200 on every adapter.
  */
 
 import { type F32, INVALID_INDEX, makeMask, maskSet } from "@graphty/graph-format";
@@ -234,14 +234,14 @@ describe("FA2 properties (spec 11.3; fast-check numRuns 200)", () => {
         requireGpu(t);
         // D8: setPosition() reheats (iterationsDone = 0, settledCount = 0) and NOTHING else -- the controller
         // keeps its state at the moment of the call, and the next iteration's K4 continues from it. The second
-        // half is proved through the re-synchronised oracle (resyncTrace): before every iteration a fresh oracle
+        // half is proved through the re-synchronized oracle (resyncTrace): before every iteration a fresh oracle
         // is seeded with the GPU's own iteration-start state, so at the iteration after the drag the oracle
         // starts from the moved position AND the speed the GPU reported before the call; a controller reset on
         // the device would show as that iteration's speed disagreeing by O(1). The earlier form of this property
         // compared a free-running 10-iteration trace at the f32 trace tolerance and was red on NVIDIA for a few
         // of the 200 drags (a drag that lands a node next to another creates a near-coincident pair whose forces
-        // amplify f32 rounding chaotically: G3-F4); the re-synchronised form compares one iteration at a time,
-        // free of that amplification, at the measured re-synchronised floors.
+        // amplify f32 rounding chaotically: G3-F4); the re-synchronized form compares one iteration at a time,
+        // free of that amplification, at the measured re-synchronized floors.
         await fc.assert(
             fc.asyncProperty(
                 fc.integer({ min: 0, max: n - 1 }),

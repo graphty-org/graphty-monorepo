@@ -1,0 +1,22 @@
+{
+    "$schema": "https://graphty.app/schema/documents/graphty-data/v2.json",
+    "kind": "graphty-data",
+    "version": 2,
+    "generator": {
+        "name": "graphty-element",
+        "version": "3.40.0"
+    },
+    "id": "minimal-data",
+    "build": "01JCC0000000000000000000AA",
+    "directed": false,
+    "sources": [],
+    "types": [],
+    "joins": [],
+    "graph": {
+        "directed": false,
+        "multigraph": false,
+        "graph": {},
+        "nodes": [],
+        "links": []
+    }
+}

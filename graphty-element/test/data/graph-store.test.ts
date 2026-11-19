@@ -567,7 +567,7 @@ describe("GraphStore lifecycle", () => {
         // A pin says "leave this coordinate alone", so it belongs with the coordinate: attached on
         // EVERY freeze, from the same lane, through the same array the position column comes from.
         // Without it a pin would be the one thing about a node that no snapshot knows -- invisible
-        // to anything that reads or serialises a graph, and lost at the first re-freeze.
+        // to anything that reads or serializes a graph, and lost at the first re-freeze.
         const { store } = makeStore();
         store.builder.addEdge("a", "b");
         store.builder.addEdge("b", "c");

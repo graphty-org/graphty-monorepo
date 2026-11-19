@@ -174,7 +174,7 @@ export class MinCutAlgorithm extends DeclaredAlgorithm<MinCutOptions> {
      *
      * Three methods can answer, and they answer different questions: Stoer-Wagner and Karger find
      * the cheapest cut anywhere in the graph, while the max-flow route finds the cheapest cut
-     * between two named nodes. Karger is randomised and is the only one that may be wrong, so the
+     * between two named nodes. Karger is randomized and is the only one that may be wrong, so the
      * caveats say which ran and whether it was exact.
      * @param context - What the element gave the run.
      * @returns The edge set, or null when there is nothing to cut.

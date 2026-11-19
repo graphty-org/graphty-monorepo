@@ -1,8 +1,8 @@
 /**
  * The traversal ports against their legacy counterparts, on every fixture as built. A legacy
- * `Graph` tries neighbours in insertion order and a snapshot row is sorted by index, so the
+ * `Graph` tries neighbors in insertion order and a snapshot row is sorted by index, so the
  * order-dependent ports (visit orders, DFS trees, topological orders, Tarjan's completion-order
- * labels, the condensation numbering, BFS target order) are given the legacy neighbour order
+ * labels, the condensation numbering, BFS target order) are given the legacy neighbor order
  * through their `arcOrder` option, as a facade will be. Each is also run on a multigraph with every
  * edge doubled and must still give the legacy answer. Every port call is followed by
  * `validate({ checksum: true })`.
@@ -32,7 +32,7 @@ interface Case {
     readonly name: string;
     readonly graph: Graph;
     readonly s: GraphSnapshot;
-    /** The legacy neighbour order of `graph` over the arcs of `s`. */
+    /** The legacy neighbor order of `graph` over the arcs of `s`. */
     readonly arcOrder: U32;
 }
 

@@ -33,9 +33,9 @@ Each design term is defined here once and then used without ceremony.
 - **Inspector**: the right-hand panel. It always shows the properties of the current selection,
   and nothing else.
 - **Fill**: Figma's word for a shape's paint. Here it is an object's appearance: the style layer
-  (or layers) that paints its members. "Fill" is used for the whole appearance, not just colour,
+  (or layers) that paints its members. "Fill" is used for the whole appearance, not just color,
   because it is one word and readers of Figma already know that it lives on the selected thing.
-- **Channel**: one visual property a Fill can write: node colour, node size, edge width, and so
+- **Channel**: one visual property a Fill can write: node color, node size, edge width, and so
   on (the element's `Channel` list, 40 of them).
 - **Precedence**: when two objects both paint the same channel of the same element, which one
   wins. In Figma the layer nearer the top of the list is painted on top. Same here.
@@ -84,7 +84,7 @@ OBJECTS                               (the Layers slot)
 Row anatomy, left to right, on Figma's 32 px layer row: caret (16), kind icon (16), name (11 px,
 weight 600 on the root, 400 below), the member count in secondary text, a state glyph when the
 state is not current, a 14 x 14 Fill chip (a swatch for a set, a small ramp for a measure, a
-four-colour strip for a partition), then lock and eye toggles that appear on hover and stay
+four-color strip for a partition), then lock and eye toggles that appear on hover and stay
 visible when set. Hidden objects dim to tertiary text, exactly as a hidden Figma layer does.
 
 ### 1.2 The kinds of object
@@ -95,9 +95,9 @@ are not objects at all (section 1.7 says why).
 | Kind | What it is | Members | Fill by default | Lives |
 |---|---|---|---|---|
 | Dataset | The loaded data: nodes, edges, attributes, positions, the layout in force, what is showing | everything | the element's own default look (locked) | root of the tree; exactly one today |
-| Set | A named collection of elements: a filter, a path, a neighbourhood, a promoted selection, a spanning tree, a cut, a combination of other objects, a pattern match | a list of node ids and edge ids | one colour (a highlight layer) | tree |
-| Measure | One value per element: a centrality, a score, an imported numeric column, a formula | every element it has a value for | a colour ramp or a size scale (an encoding layer) | tree |
-| Partition | One label per element which is also a family of sets: communities, components, BFS levels, k-core shells, an imported category column, a node-type role | every labelled element; each Group child holds one label's members | one colour per group (an encoding layer with an ordinal scale) | tree, always with Group children |
+| Set | A named collection of elements: a filter, a path, a neighborhood, a promoted selection, a spanning tree, a cut, a combination of other objects, a pattern match | a list of node ids and edge ids | one color (a highlight layer) | tree |
+| Measure | One value per element: a centrality, a score, an imported numeric column, a formula | every element it has a value for | a color ramp or a size scale (an encoding layer) | tree |
+| Partition | One label per element which is also a family of sets: communities, components, BFS levels, k-core shells, an imported category column, a node-type role | every labeled element; each Group child holds one label's members | one color per group (an encoding layer with an ordinal scale) | tree, always with Group children |
 | Group | One label of a partition | that label's members | inherited from the parent partition; may be overridden | tree, only under a partition |
 | Note | Text anchored to an element, a point, or another object | its anchor | a marker (the `node.marker` channel, #295) | tree, under the object it annotates or at root |
 | View | A camera, a view mode (2D, 3D, VR, AR) and what is showing | none | none | the Views list |
@@ -136,7 +136,7 @@ and one word in the inspector header:
 | waiting | created but not run, because the cost gate said it would take too long to start unasked | a hollow circle; the count reads "not run" | a primary "Run (about 4 min)" button with an "Approximate instead" secondary; the only filled blue button that can appear in the inspector |
 | stale | the data, the scope or a parameter changed since the last run; members are the OLD ones | a small amber dot after the name; the count keeps the old number | "Stale: ran on 34 nodes, now 40 [Re-run]" (`run.stale`) |
 | failed | the run threw | a red dot | the `GraphtyError` message and a "Retry" |
-| frozen | an input this object referenced was deleted; members are kept as a fixed list | a grey snowflake; name in secondary text | "Frozen: 'Degree > 10' was deleted. Members kept as a fixed list. [Unfreeze as fixed set]" |
+| frozen | an input this object referenced was deleted; members are kept as a fixed list | a gray snowflake; name in secondary text | "Frozen: 'Degree > 10' was deleted. Members kept as a fixed list. [Unfreeze as fixed set]" |
 
 Stale propagates DOWN the tree: when a partition goes stale, every Group under it goes stale;
 when a scope goes stale, everything nested in it goes stale. It never propagates up.
@@ -197,21 +197,21 @@ Hidden objects (eye off) do not paint at all. Below every object is the Dataset'
 Fill sits BELOW all its children (as a Figma frame's fill sits behind the frame's contents).
 In practice:
 
-- Drag "Path" above "Communities" and the path's colour wins on the path's nodes; the community
-  colours still show everywhere else, because the path does not include those elements.
-- A Group with its own colour beats the partition's palette on that group, because a child
+- Drag "Path" above "Communities" and the path's color wins on the path's nodes; the community
+  colors still show everywhere else, because the path does not include those elements.
+- A Group with its own color beats the partition's palette on that group, because a child
   paints above its parent.
-- A measure whose Fill writes node colour, placed at the top, colours every node and makes every
-  set's colour invisible. This is correct and visible: the sets' rows keep their chips, and each
+- A measure whose Fill writes node color, placed at the top, colors every node and makes every
+  set's color invisible. This is correct and visible: the sets' rows keep their chips, and each
   set's Fill section says "Covered by Influence on 12 of 12 members" (from
   `session.styles.explain`). The fix is the same as in Figma: move the measure down, or change
   its Fill to a channel nobody else uses (Size).
-- Two objects that write different channels never conflict: Communities colours, Influence sizes.
+- Two objects that write different channels never conflict: Communities colors, Influence sizes.
   The default Fill of a new measure is therefore chosen to avoid a channel a visible object
   above it already writes (the element decides this when it suggests an encoding; today it
-  always suggests colour, which this model asks it to change).
+  always suggests color, which this model asks it to change).
 
-The style stack the element holds (`session.styles.list()`) is exactly this linearised order:
+The style stack the element holds (`session.styles.list()`) is exactly this linearized order:
 bottom = the element's locked defaults, then the tree from bottom to top with each parent's
 layer immediately below its children's. Every drag in the tree is a `session.styles.move`. Style
 layers are no longer a separate concept a reader sees; the layer list IS the tree.
@@ -219,7 +219,7 @@ layers are no longer a separate concept a reader sees; the layer list IS the tre
 ### 1.7 What is deliberately not an object
 
 - **Style layers.** A layer is an object's Fill; a reader never sees a layer that is not on an
-  object. A Fill can hold several layers (colour and size) and they move together.
+  object. A Fill can hold several layers (color and size) and they move together.
 - **Exports.** An export is a section on an object ("Export" on the Dataset for the whole
   picture and the data; on a set for its members as CSV and a picture framed on them; on a
   measure for the ranked list). Figma keeps export settings on the selected layer and on the
@@ -232,7 +232,7 @@ layers are no longer a separate concept a reader sees; the layer list IS the tre
 - **Attributes.** An imported column is material, not an object, and a wide table would put
   thousands of rows in the tree. A column becomes an object when a reader USES it: the
   Attributes section of the Dataset has a "Use" verb per column that creates a Measure (numeric)
-  or a Partition (category, boolean, type) wrapping that column. That gives "colour by
+  or a Partition (category, boolean, type) wrapping that column. That gives "color by
   conference" a tree row, a Fill and a precedence position like everything else.
 - **Runs.** The element keeps every run (`session.runs.list()`); the tree shows an object per run
   that produced members. A run whose result is a `fact` (density) or a `pair-list` (link
@@ -248,7 +248,7 @@ layers are no longer a separate concept a reader sees; the layer list IS the tre
 |---|---|---|---|---|
 | Dataset | Open file, URL, paste, sample, "Add data" | reload the file; "Re-run all" re-runs every stale object in tree order | the field mapping (which columns are id, source, target, label, weight, time, type), direction, repeated-edge policy; every object goes stale | Close dataset |
 | Set (rule) | Filter tool | re-evaluate the rule (always immediate) | the expression, the attribute and range, the value list, the degree band; the scope | Delete; linked dependents freeze |
-| Set (relational) | Neighbours tool, Path tool | re-walk from the anchor node(s) | the anchor(s), the depth, the direction, the path method | same |
+| Set (relational) | Neighbors tool, Path tool | re-walk from the anchor node(s) | the anchor(s), the depth, the direction, the path method | same |
 | Set (result) | Path flyout: spanning tree, matching, max flow, min cut; Filter flyout: pattern | re-run the algorithm | its options (source, sink, k) | same |
 | Set (fixed) | Ctrl+G on a selection; paste a list of ids | nothing to re-run; membership survives a re-load only for ids that still exist | "Edit members": add or remove by selecting on the canvas and pressing + or - | same |
 | Set (combination) | Combine on two or more selected tree rows | re-evaluate from its inputs (immediate) | the operation (union, intersect, subtract) and the inputs, which are clickable rows | same |
@@ -264,7 +264,7 @@ section 9.3).
 
 ## 2. The creation tools: the toolbar
 
-The toolbar is Figma's floating toolbar: bottom centre, 48 px tall, radius 13, tool buttons 32 x
+The toolbar is Figma's floating toolbar: bottom center, 48 px tall, radius 13, tool buttons 32 x
 32 with a 16 px chevron opening a flyout, the last-used flyout item becoming the group's face.
 One tool is active at a time (`aria-pressed`, the brand-blue fill). Keyboard letters select
 tools. Left to right:
@@ -284,7 +284,7 @@ scope (Figma adds new items at the top), selects it, and returns to Select.
 |---|---|---|---|---|
 | Select (V) | Select, Marquee, Lasso (later) | click, Shift+click, drag | nothing (Figma shows nothing for plain selection) | an element selection (not an object); Ctrl+G makes it a Set |
 | Filter (R) | By rule (an expression), By values (an attribute and a list), By range (an attribute, min, max), By connections (degree band), Largest connected part, Pattern (later, #149 first) | nothing | a 240 px light popover above the toolbar: the rule fields and a live count "Matches 6 nodes" from `session.scope.count`, then Create | a Set (rule) |
-| Neighbours (E) | none | one click on a node (or the current selection) | "Within [1 v] steps, [All directions v], of Mr Hi" then Create; Enter creates | a Set (relational), members = seeds plus the neighbourhood (`{neighborsOf, depth, direction}`) |
+| Neighbors (E) | none | one click on a node (or the current selection) | "Within [1 v] steps, [All directions v], of Mr Hi" then Create; Enter creates | a Set (relational), members = seeds plus the neighborhood (`{neighborsOf, depth, direction}`) |
 | Path (P) | Shortest route, All routes (later, #329), Cheapest connecting network (Kruskal, Prim), Most that can flow, Weakest link | Shortest route and the flow pair: two clicks, A then B, with a rubber-band line from A to the pointer; the network tools: nothing, or a start node for Prim | "Pick the start node" then "Pick the end node" with [Shortest v] and Cancel | a Set (ordered for a path; edges for the network tools) |
 | Groups (G) | Communities (Louvain), Communities refined (Leiden), Communities fast (Label propagation), Communities by cutting bridges (Girvan-Newman), Separate pieces (Components), Steps away from a node (BFS; one click), Densest shells (k-core, when registered) | nothing, or one click for Steps away | "Find groups within <scope> (N nodes)" and, when the estimate exceeds the gate, "About 4 min. [Run] [Approximate]" | a Partition with Group children |
 | Rank (K) | Connections (Degree), Bridges (Betweenness), Reach (Closeness), Influence (PageRank), Influence by association (Eigenvector), Influence at a distance (Katz), Hubs and authorities (HITS), How far from everything (Eccentricity), Clustering (when registered) | nothing | "Rank within <scope> (N nodes)" and the cost line as above | a Measure (HITS: two Measures) |
@@ -320,7 +320,7 @@ Combine is not a tool: it is an action that appears when two or more tree rows a
 
 The inspector is the 240 px right panel on Figma's grid (16 pad, 88 + 8 + 88 columns, 24 icon,
 8 pad). Row types are Figma's: a field row (label above, 24 px control), a single 32 px row with
-a control centred, a paint row (chit, value, opacity, eye, minus), a checkbox row, a list row.
+a control centered, a paint row (chit, value, opacity, eye, minus), a checkbox row, a list row.
 Section headers are 40 px, 11 px weight 550; an empty section is its header with a "+".
 
 Figma's inspector sections translate like this:
@@ -348,13 +348,13 @@ dataset, Re-run all, Import options...).
 | Summary | the one-line reading in secondary text ("34 nodes joined by 78 edges in one connected part"); Nodes 34 \| Edges 78; Direction [Undirected v] "(from file)"; Density 0.139 \| Mean links 4.6; Parts 1 \| Self-loops 0 (drawn only when non-zero); Weighted No |
 | Arrangement | Layout [Spread out v] with a gear (the engine options as a popover); Dimensions [2D \| 3D] segmented; a transport row: [Pause] [Step] [Re-run] and the text "Settling 62%" or "Settled"; Group by [Communities v] (only for layouts whose descriptor needs a partition); Root [pick a node] (only for tree layouts); Pinned 2 with "Unpin all" (only when non-zero) |
 | Showing | Show [Everything v] where the list is every visible Set in the tree, then "34 of 34" (`session.status.counts.visibleNodes`); Time window [from] \| [to] with a "Play" that opens the time slider dock (only when a time role exists, #299, #333) |
-| Canvas | Background [chit]; Labels [Top 6 by Connections v] (the label budget: none, all, top N by a measure in the tree); Legend [switch] (L); Default look: a locked mini paint row for node colour, node size and edge colour, the element's own base layers |
+| Canvas | Background [chit]; Labels [Top 6 by Connections v] (the label budget: none, all, top N by a measure in the tree); Legend [switch] (L); Default look: a locked mini paint row for node color, node size and edge color, the element's own base layers |
 | Attributes | collapsed by default; one 32 px row per column: type glyph, name, completeness in secondary ("94%"), and on hover a "Use" (+) that creates a Measure or Partition from it; header "+" is "Join a table..." (#298) |
 | Export | Image: [PNG v] [2x v] [Export] with a gear (transparent, legend in picture #292, size); Data: [GraphML v] [Whole graph v] [Export] (needs exporters in the element); "+" adds another export row, as Figma does |
 | Notes | notes anchored to the dataset |
 
 The Dataset inspector is the right panel's resting identity: it answers "what is loaded and how
-is it arranged". In Figma the equivalent is the page: background colour, local styles, export.
+is it arranged". In Figma the equivalent is the page: background color, local styles, export.
 
 ### 3.2 A Set
 
@@ -363,9 +363,9 @@ members, Show only this, Duplicate, Delete).
 
 | Section | Rows |
 |---|---|
-| Definition | one of: Rule: an expression field with autocompletion (#332, #335), or Attribute [conference v] \| Values [A, B]; or [degree v] Min [10] \| Max [any]. Neighbours: Of [Mr Hi] (a clickable element row) \| Within [2 v] steps, Direction [All v]. Path: From [Mr Hi] \| To [John A], Method [Shortest v], Weighted [switch]. Network: Method [Kruskal v]; Start [node] for Prim. Flow: Source \| Sink. Fixed: "12 nodes, 3 edges, fixed" and [Edit members]. Combination: [Group 1] [and v] [Path], each input a clickable row, the operation a select of and / or / not. Group: "Group 3 of Communities" as a clickable row (read-only). Always last: Within [Degree > 10] (the scope, read-only; a clickable row) and, when stale, [Re-run (about 2 s)] |
-| Members | Nodes 12 \| Edges 18; Inside edges 18 \| Cut edges 7 (`session.selection.statistics` over the set); a list of up to 8 member rows (label, then one value in secondary: for a path its order, for a neighbourhood its depth), then "See all 12 in table"; header actions: Select (puts the members in the canvas selection), Show only (sets the Showing mask) |
-| Fill | one paint row per channel written: [chit] [#E69F00] [100%] [eye] [minus]; "+" opens the channel list (Colour, Opacity, Size, Shape, Outline, Glow, Label, Edge colour, Edge width, Edge style, Arrows, Animation) and adds a row with a sensible default; when a visible object above covers this one, a secondary line "Covered by Influence on 12 of 12" |
+| Definition | one of: Rule: an expression field with autocompletion (#332, #335), or Attribute [conference v] \| Values [A, B]; or [degree v] Min [10] \| Max [any]. Neighbors: Of [Mr Hi] (a clickable element row) \| Within [2 v] steps, Direction [All v]. Path: From [Mr Hi] \| To [John A], Method [Shortest v], Weighted [switch]. Network: Method [Kruskal v]; Start [node] for Prim. Flow: Source \| Sink. Fixed: "12 nodes, 3 edges, fixed" and [Edit members]. Combination: [Group 1] [and v] [Path], each input a clickable row, the operation a select of and / or / not. Group: "Group 3 of Communities" as a clickable row (read-only). Always last: Within [Degree > 10] (the scope, read-only; a clickable row) and, when stale, [Re-run (about 2 s)] |
+| Members | Nodes 12 \| Edges 18; Inside edges 18 \| Cut edges 7 (`session.selection.statistics` over the set); a list of up to 8 member rows (label, then one value in secondary: for a path its order, for a neighborhood its depth), then "See all 12 in table"; header actions: Select (puts the members in the canvas selection), Show only (sets the Showing mask) |
+| Fill | one paint row per channel written: [chit] [#E69F00] [100%] [eye] [minus]; "+" opens the channel list (Color, Opacity, Size, Shape, Outline, Glow, Label, Edge color, Edge width, Edge style, Arrows, Animation) and adds a row with a sensible default; when a visible object above covers this one, a secondary line "Covered by Influence on 12 of 12" |
 | Reading | collapsed: the sentence ("The shortest route from Mr Hi to John A has 4 hops and costs 4.0."), caveats, the run record line ("Dijkstra, 34 nodes, 2 ms") |
 | Export | Members [CSV v] [Export]; Image framed on members [PNG v] [Export] |
 | Notes | rows and "+" |
@@ -379,7 +379,7 @@ Duplicate, Delete).
 |---|---|
 | Definition | Method "Influence (PageRank)" with an info circle that opens the description as a tooltip; one row per option: Damping [0.85] \| Iterations [100], Tolerance [1e-6]; Weights [switch] \| Direction [As loaded v] (#313 for the ones that lack it); Exact [switch] (off = approximate above 2,000 nodes, the caveat says which); Within [Everything]; [Re-run (about 3 s)] when stale |
 | Values | Min 0.01 \| Max 0.10; Mean 0.03 \| Median 0.02; a 208 x 40 histogram (`RunResult.histogram`), linear or log via a small toggle; Top [10 v] as rows: rank, label, value, click selects the node; a "+" on the section header "Make a set from these" creates a linked Set (`{top}` target); "See all in table" |
-| Fill | Channel [Colour v] (Colour, Size, Opacity, Label, Edge width, Edge colour...); Scale [Even steps v] (the element's nine scales by their plain names); Palette [viridis] as a 156 px ramp swatch that opens the palette picker (sequential, diverging, categorical, colour-blind flags shown as a check); Domain [0.01] \| [0.10] with a "Reset" and a Reverse toggle; Missing [chit]; a legend strip preview; "+" adds a second channel (colour AND size) |
+| Fill | Channel [Color v] (Color, Size, Opacity, Label, Edge width, Edge color...); Scale [Even steps v] (the element's nine scales by their plain names); Palette [viridis] as a 156 px ramp swatch that opens the palette picker (sequential, diverging, categorical, color-blind flags shown as a check); Domain [0.01] \| [0.10] with a "Reset" and a Reverse toggle; Missing [chit]; a legend strip preview; "+" adds a second channel (color AND size) |
 | Reading | collapsed: the sentence, caveats ("Did not converge in 100 iterations"), the run record |
 | Export | Ranked list [CSV v] [Export] |
 | Notes | |
@@ -397,7 +397,7 @@ groups from an attribute..., Delete).
 |---|---|
 | Definition | Method "Communities (Louvain)"; Resolution [1.0] \| Seed [42]; Iterations [100]; Within [scope]; [Re-run] when stale. For an attribute partition: Attribute [conference] (read-only) |
 | Groups | Groups 6 \| Modularity 0.36 (or Parts, Levels, Shells); Sizes "12, 9, 6, 4, 2, 1" in secondary text; Show the largest [8 v] and paint the rest as Other (the element's overflow policy); Names from [none v] (#191: an attribute whose dominant value names each group). The groups themselves are the tree children, not repeated here |
-| Fill | Channel [Colour v]; Palette [Okabe-Ito] shown as chips, one per group, in group order; Other [chit]; "+" for a second channel |
+| Fill | Channel [Color v]; Palette [Okabe-Ito] shown as chips, one per group, in group order; Other [chit]; "+" for a second channel |
 | Reading | the sentence ("6 groups. The groups are clearly separated (modularity 0.36).") and caveats |
 | Export | Membership [CSV v] [Export] |
 | Notes | |
@@ -439,8 +439,8 @@ overflow (Copy id, Copy as JSON, Expand from server when `fetchNodes` is configu
 | Attributes | key: value rows, up to 10 then "Show all 23"; a filter field appears above 10 |
 | Values | one row per Measure and Partition in the tree that covers this node: "Influence 0.09 (rank 3)", "Communities Group 3"; the name is a clickable row to the object |
 | Member of | one row per Set containing this node, in tree order, each clickable; empty reads "In no set" |
-| Neighbours | Neighbours 17 (In 9 \| Out 8 on directed data); up to 8 rows "label, edge label"; "See all in table"; header actions: Select (puts them in the selection), Neighbours tool (E) prefilled with this node |
-| Look | "Explain" rows from `session.styles.explain`: Colour from Communities [chit]; Size from Influence; each clickable to the object. Then one action row: "Colour this node..." which creates a fixed Set named after the node with one colour paint row and opens the picker. That is the three-click colour change (click node, click Colour, pick), and the colour is still a style layer on an object |
+| Neighbors | Neighbors 17 (In 9 \| Out 8 on directed data); up to 8 rows "label, edge label"; "See all in table"; header actions: Select (puts them in the selection), Neighbors tool (E) prefilled with this node |
+| Look | "Explain" rows from `session.styles.explain`: Color from Communities [chit]; Size from Influence; each clickable to the object. Then one action row: "Colour this node..." which creates a fixed Set named after the node with one color paint row and opens the picker. That is the three-click color change (click node, click Color, pick), and the color is still a style layer on an object |
 | Notes | notes anchored here, "+" |
 
 ### 3.8 Several elements (marquee, Shift+click, Select members)
@@ -488,19 +488,19 @@ one Set highlights that Set's row (the "child of a selected parent" fill) withou
 | Click a node on the canvas | element selection = that node; the inspector shows the node (3.7); every tree row containing it takes the secondary highlight |
 | Shift+click a node | toggles it in the element selection (Figma's Shift+click); the inspector shows the multi-selection (3.8) |
 | Drag on empty canvas (Select tool) | marquee: nodes inside the rectangle preview as selected live, release keeps them; Shift extends, Alt subtracts |
-| Click an edge | selects the edge when edges become pickable (#319); until then edges are reached from a node's Neighbours rows and from the table |
+| Click an edge | selects the edge when edges become pickable (#319); until then edges are reached from a node's Neighbors rows and from the table |
 | Click a Set or Group row | object selection = that object; element selection = its members (capped at 5,000 with a "showing 5,000 of 12,000" note from `selection.truncated`); the inspector shows the object |
 | Click a Measure, Partition, Note, Dataset row | object selection only; the element selection is cleared; the inspector shows the object |
 | Shift+click rows | range; Ctrl+click toggles one; the inspector shows 3.9 |
 | Hover a row | its members get the hover outline on the canvas (`LayerSource` reason "hover", the element-owned hover layer); hover a node and its rows get the hover fill: the two-way hover link |
-| Double-click a node | drills: selects its neighbours at depth 1 (the graph's version of "enter the group"); Shift+Enter selects the top-most Set containing it, Enter again selects only the node |
+| Double-click a node | drills: selects its neighbors at depth 1 (the graph's version of "enter the group"); Shift+Enter selects the top-most Set containing it, Enter again selects only the node |
 | Tab / Shift+Tab on the canvas | next / previous member of the current object's members in rank or order (Figma walks siblings); with no object selected, next node by degree |
 | Escape | one rung per press: cancel a pick in progress, close the top overlay, clear the element selection, clear the object selection (the inspector returns to the Dataset) |
 | Ctrl+A | select every shown node; Ctrl+Shift+A selects the induced edges too (`{edgesBetween}`) |
 | Ctrl+I | invert the element selection (`{invert}`) |
 | Ctrl+G | make a Set from the element selection (`session.selection.promote`), at the top of the current scope, named "Selection 3", renaming focused |
 | Ctrl+Shift+H, Ctrl+Shift+L | hide / lock the selected objects (Figma's chords) |
-| Right-click a node | a dark context menu of the element's verbs only: Select neighbours, Path from here / to here, Note, Pin, Colour this node..., Copy id, Expand from server |
+| Right-click a node | a dark context menu of the element's verbs only: Select neighbors, Path from here / to here, Note, Pin, Color this node..., Copy id, Expand from server |
 
 Rule-based and relational selection are not separate modes; they are the tools' flyouts used
 with a modifier, or verbs on the inspector, and every one of them can be promoted to a Set:
@@ -522,7 +522,7 @@ is, so a reader can lock a big background set and click through it.
 ## 5. Nothing selected
 
 The inspector shows the Dataset (section 3.1). The tree shows the Dataset row in the "current
-page" style (grey fill, weight 550, no blue). Nothing floats on the canvas but the toolbar, the
+page" style (gray fill, weight 550, no blue). Nothing floats on the canvas but the toolbar, the
 legend when switched on, and the minimap when switched on. No suggestion cards, no automatic
 degree run, no automatic panel switch: after a load, the tree holds one row and the inspector
 says what was loaded and how it is arranged. The help that the current app puts in four cards
@@ -569,14 +569,14 @@ selection count, and the zoom readout.
 
 The problem: Figma's precedence is spatial (the front shape hides the back one); ours is per
 channel per element, and a measure covers everything, so one measure at the top erases every
-set's colour. The reader sees a picture that disagrees with the chips in the tree.
+set's color. The reader sees a picture that disagrees with the chips in the tree.
 
 Resolution: the per-channel rule of section 1.6, made visible in three places. The Fill section
 of a covered object says "Covered by X on N of M members" (from `session.styles.explain`, run
 over the object's members by the element; a count, not a per-node list). The node inspector's
 Look section names which object won each channel. And the default Fill for a new object avoids
 channels already written above it in the tree (the element's `suggestEncodings` gets the
-visible stack as an input and prefers Size when Colour is taken). What stays awkward: readers
+visible stack as an input and prefers Size when Color is taken). What stays awkward: readers
 who expect "top wins everywhere" will be surprised that Communities still shows under Path
 except on the path. The Fill section's "Paints 5 of 34 nodes" line is the honest answer.
 
@@ -598,7 +598,7 @@ sections are empty headers until it runs.
 
 The problem: a Figma layer never changes under you. Here a filter re-evaluates when data is
 added, a partition re-run with a new resolution produces different groups, and a reader's
-renamed, coloured, annotated "Group 3" may no longer exist.
+renamed, colored, annotated "Group 3" may no longer exist.
 
 Resolution: the state model (1.4) with downward propagation, the cost-based rule for
 immediate re-run versus stale, and overlap matching of Groups on re-run so a group keeps its
@@ -623,7 +623,7 @@ visible in three places: the Dataset's Showing row, the status bar ("showing 12 
 Set row that is the mask carries a small "showing" glyph. One mask at a time, because the element
 has one; to show the union of two sets, Combine them first. What stays awkward: a reader may
 expect hiding a filter set to restore the graph; the tooltip on the eye ("Hide this set's
-colour; to show everything again, set Showing to Everything") is the mitigation.
+color; to show everything again, set Showing to Everything") is the mitigation.
 
 ### 7.5 The tree must be a thing the element owns
 
@@ -651,14 +651,14 @@ the inventory's sections.
 | Capability (inventory section) | Home in this model |
 |---|---|
 | Inline, URL, file, named-source, sample loads; formats; field mapping; direction; repeated edges; id coercion (1) | Dataset: Add data, the import dialog, Import options |
-| Import report, statistics, attribute catalogue, fingerprint (1) | Dataset: Summary, Attributes |
+| Import report, statistics, attribute catalog, fingerprint (1) | Dataset: Summary, Attributes |
 | Incremental add / remove / update; update attributes (1, #297) | Dataset: Add data; the table's cell editing later; every object goes stale |
-| Neighbourhood expansion from a server (1) | node inspector overflow "Expand from server" and the context menu |
+| Neighborhood expansion from a server (1) | node inspector overflow "Expand from server" and the context menu |
 | Node type role, time role (1, #299, #333) | Dataset: Attributes (role badges), Showing (time window) |
 | Join a table (1, #298), computed attributes (1), node merging (1) | Attributes "+"; Attributes "New from formula" creating a Measure; merging is a multi-element action "Merge" (3.8) when the element has it |
 | Data export, project file (1, #301) | Dataset: Export; File > Save |
 | Large-graph limits, progressive loading (1) | Dataset computing state; the gate |
-| Click, multi, set operations, by ids, neighbours, scope, top, above, edges between, invert, expression, text (2) | section 4 |
+| Click, multi, set operations, by ids, neighbors, scope, top, above, edges between, invert, expression, text (2) | section 4 |
 | Promote a selection (2) | Ctrl+G |
 | Selection statistics (2) | Members / Statistics sections |
 | Saved scopes (2) | they ARE Sets |

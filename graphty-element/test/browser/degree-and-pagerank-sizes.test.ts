@@ -1,7 +1,7 @@
 /**
  * @file The Algorithms/Combined DegreeAndPageRank picture, asked for without waiting on anything.
  *
- * The story colours nodes by Degree and sizes them by PageRank: it applies both algorithms'
+ * The story colors nodes by Degree and sizes them by PageRank: it applies both algorithms'
  * suggested styles and then encodes `node.size` from the PageRank run. One sweep drew it with no
  * node sizes at all. A whole-graph repaint that read the style stack when it was ASKED for, and ran
  * after a later edit had painted, would draw exactly that: the size layer listed in the stack and

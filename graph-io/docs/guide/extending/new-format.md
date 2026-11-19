@@ -186,7 +186,7 @@ id the sink does not have yet, which is how the example's `addNode()` tells a ne
 has seen. Do not compare it with `-1` or `null`.
 
 This importer works, but it reads every file as undirected, reads no labels or weights, and cannot
-be cancelled while it reads a string: `LineReader` checks the `signal` option only between chunks
+be canceled while it reads a string: `LineReader` checks the `signal` option only between chunks
 of input, and a string arrives as one chunk. The complete plugin below handles all of that.
 
 ## The smallest exporter
@@ -342,7 +342,7 @@ order:
 4. `LineReader` hands over one line at a time. A node line adds a node and its label column; an
    edge line reads the weight with `parseWeightText()` and adds the edge.
 5. Each line runs inside `try`, and `report.recordError()` turns a bad line into an error issue.
-   `throwIfAborted()` stops a cancelled import.
+   `throwIfAborted()` stops a canceled import.
 
 The exporter's `check()` calls `checkCapabilities()` and adds the format's own notes, and its
 `lines()` generator writes the file: `refusedSave()` first, then the direction line, each node
@@ -789,7 +789,7 @@ because it is a bug or an abort, not a problem with the file. Count what you ski
 For a problem that makes the rest of the file unreadable, call `report.fail(code, message,
 location)`. It records the issue and throws the `ImportError` at once.
 
-### Cancelling
+### Canceling
 
 Call `throwIfAborted(signal)` every few dozen elements (the complete plugin does it every 64 lines)
 and once more before `report.finish()`. A large string input arrives as one chunk, so the reader
@@ -1811,7 +1811,7 @@ Every helper is exported from `@graphty/graph-io`; the
 | Declare a typed attribute the file names                    | `declareResolved(sink, domain, decl, report)` declares a column of the type the file gives it, and when that name is taken by a column of another type, declares `<name>#<the attribute's id in the file>` (or `<name>#2`) instead and reports the rename; `declareCompanion()` declares the column that keeps the original text of a date column   |
 | Choose one graph of several                                 | `chooseGraph()`                                                                                                                                                                                                                                                                                                                                     |
 | Hand part of the work to another importer                   | `report.include(otherReport)`; see [Extending an existing format](./existing-format.md)                                                                                                                                                                                                                                                             |
-| Stop a cancelled import                                     | `throwIfAborted()`; `isAbortError()` to let a cancellation through a `catch`                                                                                                                                                                                                                                                                        |
+| Stop a canceled import                                      | `throwIfAborted()`; `isAbortError()` to let a cancellation through a `catch`                                                                                                                                                                                                                                                                        |
 | Describe what a file can hold, and check a graph against it | `capabilities()`, `checkCapabilities()`, `refusedSave()`                                                                                                                                                                                                                                                                                            |
 | Write ids a format restricts                                | `sanitizeIds()`                                                                                                                                                                                                                                                                                                                                     |
 | Write each edge once, with its direction                    | `pairFolding()` (`foldMutual: true` writes a GEXF mutual edge once, as undirected)                                                                                                                                                                                                                                                                  |

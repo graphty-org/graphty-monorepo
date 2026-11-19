@@ -21,20 +21,20 @@
  * permanently, and one channel's test cannot leak into the next.
  *
  * THE FINGERPRINT IS STRUCTURE AND PIXELS, and it needs both. The structure -- mesh names,
- * visibility, scaling, bounding extents, outline settings, material colours, alpha, wireframe,
- * instance colour buffers and the scene's effect layers -- catches a channel that builds or
+ * visibility, scaling, bounding extents, outline settings, material colors, alpha, wireframe,
+ * instance color buffers and the scene's effect layers -- catches a channel that builds or
  * resizes something, and misses one that only changes what a shader does with a mesh already
- * there. Measured while writing this file: a node's glow colour and its outline colour both draw
- * through a Babylon effect LAYER, which keeps its per-mesh colours in a private map, so a purely
+ * there. Measured while writing this file: a node's glow color and its outline color both draw
+ * through a Babylon effect LAYER, which keeps its per-mesh colors in a private map, so a purely
  * structural reading called both of them unpainted. They paint; the instrument was blind.
  *
- * So each reading also carries a coarse histogram of the frame: every pixel quantised to four
+ * So each reading also carries a coarse histogram of the frame: every pixel quantized to four
  * bits per channel and counted. Two renderings of an unchanged scene in headless Chromium give
  * byte-identical histograms, which is what lets "the picture changed" be asked with a threshold
  * near zero rather than a tolerance wide enough to swallow a real change.
  *
  * THE PROBE VALUES ARE DERIVED FROM THE CHANNEL TABLE. A number is placed away from the default
- * inside whatever bounds the descriptor declares, an enum takes its last member, a colour is
+ * inside whatever bounds the descriptor declares, an enum takes its last member, a color is
  * magenta. So a channel added to the table is tested here with no edit to this file -- which is
  * the property that makes this a gate rather than a checklist.
  *
@@ -94,10 +94,10 @@ const PREREQUISITES: Readonly<Partial<Record<string, Record<string, unknown>>>> 
     "edge.supportScale": SUPPORTED,
     // An arc height raises only a raised route; every other layout draws edges straight.
     "edge.arcHeight": { "edge.route": "arc" },
-    // A direction turns a gradient; with no second colour the fill is flat whichever way it runs.
+    // A direction turns a gradient; with no second color the fill is flat whichever way it runs.
     "node.gradientDirection": { "node.gradientColor": "#00ff00" },
     "node.gradientKind": { "node.gradientColor": "#00ff00" },
-    // Stops place colours, three of them so the middle one has somewhere to move.
+    // Stops place colors, three of them so the middle one has somewhere to move.
     "node.gradientStops": { "node.gradientColors": "#ff0000 #00ff00 #0000ff" },
     // a radial gradient's middle and reach move only a radial gradient
     "node.gradientCenterX": { "node.gradientColor": "#00ff00", "node.gradientKind": "radial" },
@@ -175,7 +175,7 @@ const BUCKETS = 16 * 16 * 16;
 /**
  * A label style far enough from the default to change the plane a label is drawn on.
  *
- * Both fields, because a colour alone repaints the same texture at the same size and a size
+ * Both fields, because a color alone repaints the same texture at the same size and a size
  * alone leaves a monochrome fingerprint unchanged in a scene read structurally.
  */
 const LABEL_PROBE: LabelStyle = { sizePx: 96, color: "#ff00ff", background: "#00ff00", padding: 20 };
@@ -295,7 +295,7 @@ function describeMesh(mesh: Record<string, unknown>): string {
 interface Reading {
     /** Everything about the scene graph a style channel could have changed. */
     readonly structure: string;
-    /** How many pixels fall in each coarse colour bucket. */
+    /** How many pixels fall in each coarse color bucket. */
     readonly histogram: Uint32Array;
 }
 
@@ -354,7 +354,7 @@ describe("every channel the table says is renderable", () => {
                     name: "channel probe prerequisites",
                     target: "node",
                     selector: { match: "everything" },
-                    // A border to recolour and restyle: its colour and style draw nothing alone.
+                    // A border to recolor and restyle: its color and style draw nothing alone.
                     // No halo: any halo channel switches the halo on alone, so one drawn here
                     // would leave node.halo nothing to change.
                     set: { "node.label": "WORDS", "node.borderWidth": 0.3 },

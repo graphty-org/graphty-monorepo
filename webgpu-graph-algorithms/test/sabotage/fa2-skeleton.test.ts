@@ -8,7 +8,7 @@
  * the reference's and the reference stays in test/layouts/skeleton.test.ts). A mutation that survives is a bug in
  * the test suite and blocks G1 exactly as a failing test does (spec 13 rule f).
  *
- * The inputs below (positions recipe, state initialisation, params, legs) are the skeleton test's, copied; the
+ * The inputs below (positions recipe, state initialization, params, legs) are the skeleton test's, copied; the
  * paper-prev leg's oldForce is -0.5 x the PRISTINE paper force of this run (rounded to f32) instead of the
  * reference's, which is the same value to f32 noise.
  */
@@ -332,7 +332,7 @@ function finiteOrDetected(value: number): number {
     return Number.isFinite(value) ? value : Number.POSITIVE_INFINITY;
 }
 
-/** The skeleton test's metrics divided by its tolerances, maximised over the force, the header, the trace slot and the partials. */
+/** The skeleton test's metrics divided by its tolerances, maximized over the force, the header, the trace slot and the partials. */
 function detectionFactor(mutant: SkeletonOutput, pristine: SkeletonOutput, forceTol: number, traceTol: number): number {
     const force = flooredRelError(mutant.force, pristine.force, FLOOR_FRACTION).max / forceTol;
     const header = maxRelError(controllerOf(mutant.header), controllerOf(pristine.header), TRACE_ABS_FLOOR) / traceTol;

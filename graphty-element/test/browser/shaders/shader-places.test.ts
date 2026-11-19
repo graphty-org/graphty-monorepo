@@ -447,4 +447,34 @@ describe("a group use", () => {
 
         assert.strictEqual(picked("n0"), outlined, "the rest stay inside");
     });
+
+    it("draws no outline while a branches view suspends its layer, and draws it again once the view ends", async () => {
+        // Issue #8922: the pass read the outlines again only on stack, data and selection events,
+        // so the outlines it last read under a view stayed after the view ended: none at all.
+        const element = await mounted([
+            { id: "n0", x: -2, y: 0 },
+            { id: "n1", x: 0, y: 0 },
+            { id: "n2", x: 2, y: 0 },
+        ]);
+        await layer(element, "Hull", { "node.shaders": [{ shader: "t/hull" }] });
+        const drawsOutline = (): boolean =>
+            passOf(element)
+                ?.drawn()
+                .some((each) => each.groups.length > 0) === true;
+        await until(element, "the outline is drawn", drawsOutline);
+
+        const view = element.session.styles.showBranches({
+            rule: {
+                kind: "union",
+                side: "nodes",
+                within: "visible",
+                branches: [{ id: "b1", color: "#d55e00", start: "all", steps: [] }],
+            },
+            rest: "faint",
+        });
+        await until(element, "the suspended layer draws no outline", () => !drawsOutline());
+
+        view.end();
+        await until(element, "the outline is drawn again", drawsOutline);
+    });
 });

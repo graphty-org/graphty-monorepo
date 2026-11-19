@@ -497,7 +497,7 @@ gate"); item 8 is the studio's own judgment. `tool/steps.mjs` counts tier 5's co
     - T79's timing adds what c3100058ab draws: "Drawing" through every wait, Done closing the
       workspace only on the painted result, waits of 15 to 22 s. The old "no settled screen shows
       work" line stays as baac78342b's.
-    - The note on counts that are not the picture's adds the node table keeping a cancelled new
+    - The note on counts that are not the picture's adds the node table keeping a canceled new
       card's rows (T77 B), a count that can spoil a grade read off the table.
     - "Build notes (c3100058ab)" added: Control+Z after Cancel on a new card no longer brings the
       card back (the 47c95a09fc spoiler is gone); what Undo takes instead is a setup step the

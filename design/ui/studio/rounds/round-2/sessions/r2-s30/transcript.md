@@ -17,7 +17,7 @@ focus: button "Main menu"
 (a screenshot was kept for the graders)
 ```
 
-Morgan: First stop is a Main menu button. Labelled, good. Keep tabbing to learn the order.
+Morgan: First stop is a Main menu button. Labeled, good. Keep tabbing to learn the order.
 
 ## Step 2
 
@@ -2117,7 +2117,7 @@ focus: button "Gavroche 470.6"
 (a screenshot was kept for the graders)
 ```
 
-Morgan: Now that's readable: 'Valjean 1,624', 'Myriel 504', 'Gavroche 470.6'. Name first, then the score. Valjean at 1,624 looks like raw (unnormalised) betweenness -- NetworkX's default would say about 0.57 -- but nowhere has the tool told me it's raw, or that 'Bridges' means betweenness. I have what I need. Ending.
+Morgan: Now that's readable: 'Valjean 1,624', 'Myriel 504', 'Gavroche 470.6'. Name first, then the score. Valjean at 1,624 looks like raw (unnormalized) betweenness -- NetworkX's default would say about 0.57 -- but nowhere has the tool told me it's raw, or that 'Bridges' means betweenness. I have what I need. Ending.
 
 ## End
 

@@ -145,7 +145,7 @@ describe("Build Output Tests", () => {
     // A tsc-only build (`tools/prepush.sh` runs `pnpm -r run build`) compiles the graph-format.ts root
     // entry and so already writes dist/graph-format.js -- as a re-export stub of the barrel, with a
     // sourceMappingURL comment beside it. Only build:bundle replaces it with the vite lib build, so the
-    // file existing does not mean a bundle exists: recognise the stub and skip, as the tests above do.
+    // file existing does not mean a bundle exists: recognize the stub and skip, as the tests above do.
     const bundlePath = resolve("./dist/graph-format.js");
     const bundleExists =
         existsSync(bundlePath) && !readFileSync(bundlePath, "utf-8").startsWith('export * from "./src/index.js";');

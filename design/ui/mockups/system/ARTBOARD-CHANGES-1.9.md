@@ -70,7 +70,7 @@ the next pass re-deriving them.
 
 Five boards, byte-identical headers: open chevron, name `#d5d7da`, one dimmed
 `Layout parameters` gear, and the three resident rows Edge length 30 / Pull to
-centre -1.2 / Edge weight. The Edge weight value differs by FIXTURE and only by
+center -1.2 / Edge weight. The Edge weight value differs by FIXTURE and only by
 fixture -- `combined_score` on the three ovarian boards, `value` on the two
 cat-social ones -- which FIXTURES 1.3 requires. No edit.
 
@@ -78,7 +78,7 @@ cat-social ones -- which FIXTURES 1.3 requires. No edit.
 
 Four boards draw it open with Transitions and Reduce motion and a dimmed
 `Animation settings` gear; StyleLibrary draws it closed. The dimmed NAME on all
-five is 5.2's own licence ("none needed while both values are at their
+five is 5.2's own license ("none needed while both values are at their
 defaults -- the dimmed section name says it"), not the RT-8 empty form, and
 StyleLibrary's Animation is therefore the one dimmed-name section in the set
 that keeps its chevron. No edit; recorded so the sweep in section 3 is not
@@ -156,7 +156,7 @@ drew the open form, so 5.5's resident rows existed only as prose and the section
 failed the check that at least one board draws each gear-bearing section
 expanded.
 
-**Settled in MultiSelection's favour, because it is the promise the set already
+**Settled in MultiSelection's favor, because it is the promise the set already
 made and TimeSlider is the board with the subject and the room** (Explore panel
 content measured 349 px in an 800 px window).
 
@@ -512,7 +512,7 @@ or two boards make claims this pass had no authority to settle.
    on five more.
 
 5. **AnalyzePicker's Predict group** keeps a chevron beside a Coming tag. It is a
-   catalogue group, not one of the seventeen: the chevron opens onto question
+   catalog group, not one of the seventeen: the chevron opens onto question
    rows that exist and some of the questions are unshipped. Left alone, listed so
    the next chevron sweep does not read the scan and delete it.
 

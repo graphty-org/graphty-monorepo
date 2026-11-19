@@ -9,7 +9,7 @@ Les Miserables is open, orange dots sized by PageRank. Left panel: Selection, Pa
 
 ## Step 1 -> 02.png
 Command: `--step ... --click-at 833,863` (printed: button "Filters")
-A "New filter step" panel opened on the right: Keep "an attribute's value", then an empty Attribute box, and a grey "Add step". On the left I see "shared_chapters" under Edges -- that's the chapter count. I'll open the Attribute box.
+A "New filter step" panel opened on the right: Keep "an attribute's value", then an empty Attribute box, and a gray "Add step". On the left I see "shared_chapters" under Edges -- that's the chapter count. I'll open the Attribute box.
 
 ## Step 2 -> 03.png
 Command: `--step ... --click "Attribute"`

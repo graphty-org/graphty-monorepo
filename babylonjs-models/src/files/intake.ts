@@ -405,7 +405,7 @@ async function followRedirect(
 }
 
 /**
- * Read a stream until it ends or passes the byte cap, cancelling it then.
+ * Read a stream until it ends or passes the byte cap, canceling it then.
  * @param reader - The stream's reader.
  * @param maxBytes - The byte cap.
  * @param onChunk - Hears the bytes counted after each chunk.

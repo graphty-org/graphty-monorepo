@@ -36,6 +36,7 @@ import { DEFAULT_SELECTION_STYLE } from "../config/GraphStyle";
 import { otherIdSpelling } from "../data/nodeIdSpelling";
 import { type GraphtyErrorCode, type GraphtyWarningCode } from "../errors/codes";
 import { GraphtyError, isGraphtyError } from "../errors/GraphtyError";
+import { featureOff } from "../features/resolve";
 import { ANNOTATIONS_VALUE, drawnAnnotationsOf } from "./annotations";
 import type { AssetsApiInternal } from "./assets/AssetsApi";
 import {
@@ -50,6 +51,19 @@ import {
 import { COLUMNS_VALUE, type ColumnSettings } from "./commands/data";
 import { shaderIdsIn } from "./commands/shaderCopies";
 import type { SessionData } from "./data";
+import { refetchSources } from "./document2/codecs/dataFetch";
+import { openDocument2, saveDocument2 } from "./document2/document";
+import { assertIJson, isJsonObject, isVersion2, newDocumentId, parseDocument } from "./document2/framing";
+import { migrateDocument1 } from "./document2/migration";
+import { DTYPES } from "./document2/migrationParts";
+import { SECTION_CODECS } from "./document2/registry";
+import {
+    DOCUMENT_SECTIONS,
+    type DocumentCode,
+    type DocumentProblem,
+    type DocumentSection,
+    type SourceStorage,
+} from "./document2/types";
 import { expandedGraph, type SavedCollapse } from "./groups";
 import { ISSUES_VALUE, type IssueState } from "./issues";
 import { loadLineOf } from "./loadLine";
@@ -70,6 +84,7 @@ import {
 } from "./sources/member";
 import { isProvenance, type Provenance } from "./sources/provenance";
 import { computeFingerprint } from "./statistics";
+import { oldLookColumns, rewriteOldPaths } from "./styles/fileStyles/oldLooks";
 import type {
     DataSourceInput,
     GraphSession,
@@ -80,7 +95,7 @@ import type {
     ScoreTerm,
     TransactionScope,
 } from "./types";
-import { valueLabelOf } from "./valueLabels";
+import { type LabelledValue, valueFromText, valueLabelOf } from "./valueLabels";
 import { CONDITIONS_VERSION, readSavedConditions } from "./visibility/conditions";
 import { assertVisibility, type TimeWindow } from "./visibility/filter";
 import type { SessionVisibilityApi } from "./visibility/VisibilityApi";
@@ -149,9 +164,12 @@ const EXTENSION_NAME = /^(?!graphty(\.|$))[a-z0-9-]+(\.[a-z0-9-]+)+$/i;
  * member's position in the file), `kind` (the member's kind), `found` (a version), `needs` (the
  * paths a layer reads that nothing answers) and `pointer` (a JSON pointer inside a member).
  */
-export type ProjectProblem = CodedFact<GraphtyErrorCode | GraphtyWarningCode | "shader.unknown" | "shader.not-saved">;
+export type ProjectProblem = CodedFact<
+    GraphtyErrorCode | GraphtyWarningCode | DocumentCode | "shader.unknown" | "shader.not-saved"
+>;
 
 export type { AssetStorage, ProjectAssetChoice } from "./assets/projectMember";
+export type { DocumentCode, DocumentSection, SourceStorage } from "./document2/types";
 
 /** How `project.save` writes the file. */
 export interface ProjectSaveOptions {
@@ -180,6 +198,67 @@ export interface ProjectSaveOptions {
      * that had an entry for it), else embedded.
      */
     readonly assets?: Readonly<Record<string, AssetStorage>>;
+    /**
+     * The file format: `1` (the default) or `2`, the version 2 format of `spec/README.md` in the
+     * package. `2` needs the `save-files-v2` experiment, and is refused with `E_FEATURE_OFF`
+     * without it. EXPERIMENTAL: version 2 may change until it is released.
+     * @since 3.40.0
+     * @experimental save-files-v2
+     * @beta
+     */
+    readonly format?: 1 | 2;
+    /**
+     * Version 2 only: the sections to write. Default every section but `results`.
+     * @since 3.40.0
+     * @experimental save-files-v2
+     * @beta
+     */
+    readonly sections?: readonly DocumentSection[];
+    /**
+     * Version 2 only: `"full"` (the default) writes a full file holding the sections;
+     * `"section"` writes the one section in `sections` as a section file.
+     * @since 3.40.0
+     * @experimental save-files-v2
+     * @beta
+     */
+    readonly form?: "full" | "section";
+    /**
+     * Version 2 only: also write the results section. Default false: opening reruns the runs.
+     * @since 3.40.0
+     * @experimental save-files-v2
+     * @beta
+     */
+    readonly results?: boolean;
+    /**
+     * Version 2 only: per source, by its load key (`session.data.sources()[i].key`) or its
+     * record id in a file it was opened from, whether its rows are written into the file
+     * (`"embedded"`) or only referenced (`"referenced"`), its file or URL read again on open.
+     * Default: as the source was read, embedded for one never saved. A source whose rows are not
+     * its bytes alone (the reader edited them, another load also supplied them, or several tables
+     * were read as one), and one of a kind no open reads again (a dataset, a network source), is
+     * embedded and reported `W_SOURCE_EMBEDDED` (`params.reason`); a file source with no path
+     * (see `paths`), `W_SOURCE_NO_PATH`. A key that names no source is refused with
+     * `E_OPTION_RANGE`.
+     *
+     * ```ts
+     * const [source] = session.data.sources();
+     * const { text } = await session.project.save({ format: 2, embed: { [source.key]: "referenced" } });
+     * ```
+     * @since 3.40.0
+     * @experimental save-files-v2
+     * @beta
+     */
+    readonly embed?: Readonly<Record<string, SourceStorage>>;
+    /**
+     * Version 2 only: per file source, by load key or record id, its path relative to the folder
+     * the project file is saved in (`"data/friends.csv"`), so it can be referenced; an open
+     * resolves it against its `location` option. A path that is absolute or climbs above that
+     * folder, or a key that names no source, is refused with `E_OPTION_RANGE`.
+     * @since 3.40.0
+     * @experimental save-files-v2
+     * @beta
+     */
+    readonly paths?: Readonly<Record<string, string>>;
 }
 
 /** What the session lends the project file for the loads. */
@@ -282,6 +361,85 @@ export interface ProjectOpenOptions {
         /** The largest file to read, in bytes. Default 256 MiB. */
         readonly fileBytes?: number;
     };
+    /**
+     * Version 2 only (`save-files-v2` experiment): the sections of a full file to load. Default
+     * all. EXPERIMENTAL.
+     * @since 3.40.0
+     * @experimental save-files-v2
+     * @beta
+     */
+    readonly sections?: readonly DocumentSection[];
+    /**
+     * Version 2 only: whether layouts and algorithms run again on open. Default true; false
+     * restores the saved results instead. EXPERIMENTAL.
+     * @since 3.40.0
+     * @experimental save-files-v2
+     * @beta
+     */
+    readonly rerun?: boolean;
+    /**
+     * Version 2 only: whether a data section replaces the open data (`"replace"`, the default,
+     * opening a project) or is added as another source (`"add"`). EXPERIMENTAL.
+     * @since 3.40.0
+     * @experimental save-files-v2
+     * @beta
+     */
+    readonly dataMode?: "replace" | "add";
+    /**
+     * Version 2 only: load a results, notes or view section written on other data, binding its
+     * references by key. Default false: it is reported as `W_DATA_MISMATCH` and not loaded.
+     * EXPERIMENTAL.
+     * @since 3.40.0
+     * @experimental save-files-v2
+     * @beta
+     */
+    readonly bindOtherData?: boolean;
+    /**
+     * With the `save-files-v2` experiment on: open a version 1 file through its migration to
+     * version 2. Default false: a version 1 file is read as before. EXPERIMENTAL.
+     * @since 3.40.0
+     * @experimental save-files-v2
+     * @beta
+     */
+    readonly migrate?: boolean;
+    /**
+     * Version 2 only: the URL of the file being opened, which a referenced source's relative
+     * `url` or `path` is resolved against. Without it, a referenced source with a relative
+     * address supplies nothing and is reported `W_SOURCE_UNAVAILABLE` (`reason: "needs-file"`).
+     * EXPERIMENTAL.
+     * @since 3.40.0
+     * @experimental save-files-v2
+     * @beta
+     */
+    readonly location?: string;
+    /**
+     * Version 2 only: let the open fetch the referenced sources the file names by URL (resolved
+     * against `location`). A file cannot approve its own fetches, so the default is `ownWork`:
+     * without it, a source that would be fetched supplies nothing and is reported
+     * `W_SOURCE_UNAVAILABLE` (`reason: "consent"`). Nothing is fetched for a data section the
+     * open does not build. Each source is read no further than `limits.fileBytes`
+     * (`reason: "too-large"`). EXPERIMENTAL.
+     * @since 3.40.0
+     * @experimental save-files-v2
+     * @beta
+     */
+    readonly fetchSources?: boolean;
+    /**
+     * Version 2 only: files the reader picked for referenced sources, by source id, read in place
+     * of fetching them. EXPERIMENTAL.
+     * @since 3.40.0
+     * @experimental save-files-v2
+     * @beta
+     */
+    readonly files?: Readonly<Record<string, Blob>>;
+    /**
+     * Version 2 only: aborts reading the referenced sources again; the open then rejects with
+     * the signal's reason and changes nothing. EXPERIMENTAL.
+     * @since 3.40.0
+     * @experimental save-files-v2
+     * @beta
+     */
+    readonly signal?: AbortSignal;
 }
 
 /** What `project.open` did. Frozen. */
@@ -440,14 +598,6 @@ export function answeringFromProject(execute: RunExecutor, canned: CannedOutcome
 type SavedColumn =
     | { readonly dtype: "f64" | "f32" | "i32" | "u8"; readonly data: string; readonly absent?: readonly number[] }
     | readonly unknown[];
-
-/** Bytes per value, and the reader, of each dtype. */
-const DTYPES: Readonly<Record<string, readonly [number, (view: DataView, at: number) => number]>> = {
-    f64: [8, (view, at) => view.getFloat64(at, true)],
-    f32: [4, (view, at) => view.getFloat32(at, true)],
-    i32: [4, (view, at) => view.getInt32(at, true)],
-    u8: [1, (view, at) => view.getUint8(at)],
-};
 
 /**
  * A column as a file holds it: an all-number column (gaps aside) as f64 bytes, any other as JSON.
@@ -819,7 +969,7 @@ function groupsOf(session: GraphSession): { groups?: Record<string, unknown> } {
               groups: {
                   version: GROUPS_VERSION,
                   collapsed: expanded.collapsed,
-                  ...(expanded.added.length === 0 ? {} : { added: expanded.added }),
+                  ...(expanded.added.length === 0 ? {} : { added: expanded.added.map((each) => each.record) }),
               },
           };
 }
@@ -919,10 +1069,11 @@ export function sessionMember(sources: ProjectSources): Record<string, unknown> 
         ...(dispatcher.state.valueLabels.size === 0
             ? {}
             : {
-                  valueLabels: [...dispatcher.state.valueLabels].map(([key, label]) => ({
-                      ...valueLabelOf(key),
-                      label,
-                  })),
+                  // Version 1 spells each value as text, as files saved before did.
+                  valueLabels: [...dispatcher.state.valueLabels].map(([key, label]) => {
+                      const { path, value } = valueLabelOf(key);
+                      return { path, value: String(value), label };
+                  }),
               }),
         ...(columns.length === 0 ? {} : { declarations: { version: DECLARATIONS_VERSION, columns } }),
         // Additive: a project with no annotations writes nothing here.
@@ -1330,7 +1481,15 @@ function documentOf(value: Record<string, unknown>): Record<string, unknown> {
             code: "E_UNSUPPORTED_VERSION",
             message: `This graphty document is version ${String(version)}; this graphty-element reads version ${String(VERSION)}.`,
             source: "data",
-            details: { kind: DOCUMENT_KIND, found: version, reads: [VERSION] },
+            // A version 2 file is read with the `save-files-v2` experiment on: said, so an
+            // application can offer it.
+            // @experimental save-files-v2
+            details: {
+                kind: DOCUMENT_KIND,
+                found: version,
+                reads: [VERSION],
+                ...(version === 2 ? { feature: "save-files-v2" } : {}),
+            },
         });
     }
 
@@ -1374,6 +1533,15 @@ function readDocument(text: string): ReadDocument {
     }
 
     checkTree(value, 1);
+    return readParsed(value);
+}
+
+/**
+ * Sort the members of a file already parsed and within the depth limit.
+ * @param value - The parsed file.
+ * @returns The document.
+ */
+function readParsed(value: unknown): ReadDocument {
     if (!isObject(value)) {
         throw unknownFormat();
     }
@@ -1433,11 +1601,13 @@ function readDocument(text: string): ReadDocument {
 /**
  * Parse a file as a graphty document, or tell that it is not one.
  * @param text - The file's text.
+ * @param parsed - The file already parsed and checked, when it was (`version2Of`).
+ * @param parsed.value - The parsed value.
  * @returns The document, or undefined when the file is not a graphty document (a data file).
  */
-function graphtyDocumentOf(text: string): ReadDocument | undefined {
+function graphtyDocumentOf(text: string, parsed?: { readonly value: unknown }): ReadDocument | undefined {
     try {
-        return readDocument(text);
+        return parsed === undefined ? readDocument(text) : readParsed(parsed.value);
     } catch (error) {
         if (!isGraphtyError(error) || (error.code !== "E_UNKNOWN_FORMAT" && error.code !== "E_PARSE_FAILED")) {
             throw error;
@@ -1445,6 +1615,82 @@ function graphtyDocumentOf(text: string): ReadDocument | undefined {
 
         return undefined;
     }
+}
+
+/**
+ * What version 1 keeps of a session that the version 2 codecs do not write yet, each reported as
+ * `W_MEMBER_LEFT_OUT` with the version 1 member and field, so a caller can say so before the file
+ * replaces one that held it. The data section writes the column conversions and the ignored and
+ * kept issues, and the view section the hidden columns and the collapsed groups, so only the rest
+ * is reported.
+ * @param session - The session.
+ * @param dispatcher - Its dispatcher.
+ * @param written - The sections the save wrote.
+ * @returns One problem per field left out.
+ */
+function leftOutOfVersion2(
+    session: GraphSession,
+    dispatcher: Dispatcher,
+    written: readonly string[],
+): ProjectProblem[] {
+    const { values } = dispatcher.state.graph;
+    const issues = values.get(ISSUES_VALUE) as IssueState | undefined;
+    const columns = values.get(COLUMNS_VALUE) as ColumnSettings | undefined;
+    const fields: [string, boolean][] = [
+        ["declarations", dispatcher.state.attributes.size > 0],
+        [
+            "columns",
+            columns !== undefined &&
+                (Object.keys(columns.renamed).length > 0 || (columns.hidden.length > 0 && !written.includes("view"))),
+        ],
+        ["issues", (issues?.fixed ?? []).length > 0],
+        ["visibility.steps", session.visibility.steps.length > 0],
+        // The data is written expanded; the collapses are view's, so without view they are lost.
+        ["groups", !written.includes("view") && session.groups.list().length > 0],
+    ];
+    return fields
+        .filter(([, held]) => held)
+        .map(([field]) => ({ code: "W_MEMBER_LEFT_OUT", params: { kind: "graphty-session", field } }));
+}
+
+/**
+ * A file as a version 2 document, when it is one (the `save-files-v2` experiment): within the
+ * depth limit, and either version 2 already or, when asked, a version 1 file its migration reads.
+ * @param text - The file's text.
+ * @param migrate - Whether to migrate a version 1 file (`ProjectOpenOptions.migrate`).
+ * @returns The document and what its migration reported; or, to read the file as before, the
+ *     file parsed (so it is not parsed twice), or undefined when it is not JSON.
+ */
+function version2Of(
+    text: string,
+    migrate: boolean,
+):
+    | { readonly value: Record<string, unknown>; readonly problems: DocumentProblem[] }
+    | { readonly parsed: { readonly value: unknown } }
+    | undefined {
+    let value: unknown;
+    try {
+        value = JSON.parse(text);
+    } catch {
+        return undefined;
+    }
+
+    checkTree(value, 1);
+    if (isVersion2(value)) {
+        // A version 2 file is I-JSON (spec 1): JSON.parse keeps the last of a duplicate member,
+        // so the text itself is checked.
+        assertIJson(text);
+        return { value, problems: [] };
+    }
+
+    const before = { parsed: { value } };
+    if (!migrate || !isJsonObject(value)) {
+        return before;
+    }
+
+    const problems: DocumentProblem[] = [];
+    const migrated = migrateDocument1(value, problems);
+    return migrated === undefined ? before : { value: migrated, problems };
 }
 
 /**
@@ -1501,7 +1747,8 @@ function nodeLinkOf(member: Record<string, unknown>): NodeLink {
     if (
         !Array.isArray(graph?.nodes) ||
         !Array.isArray(graph.links) ||
-        ![...graph.nodes, ...graph.links].every(isObject)
+        !graph.nodes.every(isObject) ||
+        !graph.links.every(isObject)
     ) {
         throw badDocument({ member: "graphty-data" });
     }
@@ -1674,7 +1921,10 @@ function provenanceInto(saved: unknown, edgeIds: readonly (EdgeId | undefined)[]
                             .map((at) => (typeof at === "number" ? edgeIds[at] : undefined))
                             .filter((id): id is EdgeId => id !== undefined),
                     ),
-                    ...(Array.isArray(supplied.held) ? { held: Object.freeze([...supplied.held]) } : {}),
+                    // a file's `held` is checked as unknown: narrowing it in place would leave an any[]
+                    ...(Array.isArray(supplied.held as unknown)
+                        ? { held: Object.freeze([...(supplied.held ?? [])]) }
+                        : {}),
                 }),
             ]),
         ),
@@ -2048,6 +2298,67 @@ async function readSettings(opening: Opening, doc: ReadDocument, config: unknown
 }
 
 /**
+ * Carry the looks an older session member kept beside its data (`fileStyles`, `styleValues`) onto
+ * the opened nodes and edges as ordinary columns, named as a load names them, reporting what could
+ * not be carried over; the version 2 migration names the same columns.
+ * @param opening - The open.
+ * @param state - The `graphty-session` member.
+ * @param nodeIds - The opened graph's nodes.
+ * @param edgeIds - The opened graph's edge ids, by the file's edge position.
+ * @returns Each path an older layer read, and the `data.` path that reads its column now.
+ */
+async function readOldLooks(
+    opening: Opening,
+    state: Readonly<Record<string, unknown>>,
+    nodeIds: ReadonlySet<NodeId>,
+    edgeIds: readonly (EdgeId | undefined)[],
+): Promise<ReadonlyMap<string, string>> {
+    const { tx } = opening;
+    const nodes = tx.data.nodes({ scope: "graph" });
+    const edges = tx.data.edges({ scope: "graph" });
+    const namesOf = (records: readonly Readonly<Record<string, unknown>>[]): Set<string> =>
+        new Set(records.flatMap((record) => Object.keys(record)));
+    const looks = oldLookColumns(state, {
+        node: (id) => {
+            if (typeof id !== "string" && typeof id !== "number") {
+                return undefined;
+            }
+
+            const other = otherIdSpelling(id);
+            return [id, other].find((each): each is NodeId => each !== undefined && nodeIds.has(each));
+        },
+        edge: (position) => (typeof position === "number" ? edgeIds[position] : undefined),
+        taken: { node: namesOf(nodes), edge: namesOf(edges) },
+    });
+    for (const [target, columns] of [
+        ["node", looks.node],
+        ["edge", looks.edge],
+    ] as const) {
+        const rows = new Map<NodeId | EdgeId, Record<string, unknown>>();
+        for (const [name, cells] of columns as Map<string, Map<NodeId | EdgeId, unknown>>) {
+            for (const [id, value] of cells) {
+                rows.set(id, { ...rows.get(id), [name]: value });
+            }
+        }
+
+        if (rows.size > 0) {
+            await attempt(opening, "graph", () =>
+                tx.execute({
+                    op: "data.apply",
+                    mutation: { kind: "update-rows", target, rows: [...rows].map(([id, values]) => ({ id, values })) },
+                }),
+            );
+        }
+    }
+
+    for (const pointer of looks.leftOut) {
+        opening.problems.push({ code: "W_MEMBER_LEFT_OUT", params: { slice: "graph", pointer } });
+    }
+
+    return looks.paths;
+}
+
+/**
  * Read a project into the session, in place of what it holds.
  * @param opening - The open.
  * @param doc - The document.
@@ -2077,6 +2388,7 @@ async function readProject(
     const edgeIds = await importInto(tx, records, source, sources, provenance);
     opening.restored.add("graph");
     const nodeIds = new Set(tx.data.nodes({ scope: "graph" }).map((node) => node.id));
+    const lookPaths = await readOldLooks(opening, state, nodeIds, edgeIds);
     await readDeclarations(opening, state.declarations);
     await readColumnSettings(opening, state.columns);
 
@@ -2177,14 +2489,18 @@ async function readProject(
         await restoreVisibility();
     }
 
-    await addStylesAndNotes(opening, doc.members, remap, name);
+    // A layer that read an older load's looks reads the columns they are carried into.
+    await addStylesAndNotes(opening, doc.members, (value) => rewriteOldPaths(remap(value), lookPaths), name);
     await addTimelineRowAfterTree(opening, doc);
     await attempt(opening, "styles", () =>
         outsideWindowLayers(tx, state.visibility as Readonly<Record<string, unknown>> | undefined),
     );
 
-    for (const named of (state.valueLabels ?? []) as { path: string; value: string; label: string }[]) {
-        await attempt(opening, "valueLabels", () => tx.data.setValueLabel(named.path, named.value, named.label));
+    const attributes = tx.data.attributes();
+    for (const named of (state.valueLabels ?? []) as { path: string; value: LabelledValue; label: string }[]) {
+        const type = attributes.find((each) => each.path === named.path)?.type;
+        const value = valueFromText(named.value, type);
+        await attempt(opening, "valueLabels", () => tx.data.setValueLabel(named.path, value, named.label));
     }
 
     await readIssues(opening, state.issues);
@@ -2768,15 +3084,6 @@ export function markProjectUnsaved(session: GraphSession): void {
 }
 
 /**
- * A fresh project id: 128 random bits in hex.
- * @returns The id.
- */
-function newProjectId(): string {
-    const bytes = globalThis.crypto.getRandomValues(new Uint8Array(16));
-    return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
-/**
  * A saved project id, when it is one: a string of 1 to 128 letters, digits, `-` and `_`.
  * @param value - What the file holds.
  * @returns The id, or undefined.
@@ -2799,6 +3106,7 @@ function projectIdOf(value: unknown): string | undefined {
  * @param hooks.sources - Writes and restores the loads from network sources.
  * @param hooks.projectChanged - Called once an open has read the project's id, before anything is
  *     fetched, and again once its source loads are restored.
+ * @param hooks.scratch - A new session with this one's experiments, to read a referenced source in.
  * @returns The API.
  */
 export function projectOf(
@@ -2812,10 +3120,20 @@ export function projectOf(
         readonly scopeCountOf: (spec?: Scope) => ElementCount | null;
         readonly sources?: NetworkSourceRecords;
         readonly projectChanged?: () => void;
+        /** A new session with this one's experiments, to read a referenced source in. */
+        readonly scratch: () => GraphSession;
     },
 ): ProjectApi {
-    const { announce, isDerived, restoreDerived, scopeCountOf, sources: networkSources, projectChanged } = hooks;
-    let id = newProjectId();
+    const {
+        announce,
+        isDerived,
+        restoreDerived,
+        scopeCountOf,
+        sources: networkSources,
+        projectChanged,
+        scratch,
+    } = hooks;
+    let id = newDocumentId();
     // Clean means: the history's cursor is on the save point's step (null: the baseline), and
     // nothing has been merged into that step or cleared from under it. A save made with
     // `markSaved: false` keeps its own point, followed the same way, until `markSaved` adopts it.
@@ -2965,7 +3283,7 @@ export function projectOf(
         // After the boundary, which keeps the work it replaces under its own id; before anything
         // the project names is fetched, so the page's remembered hosts for it apply.
         const before = id;
-        id = projectIdOf(state?.id) ?? newProjectId();
+        id = projectIdOf(state?.id) ?? newDocumentId();
         projectChanged?.();
         try {
             await session.transaction(
@@ -3057,6 +3375,164 @@ export function projectOf(
         );
     };
 
+    /**
+     * Freeze a written document into the file `save` returns, and move the save point.
+     * @param document - The document.
+     * @param written - The member kinds or section keys written, in file order.
+     * @param leftOut - What the save could not write.
+     * @param options - The save's options.
+     * @param copy - Whether the file is a copy (a section file or a subset of sections), which never
+     *     moves the save point.
+     * @returns The file and its report.
+     */
+    const finishSave = (
+        document: Record<string, unknown>,
+        written: readonly string[],
+        leftOut: readonly ProjectProblem[],
+        options: ProjectSaveOptions,
+        copy = false,
+    ): SavedProject => {
+        // What this save was told is how the next save without a choice keeps the same URL,
+        // once its file is written: now, or at `markSaved` for a save that waits on its write.
+        // A copy that is never marked saved, or a write that failed, changes nothing.
+        const remember = (): void => {
+            for (const [url, storage] of Object.entries(options.assets ?? {})) {
+                (session.assets as AssetsApiInternal).rememberStorage(url, storage);
+            }
+        };
+
+        const text = JSON.stringify(document);
+        const saved: SavedProject = Object.freeze({
+            text,
+            report: Object.freeze({ bytes: new TextEncoder().encode(text).length, written, leftOut }),
+        });
+        if (copy) {
+            // A section file or a subset of sections is a copy: it is not the project, so it never
+            // moves the save point, now or at `markSaved`.
+            return saved;
+        }
+
+        fresh = false;
+        if (options.markSaved === false) {
+            const waited = pointNow();
+            waiting.add(waited);
+            pointOf.set(saved, waited);
+            rememberOf.set(saved, remember);
+        } else {
+            adopt(pointNow());
+            remember();
+        }
+
+        return saved;
+    };
+
+    /**
+     * Save the session as a version 2 document (the `save-files-v2` experiment).
+     * @param options - The save's options.
+     * @returns The file and its report.
+     */
+    const saveVersion2 = async (options: ProjectSaveOptions): Promise<SavedProject> => {
+        const extensions = checkedExtensions(options.extensions ?? {});
+        const { document, written, problems } = await saveDocument2(
+            session,
+            SECTION_CODECS,
+            {
+                ...(options.sections === undefined ? {} : { sections: options.sections }),
+                ...(options.form === undefined ? {} : { form: options.form }),
+                ...(options.results === undefined ? {} : { results: options.results }),
+                ...(options.embed === undefined ? {} : { embed: options.embed }),
+                ...(options.paths === undefined ? {} : { paths: options.paths }),
+                extensions,
+            },
+            isDerived,
+        );
+        // Only a full file of every default section, the data included, is the project.
+        const whole =
+            options.form !== "section" &&
+            DOCUMENT_SECTIONS.every((name) => name === "results" || written.includes(name));
+        return finishSave(
+            document,
+            written,
+            [...problems, ...(written.includes("data") ? leftOutOfVersion2(session, dispatcher, written) : [])],
+            options,
+            !whole,
+        );
+    };
+
+    /**
+     * Open a version 2 document over the session (the `save-files-v2` experiment): a data section
+     * in replace mode opens a project, with a fresh history; anything else is one undoable step.
+     * @param value - The parsed file.
+     * @param options - The open's options.
+     * @param fileName - The file's name, if it had one.
+     * @param before - What a migration to version 2 reported.
+     * @returns The report.
+     */
+    const openVersion2 = async (
+        value: Record<string, unknown>,
+        options: ProjectOpenOptions,
+        fileName: unknown,
+        before: readonly DocumentProblem[],
+    ): Promise<ProjectOpenReport> => {
+        // Fetched before the section is built, which builds it synchronously; an abort rejects
+        // here, before anything is applied. A file cannot approve its own fetches, and never makes
+        // one for a data section the open would not build.
+        const fetches = options.fetchSources ?? options.ownWork === true;
+        await refetchSources(value, {
+            ...(options.location === undefined ? {} : { location: options.location }),
+            ...(options.files === undefined ? {} : { files: options.files }),
+            ...(options.signal === undefined ? {} : { signal: options.signal }),
+            fetch: fetches,
+            limit: options.limits?.fileBytes ?? DEFAULT_FILE_BYTES,
+            builds: () =>
+                !fetches ||
+                ((options.sections?.includes("data") ?? true) &&
+                    parseDocument(value, SECTION_CODECS).sections.has("data")),
+            scratch,
+        });
+        const parsed = parseDocument(value, SECTION_CODECS);
+        const wrapperId = projectIdOf(parsed.wrapper.id);
+        const wrapperName = typeof parsed.wrapper.name === "string" ? parsed.wrapper.name : null;
+        const outcome = await openDocument2(
+            session,
+            SECTION_CODECS,
+            parsed,
+            {
+                ...(options.sections === undefined ? {} : { sections: options.sections }),
+                ...(options.rerun === undefined ? {} : { rerun: options.rerun }),
+                ...(options.dataMode === undefined ? {} : { dataMode: options.dataMode }),
+                ...(options.bindOtherData === undefined ? {} : { bindOtherData: options.bindOtherData }),
+            },
+            {
+                canned,
+                restoreDerived,
+                isDerived,
+                beforeReplace: () => {
+                    refuseUnsaved(isDirty(), options.discard);
+                    (session.assets as AssetsApiInternal).forgetProjectStorage();
+                    projectBoundary(session, "open");
+                    id = wrapperId ?? newDocumentId();
+                    projectChanged?.();
+                },
+                name: wrapperName ?? nameOfFile(typeof fileName === "string" ? fileName : undefined),
+            },
+        );
+        fresh = false;
+        if (outcome.replaced) {
+            // Saved at the baseline: anything the reader did while it opened is a change.
+            adopt({ ...pointNow(), step: null });
+        }
+
+        const { extensions } = parsed.wrapper;
+        return Object.freeze({
+            opened: outcome.replaced ? ("project" as const) : ("document" as const),
+            name: nameNow(),
+            restored: Object.freeze(outcome.restored),
+            problems: Object.freeze([...before, ...outcome.problems]),
+            extensions: isJsonObject(extensions) ? extensions : {},
+        });
+    };
+
     return {
         get name() {
             return nameNow();
@@ -3074,37 +3550,38 @@ export function projectOf(
             return assetChoices(session);
         },
         save(options = {}) {
-            const { document, leftOut } = write({ session, dispatcher, isDerived }, options);
-            // What this save was told is how the next save without a choice keeps the same URL,
-            // once its file is written: now, or at `markSaved` for a save that waits on its write.
-            // A copy that is never marked saved, or a write that failed, changes nothing.
-            const remember = (): void => {
-                for (const [url, storage] of Object.entries(options.assets ?? {})) {
-                    (session.assets as AssetsApiInternal).rememberStorage(url, storage);
-                }
-            };
-
-            const text = JSON.stringify(document);
-            const saved: SavedProject = Object.freeze({
-                text,
-                report: Object.freeze({
-                    bytes: new TextEncoder().encode(text).length,
-                    written: (document.members as { kind: string }[]).map((member) => member.kind),
-                    leftOut,
-                }),
-            });
-            fresh = false;
-            if (options.markSaved === false) {
-                const waited = pointNow();
-                waiting.add(waited);
-                pointOf.set(saved, waited);
-                rememberOf.set(saved, remember);
-            } else {
-                adopt(pointNow());
-                remember();
+            const versionTwoOnly = (["sections", "form", "results", "embed", "paths"] as const).find(
+                (key) => options[key] !== undefined,
+            );
+            if (options.format !== 2 && versionTwoOnly !== undefined) {
+                // Never ignored: a version 1 file cannot hold what the option asks for.
+                return Promise.reject(
+                    new GraphtyError({
+                        code: "E_BAD_COMMAND",
+                        message: `The save option ${versionTwoOnly} needs format: 2.`,
+                        source: "data",
+                        details: { key: versionTwoOnly, format: options.format ?? 1 },
+                    }),
+                );
             }
 
-            return Promise.resolve(saved);
+            if (options.format === 2) {
+                if (!session.features.has("save-files-v2")) {
+                    return Promise.reject(featureOff("save-files-v2", "project.save"));
+                }
+
+                return saveVersion2(options);
+            }
+
+            const { document, leftOut } = write({ session, dispatcher, isDerived }, options);
+            return Promise.resolve(
+                finishSave(
+                    document,
+                    (document.members as { kind: string }[]).map((member) => member.kind),
+                    leftOut,
+                    options,
+                ),
+            );
         },
         markSaved(saved) {
             rememberOf.get(saved)?.();
@@ -3122,15 +3599,28 @@ export function projectOf(
             const turn = line.join();
             let doc: ReturnType<typeof graphtyDocumentOf>;
             let text: string;
+            let version2: { readonly value: Record<string, unknown>; readonly problems: DocumentProblem[] } | undefined;
             try {
                 text = await textOf(source, options.limits?.fileBytes ?? DEFAULT_FILE_BYTES);
-                doc = graphtyDocumentOf(text);
+                // With the experiment on, a version 2 file (or, asked to, a migrated version 1
+                // file) opens through the version 2 codecs; every other file reads as before.
+                const read = session.features.has("save-files-v2")
+                    ? version2Of(text, options.migrate === true)
+                    : undefined;
+                version2 = read !== undefined && "value" in read ? read : undefined;
+                const parsed = read !== undefined && "parsed" in read ? read.parsed : undefined;
+                doc = version2 === undefined ? graphtyDocumentOf(text, parsed) : undefined;
             } catch (error) {
                 // An unreadable or refused file gives its place up, so nothing waits behind it.
                 turn.leave();
                 throw error;
             }
             const fileName = options.fileName ?? (source as { name?: unknown }).name;
+            if (version2 !== undefined) {
+                const { value, problems } = version2;
+                return line.opening(turn, () => openVersion2(value, options, fileName, problems));
+            }
+
             if (doc === undefined) {
                 // Not a graphty document: a data file, read the way session.data.prepare reads one.
                 // Nothing is loaded until its draft is, which takes a place of its own.

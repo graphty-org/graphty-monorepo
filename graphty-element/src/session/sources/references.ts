@@ -23,7 +23,6 @@ import { pairKey } from "../replace";
 import type { CodedFact } from "../shared";
 import type { DataSourceInput, GraphSession, LoadChoices, LoadedSource, SourceNoPathReason } from "../types";
 import { type LoadFacts, paramsOf, redactUrl, type ReferenceEntry, type RemovedRows, sampleAddress } from "./member";
-import { targetOf } from "./pending";
 import type { SourceLoadRecord } from "./types";
 
 /** The key a placeholder names its load's entry by. */
@@ -157,12 +156,19 @@ function bare(record: Readonly<Record<string, unknown>>): Record<string, unknown
  * @param how - The load.
  * @returns The URL, or undefined for a generated graph, which fetches nothing.
  */
-function fetchedUrl(how: LoadHow): URL | undefined {
+async function fetchedUrl(how: LoadHow): Promise<URL | undefined> {
     const { network } = how;
+    // From load.ts, which reading a network load loads anyway: its endpoint comes from graph-io's
+    // registry of every source and format, which opening a project (and so the autosave a page
+    // starts with) must not load up front.
     const address =
         network === undefined
             ? (how.sample?.baseUrl ?? how.config.url)
-            : targetOf({ source: network.source, config: how.config, endpoint: network.endpoint });
+            : (await import("./load")).targetOf({
+                  source: network.source,
+                  config: how.config,
+                  endpoint: network.endpoint,
+              });
     if (typeof address !== "string") {
         return undefined;
     }
@@ -199,7 +205,7 @@ async function readAsLoaded(
     scratch: () => GraphSession,
     network: NetworkApiInternal | undefined,
 ): Promise<ReadRows | UnavailableReason> {
-    const url = fetchedUrl(how);
+    const url = await fetchedUrl(how);
     // The page's own origin is never asked about, as the page's own sample loads are not: a fetch
     // there tells no other site anything.
     if (network !== undefined && url !== undefined && url.origin !== pageOrigin()) {

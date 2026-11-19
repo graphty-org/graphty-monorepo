@@ -766,6 +766,13 @@ export interface LabelStyleFieldDescriptor {
      * @since 3.62.0
      */
     readonly drawnWhen?: readonly LabelFieldCondition[];
+    /**
+     * The field's first value when a style editor adds it, where its default draws too little to
+     * see: a label three node sizes tall reads at the default camera on a fitted graph, where the
+     * default (one node size) is a few pixels. Absent where the default is a fine first value.
+     * @since 3.62.0
+     */
+    readonly start?: string | number | boolean;
 }
 
 /**
@@ -781,7 +788,10 @@ export type LabelFieldCondition =
     | { readonly field: keyof LabelStyle; readonly unset: true }
     | { readonly dimension: "2d" | "3d" };
 
-type FieldRow = Omit<LabelStyleFieldDescriptor, "field" | "default" | "drawnWhen">;
+type FieldRow = Omit<LabelStyleFieldDescriptor, "field" | "default" | "drawnWhen" | "start">;
+
+/** Each field's first value where its default draws too little: see {@link LabelStyleFieldDescriptor.start}. */
+const FIELD_START: Partial<Record<keyof LabelStyle, number>> = { size: 3, sizePx: 3 * 48 };
 
 const isSet = (field: keyof LabelStyle): LabelFieldCondition => ({ field, set: true });
 const isOn = (field: keyof LabelStyle): LabelFieldCondition => ({ field, values: ["true"] });
@@ -795,13 +805,14 @@ const FIELD_DRAWN_WHEN: Partial<Record<keyof LabelStyle, readonly LabelFieldCond
     marginBottom: MARGINS,
     marginLeft: MARGINS,
     marginRight: MARGINS,
-    padding: [...BACKGROUND, ...MARGINS],
+    padding: MARGINS,
     backgroundOpacity: BACKGROUND,
     backgroundShape: BACKGROUND,
     cornerRadius: BACKGROUND,
-    borderWidth: [isSet("borderColor")],
-    borderAlign: [isSet("borderColor")],
-    borderOpacity: [isSet("borderColor")],
+    // A width draws the border, black unless a color is set.
+    borderColor: [isSet("borderWidth")],
+    borderAlign: [isSet("borderWidth")],
+    borderOpacity: [isSet("borderWidth")],
     // "Writing one is what switches the outline on."
     outlineWidth: [isSet("outline")],
     outlineOpacity: [isSet("outline")],
@@ -1004,6 +1015,7 @@ export const LABEL_STYLE_DESCRIPTORS: readonly LabelStyleFieldDescriptor[] = Obj
             ...FIELD_ROWS[field],
             ...(value === undefined ? {} : { default: value }),
             ...(drawnWhen === undefined ? {} : { drawnWhen }),
+            ...(FIELD_START[field] === undefined ? {} : { start: FIELD_START[field] }),
         });
     }),
 );

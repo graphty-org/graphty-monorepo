@@ -646,7 +646,7 @@ export interface ChannelDescriptor {
     readonly caveat?: string;
     readonly caveatCode?: ChannelCaveatCode;
     readonly channel: Channel;
-    readonly default?: string | number | boolean;
+    readonly default?: ChannelScalar;
     readonly drawnWhen?: readonly ChannelCondition[];
     readonly exclusiveMin?: boolean;
     readonly feature?: "file-styles";
@@ -657,12 +657,14 @@ export interface ChannelDescriptor {
     readonly max?: number;
     readonly min?: number;
     readonly modifies?: Channel;
+    readonly needs?: readonly ChannelNeed[];
     readonly off?: string | number;
     readonly perWorldUnit?: number;
     readonly plainName: string;
     readonly renderable: boolean;
     readonly shaderTarget?: "node" | "edge";
     readonly shortName: string;
+    readonly start?: ChannelScalar;
     readonly step?: number;
     readonly stylePath: string;
     readonly target: "node" | "edge";
@@ -698,6 +700,12 @@ export interface ChannelItemTypes {
 }
 
 // @public
+export interface ChannelNeed {
+    readonly channel: Channel;
+    readonly value: ChannelScalar;
+}
+
+// @public
 export interface ChannelPoint {
     // (undocumented)
     readonly x: number;
@@ -709,6 +717,9 @@ export interface ChannelPoint {
 
 // @public
 export const CHANNELS: readonly Channel[];
+
+// @public
+export type ChannelScalar = string | number | boolean;
 
 // @public
 export function channelsFor(target: "node" | "edge"): readonly ChannelDescriptor[];
@@ -2040,6 +2051,7 @@ export interface LabelStyleFieldDescriptor {
     readonly max?: number;
     readonly min?: number;
     readonly plainName: string;
+    readonly start?: string | number | boolean;
     readonly values?: readonly string[];
 }
 

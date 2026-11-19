@@ -1418,3 +1418,70 @@ describe("ChannelDescriptor.drawnWhen", () => {
         ]);
     });
 });
+
+describe("ChannelDescriptor.needs and start", () => {
+    /**
+     * Whether a value is one a channel takes.
+     * @param channel - The channel.
+     * @param value - The value.
+     * @returns True when the channel takes it.
+     */
+    const valid = (channel: Channel, value: unknown): boolean => {
+        const descriptor = CHANNEL_DESCRIPTORS[channel];
+        switch (descriptor.accepts) {
+            case "color":
+                return typeof value === "string" && toColorValue(value) !== null;
+            case "number":
+                return (
+                    typeof value === "number" &&
+                    (descriptor.min === undefined || value >= descriptor.min) &&
+                    (descriptor.max === undefined || value <= descriptor.max)
+                );
+            case "boolean":
+                return typeof value === "boolean";
+            case "enum":
+                return typeof value === "string" && descriptor.values?.includes(value) === true;
+            case "text":
+                return (
+                    typeof value === "string" &&
+                    (descriptor.listOf !== "color" || value.split(" ").every((item) => toColorValue(item) !== null))
+                );
+            default:
+                return false;
+        }
+    };
+
+    it("names partners that exist, never itself, with values they take", () => {
+        for (const descriptor of Object.values(CHANNEL_DESCRIPTORS)) {
+            for (const need of descriptor.needs ?? []) {
+                assert.isDefined(CHANNEL_DESCRIPTORS[need.channel], `${descriptor.channel}: ${need.channel}`);
+                assert.notStrictEqual(need.channel, descriptor.channel);
+                assert.strictEqual(CHANNEL_DESCRIPTORS[need.channel].target, descriptor.target, descriptor.channel);
+                assert.isTrue(
+                    valid(need.channel, need.value),
+                    `${descriptor.channel}: ${need.channel} ${String(need.value)}`,
+                );
+            }
+        }
+    });
+
+    it("starts a channel on a value it takes, never on the value that draws nothing", () => {
+        const started = Object.values(CHANNEL_DESCRIPTORS).filter((descriptor) => descriptor.start !== undefined);
+        assert.isAbove(started.length, 0);
+        for (const descriptor of started) {
+            assert.isTrue(valid(descriptor.channel, descriptor.start), descriptor.channel);
+            assert.notStrictEqual(descriptor.start, descriptor.off, descriptor.channel);
+        }
+
+        assert.strictEqual(CHANNEL_DESCRIPTORS["edge.patternCount"].start, 10);
+        assert.strictEqual(CHANNEL_DESCRIPTORS["edge.animationSpeed"].start, 1);
+        assert.deepStrictEqual(CHANNEL_DESCRIPTORS["node.wireframe"].needs, [
+            { channel: "node.meshDetail", value: "low" },
+        ]);
+    });
+
+    it("starts a label field on a size that can be read", () => {
+        const size = LABEL_STYLE_DESCRIPTORS.find((descriptor) => descriptor.field === "size");
+        assert.strictEqual(size?.start, 3);
+    });
+});

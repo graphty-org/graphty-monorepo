@@ -77,6 +77,7 @@ import {
     NodeSizeSpaces,
     type NodeStyleConfig,
 } from "../../config/NodeStyle";
+import { OKABE_ITO_COLORS } from "../../config/palettes/categorical";
 import {
     FILE_STYLE_ARROWS,
     FILE_STYLE_CHANNELS,
@@ -852,6 +853,12 @@ export function isEnumCount(descriptor: ChannelDescriptor, value: unknown): valu
     );
 }
 
+/**
+ * A single value a channel's descriptor states: a default, a starting value, a partner's value.
+ * @since 3.62.0
+ */
+export type ChannelScalar = string | number | boolean;
+
 /** One channel: what it paints, what it accepts, and what the renderer really does with it. */
 export interface ChannelDescriptor {
     /** The channel's name, which is its identity everywhere. */
@@ -879,7 +886,7 @@ export interface ChannelDescriptor {
      * line's colour, so its default is the line's default and a layer that sets `edge.color`
      * moves it too.
      */
-    readonly default?: string | number | boolean;
+    readonly default?: ChannelScalar;
     /** The kind of value it accepts. */
     readonly accepts: ChannelValueKind;
     /** Every value it accepts, when `accepts` is "enum". */
@@ -1009,6 +1016,35 @@ export interface ChannelDescriptor {
      * @since 3.62.0
      */
     readonly drawnWhen?: readonly ChannelCondition[];
+    /**
+     * Other channels a layer must also write for this one to draw, each with the value to write:
+     * a border color needs a border width above 0, a shadow color an opacity and an offset, a
+     * wireframe a low mesh detail. Write a partner only where what lies beneath draws nothing for
+     * it, so a width a lower layer already gives is kept. A sub-setting with no `needs` of its own
+     * takes its part's (its `modifies` channel's). Absent on a channel that draws on its own.
+     * @since 3.62.0
+     */
+    readonly needs?: readonly ChannelNeed[];
+    /**
+     * The channel's own first value when a style editor adds it, on a channel whose `default`
+     * draws nothing or too little to see: a pattern count of 10 (the count's floor draws only a
+     * mark at each end), an animation speed of 1, a label size that can be read. Absent where the
+     * default is a fine first value.
+     * @since 3.62.0
+     */
+    readonly start?: ChannelScalar;
+}
+
+/**
+ * Another channel, and the value to write to it, that a channel needs to draw: see
+ * {@link ChannelDescriptor.needs}.
+ * @since 3.62.0
+ */
+export interface ChannelNeed {
+    /** The partner channel. */
+    readonly channel: Channel;
+    /** The value to write to it. */
+    readonly value: ChannelScalar;
 }
 
 /**
@@ -5549,6 +5585,142 @@ const DRAWN_WHEN: ReadonlyMap<string, readonly ChannelCondition[]> = new Map<Cha
     ["node.groupPaddingOf", [{ channel: "node.groupPaddingRatio", set: true }]],
 ]);
 
+/** A border thin enough to stay out of the way and thick enough to see: what a border's settings need. */
+const THIN_BORDER: ChannelNeed = { channel: "node.borderWidth", value: 0.1 };
+
+/** The first three colors of the element's default categorical palette, for a chart's first bars. */
+const THREE_COLORS = OKABE_ITO_COLORS.slice(0, 3).join(" ");
+
+/**
+ * The label field channels of one text kind that need a sibling to draw.
+ * @param base - The text kind's channel, such as `node.label`.
+ * @returns The rows, for channels that exist.
+ */
+function labelNeeds(base: "node.label" | "edge.label"): [Channel, readonly ChannelNeed[]][] {
+    const background: ChannelNeed = { channel: `${base}Background` as Channel, value: "#FFFFFF" };
+    const border: ChannelNeed = { channel: `${base}BorderWidth` as Channel, value: 2 };
+    const outline: ChannelNeed = { channel: `${base}Outline` as Channel, value: "#FFFFFF" };
+    return [
+        [`${base}BackgroundOpacity` as Channel, [background]],
+        [`${base}CornerRadius` as Channel, [background]],
+        [`${base}BackgroundShape` as Channel, [background]],
+        // A border's width draws it (in black); its color, alignment and opacity need a width.
+        [`${base}Border` as Channel, [border]],
+        [`${base}BorderAlign` as Channel, [border]],
+        [`${base}BorderOpacity` as Channel, [border]],
+        [`${base}OutlineWidth` as Channel, [outline]],
+    ];
+}
+
+/** What each channel needs written beside it to draw: see {@link ChannelDescriptor.needs}. */
+const NEEDS: ReadonlyMap<string, readonly ChannelNeed[]> = new Map<Channel, readonly ChannelNeed[]>([
+    ["node.borderColor", [THIN_BORDER]],
+    ["node.borderStyle", [THIN_BORDER]],
+    ["node.borderOpacity", [THIN_BORDER]],
+    ["node.borderPosition", [THIN_BORDER]],
+    [
+        "node.outerBorderColor",
+        [{ channel: "node.outerBorderWidth", value: 1 }, { channel: "node.outerBorderOffset", value: 1 }, THIN_BORDER],
+    ],
+    ["node.raisedBorderLightColor", [{ channel: "node.raisedBorderWidth", value: 0.1 }]],
+    ["node.raisedBorderDarkColor", [{ channel: "node.raisedBorderWidth", value: 0.1 }]],
+    ["node.shapeLines", [THIN_BORDER, { channel: "node.borderColor", value: "#000000" }]],
+    [
+        "node.shadowColor",
+        [
+            { channel: "node.shadowOpacity", value: 0.5 },
+            { channel: "node.shadowOffsetX", value: 0.1 },
+            { channel: "node.shadowOffsetY", value: 0.1 },
+        ],
+    ],
+    [
+        "node.underlayColor",
+        [
+            { channel: "node.underlayOpacity", value: 1 },
+            { channel: "node.underlayPadding", value: 0.2 },
+        ],
+    ],
+    [
+        "node.overlayColor",
+        [
+            { channel: "node.overlayOpacity", value: 0.5 },
+            { channel: "node.overlayPadding", value: 0.1 },
+        ],
+    ],
+    ["node.glowStrength", [{ channel: "node.glow", value: DEFAULT_GLOW_COLOR }]],
+    ["node.outlineWidth", [{ channel: "node.outline", value: DEFAULT_OUTLINE_COLOR }]],
+    [
+        "node.chartKind",
+        [
+            { channel: "node.chartValues", value: "1 2 3" },
+            { channel: "node.chartColors", value: THREE_COLORS },
+        ],
+    ],
+    ["node.chartValues", [{ channel: "node.chartColors", value: THREE_COLORS }]],
+    ["node.chartColors", [{ channel: "node.chartValues", value: "1 2 3" }]],
+    ["node.wireframe", [{ channel: "node.meshDetail", value: "low" }]],
+    ...labelNeeds("node.label"),
+    ...labelNeeds("edge.label"),
+    // Half the width each side of the line, in the line's width units: 2 is a line's width each side.
+    ["edge.outlineColor", [{ channel: "edge.outlineWidth", value: 2 }]],
+    ["edge.outlineOpacity", [{ channel: "edge.outlineWidth", value: 2 }]],
+    ["edge.outlineStyle", [{ channel: "edge.outlineWidth", value: 2 }]],
+    [
+        "edge.underlayColor",
+        [
+            { channel: "edge.underlayOpacity", value: 1 },
+            // In the line's width units, twice this wide: 3 stands clear of a thin line.
+            { channel: "edge.underlayPadding", value: 3 },
+        ],
+    ],
+    [
+        "edge.overlayColor",
+        [
+            { channel: "edge.overlayOpacity", value: 0.5 },
+            { channel: "edge.overlayPadding", value: 3 },
+        ],
+    ],
+    ["edge.bandWidth", [{ channel: "edge.bandColor", value: DEFAULT_SELECTION_STYLE.edgeColor }]],
+    ["edge.bandOpacity", [{ channel: "edge.bandColor", value: DEFAULT_SELECTION_STYLE.edgeColor }]],
+    ["edge.dashLength", [{ channel: "edge.style", value: "dash" }]],
+    ["edge.dashGap", [{ channel: "edge.style", value: "dash" }]],
+    ["edge.waveAmplitude", [{ channel: "edge.style", value: "sinewave" }]],
+    ["edge.wavePeriod", [{ channel: "edge.style", value: "sinewave" }]],
+    ["edge.fadeStart", [{ channel: "edge.fadeEnd", value: 400 }]],
+    ["edge.fadeOpacity", [{ channel: "edge.fadeEnd", value: 400 }]],
+    ["edge.animationSpeed", [{ channel: "edge.style", value: "solid" }]],
+    ["edge.supportModel", [{ channel: "edge.curvature", value: true }]],
+    ...(
+        [
+            "edge.supportSpringLength",
+            "edge.supportSpringConstant",
+            "edge.supportRepulsion",
+            "edge.supportCentralGravity",
+            "edge.supportUnit",
+            "edge.supportScale",
+        ] as const
+    ).map((channel): [Channel, readonly ChannelNeed[]] => [
+        channel,
+        [
+            { channel: "edge.curvature", value: true },
+            { channel: "edge.supportModel", value: "barnesHut" },
+        ],
+    ]),
+]);
+
+/** A label line three node sizes tall, which reads at the default camera on a fitted graph. */
+const READABLE_LABEL_SIZE = 3 * LABEL_SIZE_PER_WORLD_UNIT;
+
+/** Each channel's first value where its default draws nothing: see {@link ChannelDescriptor.start}. */
+const START: ReadonlyMap<string, ChannelScalar> = new Map<Channel, ChannelScalar>([
+    // The count's floor (2) draws only a mark at each end, so the line seems to vanish.
+    ["edge.patternCount", 10],
+    // 0 draws a still line.
+    ["edge.animationSpeed", 1],
+    ["node.labelSize", READABLE_LABEL_SIZE],
+    ["edge.labelSize", READABLE_LABEL_SIZE],
+]);
+
 /**
  * How far one step moves a number channel: see {@link ChannelDescriptor.step}.
  * @param descriptor - The declared descriptor.
@@ -5579,6 +5751,8 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
         const modifies = MODIFIES.get(descriptor.channel);
         const listOf = LIST_OF.get(descriptor.channel);
         const appliesWhen = APPLIES_WHEN.get(descriptor.channel);
+        const needs = NEEDS.get(descriptor.channel);
+        const start = START.get(descriptor.channel);
         const drawnWhen = [
             ...(appliesWhen === undefined ? [] : [appliesWhen]),
             ...(DRAWN_WHEN.get(descriptor.channel) ?? []),
@@ -5594,6 +5768,8 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
                 ...(listOf === undefined ? {} : { listOf }),
                 ...(appliesWhen === undefined ? {} : { appliesWhen }),
                 ...(drawnWhen.length === 0 ? {} : { drawnWhen: Object.freeze(drawnWhen) }),
+                ...(needs === undefined ? {} : { needs }),
+                ...(start === undefined ? {} : { start }),
                 // @experimental file-styles
                 ...(FILE_STYLE_CHANNELS.has(descriptor.channel) ? { feature: "file-styles" as const } : {}),
             },

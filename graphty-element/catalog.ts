@@ -232,6 +232,8 @@ export type {
     ChannelCondition,
     ChannelDescriptor,
     ChannelGroup,
+    ChannelNeed,
+    ChannelScalar,
     ChannelValueKind,
     LabelFieldName,
 } from "./src/session/styles/channels";

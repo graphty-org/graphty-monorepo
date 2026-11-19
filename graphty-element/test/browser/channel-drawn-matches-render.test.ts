@@ -13,6 +13,7 @@ import type { GraphSession } from "../../src/session";
 import { CHANNEL_DESCRIPTORS } from "../../src/session/styles/channels";
 import {
     addProbePrerequisites,
+    drewPixels,
     measurePaint,
     mountProbeGraph,
     PIXEL_CHANGE,
@@ -71,15 +72,17 @@ for (const view of ["2d", "3d"] as const) {
                         ...shown?.base,
                     },
                 );
-                // Where it claims to draw, a change to the scene counts, as in the paints gates (a draw order reorders
-                // nodes that need not overlap here). Where it claims nothing, only the picture counts: a 2D node keeps
-                // a lit material it draws unlit, so writing node.unlit there changes a material and no pixel.
-                const drew = claims ? measure.painted : measure.moved > PIXEL_CHANGE;
+                // Only the picture counts, both ways: where it claims to draw, its pixels must move (a mesh built and
+                // then hidden or covered changes the structure and nothing a reader sees); where it claims nothing, a
+                // 2D node keeps a lit material it draws unlit, so writing node.unlit there changes a material and no
+                // pixel. STRUCTURE_ONLY_VALUES names, with reasons, what the probe scene cannot show.
+                const drew = claims ? drewPixels(measure, descriptor.channel) : measure.moved > PIXEL_CHANGE;
                 assert.strictEqual(
                     drew,
                     claims,
                     `${descriptor.channel} names ${viewsOf(descriptor).join("")} only; in ${view} it ` +
-                        `${drew ? "changed" : "did not change"} the picture (${String(measure.moved)} pixels).`,
+                        `${drew ? "changed" : "did not change"} the picture (${String(measure.moved)} pixels moved, ` +
+                        `${String(measure.changed)} changed).`,
                 );
             });
         }

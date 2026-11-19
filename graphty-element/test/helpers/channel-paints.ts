@@ -305,6 +305,8 @@ export interface Reading {
     readonly structure: string;
     /** How many pixels fall in each coarse colour bucket. */
     readonly histogram: Uint32Array;
+    /** The frame itself, RGBA, for {@link pixelsChanged}. */
+    readonly pixels: Uint8Array;
 }
 
 /**
@@ -321,6 +323,30 @@ export function pixelsMoved(one: Reading, other: Reading): number {
     }
 
     return moved / 2;
+}
+
+/**
+ * How many pixels differ between two readings of the frame, place by place. The histogram ({@link pixelsMoved}) is
+ * blind to a change that keeps every colour's count: a cap turned to its other side, a diamond for an arrow of the
+ * same area. Two renderings of an unchanged scene are byte-identical, so any difference is a change.
+ * @param one - The earlier reading.
+ * @param other - The later one.
+ * @returns The number of pixels whose colour changed.
+ */
+export function pixelsChanged(one: Reading, other: Reading): number {
+    let changed = 0;
+    const length = Math.min(one.pixels.length, other.pixels.length);
+    for (let at = 0; at < length; at += 4) {
+        if (
+            one.pixels[at] !== other.pixels[at] ||
+            one.pixels[at + 1] !== other.pixels[at + 1] ||
+            one.pixels[at + 2] !== other.pixels[at + 2]
+        ) {
+            changed++;
+        }
+    }
+
+    return changed;
 }
 
 /**
@@ -425,7 +451,7 @@ export async function readScene(graph: Graph, settle = true): Promise<Reading> {
         histogram[bucket]++;
     }
 
-    return { structure: [...meshes, `effects:${layers.join(",")}`].join("\n"), histogram };
+    return { structure: [...meshes, `effects:${layers.join(",")}`].join("\n"), histogram, pixels };
 }
 
 /** What writing one value did. */
@@ -434,6 +460,8 @@ export interface PaintMeasure {
     readonly painted: boolean;
     /** How many pixels moved by writing it. */
     readonly moved: number;
+    /** How many pixels changed colour, place by place, by writing it ({@link pixelsChanged}). */
+    readonly changed: number;
     /** How many pixels stayed moved after the layer was removed. */
     readonly leftMoved: number;
 }
@@ -483,6 +511,7 @@ export async function measurePaint(
     return {
         painted: after.structure !== before.structure || moved > PIXEL_CHANGE,
         moved,
+        changed: pixelsChanged(before, after),
         leftMoved: pixelsMoved(before, restored),
     };
 }
@@ -503,16 +532,83 @@ export function sortedDescriptors(descriptors: Record<string, ChannelDescriptor>
     return Object.values(descriptors).sort((one, other) => one.channel.localeCompare(other.channel));
 }
 
+/** A picture that loads at once, twice as wide as tall, red on the left and blue on the right. */
+const PICTURE = `data:image/svg+xml;utf8,${encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="20">' +
+        '<rect width="20" height="20" fill="#ff0000"/><rect x="20" width="20" height="20" fill="#0000ff"/></svg>',
+)}`;
+
 /**
  * What an enum channel's values need written beside them to look different from its default, beyond its
  * prerequisites: a halo's own shape shows only against a node of another shape, a cap part-way along a line only
  * in a color the line is not.
  */
 export const ENUM_SETUP: Readonly<Partial<Record<string, Record<string, unknown>>>> = {
+    // a picture's fit, repeat, clip and size show only on a picture that loads, drawn at a small size of its own
+    // ("none" with no size of its own is contained in the node, as "contain" draws it)
+    "node.imageFit": { "node.image": PICTURE, "node.imageWidth": 0.5 },
+    "node.imageRepeat": { "node.image": PICTURE, "node.imageFit": "none", "node.imageWidth": 0.5 },
+    "node.imageClip": { "node.image": PICTURE, "node.imageFit": "none" },
+    "node.imageAutoSize": { "node.image": PICTURE, "node.imageFit": "none", "node.imageWidth": 0.5 },
+    // a chart's kind shows only on a chart with values, in two colors
+    "node.chartKind": { "node.chartValues": "1 3 2", "node.chartColors": "#ff0000 #00ff00" },
+    // a stripe's direction shows only on stripes
+    "node.stripeDirection": { "node.stripeColors": "#ff0000 #00ff00" },
+    // an outer border's style shows only on an outer border wide enough to see
+    "node.outerBorderStyle": { "node.outerBorderWidth": 0.4, "node.outerBorderColor": "#ff0000" },
+    // "uniform" sizes every shape as the default icosphere is drawn, so it differs on any other solid
+    "node.sizeMode": { "node.shape": "box" },
+    // a line's gradient kind shows only on a line with two colors; an outline's style only on an outline
+    "edge.gradientKind": { "edge.gradientColors": "#ff0000 #00ff00", "edge.width": 2 },
+    "edge.outlineStyle": { "edge.outlineWidth": 0.4, "edge.outlineColor": "#ff0000", "edge.width": 2 },
+    // a picture cap draws only with a picture
+    "edge.arrowHead": { "edge.arrowHeadImage": PICTURE },
+    "edge.arrowTail": { "edge.arrowTailImage": PICTURE },
     "node.underlayShape": { "node.shape": "star", "node.underlayOpacity": 1, "node.underlayPadding": 0.5 },
     "node.overlayShape": { "node.shape": "star", "node.overlayOpacity": 0.6, "node.overlayPadding": 0.5 },
-    "edge.arrowMiddleHead": { "edge.arrowMiddleHeadColor": "#ff0000", "edge.arrowMiddleHeadSize": 3 },
-    "edge.arrowMiddleTail": { "edge.arrowMiddleTailColor": "#ff0000", "edge.arrowMiddleTailSize": 3 },
+    // the middle head's open caps are filled, so their frame and inside are two materials, each of which must be
+    // drawn in front of the line; the middle tail's are not, so both kinds are measured
+    "edge.arrowMiddleHead": {
+        "edge.arrowMiddleHeadColor": "#ff0000",
+        "edge.arrowMiddleHeadSize": 6,
+        "edge.arrowMiddleHeadImage": PICTURE,
+        "edge.arrowMiddleHeadFillColor": "#00ff00",
+    },
+    "edge.arrowMiddleTail": {
+        "edge.arrowMiddleTailColor": "#ff0000",
+        "edge.arrowMiddleTailSize": 6,
+        "edge.arrowMiddleTailImage": PICTURE,
+    },
+    // a cap's side shows only on a cap there is, part-way along the line in a color the line is not
+    "edge.arrowMiddleHeadSide": {
+        "edge.arrowMiddleHead": "normal",
+        "edge.arrowMiddleHeadColor": "#ff0000",
+        "edge.arrowMiddleHeadSize": 6,
+    },
+    "edge.arrowMiddleTailSide": {
+        "edge.arrowMiddleTail": "normal",
+        "edge.arrowMiddleTailColor": "#ff0000",
+        "edge.arrowMiddleTailSize": 6,
+    },
+    // a label's panel, border, alignment and shift show only on a panel, a border, lines of different widths
+    "node.labelBackgroundShape": { "node.labelBackground": "#00ff00" },
+    "node.labelBorderAlign": { "node.labelBorderWidth": 6, "node.labelBorder": "#ff0000" },
+    "node.labelTextAlign": { "node.label": "WORDS\nA" },
+    "node.labelShiftOf": { "node.labelShiftX": 1, "node.labelPadding": 20, "node.labelBackground": "#00ff00" },
+    // a box shows its sizing only on an inside label too large for its node, against a side
+    "node.labelBox": {
+        "node.labelBackground": "#00ff00",
+        "node.labelLetterSize": 3,
+        "node.labelLocation": "inside-left",
+    },
+    // where runs of different sizes meet moves a few pixels on letters this small: larger letters show it
+    "node.labelRunAlign": { "node.labelLetterSize": 3 },
+    "edge.labelBackgroundShape": { "edge.labelBackground": "#00ff00" },
+    "edge.labelBorderAlign": { "edge.labelBorderWidth": 6, "edge.labelBorder": "#ff0000" },
+    "edge.labelTextAlign": { "edge.label": "WORDS\nA" },
+    "edge.labelShiftOf": { "edge.labelShiftX": 1, "edge.labelPadding": 20, "edge.labelBackground": "#00ff00" },
+    // where runs of different sizes meet moves a few pixels on letters this small: larger letters show it
+    "edge.labelRunAlign": { "edge.labelLetterSize": 3 },
     // a padding ratio is measured against the side this names
     "node.groupPaddingOf": { "node.groupPaddingRatio": 1 },
 };
@@ -522,7 +618,64 @@ export const ENUM_SETUP: Readonly<Partial<Record<string, Record<string, unknown>
  * against the members' box's longer side is its width or its height, whichever is longer, so "max" or "min" always
  * equals the default "width" on some box. The average of the two sides differs from each.
  */
-const ENUM_AGAINST: Readonly<Partial<Record<string, string>>> = { "node.groupPaddingOf": "average" };
+const ENUM_AGAINST: Readonly<Partial<Record<string, string | ((value: string) => string)>>> = {
+    "node.groupPaddingOf": "average",
+    // A halo's own shape has no default (it follows the node's) and a solid one is drawn as its flat silhouette,
+    // so neighbours in the list draw alike (torus and torus-knot are both an ellipse): each is measured against a
+    // star, which no other value draws, and the star against an ellipse.
+    "node.underlayShape": (value) => (value === "star" ? "ellipse" : "star"),
+    "node.overlayShape": (value) => (value === "star" ? "ellipse" : "star"),
+};
+
+/**
+ * The enum values whose change the probe scene shows only in its structure, never in its pixels, each with why.
+ * Every other value of an enum must move pixels where it draws: a value that builds a mesh which is then hidden,
+ * covered or off screen changes the structure and nothing a reader sees (a middle cap under its line did that).
+ * Keyed `channel=value` for an enum value, or `channel` for a channel that names a view; may only shrink.
+ */
+export const STRUCTURE_ONLY_VALUES: Readonly<Partial<Record<string, string>>> = {
+    ...Object.fromEntries(
+        [
+            "node.modelCenter=origin",
+            "node.modelDoubleSided=false",
+            "node.modelDoubleSided=true",
+            "node.modelFit=stretch",
+            ...["-x", "x", "-y", "y", "-z", "z"].map((up) => `node.modelSourceUp=${up}`),
+            "node.modelTint=replace",
+            "node.modelTint=true",
+            "node.modelTint=untextured",
+        ].map((key) => [
+            key,
+            "The probe scene has no model that loads (a model is a served file); each value's picture is measured " +
+                "on a real model in test/browser/models/.",
+        ]),
+    ),
+    "node.labelDeclutter=degree":
+        "Declutter thins overlapping labels; the probe's two labels never overlap. Measured in label-declutter.test.ts.",
+    "node.labelDeclutter=size":
+        "Declutter thins overlapping labels; the probe's two labels never overlap. Measured in label-declutter.test.ts.",
+    "edge.labelBox=words-at-side":
+        "An edge text has no target box to size against, so it keeps the box round its words (LabelStyle.box, and " +
+        "LABEL_STYLE_DESCRIPTORS box.drawnOn names node texts only). The edge channel draws nothing: an open defect.",
+    "edge.labelBox=target-width":
+        "An edge text has no target box to size against, so it keeps the box round its words (LabelStyle.box, and " +
+        "LABEL_STYLE_DESCRIPTORS box.drawnOn names node texts only). The edge channel draws nothing: an open defect.",
+    "node.labelLocation=automatic":
+        'By design "automatic" draws a node label at its normal place, the top, which is the default (Node.ts).',
+    "edge.xlabelLocation=automatic":
+        'By design "automatic" draws an edge text at its normal place, the default (Edge.ts resolveAttach).',
+};
+
+/**
+ * Whether a measurement shows a value drawn: pixels changed, or, for a value on {@link STRUCTURE_ONLY_VALUES}, the
+ * structure changed.
+ * @param measure - The measurement.
+ * @param key - `channel=value`, or `channel`.
+ * @returns Whether it drew.
+ */
+export function drewPixels(measure: PaintMeasure, key: string): boolean {
+    return STRUCTURE_ONLY_VALUES[key] === undefined ? measure.changed > PIXEL_CHANGE : measure.painted;
+}
 
 /** vitest's describe, beforeAll, afterAll and it, handed in so this module registers no tests by itself. */
 interface Suite {
@@ -667,12 +820,13 @@ function valuesInViews(name: string, channels: readonly ChannelDescriptor[], gro
             for (const descriptor of channels.filter((entry) => viewsOf(entry).includes(view))) {
                 const fallback = descriptor.default === undefined ? undefined : String(descriptor.default);
                 const values = descriptor.values ?? [];
-                const skipped = ENUM_AGAINST[descriptor.channel] ?? fallback;
+                const chosen = ENUM_AGAINST[descriptor.channel];
+                const skipped = typeof chosen === "function" ? undefined : (chosen ?? fallback);
                 for (const value of values.filter((entry) => entry !== skipped)) {
                     // With no declared default (the layout decides `edge.route`), a value is measured against the
                     // next one in the list, so every value must be told apart from its neighbour.
                     const against =
-                        ENUM_AGAINST[descriptor.channel] ??
+                        (typeof chosen === "function" ? chosen(value) : chosen) ??
                         descriptor.default ??
                         values[(values.indexOf(value) + 1) % values.length];
                     // a value narrower than its channel draws in its own views only, and nothing in the others
@@ -694,12 +848,14 @@ function valuesInViews(name: string, channels: readonly ChannelDescriptor[], gro
                             base,
                         );
                         await undo?.();
+                        // Where it draws, its pixels must move (drewPixels); where it draws nothing, neither the
+                        // picture nor the structure may change.
                         assert.strictEqual(
-                            measure.painted,
+                            drawsHere ? drewPixels(measure, `${descriptor.channel}=${value}`) : measure.painted,
                             drawsHere,
                             drawsHere
                                 ? `${descriptor.channel} = ${value} draws as ${String(against)} in ${view} ` +
-                                      `(${String(measure.moved)} pixels moved).`
+                                      `(${String(measure.changed)} pixels changed).`
                                 : `${descriptor.channel} = ${value} names ${String(descriptor.valueViews?.[value])} ` +
                                       `and draws in ${view} (${String(measure.moved)} pixels moved).`,
                         );

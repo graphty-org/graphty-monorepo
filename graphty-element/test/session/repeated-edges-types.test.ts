@@ -117,3 +117,32 @@ describe("repeatedEdges on a load: weight meanings", () => {
         session.dispose();
     });
 });
+
+describe("a load draft's report counts repeats by the same rule", () => {
+    it("counts a repeat of the graph's edge only when its type matches", async () => {
+        const session = sessionWith("first");
+        await session.data.import({ type: "csv", config: { data: "source,target,kind\na,b,call\n" } });
+        const draft = await session.data.prepare({ config: { data: "source,target,kind\na,b,mail\na,b,call\n" } });
+        const report = await draft.report({ mode: "merge" });
+        assert.deepEqual(report.repeated, { seen: 1, kept: 0, dropped: 1, merged: 0 });
+
+        await draft.load({ mode: "merge" });
+        assert.deepEqual(session.data.lastImport()?.repeated, report.repeated, "the load counts the same");
+        session.dispose();
+    });
+
+    it("counts no repeat a combining policy keeps apart for its weight meaning", async () => {
+        const session = createGraphSession({ config: { data: { knownFields: { repeatedEdges: "sum" } } } });
+        const mapping = { rowsAre: "edges", source: "from", target: "to", weight: "emails" } as const;
+        await session.data.import(
+            { type: "csv", config: { data: MESSAGES } },
+            { mapping: { ...mapping, weightMeaning: "distance" } },
+        );
+        const draft = await session.data.prepare({ config: { data: MESSAGES } });
+        const strength = await draft.report({ mode: "merge", mapping: { ...mapping, weightMeaning: "strength" } });
+        assert.strictEqual(strength.repeated.seen, 0);
+        const distance = await draft.report({ mode: "merge", mapping: { ...mapping, weightMeaning: "distance" } });
+        assert.deepEqual(distance.repeated, { seen: 2, kept: 0, dropped: 0, merged: 2 });
+        session.dispose();
+    });
+});

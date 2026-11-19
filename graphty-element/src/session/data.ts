@@ -51,7 +51,7 @@ import type {
     StructureValue,
 } from "../catalog/types";
 import { isPairConfig } from "../data/CSVDataSource";
-import { edgeCounterOf, edgeIdOf, pairKey as pairKeyOf } from "../data/edgeIdentity";
+import { edgeCounterOf, edgeIdOf, pairKey as pairKeyOf, recordType, type RepeatGroup } from "../data/edgeIdentity";
 import type { GraphStore } from "../data/GraphStore";
 import { readonlyPositions } from "../data/lane";
 import { rowOfEitherSpelling } from "../data/nodeIdSpelling";
@@ -317,6 +317,8 @@ interface DataWrites {
     progress?(change: ProgressChange): void;
     /** The session's load line, shared with the graph's own loads, so loads land in call order. */
     readonly loadLine: LoadLine;
+    /** The weight meaning an edge was stored under, from the ingest that stored it. */
+    edgeMeaning?(counter: number): string | null | undefined;
     /** Dispatch any command: the network-source loads and expansions dispatch their own ops. */
     send?(command: SessionCommand): Promise<unknown>;
     /** Publish a session event: the network-source expansions publish theirs. */
@@ -2094,13 +2096,27 @@ export class SessionData implements SessionDataApi {
                 graph: () => {
                     const slice = this.writes.slice();
                     const snapshot = this.current();
-                    const pairs = new Set<string>();
+                    const pairs = new Map<string, RepeatGroup[]>();
+                    const note = (key: string, group: RepeatGroup): void => {
+                        const held = pairs.get(key) ?? [];
+                        held.push(group);
+                        pairs.set(key, held);
+                    };
                     for (let edge = 0; edge < snapshot.edgeCount; edge++) {
                         const source = snapshot.ids.idOf(snapshot.edgeSource(edge));
                         const target = snapshot.ids.idOf(snapshot.edgeTarget(edge));
-                        pairs.add(pairKeyOf(source, target));
+                        // Its type and meaning, so the report reduces repeats as the load will.
+                        const counter = snapshot.edges.value(EDGE_ID_COLUMN, edge);
+                        const group: RepeatGroup =
+                            typeof counter === "number"
+                                ? {
+                                      type: recordType(slice.edges.get(edgeIdOf(counter))),
+                                      meaning: this.writes.edgeMeaning?.(counter),
+                                  }
+                                : { type: undefined, meaning: undefined };
+                        note(pairKeyOf(source, target), group);
                         if (!snapshot.directed) {
-                            pairs.add(pairKeyOf(target, source)); // eslint-disable-line sonarjs/arguments-order -- the reverse pair, so an undirected edge matches either way
+                            note(pairKeyOf(target, source), group); // eslint-disable-line sonarjs/arguments-order -- the reverse pair, so an undirected edge matches either way
                         }
                     }
                     return { nodes: new Set(slice.nodes.keys()), edges: slice.edges.size, pairs };
@@ -6902,6 +6918,7 @@ export function headlessDataService(
         },
         import: (command, draft, signal) =>
             ingest.oneAtATime(() => ingest.importSource(command, dispatcher.graph.writer(draft, store), signal)),
+        edgeMeaning: (counter) => ingest.meaningAt(counter),
         values: (values, draft) => {
             dispatcher.graph.writer(draft, store).setGraphValues(values);
         },

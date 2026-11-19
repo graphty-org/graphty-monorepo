@@ -18,14 +18,7 @@ import { unknownFormat } from "../../catalog/detect";
 import type { EdgeId, NodeId, SourceKey } from "../../catalog/types";
 import { CSVDataSource } from "../../data/CSVDataSource";
 import { DataSource, type DataSourceChunk, type DeclaredDirection, setReaderSignal } from "../../data/DataSource";
-import {
-    COMBINING_POLICIES,
-    decideRepeat,
-    edgeCounterOf,
-    edgeIdOf,
-    pairKey,
-    recordType,
-} from "../../data/edgeIdentity";
+import { decideRepeat, edgeCounterOf, edgeIdOf, pairKey, recordType, reducesInto } from "../../data/edgeIdentity";
 import { readEndpoint, type ResolvedEndpoints, resolveEndpoints, searchRecord } from "../../data/endpoints";
 import { type DataLoadingError, ErrorAggregator } from "../../data/ErrorAggregator";
 import type { GraphStore } from "../../data/GraphStore";
@@ -1798,7 +1791,7 @@ export class Ingest<K extends KnownEdge> {
             return false;
         }
 
-        if (!this.measuredRepeat(repeat.sourceId, repeat.targetId, recordId)) {
+        if (!this.measuredRepeat(repeat, recordId, batch)) {
             return false;
         }
 
@@ -2112,15 +2105,16 @@ export class Ingest<K extends KnownEdge> {
         batch: { readonly policy: DuplicatePolicy; readonly meaning: string | null },
         writer: GraphWriter,
     ): (edgeIndex: number) => boolean {
-        const type = recordType(record);
-        const { policy, meaning } = batch;
-        const sameMeaning = (edgeIndex: number): boolean => {
-            const held = this.meaningAt(writer.store.edgeIdAt(edgeIndex));
-            return held === undefined || held === meaning;
-        };
+        const repeat = { type: recordType(record), meaning: batch.meaning };
         return (edgeIndex) =>
-            recordType(writer.edgeRecord(edgeIndex)) === type &&
-            (!COMBINING_POLICIES.has(policy) || sameMeaning(edgeIndex));
+            reducesInto(
+                {
+                    type: recordType(writer.edgeRecord(edgeIndex)),
+                    meaning: this.meaningAt(writer.store.edgeIdAt(edgeIndex)),
+                },
+                repeat,
+                batch.policy,
+            );
     }
 
     /**
@@ -2128,7 +2122,7 @@ export class Ingest<K extends KnownEdge> {
      * @param counter - the edge's counter
      * @returns the meaning, or undefined when the edge predates every run
      */
-    private meaningAt(counter: number): string | null | undefined {
+    meaningAt(counter: number): string | null | undefined {
         for (let at = this.meaningRuns.length - 1; at >= 0; at--) {
             if (this.meaningRuns[at].from <= counter) {
                 return this.meaningRuns[at].meaning;
@@ -2140,18 +2134,34 @@ export class Ingest<K extends KnownEdge> {
 
     /**
      * Whether a measured merge's record repeats an edge of the graph it is measured against, which
-     * the scratch session does not hold. Matched by pair, as `knownEdgeFor` matches a record with
-     * no file id.
+     * the scratch session does not hold. Matched by pair, type and weight meaning, as `knownEdgeFor`
+     * matches a record with no file id.
      * ponytail: a record with a file id is never matched here, since the graph's file ids are not
      * handed over; hand them over when a consumer reports repeats by id.
-     * @param sourceId - the source endpoint id
-     * @param targetId - the target endpoint id
+     * @param repeat - the repeating record and its ends
+     * @param repeat.record - the record
+     * @param repeat.sourceId - the source endpoint id
+     * @param repeat.targetId - the target endpoint id
      * @param recordId - the record's file id, if any
+     * @param batch - its batch's repeat policy and weight meaning
      * @returns true when it repeats one
      */
-    private measuredRepeat(sourceId: NodeIdType, targetId: NodeIdType, recordId: unknown): boolean {
-        const pairs = this.measure?.pairs;
-        return pairs !== undefined && !isStorableRecordId(recordId) && pairs.has(pairKey(sourceId, targetId));
+    private measuredRepeat(
+        repeat: {
+            readonly record: Readonly<Record<string | number, unknown>>;
+            readonly sourceId: NodeIdType;
+            readonly targetId: NodeIdType;
+        },
+        recordId: unknown,
+        batch: EdgeBatch,
+    ): boolean {
+        const held = this.measure?.pairs?.get(pairKey(repeat.sourceId, repeat.targetId));
+        const group = { type: recordType(repeat.record), meaning: batch.meaning };
+        return (
+            held !== undefined &&
+            !isStorableRecordId(recordId) &&
+            held.some((edge) => reducesInto(edge, group, batch.policy))
+        );
     }
 
     /**

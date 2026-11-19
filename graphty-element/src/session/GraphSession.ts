@@ -3245,6 +3245,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             },
             importer: (signal) => dispatcher.capturedDispatch(signal === undefined ? {} : { signal }),
             loadLine: loadLineOf(dispatcher),
+            edgeMeaning: (counter) => dispatcher.services.data?.edgeMeaning?.(counter),
             ceilings,
             slice,
             measure: async (command, config) => {

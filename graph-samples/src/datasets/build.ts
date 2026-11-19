@@ -40,9 +40,15 @@ export interface DatasetMeta {
     /** The checksum: the SHA-256 of its `.gsnp.gz` file, lowercase hex. */
     readonly sha256: string;
     /**
-     * A small picture of the graph (a 480 x 300 WebP with a transparent background, drawn by
-     * graphty-element): its file name beside the dataset's file, so its address is the dataset base
-     * URL plus this name. Absent when the dataset has none.
+     * A small picture of the graph (a WebP of `THUMBNAIL_SIZE` pixels with a transparent background,
+     * drawn by graphty-element): its file name beside the dataset's file, so its address is the
+     * dataset base URL plus this name. Absent when the dataset has none.
      */
     readonly thumbnail?: string;
 }
+
+/** The size in pixels of every dataset's and generator's `thumbnail` picture. */
+export const THUMBNAIL_SIZE: { readonly width: number; readonly height: number } = Object.freeze({
+    width: 480,
+    height: 300,
+});

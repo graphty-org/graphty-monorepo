@@ -212,12 +212,13 @@ export type { GraphListing } from "@graphty/graph-io";
 // `session.data.generate` runs, the same lists `session.catalog.datasets()` and
 // `session.catalog.generators()` return, for a page that lists them before any graph exists.
 // `DEFAULT_DATASET_BASE_URL` is where a dataset's file and its `thumbnail` picture are read from
-// when `loadDataset` is given no `baseUrl`.
+// when `loadDataset` is given no `baseUrl`, and `SAMPLE_THUMBNAIL_SIZE` is every picture's size in pixels.
 export type { DatasetMeta, GeneratorDescriptor, GeneratorParamDescriptor } from "@graphty/graph-samples";
 export {
     DATASETS as DATASET_DESCRIPTORS,
     DEFAULT_DATASET_BASE_URL,
     GENERATOR_CATALOG as GENERATOR_DESCRIPTORS,
+    THUMBNAIL_SIZE as SAMPLE_THUMBNAIL_SIZE,
 } from "@graphty/graph-samples";
 export type { GeneratorParams } from "@graphty/graph-samples/generators";
 

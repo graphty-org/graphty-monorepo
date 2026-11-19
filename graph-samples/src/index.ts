@@ -4,7 +4,7 @@
  * graphty-element records. The generators live in `@graphty/graph-samples/generators`.
  */
 
-export { type DatasetMeta } from "./datasets/build.js";
+export { type DatasetMeta, THUMBNAIL_SIZE } from "./datasets/build.js";
 export { DATASETS } from "./datasets/catalog.js";
 export { DATASET_NAMES } from "./datasets/names.js";
 export { DEFAULT_DATASET_BASE_URL, fetchDataset, type FetchDatasetOptions } from "./datasets/remote.js";

@@ -46,6 +46,19 @@ describe("a dataset's picture", () => {
             expect(PACKED[name].thumbnail).toBe(`${name}.webp`);
         }
     });
+
+    it("was drawn from the dataset's current file, so a changed dataset needs its picture drawn again", () => {
+        // tools/render-sample-thumbnails.mjs records the SHA-256 of the file each picture was drawn from
+        const drawnFrom = JSON.parse(readFileSync(path.join(packageRoot, "data/thumbnails.json"), "utf8")) as Record<
+            string,
+            string
+        >;
+        for (const meta of DATASETS) {
+            expect(drawnFrom[meta.name], `${meta.name}: rerun tools/render-sample-thumbnails.mjs ${meta.name}`).toBe(
+                meta.sha256,
+            );
+        }
+    });
 });
 
 describe("a generator's picture", () => {

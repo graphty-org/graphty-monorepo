@@ -9,6 +9,7 @@
  *
  *   graph-samples/thumbnails/<dataset>.webp              every dataset, small and large
  *   graph-samples/thumbnails/generator-<generator>.webp  every generator in GENERATOR_CATALOG
+ *   graph-samples/data/thumbnails.json                   the SHA-256 of the file each dataset's picture was drawn from
  *   graphty/public/samples/<sample>.webp                 the graphty app's own samples in APP_SAMPLES
  *   graphty/public/samples/network-<source>.webp         the start page's network samples in NETWORK_SAMPLES
  *
@@ -65,9 +66,6 @@ const NETWORK_SAMPLES = JSON.parse(
     readFileSync(path.join(root, "graphty/src/workspace/start/network-samples.json"), "utf8"),
 );
 
-/** The picture's size in pixels: twice a 240 x 150 tile, for sharp screens. */
-const WIDTH = 480;
-const HEIGHT = 300;
 /** The layout and sampling seed, so every run draws the same picture. */
 const SEED = 7;
 /** How many nodes a large dataset's sample holds. */
@@ -90,9 +88,14 @@ const EMPHASIS = {
 };
 
 const { fromBytes } = await import(pathToFileURL(path.join(root, "graph-format/dist/src/index.js")).href);
-const { DATASETS, DEFAULT_DATASET_BASE_URL, GENERATOR_CATALOG, toElementData } = await import(
+const { DATASETS, DEFAULT_DATASET_BASE_URL, GENERATOR_CATALOG, THUMBNAIL_SIZE, toElementData } = await import(
     pathToFileURL(path.join(root, "graph-samples/dist/src/index.js")).href
 );
+/** The picture's size in pixels (480 x 300: twice a 240 x 150 tile, for sharp screens). */
+const { width: WIDTH, height: HEIGHT } = THUMBNAIL_SIZE;
+/** Each dataset's picture: the SHA-256 of the file it was drawn from, which graph-samples' tests compare with the catalog. */
+const drawnFromFile = path.join(root, "graph-samples/data/thumbnails.json");
+const drawnFrom = existsSync(drawnFromFile) ? JSON.parse(readFileSync(drawnFromFile, "utf8")) : {};
 const { generateGraph } = await import(
     pathToFileURL(path.join(root, "graph-samples/dist/src/generators/index.js")).href
 );
@@ -379,7 +382,7 @@ async function jobs(wanted) {
                   layout: { id: "force", options: { seed: SEED } },
               }
             : await largeJob(meta);
-        list.push({ file: `${meta.name}.webp`, name: meta.name, directed: meta.directed, ...job });
+        list.push({ file: `${meta.name}.webp`, name: meta.name, directed: meta.directed, sha256: meta.sha256, ...job });
     }
     for (const generator of GENERATOR_CATALOG.filter((each) => want(each.name))) {
         const params = Object.fromEntries(generator.params.map((param) => [param.name, param.default]));
@@ -456,6 +459,9 @@ try {
                 waitGuardMs: WAIT_GUARD_MS,
             });
             writeFileSync(path.resolve(outDir, job.file), Buffer.from(picture, "base64"));
+            if (job.sha256 !== undefined) {
+                drawnFrom[job.name] = job.sha256;
+            }
             const drawn = job.records === undefined ? job.example : `${job.records.nodes.length} nodes`;
             console.log(`${job.file} (${job.layout.engine ?? job.layout.id}, ${drawn})`);
         } catch (error) {
@@ -469,6 +475,8 @@ try {
     await browser.close();
     server.close();
 }
+const sorted = Object.fromEntries(Object.entries(drawnFrom).sort(([a], [b]) => a.localeCompare(b)));
+writeFileSync(drawnFromFile, `${JSON.stringify(sorted, null, 4)}\n`);
 process.exit(failed === 0 ? 0 : 1);
 
 /**

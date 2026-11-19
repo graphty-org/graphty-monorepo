@@ -243,6 +243,31 @@ Each is one undoable step, like any other load. `generate` rejects an unknown na
 `E_UNKNOWN_GENERATOR`, an unknown parameter with `E_UNKNOWN_OPTION` and a value outside the
 parameter's range with `E_OPTION_RANGE`.
 
+### A picture of each sample
+
+Every dataset and generator carries a `thumbnail`: the file name of a small picture of its graph,
+drawn by graphty-element and published beside the dataset files, so a picker can show what a
+sample looks like without downloading or laying out anything. Every picture is
+`SAMPLE_THUMBNAIL_SIZE` pixels (480 x 300) with a transparent background.
+
+```typescript
+import { DATASET_DESCRIPTORS, DEFAULT_DATASET_BASE_URL, SAMPLE_THUMBNAIL_SIZE } from "@graphty/graphty-element/catalog";
+
+const session = document.querySelector("graphty-element")!.session;
+const picker = document.querySelector("#samples")!;
+for (const dataset of DATASET_DESCRIPTORS) {
+    const card = document.createElement("button");
+    if (dataset.thumbnail !== undefined) {
+        const picture = new Image(SAMPLE_THUMBNAIL_SIZE.width / 2, SAMPLE_THUMBNAIL_SIZE.height / 2);
+        picture.src = DEFAULT_DATASET_BASE_URL + dataset.thumbnail;
+        card.append(picture);
+    }
+    card.append(`${dataset.title} (${dataset.nodes} nodes)`);
+    card.onclick = () => session.data.loadDataset(dataset.name, { baseUrl: DEFAULT_DATASET_BASE_URL });
+    picker.append(card);
+}
+```
+
 ## Preview a Load Before Loading It
 
 `session.data.prepare(source)` reads a file once and holds it, so a reader can see its tables and

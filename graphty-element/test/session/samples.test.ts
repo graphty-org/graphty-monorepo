@@ -121,6 +121,18 @@ describe("session.catalog.datasets and data.loadDataset", () => {
         session.dispose();
     });
 
+    it("loads a dataset as an ordinary import: its source and report filled, one undo step, nodes named", async () => {
+        const session = createGraphSession();
+        await session.data.loadDataset("dolphins", { baseUrl });
+        assert.isNotNull(session.data.source());
+        assert.isNotNull(session.data.lastImport());
+        const names = Array.from({ length: session.data.snapshot().nodeCount }, (_, index) => session.data.name(index));
+        assert.include(names, "Beak", "a dolphin is named, not numbered");
+        await session.undo();
+        assert.strictEqual(session.data.snapshot().nodeCount, 0, "one undo takes the whole load back");
+        session.dispose();
+    });
+
     it("names no download host of its own: a load without a baseUrl is refused", async () => {
         const session = createGraphSession();
         const fetched = vi.fn(fetch);

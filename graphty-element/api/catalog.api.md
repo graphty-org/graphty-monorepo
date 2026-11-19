@@ -21,6 +21,7 @@ import type { MapSourceId } from 'babylonjs-map';
 import { ModelDetection } from 'babylonjs-models/detect';
 import { ModelDetectionInput } from 'babylonjs-models/detect';
 import { ModelFormat } from 'babylonjs-models/detect';
+import { THUMBNAIL_SIZE as SAMPLE_THUMBNAIL_SIZE } from '@graphty/graph-samples';
 import { SourceInfo } from '@graphty/graph-io';
 import { z } from 'zod';
 
@@ -2657,6 +2658,8 @@ export interface SameValueLeaf {
     readonly kind: "same-value";
     readonly path: Path;
 }
+
+export { SAMPLE_THUMBNAIL_SIZE }
 
 // @public
 export const SCALE_DESCRIPTORS: readonly ScaleDescriptor[];

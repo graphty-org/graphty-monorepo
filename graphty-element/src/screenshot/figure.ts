@@ -246,13 +246,16 @@ function figureSvg(drawing: FigureDrawing, key: readonly FigureMark[]): string {
                 `stroke-width="${num(e.width)}"${opacityAttr("stroke-opacity", e.opacity)}/>`,
         );
     }
-    out.push(
-        `</g><g>`,
-        ...drawing.nodes.map((n) => shapeSvg(n)),
-        `</g><g>`,
-        ...drawing.caps.map((c) => shapeSvg(c)),
-        `</g><g text-anchor="middle" dominant-baseline="central">`,
-    );
+    // One push per shape: spreading a million shapes into one call overflows the stack (#9034).
+    out.push(`</g><g>`);
+    for (const n of drawing.nodes) {
+        out.push(shapeSvg(n));
+    }
+    out.push(`</g><g>`);
+    for (const c of drawing.caps) {
+        out.push(shapeSvg(c));
+    }
+    out.push(`</g><g text-anchor="middle" dominant-baseline="central">`);
     for (const t of drawing.texts) {
         if (t.background !== undefined) {
             const bg = t.background;

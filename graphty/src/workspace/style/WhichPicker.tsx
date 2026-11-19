@@ -1432,10 +1432,12 @@ export function AddCondition({
                 }
                 break;
             case "Escape":
-                // Escape closes the list only, not the picker it opened from.
+                // Escape closes the list only, not the picker it opened from. Focus goes back to
+                // what opened it -- the anchor when there is one, which `button` never holds --
+                // before the search unmounts, so focus is never left on the page.
                 event.preventDefault();
                 combobox.closeDropdown();
-                button.current?.focus();
+                combobox.targetRef.current?.focus();
                 break;
             case "Tab":
                 // With letters typed, Tab takes the attribute they highlight and moves on into its
@@ -1451,7 +1453,7 @@ export function AddCondition({
                 if (event.shiftKey) {
                     event.preventDefault();
                 }
-                button.current?.focus();
+                combobox.targetRef.current?.focus();
                 break;
             default:
                 break;

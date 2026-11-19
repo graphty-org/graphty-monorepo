@@ -1075,6 +1075,14 @@ export class Graph implements GraphContext {
         this.updateManager.frameIsStable &&
         !(this.updateManager.autoTurning && this.renderManager.canvasInView) &&
         (this.xrSessionManager?.getActiveMode() ?? null) === null;
+    /**
+     * Whether a tick drawing on demand, or any tick under renderPath "batched", may skip its frame
+     * because the running layout landed nothing new since the last one, and no headset is showing
+     * the picture. See `RenderManager.mayRest`.
+     * @returns True when only a layout landing would change the picture.
+     */
+    private readonly awaitsLanding = (): boolean =>
+        this.updateManager.awaitsLanding && (this.xrSessionManager?.getActiveMode() ?? null) === null;
     /** How many `batchOperations` callbacks are open. */
     private openBatches = 0;
     private readonly selectionManager: SelectionManager;
@@ -1196,6 +1204,7 @@ export class Graph implements GraphContext {
             (row) => this.dataManager.edgeDirected(row),
             () => this.session.config.minMarkSize,
             () => this.dataManager.nodes.size > DEFAULT_LIMITS.largeGraphThreshold,
+            () => this.#darkScheme,
         );
 
         // get the element that we are going to use for placing our canvas
@@ -1229,7 +1238,9 @@ export class Graph implements GraphContext {
         this.renderManager = new RenderManager(this.canvas, this.eventManager, {
             pixelRatio: this.#pixelRatio,
             pictureIsFinal: this.pictureIsFinal,
+            awaitsLanding: this.awaitsLanding,
             drawsOnDemand: this.drawsOnDemand,
+            restsBetweenLandings: this.#batchedFrames,
             flushesFrameFence: this.#batchedFrames,
             pacesWebGpuFrames: this.#batchedFrames,
             antialias: this.#multisampled,
@@ -1334,6 +1345,7 @@ export class Graph implements GraphContext {
                 // Under "batched" only, the repaint fills a uniform dirty set's mesh keys at once.
                 batched: () => this.#renderPath === "batched",
                 nodeSizeSpace: () => this.styles.config.behavior.node.sizeSpace,
+                darkScheme: () => this.#darkScheme,
             },
         );
 
@@ -2572,7 +2584,9 @@ export class Graph implements GraphContext {
             engine: opened,
             pixelRatio: this.#pixelRatio,
             pictureIsFinal: this.pictureIsFinal,
+            awaitsLanding: this.awaitsLanding,
             drawsOnDemand: this.drawsOnDemand,
+            restsBetweenLandings: this.#batchedFrames,
             flushesFrameFence: this.#batchedFrames,
             pacesWebGpuFrames: this.#batchedFrames,
             antialiasAtRest: this.#antialiasAtRest,
@@ -6479,7 +6493,9 @@ export class Graph implements GraphContext {
     /**
      * Clear the canvas to the background's `color` (`"light"`, the default) or its `darkColor`
      * (`"dark"`); `"auto"` follows the page's `prefers-color-scheme` as it changes. Repaints at
-     * once, with nothing reloaded. A preference of the view, not saved in a project file.
+     * once, with nothing reloaded. Under a dark scheme a label no layer colors is drawn light, and
+     * `session.config.backgroundColor` reports the dark color. A preference of the view, not saved
+     * in a project file.
      * @param scheme - "light", "dark" or "auto".
      * @throws TypeError when the scheme is none of the three; nothing is changed then.
      * @since 3.58.0
@@ -6497,7 +6513,27 @@ export class Graph implements GraphContext {
                 ? matchMedia("(prefers-color-scheme: dark)")
                 : null;
         const apply = (): void => {
-            this.renderManager.darkScheme = scheme === "dark" || (query?.matches ?? false);
+            const dark = scheme === "dark" || (query?.matches ?? false);
+            this.renderManager.darkScheme = dark;
+            if (dark === this.#darkScheme) {
+                return;
+            }
+
+            this.#darkScheme = dark;
+            // Labels no layer colored change color with the scheme: paint every mark again.
+            void this.operationQueue
+                .queueOperationAsync(
+                    "style-apply",
+                    async () => {
+                        await this.repaintFromSession();
+                    },
+                    {
+                        description: "Repainting for the color scheme",
+                    },
+                )
+                .catch((error: unknown) => {
+                    graphLogger.error("The repaint for the color scheme failed.", asError(error));
+                });
         };
         if (query !== null) {
             this.#schemeQuery = new AbortController();
@@ -6511,6 +6547,9 @@ export class Graph implements GraphContext {
 
     /** See {@link setColorScheme}. */
     #colorScheme: ColorScheme = "light";
+
+    /** Whether the scheme in effect is dark: `"dark"`, or `"auto"` on a dark page. */
+    #darkScheme = false;
 
     /** Ends the platform-preference listener `"auto"` adds. */
     #schemeQuery: AbortController | null = null;
@@ -8410,8 +8449,9 @@ export class Graph implements GraphContext {
 
         const cancelled = this.activeCapture.cancel();
 
-        // Emit cancellation event
+        // `animation-cancelled` is the deprecated British name, still sent until the next major.
         if (cancelled) {
+            this.eventManager.emit("animation-canceled", {});
             this.eventManager.emit("animation-cancelled", {});
         }
 

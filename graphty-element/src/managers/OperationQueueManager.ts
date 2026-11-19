@@ -2,7 +2,7 @@ import PQueue from "p-queue";
 import toposort from "toposort";
 
 import { OBSOLESCENCE_RULES } from "../constants/obsolescence-rules";
-import type { OperationCancelledEvent } from "../events";
+import type { OperationCanceledEvent, OperationCancelledEvent } from "../events";
 import { GraphtyLogger, type Logger } from "../logging/GraphtyLogger.js";
 import type { OperationMetadata, OperationProgress } from "../types/operations";
 import type { EventManager } from "./EventManager";
@@ -560,7 +560,7 @@ export class OperationQueueManager implements Manager {
                 )
                 // p-queue rejects here only when the operation's signal aborted. Whoever aborted it
                 // already said why: `obsolete()` emits `operation-obsoleted` with the operation that
-                // replaced it, `cancelOperation()` and `clear()` emit `operation-cancelled`, and a
+                // replaced it, `cancelOperation()` and `clear()` emit `operation-canceled`, and a
                 // disposed queue has nobody left to tell. Emitting again here reported every
                 // obsoleted operation twice, and called a manual cancel an obsolescence.
                 .catch(() => undefined);
@@ -920,6 +920,25 @@ export class OperationQueueManager implements Manager {
     }
 
     /**
+     * Tell listeners an operation was aborted: `operation-canceled`, then the same event under its
+     * deprecated British name `operation-cancelled` (code `"cancelled"`), sent until the next major.
+     * @param id - The operation's id.
+     * @param code - Why it was aborted.
+     */
+    private emitCanceled(id: string, code: OperationCanceledEvent["code"]): void {
+        this.eventManager.emit("operation-canceled", {
+            type: "operation-canceled",
+            id,
+            code,
+        } satisfies OperationCanceledEvent);
+        this.eventManager.emit("operation-cancelled", {
+            type: "operation-cancelled",
+            id,
+            code: code === "canceled" ? "cancelled" : code,
+        } satisfies OperationCancelledEvent);
+    }
+
+    /**
      * Clear all pending operations
      */
     clear(): void {
@@ -928,11 +947,7 @@ export class OperationQueueManager implements Manager {
         this.activeControllers.forEach((controller, id) => {
             if (!controller.signal.aborted && this.rankOf(id) !== -1) {
                 controller.abort();
-                this.eventManager.emit("operation-cancelled", {
-                    type: "operation-cancelled",
-                    id,
-                    code: "queue-cleared",
-                } satisfies OperationCancelledEvent);
+                this.emitCanceled(id, "queue-cleared");
             }
         });
 
@@ -1025,12 +1040,7 @@ export class OperationQueueManager implements Manager {
                 this.settleResolved(waiting);
             }
 
-            // Emit cancellation event
-            this.eventManager.emit("operation-cancelled", {
-                type: "operation-cancelled",
-                id: operationId,
-                code: "cancelled",
-            } satisfies OperationCancelledEvent);
+            this.emitCanceled(operationId, "canceled");
 
             return true;
         }

@@ -278,7 +278,9 @@ is at rest, and draws again as soon as the data, a style, the layout, the camera
 the reader's pointer, wheel or keys change the picture. A still graph then costs the page nothing
 per frame, which matters most where the GPU is emulated in software (virtual machines, CI runners,
 headless browsers): there each frame costs the page tens of milliseconds or more, and the page's
-own buttons and fields answer that much later.
+own buttons and fields answer that much later. While a layout runs on the GPU it also skips the
+frames between two landings of the layout's batches; under `render-path="batched"` those frames are
+skipped even with this option off.
 
 ```html
 <graphty-element render-on-demand></graphty-element>

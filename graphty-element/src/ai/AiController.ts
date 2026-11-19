@@ -3188,6 +3188,8 @@ When the user asks you to perform an action, use the appropriate tool. If no too
 
             this.cancelled.add(abortController);
             abortController.abort();
+            // `ai-command-cancelled` is the deprecated British name, still sent until the next major.
+            this.emitAiEvent({ type: "ai-command-canceled", input, reason: "user" });
             this.emitAiEvent({ type: "ai-command-cancelled", input, reason: "user" });
         }
     }

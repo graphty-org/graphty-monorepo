@@ -315,8 +315,12 @@ export function compileRecords(
         ...(records.nodes === undefined ? {} : { nodes: records.nodes as readonly Row[] }),
         ...(records.edges === undefined ? {} : { edges: records.edges as readonly Row[] }),
     };
-    const fact =
-        records.edges === undefined ? "data.replace-nodes" : records.nodes === undefined ? "data.replace-edges" : "data.set";
+    let fact = "data.set" as "data.set" | "data.replace-nodes" | "data.replace-edges";
+    if (records.edges === undefined) {
+        fact = "data.replace-nodes";
+    } else if (records.nodes === undefined) {
+        fact = "data.replace-edges";
+    }
     const copy = mintCopyId();
     const source: StepsSource = {
         id: prior?.id ?? mintSourceId(),
@@ -335,7 +339,11 @@ export function compileRecords(
             : { kind: "set", value: { ...value, sources: { ...value.sources, [source.id]: source } } };
     return {
         op: "batch",
-        label: { "data.replace-nodes": "Replaced the nodes", "data.replace-edges": "Replaced the edges", "data.set": "Set the graph data" }[fact],
+        label: {
+            "data.replace-nodes": "Replaced the nodes",
+            "data.replace-edges": "Replaced the edges",
+            "data.set": "Set the graph data",
+        }[fact],
         fact: { code: fact, params: {} },
         steps: [{ op: "data.steps-set", edit, copies: { [copy]: tables } }],
         ...(setup ? { setup } : {}),

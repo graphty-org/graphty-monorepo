@@ -426,8 +426,9 @@ only), `rules` and `schema`.
   turned to text as keys are (11).
 - Every node and every edge holds exactly one type. Among the types whose rules match one row of
   one source, a type matched by a rule with `column` and `values` beats a type matched only by a
-  rule without `column` (the source's whole-source or whole-end rule, which acts as "others"), and
-  among those the first in registry order wins. A row's own rules decide its edge's type. When
+  rule without `column` (the source's whole-source or whole-end rule, which acts as "others");
+  between rules of the same kind, one naming the row's `part` beats one naming none; and among
+  those the first in registry order wins. A row's own rules decide its edge's type. When
   rows of several steps would give one node different types (keys of two sources meeting in a
   space), the first step in build order sets it, a source's node rows before its edge ends. A row
   matching no rule gives the default type, which has no name and no entry: its element writes

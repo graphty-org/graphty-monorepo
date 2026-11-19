@@ -42,6 +42,7 @@ import {
     mitredEdges,
     offsetOutline,
     type Point2,
+    sharpTwinOf,
     type WaveShape,
 } from "./shapeOutlines";
 
@@ -694,8 +695,15 @@ export class NodeMesh {
 
         const build = type === "none" ? bodilessSlab : outlineSlab;
         const mesh = build(type, this.flatOutline(shape, extents), extents.z ?? extents.across, scene);
-        if ((shape.rotation ?? 0) % 360 !== 0) {
-            setLabelBox(mesh, this.unturnedFlatOutline(shape, extents));
+        // a rounded polygon's label is placed against its sharp twin's box, the node's own width and height, as
+        // Cytoscape.js places it: its rounded apex is lower than the box's top (json-cyjs-synth-nodes round-triangle)
+        // the twins named in shapeOutlines' ROUNDED are node shapes too
+        const sharp = sharpTwinOf(type) as NonNullable<NodeStyleConfig["shape"]>["type"];
+        if ((shape.rotation ?? 0) % 360 !== 0 || sharp !== undefined) {
+            setLabelBox(
+                mesh,
+                this.unturnedFlatOutline(sharp === undefined ? shape : { ...shape, type: sharp }, extents),
+            );
         }
 
         return mesh;

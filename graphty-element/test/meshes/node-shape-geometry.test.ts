@@ -554,6 +554,16 @@ describe("node extents", () => {
         assert.isUndefined(labelBoxOf(build({ type: "ellipse", size: 1, width: 4, height: 2 })));
     });
 
+    test("a rounded polygon's label box is its sharp twin's, as Cytoscape.js places the label", () => {
+        // the rounded apex falls short of the box's top, where the label still sits
+        const mesh = build({ type: "round-triangle", size: 1, width: 4, height: 4 });
+        const drawn = extentOf(mesh);
+        const box = labelBoxOf(mesh);
+        assert.isDefined(box);
+        assert.isBelow(drawn.y, 4 * NODE_EXTENT_PER_SIZE - 1e-3);
+        assert.approximately((box?.max.y ?? 0) - (box?.min.y ?? 0), 4 * NODE_EXTENT_PER_SIZE, 1e-3);
+    });
+
     test("width and height set the extent along each axis, for a solid and a flat shape", () => {
         for (const type of ["sphere", "round-rectangle"] as const) {
             const { x, y } = extentOf(build({ type, size: 1, width: 4, height: 1 }));

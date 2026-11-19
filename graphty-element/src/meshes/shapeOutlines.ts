@@ -474,6 +474,15 @@ const ROUNDED: Readonly<Record<string, string>> = {
     "round-polygon": "polygon",
 };
 
+/**
+ * The sharp polygon a rounded one is drawn inside: its corners cut, it no longer reaches its box.
+ * @param shape - A node shape name.
+ * @returns The sharp shape's name, or undefined for a shape that is not a rounded polygon.
+ */
+export function sharpTwinOf(shape: string): string | undefined {
+    return Object.hasOwn(ROUNDED, shape) ? ROUNDED[shape] : undefined;
+}
+
 /** The rectangles with rounded corners, by which corners: all four (0), the top two (1) or the bottom two (-1). */
 const ROUND_RECTANGLES: Readonly<Record<string, number>> = {
     "round-rectangle": 0,

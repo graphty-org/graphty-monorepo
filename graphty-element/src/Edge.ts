@@ -64,6 +64,7 @@ import { EDGE_NEVER, EdgeShaderDrawing, type EdgeStaticLook, edgeStaticValues } 
 import { type EdgeTrimInput, TRIM_CLOSED, TRIM_NO_HIT, type TrimEnd, trimEnds } from "./meshes/edgeTrim";
 import { TEE_DEPTH } from "./meshes/FilledArrowRenderer";
 import { batchUploadFrames } from "./meshes/FrameRoster";
+import { oweLabelAnimations } from "./meshes/labelAnimationDebt";
 import type { ColumnRow } from "./meshes/NodeBatch";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { movingTexel } from "./meshes/pulledAnimatedLine";
@@ -5781,6 +5782,16 @@ export class Edge {
     }
 
     /**
+     * Start the animation of every label this edge has on screen (each starts once).
+     * @internal
+     */
+    startLabelAnimations(): void {
+        for (const label of [this.label, this.xlabelLabel, this.arrowHeadText, this.arrowTailText]) {
+            label?.startAnimation();
+        }
+    }
+
+    /**
      * Where one of this edge's three pieces of text hangs, and how far off.
      *
      * ONE PLACE FOR BOTH ANSWERS, because they were worked out twice and could disagree: the
@@ -5864,6 +5875,8 @@ export class Edge {
         block: RichTextStyleType | undefined,
         placement: { attachPosition: AttachPosition; attachOffset: number },
     ): RichTextLabelOptions {
+        // Every edge label is built from these options; its animation starts on the first frame at rest.
+        oweLabelAnimations(this.context.getScene());
         if (!block) {
             return {
                 text: labelText,

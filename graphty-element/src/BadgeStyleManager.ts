@@ -141,19 +141,12 @@ export const BadgeStyleManager = {
         // label that asks for it is shortened too. The count and notification badges switch it on
         // by default, so they are unchanged.
         BadgeStyleManager.applySmartOverflow(options, userOptions);
+        // Every label too: `icon` and `iconPosition` are published label fields, and a plain label
+        // that asked for an icon drew none until it was also an icon badge.
+        BadgeStyleManager.applyIconBehavior(options, userOptions);
 
-        switch (badgeType) {
-            case "dot":
-                if (options._removeText) {
-                    options.text = "";
-                }
-
-                break;
-            case "icon":
-                BadgeStyleManager.applyIconBehavior(options, userOptions);
-                break;
-            default:
-                break;
+        if (badgeType === "dot" && options._removeText) {
+            options.text = "";
         }
     },
 

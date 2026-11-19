@@ -1685,6 +1685,16 @@ export class Node implements ModelUser {
      * Every label this node has on screen: its label, tooltip, external label and further texts.
      * @returns They.
      */
+    /**
+     * Start the animation of every label this node has on screen (each starts once).
+     * @internal
+     */
+    startLabelAnimations(): void {
+        for (const label of this.labels()) {
+            label.startAnimation();
+        }
+    }
+
     private labels(): RichTextLabel[] {
         const all = [this.label, this.tooltip, this.xlabelLabel, ...this.shapeTextLabels];
         return all.filter((label): label is RichTextLabel => label !== undefined);
@@ -4497,6 +4507,8 @@ export class Node implements ModelUser {
             ...(place ? { offsetX: place[0], offsetY: place[1] } : {}),
             ...wanted,
         };
+        // its animation starts with the label's, on the first frame at rest
+        oweLabelAnimations(this.#anchor.getScene());
         this.xlabelLabel = new RichTextLabel(
             this.#anchor.getScene(),
             this.createLabelOptions(String(wanted.text), style),
@@ -4619,6 +4631,10 @@ export class Node implements ModelUser {
         if (this.tooltip) {
             this.hideTooltip();
             this.showTooltip();
+        } else if (this.context.getSelectionManager?.()?.isHovered(this.id) === true) {
+            // The pointer arrived before the words did (a layer added, or its paint landing, while
+            // the reader rests on the node): nothing else will draw the tooltip until they leave.
+            this.showTooltip();
         }
     }
 
@@ -4639,6 +4655,8 @@ export class Node implements ModelUser {
             ...this.createLabelOptions(text, this.wantedTooltip),
             onTop: true,
         });
+        // drawn on a pointer's arrival, when the graph is already at rest: its animation starts now
+        this.tooltip.startAnimation();
         this.context.getNodeBatches?.()?.rewalk(this);
     }
 

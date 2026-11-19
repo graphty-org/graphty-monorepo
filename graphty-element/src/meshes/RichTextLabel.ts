@@ -750,7 +750,7 @@ export class RichTextLabel {
             pointerWidth: 20,
             pointerHeight: 15,
             pointerOffset: 0,
-            pointerCurve: true,
+            pointerCurve: false,
             attachTo: undefined,
             attachPosition: "top",
             attachOffset: 0.5,

@@ -3717,7 +3717,10 @@ export class DataManager implements Manager {
      */
     startLabelAnimations(): void {
         for (const node of this.nodeMap.built()) {
-            node.label?.startAnimation();
+            node.startLabelAnimations();
+        }
+        for (const edge of this.edgeMap.builtView().values()) {
+            edge.startLabelAnimations();
         }
     }
 

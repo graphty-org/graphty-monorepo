@@ -470,7 +470,7 @@ export interface LabelStyle {
 
     /** A badge drawn in place of, or beside, the words. */
     badge?: LabelBadge;
-    /** The glyph a badge draws when it is an icon badge. */
+    /** A glyph drawn beside the words (the whole label of an icon badge with no words of its own). */
     icon?: string;
     /** Which side of the words that icon sits on. */
     iconPosition?: LabelIconPosition;

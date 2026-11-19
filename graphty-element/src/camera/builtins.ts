@@ -28,6 +28,7 @@
 
 import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 
+import { isPointBox } from "./bounds";
 import { freeArea } from "./insets";
 import { orientationOf } from "./orientation";
 import type { CameraState, CameraViewInput } from "./types";
@@ -105,9 +106,14 @@ function fromCurrentAngle(input: CameraViewInput, fov: number): CameraState | un
     const tanY = Math.tan(fov / 2) / KEPT_ANGLE_PADDING;
     const tanX = aspect > 0 ? tanY * aspect : tanY;
 
+    // A box around a single point is centered on the point itself, not on the picture of its
+    // corners: the nearer corners project larger, and centering them put a lone node off center.
+    const onPoint = isPointBox(bounds);
+
     // A point `along` toward the viewer and `s` across stands `distance - along` in front of the
     // camera; it is in frame when |s - offset| <= (distance - along) * tan. The nearest distance
-    // that holds every point on one axis, whatever the offset, is the closed form below.
+    // that holds every point on one axis, whatever the offset, is the closed form below; with the
+    // offset held at zero it is the farthest point's own.
     const nearest = (key: "x" | "y", tan: number): number => {
         let high = -Infinity;
         let low = Infinity;
@@ -116,11 +122,11 @@ function fromCurrentAngle(input: CameraViewInput, fov: number): CameraState | un
             low = Math.min(low, point[key] - point.along * tan);
         }
 
-        return (high - low) / (2 * tan);
+        return onPoint ? Math.max(high, -low) / tan : (high - low) / (2 * tan);
     };
     const distance = Math.max(0, nearest("x", tanX), nearest("y", tanY));
-    const offsetX = centeredOffset(points, "x", distance);
-    const offsetY = centeredOffset(points, "y", distance);
+    const offsetX = onPoint ? 0 : centeredOffset(points, "x", distance);
+    const offsetY = onPoint ? 0 : centeredOffset(points, "y", distance);
     const target = {
         x: center.x + right.x * offsetX + up.x * offsetY,
         y: center.y + right.y * offsetX + up.y * offsetY,

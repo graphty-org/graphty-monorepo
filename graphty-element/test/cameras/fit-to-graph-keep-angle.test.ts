@@ -1,6 +1,7 @@
 import { Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 import { assert, describe, it } from "vitest";
 
+import { measureBounds } from "../../src/camera/bounds";
 import { resolveCameraView } from "../../src/camera/resolve";
 import type { CameraState, GraphBounds, Vec3 } from "../../src/camera/types";
 
@@ -161,5 +162,19 @@ describe("fitToGraph keepAngle", () => {
             }
             assert.closeTo(tightest, 1, 1e-9, `aspect ${String(aspect)}: the tightest corner touches the padded frame`);
         }
+    });
+
+    it("centers a lone point on screen: the picture of its stand-in box is not what is framed", () => {
+        const point = { x: 7, y: -3, z: 11 };
+        const state = resolveCameraView("fitToGraph", {
+            ...context({ keepAngle: true }),
+            bounds: measureBounds([point]),
+        });
+        assert.deepEqual(state.target, point, "the camera looks straight at the point");
+        assert.exists(state.position);
+        const toViewer = unit(sub(state.position, point));
+        assert.closeTo(toViewer.x, BACK.x, 1e-9, "the angle is kept");
+        assert.closeTo(toViewer.y, BACK.y, 1e-9, "the angle is kept");
+        assert.closeTo(toViewer.z, BACK.z, 1e-9, "the angle is kept");
     });
 });

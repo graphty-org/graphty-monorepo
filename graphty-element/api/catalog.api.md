@@ -2909,9 +2909,7 @@ export interface ShaderDescriptor {
 
 // @public
 export interface ShaderGlyph {
-    // (undocumented)
     readonly outline?: boolean;
-    // (undocumented)
     readonly path: string;
 }
 
@@ -3046,7 +3044,6 @@ export type ShaderText = string;
 export interface ShaderTextDraft {
     // (undocumented)
     readonly [key: string]: unknown;
-    // (undocumented)
     readonly params?: readonly ShaderParamDraft[];
 }
 

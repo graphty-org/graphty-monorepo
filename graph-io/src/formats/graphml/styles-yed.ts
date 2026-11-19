@@ -962,7 +962,7 @@ function readLabels(
     at: SiteOf,
     geometry?: unknown,
     uml = false,
-    icons?: ReadonlyMap<string, readonly [number, number]>,
+    icons?: ReadonlyMap<string, LabelIcon>,
 ): void {
     const shown = labels.filter((l) => labelShown(l));
     const label = shown[0];
@@ -1040,14 +1040,15 @@ function readSecondLabel(label: unknown, geometry: unknown, put: PutValue, at: S
  * Where yEd writes a node label's words beside its icon (`iconData`): as Java's JLabel lays out a label, the icon and
  * the words `iconTextGap` apart, the words left or right of the icon (`horizontalTextPosition`) lined up with its top,
  * middle or bottom, or above, over or below it (`verticalTextPosition`), set against its left or right side for
- * `left_aligned` and `right_aligned`, and the two together centered in the label. graphty-element draws no label icon,
- * so the words are moved to where yEd writes them (`yed-graphml-specimen-images-charts` icon-text-*). Read for a label in
- * the middle of its node by the internal model; the words' line is the font's, without the box's padding.
+ * `left_aligned` and `right_aligned`, and the two together centered in the label. The words are moved to where yEd
+ * writes them, and the icon is drawn in the label (`labelImage`) where yEd draws it, from the words' middle
+ * (`yed-graphml-specimen-images-charts` icon-text-*, `graphml-stm32-func`). Read for a label in the middle of its node by
+ * the internal model; the words' line is the font's, without the box's padding.
  * @param label - the label element
- * @param icons - the graph's label icons: each icon resource's id to the size yEd draws it
+ * @param icons - the graph's label icons: each icon resource's id to its picture and the size yEd draws it
  * @param put - receives the values
  */
-function readIconPlace(label: unknown, icons: ReadonlyMap<string, readonly [number, number]>, put: PutValue): void {
+function readIconPlace(label: unknown, icons: ReadonlyMap<string, LabelIcon>, put: PutValue): void {
     const id = treeAttr(label, "iconData");
     const icon = id === undefined ? undefined : icons.get(id);
     const middle = (treeAttr(label, "modelPosition") ?? "c") === "c";
@@ -1057,7 +1058,7 @@ function readIconPlace(label: unknown, icons: ReadonlyMap<string, readonly [numb
     if (sizedLabelPosition(label, "center") !== "center") {
         return;
     }
-    const [iw, ih] = icon;
+    const [iw, ih] = icon.size;
     const num = (k: string, fallback: number): number => {
         const n = Number(treeAttr(label, k) ?? fallback);
         return Number.isFinite(n) ? n : fallback;
@@ -1076,23 +1077,36 @@ function readIconPlace(label: unknown, icons: ReadonlyMap<string, readonly [numb
         }
         return side === "bottom" ? 1 : 0;
     };
+    // the words' middle (x, y) and the icon's (ix, iy), from the label's
     let x = 0;
     let y: number;
+    let ix = 0;
+    let iy: number;
     if (across === "left" || across === "right") {
         x = ((across === "left" ? -1 : 1) * (iw + gap)) / 2;
+        ix = ((across === "left" ? 1 : -1) * (tw + gap)) / 2;
         y = (way(down) * (Math.max(ih, th) - th)) / 2;
+        iy = (way(down) * (Math.max(ih, th) - ih)) / 2;
     } else {
         y = (way(down) * (ih + gap)) / 2;
+        iy = (-way(down) * (th + gap)) / 2;
         const span = Math.max(iw, tw);
         if (across === "left_aligned") {
             x = (tw - span) / 2;
+            ix = (iw - span) / 2;
         } else if (across === "right_aligned") {
             x = (span - tw) / 2;
+            ix = (span - iw) / 2;
         }
     }
     const signed = (value: number): number | null => Math.round(value * 1000) / 1000 || null;
     put("labelOffsetX", signed(x));
     put("labelOffsetY", signed(y));
+    put("labelImage", icon.picture);
+    put("labelImageWidth", iw);
+    put("labelImageHeight", ih);
+    put("labelImageOffsetX", signed(ix - x));
+    put("labelImageOffsetY", signed(iy - y));
 }
 
 /**
@@ -1729,18 +1743,21 @@ function yedResources(snapshot: GraphSnapshot): ReadonlyMap<string, string> {
     return out;
 }
 
+/** A yEd label icon: the size yEd draws it and its picture. */
+interface LabelIcon {
+    readonly size: readonly [number, number];
+    readonly picture: string;
+}
+
 /**
  * yEd's label icons: each `<y:Resource>` holding a `yed:ScaledIcon` of a `yed:ImageIcon` to the size yEd draws it, its
  * PNG's own size by the icon's `xScale` and `yScale`.
  * @param snapshot - the graph
  * @param resources - the graph's shared pictures, by id
- * @returns the icons' sizes, by resource id
+ * @returns the icons, by resource id
  */
-function yedIconSizes(
-    snapshot: GraphSnapshot,
-    resources: ReadonlyMap<string, string>,
-): ReadonlyMap<string, readonly [number, number]> {
-    const out = new Map<string, readonly [number, number]>();
+function yedIconSizes(snapshot: GraphSnapshot, resources: ReadonlyMap<string, string>): ReadonlyMap<string, LabelIcon> {
+    const out = new Map<string, LabelIcon>();
     for (const col of snapshot.graph) {
         if (col.dtype !== "json" || col.meta.origin?.namespace !== "yfiles") {
             continue;
@@ -1759,23 +1776,25 @@ function yedIconSizes(
 }
 
 /**
- * The size yEd draws one `<y:Resource>`'s scaled icon: its PNG's own size by the icon's `xScale` and `yScale`.
+ * One `<y:Resource>`'s scaled icon: its PNG, and the size yEd draws it, the PNG's own size by the icon's `xScale` and
+ * `yScale`.
  * @param r - the resource
  * @param resources - the graph's shared pictures, by id
- * @returns the size, or null when it holds no PNG that reads
+ * @returns the icon, or null when it holds no PNG that reads
  */
-function yedIconSize(r: unknown, resources: ReadonlyMap<string, string>): readonly [number, number] | null {
+function yedIconSize(r: unknown, resources: ReadonlyMap<string, string>): LabelIcon | null {
     const scaled = treeChild(r, "ScaledIcon");
     const image = treeAttr(treeChild(scaled, "ImageIcon"), "image");
-    const size = pngSize(image === undefined ? undefined : resources.get(image));
-    if (size === null) {
+    const picture = image === undefined ? undefined : resources.get(image);
+    const size = pngSize(picture);
+    if (size === null || picture === undefined) {
         return null;
     }
     const scale = (k: string): number => {
         const n = Number(treeAttr(scaled, k) ?? 1);
         return Number.isFinite(n) ? n : 1;
     };
-    return [size[0] * scale("xScale"), size[1] * scale("yScale")];
+    return { size: [size[0] * scale("xScale"), size[1] * scale("yScale")], picture };
 }
 
 /**
@@ -2337,7 +2356,7 @@ function readNode(
     put: PutValue,
     at: SiteOf,
     resources?: ReadonlyMap<string, string>,
-    icons?: ReadonlyMap<string, readonly [number, number]>,
+    icons?: ReadonlyMap<string, LabelIcon>,
 ): void {
     const { r } = real;
     const pictured = real.type === "ImageNode" || real.type === "SVGNode";

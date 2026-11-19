@@ -446,6 +446,8 @@ const runsText = (runs: readonly (readonly TextSegment[])[]): string =>
 export interface DrawnLabel {
     text: string;
     box: ScreenBox;
+    /** The picture drawn in the label beside or behind its words (`image`, yEd's label icon), its screen box. */
+    image?: ScreenBox;
     fontPx: number;
     color: string;
     enabled: boolean;
@@ -570,7 +572,9 @@ function leadingOf(label: RichTextLabel, opt: LabelInternals["options"]): [numbe
 /**
  * The panel behind a label's words on screen: its canvas without the room round it for a shadow and an outline, or
  * for a disc, the square its circle fills, as wide as the panel's shorter side and centered on it.
- * @param margin - the room round the panel, in label units
+ * @param margin - the room round the panel, in label units, across and down
+ * @param margin.x - across
+ * @param margin.y - down
  * @param dims - the label's canvas, in label units
  * @param dims.width - its width
  * @param dims.height - its height
@@ -579,14 +583,14 @@ function leadingOf(label: RichTextLabel, opt: LabelInternals["options"]): [numbe
  * @returns the box
  */
 function panelBox<B>(
-    margin: number,
+    margin: { x: number; y: number },
     dims: { width: number; height: number },
     circle: boolean,
     onScreen: (x: number, y: number, w: number, h: number) => B,
 ): B {
-    const [w, h] = [dims.width - margin * 2, dims.height - margin * 2];
+    const [w, h] = [dims.width - margin.x * 2, dims.height - margin.y * 2];
     const d = circle ? Math.min(w, h) : 0;
-    return circle ? onScreen(margin + (w - d) / 2, margin + (h - d) / 2, d, d) : onScreen(margin, margin, w, h);
+    return circle ? onScreen(margin.x + (w - d) / 2, margin.y + (h - d) / 2, d, d) : onScreen(margin.x, margin.y, w, h);
 }
 
 /**
@@ -670,9 +674,13 @@ export function readLabel(label: RichTextLabel | null | undefined, p: Projector)
     const outlineCss = opt.textOutline ? cssColor(opt.textOutlineColor ?? "#000000") : null;
     const lineCount = label.textRuns.filter((line) => line.some((r) => r.text.trim() !== "")).length;
     const align = ({ left: "start", right: "end" } as const)[opt.textAlign as "left" | "right"] ?? "middle";
+    const image = inner.imageBox;
     return {
         text: runsText(label.textRuns),
         box,
+        ...(image === null
+            ? {}
+            : { image: { ...onScreen(image.x, image.y, image.width, image.height), near: box.near, far: box.far } }),
         fontPx,
         color: cssColor(run?.style.color ?? "#000000").hex,
         enabled: mesh.isEnabled() && mesh.isVisible && mesh.visibility > 0 && (material === null || material.alpha > 0),
@@ -702,7 +710,15 @@ export function readLabel(label: RichTextLabel | null | undefined, p: Projector)
                 : {
                       // the panel, without the room round it for its shadow and the words' outline (#8746); a disc
                       // as wide as its shorter side
-                      box: panelBox(inner.shadowMargin, dims, opt.backgroundShape === "circle", onScreen),
+                      box: panelBox(
+                          {
+                              x: inner.shadowMargin + inner.imageRoom.x,
+                              y: inner.shadowMargin + inner.imageRoom.y,
+                          },
+                          dims,
+                          opt.backgroundShape === "circle",
+                          onScreen,
+                      ),
                       color: bgCss !== null && bgCss.alpha > 0 ? bgCss.hex : null,
                       opacity: (bgCss?.alpha ?? 0) * planeAlpha,
                       rounded: (opt.cornerRadius ?? 0) > 0,
@@ -2166,6 +2182,8 @@ export function readDrawn(graph: Graph): DrawnGraph {
     const pieces = [
         ...shown.flatMap((n) => n.pieces),
         ...shown.flatMap((n) => (n.shadow === undefined ? [] : [{ kind: "image" as const, box: n.shadow }])),
+        // and so is the picture in its label (yEd's label icon)
+        ...shown.flatMap((n) => (n.label?.image === undefined ? [] : [{ kind: "image" as const, box: n.label.image }])),
         // and so are the shapes it draws beneath and over itself (Cytoscape.js's underlay and overlay)
         ...shown.flatMap((n) => (n.halos ?? []).map((h) => ({ kind: "shape" as const, ...h }))),
     ];

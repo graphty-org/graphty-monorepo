@@ -165,6 +165,12 @@ export const RichTextStyle = z.strictObject({
         .optional(),
     /** The panel's shape: a rectangle, or a disc as wide as its shorter side. */
     backgroundShape: z.enum(["rectangle", "circle"]).optional(),
+    // A picture drawn beside or behind the words (yEd's label icon): its URL, size and middle from the words' middle.
+    image: z.string().optional(),
+    imageWidth: z.number().min(0).optional(),
+    imageHeight: z.number().min(0).optional(),
+    imageOffsetX: z.number().optional(),
+    imageOffsetY: z.number().optional(),
     /** Below how many screen pixels tall the letters are drawn the label is hidden; unset, never. */
     minScreenSize: z.number().min(0).optional(),
     /**

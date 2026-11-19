@@ -15,13 +15,14 @@ import {
     type LoadDraft,
     type ProjectAssetChoice,
     projectFileName,
+    type ProjectOpenOptions,
     type ProjectSaveReport,
 } from "@graphty/graphty-element/session";
 
 import { forgetKeptWork } from "../autosave/autosave";
 import type { CommandContext } from "../commands/registry";
 import { openDataPage } from "../data-page/request";
-import { nodeModelsOn } from "../features";
+import { nodeModelsOn, saveFilesV2On } from "../features";
 import { focusOpenedGraphLater } from "../frame/focus";
 import { runHeld, withHeldShaders } from "../settings/heldShaders";
 import { addSource, incomingFiles } from "../start/open";
@@ -29,6 +30,7 @@ import { newProjectId, type Notice, openRun, type SettleOpen, type WorkspaceStor
 import { chipLine } from "../style/modelWords";
 import { locateFile, readHandle } from "./files";
 import { entryForHandle, forgetRecent, recentEntry, type RecentProject, refreshStored, rememberRecent } from "./recent";
+import { askOpenV2, type SaveV2Choices, showReport } from "./saveV2";
 import { notReadWords } from "./words";
 
 /** The dialog ids this package opens in the workspace's one dialog slot. */
@@ -152,6 +154,8 @@ interface ProjectFileState {
     pending: PendingFile | null;
     /** Whether that file is being read now, so the workspace leaves focus to the read. */
     reading: boolean;
+    /** What the reader chose in the version 2 Save as, which Save writes again; null until chosen. */
+    v2: SaveV2Choices | null;
 }
 
 /** Where a file being opened came from, and what to do when graphty-element reads it as data. */
@@ -177,6 +181,8 @@ export interface FileSource {
 interface PendingFile extends FileSource {
     file: File;
     fresh?: boolean;
+    /** What the reader chose in the version 2 Open dialog, kept for an open again after Discard. */
+    v2?: { readonly options: ProjectOpenOptions; readonly names: ReadonlyMap<string, string> };
     /** Settles the store's `opened` for a file that opens a new project. */
     settle?: SettleOpen;
 }
@@ -202,6 +208,7 @@ function fileState(store: WorkspaceStore): ProjectFileState {
             onDiscard: null,
             pending: state?.pending ?? null,
             reading: false,
+            v2: null,
         };
         states.set(store, state);
     }
@@ -306,12 +313,14 @@ export function saveProblemSentence(name: string, error: unknown): string {
  * @param ctx.session - the project's session.
  * @param target - the `browserProjects` id to write again, or null for a new record.
  * @param newName - the name Save as gives the project, or null to keep its name.
+ * @param v2 - with version 2 files on, what the reader chose in Save as; null to save as last chosen.
  * @returns false when the reader cancelled the question about files from the web.
  */
 async function writeProject(
     { workspace, session }: CommandContext,
     target: string | null,
     newName: string | null = null,
+    v2: SaveV2Choices | null = null,
 ): Promise<boolean> {
     if (session === null) {
         return true;
@@ -322,14 +331,110 @@ async function writeProject(
     }
     await nameTheProject(workspace, session, newName);
     const name = session.project.name ?? headerName(workspace);
+    const state = fileState(workspace);
+    // With version 2 files on, the browser keeps a version 2 file: the sections and sources as
+    // the reader last chose them in Save as, else as graphty-element saves by default.
+    const on = saveFilesV2On(session);
+    const choices = on ? await stillNamed(session, v2 ?? state.v2) : null;
     const saved = await browserProjects.save(session, {
         ...(target === null ? {} : { id: target }),
         ...(Object.keys(assets).length === 0 ? {} : { assets }),
+        ...(on ? { format: 2 as const } : {}),
+        ...(on && choices !== null ? { sections: choices.sections, embed: choices.embed } : {}),
     });
-    fileState(workspace).target = saved.id;
+    state.target = saved.id;
+    if (on && v2 !== null) {
+        state.v2 = v2;
+    }
     await refreshStored();
     workspace.set({ notice: { message: withModelsLeftOut(session, `Saved ${name} in this browser.`, saved.report) } });
+    // Save as reports what the save left out; a later Save says only that it saved.
+    if (on && v2 !== null) {
+        await reportSave(workspace, session, `Saved ${name}`, saved.report);
+    }
     return true;
+}
+
+/**
+ * The reader's last Save as choices, without the sources the project no longer holds (removed or
+ * replaced since), which graphty-element would refuse.
+ * @param session - the project's session.
+ * @param choices - the choices, or null.
+ * @returns the choices for the sources graphty-element lists now, or null.
+ */
+async function stillNamed(session: GraphSession, choices: SaveV2Choices | null): Promise<SaveV2Choices | null> {
+    if (choices === null || Object.keys(choices.embed).length === 0) {
+        return choices;
+    }
+    const ids = new Set((await session.project.describe()).sources.map((source) => source.id));
+    return { ...choices, embed: Object.fromEntries(Object.entries(choices.embed).filter(([id]) => ids.has(id))) };
+}
+
+/**
+ * Shows what a version 2 save reported, naming its sources by what graphty-element says of them.
+ * @param workspace - the workspace store.
+ * @param session - the project's session.
+ * @param title - the report's title.
+ * @param report - what the save reported.
+ */
+async function reportSave(
+    workspace: WorkspaceStore,
+    session: GraphSession,
+    title: string,
+    report: ProjectSaveReport | undefined,
+): Promise<void> {
+    const leftOut = report?.leftOut ?? [];
+    const names = leftOut.some((fact) => fact.code.startsWith("W_SOURCE_"))
+        ? new Map((await session.project.describe()).sources.map((source) => [source.id, source.name]))
+        : new Map<string, string>();
+    showReport(workspace, session, title, leftOut, names);
+}
+
+/**
+ * Save as... with version 2 files on: a full file of every section the project needs is kept in
+ * this browser as the project, as Save as keeps it; any other choice (some sections, or a section
+ * file) is a copy, downloaded under the name graphty-element gives it, and changes neither where
+ * Save goes nor what is unsaved.
+ * @param ctx - the command context.
+ * @param name - the name the reader gave.
+ * @param choices - the sections, the file's form and copy or reference per source.
+ * @param whole - whether the choice is the whole project.
+ */
+export async function saveProjectAsV2(
+    ctx: CommandContext,
+    name: string,
+    choices: SaveV2Choices,
+    whole: boolean,
+): Promise<void> {
+    if (whole) {
+        await saveAs(ctx, name, () => writeProject(ctx, null, name, choices));
+        return;
+    }
+    const { workspace, element, session } = ctx;
+    if (element === null || session === null) {
+        return;
+    }
+    const [one] = choices.sections;
+    const fileName = projectFileName(name, choices.form === "section" ? { section: one } : {});
+    try {
+        const assets = await askAssetChoices(workspace, session);
+        if (assets === null) {
+            return;
+        }
+        const report = await element.downloadProject({
+            format: 2,
+            sections: choices.sections,
+            form: choices.form,
+            embed: choices.embed,
+            fileName,
+            markSaved: false,
+            ...(Object.keys(assets).length === 0 ? {} : { assets }),
+        });
+        workspace.set({ notice: { message: withModelsLeftOut(session, `Saved ${fileName}`, report) } });
+        await reportSave(workspace, session, `Saved ${fileName}`, report);
+    } catch {
+        workspace.set({ notice: { message: `${fileName} could not be saved.`, error: true } });
+    }
 }
 
 /**
@@ -356,11 +461,21 @@ export async function saveProject(ctx: CommandContext): Promise<void> {
  * @param name - the name the reader gave.
  */
 export async function saveProjectAs(ctx: CommandContext, name: string): Promise<void> {
+    await saveAs(ctx, name, () => writeProject(ctx, null, name));
+}
+
+/**
+ * Runs a Save as write, renaming the project back when it fails.
+ * @param ctx - the command context.
+ * @param name - the name the reader gave.
+ * @param write - the write.
+ */
+async function saveAs(ctx: CommandContext, name: string, write: () => Promise<boolean>): Promise<void> {
     const { workspace, session } = ctx;
     const before = session?.project.name ?? null;
     try {
         // Cancelled, it returns before naming the project, which keeps the name it had.
-        await writeProject(ctx, null, name);
+        await write();
     } catch (error) {
         workspace.set({ notice: { message: saveProblemSentence(name, error), error: true } });
         // Nothing was saved, so the project keeps the name it had.
@@ -371,8 +486,8 @@ export async function saveProjectAs(ctx: CommandContext, name: string): Promise<
 }
 
 /**
- * Save local copy...: downloads the project file. A copy: where Save goes and what is unsaved do
- * not change.
+ * Save local copy...: downloads the project file (with version 2 files on, a version 2 file as
+ * Save writes it). A copy: where Save goes and what is unsaved do not change.
  * @param ctx - the command context.
  * @param ctx.workspace - the workspace store.
  * @param ctx.element - the element, which downloads.
@@ -389,7 +504,17 @@ export async function saveLocalCopy({ workspace, element, session }: CommandCont
             return;
         }
         const fileName = projectFileName(name);
-        if (Object.keys(assets).length === 0) {
+        if (session !== null && saveFilesV2On(session)) {
+            // A version 2 file, of the sections and sources as the reader last chose them in Save as.
+            const choices = await stillNamed(session, fileState(workspace).v2);
+            await element.downloadProject({
+                format: 2,
+                ...(choices === null ? {} : { sections: choices.sections, embed: choices.embed }),
+                ...(Object.keys(assets).length === 0 ? {} : { assets }),
+                fileName,
+                markSaved: false,
+            });
+        } else if (Object.keys(assets).length === 0) {
             await element.downloadGraph("graphty", { fileName });
         } else {
             await element.downloadProject({ assets, fileName, markSaved: false });
@@ -557,8 +682,17 @@ async function openedProject(
     });
     const state = fileState(workspace);
     state.target = pending.storedId ?? null;
+    // The choices of the project it replaced are not this one's.
+    state.v2 = null;
     state.recentId = pending.recentId ?? null;
     await remember(workspace, session, pending.handle);
+    if (pending.v2 !== undefined) {
+        // Version 2: what did not come back is listed in the report, by what it is.
+        workspace.set({ notice: heldNotice(workspace, session, { message: `Opened ${name}` }) });
+        showReport(workspace, session, `Opened ${name}`, report.problems, pending.v2.names);
+        await focused;
+        return;
+    }
     const lost = report.problems.length;
     const parts = lost === 1 ? "part" : "parts";
     workspace.set({
@@ -616,6 +750,41 @@ function heldNotice(workspace: WorkspaceStore, session: GraphSession, notice: No
 }
 
 /**
+ * With version 2 files on, asks about a version 2 file from anywhere but the reader's own
+ * browser-kept projects before it opens (those open at once); the answer is kept on the pending
+ * file, for an open again after Discard.
+ * @param workspace - the workspace store.
+ * @param session - the session.
+ * @param pending - the file and where it came from.
+ * @returns false when the reader cancelled.
+ */
+async function askBeforeOpen(workspace: WorkspaceStore, session: GraphSession, pending: PendingFile): Promise<boolean> {
+    if (!saveFilesV2On(session) || pending.v2 !== undefined) {
+        return true;
+    }
+    if (pending.storedId !== undefined) {
+        // The reader's own project opens at once, and what it reports is listed as any version 2
+        // open's is.
+        const facts = await session.project.inspect(pending.file).catch(() => undefined);
+        if (facts !== undefined) {
+            pending.v2 = { options: {}, names: new Map(facts.sources.map((source) => [source.id, source.name])) };
+        }
+        return true;
+    }
+    const asked = await askOpenV2(workspace, session, pending.file);
+    if (asked === null) {
+        return false;
+    }
+    if (asked.facts !== undefined) {
+        pending.v2 = {
+            options: asked.options,
+            names: new Map(asked.facts.sources.map((source) => [source.id, source.name])),
+        };
+    }
+    return true;
+}
+
+/**
  * Opens a file in the session through graphty-element's one intake verb, `project.open`. A
  * project file replaces the project (refused over unsaved changes until the reader says Discard);
  * the header takes the project's name, and Save writes the browser-kept project it came from
@@ -634,6 +803,9 @@ async function openInSession(
     discard: boolean,
 ): Promise<boolean> {
     const { file, onData, fresh = false } = pending;
+    if (!(await askBeforeOpen(ctx.workspace, session, pending))) {
+        return false;
+    }
     const focusLater = focusOpenedGraphLater();
     try {
         // From the start screen a document opens as a new graph, so it starts the history. A data
@@ -647,6 +819,7 @@ async function openInSession(
             ...(pending.storedId === undefined ? {} : { ownWork: true }),
             ...(fresh ? { history: "start" as const } : {}),
             draft: { guess: "values", ...(onto ? { onto: "graph" as const } : {}) },
+            ...pending.v2?.options,
         });
         if (report.opened === "graph" && onData !== undefined) {
             focusLater(false);
@@ -655,6 +828,9 @@ async function openInSession(
         }
         if (report.opened !== "project") {
             openedData(ctx.workspace, session, report, file, fresh, focusLater);
+            if (pending.v2 !== undefined) {
+                showReport(ctx.workspace, session, `Added ${file.name}`, report.problems, pending.v2.names);
+            }
             return true;
         }
         await openedProject(ctx.workspace, session, report, pending, focusLater);

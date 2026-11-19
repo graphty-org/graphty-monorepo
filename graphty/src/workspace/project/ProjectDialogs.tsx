@@ -1,9 +1,10 @@
 import { ModalFooter, SegmentedControl } from "@graphty/compact-mantine";
 import type { GraphSession, ProjectAssetChoice } from "@graphty/graphty-element/session";
-import { Button, Group, Modal, Stack, Text, TextInput } from "@mantine/core";
+import { Button, Group, Modal, Stack, Text } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
 import { modelName, pictureName } from "../canvas/models";
+import { saveFilesV2On } from "../features";
 import { megabytes } from "../start/library";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { chipLine, middleCut } from "../style/modelWords";
@@ -17,7 +18,9 @@ import {
     SAVE_AS_DIALOG,
     saveProjectAs,
 } from "./actions";
+import { NameField } from "./NameField";
 import { NetworkPrompt } from "./NetworkPrompt";
+import { OpenV2Dialog, ReportV2Dialog, SaveAsV2Dialog } from "./SaveFilesV2Dialogs";
 
 /**
  * Save as... (`#/project-menu/save-as`): titled with the project's name, the name a field with
@@ -70,17 +73,7 @@ function SaveAsDialog(): React.JSX.Element {
                     void save();
                 }}
             >
-                <TextInput
-                    data-autofocus
-                    label="Name"
-                    value={name}
-                    onChange={(event) => {
-                        setName(event.currentTarget.value);
-                    }}
-                    onFocus={(event) => {
-                        event.currentTarget.select();
-                    }}
-                />
+                <NameField value={name} onChange={setName} />
                 <ModalFooter mt="md">
                     <Button variant="default" onClick={close}>
                         Cancel
@@ -339,7 +332,15 @@ export function ProjectDialogs(): React.JSX.Element {
 
     return (
         <>
-            <SaveAsDialog />
+            {saveFilesV2On(session) ? (
+                <>
+                    <SaveAsV2Dialog />
+                    <OpenV2Dialog />
+                    <ReportV2Dialog />
+                </>
+            ) : (
+                <SaveAsDialog />
+            )}
             <DiscardDialog />
             <KeepAssetsDialog />
             <NetworkPrompt />

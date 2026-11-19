@@ -539,8 +539,11 @@ export function writeIn(
     // ponytail: several rows take the extra values as separate writes, one undo step each.
     return many.write(channel, write).then(() =>
         Promise.all(
-            Object.entries(also ?? {})
-                .filter(([c, value]) => value !== undefined && (alsoReplaces || many.line(c as Channel) === undefined))
+            Object.entries<ChannelValue | undefined>(also ?? {})
+                .filter(
+                    (entry): entry is [string, ChannelValue] =>
+                        entry[1] !== undefined && (alsoReplaces || many.line(entry[0] as Channel) === undefined),
+                )
                 .map(([c, value]) => many.write(c as Channel, { value })),
         ),
     );
@@ -1053,7 +1056,7 @@ function startingBinding(session: GraphSession, descriptor: ChannelDescriptor, c
     // The first group palette with a color for every layer, so ten layers never draw three
     // near-identical colors past an eight-color palette's end; the first when none has room.
     const palettes = groupPalettes(session);
-    const palette = isColor ? (palettes.find((p) => p.colors.length >= count) ?? palettes[0])?.id : undefined;
+    const palette = isColor ? (palettes.find((p) => p.colors.length >= count) ?? palettes.at(0))?.id : undefined;
     const { range } = appRange(descriptor.channel);
     return {
         ...(palette === undefined ? {} : { palette }),

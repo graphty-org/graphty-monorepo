@@ -354,7 +354,9 @@ function PropertySection({ ctx, spec, actions, itemActions }: Readonly<SectionPr
                                     addItem(key.slice(ITEM_KEY.length));
                                     return;
                                 }
-                                const [channel, pick] = key.split("=");
+                                const parts = key.split("=");
+                                const channel = parts[0];
+                                const pick = parts.at(1);
                                 const descriptor = unset.find((d) => d.channel === channel);
                                 if (descriptor !== undefined) {
                                     add(descriptor, ...(pick === undefined ? [] : [pick === "true"]));
@@ -700,6 +702,15 @@ function ShadersSection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
 }
 
 /**
+ * The clipboard as the browser offers it: absent outside a secure context, and without readText in
+ * older browsers, though the DOM types say it always has both.
+ * @returns the clipboard, if any.
+ */
+function clipboardOf(): Partial<Clipboard> | undefined {
+    return navigator.clipboard;
+}
+
+/**
  * Control+V (Command+V) with focus on a control of the Shaders section, not in a text field: opens
  * the code dialog with the clipboard's text, or with the unsent draft when the browser will not
  * read the clipboard.
@@ -713,7 +724,7 @@ function pasteKey(event: React.KeyboardEvent, open: (init: PasteInit) => void): 
         return;
     }
     event.preventDefault();
-    const read = navigator.clipboard?.readText?.();
+    const read = clipboardOf()?.readText?.();
     if (read === undefined) {
         open({});
         return;

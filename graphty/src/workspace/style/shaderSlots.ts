@@ -16,7 +16,7 @@ import {
     type ShaderUse,
     splitShaderText,
 } from "@graphty/graphty-element/catalog";
-import type { Channel, ChannelValue, Encoding } from "@graphty/graphty-element/schema";
+import type { Binding, Channel, ChannelValue, Encoding } from "@graphty/graphty-element/schema";
 import type { GraphSession, Layer, TransactionScope } from "@graphty/graphty-element/session";
 
 import type { RowContext } from "./PropertyRow";
@@ -183,7 +183,8 @@ async function writeRowNow(
     const own = ownLayer(ctx);
     if (own === undefined) {
         const values = entries.filter((entry): entry is [Channel, ChannelValue] => entry[1] !== undefined);
-        const [first, ...rest] = values;
+        const first = values.at(0);
+        const rest = values.slice(1);
         if (first === undefined) {
             return;
         }
@@ -357,7 +358,7 @@ export function removeShader(ctx: RowContext, entry: ShaderEntry): Promise<void>
  * @returns when it is written.
  */
 export function moveShader(ctx: RowContext, from: number, to: number): Promise<void> {
-    const entry = shaderEntries(ctx)[from];
+    const entry = shaderEntries(ctx).at(from);
     if (entry === undefined || from === to) {
         return Promise.resolve();
     }
@@ -441,7 +442,7 @@ export function bindingsOf(ctx: RowContext, entry: ShaderEntry): Record<string, 
     const prefix = `${shadersChannel(ctx.side)}.${entry.use.shader}.`;
     const found: Record<string, DataBinding> = {};
     for (const layer of ctx.layers) {
-        for (const [key, binding] of Object.entries(layer.encode ?? {})) {
+        for (const [key, binding] of Object.entries<Binding | undefined>(layer.encode ?? {})) {
             if (key.startsWith(prefix) && binding !== undefined && "by" in binding) {
                 found[key.slice(prefix.length)] = binding;
             }

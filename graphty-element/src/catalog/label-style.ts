@@ -215,9 +215,14 @@ export interface LabelStyle {
     lineBox?: "font" | "size" | "glyphs";
     /**
      * Where the border round the panel is drawn: "outside", all of it past the panel's edge; "center", centered on
-     * that edge, as a canvas strokes a box. Unset, "outside".
+     * that edge, as a canvas strokes a box (a double border's outer line; its inner line lies inside the panel). Unset, "outside".
      */
     borderAlign?: "outside" | "center";
+    /**
+     * How the border round the panel is drawn: "solid", one line; "double", the line drawn again inside it, one
+     * line's width in. Unset, "solid".
+     */
+    borderStyle?: "solid" | "double";
     /**
      * The shape of the panel and its border: "rectangle" (rounded by `cornerRadius`), or "circle", a disc whose
      * diameter is the panel's shorter side, centered on it. Unset, "rectangle".
@@ -486,6 +491,7 @@ export const LABEL_STYLE_FIELDS: readonly (keyof LabelStyle)[] = Object.keys({
     lineHeight: 0,
     lineBox: 0,
     borderAlign: 0,
+    borderStyle: 0,
     backgroundShape: 0,
     minScreenSize: 0,
     declutter: 0,
@@ -587,6 +593,7 @@ export const RICH_TEXT_KEYS = {
     lineHeight: "lineHeight",
     lineBox: "lineBox",
     borderAlign: "borderAlign",
+    borderStyle: "borderStyle",
     backgroundShape: "backgroundShape",
     minScreenSize: "minScreenSize",
     minNodeScreenSize: "minNodeScreenSize",
@@ -754,6 +761,7 @@ const FIELD_ROWS = {
     lineHeight: num("Line Height"),
     lineBox: choice("Line Box", ["font", "size", "glyphs"]),
     borderAlign: choice("Border Align", ["outside", "center"]),
+    borderStyle: choice("Border Style", ["solid", "double"]),
     backgroundShape: choice("Background Shape", ["rectangle", "circle"]),
     minScreenSize: num("Min Screen Size", { min: 0 }),
     declutter: choice("Declutter", ["degree", "size"] satisfies readonly LabelDeclutterOrder[]),

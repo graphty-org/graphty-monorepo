@@ -18,6 +18,7 @@ import {
     canonNodeOffsets,
     flattenCubic,
     flattenQuadSpline,
+    naturalSplineControls,
     nodeOffsetsToPoints,
 } from "../../styles/canon/bends.js";
 import { canonColor, colorOpacity, hexChannels } from "../../styles/canon/color.js";
@@ -2517,12 +2518,13 @@ function oneCubic(real: Realizer): boolean {
 }
 
 /**
- * Whether an edge is drawn curved through its bends: an arc always; a spline only through its control points (with
- * none it is a straight line); a polyline, and a generic edge (a framed or styled polyline), only when it smooths
- * bends it has. A quad curve edge never, nor a Bezier edge of whole cubic pieces (two control points, five, ...): its
- * curve is flattened into points on it (`readEdgeRoute`), drawn straight from one to the next, as a Graphviz spline
- * is; rounding their corners cut inside the curve (a quad curve of straightness 1, whose points are its control
- * polygon, was drawn bowed).
+ * Whether an edge is drawn curved through its bends: an arc always; a spline when it has bends (its natural spline is
+ * flattened into points on it by `readEdgeRoute`, close enough that rounding their corners keeps to the curve, and a
+ * spline is a curve however a reader draws it); a polyline, and a generic edge (a framed or styled polyline), only
+ * when it smooths bends it has. A quad curve edge never, nor a Bezier edge of whole cubic pieces (two control points,
+ * five, ...): its curve is flattened into points on it, drawn straight from one to the next, as a Graphviz spline is;
+ * rounding their corners cut inside the curve (a quad curve of straightness 1, whose points are its control polygon,
+ * was drawn bowed).
  * @param real - the edge realizer
  * @returns true when curved, null when a polyline does not say whether it smooths
  */
@@ -2550,8 +2552,9 @@ function edgeCurved(real: Realizer): boolean | null {
 /**
  * An edge's route from its `y:Path`: the ports its ends attach at (`sx sy`, `tx ty`: offsets from the node centers),
  * relative to each node's size, and its bends, relative to the centers of its two nodes (a self-loop's to its node's
- * size). yEd draws a polyline, an arc or a spline through the points; a Bezier or quad curve edge takes them as
- * control points its curve does not pass through, so its curve is flattened into the points it does pass through.
+ * size). yEd draws a polyline or an arc through the points; a Bezier or quad curve edge takes them as control points
+ * its curve does not pass through, and a spline edge draws a natural cubic spline through them, so those curves are
+ * flattened into points they pass through.
  * @param real - the edge realizer
  * @param nodes - each node's center x and y, width and height
  * @param source - the source node's index
@@ -2603,14 +2606,19 @@ function readEdgeRoute(
     ]);
     if (real.type === "ArcEdge") {
         points = arcControl(treeChild(real.r, "Arc"), ends) ?? points;
-    } else if (points.length > 0 && !oneCubic(real) && (real.type === "BezierEdge" || real.type === "QuadCurveEdge")) {
+    } else if (
+        points.length > 0 &&
+        !oneCubic(real) &&
+        (real.type === "BezierEdge" || real.type === "QuadCurveEdge" || real.type === "SplineEdge")
+    ) {
         const controls = [ends[0], ...points, ends[1]];
+        // a spline edge is the natural cubic spline through its ends and bends (yed-graphml-specimen-edges-lines
+        // spline); a quad curve edge joins its first and last legs at their middles too, straight from the ends
+        // (graphml-magiclantern-architecture n0::n1::e4, yed-graphml-specimen-edges-lines' quad curves)
         const curve =
-            real.type === "BezierEdge"
-                ? flattenCubic(controls)
-                : // yEd joins its first and last legs at their middles too, straight from the ends
-                  // (graphml-magiclantern-architecture n0::n1::e4, yed-graphml-specimen-edges-lines' quad curves)
-                  flattenQuadSpline(controls, Number(treeAttr(real.r, "straightness") ?? YED_STRAIGHTNESS), 8, true);
+            real.type === "QuadCurveEdge"
+                ? flattenQuadSpline(controls, Number(treeAttr(real.r, "straightness") ?? YED_STRAIGHTNESS), 8, true)
+                : flattenCubic(real.type === "SplineEdge" ? (naturalSplineControls(controls) ?? controls) : controls);
         points = (curve ?? controls).slice(1, -1);
     }
     put(

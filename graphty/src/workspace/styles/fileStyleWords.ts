@@ -66,7 +66,7 @@ export const STYLE_NOTE_WORDS: Readonly<Record<ImportStyleCode, string>> = {
  * @returns one sentence.
  */
 export function fileStyleNoteWords(note: FileStyleNote): string {
-    const said: string | undefined = (STYLE_NOTE_WORDS as Readonly<Record<string, string>>)[note.code];
+    const said = (STYLE_NOTE_WORDS as Readonly<Partial<Record<string, string>>>)[note.code];
     const { count: times } = note.params;
     const what = typeof note.params.property === "string" ? ` (${property(note.params)})` : "";
     const often = typeof times === "number" && times > 1 ? `, ${count(times, "time")}` : "";

@@ -235,7 +235,7 @@ export interface Refusal {
  * @returns its details.
  */
 function detailsOf(error: unknown): Readonly<Record<string, unknown>> {
-    return isGraphtyError(error) ? (error.details ?? {}) : {};
+    return isGraphtyError(error) ? error.details : {};
 }
 
 /**

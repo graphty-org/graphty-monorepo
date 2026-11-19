@@ -186,10 +186,16 @@ export const LABEL_SETTINGS: readonly FieldGroup[] = [
                     ["center", "Center"],
                 ]),
             ],
-            choice("backgroundShape", "Background shape", [
-                ["rectangle", "Rectangle"],
-                ["circle", "Circle"],
-            ]),
+            [
+                choice("borderStyle", "Border style", [
+                    ["solid", "Solid"],
+                    ["double", "Double"],
+                ]),
+                choice("backgroundShape", "Background shape", [
+                    ["rectangle", "Rectangle"],
+                    ["circle", "Circle"],
+                ]),
+            ],
             [toggle("panelShadow", "Panel shadow"), toggle("closeButton", "Close button")],
             [color("panelShadowColor", "Panel shadow color"), number("panelShadowBlur", "Panel shadow blur")],
             [number("panelShadowOffsetX", "Panel shadow right"), number("panelShadowOffsetY", "Panel shadow down")],

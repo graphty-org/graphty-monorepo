@@ -70,10 +70,12 @@ export async function edgeFile(session: GraphSession, data: string, name: string
 
 /**
  * Phase 1: the transactions draw at once, their ends typed by end rules.
+ * @param session - The session to load into; a fresh one with the experiment on by default.
  * @returns The session and the transactions' source.
  */
-export async function phase1(): Promise<{ session: GraphSession; t: string }> {
-    const session = createGraphSession({ features: ["source-steps"] });
+export async function phase1(
+    session: GraphSession = createGraphSession({ features: ["source-steps"] }),
+): Promise<{ session: GraphSession; t: string }> {
     const t = await edgeFile(session, TRANSACTIONS, "transactions.csv");
     await session.data.declareType({ name: "account", kind: "node", rules: [{ source: t, end: "source" }] });
     await session.data.declareType({ name: "merchant", kind: "node", rules: [{ source: t, end: "target" }] });
@@ -83,10 +85,11 @@ export async function phase1(): Promise<{ session: GraphSession; t: string }> {
 
 /**
  * Phase 2: holder onto accounts, merchant fields onto merchants, devices extracted.
+ * @param into - The session to load into, as {@link phase1} takes it.
  * @returns The session, the transactions' source and the devices' part.
  */
-export async function phase2(): Promise<{ session: GraphSession; t: string; part: number }> {
-    const { session, t } = await phase1();
+export async function phase2(into?: GraphSession): Promise<{ session: GraphSession; t: string; part: number }> {
+    const { session, t } = await phase1(into);
     await session.data.moveColumns(t, { columns: ["holder_name"], to: "source" });
     await session.data.moveColumns(t, { columns: ["merchant_name", "category"], to: "target" });
     const part = await session.data.extract(t, { column: "device_id", type: "device", columns: ["os"] });
@@ -97,10 +100,14 @@ export async function phase2(): Promise<{ session: GraphSession; t: string; part
 /**
  * Phase 6: holder renamed so the columns meet, accounts.csv staged and merged on account_id.
  * @param unmatchedFrom - What an account no transaction names does.
+ * @param into - The session to load into, as {@link phase1} takes it.
  * @returns The session and the two sources.
  */
-export async function phase6(unmatchedFrom?: "keep" | "drop"): Promise<{ session: GraphSession; t: string; a: string }> {
-    const { session, t } = await phase2();
+export async function phase6(
+    unmatchedFrom?: "keep" | "drop",
+    into?: GraphSession,
+): Promise<{ session: GraphSession; t: string; a: string }> {
+    const { session, t } = await phase2(into);
     await session.data.renameColumn({ kind: "edge", name: "holder_name" }, "holder", { source: t });
     const a = await session.data.stage(
         { type: "csv", config: { data: ACCOUNTS }, name: "accounts.csv" },

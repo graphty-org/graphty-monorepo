@@ -144,9 +144,51 @@ describe("source-steps: removal as a rebuild", () => {
         assert.strictEqual(session.notes.status(id).targets[0].state, "present");
         session.dispose();
     });
+
+    it("a fixed set member only the removed source supplied is reported unbound, and Undo binds it again (3.2)", async () => {
+        const { session, a } = await phase6();
+        session.sets.create({ kind: "fixed", nodes: ["A-9"], reading: "induced" }, { name: "Core" });
+        const unbound = (issues?: readonly SourceRefreshIssue[]): unknown[] =>
+            (issues ?? []).filter((i) => i.code === "W_REFERENCE_UNBOUND").map((i) => i.params);
+        const result = await session.data.removeSource(a);
+        assert.deepStrictEqual(unbound(result.issues), [{ ref: { space: "account", key: "A-9" } }]);
+        await session.undo();
+        const again = await session.data.removeSource(a);
+        assert.deepStrictEqual(unbound(again.issues), [{ ref: { space: "account", key: "A-9" } }], "bound again");
+        session.dispose();
+    });
+
+    it("a run whose node parameter names a node only the removed source supplied is reported unbound (3.2)", async () => {
+        const { session, a } = await phase6(undefined, sessionWithRuns(["source-steps"]));
+        await session.runs.start("bfs", { source: "A-9" }, { style: false });
+        const result = await session.data.removeSource(a);
+        assert.deepStrictEqual(
+            (result.issues ?? []).filter((i) => i.code === "W_REFERENCE_UNBOUND").map((i) => i.params),
+            [{ ref: { space: "account", key: "A-9" } }],
+        );
+        session.dispose();
+    });
 });
 
 describe("source-steps: replace and refresh keep the source id and swap the copy", () => {
+    it("a replace asking to read the copy by another key is refused, not read the old way; its own key is taken", async () => {
+        const { session, a } = await phase6();
+        const history = session.history.steps.length;
+        let code: unknown;
+        try {
+            await session.data.replaceSource(a, csv(ACCOUNTS, "accounts.csv"), { key: "email" });
+        } catch (error) {
+            code = [(error as { code?: string }).code, (error as { details?: { reason?: string } }).details?.reason];
+        }
+        assert.deepStrictEqual(code, ["E_UNSUPPORTED", "later"]);
+        assert.lengthOf(session.history.steps, history, "nothing written");
+        const same = await session.data.replaceSource(a, csv(ACCOUNTS.replace("a@x", "new@x"), "accounts.csv"), {
+            key: "account_id",
+        });
+        assert.strictEqual(same.nodes.changed, 1);
+        session.dispose();
+    });
+
     it("a replace that drops a column a style layer reads reports the layer as unbound", async () => {
         const { session, t } = await phase2();
         const layer = await session.styles.add({

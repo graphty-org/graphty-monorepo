@@ -120,11 +120,12 @@ class InstanceColorShading extends MaterialPluginBase {
      * through WGSL has exactly the same flat cap as one drawn through GLSL. Answering false throws
      * at attach time rather than degrading, so the honest answer for a language this file has a
      * rewrite for is true.
-     * @param shaderLanguage - The language the material compiles to.
+     * @param _shaderLanguage - The language the material compiles to.
      * @returns Whether the rewrite below is written for it.
      */
-    override isCompatible(shaderLanguage: ShaderLanguage): boolean {
-        return shaderLanguage === ShaderLanguage.GLSL || shaderLanguage === ShaderLanguage.WGSL;
+    override isCompatible(_shaderLanguage: ShaderLanguage): boolean {
+        // Written for both of the languages Babylon has, GLSL and WGSL.
+        return true;
     }
 
     /**

@@ -132,8 +132,9 @@ export function sessionColumns(
 
         read(graph, path, on, edgeIdAt) {
             if (path.startsWith(RESULT_PREFIX)) {
-                const [run, field, ...rest] = path.slice(RESULT_PREFIX.length).split(".");
-                const result = field === undefined || rest.length > 0 ? undefined : session.results.get(run);
+                const parts = path.slice(RESULT_PREFIX.length).split(".");
+                const [run, field] = parts;
+                const result = parts.length === 2 ? session.results.get(run) : undefined;
                 // The field must exist on the kind of element the caller reads: a partition is
                 // read on nodes and a weight on edges, so an edge field is no partition.
                 const kind = result?.fields.find(
@@ -158,7 +159,7 @@ export function sessionColumns(
             const key = path.startsWith(ATTRIBUTE_PREFIX) ? path.slice(ATTRIBUTE_PREFIX.length) : path;
             const carried = session.data.attributes().filter((attribute) => attribute.name === key);
             // A key both nodes and edges carry is read on nodes unless the option fixes the kind.
-            const kind = on ?? (carried.some((a) => a.kind === "node") ? "node" : carried[0]?.kind);
+            const kind = on ?? (carried.some((a) => a.kind === "node") ? "node" : carried.at(0)?.kind);
             if (kind === undefined || !carried.some((attribute) => attribute.kind === kind)) {
                 return null;
             }

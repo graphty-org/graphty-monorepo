@@ -42,7 +42,7 @@ export interface EngineFacts {
 const FACTS = ENGINE_FACTS as unknown as EngineFacts;
 
 /** Per-option descriptor fields a Zod schema cannot express, by option name. */
-export type OptionOverrides = Readonly<Record<string, Partial<OptionDescriptor>>>;
+export type OptionOverrides = Readonly<Partial<Record<string, Partial<OptionDescriptor>>>>;
 
 /**
  * Apply overrides the way `optionsFromZod` does: each named option's fields replaced by the override's.

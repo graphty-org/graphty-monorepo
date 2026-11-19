@@ -354,7 +354,7 @@ function placeColumns(columns: readonly ColumnValues[], places: Gazetteer): Part
         found[kind] = columns.find((c) => PLACE_NAMES[kind].has(c.name.toLowerCase()));
     }
 
-    const taken = new Set(Object.values(found).map((c) => c?.name));
+    const taken = new Set(PLACE_ROLES.map((kind) => found[kind]?.name));
     for (const column of columns) {
         if (taken.has(column.name)) {
             continue;

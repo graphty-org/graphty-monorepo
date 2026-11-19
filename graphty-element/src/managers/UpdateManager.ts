@@ -1568,7 +1568,8 @@ export class UpdateManager implements Manager {
 
         // Batches left for later frames are a token in the record of pending work, held until a
         // frame applies the last of them (issue #4218): not left to the painter's flags staying up.
-        if (painter.hasPending) {
+        // Each kind on its own: hasPending was checked before the pass painted.
+        if (painter.hasPendingNodes || painter.hasPendingEdges) {
             this.paintBatches ??= this.pending.begin("style", "a style repaint is still being applied in batches");
         } else {
             this.paintBatchesDone();
@@ -1960,7 +1961,7 @@ export class UpdateManager implements Manager {
         const paint = id === undefined ? null : painter.rowPaint(index);
         const batches = this.graphContext.getNodeBatches?.() ?? null;
         const table = this.graphContext.getRowTable?.() ?? null;
-        const filtered = (): boolean => this.viewMasks?.visibility?.nodes()?.has(index) === false;
+        const filtered = (): boolean => this.viewMasks?.visibility?.nodes().has(index) === false;
         // A row a style hides (what lies outside a time window) draws nothing, and needs no `Node` to hide it.
         // Its bound goes to 0 as a hidden `Node`'s does, so a pick or a region skips it.
         if (paint?.style.visible === false) {
@@ -2819,7 +2820,9 @@ export class UpdateManager implements Manager {
 
         // Babylon leaves subMeshes unset on a mesh with no geometry (a model's root), which a layer
         // draws nothing of.
-        const { subMeshes }: { readonly subMeshes?: AbstractMesh["subMeshes"] } = mesh;
+        // Babylon types the list as always there; a mesh not yet built has none.
+        const view: { readonly subMeshes?: AbstractMesh["subMeshes"] } = mesh;
+        const { subMeshes } = view;
 
         try {
             return subMeshes === undefined || subMeshes.every((subMesh) => layer.isReady(subMesh, instanced));

@@ -94,7 +94,7 @@ export interface LoggerConfig {
      * ["graphty", "layout", "ngraph"]. The most specific segment of a category wins. This is
      * what the documented `?graphty-element-logging=layout:debug,xr:info` URL syntax means.
      */
-    moduleLevels?: Readonly<Record<string, LogLevel>>;
+    moduleLevels?: Readonly<Partial<Record<string, LogLevel>>>;
     /** Formatting options */
     format: {
         /** Include timestamp in output */

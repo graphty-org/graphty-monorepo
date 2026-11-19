@@ -1718,7 +1718,7 @@ export class Edge {
             stored === null &&
             laid !== undefined &&
             !this.isLoop &&
-            this.placeBent(batch, src, dst, Edge.laidRoute(laid ?? [], laidEnds));
+            this.placeBent(batch, src, dst, Edge.laidRoute(laid, laidEnds));
         const route = !bent && !followsLayout && lays ? this.bundleRoute(src, dst) : null;
         this.bundled = followsLayout || (route !== null && this.placeRoute(batch, src, dst, route));
         if (!bent && !this.bundled) {
@@ -2675,7 +2675,7 @@ export class Edge {
         const frame = scene.getFrameId();
         let rule = liftRule.get(scene);
         if (rule?.frame !== frame) {
-            const layout = this.context.getSession?.()?.layout;
+            const layout = this.context.getSession?.().layout;
             rule = { frame, draws: layout?.dimension === "3d" && layout.arrangedDimension === "2d" };
             liftRule.set(scene, rule);
         }

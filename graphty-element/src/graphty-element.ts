@@ -1928,7 +1928,7 @@ export class Graphty extends LitElement {
     /** What {@link Graphty.refusedFeatures} reports, by property, so setting one again adds nothing. */
     readonly #refusedFeatures = new Map<string, CodedFact<"E_FEATURE_OFF">>();
     /** The time attributes set before the first render, when the experiments are not settled yet. */
-    readonly #heldTimeFields = new Map<string, string | undefined>();
+    readonly #heldTimeFields = new Map<string, string | null | undefined>();
 
     /**
      * A time attribute as set: held until the first render, else the setting in effect.
@@ -1937,7 +1937,7 @@ export class Graphty extends LitElement {
      */
     #timeField(name: string): string | undefined {
         return this.#heldTimeFields.has(name)
-            ? this.#heldTimeFields.get(name)
+            ? (this.#heldTimeFields.get(name) ?? undefined)
             : (this.#setting(`data.knownFields.${name}`) as string | undefined);
     }
 
@@ -1946,7 +1946,7 @@ export class Graphty extends LitElement {
      * @param name - The field, which is also the property's name.
      * @param value - The value.
      */
-    #setTimeField(name: string, value: string | undefined): void {
+    #setTimeField(name: string, value: string | null | undefined): void {
         if (this.#settingUp) {
             this.#heldTimeFields.set(name, value);
         } else {
@@ -2178,7 +2178,7 @@ export class Graphty extends LitElement {
      * Sets the data source configuration. Loads the graph from it, replacing what the graph
      * held, once the type is set too.
      */
-    set dataSourceConfig(value: Record<string, unknown> | undefined) {
+    set dataSourceConfig(value: Record<string, unknown> | null | undefined) {
         const oldValue = this.dataSourceConfig;
         if (value !== undefined && value !== null) {
             this.#importSource({ type: this.#pairType() ?? this.#assigned.type, config: value });
@@ -2781,7 +2781,7 @@ export class Graphty extends LitElement {
     /**
      * Sets the repeat policy. Updates graph configuration.
      */
-    set repeatedEdges(value: DuplicatePolicy | undefined) {
+    set repeatedEdges(value: DuplicatePolicy | null | undefined) {
         if (value !== undefined && value !== null && !(REPEATED_EDGE_POLICIES as readonly string[]).includes(value)) {
             elementLogger.error(
                 `repeated-edges must be one of ` +
@@ -2951,7 +2951,7 @@ export class Graphty extends LitElement {
     /**
      * Sets how the edge time column's numbers are read. Updates graph configuration.
      */
-    set edgeTimeUnit(value: string | undefined) {
+    set edgeTimeUnit(value: string | null | undefined) {
         if (value !== undefined && value !== null && value !== "" && !["ms", "s", "year", "ordinal"].includes(value)) {
             elementLogger.error(`edge-time-unit must be ms, s, year or ordinal, not "${value}".`);
 
@@ -2979,7 +2979,7 @@ export class Graphty extends LitElement {
     /**
      * Sets how the node time column's numbers are read. Updates graph configuration.
      */
-    set nodeTimeUnit(value: string | undefined) {
+    set nodeTimeUnit(value: string | null | undefined) {
         if (value !== undefined && value !== null && value !== "" && !["ms", "s", "year", "ordinal"].includes(value)) {
             elementLogger.error(`node-time-unit must be ms, s, year or ordinal, not "${value}".`);
 
@@ -3015,7 +3015,7 @@ export class Graphty extends LitElement {
     /**
      * Sets the record-units-to-scene-units multiplier. Updates graph configuration.
      */
-    set positionScale(value: number | undefined) {
+    set positionScale(value: number | null | undefined) {
         if (value !== undefined && value !== null && !(Number.isFinite(value) && value > 0)) {
             elementLogger.error(
                 `position-scale must be a number greater than zero, not "${String(value)}". ` +
@@ -3086,7 +3086,7 @@ export class Graphty extends LitElement {
     /**
      * Sets whether the graph is read as directed. Updates graph configuration.
      */
-    set directed(value: boolean | "auto" | undefined) {
+    set directed(value: boolean | "auto" | null | undefined) {
         const oldValue = this.directed;
 
         if (value !== undefined && value !== null && value !== "auto" && typeof value !== "boolean") {
@@ -4026,7 +4026,7 @@ export class Graphty extends LitElement {
     /**
      * Sets how the globe looks.
      */
-    set globeLook(value: GlobeLook) {
+    set globeLook(value: GlobeLook | null) {
         const oldValue = this.globeLook;
         this.#graph.setGlobeLook(value ?? {});
         this.requestUpdate("globeLook", oldValue);
@@ -4054,7 +4054,7 @@ export class Graphty extends LitElement {
     /**
      * Sets how long camera moves take.
      */
-    set cameraTransitionDuration(value: number | undefined) {
+    set cameraTransitionDuration(value: number | null | undefined) {
         const oldValue = this.cameraTransitionDuration;
         this.#graph.setCameraTransitionDuration(
             value === undefined || value === null || !Number.isFinite(value) ? undefined : value,
@@ -4277,7 +4277,7 @@ export class Graphty extends LitElement {
     /**
      * Sets how the 3D nodes are lit.
      */
-    set lighting(value: Lighting) {
+    set lighting(value: Lighting | null) {
         const oldValue = this.lighting;
 
         try {

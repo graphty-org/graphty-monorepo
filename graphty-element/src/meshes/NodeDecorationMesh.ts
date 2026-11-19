@@ -555,7 +555,8 @@ function buildImage(
      * @param failed - The URL that failed last, if one did.
      */
     const load = (sources: readonly string[], failed?: string): void => {
-        const [src, ...rest] = sources;
+        const src = sources.at(0);
+        const rest = sources.slice(1);
         if (src === undefined) {
             mat.diffuseTexture = null;
             shape(null);

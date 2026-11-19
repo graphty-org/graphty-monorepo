@@ -355,8 +355,9 @@ export function shapePointList(text: string | undefined): ShapePoint[] | null {
         .split(/\s+/)
         .filter((pair) => pair !== "")
         .map((pair): ShapePoint => {
-            const [x, y, extra] = pair.split(",");
-            return extra === undefined ? [...coordinate(x), ...coordinate(y)] : [Number.NaN, 0, Number.NaN, 0];
+            const parts = pair.split(",");
+            const [x, y] = parts;
+            return parts.length <= 2 ? [...coordinate(x), ...coordinate(y)] : [Number.NaN, 0, Number.NaN, 0];
         });
     return points.length > 0 && points.every((p) => p.every((v) => Number.isFinite(v))) ? points : null;
 }

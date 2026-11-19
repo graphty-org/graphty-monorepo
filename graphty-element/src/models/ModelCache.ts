@@ -924,7 +924,7 @@ export class ModelCache {
         );
         if ((state === "rejected" || state === "failed") && !status.warned) {
             status.warned = true;
-            const [first] = problems;
+            const first = problems.at(0);
             // The one line a developer sees when a model they named is not drawn.
             console.warn(`graphty-element: model ${ref} was not drawn: ${first?.code ?? state}`, first?.params ?? {});
         }

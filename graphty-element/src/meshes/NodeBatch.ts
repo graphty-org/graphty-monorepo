@@ -342,7 +342,9 @@ export class NodeBatch {
         this.matrices = matrices;
         this.mesh.metadata = { ...(this.mesh.metadata as object), rowUnscaled: false };
         this.mesh.forcedInstanceCount = 0;
-        for (const subMesh of this.mesh.subMeshes ?? []) {
+        // Babylon types the list as always there; a mesh with no geometry yet has none.
+        const view: { readonly subMeshes?: Mesh["subMeshes"] } = this.mesh;
+        for (const subMesh of view.subMeshes ?? []) {
             subMesh.materialDefines?.markAllAsDirty();
             subMesh.resetDrawCache();
         }
@@ -1390,7 +1392,7 @@ export class NodeBatches {
         }
 
         const { source } = group;
-        const [first] = group.members;
+        const first = group.members.values().next().value;
         const look = [
             first?.batchLook ?? "",
             source.getTotalVertices(),
@@ -1417,7 +1419,7 @@ export class NodeBatches {
         }
 
         group.family = family;
-        group.scale = alone ? 1 : (scale ?? 1);
+        group.scale = alone ? 1 : scale;
         family.groups.add(group);
     }
 
@@ -1434,15 +1436,15 @@ export class NodeBatches {
     private splitsDrawOrder(family: RowFamily, source: Mesh): boolean {
         const [low, high] = drawSpan(source, [family.canonical, ...[...family.groups].map((member) => member.source)]);
         for (const other of this.families.values()) {
-            const [head, ...rest] = [...other.groups]
+            const sources = [...other.groups]
                 .filter((member) => member.restVisibility >= 1)
                 .map((member) => member.source);
+            const head = sources.at(0);
             if (other === family || head === undefined) {
                 continue;
             }
 
-            const sources = [head, ...rest];
-            const [otherLow, otherHigh] = drawSpan(head, rest);
+            const [otherLow, otherHigh] = drawSpan(head, sources.slice(1));
             if (drawsBetween(otherLow, source, otherHigh) || sources.some((one) => drawsBetween(low, one, high))) {
                 return true;
             }

@@ -105,7 +105,8 @@ export class BetweennessCentralityAlgorithm extends MetricAlgorithm<BetweennessO
 
         const nodes: ResultElementValues[] = [];
         await walkInChunks(nodeIds, context, "reading-scores", (nodeId) => {
-            const score = value.scores[snapshot.ids.indexOf(nodeId)];
+            const row = snapshot.ids.indexOf(nodeId);
+            const score = row === -1 ? undefined : value.scores[row];
             nodes.push({ id: nodeId, values: score === undefined ? {} : { value: score } });
         });
 

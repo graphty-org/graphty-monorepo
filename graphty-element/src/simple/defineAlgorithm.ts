@@ -636,7 +636,7 @@ function outputOf(
     const { member, name } = algorithm;
     const { nodes, edges, groupType, notes, facts, convergence } = run;
     const kind = member === "edge" ? "edge" : "node";
-    const [weight] = viewWeightPaths(view);
+    const weight = viewWeightPaths(view).at(0);
     const fields =
         member === "groups"
             ? communityFieldSpecs(false).map((spec) => (spec.name === "group" ? { ...spec, type: groupType } : spec))

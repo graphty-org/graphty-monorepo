@@ -26,14 +26,16 @@ export async function searchFollowing<T>(
         return run(fn);
     }
 
-    let transposed: GraphSnapshot | null = null;
+    // Filled inside the run's callback, so it is a list narrowing cannot pin to empty.
+    const made: GraphSnapshot[] = [];
     try {
         return await run((dispatch, s) => {
-            transposed = s.transpose().snapshot;
+            const transposed = s.transpose().snapshot;
+            made.push(transposed);
             return fn(dispatch, transposed);
         });
     } finally {
-        if (transposed !== null) {
+        for (const transposed of made) {
             releaseOnAccelerator(owner, transposed);
         }
     }

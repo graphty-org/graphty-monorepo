@@ -2458,7 +2458,9 @@ export class Node implements ModelUser {
 
         const source = this.#mesh.sourceMesh;
 
-        if (source.instancedBuffers?.color === undefined) {
+        // Babylon types the buffers as always there; a source that registered none has none.
+        const sourceView: { readonly instancedBuffers?: Mesh["instancedBuffers"] } = source;
+        if (sourceView.instancedBuffers?.color === undefined) {
             // Only the source draws with its material (one per cache entry), so only its submeshes
             // are marked dirty, not every mesh in the scene (issue #2894).
             if (source.material) {
@@ -2705,7 +2707,7 @@ export class Node implements ModelUser {
      * @returns True when one does.
      */
     private layersNameANodeShader(): boolean {
-        const layers = this.context.getSession?.()?.styles.list() ?? [];
+        const layers = this.context.getSession?.().styles.list() ?? [];
         return layers.some(
             (layer) => layer.enabled && layer.target === "node" && layer.set?.["node.shaders"] !== undefined,
         );
@@ -2854,7 +2856,7 @@ export class Node implements ModelUser {
                 y1: fy(b.y),
             });
             // ponytail: one picture per node, the first cell's; a mesh per picture when a file has several
-            const [picture] = drawn.images;
+            const picture = drawn.images.at(0);
             const table: TableDecoration = {
                 fills: drawn.fills.map((f) => ({ box: box(f), color: f.color })),
                 image:
@@ -3044,7 +3046,7 @@ export class Node implements ModelUser {
         // The painter shares one style per look, so an unchanged node is handed the style it drew.
         const same = drawn === o;
         const equalButFill = same || (drawn !== null && isEqual(withoutFill(o), withoutFill(drawn)));
-        const equal = same || (equalButFill && isEqual(o.texture, drawn?.texture));
+        const equal = same || (equalButFill && isEqual(o.texture, drawn.texture));
         this.comparedDrawn = { style: o, drawn, equal, equalButFill };
         return this.comparedDrawn;
     }
@@ -4464,7 +4466,7 @@ export class Node implements ModelUser {
      * @returns the array, or undefined for a node built outside a graph
      */
     private get positionsLane(): ElementPositions | undefined {
-        return writableLane(this.context.getDataManager?.());
+        return writableLane(this.context.getDataManager());
     }
 
     /**

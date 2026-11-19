@@ -264,12 +264,13 @@ async function computeWith(
     }
 
     const attributes = graphvizAttributes(engine, options);
+    // The same list, read as what it is: it holds only the attributes that were set.
+    const set: Partial<Record<string, string>> = attributes;
     // The DOT names nodes by row, so a root given as a node's id is given as its row.
-    if (attributes.root !== undefined) {
+    const { root } = set;
+    if (root !== undefined) {
         const { ids } = input.stored;
-        const row = [attributes.root, Number(attributes.root)]
-            .map((id) => ids.indexOf(id))
-            .find((index) => index !== INVALID_INDEX);
+        const row = [root, Number(root)].map((id) => ids.indexOf(id)).find((index) => index !== INVALID_INDEX);
         if (row !== undefined) {
             attributes.root = `n${row}`;
         }
@@ -280,7 +281,7 @@ async function computeWith(
     const extents = input.nodeExtents?.().map((size) => size / scale);
     // twopi spaces its rings `ranksep` apart (1 inch by default) whatever the nodes' size, which
     // fits Graphviz's 0.75-inch default node; scale it to the widest node the element draws.
-    if (engine === "twopi" && attributes.ranksep === undefined && structure.labelSized !== true) {
+    if (engine === "twopi" && set.ranksep === undefined && structure.labelSized !== true) {
         attributes.ranksep = String(TWOPI_RANKSEP_PER_INCH * widest(sizes));
     }
 

@@ -842,7 +842,7 @@ export class RichTextLabel {
 
         this.options = finalOptions;
         this.tableLineColor =
-            finalOptions.borders[0]?.color ??
+            finalOptions.borders.at(0)?.color ??
             (userOptions.borderColor === undefined ? finalOptions.textColor : finalOptions.borderColor);
         this.id = `richLabel_${Math.random().toString(36).substring(2, 11)}`;
 
@@ -1169,7 +1169,7 @@ export class RichTextLabel {
      * @returns The reach, in canvas pixels.
      */
     private centeredReach(): number {
-        return (this.options.borders[0]?.width ?? 0) / 2;
+        return (this.options.borders.at(0)?.width ?? 0) / 2;
     }
 
     /**
@@ -2211,7 +2211,7 @@ export class RichTextLabel {
         // a border centered on the panel's edge reaches half its outermost line past it
         const bordersPx =
             this.options.borderAlign === "center"
-                ? (borders[0]?.width ?? 0) / 2
+                ? (borders.at(0)?.width ?? 0) / 2
                 : borders.reduce((sum, border) => sum + border.width + border.spacing, 0);
         const oneLinePx = lineBox + marginTop + marginBottom + 2 * backgroundPadding + 2 * bordersPx;
         const { letterSize, fontSize } = this.options;

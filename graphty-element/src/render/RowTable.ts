@@ -563,7 +563,7 @@ export class RowTable {
         const flags = this.flags[row] ?? 0;
         // a shrunk row keeps its whole size here, and how much of it is drawn in w, which hiding zeroes
         const part =
-            (flags & SHRUNK) !== 0 && (flags & HIDDEN) === 0 ? this.positions.floats[row * POSITION_FLOATS + 3] : 1;
+            (flags & SHRUNK) !== 0 && (flags & HIDDEN) === 0 ? this.positions.floats.at(row * POSITION_FLOATS + 3) : 1;
         const of = (i: number): number => (floats[base + i] ?? 0) * (part ?? 1);
         return {
             scale: of(0),

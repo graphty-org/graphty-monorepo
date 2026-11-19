@@ -118,8 +118,14 @@ export class RecoveringWebGPUEngine extends WebGPUEngine {
     protected override _rebuildBuffers(): void {
         for (const scene of [...this.scenes, ...this._virtualScenes]) {
             for (const mesh of scene.meshes) {
-                if (mesh instanceof Mesh && mesh._userInstancedBuffersStorage !== undefined) {
-                    mesh._userInstancedBuffersStorage.renderPasses = {};
+                if (!(mesh instanceof Mesh)) {
+                    continue;
+                }
+                // Babylon types the storage as always there; a mesh with no instanced buffers has none.
+                const view: Partial<Pick<Mesh, "_userInstancedBuffersStorage">> = mesh;
+                const storage = view._userInstancedBuffersStorage;
+                if (storage !== undefined) {
+                    storage.renderPasses = {};
                 }
             }
 

@@ -219,6 +219,11 @@ const INVENTORY: Record<string, Covered> = {
         count: 1,
         reason: "document.fonts.check() is a synchronous test; a label whose font is not loaded yet is drawn by canvas meanwhile",
     },
+    "src/meshes/labelFonts.ts": {
+        count: 1,
+        kind: "font",
+        reason: "a label's web font loading; Graph watches labelFontsLoading under the font kind until it lands",
+    },
     "src/meshes/EdgeShaderDrawing.ts": {
         count: 1,
         kind: "shader",

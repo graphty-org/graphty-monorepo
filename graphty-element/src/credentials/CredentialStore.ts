@@ -207,7 +207,7 @@ export class CredentialStore {
             ([, entry]) => entry.source === source && entry.origin === wanted && fills(entry, slot),
         );
         // A credential remembered for this very slot wins over one remembered for no slot.
-        const [key, entry] = matches.find(([, e]) => e.slot === slot) ?? matches[0] ?? [];
+        const [key, entry] = matches.find(([, e]) => e.slot === slot) ?? matches.at(0) ?? [];
         if (key === undefined || entry === undefined) {
             return undefined;
         }

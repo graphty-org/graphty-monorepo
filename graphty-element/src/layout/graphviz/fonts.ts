@@ -63,10 +63,12 @@ export type MeasureText = (cssFont: string, text: string) => number;
  * @returns the measurer, or null where there is no canvas (Node)
  */
 export function canvasMeasure(): MeasureText | null {
-    const context =
-        typeof OffscreenCanvas === "undefined"
-            ? (globalThis.document?.createElement("canvas").getContext("2d") ?? null)
-            : new OffscreenCanvas(1, 1).getContext("2d");
+    let context: OffscreenCanvasRenderingContext2D | CanvasRenderingContext2D | null = null;
+    if (typeof OffscreenCanvas !== "undefined") {
+        context = new OffscreenCanvas(1, 1).getContext("2d");
+    } else if (typeof document !== "undefined") {
+        context = document.createElement("canvas").getContext("2d");
+    }
     if (context === null) {
         return null;
     }
@@ -134,17 +136,17 @@ export function withDrawnFonts(
         return family;
     };
     const fix = (attributes: Readonly<Record<string, string>>): Readonly<Record<string, string>> => {
+        // The same list, read as what it is: it holds only the attributes that were set.
+        const set: Readonly<Partial<Record<string, string>>> = attributes;
         // ponytail: an end label's own font (`labelfontname`) is handed over as the file names it
-        if ((attributes.label ?? attributes.xlabel ?? attributes.headlabel ?? attributes.taillabel) === undefined) {
+        if ((set.label ?? set.xlabel ?? set.headlabel ?? set.taillabel) === undefined) {
             return attributes;
         }
 
-        const fontname = attributes.fontname ?? DEFAULT_FONTNAME;
+        const fontname = set.fontname ?? DEFAULT_FONTNAME;
         const family = familyOf(fontname);
         // Graphviz's own reading of its default is already Times
-        return attributes.fontname === undefined && family === "Times"
-            ? attributes
-            : { ...attributes, fontname: family };
+        return set.fontname === undefined && family === "Times" ? attributes : { ...attributes, fontname: family };
     };
     const fixAll = <K>(
         map: ReadonlyMap<K, Readonly<Record<string, string>>> | undefined,

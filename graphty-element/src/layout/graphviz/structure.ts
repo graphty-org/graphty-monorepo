@@ -137,14 +137,17 @@ function attributesOf(
 function labelSizedAttributes(data: Readonly<Record<string, unknown>>, id: NodeIdType): Record<string, string> | null {
     const out = attributesOf(data, NODE_SIZE_ATTRIBUTES, true);
     // an empty label draws no text (Graphviz's blank node), not the node's name
-    const label = data.label === "" ? "" : (out.label ?? NODE_NAME_ESCAPE);
+    // The same list, read as what it is: it holds only the attributes the data set.
+    const set: Partial<Record<string, string>> = out;
+    const label = data.label === "" ? "" : (set.label ?? NODE_NAME_ESCAPE);
     if (label.includes(GRAPH_NAME_ESCAPE)) {
         return null;
     }
 
     out.label = label.replaceAll(NODE_NAME_ESCAPE, String(id));
-    if (out.xlabel !== undefined) {
-        out.xlabel = out.xlabel.replaceAll(NODE_NAME_ESCAPE, String(id));
+    const { xlabel } = set;
+    if (xlabel !== undefined) {
+        out.xlabel = xlabel.replaceAll(NODE_NAME_ESCAPE, String(id));
     }
     return out;
 }

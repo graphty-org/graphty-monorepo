@@ -24,9 +24,14 @@ export async function copyToClipboard(blobOrPromise: Blob | Promise<Blob>): Prom
         };
     }
 
-    // Check if clipboard API is available
-
-    if (!navigator.clipboard) {
+    // Either can be missing, whatever the DOM types say: the clipboard outside a secure context or
+    // in an old browser, the permissions API in some browsers.
+    const nav: {
+        readonly clipboard?: { readonly write?: Clipboard["write"] };
+        readonly permissions?: { readonly query?: Permissions["query"] };
+    } = navigator;
+    const { clipboard } = nav;
+    if (!clipboard) {
         return {
             status: "not-supported",
             error: captureError("E_UNSUPPORTED", "Clipboard API not supported in this browser", {
@@ -35,7 +40,7 @@ export async function copyToClipboard(blobOrPromise: Blob | Promise<Blob>): Prom
         };
     }
 
-    if (!navigator.clipboard.write) {
+    if (!clipboard.write) {
         return {
             status: "not-supported",
             error: captureError("E_UNSUPPORTED", "Clipboard write API not supported in this browser", {
@@ -46,7 +51,7 @@ export async function copyToClipboard(blobOrPromise: Blob | Promise<Blob>): Prom
 
     // Check clipboard-write permission
     try {
-        if (navigator.permissions?.query) {
+        if (nav.permissions?.query) {
             const permission = await navigator.permissions.query({
                 // @ts-expect-error - clipboard-write is not yet in TypeScript types
                 name: "clipboard-write",

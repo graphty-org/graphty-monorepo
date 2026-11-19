@@ -112,10 +112,6 @@ function fieldOf(problem: ShaderProblem): string {
         return `descriptor.params.${String(problem.params.param)}.${String(problem.params.field)}`;
     }
 
-    if (problem.code === "shader.reserved" && problem.params.param !== undefined) {
-        return `descriptor.params.${String(problem.params.param)}.name`;
-    }
-
     if (problem.code === "shader.id-invalid") {
         return "descriptor.id";
     }

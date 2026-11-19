@@ -611,7 +611,7 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
      */
     protected rankSets(): readonly RankSet[] {
         const graph: { getDataManager?: () => { readonly rankSets: readonly RankSet[] } } | undefined =
-            this._nodes[0]?.parentGraph;
+            this._nodes.at(0)?.parentGraph;
         return this.#host?.rankSets?.() ?? graph?.getDataManager?.().rankSets ?? [];
     }
 

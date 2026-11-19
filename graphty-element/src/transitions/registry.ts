@@ -125,7 +125,9 @@ export function admitTransition(registration: TransitionRegistration, namespaced
         refuse("move");
     }
 
-    if (registration.drawable !== undefined && registration.drawable !== "particles") {
+    // A JavaScript caller can pass anything.
+    const view: { readonly drawable?: string } = registration;
+    if (view.drawable !== undefined && view.drawable !== "particles") {
         refuse("drawable");
     }
 

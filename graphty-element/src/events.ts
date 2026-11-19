@@ -986,7 +986,7 @@ export interface NodeEventDetail {
 }
 
 /** The DOM event name one internal node event is mirrored under. */
-export const NODE_EVENT_DOM_NAMES: Readonly<Record<string, string>> = {
+export const NODE_EVENT_DOM_NAMES: Readonly<Partial<Record<string, string>>> = {
     "node-click": "graphty-node-click",
     "node-hover": "graphty-node-hover",
     "node-drag-start": "graphty-node-drag-start",

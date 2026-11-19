@@ -32,7 +32,7 @@ import type { Graph } from "../../Graph";
  * @returns A label lookup, or undefined when no label attribute is configured.
  */
 export function nodeLabelReader(graph: Graph): ((id: NodeId) => string | undefined) | undefined {
-    const labelPath = graph.styles?.config.data.knownFields.nodeLabelPath ?? null;
+    const labelPath = graph.styles.config.data.knownFields.nodeLabelPath ?? null;
 
     if (labelPath === null) {
         return undefined;

@@ -754,7 +754,7 @@ export class NodeShaderDrawing {
             out.set(id, now);
         };
         for (const entry of this.entries.values()) {
-            if (entry.surface !== null && entry.surface !== undefined) {
+            if (entry.surface !== null) {
                 count(entry.surface.id);
             }
 

@@ -93,9 +93,9 @@ export function createLazyShaderHost(scene: Scene, guard: ShaderGuard = new Shad
     });
 
     // `motion: "system"` follows the platform's reduced-motion preference, as it changes.
-    const reduced = globalThis.matchMedia?.("(prefers-reduced-motion: reduce)");
+    const reduced = typeof matchMedia === "function" ? matchMedia("(prefers-reduced-motion: reduce)") : undefined;
     const onReduced = (): void => {
-        guard.setSystemStill(reduced?.matches);
+        guard.setSystemStill(reduced?.matches === true);
     };
     reduced?.addEventListener("change", onReduced);
     onReduced();

@@ -168,7 +168,7 @@ export class PreviewEngines {
 function free(drawing: Drawing): void {
     const gl = drawing.engine._gl;
     drawing.engine.dispose();
-    gl?.getExtension("WEBGL_lose_context")?.loseContext();
+    gl.getExtension("WEBGL_lose_context")?.loseContext();
 }
 
 /**
@@ -302,7 +302,7 @@ export class LiveModelPreview implements ModelPreview {
                 return;
             }
             const template = await this.#load(this.#scene, style);
-            if (this.#disposed) {
+            if (this.#isDisposed()) {
                 template.dispose();
                 return;
             }
@@ -346,6 +346,15 @@ export class LiveModelPreview implements ModelPreview {
         this.#camera.alpha = START_ALPHA;
         this.#camera.beta = START_BETA;
         this.#camera.radius = this.#framed;
+    }
+
+    /**
+     * Whether the preview was disposed. A method, so a read after an await is not pinned by
+     * narrowing to what an earlier check saw.
+     * @returns True once it was.
+     */
+    #isDisposed(): boolean {
+        return this.#disposed;
     }
 
     /** Stop, free the context and remove the canvas. See {@link ModelPreview.dispose}. */

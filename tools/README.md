@@ -370,7 +370,8 @@ The root CLAUDE.md, "Shipping a change", steps 2 and 3, holds the rules; this is
   refactor of a shared component, a dependency or lockfile upgrade, a change to graphty-element's styling, layout
   or rendering). When its change reaches the graphty app it runs the app's dry run and fixes every failed route
   before opening the pull request (design/ci/ai-checked-acceptance-tests.md, 10.4).
-- **`tools/pr-open.sh`** merges GitHub's copy of the branch, refuses a conflict with master (exit 2: merge
+- **`tools/pr-open.sh`** refuses a Proof that does not name every test file the branch adds or changes (run them
+  and paste the output; a `revert/` branch is exempt), merges GitHub's copy of the branch, refuses a conflict with master (exit 2: merge
   `origin/master`, resolve, run again), runs a fresh-context review (exit 3: fix it, or answer it in the Proof and
   pass `--review-answered`), scans for secrets, pushes, opens the pull request, arms auto-merge and returns in
   seconds.

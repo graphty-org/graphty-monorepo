@@ -436,6 +436,70 @@ describe("pr-open.sh", () => {
         }
     });
 
+    it("refuses a branch whose changed test files the Proof does not name, and opens once it names them (#8799)", () => {
+        branch("fix/1250-tests", {
+            "pkg/test/a.test.ts": "a\n",
+            "pkg/src/b.spec.tsx": "b\n",
+            "pkg/src/c.ts": "c\n",
+            "tools/x.test.mjs": "x\n",
+        });
+        const r = run();
+        assert.equal(r.code, 1, r.out);
+        assert.match(
+            r.out,
+            /no run of these test files the branch changes.*pkg\/src\/b\.spec\.tsx pkg\/test\/a\.test\.ts$/m,
+        );
+        assert.doesNotMatch(
+            r.out,
+            /src\/c\.ts\b|x\.test\.mjs/,
+            "a source file, and a test the Proof names, are not listed",
+        );
+        assert.throws(() => readFileSync(ghLog), undefined, "gh was not called");
+        const named = join(dir, "named.md");
+        writeFileSync(named, "npx vitest run test/a.test.ts src/b.spec.tsx: 2 pass\nnode tools/x.test.mjs: 1 pass\n");
+        const ok = run(["--proof", named]);
+        assert.equal(ok.code, 0, ok.out);
+    });
+
+    it("does not count a longer file name that only contains the changed one", () => {
+        branch("fix/1252-substring", { "pkg/test/undo.test.ts": "u\n" });
+        const other = join(dir, "other.md");
+        writeFileSync(other, "npx vitest run test/redo-undo.test.ts: 1 pass\n");
+        const r = run(["--proof", other]);
+        assert.equal(r.code, 1, r.out);
+        assert.match(r.out, /pkg\/test\/undo\.test\.ts$/m);
+    });
+
+    it("asks for a renamed test file's new name, and exempts a revert/ branch", () => {
+        git(work, "checkout", "-q", "-b", "seed");
+        writeFileSync(join(work, "old.test.ts"), "o\n");
+        git(work, "add", ".");
+        git(work, "commit", "-q", "-m", "chore: seed");
+        git(work, "push", "-q", "origin", "seed:master");
+        git(work, "checkout", "-q", "-b", "fix/1253-rename");
+        git(work, "mv", "old.test.ts", "new.test.ts");
+        git(work, "commit", "-q", "-m", "fix(tools): rename a test");
+        const r = run();
+        assert.equal(r.code, 1, r.out);
+        assert.match(r.out, /new\.test\.ts$/m);
+        git(work, "checkout", "-q", "-b", "revert/abc1234");
+        const rv = run(["--proof", proof, "--issue", "1253"]);
+        assert.equal(rv.code, 0, rv.out);
+    });
+
+    it("does not ask the Proof for a test file the branch deletes", () => {
+        git(work, "checkout", "-q", "-b", "seed");
+        writeFileSync(join(work, "gone.test.ts"), "g\n");
+        git(work, "add", ".");
+        git(work, "commit", "-q", "-m", "chore: seed");
+        git(work, "push", "-q", "origin", "seed:master");
+        git(work, "checkout", "-q", "-b", "fix/1251-delete");
+        git(work, "rm", "-q", "gone.test.ts");
+        git(work, "commit", "-q", "-m", "fix(tools): drop a test");
+        const r = run();
+        assert.equal(r.code, 0, r.out);
+    });
+
     it("stops with exit 2 when master does not merge cleanly, leaving no merge in progress", () => {
         branch("fix/1240-clash", { "c.txt": "branch\n" });
         git(work, "checkout", "-q", "master");

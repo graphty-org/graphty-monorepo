@@ -512,18 +512,18 @@ export function claimOf(issue) {
         .sort((a, b) => a.id - b.id);
     const newest = markers.at(-1) ?? null;
     const taken = markers.findLast((m) => m.kind === "taken") ?? null;
-    const labelled = Math.max(
+    const labeled = Math.max(
         0,
         ...(issue.timelineItems?.nodes ?? [])
             .filter((e) => e?.label?.name === "in-progress")
             .map((e) => Date.parse(e.createdAt)),
     );
     // A label put back after a release is a new claim with no marker.
-    if (!newest || (newest.kind === "released" && labelled > newest.at)) {
+    if (!newest || (newest.kind === "released" && labeled > newest.at)) {
         return {
             n: issue.number,
             kind: "label",
-            at: labelled,
+            at: labeled,
             session: null,
             branch: null,
             worktree: null,
@@ -617,7 +617,7 @@ export function namedIssues({ prs = [], branches = [] }) {
 
 /**
  * Every claim judged, with what --fix does about each dead one.
- * @param issues GraphQL Issues labelled in-progress (from fetchLabelled)
+ * @param issues GraphQL Issues labeled in-progress (from fetchLabeled)
  * @param facts as judgeClaim()
  * @param now ms
  * @returns `{ claims: [{ ...claimOf, ...judgeClaim, id, labelId, action }] }`, action release, unlabel, stranded or
@@ -696,7 +696,7 @@ export function heldEntry(issue, guard) {
 }
 
 const PAGE_TEXT = `comments(last: 30) { nodes { databaseId createdAt ${TEXT} } }`;
-const labelledQuery = `query($owner: String!, $name: String!, $after: String, $label: String!) {
+const labeledQuery = `query($owner: String!, $name: String!, $after: String, $label: String!) {
   repository(owner: $owner, name: $name) {
     issues(states: OPEN, labels: [$label], first: 50, after: $after) {
       pageInfo { hasNextPage endCursor }
@@ -732,7 +732,7 @@ const paged = (run, query, vars, pick) => {
  * @param run the GraphQL runner
  * @returns GraphQL Issues
  */
-export const fetchLabelled = (label, run = gh) => paged(run, labelledQuery, { label }, (r) => r.issues);
+export const fetchLabeled = (label, run = gh) => paged(run, labeledQuery, { label }, (r) => r.issues);
 
 const git = (root, args) => {
     try {
@@ -920,7 +920,7 @@ export function claimsCommand(o = {}) {
     if (!o.facts && git(root, ["fetch", "-q", "--prune", "--no-tags", "origin"]) === null) {
         throw new Error("git fetch failed: claims unknown");
     }
-    const issues = fetchLabelled("in-progress", run);
+    const issues = fetchLabeled("in-progress", run);
     const prs = paged(run, OPEN_PR_QUERY, {}, (r) => r.pullRequests);
     const machine = o.facts ?? machineFacts(root, new Set(prs.map((p) => p.headRefName)));
     const named = namedIssues({ prs, branches: machine.recentBranches?.(now) ?? [] });
@@ -969,7 +969,7 @@ export function claimsCommand(o = {}) {
  * @returns the issue numbers lifted
  */
 function liftBlocked(run) {
-    const blocked = fetchLabelled("blocked", run);
+    const blocked = fetchLabeled("blocked", run);
     const guard = /$^/; // misheld is a listing only; it never lifts a label
     const entries = blocked.map((i) => ({ issue: i, e: heldEntry(i, guard) })).filter((x) => x.e.cites.length);
     const cited = [...new Set(entries.flatMap((x) => x.e.cites))];

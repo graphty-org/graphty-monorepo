@@ -175,11 +175,13 @@ export const Keyboard: Story = {
             return;
         }
         // In Storybook's own UI a page script cannot make trusted input, so the press is replayed
-        // with Storybook's userEvent, one half of the press at a time.
-        await userEvent.pointer({ keys: "[MouseLeft>]", target: button });
+        // with Storybook's userEvent, one half of the press at a time. One setup() instance for both
+        // halves: each direct userEvent call starts with no button held, so its release would send nothing.
+        const user = userEvent.setup();
+        await user.pointer({ keys: "[MouseLeft>]", target: button });
         await waitFor(() => expect(button).toHaveAttribute("aria-pressed", "true"));
         // The click that ends the same press is swallowed: after its commit the toggle is still on.
-        await userEvent.pointer({ keys: "[/MouseLeft]", target: button });
+        await user.pointer({ keys: "[/MouseLeft]", target: button });
         await expect(button).toHaveAttribute("aria-pressed", "true");
         button.focus();
         await userEvent.keyboard(" ");

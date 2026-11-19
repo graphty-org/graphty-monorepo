@@ -5,7 +5,7 @@
  * synchronous commit tail, writes the finished run into the `runs` slice together with the style
  * layers it paints: its first-completion layers, and the suggested layers it was asked to apply.
  * So a run, its result, its layers and its legend are one step, and undoing it keeps the result
- * in history instead of recomputing it. A run cancelled before it commits, whether by undo, by
+ * in history instead of recomputing it. A run canceled before it commits, whether by undo, by
  * the queue or by its own `cancel()`, writes nothing.
  *
  * `algo.remove` takes a run out of the `runs` slice and removes the layers bound to it, in one
@@ -16,7 +16,7 @@
  *
  * `algo.rename` gives a finished run the reader's own name, or takes it away, in one draft.
  *
- * `algo.legacy` runs a plugin algorithm that declares no catalogue descriptor, and so has no run:
+ * `algo.legacy` runs a plugin algorithm that declares no catalog descriptor, and so has no run:
  * it writes onto node and edge records and `graphResults` as it goes, and may call the graph's
  * own doors. It is one step all the same. The plugin is handed a facade of the graph whose doors
  * dispatch into the command's own group ({@link legacyFacade}), and while it runs the records it
@@ -69,7 +69,7 @@ export interface AlgoRenameCommand {
 }
 
 /**
- * `algo.legacy`: run a plugin algorithm that declares no catalogue descriptor, addressed the 1.10
+ * `algo.legacy`: run a plugin algorithm that declares no catalog descriptor, addressed the 1.10
  * way, as one step with everything it writes.
  */
 export interface AlgoLegacyCommand {
@@ -101,7 +101,7 @@ export interface RunService {
      * Compute a run, then write it and the layers it paints through the command's draft.
      * @param command - The run.
      * @param ctx - The command's context: its draft, its signal and its slot.
-     * @returns Settles once the run is written; rejects when it failed or was cancelled first.
+     * @returns Settles once the run is written; rejects when it failed or was canceled first.
      */
     run(command: AlgorithmRunCommand, ctx: UndoableContext): Promise<unknown>;
     /**

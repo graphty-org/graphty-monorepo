@@ -31,7 +31,7 @@ import {
     VisuallyHidden,
 } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
-import React, { useContext, useEffect, useId, useMemo, useRef, useState } from "react";
+import React, { useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 
 import { sourceName } from "../data-place/words";
@@ -1197,7 +1197,7 @@ export interface ExtraItem {
     readonly onPick: () => void;
     /** One fact that tells it from its neighbors, drawn dimmed at the right. */
     readonly fact?: string;
-    /** Why it cannot be picked here: greyed, with the reason as its tooltip and in its name. */
+    /** Why it cannot be picked here: grayed, with the reason as its tooltip and in its name. */
     readonly unusable?: string;
     /** Plain words for what it is, as its tooltip (selection spec 3.5). */
     readonly tip?: string;
@@ -1435,6 +1435,16 @@ export function AddCondition({
                   onElsewhere(other);
               };
     const { dropdownOpened, selectFirstOption, selectOption, resetSelectedOption, setListId } = combobox;
+    // The search takes focus in the commit that shows the list, so a key pressed the moment it
+    // shows lands in it. Mantine's focusSearchInput waits a timer, and under load the reader's (or
+    // a test's) first keys arrive before it fires and go to the field behind (#8943). No scroll:
+    // the list may not be placed yet.
+    const { searchRef } = combobox;
+    useLayoutEffect(() => {
+        if (dropdownOpened) {
+            searchRef.current?.focus({ preventScroll: true });
+        }
+    }, [dropdownOpened, searchRef]);
     // The store finds its options in the list by this id (Combobox.Options would tell it).
     useEffect(() => {
         setListId(listId);
@@ -1745,7 +1755,7 @@ export function AddCondition({
 }
 
 /**
- * One row of the add list that is not a field: its icon, name and fact; greyed with its reason as
+ * One row of the add list that is not a field: its icon, name and fact; grayed with its reason as
  * a tooltip when it cannot be picked here.
  * @param props - Component props
  * @param props.item - the row

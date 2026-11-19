@@ -65,8 +65,9 @@ route fails loudly if not: a software renderer is never used. The flags come fro
 studio's tool (`design/ui/studio/tool/real.mjs`, "Browsers"), with the extracted `libEGL.so.1` in
 the main checkout's `tmp/egl/`. The run holds the machine's one GPU slot for its whole length
 (`tools/test-slots.mjs --gpu`), and each browser takes one of the machine's four shared browser slots
-(`design/ui/studio/tool/with-browser.sh`). A run started
-while those are busy waits for them, and its report says how long.
+(`design/ui/studio/tool/with-browser.sh`). The run takes its first browser slot before the GPU
+slot, and its first browser uses it, so it never holds the GPU slot while it waits for a browser. A run
+started while those are busy waits for them, and its report says how long.
 
 A route takes 2 to 6 seconds once its browser is up. The routes are spread over the browsers as
 each frees up.
@@ -91,7 +92,9 @@ It drives real clicks, drags and keys over a pairwise matrix of card kinds, verb
 entry points, datasets, edits and ways of leaving, then named scenarios (a slider's exact ends, settings
 then ticks, popovers closing on an outside click, order after a delete). What a selection should hold is
 worked out from the graph and the runs' results, and compared with the title bar, the cards, the table,
-the drawing and what is saved. It prints a table of results, exits 1 when a scenario failed, and keeps a
+the drawing and what is saved. The matrix's rows run as a reader who prefers reduced motion (the graph
+is drawn once its layout settles, which is most of a row's CPU on a software GPU); the named scenarios
+keep every transition. It prints a table of results, exits 1 when a scenario failed, and keeps a
 failed scenario's screenshot under `--out` (default `tmp/selection-workspace-uat`).
 
 ## Adding a route

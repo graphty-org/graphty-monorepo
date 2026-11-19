@@ -49,11 +49,11 @@ async function communities(context: RunExecutionContext): Promise<RunOutcome> {
 }
 
 /**
- * The colour a layer paints one value, read from its legend.
+ * The color a layer paints one value, read from its legend.
  * @param harness - The session.
  * @param layer - The layer.
  * @param value - The value.
- * @returns The colour.
+ * @returns The color.
  */
 function colorOf(harness: Harness, layer: Layer, value: unknown): string | undefined {
     return harness.session.styles
@@ -64,7 +64,7 @@ function colorOf(harness: Harness, layer: Layer, value: unknown): string | undef
 
 /**
  * A session holding the eleven nodes with a Louvain run colored by community.
- * @returns The session and the run's colour layer.
+ * @returns The session and the run's color layer.
  */
 async function louvainSession(): Promise<{ harness: Harness; layer: Layer }> {
     membership = FIRST;

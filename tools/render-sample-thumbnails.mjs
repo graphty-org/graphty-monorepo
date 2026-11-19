@@ -28,7 +28,7 @@
  *   highest-degree node that follows at most SNOWBALL_FANOUT random neighbors of each node -- with
  *   every edge among the sampled nodes. A large dataset's file is read from graph-samples/dist/data/v1/
  *   or public-data/v1/ when built, else downloaded from graphty.app into tmp/graph-samples-hosted/
- *   (not committed) and checked against the catalogue's SHA-256.
+ *   (not committed) and checked against the catalog's SHA-256.
  * - A generator: its default parameters (the random ones' default seed, 0), in the layout that shows
  *   its structure (GENERATOR_LAYOUTS below); a generator that emits x and y columns is drawn at them,
  *   and one not listed gets the force layout, which graphty-element's recommendLayout picks for a
@@ -478,7 +478,7 @@ process.exit(failed === 0 ? 0 : 1);
  * @param job.data - its records, as graphty-element's JSON, or null for a network sample
  * @param job.source - a network sample's source id, or null
  * @param job.example - a network sample's example id, or null
- * @param job.layout - the layout: its catalogue id, the engine when not the default, and options
+ * @param job.layout - the layout: its catalog id, the engine when not the default, and options
  * @param job.width - the picture's width in pixels
  * @param job.height - the picture's height in pixels
  * @param job.emphasis - darker lines and larger nodes for a dense picture, or null

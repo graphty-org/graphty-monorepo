@@ -40,7 +40,7 @@ Result: 07.png -- all 115 nodes are orange now, field shows FFA500 with an orang
 - Ease: 6 of 7 (easy). Six clicks, under the length of one alert.
 - What went well: "Samples" on the first page was obviously the ready-made networks, and the College football card said its real name under the catchy title. The "Everything 115" layer was the right guess, and the panel even said in plain words that it styles all 115 nodes. Typing a color code over the box worked like a spreadsheet cell.
 - What confused me / small gripes:
-  - The cards lead with a catchy headline ("Conferences fall out of who played whom"); I scan for the dataset name, which is the small grey line underneath. Fine here, but slower if I were in a hurry.
+  - The cards lead with a catchy headline ("Conferences fall out of who played whom"); I scan for the dataset name, which is the small gray line underneath. Fine here, but slower if I were in a hurry.
   - "Samples" appears twice on the first page (top link and the button); not a problem for me, I just clicked the one in the box.
   - I had to know that "Everything" was the place to change all the nodes. A first-timer who skipped the left panel would probably click a node or hunt in the right panel's "Style" tab, which before I clicked the layer was showing graph numbers, not colors.
   - I had to know a hex code for orange. There was a swatch next to the code but I did not try it; a named-color list would help someone who doesn't know "FFA500".

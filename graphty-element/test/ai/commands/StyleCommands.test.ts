@@ -307,7 +307,7 @@ vec4 shade(NodeInput n) { return n.color * 1.2; }
         it("applies an arrow's own colour, size and opacity instead of refusing them", async () => {
             // THIS COMMAND ADVERTISED ALL THREE TO THE MODEL AND THEN ANSWERED "unsupported".
             // A model asked for a red arrow, was told the element has no channel for it, and the
-            // reader saw a grey one -- while `EdgeStyle` declared the field and the renderer drew
+            // reader saw a gray one -- while `EdgeStyle` declared the field and the renderer drew
             // it. The refusal was correct at the time and the gap was in the channel table.
             const result = await findAndStyleEdges.execute(
                 graph,
@@ -555,14 +555,14 @@ vec4 shade(NodeInput n) { return n.color * 1.2; }
     });
 
     /**
-     * Regression test for Issue #4: CSS color names must reach the renderer as colours.
+     * Regression test for Issue #4: CSS color names must reach the renderer as colors.
      *
      * The bug: the command stored the raw string, and the mesh built its material with
      * `Color3.FromHexString()`, which only reads hex -- so a name like "red" failed silently and
      * the node came out black.
      *
      * WHERE THE CONVERSION LIVES NOW. The command writes what it was given straight into the
-     * channel, and the channel converts: every colour channel takes any CSS colour and publishes
+     * channel, and the channel converts: every color channel takes any CSS color and publishes
      * it as a parsed value. So these read the PAINT rather than the layer, which is the only
      * reading that says what a node is actually drawn in.
      */
@@ -570,7 +570,7 @@ vec4 shade(NodeInput n) { return n.color * 1.2; }
         /**
          * What the style stack resolved for one node, once every layer has been applied.
          * @param index - The node's dense index.
-         * @returns Its colour as the renderer will write it into the instance.
+         * @returns Its color as the renderer will write it into the instance.
          */
         function nodeColor(index: number): { r: number; g: number; b: number; a: number } | null {
             return graph.getStylePainter().nodePaint(index)?.color ?? null;
@@ -620,7 +620,7 @@ vec4 shade(NodeInput n) { return n.color * 1.2; }
                 context,
             );
 
-            // An edge carries its colour in its style rather than beside it, because the edge
+            // An edge carries its color in its style rather than beside it, because the edge
             // renderer has no per-instance state. "green" is #008000, not the #00FF00 that
             // "lime" is.
             assert.strictEqual(graph.getStylePainter().edgePaint(0)?.style.line?.color, "#008000");

@@ -18,7 +18,7 @@ section 8.1 item 5) was written three ways:
 "Lines" are author lines: non-blank, non-comment, excluding `import` lines. "Internal concepts"
 are things the author must learn that belong to graphty-element's implementation rather than to
 the task (`README.md` section 8.1 item 4 lists them); "domain concepts" are the task's own
-(a formula, a file layout, a colour, an endpoint).
+(a formula, a file layout, a color, an endpoint).
 
 ## Summary
 
@@ -32,7 +32,7 @@ count, which left both out, is in brackets.
 | Layout      | rows by a tier attribute; preset coordinates  | 94 (42 + 48)                                                           | 17 / 4                            | 18 (16); 15 for rows by a category; 17 for preset coordinates, 1 once `fixed` takes attribute options | 0                              | 1 to 10 (Gephi 150 to 200) |
 | File format | tab-separated edge list, read and write       | 114                                                                    | 26 / 5                            | 19 (18, with no check of a malformed row)                                                             | 0                              | 4 to 16 (Gephi about 180)  |
 | Data source | paged REST API with a bearer token            | 75, and still no cancellation, retries, host check or credential store | 16 / 4                            | 17 (14, with no check of the response body)                                                           | 0                              | 8 to 40                    |
-| Palette     | brand categorical and sequential colours      | 17 (13 without types)                                                  | 9 / 5                             | 3, with the default-palette call (2)                                                                  | 0                              | 1 to 4                     |
+| Palette     | brand categorical and sequential colors       | 17 (13 without types)                                                  | 9 / 5                             | 3, with the default-palette call (2)                                                                  | 0                              | 1 to 4                     |
 | Camera      | slow orbit; a corner view                     | 34, outside the extension point (the orbit cannot be an extension)     | 11 / 4                            | 1 for the built-in orbit; 5 for a custom motion (8) and 1 for the view (7), plus 1 to play            | 0                              | 1 to 9                     |
 | Logging     | errors to a telemetry endpoint                | 58 (20 for a shorter form that breaks the spec)                        | 17 / 4                            | 10 (9, which lost the error and ignored an HTTP 500)                                                  | 0                              | 2 to 10                    |
 
@@ -63,7 +63,7 @@ removing anything from the advanced tier.
 
 **Guide.** `custom-algorithms.md` opens with a 115-line example that reads input through the
 deprecated `algorithmGraph()`, never shows reading an attribute, and computes "nodes within N
-hops" as the neighbour count times the hop count, which is wrong arithmetic a reader will copy.
+hops" as the neighbor count times the hop count, which is wrong arithmetic a reader will copy.
 
 **Prior art.** NetworkX: `dict(G.degree(weight="confidence"))`, one line, and the edge score a
 two-line comprehension
@@ -71,13 +71,13 @@ two-line comprehension
 graphology: `weightedDegree(graph, node, "confidence")` and `forEachEdge`, about 6 to 8 lines
 (https://graphology.github.io/standard-library/metrics.html). Cytoscape.js: one registration call
 and about 11 lines (https://js.cytoscape.org/#extensions/api). Gephi's statistics plugin, the
-closest analogue with a catalogue and a results table, costs about 120 lines but never exposes
+closest analog with a catalog and a results table, costs about 120 lines but never exposes
 storage (https://github.com/gephi/gephi-plugins-bootcamp). NetworkX keeps a simple function as
 the public face and an optional backend for speed, the tiering adopted here.
 
 **Simple tier, 20 lines end to end** (`simple-tier.md` section 4.1): two `defineAlgorithm` calls,
 each with one function over the graph view, the edge score reading the node score's result, and
-the two `run` calls that colour the graph.
+the two `run` calls that color the graph.
 
 ## Layout
 
@@ -130,7 +130,7 @@ function returning a map from id to position; the preset task drops to a built-i
 - The writer is handed the element's storage: typed arrays of node indices, logical edges against
   arcs, role columns and expanded mixed-direction pairs.
 - Correctness rules the element could apply fall on the author: skip internal columns, write an
-  unmeasured value as absent, neutralise spreadsheet formulas by column type, fill a 16-field
+  unmeasured value as absent, neutralize spreadsheet formulas by column type, fill a 16-field
   capability table truthfully and fold mixed-direction pairs, or fail conformance.
 - Two descriptors per format that must agree on everything but two flags; two helper values that
   come only from `@graphty/graph-io`, which brings a second copy of graph-format.
@@ -166,7 +166,7 @@ loader had to be disguised as a file-format reader:
 - The inherited network helper takes only a URL, so an API with a token, pagination or a POST
   body calls `fetch` directly and loses the inherited retries, timeout and error mapping.
 - No cancellation, no host check or confirmation, no credential store (the token is an ordinary
-  option the catalogue publishes), no provenance.
+  option the catalog publishes), no provenance.
 - The spec side described only the advanced surface -- hosts, refresh modes, retention, releases,
   identifier reports, publish -- about 12 concepts before a first page loads.
 
@@ -195,17 +195,17 @@ element's own `fetch` carries the host check, the credential, retries and cancel
   publish that error, so groups are silently left unpainted.
 
 **Guide.** `custom-palettes.md` imports the descriptor type, forcing the bookkeeping, and its
-first example claims colour-vision safety for an invented palette.
+first example claims color-vision safety for an invented palette.
 
 **Prior art.** Vega `vega.scheme("basic", [...])`, one line (https://vega.github.io/vega/docs/schemes/).
 matplotlib `ListedColormap` and `LinearSegmentedColormap.from_list`, about 4 lines for both
 (https://matplotlib.org/stable/users/explain/colors/colormap-manipulation.html). d3
 `scaleOrdinal(colors)`, one line (https://github.com/d3/d3-scale). ECharts `registerTheme` makes
-brand colours the default for a chart, the missing hook (https://echarts.apache.org/en/api.html#echarts.registerTheme;
+brand colors the default for a chart, the missing hook (https://echarts.apache.org/en/api.html#echarts.registerTheme;
 from memory, not re-checked).
 
 **Simple tier, 3 lines** (`simple-tier.md` section 4.5): two palettes and the element-scoped
-default that makes them the brand's colours everywhere.
+default that makes them the brand's colors everywhere.
 
 ## Camera
 
@@ -273,12 +273,12 @@ on the simple tier, and the graph library author graduated one plugin to the adv
 | data scientist            | layout      | tiers by a number; preset coordinates           | 37 (two)     | not released; unsure whether the built-in `fixed` does it     |
 | front-end developer       | palette     | brand categorical and sequential                | 12           | making the palette the default was prose, in no declaration   |
 | front-end developer       | camera      | slow orbit                                      | 15           | not released; the camera would jump back after a drag         |
-| front-end developer       | logging     | errors to telemetry                             | 17           | declarations needed lib ES2024; an `Error` serialises to {}   |
+| front-end developer       | logging     | errors to telemetry                             | 17           | declarations needed lib ES2024; an `Error` serializes to {}   |
 | domain researcher         | file format | tab-separated edge list, read and write         | 26           | not released; nothing showed how to open the file             |
-| domain researcher         | algorithm   | a score from a paper, over edge confidence      | 19           | nothing showed how to run it and see the colour               |
+| domain researcher         | algorithm   | a score from a paper, over edge confidence      | 19           | nothing showed how to run it and see the color                |
 | graph library author      | algorithm   | community detection at 100,000 nodes (advanced) | 28, then 154 | no way to yield in the simple tier; community fields by hand  |
 | graph library author      | data source | a paged REST API                                | 23           | not released; record conventions only in a comment            |
-| expert analyst            | algorithm   | personalised PageRank                           | 46           | `edge.source` in an undirected view gave silently wrong ranks |
+| expert analyst            | algorithm   | personalized PageRank                           | 46           | `edge.source` in an undirected view gave silently wrong ranks |
 | business analyst          | layout      | rows by a category column                       | 21           | not released; declarations needed lib ES2024                  |
 | bioinformatics researcher | data source | a STRING-style interaction service              | 56           | not released; record conventions only in an advanced document |
 
@@ -293,8 +293,8 @@ What they met, by kind:
    the whole entry point with one path.
 3. **No way to see the result.** Seven authors registered an extension and could not find how to
    run it, apply it, open a file with it or make it the default. The worst case was the researcher
-   whose whole goal was a coloured network. Every example now ends with its "use it" lines, and a
-   one-page example goes from an empty page to a coloured graph.
+   whose whole goal was a colored network. Every example now ends with its "use it" lines, and a
+   one-page example goes from an empty page to a colored graph.
 4. **Silent wrong results.** The examples taught `?? 0` (a misspelt attribute gives zero
    everywhere, then NaN, then nothing published); `edge.source` in an undirected view is not the
    node an edge was reached from; a text reader's numbers stayed strings, so a writer would have
@@ -315,7 +315,7 @@ The same twelve authors wrote a plugin again from the revised `simple-tier.md` a
 **Every run is "type-checked only"**: no `define*` function exists at run time in 2.6.1, so no
 author ran a plugin, read a real error message or saw a result. The error messages of
 `simple-tier.md` section 2.4, the attribute check, the long-task warning, the unplaced-node list
-and the colour on first run are therefore still untested. The playground (`simple-tier.md`
+and the color on first run are therefore still untested. The playground (`simple-tier.md`
 section 3 item 6) exists so the next round can run them.
 
 A run over 20 author lines is a FAILURE of the budget even though the plugin compiled (`README.md`
@@ -331,10 +331,10 @@ still gets a fix.
 | front-end developer       | camera      | slow orbit                                | yes        | 6                      | pass            | the frame's `azimuth` during a re-measure was unstated; it is now captured once per start or resume                                                                                                       |
 | front-end developer       | logging     | errors to telemetry                       | yes        | 10                     | pass            | retry count, backoff and queue cap were unstated; now specified                                                                                                                                           |
 | domain researcher         | file format | tab-separated edge list, read and write   | yes        | 20                     | pass            | the reference reader refused `src`/`dst` headers, shifted line numbers on a leading blank line and did not escape a tab; the element now checks endpoints and refuses a tab in a `.tsv` cell              |
-| domain researcher         | algorithm   | Barrat weighted clustering                | no         | 27                     | FAIL (over)     | no way to get w_ij between two nodes: the author built a neighbour-to-weight map and handled parallel edges and self-loops by hand. `node.weightTo(other, path)` now does it                              |
+| domain researcher         | algorithm   | Barrat weighted clustering                | no         | 27                     | FAIL (over)     | no way to get w_ij between two nodes: the author built a neighbor-to-weight map and handled parallel edges and self-loops by hand. `node.weightTo(other, path)` now does it                               |
 | graph library author      | algorithm   | label propagation at 100,000 nodes        | no         | 43 simple, 81 advanced | informative     | the task starts at the advanced tier (the guide says so); graduation parity needed the view's order, now `compareNodeIds`, and a cost model that sees options (section 6 of `simple-tier.md`)             |
 | graph library author      | data source | a paged REST API                          | yes        | 18                     | pass            | two passages disagreed on the error code of a throw from `load`; now one rule                                                                                                                             |
-| expert analyst            | algorithm   | personalised PageRank                     | no         | 51                     | FAIL (over)     | an optional edge weight was refused on every unweighted graph; `default: null` fixes that. The rest is a whole-graph iterative method, beyond a first plugin                                              |
+| expert analyst            | algorithm   | personalized PageRank                     | no         | 51                     | FAIL (over)     | an optional edge weight was refused on every unweighted graph; `default: null` fixes that. The rest is a whole-graph iterative method, beyond a first plugin                                              |
 | business analyst          | layout      | rows by a category column                 | yes (now)  | 23                     | FAIL (over)     | the guide showed only the numeric version and described the category one in prose that turned a missing value into the row "undefined"; the category layout is now a named task with an 18-line reference |
 | bioinformatics researcher | data source | a STRING-style interaction service        | no         | 32                     | FAIL (over)     | mostly the service's own row format (a domain cost); the guide had no single-request example and no answer on labels or URL encoding, now added                                                           |
 
@@ -369,14 +369,14 @@ for the playground (`simple-tier.md` section 3 item 6).
 | ------------------------- | ----------- | ----------------------------------------- | ---------- | ----------------------- | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | data scientist            | algorithm   | confidence-weighted degree and edge share | yes        | 22                      | FAIL (over); type-checked only   | the edge score reached the node score through a result path (an extra option, a sequenced run) and every read needed `?? 0`. Now `node.strength` and `edge.weight`, and the edge score computes its own ends: 17 lines |
 | data scientist            | layout      | tiers by a number; preset coordinates     | yes        | 17 and 19 (36 for both) | within budget; type-checked only | the author added a `scale` for NetworkX's -1 to 1 coordinates. The proposed built-in `fixed` gains `scale`, and the guide says how to place preset coordinates on 2.6.1                                                |
-| front-end developer       | palette     | brand categorical and sequential          | yes        | 7                       | within budget; type-checked only | no element type carried `setDefaultPalettes`, and a late call gave the old colours silently. Now `element.d.ts`, a warning on a late call and `{ reapply: true }`                                                      |
+| front-end developer       | palette     | brand categorical and sequential          | yes        | 7                       | within budget; type-checked only | no element type carried `setDefaultPalettes`, and a late call gave the old colors silently. Now `element.d.ts`, a warning on a late call and `{ reapply: true }`                                                       |
 | front-end developer       | camera      | slow orbit                                | yes        | 8                       | within budget; type-checked only | the documented "use it" line did not compile against the published declarations. Now `element.d.ts`; the built-in orbit takes `secondsPerTurn`, so the task is one line                                                |
 | front-end developer       | logging     | errors to telemetry                       | yes        | 11                      | within budget; type-checked only | what redaction removes before a third party receives a record was behind a pointer; now stated                                                                                                                         |
 | domain researcher         | file format | tab-separated edge list, read and write   | yes        | 20                      | within budget; type-checked only | endpoint columns named `bait` and `prey` took five edits to read AND write; the guide now shows both halves                                                                                                            |
-| domain researcher         | algorithm   | Opsahl generalised degree                 | no         | 12                      | informative                      | the attribute option holding a NAME, not a value, took a second reading; the first example now says so in a comment, with the NetworkX analogy                                                                         |
+| domain researcher         | algorithm   | Opsahl generalized degree                 | no         | 12                      | informative                      | the attribute option holding a NAME, not a value, took a second reading; the first example now says so in a comment, with the NetworkX analogy                                                                         |
 | graph library author      | algorithm   | label propagation at 100,000 nodes        | no         | 75 advanced             | informative                      | two rules disagreed on a run that stops at its iteration cap; now one rule: an option cap is the caller's, and the run publishes partial in both tiers                                                                 |
 | graph library author      | data source | a paged REST API                          | yes        | 23                      | FAIL (over); type-checked only   | five lines typed the page body for the author's own no-unsafe lint rules, and one reported progress; without them, 18. The guide now shows the one-line cast                                                           |
-| expert analyst            | algorithm   | personalised PageRank                     | no         | 56                      | informative                      | out-strength with a hand-written missing-weight rule, and seeds filtered by hand (hiding a typo). Now `node.strength(path, "out")` and unknown node ids are refused up front                                           |
+| expert analyst            | algorithm   | personalized PageRank                     | no         | 56                      | informative                      | out-strength with a hand-written missing-weight rule, and seeds filtered by hand (hiding a typo). Now `node.strength(path, "out")` and unknown node ids are refused up front                                           |
 | business analyst          | layout      | rows by a category column                 | yes        | 21                      | FAIL (over); type-checked only   | grouping by hand cost two non-null assertions and a nested loop. Now `graph.groupBy(path)`: 15 lines                                                                                                                   |
 | bioinformatics researcher | data source | a STRING-style interaction service        | no         | 25                      | informative                      | no route at all on 2.6.1, unstated; labels and an absent `directed` unanswered. All three are now stated                                                                                                               |
 
@@ -389,21 +389,21 @@ What they met, beyond the release state:
    and counted as measured. The weight rule now lives in the element (`edge.weight`,
    `node.strength`: unbound is 1, missing is left out and counted in a warning), and no example
    writes `?? 0`.
-2. **One `NA` cell kept a column as text**, which zeroed every read and would have neutralised
+2. **One `NA` cell kept a column as text**, which zeroed every read and would have neutralized
    `-2.31` on export. Missing-value tokens are now absent in an otherwise numeric column, a mostly
    numeric column that stays text is named in the load report, and a numeric string is never
-   neutralised.
+   neutralized.
 3. **The declarations under test were not the ones a consumer gets.** The checker added the
    element-class declaration itself, so the documented `querySelector` line compiled only there.
    It is now a file, `element.d.ts`, that the check includes.
 4. **Two plugins were coupled through a magic string.** The edge score read the node score at
    `results.strength.value`, which only worked after a run named exactly "strength". The first
-   example is now independent; chaining is shown as an optimisation, with a refusal that says
+   example is now independent; chaining is shown as an optimization, with a refusal that says
    which run to do first.
-5. **Behaviour nobody had specified**: a seed id not in the graph, a node record arriving on a
+5. **Behavior nobody had specified**: a seed id not in the graph, a node record arriving on a
    later page than the edge that named it, and an absent `directed`. Each now has one rule.
-6. **Silent wrong colours**: a default palette set after data loaded kept the old colours, and
-   `var()` colours were neither resolved nor refused. The first now warns and can re-resolve; the
+6. **Silent wrong colors**: a default palette set after data loaded kept the old colors, and
+   `var()` colors were neither resolved nor refused. The first now warns and can re-resolve; the
    second is refused with the fix.
 
 ## Why the specifications missed it

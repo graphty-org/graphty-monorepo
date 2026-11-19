@@ -12,7 +12,7 @@ import { type LabelResult, withGroups } from "./components.js";
 
 /** Result of {@link condensation}. @public */
 export interface CondensationResult {
-    /** The strongly connected components, labelled in Tarjan completion order. */
+    /** The strongly connected components, labeled in Tarjan completion order. */
     readonly components: LabelResult;
     /**
      * The condensed DAG from `contract(components.labels)`: node `c` is component `c`, one edge per
@@ -23,12 +23,12 @@ export interface CondensationResult {
 }
 
 /**
- * Strongly connected components by an iterative Tarjan: roots in index order, neighbours in row
+ * Strongly connected components by an iterative Tarjan: roots in index order, neighbors in row
  * order unless `options.arcOrder` gives another, and component `c` is the `c`-th to complete -- the numbering the legacy
  * `stronglyConnectedComponents` gives its result array. Completion order is a reverse topological
  * order of the condensation.
  * @param g - A directed adjacency
- * @param options - The neighbour order
+ * @param options - The neighbor order
  * @returns The partition, labels in completion order
  * @throws Error when the graph is undirected
  * @public
@@ -59,7 +59,7 @@ interface TarjanState {
 }
 
 /**
- * The body of the recursive call before its loop over neighbours.
+ * The body of the recursive call before its loop over neighbors.
  * @param st - The run state, updated in place
  * @param u - The node entered
  */
@@ -117,7 +117,7 @@ function leave(st: TarjanState, x: number): void {
  * order it left the component stack. Each component leaves as one run, in label order, its members
  * in reverse discovery order -- the order the legacy `stronglyConnectedComponents` lists them in.
  * @param g - A directed adjacency
- * @param options - The neighbour order
+ * @param options - The neighbor order
  * @returns The labels, their count and the pop order
  * @throws Error when the graph is undirected
  */
@@ -172,7 +172,7 @@ function tarjan(g: AdjacencyView, options: ArcOrderOption = {}): { labels: U32; 
  * so contract keeps them as block indices and the condensed node numbering is the component
  * numbering.
  * @param s - A directed snapshot
- * @param options - The neighbour order Tarjan tries arcs in, which fixes the component numbering
+ * @param options - The neighbor order Tarjan tries arcs in, which fixes the component numbering
  * @returns The components and the condensed graph
  * @throws Error when the snapshot is undirected
  * @public

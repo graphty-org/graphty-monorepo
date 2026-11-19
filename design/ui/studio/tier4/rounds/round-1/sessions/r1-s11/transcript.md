@@ -54,11 +54,11 @@ Screenshot 12.png. Back to 14 of 24 nodes, 22 of 63 edges in the picture. The ro
 - Finished: yes. In the picture: 14 people. Marked (staff): 4.
 - Ease: 6 of 7. The funnel button took me straight to filters, the column list showed me what's in each column (2 to 52, 2 values), and the folded card sentence "trained is Yes and hours is between 10 and 52" is exactly what I'd want to paste on a slide.
 - What confused me:
-  - A new filter card defaults to Hide. My second card wiped the picture down to 4 before I noticed the Select/Hide switch. The switch is small and grey; "Select" in light grey text is easy to miss with my eyes. It would help if the card asked "hide or mark?" or if the default were obvious.
+  - A new filter card defaults to Hide. My second card wiped the picture down to 4 before I noticed the Select/Hide switch. The switch is small and gray; "Select" in light gray text is easy to miss with my eyes. It would help if the card asked "hide or mark?" or if the default were obvious.
   - I was not sure "Between 10 and 52" counts someone with exactly 10 hours until I read the folded sentence -- and even that says "between", not "10 or more". I'd prefer "at least 10".
   - The counts next to volunteer/staff/board (16/5/3) are for the whole list, not for the 14 still showing; the card then says "4 of 14". Mixed bases -- fine once you read it, but I had to read twice.
   - "Coordinates: phone" in the Data panel looks like a mistake (a phone number as a location?). Didn't touch it, but it makes me wonder what else got guessed.
-  - Small grey labels (Select/Hide, the per-value counts, "Add a condition") are hard to read at this size.
+  - Small gray labels (Select/Hide, the per-value counts, "Add a condition") are hard to read at this size.
 
 ## Follow-up
 

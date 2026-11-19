@@ -3,8 +3,8 @@
 // or an edge by hand"). An invented server-backed dataset, "Club contacts",
 // read from a graph database query and drawn with Karate Club's positions.
 // The reader double-clicked node 34 (on a server-backed dataset a double-click
-// expands; elsewhere it selects the neighbours): the element fetched six
-// neighbours the graph did not hold, drawn here as new nodes 35 to 40 with an
+// expands; elsewhere it selects the neighbors): the element fetched six
+// neighbors the graph did not hold, drawn here as new nodes 35 to 40 with an
 // ink outline. The reader then right-clicked empty canvas, chose "Add node
 // here..." (the second inset), created "Coach", and chose Connect to... from
 // its menu: a dashed line runs from Coach to the pointer, and the bar asks

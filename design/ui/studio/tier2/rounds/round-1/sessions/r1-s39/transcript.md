@@ -163,7 +163,7 @@ way I would next week. I'll close the tab and come back.
 Command: `--step --reopen`
 
 Screenshot 21.png. The start screen, like the times I came back before. Under "Recent projects":
-"friends -- In this browser -- 20 nodes -- Oct 8, 2026, 11:52 PM". There is some small grey writing
+"friends -- In this browser -- 20 nodes -- Oct 8, 2026, 11:52 PM". There is some small gray writing
 under it that I skimmed past. I'll click "friends" and check my reminders are in it.
 
 ## Step 22 -- open "friends" from Recent projects
@@ -205,7 +205,7 @@ from Recent projects and both reminders were still there. I'd read them on the N
 - "Save note" didn't keep anything past this sitting. I only knew to save the project because I'd
   done it before. Nothing on the Notes tab said the reminders weren't kept yet, and the top bar never
   showed that there were unsaved changes. Someone new would have stopped after "Save note".
-- After saving it said "Saved friends in this browser", and on the start screen there was small grey
+- After saving it said "Saved friends in this browser", and on the start screen there was small gray
   writing under the project that I skimmed past. I'd want to be told plainly whether "in this
   browser" means it is safe until next month or not.
 - Two things on the screen are both called "Graph" (the side tab and the tag on my reminder).

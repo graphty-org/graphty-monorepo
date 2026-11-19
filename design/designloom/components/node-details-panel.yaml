@@ -3,7 +3,8 @@ name: Node Details Panel
 category: display
 description: Side panel displaying detailed information about a selected node. Shows all attributes, computed metrics,
     and related actions.
-status: planned
+status: implemented
+notes: "Ships: graphty/src/workspace/inspector/NodeValues.tsx."
 implements_capabilities:
     - details-on-demand
 used_in_workflows:

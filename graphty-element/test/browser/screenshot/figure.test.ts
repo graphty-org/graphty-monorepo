@@ -1,6 +1,6 @@
 /**
  * @file A vector figure (`exportFigure`, issue #819) draws each node where and in the color the
- * canvas draws it, keeps labels and the key as text, and fails with a code for a format it does
+ * canvas draws it, with its border and each edge's arrowheads, keeps labels and the key as text, and fails with a code for a format it does
  * not write.
  */
 
@@ -137,6 +137,67 @@ test("a PDF figure is one page the canvas's size with the labels and the key as 
             `object ${String(i + 1)} where the table says`,
         );
     });
+});
+
+/**
+ * A path's corners, as `M x yLx yLx yZ` writes them.
+ * @param path - The path.
+ * @returns Every corner of its triangles.
+ */
+function corners(path: Element): number[][] {
+    return [...(path.getAttribute("d") ?? "").matchAll(/(-?[\d.]+) (-?[\d.]+)/g)].map((m) => [
+        Number(m[1]),
+        Number(m[2]),
+    ]);
+}
+
+test("each arrowhead is drawn in its color with its tip at its target node", async () => {
+    graph = await createTestGraphWithData();
+    await graph.getSession().styles.add({
+        name: "Magenta arrows",
+        target: "edge",
+        selector: { match: "everything" },
+        set: { "edge.arrowHead": "normal", "edge.arrowHeadColor": "#ff00ff" },
+    });
+    await graph.waitForStableFrame();
+
+    for (const blob of [exportFigure(graph).blob]) {
+        const svg = await parse(blob);
+        const heads = [...svg.querySelectorAll('path[fill="#ff00ff"]')];
+        assert.equal(heads.length, 2, "one arrowhead per edge");
+        for (const [head, target] of heads.map((h, i) => [h, ["2", "3"][i]] as const)) {
+            const at = graph.nodeScreenPosition(target);
+            assert.ok(at?.visible);
+            const nearest = Math.min(...corners(head).map(([x, y]) => Math.hypot(x - at.x, y - at.y)));
+            assert.closeTo(nearest, at.radius, at.radius * 0.25, `node ${target}'s arrowhead tip on its outline`);
+        }
+    }
+    const pdf = new TextDecoder("latin1").decode(await exportFigure(graph, { format: "pdf" }).blob.arrayBuffer());
+    assert.include(pdf, "1 0 1 rg", "the arrowheads are filled magenta in the PDF");
+});
+
+test("a node's border is a ring in its color around the node", async () => {
+    graph = await createTestGraphWithData();
+    await graph.getSession().styles.add({
+        name: "Green borders",
+        target: "node",
+        selector: { match: "everything" },
+        set: { "node.borderColor": "#00ff00", "node.borderWidth": 0.2 },
+    });
+    await graph.waitForStableFrame();
+
+    const svg = await parse(exportFigure(graph).blob);
+    const rings = [...svg.querySelectorAll('path[fill="rgb(0,255,0)"]')];
+    assert.equal(rings.length, 3, "one ring per node");
+    for (const id of ["1", "2", "3"]) {
+        const at = graph.nodeScreenPosition(id);
+        assert.ok(at?.visible);
+        const around = rings.some((ring) => {
+            const reach = corners(ring).map(([x, y]) => Math.hypot(x - at.x, y - at.y));
+            return Math.min(...reach) >= at.radius * 0.7 && Math.max(...reach) <= at.radius * 2;
+        });
+        assert.ok(around, `node ${id}'s ring sits around it`);
+    }
 });
 
 test("an unknown format fails with E_BAD_COMMAND naming the field", async () => {

@@ -805,7 +805,7 @@ export function claimJob(state, args, caller, snapshot, now) {
 
 /**
  * Joins a claimed job to another: its target is added to the other job, whose holder gets the
- * news, and it is cancelled with a pointer to the other. A window githerd opened for its session is
+ * news, and it is canceled with a pointer to the other. A window githerd opened for its session is
  * ended by the daemon (design 8.2).
  * @param {any} state the daemon state
  * @param {Job} job the claimed job
@@ -837,7 +837,7 @@ function joinJob(state, job, other, reason, now) {
 
 /**
  * The issue job a claim names as "#N" in `with`, and the job to make for it: a `wait` on an issue
- * whose job is absent, done or cancelled makes it again (as syncJobs does), for an open issue by
+ * whose job is absent, done or canceled makes it again (as syncJobs does), for an open issue by
  * the owner only; any other job stays.
  * @param {any} state the daemon state
  * @param {Job} job the claimed job

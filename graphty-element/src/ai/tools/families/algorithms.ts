@@ -46,7 +46,7 @@ function legacyPlugin(name: string, legacy: readonly string[]): { namespace: str
 }
 
 /**
- * Wait for a run the assistant started, cancelling it when the message is cancelled or undone: the
+ * Wait for a run the assistant started, canceling it when the message is canceled or undone: the
  * batch's transaction stays open while it waits, so a run left going would hold the message up.
  * @param run - The run.
  * @param signal - The message's signal.

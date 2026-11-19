@@ -18,7 +18,7 @@ changed.
 
 The ratings also do not point at the owner's complaint. On the rejected build, the larger gap
 (Tom's 5) came from a defect, not from crowding: the date test's "Between" did not take, twice,
-so the test stayed on "Before". Grace's 3 there named the card's grey "Add" that did nothing. On
+so the test stayed on "Before". Grace's 3 there named the card's gray "Add" that did nothing. On
 the frozen build both reasons named the Fill color box, which is outside the selection editor.
 No participant on either build named crowding, layout or disorganization, the things the owner
 called overwhelming. So even the 1.5-point gap is evidence of a bug on the old build, not of the

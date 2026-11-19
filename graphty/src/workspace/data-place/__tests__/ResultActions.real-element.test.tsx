@@ -70,6 +70,23 @@ async function pick(id: string, item: string): Promise<void> {
     await userEvent.click(await screen.findByRole("menuitem", { name: new RegExp(`^${item}`) }));
 }
 
+/**
+ * Clicks a result's row, which opens it in the inspector.
+ * @param id - the result.
+ */
+async function openResult(id: string): Promise<void> {
+    const list = await screen.findByRole("list", { name: "Results" });
+    const row = await waitFor(() => {
+        const found = list.querySelector<HTMLElement>(`[data-run="${id}"] .dp-run-main`);
+        assert.isNotNull(found);
+        return found;
+    });
+    if (row === null) {
+        throw new Error("no row");
+    }
+    await userEvent.click(row);
+}
+
 describe("a result row's Copy items", () => {
     it("copy the result as TSV at full precision, as JSON, as a command, as methods text and as member ids", async () => {
         const { session, id } = await withResult("pagerank");
@@ -114,22 +131,23 @@ describe("the inspector's result view", () => {
     it("holds the same Copy and Run again items in its header's ...", async () => {
         const { session, id } = await withResult("pagerank");
         const result = session.runs.get(id)?.result;
-        const list = await screen.findByRole("list", { name: "Results" });
-        const row = await waitFor(() => {
-            const found = list.querySelector<HTMLElement>(`[data-run="${id}"] .dp-run-main`);
-            assert.isNotNull(found);
-            return found;
-        });
-        if (row === null) {
-            throw new Error("no row");
-        }
-        await userEvent.click(row);
+        await openResult(id);
 
         await userEvent.click(await screen.findByRole("button", { name: "Measure actions" }));
         await screen.findByRole("menuitem", { name: /^Run again with changes/ });
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Copy as TSV/ }));
         await screen.findByText("Copied as TSV");
         assert.strictEqual(await navigator.clipboard.readText(), result?.toTsv());
+    });
+
+    it("heads an edge-set result (Kruskal) Edge set, not Groups, since it publishes no groups", async () => {
+        const { session, id } = await withResult("kruskal");
+        assert.strictEqual(session.runs.get(id)?.shape, "edge-set");
+        await openResult(id);
+
+        const inspector = within(await screen.findByRole("complementary", { name: "Inspector" }));
+        assert.isNotNull(await inspector.findByText("Edge set"));
+        assert.isNull(inspector.queryByText("Groups"));
     });
 });
 

@@ -478,6 +478,17 @@ describe("the Views place", () => {
             assert.isNotNull(within(top).getByRole("group", { name: label }), `Top ${label}`);
         }
         assert.include(within(top).getByRole("group", { name: "Kind" }).textContent, "Recomputed from the top view");
+        // Key and Update share the data rows' edges.
+        const kind = within(top).getByRole("group", { name: "Kind" });
+        const label = kind.querySelector<HTMLElement>(".cm-data-row-name")?.getBoundingClientRect();
+        const value = kind.querySelector<HTMLElement>(".cm-data-row-value")?.getBoundingClientRect();
+        const key = within(top).getByLabelText("Key", { selector: "input" }).getBoundingClientRect();
+        const keyWord = within(top).getByText("Key", { selector: "label" }).getBoundingClientRect();
+        const update = within(top).getByRole("button", { name: "Update to current camera" }).getBoundingClientRect();
+        assert.closeTo(key.left, label?.left ?? Number.NaN, 1, "Key's field starts with the rows");
+        assert.closeTo(keyWord.left, label?.left ?? Number.NaN, 1, "Key's label starts with the rows");
+        assert.closeTo(key.right, value?.right ?? Number.NaN, 1, "Key's field ends with the rows");
+        assert.closeTo(update.right, value?.right ?? Number.NaN, 1, "Update ends with the rows");
         await userEvent.click(within(top).getByRole("button", { name: "Update to current camera" }));
         await waitFor(() => {
             assert.include(within(cameraCard("Top")).getByRole("group", { name: "Kind" }).textContent, "Fixed");
@@ -613,6 +624,42 @@ describe("the Views place", () => {
         );
         await element.waitForSettled();
         assertAt(element, start);
+    });
+
+    it("keeps a folded stop folded when it is dragged or another is deleted, and shows its times at 240px", async () => {
+        const { session } = await openRing();
+        await buildWalk(session);
+        await userEvent.click(within(stopCard(1)).getByRole("button", { name: /^Collapse Stop 1/ }));
+        await waitFor(() => {
+            assert.isNotNull(stopCard(1).getAttribute("data-folded"));
+        });
+
+        // Every folded stop shows its whole summary: its camera's name, then Fly in / Stay.
+        const summary = stopCard(1).querySelector<HTMLElement>(":scope > .cm-card-head > .cm-card-summary");
+        assert.include(summary?.textContent, "Top");
+        assert.include(summary?.textContent, "0 s / 2 s");
+        assert.isAtMost(summary?.scrollWidth ?? Infinity, summary?.clientWidth ?? 0, "the summary is not cut off");
+
+        // Stop 1 (Top) dragged below stop 4: the Top stop, now Stop 4, is still the folded one.
+        const bottom = stopCard(4).getBoundingClientRect();
+        await dragTo(within(stopCard(1)).getByRole("button", { name: "Move Stop 1" }), {
+            x: bottom.left + bottom.width / 2,
+            y: bottom.bottom - 2,
+        });
+        await waitFor(() => {
+            assert.deepEqual(stopsOf(session, "Walk"), ["Isometric", "pause", "Side", "Top"]);
+            assert.isNotNull(stopCard(4).getAttribute("data-folded"), "the moved stop stays folded");
+            assert.isNull(stopCard(1).getAttribute("data-folded"), "the stop now first stays open");
+        });
+
+        // Deleting the first stop leaves the folded Top stop folded, and folds no other.
+        await userEvent.click(within(stopCard(1)).getByRole("button", { name: "Delete Stop 1" }));
+        await waitFor(() => {
+            assert.deepEqual(stopsOf(session, "Walk"), ["pause", "Side", "Top"]);
+            assert.isNotNull(stopCard(3).getAttribute("data-folded"));
+            assert.isNull(stopCard(1).getAttribute("data-folded"));
+            assert.isNull(stopCard(2).getAttribute("data-folded"));
+        });
     });
 
     it("keeps playing when Escape closes a stop's list, and ends where a drag leaves the camera", async () => {

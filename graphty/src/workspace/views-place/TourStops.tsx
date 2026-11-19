@@ -10,13 +10,34 @@ import { CardList, type CardListItem, PanelField } from "@graphty/compact-mantin
 import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import type { CodedFact, GraphSession, Tour, TourStop } from "@graphty/graphty-element/session";
 import { Select, Stack, Text, Tooltip } from "@mantine/core";
-import React, { useLayoutEffect, useRef } from "react";
+import React, { useRef, useState } from "react";
 
 import { orRefusal } from "../graph-place/actions";
 import type { WorkspaceStore } from "../state/store";
 import { cameraViewName, stopProblemWords } from "../toolbar/viewWords";
 import { cameraReason } from "./commands";
 import { useDragOrder } from "./useNamedList";
+
+/**
+ * Each stop's card id, in stop order, for the stops it was made for; `pending` is where a move or
+ * a delete being saved puts them.
+ */
+interface StopIds {
+    readonly stops: readonly TourStop[];
+    readonly ids: readonly string[];
+    readonly pending: readonly string[] | null;
+}
+
+let stopCount = 0;
+
+/**
+ * A new stop card id, never given before.
+ * @returns the id.
+ */
+function newStopId(): string {
+    stopCount += 1;
+    return `stop-${String(stopCount)}`;
+}
 
 /** A stop that names a camera (not a pause). */
 type CameraStop = Extract<TourStop, { view: string }>;
@@ -103,18 +124,33 @@ function secondsWords(ms: number): string {
 }
 
 /**
- * A folded stop's one line: "Top, fly 2 s, stay 2 s", or "Pause 2 s".
- * @param session - the element's session.
- * @param stop - the stop.
- * @returns the line.
+ * A folded stop's one line: "Top 0 s / 2 s" (the camera, then Fly in / Stay), or "Pause 2 s". The
+ * camera's name gives way before the times, and the line's tooltip says them in full.
+ * @param props - Component props
+ * @param props.session - the element's session
+ * @param props.stop - the stop
+ * @param props.current - "step" on the stop playing now
+ * @returns The line
  */
-function summaryOf(session: GraphSession, stop: TourStop): string {
+function Summary({
+    session,
+    stop,
+    current,
+}: Readonly<{ session: GraphSession; stop: TourStop; current: "step" | undefined }>): React.JSX.Element {
     if (isPause(stop)) {
-        return `Pause ${secondsWords(stop.pause)} s`;
+        return <span aria-current={current}>Pause {secondsWords(stop.pause)} s</span>;
     }
+    const camera = cameraLabel(session, stop.view);
     const fly = secondsWords(stop.duration ?? 0);
     const stay = secondsWords(stop.hold ?? 0);
-    return `${cameraLabel(session, stop.view)}, fly ${fly} s, stay ${stay} s`;
+    return (
+        <span className="vp-stop-summary" aria-current={current} title={`${camera}, fly in ${fly} s, stay ${stay} s`}>
+            <span className="vp-stop-summary-camera">{camera}</span>
+            <span className="vp-stop-summary-times">
+                {fly} s / {stay} s
+            </span>
+        </span>
+    );
 }
 
 /**
@@ -191,31 +227,41 @@ export function TourStops({
         );
     };
 
-    // A stop has no identity but its place (two stops may name one camera), so its card's id is
-    // its index in the saved tour; a drag keeps those ids while its preview reorders them.
-    const ids = stops.map((_, at) => String(at));
-    // After a key move the moved stop's grip keeps focus: its new index, once the move is drawn.
-    const focusAfterMove = useRef<{ readonly to: number; readonly before: string } | null>(null);
-    const drag = useDragOrder(ids, (id, to, byKey) => {
-        const from = Number(id);
-        const rest = stops.filter((_, i) => i !== from);
+    // A stop has no identity of its own (two stops may name one camera), so each card gets an id
+    // that moves with its stop: a move or a delete says where the ids go once it is saved, and any
+    // other change keeps them by place, numbering stops added at the end. CardList keeps a card's
+    // fold, and a key move's focus, by this id.
+    const [ident, setIdent] = useState<StopIds>(() => ({ stops, ids: stops.map(() => newStopId()), pending: null }));
+    let { ids } = ident;
+    if (ident.stops !== stops) {
+        const { pending } = ident;
+        ids =
+            pending !== null && pending.length === stops.length
+                ? pending
+                : stops.map((_, at) => ident.ids[at] ?? newStopId());
+        setIdent({ stops, ids, pending: null });
+    }
+    const index = (id: string): number => ids.indexOf(id);
+    const writeIds = (what: string, next: readonly TourStop[], nextIds: readonly string[]): Promise<void> => {
         const before = JSON.stringify(stops);
-        if (byKey) {
-            focusAfterMove.current = { to, before };
-        }
-        return write(`move a stop of ${name}`, [...rest.slice(0, to), stops[from], ...rest.slice(to)]).then(() => {
-            // Refused: nothing moves, so nothing is to be focused.
+        setIdent((now) => ({ ...now, pending: nextIds }));
+        return write(what, next).then(() => {
+            // Refused: nothing changes, so the ids stay where they are.
             if (JSON.stringify(session.tours.get(name)?.stops ?? []) === before) {
-                focusAfterMove.current = null;
+                setIdent((now) => (now.pending === nextIds ? { ...now, pending: null } : now));
             }
         });
-    });
-    useLayoutEffect(() => {
-        const pending = focusAfterMove.current;
-        if (pending !== null && JSON.stringify(stops) !== pending.before) {
-            focusAfterMove.current = null;
-            box.current?.querySelector<HTMLElement>(`[data-card-grip="${String(pending.to)}"]`)?.focus();
-        }
+    };
+
+    const drag = useDragOrder(ids, (id, to) => {
+        const from = index(id);
+        const rest = stops.filter((_, i) => i !== from);
+        const restIds = ids.filter((each) => each !== id);
+        return writeIds(
+            `move a stop of ${name}`,
+            [...rest.slice(0, to), stops[from], ...rest.slice(to)],
+            [...restIds.slice(0, to), id, ...restIds.slice(to)],
+        );
     });
 
     // The last stop's x leaves no card to focus: focus goes to the tour's Add camera.
@@ -223,9 +269,11 @@ export function TourStops({
         const card = box.current?.parentElement?.closest<HTMLElement>("[data-card-id]");
         const last = stops.length === 1;
         const addCamera = CSS.escape(`Add camera to ${name}`);
-        void write(
+        const from = index(id);
+        void writeIds(
             `delete a stop of ${name}`,
-            stops.filter((_, i) => i !== Number(id)),
+            stops.filter((_, i) => i !== from),
+            ids.filter((each) => each !== id),
         ).then(() => {
             if (last && session.tours.get(name)?.stops.length === 0) {
                 card?.querySelector<HTMLElement>(`[aria-label="${addCamera}"]`)?.focus();
@@ -234,14 +282,14 @@ export function TourStops({
     };
 
     const items = drag.order.map((id, shown): CardListItem => {
-        const at = Number(id);
+        const at = index(id);
         const stop = stops[at];
         const current = playing === at ? "step" : undefined;
         return {
             id,
             title: `Stop ${String(shown + 1)}`,
             className: current === undefined ? "vp-stop" : "vp-stop vp-stop-playing",
-            summary: <span aria-current={current}>{summaryOf(session, stop)}</span>,
+            summary: <Summary session={session} stop={stop} current={current} />,
             children: (
                 <div className="vp-stop-body" aria-current={current}>
                     {isPause(stop) ? (

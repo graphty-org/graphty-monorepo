@@ -27,12 +27,15 @@
     gap: 2px;
 }
 
+/* Key and Update share the data rows' edges: DataRow's 16 px start and 8 px end inset. */
 .vp-inspect > .vp-key-select {
     margin-top: 2px;
+    padding-inline: 16px 8px;
 }
 
-.vp-inspect > .vp-key-select + * {
+.vp-inspect > .vp-key-select ~ * {
     margin-top: 2px;
+    padding-inline: 16px 8px;
 }
 
 /* A stop's body and a tour's foot: one labelled field per row, 4 px apart. */
@@ -74,4 +77,22 @@
 .vp-add-stops {
     display: flex;
     gap: 8px;
+}
+
+/* A folded camera stop: its camera gives way, with an ellipsis, before its two times. */
+.vp-stop-summary {
+    display: flex;
+    gap: 6px;
+    min-width: 0;
+}
+
+.vp-stop-summary-camera {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.vp-stop-summary-times {
+    flex: none;
+    font-variant-numeric: tabular-nums;
 }

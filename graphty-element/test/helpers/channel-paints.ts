@@ -58,6 +58,10 @@ import type { LabelStyle } from "../../src/catalog/types";
 import { Graph, operationQueueOf } from "../../src/Graph";
 import type { GraphSession } from "../../src/session";
 import type { ChannelDescriptor } from "../../src/session/styles/channels";
+import CLIP_MODEL_URL from "../../stories/fixtures/models/spinning-cube.glb?url";
+import TRIANGLE_MODEL from "../fixtures/models/one-sided-triangle.glb?url";
+import MODEL_URL from "../fixtures/models/police.glb?url";
+import TEXTURE_URL from "../fixtures/models/Textures/colormap.png?url";
 
 /** Two nodes and the edge between them: enough for every channel, small enough to be quick. */
 export const NODES = [{ id: "alpha" }, { id: "omega" }];
@@ -76,6 +80,12 @@ export const EDGES = [
     { src: "alpha", dst: "omega" },
     { src: "alpha", dst: "omega" },
 ];
+
+/** A picture that loads at once, twice as wide as tall, red on the left and blue on the right. */
+const PICTURE = `data:image/svg+xml;utf8,${encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="20">' +
+        '<rect width="20" height="20" fill="#ff0000"/><rect x="20" width="20" height="20" fill="#0000ff"/></svg>',
+)}`;
 
 /** A curved edge with a support point, at a unit that sets the circular layout's nodes 100 support units apart. */
 const SUPPORTED = { "edge.curvature": true, "edge.supportModel": "barnesHut", "edge.supportUnit": 0.32 };
@@ -142,7 +152,8 @@ export const PREREQUISITES: Readonly<Partial<Record<string, Record<string, unkno
         "node.shape": "rectangle",
         "node.borderColor": "#000000",
         "node.shapeLines": "-1,0 1,0",
-        "node.shapeLineHaloWidth": 0.2,
+        // wider than the probe scene's 0.3 border the line is drawn in
+        "node.shapeLineHaloWidth": 0.6,
     },
     "node.shapeLineHaloWidth": {
         "node.shape": "rectangle",
@@ -150,6 +161,70 @@ export const PREREQUISITES: Readonly<Partial<Record<string, Record<string, unkno
         "node.shapeLines": "-1,0 1,0",
         "node.shapeLineHaloColor": "#ff0000",
     },
+    // An open cap's fill, outline, width and the caps stacked behind it show only on a cap wide enough to see.
+    ...Object.fromEntries(
+        ["Head", "Tail", "MiddleHead", "MiddleTail"].flatMap((end) =>
+            ["FillColor", "OutlineWidth", "Width", "Stack"].map((what) => [
+                `edge.arrow${end}${what}`,
+                // an outline is stroked in the line's own width: a wide line shows it
+                {
+                    [`edge.arrow${end}`]: "open-diamond",
+                    [`edge.arrow${end}Size`]: what === "OutlineWidth" ? 8 : 3,
+                    "edge.width": 3,
+                },
+            ]),
+        ),
+    ),
+    // A clip held still part-way through, on a model that has it, so the frame shows a pose and not time passing.
+    "node.modelAnimation": {
+        "node.model": CLIP_MODEL_URL,
+        "node.modelAnimationSpeed": 0,
+        "node.modelAnimationOffset": 0.3,
+    },
+    // A model stretched to its node differs only on a node that is not a cube; the back of a model only where it
+    // shows: one triangle (written by the fixtures' triangleGltf and glb), turned away.
+    "node.modelFit": { "node.width": 3 },
+    "node.modelDoubleSided": { "node.model": TRIANGLE_MODEL, "node.modelTurn": 180 },
+    // The probe scene's thick border covers what lies just beyond a node: a shadow, an underlay.
+    ...Object.fromEntries(
+        [
+            "node.shadowColor",
+            "node.shadowOpacity",
+            "node.shadowBlur",
+            "node.shadowOffsetX",
+            "node.shadowOffsetY",
+            "node.underlayColor",
+            "node.underlayOpacity",
+            "node.underlayPadding",
+            "node.underlayShape",
+            "node.underlayCornerRadius",
+        ].map((channel) => [channel, { "node.borderWidth": 0 }]),
+    ),
+    // A chart's border color shows on a border; exact corners only on a radius larger than the cap; a fitted pie
+    // and relative extents only on a node that is not square, or not size 1; a picture a node holds only on a picture.
+    "node.chartBorderColor": { "node.chartBorderWidth": 2 },
+    "node.exactCornerRadius": { "node.cornerRadius": 4 },
+    "node.pieFitBox": { "node.width": 2 },
+    "node.relativeExtents": { "node.width": 2, "node.size": 2 },
+    "node.labelFitImage": { "node.image": PICTURE },
+    "node.labelFitImagePadding": { "node.image": PICTURE },
+    // corners stretched to the sides differ only from corners short of them
+    "node.shapeStretchPoints": { "node.shape": "polygon", "node.shapePoints": "0,0.5 0.5,-0.5 -0.5,-0.5" },
+    // A fallback is drawn only where the picture fails to load; a picture's place moves only one smaller than its
+    // room; smoothing shows only on a picture magnified far enough to blur its pixels.
+    "node.imageFallback": { "node.image": "data:image/png;base64,AAAA" },
+    "node.imagePositionX": { "node.imageFit": "none", "node.imageWidth": 0.5 },
+    "node.imageSmoothing": { "node.size": 4 },
+    // a cap's size shows on a cap of some area (the part's probe, the list's last type, is a thin stem), clear of the
+    // caption the probe scene writes at it (an empty text does not take it away)
+    "edge.arrowHeadSize": { "edge.arrowHead": "normal", "edge.arrowHeadTextStyle": { enabled: false } },
+    "edge.arrowTailSize": { "edge.arrowTail": "normal", "edge.arrowTailTextStyle": { enabled: false } },
+    // Unblended, a line is drawn at full strength, which differs only from a translucent one.
+    "edge.blending": { "edge.opacity": 0.5 },
+    // A short line keeps its strength only where it would otherwise fade, well inside a long fade.
+    "edge.fadeStart": { "edge.fadeEnd": 2000 },
+    // Stops place colors, three of them so the middle one has somewhere to move.
+    "edge.gradientStops": { "edge.gradientColors": "#ff0000 #00ff00 #0000ff" },
     // An external label's place and look change only an external label there is: its words switch it on.
     "node.xlabelStyle": { "node.xlabel": "OUT" },
     "node.xlabelLocation": { "node.xlabel": "OUT" },
@@ -188,12 +263,54 @@ const BUCKETS = 16 * 16 * 16;
  */
 const LABEL_PROBE: LabelStyle = { sizePx: 96, color: "#ff00ff", background: "#00ff00", padding: 20 };
 
+/** The channels that take a picture: a node's image, texture and fallback, and a cap's image. */
+const PICTURE_CHANNELS = /^(node\.(image|texture|imageFallback)|edge\.arrow\w*Image)$/;
+
+/**
+ * A value for a channel whose generic probe (a third of its range, four above its floor) draws as its default does:
+ * a corner radius larger than the quarter its default already caps at, a fade start past where a line is.
+ */
+const PROBE_VALUES: Readonly<Partial<Record<string, unknown>>> = {
+    "node.cornerRadius": 0.05,
+    "node.overlayCornerRadius": 0.05,
+    "node.underlayCornerRadius": 0.05,
+    // the default period is four times the swing, which is the generic probe's 4
+    "node.borderWavePeriod": 1.5,
+    // a third of the way up 1 to 1000 is a normal weight, as the default is
+    "node.glyphWeight": 900,
+    // a polygon's corners, an inverted triangle, and a frame keeping a fifth of each side
+    "node.shapePoints": "-1,1 1,1 0,-1",
+    "node.stripeFrame": "0.2 0.2 0.2 0.2",
+    "edge.wavePeriod": 1.5,
+    // a band beneath the line twice this wide, wider than the default line (8)
+    "edge.underlayPadding": 8,
+    // the list's last value, "automatic", draws at the default place by design
+    "edge.xlabelLocation": "bottom-right",
+    // the probe scene's caps are 3
+    "edge.arrowHeadSize": 1,
+    "edge.arrowTailSize": 1,
+    // a model and a texture are served files (a texture is PNG, JPEG or WebP); the model is a textured car, longer
+    // than it is tall and off its own origin, so its fit, centre, up axis and tint each show
+    "node.modelDoubleSided": "true",
+    "node.model": MODEL_URL,
+    "node.texture": TEXTURE_URL,
+    // the clip of the model ENUM_SETUP-style base below loads
+    "node.modelAnimation": "spin",
+    "edge.fadeStart": 1999,
+    ...Object.fromEntries(
+        ["Head", "Tail", "MiddleHead", "MiddleTail"].map((end) => [`edge.arrow${end}Stack`, "dot normal"]),
+    ),
+};
+
 /**
  * A value for one channel that no default could be mistaken for.
  * @param descriptor - The channel to write.
  * @returns What to write, or undefined when the channel takes no value.
  */
 export function probeFor(descriptor: ChannelDescriptor): unknown {
+    if (descriptor.channel in PROBE_VALUES) {
+        return PROBE_VALUES[descriptor.channel];
+    }
     switch (descriptor.accepts) {
         case "color":
             return "#ff00ff";
@@ -207,6 +324,17 @@ export function probeFor(descriptor: ChannelDescriptor): unknown {
             return descriptor.max === undefined ? low + 4 : low + (descriptor.max - low) * 0.35;
         }
         case "text":
+            // A list is colors or numbers separated by spaces (listOf), a picture a file that loads.
+            if (descriptor.listOf === "color") {
+                return "#ff0000 #00ff00 #0000ff";
+            }
+            // numbers in 0..1, rising and unevenly spaced: stops, shares and opacities alike
+            if (descriptor.listOf === "number") {
+                return "0.1 0.2 1";
+            }
+            if (PICTURE_CHANNELS.test(descriptor.channel)) {
+                return PICTURE;
+            }
             // A route is text in a grammar of its own: one bend halfway along, half a length off.
             if (descriptor.channel === "edge.bends") {
                 return "0.5,0.5";
@@ -254,8 +382,11 @@ export function probeFor(descriptor: ChannelDescriptor): unknown {
         case "labelStyle":
             return LABEL_PROBE;
         case "shaderUses":
-            // An empty list draws the plain look on every build.
-            return [];
+            // A shipped preset, in its declared place, that draws in both views (shader-uses.test.ts measures every
+            // one).
+            return descriptor.target === "edge"
+                ? [{ shader: "neon-line", place: "along" }]
+                : [{ shader: "halftone", place: "paint" }];
         default:
             return undefined;
     }
@@ -412,8 +543,6 @@ export async function addProbePrerequisites(session: GraphSession, graph: Graph)
             // from the probe's, so the channel that writes the words still has something to move.
             "edge.arrowHeadText": "HEAD",
             "edge.arrowTailText": "TAIL",
-            // A band's width and opacity need a color that draws one.
-            "edge.bandColor": "#0077BB",
         },
     });
     await operationQueueOf(graph).waitForCompletion();
@@ -532,12 +661,6 @@ export function sortedDescriptors(descriptors: Record<string, ChannelDescriptor>
     return Object.values(descriptors).sort((one, other) => one.channel.localeCompare(other.channel));
 }
 
-/** A picture that loads at once, twice as wide as tall, red on the left and blue on the right. */
-const PICTURE = `data:image/svg+xml;utf8,${encodeURIComponent(
-    '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="20">' +
-        '<rect width="20" height="20" fill="#ff0000"/><rect x="20" width="20" height="20" fill="#0000ff"/></svg>',
-)}`;
-
 /**
  * What an enum channel's values need written beside them to look different from its default, beyond its
  * prerequisites: a halo's own shape shows only against a node of another shape, a cap part-way along a line only
@@ -638,7 +761,6 @@ export const STRUCTURE_ONLY_VALUES: Readonly<Partial<Record<string, string>>> = 
         [
             "node.modelCenter=origin",
             "node.modelDoubleSided=false",
-            "node.modelDoubleSided=true",
             "node.modelFit=stretch",
             ...["-x", "x", "-y", "y", "-z", "z"].map((up) => `node.modelSourceUp=${up}`),
             "node.modelTint=replace",
@@ -660,6 +782,57 @@ export const STRUCTURE_ONLY_VALUES: Readonly<Partial<Record<string, string>>> = 
     "edge.xlabelLocation=automatic":
         'By design "automatic" draws an edge text at its normal place, the default (Edge.ts resolveAttach).',
 };
+
+/**
+ * A condition's value as the channel takes it: the catalog writes a boolean as `"true"`, a number as its digits.
+ * @param descriptor - The channel the condition names.
+ * @param value - The value as written in the condition.
+ * @returns The value to write.
+ */
+function conditionValue(descriptor: ChannelDescriptor | undefined, value: string): unknown {
+    if (descriptor?.accepts === "boolean") {
+        return value === "true";
+    }
+    return descriptor?.accepts === "number" ? Number(value) : value;
+}
+
+/**
+ * What a channel's measurement writes beneath it, from the catalog's own facts: the part it modifies drawn (an
+ * arrowhead for a cap's color, a chart for its gap), what it `needs` (or its part needs), each sibling its
+ * `drawnWhen` names, and then this file's own setups ({@link PREREQUISITES}, {@link ENUM_SETUP}). A catalog fact
+ * that leaves a channel drawing nothing fails the gate, so the gate also checks `needs` and `drawnWhen`.
+ * @param descriptor - The channel.
+ * @param descriptors - The channel table.
+ * @returns The base layer's values.
+ */
+export function probeBase(
+    descriptor: ChannelDescriptor,
+    descriptors: Record<string, ChannelDescriptor>,
+): Record<string, unknown> {
+    const base: Record<string, unknown> = {};
+    const part = descriptor.modifies === undefined ? undefined : descriptors[descriptor.modifies];
+    if (part !== undefined && part.channel !== descriptor.channel) {
+        Object.assign(base, probeBase(part, descriptors));
+        base[part.channel] = probeFor(part);
+    }
+    for (const need of descriptor.needs ?? part?.needs ?? []) {
+        base[need.channel] = need.value;
+    }
+    for (const condition of descriptor.drawnWhen ?? []) {
+        if (!("channel" in condition)) {
+            continue;
+        }
+        const other = descriptors[condition.channel] as ChannelDescriptor | undefined;
+        if ("set" in condition && base[condition.channel] === undefined && other !== undefined) {
+            base[condition.channel] = probeFor(other);
+        } else if ("values" in condition && !condition.values.includes(String(base[condition.channel]))) {
+            base[condition.channel] = conditionValue(other, condition.values[0]);
+        }
+    }
+    Object.assign(base, PREREQUISITES[descriptor.channel], ENUM_SETUP[descriptor.channel]);
+    // the measured channel is written by the measured layer, never beneath it
+    return Object.fromEntries(Object.entries(base).filter(([channel]) => channel !== descriptor.channel));
+}
 
 /**
  * Whether a measurement shows a value drawn: pixels changed, or, for a value on {@link STRUCTURE_ONLY_VALUES}, the

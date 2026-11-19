@@ -10,6 +10,7 @@ import { assert } from "vitest";
 
 import { type Channel, LABEL_STYLE_DESCRIPTORS, type LabelStyle } from "../../src/catalog";
 import type { Graph } from "../../src/Graph";
+import { CHANNEL_DESCRIPTORS, labelFieldOf } from "../../src/session/styles/channels";
 import { pixelsOverBar, readCanvas } from "./whole-canvas";
 
 type Style = Partial<Record<keyof LabelStyle, unknown>>;
@@ -158,6 +159,20 @@ export const NOT_A_PICTURE: Readonly<Partial<Record<keyof LabelStyle, string>>> 
     pickable: "Whether a click on the label picks its node: test/browser/label-click-picks-node.test.ts.",
 };
 
+/**
+ * The text kinds label-fields-node.test.ts and label-fields-edge.test.ts measure, by style channel: a field channel
+ * into one of these is measured there, in a scene built to show every field.
+ */
+export const MEASURED_TEXT_STYLES: readonly string[] = [
+    "node.labelStyle",
+    "node.xlabelStyle",
+    "node.tooltipStyle",
+    "edge.labelStyle",
+    "edge.xlabelStyle",
+    "edge.arrowHeadTextStyle",
+    "edge.arrowTailTextStyle",
+];
+
 /** One text kind: the style channel its fields are written to and how its words are switched on. */
 export interface TextKind {
     readonly name: string;
@@ -171,6 +186,52 @@ export interface TextKind {
 }
 
 /**
+ * Whether writing one field changes the picture under any of its setups.
+ * @param graph - The mounted graph.
+ * @param kind - The text kind.
+ * @param test - The field's case.
+ * @param selectors - What the layer paints.
+ * @param selectors.one - The one element.
+ * @param selectors.every - Every element.
+ * @param before - Called before each frame is read.
+ * @param write - What the layer sets, beside the words, to write the field over a style.
+ * @returns Whether it drew.
+ */
+async function fieldDraws(
+    graph: Graph,
+    kind: TextKind,
+    test: FieldCase,
+    selectors: { one: object; every: object },
+    before: () => Promise<void>,
+    write: (style: Style) => Record<string, unknown>,
+): Promise<boolean> {
+    const session = graph.getSession();
+    const words = { [kind.textChannel]: test.text ?? WORDS };
+    const layer = await session.styles.add({
+        name: `${kind.name} field`,
+        target: kind.target,
+        selector: test.everyOne === true ? selectors.every : selectors.one,
+        set: words,
+    } as never);
+    try {
+        for (const extra of test.bases ?? [test.base ?? {}]) {
+            const base = { size: kind.size ?? 3, ...kind.base, ...test.base, ...extra };
+            await session.styles.update(layer.id, { set: { ...words, [kind.styleChannel]: base } });
+            await before();
+            const without = await readCanvas(graph);
+            await session.styles.update(layer.id, { set: { ...words, ...write(base) } });
+            await before();
+            if (pixelsOverBar(without, await readCanvas(graph)) > 0) {
+                return true;
+            }
+        }
+        return false;
+    } finally {
+        await session.styles.remove(layer.id);
+    }
+}
+
+/**
  * Draw every field on one text kind in one view and return the fields that changed nothing.
  * @param graph - The mounted graph.
  * @param kind - The text kind.
@@ -179,7 +240,7 @@ export interface TextKind {
  * @param selectors.one - The one element.
  * @param selectors.every - Every element.
  * @param before - Called before each frame is read (a tooltip's hover).
- * @returns The fields that drew nothing.
+ * @returns The fields, and the field channels (`node.labelColor`), that drew nothing.
  */
 export async function silentFields(
     graph: Graph,
@@ -203,40 +264,30 @@ export async function silentFields(
         selector: selectors.one,
         set: { [kind.textChannel]: WORDS },
     } as never);
+    // The channels that write one field of this kind's style (`node.labelColor` writes `node.labelStyle`'s color):
+    // each is measured here too, in this scene, which shows every field.
+    const channelsOf = new Map<string, Channel[]>();
+    for (const channel of Object.keys(CHANNEL_DESCRIPTORS) as Channel[]) {
+        const into = labelFieldOf(channel);
+        if (into?.into === kind.styleChannel) {
+            channelsOf.set(into.field, [...(channelsOf.get(into.field) ?? []), channel]);
+        }
+    }
     const silent: string[] = [];
     for (const field of fields) {
         const test = FIELD_CASES[field];
-        const layer = await session.styles.add({
-            name: `${kind.name} ${field}`,
-            target: kind.target,
-            selector: test.everyOne === true ? selectors.every : selectors.one,
-            set: { [kind.textChannel]: test.text ?? WORDS },
-        } as never);
-        let drew = false;
-        try {
-            for (const extra of test.bases ?? [test.base ?? {}]) {
-                const base = { size: kind.size ?? 3, ...kind.base, ...test.base, ...extra };
-                const set = async (style: Style): Promise<void> => {
-                    await session.styles.update(layer.id, {
-                        set: { [kind.textChannel]: test.text ?? WORDS, [kind.styleChannel]: style },
-                    });
-                };
-                await set(base);
-                await before();
-                const without = await readCanvas(graph);
-                await set({ ...base, [field]: test.value });
-                await before();
-                if (pixelsOverBar(without, await readCanvas(graph)) > 0) {
-                    drew = true;
-                    break;
-                }
+        // the field written in the style, then each channel that writes it, over the same style without it
+        const writers: [string, (style: Style) => Record<string, unknown>][] = [
+            [field, (style) => ({ [kind.styleChannel]: { ...style, [field]: test.value } })],
+            ...(channelsOf.get(field) ?? []).map((channel): [string, (style: Style) => Record<string, unknown>] => [
+                channel,
+                (style) => ({ [kind.styleChannel]: style, [channel]: test.value }),
+            ]),
+        ];
+        for (const [name, write] of writers) {
+            if (!(await fieldDraws(graph, kind, test, selectors, before, write))) {
+                silent.push(name);
             }
-        } finally {
-            await session.styles.remove(layer.id);
-        }
-
-        if (!drew) {
-            silent.push(field);
         }
     }
 

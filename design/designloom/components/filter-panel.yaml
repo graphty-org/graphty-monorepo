@@ -3,7 +3,8 @@ name: Filter Panel
 category: display
 description: Panel for building and managing graph filters. Shows active filters and provides interface for adding new
     filter conditions.
-status: planned
+status: implemented
+notes: "Ships: graphty/src/workspace/data-place/Filters.tsx."
 implements_capabilities:
     - filtering
     - saved-filters

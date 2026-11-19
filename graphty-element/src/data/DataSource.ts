@@ -37,7 +37,7 @@ import {
     sourceGraph,
     toRecords,
 } from "./graph-io-import.js";
-import { readOrRefuse, type SourceData, type SourceInput, toSourceInput } from "./source-bytes.js";
+import { keepFetched, readOrRefuse, type SourceData, type SourceInput, toSourceInput } from "./source-bytes.js";
 
 /** What every reader is configured with, whatever its format. */
 export interface BaseDataSourceConfig {
@@ -695,9 +695,10 @@ export abstract class DataSource {
 
         if (config.url) {
             const response = await this.fetchWithRetry(config.url);
-            const bytes = await readOrRefuse(response.arrayBuffer(), { url: config.url });
+            const bytes = new Uint8Array(await readOrRefuse(response.arrayBuffer(), { url: config.url }));
             cancel?.throwIfAborted();
-            return new Uint8Array(bytes);
+            keepFetched(config.url, bytes, response);
+            return bytes;
         }
 
         throw new GraphtyError({

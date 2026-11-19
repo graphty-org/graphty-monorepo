@@ -71,7 +71,7 @@ import type { Layer } from "../styles/Layer";
 import { findRow, rowsOf } from "../styles/tree";
 import { type GroupMatch, matchGroups, realignPatch } from "../styles/values";
 import type { HistoryCode } from "../types";
-import { valueLabelKey, valueLabelOf } from "../valueLabels";
+import { isLabelledValue, valueLabelKey, valueLabelOf } from "../valueLabels";
 import {
     isAbortLike,
     ManagedRun,
@@ -645,7 +645,8 @@ function engineVersionsFor(key: AlgorithmKey, base: EngineVersions): EngineVersi
  * @param algorithm - Which algorithm the option belongs to, for the error's details.
  * @param option - The option descriptor.
  * @param value - What the caller passed.
- * @throws A `GraphtyError` with code `E_OPTION_RANGE` when the value is outside what is allowed.
+ * @throws A `GraphtyError` with code `E_OPTION_RANGE` when the value is outside what is allowed,
+ *     or not a whole number for an integer option.
  */
 function checkOptionValue(algorithm: AlgorithmKey, option: OptionDescriptor, value: unknown): void {
     if (option.values !== undefined && option.values.length > 0 && typeof value === "string") {
@@ -663,6 +664,15 @@ function checkOptionValue(algorithm: AlgorithmKey, option: OptionDescriptor, val
 
     if (typeof value !== "number") {
         return;
+    }
+
+    if (option.type === "integer" && !Number.isInteger(value)) {
+        throw new GraphtyError({
+            code: "E_OPTION_RANGE",
+            message: `The "${option.name}" option is ${value}, which is not a whole number.`,
+            source: "run",
+            details: { algorithm, option: option.name, value },
+        });
     }
 
     if (typeof option.min === "number" && value < option.min) {
@@ -1729,7 +1739,7 @@ class Runs implements SessionRunsApi {
      * @returns The caveats.
      */
     private caveatsFor(identity: RunIdentity, descriptor: AlgorithmDescriptor): Caveats {
-        return Object.freeze({ ...this.defaultCaveats, seed: identity.seed, method: descriptor.technicalName });
+        return Object.freeze({ ...this.defaultCaveats, seed: identity.seed, method: descriptor.key });
     }
 
     /**
@@ -2226,9 +2236,10 @@ class Runs implements SessionRunsApi {
             );
             for (const { key, label, value } of named.filter((entry) => entry.path === path)) {
                 draft.valueLabels.delete(key);
-                const to = match.to.get(value);
+                const to = match.to.get(String(value));
                 if (to !== undefined) {
-                    moved.push([valueLabelKey(path, to), label]);
+                    const now = match.values.get(to);
+                    moved.push([valueLabelKey(path, isLabelledValue(now) ? now : to), label]);
                 }
             }
         }
@@ -2379,7 +2390,7 @@ class Runs implements SessionRunsApi {
         if (given !== undefined) {
             // The group goes by its layer's name wherever its value is named (the legend, a
             // value list), and the name follows the group across a re-run.
-            draft.valueLabels.set(valueLabelKey(path, value), given);
+            draft.valueLabels.set(valueLabelKey(path, isLabelledValue(bin.value) ? bin.value : value), given);
         }
         const added = styles?.execute(
             {

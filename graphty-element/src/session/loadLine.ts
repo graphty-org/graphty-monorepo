@@ -161,6 +161,8 @@ export class LoadLine {
     private holding = 0;
     /** How many clears cancelled what waited, so a door can tell whether one came after it. */
     private clearCount = 0;
+    /** How many places were asked for, so a door can tell whether another joined after it. */
+    private joinCount = 0;
 
     /**
      * Build a session's line.
@@ -177,6 +179,14 @@ export class LoadLine {
      */
     private inside(): boolean {
         return this.holding > 0 && this.owner.routing;
+    }
+
+    /**
+     * How many places were asked for so far: equal on two reads when no door joined between them.
+     * @returns The count.
+     */
+    get joined(): number {
+        return this.joinCount;
     }
 
     /**
@@ -211,6 +221,7 @@ export class LoadLine {
      * @returns The place.
      */
     join(signal?: AbortSignal, kind: PlaceKind = "load"): LoadTurn {
+        this.joinCount++;
         const handed = this.handoff;
         if (handed !== undefined) {
             this.handoff = undefined;

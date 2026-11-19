@@ -752,7 +752,7 @@ function assertFilterList(of: unknown, kind: "all" | "any"): void {
         throw malformed(`An "${kind}" filter needs a list of filters.`, { of });
     }
 
-    for (const member of of as RuleTree[]) {
+    for (const member of of as readonly RuleTree[]) {
         assertFilter(member);
     }
 }

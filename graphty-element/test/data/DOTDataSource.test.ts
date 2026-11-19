@@ -253,7 +253,7 @@ describe("DOTDataSource", () => {
 
         // HTML-like labels should be preserved
         assert.equal(chunks[0].nodes[0].id, "a");
-        assert.include(chunks[0].nodes[0].label, "Bold");
+        assert.include(String(chunks[0].nodes[0].label), "Bold");
     });
 
     test("handles numeric node IDs", async () => {

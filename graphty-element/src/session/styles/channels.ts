@@ -254,8 +254,11 @@ type EdgeOutlineValue = NonNullable<NonNullable<NonNullable<EdgeStyleConfig["lin
 /** An arrow the edge renderer can draw at either end. */
 export type ArrowValue = NonNullable<NonNullable<EdgeStyleConfig["arrowHead"]>["type"]>;
 
-/** How heavy a label's letters are, as the `labelWeight` channels take it. */
-type LabelWeightValue = "normal" | "bold";
+/**
+ * How heavy a label's letters are, as the `labelWeight` channels take it: `normal` (CSS 400), `bold` (CSS 700) or
+ * another CSS numeric weight, `100` (thin) to `900` (black).
+ */
+type LabelWeightValue = "normal" | "bold" | "100" | "200" | "300" | "500" | "600" | "800" | "900";
 
 /** Where a label's runs of different sizes meet on a line (`labelRunAlign`). */
 type LabelRunAlignValue = "baseline" | "hanging" | "middle";
@@ -1970,7 +1973,17 @@ const LABEL_STYLE_PATH_OF_SUFFIX: Readonly<Record<keyof typeof LABEL_FIELD_OF_SU
 };
 
 /** Every weight the `labelWeight` channels take. */
-const LABEL_WEIGHT_VALUES: readonly LabelWeightValue[] = ["normal", "bold"];
+const LABEL_WEIGHT_VALUES: readonly LabelWeightValue[] = [
+    "normal",
+    "bold",
+    "100",
+    "200",
+    "300",
+    "500",
+    "600",
+    "800",
+    "900",
+];
 
 /** Every place the `labelRunAlign` channels take. */
 const LABEL_RUN_ALIGN_VALUES: readonly LabelRunAlignValue[] = ["baseline", "hanging", "middle"];
@@ -5732,7 +5745,8 @@ function patchUses(beneath: readonly ShaderUse[], patch: unknown): readonly Shad
     const latest = (beneath as ResolvedUses)[LATEST] ?? new Set<ShaderUse>();
     const kept = new Set<ShaderUse>();
     const out = [...beneath];
-    for (const [id, params] of Object.entries(patch)) {
+    const entries: [string, unknown][] = Object.entries(patch);
+    for (const [id, params] of entries) {
         if (typeof params !== "object" || params === null) {
             continue;
         }
@@ -5841,7 +5855,8 @@ export function prototypeFreeMap(value: object): Record<string, unknown> {
     }
 
     const copy = Object.create(null) as Record<string, unknown>;
-    for (const [key, entry] of Object.entries(value)) {
+    const entries: [string, unknown][] = Object.entries(value);
+    for (const [key, entry] of entries) {
         copy[key] = typeof entry === "object" && entry !== null ? prototypeFreeMap(entry) : entry;
     }
 

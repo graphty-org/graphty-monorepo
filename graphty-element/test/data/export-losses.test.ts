@@ -111,7 +111,8 @@ describe("export losses as coded facts", () => {
         const result = exportSession(h.session, "csv");
         const byCode = (code: string): unknown[] => {
             const columns = result.losses.find((loss) => loss.code === code)?.params.columns;
-            return Array.isArray(columns) ? [...columns] : [];
+            // a list param is the one that is an object; Array.isArray would read it as any[]
+            return typeof columns === "object" && columns !== null ? [...columns] : [];
         };
 
         assert.deepEqual(byCode(CSV_LOSS.NODE_TABLE), ["tags", "meta", "score"]);

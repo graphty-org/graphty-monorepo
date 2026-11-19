@@ -519,7 +519,7 @@ export const renderFn = (args: RenderArg1, storyConfig: RenderArg2): Element => 
     // Set runAlgorithmsOnLoad BEFORE setting data, because data loading triggers
     // the algorithm-run operation which checks this property
     if (args.runAlgorithmsOnLoad !== undefined) {
-        g.runAlgorithmsOnLoad = args.runAlgorithmsOnLoad;
+        g.runAlgorithmsOnLoad = args.runAlgorithmsOnLoad as Graphty["runAlgorithmsOnLoad"];
     }
 
     // The story's own setup, with whatever the reader has moved a control to written over it. A
@@ -535,7 +535,7 @@ export const renderFn = (args: RenderArg1, storyConfig: RenderArg2): Element => 
             continue;
         }
 
-        const value = args[arg];
+        const value: unknown = args[arg];
 
         if (writeChannelControl(setup, name, value)) {
             continue;
@@ -601,7 +601,7 @@ export const renderFn = (args: RenderArg1, storyConfig: RenderArg2): Element => 
     // BEFORE the data, because these say how a record is read and the reading happens as the rows
     // arrive. See FORWARDED_ELEMENT_PROPERTIES.
     for (const property of FORWARDED_ELEMENT_PROPERTIES) {
-        const value = args[property];
+        const value: unknown = args[property];
 
         if (typeof value === "string") {
             g[property] = value;
@@ -617,12 +617,12 @@ export const renderFn = (args: RenderArg1, storyConfig: RenderArg2): Element => 
     if (args.dataSource) {
         // Set dataSourceConfig BEFORE dataSource, because setting dataSource
         // triggers addDataFromSource which needs the config
-        g.dataSourceConfig = args.dataSourceConfig;
-        g.dataSource = args.dataSource;
+        g.dataSourceConfig = args.dataSourceConfig as Graphty["dataSourceConfig"];
+        g.dataSource = args.dataSource as Graphty["dataSource"];
     } else {
         // Use story-specific data if provided, otherwise use defaults
-        g.nodeData = args.nodeData ?? nodeData;
-        g.edgeData = args.edgeData ?? edgeData;
+        g.nodeData = (args.nodeData as Graphty["nodeData"] | undefined) ?? nodeData;
+        g.edgeData = (args.edgeData as Graphty["edgeData"] | undefined) ?? edgeData;
     }
 
     // Set layout properties if provided
@@ -633,12 +633,12 @@ export const renderFn = (args: RenderArg1, storyConfig: RenderArg2): Element => 
     }
 
     if (args.layout) {
-        g.layout = args.layout;
+        g.layout = args.layout as Graphty["layout"];
     }
 
     // Set XR config if provided
     if (args.xr) {
-        g.xr = args.xr;
+        g.xr = args.xr as Graphty["xr"];
     }
 
     return g;

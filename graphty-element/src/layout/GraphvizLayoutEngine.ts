@@ -569,7 +569,7 @@ function graphvizLayout(engine: GraphvizEngine): GraphvizLayoutClass {
                 this.lineEnds =
                     this.options.nodeSize === "label"
                         ? new Map([...ends].map(([k, at]) => [structure.edgeOf[k], { at, chord: chord(k) }]))
-                        : new Map();
+                        : new Map<Edge, { at: NonNullable<EdgePosition["lineEnds"]>; chord: readonly number[] }>();
                 this.labelPlaces = new Map([...labels].map(([k, place]) => [structure.edgeOf[k], place]));
                 this.xlabelPlaces = new Map(
                     [...xlabels].map(([row, place]) => [String(input.stored.ids.idOf(row)), place]),

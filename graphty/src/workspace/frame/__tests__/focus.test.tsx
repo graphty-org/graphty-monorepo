@@ -103,6 +103,25 @@ describe("the focus guard", () => {
         });
     });
 
+    it("a guard stopped after the frame it rescues in moves no focus (#9005)", async () => {
+        const before = document.createElement("button");
+        const gone = document.createElement("button");
+        before.textContent = "Before";
+        gone.textContent = "Gone";
+        document.body.append(before, gone);
+        before.focus();
+        gone.focus();
+        gone.remove();
+        // The guard sees the removal first and asks for a frame; in that frame, which runs before
+        // this one, it queues its rescue, and it stops before the rescue runs.
+        await Promise.resolve();
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+        stop();
+        await new Promise((resolve) => setTimeout(resolve));
+        assert.strictEqual(document.activeElement, document.body);
+        before.remove();
+    });
+
     it("a field drawn again by its commit takes focus back", async () => {
         render(<Page />);
         await userEvent.click(screen.getByRole("textbox", { name: "Name" }));

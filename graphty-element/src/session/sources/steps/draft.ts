@@ -137,10 +137,42 @@ function touched(edit: StepsEdit): readonly string[] {
  * @returns The next state.
  */
 export function draftApply(state: DraftState, edit: StepsEdit, more?: Copies): DraftState {
+    return recounted(applied(state, edit, more));
+}
+
+/**
+ * The state an edit makes, its key-overlap questions left as they were.
+ * @param state - The draft now.
+ * @param edit - The edit.
+ * @param more - The rows as read of a source the edit stages.
+ * @returns The next state.
+ */
+function applied(state: DraftState, edit: StepsEdit, more?: Copies): DraftState {
     const copies = more === undefined ? state.copies : Object.freeze({ ...state.copies, ...more });
     const value = applyEdit(state.value, edit, copies);
     const origins = carried(state.value.steps, value.steps, state.origins);
     return { ...state, value, copies, owned: new Set([...state.owned, ...touched(edit)]), origins };
+}
+
+/**
+ * The state with every source the draft added asking worked out again from its value now, so its
+ * questions are the ones `data.add` would ask of the steps as they stand: an answer, a removed
+ * source or a removed step changes which nodes a later source meets.
+ * @param state - The draft.
+ * @returns The state with its sources' mappings, issues and questions current.
+ */
+function recounted(state: DraftState): DraftState {
+    const questions = state.questions ?? {};
+    const asking = new Set([...(state.asking ?? []), ...Object.keys(questions)]);
+    if (asking.size === 0) {
+        return state;
+    }
+    const fresh = refreshed(state.value, questions, asking, state.given ?? {}, state.copies);
+    const next =
+        JSON.stringify(fresh.value) === JSON.stringify(state.value)
+            ? state
+            : applied(state, { kind: "set", value: fresh.value });
+    return { ...next, questions: fresh.questions };
 }
 
 /**
@@ -161,11 +193,14 @@ export function draftAdd(
     const src = state.value.sources[id] as SourceSteps["sources"][string] | undefined;
     const asked =
         ask && src !== undefined && isStaged(state.value, id) ? overlapQuestion(state.value, src, state.copies) : null;
-    const next = draftApply(state, {
-        kind: "act",
-        act: { act: "add-staged", source: id, ...(overlap === undefined ? {} : { overlap }) },
-    });
+    // A source added again (its add step removed meanwhile) is asked afresh, not recounted by its old answer.
+    const { [id]: _old, ...others } = state.questions ?? {};
     const asking = new Set(state.asking);
+    asking.delete(id);
+    const next = draftApply(
+        { ...state, questions: others, asking },
+        { kind: "act", act: { act: "add-staged", source: id, ...(overlap === undefined ? {} : { overlap }) } },
+    );
     const { [id]: _was, ...given }: Record<string, "merge" | "separate"> = { ...state.given };
     if (ask && src !== undefined) {
         // Recounted after every answer, a given overlap with it as its fixed answer.
@@ -207,14 +242,7 @@ export function draftAnswer(state: DraftState, id: string, answer: "merge" | "se
             source: id,
         });
     }
-    const questions = { ...state.questions, [id]: { ...q, answer } };
-    const asking = new Set([...(state.asking ?? []), ...Object.keys(questions)]);
-    const fresh = refreshed(state.value, questions, asking, state.given ?? {}, state.copies);
-    const next =
-        JSON.stringify(fresh.value) === JSON.stringify(state.value)
-            ? state
-            : draftApply(state, { kind: "set", value: fresh.value });
-    return { ...next, questions: fresh.questions };
+    return recounted({ ...state, questions: { ...state.questions, [id]: { ...q, answer } } });
 }
 
 /**

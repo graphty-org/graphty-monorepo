@@ -549,6 +549,48 @@ describe("source-steps drafts: the key-overlap question", () => {
         session.dispose();
     });
 
+    /**
+     * Bank B added and merged, then bank C added and asked about B-7, in a draft opened with
+     * `askOverlap`; and a session where only bank C was added, as the draft is about to leave it.
+     * @returns The draft's session, bank B, bank C and the draft; the sequential session and bank C.
+     */
+    async function chainAskedOfC() {
+        const seq = await stagedChain();
+        await seq.session.data.add(seq.c);
+        const { session, b, c } = await stagedChain();
+        const d = session.data.draft({ askOverlap: true });
+        d.add(b);
+        d.answerOverlap(b, "merge");
+        d.add(c);
+        assert.deepStrictEqual(
+            d.preview().questions.map((q) => q.params),
+            [{ space: "account", count: 1, of: 2, source: c, sources: [b] }],
+        );
+        return { session, b, c, d, seq };
+    }
+
+    for (const how of ["removeSource", "removeStep"] as const) {
+        it(`${how} of the source a later one met closes that one's question, as data.add asks nothing`, async () => {
+            const { session, b, c, d, seq } = await chainAskedOfC();
+            if (how === "removeSource") {
+                d.removeSource(b);
+            } else {
+                const step = d.steps().find((row) => row.op === "join.add" && row.source === b);
+                assert.isDefined(step);
+                d.removeStep(step.index);
+            }
+            assert.deepStrictEqual(d.preview().questions, [], "C meets nothing now");
+            await d.commit();
+            assert.deepStrictEqual(issuesOf(session, c), issuesOf(seq.session, seq.c));
+            assert.deepStrictEqual(
+                namedSpaces(session, { [b]: "B", [c]: "C" }),
+                namedSpaces(seq.session, { [seq.b]: "B", [seq.c]: "C" }),
+            );
+            seq.session.dispose();
+            session.dispose();
+        });
+    }
+
     it("a draft's import asks the question as its add does", async () => {
         const { session } = await phase6();
         const d = session.data.draft({ askOverlap: true });

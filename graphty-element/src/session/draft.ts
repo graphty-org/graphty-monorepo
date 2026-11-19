@@ -22,7 +22,7 @@ import type { BatchCommand } from "./commands";
 import { type DataImportCommand, type HeldRows, importCommand, type ImportSource } from "./commands/data";
 import { type JoinGraph, joinReport, type JoinTable, suggestJoin } from "./join";
 import { historyMark } from "./loadLine";
-import { HELD_KINDS, holdReadBy, isStorableId, unreadableSource, untilAborted } from "./project/ingest";
+import { HELD_KINDS, holdReadBy, isStorableId, loadedKey, unreadableSource, untilAborted } from "./project/ingest";
 import { documentKind } from "./projectFile";
 import { HELD_READERS } from "./styles/fileStyles/apply";
 import { looksLikeTime } from "./time/parse";
@@ -1402,14 +1402,13 @@ export class Draft implements LoadDraft {
                 const seen = new Set<unknown>();
                 held.rows.forEach((row, index) => {
                     const id = roles.key === null ? index : value(row, idPath);
-                    // A row whose id is null or empty is keyless: it makes a node of its own.
-                    const keyless = id === null || id === undefined || id === "";
-                    const rejected = !keyless && !isStorableId(id);
+                    // A row whose id is null or empty is left out and counted, never a node (spec 6.1).
+                    const rejected = !isStorableId(loadedKey(id));
                     if (rejected) {
                         reasons.set(index, { reason: rowReason("refused-row", { rowsAre: "nodes" }) });
                     }
                     // A row repeating an earlier row's id makes no node of its own.
-                    const loaded = keyless || (!rejected && !seen.has(id));
+                    const loaded = !rejected && !seen.has(id);
                     seen.add(id);
                     if (only === "rejected" ? rejected : loaded) {
                         picked.push(index);
@@ -1432,7 +1431,7 @@ export class Draft implements LoadDraft {
         // With no node rows and no graph to name, every node comes from the edges: none is missing.
         const matching = known.size > 0 || graph.size > 0;
         held.rows.forEach((row, index) => {
-            const ends = expressions === null ? [null, null] : expressions.map((each) => value(row, each));
+            const ends = expressions === null ? [null, null] : expressions.map((each) => loadedKey(value(row, each)));
             const unusable = EDGE_ENDS.filter((_, at) => !isStorableId(ends[at]));
             const rejected = unusable.length > 0;
             const missingAt = [0, 1].filter((at) => {

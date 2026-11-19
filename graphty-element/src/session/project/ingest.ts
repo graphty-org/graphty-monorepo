@@ -208,6 +208,16 @@ export function isStorableId(id: unknown): id is string | number {
     return typeof id === "string" || (typeof id === "number" && Number.isFinite(id));
 }
 
+/**
+ * A load row's key or end cell as a load reads it: an empty string names no node, as a null cell
+ * does, so the row is left out and counted, never a node (spec/README.md 6.1).
+ * @param id - The cell.
+ * @returns The cell, or null for an empty string.
+ */
+export function loadedKey(id: unknown): unknown {
+    return id === "" ? null : id;
+}
+
 /** One load as `columnsEligible` judges it. */
 export interface ColumnsLoad {
     /** Whether the element draws on the `"batched"` render path. */
@@ -792,9 +802,6 @@ export class Ingest<K extends KnownEdge> {
     /** What writes beside a running load added, so the load does not count them as its own. */
     private besideAdded = { nodes: 0, edges: 0 };
 
-    /** The last number a keyless node row's id was made from. */
-    private keylessSerial = 0;
-
     /** The highest load key number handed out, so a key is never handed out twice. */
     private sourceSerial = 0;
 
@@ -1323,7 +1330,12 @@ export class Ingest<K extends KnownEdge> {
         // A node an earlier edge created is in the builder, and so in `heldCounts`, without a
         // render object yet: its row is not fresh, or the ceiling counts it twice.
         const { builder } = this.host.store();
-        const ids = nodes.map((node) => this.keyedId(searchRecord(node, query) as NodeIdType));
+        const ids = nodes.map(
+            (node) =>
+                (this.loadTally === null
+                    ? searchRecord(node, query)
+                    : loadedKey(searchRecord(node, query))) as NodeIdType,
+        );
         const fresh = new Set(ids.filter((id) => !this.hasNode(id) && !(isStorableId(id) && builder.hasNode(id))));
         this.refuseAboveCeiling("nodes", this.heldCounts().nodes, fresh.size, this.ceilings().renderCeiling);
 
@@ -1364,26 +1376,6 @@ export class Ingest<K extends KnownEdge> {
         if (nodes.length > 0) {
             this.host.nodesArrived(nodes.length);
         }
-    }
-
-    /**
-     * A node row's id: the one it gave, or, for a load's row with a null or empty id, a new id of
-     * its own. Such a row is keyless (version 2 save files key it `<copy id>#<row>`); its record
-     * keeps the null or empty id cell, which is how a save tells it apart.
-     * @param id - The id the row gave.
-     * @returns The id the node is held under.
-     */
-    private keyedId(id: NodeIdType): NodeIdType {
-        if (this.loadTally === null || (id !== null && id !== undefined && id !== "")) {
-            return id;
-        }
-
-        const { builder } = this.host.store();
-        let minted: string;
-        do {
-            minted = `#${String(++this.keylessSerial)}`;
-        } while (this.hasNode(minted) || builder.hasNode(minted));
-        return minted;
     }
 
     /**
@@ -1606,8 +1598,10 @@ export class Ingest<K extends KnownEdge> {
     ): boolean {
         const { endpoints, tally, weightPath } = batch;
         tally.edgeRecords++;
-        const srcNodeId = readEndpoint(edge, endpoints.source) as NodeIdType;
-        const dstNodeId = readEndpoint(edge, endpoints.target) as NodeIdType;
+        const ends = [readEndpoint(edge, endpoints.source), readEndpoint(edge, endpoints.target)];
+        const [srcNodeId, dstNodeId] = (
+            this.loadTally === null ? ends : ends.map((end) => loadedKey(end))
+        ) as NodeIdType[];
         if (this.loadTally !== null && this.isUnmatched(edge, srcNodeId, dstNodeId, this.loadTally)) {
             this.keepLeftOut(edge, srcNodeId, dstNodeId, endpoints, tally.edgeRecords);
             tally.edgeIds.push(null);

@@ -195,6 +195,77 @@ function keysOf(body: JsonObject): unknown[] {
     ];
 }
 
+/** Two embedded sources' ids, for the bodies built by hand below. */
+const SRC_A = `src_${"A".repeat(26)}`;
+const SRC_B = `src_${"B".repeat(26)}`;
+/** The plainest type schema. */
+const OBJECT = { type: "object" };
+
+/**
+ * An embedded source of node and edge rows in the space `p`, keyed by `id` and ends `source` and
+ * `target` (and `eid` when it has that column), its edges weighted by `w` under the given meaning.
+ * @param id - The source id.
+ * @param tables - Its rows.
+ * @param tables.nodes - Node columns.
+ * @param tables.edges - Edge columns.
+ * @param meaning - Its weight meaning.
+ * @returns The record.
+ */
+function rowsSource(
+    id: string,
+    tables: { nodes?: Record<string, unknown[]>; edges?: Record<string, unknown[]> },
+    meaning = "strength",
+): JsonObject {
+    const decls = (table: Record<string, unknown[]> | undefined): JsonObject =>
+        Object.fromEntries(
+            Object.entries(table ?? {}).map(([name, cells]) => [
+                name,
+                { name, dtype: cells.every((cell) => typeof cell === "number") ? "f64" : "string" },
+            ]),
+        );
+    return {
+        id,
+        label: id,
+        kind: "derived",
+        origin: { copy: id.slice(4) },
+        mapping: {
+            nodes: { key: "id", space: "p" },
+            edges: {
+                source: "source",
+                sourceSpace: "p",
+                target: "target",
+                targetSpace: "p",
+                weight: "w",
+                weightMeaning: meaning,
+                ...(tables.edges?.eid === undefined ? {} : { edgeId: "eid" }),
+            },
+        },
+        copy: tables,
+        columns: {
+            ...(tables.nodes === undefined ? {} : { nodes: decls(tables.nodes) }),
+            ...(tables.edges === undefined ? {} : { edges: decls(tables.edges) }),
+        },
+    };
+}
+
+/**
+ * A data body of embedded sources, one `join.add` each in order.
+ * @param sources - The source records.
+ * @param extra - Other members.
+ * @returns The body.
+ */
+function rowsBody(sources: JsonObject[], extra: JsonObject = {}): JsonObject {
+    return {
+        build: "0".repeat(26),
+        directed: true,
+        sources,
+        types: [],
+        joins: sources.map((source) => ({ op: "join.add", source: source.id })),
+        graph: { directed: true, multigraph: false, graph: {}, nodes: [], links: [] },
+        ...extra,
+    };
+}
+
 afterEach(() => {
     vi.unstubAllGlobals();
 });
@@ -246,6 +317,7 @@ describe("data section version 2", () => {
         assert.deepStrictEqual(zed?.["_source.loads"], ["reader"]);
         const ben = (graph.nodes as JsonObject[]).find((node) => node["graphty.key"] === "Ben");
         assert.strictEqual(ben?.score, "Infinity");
+        assert.notInclude(ben?.["_source.loads"] as string[], "reader", "an edit never lists the reader");
 
         // A keyless edge row's key is "<copy id>#<row>"; the types come from the kind column.
         const links = graph.links as JsonObject[];
@@ -407,7 +479,7 @@ describe("data section version 2", () => {
         reopened.dispose();
     });
 
-    it("keys a node whose id is empty as its keyless row, the same key on every save", async () => {
+    it("leaves out a node whose id is empty and an edge whose end is empty, and counts both", async () => {
         const session = createGraphSession(ON);
         await session.data.import({
             type: "json",
@@ -419,27 +491,173 @@ describe("data section version 2", () => {
             },
             name: "blank.json",
         });
-        assert.include(
+        assert.deepStrictEqual(
             session.data.nodes().map((node) => node.id),
-            "",
+            ["a"],
         );
+        assert.strictEqual(session.data.edges().length, 0);
+        assert.strictEqual(session.data.lastImport()?.counts.rejected, 2, "the node row and the edge row");
         const first = (await writeBody(session)).body;
         assert.deepStrictEqual(invalid(asSection(first)), []);
-        const graph = first.graph as { nodes: JsonObject[]; links: JsonObject[] };
-        const blank = graph.nodes.find((node) => node.label === "Blank");
-        const source = (first.sources as JsonObject[]).find((each) => each.kind === "file") as JsonObject;
-        const copy = String((source.origin as JsonObject).copy);
-        assert.deepStrictEqual(
-            [blank?.["graphty.space"], blank?.["graphty.key"]],
-            [`source:${String(source.id)}`, `${copy}#1`],
-        );
+        assert.deepStrictEqual(keysOf(first).length, 1);
 
         const reopened = createGraphSession(ON);
         assert.deepStrictEqual(await readBody(reopened, first), []);
-        assert.strictEqual(reopened.data.edges().length, 1, "the edge naming it keeps its end");
         assert.deepStrictEqual(keysOf((await writeBody(reopened)).body), keysOf(first));
         session.dispose();
         reopened.dispose();
+    });
+
+    it("gives each element one type: a column rule beats a whole-source rule, then registry order, then the first step", async () => {
+        const body = rowsBody(
+            [
+                rowsSource(SRC_A, { nodes: { id: ["ann", "box", "cat"], role: ["p", "x", "p"] } }),
+                rowsSource(SRC_B, { nodes: { id: ["ann", "dot"], role: ["robot", "robot"] } }),
+            ],
+            {
+                types: [
+                    { name: "thing", kind: "node", rules: [{ source: SRC_A }], schema: OBJECT },
+                    {
+                        name: "person",
+                        kind: "node",
+                        rules: [{ source: SRC_A, column: "role", values: ["p"] }],
+                        schema: OBJECT,
+                    },
+                    {
+                        name: "human",
+                        kind: "node",
+                        rules: [{ source: SRC_A, column: "role", values: ["p"] }],
+                        schema: OBJECT,
+                    },
+                    { name: "robot", kind: "node", rules: [{ source: SRC_B }], schema: OBJECT },
+                ],
+            },
+        );
+        const session = createGraphSession(ON);
+        assert.deepStrictEqual(await readBody(session, body), []);
+        const { body: written } = await writeBody(session);
+        assert.deepStrictEqual(invalid(asSection(written)), []);
+        const typeOf = Object.fromEntries(
+            ((written.graph as JsonObject).nodes as JsonObject[]).map((node) => [
+                node["graphty.key"],
+                node["graphty.types"],
+            ]),
+        );
+        assert.deepStrictEqual(typeOf, {
+            ann: ["person"], // A's column rule beats its whole-source rule; A's step comes before B's
+            box: ["thing"],
+            cat: ["person"], // two column rules: the first in registry order
+            dot: ["robot"],
+        });
+        session.dispose();
+    });
+
+    it("reduces repeated edges of one pair and type only, and combines weights only of one meaning", async () => {
+        const edges = {
+            eid: ["e1", "e2", "e3", "e4"],
+            source: ["a", "a", "a", "b"],
+            target: ["b", "b", "b", "c"],
+            w: [1, 2, 5, 7],
+            kind: ["call", "call", "text", "call"],
+        };
+        const types = [
+            {
+                name: "call",
+                kind: "edge",
+                rules: [
+                    { source: SRC_A, column: "kind", values: ["call"] },
+                    { source: SRC_B, column: "kind", values: ["call"] },
+                ],
+                schema: { type: "object" },
+            },
+            {
+                name: "text",
+                kind: "edge",
+                rules: [{ source: SRC_A, column: "kind", values: ["text"] }],
+                schema: { type: "object" },
+            },
+        ];
+        const sources = (meaning: string): JsonObject[] => [
+            rowsSource(SRC_A, { nodes: { id: ["a", "b", "c"] }, edges }),
+            rowsSource(SRC_B, { edges: { source: ["a"], target: ["b"], w: [4], kind: ["call"] } }, meaning),
+        ];
+        const weights = (session: GraphSession): unknown[] =>
+            session.data
+                .edges()
+                .map((edge) => [
+                    edge.source,
+                    edge.target,
+                    edge.kind,
+                    edge.w,
+                    session.data.sourcesOf(edge.id, { kind: "edge" }).length,
+                ])
+                .sort((x, y) => JSON.stringify(x).localeCompare(JSON.stringify(y)));
+
+        // Under sum, the two calls from A fold (1 + 2); the text call and B's call, whose weight
+        // means distance, stay edges of their own.
+        const summed = createGraphSession(ON);
+        assert.deepStrictEqual(
+            await readBody(summed, rowsBody(sources("distance"), { types, repeatedEdges: "sum" })),
+            [],
+        );
+        assert.deepStrictEqual(weights(summed), [
+            ["p:a", "p:b", "call", 3, 1],
+            ["p:a", "p:b", "call", 4, 1],
+            ["p:a", "p:b", "text", 5, 1],
+            ["p:b", "p:c", "call", 7, 1],
+        ]);
+        assert.strictEqual(summed.config.data.knownFields.repeatedEdges, "sum", "the graph's choice is the session's");
+        const { body: written } = await writeBody(summed);
+        assert.strictEqual(written.repeatedEdges, "sum");
+
+        // A folded row's reference is an alias of the edge it folded into.
+        const refs = elementRefsOf(summed);
+        assert.isDefined(refs.edge({ load: SRC_A, key: "e1" }));
+        assert.strictEqual(refs.edge({ load: SRC_A, key: "e2" }), refs.edge({ load: SRC_A, key: "e1" }));
+
+        // Under first, meanings do not matter: B's call folds into A's, and both sources supply it.
+        const first = createGraphSession(ON);
+        await readBody(first, rowsBody(sources("distance"), { types, repeatedEdges: "first" }));
+        assert.deepStrictEqual(weights(first), [
+            ["p:a", "p:b", "call", 1, 2],
+            ["p:a", "p:b", "text", 5, 1],
+            ["p:b", "p:c", "call", 7, 1],
+        ]);
+
+        // Under error, a repeat holds the section.
+        const refused = createGraphSession(ON);
+        assert.deepInclude(
+            (await readBody(refused, rowsBody(sources("strength"), { types, repeatedEdges: "error" }))).map(
+                (problem) => problem.code,
+            ),
+            "W_SECTION_KEPT",
+        );
+        for (const each of [summed, first, refused]) {
+            each.dispose();
+        }
+    });
+
+    it("credits a node only edges name to the sources of those edges, and keeps it out of their copies", async () => {
+        const body = rowsBody([
+            rowsSource(SRC_A, { nodes: { id: ["a"] } }),
+            rowsSource(SRC_B, { edges: { source: ["a"], target: ["z"], w: [1] } }),
+        ]);
+        const session = createGraphSession(ON);
+        assert.deepStrictEqual(await readBody(session, body), [
+            { code: "W_NODE_NAMED_ONLY", params: { source: SRC_B, count: 1 } },
+        ]);
+        assert.deepStrictEqual(session.data.sourcesOf("p:z"), [SRC_B], "the source leaf matches it for B");
+        const { body: written } = await writeBody(session);
+        const loads = Object.fromEntries(
+            ((written.graph as JsonObject).nodes as JsonObject[]).map((node) => [
+                node["graphty.key"],
+                node["_source.loads"],
+            ]),
+        );
+        assert.deepStrictEqual(loads, { a: [SRC_A], z: [SRC_B] });
+        const b = (written.sources as JsonObject[]).find((source) => source.id === SRC_B) as JsonObject;
+        assert.notProperty(b.copy, "nodes", "z is no node row of B's copy");
+        session.dispose();
     });
 
     it("declares a reader add's column types, so a non-finite number reopens as a number", async () => {
@@ -721,7 +939,15 @@ describe("data section version 2", () => {
             (node) => node["graphty.key"] === "dev-9f3",
         );
         assert.deepStrictEqual(named?.["graphty.space"], space);
-        assert.deepStrictEqual(named?.["_source.loads"], []);
+        // Supplied by no source's rows, it is supplied by the source whose edges reach it.
+        assert.deepStrictEqual(named?.["_source.loads"], [network.id]);
+        assert.notProperty(named, "id (column)");
+        const written = (body.sources as JsonObject[]).find((source) => source.id === network.id) as JsonObject;
+        assert.notInclude(
+            ((written.copy as JsonObject).nodes as JsonObject).id as unknown[],
+            "dev-9f3",
+            "it is no row of the copy",
+        );
         const reader = (body.sources as JsonObject[]).find((source) => source.id === "reader");
         const adds = ((reader?.copy as JsonObject | undefined)?.operations as JsonObject[] | undefined) ?? [];
         assert.isFalse(
@@ -785,12 +1011,12 @@ describe("data section version 2", () => {
     });
 
     it("mints a new build when the open left part of the section out, and binds runs to the build read", async () => {
-        const example: JsonObject = { ...readJson("examples/card-fraud.graphty-data.json"), repeatedEdges: "first" };
+        const example: JsonObject = { ...readJson("examples/card-fraud.graphty-data.json"), edgeIds: [] };
         const session = createGraphSession(ON);
         const problems = await readBody(session, example);
         assert.deepInclude(problems, {
             code: "W_MEMBER_LEFT_OUT",
-            params: { section: "data", pointer: "/repeatedEdges" },
+            params: { section: "data", pointer: "/edgeIds" },
         });
         const { body } = await writeBody(session);
         assert.match(String(body.build), ULID);
@@ -860,7 +1086,7 @@ describe("data section version 2", () => {
         target.dispose();
     });
 
-    it("makes a node row whose key cell is null or empty keyless, and keeps its row", async () => {
+    it("leaves out a node row whose key cell is null or empty and counts it, and keys rows of no key column", async () => {
         const id = `src_${"C".repeat(26)}`;
         const copy = `sha256:${"1".repeat(64)}`;
         const body: JsonObject = {
@@ -887,23 +1113,30 @@ describe("data section version 2", () => {
             graph: { directed: false, multigraph: false, graph: {}, nodes: [], links: [] },
         };
         const session = createGraphSession(ON);
-        assert.deepStrictEqual(await readBody(session, body), []);
+        assert.deepStrictEqual(await readBody(session, body), [
+            { code: "W_KEY_EMPTY", params: { source: id, column: "id", rows: 2 } },
+        ]);
         assert.deepStrictEqual(
-            session.data
-                .nodes()
-                .map((node) => node.name)
-                .sort(),
-            ["Ava", "Blank", "Null"],
+            session.data.nodes().map((node) => node.name),
+            ["Ava"],
         );
-        const refs = elementRefsOf(session);
-        assert.isDefined(refs.node({ space: "people", key: "ava" }));
-        for (const row of [1, 2]) {
+        assert.isDefined(elementRefsOf(session).node({ space: "people", key: "ava" }));
+
+        // With no key column every row is keyless, keyed by its row in the source's own space.
+        const unkeyed = structuredClone(body);
+        const [record] = unkeyed.sources as JsonObject[];
+        record.mapping = {};
+        const keyless = createGraphSession(ON);
+        assert.deepStrictEqual(await readBody(keyless, unkeyed), []);
+        const refs = elementRefsOf(keyless);
+        for (const row of [0, 1, 2]) {
             assert.isDefined(
                 refs.node({ space: `source:${id}`, key: `${copy}#${String(row)}` }),
                 `row ${String(row)} is keyless, in the source's own space`,
             );
         }
 
+        keyless.dispose();
         session.dispose();
     });
 
@@ -1047,27 +1280,21 @@ describe("data section version 2", () => {
         ["JSON empty", "json", JSON.stringify({ nodes: [{ id: "a" }, { id: "", name: "Blank" }], edges: [] })],
         ["a CSV empty cell", "csv", "id,name\na,Ann\n,Blank\n"],
     ] as const) {
-        it(`loads a node row whose id is ${what} as a keyless node keyed <copy id>#<row>`, async () => {
+        it(`leaves out a node row whose id is ${what} and counts it, as a saved file's empty key`, async () => {
             const session = createGraphSession(ON);
             const source = { type, config: { data }, name: `blank.${type}` };
             await session.data.import(source);
-            assert.strictEqual(session.data.nodes().length, 2);
-            assert.strictEqual(session.data.lastImport()?.counts.rejected, 0);
+            assert.strictEqual(session.data.nodes().length, 1);
+            assert.strictEqual(session.data.lastImport()?.counts.rejected, 1);
             const { body } = await writeBody(session);
             assert.deepStrictEqual(invalid(asSection(body)), []);
-            const file = (body.sources as JsonObject[]).find((each) => each.kind === "file") as JsonObject;
-            const copy = String((file.origin as JsonObject).copy);
-            const blank = ((body.graph as JsonObject).nodes as JsonObject[]).find((node) => node.name === "Blank");
-            assert.deepStrictEqual(
-                [blank?.["graphty.space"], blank?.["graphty.key"]],
-                [`source:${String(file.id)}`, `${copy}#1`],
+            assert.isUndefined(
+                ((body.graph as JsonObject).nodes as JsonObject[]).find((node) => node.name === "Blank"),
             );
-            const cell = ((file.copy as JsonObject).nodes as JsonObject).id as unknown[];
-            assert.include([null, ""], cell[1], "the row keeps its null or empty key cell");
 
             const reopened = createGraphSession(ON);
             assert.deepStrictEqual(await readBody(reopened, body), []);
-            assert.strictEqual(reopened.data.nodes().length, 2);
+            assert.strictEqual(reopened.data.nodes().length, 1);
             assert.deepStrictEqual(keysOf((await writeBody(reopened)).body), keysOf(body));
             session.dispose();
             reopened.dispose();

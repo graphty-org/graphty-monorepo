@@ -383,24 +383,21 @@ describe("session.data.prepare", () => {
         session.dispose();
     });
 
-    it("loads a node row with no id as a keyless node of its own (#929)", async () => {
+    it("counts a node row with no id as rejected and lists it: an empty key is never a node (#929)", async () => {
         const session = createGraphSession();
-        const draft = await session.data.prepare({ type: "csv", config: { data: "id,name\n,A\n,C\nb,B\n" } });
+        const draft = await session.data.prepare({ type: "csv", config: { data: "id,name\n,A\nb,B\n" } });
 
         const report = await draft.report();
         const rejected = await draft.rows("rows", { only: "rejected" });
-        const loaded = await draft.rows("rows", { only: "loaded" });
         await draft.load();
 
-        assert.strictEqual(report.counts.nodes, 3);
-        assert.strictEqual(report.counts.rejected, 0);
-        assert.deepEqual(rejected.records, []);
-        assert.strictEqual(loaded.total, 3);
-        assert.sameMembers(
-            session.data.nodes().map((node) => node.name),
-            ["A", "C", "B"],
+        assert.strictEqual(report.counts.nodes, 1);
+        assert.strictEqual(report.counts.rejected, 1);
+        assert.deepEqual(
+            rejected.records.map((row) => row.line),
+            [2],
         );
-        assert.strictEqual(session.data.lastImport()?.counts.rejected, 0);
+        assert.strictEqual(session.data.lastImport()?.counts.rejected, 1);
         session.dispose();
     });
 
@@ -435,7 +432,7 @@ describe("session.data.prepare", () => {
         }
     });
 
-    it("loads a JSON node with no id as keyless and counts a repeated JSON id, as it does a CSV row's (#929)", async () => {
+    it("counts a JSON node with no id and a repeated JSON id, as it does a CSV row's (#929)", async () => {
         const data = JSON.stringify({ nodes: [{ id: "a", n: 1 }, { id: "a", n: 2 }, { name: "x" }], edges: [] });
         const session = createGraphSession();
 
@@ -445,8 +442,7 @@ describe("session.data.prepare", () => {
         );
 
         const last = session.data.lastImport();
-        // The node with no id is keyless: a node of its own, not a rejected row.
-        assert.deepInclude(last?.counts, { nodes: 2, nodeRecords: 3, rejected: 0 });
+        assert.deepInclude(last?.counts, { nodes: 1, nodeRecords: 3, rejected: 1 });
         assert.deepEqual(last?.duplicates, { rows: 1, ids: ["a"] });
         assert.strictEqual(session.data.node("a")?.n, 1, "the first record is kept");
         assert.strictEqual(refused?.code, "E_DUPLICATE_ID");

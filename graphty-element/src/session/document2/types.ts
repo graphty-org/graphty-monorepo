@@ -112,6 +112,7 @@ export type DocumentCode =
     | "W_SOURCE_UNKEYED"
     | "W_NODE_NAMED_ONLY"
     | "W_EDGE_END_MISSING"
+    | "W_KEY_EMPTY"
     | "W_COLUMN_WIDENED"
     | "W_MEMBER_LEFT_OUT"
     | "W_RECIPE_NOT_APPLIED";

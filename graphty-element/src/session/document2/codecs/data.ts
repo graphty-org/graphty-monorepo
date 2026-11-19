@@ -23,7 +23,8 @@
  *   removals and merges are already in the records, so no `edit`, `remove` or `merge` operation is
  *   ever written (read ones are applied, then baked into the copies).
  * - Types: the registry the last open read, its rules on sources still open, then one type per
- *   today's `kind` value, `schema` `{ "type": "object" }`. `joins` is one `join.add` per load,
+ *   today's `kind` value, `schema` `{ "type": "object" }`; each element holds one. Today's loads
+ *   reduce repeated edges by pair alone, as the session has no types and one weight meaning. `joins` is one `join.add` per load,
  *   with the `duplicateIds` the open read on it, each followed by the `off` steps of its source
  *   (not where they were read); then the `off` steps of the sources no step builds, whose records
  *   are written back as read.
@@ -32,13 +33,16 @@
  *   every other step that is not `off` (`join.merge`, `join.node-values`, `join.edge-values`,
  *   `join.edges`), a `join.add` with `columns`, and a second `join.add` of one source hold the
  *   section. A referenced source parsed again with a `pointer`, `sheet` or `missing` option holds
- *   it too: no parser here reads them. `repeatedEdges` other than `keep` is built as `keep` and
- *   reported. A referenced `file` or `url` source is built from the rows an open read again
+ *   it too: no parser here reads them. `repeatedEdges` reduces repeats of one pair and one type
+ *   (spec 6.1), and becomes the session's setting; the writer writes the session's setting back. A
+ *   node only edges name is supplied by their sources, not a row of their copies. A referenced `file` or `url` source is built from the rows an open read again
  *   (dataFetch.ts); one it could not read supplies nothing, is reported `W_SOURCE_UNAVAILABLE` with
  *   why, and its record is written back as read. Types are kept for the next
  *   save, not applied (today's `kind` column is not written from them). `date` and `category`
  *   conversions leave values as read.
  */
+
+import type { DuplicatePolicy } from "@graphty/graph-format";
 
 import type { EdgeId, NodeId } from "../../../catalog/types";
 import { EDGE_ID_CEILING, edgeCounterOf } from "../../../data/edgeIdentity";
@@ -76,6 +80,7 @@ import {
     recordKey,
     referencedOf,
     rememberRead,
+    rowTypeOf,
     SOURCE_ID,
     ULID,
 } from "./dataRefs";
@@ -825,16 +830,20 @@ interface BuiltNode {
     readonly ref: NodeRef;
     readonly columns: JsonObject;
     readonly loads: string[];
+    /** Supplied by no source's rows: only edges name it, and their sources supply it (spec 4.1.9). */
+    named?: boolean;
 }
 
 /** An edge being built. */
 interface BuiltEdge {
     from: BuiltNode;
     to: BuiltNode;
-    readonly columns: JsonObject;
+    columns: JsonObject;
     readonly ref: EdgeRef;
     /** The minting source's `unmatched`. */
     readonly unmatched: string;
+    /** The sources whose rows it was reduced from, in step order, the minting source first. */
+    readonly loads: string[];
 }
 
 /** What the build gives. */
@@ -870,6 +879,10 @@ interface Built {
     readonly addChoices: readonly (readonly [string, JsonObject])[];
     /** The referenced sources read again, with the `mapping` each record names. */
     readonly referenced: readonly (readonly [string, JsonObject])[];
+    /** The edges reduced into another, by their own `edgeKey` (spec 6.1). */
+    readonly aliases: ReadonlyMap<string, BuiltEdge>;
+    /** The graph's `repeatedEdges`. */
+    readonly repeatedEdges: DuplicatePolicy;
 }
 
 /** Saved edge ids, by load and then key. */
@@ -884,6 +897,8 @@ interface Building {
     readonly held: Set<string>;
     /** The reader operations on what a held source supplies, kept as read for the next save. */
     readonly heldOperations: JsonObject[];
+    /** The edges reduced into another, by their own `edgeKey`: aliases of the edge kept (spec 6.1). */
+    readonly aliases: Map<string, BuiltEdge>;
 }
 
 /**
@@ -964,8 +979,21 @@ function keyedRef(space: string | undefined, key: string | undefined): NodeRef |
 }
 
 /**
- * Build a source's node rows by key in its space. A row with no key, or a null or empty key cell,
- * is keyless (spec 4.1.4): it keeps its row, in the space `source:<source id>`.
+ * Report the rows of a source left out for an empty key or end cell, per column (`W_KEY_EMPTY`).
+ * @param into - The build so far.
+ * @param source - The source id.
+ * @param empty - The rows left out, by the column whose cell was empty.
+ */
+function reportEmpty(into: Building, source: string, empty: ReadonlyMap<string, number>): void {
+    for (const [column, rows] of empty) {
+        into.problems.push({ code: "W_KEY_EMPTY", params: { source, column, rows } });
+    }
+}
+
+/**
+ * Build a source's node rows by key in its space. With no key column every row is keyless (spec
+ * 4.1.3 rule 2): it keeps its row, in the space `source:<source id>`. A row whose key cell is null
+ * or empty is left out and counted (spec 6.1).
  * @param source - The source.
  * @param into - The build so far.
  * @param nodeMap - Its node mapping.
@@ -976,22 +1004,48 @@ function buildNodes(source: ReadSource, into: Building, nodeMap: JsonObject, dup
     const keyColumn = typeof nodeMap.key === "string" ? nodeMap.key : undefined;
     const keyedSpace = keyColumn === undefined ? undefined : String(nodeMap.space).normalize("NFC");
     const seen = new Set<BuiltNode>();
+    const empty = new Map<string, number>();
     for (let row = 0; nodes !== undefined && row < nodes.length; row++) {
         const values = rowOf(nodes, row);
         const cell = keyColumn === undefined ? undefined : values[keyColumn];
-        const keyed = keyedSpace === undefined ? undefined : keyText(cell);
-        const ref = keyedRef(keyedSpace, keyed) ?? { space: `source:${id}`, key: `${copyId}#${String(row)}` };
-        const node = nodeAt(into, ref, keyed === undefined ? ref.key : cell);
-        const repeated = seen.has(node);
-        if (repeated && duplicates === "first") {
+        const keyed = keyText(cell);
+        if (keyColumn !== undefined && keyed === undefined) {
+            empty.set(keyColumn, (empty.get(keyColumn) ?? 0) + 1);
             continue;
         }
 
-        takeColumns(node, values, id, { repeated, merge: duplicates === "merge" });
-        seen.add(node);
-        if (!node.loads.includes(id)) {
-            node.loads.push(id);
-        }
+        const ref = keyedRef(keyedSpace, keyed) ?? { space: `source:${id}`, key: `${copyId}#${String(row)}` };
+        supplyNode(nodeAt(into, ref, keyed === undefined ? ref.key : cell), values, id, { seen, duplicates });
+    }
+
+    reportEmpty(into, id, empty);
+}
+
+/**
+ * Give a node one row of a source: its values and the source, unless the row repeats a key the
+ * source gave already under `duplicateIds: "first"`.
+ * @param node - The node.
+ * @param values - The row.
+ * @param source - The source id.
+ * @param repeats - What the source gave so far, and its `duplicateIds`.
+ * @param repeats.seen - The nodes the source gave a row already.
+ * @param repeats.duplicates - Its `duplicateIds`.
+ */
+function supplyNode(
+    node: BuiltNode,
+    values: Readonly<JsonObject>,
+    source: string,
+    repeats: { readonly seen: Set<BuiltNode>; readonly duplicates: string },
+): void {
+    const repeated = repeats.seen.has(node);
+    if (repeated && repeats.duplicates === "first") {
+        return;
+    }
+
+    takeColumns(node, values, source, { repeated, merge: repeats.duplicates === "merge" });
+    repeats.seen.add(node);
+    if (!node.loads.includes(source)) {
+        node.loads.push(source);
     }
 }
 
@@ -1012,10 +1066,14 @@ function buildEdges(source: ReadSource, into: Building, edgeMap: JsonObject, cho
         each.normalize("NFC"),
     );
     const own = new Set<BuiltEdge>();
+    const empty = new Map<string, number>();
     for (let row = 0; edges !== undefined && row < edges.length; row++) {
         const values = rowOf(edges, row);
         const [a, b] = [keyText(values[from]), keyText(values[to])];
         if (a === undefined || b === undefined) {
+            // An empty end never becomes a node: the row is left out and counted (spec 6.1).
+            const column = a === undefined ? from : to;
+            empty.set(column, (empty.get(column) ?? 0) + 1);
             continue;
         }
 
@@ -1031,15 +1089,17 @@ function buildEdges(source: ReadSource, into: Building, edgeMap: JsonObject, cho
                 columns,
                 ref,
                 unmatched: choices.unmatched,
+                loads: [id],
             };
             own.add(edge);
             into.edges.set(edgeKey(ref), edge);
         } else if (choices.duplicates === "merge") {
-            for (const [name, value] of Object.entries(columns)) {
-                existing.columns[name] ??= value;
-            }
+            // The first row's values stand; a later row only fills a column the first left unset.
+            Object.entries(columns).forEach(([name, value]) => (existing.columns[name] ??= value));
         }
     }
+
+    reportEmpty(into, id, empty);
 }
 
 /**
@@ -1111,6 +1171,110 @@ function settleEnds(into: Building): void {
 
     for (const [source, nodes] of namedOnly) {
         into.problems.push({ code: "W_NODE_NAMED_ONLY", params: { source, count: nodes.size } });
+    }
+}
+
+/**
+ * Give each node no source's rows supply (only edges name it) the sources whose edges reach it, in
+ * step order, as its `_source.loads` (spec 4.1.9). Decided after the build, so load order never
+ * changes which source supplies it.
+ * @param into - The build so far.
+ */
+function creditNamed(into: Building): void {
+    for (const edge of into.edges.values()) {
+        for (const node of [edge.from, edge.to]) {
+            node.named ||= node.loads.length === 0;
+            for (const load of node.named ? edge.loads : []) {
+                if (!node.loads.includes(load)) {
+                    node.loads.push(load);
+                }
+            }
+        }
+    }
+}
+
+/** The `repeatedEdges` values that combine weights, and so reduce only repeats of one weight meaning. */
+const COMBINING: Readonly<Record<string, (held: number, next: number) => number>> = {
+    sum: (held, next) => held + next,
+    min: Math.min,
+    max: Math.max,
+};
+
+/**
+ * Reduce repeated edges by the graph's `repeatedEdges` (spec 4.1.8 rule 6, 6.1): the edges between
+ * one pair of nodes (unordered on an undirected graph), within one step or across sources, fold
+ * into the first. Edges of two types never fold, and under `sum`, `min` and `max` neither do edges
+ * whose sources' weight meanings differ: only `first` and `last` reduce those. The edge kept keeps
+ * the first row's key and load, lists every contributing source, and takes the reduced weight (or,
+ * under `last`, the last row's values); each folded edge's reference becomes its alias. `error`
+ * with any repeat holds the section, as a load refuses it (`E_DUPLICATE_EDGE`).
+ * @param into - The build so far.
+ * @param section - The checked section: its types and sources.
+ * @param graph - The graph's `repeatedEdges` and direction.
+ * @param graph.policy - `repeatedEdges`.
+ * @param graph.directed - Whether pairs are ordered.
+ */
+function reduceRepeats(into: Building, section: Checked, graph: { policy: string; directed: boolean }): void {
+    const { policy, directed } = graph;
+    if (policy === "keep") {
+        return;
+    }
+
+    const roles = (load: string): { weight?: string; meaning: unknown } => {
+        const source = section.sources.get(load);
+        const mapping = source?.rebuilt?.mapping ?? source?.record.mapping;
+        const edges = isPlainObject(mapping) && isPlainObject(mapping.edges) ? mapping.edges : {};
+        return {
+            ...(typeof edges.weight === "string" ? { weight: edges.weight } : {}),
+            meaning: edges.weightMeaning ?? null,
+        };
+    };
+    const weightOf = (edge: BuiltEdge): number => {
+        const { weight } = roles(edge.ref.load);
+        const value = weight === undefined ? undefined : edge.columns[weight];
+        // An edge with no weight weighs 1, as a load reads it.
+        return typeof value === "number" && Number.isFinite(value) ? value : 1;
+    };
+    const combine = Object.hasOwn(COMBINING, policy) ? COMBINING[policy] : undefined;
+    // One pair (unordered on an undirected graph), one type, and under a combining rule one meaning.
+    const groupOf = (edge: BuiltEdge): string => {
+        const ends = [edge.from, edge.to].map((node) => recordKey(node.ref.space, node.ref.key));
+        if (!directed) {
+            ends.sort((a, b) => (a < b ? -1 : Number(a > b)));
+        }
+
+        const type = rowTypeOf(section.types, "edge", edge.ref.load, edge.columns) ?? null;
+        return canonicalJson([...ends, type, combine === undefined ? null : roles(edge.ref.load).meaning]);
+    };
+    const kept = new Map<string, BuiltEdge>();
+    const weights = new Map<BuiltEdge, number>();
+    for (const [at, edge] of into.edges) {
+        const group = groupOf(edge);
+        const first = kept.get(group);
+        if (first === undefined) {
+            kept.set(group, edge);
+            continue;
+        }
+
+        need(policy !== "error", "/repeatedEdges");
+        into.edges.delete(at);
+        into.aliases.set(at, first);
+        if (!first.loads.includes(edge.ref.load)) {
+            first.loads.push(edge.ref.load);
+        }
+
+        if (policy === "last") {
+            first.columns = edge.columns;
+        } else if (combine !== undefined) {
+            weights.set(first, combine(weights.get(first) ?? weightOf(first), weightOf(edge)));
+        }
+    }
+
+    for (const [edge, weight] of weights) {
+        const column = roles(edge.ref.load).weight;
+        if (column !== undefined) {
+            edge.columns[column] = weight;
+        }
     }
 }
 
@@ -1198,7 +1362,9 @@ function applyOperations(operations: readonly JsonObject[], into: Building): voi
     };
     const edgeOf = (ref: unknown): BuiltEdge | undefined => {
         const checked = edgeRefOf(ref);
-        return checked === undefined ? undefined : into.edges.get(edgeKey(checked));
+        return checked === undefined
+            ? undefined
+            : (into.edges.get(edgeKey(checked)) ?? into.aliases.get(edgeKey(checked)));
     };
     const absent = (at: number, ref: unknown): void => {
         if (heldRef(ref, into.held)) {
@@ -1277,7 +1443,7 @@ function applyOperations(operations: readonly JsonObject[], into: Building): voi
             return;
         }
 
-        into.edges.set(edgeKey(ref), { from: a, to: b, columns, ref, unmatched: "add" });
+        into.edges.set(edgeKey(ref), { from: a, to: b, columns, ref, unmatched: "add", loads: [READER] });
     };
     const edit = (operation: JsonObject, at: number): void => {
         const element = operation.node === undefined ? edgeOf(operation.edge) : nodeOf(operation.node);
@@ -1503,15 +1669,21 @@ function build(body: Readonly<JsonObject>, problems: DocumentProblem[]): Built {
             .filter((source) => !source.embedded && section.adds.has(source.id))
             .map(({ id }) => id),
     );
-    const into: Building = { nodes: new Map(), edges: new Map(), problems, held, heldOperations: [] };
+    const into: Building = {
+        nodes: new Map(),
+        edges: new Map(),
+        problems,
+        held,
+        heldOperations: [],
+        aliases: new Map(),
+    };
 
     const { loads, unavailable, copies, referenced, changed, edgeIdColumn } = buildJoins(section, into);
-    if (body.repeatedEdges !== undefined && body.repeatedEdges !== "keep") {
-        problems.push({ code: "W_MEMBER_LEFT_OUT", params: { section: "data", pointer: "/repeatedEdges" } });
-    }
-
     const edgeIds = savedEdgeIds(body.edgeIds, problems);
     settleEnds(into);
+    const repeatedEdges = (body.repeatedEdges ?? "keep") as DuplicatePolicy;
+    reduceRepeats(into, section, { policy: repeatedEdges, directed: body.directed === true });
+    creditNamed(into);
     convert(into, section.conversions);
     if (section.reader !== undefined) {
         applyOperations(section.reader.operations, into);
@@ -1542,6 +1714,8 @@ function build(body: Readonly<JsonObject>, problems: DocumentProblem[]): Built {
             .filter((op) => op !== "add"),
         edgeIds,
         heldOperations: into.heldOperations,
+        aliases: into.aliases,
+        repeatedEdges,
         ...joinsKept(section),
         refused: problems
             .slice(before)
@@ -1586,6 +1760,10 @@ function assignIds(nodes: readonly BuiltNode[]): void {
  * @param tx - The open's transaction.
  */
 async function restoreSettings(built: Built, tx: TransactionScope): Promise<void> {
+    if (built.repeatedEdges !== "keep") {
+        await tx.config.set({ data: { knownFields: { repeatedEdges: built.repeatedEdges } } });
+    }
+
     const byRef = new Map(built.nodes.map((node) => [recordKey(node.ref.space, node.ref.key), node.id]));
     const idOf = (ref: unknown): NodeId | undefined => {
         const checked = nodeRefOf(ref);
@@ -1693,8 +1871,14 @@ async function apply(
         if (edge.ref.load === READER) {
             readerEdges.push([id, edge.ref.key]);
         } else {
-            entry(edge.ref.load).edges.push(id);
+            // An edge reduced from several sources' rows is supplied by each of them (spec 4.1.9).
+            edge.loads.forEach((load) => entry(load).edges.push(id));
         }
+    });
+    const ids = new Map(built.edges.map((edge, at) => [edge, edgeIds[at]]));
+    const edgeAliases = [...built.aliases].flatMap(([alias, edge]) => {
+        const id = ids.get(edge);
+        return id === undefined ? [] : [[alias, id] as const];
     });
 
     const last = built.loads.at(-1);
@@ -1717,13 +1901,14 @@ async function apply(
         copies: built.copies,
         types: built.types,
         nodeRefs: built.nodes.map((node) => [node.id, node.ref] as const),
-        namedOnly: built.nodes.filter((node) => node.loads.length === 0).map((node) => node.id),
+        namedOnly: built.nodes.filter((node) => node.named === true).map((node) => node.id),
         origins: built.origins,
         kinds: built.kinds,
         folded: built.folded,
         heldOperations: built.heldOperations,
         refused: built.refused,
         readerEdges,
+        edgeAliases,
         unavailable: built.unavailable,
         edgeIds: built.edgeIds,
         referenced: built.referenced,

@@ -4,7 +4,8 @@
  * the modules it shares with the main entry into many small chunks.
  */
 
-export { refetchSources } from "./codecs/dataFetch";
+export { refreshHeldSource } from "./codecs/data";
+export { refetchSources, rememberRefetch } from "./codecs/dataFetch";
 export { openDocument2, saveDocument2 } from "./document";
 export { describeFile, describeSave, isWholeSave } from "./facts";
 export { assertIJson, isJsonObject, isVersion2, parseDocument } from "./framing";

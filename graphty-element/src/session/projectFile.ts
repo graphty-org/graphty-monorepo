@@ -419,6 +419,21 @@ export interface ProjectOpenOptions {
      */
     readonly bindOtherData?: boolean;
     /**
+     * Version 2 only: the open data's column for each column a style section names, by table --
+     * the column mapping step's answer, such as `{ node: { amount: "amount_usd" } }`. Every column
+     * the section's layers read under a listed name reads the mapped one; a column it does not
+     * list is read as written. `inspect` takes it too, so each column need's `found` is for its
+     * mapped column. A name mapped to anything but non-empty text is refused with
+     * `E_OPTION_RANGE` (`details.option` `"columns"`). EXPERIMENTAL.
+     * @since 3.40.0
+     * @experimental save-files-v2
+     * @beta
+     */
+    readonly columns?: {
+        readonly node?: Readonly<Record<string, string>>;
+        readonly edge?: Readonly<Record<string, string>>;
+    };
+    /**
      * With the `save-files-v2` experiment on: open a version 1 file through its migration to
      * version 2. Default false: a version 1 file is read as before. EXPERIMENTAL.
      * @since 3.40.0
@@ -440,9 +455,10 @@ export interface ProjectOpenOptions {
      * Version 2 only: let the open fetch the referenced sources the file names by URL (resolved
      * against `location`). A file cannot approve its own fetches, so the default is `ownWork`:
      * without it, a source that would be fetched supplies nothing and is reported
-     * `W_SOURCE_UNAVAILABLE` (`reason: "consent"`). Nothing is fetched for a data section the
-     * open does not build. Each source is read no further than `limits.fileBytes`
-     * (`reason: "too-large"`). EXPERIMENTAL.
+     * `W_SOURCE_UNAVAILABLE` (`reason: "needs-permission"`) and is held until `data.refresh`
+     * fetches it. Nothing is fetched for a data section the open does not build. Each source is
+     * read no further than `limits.fileBytes` (`reason: "too-large"`). A source whose bytes changed
+     * since the save is held too (`reason: "copy-changed"`), never rebuilt on open. EXPERIMENTAL.
      * @since 3.40.0
      * @experimental save-files-v2
      * @beta
@@ -625,8 +641,46 @@ export interface ProjectApi {
      */
     inspect(
         source: ProjectSource,
-        options?: Pick<ProjectOpenOptions, "migrate" | "limits" | "sections" | "dataMode">,
+        options?: Pick<ProjectOpenOptions, "migrate" | "limits" | "sections" | "dataMode" | "columns">,
     ): Promise<ProjectFileFacts | undefined>;
+}
+
+/**
+ * Where an open read its referenced sources from, the files the caller picked and how far, for a
+ * later `data.refresh`.
+ * @param options - The open's options.
+ * @param limit - The most bytes one source may hold.
+ * @returns The location, files and limit.
+ */
+function openedHow(
+    options: ProjectOpenOptions,
+    limit: number,
+): { location?: string; files?: Readonly<Record<string, Blob>>; limit: number } {
+    return {
+        ...(options.location === undefined ? {} : { location: options.location }),
+        ...(options.files === undefined ? {} : { files: options.files }),
+        limit,
+    };
+}
+
+/**
+ * Refuse a `columns` open option that maps a name to anything but non-empty text.
+ * @param columns - The option.
+ * @throws A `GraphtyError` with `E_OPTION_RANGE` (`details.option`, `details.value`).
+ */
+function checkColumns(columns: ProjectOpenOptions["columns"]): void {
+    for (const [table, renames] of Object.entries(columns ?? {})) {
+        const bad = Object.entries(renames ?? {}).find(([, to]) => typeof to !== "string" || to === "");
+        if (!["node", "edge"].includes(table) || bad !== undefined) {
+            const value = bad === undefined ? table : [table, bad[0]].join(".");
+            throw new GraphtyError({
+                code: "E_OPTION_RANGE",
+                message: `The open option columns maps ${value} to no column.`,
+                source: "data",
+                details: { option: "columns", value },
+            });
+        }
+    }
 }
 
 /**
@@ -3547,15 +3601,17 @@ export function projectOf(
         // Fetched before the section is built, which builds it synchronously; an abort rejects
         // here, before anything is applied. A file cannot approve its own fetches, and never makes
         // one for a data section the open would not build.
+        checkColumns(options.columns);
         const fetches = options.fetchSources ?? options.ownWork === true;
-        const { isJsonObject, openDocument2, parseDocument, refetchSources, SECTION_CODECS } =
+        const { isJsonObject, openDocument2, parseDocument, refetchSources, rememberRefetch, SECTION_CODECS } =
             await import("./document2/onDemand");
+        const limit = options.limits?.fileBytes ?? DEFAULT_FILE_BYTES;
         await refetchSources(value, {
             ...(options.location === undefined ? {} : { location: options.location }),
             ...(options.files === undefined ? {} : { files: options.files }),
             ...(options.signal === undefined ? {} : { signal: options.signal }),
             fetch: fetches,
-            limit: options.limits?.fileBytes ?? DEFAULT_FILE_BYTES,
+            limit,
             builds: () =>
                 !fetches ||
                 ((options.sections?.includes("data") ?? true) &&
@@ -3575,6 +3631,7 @@ export function projectOf(
                 ...(options.runs === undefined ? {} : { runs: options.runs }),
                 ...(options.dataMode === undefined ? {} : { dataMode: options.dataMode }),
                 ...(options.bindOtherData === undefined ? {} : { bindOtherData: options.bindOtherData }),
+                ...(options.columns === undefined ? {} : { columns: options.columns }),
             },
             {
                 canned,
@@ -3593,6 +3650,8 @@ export function projectOf(
         );
         fresh = false;
         if (outcome.replaced) {
+            // `data.refresh` reads a held source again from where this open read it.
+            rememberRefetch(session, openedHow(options, limit));
             // Saved at the baseline: anything the reader did while it opened is a change.
             adopt({ ...pointNow(), step: null });
         }
@@ -3640,6 +3699,7 @@ export function projectOf(
                 throw featureOff("save-files-v2", "project.inspect");
             }
 
+            checkColumns(options.columns);
             const text = await textOf(source, options.limits?.fileBytes ?? DEFAULT_FILE_BYTES);
             const read = await version2Of(text, options.migrate === true);
             if (read === undefined || !("value" in read)) {
@@ -3651,6 +3711,7 @@ export function projectOf(
             return describeFile(session, SECTION_CODECS, parsed, [...read.problems, ...parsed.problems], {
                 ...(options.sections === undefined ? {} : { sections: options.sections }),
                 ...(options.dataMode === undefined ? {} : { dataMode: options.dataMode }),
+                ...(options.columns === undefined ? {} : { columns: options.columns }),
             });
         },
         save(options = {}) {

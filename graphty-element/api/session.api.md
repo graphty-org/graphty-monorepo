@@ -1025,7 +1025,7 @@ export interface DocumentBindFacts {
 }
 
 // @beta
-export type DocumentCode = "E_UNKNOWN_COMMAND" | "W_SCHEMA_MISMATCH" | "W_SECTION_KEPT" | "W_EXTENSION_REQUIRED" | "W_SECTION_UPGRADED" | "W_ELEMENT_NAMING_LEFT_OUT" | "W_SOURCE_NO_PATH" | "W_SOURCE_UNAVAILABLE" | "W_SOURCE_CHANGED" | "W_SOURCE_EMBEDDED" | "W_REFERENCE_UNBOUND" | "W_DATA_CHANGED" | "W_DATA_MISMATCH" | "W_JOIN_HISTORY_DIFFERS" | "W_CAMERA_CONTROLLER_UNKNOWN" | "W_RUN_NOT_RUN" | "W_RESULTS_DIFFER" | "W_EDGE_MATCH_AMBIGUOUS" | "W_SOURCE_UNKEYED" | "W_NODE_NAMED_ONLY" | "W_EDGE_END_MISSING" | "W_COLUMN_WIDENED" | "W_MEMBER_LEFT_OUT" | "W_RECIPE_NOT_APPLIED";
+export type DocumentCode = "E_UNKNOWN_COMMAND" | "W_SCHEMA_MISMATCH" | "W_SECTION_KEPT" | "W_EXTENSION_REQUIRED" | "W_SECTION_UPGRADED" | "W_ELEMENT_NAMING_LEFT_OUT" | "W_SOURCE_NO_PATH" | "W_SOURCE_UNAVAILABLE" | "W_SOURCE_EMBEDDED" | "W_REFERENCE_UNBOUND" | "W_DATA_CHANGED" | "W_DATA_MISMATCH" | "W_JOIN_HISTORY_DIFFERS" | "W_CAMERA_CONTROLLER_UNKNOWN" | "W_RUN_NOT_RUN" | "W_RESULTS_DIFFER" | "W_EDGE_MATCH_AMBIGUOUS" | "W_SOURCE_UNKEYED" | "W_NODE_NAMED_ONLY" | "W_EDGE_END_MISSING" | "W_COLUMN_WIDENED" | "W_MEMBER_LEFT_OUT" | "W_RECIPE_NOT_APPLIED";
 
 // @beta
 export interface DocumentHeldFacts {
@@ -1066,6 +1066,7 @@ export interface DocumentSectionNeed {
     readonly found?: boolean;
     readonly kind: "column" | "type" | "source" | "result";
     readonly name: string;
+    readonly schema?: Readonly<Record<string, unknown>>;
     readonly table?: "node" | "edge";
 }
 
@@ -4601,7 +4602,7 @@ export interface ProjectApi {
     readonly dirty: boolean;
     readonly id: string;
     // @beta
-    inspect(source: ProjectSource, options?: Pick<ProjectOpenOptions, "migrate" | "limits" | "sections" | "dataMode">): Promise<ProjectFileFacts | undefined>;
+    inspect(source: ProjectSource, options?: Pick<ProjectOpenOptions, "migrate" | "limits" | "sections" | "dataMode" | "columns">): Promise<ProjectFileFacts | undefined>;
     markSaved(saved: SavedProject): void;
     readonly name: string | null;
     open(source: ProjectSource, options?: ProjectOpenOptions): Promise<ProjectOpenReport>;
@@ -4720,6 +4721,11 @@ export interface ProjectFileSource {
 export interface ProjectOpenOptions {
     // @beta
     readonly bindOtherData?: boolean;
+    // @beta
+    readonly columns?: {
+        readonly node?: Readonly<Record<string, string>>;
+        readonly edge?: Readonly<Record<string, string>>;
+    };
     // @beta
     readonly dataMode?: "replace" | "add";
     readonly discard?: boolean;
@@ -7252,7 +7258,7 @@ export type SourceSettings = Pick<SourceLoadRecord, "source" | "endpoint" | "con
 export type SourceStorage = "embedded" | "referenced";
 
 // @beta
-export type SourceUnavailableReason = "unreachable" | "needs-file" | "read" | "too-large" | "consent" | "kind";
+export type SourceUnavailableReason = "not-found" | "needs-file" | "read" | "too-large" | "needs-permission" | "copy-changed" | "kind";
 
 export { SourceValidators }
 

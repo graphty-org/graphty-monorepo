@@ -69,14 +69,16 @@ export type SourceStorage = "embedded" | "referenced";
 export type SourceEmbeddedReason = "edited" | "bytes" | "rows" | "mapping" | "kind";
 
 /**
- * Why a referenced source supplied nothing on open (`W_SOURCE_UNAVAILABLE` `params.reason`):
- * `unreachable`, `needs-file` (no location to read it from), `read` (unreadable), `too-large`
- * (over the open's size limit), `consent` (a fetch the caller did not allow), `kind` (no open
- * reads its kind again). OPEN UNION.
+ * Why a referenced source supplied nothing on open (`W_SOURCE_UNAVAILABLE` `params.reason`): the
+ * source is held until `data.refresh`. `not-found` (its fetch failed), `needs-file` (no location to
+ * read it from), `read` (unreadable), `too-large` (over the open's size limit), `needs-permission`
+ * (a fetch the caller did not allow), `copy-changed` (its bytes changed since the save, `params.size`
+ * the new byte count; a network source always), `kind` (no open reads its kind again). OPEN UNION.
  * @experimental save-files-v2
  * @beta
  */
-export type SourceUnavailableReason = "unreachable" | "needs-file" | "read" | "too-large" | "consent" | "kind";
+export type SourceUnavailableReason =
+    "not-found" | "needs-file" | "read" | "too-large" | "needs-permission" | "copy-changed" | "kind";
 
 /** A JSON object as read from or written to a document. */
 export type JsonObject = Record<string, unknown>;
@@ -98,7 +100,6 @@ export type DocumentCode =
     | "W_ELEMENT_NAMING_LEFT_OUT"
     | "W_SOURCE_NO_PATH"
     | "W_SOURCE_UNAVAILABLE"
-    | "W_SOURCE_CHANGED"
     | "W_SOURCE_EMBEDDED"
     | "W_REFERENCE_UNBOUND"
     | "W_DATA_CHANGED"
@@ -300,6 +301,14 @@ export interface ReadContext extends CodecContext {
     readonly canned: CannedOutcomes;
     /** Mark a restored run's id as minted by the element. */
     restoreDerived(id: RunId): void;
+    /** The open data's column for each column a style section names, by table (spec 3.6 rule 1). */
+    readonly columns?: ColumnRenames;
+}
+
+/** The open data's column for each column a reusable section names, by table: file name to open name. */
+export interface ColumnRenames {
+    readonly node?: Readonly<Record<string, string>>;
+    readonly edge?: Readonly<Record<string, string>>;
 }
 
 /**

@@ -19,15 +19,18 @@ import type { JsonObject, SourceUnavailableReason } from "../types";
 import { copyTables, isPlainObject, isReserved, repeatedEdgeRows } from "./dataRefs";
 
 /**
- * Why a referenced source supplied nothing: unreachable, no location to read it from, unreadable,
- * over the open's size limit, or a fetch the caller did not allow.
+ * Why a referenced source supplied nothing: not found, no location to read it from, unreadable,
+ * over the open's size limit, a fetch the caller did not allow, or bytes changed since the save.
  */
 type UnavailableReason = Exclude<SourceUnavailableReason, "kind">;
 
-/** A referenced source read again: its tables in copy form and its bytes' digest, or why not. */
+/**
+ * A referenced source read again: its tables in copy form and its bytes' digest, or why not (with
+ * the new byte count when its copy changed).
+ */
 export type Refetched =
     | { readonly copyId: string; readonly tables: JsonObject; readonly columns: JsonObject }
-    | { readonly unavailable: UnavailableReason };
+    | { readonly unavailable: UnavailableReason; readonly size?: number };
 
 /** What an open gives the fetch. */
 export interface RefetchOptions {
@@ -47,10 +50,39 @@ export interface RefetchOptions {
     readonly builds: () => boolean;
     /** A scratch session to read a source in, disposed by the caller of this module. */
     readonly scratch: () => GraphSession;
+    /**
+     * Whether bytes that changed since the save are read (a refresh); otherwise the source is held
+     * (`copy-changed`) and nothing is parsed.
+     */
+    readonly accept?: boolean;
 }
 
 /** Each referenced record read again, by the record object the codec sees. */
 const REFETCHED = new WeakMap<object, Refetched>();
+
+/** Where an open read referenced sources from, the files the caller picked and how far it read. */
+type OpenedHow = Pick<RefetchOptions, "location" | "limit" | "files">;
+
+/** How the last version 2 open of each session read its referenced sources. */
+const OPENED = new WeakMap<GraphSession, OpenedHow>();
+
+/**
+ * Remember where and how far an open read a session's referenced sources, for `data.refresh`.
+ * @param session - The session.
+ * @param how - The open's location, the files the caller picked and the size limit.
+ */
+export function rememberRefetch(session: GraphSession, how: OpenedHow): void {
+    OPENED.set(session, how);
+}
+
+/**
+ * Where and how far the last open read a session's referenced sources.
+ * @param session - The session.
+ * @returns The location and limit, or undefined when no version 2 open ran.
+ */
+export function refetchOptionsOf(session: GraphSession): OpenedHow | undefined {
+    return OPENED.get(session);
+}
 
 /**
  * What a referenced source record was read again as, if an open fetched it.
@@ -67,12 +99,12 @@ export function refetchedOf(record: object): Refetched | undefined {
  * @param record - The record.
  * @param how - The open's options.
  * @returns The bytes, `needs-file` when nothing says where they are, `too-large` for a picked
- *     file over the limit, or `consent` for a fetch the caller did not allow.
+ *     file over the limit, or `needs-permission` for a fetch the caller did not allow.
  */
 async function bytesOf(
     record: JsonObject,
     how: RefetchOptions,
-): Promise<Uint8Array | "needs-file" | "too-large" | "consent"> {
+): Promise<Uint8Array | "needs-file" | "too-large" | "needs-permission"> {
     const picked = how.files?.[String(record.id)];
     if (picked !== undefined) {
         return picked.size > how.limit ? "too-large" : new Uint8Array(await picked.arrayBuffer());
@@ -93,7 +125,7 @@ async function bytesOf(
         return "needs-file";
     }
 
-    return how.fetch ? fetchBytes(resolved.href, how.signal, how.limit) : "consent";
+    return how.fetch ? fetchBytes(resolved.href, how.signal, how.limit) : "needs-permission";
 }
 
 /**
@@ -247,18 +279,19 @@ async function reimport(
 }
 
 /**
- * Read one referenced record again, remembering what it gave.
+ * Read one referenced record again, remembering what it gave: bytes that changed since the save
+ * hold it (`copy-changed`) unless the caller accepts them.
  * @param record - The record.
  * @param how - The open's options.
  */
-async function refetch(record: JsonObject, how: RefetchOptions): Promise<void> {
+export async function refetch(record: JsonObject, how: RefetchOptions): Promise<void> {
     let bytes: Awaited<ReturnType<typeof bytesOf>>;
     try {
         bytes = await bytesOf(record, how);
     } catch (error) {
         how.signal?.throwIfAborted();
         const large = isGraphtyError(error) && error.code === "E_TOO_LARGE";
-        REFETCHED.set(record, { unavailable: large ? "too-large" : "unreachable" });
+        REFETCHED.set(record, { unavailable: large ? "too-large" : "not-found" });
         return;
     }
 
@@ -268,16 +301,22 @@ async function refetch(record: JsonObject, how: RefetchOptions): Promise<void> {
     }
 
     const copyId = `sha256:${sha256HexSync(bytes)}`;
+    const changed = copyId !== (record.origin as JsonObject).copy;
+    if (changed && how.accept !== true) {
+        REFETCHED.set(record, { unavailable: "copy-changed", size: bytes.length });
+        return;
+    }
+
     try {
         const { tables, columns } = await reimport(record, bytes, how);
         REFETCHED.set(record, { copyId, tables, columns });
     } catch (error) {
         how.signal?.throwIfAborted();
-        // Bytes that changed since the save and parse, but lack the columns the saved roles name,
-        // are a refresh that supplied no rows (spec 8.3 rules 1 and 2): reported changed, every
-        // saved column left out. The same bytes unreadable, or bytes that do not parse, are `read`.
-        const changed = error instanceof RolesGone && copyId !== (record.origin as JsonObject).copy;
-        REFETCHED.set(record, changed ? { copyId, tables: {}, columns: {} } : { unavailable: "read" });
+        // A refresh whose bytes parse but lack the columns the saved roles name supplies no rows
+        // (spec 8.3 rule 1 reports every saved column). The same bytes unreadable, or bytes that do
+        // not parse, are `read`.
+        const empty = error instanceof RolesGone && changed;
+        REFETCHED.set(record, empty ? { copyId, tables: {}, columns: {} } : { unavailable: "read" });
     }
 }
 

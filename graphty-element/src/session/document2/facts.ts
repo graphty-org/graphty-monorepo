@@ -27,6 +27,7 @@ import {
 import { documentStateOf, type HeldSection, isJsonObject, type ParsedDocument } from "./framing";
 import {
     type CodecRegistry,
+    type ColumnRenames,
     DOCUMENT_SECTIONS,
     type DocumentCode,
     type DocumentProblem,
@@ -228,8 +229,14 @@ export interface DocumentSectionNeed {
     /** For a column: the table it is a column of. */
     readonly table?: "node" | "edge";
     /**
-     * Whether the data open now answers it: a column of that name in that table, or one open run
-     * with that `as`. Absent when the open would replace the data, and for types and source roles.
+     * For a column: what the section expects of it, as its file says (spec 3.6 rule 1): a JSON
+     * Schema fragment, with `measurement` and `unit` when given. Absent when the file says nothing.
+     */
+    readonly schema?: Readonly<Record<string, unknown>>;
+    /**
+     * Whether the data open now answers it: a column of that name in that table (or of the name
+     * the `columns` option maps it to), or one open run with that `as`. Absent when the open would
+     * replace the data, and for types and source roles.
      */
     readonly found?: boolean;
 }
@@ -503,6 +510,7 @@ function sourcesOf(data: JsonObject | undefined): ProjectFileSource[] {
  * @param open.plan - What it binds to.
  * @param open.chosen - Whether it loads this section.
  * @param open.session - The session, for the data open now.
+ * @param open.columns - The open data's column for each column the section names, by table.
  * @returns Its facts, or undefined when the file holds none.
  */
 function fileSection(
@@ -510,7 +518,12 @@ function fileSection(
     parsed: ParsedDocument,
     section: DocumentSection,
     ids: { readonly file: string | undefined; readonly open: string | undefined },
-    open: { readonly plan: BindPlan; readonly chosen: boolean; readonly session: GraphSession },
+    open: {
+        readonly plan: BindPlan;
+        readonly chosen: boolean;
+        readonly session: GraphSession;
+        readonly columns?: ColumnRenames;
+    },
 ): ProjectFileSection | undefined {
     const loads = parsed.sections.get(section);
     const held = parsed.held.get(section);
@@ -530,7 +543,7 @@ function fileSection(
         ...(isBound ? { binds: { file: binds(ids.file), open: binds(ids.open) } } : {}),
         ...(isBound && loads !== undefined && open.chosen ? { binding: bindingOf(bound, open.plan) } : {}),
         about: aboutOf(value),
-        needs: needsOf(value, open.plan.replaced ? undefined : open.session),
+        needs: needsOf(value, open.plan.replaced ? undefined : open.session, open.columns),
     };
 }
 
@@ -565,9 +578,10 @@ function aboutOf(value: unknown): DocumentSectionAbout {
  * @param value - The section.
  * @param session - The session whose open data the section meets, or undefined when the open
  *     replaces the data.
+ * @param renames - The open data's column for each column the section names, by table.
  * @returns The needs.
  */
-function needsOf(value: unknown, session: GraphSession | undefined): DocumentSectionNeed[] {
+function needsOf(value: unknown, session: GraphSession | undefined, renames?: ColumnRenames): DocumentSectionNeed[] {
     const dependencies = isJsonObject(value) && isJsonObject(value.dependencies) ? value.dependencies : {};
     const listOf = (member: string): unknown[] => {
         const each = dependencies[member];
@@ -584,8 +598,19 @@ function needsOf(value: unknown, session: GraphSession | undefined): DocumentSec
                 return [];
             }
 
-            const found = attributes.some((each) => each.kind === table && each.name === name);
-            return [{ kind: "column", name, table, ...(session === undefined ? {} : { found }) }];
+            const mapped = renames?.[table]?.[name] ?? name;
+            const found = attributes.some((each) => each.kind === table && each.name === mapped);
+            const schema =
+                isJsonObject(column.schema) && Object.keys(column.schema).length > 0 ? column.schema : undefined;
+            return [
+                {
+                    kind: "column",
+                    name,
+                    table,
+                    ...(schema === undefined ? {} : { schema }),
+                    ...(session === undefined ? {} : { found }),
+                },
+            ];
         });
     const named = (member: string, kind: DocumentSectionNeed["kind"]): DocumentSectionNeed[] =>
         listOf(member)
@@ -612,7 +637,7 @@ export function describeFile(
     codecs: CodecRegistry,
     parsed: ParsedDocument,
     problems: readonly DocumentProblem[],
-    choices: Pick<OpenChoices, "sections" | "dataMode"> = {},
+    choices: Pick<OpenChoices, "sections" | "dataMode" | "columns"> = {},
 ): ProjectFileFacts {
     const data = parsed.sections.get("data");
     const fileDataId = data?.header.id ?? stringOf(parsed.held.get("data")?.value, "id");
@@ -620,7 +645,12 @@ export function describeFile(
     const plan = bindPlanOf(parsed, choices, ids.open);
     const sections = DOCUMENT_SECTIONS.flatMap((section) => {
         const chosen = choices.sections === undefined || choices.sections.includes(section);
-        const facts = fileSection(codecs, parsed, section, ids, { plan, chosen, session });
+        const facts = fileSection(codecs, parsed, section, ids, {
+            plan,
+            chosen,
+            session,
+            ...(choices.columns === undefined ? {} : { columns: choices.columns }),
+        });
         return facts === undefined ? [] : [facts];
     });
 

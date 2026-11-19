@@ -32,6 +32,7 @@ import {
     APPLY_ORDER,
     type BindsTo,
     type CodecRegistry,
+    type ColumnRenames,
     DOCUMENT_SECTIONS,
     type DocumentProblem,
     type DocumentSection,
@@ -80,6 +81,8 @@ export interface OpenChoices {
     readonly dataMode?: "replace" | "add";
     /** Load a bound section written on other data (spec 6.4, "No match"); default false. */
     readonly bindOtherData?: boolean;
+    /** The open data's column for each column a style section names, by table. */
+    readonly columns?: ColumnRenames;
 }
 
 /** The generator every version 2 save writes. */
@@ -602,6 +605,7 @@ async function applyDocument(
                     other: (other) => chosen.get(other),
                     canned: hooks.canned,
                     restoreDerived: hooks.restoreDerived,
+                    ...(choices.columns === undefined ? {} : { columns: choices.columns }),
                 };
                 await codec.read(section, context);
                 rememberUnknownMembers(state, name, section, codec);

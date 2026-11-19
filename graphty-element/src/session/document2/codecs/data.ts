@@ -36,8 +36,11 @@
 
 import type { EdgeId, NodeId } from "../../../catalog/types";
 import { EDGE_ID_CEILING, edgeCounterOf } from "../../../data/edgeIdentity";
+import { GraphtyError } from "../../../errors/GraphtyError";
 import type { ColumnSettings } from "../../commands/data";
-import type { LoadedSource, TransactionScope } from "../../types";
+import type { TransactionOptions } from "../../project/Dispatcher";
+import type { SourceRefreshReport } from "../../sources/types";
+import type { GraphSession, LoadedSource, TransactionScope } from "../../types";
 import { token } from "../framing";
 import type {
     DocumentProblem,
@@ -50,19 +53,22 @@ import type {
     SourceUnavailableReason,
     WriteContext,
 } from "../types";
-import { refetchedOf } from "./dataFetch";
+import { refetch, refetchedOf, refetchOptionsOf } from "./dataFetch";
 import {
     canonicalJson,
     dataBodyOf,
     edgeKey,
     edgeRefOf,
     freeColumnName,
+    heldRecordOf,
     isPlainObject,
+    keepReferenced,
     keyText,
     nodeRefOf,
     numericCell,
     READER,
     recordKey,
+    referencedOf,
     rememberRead,
     SOURCE_ID,
     ULID,
@@ -325,8 +331,9 @@ interface ReadSource {
     readonly embedded: boolean;
     /** For a referenced source read again: the copy id its record names, and the roles its rows are built with. */
     readonly rebuilt?: { readonly expected: string; readonly mapping: JsonObject };
-    /** For a referenced source not read again: why. */
+    /** For a referenced source not read again: why, and its new byte count when its copy changed. */
     readonly reason?: SourceUnavailableReason;
+    readonly size?: number;
 }
 
 /**
@@ -454,8 +461,19 @@ function referencedSource(record: JsonObject, pointer: string): ReadSource {
     const fetched = refetchedOf(record);
     if (fetched === undefined || "unavailable" in fetched) {
         const fetches = record.kind === "file" || record.kind === "url";
-        const reason = fetched?.unavailable ?? (fetches ? "needs-file" : "kind");
-        return { record, id, pointer, copyId: expected, embedded: false, reason };
+        // A network source gets a new copy on every read, so it is held as changed until refreshed.
+        const unread: SourceUnavailableReason = record.kind === "network" ? "copy-changed" : "kind";
+        const reason = fetched?.unavailable ?? (fetches ? "needs-file" : unread);
+        const size = fetched?.size;
+        return {
+            record,
+            id,
+            pointer,
+            copyId: expected,
+            embedded: false,
+            reason,
+            ...(size === undefined ? {} : { size }),
+        };
     }
 
     const roles = isPlainObject(record.mapping) ? record.mapping : {};
@@ -481,7 +499,7 @@ function referencedSource(record: JsonObject, pointer: string): ReadSource {
 
 /**
  * Report each column a referenced source was saved with that the rows read again lack (spec 8.3),
- * and a source whose bytes changed since the save (`W_SOURCE_CHANGED`).
+ * and tell whether its bytes changed since the save (only a refresh reads changed bytes).
  * @param source - The source read again.
  * @param problems - Collects the reports.
  * @returns Whether its bytes changed.
@@ -502,15 +520,7 @@ function checkRebuilt(source: ReadSource, problems: DocumentProblem[]): boolean 
     }
 
     const expected = source.rebuilt?.expected;
-    if (expected === undefined || expected === source.copyId) {
-        return false;
-    }
-
-    problems.push({
-        code: "W_SOURCE_CHANGED",
-        params: { source: source.id, expected, found: source.copyId },
-    });
-    return true;
+    return expected !== undefined && expected !== source.copyId;
 }
 
 /** A data section, checked. */
@@ -651,6 +661,8 @@ interface Built {
     readonly kinds: readonly (readonly [string, string])[];
     /** The reader operations read that are not `add`s, by `op`, in order. */
     readonly folded: readonly string[];
+    /** The reader operations on what a held source supplies, kept as read. */
+    readonly heldOperations: readonly JsonObject[];
     /** Each edge's saved element-assigned id, by its load and then its key (spec 6.2). */
     readonly edgeIds: SavedEdgeIds;
     /** The referenced sources read again, with the `mapping` each record names. */
@@ -665,6 +677,10 @@ interface Building {
     readonly nodes: Map<string, BuiltNode>;
     readonly edges: Map<string, BuiltEdge>;
     readonly problems: DocumentProblem[];
+    /** The sources held (not read again), by id. */
+    readonly held: Set<string>;
+    /** The reader operations on what a held source supplies, kept as read for the next save. */
+    readonly heldOperations: JsonObject[];
 }
 
 /**
@@ -942,8 +958,30 @@ function convert(into: Building, conversions: readonly JsonObject[]): void {
 }
 
 /**
+ * Whether a reference may name what a held source supplies: its own space or load, or, while any
+ * source is held, a shared space.
+ * @param ref - A node or edge reference.
+ * @param held - The held sources.
+ * @returns Whether it may.
+ */
+function heldRef(ref: unknown, held: ReadonlySet<string>): boolean {
+    if (held.size === 0 || !isPlainObject(ref)) {
+        return false;
+    }
+
+    if (typeof ref.load === "string") {
+        return held.has(ref.load);
+    }
+
+    // ponytail: a shared space does not say which source supplied a key; any held source may.
+    const space = String(ref.space);
+    return !space.startsWith("source:") || held.has(space.slice("source:".length));
+}
+
+/**
  * Apply the reader source's operations, in order (spec 4.1.4). An operation naming an absent
- * element applies to nothing and is reported.
+ * element applies to nothing and is reported, unless the element may be a held source's: that
+ * operation, its `was` included, is kept as read for the next save and a refresh.
  * @param operations - The operations.
  * @param into - The build so far.
  */
@@ -957,6 +995,11 @@ function applyOperations(operations: readonly JsonObject[], into: Building): voi
         return checked === undefined ? undefined : into.edges.get(edgeKey(checked));
     };
     const absent = (at: number, ref: unknown): void => {
+        if (heldRef(ref, into.held)) {
+            into.heldOperations.push(operations[at]);
+            return;
+        }
+
         into.problems.push({
             code: "W_REFERENCE_UNBOUND",
             params: {
@@ -1148,6 +1191,22 @@ function edgeIdPointer(load: string, key: string): string {
     return `/edgeIds/${token(load)}/${token(key)}`;
 }
 
+/**
+ * The report of a held source: `W_SOURCE_UNAVAILABLE` with why, and its new size when its copy changed.
+ * @param source - The source, not read again.
+ * @returns The problem.
+ */
+function unavailableProblem(source: ReadSource): DocumentProblem {
+    return {
+        code: "W_SOURCE_UNAVAILABLE",
+        params: {
+            source: source.id,
+            ...(source.reason === undefined ? {} : { reason: source.reason }),
+            ...(source.size === undefined ? {} : { size: source.size }),
+        },
+    };
+}
+
 /** What building the join steps gives. */
 interface Joined {
     readonly loads: LoadedSource[];
@@ -1191,10 +1250,7 @@ function buildJoins(section: Checked, into: Building): Joined {
         } else {
             // Not read again: it supplies nothing, its edges' saved ids stay reserved, and its record
             // is written back as read.
-            problems.push({
-                code: "W_SOURCE_UNAVAILABLE",
-                params: { source: source.id, ...(source.reason === undefined ? {} : { reason: source.reason }) },
-            });
+            problems.push(unavailableProblem(source));
             joined.unavailable.push(source.record);
         }
 
@@ -1219,7 +1275,8 @@ function buildJoins(section: Checked, into: Building): Joined {
 function build(body: Readonly<JsonObject>, problems: DocumentProblem[]): Built {
     const section = checked(body);
     const before = problems.length;
-    const into: Building = { nodes: new Map(), edges: new Map(), problems };
+    const held = new Set([...section.sources.values()].filter((source) => !source.embedded).map(({ id }) => id));
+    const into: Building = { nodes: new Map(), edges: new Map(), problems, held, heldOperations: [] };
     const named = new Set(section.joins.map((step) => String(step.source)));
     for (const [at, id] of [...section.sources.keys()].entries()) {
         if (!named.has(id)) {
@@ -1263,9 +1320,11 @@ function build(body: Readonly<JsonObject>, problems: DocumentProblem[]): Built {
         ),
         kinds: [...section.sources.values()].map(({ id, record }) => [id, String(record.kind)] as const),
         folded: (section.reader?.operations ?? [])
+            .filter((operation) => !into.heldOperations.includes(operation))
             .map((operation) => String(operation.op))
             .filter((op) => op !== "add"),
         edgeIds,
+        heldOperations: into.heldOperations,
         refused: problems
             .slice(before)
             .some((problem) => problem.code === "W_MEMBER_LEFT_OUT" && problem.params.section === "data"),
@@ -1352,7 +1411,10 @@ async function restoreSettings(built: Built, tx: TransactionScope): Promise<void
  * @param built - The build.
  * @param context - The open's context.
  */
-async function apply(built: Built, context: ReadContext): Promise<void> {
+async function apply(
+    built: Built,
+    context: Pick<ReadContext, "session" | "tx" | "problems" | "restored">,
+): Promise<void> {
     const { tx } = context;
     await tx.data.clear();
     assignIds(built.nodes);
@@ -1441,6 +1503,7 @@ async function apply(built: Built, context: ReadContext): Promise<void> {
         origins: built.origins,
         kinds: built.kinds,
         folded: built.folded,
+        heldOperations: built.heldOperations,
         refused: built.refused,
         readerEdges,
         unavailable: built.unavailable,
@@ -1544,3 +1607,143 @@ export const dataCodec: SectionCodec = {
         return !CHANGED.has(section.body);
     },
 };
+
+// ---------------------------------------------------------------------------------------------
+// Refreshing a held source
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * Rebuild the open data keeping what the reader arranged on it: the collapsed groups are expanded
+ * first (so the data holds every member), every node's coordinates and pin are kept, and once the
+ * data is rebuilt they are put back and the groups collapsed again in their order. A node the
+ * rebuild no longer holds is left out.
+ * @param tx - The refresh's transaction.
+ * @param rebuild - Rebuilds the data.
+ */
+async function rebuildKeepingPlaces(tx: TransactionScope, rebuild: () => Promise<void>): Promise<void> {
+    const collapsed = tx.groups.list().map(({ groupBy, group }) => ({ groupBy, group }));
+    for (const ref of [...collapsed].reverse()) {
+        await tx.groups.expand(ref);
+    }
+
+    const { order, xyz } = tx.positions.snapshot();
+    const mask = tx.positions.pinnedMask();
+    await rebuild();
+    const held = new Set(tx.data.nodes({ scope: "graph" }).map((node) => node.id));
+    const kept = order.flatMap((id, at) => (held.has(id) ? [at] : []));
+    if (kept.length > 0) {
+        await tx.positions.restore({
+            order: kept.map((at) => order[at]),
+            xyz: Float32Array.from(kept.flatMap((at) => [xyz[at * 3], xyz[at * 3 + 1], xyz[at * 3 + 2]])),
+        });
+    }
+
+    const pinned = kept.filter((at) => mask[at] === 1).map((at) => order[at]);
+    if (pinned.length > 0) {
+        await tx.positions.pin(pinned);
+    }
+
+    for (const ref of collapsed) {
+        await tx.groups.collapse(ref);
+    }
+}
+
+/** The error code a refresh that still cannot read a held source rejects with, by why. */
+const REFRESH_REFUSED: Readonly<Record<string, "E_TOO_LARGE" | "E_PARSE_FAILED" | "E_FETCH_FAILED">> = {
+    "too-large": "E_TOO_LARGE",
+    read: "E_PARSE_FAILED",
+};
+
+/**
+ * Refresh a source a version 2 open held (`W_SOURCE_UNAVAILABLE`; spec 8.3): fetch it, with the
+ * permission the call gives, read its new bytes with its saved roles, and build the open data again
+ * with it, the reader's operations on what it supplies applied (their `was` as read), as one
+ * undoable step. The build gets a new stamp, so a run on the old data goes stale and a save binds it
+ * `W_DATA_CHANGED`. Every other source keeps its rows, edge ids and how it is saved.
+ * @param session - The session.
+ * @param source - The held source's id.
+ * @param how - A scratch session to read it in, and the caller's signal.
+ * @param how.scratch - Makes the scratch session.
+ * @param how.signal - Aborts the fetch.
+ * @returns What the refresh added, or undefined when the source is not held.
+ * @throws A `GraphtyError`: `E_FETCH_FAILED` (`details.source`, `details.reason`) when it still
+ *     cannot be fetched, `E_TOO_LARGE` past the open's size limit, `E_PARSE_FAILED` when its bytes
+ *     do not parse; the source stays held.
+ */
+export async function refreshHeldSource(
+    session: GraphSession,
+    source: string,
+    how: { readonly scratch: () => GraphSession; readonly signal?: AbortSignal },
+): Promise<SourceRefreshReport | undefined> {
+    const held = heldRecordOf(session, source);
+    if (held === undefined) {
+        return undefined;
+    }
+
+    // Every other source read by reference is built from its rows as the session holds them now.
+    const referenced = referencedOf(session);
+    const embed = Object.fromEntries(
+        [...referenced.keys()].filter((id) => id !== source).map((id) => [id, "embedded" as const]),
+    );
+    const { body } = dataBodyOf(session, { embed, paths: {} }, []);
+    const record = (body.sources as JsonObject[]).find((each) => each.id === source) as JsonObject;
+    const opened = refetchOptionsOf(session);
+    await refetch(record, {
+        ...(opened?.location === undefined ? {} : { location: opened.location }),
+        ...(opened?.files === undefined ? {} : { files: opened.files }),
+        ...(how.signal === undefined ? {} : { signal: how.signal }),
+        fetch: true,
+        accept: true,
+        limit: opened?.limit ?? Number.POSITIVE_INFINITY,
+        builds: () => true,
+        scratch: how.scratch,
+    });
+    const fetched = refetchedOf(record);
+    if (fetched !== undefined && "unavailable" in fetched) {
+        throw new GraphtyError({
+            code: REFRESH_REFUSED[fetched.unavailable] ?? "E_FETCH_FAILED",
+            message: `The source ${source} could not be read again (${fetched.unavailable}).`,
+            source: "data",
+            details: { source, reason: fetched.unavailable },
+        });
+    }
+
+    const problems: DocumentProblem[] = [];
+    const built = build(body, problems);
+    const added = {
+        nodes: Math.max(0, built.nodes.length - session.data.nodes({ scope: "graph" }).length),
+        edges: Math.max(0, built.edges.length - session.data.edges({ scope: "graph" }).length),
+    };
+    const none = { nodes: 0, edges: 0 };
+    let applied = false;
+    const options: TransactionOptions = {
+        fact: {
+            code: "data.replace-source",
+            params: { key: source, name: null, added: added.nodes + added.edges, removed: 0, changed: 0 },
+        },
+    };
+    await session.transaction(
+        "Refresh source",
+        async (tx) => {
+            // A save or another refresh may have run while it fetched; held no longer, it is done.
+            if (heldRecordOf(session, source) === undefined) {
+                return;
+            }
+
+            await rebuildKeepingPlaces(tx, () => apply(built, { session, tx, problems, restored: new Set() }));
+            keepReferenced(session, referenced, held);
+            applied = true;
+        },
+        options,
+    );
+    const counts = applied ? added : none;
+    return {
+        added: counts,
+        removed: none,
+        updated: none,
+        fact: {
+            code: applied ? "I_SOURCE_REFRESHED" : "I_SOURCE_UNCHANGED",
+            params: { added: [counts.nodes, counts.edges], removed: [0, 0], updated: [0, 0] },
+        },
+    };
+}

@@ -2307,10 +2307,18 @@ export interface SessionDataApi {
      * values, and what it added arrives. A source that has not changed dispatches nothing and
      * reports zeros. Expansions of the load are not fetched again. Experimental.
      *
+     * With the `save-files-v2` experiment, it also takes the id of a source a version 2 open held
+     * (`W_SOURCE_UNAVAILABLE`: its copy changed, it needed permission, or it was not found): the
+     * call is the permission, so it fetches the source from where the open would have, reads its
+     * new bytes with its saved roles, and builds it into the graph with the reader's edits on it
+     * applied, as one undoable step. The data gets a new build, so runs on the old data go stale
+     * (`W_DATA_CHANGED` when saved and reopened). It rejects with `E_FETCH_FAILED`, `E_TOO_LARGE` or
+     * `E_PARSE_FAILED` (`details.source`, `details.reason`) and the source stays held.
+     *
      * ```ts
      * const { added, removed, updated } = await session.data.refresh(session.data.loads()[0].key);
      * ```
-     * @param load - The load's key, from `sources()` or `loads()`.
+     * @param load - The load's key, from `sources()` or `loads()`, or a held source's id.
      * @param options - The credential and the endpoint.
      * @returns The node and edge counts added, removed and updated; rejects with
      *     `E_LOAD_UNKNOWN` for an unknown key, `E_SOURCE_PENDING` for a load of an opened project

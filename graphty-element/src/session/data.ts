@@ -849,6 +849,9 @@ function withStartMode(source: string, config: Record<string, unknown>): Record<
     return declared.values?.some((each) => each.value === asked) === true ? { ...config, mode: asked } : config;
 }
 
+/** Refreshes a source a version 2 open held, or gives undefined for a key it does not hold. */
+type HeldRefresh = (load: string, options: SourceLoadOptions) => Promise<SourceRefreshReport | undefined>;
+
 /**
  * The session's view of the graph data.
  *
@@ -934,6 +937,7 @@ export class SessionData implements SessionDataApi {
         readonly result: ReadonlyMap<string, readonly SourceKey[]>;
     } | null = null;
     private disposed = false;
+    private heldRefresh: HeldRefresh | undefined;
     /** The records of the loads from network sources; see `loads()`. Internal: the type is not published. */
     readonly ledger = new SourceLedger();
     /** The keys of the loads an opened project holds that have not run since it opened. */
@@ -1715,11 +1719,25 @@ export class SessionData implements SessionDataApi {
      * @param options - The credential and the endpoint.
      * @returns What was added, removed and updated.
      */
-    refresh(load: string, options: SourceLoadOptions = {}): Promise<SourceRefreshReport> {
+    async refresh(load: string, options: SourceLoadOptions = {}): Promise<SourceRefreshReport> {
         this.requireLive("refresh");
 
+        // A source a version 2 open held is read again from its bytes; any other is a network load.
+        const held = await this.heldRefresh?.(load, options);
+        if (held !== undefined) {
+            return held;
+        }
+
         const host = this.sourceHost();
-        return import("./sources/load").then((module) => module.refreshSource(host, load, options));
+        return (await import("./sources/load")).refreshSource(host, load, options);
+    }
+
+    /**
+     * Let `refresh` read a source a version 2 open held (the session lends what it needs).
+     * @param refresh - Refreshes a held source, or gives undefined for a key it does not hold.
+     */
+    setHeldRefresh(refresh: HeldRefresh): void {
+        this.heldRefresh = refresh;
     }
 
     /**

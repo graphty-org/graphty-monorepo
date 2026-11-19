@@ -366,7 +366,7 @@ describe("a source saved by reference, checked", () => {
         const report = await unasked.project.open(text, { location: PROJECT_AT });
         assert.deepInclude(report.problems, {
             code: "W_SOURCE_UNAVAILABLE",
-            params: { source: id, reason: "consent" },
+            params: { source: id, reason: "needs-permission" },
         });
 
         const broken = JSON.parse(text) as { sections: { data: JsonObject } };
@@ -400,16 +400,117 @@ describe("a source saved by reference, checked", () => {
         reopened.dispose();
     });
 
-    it("reports a changed file whose saved ends are gone as changed, every saved column left out", async () => {
+    it("holds a changed file, and builds no rows on a refresh whose new bytes lack its roles", async () => {
         vi.stubGlobal("fetch", () => Promise.resolve(new Response(FRIENDS_CSV)));
         const { session, text } = await savedByReference();
+        const id = String(loadedRecord(text).id);
         vi.stubGlobal("fetch", () => Promise.resolve(new Response("id\nAva\n")));
         const reopened = createGraphSession(ON);
         const report = await reopened.project.open(text, { fetchSources: true, location: PROJECT_AT });
-        const found = codes(report.problems);
-        assert.include(found, "W_SOURCE_CHANGED");
-        assert.include(found, "W_MEMBER_LEFT_OUT");
-        assert.notInclude(found, "W_SOURCE_UNAVAILABLE");
+        assert.deepInclude(report.problems, {
+            code: "W_SOURCE_UNAVAILABLE",
+            params: { source: id, reason: "copy-changed", size: 7 },
+        });
+        assert.notInclude(codes(report.problems), "W_MEMBER_LEFT_OUT");
+        assert.strictEqual(reopened.data.nodes().length, 0);
+
+        const refreshed = await reopened.data.refresh(id);
+        assert.deepEqual(refreshed.added, { nodes: 0, edges: 0 });
+        assert.strictEqual(reopened.data.nodes().length, 0);
+        session.dispose();
+        reopened.dispose();
+    });
+
+    it("keeps the reader's edit on a held source's row with its was, and applies it on refresh", async () => {
+        vi.stubGlobal("fetch", () => Promise.resolve(new Response(FRIENDS_CSV)));
+        const { session, text } = await savedByReference();
+        const id = String(loadedRecord(text).id);
+        const file = JSON.parse(text) as { sections: { data: { sources: JsonObject[] } } };
+        const record = loadedRecord(text);
+        const named = ((record.mapping as JsonObject).edges as JsonObject).sourceSpace;
+        const space = typeof named === "string" ? named : `source:${id}`;
+        const edit = { op: "edit", node: { space, key: "Ava" }, column: "note", value: "met", was: "stranger" };
+        file.sections.data.sources.unshift({
+            id: "reader",
+            kind: "reader",
+            origin: { copy: "01M7S78V5HDT471C8D95R002FN" },
+            copy: { operations: [edit] },
+        });
+        const edited = JSON.stringify(file);
+        vi.stubGlobal("fetch", () => Promise.resolve(new Response(`${FRIENDS_CSV}Cara,Dan,3\n`)));
+        const reopened = createGraphSession(ON);
+        const report = await reopened.project.open(edited, { fetchSources: true, location: PROJECT_AT });
+        assert.notInclude(codes(report.problems), "W_REFERENCE_UNBOUND");
+        const saved = (JSON.parse((await reopened.project.save({ format: 2 })).text) as typeof file).sections.data;
+        const reader = saved.sources.find((each) => each.kind === "reader") as JsonObject;
+        assert.deepEqual((reader.copy as JsonObject).operations, [edit], "kept as read, its was included");
+
+        await reopened.data.refresh(id);
+        const ava = reopened.data.nodes().find((node) => node.id === "Ava");
+        assert.strictEqual(ava?.note, "met");
+        assert.isDefined(reopened.data.nodes().find((node) => node.id === "Dan"));
+        session.dispose();
+        reopened.dispose();
+    });
+
+    it("leaves a run on the old data stale after a refresh, so its save binds another build", async () => {
+        vi.stubGlobal("fetch", () => Promise.resolve(new Response(FRIENDS_CSV)));
+        const session = createGraphSession({ ...ON, runs: { execute: finishAtOnce } });
+        await session.data.import({ type: "csv", config: { url: FRIENDS } });
+        await session.data.addNodes([{ id: "Zed" }]);
+        const [{ key }] = session.data.sources();
+        await session.runs.start("bfs", { source: "Zed" });
+        const { text } = await session.project.save({ format: 2, results: true, embed: { [key]: "referenced" } });
+        const id = String(loadedRecord(text).id);
+        const reopened = createGraphSession({ ...ON, runs: { execute: finishAtOnce } });
+        await reopened.project.open(text, { rerun: false, location: PROJECT_AT });
+        await reopened.data.refresh(id);
+        const again = await reopened.project.save({ format: 2, results: true });
+        const { data, results } = sectionsOf(again.text);
+        const [run] = Object.values(results.runs as Record<string, JsonObject>);
+        assert.notStrictEqual((run.bindsTo as JsonObject).build, data.build);
+        const third = createGraphSession({ ...ON, runs: { execute: finishAtOnce } });
+        const report = await third.project.open(again.text, { rerun: false, fetchSources: true, location: PROJECT_AT });
+        assert.include(codes(report.problems), "W_DATA_CHANGED");
+        session.dispose();
+        reopened.dispose();
+        third.dispose();
+    });
+
+    it("keeps a source held when a refresh still cannot fetch it", async () => {
+        vi.stubGlobal("fetch", () => Promise.resolve(new Response(FRIENDS_CSV)));
+        const { session, text } = await savedByReference();
+        const id = String(loadedRecord(text).id);
+        vi.stubGlobal("fetch", () => Promise.reject(new TypeError("offline")));
+        const reopened = createGraphSession(ON);
+        const report = await reopened.project.open(text, { fetchSources: true, location: PROJECT_AT });
+        assert.deepInclude(report.problems, {
+            code: "W_SOURCE_UNAVAILABLE",
+            params: { source: id, reason: "not-found" },
+        });
+        const error = await refusal(reopened.data.refresh(id));
+        assert.strictEqual(error.code, "E_FETCH_FAILED");
+        assert.deepEqual(error.details, { source: id, reason: "not-found" });
+        assert.deepEqual(loadedRecord((await reopened.project.save({ format: 2 })).text), loadedRecord(text));
+
+        vi.stubGlobal("fetch", () => Promise.resolve(new Response(FRIENDS_CSV)));
+        await reopened.data.refresh(id);
+        assert.deepEqual(rowsOf(reopened), rowsOf(session));
+        session.dispose();
+        reopened.dispose();
+    });
+
+    it("builds a source held for permission on refresh, the call being the permission", async () => {
+        vi.stubGlobal("fetch", () => Promise.resolve(new Response(FRIENDS_CSV)));
+        const { session, text } = await savedByReference();
+        const id = String(loadedRecord(text).id);
+        const reopened = createGraphSession(ON);
+        await reopened.project.open(text, { location: PROJECT_AT });
+        assert.strictEqual(reopened.data.nodes().length, 0);
+        const before = reopened.history.steps.length;
+        await reopened.data.refresh(id);
+        assert.deepEqual(rowsOf(reopened), rowsOf(session));
+        assert.strictEqual(reopened.history.steps.length, before + 1, "one undoable step");
         session.dispose();
         reopened.dispose();
     });

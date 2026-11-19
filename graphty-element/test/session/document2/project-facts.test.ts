@@ -267,12 +267,69 @@ describe("project.inspect binding", () => {
             from: "https://example-bank.test/kits/fraud-team-kit.graphty.json",
         });
         assert.deepEqual(style.needs, [
-            { kind: "column", name: "amount", table: "edge", found: false },
-            { kind: "column", name: "mcc", table: "node", found: true },
+            {
+                kind: "column",
+                name: "amount",
+                table: "edge",
+                schema: { type: "number", measurement: "quantitative", unit: "USD" },
+                found: false,
+            },
+            {
+                kind: "column",
+                name: "mcc",
+                table: "node",
+                schema: { type: "string", measurement: "categorical" },
+                found: true,
+            },
             { kind: "type", name: "merchant" },
             { kind: "result", name: "pagerank", found: false },
             { kind: "result", name: "communities", found: false },
         ]);
+        session.dispose();
+    });
+
+    it("maps a style file's columns to the open data's: inspect finds them, and open reads them", async () => {
+        const session = createGraphSession(ON);
+        await session.data.addNodes([{ id: "a" }, { id: "b" }, { id: "c", category: "5947" }]);
+        await session.data.addEdges([
+            { source: "a", target: "b", amount_usd: 900 },
+            { source: "b", target: "c", amount_usd: 20 },
+        ]);
+        const text = readText("examples/card-fraud.graphty-style.json");
+        const columns = { edge: { amount: "amount_usd" }, node: { mcc: "category" } };
+        const [style] = (await session.project.inspect(text, { columns }))?.sections ?? [];
+        assert.deepEqual(
+            style.needs.filter((need) => need.kind === "column").map((need) => [need.name, need.found]),
+            [
+                ["amount", true],
+                ["mcc", true],
+            ],
+        );
+
+        await session.project.open(text, { columns });
+        const big = session.styles.list().find((layer) => layer.name === "Big payments");
+        assert.deepEqual(big?.selector, { match: "expression", where: "data.amount_usd > `500`" });
+        session.dispose();
+    });
+
+    it("refuses a column mapped to no column, and reads one mapped to a column the data lacks as missing", async () => {
+        const session = createGraphSession(ON);
+        await session.data.addEdges([{ source: "a", target: "b", amount_usd: 900 }]);
+        const text = readText("examples/card-fraud.graphty-style.json");
+        for (const columns of [{ edge: { amount: "" } }, { edges: {} }] as never[]) {
+            for (const call of [session.project.inspect(text, { columns }), session.project.open(text, { columns })]) {
+                const error = await call.then(
+                    () => undefined,
+                    (reason: unknown) => reason as { code: string; details: { option: string } },
+                );
+                assert.strictEqual(error?.code, "E_OPTION_RANGE");
+                assert.strictEqual(error?.details.option, "columns");
+            }
+        }
+
+        const [style] =
+            (await session.project.inspect(text, { columns: { edge: { amount: "nope" } } }))?.sections ?? [];
+        assert.isFalse(style.needs.find((need) => need.name === "amount")?.found);
         session.dispose();
     });
 });

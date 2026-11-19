@@ -248,6 +248,8 @@ interface DataMemory {
     readonly kinds: Map<string, string>;
     /** The reader's edits, removes and merges the last read applied, by `op`. */
     folded: readonly string[];
+    /** The reader operations on what a held source supplies, written back as read. */
+    heldOperations: readonly JsonObject[];
     /** The edge-id column the last data section read named, until settings say one. */
     edgeIdColumn?: string;
     /** Each edge's saved id the last data section read, by load and then key (spec 6.2). */
@@ -280,6 +282,7 @@ function memoryOf(session: GraphSession): DataMemory {
             origins: new Map(),
             kinds: new Map(),
             folded: [],
+            heldOperations: [],
             edgeIds: new Map(),
             referenced: new Map(),
         };
@@ -322,6 +325,8 @@ export interface DataRead {
     readonly kinds?: readonly (readonly [string, string])[];
     /** The reader operations read that are not `add`s, by `op`. */
     readonly folded?: readonly string[];
+    /** The reader operations on what a held source supplies, kept as read. */
+    readonly heldOperations?: readonly JsonObject[];
     /** Each reader-added edge's key, by its session id. */
     readonly readerEdges: readonly (readonly [EdgeId, string])[];
     /** The records of the sources that could not be fetched. */
@@ -373,6 +378,7 @@ export function rememberRead(session: GraphSession, read: DataRead): void {
 
     memory.types = read.types;
     memory.folded = read.folded ?? [];
+    memory.heldOperations = read.heldOperations ?? [];
     memory.edgeIdColumn = read.edgeIdColumn;
     memory.edgeIds = read.edgeIds ?? new Map();
     const model = dataModelOf(session);
@@ -397,6 +403,57 @@ export function rememberRead(session: GraphSession, read: DataRead): void {
         sources: { ...read.copies },
         ...(read.refused ? { written: mintUlid() } : {}),
     };
+}
+
+/**
+ * The record of a source the last open held (`W_SOURCE_UNAVAILABLE`), while it still supplies
+ * nothing: what `data.refresh` reads again.
+ * @param session - The session.
+ * @param id - The source id.
+ * @returns The record as read, or undefined when the source is not held.
+ */
+export function heldRecordOf(session: GraphSession, id: string): JsonObject | undefined {
+    const record = memoryOf(session).unavailable.get(id);
+    if (record === undefined) {
+        return undefined;
+    }
+
+    const source = dataModelOf(session).sources.find((each) => each.id === id);
+    return source !== undefined && source.nodes.length + source.edges.length === 0 ? record : undefined;
+}
+
+/**
+ * The sources the last read rebuilt from their files, with the `mapping` each was read with.
+ * @param session - The session.
+ * @returns A copy, by source id.
+ */
+export function referencedOf(session: GraphSession): ReadonlyMap<string, JsonObject> {
+    return new Map(memoryOf(session).referenced);
+}
+
+/**
+ * Keep what a rebuild for a refresh read from embedded copies: the sources saved by reference, and
+ * the refreshed source's record as the open read it, so an undo of the refresh holds it again.
+ * @param session - The session.
+ * @param referenced - The sources and their mappings, by source id.
+ * @param held - The refreshed source's record as read; it counts as held only while the source
+ *     supplies nothing (`heldRecordOf`).
+ */
+export function keepReferenced(
+    session: GraphSession,
+    referenced: ReadonlyMap<string, JsonObject>,
+    held: JsonObject,
+): void {
+    const memory = memoryOf(session);
+    for (const [id, mapping] of referenced) {
+        if (!memory.referenced.has(id)) {
+            memory.referenced.set(id, mapping);
+        }
+    }
+
+    if (!memory.unavailable.has(String(held.id))) {
+        memory.unavailable.set(String(held.id), held);
+    }
 }
 
 /**
@@ -1147,11 +1204,11 @@ function readerCopyOf(
         memory: DataMemory;
     },
 ): ReaderCopy | undefined {
-    if (nodes.length + edges.length === 0) {
+    const { nodeRefs, edgeRefs, memory } = named;
+    if (nodes.length + edges.length + memory.heldOperations.length === 0) {
         return undefined;
     }
 
-    const { nodeRefs, edgeRefs, memory } = named;
     const operations: JsonObject[] = [
         // The id is kept as the `id` column, typed, so a numeric id reads back as a number.
         ...nodes.map((node) => ({ op: "add", node: nodeRefs.get(node.id), ...addedColumns(node) })),
@@ -1162,6 +1219,8 @@ function readerCopyOf(
             to: nodeRefs.get(target),
             ...addedColumns(columns),
         })),
+        // What a held source supplies is not in the session: the operations on it as read.
+        ...memory.heldOperations,
     ];
     const digest = digestOf(operations);
     const { copy } = stableId(memory.copies.get(READER), digest, mintUlid);

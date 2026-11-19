@@ -829,16 +829,24 @@ source is read no further than the open's size limit.
 
 1. The rows read again are built as an embedded copy's are. Each saved `columns` name the rows
    lack is reported (`W_MEMBER_LEFT_OUT`, pointer `/sources/<i>/columns/<table>/<name>`).
-2. A fetched or picked copy whose copy id differs is a refresh: it is reported
-   (`W_SOURCE_CHANGED`, params `{ source, expected, found }`) and the build gets a new stamp
-   (4.1.1), so a run on the old copy reports `W_DATA_CHANGED`. A refresh that parses but lacks a
-   column its `mapping` names supplies no rows, and rule 1 reports every saved column.
-3. A source still not found reports `W_SOURCE_UNAVAILABLE` (params `{ source, reason }`: `unreachable`
-   when its fetch failed, `needs-file` when nothing says where it is, `read` when its bytes could
-   not be parsed, `too-large` when they pass the open's size limit, `consent` when the caller did
-   not let the open fetch it, `kind` for a kind this reader does not fetch), supplies no elements, keeps the
-   edge ids its `edgeIds` names, and leaves references to them unbound. Its record is written back
-   as read.
+2. A source that cannot be read, or whose copy changed, is **held**: it reports
+   `W_SOURCE_UNAVAILABLE` (params `{ source, reason }`: `not-found` when its fetch failed,
+   `needs-file` when nothing says where it is, `read` when its bytes could not be parsed,
+   `too-large` when they pass the open's size limit, `needs-permission` when the caller did not let
+   the open fetch it, `copy-changed`, with the new byte count `size`, when a fetched or picked copy
+   has another copy id than saved, `kind` for a kind this reader does not fetch). A referenced
+   `network` source gets a new copy on every read, so it is always held as `copy-changed`. A held
+   source's join steps are not built and it supplies no elements; the graph is built without it.
+   It keeps the edge ids its `edgeIds` names, and its record is written back exactly as read on the
+   next save. A reader operation naming what it supplies (an `edit`, its `was` included, a
+   `remove`, a `merge`, or an `add` of an edge to its nodes) is kept as read, not reported unbound,
+   and written back.
+3. A held source is built only when the reader asks (graphty-element's `data.refresh(source)`,
+   whose call is the permission to fetch): its new bytes are read with its `format`, `options` and
+   roles and built as rule 1 says, the reader operations kept for it are applied, and the build
+   gets a new stamp (4.1.1), so a run on the old copy reports `W_DATA_CHANGED`. A refresh that
+   parses but lacks a column its `mapping` names supplies no rows. A refresh that still cannot read
+   the source leaves it held.
 
 ### 8.4 Skipped and held sections
 
@@ -1005,8 +1013,7 @@ application words them.
 | `W_ELEMENT_NAMING_LEFT_OUT`   | a writer left element-naming content out of a reusable section               | `section`, `pointer`, `layer`, `movedTo`  |
 | `W_MEMBER_LEFT_OUT`           | a save, or a version 1 migration, could not carry something over             | `kind` or `section`, `field` or `pointer` |
 | `W_SOURCE_NO_PATH`            | a file source asked to be referenced was embedded: its `path` is not known   | `source`                                  |
-| `W_SOURCE_UNAVAILABLE`        | a referenced source could not be fetched or picked                           | `source`, `reason`                        |
-| `W_SOURCE_CHANGED`            | a referenced source read again has another copy id than saved                | `source`, `expected`, `found`             |
+| `W_SOURCE_UNAVAILABLE`        | a referenced source is held: not read, or its copy changed (8.3)             | `source`, `reason`, `size`                |
 | `W_SOURCE_EMBEDDED`           | a source asked to be referenced was embedded: its rows are not its bytes     | `source`, `reason`                        |
 | `W_SPACE_OVERLAP`             | a node key would add keys to a space another source already holds            | `source`, `space`, `count`                |
 | `W_REFERENCE_UNBOUND`         | an element reference binds nowhere                                           | `section`, `pointer`, `ref`               |

@@ -1,5 +1,5 @@
 /**
- * @file A saved look names the palette each colour binding that names none was painted through,
+ * @file A saved look names the palette each color binding that names none was painted through,
  * so a file never depends on the reading build's default palettes (issue #6514). The session's
  * own layers keep their bindings as written.
  */
@@ -8,15 +8,15 @@ import { assert, describe, it } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../../src/session";
 
-/** A binding's own colours, which name no palette and take none. */
+/** A binding's own colors, which name no palette and take none. */
 const STOPS = [
     { at: 0, value: "#000000" },
     { at: 11, value: "#ffffff" },
 ];
 
 /**
- * A session holding nodes with a measurement and a group, coloured by the given bindings.
- * @param bindings - Each layer's colour binding, by layer name.
+ * A session holding nodes with a measurement and a group, colored by the given bindings.
+ * @param bindings - Each layer's color binding, by layer name.
  * @param groups - How many distinct groups the nodes hold.
  * @returns The session.
  */
@@ -38,7 +38,7 @@ async function painted(bindings: Record<string, Record<string, unknown>>, groups
 }
 
 /**
- * The palette each layer's colour binding names in the saved look, by layer name.
+ * The palette each layer's color binding names in the saved look, by layer name.
  * @param session - The session.
  * @returns Layer name to palette id.
  */

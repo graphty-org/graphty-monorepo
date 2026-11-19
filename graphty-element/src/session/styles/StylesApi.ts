@@ -3539,7 +3539,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     };
 
     /**
-     * Name, in a specification being saved, the palette each colour binding that names none was
+     * Name, in a specification being saved, the palette each color binding that names none was
      * painted through, so a file never depends on the reading build's default (issue #6514). Only
      * this version's own paint answers, never the last paint of an earlier version that a held
      * repaint stands in with, and only for a binding reading the same path through the same scale;

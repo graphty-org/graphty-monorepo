@@ -55,6 +55,8 @@ const EXPECTED: Readonly<Record<string, "on" | "off">> = {
     "graphty:pagerank": "on",
     "graphty:prim": "on",
     "graphty:removal-impact": "on",
+    "graphty:articulation-points": "on",
+    "graphty:bridges": "on",
     "graphty:scc": "on",
     "graphty:spectral-clustering": "on",
 };

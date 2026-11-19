@@ -1180,12 +1180,48 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         complexity: "O(n + m)",
         legacyKeys: [{ key: "removal-impact" }],
     },
+    {
+        key: "articulation-points",
+        plainName: "Cut points",
+        technicalName: "Articulation points",
+        description:
+            "Finds the nodes whose removal would split their piece of the graph into more pieces: the single points of failure.",
+        category: "structure",
+        keywords: ["single point of failure", "cut vertex", "chokepoint", "vulnerability"],
+        shape: "node-set",
+        fields: [
+            field({ name: "in", plainName: "Cut point", technicalName: "in", kind: "node", type: "boolean" }),
+            field({ name: "count", plainName: "Count", technicalName: "count", kind: "graph", type: "integer" }),
+        ],
+        options: optionsOf("articulation-points"),
+        costClass: "instant",
+        complexity: "O(n + m)",
+        legacyKeys: [{ key: "articulation-points" }],
+    },
+    {
+        key: "bridges",
+        plainName: "Cut edges",
+        technicalName: "Bridges",
+        description:
+            "Finds the edges whose removal would split their piece of the graph in two: the links nothing else backs up.",
+        category: "structure",
+        keywords: ["single point of failure", "cut edge", "weak link", "vulnerability"],
+        shape: "edge-set",
+        fields: [
+            field({ name: "in", plainName: "Cut edge", technicalName: "in", kind: "edge", type: "boolean" }),
+            field({ name: "count", plainName: "Count", technicalName: "count", kind: "graph", type: "integer" }),
+        ],
+        options: optionsOf("bridges"),
+        costClass: "instant",
+        complexity: "O(n + m)",
+        legacyKeys: [{ key: "bridges" }],
+    },
 ];
 
 /**
  * Every algorithm this package registers, as a plain-JSON descriptor.
  *
- * Thirty descriptors for thirty-two registered algorithms: the two single-source
+ * Thirty-two descriptors for thirty-four registered algorithms: the two single-source
  * shortest-path engines are one key with a `method` parameter, and the two component algorithms
  * are one key with a `strength` parameter. Each descriptor's `legacyKeys` names the 1.10 keys it
  * replaces and the parameters that reproduce them.

@@ -32,6 +32,7 @@ import type {
     DirectionOptimizedBfsOptions,
     EdgeBetweennessOptions,
     EdgeScoresResult,
+    EdgeSetResult,
     EigenvectorOptions,
     EigenvectorResult,
     GirvanNewmanOptions,
@@ -66,6 +67,7 @@ import type {
     MstOptions,
     MstResult,
     NodePairs,
+    NodeSetResult,
     PageRankOptions,
     PageRankResult,
     PathOptions,
@@ -161,6 +163,8 @@ expectTypeOf(algorithms.findAllIsomorphisms).toEqualTypeOf<
 expectTypeOf(algorithms.isGraphIsomorphic).toEqualTypeOf<
     (s1: GraphSnapshot, s2: GraphSnapshot, options?: IsomorphismOptions) => IsomorphismResult
 >();
+expectTypeOf(algorithms.articulationPoints).toEqualTypeOf<(s: GraphSnapshot) => NodeSetResult>();
+expectTypeOf(algorithms.bridges).toEqualTypeOf<(s: GraphSnapshot) => EdgeSetResult>();
 expectTypeOf(algorithms.kCoreDecomposition).toEqualTypeOf<(s: GraphSnapshot) => CorenessResult>();
 expectTypeOf(algorithms.katzCentrality).toEqualTypeOf<(s: GraphSnapshot, o?: KatzOptions) => KatzResult>();
 expectTypeOf(algorithms.labelPropagation).toEqualTypeOf<
@@ -272,12 +276,14 @@ type Promoted =
     | "allPairsShortestPath"
     | "APSP_DEFAULT_MAX_NODES"
     | "arcSourceIn"
+    | "articulationPoints"
     | "astar"
     | "bellmanFord"
     | "betweennessCentrality"
     | "bidirectionalDijkstra"
     | "bipartiteFlowNetwork"
     | "breadthFirstSearch"
+    | "bridges"
     | "closenessCentrality"
     | "commonNeighborsForPairs"
     | "commonNeighborsPrediction"

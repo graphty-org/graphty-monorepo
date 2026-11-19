@@ -266,8 +266,7 @@ export function runAlgorithmTool(catalog: CatalogView): ToolDefinition {
         name: "run_algorithm",
         plainName: "Run an algorithm",
         core: true,
-        description:
-            "Runs an algorithm and summarizes it; style true colors all nodes by it. Options: catalog describe.",
+        description: "Runs and summarizes an algorithm; style true colors by it. Options: catalog describe.",
         example: { name: "shortest-path", options: { source: "a", target: "b" } },
         actions: [
             {
@@ -282,10 +281,10 @@ export function runAlgorithmTool(catalog: CatalogView): ToolDefinition {
                             where: whereField.optional().describe(WHERE_HELP),
                         })
                         .optional()
-                        .describe("Run on a set or a selector's nodes only."),
+                        .describe("Only a set's or selector's nodes."),
                     style: z.boolean().optional().describe("Only when asked to see or color it."),
-                    exact: z.boolean().optional().describe("Compute exactly even when slow."),
-                    sample: z.number().int().min(1).optional().describe("Sample size for an approximate run."),
+                    exact: z.boolean().optional().describe("Exact even if slow."),
+                    sample: z.number().int().min(1).optional().describe("Approximate run's sample size."),
                 },
                 effect: "write",
                 reaches: [

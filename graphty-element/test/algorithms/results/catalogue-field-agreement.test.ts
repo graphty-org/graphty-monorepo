@@ -32,6 +32,7 @@ import { BipartiteMatchingAlgorithm } from "../../../src/algorithms/BipartiteMat
 import { ClosenessCentralityAlgorithm } from "../../../src/algorithms/ClosenessCentralityAlgorithm";
 import { ClusteringCoefficientAlgorithm } from "../../../src/algorithms/ClusteringCoefficientAlgorithm";
 import { ConnectedComponentsAlgorithm } from "../../../src/algorithms/ConnectedComponentsAlgorithm";
+import { ArticulationPointsAlgorithm, BridgesAlgorithm } from "../../../src/algorithms/CutAlgorithms";
 import { DegreeAlgorithm } from "../../../src/algorithms/DegreeAlgorithm";
 import { DFSAlgorithm } from "../../../src/algorithms/DFSAlgorithm";
 import { DijkstraAlgorithm } from "../../../src/algorithms/DijkstraAlgorithm";
@@ -176,6 +177,8 @@ const CASES: readonly Case[] = [
     declared("a-star", "astar", (g) => new AStarAlgorithm(g, { source: "A", target: "F" })),
     declared("edge betweenness", "edge-betweenness", (g) => new EdgeBetweennessCentralityAlgorithm(g)),
     declared("removal impact", "removal-impact", (g) => new RemovalImpactAlgorithm(g, { nodes: ["C"] })),
+    declared("articulation points", "articulation-points", (g) => new ArticulationPointsAlgorithm(g)),
+    declared("bridges", "bridges", (g) => new BridgesAlgorithm(g)),
 ];
 
 /**

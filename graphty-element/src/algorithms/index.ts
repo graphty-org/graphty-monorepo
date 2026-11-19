@@ -13,6 +13,7 @@ import { ClosenessCentralityAlgorithm } from "./ClosenessCentralityAlgorithm";
 import { ClusteringCoefficientAlgorithm } from "./ClusteringCoefficientAlgorithm";
 // Phase 6 component algorithms
 import { ConnectedComponentsAlgorithm } from "./ConnectedComponentsAlgorithm";
+import { ArticulationPointsAlgorithm, BridgesAlgorithm } from "./CutAlgorithms";
 // Phase 1 algorithms
 import { DegreeAlgorithm } from "./DegreeAlgorithm";
 import { DFSAlgorithm } from "./DFSAlgorithm";
@@ -90,6 +91,8 @@ Algorithm.register(HierarchicalClusteringAlgorithm);
 Algorithm.register(AStarAlgorithm);
 Algorithm.register(EdgeBetweennessCentralityAlgorithm);
 Algorithm.register(RemovalImpactAlgorithm);
+Algorithm.register(ArticulationPointsAlgorithm);
+Algorithm.register(BridgesAlgorithm);
 
 // Export base class and types
 export { Algorithm } from "./Algorithm";
@@ -159,6 +162,8 @@ export function getAllAlgorithmInfo(): AlgorithmInfo[] {
         AStarAlgorithm,
         EdgeBetweennessCentralityAlgorithm,
         RemovalImpactAlgorithm,
+        ArticulationPointsAlgorithm,
+        BridgesAlgorithm,
     ];
 
     for (const AlgoClass of knownAlgorithms) {

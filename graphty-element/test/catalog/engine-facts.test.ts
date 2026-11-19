@@ -20,6 +20,7 @@ import { BipartiteMatchingAlgorithm } from "../../src/algorithms/BipartiteMatchi
 import { ClosenessCentralityAlgorithm } from "../../src/algorithms/ClosenessCentralityAlgorithm";
 import { ClusteringCoefficientAlgorithm } from "../../src/algorithms/ClusteringCoefficientAlgorithm";
 import { ConnectedComponentsAlgorithm } from "../../src/algorithms/ConnectedComponentsAlgorithm";
+import { ArticulationPointsAlgorithm, BridgesAlgorithm } from "../../src/algorithms/CutAlgorithms";
 import { DegreeAlgorithm } from "../../src/algorithms/DegreeAlgorithm";
 import { DFSAlgorithm } from "../../src/algorithms/DFSAlgorithm";
 import { DijkstraAlgorithm } from "../../src/algorithms/DijkstraAlgorithm";
@@ -102,6 +103,8 @@ const ALGORITHMS = [
     PageRankAlgorithm,
     PrimAlgorithm,
     RemovalImpactAlgorithm,
+    ArticulationPointsAlgorithm,
+    BridgesAlgorithm,
     SpectralClusteringAlgorithm,
     StronglyConnectedComponentsAlgorithm,
 ];

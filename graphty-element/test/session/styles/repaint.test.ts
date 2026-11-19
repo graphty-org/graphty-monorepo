@@ -11,6 +11,7 @@ import { afterEach, assert, describe, it } from "vitest";
 
 import { addPastedShaderSource, shaderDescriptor } from "../../../src/catalog/shaderRegistry";
 import type { LayerSpec, Path } from "../../../src/catalog/types";
+import { listItemAddress } from "../../../src/session/styles/channels";
 import {
     type CompiledLayer,
     createStylesApi,
@@ -254,6 +255,25 @@ describe("what a repaint paints", () => {
 
         assert.strictEqual(paintedNodes(harness), 3, "the elements it had covered are repainted");
         assert.strictEqual(colorOf(harness.engine, 0), "#333333");
+    });
+});
+
+describe("one list item, overridden from above", () => {
+    it("paints only that item of the list beneath", async () => {
+        const h = makeHarness();
+        await h.paintAll();
+        await h.styles.add({
+            name: "Pie",
+            selector: { match: "everything" },
+            set: { "node.pieColors": "#111111 #222222 #333333" },
+        });
+        await h.styles.add({
+            name: "Slice",
+            selector: { match: "everything" },
+            encode: { [listItemAddress("node.pieColors", 1)]: { value: "#ff0000" } },
+        });
+
+        assert.strictEqual(h.engine.styleOf("node", 0)["node.pieColors"], "#111111 #ff0000 #333333");
     });
 });
 

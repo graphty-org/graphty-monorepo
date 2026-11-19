@@ -406,7 +406,7 @@ export function SelectionEditor({
         // A rule with steps reopens on the pane of the step last edited, else its first step's; the
         // title's pane holds only the add actions (the owner's review, ws-polish 2).
         const steps = rule.branches.flatMap((branch) => branch.steps);
-        const toStep = steps.find((step) => step.id === lastEdited.current) ?? steps[0];
+        const toStep = steps.find((step) => step.id === lastEdited.current) ?? steps.at(0);
         const shown =
             add === undefined && row === TITLE && !stepless && !recipeTitle && toStep?.id !== undefined
                 ? toStep.id
@@ -551,8 +551,8 @@ export function SelectionEditor({
             return;
         }
         arrived.current = true;
-        const first = rule.branches[0];
-        const firstStep = first?.steps[0]?.id;
+        const first = rule.branches.at(0);
+        const firstStep = first?.steps.at(0)?.id;
         if (openPicker && first !== undefined) {
             openAt(TITLE, TITLE, first);
         } else if (openFirst && firstStep !== undefined) {
@@ -646,7 +646,7 @@ export function SelectionEditor({
     // canvas's; it clears once the element has drawn the last batch (ws-polish 3).
     const [drawing, setDrawing] = useState(false);
     useEffect(() => {
-        if (!open || element === null || element === undefined) {
+        if (!open || element === null) {
             setDrawing(false);
             return undefined;
         }
@@ -709,7 +709,7 @@ export function SelectionEditor({
         } else {
             target = (typeof want === "string" ? [want] : want)
                 .map((each) => root.querySelector<HTMLElement>(each))
-                .find((each) => each !== null && each !== undefined);
+                .find((each) => each !== null);
         }
         if (target !== undefined) {
             focusAfter.current = null;
@@ -923,7 +923,7 @@ export function SelectionEditor({
     // A filter card named after its only step draws no outline: its title row is the recipe, and its
     // title pane holds the step's controls under the card's own.
     const lone = rule.branches.length === 1 ? rule.branches[0]?.steps : undefined;
-    const loneStep = lone?.length === 1 ? lone[0] : undefined;
+    const loneStep = lone?.length === 1 ? lone.at(0) : undefined;
     const loneWords = loneStep === undefined ? undefined : outlineWords.get(loneStep.id ?? "");
     const recipeTitle =
         host === "filter" &&
@@ -938,10 +938,7 @@ export function SelectionEditor({
     // The sidebar's Tab stop: its title row, or its summary row once walked onto.
     const tabbed = active === "summary" ? "summary" : TITLE;
     const recipeRead = loneStep === undefined ? undefined : readingOf(loneStep.id);
-    const recipeState =
-        recipeTitle && loneStep !== undefined
-            ? reasonWords(recipeRead?.reason ?? null).short.replace(/ \(.*\)$/u, "")
-            : "";
+    const recipeState = recipeTitle ? reasonWords(recipeRead?.reason ?? null).short.replace(/ \(.*\)$/u, "") : "";
 
     // A group with no step says where it starts: "All nodes", "No nodes".
     const startWords = (branch: UnionBranch | undefined): string =>
@@ -1042,7 +1039,7 @@ export function SelectionEditor({
                         {name}
                     </Text>
                     {/* Its state word stays drawn while selected, as every step row's does (ws-polish 3). */}
-                    {recipeTitle && loneStep !== undefined && recipeState !== "" && (
+                    {recipeTitle && recipeState !== "" && (
                         <Text size="sm" c="dimmed" className="sel-state">
                             {recipeState}
                         </Text>
@@ -1656,7 +1653,7 @@ export function SelectionEditor({
 
     // While it is the preview, the drawing is named for it, as its F6 stop follows the workspace's.
     useEffect(() => {
-        if (!open || element === null || element === undefined) {
+        if (!open || element === null) {
             return undefined;
         }
         const was = element.getAttribute("aria-label");
@@ -1989,7 +1986,7 @@ function untestedWords(step: UnionStep, read: StepReading | undefined): string {
  * @returns true when the group passes none because of where it starts.
  */
 function startEmpties(branch: UnionBranch, read: StepsReading["branches"][number] | undefined): boolean {
-    const [first] = branch.steps;
+    const first = branch.steps.at(0);
     return (
         branch.on !== false && branch.start === "none" && first !== undefined && first.op !== "add" && read?.count === 0
     );

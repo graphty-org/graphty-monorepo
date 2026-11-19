@@ -306,8 +306,8 @@ export function paintsOf(session: GraphSession, row: StyleRow): Paints {
     const parts = builtParts(session, row.id);
     const read = (layer: string | undefined): ReturnType<GraphSession["styles"]["counts"]> | undefined =>
         layer === undefined ? undefined : session.styles.counts(layer);
-    const node = read(parts?.node);
-    const edge = read(parts?.edge);
+    const node = read(parts.node);
+    const edge = read(parts.edge);
     const painted = [node, edge].flatMap((c) => (c === undefined ? [] : Object.values(c.painted)));
     // A row that matches nothing paints nothing, so nothing of it is painted over.
     const matched = (node?.matched ?? 0) + (edge?.matched ?? 0);

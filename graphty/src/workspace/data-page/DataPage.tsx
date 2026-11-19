@@ -43,7 +43,7 @@ import {
     Title,
     Tooltip,
 } from "@mantine/core";
-import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import { meaningGloss, weightName } from "../analyze/words";
 import { missingNodes, NO_NODE_ROW, noNodeRow } from "../data-place/words";
@@ -797,7 +797,7 @@ function MainView({
             </Stack>
         );
     }
-    const table = draft.tables.find((each) => each.id === page.tableId) ?? draft.tables[0];
+    const table = draft.tables.find((each) => each.id === page.tableId) ?? draft.tables.at(0);
     const tooLarge = page.report?.tooLarge ?? null;
     let problem: Refusal | null = tooLarge === null ? null : tooLargeRefusal(tooLarge);
     if (page.reportError !== null) {
@@ -1014,26 +1014,49 @@ function FileSettings({ page }: PartProps): React.JSX.Element {
                                     }}
                                 />
                             ) : null}
-                            <NumberInput
-                                label="Error limit"
-                                description="Bad rows read past before the file is refused"
-                                size="sm"
-                                min={0}
-                                allowDecimal={false}
-                                placeholder="100"
-                                value={settings.errorLimit ?? ""}
-                                onChange={(value) => {
-                                    page.setSettings({
-                                        ...settings,
-                                        errorLimit: typeof value === "number" ? value : undefined,
-                                    });
-                                }}
-                            />
+                            <ErrorLimit page={page} />
                         </Stack>
                     </Popout.Content>
                 </Popout.Panel>
             </Popout>
         </Group>
+    );
+}
+
+/**
+ * File settings' Error limit. The number is used once the reader is done with it (Enter, or
+ * leaving the box): reading the file again takes File settings off the page while it reads, so a
+ * read on each keystroke kept only the first digit typed.
+ * @param props - Component props
+ * @param props.page - The page state
+ * @returns The box
+ */
+function ErrorLimit({ page }: PartProps): React.JSX.Element {
+    const { settings } = page;
+    const [typed, setTyped] = useState<string | number>(settings.errorLimit ?? "");
+    const commit = (): void => {
+        const errorLimit = typeof typed === "number" ? typed : undefined;
+        if (errorLimit !== settings.errorLimit) {
+            page.setSettings({ ...settings, errorLimit });
+        }
+    };
+    return (
+        <NumberInput
+            label="Error limit"
+            description="Bad rows read past before the file is refused"
+            size="sm"
+            min={0}
+            allowDecimal={false}
+            placeholder="100"
+            value={typed}
+            onChange={setTyped}
+            onBlur={commit}
+            onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                    commit();
+                }
+            }}
+        />
     );
 }
 
@@ -1560,8 +1583,10 @@ function Footer({
     const counted = page.report !== null || page.reportError !== null;
     const decided = useRef<LoadDraft | null>(null);
     // The control that chose the file goes as the file is read: focus waits on the primary
-    // button, which takes the read's result, rather than falling back to the rail.
-    useEffect(() => {
+    // button, which takes the read's result, rather than falling back to the rail. A layout
+    // effect, so focus moves in the commit that removed that control, before the workspace's
+    // focus guard can find it lost and hand it elsewhere (#9005).
+    useLayoutEffect(() => {
         if (page.reading && focusIsLost()) {
             (replacePrimary ? replaceButton : loadButton).current?.focus();
         }

@@ -42,7 +42,7 @@ function filteredReach(session: GraphSession, center: NodeId): number {
  * @returns True when it does.
  */
 export function reducedMotion(): boolean {
-    return globalThis.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+    return globalThis.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
 /**

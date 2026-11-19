@@ -120,7 +120,7 @@ export function loadName(load: LoadedSource): string {
  */
 export function sourcesWords(sources: readonly LoadedSource[]): string | undefined {
     const files = sources.flatMap((load) =>
-        load.tables.length > 1 ? load.tables : [load.name ?? load.tables[0] ?? "Untitled data"],
+        load.tables.length > 1 ? load.tables : [load.name ?? load.tables.at(0) ?? "Untitled data"],
     );
     if (files.length <= 1) {
         return files.length === 0 ? undefined : `From ${files[0]}`;
@@ -230,9 +230,6 @@ export function attributeRows(
             };
         });
 }
-
-/** Why an attribute's verbs cannot run: it went away under the open menu. */
-export const GONE_WORD = "No longer in the data";
 
 /**
  * A notice for a filter change the element refused, with its reason when the app has words for

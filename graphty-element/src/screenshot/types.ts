@@ -1,4 +1,5 @@
 import type { CameraState } from "../camera/types.js";
+import type { GraphtyError } from "../errors/index.js";
 
 /**
  * What happened to a capture's clipboard copy. `"not-requested"` when the clipboard was not one of
@@ -75,8 +76,8 @@ export interface ScreenshotOptions {
      * }
      */
     enhanceQuality?: boolean | QualityEnhancementOptions;
+    /** Where the image goes besides `result.blob`, which every result carries. */
     destination?: {
-        blob?: boolean;
         download?: boolean;
         clipboard?: boolean;
     };
@@ -189,7 +190,12 @@ export interface ScreenshotResult {
     downloaded: boolean;
     clipboardStatus: ClipboardStatus;
     clipboardError?: Error;
-    errors?: Error[];
+    /**
+     * What went wrong with a destination the capture still finished without: a failed download or
+     * clipboard copy, each a `GraphtyError` whose `code` and `details` say what failed. Empty when
+     * every destination asked for went.
+     */
+    errors: GraphtyError[];
     metadata: {
         width: number;
         height: number;

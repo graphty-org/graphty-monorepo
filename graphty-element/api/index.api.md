@@ -593,15 +593,10 @@ export interface CameraState {
     beta?: number;
     // (undocumented)
     cameraDistance?: number;
-    // (undocumented)
     fov?: number;
-    // (undocumented)
     orthoBottom?: number;
-    // (undocumented)
     orthoLeft?: number;
-    // (undocumented)
     orthoRight?: number;
-    // (undocumented)
     orthoTop?: number;
     // (undocumented)
     pan?: {
@@ -8071,9 +8066,7 @@ export interface ScreenshotOptions {
         preset: string;
         params?: Readonly<Record<string, unknown>>;
     };
-    // (undocumented)
     destination?: {
-        blob?: boolean;
         download?: boolean;
         clipboard?: boolean;
     };
@@ -8118,8 +8111,7 @@ export interface ScreenshotResult {
     clipboardStatus: ClipboardStatus;
     // (undocumented)
     downloaded: boolean;
-    // (undocumented)
-    errors?: Error[];
+    errors: GraphtyError[];
     // (undocumented)
     metadata: {
         width: number;

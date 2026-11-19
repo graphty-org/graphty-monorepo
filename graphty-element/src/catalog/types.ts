@@ -1012,6 +1012,7 @@ export type Channel =
     | "node.shaders"
     | "edge.shaders"
     | "edge.taper"
+    | "edge.taperSource"
     | "edge.lift"
     | "edge.labelWrapWidth"
     | "edge.labelWrapTrailingSpace"

@@ -3386,7 +3386,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // The computed columns, brought up to date by what moves their inputs (`commands/derive.ts`).
     dispatcher.services.derive = () => data.derivedRefresh();
     // While a draft of the sources and steps is open, the data is its: every data write and every
-    // move through the history is refused until it is committed or discarded (design 5.6). The
+    // move through the history is refused until it is committed or discarded (design 5.6), but for
+    // the presentation writes `draftRefusal` lets through (value labels, hiding columns). The
     // computed columns are the exception: they never touch the sources and steps, and their refresh
     // follows the draft's own commit and the runs made while it is open.
     dispatcher.services.refuse = (command) => {

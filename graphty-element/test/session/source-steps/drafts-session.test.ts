@@ -8,7 +8,7 @@
 
 import { assert, describe, it } from "vitest";
 
-import { quotePath, resultPath } from "../../../session";
+import { defineSource, quotePath, registerSource, resultPath } from "../../../session";
 import { createGraphSession, type GraphSession, type SourceDraftChange } from "../../../src/session";
 import { dispatcherOf } from "../../../src/session/dispatchers";
 import { stateDigest } from "../../../src/session/project/digest";
@@ -16,6 +16,14 @@ import { sessionWithRuns } from "../../helpers/project-session";
 import { ACCOUNTS, phase2, refused } from "./scenario";
 
 const ACCOUNTS_CSV = { type: "csv", config: { data: ACCOUNTS }, name: "accounts.csv" } as const;
+
+registerSource(
+    defineSource({
+        id: "drafts-session-network",
+        descriptor: { plainName: "Network", defaultEndpoint: "https://drafts-session.example.com", params: [] },
+        records: () => Promise.resolve({ nodes: [{ id: "a" }, { id: "b" }], edges: [{ source: "a", target: "b" }] }),
+    }),
+);
 
 /** Saved text with its clock readings blanked, so two saves compare. */
 const CLOCK = /"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z"/gu;
@@ -170,6 +178,41 @@ describe("source-steps drafts: the session around a draft", () => {
         assert.isTrue(d.open);
         await d.commit();
         assert.notStrictEqual(await saved(session), committed);
+        session.dispose();
+    });
+
+    it("a value label and a hidden column made while a draft is open go ahead and survive its commit", async () => {
+        const { session } = await phase2();
+        const a = await session.data.stage(ACCOUNTS_CSV, { key: "account_id", type: "account" });
+        const d = session.data.draft();
+        d.merge({ from: { source: a, field: "account_id" }, into: { space: "account" } });
+        await session.data.setValueLabel("data.category", "food", "Food");
+        await session.data.setHidden([{ kind: "edge", name: "amount" }], true);
+        await d.commit();
+        assert.strictEqual(session.data.valueLabels("data.category").get("food"), "Food");
+        assert.deepStrictEqual(
+            session.data.hiddenColumns().map((c) => [c.kind, c.name]),
+            [["edge", "amount"]],
+        );
+        session.dispose();
+    });
+
+    it("a replacing import refused because a draft is open leaves the network loads waiting", async () => {
+        const first = createGraphSession({ features: ["source-steps"] });
+        await first.data.import({ source: "drafts-session-network", config: {} });
+        const { text } = await first.project.save();
+        first.dispose();
+        const session = createGraphSession({ features: ["source-steps"] });
+        await session.project.open(text);
+        const waiting = session.data.pendingSourceLoads().map((p) => p.id);
+        assert.lengthOf(waiting, 1);
+        const d = session.data.draft();
+        await refused(() => session.data.import(ACCOUNTS_CSV, { key: "account_id" }), "E_DRAFT_OPEN");
+        d.dispose();
+        assert.deepStrictEqual(
+            session.data.pendingSourceLoads().map((p) => p.id),
+            waiting,
+        );
         session.dispose();
     });
 

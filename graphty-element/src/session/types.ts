@@ -4371,15 +4371,23 @@ export interface SourceStepPatch {
  * @experimental source-steps
  */
 export interface SourceRolePatch {
+    /** The column holding each row's time, or its start time when the row spans a period. */
     readonly time?: string;
+    /** The column holding each row's end time, for rows that span a period. */
     readonly timeEnd?: string;
     /** The zone a time with no zone of its own is read in, such as `"+02:00"`. */
     readonly timeParseZone?: string;
+    /** The column holding each row's latitude, in degrees. */
     readonly latitude?: string;
+    /** The column holding each row's longitude, in degrees. */
     readonly longitude?: string;
+    /** The column holding each row's latitude and longitude together in one value. */
     readonly coordinates?: string;
+    /** The column holding each row's country, to place it on a map. */
     readonly country?: string;
+    /** The column holding each row's region (a state or province), to place it on a map. */
     readonly region?: string;
+    /** The column holding each row's city, to place it on a map. */
     readonly city?: string;
 }
 
@@ -4394,14 +4402,23 @@ export interface SourceMappingPatch {
     /** Its node type, written as its whole-source rule; `null` for none. */
     readonly type?: SourceTypeName | null;
     /** The roles of its node rows. */
-    readonly nodes?: SourceRolePatch & { readonly key?: string };
+    readonly nodes?: SourceRolePatch & {
+        /** The column holding each node row's key, its id in the space. */
+        readonly key?: string;
+    };
     /** The roles of its edge rows. */
     readonly edges?: SourceRolePatch & {
+        /** The column holding the key of each edge's source node. */
         readonly source?: string;
+        /** The column holding the key of each edge's target node. */
         readonly target?: string;
+        /** The id space the source keys are looked up in. */
         readonly sourceSpace?: SourceSpaceName;
+        /** The id space the target keys are looked up in. */
         readonly targetSpace?: SourceSpaceName;
+        /** The column holding each edge row's own id. */
         readonly edgeId?: string;
+        /** The column holding each edge's weight. */
         readonly weight?: string;
         /** What a larger weight means, such as `"strength"` or `"distance"`. */
         readonly weightMeaning?: string;
@@ -4414,7 +4431,7 @@ export interface SourceMappingPatch {
  * history or a saved file until {@link SourceDraft.commit}, which applies everything the draft did
  * as one undoable step. One draft is open at a time; while it is open every data write and
  * `session.undo()` / `redo()` are refused with `E_DRAFT_OPEN { draft }`, and view, style, filter,
- * selection, set and note writes go ahead. A project saved while a draft is open saves the committed
+ * selection, set and note writes go ahead, as do value labels and hiding or showing columns. A project saved while a draft is open saves the committed
  * project and leaves the draft open; opening a project or `data.clear()` discards it.
  *
  * ```ts
@@ -4581,6 +4598,10 @@ export interface SourceDraft {
 export interface SourceDraftChange {
     /** The draft's id. */
     readonly draft: string;
+    /**
+     * What happened: `"opened"` by `session.data.draft()`, `"changed"` by an act on it, `"committed"`
+     * by its commit, or `"discarded"` by `dispose()`, opening a project or clearing the graph.
+     */
     readonly reason: "opened" | "changed" | "committed" | "discarded";
 }
 

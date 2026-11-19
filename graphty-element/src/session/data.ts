@@ -1614,6 +1614,11 @@ export class SessionData implements SessionDataApi {
         const mark = historyMark(options);
         const send = (command: DataImportCommand | BatchCommand): ReturnType<typeof noted> =>
             noted({ ...command, ...mark });
+        // Refused here, before the waiting loads are let go: the dispatch would refuse it only after.
+        const refusal = this.draftRefusal();
+        if (refusal !== null) {
+            throw refusal;
+        }
         if ((options.mode ?? "replace") === "replace") {
             // A file, a URL, a generated graph or a dataset replacing the graph replaces what its source loads brought too; their
             // records stay in the ledger, unlisted, so undoing the replacement lists them again.
@@ -3478,12 +3483,41 @@ export class SessionData implements SessionDataApi {
         if (this.sourceDraft === null) {
             return null;
         }
+        // A value's name in the legend and a column hidden or shown are presentation, not the data
+        // the draft holds: they go ahead (design 5.6).
+        if (command?.op === "data.label" || (command?.op === "data.columns" && this.onlyHides(command))) {
+            return null;
+        }
         // The draft's own commit: the one data write it lets through while it holds the data.
         const edit = command?.op === "data.steps-set" ? (command as DataStepsSetCommand).edit : null;
         if (edit?.kind === "set" && edit.draftBase?.draft === this.sourceDraft.id) {
             return null;
         }
         return draftOpenError(this.sourceDraft.id);
+    }
+
+    /**
+     * Whether a column settings write changes only which columns are hidden.
+     * @param command - The `data.columns` command.
+     * @param command.op - Its op.
+     * @param command.settings - The settings it writes.
+     * @param command.move - The column it moves, if any.
+     * @returns True when its types and renames are today's and it moves no column.
+     */
+    private onlyHides(command: {
+        readonly op: string;
+        readonly settings?: ColumnSettings;
+        readonly move?: unknown;
+    }): boolean {
+        const { settings, move } = command;
+        if (settings === undefined) {
+            return false;
+        }
+        const now = this.columnSettings();
+        const same = (a: Readonly<Record<string, unknown>>, b: Readonly<Record<string, unknown>>): boolean =>
+            Object.keys(a).length === Object.keys(b).length &&
+            Object.entries(a).every(([key, value]) => b[key] === value);
+        return move === undefined && same(settings.types, now.types) && same(settings.renamed, now.renamed);
     }
 
     /** Discard the open draft, if any: a project opened or the graph cleared replaces what it drafted. */

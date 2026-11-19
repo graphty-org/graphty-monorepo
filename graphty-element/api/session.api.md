@@ -7259,7 +7259,6 @@ export interface SourceDraft {
 // @public
 export interface SourceDraftChange {
     readonly draft: string;
-    // (undocumented)
     readonly reason: "opened" | "changed" | "committed" | "discarded";
 }
 
@@ -7603,21 +7602,13 @@ export interface SourceRoleOptions {
 
 // @public
 export interface SourceRolePatch {
-    // (undocumented)
     readonly city?: string;
-    // (undocumented)
     readonly coordinates?: string;
-    // (undocumented)
     readonly country?: string;
-    // (undocumented)
     readonly latitude?: string;
-    // (undocumented)
     readonly longitude?: string;
-    // (undocumented)
     readonly region?: string;
-    // (undocumented)
     readonly time?: string;
-    // (undocumented)
     readonly timeEnd?: string;
     readonly timeParseZone?: string;
 }

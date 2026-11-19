@@ -20,6 +20,20 @@ registerSource(
     }),
 );
 
+/** What the `save-reopen-resume` source returns now; a test grows it to show a fresh read. */
+let resumeNodes = ["a", "b"];
+registerSource(
+    defineSource({
+        id: "save-reopen-resume",
+        descriptor: { plainName: "Network", defaultEndpoint: "https://save-reopen.example.com", params: [] },
+        records: () =>
+            Promise.resolve({
+                nodes: resumeNodes.map((id) => ({ id })),
+                edges: [{ source: "a", target: "b" }],
+            }),
+    }),
+);
+
 /** Saved text with its clock readings and session id blanked, so two saves compare. */
 function comparable(text: string): string {
     return text
@@ -342,7 +356,10 @@ describe("source-steps: save and reopen", () => {
     it("a registered network source saves and reopens with no problems", async () => {
         const session = createGraphSession({ features: ["source-steps"] });
         await session.data.import({ source: "save-reopen-network", config: {} });
-        const graph = graphOf(session);
+        const [load] = session.data.loads().map((l) => l.key);
+        const [key] = session.data.sources().map((s) => s.key);
+        // The save writes each record's load under its source's key, as the member's loads entry is.
+        const graph = graphOf(session).replaceAll(`\\"${load}\\"`, `\\"${key}\\"`);
         const steps = session.data.steps().map((s) => [s.op, s.source]);
         const { q, problems } = await reopen(session);
         assert.deepStrictEqual(problems, []);
@@ -351,6 +368,67 @@ describe("source-steps: save and reopen", () => {
         assert.deepStrictEqual(
             q.data.steps().map((s) => [s.op, s.source]),
             steps,
+        );
+        q.dispose();
+    });
+
+    it("a reopened network source keeps its load: it waits, resumes into the same source and refreshes", async () => {
+        resumeNodes = ["a", "b"];
+        const session = createGraphSession({ features: ["source-steps"] });
+        await session.data.import({ source: "save-reopen-resume", config: {} });
+        const steps = session.data.steps().map((s) => s.op);
+        const { q, text } = await reopen(session);
+        const [key] = q.data.sources().map((s) => s.key);
+        assert.deepStrictEqual(
+            q.data.loads().map((l) => l.key),
+            [key],
+            "the nodes and the ledger name one load",
+        );
+        assert.deepStrictEqual(
+            q.data.pendingSourceLoads().map((p) => p.id),
+            [key],
+        );
+        type Load = { source: Record<string, unknown> };
+        const loadsOf = (saved: string): Load[] => members(saved)["graphty-sources"].loads as Load[];
+        assert.deepStrictEqual(
+            loadsOf((await q.project.save()).text)[0]?.source,
+            loadsOf(text)[0]?.source,
+            "the endpoint and the total are saved again unchanged",
+        );
+        resumeNodes = ["a", "b", "c"];
+        await q.data.runPendingSourceLoad(key);
+        assert.sameMembers(
+            q.data.nodes({ scope: "graph" }).map((n) => n.id),
+            ["a", "b", "c"],
+        );
+        assert.deepStrictEqual(
+            q.data.steps().map((s) => s.op),
+            steps,
+            "still exactly one join.add",
+        );
+        assert.lengthOf(q.data.sources(), 1);
+        assert.deepStrictEqual(q.data.pendingSourceLoads(), []);
+        resumeNodes = ["a", "b", "c", "d"];
+        await q.data.refresh(key);
+        assert.sameMembers(
+            q.data.nodes({ scope: "graph" }).map((n) => n.id),
+            ["a", "b", "c", "d"],
+        );
+        q.dispose();
+    });
+
+    it("a renamed source keeps its name after save and reopen", async () => {
+        const session = createGraphSession({ features: ["source-steps"] });
+        await session.data.import({ type: "csv", config: { data: "source,target\na,b\n" }, name: "one.csv" });
+        await session.data.renameSource("Mine", session.data.sources()[0]?.key);
+        assert.deepStrictEqual(
+            session.data.sources().map((s) => s.name),
+            ["Mine"],
+        );
+        const { q } = await reopen(session);
+        assert.deepStrictEqual(
+            q.data.sources().map((s) => s.name),
+            ["Mine"],
         );
         q.dispose();
     });

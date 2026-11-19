@@ -40,6 +40,9 @@ const OPS: ReadonlySet<string> = new Set([
 /** The reader operations a saved reader source may hold. */
 const READER_OPS: ReadonlySet<string> = new Set(["remove", "add", "add-edge", "edit"]);
 
+/** The column a row's loads are kept in. */
+const SOURCE_LOADS = "_source.loads";
+
 /** One table of a copy as saved. */
 interface SavedTable {
     readonly rows: number;
@@ -49,13 +52,23 @@ interface SavedTable {
 /**
  * One table as columns.
  * @param rows - The rows as read.
+ * @param idOf - The id each load key is written as.
  * @returns The table, a cell a row lacks as null.
  */
-function tableOut(rows: readonly Row[]): SavedTable {
+function tableOut(rows: readonly Row[], idOf: (key: string) => string): SavedTable {
     const names = new Set(rows.flatMap((row) => Object.keys(row)));
     const columns: Record<string, (CellValue | null)[]> = {};
     for (const name of names) {
-        columns[name] = rows.map((row) => row[name] ?? null);
+        columns[name] = rows.map((row) => {
+            // A cell may hold a list at run time (`_source.loads`), whatever `CellValue` says.
+            const cell: unknown = row[name] ?? null;
+            // A row's loads are written under the ids the member's loads have, as the graph's are.
+            const out: unknown =
+                name === SOURCE_LOADS && Array.isArray(cell)
+                    ? cell.map((key: unknown) => (typeof key === "string" ? idOf(key) : key))
+                    : cell;
+            return out as CellValue | null;
+        });
     }
     return { rows: rows.length, columns };
 }
@@ -64,9 +77,15 @@ function tableOut(rows: readonly Row[]): SavedTable {
  * The member names a save adds for the sources and steps.
  * @param value - The sources and steps.
  * @param copies - Their rows as read.
+ * @param idOf - The id each network load key is written as in the member's `loads`; a row's
+ *   `_source.loads` is written under it, so a reopened build names the loads the ledger holds.
  * @returns The names and their values, or null when there is nothing to save.
  */
-export function stepsMemberFields(value: SourceSteps, copies: Copies): Record<string, unknown> | null {
+export function stepsMemberFields(
+    value: SourceSteps,
+    copies: Copies,
+    idOf: (key: string) => string = (key) => key,
+): Record<string, unknown> | null {
     const sources = Object.values(value.sources);
     if (sources.length === 0 && value.reader.length === 0 && value.types.length === 0) {
         return null;
@@ -76,7 +95,7 @@ export function stepsMemberFields(value: SourceSteps, copies: Copies): Record<st
         const tables = Object.fromEntries(
             (["nodes", "edges"] as const).flatMap((table) => {
                 const rows = copy[table];
-                return rows === undefined ? [] : [[table, tableOut(rows)]];
+                return rows === undefined ? [] : [[table, tableOut(rows, idOf)]];
             }),
         );
         return { ...src, copy: tables };

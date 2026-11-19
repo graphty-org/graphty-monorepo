@@ -1961,7 +1961,7 @@ export class SessionData implements SessionDataApi {
         }
 
         // Under the source-steps experiment the member also carries the sources and steps (section 10).
-        const steps = this.stepsOn() ? stepsMemberFields(this.stepsValue(), this.stepsCopies()) : null;
+        const steps = this.stepsOn() ? stepsMemberFields(this.stepsValue(), this.stepsCopies(), write.idOf) : null;
         if (steps !== null) {
             const member = write.member ?? { kind: SOURCE_RECORD_MEMBER, version: SOURCES_MEMBER_VERSION, loads: [] };
             return { ...write, member: { ...member, ...steps } };
@@ -3074,6 +3074,34 @@ export class SessionData implements SessionDataApi {
         }
 
         const newest = at === sources.length - 1;
+        const stepsKey = sources[at]?.key;
+        if (this.stepsOn() && stepsKey !== undefined && this.stepsValue().sources[stepsKey] !== undefined) {
+            // Under the source-steps experiment the name is the steps source's label, so a rebuild, a
+            // save and a reopen all keep it; one step, labeled as the off path labels it.
+            const send = this.writes.importer();
+            await this.loadLine.edit(() => {
+                const value = this.stepsValue();
+                const src = value.sources[stepsKey];
+                const edit: StepsEdit = {
+                    kind: "set",
+                    value:
+                        src === undefined
+                            ? value
+                            : { ...value, sources: { ...value.sources, [stepsKey]: { ...src, label: name } } },
+                };
+                return send({
+                    op: "batch",
+                    label: `Name the source ${name}`,
+                    fact: { code: "data.set-source", params: { name } },
+                    steps: [
+                        { op: "data.steps-set", edit },
+                        { op: "data.setSource", source: newest ? { ...current, name } : current },
+                    ],
+                });
+            }, undefined);
+            return;
+        }
+
         await this.writes.setSource(
             newest ? { ...current, name } : current,
             sources.length === 0 ? undefined : sources.map((each, index) => (index === at ? { ...each, name } : each)),

@@ -1119,14 +1119,24 @@ async function readPending(host: SourceHost, id: string, options: SourceLoadOpti
     });
     await host.waitTurn?.();
     requireUnchanged(host, id);
-    await host.dispatch(
-        importCommand(host, record.key, { source: record.source, config }, read, {
-            ...readOnly,
-            mode: "merge",
-            existing: "update",
-            ...sameEntry(host, record.key),
-        }),
-    );
+    if (host.refreshSteps === undefined) {
+        await host.dispatch(
+            importCommand(host, record.key, { source: record.source, config }, read, {
+                ...readOnly,
+                mode: "merge",
+                existing: "update",
+                ...sameEntry(host, record.key),
+            }),
+        );
+    } else {
+        // Under the source-steps experiment the opened file already holds the source: the rows read
+        // now become its copy, as a refresh's do, rather than a second source beside it.
+        const { held } = importCommand(host, record.key, { source: record.source, config }, read, { mode: "merge" });
+        await host.refreshSteps(record.key, {
+            ...(held.nodes.length > 0 ? { nodes: held.nodes as readonly Row[] } : {}),
+            ...(held.edges.length > 0 ? { edges: held.edges as readonly Row[] } : {}),
+        });
+    }
     host.pending.delete(id);
     host.ledger.refreshLoad(id, {
         next: read.info?.next ?? null,

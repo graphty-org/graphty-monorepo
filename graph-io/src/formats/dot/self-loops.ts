@@ -95,7 +95,7 @@ export type LoopSide = "right" | "left" | "top" | "bottom";
  * @param h - the head end
  * @returns the side the loop goes round
  */
-export function loopSide(t: LoopEnd, h: LoopEnd): LoopSide {
+function loopSide(t: LoopEnd, h: LoopEnd): LoopSide {
     if (
         (!t.defined && !h.defined) ||
         ((t.side & LEFT) === 0 && (h.side & LEFT) === 0 && (t.side !== h.side || (t.side & (TOP | BOTTOM)) === 0))

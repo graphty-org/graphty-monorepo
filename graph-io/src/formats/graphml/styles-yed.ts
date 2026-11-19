@@ -2709,14 +2709,20 @@ export function routeMiddle(points: readonly BendPoint[]): BendPoint {
     return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
 }
 
-/** Where a yEd edge label model's position sits: along the line, and -1 left of it, 0 on it, 1 right of it. */
-type EdgeSpot = readonly ["source" | "middle" | "target", -1 | 0 | 1];
+/**
+ * Where a yEd edge label model's position sits: along the line, and -1 left of it, 0 on it, 1 right of it, or `above`
+ * it on the page (left of a vertical line).
+ */
+type EdgeSpot = readonly ["source" | "middle" | "target", -1 | 0 | 1 | "above"];
 
 /** Each yEd edge label model's positions, `model/position` (yed-graphml-specimen-edge-labels). */
 const YED_EDGE_SPOTS: ReadonlyMap<string, EdgeSpot> = new Map([
     ["centered/center", ["middle", 0]],
     ["center_slider/center", ["middle", 0]],
     ["side_slider/center", ["middle", -1]],
+    // a GML side_slider label with no stored box: yEd 3.25 draws it at the line's start, above it on the page, left of
+    // a vertical line (gml-synthetic-coverage e2, e11, e20, e29, e38, e56, e74)
+    ["side_slider/start", ["source", "above"]],
     ["two_pos/head", ["middle", -1]],
     ["two_pos/tail", ["middle", 1]],
     ["three_center/scentr", ["source", 0]],
@@ -2822,11 +2828,15 @@ function edgeLabelCenter(label: YedEdgeLabel, line: readonly BendPoint[]): BendP
     if (spot === undefined) {
         return null;
     }
-    const [along, side] = spot;
+    const [along, where] = spot;
     const length = lineLength(line);
     const end = YED_EDGE_LABEL_END + label.width / 2;
     const reach = { source: end, middle: length / 2, target: Math.max(0, length - end) };
     const { at, dir } = pointAlong(line, reach[along]);
+    // left of a line running rightward, or straight up the page, is above it, or left of it
+    const upward = dir[0] > YED_PORT_SLACK || (dir[0] >= -YED_PORT_SLACK && dir[1] < 0);
+    const upwardSide = upward ? -1 : 1;
+    const side = where === "above" ? upwardSide : where;
     const clear = label.distance + (label.lines * YED_LABEL_LINE * label.fontSize + YED_LABEL_BOX_PADDING) / 2;
     return [at[0] - side * dir[1] * clear, at[1] + side * dir[0] * clear];
 }

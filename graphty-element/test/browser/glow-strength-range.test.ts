@@ -4,7 +4,8 @@
  * The glow layer used to clamp its spread at strength 1.25 and divide each glow's opacity by the
  * strongest one on screen, so a lone glow drew the same at 1.25, 2 and 4, and a stronger one only
  * got wider and fainter. This file draws one glowing node at 0.5, 1, 2 and 4 and sums what the
- * glow adds outside the node: it must rise at every step.
+ * glow adds outside the node: it must rise by a fifth at every step, and the glow at 4 must reach
+ * farther out than at 1.
  */
 
 import { afterAll, assert, beforeAll, describe, it } from "vitest";
@@ -15,6 +16,10 @@ import type { GraphSession } from "../../src/session";
 const WIDTH = 480;
 const HEIGHT = 360;
 const STRENGTHS = [0.5, 1, 2, 4];
+/** How much each step must add over the one before: a fifth more, a change a reader notices. */
+const STEP_GROWTH = 1.2;
+/** The summed channel change that counts a pixel as reached by the glow. */
+const REACH_CHANGE = 6;
 
 for (const view of ["2d", "3d"] as const) {
     describe(`glow strength range (${view})`, () => {
@@ -81,6 +86,33 @@ for (const view of ["2d", "3d"] as const) {
             return total;
         }
 
+        /**
+         * How far out the glow reaches: the farthest pixel the glow changed outside every node,
+         * measured from the middle of the changed pixels (the glowing node).
+         * @param pixels - The glowing frame.
+         * @param baseline - The frame with no glow.
+         * @returns The distance, in pixels.
+         */
+        function glowReach(pixels: Uint8Array, baseline: Uint8Array): number {
+            const width = graph.engine.getRenderWidth();
+            const background = [baseline[0], baseline[1], baseline[2]];
+            const changed: [number, number][] = [];
+            for (let offset = 0; offset < baseline.length; offset += 4) {
+                const isCanvas = [0, 1, 2].every((c) => Math.abs(baseline[offset + c] - background[c]) <= 2);
+                const change = [0, 1, 2].reduce(
+                    (sum, c) => sum + Math.abs(pixels[offset + c] - baseline[offset + c]),
+                    0,
+                );
+                if (isCanvas && change > REACH_CHANGE) {
+                    changed.push([(offset / 4) % width, Math.floor(offset / 4 / width)]);
+                }
+            }
+
+            const cx = changed.reduce((sum, [x]) => sum + x, 0) / Math.max(1, changed.length);
+            const cy = changed.reduce((sum, [, y]) => sum + y, 0) / Math.max(1, changed.length);
+            return Math.max(0, ...changed.map(([x, y]) => Math.hypot(x - cx, y - cy)));
+        }
+
         it("adds more glow outside the node at every step from 0.5 to 4", async () => {
             const baseline = await frame();
             const layer = await session.styles.add({
@@ -90,11 +122,14 @@ for (const view of ["2d", "3d"] as const) {
                 set: { "node.glow": "#ff00ff", "node.glowStrength": STRENGTHS[0] },
             });
             const sums: number[] = [];
+            const reaches: number[] = [];
             for (const strength of STRENGTHS) {
                 await session.styles.update(layer.id, {
                     set: { "node.glow": "#ff00ff", "node.glowStrength": strength },
                 });
-                sums.push(glowOutside(await frame(), baseline));
+                const pixels = await frame();
+                sums.push(glowOutside(pixels, baseline));
+                reaches.push(glowReach(pixels, baseline));
             }
 
             await session.styles.remove(layer.id);
@@ -103,10 +138,14 @@ for (const view of ["2d", "3d"] as const) {
             for (let i = 1; i < sums.length; i++) {
                 assert.isAbove(
                     sums[i],
-                    sums[i - 1],
-                    `strength ${String(STRENGTHS[i])} adds more than ${String(STRENGTHS[i - 1])}: ${JSON.stringify(sums)}`,
+                    sums[i - 1] * STEP_GROWTH,
+                    `strength ${String(STRENGTHS[i])} adds a share a reader sees over ${String(STRENGTHS[i - 1])}: ${JSON.stringify(sums)}`,
                 );
             }
+
+            const at1 = reaches[STRENGTHS.indexOf(1)];
+            const at4 = reaches[STRENGTHS.indexOf(4)];
+            assert.isAbove(at4, at1 * STEP_GROWTH, `a glow of 4 reaches farther than 1: ${JSON.stringify(reaches)}`);
         });
     });
 }

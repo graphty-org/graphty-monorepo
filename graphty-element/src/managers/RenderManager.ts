@@ -73,10 +73,26 @@ interface RenderManagerConfig {
      */
     pictureIsFinal?: () => boolean;
     /**
-     * Whether drawing on demand is switched on. While it is not, the loop draws every tick and
-     * does none of the bookkeeping drawing on demand needs. Left out, it is off.
+     * Asked while drawing on demand or while `restsBetweenLandings` says so, when the picture is
+     * not final: true when the only thing
+     * changing it is a running layout that has published nothing new since the last frame drawn,
+     * so the tick runs its update but draws nothing, as it would on a final picture. Left out,
+     * such ticks draw.
+     */
+    awaitsLanding?: () => boolean;
+    /**
+     * Whether drawing on demand is switched on. While it is not (and `restsBetweenLandings` says
+     * false), the loop draws every tick and does none of the bookkeeping drawing on demand needs.
+     * Left out, it is off.
      */
     drawsOnDemand?: () => boolean;
+    /**
+     * Whether ticks between two landings of a running layout skip their frame even while drawing
+     * on demand is off, as `awaitsLanding` lets them when it is on; nothing else of drawing on
+     * demand comes with it. Asked each tick; the element answers true under renderPath "batched".
+     * Left out, never.
+     */
+    restsBetweenLandings?: () => boolean;
     /**
      * Whether to flush right after each frame's fence, so the GPU sees the fence at once rather
      * than at the browser's next flush (about every 18 ms in Chromium, which set an 18 ms floor
@@ -416,6 +432,9 @@ const EVENTS_THAT_DRAW_NOTHING: ReadonlySet<string> = new Set([
     "stats-update",
     // Announced after a frame that moved the view or a node: that frame is already drawn.
     "overview-changed",
+    // A fit moves only the camera, which the loop compares itself (`sameAsDrawn`). A running layout
+    // fits on every pass, so owing a frame for it drew every tick between two landings (#8801).
+    "zoom-to-fit-complete",
 ]);
 
 /**
@@ -867,7 +886,16 @@ export class RenderManager implements Manager {
      * demand, on a machine whose frame rate it does not control. A frame drawn at once for a
      * resize (`drawNow`) counts as drawn.
      */
-    readonly ticks = { drawn: 0, rested: 0, gpuBehind: 0, smooth: 0 };
+    readonly ticks = {
+        drawn: 0,
+        rested: 0,
+        gpuBehind: 0,
+        smooth: 0,
+        /** Ticks that drew nothing because a running GPU layout had landed no new positions since the last frame. */
+        awaitedLanding: 0,
+    };
+    /** Whether the tick {@link RenderManager.mayRest} last let rest rests on a final picture. */
+    private restsFinal = false;
     /** See `RenderManagerConfig.antialiasAtRest`. */
     private readonly antialiasAtRest: () => boolean;
     /** Whether the canvas shows the multisampled frame `"at-rest"` rests on. */
@@ -900,6 +928,11 @@ export class RenderManager implements Manager {
     private readonly pictureIsFinal: (() => boolean) | null;
     /** See `RenderManagerConfig.drawsOnDemand`. */
     private readonly drawsOnDemand: () => boolean;
+    /**
+     * Whether the loop keeps the record of the last frame drawn that resting needs: while drawing
+     * on demand, or while ticks between landings may rest (`restsBetweenLandings`).
+     */
+    private readonly tracksFrames: () => boolean;
     /** See `RenderManagerConfig.flushesFrameFence`. */
     private readonly flushesFrameFence: () => boolean;
     /** See `RenderManagerConfig.pacesWebGpuFrames`. */
@@ -1057,6 +1090,8 @@ export class RenderManager implements Manager {
         const onDemand = this.config.drawsOnDemand ?? ((): boolean => false);
         // "at-rest" holds its multisampled frame by not drawing another: drawing on demand.
         this.drawsOnDemand = (): boolean => this.antialiasAtRest() || onDemand();
+        const betweenLandings = this.config.restsBetweenLandings ?? ((): boolean => false);
+        this.tracksFrames = (): boolean => this.drawsOnDemand() || betweenLandings();
         this.flushesFrameFence = this.config.flushesFrameFence ?? ((): boolean => false);
         this.pacesWebGpuFrames = this.config.pacesWebGpuFrames ?? ((): boolean => false);
 
@@ -1289,6 +1324,12 @@ export class RenderManager implements Manager {
                 // Under "at-rest" the first tick that may rest draws the multisampled frame instead,
                 // and the ticks after it rest on it.
                 const rests = this.mayRest();
+                // Between two landings of a running layout: the same picture again, never the smooth one.
+                if (rests && !this.restsFinal) {
+                    this.ticks.awaitedLanding++;
+                    return;
+                }
+
                 if (rests && (this.smoothShown || !this.antialiasAtRest() || this.pointersHeld.size > 0)) {
                     this.ticks.rested++;
                     return;
@@ -1423,7 +1464,7 @@ export class RenderManager implements Manager {
         const drawnReady = this.readyToDrawChange();
         // What the frame begins with, so the frame can tell afterwards whether drawing it moved
         // anything; see noteDrawnFrom.
-        if (this.pictureIsFinal !== null && this.drawsOnDemand()) {
+        if (this.pictureIsFinal !== null && this.tracksFrames()) {
             this.recordView();
         }
 
@@ -1822,7 +1863,9 @@ export class RenderManager implements Manager {
      * one page (the app's real-element tests run their files side by side in one renderer) each
      * paid it on every frame, for a picture that was not changing (issue #1824).
      *
-     * Only when `pictureIsFinal` says so, and then only while nothing the
+     * Only when `pictureIsFinal` says so, or `awaitsLanding` says a running layout has landed
+     * nothing new since the last frame (the tick then rests without the smooth frame), and then
+     * only while nothing the
      * model does not track can change the next frame: a Babylon animation or a texture still
      * loading (both advance only inside a frame), a shader still being fetched or compiled (it
      * arrives unannounced), a mesh, material or texture added and not yet
@@ -1837,11 +1880,16 @@ export class RenderManager implements Manager {
     private mayRest(): boolean {
         if (
             this.pictureIsFinal === null ||
-            !this.drawsOnDemand() ||
+            !this.tracksFrames() ||
             this.drawOwed ||
-            (this.lastFrameMoved && this.inView) ||
-            !this.pictureIsFinal()
+            (this.lastFrameMoved && this.inView)
         ) {
+            return false;
+        }
+
+        // With drawing on demand off, only a tick between two landings rests.
+        this.restsFinal = this.drawsOnDemand() && this.pictureIsFinal();
+        if (!this.restsFinal && this.config.awaitsLanding?.() !== true) {
             return false;
         }
 
@@ -1944,7 +1992,7 @@ export class RenderManager implements Manager {
      * @returns True when this frame draws a change to the scene's contents whole.
      */
     private readyToDrawChange(): boolean {
-        if (this.pictureIsFinal === null || !this.drawsOnDemand()) {
+        if (this.pictureIsFinal === null || !this.tracksFrames()) {
             return false;
         }
 
@@ -1962,7 +2010,7 @@ export class RenderManager implements Manager {
      *     to draw; see {@link readyToDrawChange}.
      */
     private noteDrawnFrom(drawnReady = false): void {
-        if (this.pictureIsFinal === null || !this.drawsOnDemand()) {
+        if (this.pictureIsFinal === null || !this.tracksFrames()) {
             // Switched on later, the first frame then is compared with nothing and draws again.
             this.lastFrameMoved = true;
             return;

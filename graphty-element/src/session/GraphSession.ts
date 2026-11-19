@@ -148,7 +148,8 @@ import {
     type RunsApi,
     type SessionRunsApi,
 } from "./runs";
-import { canonicalize, frozenSelection, type LiveKeyword } from "./runs/runId";
+import { canonicalize, freezeScope, frozenSelection, type LiveKeyword } from "./runs/runId";
+import type { RunLiveScope } from "./runs/types";
 import {
     type ComponentLabels,
     createScopeApi,
@@ -3683,6 +3684,29 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     const canned: CannedOutcomes = new Map();
     // What a run compares to tell "the data changed under me" from "my scope moved".
     const dataNow = (): string => dataDigest(dispatcher.state.graph, snapshot);
+    // What the live keywords a scope names stand for now, so a saved run can be resolved again
+    // under them on open.
+    const liveScopeOf = (spec: Scope): { live?: RunLiveScope } => {
+        const used = new Set<LiveKeyword>();
+        freezeScope(spec, (keyword) => used.add(keyword));
+        if (used.size === 0) {
+            return {};
+        }
+
+        const visible = used.has("visible")
+            ? {
+                  visible: {
+                      filter: visibility.filter,
+                      conditions: visibility.conditions,
+                      window: visibility.window,
+                  },
+              }
+            : {};
+        const selected = used.has("selection")
+            ? { selection: frozenSelection(requireSelection(selection).nodeMembers().ids()) }
+            : {};
+        return { live: { ...visible, ...selected } };
+    };
     const runs = createRunsApi({
         queue,
         // Finished runs are the `runs` slice, recorded in this session's history.
@@ -3715,9 +3739,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                                   : { ...bounds, nodes: inside.nodes, edges: inside.edges },
                       };
 
+            const live = liveScopeOf(spec);
             return kept === undefined
-                ? { reading, dataDigest: data, ...window }
-                : { set: { id: kept.id, revision: kept.revision }, reading, dataDigest: data, ...window };
+                ? { reading, dataDigest: data, ...window, ...live }
+                : { set: { id: kept.id, revision: kept.revision }, reading, dataDigest: data, ...window, ...live };
         },
         dataDigest: () => dataNow(),
         defaultWeight: () => data.weightKey(),

@@ -423,6 +423,9 @@ const EVENTS_THAT_DRAW_NOTHING: ReadonlySet<string> = new Set([
     "stats-update",
     // Announced after a frame that moved the view or a node: that frame is already drawn.
     "overview-changed",
+    // A fit moves only the camera, which the loop compares itself (`sameAsDrawn`). A running layout
+    // fits on every pass, so owing a frame for it drew every tick between two landings (#8801).
+    "zoom-to-fit-complete",
 ]);
 
 /**

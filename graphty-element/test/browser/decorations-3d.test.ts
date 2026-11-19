@@ -126,11 +126,13 @@ function nodeOnScreen(g: Graph): { x: number; y: number; diameter: number } {
  * @param g - The graph.
  * @returns The centroid and how many pixels.
  */
-async function decorationCentroid(g: Graph): Promise<{ x: number; y: number; count: number }> {
+async function decorationCentroid(
+    g: Graph,
+): Promise<{ x: number; y: number; count: number; redX: number; greenX: number }> {
     g.scene.render();
     const width = g.engine.getRenderWidth();
     const pixels = (await g.engine.readPixels(0, 0, width, g.engine.getRenderHeight())) as unknown as Uint8Array;
-    let [sx, sy, count] = [0, 0, 0];
+    let [sx, sy, count, redSx, redCount] = [0, 0, 0, 0, 0];
     for (let i = 0; i < pixels.length; i += 4) {
         const [r, gr, b] = [pixels[i], pixels[i + 1], pixels[i + 2]];
         const red = r > 150 && gr < 90 && b < 90;
@@ -140,11 +142,29 @@ async function decorationCentroid(g: Graph): Promise<{ x: number; y: number; cou
             sx += p % width;
             sy += Math.floor(p / width);
             count++;
+            if (red) {
+                redSx += p % width;
+                redCount++;
+            }
         }
     }
 
-    return { x: sx / Math.max(1, count), y: sy / Math.max(1, count), count };
+    const greenCount = count - redCount;
+    return {
+        x: sx / Math.max(1, count),
+        y: sy / Math.max(1, count),
+        count,
+        redX: redSx / Math.max(1, redCount),
+        greenX: (sx - redSx) / Math.max(1, greenCount),
+    };
 }
+
+/**
+ * Which side each two-color decoration draws red on, as a reader sees it, so a mirrored face swaps them: stripes and
+ * the image run left to right, and a pie's slices run clockwise from 12 o'clock, so its first (red) half is on the
+ * right.
+ */
+const RED_SIDE: Readonly<Record<string, "left" | "right">> = { stripes: "left", image: "left", pie: "right" };
 
 describe("face decorations on a solid in 3D", () => {
     for (const [name, set] of Object.entries(DECORATIONS)) {
@@ -164,6 +184,14 @@ describe("face decorations on a solid in 3D", () => {
                     TOLERANCE * at.diameter,
                     `${name} at yaw ${String(yaw)}: centroid ${JSON.stringify(drawn)} vs node ${JSON.stringify(at)}`,
                 );
+                const side = RED_SIDE[name] as "left" | "right" | undefined;
+                if (side !== undefined) {
+                    assert.strictEqual(
+                        drawn.redX < drawn.greenX ? "left" : "right",
+                        side,
+                        `${name} at yaw ${String(yaw)} reads the right way round: ${JSON.stringify(drawn)}`,
+                    );
+                }
             }
         });
     }

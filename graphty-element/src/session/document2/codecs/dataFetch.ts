@@ -30,7 +30,13 @@ type UnavailableReason = Exclude<SourceUnavailableReason, "kind">;
  * the new byte count when its copy changed).
  */
 export type Refetched =
-    | { readonly copyId: string; readonly tables: JsonObject; readonly columns: JsonObject }
+    | {
+          readonly copyId: string;
+          readonly tables: JsonObject;
+          readonly columns: JsonObject;
+          /** Its node rows repeat a key, which `duplicateIds: "refuse"` leaves the source out for. */
+          readonly repeats?: true;
+      }
     | { readonly unavailable: UnavailableReason; readonly size?: number };
 
 /** What an open gives the fetch. */
@@ -245,11 +251,14 @@ class RolesGone extends Error {}
 /**
  * Read a referenced source's bytes as its load read them: in a scratch session, with the record's
  * format, options (the style choices among them) and roles, into an empty graph, as a copy writes
- * the rows that load made.
+ * the rows that load made. Repeated keys follow the building step's `duplicateIds`, else the
+ * record's, as they do for an embedded copy; under `"refuse"` the rows are read and their repeats
+ * told, so the build leaves the source out as it does a copy's.
  * @param record - The record.
  * @param bytes - Its bytes.
  * @param how - The open's options.
- * @returns The tables and their declarations.
+ * @param duplicateIds - The building step's own `duplicateIds`, if any.
+ * @returns The tables, their declarations and whether the node rows repeat a key under `"refuse"`.
  * @throws {RolesGone} When the bytes parse but the saved roles do not read them; what the
  *     parse throws when they do not parse.
  */
@@ -257,7 +266,8 @@ async function reimport(
     record: JsonObject,
     bytes: Uint8Array,
     how: RefetchOptions,
-): Promise<{ tables: JsonObject; columns: JsonObject }> {
+    duplicateIds?: unknown,
+): Promise<{ tables: JsonObject; columns: JsonObject; repeats: boolean }> {
     const scratch = how.scratch();
     try {
         const options = isPlainObject(record.options) ? record.options : {};
@@ -272,11 +282,19 @@ async function reimport(
         const mapping = isPlainObject(record.mapping) ? record.mapping : {};
         // A graph file's format sets its roles; a table's are the record's.
         const fixed = draft.tables.every((table) => table.fixed);
+        const policy = (duplicateIds ?? settings.duplicateIds) as LoadChoices["duplicateIds"];
+        const choices: LoadChoices = {
+            ...(fixed ? {} : { mapping: tableMappingOf(mapping) }),
+            ...(settings as Pick<LoadChoices, "unmatched">),
+            duplicateIds: policy === "refuse" ? "first" : policy,
+        };
+        let repeats = false;
         try {
-            await draft.load({
-                ...(fixed ? {} : { mapping: tableMappingOf(mapping) }),
-                ...(settings as Pick<LoadChoices, "unmatched" | "duplicateIds">),
-            });
+            if (policy === "refuse") {
+                repeats = (await draft.report({ ...choices, duplicateIds: "refuse" })).duplicates.rows > 0;
+            }
+
+            await draft.load(choices);
         } catch {
             how.signal?.throwIfAborted();
             throw new RolesGone();
@@ -288,8 +306,8 @@ async function reimport(
         const edges = isPlainObject(mapping.edges) ? mapping.edges : {};
         const edgeId = typeof edges.edgeId === "string" ? edges.edgeId : undefined;
         const edgeRows = scratch.data.edges({ scope: "graph" }).map(({ id: _id, ...edge }) => ownColumns(edge));
-        const repeated = repeatedEdgeRows(edgeRows, edgeId, settings.duplicateIds === "merge");
-        return copyTables(
+        const repeated = repeatedEdgeRows(edgeRows, edgeId, policy === "merge");
+        const copied = copyTables(
             withSavedNames(
                 scratch.data.nodes({ scope: "graph" }).map((node) => ownColumns(node)),
                 columns.nodes,
@@ -303,6 +321,7 @@ async function reimport(
                 format,
             ),
         );
+        return { ...copied, repeats };
     } finally {
         scratch.dispose();
     }
@@ -313,8 +332,9 @@ async function reimport(
  * hold it (`copy-changed`) unless the caller accepts them.
  * @param record - The record.
  * @param how - The open's options.
+ * @param duplicateIds - The `duplicateIds` of the `join.add` that builds it, if it carries one.
  */
-export async function refetch(record: JsonObject, how: RefetchOptions): Promise<void> {
+export async function refetch(record: JsonObject, how: RefetchOptions, duplicateIds?: unknown): Promise<void> {
     let bytes: Awaited<ReturnType<typeof bytesOf>>;
     try {
         bytes = await bytesOf(record, how);
@@ -338,8 +358,8 @@ export async function refetch(record: JsonObject, how: RefetchOptions): Promise<
     }
 
     try {
-        const { tables, columns } = await reimport(record, bytes, how);
-        REFETCHED.set(record, { copyId, tables, columns });
+        const { tables, columns, repeats } = await reimport(record, bytes, how, duplicateIds);
+        REFETCHED.set(record, { copyId, tables, columns, ...(repeats ? { repeats } : {}) });
     } catch (error) {
         how.signal?.throwIfAborted();
         // A refresh whose bytes parse but lack the columns the saved roles name supplies no rows
@@ -366,11 +386,12 @@ export async function refetchSources(value: JsonObject, how: RefetchOptions): Pr
     }
 
     // Only a source a step builds is read again; a staged one is written back as read (spec 4.1.8).
-    const built = new Set(
-        (Array.isArray(body.joins) ? (body.joins as unknown[]) : []).flatMap((step) =>
-            isPlainObject(step) && step.off !== true ? [step.source] : [],
-        ),
+    const steps = (Array.isArray(body.joins) ? (body.joins as unknown[]) : []).filter(
+        (step): step is JsonObject => isPlainObject(step) && step.off !== true,
     );
+    const built = new Set(steps.map((step) => step.source));
+    // The `duplicateIds` each source's own `join.add` carries, which its read follows.
+    const own = new Map(steps.flatMap((step) => (step.op === "join.add" ? [[step.source, step.duplicateIds]] : [])));
     const referenced = (body.sources as unknown[]).filter(
         (record): record is JsonObject =>
             isPlainObject(record) &&
@@ -383,5 +404,5 @@ export async function refetchSources(value: JsonObject, how: RefetchOptions): Pr
         return;
     }
 
-    await Promise.all(referenced.map((record) => refetch(record, how)));
+    await Promise.all(referenced.map((record) => refetch(record, how, own.get(record.id))));
 }

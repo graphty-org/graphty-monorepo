@@ -22,12 +22,12 @@
  * - The reader source holds only the elements no load supplied, each an `add`; today's edits,
  *   removals and merges are already in the records, so no `edit`, `remove` or `merge` operation is
  *   ever written (read ones are applied, then baked into the copies).
- * - Types: the registry the last open read, its rules on sources still open, then one type per
- *   today's `kind` value, `schema` `{ "type": "object" }`; each element holds one. Today's loads
- *   reduce repeated edges by pair alone, as the session has no types and one weight meaning. `joins` is one `join.add` per load,
- *   with the `duplicateIds` the open read on it, each followed by the `off` steps of its source
- *   (not where they were read); then the `off` steps of the sources no step builds, whose records
- *   are written back as read.
+ * - Types: the registry the last open read, its rules on sources still open or staged, then one
+ *   type per today's `kind` value, `schema` `{ "type": "object" }`; each element holds one. Today's
+ *   loads reduce repeated edges by pair alone, as the session has no types and one weight meaning.
+ *   `joins` is the history the last open read, in its order: each `join.add` of a source still
+ *   built, with the choices the open read on it, and the `off` steps of the sources still built or
+ *   staged (whose records are written back as read); then one `join.add` per load since.
  *   `annotations`, `metadata`, `license`, `citation`, `mediaType` and `path` are never written.
  * - On read: only `join.add` builds (by key in the mapping's spaces), with its own `duplicateIds`;
  *   every other step that is not `off` (`join.merge`, `join.node-values`, `join.edge-values`,
@@ -396,6 +396,8 @@ interface ReadSource {
     readonly embedded: boolean;
     /** For a referenced source read again: the copy id its record names, and the roles its rows are built with. */
     readonly rebuilt?: { readonly expected: string; readonly mapping: JsonObject };
+    /** For a referenced source read again: its node rows repeat a key, as `"refuse"` reads them. */
+    readonly repeats?: boolean;
     /** For a referenced source not read again: why, and its new byte count when its copy changed. */
     readonly reason?: SourceUnavailableReason;
     readonly size?: number;
@@ -557,6 +559,7 @@ function referencedSource(record: JsonObject, pointer: string): ReadSource {
         copyId: fetched.copyId,
         embedded: true,
         rebuilt: { expected, mapping },
+        ...(fetched.repeats === true ? { repeats: true } : {}),
         nodes: tableOf(tables.nodes, columns.nodes, `${pointer}/copy/nodes`),
         edges: tableOf(tables.edges, columns.edges, `${pointer}/copy/edges`),
     };
@@ -624,7 +627,12 @@ function checkRead(read: unknown, op: string, pointer: string): void {
     need(read.table === undefined || read.table === "nodes" || read.table === "edges", `${pointer}/table`);
     for (const [name, value] of Object.entries(read)) {
         const nullable = name === "weight" || name === "time";
-        need(name === "table" || (nullable && value === null) || typeof value === "string", `${pointer}/${name}`);
+        // A role names a column, never ""; a meaning or a unit may be empty.
+        const words = name === "weightMeaning" || name === "timeUnit";
+        need(
+            name === "table" || (nullable && value === null) || (typeof value === "string" && (words || value !== "")),
+            `${pointer}/${name}`,
+        );
         need(op === "join.edges" || !EDGE_READ.has(name), `${pointer}/${name}`);
     }
 
@@ -700,6 +708,11 @@ function checkStep(
     const at = (name: string): string => `${pointer}/${name}`;
     checkAddChoices(step, at);
     checkClash(step.clash, at("clash"));
+    for (const name of ["edges", "via"]) {
+        need(step[name] === undefined || (typeof step[name] === "string" && step[name] !== ""), at(name));
+    }
+
+    need(op !== "join.edge-values" || step.edges !== undefined, at("edges"));
     const edges = op === "join.edges";
     need(edges === (step.part !== undefined), at("part"));
     need(step.part === undefined || (Number.isSafeInteger(step.part) && Number(step.part) >= 1), at("part"));
@@ -717,7 +730,9 @@ function checkStep(
     );
     need(
         step.columns === undefined ||
-            (Array.isArray(step.columns) && step.columns.every((each) => typeof each === "string")),
+            (Array.isArray(step.columns) &&
+                step.columns.every((each) => typeof each === "string") &&
+                new Set(step.columns).size === step.columns.length),
         at("columns"),
     );
     for (const name of ["rows", "except"]) {
@@ -922,8 +937,8 @@ interface Built {
     readonly edgeIds: SavedEdgeIds;
     /** The records of the sources no step builds, kept as read (spec 4.1.8 rule 1). */
     readonly staged: readonly JsonObject[];
-    /** The `off` steps, kept as read (spec 4.1.8 rule 8). */
-    readonly offSteps: readonly JsonObject[];
+    /** The join history as read, its `off` steps among it (spec 4.1.8 rule 8). */
+    readonly joins: readonly JsonObject[];
     /** The choices a built source's `join.add` carries besides its source, by source id. */
     readonly addChoices: readonly (readonly [string, JsonObject])[];
     /** The referenced sources read again, with the `mapping` each record names. */
@@ -1282,7 +1297,8 @@ function buildSource(source: ReadSource, into: Building, step: Readonly<JsonObje
     const edgeMap = isPlainObject(mapping.edges) ? mapping.edges : undefined;
     const keyColumn = typeof nodeMap.key === "string" ? nodeMap.key : undefined;
     const edgeId = typeof edgeMap?.edgeId === "string" ? edgeMap.edgeId : undefined;
-    if (choices.duplicates === "refuse" && (repeatsKey(source.nodes, keyColumn) || repeatsKey(source.edges, edgeId))) {
+    const repeats = source.repeats === true || repeatsKey(source.nodes, keyColumn) || repeatsKey(source.edges, edgeId);
+    if (choices.duplicates === "refuse" && repeats) {
         into.problems.push({ code: "W_MEMBER_LEFT_OUT", params: { section: "data", pointer: `/sources/${id}` } });
         return;
     }
@@ -1790,10 +1806,10 @@ function buildJoins(section: Checked, into: Building): Joined {
  * @param section - The checked section.
  * @returns The kept parts.
  */
-function joinsKept(section: Checked): Pick<Built, "staged" | "offSteps" | "addChoices"> {
+function joinsKept(section: Checked): Pick<Built, "staged" | "joins" | "addChoices"> {
     return {
         staged: [...section.sources.values()].filter(({ id }) => !section.adds.has(id)).map(({ record }) => record),
-        offSteps: section.joins.filter((step) => step.off === true),
+        joins: section.joins,
         addChoices: [...section.adds].flatMap(([id, step]) => {
             const kept = Object.fromEntries(
                 ["clash", "duplicateIds"].flatMap((name) => (step[name] === undefined ? [] : [[name, step[name]]])),
@@ -2093,7 +2109,7 @@ async function apply(
         edgeIds: built.edgeIds,
         referenced: built.referenced,
         staged: built.staged,
-        offSteps: built.offSteps,
+        joins: built.joins,
         addChoices: built.addChoices,
         mixedRoles: built.roles.mixed,
         ...(built.edgeIdColumn === undefined ? {} : { edgeIdColumn: built.edgeIdColumn }),
@@ -2290,17 +2306,22 @@ export async function refreshHeldSource(
     );
     const { body } = dataBodyOf(session, { embed, paths: {} }, []);
     const record = (body.sources as JsonObject[]).find((each) => each.id === source) as JsonObject;
+    const add = (body.joins as JsonObject[]).find((step) => step.op === "join.add" && step.source === source);
     const opened = refetchOptionsOf(session);
-    await refetch(record, {
-        ...(opened?.location === undefined ? {} : { location: opened.location }),
-        ...(opened?.files === undefined ? {} : { files: opened.files }),
-        ...(how.signal === undefined ? {} : { signal: how.signal }),
-        fetch: true,
-        accept: true,
-        limit: opened?.limit ?? Number.POSITIVE_INFINITY,
-        builds: () => true,
-        scratch: how.scratch,
-    });
+    await refetch(
+        record,
+        {
+            ...(opened?.location === undefined ? {} : { location: opened.location }),
+            ...(opened?.files === undefined ? {} : { files: opened.files }),
+            ...(how.signal === undefined ? {} : { signal: how.signal }),
+            fetch: true,
+            accept: true,
+            limit: opened?.limit ?? Number.POSITIVE_INFINITY,
+            builds: () => true,
+            scratch: how.scratch,
+        },
+        add?.duplicateIds,
+    );
     const fetched = refetchedOf(record);
     if (fetched !== undefined && "unavailable" in fetched) {
         throw new GraphtyError({

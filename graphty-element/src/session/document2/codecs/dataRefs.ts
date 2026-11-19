@@ -263,8 +263,8 @@ interface DataMemory {
     readonly referenced: Map<string, JsonObject>;
     /** The records of the sources no step built, written back as read (spec 4.1.8 rule 1). */
     staged: readonly JsonObject[];
-    /** The `off` steps the last read kept, written back after their source's `join.add`. */
-    offSteps: readonly JsonObject[];
+    /** The join history the last read held, written back in its order (spec 4.1.8). */
+    joins: readonly JsonObject[];
     /** The choices each built source's `join.add` carried besides its source, by source id. */
     readonly addChoices: Map<string, JsonObject>;
     /** The edge each reduced edge's reference is an alias of, by that reference's `edgeKey` (spec 6.1). */
@@ -301,7 +301,7 @@ function memoryOf(session: GraphSession): DataMemory {
             edgeIds: new Map(),
             referenced: new Map(),
             staged: [],
-            offSteps: [],
+            joins: [],
             addChoices: new Map(),
             edgeAliases: new Map(),
             mixedRoles: [],
@@ -360,8 +360,8 @@ export interface DataRead {
     readonly referenced?: readonly (readonly [string, JsonObject])[];
     /** The records of the sources no step built. */
     readonly staged?: readonly JsonObject[];
-    /** The `off` steps. */
-    readonly offSteps?: readonly JsonObject[];
+    /** The join history read. */
+    readonly joins?: readonly JsonObject[];
     /** The choices each built source's `join.add` carried besides its source, by source id. */
     readonly addChoices?: readonly (readonly [string, JsonObject])[];
     /** The roles the built sources differ on. */
@@ -416,7 +416,7 @@ export function rememberRead(session: GraphSession, read: DataRead): void {
 
     memory.mixedRoles = read.mixedRoles ?? [];
     memory.staged = read.staged ?? [];
-    memory.offSteps = read.offSteps ?? [];
+    memory.joins = read.joins ?? [];
     memory.types = read.types;
     memory.folded = read.folded ?? [];
     memory.heldOperations = read.heldOperations ?? [];
@@ -1467,7 +1467,11 @@ function kindOf(record: Readonly<JsonObject>): string | undefined {
  * @returns The entries.
  */
 function typesOf(model: DataModel): JsonObject[] {
-    const open = new Set(model.sources.map((source) => source.id));
+    // A staged source is written back with its record, so its rules stay too (spec 4.1.8 rule 1).
+    const open = new Set([
+        ...model.sources.map((source) => source.id),
+        ...memoryOf(model.session).staged.map((record) => String(record.id)),
+    ]);
     const read = memoryOf(model.session).types.flatMap((type): JsonObject[] => {
         const rules = (Array.isArray(type.rules) ? type.rules : []).filter(
             (rule) => isPlainObject(rule) && open.has(String(rule.source)),
@@ -2161,23 +2165,30 @@ function reportLeftOut(model: DataModel, problems: DocumentProblem[]): void {
 }
 
 /**
- * The join history (spec 4.1.8): one `join.add` per load, with the choices the open read on it,
- * each followed by its source's `off` steps; then the `off` steps of the sources no step builds.
+ * The join history (spec 4.1.8) in the order the last open read it: each `join.add` of a source
+ * still built, with the choices the open read on it, and each `off` step of a source still built or
+ * staged; then one `join.add` per source loaded since.
  * @param model - The model.
  * @returns The steps.
  */
 function joinsOf(model: DataModel): JsonObject[] {
-    const { offSteps, staged, addChoices } = memoryOf(model.session);
-    // ponytail: an off step is written after its source's join.add, not where it was read; keep
-    // the read order once the session holds steps (the data store).
-    const offOf = (id: string): readonly JsonObject[] => offSteps.filter((step) => step.source === id);
-    return [
-        ...model.sources.flatMap((source) => [
-            { op: "join.add", source: source.id, ...addChoices.get(source.id) },
-            ...offOf(source.id),
-        ]),
-        ...staged.flatMap((record) => offOf(String(record.id))),
-    ];
+    const { joins, staged, addChoices } = memoryOf(model.session);
+    const built = new Set(model.sources.map((source) => source.id));
+    const kept = new Set([...built, ...staged.map((record) => String(record.id))]);
+    const added = new Set<string>();
+    const addOf = (id: string): JsonObject => {
+        added.add(id);
+        return { op: "join.add", source: id, ...addChoices.get(id) };
+    };
+    const read = joins.flatMap((step): JsonObject[] => {
+        const id = String(step.source);
+        if (step.off === true) {
+            return kept.has(id) ? [step] : [];
+        }
+
+        return step.op === "join.add" && built.has(id) && !added.has(id) ? [addOf(id)] : [];
+    });
+    return [...read, ...model.sources.filter((source) => !added.has(source.id)).map((source) => addOf(source.id))];
 }
 
 /**

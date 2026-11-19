@@ -11,7 +11,7 @@ note" link as the places to read them. This is the answer key's S: both notes, e
 target, there after reopening, and the Notes place shown.
 
 It is not SD. No note was ever saved on a wrong target: the first note form read "About PageRank"
-(`03.png`), Jordan saw that before typing and cancelled, so nothing had to be fixed afterwards.
+(`03.png`), Jordan saw that before typing and canceled, so nothing had to be fixed afterwards.
 That is recorded as a wrong turn below, not as a note on the wrong target.
 
 Build seen: `5277e2cbe1bd graphty@0.8.64` (session.json), the frozen build named at the top of the
@@ -24,7 +24,7 @@ changes.
 - **Medici note (right).** Found Medici with the find box (`08.png`), selected its row (`09.png`:
   inspector Medici, PageRank 0.1458, #1 of 15), Notes, Add note: the form read "About Medici"
   (`10.png`). Saved; chip "Medici" (`11.png`). Medici's inspector header reads "Node 1 note".
-- **Network note (right).** After cancelling the PageRank form, Jordan picked "Everything" in the
+- **Network note (right).** After canceling the PageRank form, Jordan picked "Everything" in the
   Graph place and added the note there; the form read "About Graph" (`05.png`), saved with the
   chip "Graph" (`06.png`).
 - **Kept.** Main menu, Save, the dialog "Save Florentine families as" with the name prefilled,
@@ -46,11 +46,11 @@ changes.
 
 - **Steps:** 17 `real.mjs` steps after the start (`02.png` to `18.png`). The key's success path is
   about 11 actions (find, select, n, type, save, Escape Escape, n, type, save, Ctrl+S, Save,
-  reopen, open, Notes); the extra steps are the cancelled PageRank form, the ambiguous click, the
+  reopen, open, Notes); the extra steps are the canceled PageRank form, the ambiguous click, the
   menu route to Save and the optional local copy.
 - **Wrong turns: 1.** Step 03: the "+" in the Notes place opened a form about the PageRank run,
   because the setup left the PageRank run open in the inspector and Add note takes whatever the
-  inspector shows (`03.png`, "About PageRank"). Jordan cancelled and went to Graph > Everything to
+  inspector shows (`03.png`, "About PageRank"). Jordan canceled and went to Graph > Everything to
   get a network note. Recovered.
 - **Not counted as a wrong turn:** step 07, `--click "Graph"` matched two controls (the rail's
   "Graph" button and the new note's "Graph" chip), so the tool refused it and nothing changed

@@ -2,7 +2,7 @@
  * @file The Cytoscape formats (XGMML, CX, CX2, sessions) and OBO load with no wiring.
  *
  * A consumer hands the element a file of one of these formats and gets the graph: the format is
- * recognised from the file's name and from its bytes, read through graph-io's importer, and a file
+ * recognized from the file's name and from its bytes, read through graph-io's importer, and a file
  * holding several networks lists them and loads the one asked for. The files are graph-io's own
  * conformance fixtures, so the counts below are the ones graph-io's independent oracles agree on.
  */

@@ -12,6 +12,7 @@
         "coverage:merge:ci": "./tools/merge-coverage.sh --ci",
         "lint": "pnpm exec nx run-many --target=lint",
         "lint:knip": "./tools/run-knip.sh",
+        "lint:spelling": "node tools/check-spelling.test.mjs && node tools/check-spelling.mjs",
         "lint:knip:prod": "./tools/run-knip.sh --production --strict --include dependencies,unlisted,unresolved",
         "check:published-deps": "node tools/check-published-deps.mjs --self-test && node tools/check-published-deps.mjs",
         "check:peer-deps": "node tools/check-peer-deps-stable.mjs --self-test && node tools/check-peer-deps-stable.mjs",

@@ -67,7 +67,7 @@ the shortest-path thing asks which column."
     node tool/real.mjs --step $S --click-at 679,624     # "Analyze" -> 07.png
 
 A list with a "Filter analyses" box: Degree, Betweenness, Edge betweenness, Closeness, PageRank (Start here),
-... Depth-first order "Select a node first" (greyed), Most flow ...
+... Depth-first order "Select a node first" (grayed), Most flow ...
 Jordan: "Long list. I'll type 'shortest' instead of scrolling."
 
 ## Step 7 -- filter "shortest"

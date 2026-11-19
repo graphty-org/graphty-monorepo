@@ -112,7 +112,7 @@ both were already in the table above and are unchanged, so nothing that draws
 them moves. `Merge selected nodes...` is the new row: two node circles
 overlapped into one shape, which is the only drawing in the register that
 overlaps two circles, so it cannot be misread as select neighbors (one node
-and its two neighbours, joined by lines) or as compare (two rectangles). The
+and its two neighbors, joined by lines) or as compare (two rectangles). The
 ellipsis is load-bearing per 6.3, because the verb opens a dialog that asks
 which node survives. A row that draws one of these three keeps no empty 14px
 leading slot; only `expand neighbors` (1.6) still does.
@@ -192,8 +192,8 @@ the `Granularity` form, VOCAB 12 -- and never gets an approximate drawing.
 | scale, square root | `<path d="M2.5 13.5C4.5 5 8 2.5 13.5 2.5"></path>`                                                                                                                                                                          | `Square root scale`                                                                                                                                                                                                                                     |
 | scale, linear      | `<line x1="2.5" y1="13.5" x2="13.5" y2="2.5"></line>`                                                                                                                                                                       | `Linear scale`; in a field whose value names the transform, the field form `Scale: linear` (RampPopout)                                                                                                                                                 |
 | scale, log         | `<path d="M2.5 13.5C8 13.5 11.5 11 13.5 2.5"></path>`                                                                                                                                                                       | `Log scale`, or the named transform where the ramp draws one (`-log10 scale`, StyleDiverging)                                                                                                                                                           |
-| colour             | no SVG: the 14px swatch is the glyph                                                                                                                                                                                        | the thing it paints, in the drawn forms `Node color`, `Outline color`, `Canvas background color`, `Selected stop color`, `Missing value color`; bound, it appends the reading (`Node color: Groups (communities, Louvain), 4 groups`)                   |
-| pull to centre     | `<circle cx="8" cy="8" r="1.5"></circle><polyline points="6,3 8,5 10,3"></polyline><polyline points="6,13 8,11 10,13"></polyline><polyline points="3,6 5,8 3,10"></polyline><polyline points="13,6 11,8 13,10"></polyline>` | `Pull to center`; with the value, `Pull to center: -1.2`. Section 17.4                                                                                                                                                                                  |
+| color              | no SVG: the 14px swatch is the glyph                                                                                                                                                                                        | the thing it paints, in the drawn forms `Node color`, `Outline color`, `Canvas background color`, `Selected stop color`, `Missing value color`; bound, it appends the reading (`Node color: Groups (communities, Louvain), 4 groups`)                   |
+| pull to center     | `<circle cx="8" cy="8" r="1.5"></circle><polyline points="6,3 8,5 10,3"></polyline><polyline points="6,13 8,11 10,13"></polyline><polyline points="3,6 5,8 3,10"></polyline><polyline points="13,6 11,8 13,10"></polyline>` | `Pull to center`; with the value, `Pull to center: -1.2`. Section 17.4                                                                                                                                                                                  |
 
 The three scale curves have a second home, and one title rule covers both. In a
 field slot the field is the scale select and the title takes the field form
@@ -419,7 +419,7 @@ string this document fixes.
 ## 8. Glyphs that serve more than one verb
 
 The closed list. A glyph is here only because the two verbs never appear in the
-same cluster, so position and neighbours tell them apart, and because the titles
+same cluster, so position and neighbors tell them apart, and because the titles
 differ. Anything not on this list that shares a drawing is drift.
 
 | Glyph                                                                                                         | Verbs it serves                                                                                                            | Titles                                                                                                                                                                                                                                                    | Why it reads                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
@@ -479,7 +479,7 @@ panel and inspector columns by 42 per cent. The verification that followed it
 found ten breaches of the floor (spec 6.10, COMPACTION-1.6 section 4), two
 title verbs that had drifted across the set, and two mechanical defects. The
 set is now 40 boards, not 39: AnalyzePicker joined it when Decision A moved the
-Analyze catalogue off AnalyzePanel. Every count below is out of 40.
+Analyze catalog off AnalyzePanel. Every count below is out of 40.
 
 The two settled strings are the substance of this section. A drafter needs
 1.2 and 8 above to agree with them, and they now do.
@@ -620,7 +620,7 @@ grepping the source. Each is on screen, in words:
    11,900 sitting 45 px under an expansion warning that said 12,412, with
    nothing to reconcile the two, so the caption states what the rings hold as
    well as what they leave out -- 29,300 + 11,900 is the 41,200 the status bar
-   carries, and the node's 12,412 neighbours are ring 1, inside the 29,300.
+   carries, and the node's 12,412 neighbors are ring 1, inside the 29,300.
    Same row, same type, same one line; the restoration this item records
    stands.
 4. IpadInspector -- `1 selected of 41,200 visible` in the status bar. The
@@ -795,7 +795,7 @@ counts, the seven edge type names, the per-type completeness, the type-pair
 matrix, and -- on AnalyzePanel and AnalyzePicker -- the three verbs
 `Filter to type`, `Select all of type` and `Export schema JSON`. Every one of
 them is drawn in the 480 pop-out on Main, which is where the set draws that
-surface once. The verbs travelled with the list because 6.10's second clause
+surface once. The verbs traveled with the list because 6.10's second clause
 forbids separating a control from the thing it acts on; a Filter-to-type button
 on a header whose type list is behind a door acts on nothing the reader can see.
 Nothing was deleted: on AnalyzePanel and AnalyzePicker the open section was
@@ -937,7 +937,7 @@ ImportAddToGraph and ValidationPopout, `11` on SavedItems and Settings, `9` on
 ContextMenu and TableJoin, `34` on InspectorGenomics, `52` on IpadInspector);
 a split (`7 node, 4 edge` on ExploreNotesList, `9 node, 5 edge` on
 ExplorerLargeGraph, `6 node, 4 edge` on InsightsWide, `8 node, 3 edge` on
-PresentPanel, SettingsShortcuts and ShortcutsDialog); a labelled split
+PresentPanel, SettingsShortcuts and ShortcutsDialog); a labeled split
 (`Nodes 4, Edges 3` on TimeSlider); and no mark at all on AnalyzePanel,
 AnalyzePicker, CommandPalette, CompareSplit, Main and ViewsMenu, which breaches
 6.11's stub obligation. Settling the form is easy -- the bare total is the
@@ -985,7 +985,7 @@ Two findings from the review by Figma designers, novice users and expert users.
 Both were open conflicts between this register and the spec, and both are
 settled here so the next drafter copies a rule rather than re-deriving one.
 
-### 12.1 F-09. The pinned inspector action block is labelled rows; the spec wins
+### 12.1 F-09. The pinned inspector action block is labeled rows; the spec wins
 
 The conflict, stated plainly. Spec 6.8's five-homes table gives
 `Footer or action bar` a maximum of **0** icons, and the paragraph under it
@@ -1007,14 +1007,14 @@ Position teaches a verb only when the position is fixed, and `Style selection`
 was a text row on MultiSelection and a bare brush on ExplorePanel, so the set
 was teaching two things at once.
 
-**Settled: the spec wins, and the block becomes labelled rows on every board
+**Settled: the spec wins, and the block becomes labeled rows on every board
 that draws it.** Three clauses point one way and none points the other. 6.8's
 homes table sets the maximum at 0. 6.8's never list covers the verbs by name.
 And 6.9 Rule 2 question 8 -- the routing table the ten row types run on, which
 governs -- routes a verb to "a text button when it is not [in the register], or
 when 6.8's never list covers it". 6.8 also calls this block "exempt by
 construction ... every one of their labels is a verb plus the object the user is
-checking before the click", which is a description of a block of labelled rows,
+checking before the click", which is a description of a block of labeled rows,
 not of a glyph strip. The register cannot outvote three clauses of the document
 it serves.
 
@@ -1139,7 +1139,7 @@ in INSPECTOR-TITLE-1.9.md.
 VOCAB section 11 has said since the 1.6 compaction that its field glyphs "are
 additions to the closed register and must be copied from `REGISTER-1.5.md` once
 appended there". They were never appended. VOCAB 15.1 then drew one more -- four
-chevrons pointing inward at a centre dot, for the layout `Parameters` block's
+chevrons pointing inward at a center dot, for the layout `Parameters` block's
 `Pull to center` field -- and declared it owed on the same terms rather than
 adding it. This section pays all of it. Section 1.7 above is the table; what
 follows is why each row is admitted, which is the argument the rest of section 1
@@ -1159,7 +1159,7 @@ since 1.6: a field glyph is legal only if it is in `REGISTER-1.5.md`, and none
 of them was.
 
 A ninth drawing came out of the check. VOCAB's table has eight rows -- size
-smallest, width, opacity, attribute binding, the three scale curves, colour --
+smallest, width, opacity, attribute binding, the three scale curves, color --
 but its own RT-1 pair snippet draws a **second size glyph** for the
 `Largest node size` field,
 `<circle cx="4.5" cy="11.5" r="1.75"></circle><circle cx="10" cy="6" r="5"></circle>`,
@@ -1179,9 +1179,9 @@ section 11's stated 48:
 | scale, square root                   | 2: StyleLibrary, StylePanel                                                                                              |
 | scale, linear                        | 1: RampPopout, `Scale: linear`                                                                                           |
 | scale, log                           | 1: StyleDiverging, `-log10 scale`                                                                                        |
-| colour                               | the swatch, across the Style boards                                                                                      |
+| color                                | the swatch, across the Style boards                                                                                      |
 | size smallest, size largest, opacity | nowhere yet. VOCAB draws all three, and 15.1's grid needs them the moment a Size or an Effects section is drawn open     |
-| pull to centre                       | nowhere yet. VOCAB 15.1 is its first drawing                                                                             |
+| pull to center                       | nowhere yet. VOCAB 15.1 is its first drawing                                                                             |
 
 Being undrawn is not a bar. Section 1.3 registered `Merge selected nodes...`
 before any board drew it, for the reason this register exists: so that the first
@@ -1219,7 +1219,7 @@ the value **does to the picture**, not what the value is called:
 - **the three scale curves** -- the transform's own shape, drawn. A reader who
   does not know the words "square root" still sees one curve bend early, one run
   straight and one bend late.
-- **colour** -- the swatch is the value. There is no symbol to learn.
+- **color** -- the swatch is the value. There is no symbol to learn.
 
 None of these is a concept in the sense the veto means. Betweenness has no
 picture, and neither has damping; a half-filled circle is a picture of half.
@@ -1235,7 +1235,7 @@ is 17.5 B, and it is not with another field glyph.
 
 Section 8 is the closed list of glyphs serving more than one **verb**, and it is
 unchanged: nothing in 1.7 is a verb, so nothing in 1.7 enters it. The
-field-glyph analogue is one row, and this is it.
+field-glyph analog is one row, and this is it.
 
 The width glyph serves three slot labels: `Outline width` on StyleLibrary and
 StylePanel, `Window size` on TimeSlider, and `Edge length` from VOCAB 15.1. That
@@ -1280,12 +1280,12 @@ claimed.
 
 **The veto does not reach it.** Pull to center is a spatial relation, not a
 rate: every node moves toward one point. Four chevrons whose apexes point at a
-centre dot is a picture of that motion, which is exactly why it is admissible
+center dot is a picture of that motion, which is exactly why it is admissible
 where `Damping` and `Granularity` are not -- a rate has no picture, and VOCAB
 keeps damping a word two rows away, behind the same gear.
 
 **What it must not be confused with.** Three drawings in this register put marks
-around a centre, and the new one is none of them:
+around a center, and the new one is none of them:
 
 - **`locate` (1.2)**,
   `<circle cx="8" cy="8" r="4.5"></circle><circle cx="8" cy="8" r="1.5"></circle><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2"></path>`.
@@ -1294,15 +1294,15 @@ around a centre, and the new one is none of them:
   the canvas". The new glyph has no ring at all, and its four marks are chevrons
   aimed at the dot. Ring or no ring is the tell and it survives 14px.
 - **`zoom to fit` (1.1)**, four corner brackets on the **diagonals**, opening
-  **outward**, with no centre dot. It says "make the frame hold everything" --
+  **outward**, with no center dot. It says "make the frame hold everything" --
   the opposite motion, drawn in the opposite direction, with nothing in the
   middle.
 - **`zoom to selection` (1.1)**, those same four corner brackets plus
   `<circle cx="8" cy="8" r="2"></circle>`. This is the closest thing in the
-  register, because it too is four marks arranged around a centre. Two facts
+  register, because it too is four marks arranged around a center. Two facts
   separate them: a bracket is a right angle sitting on a diagonal and opening
-  away from the centre, a chevron is a V sitting on an orthogonal axis and
-  closing on the centre; and the circle there is a hollow r=2 that reads as the
+  away from the center, a chevron is a V sitting on an orthogonal axis and
+  closing on the center; and the circle there is a hollow r=2 that reads as the
   selection, against an r=1.5 dot that reads as the point being pulled to.
 
 Home settles whatever the drawing leaves. All three of those are verbs: a click
@@ -1310,7 +1310,7 @@ moves the camera or the selection, and each is drawn as an icon button in the
 top bar or the canvas toolbar, never inside a field. The new glyph is only ever
 drawn in a 16px field slot with its number beside it in the same 108px box, at
 `cursor: ew-resize`, and it does nothing when clicked. That is section 8's own
-test -- position and neighbours tell them apart -- satisfied without being
+test -- position and neighbors tell them apart -- satisfied without being
 needed, since these are four different drawings rather than one reused.
 
 One more adjacency, because 15.1 draws it. The **settings gear** sits 32px
@@ -1343,7 +1343,7 @@ StyleLibrary, one on StyleFromAnalysis. The set's convention is sharper than a
 majority. Drafting prose is British and drawn strings are American: `colour`
 appears 130 times in the artboards and **all 130 are inside HTML comments, none
 outside one**, while `color` appears in 21 drawn `title` attributes. `Pull to
-centre` is that same British form, but in VOCAB 15.1 it sits inside a `title`
+center` is that same British form, but in VOCAB 15.1 it sits inside a `title`
 attribute, which makes it a drawn string in the wrong dialect. Two residuals, both in files this
 register does not own:
 
@@ -1427,7 +1427,7 @@ unspecified and free" -- and free is what it was: measured with the pointer park
 off the control, the inspector's `Keep open` rendered byte for byte identically in
 both states (`compare -metric AE` gave 0 differing pixels; both header PNGs shared
 the md5 `07a655051899103eb1e0f0f85568bf69`), and the panel's differed only in ink,
-`#a3a8b1` against `#d5d7da`, which is 1.66:1 between the two greys. The product
+`#a3a8b1` against `#d5d7da`, which is 1.66:1 between the two grays. The product
 owner could not tell a locked column from an unlocked one, which is the whole of
 what a register is for. It is not free from here. Design 6.14 carries the rule;
 this section carries the drawing.
@@ -1456,7 +1456,7 @@ on the `#1f2428` panel measures **1.29:1**, where WCAG 2.2 1.4.11 asks 3:1 of th
 visual boundary that distinguishes a control's state. That is the whole of what
 the 69 drawings were missing, and it is why the shipped latch could be reported as
 showing nothing: the ground the boards paint is a hue change, not a boundary. The
-border is one, and it is measured on BOTH of its adjacent colours rather than one:
+border is one, and it is measured on BOTH of its adjacent colors rather than one:
 `#4a7ee8` on `#1f2428` = **4.06:1** and `#4a7ee8` on `#28364e` = **3.15:1**. The
 hover ink `#5b8ff9` was the other candidate and clears both more widely, 5.03:1 and
 3.90:1; the accent is drawn anyway, because it is the ink the glyph inside the
@@ -1469,8 +1469,8 @@ NOT use its accent, and the difference is arithmetic rather than taste: Mantine'
 accent resolves to `#1971c2` in dark, which fails the inner side at 2.59:1, so the
 library draws the border in the light variant's own ink (`variant="light"` plus
 `--ai-bd: 1px solid var(--ai-color)`), measuring 7.97:1 and 6.57:1 in dark and
-3.56:1 and 3.17:1 in light. `CONTRAST-DIVERGENCE.md` section 4.1 is the licence for
-two spellings of one role; each artefact uses its own accent where its own accent
+3.56:1 and 3.17:1 in light. `CONTRAST-DIVERGENCE.md` section 4.1 is the license for
+two spellings of one role; each artifact uses its own accent where its own accent
 passes, and neither is correcting the other.
 
 **What is withdrawn.** graphty's shell drew this boundary itself, as an inset
@@ -1496,7 +1496,7 @@ off a state, so a call site still obtains it by choosing `variant={pressed ? "li
 means the next author of a toggle can write `variant="subtle"` and draw nothing, the
 defect this section exists for. Design 6.17 carries the requirement: the component takes
 `pressed` and maps it to ground, border and ink itself, and the call site passes state
-and no variant, no colour, no ink. Until that lands, a board drawn to the table above is
+and no variant, no color, no ink. Until that lands, a board drawn to the table above is
 correct and the code reaching it through a variant is the interim rather than the
 rule.
 
@@ -1504,7 +1504,7 @@ rule.
 in the current set is `Keep open` (section 18), `Pin as A` (section 10.2), the two
 region switches `Toggle panel` and `Toggle inspector` (sections 1.1 and 18),
 `Show on canvas` (section 1.2), `Link views` (section 1.2) and `Lock` (section
-1.2). Three neighbours are deliberately outside it and keep their own drawings: a
+1.2). Three neighbors are deliberately outside it and keep their own drawings: a
 switch row draws its state by construction and the accent fill is its ON state; a
 checked menu row takes the check glyph in its leading slot (section 1.2); and a
 field glyph's three state rules stay exactly as section 1.7 sets them -- the
@@ -1512,7 +1512,7 @@ filled binding glyph, the 4px `#4a7ee8` set-but-not-in-effect square, and the
 placeholder ink -- because a field is not a toggle and its slot is a scrub handle.
 
 **One control joins the set on 2026-09-13: the gear or door stub whose contents
-deviate.** Design 6.14's catalogue used to draw that state as an ink swap alone --
+deviate.** Design 6.14's catalog used to draw that state as an ink swap alone --
 dimmed at default, primary once anything behind the door differs -- and the arithmetic
 refuses it for the same reason this section refuses the tint alone: the two inks are
 `PANEL_INK.CHROME` against `PANEL_INK.VALUE`, which is **1.45:1** in the dark scheme
@@ -1521,12 +1521,12 @@ ink swap this section opens by condemning. So a deviating stub is a HELD state a
 takes the table above unchanged -- `#28364e` ground, `#4a7ee8` glyph, 1px `#4a7ee8`
 border -- at the same 4.06:1 and 3.15:1. The ink may still change with it; it is no
 longer the thing doing the work. Nothing in this register draws a state in ink alone,
-and a row that asked for that was a drafting error rather than a licence.
+and a row that asked for that was a drafting error rather than a license.
 
 The accessibility half of the stub is not an ARIA state, because there is none for
 "differs from its default": the deviation goes in the accessible name, as the title's
 second sentence ("Parsing. 2 changed"), which is the form floor item 4 already uses for
-a disabled reason. Design 6.14's catalogue names the attribute for every other row.
+a disabled reason. Design 6.14's catalog names the attribute for every other row.
 
 **The check, in two halves that answer two different questions.** The first wording
 was one paragraph and it read as contradicting the acceptance suite, which recommends
@@ -1542,7 +1542,7 @@ this section was written for, and an AE of 1 -- which "differing by a measured p
 count" would have passed -- is that same failure plus one antialiased edge.
 
 (b) IS THE STATE SET. Where a scenario asserts that a particular control is currently
-pressed, probe `data-variant` plus `aria-pressed` and never the computed colour:
+pressed, probe `data-variant` plus `aria-pressed` and never the computed color:
 Playwright leaves the pointer on whatever it last clicked, and an unpressed but hovered
 icon button computes `rgba(34,139,230,0.2)` against the pressed
 `rgba(34,139,230,0.15)`, close enough to read as pressed and to cause a false FAIL

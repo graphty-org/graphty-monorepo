@@ -184,7 +184,7 @@ export const issueBody = (t, ctx) =>
 /**
  * What to write: one action per failing test, against the issues that already carry its marker.
  * @param failures - the failing tests from junitFailures (duplicates allowed)
- * @param issues - the issues labelled intermittent, as the REST API lists them
+ * @param issues - the issues labeled intermittent, as the REST API lists them
  * @param ctx - the run: restriction, runUrl, sha
  * @returns per broken file (over MAX_FILED failing tests), `{suiteBroken: {package, file, count}}`; per other
  *   test, `{create: {title, body, labels}}` or `{issue, reopen, comment}`
@@ -226,7 +226,7 @@ function readTests(dir) {
 }
 
 /**
- * Every issue labelled intermittent, the tracker's own lookup, a page of 100 at a time.
+ * Every issue labeled intermittent, the tracker's own lookup, a page of 100 at a time.
  * @param request - the GitHub REST client
  * @param repo - `owner/name`
  * @returns the issues

@@ -328,8 +328,8 @@ export const Shell: Story = {
     play: async ({ canvasElement }) => {
         const scene = await placed(canvasElement, "Shell", { nodes: 120, edges: 151 });
 
-        // Five shells, named in the story's own nlist: one node at the centre, then 5, 15, 30 and
-        // 69 around it. Five shells is five distinct distances from the centre.
+        // Five shells, named in the story's own nlist: one node at the center, then 5, 15, 30 and
+        // 69 around it. Five shells is five distinct distances from the center.
         const centre = scene.nodes
             .reduce((sum, node) => [sum[0] + node.position[0], sum[1] + node.position[1]], [0, 0])
             .map((total) => total / scene.nodes.length);

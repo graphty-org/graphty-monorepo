@@ -345,7 +345,7 @@ shows one pane, as wide as the two were, so at Fit the image is drawn about twic
   right pane), now in the single wide pane;
 - Highlight: the new image with the red overlay;
 - Spotlight: the dimmed new image;
-- an item with only a baseline (removed) shows its baseline, labelled so; an item with no capture
+- an item with only a baseline (removed) shows its baseline, labeled so; an item with no capture
   (failed) shows its error.
 
 The panes' scroll sync, Next change and the outline work on one pane as on two.

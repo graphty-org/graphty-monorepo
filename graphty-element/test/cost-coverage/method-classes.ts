@@ -1211,8 +1211,16 @@ export const READ_ONLY: readonly string[] = [
     "SourceDraft.matchValues",
     // A preview diffs the committed build and the draft's, which its acts already built.
     "SourceDraft.preview",
+    // The drill-down lists what one count counted in the build the preview already made.
+    "SourceDraftPreview.cells",
+    "SourceDraftPreview.elements",
+    "SourceDraftPreview.rows",
     // A source draft's acts change only the draft, which nothing saves; its commit is MUTATING.
     "SourceDraft.add",
+    "SourceDraft.clearPicks",
+    "SourceDraft.exclude",
+    "SourceDraft.include",
+    "SourceDraft.pickAll",
     "SourceDraft.connect",
     "SourceDraft.declareType",
     "SourceDraft.dispose",

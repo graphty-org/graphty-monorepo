@@ -7213,6 +7213,12 @@ export interface SourceCheck {
 export type SourceClashRule = "keep" | "overwrite" | "both" | "min" | "max" | "mean" | "vote";
 
 // @public
+export interface SourceClearPicksOptions {
+    readonly column: string;
+    readonly refs?: readonly SourceElementRef[];
+}
+
+// @public
 export interface SourceConflict {
     readonly by: SourceClashRule | "reader";
     readonly column: string;
@@ -7270,23 +7276,29 @@ export interface SourceDraft {
     add(source: SourceKey, options?: {
         readonly overlap?: "separate" | "merge";
     }): void;
+    clearPicks(options: SourceClearPicksOptions): number;
     commit(): Promise<void>;
     connect(options: SourceConnectOptions): number;
     declareType(entry: SourceTypeEntry): void;
     dispose(): void;
     edits(): readonly ReaderEditRow[];
     editStep(index: number, patch: SourceStepPatch): void;
+    exclude(step: number, keys: readonly SourceCellValue[], options?: {
+        readonly column?: string;
+    }): void;
     extract(source: SourceKey, options: SourceExtractOptions): number;
     readonly id: string;
     import(source: DataSourceInput, options?: ImportOptions & {
         readonly overlap?: "separate" | "merge";
     }): Promise<string>;
+    include(step: number, keys: readonly SourceCellValue[]): void;
     matchCounts(pair: SourceMatchPair, options?: SourceMatchOptions): SourceMatchCounts;
     matchValues(pair: SourceMatchPair, options?: SourceMatchValuesOptions): SourceMatchValues;
     merge(options: SourceMergeOptions): void;
     moveColumns(source: SourceKey, options: SourceMoveColumnsOptions): void;
     readonly open: boolean;
     pick(ref: SourceElementRef, column: string, source: SourceKey): void;
+    pickAll(options: SourcePickAllOptions): number;
     preview(): SourceDraftPreview;
     removeEdit(id: string): void;
     removeSource(source: SourceKey): void;
@@ -7303,23 +7315,57 @@ export interface SourceDraft {
 }
 
 // @public
+export type SourceDraftBucket = keyof SourceStepCountsChange;
+
+// @public
+export interface SourceDraftCell extends SourceConflict {
+    readonly decided: boolean;
+}
+
+// @public
+export interface SourceDraftCells {
+    // (undocumented)
+    readonly cells: readonly SourceDraftCell[];
+    readonly total: number;
+}
+
+// @public
+export interface SourceDraftCellsQuery {
+    readonly column: string;
+    readonly limit?: number;
+    readonly offset?: number;
+    readonly only?: "all" | "open" | "decided";
+    readonly step?: number;
+}
+
+// @public
 export interface SourceDraftChange {
     readonly draft: string;
     readonly reason: "opened" | "changed" | "committed" | "discarded";
 }
 
 // @public
+export interface SourceDraftElementsQuery {
+    readonly bucket: SourceDraftBucket;
+    readonly name?: string;
+    readonly step: number;
+}
+
+// @public
 export interface SourceDraftPreview {
     readonly after: SourceDraftPreviewTotals;
     readonly before: SourceDraftPreviewTotals;
+    cells(query: SourceDraftCellsQuery): SourceDraftCells;
     readonly draft: string;
     // (undocumented)
     readonly edges: SourceDraftPreviewChanges;
     readonly edits: readonly ReaderEditRow[];
+    elements(query: SourceDraftElementsQuery): readonly SourceElementRef[];
     // (undocumented)
     readonly issues: readonly SourceDraftPreviewIssue[];
     // (undocumented)
     readonly nodes: SourceDraftPreviewChanges;
+    rows(query: SourceDraftRowsQuery): SourceDraftRows;
     readonly sources: readonly SourceDraftPreviewSource[];
     readonly steps: readonly SourceDraftPreviewStep[];
 }
@@ -7464,6 +7510,34 @@ export interface SourceDraftPreviewTotals {
     readonly nodes: number;
     // (undocumented)
     readonly nodeTypes: Readonly<Record<SourceTypeName, number>>;
+}
+
+// @public
+export interface SourceDraftRow {
+    readonly codes: readonly SourceDraftPreviewIssue["code"][];
+    readonly effect: "added" | "changed" | "removed" | "unchanged" | "left-out";
+    readonly element: SourceElementRef | null;
+    readonly held: Readonly<Record<string, SourceValue>> | null;
+    readonly incoming: Readonly<Record<string, SourceCellValue | undefined>> | null;
+    readonly key: SourceCellValue | null;
+    readonly name: string | null;
+    readonly row: number | null;
+    readonly shown: Readonly<Record<string, SourceValue>> | null;
+    readonly source: SourceKey;
+    readonly table: "nodes" | "edges" | null;
+}
+
+// @public
+export interface SourceDraftRows {
+    // (undocumented)
+    readonly rows: readonly SourceDraftRow[];
+    readonly total: number;
+}
+
+// @public
+export interface SourceDraftRowsQuery extends SourceDraftElementsQuery {
+    readonly limit?: number;
+    readonly offset?: number;
 }
 
 export { SourceEdgeRecord }
@@ -7749,6 +7823,15 @@ export interface SourceNodeRef {
 export { SourceParamDescriptor }
 
 export { SourceParamType }
+
+// @public
+export interface SourcePickAllOptions {
+    readonly column: string;
+    readonly only?: "all" | "open" | "decided";
+    readonly refs?: readonly SourceElementRef[];
+    readonly source: SourceKey;
+    readonly step?: number;
+}
 
 // @public
 export interface SourcePreview {

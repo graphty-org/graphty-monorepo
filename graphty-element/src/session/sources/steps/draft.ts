@@ -199,7 +199,8 @@ export function stepEdit(value: SourceSteps, copies: Copies, index: number, patc
         }
         refuseBoth(step.op, repeated);
     }
-    const held = typeof step.clash === "string" ? { "*": step.clash } : (step.clash ?? {});
+    // Rules for some columns keep "*" for the rest, as a door's rule per column writes it (3.10).
+    const held = typeof step.clash === "object" ? step.clash : { "*": step.clash ?? "keep" };
     const patched: Record<string, unknown> = {
         clash: typeof patch.clash === "object" ? { ...held, ...patch.clash } : patch.clash,
         except: patch.except,

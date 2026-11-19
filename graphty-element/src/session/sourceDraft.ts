@@ -13,6 +13,7 @@ import { GraphtyError } from "../errors/GraphtyError";
 import type { ColumnRef } from "./shared";
 import type { StepsAct } from "./sources/steps/acts";
 import { built, draftApply, type DraftState, mappingEdit, stepEdit } from "./sources/steps/draft";
+import { clearPicksEdit, drillCells, drillElements, drillRows, exceptOf, pickAllEdit } from "./sources/steps/drill";
 import { matchCounts, matchValues } from "./sources/steps/match";
 import { contextIssues, type PreviewContext, previewOf } from "./sources/steps/preview";
 import {
@@ -28,6 +29,8 @@ import type {
     DataSourceInput,
     ImportOptions,
     ReaderEditRow,
+    SourceCellValue,
+    SourceClearPicksOptions,
     SourceConnectOptions,
     SourceDraft,
     SourceDraftChange,
@@ -42,10 +45,14 @@ import type {
     SourceMatchValuesOptions,
     SourceMergeOptions,
     SourceMoveColumnsOptions,
+    SourcePickAllOptions,
     SourceStepPatch,
     SourceStepRow,
     SourceTypeEntry,
 } from "./types";
+
+type DrillQueryArg = Parameters<typeof drillRows>[2];
+type CellQueryArg = Parameters<typeof drillCells>[1];
 
 /** What a draft reaches in the session that opened it. */
 export interface SourceDraftHost {
@@ -255,6 +262,55 @@ export class SourceDraftHandle implements SourceDraft {
         this.stepsAct("use", { act: "pick", id: mintEditId(), ref, column, source });
     }
 
+    /**
+     * Apply an edit worked out from the current state, as one act, unless it changes nothing.
+     * @param verb - The act.
+     * @param work - The edit and how many things it changes; a null edit records nothing.
+     * @returns How many things it changes.
+     */
+    private counted(verb: string, work: (state: DraftState) => { edit: StepsEdit | null; count: number }): number {
+        this.live(verb);
+        const { edit, count } = work(this.state);
+        if (edit !== null) {
+            this.edit(verb, edit);
+        }
+        return count;
+    }
+
+    /** @inheritdoc */
+    pickAll(options: SourcePickAllOptions): number {
+        return this.counted("pickAll", (state) => pickAllEdit(state.value, state.copies, options));
+    }
+
+    /** @inheritdoc */
+    clearPicks(options: SourceClearPicksOptions): number {
+        return this.counted("clearPicks", (state) => clearPicksEdit(state.value, options));
+    }
+
+    /**
+     * Change a step's excluded list.
+     * @param verb - The act.
+     * @param step - The step's place.
+     * @param keys - The keys.
+     * @param column - The column they are in, for an exclusion.
+     */
+    private except(verb: "exclude" | "include", step: number, keys: readonly SourceCellValue[], column?: string): void {
+        this.act(verb, (state) => {
+            const except = exceptOf(state.value, step, keys, verb, column);
+            return draftApply(state, stepEdit(state.value, state.copies, step, { except }));
+        });
+    }
+
+    /** @inheritdoc */
+    exclude(step: number, keys: readonly SourceCellValue[], options: { readonly column?: string } = {}): void {
+        this.except("exclude", step, keys, options.column);
+    }
+
+    /** @inheritdoc */
+    include(step: number, keys: readonly SourceCellValue[]): void {
+        this.except("include", step, keys);
+    }
+
     /** @inheritdoc */
     editStep(index: number, patch: SourceStepPatch): void {
         this.act("editStep", (state) => draftApply(state, stepEdit(state.value, state.copies, index, patch)));
@@ -334,7 +390,16 @@ export class SourceDraftHandle implements SourceDraft {
         if (this.previewed?.state !== this.state || this.previewed.context !== read) {
             const data = previewOf(this.base, this.state, context);
             // The internal counts are the public ones; the public types name their spellings.
-            const preview = { draft: this.id, ...data } as unknown as SourceDraftPreview;
+            const { base, state } = this;
+            // The drill-down reads the state the preview describes; kept off the enumerable data.
+            const preview = Object.defineProperties(
+                { draft: this.id, ...data },
+                {
+                    rows: { value: (q: DrillQueryArg) => drillRows(base, state, q) },
+                    elements: { value: (q: DrillQueryArg) => drillElements(state, q) },
+                    cells: { value: (q: CellQueryArg) => drillCells(state, q) },
+                },
+            ) as unknown as SourceDraftPreview;
             this.previewed = { state: this.state, context: read, preview };
         }
         return this.previewed.preview;

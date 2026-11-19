@@ -461,6 +461,25 @@ export type BuildIssue =
     | { readonly code: "E_EDGE_KEY_COLLISION"; readonly params: { load: string; key: string; steps: number[] } }
     | { readonly code: "W_REFERENCE_UNBOUND"; readonly params: { ref: ElementRef; edit: string } };
 
+/**
+ * One thing a step's count counted, kept so a draft's preview can list what is behind each count:
+ * a row of a source, an element, a key, or a cell (an element and a column).
+ */
+export interface DrillUnit {
+    /** The source whose row it is; absent, the step's own source. */
+    readonly source?: string;
+    /** The row's table, when known without its element. */
+    readonly table?: TableName;
+    /** The row's place in its table. */
+    readonly row?: number;
+    /** The element's internal id when it was counted; later merges and moves reach it through the aliases. */
+    readonly element?: string;
+    /** The key it was counted by, for a count of keys or of node 2s. */
+    readonly key?: string;
+    /** The column, space or type of a count kept by name. */
+    readonly name?: string;
+}
+
 /** Whether one reader operation found its element. */
 export interface ReaderResult {
     readonly id: string;
@@ -481,4 +500,6 @@ export interface BuildResult {
     readonly fates: Map<string, Map<string, RowFate>>;
     /** Each reader operation, in order, and whether it applied. */
     readonly readerResults: ReaderResult[];
+    /** What each count of each built step counted: by step place, then by count name. */
+    readonly drill: ReadonlyMap<number, ReadonlyMap<string, readonly DrillUnit[]>>;
 }

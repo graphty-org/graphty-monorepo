@@ -4255,6 +4255,169 @@ export interface SourceDraftPreview {
     /** Each reader edit of the draft, with its state. */
     readonly edits: readonly ReaderEditRow[];
     readonly issues: readonly SourceDraftPreviewIssue[];
+    /**
+     * The rows behind one count of one step (design 5.4): one entry per thing the count counted, so
+     * `total` is the count. Each names the row read, the key it matched by, the element it reached
+     * and that element's values in the committed graph (`held`) and in the draft (`shown`).
+     * @param query - The step, the count, a name for a count kept by name, and the page.
+     * @returns How many in all, and the page.
+     * @throws A `GraphtyError` with `E_BAD_COMMAND` for no such step (reason `no-step`) or count
+     *   (reason `bucket`).
+     */
+    rows(query: SourceDraftRowsQuery): SourceDraftRows;
+    /**
+     * The draft elements behind one count of one step, once each: what an app selects or frames.
+     * @param query - The step, the count, and a name for a count kept by name.
+     * @returns Their references; an element the commit would remove is left out.
+     */
+    elements(query: SourceDraftElementsQuery): readonly SourceElementRef[];
+    /**
+     * The cells of one column where the draft's sources disagree: each source's value, the value
+     * shown and whether a reader decision (a pick or an edit) shows it.
+     * @param query - The column, a step, which cells and the page.
+     * @returns How many cells the filter keeps, and the page.
+     */
+    cells(query: SourceDraftCellsQuery): SourceDraftCells;
+}
+
+/**
+ * A count of a step that `preview.rows` lists: a name of {@link SourceStepCounts} that is a number
+ * or kept by name.
+ * @experimental source-steps
+ */
+export type SourceDraftBucket = keyof SourceStepCountsChange;
+
+/**
+ * Which things `preview.elements` lists.
+ * @experimental source-steps
+ */
+export interface SourceDraftElementsQuery {
+    /** The step's place, as `draft.steps()` lists it. */
+    readonly step: number;
+    /** The count. */
+    readonly bucket: SourceDraftBucket;
+    /** For a count kept by name: only this column, space or type; absent, every name. */
+    readonly name?: string;
+}
+
+/**
+ * Which rows `preview.rows` lists.
+ * @experimental source-steps
+ */
+export interface SourceDraftRowsQuery extends SourceDraftElementsQuery {
+    /** How many to skip; default 0. */
+    readonly offset?: number;
+    /** How many to return at most; absent returns the rest. */
+    readonly limit?: number;
+}
+
+/**
+ * One thing a step's count counted, as `preview.rows` lists it.
+ * @experimental source-steps
+ */
+export interface SourceDraftRow {
+    /** The source whose row it is. */
+    readonly source: SourceKey;
+    /** The row's table; null for a count of elements or keys. */
+    readonly table: "nodes" | "edges" | null;
+    /** The row's place in its table; null for a count of elements or keys. */
+    readonly row: number | null;
+    /**
+     * The key it matched by: the row's value in the column `draft.exclude` reads for the step, else
+     * the counted key or the element's key.
+     */
+    readonly key: SourceCellValue | null;
+    /** For a count kept by name: its column, space or type. */
+    readonly name: string | null;
+    /** The element it reached in the draft; null when the draft holds none. */
+    readonly element: SourceElementRef | null;
+    /** That element's values in the committed graph; null when the committed graph holds none. */
+    readonly held: Readonly<Record<string, SourceValue>> | null;
+    /** The row as read; null for a count of elements or keys. */
+    readonly incoming: Readonly<Record<string, SourceCellValue | undefined>> | null;
+    /** The element's values in the draft; null when the draft holds none. */
+    readonly shown: Readonly<Record<string, SourceValue>> | null;
+    /**
+     * `"added"`: the committed graph holds no such element; `"changed"` or `"unchanged"`: its values
+     * moved or not; `"removed"`: the commit takes it out; `"left-out"`: the row built nothing.
+     */
+    readonly effect: "added" | "changed" | "removed" | "unchanged" | "left-out";
+    /** The outcomes the count is reported under (`W_FAN_OUT`, `W_UNMATCHED`, `W_VALUES_DIFFER`, ...). */
+    readonly codes: readonly SourceDraftPreviewIssue["code"][];
+}
+
+/**
+ * A page of `preview.rows`.
+ * @experimental source-steps
+ */
+export interface SourceDraftRows {
+    /** How many the count counted: the step's count, or its count for `name`. */
+    readonly total: number;
+    readonly rows: readonly SourceDraftRow[];
+}
+
+/**
+ * Which cells `preview.cells` lists.
+ * @experimental source-steps
+ */
+export interface SourceDraftCellsQuery {
+    /** The column. */
+    readonly column: string;
+    /** Only cells this step's rule settles. */
+    readonly step?: number;
+    /** `"all"` (default), `"open"`: no reader decision, or `"decided"`. */
+    readonly only?: "all" | "open" | "decided";
+    /** How many to skip; default 0. */
+    readonly offset?: number;
+    /** How many to return at most; absent returns the rest. */
+    readonly limit?: number;
+}
+
+/**
+ * One conflicting cell of a draft, as `preview.cells` lists it.
+ * @experimental source-steps
+ */
+export interface SourceDraftCell extends SourceConflict {
+    /** A reader decision (a pick or an edit) shows the value. */
+    readonly decided: boolean;
+}
+
+/**
+ * A page of `preview.cells`.
+ * @experimental source-steps
+ */
+export interface SourceDraftCells {
+    /** How many cells the filter keeps. */
+    readonly total: number;
+    readonly cells: readonly SourceDraftCell[];
+}
+
+/**
+ * Which cells `draft.pickAll` takes one source's value for.
+ * @experimental source-steps
+ */
+export interface SourcePickAllOptions {
+    /** The column. */
+    readonly column: string;
+    /** The source whose value to take. */
+    readonly source: SourceKey;
+    /** `"open"` (default): cells no reader decision settles; `"decided"`; `"all"`. */
+    readonly only?: "all" | "open" | "decided";
+    /** Only cells this step's rule settles. */
+    readonly step?: number;
+    /** Only these elements' cells, such as the rows selected in a cell list. */
+    readonly refs?: readonly SourceElementRef[];
+}
+
+/**
+ * Which picks `draft.clearPicks` takes back.
+ * @experimental source-steps
+ */
+export interface SourceClearPicksOptions {
+    /** The column. */
+    readonly column: string;
+    /** Only these elements' picks; absent, every pick in the column. */
+    readonly refs?: readonly SourceElementRef[];
 }
 
 /**
@@ -4849,6 +5012,38 @@ export interface SourceDraft {
      * @param source - The source whose value to use.
      */
     use(ref: SourceElementRef, column: string, source: SourceKey): void;
+    /**
+     * Take one source's value for many conflicting cells of a column at once: one reader edit per
+     * cell, held in the draft and taken back by one `undo()`.
+     * @param options - The column, the source, which cells, a step and the elements.
+     * @returns How many cells it picked; 0 records nothing.
+     */
+    pickAll(options: SourcePickAllOptions): number;
+    /**
+     * Take back the picks of a column, committed or made in the draft, as one act. Typed edits stay.
+     * @param options - The column and the elements.
+     * @returns How many picks it took back; 0 records nothing.
+     */
+    clearPicks(options: SourceClearPicksOptions): number;
+    /**
+     * Leave rows out of a step by their keys (design 5.4): the keys `preview.rows` gives. They join
+     * the step's excluded list (its `except`); an excluded row of a merge stays its own node.
+     * @param step - The step's place.
+     * @param keys - The keys.
+     * @param options - The column the keys are in; absent, the column the step's excluded list
+     *   already reads, else the one it matches rows by.
+     * @param options.column - The column.
+     * @throws A `GraphtyError` with `E_BAD_COMMAND` for no such step (reason `no-step`), a
+     *   `join.add` step (reason `no-except`) or a column other than the one its list reads (reason
+     *   `except-column`).
+     */
+    exclude(step: number, keys: readonly SourceCellValue[], options?: { readonly column?: string }): void;
+    /**
+     * Take keys off a step's excluded list; an empty list is taken off the step.
+     * @param step - The step's place.
+     * @param keys - The keys.
+     */
+    include(step: number, keys: readonly SourceCellValue[]): void;
     /**
      * Change one step's choices: clash rules per column, rows left out, matching, repeated rows, off.
      * @param index - The step's place, as {@link SourceDraft.steps} lists it.

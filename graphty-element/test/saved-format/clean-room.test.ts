@@ -258,8 +258,8 @@ describe("save files are self-contained", () => {
             assert.strictEqual(used.length, listed, `used every ${row.kind} the catalog lists`);
             assert.isAbove(listed, 0);
             const project = (await a.project.save()).text;
-            const settings = row.settings?.(a);
             const styleFile = a.styles.toFile();
+            const state = row.state?.(a);
             a.dispose();
 
             vi.resetModules();
@@ -273,7 +273,9 @@ describe("save files are self-contained", () => {
                     const b = clean.createGraphSession();
                     const opened = await b.project.open(text);
                     assert.deepEqual(opened.problems, [], "B opens with no problems");
-                    assert.deepEqual(row.settings?.(b), settings, "B reads A's settings");
+                    if (row.state !== undefined && text === project) {
+                        assert.deepEqual(row.state(b), state, `B holds A's ${row.kind}`);
+                    }
                     assert.isEmpty(
                         b.shaders.list().filter((each) => each.state === "held"),
                         "every carried shader is trusted by its content",
@@ -310,8 +312,8 @@ describe("save files are self-contained", () => {
         const ids = await builtInIds();
         const session = await fixtureSession(createGraphSession);
         const texts: string[] = [];
-        // A settings kind names nothing itself; its rows' names are other kinds' exceptions.
-        for (const row of SELF_CONTAINED_KINDS.filter((each) => each.settings === undefined)) {
+        // A kind with no catalog names nothing itself; style-tree-mode's rows' names are other kinds' exceptions.
+        for (const row of SELF_CONTAINED_KINDS.filter((each) => each.catalog !== false)) {
             texts.push(...(await row.useEvery(session)).saves);
         }
 

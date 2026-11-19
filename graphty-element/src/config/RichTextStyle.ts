@@ -154,6 +154,15 @@ export const RichTextStyle = z.strictObject({
     lineBox: z.enum(["font", "size", "glyphs"]).optional(),
     /** Where the border is drawn: past the panel's edge, or centered on it. */
     borderAlign: z.enum(["outside", "center"]).optional(),
+    /** How the border is drawn: one line, or the line again inside it, one line's width in. */
+    borderStyle: z
+        .enum({
+            /** One line. */
+            solid: "solid",
+            /** Two lines, the second one line's width inside the first. */
+            double: "double",
+        })
+        .optional(),
     /** The panel's shape: a rectangle, or a disc as wide as its shorter side. */
     backgroundShape: z.enum(["rectangle", "circle"]).optional(),
     /** Below how many screen pixels tall the letters are drawn the label is hidden; unset, never. */

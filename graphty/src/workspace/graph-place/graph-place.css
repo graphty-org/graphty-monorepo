@@ -98,11 +98,12 @@
 }
 
 /* The tree takes the room the find list and the footer leave and scrolls inside it, so a long
-   list never runs under Graph settings. */
+   list never runs under Graph settings. Up and down only: `overflow-y: auto` alone makes it a
+   sideways scroller too. */
 .ws-graph-place > .cm-tree {
     flex: 1 1 auto;
     min-height: 0;
-    overflow-y: auto;
+    overflow: hidden auto;
 }
 
 .ws-graph-footer {

@@ -3,7 +3,8 @@
     display: flex;
     flex-direction: column;
     min-height: 0;
-    overflow-y: auto;
+    /* Up and down only: `overflow-y: auto` alone scrolls sideways too. */
+    overflow: hidden auto;
 }
 
 .dp-title {
@@ -315,7 +316,8 @@
 .dp-tab-body {
     flex: 1;
     min-height: 0;
-    overflow-y: auto;
+    /* Up and down only: `overflow-y: auto` alone scrolls sideways too. */
+    overflow: hidden auto;
 }
 
 /* In the selection workspace a resting filter row is drawn as a result row and a source row are:

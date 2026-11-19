@@ -43,7 +43,8 @@
     position: relative;
     flex: 1 1 auto;
     min-height: 0;
-    overflow-y: auto;
+    /* Up and down only: `overflow-y: auto` alone scrolls sideways too. */
+    overflow: hidden auto;
     padding: 4px 16px 8px;
 }
 
@@ -251,7 +252,8 @@
 
 .ws-assistant-waiting {
     flex: none;
-    overflow-y: auto;
+    /* Up and down only: `overflow-y: auto` alone scrolls sideways too. */
+    overflow: hidden auto;
     max-height: 40%;
     padding: 8px;
     border-top: 1px solid var(--cm-border);

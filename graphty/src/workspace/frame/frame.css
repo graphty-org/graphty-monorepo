@@ -1,11 +1,18 @@
 /* The workspace frame's regions (tier1-design.md section 2). Colors come only from
    compact-mantine's --cm-* tokens. */
 
+/* A touchpad's sideways swipe never takes the app back or forward a page. */
+html,
+body {
+    overscroll-behavior-x: none;
+}
+
 .ws-app {
     display: flex;
     flex-direction: column;
     height: 100vh;
-    overflow: hidden;
+    /* Clipped, not hidden: a hidden box is still a scroller a wheel or focus can move. */
+    overflow: clip;
     background: var(--cm-bg);
     color: var(--cm-text);
     /* The workspace is an application, not a page: its labels, values and panels are not text to
@@ -95,11 +102,23 @@
    resize handle, which straddles the panel edge (24px wide under a coarse pointer), down to the
    half inside the panel. */
 .ws-panel-body {
+    position: relative;
     display: flex;
     flex: 1 1 auto;
     flex-direction: column;
     min-height: 0;
+    /* The panel's one scroller: up and down only, never handing a swipe on to the page, and its
+       scrollbar takes its own room so the content never runs under it. */
     overflow: hidden auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+}
+
+/* TEMPORARY: compact-mantine's virtual tree scrolls itself in both directions (`overflow: auto`,
+   compact-mantine/src/theme/css/tree.css.ts:19), so a sideways swipe moves it. Delete this rule when
+   compact-mantine makes it `overflow: hidden auto` (issue #9114, waiting for the owner's Figma approval). */
+.ws-panel-body .cm-tree[data-virtual] {
+    overflow-x: hidden;
 }
 
 .ws-left {

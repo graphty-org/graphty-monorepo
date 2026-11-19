@@ -646,8 +646,8 @@ export function Inspector(): React.JSX.Element {
             <Stack
                 gap={0}
                 data-inspected={kindId}
-                // The scrollbar takes its own room, so the content never runs under it and scrolls sideways.
-                style={{ flex: 1, minHeight: 0, overflowY: "auto", scrollbarGutter: "stable" }}
+                // The panel body around it is the one scroller (frame.css, .ws-panel-body).
+                style={{ flex: 1, minHeight: 0 }}
             >
                 <Stack gap={0} px="md" py={6}>
                     <Group gap={6} wrap="nowrap">

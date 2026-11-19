@@ -10,7 +10,17 @@ import { assert, describe, it } from "vitest";
 
 import { WRITABLE_LANE } from "../../src/data/lane";
 import type { Graph } from "../../src/Graph";
-import { landed, layoutOf, nextFrame, open, running, submitLayout, textureDiff, unmount } from "./shared-device";
+import {
+    adapterSays,
+    landed,
+    layoutOf,
+    nextFrame,
+    open,
+    running,
+    submitLayout,
+    textureDiff,
+    unmount,
+} from "./shared-device";
 
 /**
  * Waits for the layout to send a landing's drawn rows to the texture, after this call.
@@ -129,7 +139,7 @@ describe("the layout filling the row table from a separate device", () => {
     });
 
     it("frames a settled layout from the device's envelope as from a CPU walk (issue #8801)", async () => {
-        const settled = async (device: boolean): Promise<{ camera: number[]; walked: number }> => {
+        const settled = async (device: boolean): Promise<{ walked: number; graph: Graph }> => {
             const graph = await open("auto", "webgl");
             graph.setRenderPath("batched");
             await submitLayout(graph, 120, 7);
@@ -138,24 +148,28 @@ describe("the layout filling the row table from a separate device", () => {
             const walked = engine.envelopeRowsWalked;
             await graph.waitForSettled();
             await graph.waitForStableFrame();
-            const { cameraDistance, position, target } = graph.getCameraState();
-            const camera = [
-                cameraDistance ?? Number.NaN,
-                ...Object.values(position ?? {}),
-                ...Object.values(target ?? {}),
-            ];
-            return { camera, walked: engine.envelopeRowsWalked - walked };
+            return { walked: engine.envelopeRowsWalked - walked, graph };
         };
+        // Taken for hardware, as `running` does, or "auto" runs the layout on the CPU on a software adapter (CI's).
+        adapterSays("test-hardware");
         const fromDevice = await settled(true);
-        unmount();
-        const fromWalk = await settled(false);
-        // the device measured the running layout's fits, the walk measured every one of them
-        assert.isBelow(fromDevice.walked, fromWalk.walked);
-        const [distance] = fromWalk.camera;
-        assert.isAbove(distance, 0);
-        fromDevice.camera.forEach((value, i) => {
-            assert.approximately(value, fromWalk.camera[i], distance * 1e-5, `camera ${String(i)}`);
+        // The settled landing is fitted by the device's envelope, which agrees with a CPU walk of the same rows.
+        // Compared within one run: two seeded runs on a software adapter need not lay out to the same bits.
+        const both = layoutOf(fromDevice.graph).envelopeAgreement();
+        assert.isNotNull(both);
+        const { device, walked } = both;
+        assert.isNotNull(device, "the settled landing was measured on the device");
+        assert.isAbove(walked.box[5] - walked.box[2], 0, "a 3D layout, so z counts in the radius");
+        assert.approximately(device.scale / walked.scale, 1, 1e-5, "the scale");
+        const span = Math.max(...walked.box.slice(3).map((max, axis) => max - walked.box[axis]));
+        device.centre.forEach((value, axis) => {
+            assert.approximately(value, walked.centre[axis], span * 1e-5, `centre ${String(axis)}`);
         });
+        unmount();
+
+        // the device measured the running layout's fits, the walk measured every one of them
+        const fromWalk = await settled(false);
+        assert.isBelow(fromDevice.walked, fromWalk.walked);
     });
 
     it("draws every landing of a running layout on demand (issue #8801)", async () => {

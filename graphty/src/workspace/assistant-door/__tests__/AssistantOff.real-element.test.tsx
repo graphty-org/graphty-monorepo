@@ -50,7 +50,7 @@ describe("the Assistant with its experiment off", () => {
         const names = within(rail)
             .getAllByRole("button")
             .map((button) => button.getAttribute("aria-label"));
-        assert.deepEqual(names, ["Graph", "Data", "Views", "Notes", "Settings"]);
+        assert.deepEqual(names, ["Graph", "Data", "Notes", "Settings"]);
     });
 
     it("lists no Assistant in Quick actions or Keyboard shortcuts", async () => {

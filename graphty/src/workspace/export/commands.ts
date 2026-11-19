@@ -1,5 +1,6 @@
 import { imageKey } from "../canvas/legendWords";
 import { type CommandContext, defineRegistration } from "../commands/registry";
+import { cameraViewsOn } from "../features";
 import type { WorkspaceState } from "../state/store";
 import { nothingDrawn } from "../toolbar/disabledReasons";
 import { DEFAULT_IMAGE, DEFAULT_VIDEO, failureWords, fileName, IMAGE_EXTENSIONS, screenshotOptions } from "./choices";
@@ -94,55 +95,27 @@ function exportTarget(state: Pick<WorkspaceState, "dockOpen" | "dockTab">): Work
 }
 
 /**
- * Why the Export dialog cannot open: no project, or the graph is still loading.
- * @param ctx - the command context.
- * @returns the reason, or null.
- */
-function exportDisabled(ctx: CommandContext): string | null {
-    const { workspace, element } = ctx;
-    if (workspace.get().project === null) {
-        return "No project is open";
-    }
-    return element === null ? "The graph is still loading" : null;
-}
-
-/**
- * The Export dialog package's commands: Export image... and Export video..., which always open
- * the dialog on that output; Export... (the File list), which opens the dialog on Data while a
- * table is showing and on Image otherwise; a Sources row's Export..., which opens it on Data with
- * that source's records; and the Camera menu's Export image and Record video, which capture the
- * canvas without the dialog.
+ * The Export dialog package's commands: Export... (the File list), which opens the dialog on Data
+ * while a table is showing and on Image otherwise; a Sources row's Export..., which opens it on
+ * Data with that source's records; and the Camera menu's Export image and Record video, which
+ * capture the canvas without the dialog (master's two, hidden with their keys while the camera-views experiment
+ * is on: a camera or a tour exports instead).
  */
 export const registration = defineRegistration({
     owner: "export",
     commands: [
-        {
-            id: "file.export-image",
-            label: "Export image...",
-            group: "Project",
-            keywords: ["picture", "screenshot", "png", "jpeg", "webp", "download"],
-            disabled: exportDisabled,
-            run: ({ workspace }) => {
-                workspace.set({ dialog: "export", exportOn: "image", exportSource: null });
-            },
-        },
-        {
-            id: "file.export-video",
-            label: "Export video...",
-            group: "Project",
-            keywords: ["record", "recording", "movie", "tour", "webm", "mp4", "download"],
-            disabled: exportDisabled,
-            run: ({ workspace }) => {
-                workspace.set({ dialog: "export", exportOn: "video", exportSource: null, exportTour: null });
-            },
-        },
         {
             id: "file.export",
             label: "Export...",
             group: "Project",
             keys: ["Mod+E"],
             keywords: ["image", "picture", "screenshot", "png", "csv", "spreadsheet", "data", "download"],
-            disabled: exportDisabled,
+            disabled: ({ workspace, element }) => {
+                if (workspace.get().project === null) {
+                    return "No project is open";
+                }
+                return element === null ? "The graph is still loading" : null;
+            },
             run: ({ workspace }) => {
                 workspace.set({ dialog: "export", exportOn: exportTarget(workspace.get()), exportSource: null });
             },
@@ -153,6 +126,8 @@ export const registration = defineRegistration({
             group: "View",
             keys: ["Shift+I"],
             keywords: ["screenshot", "picture", "png"],
+            experiment: true,
+            shown: ({ session }) => !cameraViewsOn(session),
             disabled: noCapture,
             run: exportImage,
         },
@@ -162,6 +137,8 @@ export const registration = defineRegistration({
             group: "View",
             keys: ["Shift+R"],
             keywords: ["video", "screen recording", "stop recording", "webm"],
+            experiment: true,
+            shown: ({ session }) => !cameraViewsOn(session),
             disabled: noCapture,
             run: recordVideo,
         },

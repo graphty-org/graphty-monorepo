@@ -13,9 +13,12 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 import { cdp, page, userEvent } from "vitest/browser";
 
+import { withFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
+
+withFeatures(["camera-views"]);
 
 type GraphElement = HTMLElementTagNameMap["graphty-element"];
 type CameraState = ReturnType<GraphElement["getCameraState"]>;
@@ -191,7 +194,6 @@ describe("the Views place", () => {
         assert.deepEqual(listedCameras(), STARTING);
         for (const [name, key] of [
             ["Top", "7"],
-            ["Bottom", "9"],
             ["Front", "1"],
             ["Side", "3"],
         ]) {

@@ -1,10 +1,10 @@
 /**
  * The Camera menu, the camera keys and the toolbar while a tour plays, on the REAL graphty-element
  * (design/ui/camera-views-tours-and-capture.md, sections 3.2, 3.4 and 3.5): the menu lists the
- * cameras with their keys, Fit, Fit selection, zoom in 2D and the two switches, and nothing else; a
+ * cameras with their keys, Fit, Frame selection, zoom in 2D and the two switches, and nothing else; a
  * camera's digit flies there, never while typing; Camera and Mode stay one flex gap apart, and
  * while a tour plays the Camera tool is Stop. Every change is real input; every assertion reads
- * what is drawn or what the element reports.
+ * what is drawn or what the element reports. All with the camera-views experiment on.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -14,10 +14,13 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { withFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
+
+withFeatures(["camera-views"]);
 
 type GraphElement = HTMLElementTagNameMap["graphty-element"];
 type CameraState = ReturnType<GraphElement["getCameraState"]>;
@@ -147,24 +150,22 @@ async function openViewsPlace(): Promise<HTMLElement> {
 }
 
 describe("the Camera menu", () => {
-    it("holds exactly the cameras with their keys, Fit, Fit selection, the two switches and the captures; in 2D zoom too", async () => {
+    it("holds exactly the cameras with their keys, Fit, Frame selection and the two switches; in 2D zoom too", async () => {
         const { session } = await openRing();
         await session.views.save([{ name: "Hub cluster", key: "2" }]);
 
         let menu = await openCamera();
         assert.deepEqual(rowsOf(menu), [
             { text: "Top7", disabled: false },
-            { text: "Bottom9", disabled: false },
+            { text: "Bottom", disabled: false },
             { text: "Front1", disabled: false },
             { text: "Side3", disabled: false },
             { text: "Isometric", disabled: false },
             { text: "Hub cluster2", disabled: false },
             { text: "Fit0", disabled: false },
-            { text: "Fit selectionSelect something firstF", disabled: true },
-            { text: "Auto-rotate", disabled: false },
-            { text: "Focus selected", disabled: false },
-            { text: "Export imageShift+I", disabled: false },
-            { text: "Record videoShift+R", disabled: false },
+            { text: "Frame selectionSelect something firstF", disabled: true },
+            { text: "Auto-rotate9", disabled: false },
+            { text: "Follow selection", disabled: false },
         ]);
         await closeMenu();
 
@@ -175,33 +176,29 @@ describe("the Camera menu", () => {
         menu = await openCamera();
         assert.deepEqual(rowsOf(menu), [
             { text: "Top7", disabled: false },
-            { text: "Bottom3D only9", disabled: true },
+            { text: "Bottom3D only", disabled: true },
             { text: "Front3D only1", disabled: true },
             { text: "Side3D only3", disabled: true },
             { text: "Isometric3D only", disabled: true },
             { text: "Hub clusterSaved in 3D2", disabled: true },
             { text: "Fit0", disabled: false },
-            { text: "Fit selectionSelect something firstF", disabled: true },
+            { text: "Frame selectionSelect something firstF", disabled: true },
             { text: "Zoom in", disabled: false },
             { text: "Zoom out", disabled: false },
-            { text: "Auto-rotateOnly in 3D", disabled: true },
-            { text: "Focus selected", disabled: false },
-            { text: "Export imageShift+I", disabled: false },
-            { text: "Record videoShift+R", disabled: false },
+            { text: "Auto-rotateOnly in 3D9", disabled: true },
+            { text: "Follow selection", disabled: false },
         ]);
     });
 
-    it("lists the first twelve cameras and then All cameras..., which opens the Views place", async () => {
+    it("lists every camera, with no All cameras... row", async () => {
         const { session } = await openRing();
         // Five starting cameras and eight more.
         await session.views.save(Array.from({ length: 8 }, (_, i) => ({ name: `Spot ${String(i + 1)}` })));
 
         const menu = await openCamera();
         const texts = rowsOf(menu).map(({ text }) => text);
-        assert.include(texts, "Spot 7");
-        assert.notInclude(texts, "Spot 8");
-        await userEvent.click(within(menu).getByRole("menuitem", { name: "All cameras..." }));
-        assert.isNotNull(await screen.findByRole("region", { name: "Views place" }));
+        assert.include(texts, "Spot 8");
+        assert.isNull(within(menu).queryByRole("menuitem", { name: "All cameras..." }));
     });
 
     it("draws no camera rows and no divider when the project has no cameras", async () => {
@@ -210,13 +207,13 @@ describe("the Camera menu", () => {
 
         const menu = await openCamera();
         assert.equal(rowsOf(menu)[0]?.text, "Fit0");
-        // The dividers left are the ones above the switches and above Export image.
-        assert.lengthOf(menu.querySelectorAll(".mantine-Menu-divider"), 2);
+        // The divider left is the one above the switches.
+        assert.lengthOf(menu.querySelectorAll(".mantine-Menu-divider"), 1);
     });
 });
 
 describe("the camera keys", () => {
-    it("binds 1-4 and 6-9 only to the camera keys, and 0 and 5 only to Fit and the 2D/3D switch", () => {
+    it("binds 1-4 and 6-8 to the camera keys, taking 1, 3 and 7 from master's views, and 0, 5 and 9 to Fit, the 2D/3D switch and Auto-rotate", () => {
         const holders = new Map<string, string[]>();
         for (const registration of REGISTRATIONS) {
             for (const command of registration.commands) {
@@ -227,11 +224,17 @@ describe("the camera keys", () => {
                 }
             }
         }
-        for (const digit of ["1", "2", "3", "4", "6", "7", "8", "9"]) {
-            assert.deepEqual(holders.get(digit), [`camera.key-${digit}`], digit);
+        const master: Readonly<Record<string, string>> = { "1": "view.front", "3": "view.side", "7": "view.top" };
+        for (const digit of ["1", "2", "3", "4", "6", "7", "8"]) {
+            assert.sameMembers(
+                holders.get(digit) ?? [],
+                [`camera.key-${digit}`, ...(digit in master ? [master[digit]] : [])],
+                digit,
+            );
         }
         assert.deepEqual(holders.get("0"), ["view.fit"]);
         assert.deepEqual(holders.get("5"), ["view.toggle-dimension"]);
+        assert.deepEqual(holders.get("9"), ["view.auto-rotate"]);
     });
 
     it("in 2D, Top's key 7 frames every node of a graph far wider than ten units", async () => {

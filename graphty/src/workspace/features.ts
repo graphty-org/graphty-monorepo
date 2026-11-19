@@ -41,3 +41,15 @@ export function fileStylesOn(session: GraphSession | null | undefined): boolean 
 export function nodeModelsOn(session: GraphSession | null | undefined): boolean {
     return (session?.features.enabled ?? []).includes("node-models");
 }
+
+/**
+ * Whether the camera views experiment is on (issue #8814). On, the rail has a Views place for
+ * saved cameras and video tours, the Camera menu lists the cameras, digit keys go to them, and an
+ * image or video is exported from a camera or a tour; off, the rail, the Camera menu and Export are
+ * master's.
+ * @param session - the element's session, or null before it comes up.
+ * @returns true when the element switched the experiment on.
+ */
+export function cameraViewsOn(session: GraphSession | null | undefined): boolean {
+    return (session?.features.enabled ?? []).includes("camera-views");
+}

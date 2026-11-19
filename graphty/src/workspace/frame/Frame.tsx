@@ -31,6 +31,7 @@ import { Header } from "./Header";
 import { NoticeSlot } from "./NoticeSlot";
 import { PanelBoundary } from "./PanelBoundary";
 import { Rail } from "./Rail";
+import { useShownPlace } from "./shownPlace";
 import { SiteChip } from "./SiteChip";
 import { WebGpuChip } from "./WebGpuChip";
 
@@ -64,6 +65,7 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
     const projectId = useWorkspaceState((state) => state.project?.id ?? 0);
     const page = useWorkspaceState((state) => state.page);
     const place = useWorkspaceState((state) => state.place);
+    const shownPlace = useShownPlace(place);
     const left = useLeftPanel();
     const rightWidth = useWorkspaceState((state) => state.rightWidth);
     const dockOpen = useWorkspaceState((state) => state.dockOpen);
@@ -133,8 +135,8 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                     inert={covered !== null}
                 >
                     <div className="ws-panel-body">
-                        <PanelBoundary key={place} name="Place">
-                            {PLACES[place]}
+                        <PanelBoundary key={shownPlace} name="Place">
+                            {PLACES[shownPlace]}
                         </PanelBoundary>
                     </div>
                     {left.fills ? null : (

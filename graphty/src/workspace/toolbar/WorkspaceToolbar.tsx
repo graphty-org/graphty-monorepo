@@ -8,6 +8,7 @@ import React, { forwardRef, useEffect, useReducer, useRef } from "react";
 
 import { AnalyzePopover } from "../analyze/AnalyzePopover";
 import type { PaletteRow } from "../commands/registry";
+import { cameraViewsOn } from "../features";
 import { tabStops } from "../frame/focus";
 import { CommandMenuItem, Sections } from "../frame/menus";
 import { GLYPHS } from "../glyphs";
@@ -188,9 +189,6 @@ function ModeMenuRows({ session }: Readonly<{ session: GraphSession | null }>): 
     );
 }
 
-/** How many cameras the Camera menu lists; past them "All cameras..." opens the Views place. */
-const MENU_CAMERAS = 12;
-
 /**
  * One Camera menu row for a saved camera (a Quick actions row too), with its key: disabled with
  * its reason, and a failure becomes a notice.
@@ -218,35 +216,112 @@ function RowItem({ row }: Readonly<{ row: PaletteRow }>): React.JSX.Element {
 }
 
 /**
- * The reader's cameras on the Camera menu, in project order with their keys: the first twelve,
- * then "All cameras..." to the Views place when there are more; nothing (and no divider) with
- * none. Cameras are managed in the Views place, never here.
+ * The reader's cameras on the camera-views Camera menu, every one in project order with its key;
+ * nothing (and no divider) with none. Cameras are managed in the Views place, never here.
  * @returns The rows
  */
 function CameraRows(): React.JSX.Element | null {
     const workspace = useWorkspace();
     const rows = savedViewRows(workspace);
-    const all = useCommand("place.views");
     if (rows.length === 0) {
         return null;
     }
     return (
         <>
-            {rows.slice(0, MENU_CAMERAS).map((row) => (
+            {rows.map((row) => (
                 <RowItem key={row.id} row={row} />
             ))}
-            {rows.length > MENU_CAMERAS && all !== null ? (
-                <CommandMenuItem label="All cameras..." shortcut={undefined} reason={null} onRun={all.run} />
-            ) : null}
             <Menu.Divider />
         </>
     );
 }
 
 /**
- * The Camera menu (design/ui/camera-views-tours-and-capture.md, section 3.2): every camera, Fit and
- * Fit selection, Zoom in and Zoom out in 2D, then the Auto-rotate and Focus selected switches, then
- * Export image and Record video, which reads Stop recording while it records.
+ * The Camera menu with the camera-views experiment on (design/ui/camera-views-tours-and-capture.md,
+ * section 3.2): every camera, Fit and Frame selection, Zoom in and Zoom out in 2D, then the
+ * Auto-rotate and Follow selection switches.
+ * @param props - Component props
+ * @param props.session - The element's session, or null
+ * @returns The menu's rows
+ */
+function CameraViewsMenuRows({ session }: Readonly<{ session: GraphSession | null }>): React.JSX.Element {
+    const flat = session?.layout.dimension === "2d";
+    const autoRotate = useWorkspaceState((state) => state.autoRotate);
+    const followSelection = useWorkspaceState((state) => state.followSelection);
+    const { element } = useWorkspace();
+    return (
+        <>
+            {session === null ? null : <CameraRows />}
+            <Sections
+                sections={[["view.fit", "view.frame-selection", ...(flat ? ["view.zoom-in", "view.zoom-out"] : [])]]}
+            />
+            <Menu.Divider />
+            <CheckItem
+                command="view.auto-rotate"
+                label="Auto-rotate"
+                checked={autoRotate && element?.isMotionReduced() !== true}
+                shortcut="9"
+                radio={false}
+            />
+            <CheckItem
+                command="view.follow-selection"
+                label="Follow selection"
+                checked={followSelection}
+                radio={false}
+            />
+        </>
+    );
+}
+
+/**
+ * The reader's saved views on the Camera menu: a row each that moves the camera there, then a
+ * Remove view submenu naming them. Nothing while none is saved.
+ * @param props - Component props
+ * @param props.session - The element's session
+ * @returns The rows
+ */
+function SavedViewRows({ session }: Readonly<{ session: GraphSession }>): React.JSX.Element | null {
+    const names = [...session.views.keys()];
+    if (names.length === 0) {
+        return null;
+    }
+    return (
+        <>
+            {names.map((name) => (
+                <Menu.Item
+                    key={name}
+                    onClick={() => {
+                        void session.execute({ op: "view.camera", preset: name, animate: true });
+                    }}
+                >
+                    {name}
+                </Menu.Item>
+            ))}
+            <Menu.Sub>
+                <Menu.Sub.Target>
+                    <Menu.Sub.Item>Remove view</Menu.Sub.Item>
+                </Menu.Sub.Target>
+                <Menu.Sub.Dropdown>
+                    {names.map((name) => (
+                        <Menu.Item
+                            key={name}
+                            onClick={() => {
+                                void session.views.remove([name]);
+                            }}
+                        >
+                            {name}
+                        </Menu.Item>
+                    ))}
+                </Menu.Sub.Dropdown>
+            </Menu.Sub>
+        </>
+    );
+}
+
+/**
+ * The Camera menu: Fit and Frame selection; the four standard views, disabled with their reason in
+ * 2D; the saved views and Save view; zoom in and out in 2D; the Auto-rotate and Follow selection
+ * switches; then Export image and Record video, which reads Stop recording while it records.
  * @param props - Component props
  * @param props.session - The element's session, or null
  * @returns The menu's rows
@@ -260,18 +335,29 @@ function CameraMenuRows({ session }: Readonly<{ session: GraphSession | null }>)
     const record = useCommand("view.record-video");
     return (
         <>
-            {session === null ? null : <CameraRows />}
             <Sections
-                sections={[["view.fit", "view.frame-selection", ...(flat ? ["view.zoom-in", "view.zoom-out"] : [])]]}
+                sections={[
+                    ["view.fit", "view.frame-selection"],
+                    ["view.front", "view.side", "view.top", "view.isometric"],
+                ]}
             />
+            <Menu.Divider />
+            {session === null ? null : <SavedViewRows session={session} />}
+            <Sections sections={[["view.save"], ...(flat ? [["view.zoom-in", "view.zoom-out"]] : [])]} />
             <Menu.Divider />
             <CheckItem
                 command="view.auto-rotate"
                 label="Auto-rotate"
                 checked={autoRotate && element?.isMotionReduced() !== true}
+                shortcut="9"
                 radio={false}
             />
-            <CheckItem command="view.follow-selection" label="Focus selected" checked={followSelection} radio={false} />
+            <CheckItem
+                command="view.follow-selection"
+                label="Follow selection"
+                checked={followSelection}
+                radio={false}
+            />
             <Menu.Divider />
             <Sections sections={[["view.export-image"]]} />
             {record === null ? null : (
@@ -421,7 +507,9 @@ export function WorkspaceToolbar(): React.JSX.Element {
     const timelineOpen = useWorkspaceState((state) => state.timelineOpen);
     // While a tour plays the Camera tool is Stop; while a recording plays one, the Export dialog
     // covers the toolbar and holds its own Stop, so the tool stays Camera.
-    const touring = useWorkspaceState((state) => state.tourProgress !== null && state.dialog !== "export");
+    const touring =
+        useWorkspaceState((state) => state.tourProgress !== null && state.dialog !== "export") &&
+        cameraViewsOn(session);
     const mode = viewMode(session);
     // The button each popover opened from. Mantine's own returnFocus records the element focused
     // when the popover opens, but the Filter box and the Quick actions search focus themselves as
@@ -451,7 +539,7 @@ export function WorkspaceToolbar(): React.JSX.Element {
             },
             position: "top",
             offset: 8,
-            // Closing (Esc, Run, a pick, a menu row such as Fit selection) unmounts the focused
+            // Closing (Esc, Run, a pick, a menu row such as Frame selection) unmounts the focused
             // control; focus goes back to the popover's button, unless the reader has already put
             // it somewhere else.
             onClose: () => {
@@ -565,7 +653,11 @@ export function WorkspaceToolbar(): React.JSX.Element {
                         <CommandTool ref={anchor("camera")} command="view.camera" icon={<GLYPHS.camera size={20} />} />
                     </Menu.Target>
                     <Menu.Dropdown aria-label="Camera">
-                        <CameraMenuRows session={session} />
+                        {cameraViewsOn(session) ? (
+                            <CameraViewsMenuRows session={session} />
+                        ) : (
+                            <CameraMenuRows session={session} />
+                        )}
                     </Menu.Dropdown>
                 </Menu>
             )}

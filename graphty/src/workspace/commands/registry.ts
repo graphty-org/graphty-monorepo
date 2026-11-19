@@ -213,14 +213,7 @@ export function stubCommands(commands: readonly Omit<Command, "run" | "stub">[])
  * (tier1-design.md section 2.1). Drawn once, in the main menu, and left out of the start
  * screen's copy. Each is registered by the package that owns it.
  */
-export const FILE_LIST = [
-    "project.save",
-    "project.save-as",
-    "project.save-copy",
-    "file.export-image",
-    "file.export-video",
-    "file.export",
-] as const;
+export const FILE_LIST = ["project.save", "project.save-as", "project.save-copy", "file.export"] as const;
 
 /**
  * Every command id the tier 1 design needs, by owning package. A package that drops one fails
@@ -265,7 +258,6 @@ export const EXPECTED_COMMAND_IDS: Readonly<Record<string, readonly string[]>> =
         "camera.key-6",
         "camera.key-7",
         "camera.key-8",
-        "camera.key-9",
     ],
     "graph-place": [
         "find.focus",
@@ -278,7 +270,7 @@ export const EXPECTED_COMMAND_IDS: Readonly<Record<string, readonly string[]>> =
     ],
     style: ["style.add-label-line", "style.layer-from-selection", "shader.add"],
     table: ["table.toggle"],
-    export: ["file.export-image", "file.export-video", "file.export"],
+    export: ["file.export"],
     project: ["project.save", "project.save-as", "project.save-copy", "project.close"],
 };
 
@@ -315,7 +307,20 @@ export interface WorkspaceCommands {
 }
 
 /**
- * Adds one command and its keys, refusing a duplicate id or a key another command holds.
+ * Whether two commands may hold the same key: an experiment's command (it names its `feature`) and a
+ * command the experiment hides while on (`experiment: true`, no `feature`), whose `shown` gates
+ * keep exactly one of them live (Front's 1 and the camera key 1 of camera-views).
+ * @param a - one command.
+ * @param b - the other.
+ * @returns true when they take turns.
+ */
+function takeTurns(a: Command, b: Command): boolean {
+    return a.experiment === true && b.experiment === true && (a.feature === undefined) !== (b.feature === undefined);
+}
+
+/**
+ * Adds one command and its keys, refusing a duplicate id or a key another command holds, unless
+ * the two take turns with it.
  * @param byId - the commands so far, by id.
  * @param byKey - the command id holding each key so far.
  * @param command - the command to add.
@@ -329,7 +334,8 @@ function addCommand(byId: Map<string, Command>, byKey: Map<string, string>, comm
     for (const key of command.keys ?? []) {
         assertAppKey(key, command.id);
         const holder = byKey.get(key);
-        if (holder !== undefined) {
+        const held = holder === undefined ? undefined : byId.get(holder);
+        if (holder !== undefined && (held === undefined || !takeTurns(held, command))) {
             throw new Error(`Key "${key}" is bound to both "${holder}" and "${command.id}"`);
         }
         byKey.set(key, command.id);

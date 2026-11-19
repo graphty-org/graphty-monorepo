@@ -4,22 +4,29 @@ import { PageList } from "@graphty/compact-mantine";
 import { Modal, Text } from "@mantine/core";
 import React, { lazy, Suspense, useEffect, useRef, useState } from "react";
 
+import { cameraViewsOn } from "../features";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
+import { CameraImageOutput } from "./CameraImageOutput";
 import {
+    type CameraImageChoices,
     type DataChoices,
+    DEFAULT_CAMERA_IMAGE,
     DEFAULT_DATA,
     DEFAULT_IMAGE,
     DEFAULT_REPORT,
+    DEFAULT_TOUR_VIDEO,
     DEFAULT_VIDEO,
     type ImageChoices,
     type OutputId,
     type RecentExport,
     type ReportChoices,
+    type TourVideoChoices,
     type VideoChoices,
 } from "./choices";
 import { DataOutput } from "./DataOutput";
 import { DocumentOutput } from "./DocumentOutput";
 import { ImageOutput } from "./ImageOutput";
+import { TourVideoOutput } from "./TourVideoOutput";
 import { VideoOutput } from "./VideoOutput";
 
 /** The Report's own chunk: its table and notes words are loaded when Report is chosen, not with the start page. */
@@ -49,6 +56,7 @@ const RECENT_MAX = 5;
  * the tour `exportTour` names, for a tour's Record...), or on Data with CSV and the table the store's
  * `exportOn` names (whenever a table is showing), scoped to the whole graph, or to the source `exportSource`
  * names for a Sources row's Export... (that opening only), and keeps each output's choices while the workspace is mounted.
+ * With the camera-views experiment on, Image and Video are the camera and tour outputs; off, master's.
  * @returns The dialog
  */
 export function ExportDialog(): React.JSX.Element {
@@ -61,6 +69,9 @@ export function ExportDialog(): React.JSX.Element {
     const [output, setOutput] = useState<OutputId>("image");
     const [image, setImage] = useState<ImageChoices>(DEFAULT_IMAGE);
     const [video, setVideo] = useState<VideoChoices>(DEFAULT_VIDEO);
+    const [cameraImage, setCameraImage] = useState<CameraImageChoices>(DEFAULT_CAMERA_IMAGE);
+    const [tourVideo, setTourVideo] = useState<TourVideoChoices>(DEFAULT_TOUR_VIDEO);
+    const cameraViews = cameraViewsOn(session);
     const [data, setData] = useState<DataChoices>(DEFAULT_DATA);
     const [report, setReport] = useState<ReportChoices>(DEFAULT_REPORT);
     const [recent, setRecent] = useState<readonly RecentExport[]>([]);
@@ -77,7 +88,7 @@ export function ExportDialog(): React.JSX.Element {
             setOutput(exportOn);
             if (exportOn === "video" && exportTour !== null) {
                 // A tour's Record...: Video with that tour chosen.
-                setVideo((choices) => ({ ...choices, camera: "tour", tour: exportTour }));
+                setTourVideo((choices) => ({ ...choices, camera: "tour", tour: exportTour }));
             }
             setData((choices) => ({ ...choices, scope }));
         } else {
@@ -120,11 +131,15 @@ export function ExportDialog(): React.JSX.Element {
     const settingsAtPress = useRef(false);
     // The choices as they are when a file is done, not as they were when its output last drew: a
     // recording names its tour as it starts and ends seconds later.
-    const latest = useRef({ image, video, data });
-    latest.current = { image, video, data };
+    const latest = useRef<{ image: RecentExport["choices"]; video: RecentExport["choices"]; data: DataChoices }>({
+        image,
+        video,
+        data,
+    });
+    latest.current = cameraViews ? { image: cameraImage, video: tourVideo, data } : { image, video, data };
     const done = (message: string, file?: string): void => {
         if (file !== undefined) {
-            const choices = latest.current[output as "image" | "video" | "data"] as RecentExport["choices"];
+            const choices = latest.current[output as "image" | "video" | "data"];
             setRecent((list) =>
                 [{ output, name: file, choices }, ...list.filter((entry) => entry.name !== file)].slice(0, RECENT_MAX),
             );
@@ -136,9 +151,17 @@ export function ExportDialog(): React.JSX.Element {
         const entry = recent[index];
         setOutput(entry.output);
         if (entry.output === "image") {
-            setImage(entry.choices as ImageChoices);
+            if (cameraViews) {
+                setCameraImage(entry.choices as CameraImageChoices);
+            } else {
+                setImage(entry.choices as ImageChoices);
+            }
         } else if (entry.output === "video") {
-            setVideo(entry.choices as VideoChoices);
+            if (cameraViews) {
+                setTourVideo(entry.choices as TourVideoChoices);
+            } else {
+                setVideo(entry.choices as VideoChoices);
+            }
         } else if (entry.output === "data") {
             setData(entry.choices as DataChoices);
         }
@@ -147,16 +170,22 @@ export function ExportDialog(): React.JSX.Element {
     const body = (() => {
         switch (output) {
             case "image":
-                return <ImageOutput choices={image} onChange={setImage} onCancel={close} onDone={done} />;
+                return cameraViews ? (
+                    <CameraImageOutput choices={cameraImage} onChange={setCameraImage} onCancel={close} onDone={done} />
+                ) : (
+                    <ImageOutput choices={image} onChange={setImage} onCancel={close} onDone={done} />
+                );
             case "video":
-                return (
-                    <VideoOutput
-                        choices={video}
-                        onChange={setVideo}
+                return cameraViews ? (
+                    <TourVideoOutput
+                        choices={tourVideo}
+                        onChange={setTourVideo}
                         onCancel={close}
                         onDone={done}
                         onRecording={setRecording}
                     />
+                ) : (
+                    <VideoOutput choices={video} onChange={setVideo} onCancel={close} onDone={done} />
                 );
             case "data":
                 return (

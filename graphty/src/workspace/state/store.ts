@@ -320,7 +320,7 @@ export interface WorkspaceState {
     /** Camera > Record video: whether a recording of the canvas is running, until it is stopped. */
     readonly recording: boolean;
     /**
-     * Camera > Focus selected: the camera glides to the selection and keeps it centered while it
+     * Camera > Follow selection: the camera glides to the selection and keeps it centered while it
      * moves (graphty-element's `camera.pivotOnSelection`). On by default; a view preference, never saved.
      */
     readonly followSelection: boolean;

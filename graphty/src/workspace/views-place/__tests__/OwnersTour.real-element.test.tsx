@@ -19,9 +19,12 @@ import "@graphty/graphty-element";
 import { assert, describe, it } from "vitest";
 import { commands, page, userEvent } from "vitest/browser";
 
+import { withFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
+
+withFeatures(["camera-views"]);
 
 type GraphElement = HTMLElementTagNameMap["graphty-element"];
 type CameraState = ReturnType<GraphElement["getCameraState"]>;

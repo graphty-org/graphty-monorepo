@@ -1,7 +1,7 @@
 /**
- * Where a sample is drawn when it opens, and where Fit selection puts a node, on the REAL
+ * Where a sample is drawn when it opens, and where Frame selection puts a node, on the REAL
  * graphty-element. The drawing is centered on the canvas: the overlays over it (the toolbar, the
- * key) have no part in the framing (owner, 2026-10-24, #3372). Fit selection in 3D moves the camera's target and
+ * key) have no part in the framing (owner, 2026-10-24, #3372). Frame selection in 3D moves the camera's target and
  * distance and keeps the direction it looks from.
  */
 
@@ -79,7 +79,7 @@ describe("a sample opens centered", () => {
         });
     }
 
-    it("Fit selection in 3D keeps the camera's direction and puts the node at the center", async () => {
+    it("Frame selection in 3D keeps the camera's direction and puts the node at the center", async () => {
         const { element, session } = await open("/samples/karate.gml");
         assert.equal(session.layout.dimension, "3d");
         const direction = (): number[] => {

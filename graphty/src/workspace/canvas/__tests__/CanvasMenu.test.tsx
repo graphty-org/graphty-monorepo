@@ -103,9 +103,9 @@ describe("the canvas context menu", () => {
         assert.deepEqual(apply.mock.calls, [[{ nodes: ["n1"] }, "replace", { cause: "user" }]]);
         const labels = rows();
         assert.isTrue(labels.some((label) => label.startsWith("Neighborhood")));
-        assert.isTrue(labels.some((label) => label.startsWith("Fit selection")));
+        assert.isTrue(labels.some((label) => label.startsWith("Frame selection")));
         assert.isTrue(labels.some((label) => label.startsWith("Simulate removing")));
-        assert.isFalse(labels.some((label) => /^Fit(?! selection)/.test(label)));
+        assert.isFalse(labels.some((label) => label.startsWith("Fit")));
     });
 
     it("selects exactly the edge under the pointer and lists that edge's commands", async () => {
@@ -115,10 +115,10 @@ describe("the canvas context menu", () => {
         assert.isTrue(labels.some((label) => label.startsWith("Select endpoints")));
         assert.isTrue(labels.some((label) => label.startsWith("Simulate removing")));
         assert.isFalse(labels.some((label) => label.startsWith("Neighborhood")));
-        assert.isFalse(labels.some((label) => /^Fit(?! selection)/.test(label)));
+        assert.isFalse(labels.some((label) => label.startsWith("Fit")));
     });
 
-    it("lists Fit, Fit selection and Clear selection over empty canvas, selecting nothing", async () => {
+    it("lists Fit, Frame selection and Clear selection over empty canvas, selecting nothing", async () => {
         const apply = await rightClick(null);
         assert.equal(apply.mock.calls.length, 0);
         const labels = rows();

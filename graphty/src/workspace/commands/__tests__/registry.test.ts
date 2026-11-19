@@ -85,6 +85,19 @@ describe("the workspace command registry", () => {
         assert.throws(() => createRegistry([both]), /bound to both/);
     });
 
+    it("lets an experiment's command share a key with the command it hides, and no other pair", () => {
+        const turns = (y: Partial<WorkspaceRegistration["commands"][number]>): WorkspaceRegistration => ({
+            owner: "a",
+            commands: [
+                { id: "x", label: "X", group: "View", keys: ["Mod+K"], experiment: true, run: noop },
+                { id: "y", label: "Y", group: "View", keys: ["Mod+K"], run: noop, ...y },
+            ],
+        });
+        assert.isDefined(createRegistry([turns({ experiment: true, feature: "camera-views" })]).get("y"));
+        assert.throws(() => createRegistry([turns({ experiment: true })]), /bound to both/);
+        assert.throws(() => createRegistry([turns({ feature: "camera-views" })]), /bound to both/);
+    });
+
     it("refuses a key graphty-element owns on a focused canvas", () => {
         for (const key of ["W", "a", "=", "-", "ArrowLeft", "Shift+ArrowRight"]) {
             const registration: WorkspaceRegistration = {

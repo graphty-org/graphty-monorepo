@@ -5,6 +5,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { userEvent, waitFor, within } from "storybook/test";
 
 import { freshStore, storeOf } from "../../stories/freshStore";
+import { onSiteWith } from "../../test/siteFeatures";
 import type { WorkspaceState } from "../state/store";
 import { Workspace } from "../Workspace";
 
@@ -75,11 +76,12 @@ function exportStory(exportOn: WorkspaceState["exportOn"]): Story {
 }
 
 /** Export > Image: the "To share" preset, the legend callout and the preview the element draws. */
-export const Image: Story = exportStory("image");
+export const Image: Story = { ...exportStory("image"), beforeEach: onSiteWith([]) };
 
-/** Export > Image with a saved camera chosen in Camera: the picture is taken from that camera. */
+/** Export > Image with a saved camera chosen in Camera: the picture is taken from that camera (the camera-views experiment on). */
 export const ImageSavedView: Story = {
     ...freshStore({ project: { name: "Ring", id: 1 } }),
+    beforeEach: onSiteWith(["camera-views"]),
     play: async (context) => {
         const { canvasElement } = context;
         const store = storeOf(context);
@@ -108,14 +110,15 @@ export const ImageSavedView: Story = {
 };
 
 /** Export > Data, opened on the node table: CSV, what it cannot hold, and the first lines with the Degree columns. */
-export const Data: Story = exportStory("nodes");
+export const Data: Story = { ...exportStory("nodes"), beforeEach: onSiteWith([]) };
 
 /**
  * Export > Video with a saved tour chosen: its length from the element's plan, the frame rate and
- * the frame count.
+ * the frame count (the camera-views experiment on).
  */
 export const VideoTour: Story = {
     ...freshStore({ project: { name: "Ring", id: 1 } }),
+    beforeEach: onSiteWith(["camera-views"]),
     play: async (context) => {
         const { canvasElement } = context;
         const store = storeOf(context);
@@ -140,9 +143,10 @@ export const VideoTour: Story = {
     },
 };
 
-/** Export > Video with no tours: Motion on Still with its Camera list, and Video tours... to the Views place. */
+/** Export > Video with no tours: Motion on Still with its Camera list, and Video tours... to the Views place (the camera-views experiment on). */
 export const VideoNoTours: Story = {
     ...freshStore({ project: { name: "Ring", id: 1 } }),
+    beforeEach: onSiteWith(["camera-views"]),
     play: async (context) => {
         const { canvasElement } = context;
         const store = storeOf(context);

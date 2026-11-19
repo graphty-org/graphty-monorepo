@@ -10,6 +10,7 @@ import { findKept, reopenOwn } from "./autosave/autosave";
 import { createRegistry, type WorkspaceRegistration } from "./commands/registry";
 import { ScoreDialog } from "./data-place/ScoreDialog";
 import { ExportDialog } from "./export/ExportDialog";
+import { cameraViewsOn } from "./features";
 import { focusIsLost, focusOpenedGraph, focusOpenedGraphLater, installFocusGuard } from "./frame/focus";
 import { HelpDialogs } from "./frame/HelpDialogs";
 import { NoticeSlot } from "./frame/NoticeSlot";
@@ -142,14 +143,16 @@ export function Workspace({
         // The app's starting cameras for every project (design/ui/camera-views-tours-and-capture.md,
         // section 3.3): ordinary saved cameras the element writes once into a project that never had
         // them, with no undo step, and never again once the reader changed them. Handed to every new
-        // element before its first load, whatever opens it.
-        const starting = session.views.setStartingCameras([
-            { name: "Top", follows: "topView", key: "7" },
-            { name: "Bottom", follows: "bottomView", key: "9" },
-            { name: "Front", follows: "frontView", key: "1" },
-            { name: "Side", follows: "sideView", key: "3" },
-            { name: "Isometric", follows: "isometric" },
-        ]);
+        // element before its first load, whatever opens it. Only with the camera-views experiment on.
+        const starting = cameraViewsOn(session)
+            ? session.views.setStartingCameras([
+                  { name: "Top", follows: "topView", key: "7" },
+                  { name: "Bottom", follows: "bottomView" },
+                  { name: "Front", follows: "frontView", key: "1" },
+                  { name: "Side", follows: "sideView", key: "3" },
+                  { name: "Isometric", follows: "isometric" },
+              ])
+            : Promise.resolve();
         // The reader's name from Settings, which graphty-element stamps on each note and never
         // saves in a project file, so each opened project is told it again.
         const author = readAuthor();

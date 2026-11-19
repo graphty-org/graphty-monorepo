@@ -5,7 +5,10 @@ import { assert, describe, it } from "vitest";
 
 import {
     animationOptions,
+    backgroundRefusal,
+    cameraScreenshotOptions,
     dataExportOptions,
+    DEFAULT_CAMERA_IMAGE,
     DEFAULT_IMAGE,
     exportScope,
     factWords,
@@ -19,6 +22,7 @@ import {
     refusalWords,
     screenshotOptions,
     slug,
+    tourAnimationOptions,
     writerOptions,
 } from "../choices";
 
@@ -95,7 +99,7 @@ describe("the Export dialog's choices", () => {
             downloadFilename: "a_b.png",
         });
         const thumbnail = screenshotOptions(
-            { format: "jpeg", size: "400x300", background: "canvas", view: "topView", corner: "bottom-right" },
+            { format: "jpeg", size: "400x300", background: "canvas", view: "topView" },
             { blob: true },
         );
         assert.equal(thumbnail.width, 400);
@@ -103,14 +107,23 @@ describe("the Export dialog's choices", () => {
         assert.equal(thumbnail.quality, 0.85);
         assert.isUndefined(thumbnail.multiplier);
         assert.deepEqual(thumbnail.camera, { view: "topView" });
-        assert.deepEqual(screenshotOptions({ ...DEFAULT_IMAGE, view: "Hub cluster" }, { blob: true }).camera, {
-            view: "Hub cluster",
-        });
+        assert.isUndefined(screenshotOptions(DEFAULT_IMAGE, { blob: true }).camera, "the reader's camera");
+        assert.deepEqual(
+            cameraScreenshotOptions({ ...DEFAULT_CAMERA_IMAGE, view: "Hub cluster" }, { blob: true }).camera,
+            { view: "Hub cluster" },
+        );
+        assert.isUndefined(cameraScreenshotOptions(DEFAULT_CAMERA_IMAGE, { blob: true }).camera, "the reader's camera");
         assert.deepEqual(screenshotOptions({ ...DEFAULT_IMAGE, view: "fitToGraph" }, { blob: true }).camera, {
             view: "fitToGraph",
             params: { keepAngle: true },
         });
         assert.isTrue(screenshotOptions({ ...DEFAULT_IMAGE, size: "4x" }, { blob: true }).enhanceQuality);
+    });
+
+    it("refuses a transparent background in a format that cannot keep it", () => {
+        assert.isNull(backgroundRefusal("png", "transparent"));
+        assert.isString(backgroundRefusal("jpeg", "transparent"));
+        assert.isNull(backgroundRefusal("jpeg", "canvas"));
     });
 
     it("names files <project>_<what>.<ext>", () => {
@@ -178,8 +191,23 @@ describe("the Export dialog's choices", () => {
         assert.deepEqual(options.columns, ["name"]);
     });
 
-    it("records a saved tour by name for its own length, and a still view for its seconds", () => {
+    it("records a tour by naming its views, and a still view without a camera path", () => {
         const tour = animationOptions(
+            { camera: "tour", stops: ["topView", "isometric"], seconds: 3, fps: 30 },
+            "a.webm",
+        );
+        assert.equal(tour.cameraMode, "animated");
+        assert.deepEqual(tour.tour, ["topView", "isometric"]);
+        assert.equal(tour.duration, 3000);
+        assert.deepEqual(tour.destination, { download: true, filename: "a.webm" });
+        const still = animationOptions({ camera: "still", stops: [], seconds: 5, fps: 60 });
+        assert.equal(still.cameraMode, "stationary");
+        assert.isUndefined(still.tour);
+        assert.isUndefined(still.destination);
+    });
+
+    it("records a saved tour by name for its own length, and a still view for its seconds", () => {
+        const tour = tourAnimationOptions(
             { camera: "tour", tour: "Supply walk", view: "topView", seconds: 3, fps: 30 },
             "a.webm",
         );
@@ -189,13 +217,19 @@ describe("the Export dialog's choices", () => {
         assert.isUndefined(tour.cameraMode);
         assert.isUndefined(tour.camera);
         assert.deepEqual(tour.destination, { download: true, filename: "a.webm" });
-        const still = animationOptions({ camera: "still", tour: "Supply walk", view: "Overview", seconds: 5, fps: 60 });
+        const still = tourAnimationOptions({
+            camera: "still",
+            tour: "Supply walk",
+            view: "Overview",
+            seconds: 5,
+            fps: 60,
+        });
         assert.equal(still.cameraMode, "stationary");
         assert.equal(still.duration, 5000);
         assert.deepEqual(still.camera, { view: "Overview" });
         assert.isUndefined(still.tour);
         assert.isUndefined(still.destination);
-        const current = animationOptions({ camera: "still", tour: null, view: null, seconds: 3, fps: 30 });
+        const current = tourAnimationOptions({ camera: "still", tour: null, view: null, seconds: 3, fps: 30 });
         assert.isUndefined(current.camera, "the reader's camera");
     });
 

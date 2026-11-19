@@ -4,7 +4,9 @@
  * camera view ids appear only in the app's words for them (`viewWords.ts`) and in the starting
  * list the workspace writes once into a new project (`Workspace.tsx`); the starting names appear
  * in the toolbar, the Views place and Export only as those words. Tests and stories are fixtures
- * and are not searched.
+ * and are not searched. Master's camera code, which runs only with the camera-views experiment off
+ * (the standard views in toolbar/commands.ts, master's Image and Video outputs), is left out too:
+ * it goes when the experiment graduates.
  */
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -16,6 +18,18 @@ const SRC = fileURLToPath(new URL("../src", import.meta.url));
 const IDS = /\b(topView|bottomView|sideView|frontView|isometric)\b/;
 const NAMES = /["'`](Top|Bottom|Front|Side|Isometric)["'`]/;
 const WORDS = "workspace/toolbar/viewWords.ts";
+/** Master's Image and Video outputs, kept whole for the camera-views experiment off. */
+const MASTER = ["workspace/export/ImageOutput.tsx:", "workspace/export/VideoOutput.tsx:"];
+
+/**
+ * Whether a match is master's camera code, kept while the camera-views experiment is off: a line of
+ * master's outputs, or a line naming master's standard view commands (`view.front` and the rest).
+ * @param line - "file:line: text".
+ * @returns true for master's code.
+ */
+function master(line: string): boolean {
+    return MASTER.some((file) => line.startsWith(file)) || /"view\.(front|side|top|isometric)"/.test(line);
+}
 
 /**
  * The app's source files under a folder, tests and stories left out.
@@ -59,20 +73,20 @@ describe("no special cameras", () => {
 
     it("names no camera view id in the toolbar, the Views place or Export, except in viewWords", () => {
         assert.deepEqual(
-            matches(places, IDS).filter((line) => !line.startsWith(`${WORDS}:`)),
+            matches(places, IDS).filter((line) => !line.startsWith(`${WORDS}:`) && !master(line)),
             [],
         );
     });
 
     it("quotes no starting camera's name in the toolbar, the Views place or Export, except in viewWords", () => {
         assert.deepEqual(
-            matches(places, NAMES).filter((line) => !line.startsWith(`${WORDS}:`)),
+            matches(places, NAMES).filter((line) => !line.startsWith(`${WORDS}:`) && !master(line)),
             [],
         );
     });
 
     it("names the camera view ids across the app only in Workspace.tsx's starting list and viewWords", () => {
-        const found = matches(sources("."), IDS);
+        const found = matches(sources("."), IDS).filter((line) => !master(line));
         assert.deepEqual(
             [...new Set(found.map((line) => line.slice(0, line.indexOf(":"))))].sort(),
             ["workspace/Workspace.tsx", WORDS].sort(),

@@ -34,8 +34,20 @@ export type ImageSize = "1x" | "2x" | "4x" | "400x300";
 /** What the image is drawn against. */
 type ImageBackground = "canvas" | "transparent";
 
-/** The Image output's choices. */
+/** The Image output's choices (master's Image output, the camera-views experiment off). */
 export interface ImageChoices {
+    readonly format: ImageFormat;
+    readonly size: ImageSize;
+    readonly background: ImageBackground;
+    /** "current" for the reader's camera, else a camera id from `session.catalog.cameras()`. */
+    readonly view: string;
+}
+
+/** What a screenshot preset sets: the image's format, size and background. */
+type ImageLook = Pick<ImageChoices, "format" | "size" | "background">;
+
+/** The camera Image output's choices (the camera-views experiment on). */
+export interface CameraImageChoices {
     readonly format: ImageFormat;
     readonly size: ImageSize;
     readonly background: ImageBackground;
@@ -338,7 +350,7 @@ export const PRESET_LABELS: Readonly<Record<PresetId, string>> = {
  * @param preset - one of `SCREENSHOT_PRESET_DESCRIPTORS`.
  * @returns its format, size and background.
  */
-export function presetChoices(preset: ScreenshotPreset): Pick<ImageChoices, "format" | "size" | "background"> {
+export function presetChoices(preset: ScreenshotPreset): ImageLook {
     return {
         format: preset.format,
         size: (preset.multiplier === undefined
@@ -353,6 +365,11 @@ export const CUSTOM = "Custom";
 
 export const DEFAULT_IMAGE: ImageChoices = {
     ...presetChoices(SCREENSHOT_PRESET_DESCRIPTORS[0]),
+    view: "current",
+};
+
+export const DEFAULT_CAMERA_IMAGE: CameraImageChoices = {
+    ...presetChoices(SCREENSHOT_PRESET_DESCRIPTORS[0]),
     view: null,
     corner: "bottom-right",
 };
@@ -362,13 +379,23 @@ export const DEFAULT_IMAGE: ImageChoices = {
  * @param choices - the image choices.
  * @returns the preset, or undefined for Custom.
  */
-export function presetOf(choices: ImageChoices): ScreenshotPreset | undefined {
+export function presetOf(choices: ImageLook): ScreenshotPreset | undefined {
     return SCREENSHOT_PRESET_DESCRIPTORS.find((entry) => {
         const preset = presetChoices(entry);
         return (
             preset.format === choices.format && preset.size === choices.size && preset.background === choices.background
         );
     });
+}
+
+/**
+ * Why a background cannot be used with a format, or null when it can.
+ * @param format - the image format.
+ * @param background - the background.
+ * @returns the reason, or null.
+ */
+export function backgroundRefusal(format: ImageFormat, background: ImageBackground): string | null {
+    return background === "transparent" && format !== "png" ? "Only PNG keeps a transparent background" : null;
 }
 
 /**
@@ -379,6 +406,35 @@ export function presetOf(choices: ImageChoices): ScreenshotPreset | undefined {
  */
 function cameraOf(view: string): NonNullable<ScreenshotOptions["camera"]> {
     return view === "fitToGraph" ? { view, params: { keepAngle: true } } : { view };
+}
+
+/**
+ * The options for one capture from a camera, or from the reader's camera.
+ * @param choices - the image choices.
+ * @param view - the view to capture from; null for the reader's camera.
+ * @param destination - where the element sends the image.
+ * @param downloadFilename - the file name, for a download.
+ * @returns the screenshot options.
+ */
+function captureOptions(
+    choices: ImageLook,
+    view: string | null,
+    destination: NonNullable<ScreenshotOptions["destination"]>,
+    downloadFilename?: string,
+): ScreenshotOptions {
+    const preset = presetOf(choices);
+    return {
+        format: choices.format,
+        ...(choices.size === "400x300" ? { width: 400, height: 300 } : { multiplier: Number.parseInt(choices.size) }),
+        transparentBackground: choices.background === "transparent",
+        // A picture shows the data, not what the reader happened to click.
+        showSelection: false,
+        ...(preset?.enhanceQuality === true ? { enhanceQuality: true } : {}),
+        ...(preset?.quality === undefined ? {} : { quality: preset.quality }),
+        ...(view === null ? {} : { camera: cameraOf(view) }),
+        destination,
+        ...(downloadFilename === undefined ? {} : { downloadFilename }),
+    };
 }
 
 /**
@@ -393,19 +449,22 @@ export function screenshotOptions(
     destination: NonNullable<ScreenshotOptions["destination"]>,
     downloadFilename?: string,
 ): ScreenshotOptions {
-    const preset = presetOf(choices);
-    return {
-        format: choices.format,
-        ...(choices.size === "400x300" ? { width: 400, height: 300 } : { multiplier: Number.parseInt(choices.size) }),
-        transparentBackground: choices.background === "transparent",
-        // A picture shows the data, not what the reader happened to click.
-        showSelection: false,
-        ...(preset?.enhanceQuality === true ? { enhanceQuality: true } : {}),
-        ...(preset?.quality === undefined ? {} : { quality: preset.quality }),
-        ...(choices.view === null ? {} : { camera: cameraOf(choices.view) }),
-        destination,
-        ...(downloadFilename === undefined ? {} : { downloadFilename }),
-    };
+    return captureOptions(choices, choices.view === "current" ? null : choices.view, destination, downloadFilename);
+}
+
+/**
+ * The options for one capture from the camera Image output.
+ * @param choices - the image choices.
+ * @param destination - where the element sends the image.
+ * @param downloadFilename - the file name, for a download.
+ * @returns the screenshot options.
+ */
+export function cameraScreenshotOptions(
+    choices: CameraImageChoices,
+    destination: NonNullable<ScreenshotOptions["destination"]>,
+    downloadFilename?: string,
+): ScreenshotOptions {
+    return captureOptions(choices, choices.view, destination, downloadFilename);
 }
 
 /**
@@ -435,8 +494,37 @@ export function fileName(project: string, what: string, extension: string): stri
 /** The extension of each image format. */
 export const IMAGE_EXTENSIONS: Readonly<Record<ImageFormat, string>> = { png: "png", jpeg: "jpg", webp: "webp" };
 
-/** The Video output's choices. */
+/** The Video output's choices (master's Video output, the camera-views experiment off). */
 export interface VideoChoices {
+    /** Still: the reader's camera; tour: the camera flies through `stops`. */
+    readonly camera: "still" | "tour";
+    /** The views a tour visits, in order: camera view ids or saved view names. */
+    readonly stops: readonly string[];
+    /** Length in seconds. */
+    readonly seconds: number;
+    readonly fps: 30 | 60;
+}
+
+export const DEFAULT_VIDEO: VideoChoices = { camera: "tour", stops: [], seconds: 5, fps: 30 };
+
+/**
+ * The options for one recording.
+ * @param choices - the video choices.
+ * @param downloadFilename - the file name, for a download; none keeps the video as a blob.
+ * @returns the `captureAnimation` options.
+ */
+export function animationOptions(choices: VideoChoices, downloadFilename?: string): AnimationOptions {
+    return {
+        duration: choices.seconds * 1000,
+        fps: choices.fps,
+        format: "auto",
+        ...(choices.camera === "tour" ? { cameraMode: "animated", tour: choices.stops } : { cameraMode: "stationary" }),
+        ...(downloadFilename === undefined ? {} : { destination: { download: true, filename: downloadFilename } }),
+    };
+}
+
+/** The tour Video output's choices (the camera-views experiment on). */
+export interface TourVideoChoices {
     /** Still: the camera holds on `view`; tour: the element plays the saved tour `tour`. */
     readonly camera: "still" | "tour";
     /** The saved tour a tour recording plays; null for the project's first. */
@@ -448,7 +536,7 @@ export interface VideoChoices {
     readonly fps: 30 | 60;
 }
 
-export const DEFAULT_VIDEO: VideoChoices = { camera: "tour", tour: null, view: null, seconds: 5, fps: 30 };
+export const DEFAULT_TOUR_VIDEO: TourVideoChoices = { camera: "tour", tour: null, view: null, seconds: 5, fps: 30 };
 
 /**
  * The options for one recording. A tour is named and its length is the element's plan of it, each
@@ -458,7 +546,7 @@ export const DEFAULT_VIDEO: VideoChoices = { camera: "tour", tour: null, view: n
  * @param downloadFilename - the file name, for a download; none keeps the video as a blob.
  * @returns the `captureAnimation` options.
  */
-export function animationOptions(choices: VideoChoices, downloadFilename?: string): AnimationOptions {
+export function tourAnimationOptions(choices: TourVideoChoices, downloadFilename?: string): AnimationOptions {
     const destination =
         downloadFilename === undefined ? {} : { destination: { download: true, filename: downloadFilename } };
     if (choices.camera === "tour" && choices.tour !== null) {
@@ -510,7 +598,7 @@ export type OutputId = "image" | "video" | "data" | "report" | "styles" | "recip
 export interface RecentExport {
     readonly output: OutputId;
     readonly name: string;
-    readonly choices?: ImageChoices | VideoChoices | DataChoices;
+    readonly choices?: ImageChoices | CameraImageChoices | VideoChoices | TourVideoChoices | DataChoices;
 }
 
 /** A section the reader can put in the report or leave out. */

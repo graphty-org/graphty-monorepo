@@ -296,7 +296,9 @@ A source record has exactly these fields: `id`, `label`, `kind`, `format`, `opti
 1. **The copy id.** `origin.copy` is `sha256:` plus lower-case hex of the bytes as read for file,
    url and downloaded sample sources, and a ULID minted whenever that copy changes for network,
    derived and reader sources. A generated sample has no bytes: its copy id is a ULID and it is
-   always embedded; its `generator` and `params` are only what a refresh runs again. An embedded copy and a referenced one carry the same copy id; a refetch is
+   always embedded; its `generator` and `params` are only what a refresh runs again. A source read
+   from more than one file (a node file and an edge file) has no single run of bytes: its copy id
+   is a ULID. Two sources that read the same bytes share a copy id. An embedded copy and a referenced one carry the same copy id; a refetch is
    checked against it. Until a writer keeps a log of the reader's edits, removes and merges, a
    source whose rows the reader edited, removed or merged is always embedded, whatever the saver
    asked, and its copy id is a ULID minted for that copy whatever its kind, since its rows are no

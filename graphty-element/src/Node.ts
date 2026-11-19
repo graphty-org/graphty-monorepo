@@ -864,6 +864,10 @@ export class Node implements ModelUser {
      * mesh cache keeps its source, and with it the material the ring is drawn with.
      */
     private groupBorderSource: AbstractMesh | null = null;
+    /** The source a group's fill is drawn from at its box's size, while its instance is drawn from it. */
+    private groupFill: Mesh | null = null;
+    /** A hidden instance keeping alive the shared source a group's own fill took the place of. */
+    private groupFillKeep: InstancedMesh | null = null;
     /** The cache key of the halo's source mesh, so a node that changes shape rebuilds its halo. */
     private haloKey: string | null = null;
 
@@ -1484,12 +1488,65 @@ export class Node implements ModelUser {
         stretch.set(scale(half.x * grow, extendSize.x), scale(half.y * grow, extendSize.y), scale(thin, extendSize.z));
         this.setMeshPosition(center.x, center.y, back);
         this.measureRow();
-        if (
+        const refit =
             this.border !== this.groupBorder ||
-            !stretch.equalsWithEpsilon(before, GROUP_RESIZE_EPSILON * stretch.length())
-        ) {
+            !stretch.equalsWithEpsilon(before, GROUP_RESIZE_EPSILON * stretch.length());
+        if (refit) {
             this.fitGroupChildren(2 * half.x * grow, 2 * half.y * grow, 2 * thin);
         }
+
+        const mesh = this.#mesh;
+        // a repaint that only moved the instance to another source (`moveTo`) draws it stretched again
+        if (mesh instanceof InstancedMesh && (refit || mesh.sourceMesh !== this.groupFill)) {
+            this.fitGroupFill(mesh, 2 * half.x * grow, 2 * half.y * grow, 2 * thin);
+        }
+    }
+
+    /**
+     * Draw a group's fill at its box's size, as its border is: from a source of its own, built at the box's size and
+     * shrunk by the stretch, so a rounded rectangle keeps its corners' radius rather than stretching them into long
+     * ellipses with the box (issue #8194).
+     * @param mesh - The group's instance.
+     * @param width - The box's drawn width.
+     * @param height - Its drawn height.
+     * @param depth - Its drawn depth.
+     */
+    private fitGroupFill(mesh: InstancedMesh, width: number, height: number, depth: number): void {
+        const from = mesh.sourceMesh;
+        const shared = from === this.groupFill ? (this.groupFillKeep?.sourceMesh ?? from) : from;
+        const fill = NodeMesh.createGroupFill(
+            shared,
+            this.drawnStyle?.shape,
+            { x: width, y: height, z: depth },
+            this.#anchor.scaling,
+            this.context.is2D(),
+        );
+        if (fill === null) {
+            return;
+        }
+
+        moveInstance(mesh, fill);
+        // The same box as the shared source's, which it is but for float32 rounding of the rebuilt vertices: the
+        // group's size is read off it (drawAsGroup's stretch, drawnHalfExtents), and must not move by a rebuild.
+        const { minimum, maximum } = shared.getBoundingInfo();
+        mesh.buildBoundingInfo(minimum, maximum);
+        if (from !== this.groupFill) {
+            // The shared source stays alive under a hidden instance: the mesh cache disposes a source with no
+            // instance left, and its material with it, which the group's own fill is drawn with (as groupBorderSource).
+            this.groupFillKeep?.dispose();
+            this.groupFillKeep = NodeMesh.keepSource(from);
+        }
+
+        this.groupFill?.dispose(false, false);
+        this.groupFill = fill;
+    }
+
+    /** Dispose a group's own fill source and the hidden instance keeping its shared source; see {@link fitGroupFill}. */
+    private dropGroupFill(): void {
+        this.groupFill?.dispose(false, false);
+        this.groupFill = null;
+        this.groupFillKeep?.dispose();
+        this.groupFillKeep = null;
     }
 
     /**
@@ -1806,6 +1863,8 @@ export class Node implements ModelUser {
         if (!this.#anchor.isDisposed()) {
             this.#anchor.dispose();
         }
+
+        this.dropGroupFill();
     }
 
     /**

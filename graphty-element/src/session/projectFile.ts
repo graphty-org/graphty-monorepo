@@ -55,13 +55,7 @@ import type { SessionData } from "./data";
 // document2/onDemand.ts where a version 2 file is saved or opened, so it stays out of the main entry.
 import { DTYPES, newDocumentId } from "./document2/basics";
 import type { ProjectFileFacts, ProjectSaveFacts } from "./document2/facts";
-import {
-    DOCUMENT_SECTIONS,
-    type DocumentCode,
-    type DocumentProblem,
-    type DocumentSection,
-    type SourceStorage,
-} from "./document2/types";
+import type { DocumentCode, DocumentProblem, DocumentSection, SourceStorage } from "./document2/types";
 import { expandedGraph, type SavedCollapse } from "./groups";
 import { ISSUES_VALUE, type IssueState } from "./issues";
 import { loadLineOf } from "./loadLine";

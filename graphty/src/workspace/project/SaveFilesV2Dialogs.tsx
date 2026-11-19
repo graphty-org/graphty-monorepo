@@ -36,7 +36,7 @@ import React, { useEffect, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { SAVE_AS_DIALOG, saveProjectAsV2 } from "./actions";
+import type { saveProjectAsV2 } from "./actions";
 import { NameField } from "./NameField";
 import { OPEN_V2_DIALOG, openQuestion, REPORT_V2_DIALOG, shownReport } from "./saveV2";
 import {
@@ -290,16 +290,27 @@ function storageOf(facts: ProjectSaveFacts): Record<string, SourceStorage> {
     );
 }
 
+/** What the workspace hands the lazily loaded dialogs, so they import nothing of actions.ts. */
+export interface SaveFilesV2DialogsProps {
+    /** The dialog id Save as opens. */
+    readonly saveAsDialog: string;
+    /** Saves as the reader chose. */
+    readonly save: typeof saveProjectAsV2;
+}
+
 /**
  * Save as... with version 2 files on (`#/project-menu/save-as`): the name, a preset per use case,
  * the sections with what each holds, copy or reference for the sources, and the file's form. The
  * whole project is kept in this browser, as Save as keeps it; anything else downloads as a copy.
+ * @param props - the dialog id and the save.
+ * @param props.saveAsDialog - the dialog id Save as opens.
+ * @param props.save - saves as the reader chose.
  * @returns the dialog.
  */
-function SaveAsV2Dialog(): React.JSX.Element {
+function SaveAsV2Dialog({ saveAsDialog, save: saveAs }: SaveFilesV2DialogsProps): React.JSX.Element {
     const workspace = useWorkspace();
     const { session } = workspace;
-    const opened = useWorkspaceState((state) => state.dialog === SAVE_AS_DIALOG);
+    const opened = useWorkspaceState((state) => state.dialog === saveAsDialog);
     const current = useWorkspaceState((state) => state.project?.name ?? "");
     const [name, setName] = useState(current);
     const [facts, setFacts] = useState<ProjectSaveFacts | null>(null);
@@ -307,8 +318,13 @@ function SaveAsV2Dialog(): React.JSX.Element {
     const [storage, setStorage] = useState<Record<string, SourceStorage>>({});
     const [form, setForm] = useState<"full" | "section">("full");
     const [saving, setSaving] = useState(false);
-    // Whether the save chosen is the project or a copy, as graphty-element says for the choice.
-    const [whole, setWhole] = useState(true);
+    // Whether the save chosen is the project or a copy, as graphty-element says, and for which
+    // choice: a verdict for an earlier choice is no verdict, so Save waits for the current one.
+    const [verdict, setVerdict] = useState<{
+        readonly chosen: readonly DocumentSection[];
+        readonly form: "full" | "section";
+        readonly project: boolean;
+    } | null>(null);
     // Whether another dialog took the slot during a save: the save then leaves the slot to it.
     const left = useRef(false);
 
@@ -359,7 +375,7 @@ function SaveAsV2Dialog(): React.JSX.Element {
         session.project.describe({ sections: chosen, form: fileForm }).then(
             (described) => {
                 if (live) {
-                    setWhole(described.project);
+                    setVerdict({ chosen, form: fileForm, project: described.project });
                 }
             },
             () => undefined,
@@ -369,18 +385,19 @@ function SaveAsV2Dialog(): React.JSX.Element {
         };
     }, [opened, session, chosen, fileForm]);
 
+    const whole = verdict?.chosen === chosen && verdict.form === fileForm ? verdict.project : null;
     const trimmed = name.trim();
     const close = (): void => {
         workspace.store.set({ dialog: null });
     };
     const save = async (): Promise<void> => {
-        if (trimmed === "" || saving || facts === null || chosen.length === 0) {
+        if (trimmed === "" || saving || facts === null || chosen.length === 0 || whole === null) {
             return;
         }
         setSaving(true);
         left.current = false;
         try {
-            await saveProjectAsV2(workspace, trimmed, { sections: chosen, form: fileForm, embed: storage }, whole);
+            await saveAs(workspace, trimmed, { sections: chosen, form: fileForm, embed: storage }, whole);
             if (!left.current) {
                 close();
             }
@@ -427,11 +444,11 @@ function SaveAsV2Dialog(): React.JSX.Element {
                         <SourcesChoice sources={facts.sources} storage={storage} onChange={setStorage} />
                     ) : null}
                     <FileForm sectionFile={sectionFile} oneSection={one !== null} onChange={setForm} />
-                    {whole ? null : (
+                    {whole === false ? (
                         <Text size="sm" ff="monospace" c={SECONDARY}>
                             {projectFileName(trimmed, sectionFile && one !== null ? { section: one } : {})}
                         </Text>
-                    )}
+                    ) : null}
                 </Stack>
                 <ModalFooter mt="md">
                     <Button variant="default" onClick={close}>
@@ -439,10 +456,10 @@ function SaveAsV2Dialog(): React.JSX.Element {
                     </Button>
                     <Button
                         type="submit"
-                        disabled={trimmed === "" || facts === null || chosen.length === 0}
+                        disabled={trimmed === "" || facts === null || chosen.length === 0 || whole === null}
                         loading={saving}
                     >
-                        {whole ? "Save" : "Save copy"}
+                        {whole === false ? "Save copy" : "Save"}
                     </Button>
                 </ModalFooter>
             </form>
@@ -850,12 +867,13 @@ function ReportV2Dialog(): React.JSX.Element {
 
 /**
  * The version 2 Save as, Open and report dialogs, which the workspace loads on first use.
+ * @param props - what the workspace hands them.
  * @returns the dialogs.
  */
-export function SaveFilesV2Dialogs(): React.JSX.Element {
+export function SaveFilesV2Dialogs(props: SaveFilesV2DialogsProps): React.JSX.Element {
     return (
         <>
-            <SaveAsV2Dialog />
+            <SaveAsV2Dialog {...props} />
             <OpenV2Dialog />
             <ReportV2Dialog />
         </>

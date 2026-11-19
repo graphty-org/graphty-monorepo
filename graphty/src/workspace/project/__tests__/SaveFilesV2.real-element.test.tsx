@@ -43,6 +43,10 @@ async function openSaveAs(): Promise<HTMLElement> {
     await userEvent.keyboard("{Shift>}{Control>}s{/Control}{/Shift}");
     const dialog = await screen.findByRole("dialog", { name: `Save ${SAMPLE} as` });
     await within(dialog).findByRole("checkbox", { name: /^Data/ });
+    // Save waits for graphty-element to say whether the choice is the project or a copy.
+    await waitFor(() => {
+        assert.isFalse(within(dialog).getByRole<HTMLButtonElement>("button", { name: /^Save/ }).disabled);
+    });
     return dialog;
 }
 
@@ -120,7 +124,7 @@ describe("version 2 save files, experiment on", () => {
         for (const [preset, sections] of presets) {
             dialog = await openSaveAs();
             await choosePreset(dialog, preset);
-            await userEvent.click(within(dialog).getByRole("button", { name: "Save copy" }));
+            await userEvent.click(await within(dialog).findByRole("button", { name: "Save copy" }));
             await waitFor(() => {
                 assert.equal(downloads.at(-1)?.name, `${SAMPLE}.graphty.json`);
             });
@@ -134,8 +138,8 @@ describe("version 2 save files, experiment on", () => {
         await choosePreset(dialog, "Style only");
         // The segment's label is what a reader clicks; its radio is drawn under it.
         await userEvent.click(within(dialog).getByText("Section file"));
-        assert.isNotNull(within(dialog).getByText(`${SAMPLE}.graphty-style.json`));
-        await userEvent.click(within(dialog).getByRole("button", { name: "Save copy" }));
+        assert.isNotNull(await within(dialog).findByText(`${SAMPLE}.graphty-style.json`));
+        await userEvent.click(await within(dialog).findByRole("button", { name: "Save copy" }));
         await waitFor(() => {
             assert.equal(downloads.at(-1)?.name, `${SAMPLE}.graphty-style.json`);
         });

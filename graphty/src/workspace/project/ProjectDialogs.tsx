@@ -17,12 +17,13 @@ import {
     openPending,
     SAVE_AS_DIALOG,
     saveProjectAs,
+    saveProjectAsV2,
 } from "./actions";
 import { NameField } from "./NameField";
 import { NetworkPrompt } from "./NetworkPrompt";
 
 // The version 2 dialogs load only when the save-files-v2 experiment is on.
-const SaveFilesV2Dialogs = lazy(async () => ({ default: (await import("./SaveFilesV2Dialogs")).SaveFilesV2Dialogs }));
+const SaveFilesV2Dialogs = lazy(async () => ({ default: (await import("./saveV2Lazy")).SaveFilesV2Dialogs }));
 
 /**
  * Save as... (`#/project-menu/save-as`): titled with the project's name, the name a field with
@@ -336,7 +337,7 @@ export function ProjectDialogs(): React.JSX.Element {
         <>
             {saveFilesV2On(session) ? (
                 <Suspense fallback={null}>
-                    <SaveFilesV2Dialogs />
+                    <SaveFilesV2Dialogs saveAsDialog={SAVE_AS_DIALOG} save={saveProjectAsV2} />
                 </Suspense>
             ) : (
                 <SaveAsDialog />

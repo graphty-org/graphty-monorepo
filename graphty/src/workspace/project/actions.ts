@@ -388,7 +388,7 @@ async function reportSave(
     const names = leftOut.some((fact) => fact.code.startsWith("W_SOURCE_"))
         ? new Map((await session.project.describe()).sources.map((source) => [source.id, source.name]))
         : new Map<string, string>();
-    (await import("./saveV2")).showReport(workspace, session, title, leftOut, names);
+    (await import("./saveV2Lazy")).showReport(workspace, session, title, leftOut, names);
 }
 
 /**
@@ -690,7 +690,13 @@ async function openedProject(
     if (pending.v2 !== undefined) {
         // Version 2: what did not come back is listed in the report, by what it is.
         workspace.set({ notice: heldNotice(workspace, session, { message: `Opened ${name}` }) });
-        (await import("./saveV2")).showReport(workspace, session, `Opened ${name}`, report.problems, pending.v2.names);
+        (await import("./saveV2Lazy")).showReport(
+            workspace,
+            session,
+            `Opened ${name}`,
+            report.problems,
+            pending.v2.names,
+        );
         await focused;
         return;
     }
@@ -772,7 +778,7 @@ async function askBeforeOpen(workspace: WorkspaceStore, session: GraphSession, p
         }
         return true;
     }
-    const asked = await (await import("./saveV2")).askOpenV2(workspace, session, pending.file);
+    const asked = await (await import("./saveV2Lazy")).askOpenV2(workspace, session, pending.file);
     if (asked === null) {
         return false;
     }
@@ -830,7 +836,7 @@ async function openInSession(
         if (report.opened !== "project") {
             openedData(ctx.workspace, session, report, file, fresh, focusLater);
             if (pending.v2 !== undefined) {
-                (await import("./saveV2")).showReport(
+                (await import("./saveV2Lazy")).showReport(
                     ctx.workspace,
                     session,
                     `Added ${file.name}`,

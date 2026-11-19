@@ -3580,8 +3580,15 @@ export interface SourceCopy {
     readonly copy: SourceCopyChoice;
     /** Present when the load cannot be a reference: `W_SOURCE_NO_PATH` with `{ source, reason }`. */
     readonly refused?: {
+        /** Always `W_SOURCE_NO_PATH`. */
         readonly code: "W_SOURCE_NO_PATH";
-        readonly params: { readonly source: SourceKey; readonly reason: SourceNoPathReason };
+        /** The load and why it cannot be a reference. */
+        readonly params: {
+            /** The load's key. */
+            readonly source: SourceKey;
+            /** Why the load cannot be a reference. */
+            readonly reason: SourceNoPathReason;
+        };
     };
 }
 
@@ -4413,7 +4420,12 @@ export interface SessionEventMap {
         readonly load: string;
     };
     /** How a project save keeps a load changed ({@link SessionDataApi.setCopy}). Experimental. */
-    "source:copy": { readonly source: SourceKey; readonly copy: SourceCopyChoice };
+    "source:copy": {
+        /** The load's key. */
+        readonly source: SourceKey;
+        /** How a save keeps it now. */
+        readonly copy: SourceCopyChoice;
+    };
     /**
      * The project's name or whether it has unsaved changes (`session.project.name`, `.dirty`)
      * changed. Mirrored on the element as `graphty-project-status`.

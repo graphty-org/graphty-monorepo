@@ -4987,6 +4987,21 @@ export class Edge {
      * @returns Edge line positions adjusted for arrow placement
      */
     transformArrowCap(): EdgeLine {
+        // read at each call: resetMeasurements replaces the counters
+        const counter = this.context.getStatsManager().arrowCapUpdate;
+        counter.beginMonitoring();
+        try {
+            return this.placeArrowCaps();
+        } finally {
+            counter.endMonitoring();
+        }
+    }
+
+    /**
+     * Place the arrow caps and find where the line ends beside them: the measured part of `transformArrowCap`.
+     * @returns Edge line positions adjusted for arrow placement
+     */
+    private placeArrowCaps(): EdgeLine {
         const { arrowCap } = this;
 
         // A TAIL IS PLACED WITHOUT A HEAD TOO. This used to return here unless the edge had a
@@ -5365,6 +5380,20 @@ export class Edge {
      * @returns Intersection points for source, destination, and adjusted endpoint
      */
     getInterceptPoints(): InterceptPoint {
+        const counter = this.context.getStatsManager().intersectCalc;
+        counter.beginMonitoring();
+        try {
+            return this.interceptPoints();
+        } finally {
+            counter.endMonitoring();
+        }
+    }
+
+    /**
+     * Find where the line meets its nodes' surfaces: the measured part of `getInterceptPoints`.
+     * @returns Intersection points for source, destination, and adjusted endpoint
+     */
+    private interceptPoints(): InterceptPoint {
         const fromColumns = this.interceptPointsFromColumns();
         if (fromColumns !== null) {
             return fromColumns;

@@ -1380,6 +1380,11 @@ export class DataManager implements Manager {
             return;
         }
 
+        // one sample per load, of the time the import measured
+        const { loadTime } = this.graphContext.getStatsManager();
+        loadTime.fetchNewFrame();
+        loadTime.addCount(duration, true);
+
         this.eventManager.emitDataLoadingComplete(
             format,
             report.counts.nodes,

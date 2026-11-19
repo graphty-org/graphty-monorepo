@@ -823,10 +823,28 @@ jobs:
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
+            # What each earlier run of the month counted, so only runs not yet counted are read (#8764). Saved below,
+            # before any of the picked commit's code runs (the overlay above put the workflow's own tools in place),
+            # under a key of its own per attempt: the newest one is restored.
+            - name: Restore the counted LLM spend
+              uses: actions/cache/restore@v6
+              with:
+                  path: ${{ runner.temp }}/llm-spend.json
+                  key: llm-spend-${{ github.run_id }}-${{ github.run_attempt }}
+                  restore-keys: llm-spend-
+
             - name: Check this month's LLM spend
               env:
                   GH_TOKEN: ${{ github.token }}
+                  LLM_SPEND_CACHE: ${{ runner.temp }}/llm-spend.json
               run: node tools/llm-spend.mjs
+
+            # (when the check could not list the runs it writes no file, and this step only warns)
+            - name: Save the counted LLM spend
+              uses: actions/cache/save@v6
+              with:
+                  path: ${{ runner.temp }}/llm-spend.json
+                  key: llm-spend-${{ github.run_id }}-${{ github.run_attempt }}
 
             - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
 

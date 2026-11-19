@@ -180,7 +180,7 @@ const TASK_JOB = "(nx)";
 
 /**
  * Rows for a run from GitHub's jobs listing. A skipped job records nothing; queue rows are a job's
- * created_at to its started_at.
+ * created_at to its started_at, none for a job carried over from an earlier attempt (created after it started).
  * @param run the run (`created_at`, `path`)
  * @param jobs the run's jobs with their steps
  * @param kind the run kind (pr, master, full, ...)
@@ -192,23 +192,25 @@ export function rowsFromJobs(run, jobs, kind) {
     const rows = [];
     for (const j of done) {
         const base = { outcome: j.conclusion, runner: j.labels?.[0] ?? null, job: j.name };
-        rows.push(
-            {
-                ...base,
-                key: `job:${wf}:${j.name}`,
-                level: "job",
-                seconds: secondsBetween(j.started_at, j.completed_at),
-                startedAt: j.started_at,
-            },
-            {
+        rows.push({
+            ...base,
+            key: `job:${wf}:${j.name}`,
+            level: "job",
+            seconds: secondsBetween(j.started_at, j.completed_at),
+            startedAt: j.started_at,
+        });
+        // A job a re-run attempt carried over from an earlier one carries the new attempt's created_at and its old
+        // started_at (#8764: a queue of -64 minutes): it was not queued in this attempt, so it has no queue row.
+        const queued = secondsBetween(j.created_at ?? j.started_at, j.started_at);
+        if (queued >= 0)
+            rows.push({
                 ...base,
                 key: `queue:${wf}:${j.name}`,
                 level: "queue",
-                seconds: secondsBetween(j.created_at ?? j.started_at, j.started_at),
+                seconds: queued,
                 step: QUEUE_STEP,
                 startedAt: j.created_at ?? j.started_at,
-            },
-        );
+            });
         for (const s of (j.steps ?? []).filter((s) => s.started_at && s.completed_at && s.conclusion !== "skipped")) {
             rows.push({
                 ...base,

@@ -11,13 +11,13 @@ Elena: "OK, there it is -- College football, 115 teams. I'll just click that. I'
 ## Step 2 -- open College football
 
 Command: `--step --click "College football"` -> 02.png
-Saw: a big square-ish web of blue dots and grey lines on a light canvas, no names anywhere. Left panel: search box "Find nodes, edges, values", "Selection", "Everything". Right panel: Graph, Style / Values tabs, Overview with Nodes 115, Edges 613, Density, Components... Toolbar at the bottom with a flask icon, a chart icon, "3D" and a magnifier.
+Saw: a big square-ish web of blue dots and gray lines on a light canvas, no names anywhere. Left panel: search box "Find nodes, edges, values", "Selection", "Everything". Right panel: Graph, Style / Values tabs, Overview with Nodes 115, Edges 613, Density, Components... Toolbar at the bottom with a flask icon, a chart icon, "3D" and a magnifier.
 Elena: "Ooh, OK, that's a lot of dots. No names though. Maybe if I click one it tells me which team it is -- let me try the big one near the middle."
 
 ## Step 3 -- click a dot
 
 Command: `--step --click-at 768,602` -> 03.png (tool: node with id 23)
-Saw: the dot turned grey with a yellow ring. The right panel now says "23 / Node" and under Summary: id 23, label Utah, value 7, Degree 11. Still no name on the drawing itself.
+Saw: the dot turned gray with a yellow ring. The right panel now says "23 / Node" and under Summary: id 23, label Utah, value 7, Degree 11. Still no name on the drawing itself.
 Elena: "Utah. OK, so the name is in there, it's just not on the picture. And the panel header says '23', not Utah, which is weird. There's a 'Style' tab next to 'Values' -- names on the picture sounds like a look thing, so I'll try Style."
 
 ## Step 4 -- Style tab

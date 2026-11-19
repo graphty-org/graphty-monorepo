@@ -40,9 +40,9 @@ The sets branch was built to make this a rename rather than a redesign:
 
 - **The record.** `ElementSet` widens `SavedScopeRecord { id, name, spec, order }`: `spec` is
   `definition` (a `SetDefinition`, not a `Scope`), and `createdFrom` is added. `revision` is a
-  memoised accessor, not stored.
+  memoized accessor, not stored.
 - **The digest.** Digest each record by `revision` rather than walking `definition`: a fixed set's
-  edge members are held in typed columns and materialise 72 bytes per member when
+  edge members are held in typed columns and materialize 72 bytes per member when
   `definition.edges` is read, so a generic walk would allocate at scale. `revision` is the
   canonical content hash of the definition (sets design section 12.2), so it is exact.
 - **What stays outside the slice**, as session state beside it, never rewound by undo, rollback
@@ -53,7 +53,7 @@ The sets branch was built to make this a rename rather than a redesign:
       undo;
     - tombstones (`SetsStore.tombstone(id)`), authoritative only while the id is absent from the
       slice;
-    - edge seeds (`SetsStore.seed`, `seedsOf`), not serialised; stale seeds for members a restored
+    - edge seeds (`SetsStore.seed`, `seedsOf`), not serialized; stale seeds for members a restored
       record no longer holds are never read;
     - the resolution cache (`session/sets/cache.ts`), keyed by per-set signatures, so an undo that
       restores the identical frozen record hits it again.
@@ -62,9 +62,9 @@ The sets branch was built to make this a rename rather than a redesign:
   `delete` become `ctx.draft.sets.set` and `ctx.draft.sets.delete` inside command bodies. `list()`
   still sorts by `order`, ties by id, and still returns the same frozen objects until a record
   changes.
-- **One serialiser.** `SetsStore.toLogicalRecords()` and `loadLogicalRecords(stored)` are the only
+- **One serializer.** `SetsStore.toLogicalRecords()` and `loadLogicalRecords(stored)` are the only
   code that reads or writes set state as a whole (`{ records, register, tombstones }`). The
-  baseline a session loads and any future project file use them; nothing else serialises sets.
+  baseline a session loads and any future project file use them; nothing else serializes sets.
 
 ## 2. The commands
 
@@ -279,7 +279,7 @@ Textual conflicts are confined to: `session/scope/ScopeApi.ts` (`save`, `list`, 
 cache key), `session/selection/SelectionApi.ts` (`promote`), `session/types.ts` (the session,
 `ProjectSlice`, the execute results), `session/project/state.ts`, `session/commands/index.ts`,
 `managers/LayoutManager.ts` and `Graph.ts` (the layout doors), and `session/runs/Run.ts` and
-`RunsApi.ts` (the token and captures). In each, keep the sets branch's behaviour and route its
+`RunsApi.ts` (the token and captures). In each, keep the sets branch's behavior and route its
 writes through the undo branch's dispatcher.
 
 ## 10. How the port went

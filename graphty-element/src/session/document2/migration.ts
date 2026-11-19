@@ -1056,7 +1056,7 @@ function layoutOf(session: JsonObject | undefined, context: Context): JsonObject
 
     return {
         id: layout.id,
-        // Version 1 may name only the catalogue id, which a registered engine name is read as.
+        // Version 1 may name only the catalog id, which a registered engine name is read as.
         algorithm: typeof layout.engine === "string" && layout.engine !== "" ? layout.engine : layout.id,
         dimension: layout.dimension === "2d" || layout.dimension === 2 ? 2 : 3,
         ...(isObject(layout.options) && Object.keys(layout.options).length > 0 ? { options: layout.options } : {}),

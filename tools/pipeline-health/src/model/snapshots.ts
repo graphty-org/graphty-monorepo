@@ -68,7 +68,7 @@ export interface ReleaseSeen {
 /** The release attempts a channel's tile shows, newest last (the design's 14 dots). */
 export const CHANNEL_ATTEMPTS = 14;
 
-/** How one release attempt of a channel ended: promoted or deployed, failed, passed but held back, or cancelled. */
+/** How one release attempt of a channel ended: promoted or deployed, failed, passed but held back, or canceled. */
 export type ChannelOutcome = "ok" | "bad" | "held" | "cancelled";
 
 /** One release attempt of a channel (#4460): a deploy-pages.yml run, a nightly promotion, a production promotion. */

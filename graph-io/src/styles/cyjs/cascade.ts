@@ -2065,7 +2065,7 @@ function combineDashes(
         const col = values[style];
         if (col !== undefined) {
             if (kind === "edge") {
-                dashLengths(col, n, values, fallback, words);
+                dashLengths(col, n, values, { fallback, pattern }, words);
             }
             dashColumn(col, n, values[width], { fallback, pattern }, own ? words : null);
         }
@@ -2076,36 +2076,41 @@ function combineDashes(
  * Each dashed edge's own `line-dash-pattern` as the dash and gap it draws, into `dashLength` and `dashGap` in its
  * line's widths: drawn in pixels whatever the width, a round or square cap lengthening each dash by the width
  * (cytoscape.js 3.34.3 `drawEdgePath`).
- * The pattern Cytoscape.js draws without one, and its dots, are its own (`ToolDefaults.dashes`).
+ * The pattern Cytoscape.js draws without one, and its dots, are its own (`ToolDefaults.dashes`), except where that
+ * pattern reads as another line style at the line's width (6 3 at width 6 reads as dotted): it is kept there too, as
+ * the program's pattern for the style it reads as would be another one.
  * @param col - the line styles, before they are read as the lines they look like
  * @param n - the element count
  * @param values - the values; changed in place
- * @param fallback - the width Cytoscape.js draws when none is set
+ * @param drawn - what Cytoscape.js draws when they are not set: the width and the dash pattern
+ * @param drawn.fallback - the width
+ * @param drawn.pattern - the dash pattern
  * @param words - the parts by internal name
  */
 function dashLengths(
     col: readonly (StyleValue | null)[],
     n: number,
     values: Partial<Record<string, (StyleValue | null)[]>>,
-    fallback: number,
+    drawn: { fallback: number; pattern: string },
     words: ReadonlyMap<string, (string | null)[]>,
 ): void {
     const patterns = words.get("_dashPattern");
     for (let i = 0; i < n; i++) {
-        const own = patterns?.[i];
-        if (col[i] !== "dashed" || own === null || own === undefined) {
-            continue;
-        }
-        const dashes = own
-            .split(/[\s,[\]]+/)
-            .filter((t) => t !== "")
-            .map((t) => Number.parseFloat(t));
-        if (!dashes.every((d) => Number.isFinite(d))) {
+        if (col[i] !== "dashed") {
             continue;
         }
         const w = values.width?.[i];
-        const width = typeof w === "number" ? w : fallback;
-        const pair = drawnDash(dashes, (words.get("_dashCap")?.[i] ?? "butt") === "butt" ? 0 : width);
+        const width = typeof w === "number" ? w : drawn.fallback;
+        const cap = words.get("_dashCap")?.[i] ?? "butt";
+        const dashes = (patterns?.[i] ?? drawn.pattern)
+            .split(/[\s,[\]]+/)
+            .filter((t) => t !== "")
+            .map((t) => Number.parseFloat(t));
+        const own = typeof patterns?.[i] === "string";
+        if (!dashes.every((d) => Number.isFinite(d)) || (!own && cyjsDashLook(dashes, width, cap) === "dashed")) {
+            continue;
+        }
+        const pair = drawnDash(dashes, cap === "butt" ? 0 : width);
         if (pair !== null && pair.gap > 0 && width > 0) {
             columnOf(values, "dashLength", n)[i] = num6(pair.dash / width);
             columnOf(values, "dashGap", n)[i] = num6(pair.gap / width);

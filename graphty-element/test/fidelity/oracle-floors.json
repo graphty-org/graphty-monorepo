@@ -11590,7 +11590,7 @@
             "edge.width": 1,
             "edge.opacity": 1,
             "edge.dash": 1,
-            "edge.dashPeriod": 0.75,
+            "edge.dashPeriod": 1,
             "edge.gradient": 1,
             "edge.outline": 1,
             "edge.arrow": 1,
@@ -11702,7 +11702,7 @@
             "edge.width": 1,
             "edge.opacity": 1,
             "edge.dash": 1,
-            "edge.dashPeriod": 0.75,
+            "edge.dashPeriod": 1,
             "edge.gradient": 1,
             "edge.outline": 1,
             "edge.arrow": 1,
@@ -13322,7 +13322,7 @@
             "label.present": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.983,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -13368,7 +13368,7 @@
             "label.present": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.983,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -13494,7 +13494,7 @@
             "label.present": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.75,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -13539,7 +13539,7 @@
             "label.present": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.75,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -13755,7 +13755,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.982,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -13779,7 +13779,7 @@
             "background": 1,
             "raster.arrowhead": 0.95,
             "raster.canvas": 0.99,
-            "raster.edge": 0.88,
+            "raster.edge": 0.9,
             "raster.label": 0.94,
             "raster.nodeBody": 0.98,
             "raster.nodeOutline": 0.94,
@@ -14790,7 +14790,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.982,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -16346,7 +16346,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.692,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -16415,7 +16415,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.692,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -17442,7 +17442,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.982,
+            "edge.route": 0.991,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -17506,7 +17506,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.945,
+            "edge.route": 0.963,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -30045,7 +30045,7 @@
             "edge.width": 1,
             "edge.opacity": 1,
             "edge.dash": 1,
-            "edge.dashPeriod": 0.667,
+            "edge.dashPeriod": 1,
             "edge.gradient": 1,
             "edge.arrow": 1,
             "edge.arrowShape": 1,
@@ -30118,7 +30118,7 @@
             "edge.width": 1,
             "edge.opacity": 1,
             "edge.dash": 1,
-            "edge.dashPeriod": 0.667,
+            "edge.dashPeriod": 1,
             "edge.gradient": 1,
             "edge.arrow": 1,
             "edge.arrowShape": 1,
@@ -30191,7 +30191,7 @@
             "edge.width": 1,
             "edge.opacity": 1,
             "edge.dash": 1,
-            "edge.dashPeriod": 0.667,
+            "edge.dashPeriod": 1,
             "edge.gradient": 1,
             "edge.arrow": 1,
             "edge.arrowShape": 1,
@@ -30258,7 +30258,7 @@
             "edge.width": 1,
             "edge.opacity": 1,
             "edge.dash": 1,
-            "edge.dashPeriod": 0.667,
+            "edge.dashPeriod": 1,
             "edge.gradient": 1,
             "edge.arrow": 1,
             "edge.arrowShape": 1,
@@ -39283,11 +39283,11 @@
             "label.opacity": 1,
             "label.family": 1,
             "label.lines": 1,
-            "label.alongLine": 0.976,
+            "label.alongLine": 1,
             "label.offLine": 1,
             "label.outline": 1,
             "label.background": 1,
-            "label.backgroundBox": 0.5,
+            "label.backgroundBox": 1,
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
@@ -39345,11 +39345,11 @@
             "label.opacity": 1,
             "label.family": 1,
             "label.lines": 1,
-            "label.alongLine": 0.976,
+            "label.alongLine": 1,
             "label.offLine": 1,
             "label.outline": 1,
             "label.background": 1,
-            "label.backgroundBox": 0.5,
+            "label.backgroundBox": 1,
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
@@ -56281,46 +56281,6 @@
                 "date": "2026-11-04"
             }
         },
-        "dot-real-linux-kernel": {
-            "edge.route": {
-                "floor": 1,
-                "to": 0.755,
-                "reason": "DOT style=invis nodes now paint nothing but keep their edges, as Graphviz does (dot-real-linux-kernel.svg draws HI->HI_ and its head with no HI_ node group): the 13 edges that failed edge.present now are drawn and judged, and miss edge.route by about 0.22 of the chord (graphty's HI->HI_ ends near 111.6, Graphviz's at 107.7) because the oracle has no position for an invisible node, so the matched view leaves HI_ where graphty's own layout put it",
-                "date": "2026-11-07"
-            }
-        },
-        "dot-real-linux-kernel@matched": {
-            "edge.route": {
-                "floor": 1,
-                "to": 0.736,
-                "reason": "DOT style=invis nodes now paint nothing but keep their edges, as Graphviz does (dot-real-linux-kernel.svg draws HI->HI_ and its head with no HI_ node group): the 13 edges that failed edge.present now are drawn and judged, and miss edge.route by about 0.22 of the chord (graphty's HI->HI_ ends near 111.6, Graphviz's at 107.7) because the oracle has no position for an invisible node, so the matched view leaves HI_ where graphty's own layout put it",
-                "date": "2026-11-07"
-            }
-        },
-        "dot-real-softmaint@matched": {
-            "edge.route": {
-                "floor": 1,
-                "to": 0.996,
-                "reason": "2026-11-15: oracle redrawn by Graphviz 16.1.0 in WebAssembly with each fontname sized as graphty-element sizes it (#8195): at that oracle two elements miss by under two render px -- s_proteinstab's place (1.6 px against a 1.5 px floor of the tolerance) and one softmaint route at matched places; left to judge under #8194",
-                "date": "2026-11-16"
-            }
-        },
-        "dot-specimen-edges-lines": {
-            "edge.dash": {
-                "floor": 1,
-                "to": 0.946,
-                "reason": "Graphviz tapered edges (style=tapered, one filled polygon, lib/common/taper.c) are now read by the comparator as the edge's line; graphty draws them as plain solid lines (no reader feeds edge.taper), so their dash differs",
-                "date": "2026-11-09"
-            }
-        },
-        "dot-specimen-edges-lines@matched": {
-            "edge.dash": {
-                "floor": 1,
-                "to": 0.946,
-                "reason": "Graphviz tapered edges (style=tapered, one filled polygon, lib/common/taper.c) are now read by the comparator as the edge's line; graphty draws them as plain solid lines (no reader feeds edge.taper), so their dash differs",
-                "date": "2026-11-09"
-            }
-        },
         "dot-synth-edges-clusters": {
             "group.strokeWidth": {
                 "floor": 1,
@@ -56539,6 +56499,12 @@
                 "to": 0.97,
                 "reason": "comparator (#8189): yEd's head on 19->30 is now read along its own axis where the line stops on its notch, so it reads as yEd's vee; graphty's line hooks 7 px down and right past the head (its edge.route failure), which turns graphty's head off its line and misreads its length and width",
                 "date": "2026-11-17"
+            },
+            "label.alongLine": {
+                "floor": 0.5,
+                "to": 0.375,
+                "reason": "drawing (#8190): yEd edge labels now get yEd's box (2 px padding, line height 1), which drops the words of e2 (a side_slider label) 1.6 px on its diagonal line; its place along the line was already at the edge of tolerance (yEd 0.228, graphty 0.389), as for the other side_slider labels here that yEd slides toward their source",
+                "date": "2026-11-19"
             }
         },
         "gml-synthetic-coverage@matched": {
@@ -56559,6 +56525,12 @@
                 "to": 0.97,
                 "reason": "comparator (#8189): yEd's head on 19->30 is now read along its own axis where the line stops on its notch, so it reads as yEd's vee; graphty's line hooks 7 px down and right past the head (its edge.route failure), which turns graphty's head off its line and misreads its length and width",
                 "date": "2026-11-17"
+            },
+            "label.alongLine": {
+                "floor": 0.5,
+                "to": 0.375,
+                "reason": "drawing (#8190): yEd edge labels now get yEd's box (2 px padding, line height 1), which drops the words of e2 (a side_slider label) 1.6 px on its diagonal line; its place along the line was already at the edge of tolerance (yEd 0.228, graphty 0.389), as for the other side_slider labels here that yEd slides toward their source",
+                "date": "2026-11-19"
             }
         },
         "graphml-yfiles-html-ss13-tree": {

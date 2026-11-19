@@ -3,7 +3,7 @@ import { assert, describe, expect, it } from "vitest";
 import { canonicalSetDefinition } from "../../../src/catalog/sets/canonical";
 import type { EdgeMember, SetDefinition } from "../../../src/catalog/types";
 
-/** Serialise, so key order is part of what a test compares. */
+/** Serialize, so key order is part of what a test compares. */
 function json(value: unknown): string {
     return JSON.stringify(value);
 }

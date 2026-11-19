@@ -1,11 +1,11 @@
 /**
- * @file The algorithms a third party registered, as the catalogue sees them.
+ * @file The algorithms a third party registered, as the catalog sees them.
  *
  * WHY THIS EXISTS. The element's own twenty algorithms are a frozen table: they are known at
  * build time, they never differ between two sessions, and everything downstream is entitled to
  * assume that. A plugin is none of those things -- it arrives when somebody imports it -- and
  * for a long time the consequence was that a plugin could not be started as a run at all. The
- * run machinery resolves a key through the catalogue, the catalogue was the frozen table, and a
+ * run machinery resolves a key through the catalog, the catalog was the frozen table, and a
  * key that is not in it is refused. So a plugin could compute something and nothing could ask
  * for it: no progress, no cancellation, no cost estimate before the click, no ranking, no
  * summary, no reading, and no picture derived from its shape. Every capability the run model
@@ -21,7 +21,7 @@
  * WHAT IS DELIBERATELY NOT HERE. No unregister, and no per-session override. A descriptor is
  * public API the moment a run records it: a layer's source names the algorithm, a saved document
  * references the key, and a journal entry replays it. Taking one away at run time would leave
- * those pointing at nothing, and letting two sessions disagree is the bug the shared catalogue
+ * those pointing at nothing, and letting two sessions disagree is the bug the shared catalog
  * was arranged to prevent.
  *
  * THE DUPLICATE POLICY IS NOT WRITTEN HERE. It comes from `./pluginRegistry`, which every one of
@@ -40,16 +40,16 @@ import { createPluginRegistry, type RegisterOptions } from "./pluginRegistry";
 import { type AlgorithmDescriptor, type AlgorithmKey, KNOWN_ALGORITHMS, type SuggestedName } from "./types";
 
 /**
- * A registered algorithm: what the catalogue publishes about it, and where its class lives.
+ * A registered algorithm: what the catalog publishes about it, and where its class lives.
  *
  * The registry address is kept beside the descriptor rather than parsed back out of the key,
- * because the two are independent. A plugin's catalogue key is what a consumer types and what a
+ * because the two are independent. A plugin's catalog key is what a consumer types and what a
  * result path is built from; its namespace and type are what `Algorithm.register` filed the
  * class under. Making the key carry the address would force every plugin to name itself twice
  * in the same way and would break the moment one did not.
  */
 export interface RegisteredAlgorithm {
-    /** What the catalogue publishes about it. */
+    /** What the catalog publishes about it. */
     readonly descriptor: AlgorithmDescriptor;
     /** The namespace the class is registered under. */
     readonly namespace: string;
@@ -59,7 +59,7 @@ export interface RegisteredAlgorithm {
      * A cost model in seconds over a graph of n nodes and m edges, read from `static cost`.
      *
      * HERE RATHER THAN ON THE DESCRIPTOR, because a function is not plain JSON and the composed
-     * catalogue has to survive `JSON.stringify` and a `postMessage`. Keeping the model beside
+     * catalog has to survive `JSON.stringify` and a `postMessage`. Keeping the model beside
      * the class reference makes that true by type rather than by the discipline of a test, and a
      * plugin still supplies real arithmetic for the estimator to use.
      */
@@ -88,7 +88,7 @@ export interface RegisteredAlgorithm {
 }
 
 /**
- * Every algorithm a third party has registered a descriptor for, by catalogue key.
+ * Every algorithm a third party has registered a descriptor for, by catalog key.
  *
  * Two registrations count as the same when they carry the same descriptor object, which is what
  * a module re-evaluated by a bundler hands over: `Algorithm.register` reads `static descriptor`
@@ -104,10 +104,10 @@ const registry = createPluginRegistry<RegisteredAlgorithm, AlgorithmDescriptor>(
 });
 
 /**
- * Publish a registered algorithm to the catalogue.
+ * Publish a registered algorithm to the catalog.
  *
  * Called by `Algorithm.register` for a class that declares a descriptor, and by nothing else: a
- * descriptor that reached the catalogue without its class being registered would be an entry a
+ * descriptor that reached the catalog without its class being registered would be an entry a
  * consumer can see, start, and then be told does not exist.
  * @param entry - The descriptor, the address its class is registered under, and its optional
  *   cost model and version.
@@ -161,11 +161,11 @@ export function publishAlgorithmDescriptor(entry: RegisteredAlgorithm, options?:
 /**
  * The descriptors those algorithms publish, in registration order.
  *
- * What the catalogue appends to its own table, so a consumer reading `catalog.algorithms()` sees
+ * What the catalog appends to its own table, so a consumer reading `catalog.algorithms()` sees
  * one list and does not have to know which half an entry came from.
  *
- * THE SAME ARRAY UNTIL SOMETHING REGISTERS, which is a promise the catalogue depends on rather
- * than a micro-optimisation. Two sessions asking what the element can do must get back the same
+ * THE SAME ARRAY UNTIL SOMETHING REGISTERS, which is a promise the catalog depends on rather
+ * than a micro-optimization. Two sessions asking what the element can do must get back the same
  * data, and identity is how that is checked: a fresh array per call would make two sessions look
  * like they disagreed when they agree exactly.
  * @returns The descriptors.
@@ -176,7 +176,7 @@ export function registeredAlgorithmDescriptors(): readonly AlgorithmDescriptor[]
 
 /**
  * One registered algorithm, by the key its descriptor publishes.
- * @param key - The catalogue key.
+ * @param key - The catalog key.
  * @returns The entry, or undefined when nothing registered that key.
  */
 export function registeredAlgorithmByKey(key: AlgorithmKey): RegisteredAlgorithm | undefined {
@@ -188,7 +188,7 @@ const undescribed = new Set<string>();
 
 /**
  * Record that an algorithm class registered under an address declares no descriptor. It still
- * runs, by its address, but the catalogue knows nothing of it.
+ * runs, by its address, but the catalog knows nothing of it.
  * @param address - `namespace:type`.
  */
 export function noteUndescribedAlgorithm(address: string): void {

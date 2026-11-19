@@ -4,13 +4,13 @@
  */
 
 /**
- * Okabe-Ito palette, as published -- the R 4.0+ default, safe for every form of colour blindness
+ * Okabe-Ito palette, as published -- the R 4.0+ default, safe for every form of color blindness
  * Research: Okabe & Ito (2008) "Color Universal Design"
  *
- * The eight published colours, with one change of ORDER and none of colour. Yellow is moved to
+ * The eight published colors, with one change of ORDER and none of color. Yellow is moved to
  * the last slot because it barely shows on the element's light background (1.21:1 against
- * whitesmoke), so it is only reached when all eight colours are needed. The published black is
- * kept: an earlier copy replaced it with grey #999999, which sits too close to sky blue for
+ * whitesmoke), so it is only reached when all eight colors are needed. The published black is
+ * kept: an earlier copy replaced it with gray #999999, which sits too close to sky blue for
  * normal vision and to bluish green under protanopia.
  */
 export const OKABE_ITO_COLORS = [
@@ -25,14 +25,14 @@ export const OKABE_ITO_COLORS = [
 ] as const;
 
 /**
- * The one colour an overflowing group encoding paints every group past the palette's capacity.
+ * The one color an overflowing group encoding paints every group past the palette's capacity.
  *
- * A mid grey, #686868 (OKLab lightness 0.52), measured as a lit 3D node draws it: the shadow
- * side, middle and lit side of a node are 0.55, 0.875 and 1.2 times its colour. It is chosen to
+ * A mid gray, #686868 (OKLab lightness 0.52), measured as a lit 3D node draws it: the shadow
+ * side, middle and lit side of a node are 0.55, 0.875 and 1.2 times its color. It is chosen to
  * stay clear of Okabe-Ito black on a node, where the old #505050 sank towards it: Delta E 34.5
  * in OKLab on the shadow side and 47.1 in the middle (#505050: 29.3 and 39.4). It is the lightest
- * grey that keeps every tone of a node at least Delta E 6 from every Okabe-Ito colour under
- * protanopia and deuteranopia (nearest: bluish green #009E73); lighter greys fall to 4.4 and
+ * gray that keeps every tone of a node at least Delta E 6 from every Okabe-Ito color under
+ * protanopia and deuteranopia (nearest: bluish green #009E73); lighter grays fall to 4.4 and
  * below. Normal vision: 13.2 flat and 8.3 on the shadow side from blue #0072B2, the nearest.
  * Against the default whitesmoke background it is 5.1:1 flat and 3.8:1 on the lit side.
  * `test/catalog/default-palette-quality.test.ts` measures it.

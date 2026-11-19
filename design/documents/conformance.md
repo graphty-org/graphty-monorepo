@@ -312,7 +312,7 @@ its section and number on the page the section heading names, or by page when it
 | rec-31 | `louvain` with `seed: 7` | runs; a notice that Louvain is deterministic and ignores the seed | Commands 7 |
 | rec-32 | `seed: 3000000000` | refused by the schema; a reader skips it, `E_OPTION_RANGE` | Commands 7 |
 | rec-33 | a seed above an algorithm's own seed range but within the schema's | skipped, `E_OPTION_RANGE` | Commands 7 |
-| rec-34 | a randomised command with no `seed`, whose seed option has no published default, previewed | no `seed` in its entry; a notice that one will be drawn when it runs | Commands 7 |
+| rec-34 | a randomized command with no `seed`, whose seed option has no published default, previewed | no `seed` in its entry; a notice that one will be drawn when it runs | Commands 7 |
 | rec-35 | the same, run | a seed drawn and reported in the caveats and a notice | Commands 7 |
 | rec-36 | `min-cut` with `params: { "useGlobalMinCut": true, "useKarger": true }` and `seed: 5`, while Karger's path takes no seed | planned with a notice that its results differ on every replay | Commands 7 |
 | rec-37 | `betweenness` with no `sample` and no `exact`, whose exact estimate is 45 s under the default cap | planned with `E_CAP_EXCEEDED`, quoting the `capSeconds` that would admit it; `method` exact; never sampled | Commands 7; Running 2 |
@@ -400,7 +400,7 @@ its section and number on the page the section heading names, or by page when it
 | rec-119 | a filter keeping a 5,000-leaf star, then `link-prediction` | skipped, `E_CAP_EXCEEDED`, in the plan | Running 3 |
 | rec-120 | a recipe planned at twice the total budget, `run()` | not started, `E_CAP_EXCEEDED` with the estimate | Running 4 |
 | rec-121 | a recipe planned at 340 s under the default budget, previewed | `wouldStart: false`, `budgetSeconds: 300` | Running 4 |
-| rec-122 | a recipe cancelled after its second command, then `run()` | the first two results kept; the rest run | Running 5 |
+| rec-122 | a recipe canceled after its second command, then `run()` | the first two results kept; the rest run | Running 5 |
 | rec-123 | a command with `recordedPrecision: "f32"`, replayed on the CPU | `W_PRECISION_DIFFERS` naming both | Same data, same results 4 |
 | rec-124 | the same data under `acceleration: "auto"`, a small and a large graph | the small one may run in double precision, the large one in single; each run's caveats say which | Same data, same results 4 |
 | rec-125 | two replays that find the same communities numbered differently | the same result: compare membership, not numbers | Same data, same results |
@@ -476,7 +476,7 @@ its section and number on the page the section heading names, or by page when it
 | exp-10 | a color authored as `"red"` exported to GEXF | written from the parsed RGBA | Drawn appearance |
 | exp-11 | a node label `<b>x</b>` exported to DOT | written as a quoted string, never an HTML-like label; `W_GRAPHTY_TEXT_QUOTED` | Per format (text) |
 | exp-12 | a label cell `=HYPERLINK(...)` exported to CSV | written prefixed with a single quote; `W_GRAPHTY_CSV_NEUTRALIZED` | Per format (CSV cells) |
-| exp-13 | a GraphML key named `=cmd` exported to CSV | the header cell neutralised the same way | Per format (CSV cells) |
+| exp-13 | a GraphML key named `=cmd` exported to CSV | the header cell neutralized the same way | Per format (CSV cells) |
 | exp-14 | a numeric cell `-2` exported to CSV | written as a number, not prefixed | Per format (CSV cells) |
 | exp-15 | the same with `spreadsheetSafe: false` | nothing prefixed | Per format (CSV cells) |
 | exp-16 | an undirected graph exported to GraphML, then replayed through a recipe | `edgedefault="undirected"` written; read undirected | Per format |
@@ -530,7 +530,7 @@ its section and number on the page the section heading names, or by page when it
 | asset-3 | one GLB added unnamed and as `asset:ball`, both named by layers | two entries; only the first carries `files` | Writing 3 |
 | asset-4 | a layer naming a URL that loaded | an entry with `source` set to the URL; reopened, naming the URL fetches nothing | Writing 5; Reading 8 |
 | asset-5 | a layer naming a URL that never loaded, or an asset id the session does not hold | no entry; the save reports `W_MODEL_NOT_EMBEDDED` with `ref` and `layerIds` | Writing 5 |
-| asset-6 | models totalling more than 64 MB | the model that passes the cap left out, `E_MODEL_TOO_LARGE`, `what: "documentBytes"` | Writing 6 |
+| asset-6 | models totaling more than 64 MB | the model that passes the cap left out, `E_MODEL_TOO_LARGE`, `what: "documentBytes"` | Writing 6 |
 | asset-7 | a member whose files' `data` are longer than the base64 of 64 MB | the file refused, `E_MODEL_TOO_LARGE`, `what: "documentBytes"`, before the session changes | Reading 2 |
 | asset-8 | a member with `"compression": "zstd"` | the file refused, `E_BAD_DOCUMENT` | Reading 1 |
 | asset-9 | an entry with `"encoding": "gzip"` | that entry skipped, `E_BAD_DOCUMENT` at `/assets/<n>/encoding`; the others added | Reading 3 |

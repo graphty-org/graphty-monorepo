@@ -16,7 +16,7 @@
  * ## Why the import is written exactly this way
  *
  * Each `await import()` names the package as a string literal and sits directly inside `try`.
- * That is the form every bundler recognises as an optional import: webpack (5.90.2 and later)
+ * That is the form every bundler recognizes as an optional import: webpack (5.90.2 and later)
  * checks that the `import()` is lexically inside `try`, esbuild treats `try { await import() }`
  * as external when it cannot resolve it, Vite substitutes a placeholder module for an optional
  * peer that is not installed, and Rollup leaves an unresolved specifier external. Present, the

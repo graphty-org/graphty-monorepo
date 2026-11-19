@@ -342,7 +342,7 @@ drawn by the CPU.
 | ----------------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | `E_NO_WEBGPU`                 | The runtime exposes no WebGPU at all -- usually an insecure context, or a browser that does not implement it.    |
 | `E_NO_ADAPTER`                | WebGPU is there but no adapter could be acquired.                                                                |
-| `E_SOFTWARE_ONLY`             | The only adapter is a software rasteriser, which `auto` turns down as slower than the CPU path.                  |
+| `E_SOFTWARE_ONLY`             | The only adapter is a software rasterizer, which `auto` turns down as slower than the CPU path.                  |
 | `E_DEVICE_INCORRECT`          | The adapter answers, and its answers are wrong. See below.                                                       |
 | `E_DEVICE_LOST`               | The device was lost mid-session -- a driver reset, a suspended tab.                                              |
 | `E_TOO_LARGE`                 | The accelerator cannot compute exactly over as many nodes as it was asked for.                                   |

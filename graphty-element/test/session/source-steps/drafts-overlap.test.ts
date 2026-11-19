@@ -386,6 +386,87 @@ describe("source-steps drafts: the key-overlap question", () => {
         session.dispose();
     });
 
+    /**
+     * Phase 6 with bank B (two of bank A's accounts and B-7) and bank C (B-7 and C-9) staged as
+     * accounts: C meets only B-7, a key bank B brings.
+     * @returns The session, accounts.csv's source, bank B's and bank C's.
+     */
+    async function stagedChain(): Promise<{ session: GraphSession; a: string; b: string; c: string }> {
+        const { session, a } = await phase6();
+        const json = (nodes: readonly string[], edge: readonly [string, string], name: string) =>
+            ({
+                type: "json",
+                config: {
+                    data: JSON.stringify({
+                        nodes: nodes.map((id) => ({ id })),
+                        edges: [{ source: edge[0], target: edge[1] }],
+                    }),
+                },
+                name,
+            }) as const;
+        const b = await session.data.stage(json(["A-1", "A-2", "B-7"], ["A-1", "B-7"], "bankB.json"), {
+            type: "account",
+        });
+        const c = await session.data.stage(json(["B-7", "C-9"], ["B-7", "C-9"], "bankC.json"), { type: "account" });
+        return { session, a, b, c };
+    }
+
+    it("an answer that brings a source's keys to a later source asks that source, as data.add would", async () => {
+        const seq = await stagedChain();
+        await seq.session.data.add(seq.b, { overlap: "merge" });
+        await seq.session.data.add(seq.c);
+
+        const { session, b, c } = await stagedChain();
+        const d = session.data.draft({ askOverlap: true });
+        d.add(b);
+        d.add(c);
+        assert.deepStrictEqual(
+            d.preview().questions.map((q) => q.params.source),
+            [b],
+            "kept separate, bank B leaves C nothing to meet",
+        );
+        d.answerOverlap(b, "merge");
+        assert.deepStrictEqual(
+            d.preview().questions.map((q) => q.params),
+            [{ space: "account", count: 1, of: 2, source: c, sources: [b] }],
+            "merged, bank B's B-7 is in account, and C meets it",
+        );
+        await refused(() => d.commit(), "E_OVERLAP_UNANSWERED");
+        d.answerOverlap(c, "separate");
+        await d.commit();
+        assert.deepStrictEqual(issuesOf(session, c), issuesOf(seq.session, seq.c));
+        assert.deepStrictEqual(issuesOf(session, b), issuesOf(seq.session, seq.b));
+        const { [`source:${seq.c}`]: kept, ...rest } = spaces(seq.session);
+        assert.deepStrictEqual(spaces(session), { ...rest, [`source:${c}`]: kept });
+        seq.session.dispose();
+        session.dispose();
+    });
+
+    it("an answer that takes away what a later source met closes its question", async () => {
+        const seq = await stagedChain();
+        await seq.session.data.add(seq.b, { overlap: "separate" });
+        await seq.session.data.add(seq.c);
+
+        const { session, b, c } = await stagedChain();
+        const d = session.data.draft({ askOverlap: true });
+        d.add(b);
+        d.answerOverlap(b, "merge");
+        d.add(c);
+        assert.deepStrictEqual(
+            d.preview().questions.map((q) => q.params),
+            [{ space: "account", count: 1, of: 2, source: c, sources: [b] }],
+        );
+        d.answerOverlap(b, "separate");
+        assert.deepStrictEqual(d.preview().questions, [], "C meets nothing now");
+        await d.commit();
+        assert.deepStrictEqual(issuesOf(session, c), issuesOf(seq.session, seq.c));
+        assert.deepStrictEqual(issuesOf(session, b), issuesOf(seq.session, seq.b));
+        const { [`source:${seq.b}`]: kept, ...rest } = spaces(seq.session);
+        assert.deepStrictEqual(spaces(session), { ...rest, [`source:${b}`]: kept });
+        seq.session.dispose();
+        session.dispose();
+    });
+
     it("a draft's import asks the question as its add does", async () => {
         const { session } = await phase6();
         const d = session.data.draft({ askOverlap: true });

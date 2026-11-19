@@ -39,6 +39,11 @@ export interface DraftState {
     readonly origins?: readonly (number | null)[];
     /** The key-overlap questions its adds asked (a draft opened with `askOverlap`), by source. */
     readonly questions?: Readonly<Record<string, AskedOverlap>>;
+    /**
+     * The sources it added asking (a draft opened with `askOverlap`, no answer given), whether or
+     * not they met anything: an answer to one may make a later one meet, or stop meeting, nodes.
+     */
+    readonly asking?: ReadonlySet<string>;
 }
 
 /** A key-overlap question a draft's add asked, and its answer so far. */
@@ -160,15 +165,21 @@ export function draftAdd(
         kind: "act",
         act: { act: "add-staged", source: id, ...(overlap === undefined ? {} : { overlap }) },
     });
+    const asking = new Set(state.asking);
+    if (ask && overlap === undefined && src !== undefined) {
+        asking.add(id);
+    } else {
+        asking.delete(id);
+    }
     if (asked === null || src === undefined) {
         // An earlier add's question is settled by this one: it asks nothing, or answered at once.
         const { [id]: _settled, ...rest } = next.questions ?? {};
-        return { ...next, questions: rest };
+        return { ...next, questions: rest, asking };
     }
     const was = src.mapping.edges;
     const now = next.value.sources[id].mapping.edges;
     const ends = (["sourceSpace", "targetSpace"] as const).filter((end) => was?.[end] !== now?.[end]);
-    return { ...next, questions: { ...next.questions, [id]: { ...asked, answer: null, ends } } };
+    return { ...next, questions: { ...next.questions, [id]: { ...asked, answer: null, ends } }, asking };
 }
 
 /**
@@ -190,10 +201,9 @@ export function draftAnswer(state: DraftState, id: string, answer: "merge" | "se
             source: id,
         });
     }
-    const [from, to] = answer === "merge" ? [ownSpace(id), q.space] : [q.space, ownSpace(id)];
-    const sources = { ...state.value.sources, [id]: moved(src, from, to, q.ends) };
     const questions = { ...state.questions, [id]: { ...q, answer } };
-    const fresh = refreshed({ ...state.value, sources }, questions, state.copies);
+    const asking = new Set([...(state.asking ?? []), ...Object.keys(questions)]);
+    const fresh = refreshed(state.value, questions, asking, state.copies);
     const next =
         JSON.stringify(fresh.value) === JSON.stringify(state.value)
             ? state
@@ -232,35 +242,45 @@ function moved(
 }
 
 /**
- * Every asked source's question and issues worked out again from the value now, as `data.add`
- * would have given them had each been added in its place with its answer: an answer to one source
- * changes which nodes a later one meets.
+ * Every source the draft added asking worked out again from the value now, in step order, as
+ * `data.add` would have given it had each been added in its place with its answer: an answer to one
+ * source changes which nodes a later one meets. A source that now meets nodes is asked (kept
+ * separate until answered), and one that meets nothing asks nothing and keeps its proposed space.
  * @param value - The draft's value.
- * @param questions - The questions asked.
+ * @param questions - The questions asked, with their answers.
+ * @param asking - The sources the draft added asking.
  * @param copies - The rows as read.
- * @returns The value with each asked source's issues, and the questions recounted.
+ * @returns The value with each such source's mapping and issues, and the questions now.
  */
 function refreshed(
     value: SourceSteps,
     questions: Readonly<Record<string, AskedOverlap>>,
+    asking: ReadonlySet<string>,
     copies: Copies,
 ): { value: SourceSteps; questions: Readonly<Record<string, AskedOverlap>> } {
     const sources = { ...value.sources };
     const out: Record<string, AskedOverlap> = {};
-    for (const [id, q] of Object.entries(questions)) {
-        const at = value.steps.findIndex((s) => s.op === "join.add" && s.source === id);
+    const at = (id: string): number => value.steps.findIndex((s) => s.op === "join.add" && s.source === id);
+    for (const id of [...asking].sort((x, y) => at(x) - at(y))) {
+        const q = questions[id] as AskedOverlap | undefined;
         const src = value.sources[id] as SourceSteps["sources"][string] | undefined;
-        if (at < 0 || src === undefined) {
-            out[id] = q;
+        if (at(id) < 0 || src === undefined) {
+            if (q !== undefined) {
+                out[id] = q;
+            }
             continue;
         }
-        const before = { ...value, steps: value.steps.slice(0, at) };
-        const proposed = moved(src, ownSpace(id), q.space, q.ends);
-        const now = overlapQuestion(before, proposed, copies);
-        out[id] = now === null ? q : { ...q, count: now.count, of: now.of, sources: now.sources };
-        const { issues } = addSource(before, proposed, copies, q.answer ?? "separate").sources[id];
-        const { issues: _old, ...rest } = src;
-        sources[id] = issues === undefined ? rest : { ...rest, issues };
+        const before = { ...value, sources, steps: value.steps.slice(0, at(id)) };
+        const { issues: _old, ...bare } = q === undefined ? src : moved(src, ownSpace(id), q.space, q.ends);
+        const now = overlapQuestion(before, bare, copies);
+        const answer = now === null ? "separate" : (q?.answer ?? "separate");
+        sources[id] = addSource(before, bare, copies, answer).sources[id];
+        if (now !== null) {
+            const ends = (["sourceSpace", "targetSpace"] as const).filter(
+                (end) => bare.mapping.edges?.[end] === now.space,
+            );
+            out[id] = { ...now, answer: q?.answer ?? null, ends };
+        }
     }
     return { value: { ...value, sources }, questions: out };
 }

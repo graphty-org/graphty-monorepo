@@ -379,8 +379,11 @@ time ends and `timeSpells` the column holding its list of spells.
    (`edgeWeightPath`, `edgeWeightMeaning`, the node and edge time path, unit, end, spells and parse
    zone, and the location paths) are only their view, and no section saves them. A writer writes
    each setting as the role of every source whose table carries the column it names (a value
-   role beside its column role); a whole-location column read without a kind of place has no
-   role and is reported (`W_MEMBER_LEFT_OUT`). A reader sets each setting from the roles of the
+   role beside its column role), except that a source the writer read keeps the roles its file
+   named while their setting is what the read set, and keeps its own when it does not carry a
+   column chosen since; a whole-location column read without a kind of place, and a location
+   setting no member holds (a narrowing column or country, a removed location), have no role
+   and are reported (`W_MEMBER_LEFT_OUT`). A reader sets each setting from the roles of the
    sources a step builds: the value when every source naming the role agrees, else null. When
    they differ the reader reports `W_ROLES_DIFFER` (params `{ table, role, sources }`), and a
    writer that kept them writes each source's role back as read while the setting stays null.
@@ -558,7 +561,9 @@ then row order.
     The clash column of `both` is named `<column> (<source id>)`, and exists whenever the held cell
     is filled, even when the values are equal, so a refresh never deletes a column a saved layer
     reads. When that name is taken too (one source giving two values of one name), ` 2`, ` 3`, ...
-    is appended until it is free (`<column> (<source id>) 2`).
+    is appended until it is free (`<column> (<source id>) 2`). The source's own key column never
+    clashes, since the key is what matched its row to the element. A clash column is no source's
+    own value: a reader makes it again on every open, and no copy holds it.
     The names `id` (and on edges `source` and `target`) are held by an element record's own
     fields, so a column added to a copy beside the source's own columns that would take one of
     them is named `<column> (<source id>)` instead; a source's own key and end columns keep their

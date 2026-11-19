@@ -32,7 +32,7 @@ import type {
     SourceStorage,
 } from "../types";
 import { keepHandle, keptHandle, type ProjectFileHandle } from "./fileHandles";
-import { type MixedRole, ROLE_FIELDS, rolesOf } from "./roles";
+import { ROLE_FIELDS, rolesOf, sourceRoles, type TableRoles } from "./roles";
 import { mintUlid } from "./viewParts";
 
 // ---------------------------------------------------------------------------------------------
@@ -269,11 +269,28 @@ interface DataMemory {
     readonly edgeAliases: Map<string, EdgeId>;
     /** Each edge the last read reduced from several rows, and those rows (spec 6.1). */
     readonly reduced: Map<EdgeId, ReducedEdge>;
-    /**
-     * The roles the last read's sources differ on, whose setting the open left null: written back
-     * per source while that setting stays null.
-     */
-    mixedRoles: readonly MixedRole[];
+    /** The settings the last read set from its sources' roles, and each source's roles as read. */
+    roles: { readonly patch: Readonly<JsonObject>; readonly sources: ReadonlyMap<string, TableRoles> };
+    /** The reader's edits the last read applied, in order (spec 4.1.4). */
+    edits: readonly ReadEdit[];
+    /** Each node the last read's sources shared: its columns then and each source's own row. */
+    shared: ReadonlyMap<NodeId, SharedNode>;
+}
+
+/** A reader `edit` an open applied: written back as read while its cell holds the value it set. */
+export interface ReadEdit {
+    readonly operation: JsonObject;
+    readonly kind: "node" | "edge";
+    readonly id: NodeId | EdgeId;
+    readonly column: string;
+    /** The cell's value before the edit, undefined when it held none. */
+    readonly before: unknown;
+}
+
+/** A node several sources supply: its columns before the reader's edits, and each source's own row. */
+export interface SharedNode {
+    readonly baseline: JsonObject;
+    readonly rows: ReadonlyMap<string, JsonObject>;
 }
 
 const MEMORY = projectMemory<DataMemory>();
@@ -304,7 +321,9 @@ function memoryOf(session: GraphSession): DataMemory {
             addChoices: new Map(),
             edgeAliases: new Map(),
             reduced: new Map(),
-            mixedRoles: [],
+            roles: { patch: {}, sources: new Map() },
+            edits: [],
+            shared: new Map(),
         };
         MEMORY.set(session, memory);
     }
@@ -380,8 +399,15 @@ export interface DataRead {
     readonly joins?: readonly JsonObject[];
     /** The choices each built source's `join.add` carried besides its source, by source id. */
     readonly addChoices?: readonly (readonly [string, JsonObject])[];
-    /** The roles the built sources differ on. */
-    readonly mixedRoles?: readonly MixedRole[];
+    /** The settings the built sources' roles set, and each built source's roles, by source id. */
+    readonly roles?: {
+        readonly patch: Readonly<JsonObject>;
+        readonly sources: readonly (readonly [string, TableRoles])[];
+    };
+    /** The reader's edits applied, in order. */
+    readonly edits?: readonly ReadEdit[];
+    /** Each node several sources supply, by its id. */
+    readonly shared?: Iterable<readonly [NodeId, SharedNode]>;
 }
 
 /**
@@ -430,7 +456,9 @@ export function rememberRead(session: GraphSession, read: DataRead): void {
         memory.reduced.set(id, reduced);
     }
 
-    memory.mixedRoles = read.mixedRoles ?? [];
+    memory.shared = new Map(read.shared);
+    memory.roles = { patch: read.roles?.patch ?? {}, sources: new Map(read.roles?.sources ?? []) };
+    memory.edits = read.edits ?? [];
     memory.staged = read.staged ?? [];
     memory.joins = read.joins ?? [];
     memory.types = read.types;
@@ -452,8 +480,8 @@ export function rememberRead(session: GraphSession, read: DataRead): void {
     }
 
     // Built again, so the digest reads the copy ids just remembered.
-    // ponytail: reader edits are baked into the copies on open, so the reader copy id the file
-    // stamped is kept as read until the build changes, rather than derived from the session.
+    // ponytail: removes and merges are baked into the copies on open, so the reader copy id the
+    // file stamped is kept as read until the build changes, rather than derived from the session.
     memory.build = {
         digest: bodyOf(dataModelOf(session), { embed: {}, paths: {} }, []).digest,
         build: read.build,
@@ -655,6 +683,8 @@ interface DataModel {
     readonly reserved: ReadonlySet<string>;
     /** The nodes no source's rows supply, which edges only name (spec 3.1). */
     readonly namedOnly: ReadonlySet<NodeId>;
+    /** Whether a reader edit the last open read is not written back as read. */
+    readonly editsLost: boolean;
 }
 
 /** The `_source.*` columns graphty-element keeps provenance in: its own, written as `_source.loads`. */
@@ -1022,17 +1052,139 @@ function namedIndex(session: GraphSession): Map<string, ReadonlySet<NodeId>> {
  * changed since the open (one that differs from the reduced value) in place of the row's.
  * @param edge - The edge as the session holds it.
  * @param reduced - Its rows and its columns as reduced.
+ * @param held - The columns a reader edit written back sets, whose row value stays.
  * @returns The row, with the edge's id and ends.
  */
-function keptRow(edge: EdgeRecord, reduced: ReducedEdge): EdgeRecord {
+function keptRow(edge: EdgeRecord, reduced: ReducedEdge, held: ReadonlyMap<string, unknown> | undefined): EdgeRecord {
     const row: JsonObject = { ...reduced.rows[0].columns };
     for (const [name, value] of Object.entries(edge)) {
-        if (canonicalJson(value) !== canonicalJson(reduced.baseline[name])) {
+        if (held?.has(name) !== true && canonicalJson(value) !== canonicalJson(reduced.baseline[name])) {
             row[name] = value;
         }
     }
 
     return { ...row, id: edge.id, source: edge.source, target: edge.target };
+}
+
+/** The reader's edits a save writes back as read, and the cells they set. */
+interface KeptEdits {
+    /** The operations, in the order read. */
+    readonly operations: readonly JsonObject[];
+    /** The value each cell held before its edits, by {@link elementKey} and then column. */
+    readonly held: ReadonlyMap<string, ReadonlyMap<string, unknown>>;
+    /** Whether an edit read is not written back, its cell having changed since. */
+    readonly lost: boolean;
+}
+
+/**
+ * A key for a node or an edge, a numeric id apart from the text that prints the same.
+ * @param kind - Node or edge.
+ * @param id - Its id.
+ * @returns The key.
+ */
+function elementKey(kind: "node" | "edge", id: NodeId | EdgeId): string {
+    return JSON.stringify([kind, typeof id, String(id)]);
+}
+
+/**
+ * The reader's edits the last open applied that a save writes back as read (spec 4.1.4): those of
+ * each cell that still holds the value its last edit set, so a source's copy keeps its own value
+ * and the edit stays the reader's, `picked` included (design 3.10); a pick of a source no longer
+ * built loses its `picked` and stays the reader's value. An edit whose cell changed since is not
+ * written back: the cell's value is the session's, written into the copies.
+ * @param edits - The edits read.
+ * @param records - The session's nodes and edges, by {@link elementKey}.
+ * @param sources - The ids of the sources built now.
+ * @returns The edits kept.
+ */
+function keptEdits(
+    edits: readonly ReadEdit[],
+    records: ReadonlyMap<string, Readonly<JsonObject>>,
+    sources: ReadonlySet<string>,
+): KeptEdits {
+    const cellOf = (edit: ReadEdit): string => JSON.stringify([elementKey(edit.kind, edit.id), edit.column]);
+    const last = new Map(edits.map((edit) => [cellOf(edit), edit]));
+    const kept = new Set(
+        [...last]
+            .filter(([, edit]) => {
+                const record = records.get(elementKey(edit.kind, edit.id));
+                return (
+                    record !== undefined && canonicalJson(record[edit.column]) === canonicalJson(edit.operation.value)
+                );
+            })
+            .map(([cell]) => cell),
+    );
+    const operations: JsonObject[] = [];
+    const held = new Map<string, Map<string, unknown>>();
+    for (const edit of edits.filter((each) => kept.has(cellOf(each)))) {
+        const columns = held.get(elementKey(edit.kind, edit.id)) ?? new Map<string, unknown>();
+        if (!columns.has(edit.column)) {
+            columns.set(edit.column, edit.before);
+        }
+
+        held.set(elementKey(edit.kind, edit.id), columns);
+        const { picked, ...rest } = edit.operation;
+        operations.push(typeof picked === "string" && !sources.has(picked) ? rest : edit.operation);
+    }
+
+    return { operations, held, lost: operations.length < edits.length };
+}
+
+/**
+ * A record with each cell a reader edit written back sets put back to its value before the edit.
+ * @param record - The record as the session holds it.
+ * @param held - The cells' values before their edits.
+ * @returns The record its source writes.
+ */
+function restored<T extends JsonObject>(record: T, held: ReadonlyMap<string, unknown> | undefined): T {
+    if (held === undefined) {
+        return record;
+    }
+
+    const row = Object.fromEntries(
+        Object.entries(record).filter(([name]) => !held.has(name) || held.get(name) !== undefined),
+    );
+    for (const [name, before] of held) {
+        if (before !== undefined) {
+            row[name] = before;
+        }
+    }
+
+    return row as T;
+}
+
+/**
+ * A node's row in one supplying source's copy. A node several sources supplied when the last open
+ * read them writes that source's own row as read, with each value the reader changed since the
+ * open (one that differs from what it showed then) in place, so whatever a clash rule shows, every
+ * source keeps its own value and the rule computes the same on reopen (design 3.10); a clash
+ * column is no source's own and is computed again. Any other node writes the session's record.
+ * @param node - The node as the session holds it.
+ * @param load - The source's load key.
+ * @param shared - What the open read of a node several sources supplied.
+ * @param held - The cells a reader edit written back sets, with their values before it.
+ * @returns The row.
+ */
+function nodeRow(
+    node: NodeRecord,
+    load: string,
+    shared: SharedNode | undefined,
+    held: ReadonlyMap<string, unknown> | undefined,
+): NodeRecord {
+    const own = shared?.rows.get(load);
+    if (shared === undefined || own === undefined) {
+        return restored(node, held);
+    }
+
+    const changed = (name: string): boolean =>
+        held?.has(name) !== true && canonicalJson(node[name]) !== canonicalJson(shared.baseline[name]);
+    // A column the reader removed since is left out; one changed takes the session's value.
+    const row = Object.fromEntries(Object.entries(own).filter(([name]) => name in node || !changed(name)));
+    for (const name of Object.keys(node).filter((each) => changed(each))) {
+        row[name] = node[name];
+    }
+
+    return { ...row, id: node.id };
 }
 
 /**
@@ -1043,6 +1195,7 @@ function keptRow(edge: EdgeRecord, reduced: ReducedEdge): EdgeRecord {
  * @param sources - The sources, in join order.
  * @param memory - The memory.
  * @param suppliersOf - The sources that supplied an edge, in join order.
+ * @param held - The cells reader edits written back set, by {@link elementKey}.
  * @returns Each edge's source ids, the reader's edges, the sources whose edges reach each node,
  *     and the folded rows put back (which are no edge of the session).
  */
@@ -1051,6 +1204,7 @@ function placeEdges(
     sources: readonly ModelSource[],
     memory: DataMemory,
     suppliersOf: (id: EdgeId) => ModelSource[],
+    held: KeptEdits["held"],
 ): {
     edgeLoads: Map<EdgeId, string[]>;
     readerEdges: EdgeRecord[];
@@ -1063,8 +1217,9 @@ function placeEdges(
     const foldedRows: { readonly id: EdgeId; readonly row: ReducedRow }[] = [];
     for (const edge of edges) {
         const supplied = suppliersOf(edge.id);
+        const edited = held.get(elementKey("edge", edge.id));
         if (supplied.length === 0) {
-            readerEdges.push(edge);
+            readerEdges.push(restored(edge, edited));
             edgeLoads.set(edge.id, [READER]);
             continue;
         }
@@ -1072,10 +1227,10 @@ function placeEdges(
         const reduced = memory.reduced.get(edge.id);
         const own = reduced?.rows[0];
         if (reduced !== undefined && own?.source === edge.source && own.target === edge.target) {
-            supplied[0].edges.push(keptRow(edge, reduced));
+            supplied[0].edges.push(keptRow(edge, reduced, edited));
             reduced.rows.slice(1).forEach((row) => foldedRows.push({ id: edge.id, row }));
         } else {
-            supplied[0].edges.push(edge);
+            supplied[0].edges.push(restored(edge, edited));
         }
 
         const ids = supplied.map((source) => source.id);
@@ -1178,8 +1333,20 @@ function dataModelOf(session: GraphSession): DataModel {
         const held = kind === "node" ? loadIndex.nodes.get(id) : loadIndex.edges.get(String(id));
         return held ?? [];
     };
-    const { edgeLoads, readerEdges, reach, folds } = placeEdges(edges, sources, memory, (id) =>
-        loadsOf(sourcesOf(id, "edge")),
+    const edits = keptEdits(
+        memory.edits,
+        new Map<string, Readonly<JsonObject>>([
+            ...nodes.map((node) => [elementKey("node", node.id), node] as const),
+            ...edges.map((edge) => [elementKey("edge", edge.id), edge] as const),
+        ]),
+        new Set(sources.map((source) => source.id)),
+    );
+    const { edgeLoads, readerEdges, reach, folds } = placeEdges(
+        edges,
+        sources,
+        memory,
+        (id) => loadsOf(sourcesOf(id, "edge")),
+        edits.held,
     );
     const named = namedIndex(session);
     const nodeLoads = new Map<NodeId, string[]>();
@@ -1192,21 +1359,23 @@ function dataModelOf(session: GraphSession): DataModel {
     );
     for (const node of nodes) {
         const supplier = suppliersOf(node, loadsOf(sourcesOf(node.id, "node")), { named, reach, sources });
+        const edited = edits.held.get(elementKey("node", node.id));
         if (supplier.named) {
             namedOnly.add(node.id);
         } else {
-            supplier.loads.forEach((source) => source.nodes.push(node));
+            const own = memory.shared.get(node.id);
+            supplier.loads.forEach((source) => source.nodes.push(nodeRow(node, source.load.key, own, edited)));
         }
 
         const name = nameNode(node.id, supplier.loads, memory, shared, readerKeys);
         nodeLoads.set(node.id, name.loads);
         nodeRefs.set(node.id, name.ref);
         if (name.reader) {
-            readerNodes.push(node);
+            readerNodes.push(restored(node, edited));
         }
     }
 
-    const folded = foldedOperations(session).size > 0;
+    const folded = foldedOperations(session, edits.lost).size > 0;
     const edgeIdColumn = edgeIdColumnOf(session);
     const copies = new Map(
         sources.map((source) => [
@@ -1246,7 +1415,7 @@ function dataModelOf(session: GraphSession): DataModel {
         edgeRefs.set(id, { load: READER, key: unique ? own : readerKeyOf(memory, `e:${id}`) });
     });
 
-    const reader = readerCopyOf(readerNodes, readerEdges, { nodeRefs, edgeRefs, memory });
+    const reader = readerCopyOf(readerNodes, readerEdges, { nodeRefs, edgeRefs, memory, edits: edits.operations });
     return {
         session,
         directed: session.status.directed,
@@ -1263,6 +1432,7 @@ function dataModelOf(session: GraphSession): DataModel {
         unavailable: memory.unavailable,
         reserved,
         namedOnly,
+        editsLost: edits.lost,
     };
 }
 
@@ -1294,6 +1464,7 @@ export function addedColumns(values: Readonly<JsonObject>): { columns: JsonObjec
  * @param named.nodeRefs - Each node's reference.
  * @param named.edgeRefs - Each edge's reference.
  * @param named.memory - The memory.
+ * @param named.edits - The reader's edits an open read, written back as read.
  * @returns The reader copy, or undefined when the reader added nothing.
  */
 function readerCopyOf(
@@ -1303,10 +1474,11 @@ function readerCopyOf(
         nodeRefs: ReadonlyMap<NodeId, NodeRef>;
         edgeRefs: ReadonlyMap<EdgeId, EdgeRef>;
         memory: DataMemory;
+        edits: readonly JsonObject[];
     },
 ): ReaderCopy | undefined {
-    const { nodeRefs, edgeRefs, memory } = named;
-    if (nodes.length + edges.length + memory.heldOperations.length === 0) {
+    const { nodeRefs, edgeRefs, memory, edits } = named;
+    if (nodes.length + edges.length + edits.length + memory.heldOperations.length === 0) {
         return undefined;
     }
 
@@ -1320,6 +1492,7 @@ function readerCopyOf(
             to: nodeRefs.get(target),
             ...addedColumns(columns),
         })),
+        ...edits,
         // What a held source supplies is not in the session: the operations on it as read.
         ...memory.heldOperations,
     ];
@@ -1376,22 +1549,23 @@ function mappingOf(source: ModelSource, model: DataModel, copy: Copy): JsonObjec
 }
 
 /**
- * A mapping with the source's weight, time and location roles (spec 4.1.3 rule 7): the graph-wide
- * settings written as the roles of each table whose rows carry the column they name. A role the
- * last read's sources differed on is written per source as read while its setting stays null.
+ * A mapping with the source's weight, time and location roles (spec 4.1.3 rule 7): a source the
+ * last open read keeps its roles as read while their settings are what the open set; otherwise
+ * the graph-wide settings are written as the roles of each table whose rows carry their column.
  * @param mapping - The mapping, its roles as read replaced.
  * @param source - The source.
  * @param model - The model.
  * @returns The mapping.
  */
 function withRoles(mapping: JsonObject, source: ModelSource, model: DataModel): JsonObject {
-    const known: JsonObject = { ...model.session.config.data.knownFields };
-    for (const { field, values } of memoryOf(model.session).mixedRoles) {
-        known[field] ??= values.get(source.id);
-    }
-
     const rows = { nodes: source.nodes, edges: source.edges } as const;
-    const roles = rolesOf(known, (table, column) => rows[table].some((row) => row[column] !== undefined));
+    const read = memoryOf(model.session).roles;
+    const own = read.sources.get(source.id);
+    const roles = sourceRoles(
+        model.session.config.data.knownFields,
+        (table, column) => rows[table].some((row) => row[column] !== undefined),
+        own === undefined ? undefined : { roles: own, patch: read.patch },
+    );
     const out: JsonObject = {};
     for (const table of ["nodes", "edges"] as const) {
         const members = mapping[table] as JsonObject | undefined;
@@ -1997,7 +2171,7 @@ interface WrittenBody {
  */
 function embedReason(source: ModelSource, model: DataModel): SourceEmbeddedReason | undefined {
     if ((model.copies.get(source.id) as Copy).embedOnly) {
-        return foldedOperations(model.session).size > 0 ? "edited" : "bytes";
+        return foldedOperations(model.session, model.editsLost).size > 0 ? "edited" : "bytes";
     }
 
     const shared = (loads: readonly string[] | undefined): boolean => (loads?.length ?? 0) > 1;
@@ -2281,12 +2455,17 @@ const LOAD_STEPS = new Set(["data.import", "data.import-source", "data.set", "da
  * The reader's edits, removes and merges the session holds, by `op`: those an open read, and those
  * made since the data was last loaded, as the history records them.
  * @param session - The session.
+ * @param editsLost - Whether an edit an open read is not written back as read.
  * @returns The operations.
  */
-function foldedOperations(session: GraphSession): Set<string> {
+function foldedOperations(session: GraphSession, editsLost: boolean): Set<string> {
     const { history } = session;
     const applied = history.steps.slice(0, history.position);
     const ops = new Set(memoryOf(session).folded);
+    if (editsLost) {
+        ops.add("edit");
+    }
+
     // Walked newest first, up to the last load.
     for (let at = applied.length - 1; at >= 0 && !LOAD_STEPS.has(applied[at].fact.code); at--) {
         const op = FOLDED_STEPS[applied[at].fact.code];
@@ -2330,7 +2509,7 @@ function reportLeftOut(model: DataModel, problems: DocumentProblem[]): void {
 
     // ponytail: the session keeps no log of the reader's edits, removes and merges, only their
     // result, so the reader source writes `add`s alone; keep a log in the data store to write them.
-    for (const op of foldedOperations(model.session)) {
+    for (const op of foldedOperations(model.session, model.editsLost)) {
         problems.push({
             code: "W_MEMBER_LEFT_OUT",
             params: { section: "data", pointer: "/sources/reader/copy/operations", field: op },

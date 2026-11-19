@@ -912,13 +912,14 @@ describe("data section version 2", () => {
                 (from.sources as JsonObject[]).map((source) => [String(source.id), (source.origin as JsonObject).copy]),
             );
         const written = copies(body);
-        const file = String((example.sources as JsonObject[]).find((source) => source.kind === "file")?.id);
-        for (const [id, copy] of Object.entries(copies(example)).filter(([id]) => id !== "reader" && id !== file)) {
+        // The reader's edit is written back as read, so every copy keeps the bytes it hashed.
+        for (const [id, copy] of Object.entries(copies(example))) {
             assert.strictEqual(written[id], copy, id);
         }
 
-        // The reader's edit is folded into the file's copy, so it no longer holds the bytes it hashed.
-        assert.match(String(written[file]), ULID);
+        const reader = (from: JsonObject): unknown =>
+            ((from.sources as JsonObject[]).find((source) => source.kind === "reader")?.copy as JsonObject).operations;
+        assert.deepStrictEqual(reader(body), reader(example));
 
         assert.deepStrictEqual(body.types, example.types);
         const typesOf = (from: JsonObject): string[] =>
@@ -2097,7 +2098,8 @@ describe("clash rules, per-source roles and picks (spec 4.1.3 rule 7, 4.1.4, 4.1
         assert.strictEqual(timeOf(SRC_A), "when");
         assert.strictEqual(timeOf(SRC_B), "at");
 
-        // A setting chosen since is the view again: every source carrying the column takes it.
+        // A setting chosen since is the role of each source carrying the column; one that does not
+        // carry it keeps its own.
         await session.config.set({ data: { knownFields: { nodeTimePath: "when" } } });
         const { body: chosen } = await writeBody(session);
         const mappings = (chosen.sources as JsonObject[]).map(
@@ -2105,9 +2107,147 @@ describe("clash rules, per-source roles and picks (spec 4.1.3 rule 7, 4.1.4, 4.1
         );
         assert.deepStrictEqual(
             mappings.map((each) => each.time),
-            ["when", undefined],
+            ["when", "at"],
         );
         session.dispose();
+    });
+
+    it("writes no role onto a source whose file never named it, though its rows carry the column", async () => {
+        const body = rowsBody([
+            nodeSource(SRC_A, { when: [1990] }, { time: "when" }),
+            nodeSource(SRC_B, { id: ["ben"], when: [1991] }),
+        ]);
+        // Both sources' edges carry the weight column, but only A's mapping names it.
+        const [a, b] = [
+            rowsSource(SRC_A, {
+                nodes: { id: ["ava"], when: [1990] },
+                edges: { source: ["ava"], target: ["ben"], w: [2] },
+            }),
+            rowsSource(SRC_B, {
+                nodes: { id: ["ben"], when: [1991] },
+                edges: { source: ["ben"], target: ["ava"], w: [3] },
+            }),
+        ];
+        ((a.mapping as JsonObject).nodes as JsonObject).time = "when";
+        const edges = (b.mapping as JsonObject).edges as JsonObject;
+        delete edges.weight;
+        delete edges.weightMeaning;
+        body.sources = [a, b];
+        assert.deepStrictEqual(invalid(asSection(body)), []);
+        const session = createGraphSession(ON);
+        assert.deepStrictEqual(await readBody(session, body), []);
+        assert.strictEqual(session.config.data.knownFields.nodeTimePath, "when");
+        assert.strictEqual(session.config.data.knownFields.edgeWeightPath, "w");
+        const { body: saved, problems } = await writeBody(session);
+        assert.deepStrictEqual(problems, []);
+        const mappingOf = (id: string): JsonObject =>
+            (saved.sources as JsonObject[]).find((each) => each.id === id)?.mapping as JsonObject;
+        assert.strictEqual((mappingOf(SRC_A).nodes as JsonObject).time, "when");
+        assert.notProperty(mappingOf(SRC_B).nodes as JsonObject, "time");
+        assert.strictEqual((mappingOf(SRC_A).edges as JsonObject).weight, "w");
+        assert.notProperty(mappingOf(SRC_B).edges as JsonObject, "weight");
+        assert.notProperty(mappingOf(SRC_B).edges as JsonObject, "weightMeaning");
+        session.dispose();
+    });
+
+    it("reports the location settings no mapping member holds instead of dropping them", async () => {
+        const body = rowsBody([nodeSource(SRC_A, { city: ["Paris"], ctry: ["FR"] }, { city: "city" })]);
+        const session = createGraphSession(ON);
+        assert.deepStrictEqual(await readBody(session, body), []);
+        await session.config.set({
+            data: {
+                knownFields: { nodeLocationWithinPath: "ctry", nodeLocationWithin: "FR", nodeLocationRole: "none" },
+            },
+        });
+        const { body: saved, problems } = await writeBody(session);
+        assert.deepStrictEqual(
+            problems,
+            ["nodeLocationWithinPath", "nodeLocationWithin", "nodeLocationRole"].map((field) => ({
+                code: "W_MEMBER_LEFT_OUT",
+                params: { section: "data", field: `data.knownFields.${field}` },
+            })),
+        );
+        const [record] = saved.sources as JsonObject[];
+        assert.strictEqual(((record.mapping as JsonObject).nodes as JsonObject).city, "city");
+        session.dispose();
+    });
+
+    /**
+     * A saved source's node column, by source id.
+     * @param body - The saved body.
+     * @param id - The source id.
+     * @param column - The column.
+     * @returns Its cells.
+     */
+    const cellsOf = (body: JsonObject, id: string, column: string): unknown =>
+        (((body.sources as JsonObject[]).find((each) => each.id === id)?.copy as JsonObject).nodes as JsonObject)[
+            column
+        ];
+
+    it("keeps every source's own value through a save whatever a clash rule shows", async () => {
+        for (const [rule, shown] of [
+            [undefined, 10],
+            ["keep", 10],
+            ["overwrite", 30],
+            ["max", 30],
+            ["mean", 20],
+            ["vote", 10],
+        ] as const) {
+            const body = rowsBody([nodeSource(SRC_A, { amount: [10] }), nodeSource(SRC_B, { amount: [30] })]);
+            if (rule !== undefined) {
+                (body.joins as JsonObject[])[1].clash = rule;
+            }
+
+            const session = createGraphSession(ON);
+            assert.deepStrictEqual(await readBody(session, body), []);
+            assert.strictEqual(session.data.nodes()[0].amount, shown, String(rule));
+            const { body: saved, problems } = await writeBody(session);
+            assert.deepStrictEqual(problems, []);
+            assert.deepStrictEqual(cellsOf(saved, SRC_A, "amount"), [10], String(rule));
+            assert.deepStrictEqual(cellsOf(saved, SRC_B, "amount"), [30], String(rule));
+
+            // Opened again, the rule shows the same, and a second save writes the same file.
+            const again = createGraphSession(ON);
+            assert.deepStrictEqual(await readBody(again, saved), []);
+            assert.strictEqual(again.data.nodes()[0].amount, shown, String(rule));
+            assert.strictEqual(canonicalJson((await writeBody(again)).body), canonicalJson(saved), String(rule));
+            session.dispose();
+            again.dispose();
+        }
+    });
+
+    it("writes a value the reader changed since the open into every source that supplies the node", async () => {
+        const body = rowsBody([nodeSource(SRC_A, { amount: [10] }), nodeSource(SRC_B, { amount: [30] })]);
+        (body.joins as JsonObject[])[1].clash = "mean";
+        const session = createGraphSession(ON);
+        await readBody(session, body);
+        await session.data.updateNodes([{ id: session.data.nodes()[0].id, values: { amount: 99 } }]);
+        const { body: saved } = await writeBody(session);
+        assert.deepStrictEqual(cellsOf(saved, SRC_A, "amount"), [99]);
+        assert.deepStrictEqual(cellsOf(saved, SRC_B, "amount"), [99]);
+        session.dispose();
+    });
+
+    it("round-trips clash both: no clash column is saved or doubled, and none for the key", async () => {
+        const body = rowsBody([nodeSource(SRC_A, { amount: [10] }), nodeSource(SRC_B, { amount: [30] })]);
+        (body.joins as JsonObject[])[1].clash = "both";
+        const session = createGraphSession(ON);
+        assert.deepStrictEqual(await readBody(session, body), []);
+        const [ava] = session.data.nodes();
+        assert.strictEqual(ava.amount, 10);
+        assert.strictEqual(ava[`amount (${SRC_B})`], 30);
+        assert.notProperty(ava, `id (${SRC_B})`, "the key column never clashes");
+        const { body: saved } = await writeBody(session);
+        assert.deepStrictEqual(cellsOf(saved, SRC_A, "amount"), [10]);
+        assert.deepStrictEqual(cellsOf(saved, SRC_B, "amount"), [30]);
+        assert.isUndefined(cellsOf(saved, SRC_A, `amount (${SRC_B})`));
+
+        const again = createGraphSession(ON);
+        assert.deepStrictEqual(await readBody(again, saved), []);
+        assert.deepStrictEqual(again.data.nodes(), session.data.nodes());
+        assert.strictEqual(canonicalJson((await writeBody(again)).body), canonicalJson(saved));
+        session.dispose();
+        again.dispose();
     });
 
     it("writes the weight setting as the role of the source whose edges carry it, and reads it back", async () => {
@@ -2157,6 +2297,25 @@ describe("clash rules, per-source roles and picks (spec 4.1.3 rule 7, 4.1.4, 4.1
         const session = createGraphSession(ON);
         assert.deepStrictEqual(await readBody(session, body), []);
         assert.strictEqual(session.data.nodes()[0].city, "y");
+
+        // The pick is written back as read, and each source's copy keeps its own value.
+        const { body: saved, problems } = await writeBody(session);
+        assert.deepStrictEqual(problems, []);
+        assert.deepStrictEqual(cellsOf(saved, SRC_A, "city"), ["x"]);
+        assert.deepStrictEqual(cellsOf(saved, SRC_B, "city"), ["y"]);
+        const written = (saved.sources as JsonObject[]).find((each) => each.kind === "reader");
+        assert.deepStrictEqual((written?.copy as JsonObject).operations, reader.copy.operations);
+        const again = createGraphSession(ON);
+        assert.deepStrictEqual(await readBody(again, saved), []);
+        assert.strictEqual(again.data.nodes()[0].city, "y");
+        assert.strictEqual(canonicalJson((await writeBody(again)).body), canonicalJson(saved));
+        again.dispose();
+
+        // Changed since, the cell is the session's again: written into the copies, the edit reported.
+        await session.data.updateNodes([{ id: session.data.nodes()[0].id, values: { city: "z" } }]);
+        const changed = await writeBody(session);
+        assert.deepStrictEqual(changed.problems, [EDIT_FOLDED]);
+        assert.deepStrictEqual(cellsOf(changed.body, SRC_A, "city"), ["z"]);
         session.dispose();
 
         const operation = (reader.copy.operations as JsonObject[])[0];

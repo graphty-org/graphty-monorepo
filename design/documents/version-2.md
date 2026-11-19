@@ -166,10 +166,13 @@ ones in force. The rules that are easy to get wrong:
   mapping role, `repeatedEdges`, or the key rule (data-store-options.md 4.3). The weight, time and
   location settings are views of each source's roles: the writer writes each as the role of every
   source whose rows carry its column, and the reader sets it from the built sources' roles when
-  they agree, else null (`W_ROLES_DIFFER { table, role, sources }` when they differ, each source's
-  role written back as read while the setting stays null). A key with no home (`idCoercion` other
-  than canonical, `positionScale`, a whole-location column read as `auto`) is refused on save and
-  reported, by the refusal rule (Saving).
+  they agree, else null (`W_ROLES_DIFFER { table, role, sources }` when they differ). A source the
+  file named keeps its own roles as read while their setting is what the open set, and keeps its
+  own when it does not carry a column chosen since, so a source that never named a role never
+  gains one. The session itself still holds one setting per role, so a graph whose sources differ
+  opens with that setting null. A key with no home (`idCoercion` other than canonical,
+  `positionScale`, a whole-location column read as `auto`, a narrowing location column or
+  country, a removed location) is refused on save and reported, by the refusal rule (Saving).
 - **Column settings.** Renames belong to each source's `mapping`, so a refresh applies them again.
   Type conversions are the data section's `conversions`. Hidden columns are a table-view choice and
   go in view.
@@ -666,7 +669,9 @@ recipe.md's `commands` (`graph.filter`, `algo.run` with `params`, `layout.set` w
   computing rules read every supplying source's own value of the cell, and a cell a number rule
   cannot read keeps the held value (`W_CLASH_RULE_TYPE { step, column, rule, cells }`). Under
   `both` the incoming value is kept in the clash column `<column> (<source id>)`, which exists
-  whenever the held cell is filled. graphty-element's own joins take the same rules and the same
+  whenever the held cell is filled, never for the source's own key column, and is made again on
+  every open rather than saved. Whatever a rule shows, a save writes every source's own value
+  back into its copy, so a reopen computes the same. graphty-element's own joins take the same rules and the same
   `keep` default (`JoinChoices.clash`; a number rule named for a column of other values is refused
   with `E_CLASH_RULE_TYPE`). The reader's own merge of two nodes is folded into the copies the
   data section embeds; the reader operation `merge` is reserved;

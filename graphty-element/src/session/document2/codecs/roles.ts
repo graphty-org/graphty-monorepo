@@ -2,9 +2,17 @@
  * @file Each source's weight, time and location roles (spec 4.1.3) and the graph-wide
  * `data.knownFields` settings that are their view. Experimental (`save-files-v2`).
  *
- * The session holds one setting per role for the whole graph. A save writes that setting as the
- * role of each source whose rows carry the column it names; an open sets it from the roles of the
- * built sources when they agree, and to null when none names it or they differ.
+ * The session holds one setting per role for the whole graph. An open sets it from the roles of the
+ * built sources when they agree, and to null when none names it or they differ, and remembers each
+ * source's roles as read. A save writes each source's roles as read while their setting is what
+ * the open set; a setting changed since is the role of each source whose rows carry the column it
+ * names, and a source that does not carry it keeps its own. A source loaded since the open takes
+ * every setting whose column its rows carry.
+ *
+ * ponytail: the session holds no per-source roles, so a graph whose sources differ on a role opens
+ * with that setting null (`W_ROLES_DIFFER`): the timeline, the map and Analyze do not read that
+ * role until the reader chooses one. Per-source roles in the session (`data.setRole({ source })`,
+ * `E_ROLE_TARGET_AMBIGUOUS`, design 3.9) are what lifts it.
  */
 
 import type { JsonObject } from "../types";
@@ -56,6 +64,30 @@ export interface SourceRoles {
     readonly leftOut: readonly string[];
 }
 
+/** One source's roles by table, as its mapping names them. */
+export interface TableRoles {
+    readonly nodes: Readonly<JsonObject>;
+    readonly edges: Readonly<JsonObject>;
+}
+
+/**
+ * The location settings no mapping member holds (spec 4.1.3 names none), when set: a narrowing
+ * column or country, and a `nodeLocationRole` that no `nodeLocationPath` is written with ("none",
+ * the reader having removed the field, or a kind of place with no column).
+ * @param known - The `knownFields` settings.
+ * @param written - Whether `nodeLocationPath` was written as a role.
+ * @returns The settings left out.
+ */
+function locationLeftOut(known: Readonly<JsonObject>, written: boolean): string[] {
+    const out = ["nodeLocationWithinPath", "nodeLocationWithin"].filter((field) => typeof known[field] === "string");
+    const role = known.nodeLocationRole;
+    if (typeof role === "string" && role !== "auto" && !written) {
+        out.push("nodeLocationRole");
+    }
+
+    return out;
+}
+
 /**
  * One source's roles from the graph-wide settings: each column role whose column the source's
  * table carries, and each value role beside its column role.
@@ -68,7 +100,6 @@ export function rolesOf(
     carries: (table: "nodes" | "edges", column: string) => boolean,
 ): SourceRoles {
     const out: { nodes: JsonObject; edges: JsonObject } = { nodes: {}, edges: {} };
-    const leftOut: string[] = [];
     for (const { table, role, field, with: beside } of ROLE_FIELDS) {
         const value = known[field];
         if (value === undefined || value === null) {
@@ -82,17 +113,101 @@ export function rolesOf(
         }
     }
 
-    // A whole-location column is written as the kind of place it reads; "auto" has no spelling.
+    const leftOut = withLocationPath(out.nodes, known, carries);
+    return { ...out, leftOut };
+}
+
+/**
+ * Write a whole-location column (`nodeLocationPath`) as the kind of place it reads, when the
+ * source's nodes carry it; "auto" has no spelling.
+ * @param nodes - The node roles so far, written into.
+ * @param known - The `knownFields` settings.
+ * @param carries - Whether the source's table carries a column.
+ * @returns The settings left out.
+ */
+function withLocationPath(
+    nodes: JsonObject,
+    known: Readonly<JsonObject>,
+    carries: (table: "nodes" | "edges", column: string) => boolean,
+): string[] {
     const path = known.nodeLocationPath;
-    if (typeof path === "string" && carries("nodes", path)) {
-        const member = LOCATION_MEMBER[String(known.nodeLocationRole)] as string | undefined;
-        if (member === undefined || out.nodes[member] !== undefined) {
-            leftOut.push("nodeLocationPath");
-        } else {
-            out.nodes[member] = path;
+    if (typeof path !== "string" || !carries("nodes", path)) {
+        return locationLeftOut(known, false);
+    }
+
+    const member = LOCATION_MEMBER[String(known.nodeLocationRole)] as string | undefined;
+    if (member === undefined || nodes[member] !== undefined) {
+        return ["nodeLocationPath", ...locationLeftOut(known, false)];
+    }
+
+    nodes[member] = path;
+    return locationLeftOut(known, true);
+}
+
+/**
+ * The roles a source's mapping names, by table.
+ * @param mapping - The mapping.
+ * @returns Its roles.
+ */
+export function rolesAsRead(mapping: Readonly<JsonObject>): TableRoles {
+    const out: { nodes: JsonObject; edges: JsonObject } = { nodes: {}, edges: {} };
+    for (const { table, role } of ROLE_FIELDS) {
+        const members = mapping[table] as JsonObject | undefined;
+        if (members?.[role] !== undefined) {
+            out[table][role] = members[role];
         }
     }
 
+    return out;
+}
+
+/**
+ * A source's roles as a save writes them (spec 4.1.3 rule 7). A source the open read keeps each
+ * role as read while its setting is what the open set; a setting changed since is the role of a
+ * source whose table carries its column, and a source that does not carry it keeps its own; a
+ * setting cleared since clears it, and a value role goes with its column role. A source loaded
+ * since takes the settings as {@link rolesOf}.
+ * @param known - The `knownFields` settings now.
+ * @param carries - Whether the source's table carries a column.
+ * @param read - Its roles as read and the settings the open set, for a source the open read.
+ * @param read.roles - Its roles as read.
+ * @param read.patch - The settings the open set.
+ * @returns The roles.
+ */
+export function sourceRoles(
+    known: Readonly<JsonObject>,
+    carries: (table: "nodes" | "edges", column: string) => boolean,
+    read?: { readonly roles: TableRoles; readonly patch: Readonly<JsonObject> },
+): SourceRoles {
+    const fresh = rolesOf(known, carries);
+    if (read === undefined) {
+        return fresh;
+    }
+
+    const out: { nodes: JsonObject; edges: JsonObject } = { nodes: {}, edges: {} };
+    // The column roles a source kept as read, so the value roles beside them stay as read too.
+    const kept = new Set<string>();
+    for (const { table, role, field, with: beside } of ROLE_FIELDS) {
+        const now = known[field] ?? null;
+        const changed = JSON.stringify(now) !== JSON.stringify(read.patch[field] ?? null);
+        let value: unknown = read.roles[table][role];
+        if (beside === undefined) {
+            if (changed && (now === null || fresh[table][role] !== undefined)) {
+                value = now ?? undefined;
+            } else {
+                kept.add(`${table}:${role}`);
+            }
+        } else if (!kept.has(`${table}:${beside}`)) {
+            // Beside a column role the source newly takes: the setting's value.
+            value = now ?? undefined;
+        }
+
+        if (value !== undefined && value !== null && (beside === undefined || out[table][beside] !== undefined)) {
+            out[table][role] = value;
+        }
+    }
+
+    const leftOut = withLocationPath(out.nodes, known, carries);
     return { ...out, leftOut };
 }
 

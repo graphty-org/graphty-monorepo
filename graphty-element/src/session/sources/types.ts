@@ -15,7 +15,7 @@ import type {
 
 import type { AttributeDescriptor, NodeId, SourceKey } from "../../catalog/types";
 import type { CodedFact } from "../shared";
-import type { LoadChoices } from "../types";
+import type { LoadChoices, SourceRefreshIssue } from "../types";
 
 /**
  * How a load from a network source runs. The credential is used for this call only: it is never
@@ -286,6 +286,11 @@ export interface SourceRefreshReport {
      * @since 3.30.0
      */
     readonly fact: CodedFact<"I_SOURCE_REFRESHED" | "I_SOURCE_UNCHANGED">;
+    /**
+     * Under the source-steps experiment: held steps, new columns and reader edits whose source moved.
+     * @experimental source-steps
+     */
+    readonly issues?: readonly SourceRefreshIssue[];
 }
 
 /** What a source can do beyond one load, for a form to offer or leave out. Experimental. */

@@ -2635,6 +2635,21 @@ export type GraphtyWarningCode =
 * Experimental: the source-steps experiment.
 */
 | "W_SPACE_OVERLAP"
+/**
+* A step went with a removed source (`params.step`, `params.reason` `"source-removed"`,
+* `params.source`). Experimental: the source-steps experiment.
+*/
+| "W_STEP_REMOVED"
+/**
+* A refresh or replace brought a column the source's old rows did not hold (`params.source`,
+* `params.column`). Experimental: the source-steps experiment.
+*/
+| "W_COLUMN_UNUSED"
+/**
+* The value under a reader edit moved since it was made (`params.edit`, `params.was`,
+* `params.now`, and `params.picked` for a pick). Experimental: the source-steps experiment.
+*/
+| "W_EDIT_SOURCE_CHANGED"
 /** A run was still computing when the project was saved, so the file does not hold it. */
 | "W_RUN_PENDING"
 /**
@@ -4830,8 +4845,10 @@ export type ReadableValueKind = "number" | "category" | "text" | "yes-no";
 export interface ReaderEditRow {
     readonly column?: string;
     readonly id: string;
+    readonly now?: SourceValue | null;
     readonly op: "add" | "add-edge" | "remove" | "edit";
     readonly picked?: SourceKey;
+    readonly state?: "applies" | "lost" | "source-changed";
     readonly target: {
         readonly space: SourceSpaceName;
         readonly key: string;
@@ -4840,6 +4857,7 @@ export interface ReaderEditRow {
         readonly key: string;
     };
     readonly value?: SourceCellValue;
+    readonly was?: SourceValue | null;
 }
 
 // @public
@@ -4994,6 +5012,7 @@ export function removeAutosave(key: string, id: string, options?: AutosaveLookup
 // @public
 export interface RemoveSourceResult {
     readonly alsoRemoved: readonly SourceKey[];
+    readonly issues?: readonly SourceRefreshIssue[];
     readonly kept: {
         readonly nodes: number;
         readonly edges: number;
@@ -5052,6 +5071,7 @@ export interface ReplaceCounts {
 // @public
 export interface ReplaceReport {
     readonly edges: ReplaceCounts;
+    readonly issues?: readonly SourceRefreshIssue[];
     readonly nodes: ReplaceCounts;
     readonly unbound: readonly CodedFact<ReplaceUnboundCode>[];
 }
@@ -6349,11 +6369,13 @@ export interface SessionDataApi {
     }): Promise<void>;
     renameSource(name: string, key?: SourceKey): Promise<void>;
     replaceSource(key: SourceKey, source: DataSourceInput, choices?: LoadChoices & SourceLoadOptions): Promise<ReplaceReport>;
+    resolveStep(index: number, resolution: SourceStepResolution): Promise<void>;
     resultColumns(kind: "node" | "edge"): readonly ResultColumnDescriptor[];
     roleCandidate(kind: "node" | "edge", role: ColumnRole): string | null;
     runPendingSourceLoad(id: string, options?: SourceLoadOptions): Promise<void>;
     setHidden(columns: readonly ColumnRef[], hidden: boolean): Promise<void>;
     setRole(column: ColumnRef, role: ColumnRole | null): Promise<void>;
+    settleEdit(id: string, choice: SourceEditChoice): Promise<void>;
     setType(column: ColumnRef, type: ValueType): Promise<void>;
     setValueLabel(path: Path, value: string | number | boolean, label: string | null): Promise<void>;
     snapshot(): GraphSnapshot;
@@ -7066,6 +7088,9 @@ export interface SourceEdgeRef {
 }
 
 // @public
+export type SourceEditChoice = "follow" | "keep" | "drop";
+
+// @public
 export type SourceElementRef = SourceNodeRef | SourceEdgeRef;
 
 // @public
@@ -7301,9 +7326,52 @@ export interface SourceRead extends SourceInput {
 }
 
 // @public
+export type SourceRefreshIssue = {
+    readonly code: "E_COLUMN_MISSING";
+    readonly params: {
+        readonly source: SourceKey;
+        readonly column: string;
+        readonly table: "nodes" | "edges";
+        readonly step?: number;
+        readonly type?: SourceTypeName;
+    };
+} | {
+    readonly code: "E_READ_ROLE_MISSING";
+    readonly params: {
+        readonly step: number;
+        readonly source: SourceKey;
+        readonly column: string;
+        readonly role: SourceRoleName;
+        readonly table: "nodes" | "edges";
+    };
+} | {
+    readonly code: "W_COLUMN_UNUSED";
+    readonly params: {
+        readonly source: SourceKey;
+        readonly column: string;
+    };
+} | {
+    readonly code: "W_STEP_REMOVED";
+    readonly params: {
+        readonly step: number;
+        readonly reason: "source-removed";
+        readonly source: SourceKey;
+    };
+} | {
+    readonly code: "W_EDIT_SOURCE_CHANGED";
+    readonly params: {
+        readonly edit: ReaderEditRow["id"];
+        readonly was: SourceValue | null;
+        readonly now: SourceValue | null;
+        readonly picked?: SourceKey;
+    };
+};
+
+// @public
 export interface SourceRefreshReport {
     readonly added: SourceCounts;
     readonly fact: CodedFact<"I_SOURCE_REFRESHED" | "I_SOURCE_UNCHANGED">;
+    readonly issues?: readonly SourceRefreshIssue[];
     readonly removed: SourceCounts;
     readonly updated: SourceCounts;
 }
@@ -7311,6 +7379,9 @@ export interface SourceRefreshReport {
 export { SourceReportInfo }
 
 export { SourceRequestInit }
+
+// @public
+export type SourceRoleName = "weight" | "time" | "timeEnd" | "latitude" | "longitude" | "coordinates" | "country" | "region" | "city";
 
 // @public
 export interface SourceRowFilter {
@@ -7379,10 +7450,18 @@ export interface SourceStepCounts {
 export type SourceStepOp = "join.add" | "join.merge" | "join.node-values" | "join.edge-values" | "join.edges";
 
 // @public
+export type SourceStepResolution = {
+    readonly column: string;
+} | {
+    readonly none: true;
+};
+
+// @public
 export interface SourceStepRow {
     readonly buckets: SourceStepCounts | null;
     readonly held: boolean;
     readonly index: number;
+    readonly missing: readonly SourceRefreshIssue[];
     readonly off: boolean;
     readonly op: SourceStepOp;
     readonly reads: readonly Path[];

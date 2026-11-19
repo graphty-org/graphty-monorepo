@@ -127,4 +127,43 @@ describe("source-steps: counted work of the diff apply", () => {
             { sizes: [500, 2_000], counter: "bytes the three steps retain" },
         );
     });
+
+    it("settling an edit after a one-cell refresh retains the same bytes however large the graph", async () => {
+        await assertScalesLinearly(
+            async (size) => {
+                const session = createGraphSession({ features: ["source-steps"] });
+                const rows = (first: string): string =>
+                    Array.from({ length: size }, (_, i) => `n${String(i)},${i === 1 ? first : "x"}`).join("\n");
+                await session.data.import({ type: "csv", config: { data: `id,v\n${rows("a")}` }, name: "n.csv" });
+                const [source] = session.data.sources();
+                await session.data.updateNodes([{ id: "n1", values: { v: "mine" } }]);
+                await session.data.replaceSource(source.key, { type: "csv", config: { data: `id,v\n${rows("b")}` } });
+                const [edit] = session.data.edits();
+                await session.data.settleEdit(edit.id, "keep");
+                const bytes = stepBytes(session);
+                session.dispose();
+                return bytes;
+            },
+            { sizes: [500, 2_000], growth: "constant", counter: "bytes the settling step retains" },
+        );
+    });
+
+    it("resolving a held step retains bytes in step with the rows it builds again", async () => {
+        await assertScalesLinearly(
+            async (size) => {
+                const session = await loaded(size);
+                const [source] = session.data.sources();
+                const rows = Array.from({ length: size }, (_, i) => `n${String(i)},n${String((i * 7 + 1) % size)}`);
+                await session.data.replaceSource(source.key, {
+                    type: "csv",
+                    config: { data: `from,target\n${rows.join("\n")}` },
+                });
+                await session.data.resolveStep(0, { column: "from" });
+                const bytes = stepBytes(session);
+                session.dispose();
+                return bytes;
+            },
+            { sizes: [500, 2_000], counter: "bytes the resolving step retains" },
+        );
+    });
 });

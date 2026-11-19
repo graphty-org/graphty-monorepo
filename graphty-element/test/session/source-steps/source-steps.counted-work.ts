@@ -15,5 +15,7 @@ export default {
         "SessionDataApi.use",
         "SessionDataApi.removeStep",
         "SessionDataApi.add",
+        "SessionDataApi.settleEdit",
+        "SessionDataApi.resolveStep",
     ],
 } satisfies CountedWork;

@@ -113,8 +113,26 @@ await session.data.import({ type: "csv", config: { data: more } }, { mode: "merg
 session.data.sources()[1].issues; // [{ code: "W_SPACE_OVERLAP", params: { space: "account", count: 12, of: 40 } }]
 ```
 
-Joins, removing and refreshing a source, and saving the sources and steps are not wired yet. With it
-off, loads, joins and saved files are as before.
+Removing a source gives back the graph without it, and lists the steps that went with it
+(`W_STEP_REMOVED` in the result's `issues`). `replaceSource`, `reloadSource` and a network
+`refresh` keep the source's id and swap its rows; the same rows again record no undo step. A step
+reading a column the new rows lack is held (`E_COLUMN_MISSING`, or `E_READ_ROLE_MISSING` for a
+weight, time or location role) until `data.resolveStep` names a column for it or the column comes
+back. A reader edit whose value moved underneath reads `state: "source-changed"` in `data.edits()`
+(`W_EDIT_SOURCE_CHANGED`), and `data.settleEdit(id, "follow" | "keep" | "drop")` settles it:
+
+```ts
+const report = await session.data.replaceSource(key, { type: "csv", config: { data: newer } });
+for (const issue of report.issues ?? []) {
+    if (issue.code === "W_EDIT_SOURCE_CHANGED") {
+        await session.data.settleEdit(issue.params.edit, "keep");
+    }
+}
+```
+
+`expand`, `more` and `collapse` work only while the network source is the only source. Saving the
+sources and steps is not wired yet. With it off, loads, joins, removal, refresh and saved files
+are as before.
 
 ## What `@experimental` promises
 

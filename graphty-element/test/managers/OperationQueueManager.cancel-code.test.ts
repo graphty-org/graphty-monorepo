@@ -1,5 +1,6 @@
 import { assert, describe, it } from "vitest";
 
+import type { OperationCancelledEvent } from "../../src/events";
 import { EventManager } from "../../src/managers/EventManager";
 import { OperationQueueManager } from "../../src/managers/OperationQueueManager";
 
@@ -23,18 +24,17 @@ async function startBlockingOperation(queueManager: OperationQueueManager): Prom
     return id;
 }
 
-/** Each cancellation as `[name, id, code]`, under both spellings of the event, in emission order. */
-function collectCancellations(eventManager: EventManager): [string, string, string][] {
-    const events: [string, string, string][] = [];
+function collectCancellations(eventManager: EventManager): OperationCancelledEvent[] {
+    const events: OperationCancelledEvent[] = [];
     eventManager.onGraphEvent.add((event) => {
-        if (event.type === "operation-canceled" || event.type === "operation-cancelled") {
-            events.push([event.type, event.id, event.code]);
+        if (event.type === "operation-cancelled") {
+            events.push(event);
         }
     });
     return events;
 }
 
-describe("operation-canceled code", () => {
+describe("operation-cancelled code", () => {
     it("reports queue-cleared when the whole queue is cleared", async () => {
         const eventManager = new EventManager();
         const queueManager = new OperationQueueManager(eventManager);
@@ -43,13 +43,13 @@ describe("operation-canceled code", () => {
         const id = await startBlockingOperation(queueManager);
         queueManager.clear();
 
-        assert.deepEqual(events, [
-            ["operation-canceled", id, "queue-cleared"],
-            ["operation-cancelled", id, "queue-cleared"],
-        ]);
+        assert.deepEqual(
+            events.map((e) => [e.id, e.code]),
+            [[id, "queue-cleared"]],
+        );
     });
 
-    it("reports canceled when one operation is canceled, and the British event says cancelled", async () => {
+    it("reports cancelled when one operation is cancelled", async () => {
         const eventManager = new EventManager();
         const queueManager = new OperationQueueManager(eventManager);
         const events = collectCancellations(eventManager);
@@ -57,9 +57,9 @@ describe("operation-canceled code", () => {
         const id = await startBlockingOperation(queueManager);
         assert.isTrue(queueManager.cancelOperation(id));
 
-        assert.deepEqual(events, [
-            ["operation-canceled", id, "canceled"],
-            ["operation-cancelled", id, "cancelled"],
-        ]);
+        assert.deepEqual(
+            events.map((e) => [e.id, e.code]),
+            [[id, "cancelled"]],
+        );
     });
 });

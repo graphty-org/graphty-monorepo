@@ -2726,6 +2726,13 @@ const YED_EDGE_SPOTS: ReadonlyMap<string, EdgeSpot> = new Map([
 const YED_EDGE_LABEL_END = 10;
 
 /**
+ * How far a SmartEdgeLabelModel label's box stays clear of its segment's ends: its ratio slides the box's middle from
+ * this far plus half its width past the start to as far short of the end (yed-graphml-specimen-edge-labels
+ * `model-smart-ratio-0-2`: an 18.7 px box at ratio 0.2 of a 66 px line is drawn with its middle 21.8 px along it).
+ */
+const YED_SMART_EDGE_LABEL_END = 5;
+
+/**
  * Where a line from a point in a box leaves the box, or the line's end for one that stays inside.
  * @param box - the box's center x and y, width and height
  * @param from - the point
@@ -2778,6 +2785,8 @@ interface YedEdgeLabel {
     stored: readonly number[] | null;
     /** Whether a stored box is in the file's coordinates (yEd's GML), not from where the line starts (its GraphML). */
     storedOnPage?: boolean;
+    /** A SmartEdgeLabelModel label on its line: the segment it is on (from the target where below zero) and its ratio. */
+    smart?: readonly [number, number];
     /** How far it stays clear of the line. */
     distance: number;
     width: number;
@@ -2797,6 +2806,9 @@ function edgeLabelCenter(label: YedEdgeLabel, line: readonly BendPoint[]): BendP
         const [ox, oy] = label.storedOnPage === true ? [0, 0] : line[0];
         return [ox + x + w / 2, oy + y + h / 2];
     }
+    if (label.smart !== undefined) {
+        return smartEdgeLabelCenter(label.smart, label.width, line);
+    }
     const spot =
         YED_EDGE_SPOTS.get(label.spot) ?? YED_EDGE_SPOTS.get(`${label.spot.slice(0, label.spot.indexOf("/"))}/center`);
     if (spot === undefined) {
@@ -2809,6 +2821,25 @@ function edgeLabelCenter(label: YedEdgeLabel, line: readonly BendPoint[]): BendP
     const { at, dir } = pointAlong(line, reach[along]);
     const clear = label.distance + (label.lines * YED_LABEL_LINE * label.fontSize + YED_LABEL_BOX_PADDING) / 2;
     return [at[0] - side * dir[1] * clear, at[1] + side * dir[0] * clear];
+}
+
+/**
+ * The middle of a SmartEdgeLabelModel label centered on its line: `ratio` of the way along its segment, kept its
+ * half width and `YED_SMART_EDGE_LABEL_END` clear of the segment's ends.
+ * @param smart - the segment (from the target where below zero) and the ratio
+ * @param width - the label's width
+ * @param line - the line drawn between the nodes' sides
+ * @returns the point
+ */
+function smartEdgeLabelCenter(smart: readonly [number, number], width: number, line: readonly BendPoint[]): BendPoint {
+    const [segment, ratio] = smart;
+    const last = line.length - 2;
+    const k = Math.min(last, Math.max(0, segment < 0 ? last + 1 + segment : segment));
+    const [a, b] = [line[k], line[k + 1]];
+    const length = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    const end = Math.min(length / 2, YED_SMART_EDGE_LABEL_END + width / 2);
+    const t = length > 0 ? (end + ratio * (length - 2 * end)) / length : 0.5;
+    return [a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])];
 }
 
 /**
@@ -2859,8 +2890,9 @@ export function putYedEdgeLabel(
 }
 
 /**
- * Reads where yEd draws an edge's label, from the model the file names; a free label and a SmartEdgeLabelModel off the
- * line's middle by the box the file stores. A label naming no model is drawn by yEd's default one, six_pos at tail:
+ * Reads where yEd draws an edge's label, from the model the file names; a SmartEdgeLabelModel label centered on its
+ * line by its segment and ratio, and a free label and a SmartEdgeLabelModel label off the line by the box the file
+ * stores. A label naming no model is drawn by yEd's default one, six_pos at tail:
  * on the middle of the line, clear of it on its right (yed-graphml-specimen-edge-labels `default`), unless graphty
  * wrote the file, which keeps the label's place in its styles block. A curved line or a self-loop keeps graphty's place.
  * @param real - the edge realizer
@@ -2896,7 +2928,9 @@ function readEdgeLabelPlace(
     const [s, t] = [box(source), box(target)];
     const offset = (key: string): number => Number(treeAttr(path, key) ?? 0) || 0;
     const smart = treeChild(treeChild(label, "ModelParameter"), "SmartEdgeLabelModelParameter");
-    const smartMiddle = treeAttr(smart, "position") === "center" && Number(treeAttr(smart, "ratio")) === 0.5;
+    // a label centered on its line is drawn where its ratio puts it, whatever box the file stores
+    const ratio = Number(treeAttr(smart, "ratio") ?? Number.NaN);
+    const smartMiddle = treeAttr(smart, "position") === "center" && ratio >= 0 && ratio <= 1;
     const stored = model === "free" || (model === "custom" && smart !== undefined && !smartMiddle);
     const position = smartMiddle ? "center" : (treeAttr(label, "modelPosition") ?? "tail");
     const placed = smartMiddle ? "centered" : model;
@@ -2906,6 +2940,7 @@ function readEdgeLabelPlace(
         {
             spot: model === "custom" && smart === undefined ? unplacedSmartSpot(label, s, t) : `${placed}/${position}`,
             stored: stored ? ["x", "y", "width", "height"].map((k) => Number(treeAttr(label, k))) : null,
+            smart: smartMiddle ? [Number(treeAttr(smart, "segment") ?? 0) || 0, ratio] : undefined,
             distance: Number(treeAttr(label, "distance") ?? 2) || 0,
             width: Number(treeAttr(label, "width")) || 0,
             fontSize: Number(treeAttr(label, "fontSize") ?? 12) || 12,

@@ -1148,14 +1148,54 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
     const storedAs = new Map<string, "embed" | "url">();
     const lookup = (id: AssetId): Entry | undefined => entries.get(id) ?? samples.get(id);
     let defaultsBinding: ModelDefaultsBinding | undefined;
+    // A model set up while it waited (downloading, or for a part) reads the settings it was given
+    // then under the id it waited as, until it is given settings of its own: the project's history
+    // names that id, so an undo still reaches them. Later changes are written under its own id.
+    const settingsIds = new Map<AssetId, AssetId>();
+    /**
+     * The id a model's settings were given under while it waited.
+     * @param id - The record's id.
+     * @returns The id it waited as when it was set up then, else the id itself.
+     */
+    const settingsKey = (id: AssetId): AssetId => settingsIds.get(id) ?? id;
     /**
      * A record's `defaults` field, as the project holds it now.
      * @param id - The record's id.
      * @returns The field, or nothing when the project sets none.
      */
     const defaultsOf = (id: AssetId): { defaults?: ModelDefaults } => {
-        const defaults = defaultsBinding?.read(id);
+        const defaults = defaultsBinding?.read(id) ?? defaultsBinding?.read(settingsKey(id));
         return defaults === undefined ? {} : { defaults };
+    };
+    /**
+     * Keep the settings a waiting model was given once it is accepted under another id, unless
+     * that id already has settings of its own (the session held the same files already).
+     * @param waited - The id it waited as.
+     * @param accepted - Its accepted id.
+     * @returns Whether settings were carried.
+     */
+    const carrySettings = (waited: AssetId, accepted: AssetId): boolean => {
+        const from = settingsKey(waited);
+        if (
+            from === accepted ||
+            defaultsBinding?.read(from) === undefined ||
+            defaultsBinding.read(settingsKey(accepted)) !== undefined
+        ) {
+            return false;
+        }
+
+        settingsIds.set(accepted, from);
+        return true;
+    };
+    /**
+     * Hand an entry's record to whoever waits on it next. A download still running settles the
+     * entry itself: its promise is left alone, so `ready` and `add` still wait for the whole model.
+     * @param entry - The entry whose record changed.
+     */
+    const republish = (entry: Entry): void => {
+        if (entry.fetch === undefined && entry.record.state !== "pending") {
+            entry.settled = Promise.resolve(entry.record);
+        }
     };
 
     /**
@@ -1307,6 +1347,8 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
             return { settled: record({ id, digest, byteLength, format: checked.format, state: "rejected", problems }) };
         }
 
+        // A model accepted after waiting under another id keeps the settings it was given then.
+        carrySettings(id, at.acceptedId);
         const settled = record({
             id: at.acceptedId,
             kind: checked.kind,
@@ -1546,6 +1588,12 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
                 // Held while the pictures downloaded; whole now.
                 delete entry.held;
                 settled = await intake(fetched.given, shared, fetched.main, false, named);
+                // Settings given while it downloaded stay with it under its accepted id.
+                if (settled.state === "accepted" && carrySettings(provisional, settled.id)) {
+                    api.refreshDefaults([settled.id]);
+                    settled = lookup(settled.id)?.record ?? settled;
+                }
+
                 const expected = expectedDigests.get(url.href);
                 if (settled.state === "accepted" && expected !== undefined && expected !== settled.digest) {
                     // A project saved this URL with another file's digest: the file changed since.
@@ -2052,10 +2100,17 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
             return entry.record;
         }
 
+        // What the entry held when the read began: a model handed more files, or accepted, while it
+        // was read (its download finished, a part came) has moved on, and this read is stale.
+        const { held, summary } = entry;
         try {
             const intakeModule = await loadIntake();
             const { files, main, format, skipped } = standIn;
             const checked = await intakeModule.checkModelFiles(files, { main, format, skipped }, limits);
+            if (entry.held !== held || entry.summary !== summary) {
+                return entry.record;
+            }
+
             entry.summary = checked.summary;
             // What the file says of itself (its clips, how it is drawn) is known before its pictures
             // arrive: the waiting record carries those warnings as the accepted one will.
@@ -2652,7 +2707,7 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
             for (const each of allEntries()) {
                 if (each === entry || each.record.id === id) {
                     each.record = renamed(each.record);
-                    each.settled = Promise.resolve(each.record);
+                    republish(each);
                 }
             }
 
@@ -2666,11 +2721,11 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
         refreshDefaults(ids) {
             const wanted = new Set(ids);
             for (const each of allEntries()) {
-                if (wanted.has(each.record.id)) {
+                if (wanted.has(each.record.id) || wanted.has(settingsKey(each.record.id))) {
                     const fields: { -readonly [K in keyof AssetRecord]: AssetRecord[K] } = { ...each.record };
                     delete fields.defaults;
                     each.record = record({ ...fields, ...defaultsOf(each.record.id) });
-                    each.settled = Promise.resolve(each.record);
+                    republish(each);
                 }
             }
         },
@@ -2705,8 +2760,19 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
                 }
 
                 const { id } = entry.record;
+                // The first change to a model set up while it waited takes those settings along, so
+                // the project keeps them under the id it saves and reopens by.
+                const waited =
+                    defaultsBinding.read(id) === undefined ? defaultsBinding.read(settingsKey(id)) : undefined;
+                const whole: ModelDefaultsPatch =
+                    waited === undefined
+                        ? patch
+                        : {
+                              style: { ...waited.style, ...patch.style },
+                              hiddenTextures: patch.hiddenTextures ?? waited.hiddenTextures,
+                          };
                 // Dispatched before any await, so a call routed into a transaction joins it.
-                return defaultsBinding.dispatch({ op: "asset.defaults", id, patch }).then(() => {
+                return defaultsBinding.dispatch({ op: "asset.defaults", id, patch: whole }).then(() => {
                     api.refreshDefaults([id]);
                     return findEntry(ref)?.record ?? entry.record;
                 });

@@ -62,8 +62,9 @@ function logUncaught(): void {
             column: event.colno,
         });
     });
-    globalThis.addEventListener("unhandledrejection", (event) => {
-        const { reason } = event as PromiseRejectionEvent & { reason: unknown };
+    // `reason` is typed any in the DOM's types; reading it through this view keeps it unknown.
+    globalThis.addEventListener("unhandledrejection", (event: { reason: unknown }) => {
+        const { reason } = event;
         log.error("unhandled rejection", reason instanceof Error ? reason : new Error(String(reason)));
     });
 }

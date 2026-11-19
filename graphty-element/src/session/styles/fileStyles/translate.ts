@@ -697,6 +697,7 @@ function channelPlans(
         ["labelLineHeight", [label("labelLineHeight")]],
         ["labelLineBox", [label("labelLineBox")]],
         ["labelBorderAlign", [label("labelBorderAlign")]],
+        ["labelBorderStyle", [label("labelBorderStyle")]],
         ["labelBackgroundShape", [label("labelBackgroundShape")]],
     ];
     if (kind === "node") {

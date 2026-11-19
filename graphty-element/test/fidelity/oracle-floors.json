@@ -13148,7 +13148,7 @@
             "stray.extra": 1
         },
         "dot-real-softmaint": {
-            "node.present": 0.995,
+            "node.present": 1,
             "node.extra": 1,
             "node.position": 1,
             "node.width": 1,
@@ -13207,7 +13207,7 @@
             "edge.wiggle": 1
         },
         "dot-real-softmaint@matched": {
-            "node.present": 0.995,
+            "node.present": 1,
             "node.extra": 1,
             "node.position": 1,
             "node.width": 1,
@@ -16067,7 +16067,7 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "label.text": 0.96,
+            "label.text": 1,
             "label.size": 1,
             "label.weight": 1,
             "label.style": 1,
@@ -16107,7 +16107,7 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "label.text": 0.96,
+            "label.text": 1,
             "label.size": 1,
             "label.weight": 1,
             "label.style": 1,
@@ -16142,7 +16142,7 @@
             "node.stroke": 1,
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
-            "label.present": 0.929,
+            "label.present": 1,
             "label.text": 1,
             "label.size": 1,
             "label.weight": 1,
@@ -16182,7 +16182,7 @@
             "node.stroke": 1,
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
-            "label.present": 0.929,
+            "label.present": 1,
             "label.text": 1,
             "label.size": 1,
             "label.weight": 1,

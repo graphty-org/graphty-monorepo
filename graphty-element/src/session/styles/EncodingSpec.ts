@@ -45,6 +45,7 @@ import type {
     Channel,
     Encoding,
     FieldDescriptor,
+    LabelFieldAddress,
     LayerSpec,
     MeasurementDeclaration,
     PaletteId,
@@ -61,7 +62,9 @@ import type { CodedFact, ColumnRef } from "../shared";
 import {
     type ChannelDescriptor,
     type ChannelValueKind,
+    labelFieldChannel,
     modelBindingProblem,
+    parseLabelFieldAddress,
     parseShaderParamAddress,
 } from "./channels";
 import { DEFAULT_EDGE_WIDTH_RANGE, DEFAULT_SIZE_RANGE } from "./derive";
@@ -198,11 +201,12 @@ export type EncodingRefusalCode = "E_UNSUPPORTED" | "E_CAP_EXCEEDED" | (string &
 
 /**
  * A run or column encoding asked of `styles.proposeEncoding()` for one shader parameter declared
- * `varies`, named by its address (`"node.shaders.uncertainty-aura.intensity"`) in place of a channel.
+ * `varies`, named by its address (`"node.shaders.uncertainty-aura.intensity"`), or for one field of
+ * one label of a label list, named by its address (`"node.labels.top.color"`), in place of a channel.
  * @since 3.36.0
  */
 export type ParamEncodingSpec = (Omit<EncodingSpec, "channel"> | Omit<ColumnEncodingSpec, "channel">) & {
-    readonly channel: ShaderParamAddress;
+    readonly channel: ShaderParamAddress | LabelFieldAddress;
 };
 
 /** What `styles.proposeEncoding()` answers: the binding `encode()` would store, or why not. */
@@ -557,13 +561,19 @@ function overflowCompanion(spec: EncodingOptions, colour: RuleBinding, descripto
 }
 
 /**
- * What an encoding paints: a channel's descriptor, or for a shader parameter's address the
- * descriptor the parameter is bound as (a number or a color between its declared ends).
+ * What an encoding paints: a channel's descriptor, for a shader parameter's address the
+ * descriptor the parameter is bound as (a number or a color between its declared ends), or for a
+ * label field's address the field's own channel (`node.labelColor` for `node.labels.top.color`).
  * @param name - The channel or the address.
  * @returns The descriptor.
  * @throws A `GraphtyError`: `E_UNKNOWN_CHANNEL`, `E_UNKNOWN_SHADER` or `E_UNKNOWN_SHADER_PARAM`.
  */
 function requireEncodable(name: string): ChannelDescriptor {
+    const label = parseLabelFieldAddress(name);
+    if (label !== null) {
+        return labelFieldChannel(label) ?? requireChannel(name);
+    }
+
     const address = parseShaderParamAddress(name);
     // A plan for a write: the write that adds its layer copies a catalog shader it names in.
     return address === null ? requireChannel(name) : shaderParamDescriptor(address, plannedShaderDescriptor);

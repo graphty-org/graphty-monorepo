@@ -828,11 +828,7 @@ export class Edge {
     set dstNode(node: Node_2);
     // @internal
     endRow(end: "source" | "target"): number;
-    readonly extraLabels: Map<string, {
-        label: RichTextLabel;
-        offset: number;
-        attachPosition: AttachPosition;
-    }>;
+    readonly extraLabels: Map<string, RichTextLabel>;
     // @internal
     followRenumberedRows(): void;
     // @internal
@@ -2410,6 +2406,8 @@ class Node_2 implements ModelUser {
     isSelected(): boolean;
     // (undocumented)
     label?: RichTextLabel;
+    // @internal
+    get labelsBuilt(): boolean;
     // @internal
     get layoutRadius(): number;
     // @internal

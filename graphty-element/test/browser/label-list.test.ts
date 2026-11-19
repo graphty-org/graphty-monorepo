@@ -68,8 +68,8 @@ describe("a label list", () => {
 
         const edge = [...graph.getDataManager().edges.values()][0];
         assert(edge, "the edge is drawn");
-        assert.strictEqual(wordsOf(edge.extraLabels.get("mid")?.label), "MID");
-        assert(edge.extraLabels.get("mid")?.label.labelMesh, "the edge's label is on screen");
+        assert.strictEqual(wordsOf(edge.extraLabels.get("mid")), "MID");
+        assert(edge.extraLabels.get("mid")?.labelMesh, "the edge's label is on screen");
 
         await styleEveryNode(graph, { "node.labels": [{ id: "bottom", off: true }] }, "hide bottom");
         await operationQueueOf(graph).waitForCompletion();

@@ -50,6 +50,7 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
+import { withLabelLook } from "../../catalog/label-looks";
 import {
     type LabelDeclutterOrder,
     type LabelEntry,
@@ -2547,6 +2548,14 @@ function shaderChannel(target: "node" | "edge"): ChannelDescriptor {
 /** The most further labels (beside `node.label`'s own) one element draws; see `label.cap`. */
 export const LABEL_CAP = 8;
 
+/** How label sampling and decluttering treat a label list's further labels, by target. */
+const LABEL_LIST_THINNING = {
+    node:
+        "Label sampling (`labels.sampleCell`) holds them back with the node's label; label decluttering " +
+        "(`labels.declutter`) thins only the node's own label, never its further labels.",
+    edge: "Label decluttering (`labels.declutter`) thins them with the edge's other texts.",
+} as const;
+
 /**
  * A node's or an edge's label list: several labels, merged by id.
  * @param target - Nodes or edges.
@@ -2567,7 +2576,7 @@ function labelListChannel(target: "node" | "edge"): ChannelDescriptor {
             `layers, field by field; \`${target}.labelStyle\` and the label field channels are the base style ` +
             `of every entry. The entry with id "label" is \`${target}.label\`'s own label. ` +
             `A field of one label varies by data through the encode key "${target}.labels.<id>.<field>". ` +
-            `At most ${String(LABEL_CAP)} further labels are drawn per element.`,
+            `At most ${String(LABEL_CAP)} further labels are drawn per element. ${LABEL_LIST_THINNING[target]}`,
     };
 }
 
@@ -6673,8 +6682,11 @@ export function isLabelListChannel(channel: string): boolean {
  * Stack one layer's labels over what the layers beneath resolved, by id: an entry sets the fields
  * it names over the entry with its id beneath (its style field by field), `off` removes the label
  * with its id (kept as an off entry, so the main label is hidden too), and a new id adds a label.
- * A map of partial entries by id instead of a list (what a label field bound per element paints)
- * merges the same way.
+ * An entry's style that names a look (`look: "card"`) is stacked as if it wrote the look's fields,
+ * beneath its own, as `node.labelStyle` is. A map of partial entries by id instead of a list (what
+ * a label field bound per element paints) merges the same way, but only into a label already there
+ * and not off (the main label {@link MAIN_LABEL_ID} is always there): a field binding sets that
+ * field and nothing else, so it never adds a label or brings back one a layer beneath switched off.
  * @param held - What the layers beneath resolved, or undefined.
  * @param over - What this layer paints: a list of entries, or partial entries by id.
  * @returns The resolved list, a fresh array; nothing it is given is changed.
@@ -6685,6 +6697,7 @@ export function mergeLabelEntries(held: unknown, over: unknown): readonly LabelE
         out.set(entry.id, entry);
     }
 
+    const patch = !Array.isArray(over);
     for (const [id, entry] of labelWritesOf(over)) {
         if (entry.off === true) {
             out.set(id, { id, off: true });
@@ -6692,14 +6705,37 @@ export function mergeLabelEntries(held: unknown, over: unknown): readonly LabelE
         }
 
         const beneath = out.get(id);
+        if (patch && !patchReaches(id, beneath)) {
+            continue;
+        }
+
         const base = beneath?.off === true ? undefined : beneath;
         const text = entry.text ?? base?.text;
-        const style =
-            entry.style === undefined ? base?.style : (mergeLabelStyle(base?.style, entry.style) as LabelStyle);
+        const style = entryStyleOver(base?.style, entry.style);
         out.set(id, { id, ...(text === undefined ? {} : { text }), ...(style === undefined ? {} : { style }) });
     }
 
     return [...out.values()];
+}
+
+/**
+ * One entry's style stacked over the style beneath, its named look expanded beneath its own fields.
+ * @param held - The style beneath, or undefined.
+ * @param over - The entry's style, or undefined.
+ * @returns The merged style, or undefined for none.
+ */
+function entryStyleOver(held: LabelStyle | undefined, over: LabelStyle | undefined): LabelStyle | undefined {
+    return over === undefined ? held : mergeLabelStyle(held, withLabelLook(over));
+}
+
+/**
+ * Whether a field binding's patch lands on a label: one there and not off, or the main label.
+ * @param id - The label's id.
+ * @param beneath - The entry with that id the layers beneath resolved, or undefined.
+ * @returns True when the patch merges.
+ */
+function patchReaches(id: string, beneath: LabelEntry | undefined): boolean {
+    return beneath === undefined ? id === MAIN_LABEL_ID : beneath.off !== true;
 }
 
 /**
@@ -6775,13 +6811,18 @@ export function labelEntryPatch(target: LabelFieldTarget, painted: unknown): obj
  * The labels one element draws beside `node.label`'s own: every entry not off, other than
  * {@link MAIN_LABEL_ID}, at most {@link LABEL_CAP}, the first kept.
  * @param entries - The resolved list, or anything else.
- * @returns The drawn entries and how many the cap left out.
+ * @returns The drawn entries, how many the cap left out, and those it left out.
  */
-export function drawnLabelEntries(entries: unknown): { readonly drawn: readonly LabelEntry[]; readonly left: number } {
+export function drawnLabelEntries(entries: unknown): {
+    readonly drawn: readonly LabelEntry[];
+    readonly left: number;
+    readonly dropped: readonly LabelEntry[];
+} {
     const all = (Array.isArray(entries) ? (entries as readonly LabelEntry[]) : []).filter(
         (entry) => entry.off !== true && entry.id !== MAIN_LABEL_ID,
     );
-    return { drawn: all.slice(0, LABEL_CAP), left: Math.max(0, all.length - LABEL_CAP) };
+    const dropped = all.slice(LABEL_CAP);
+    return { drawn: all.slice(0, LABEL_CAP), left: dropped.length, dropped };
 }
 
 /**

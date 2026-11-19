@@ -608,6 +608,9 @@ export class Node implements ModelUser {
     /** What the further labels on screen were drawn from, or undefined for none. See {@link syncExtraLabels}. */
     private drawnExtraLabels?: string;
 
+    /** Whether label sampling (`labels.sampleCell`) holds this node's labels back. See {@link syncOwnLabel}. */
+    private labelsWithheld = false;
+
     /** What the external label on screen was drawn from, or undefined for none. See {@link syncXlabel}. */
     private drawnXlabel?: string;
 
@@ -4458,8 +4461,8 @@ export class Node implements ModelUser {
      * @param rebuild - True to build them again even when they ask for what is drawn.
      */
     private syncExtraLabels(o: NodeStyleConfig, rebuild: boolean): void {
-        const wanted = (o as NodeStyleConfig & { labels?: readonly DrawnLabel[] }).labels ?? [];
-        const drawn = wanted.filter(({ block }) => drawnText(block) !== undefined);
+        // Held back with the label, by label sampling (see syncOwnLabel).
+        const drawn = this.labelsWithheld ? [] : extraLabelsOf(o);
         const key =
             drawn.length === 0
                 ? undefined
@@ -4485,6 +4488,16 @@ export class Node implements ModelUser {
     }
 
     /**
+     * Whether any of this node's labels is on screen: the label, or a further label (`node.labels`).
+     * What label sampling reads to tell a built node from a held-back one.
+     * @internal
+     * @returns True when one is.
+     */
+    get labelsBuilt(): boolean {
+        return this.label !== undefined || this.extraLabels.size > 0;
+    }
+
+    /**
      * Build or drop this node's label again because label sampling (`labels.sampleCell`) picked
      * it for its screen cell, dropped it, or was switched off. Called by the scene's label pass.
      * @internal
@@ -4492,6 +4505,7 @@ export class Node implements ModelUser {
     resampleLabel(): void {
         if (this.drawnStyle !== null) {
             this.syncOwnLabel(this.drawnStyle, true);
+            this.syncExtraLabels(this.drawnStyle, true);
         }
     }
 
@@ -4504,8 +4518,15 @@ export class Node implements ModelUser {
         // a table label draws its words in its cells
         const wanted = this.tableTexts === null ? drawnText(o.label) : undefined;
         const text = wanted === undefined ? undefined : this.extractLabelText(wanted);
-        // Label sampling may hold the label back until its screen cell picks this node.
-        const withheld = LabelDeclutter.withholds(this.#anchor.getScene(), this.context, this, wanted !== undefined);
+        // Label sampling may hold the labels back until its screen cell picks this node; the
+        // further labels (`node.labels`) are held back with the label, so they count as wanting one.
+        const withheld = LabelDeclutter.withholds(
+            this.#anchor.getScene(),
+            this.context,
+            this,
+            wanted !== undefined || extraLabelsOf(o).length > 0,
+        );
+        this.labelsWithheld = withheld;
 
         if (!rebuild && text === this.drawnLabelText && isEqual(wanted, this.drawnLabelStyle)) {
             return;
@@ -4947,4 +4968,15 @@ function hashText(text: string): string {
         h = (Math.imul(h, 33) + (text.codePointAt(i) ?? 0)) >>> 0;
     }
     return h.toString(36);
+}
+
+/**
+ * The further labels (`node.labels`) a resolved style draws: the blocks `StylePainter` resolved into
+ * `style.labels` that have words to draw.
+ * @param o - The resolved style.
+ * @returns The drawn labels, in order.
+ */
+function extraLabelsOf(o: NodeStyleConfig): readonly DrawnLabel[] {
+    const wanted = (o as NodeStyleConfig & { labels?: readonly DrawnLabel[] }).labels ?? [];
+    return wanted.filter(({ block }) => drawnText(block) !== undefined);
 }

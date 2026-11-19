@@ -1742,13 +1742,20 @@ function cell(at: number, size: number, count: number): number {
 }
 
 /**
- * The texts an edge is drawing: its label, its external label and its end captions, each with a live plane.
+ * The texts an edge is drawing: its label, its external label, its end captions and its further labels
+ * (`edge.labels`), each with a live plane.
  * @param edge - The edge.
  * @returns The texts, in that order.
  */
 function edgeTexts(edge: Edge): RichTextLabel[] {
     const texts: RichTextLabel[] = [];
-    for (const text of [edge.label, edge.xlabelLabel, edge.arrowHeadText, edge.arrowTailText]) {
+    for (const text of [
+        edge.label,
+        edge.xlabelLabel,
+        edge.arrowHeadText,
+        edge.arrowTailText,
+        ...edge.extraLabels.values(),
+    ]) {
         const mesh = text?.labelMesh;
         // a text with no words (an empty label column) has a plane of no size, placed nowhere a
         // number can say (NaN): it draws nothing, so it is neither counted nor watched

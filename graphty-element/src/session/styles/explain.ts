@@ -34,6 +34,7 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
+import type { LabelEntry } from "../../catalog/label-style";
 import { projectShaderDescriptor } from "../../catalog/shaderRegistry";
 import { shaderCovers, type ShaderUse } from "../../catalog/shaders";
 import type {
@@ -1581,8 +1582,13 @@ export function styleCounts(
             }
 
             shaders.add(found, weight);
-            const lostLabels = found.own[labelList] === undefined ? 0 : drawnLabelEntries(found.values[labelList]).left;
-            if (lostLabels > 0) {
+            // Only a layer whose own list adds a label the cap leaves out: a field binding adds none.
+            const ownList = found.own[labelList];
+            const { left: lostLabels, dropped } = drawnLabelEntries(found.values[labelList]);
+            const adds = Array.isArray(ownList)
+                ? new Set((ownList as readonly LabelEntry[]).filter((e) => e.off !== true).map((e) => e.id))
+                : undefined;
+            if (adds !== undefined && dropped.some((entry) => adds.has(entry.id))) {
                 labelsCapped += weight;
                 labelsLeft = Math.max(labelsLeft, lostLabels);
             }

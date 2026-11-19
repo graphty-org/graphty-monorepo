@@ -67,7 +67,7 @@ describe("label sampling builds labels bounded by the cell count", () => {
         }
     }
 
-    async function draw(sampleCell?: number): Promise<Graph> {
+    async function draw(sampleCell?: number, further = false): Promise<Graph> {
         container = document.createElement("div");
         container.style.width = `${String(WIDTH)}px`;
         container.style.height = `${String(HEIGHT)}px`;
@@ -85,7 +85,10 @@ describe("label sampling builds labels bounded by the cell count", () => {
             name: "labels",
             target: "node",
             selector: { match: "everything" },
-            set: { "node.label": "LABEL" },
+            set: {
+                "node.label": "LABEL",
+                ...(further ? { "node.labels": [{ id: "top", text: "TOP", style: { location: "top" } }] } : {}),
+            },
         });
         await operationQueueOf(g).waitForCompletion();
         await frames(g, 12);
@@ -115,6 +118,17 @@ describe("label sampling builds labels bounded by the cell count", () => {
             hiddenByOverlap: 0,
             hiddenBySampling: COUNT - drawn.length,
         });
+    });
+
+    it("on, holds a node's further labels back with its label", async () => {
+        const g = await draw(CELL, true);
+        const drawn = built(g);
+        const further = square()
+            .map(({ id }) => id)
+            .filter((id) => g.getNode(id)?.extraLabels.has("top") === true);
+
+        assert.isAbove(further.length, 0, "the sampled nodes draw their further labels");
+        assert.deepEqual(further, drawn, "exactly the nodes whose label is built");
     });
 
     it("samples again when the reader zooms, still within the cell count", async () => {

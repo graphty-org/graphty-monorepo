@@ -10,7 +10,12 @@ import { assert, describe, it } from "vitest";
 import { MAIN_LABEL_ID } from "../../../src/catalog/label-style";
 import type { DrawnLabel } from "../../../src/managers/StylePainter";
 import { createGraphSession } from "../../../src/session";
-import { labelFieldAddress, mergeLabelEntries, parseLabelFieldAddress } from "../../../src/session/styles/channels";
+import {
+    LABEL_CAP,
+    labelFieldAddress,
+    mergeLabelEntries,
+    parseLabelFieldAddress,
+} from "../../../src/session/styles/channels";
 import { painterHarness, type Row } from "../helpers";
 
 const NODES: readonly Row[] = [
@@ -239,6 +244,112 @@ describe("a label list", () => {
         assert.strictEqual(address, "edge.labels.mid.sizePx");
         assert.deepStrictEqual(parseLabelFieldAddress(address), { channel: "edge.labels", id: "mid", field: "sizePx" });
         assert.isNull(parseLabelFieldAddress("node.label"));
+    });
+
+    it("draws an entry's named look beneath its own fields", async () => {
+        const held = painterHarness(NODES, EDGES);
+        await held.styles.add({
+            name: "Card",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.labels": [{ id: "c", text: "C", style: { look: "card", color: "#ff0000" } }] },
+        });
+        await held.paintAll();
+        const card = labelsOf(held.painter.nodePaint(0)).get("c");
+        assert.strictEqual(card?.backgroundColor, "#ffffff", "the look's background");
+        assert.strictEqual(card?.font, "Verdana, sans-serif", "the look's font");
+        assert.strictEqual(card?.textColor, "#ff0000", "the entry's own color wins over the look's");
+    });
+
+    it("draws at most LABEL_CAP further labels, and says so for the layer that adds them", async () => {
+        const session = createGraphSession();
+        await session.data.addNodes([{ id: "a" }, { id: "b" }]);
+        const ten = Array.from({ length: 10 }, (_, at) => ({ id: `l${String(at)}`, text: `L${String(at)}` }));
+        const many = await session.styles.add({
+            name: "Ten",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.labels": ten },
+        });
+        const recolor = await session.styles.add({
+            name: "Recolor",
+            target: "node",
+            selector: { match: "everything" },
+            encode: { [labelFieldAddress("node", "l1", "color")]: { value: "#ff0000" } },
+        });
+        assert.strictEqual(LABEL_CAP, 8);
+        assert.deepInclude(session.styles.counts(many.id).undrawn, {
+            code: "label.cap",
+            params: { left: 2, limit: 8, count: 2 },
+        });
+        assert.notInclude(
+            session.styles.counts(recolor.id).undrawn.map((fact) => fact.code),
+            "label.cap",
+            "a field binding adds no label",
+        );
+        session.dispose();
+
+        const held = painterHarness(NODES, EDGES);
+        await held.styles.add({
+            name: "Ten",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.labels": ten },
+        });
+        await held.paintAll();
+        assert.deepStrictEqual(
+            [...labelsOf(held.painter.nodePaint(0)).keys()],
+            ["l0", "l1", "l2", "l3", "l4", "l5", "l6", "l7"],
+        );
+    });
+
+    it("never adds a label, nor brings back one switched off, through a field binding", async () => {
+        assert.deepStrictEqual(mergeLabelEntries(undefined, { ghost: { style: { color: "#ff0000" } } }), []);
+        assert.deepStrictEqual(
+            mergeLabelEntries([{ id: "top", off: true }], { top: { style: { color: "#ff0000" } } }),
+            [{ id: "top", off: true }],
+        );
+        assert.deepStrictEqual(mergeLabelEntries(undefined, { [MAIN_LABEL_ID]: { style: { sizePx: 9 } } }), [
+            { id: MAIN_LABEL_ID, style: { sizePx: 9 } },
+        ]);
+
+        const held = painterHarness(NODES, EDGES);
+        await held.styles.add({
+            name: "Main",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.label": "Main", "node.labels": [{ id: "top", text: "Top" }] },
+        });
+        await held.styles.add({
+            name: "Top off",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.labels": [{ id: "top", off: true }] },
+        });
+        await held.styles.add({
+            name: "Colors",
+            target: "node",
+            selector: { match: "everything" },
+            encode: {
+                [labelFieldAddress("node", "ghost", "color")]: { value: "#ff0000" },
+                [labelFieldAddress("node", "top", "color")]: { value: "#ff0000" },
+            },
+        });
+        await held.paintAll();
+        assert.strictEqual(labelsOf(held.painter.nodePaint(0)).size, 0, "no duplicate of the main label");
+    });
+
+    it("proposes a binding for one field of one label from a column", async () => {
+        const session = createGraphSession();
+        await session.data.addNodes([
+            { id: "a", rank: 1 },
+            { id: "b", rank: 9 },
+        ]);
+        const channel = labelFieldAddress("node", "top", "sizePx");
+        const proposal = session.styles.proposeEncoding({ column: { kind: "node", name: "rank" }, channel });
+        assert.isTrue(proposal.ok);
+        assert.strictEqual(proposal.ok ? proposal.binding.by : undefined, "data.rank");
+        session.dispose();
     });
 
     it("draws an edge's further labels the same way", async () => {

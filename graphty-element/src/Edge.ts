@@ -1103,7 +1103,10 @@ export class Edge {
     xlabelLabel: RichTextLabel | null = null;
 
     /** The further labels on screen (`edge.labels`), by id, each placed against the line's middle as the label is. */
-    readonly extraLabels = new Map<string, { label: RichTextLabel; offset: number; attachPosition: AttachPosition }>();
+    readonly extraLabels = new Map<string, RichTextLabel>();
+
+    /** Where each further label sits against the line's middle, by id; see {@link extraLabels}. */
+    private readonly extraLabelPlaces = new Map<string, { offset: number; attachPosition: AttachPosition }>();
 
     /** What the further labels on screen were drawn from, or undefined for none. See {@link syncExtraLabels}. */
     private drawnExtraLabels?: string;
@@ -1661,8 +1664,13 @@ export class Edge {
         );
 
         this.placeXlabel(src, dst, bent, lnk.xlabelAt);
-        for (const { label, offset, attachPosition } of this.extraLabels.values()) {
-            label.attachTo(this.labelPoint(src, dst, bent, undefined), attachPosition, offset);
+        for (const [id, label] of this.extraLabels) {
+            const place = this.extraLabelPlaces.get(id);
+            label.attachTo(
+                this.labelPoint(src, dst, bent, undefined),
+                place?.attachPosition ?? EDGE_LABEL_LOCATION,
+                place?.offset ?? 0,
+            );
         }
 
         this.placeArrowCaptions(src, dst, lnk);
@@ -1984,7 +1992,7 @@ export class Edge {
             this.xlabelLabel,
             this.arrowHeadText,
             this.arrowTailText,
-            ...[...this.extraLabels.values()].map((extra) => extra.label),
+            ...this.extraLabels.values(),
         ];
         if (this.disposed || this.drawnStyle === null || !texts.some((text) => text?.usesFont(families) === true)) {
             return false;
@@ -3316,7 +3324,10 @@ export class Edge {
         if (label || xlabel || captions || bends || placement) {
             this.invalidatePositionCache();
             // Overlapping texts are thinned out with node labels when `labels.declutter` is on.
-            if (this.label ?? this.xlabelLabel ?? this.arrowHeadText ?? this.arrowTailText) {
+            if (
+                (this.label ?? this.xlabelLabel ?? this.arrowHeadText ?? this.arrowTailText) ||
+                this.extraLabels.size > 0
+            ) {
                 LabelDeclutter.trackEdge(this.context.getScene(), this.context, this);
             }
         }
@@ -3343,7 +3354,9 @@ export class Edge {
         this.disposeExtraLabels();
         this.drawnExtraLabels = key;
         for (const { id, block } of drawn) {
-            this.extraLabels.set(id, this.createLabel({ ...style, label: block }));
+            const { label, offset, attachPosition } = this.createLabel({ ...style, label: block });
+            this.extraLabels.set(id, label);
+            this.extraLabelPlaces.set(id, { offset, attachPosition });
         }
 
         return true;
@@ -3351,11 +3364,12 @@ export class Edge {
 
     /** Take the further labels (`edge.labels`) off screen. */
     private disposeExtraLabels(): void {
-        for (const { label } of this.extraLabels.values()) {
+        for (const label of this.extraLabels.values()) {
             label.dispose();
         }
 
         this.extraLabels.clear();
+        this.extraLabelPlaces.clear();
     }
 
     /**
@@ -3913,7 +3927,7 @@ export class Edge {
     private textMeshes(): [AbstractMesh, "label" | "xlabel" | "headLabel" | "tailLabel"][] {
         const texts = [
             [this.label, "label"],
-            ...[...this.extraLabels.values()].map(({ label }) => [label, "label"] as const),
+            ...[...this.extraLabels.values()].map((label) => [label, "label"] as const),
             [this.xlabelLabel, "xlabel"],
             [this.arrowHeadText, "headLabel"],
             [this.arrowTailText, "tailLabel"],
@@ -5849,7 +5863,7 @@ export class Edge {
             label?.startAnimation();
         }
 
-        for (const { label } of this.extraLabels.values()) {
+        for (const label of this.extraLabels.values()) {
             label.startAnimation();
         }
     }

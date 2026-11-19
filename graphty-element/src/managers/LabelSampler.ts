@@ -141,7 +141,7 @@ export class LabelSampler {
         this.unbuilt = 0;
         this.unbuiltHidden = 0;
         for (const node of all) {
-            if (node.label === undefined) {
+            if (!node.labelsBuilt) {
                 node.resampleLabel();
             }
         }
@@ -283,11 +283,11 @@ export class LabelSampler {
 
         for (const node of this.candidates) {
             const winner = this.winners.has(node) || this.plainWinners.has(node.id);
-            if ((node.label !== undefined) !== winner) {
+            if (node.labelsBuilt !== winner) {
                 node.resampleLabel();
             }
 
-            if (node.label === undefined) {
+            if (!node.labelsBuilt) {
                 unbuilt++;
                 if (!node.isDrawn) {
                     hidden++;

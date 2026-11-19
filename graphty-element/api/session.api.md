@@ -4303,7 +4303,7 @@ export interface PageColumn {
 
 // @public
 export type ParamEncodingSpec = (Omit<EncodingSpec, "channel"> | Omit<ColumnEncodingSpec, "channel">) & {
-    readonly channel: ShaderParamAddress;
+    readonly channel: ShaderParamAddress | LabelFieldAddress;
 };
 
 // @public

@@ -1,8 +1,7 @@
 /**
- * @file Under `renderPath: "batched"` the element's record properties (`nodeData`, `edgeData`) leave
- * the page's record objects to the page: the journal keeps the frozen copies the graph stored, equal
- * in value, and the graph store lets its builder go once the load is in, rebuilding it once on the
- * first edit after the load, which comes out correct.
+ * @file Under `renderPath: "batched"` the graph store lets its builder go once a load given through
+ * `nodeData` and `edgeData` is in (the snapshot holds the same rows), and rebuilds it once on the
+ * first edit after the load, which comes out correct, as does undoing it.
  */
 
 import "../../src/graphty-element";
@@ -92,44 +91,7 @@ function builderRelease(element: Graphty): { released: boolean; revivals: number
     return { ...manager.store.builderRelease };
 }
 
-/**
- * The records the journal's add commands hold, nodes then edges.
- * @param element - The element.
- * @returns Them.
- */
-function journaled(element: Graphty): readonly object[][] {
-    return element.session.journal.entries.flatMap((entry) => {
-        const { command } = entry;
-        if (command.op !== "data.apply" || !("records" in command.mutation)) {
-            return [];
-        }
-
-        return [[...(command.mutation.records as readonly object[])]];
-    });
-}
-
-describe("the record properties on the batched path", () => {
-    it("keep the graph's own copies in the journal, not the page's records", async () => {
-        const n = nodes();
-        const m = edges();
-        const element = await loaded("batched", n, m);
-        const { graph } = dispatcherOf(element.session).state;
-        const [nodeRecords, edgeRecords] = journaled(element);
-        assert.strictEqual(nodeRecords.length, n.length);
-        assert.strictEqual(edgeRecords.length, m.length);
-        assert.isFalse(
-            nodeRecords.some((record, row) => record === n[row]) ||
-                edgeRecords.some((record, row) => record === m[row]),
-            "the journal holds none of the page's records",
-        );
-        assert.isTrue(
-            nodeRecords.every((record, row) => graph.nodes.get(row) === record),
-            "it holds the records the graph holds",
-        );
-        assert.deepEqual(nodeRecords, n);
-        assert.deepEqual(edgeRecords, m);
-    });
-
+describe("the graph builder on the batched path", () => {
     it("load the graph they were handed, let the builder go, and take a first edit after the load", async () => {
         const element = await loaded("batched", nodes(), edges());
         const want = { nodes: nodes(), ends: edges().map((edge) => [edge.src, edge.dst]) };

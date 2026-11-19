@@ -933,7 +933,14 @@ export class GraphStore {
         }
 
         // Rows in row order, so each lands on its own row; then the cells a column at a time.
-        for (let row = 0; row < base.nodeCount; row++) {
+        // Ids that are their own rows as anonymous nodes, as the load added them: no id map.
+        let anonymous = 0;
+        while (anonymous < base.nodeCount && base.ids.idOf(anonymous) === anonymous) {
+            anonymous++;
+        }
+
+        builder.addAnonymousNodes(anonymous);
+        for (let row = anonymous; row < base.nodeCount; row++) {
             builder.addNode(base.ids.idOf(row));
         }
 

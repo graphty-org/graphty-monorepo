@@ -71,7 +71,15 @@ export interface AutosaveStore {
      * One entry with all its parts, or `undefined` when there is none. The result is a copy: a
      * caller that changes the returned meta or parts does not change the store.
      */
-    read(id: string): Promise<{ meta: AutosaveEntryMeta; parts: AutosaveParts } | undefined>;
+    read(id: string): Promise<
+        | {
+              /** The entry's metadata. */
+              meta: AutosaveEntryMeta;
+              /** The entry's saved parts. */
+              parts: AutosaveParts;
+          }
+        | undefined
+    >;
     /**
      * Atomic: every write commits, or none does. Rejects with {@link AutosaveConflict} when any
      * entry's stored `gen` differs from its `expectedGen`. Assigns each meta's `seq` inside the commit.
@@ -184,9 +192,13 @@ export interface AutosaveStatus {
     readonly persisted: boolean | null;
     /** Storage use, where the browser reports it; `entries` and `bytes` are this key's. */
     readonly storage: {
+        /** Bytes this site uses in all, as the browser reports it. */
         readonly usage: number;
+        /** Bytes this site may use, as the browser reports it. */
         readonly quota: number;
+        /** How many entries this key has saved. */
         readonly entries: number;
+        /** How many bytes this key's entries take. */
         readonly bytes: number;
     } | null;
     /**

@@ -2583,9 +2583,7 @@ export interface OptionChoice {
 
 // @public
 export interface OptionContext {
-    // (undocumented)
     readonly id: string;
-    // (undocumented)
     readonly kind: "algorithm" | "camera" | "format" | "layout" | "sink" | "transition";
 }
 

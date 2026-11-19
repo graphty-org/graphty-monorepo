@@ -3296,11 +3296,8 @@ export interface Rgba {
 
 // @public
 export interface RgbColor {
-    // (undocumented)
     b: number;
-    // (undocumented)
     g: number;
-    // (undocumented)
     r: number;
 }
 

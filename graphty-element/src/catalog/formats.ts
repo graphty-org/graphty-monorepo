@@ -29,7 +29,9 @@ import { catalogFormatDescriptors, COMMON_WRITER_OPTIONS, withCommonWriterOption
 
 /** A built-in format name no registered data source reads. */
 export interface UnservedFormat {
+    /** The format name. */
     id: (typeof KNOWN_FORMAT_IDS)[number];
+    /** Why no data source reads it. */
     reason: string;
 }
 

@@ -24,6 +24,7 @@ export const ENTRIES = Object.freeze({
     cx: "src/formats/cx/index.ts",
     obo: "src/formats/obo/index.ts",
     cys: "src/formats/cys/index.ts",
+    sif: "src/formats/sif/index.ts",
     // the default source list, without any importer (@graphty/graph-io/sources)
     sources: "src/sources/index.ts",
     // the network sources, each loaded on first use (@graphty/graph-io/sources/<name>)
@@ -34,6 +35,7 @@ export const ENTRIES = Object.freeze({
     "sources-github": "src/sources/github/index.ts",
     "sources-s3": "src/sources/s3/index.ts",
     "sources-zenodo": "src/sources/zenodo/index.ts",
+    "sources-figshare": "src/sources/figshare/index.ts",
     "sources-gremlin": "src/sources/gremlin/index.ts",
     styles: "src/styles/index.ts",
     positions: "src/positions/index.ts",

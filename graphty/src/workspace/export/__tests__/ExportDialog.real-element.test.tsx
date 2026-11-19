@@ -10,7 +10,7 @@ import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { afterEach, assert, describe, it, vi } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { Workspace } from "../../Workspace";
@@ -86,7 +86,7 @@ async function openExport(): Promise<HTMLElement> {
     await userEvent.keyboard("{Control>}e{/Control}");
     const dialog = await screen.findByRole("dialog", { name: "Export" });
     const outputs = within(dialog).getByRole("grid", { name: "What to export" });
-    for (const name of ["Image", "Video", "Data", "Styles", "Recipe", "Project"]) {
+    for (const name of ["Image", "Video", "Data", "Report", "Styles", "Recipe", "Project"]) {
         assert.isNotNull(within(outputs).getByText(name), `${name} is listed`);
     }
     return dialog;
@@ -303,5 +303,142 @@ describe("Export: save a picture and the numbers (task T13)", () => {
         assert.isNotNull(
             within(within(dialog).getByRole("grid", { name: "Recent exports" })).getByText(video?.name ?? ""),
         );
+    });
+
+    it("writes a report of the chosen sections with the reader's words, and the data issues as JSON and CSV", async () => {
+        const saved = catchDownloads();
+        const session = await openScoredGraph();
+        // Two more nodes: a padded name, fixed below (a data change), and two spellings of one team, left open.
+        await session.data.addNodes([
+            { id: "n6", name: " Ann ", team: "Acme" },
+            { id: "n7", name: "Ben", team: "ACME" },
+            { id: "n8", name: "Cy", team: "Acme" },
+        ]);
+        const padded = session.data.issues().find((issue) => issue.code === "padded-space");
+        assert.isDefined(padded, "the padded name is an issue");
+        if (padded !== undefined) {
+            await session.data.fix(padded, "trim");
+        }
+        session.notes.add({ text: "n0 starts the ring", targets: [{ node: "n0" }] });
+
+        const dialog = await openExport();
+        await pick(dialog, "Report");
+        const sections = await within(dialog).findByRole("group", { name: "Sections" });
+        assert.isNotNull(within(sections).getByRole("checkbox", { name: "Notes (1)" }));
+        assert.isNotNull(within(sections).getByRole("checkbox", { name: "Methods (1)" }));
+        assert.isNotNull(within(sections).getByRole("checkbox", { name: "Data changes (1)" }));
+        // Data tables left out; a title, a row cap of 2, and the reader's own summary and findings.
+        await userEvent.click(within(sections).getByRole("checkbox", { name: /^Data tables/ }));
+        await userEvent.type(within(dialog).getByRole("textbox", { name: "Title" }), "Ring study");
+        await userEvent.type(within(dialog).getByRole("textbox", { name: "Summary" }), "A ring of six.");
+        await userEvent.type(within(dialog).getByRole("textbox", { name: "Findings" }), "Every node has degree two.");
+        await userEvent.click(within(dialog).getByRole("button", { name: "Generate report" }));
+        await screen.findByText("Exported untitled_report.md", TOAST);
+        const report = (await saved.find(({ name }) => name === "untitled_report.md")?.blob.text()) ?? "";
+        assert.include(report, "# Ring study");
+        assert.include(report, "## Summary\n\nA ring of six.");
+        assert.include(report, "## Findings\n\nEvery node has degree two.");
+        assert.include(report, "n0 starts the ring");
+        assert.include(report, "## Validation report");
+        assert.include(report, "## Data changes");
+        assert.include(report, "trimmed");
+        assert.include(report, "## Methods");
+        assert.include(report, "- Algorithm: degree");
+        assert.notInclude(report, "## Data tables", "a section left out is not in the report");
+
+        // The choices stay while the workspace is mounted; tables back on, capped at 2 rows.
+        const again = await openExport();
+        await pick(again, "Report");
+        assert.equal(
+            (await within(again).findByRole<HTMLInputElement>("textbox", { name: "Title" })).value,
+            "Ring study",
+        );
+        await userEvent.click(within(again).getByRole("checkbox", { name: /^Data tables/ }));
+        const cap = within(again).getByRole("textbox", { name: "Row cap" });
+        await userEvent.tripleClick(cap);
+        await userEvent.keyboard("2");
+        assert.equal((cap as HTMLInputElement).value, "2");
+        await userEvent.click(within(again).getByRole("button", { name: "Generate report" }));
+        await waitFor(() => {
+            assert.lengthOf(
+                saved.filter(({ name }) => name === "untitled_report.md"),
+                2,
+            );
+        });
+        const capped = (await saved.filter(({ name }) => name === "untitled_report.md")[1].blob.text()) ?? "";
+        assert.include(capped, "### Nodes (first 2 of 9)");
+
+        // The validation report and the data changes on their own.
+        for (const [item, file] of [
+            ["Validation report (JSON)", "untitled_validation.json"],
+            ["Data changes (CSV)", "untitled_data-changes.csv"],
+        ] as const) {
+            const export_ = await openExport();
+            await pick(export_, "Report");
+            await userEvent.click(await within(export_).findByRole("button", { name: "Save issues" }));
+            await userEvent.click(await screen.findByRole("menuitem", { name: item }));
+            await screen.findByText(`Exported ${file}`, TOAST);
+        }
+        const validation = JSON.parse(
+            (await saved.find(({ name }) => name === "untitled_validation.json")?.blob.text()) ?? "[]",
+        ) as { code: string }[];
+        assert.include(
+            validation.map((issue) => issue.code),
+            "case-variant",
+        );
+        const changes = ((await saved.find(({ name }) => name === "untitled_data-changes.csv")?.blob.text()) ?? "")
+            .trim()
+            .split("\n");
+        assert.match(changes[0], /^id,code,label,/);
+        assert.lengthOf(changes, 2, "one fixed issue under the header");
+        assert.include(changes[1], "padded-space");
+    });
+});
+
+describe("the Camera menu's Export image and Record video", () => {
+    it("saves the canvas as an image, and records it until Stop recording, each from its row and its key", async () => {
+        // The design's frame: at the runner's default width the toolbar is clipped.
+        await page.viewport(1366, 768);
+        const saved = catchDownloads();
+        await openScoredGraph();
+        const camera = within(screen.getByRole("toolbar", { name: "Canvas tools" })).getByRole("button", {
+            name: "Camera",
+        });
+        const open = async (): Promise<HTMLElement> => {
+            await waitFor(() => {
+                assert.isFalse(camera.hasAttribute("aria-disabled"));
+            });
+            await userEvent.click(camera);
+            return screen.findByRole("menu", { name: /^Camera/ });
+        };
+
+        // Each row shows its key.
+        let menu = await open();
+        const image = within(menu).getByRole("menuitem", { name: /^Export image/ });
+        assert.equal(image.getAttribute("aria-keyshortcuts"), "Shift+I");
+        assert.equal(
+            within(menu)
+                .getByRole("menuitem", { name: /^Record video/ })
+                .getAttribute("aria-keyshortcuts"),
+            "Shift+R",
+        );
+        await userEvent.click(image);
+        await screen.findByText("Exported untitled_current-view.png", TOAST);
+        assert.match(saved.find(({ name }) => name === "untitled_current-view.png")?.blob.type ?? "", /^image\/png/);
+
+        // Shift+R starts a recording; the row then reads Stop recording, and stopping saves it.
+        await userEvent.keyboard("{Shift>}R{/Shift}");
+        menu = await open();
+        const stop = await within(menu).findByRole("menuitem", { name: /^Stop recording/ });
+        await waitFor(() => {
+            assert.isTrue(document.querySelector("graphty-element")?.isAnimationCapturing());
+        });
+        await userEvent.click(stop);
+        const notice = await screen.findByText(/^Exported untitled_view\.(webm|mp4)/, TOAST);
+        const video = saved.find(({ name }) => notice.textContent?.includes(name) ?? false);
+        assert.isDefined(video, "the video was saved");
+        assert.match(video?.blob.type ?? "", /^video\//);
+        menu = await open();
+        assert.isNotNull(within(menu).getByRole("menuitem", { name: /^Record video/ }));
     });
 });

@@ -510,7 +510,7 @@ function expressionTerms(where: string): number {
         const character = where[at];
         const two = where.slice(at, at + 2);
         if (character === "'" || character === "`" || character === '"') {
-            // Skip the literal or the quoted name, honouring its backslash escapes.
+            // Skip the literal or the quoted name, honoring its backslash escapes.
             at = closingQuote(where, at + 1, character) + 1;
         } else if (two === "==" || two === "!=" || two === "<=" || two === ">=") {
             terms++;
@@ -525,7 +525,7 @@ function expressionTerms(where: string): number {
 }
 
 /**
- * Where a quoted literal or name closes: its quote, its backslash escapes honoured.
+ * Where a quoted literal or name closes: its quote, its backslash escapes honored.
  * @param where - The expression.
  * @param from - The position after the opening quote.
  * @param quote - The quote.
@@ -610,10 +610,26 @@ function channelPlans(
         convert: (value) => (typeof value === "number" ? round(value * factor) : null),
         identity: factor === 1,
     });
+    // A text size under its channel's minimum (1, issue #2619) is drawn at the minimum, noted as drawn nearest.
+    const floored = (plan: ChannelPlan): ChannelPlan => {
+        const min = channelDescriptor(plan.channel)?.min ?? Number.NEGATIVE_INFINITY;
+        return {
+            ...plan,
+            convert: (value) => {
+                const out = plan.convert(value);
+                return typeof out === "number" ? Math.max(min, out) : out;
+            },
+            identity: false,
+            nearest: (value) => {
+                const out = plan.convert(value);
+                return typeof out === "number" && out < min;
+            },
+        };
+    };
     // A label size fixed on screen, as the screen size it is, with its label style's `sizeMode: "screen"` beside it,
     // never scaled by the lengths.
     const screenSize = (channel: Channel): ChannelPlan[] => [
-        id(channel),
+        floored(id(channel)),
         {
             channel: channel.replace(/Size$/, "Style") as Channel,
             convert: (value) => (typeof value === "number" ? { sizeMode: "screen" } : null),
@@ -633,14 +649,14 @@ function channelPlans(
         const px = factors.label;
         const { letter } = factors;
         return px === null || letter === null
-            ? [id(channel)]
+            ? [floored(id(channel))]
             : [
-                  {
+                  floored({
                       channel,
                       convert: (value) => (typeof value === "number" ? round(px(value)) : null),
                       identity: false,
                       curved: true,
-                  },
+                  }),
                   length(letters, letter),
               ];
     };
@@ -768,7 +784,7 @@ function channelPlans(
                 [
                     {
                         channel: "node.glyphWeight",
-                        convert: (value) => GLYPH_WEIGHTS.get(String(value)) ?? null,
+                        convert: (value) => GLYPH_WEIGHTS.get(String(value)) ?? (Number(value) || null),
                         identity: false,
                     },
                 ],

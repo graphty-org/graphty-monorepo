@@ -17,7 +17,7 @@ data box for now."
 
 Command: `--step --click "Les Miserables"` -> 02.png
 
-Saw: a light canvas with lots of blue dots and thin grey lines, all the same size, no names. Left
+Saw: a light canvas with lots of blue dots and thin gray lines, all the same size, no names. Left
 panel: a search box "Find nodes, edges, values", "Selection", "Everything". Right panel: "Graph,
 From Les Miserables", Style / Values tabs, Overview: Nodes 77, Edges 254, Density 0.08681,
 Components 1. A small toolbar at the bottom of the canvas with icons (a flask, a chart, "3D", a
@@ -44,7 +44,7 @@ Command: `--step --click-at 680,864` (tool: button "Analyze") -> 04.png
 
 Saw: a pop-up list "Filter analyses", heading "Rank nodes and edges": Degree, Betweenness, Edge
 betweenness, Closeness, PageRank (with a blue "Start here" tag), Eigenvector, Katz, HITS,
-All-pairs distance, Depth-first order, Most flow... each with a small grey line of description.
+All-pairs distance, Depth-first order, Most flow... each with a small gray line of description.
 
 Hesitation: a long list of words she cannot pronounce. "Betweenness. Eigenvector. Katz?" She
 almost closed it.
@@ -103,7 +103,7 @@ Elena: "There it is, Size. Hiding under Shape. Click."
 Command: `--step --click "Size"` -> 09.png
 
 Saw: a pop-up "Size by attribute": a search box, "Fixed size", a group "PageRank" with PageRank,
-PageRank rank, PageRank percentile; then greyed-out "Cannot be used: Holds groups, not amounts"
+PageRank rank, PageRank percentile; then grayed-out "Cannot be used: Holds groups, not amounts"
 with id, name.
 
 Hesitation: "rank" vs "percentile" vs plain -- she does not know the difference and takes the
@@ -143,7 +143,7 @@ Javert-ish names in the middle, Valjean barely readable over the yellow ring. Na
 overlap in the middle. Right panel: "Label: Aa Above, Abc name", "77 labels, 6 hidden", a "Show
 all labels" checkbox.
 
-Hesitation: did not notice "6 hidden" / "Show all labels" (small grey text in the side panel).
+Hesitation: did not notice "6 hidden" / "Show all labels" (small gray text in the side panel).
 
 Elena: "There are the names. Tiny, but there. Part four done. So the big one at the bottom is
 Myriel -- the bishop! That makes sense, he's important at the start. Valjean is the biggest.

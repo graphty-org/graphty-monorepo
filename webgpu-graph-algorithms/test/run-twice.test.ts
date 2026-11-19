@@ -1,6 +1,6 @@
 /**
  * The package's kernel-test rule (CLAUDE.md, Testing): every kernel test runs its kernel twice and asserts the two
- * outputs bitwise equal before the oracle, which is what catches races and uninitialised memory. This is the
+ * outputs bitwise equal before the oracle, which is what catches races and uninitialized memory. This is the
  * structural check that keeps a new file from slipping past the rule: every test file under test/primitives,
  * test/layouts and test/algorithms either calls expectBitwiseEqual (from test/helpers/matchers.ts) or states in its
  * header why it cannot, with a "run-twice exempt:" line.

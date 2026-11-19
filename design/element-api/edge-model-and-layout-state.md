@@ -145,7 +145,7 @@ records they hand over, and none of them writes `src` or `dst`:
 
 | File                              | Today                                                           | After                                                                                   |
 | --------------------------------- | --------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| `JsonDataSource.ts:237, :347-350` | validates three spellings, normalises none                      | unchanged: it still passes the record through, and resolution now reads all three       |
+| `JsonDataSource.ts:237, :347-350` | validates three spellings, normalizes none                      | unchanged: it still passes the record through, and resolution now reads all three       |
 | `GMLDataSource.ts:347-355`        | builds `{src, dst, ...edge}` then deletes `source` and `target` | keeps `source` and `target`, deletes nothing                                            |
 | `GEXFDataSource.ts:389-406`       | `{src, dst}` plus `edgeData.id = edgeObj["@_id"]`               | `{source, target}`; the file's own edge id becomes `gexfId`, never `id`                 |
 | `GraphMLDataSource.ts:289-301`    | `{src, dst}`                                                    | `{source, target}`                                                                      |
@@ -166,7 +166,7 @@ Two rules the table encodes:
   `:16-17`) are not public and do not change. Only the record handed to the element changes.
 
 `CSVDataSource`'s `sourceColumn` / `targetColumn` options are renamed `edgeSource` / `edgeTarget`,
-and the catalogue (`src/catalog/formats.ts:78-100`) publishes that one pair for all seven formats
+and the catalog (`src/catalog/formats.ts:78-100`) publishes that one pair for all seven formats
 instead of publishing `edgeSrcIdPath`/`edgeDstIdPath` for JSON, `sourceColumn`/`targetColumn` for
 CSV and nothing for the other five. One fact, one name, everywhere it is advertised.
 
@@ -272,7 +272,7 @@ After this change:
 Every session surface that names an edge changes its id spelling with it, and all of them at once:
 `selection.apply({edges})` and `selection.edges`, `visibility.edges`, a `Scope`'s
 `{match: "ids", edges: [...]}`, `styles.explain({edge})`, `run.edge(id)`, and the `edgeIdAt`
-memoisation that joins a run's published edge ids to snapshot rows
+memoization that joins a run's published edge ids to snapshot rows
 (`src/session/styles/sources.ts:442-452`). They must move in one commit: if the algorithm side and
 `sources.ts` diverge, every edge-valued style layer paints nothing and reports no error.
 
@@ -342,7 +342,7 @@ Its declared detail also carries a live `Edge` holding a Babylon mesh, which can
 structure-cloned and contradicts the ids-only rule the element states at `graphty-element.ts:179`.
 A declared event that never fires is a documented lie; shipping the type without the emitter is what
 created this one. The type, its union membership and its documentation row go, and the event returns
-with a serialisable detail when edge picking lands.
+with a serializable detail when edge picking lands.
 
 ---
 
@@ -434,7 +434,7 @@ A change a consumer can see and reverse beats a loss they cannot detect. Default
 The drop guard was doing a second job nobody wrote down: making a re-add idempotent.
 
 Two paths re-supply edges the graph already holds. The double-click expand handler fetches a node's
-neighbourhood and calls `addNodes` then `addEdges` (`src/NodeBehavior.ts:582-585`), and the
+neighborhood and calls `addNodes` then `addEdges` (`src/NodeBehavior.ts:582-585`), and the
 `edge-data` property setter calls `addEdges` additively on every assignment
 (`src/graphty-element.ts:466-472`). Under `keep`, an expand doubles every edge already present.
 
@@ -614,7 +614,7 @@ the "removal is invisible" gap on its own.
 
 `graphty/src/hooks/useGraphtyData.ts:52-57` filters the application's own React state:
 `edges: prev.edges.filter((e) => e.source !== nodeId && e.target !== nodeId)`. The application never
-calls the element's `removeNodes` at all -- it re-serialises its whole data set into the `node-data`
+calls the element's `removeNodes` at all -- it re-serializes its whole data set into the `node-data`
 and `edge-data` attributes instead. So the element's cascade breaks nothing there today, and that
 hook is exactly the workaround this change deletes.
 
@@ -709,7 +709,7 @@ Stated once, for the whole element, and inverted where a layout function disagre
 
 Every other place in this package treats a weight as strength or magnitude: `statistics().weighted`,
 the weighted centralities, `sum` as the merge reducer, and a style layer that thickens an edge by its
-weight. Handing the raw column to Kamada-Kawai would make one layout in the catalogue mean the
+weight. Handing the raw column to Kamada-Kawai would make one layout in the catalog mean the
 opposite of everything else in the element, with nothing on screen to say so.
 
 The two callbacks, exactly:
@@ -751,7 +751,7 @@ callback is attached.
 `ForceAtlas2LayoutEngine`'s `weightPath` are removed. They named an attribute, which is
 `knownFields.edgeWeightPath`'s job one layer up. In their place, both engines declare a single
 boolean option `weighted`, default `true`, in both the zod config and the `defineOptions` schema --
-so it reaches the catalogue through `engineOptions(zodOptionsSchema)`
+so it reaches the catalog through `engineOptions(zodOptionsSchema)`
 (`src/catalog/layouts.ts:170`) and therefore the application's layout picker, for both engines, which
 `weightPath` never did.
 
@@ -767,11 +767,11 @@ d3-force-3d has a per-link `.strength()` the element hardcodes to `0.9`
 which the element sets not at all. Both could be driven.
 
 Spring and Fruchterman-Reingold in `@graphty/layout` have no weight parameter at all, so "every force
-layout honours weights" cannot be delivered without changing a second published package. Promising
+layout honors weights" cannot be delivered without changing a second published package. Promising
 two of four engines behind the one public `force` arrangement is worse than promising two engines by
 name.
 
-So: weights reach Kamada-Kawai and ForceAtlas2, and the `weighted` option appears in the catalogue
+So: weights reach Kamada-Kawai and ForceAtlas2, and the `weighted` option appears in the catalog
 for those two and for no other layout. A picker that offers "use edge weights" on two arrangements
 and not on the other fourteen already tells a reader which ones read weights. A
 `LayoutDescriptor.honoursWeights` field would say it more directly, and is deferred because
@@ -833,7 +833,7 @@ Why this array and not a field on `Node` or a column on the store:
 position array to every freshly frozen snapshot as a role-`position` node column
 (`src/data/GraphStore.ts:369-374`). It attaches the pinned lane the same way, as a `graphty.pinned`
 node column of dtype `u8`. One owner (the lane), one mirror (the column), a stated direction. So a pin
-is in the snapshot, and anything that serialises a snapshot carries it. The register also asks for a
+is in the snapshot, and anything that serializes a snapshot carries it. The register also asks for a
 pin to be "carried in data export"; there is no export surface anywhere in the element
 (`Graph.ts`, `graphty-element.ts` and `DataManager.ts` have no `exportGraph`, `exportData`, `toWire`
 or `saveGraph`), so that half is deferred with the column already in place for it.
@@ -892,14 +892,14 @@ at d3's arbitrary initial coordinates rather than where the reader put it.
 current engine is guarded, and under the replay the current engine has been told about every pin it
 could be asked to release.
 
-### 5.5 The behaviour change nobody opts into, and the door that makes it survivable
+### 5.5 The behavior change nobody opts into, and the door that makes it survivable
 
 `pinOnDrag` defaults to `true` (`src/config/GraphBehavior.ts:8`). So the moment pins survive a layout
 change, every node a reader has ever dragged stops moving on the next layout -- a reader who dragged
 ten nodes and then changed arrangement used to get a clean re-layout and now gets ten fixed points.
 
 The default **stays `true`**. A drag is a deliberate placement, and a layout change that silently
-discards it is the behaviour the register calls a defect. But it is only defensible if a pin can be
+discards it is the behavior the register calls a defect. But it is only defensible if a pin can be
 released, and today the only door is `Node.pin()` / `unpin()`, reachable through `element.graph` --
 the escape hatch this release is closing. The application has already designed the UI against a
 capability that does not exist: `NodeInspector` has a `pinNode` action, a `pinnedToCanvas` prop and a
@@ -1006,7 +1006,7 @@ patch the owner applies, or as a report.
 - **Lane A -- edge model.** Endpoint resolution, edge identity, parallel edges, incident-edge
   removal, the import report.
 - **Lane B -- layout.** Edge weights reaching Kamada-Kawai and ForceAtlas2, pin state.
-- **Lane C -- packaging.** The `./logging` subpath, the duplicated colour-vision exports,
+- **Lane C -- packaging.** The `./logging` subpath, the duplicated color-vision exports,
   `connectedCallback` reading the query string, the inert `sideEffects` paths.
 
 A fourth piece of work is finishing separately and owns `graphty-element/extend.ts`,
@@ -1137,7 +1137,7 @@ Lane B reads, and does not change, `src/session/statistics.ts`'s exported `isWei
 
 - `graphty-element/logging.ts` -- new.
 - `graphty-element/index.ts` -- delete the 23-name logging block at `:223-256`, delete the
-  seven-name colour-vision block at `:299-317`, update the header list at `:13-28`.
+  seven-name color-vision block at `:299-317`, update the header list at `:13-28`.
 - `graphty-element/package.json` -- add `"./logging"` to `exports`; delete the three `./src/` paths
   from `sideEffects`.
 - `graphty-element/vite.config.ts` -- `logging: "./logging.ts"` in `entries`, and the doc comment
@@ -1158,7 +1158,7 @@ Lane B reads, and does not change, `src/session/statistics.ts`'s exported `isWei
 
 **The `./logging` versus `./extend` overlap is resolved, not deferred.** `extend.ts:196-219` already
 publishes fourteen names that `src/logging/index.ts` also has, and publishing one symbol from two
-addresses is the duplication the colour-vision item exists to delete. The split:
+addresses is the duplication the color-vision item exists to delete. The split:
 
 - `./logging` publishes the whole of `src/logging/index.ts` -- 26 names, not the root barrel's 23,
   plus `lazy`. The three extra are `formatLogRecord`, `LogFormatOptions` and `LogSinkReference`, and
@@ -1257,11 +1257,11 @@ stops at the parser boundary. These three do not.
    It goes in `test/helpers/corpus/csv/` with a manifest entry -- `corpus.test.ts:115-133` fails any
    file no manifest lists -- and the manifest entry marks it as a file the count test must skip.
 
-3. **Karate Club node 34 has 17 neighbours, loaded from `.gml` and from `.json`.** This is the
+3. **Karate Club node 34 has 17 neighbors, loaded from `.gml` and from `.json`.** This is the
    assertion that would have caught the shipped bug, and it must run twice over the same graph in two
-   spellings. `SessionDataApi` has no neighbours verb and deliberately none
-   (`src/session/types.ts:280-284` says neighbour pages are asynchronous by construction), and the
-   only neighbour walk in the repository is the application's -- the code the bug was found in. So
+   spellings. `SessionDataApi` has no neighbors verb and deliberately none
+   (`src/session/types.ts:280-284` says neighbor pages are asynchronous by construction), and the
+   only neighbor walk in the repository is the application's -- the code the bug was found in. So
    this test counts by hand, over `session.data.edge(id)` for every edge id in
    `session.scope.edges()`, and asserts 17. Counting by hand is the point: it is the consumer's
    experience, reproduced.
@@ -1413,13 +1413,13 @@ numbers, not about smoke.
   lists (`tsconfig.build.json`, `typedoc.json`, `knip.config.ts`) fail late and confusingly on.
 - The vite `entries` key set and `MODULE_ENTRIES` are equal, asserted in both directions, as they
   already are.
-- The root barrel no longer exports any of the 23 logging names or any of the 7 colour-vision names,
+- The root barrel no longer exports any of the 23 logging names or any of the 7 color-vision names,
   and `./schema` still exports all seven.
   `test/documentation/jsdoc-coverage.test.ts:70-89` reads `index.ts` and asserts all seven names are
   in it. **Replaced**, not deleted: it reads `schema.ts`, where the guarantee now lives.
 - Mounting `<graphty-element>` on a page whose URL carries
   `?graphty-element-logging=true` leaves the logging configuration untouched. There is no test today
-  that mounts the element and asserts URL-driven logging, which is exactly why the behaviour
+  that mounts the element and asserts URL-driven logging, which is exactly why the behavior
   survived -- so this one has to be written, not replaced.
 - The three built-in registration modules still register after a build with the three `./src/`
   `sideEffects` paths removed: `dist/graphty.js` contains the `register(` calls that
@@ -1439,9 +1439,9 @@ the cytoscape or sigma shapes goes from zero edges to its real count. That is `d
 cloud of unconnected dots becomes a graph.
 
 **Edge labels change, and most of them disappear.** `Edge.extractLabelText` falls back to `this.id`
-when no label is configured (`src/Edge.ts:1227, :1251`), so an unlabelled edge currently reads
+when no label is configured (`src/Edge.ts:1227, :1251`), so an unlabeled edge currently reads
 `"alice:bob"`. Under a counter that would read `"17"`, which is worse: it is an internal number with
-no meaning to a reader. **The fallback is removed** -- an unlabelled edge draws no label. Every
+no meaning to a reader. **The fallback is removed** -- an unlabeled edge draws no label. Every
 edge-label story moves, and most of them lose text.
 
 **Edge counts rise on any multigraph, everywhere at once.** `element.getEdgeCount()`,
@@ -1468,7 +1468,7 @@ If one of them moved without one of those two, the change reached further than i
 
 **With one correction found in the build, for removals.** `SimpleLayoutEngine.removeNode` now sets
 `stale = true`, so the next refresh recomputes the whole arrangement. Under those fourteen static
-layouts, deleting one node therefore re-seats every other node. That is the right behaviour -- a
+layouts, deleting one node therefore re-seats every other node. That is the right behavior -- a
 circular layout over five nodes and a circular layout over four are different pictures -- but it is
 not what the sentence above would lead a reviewer to expect, so a story that removes a node and
 re-renders moves under all fourteen.
@@ -1491,4 +1491,4 @@ edges the graph holds. On `miserables.json` that is 254 next to a graph holding 
 254 next to a graph holding zero.
 
 **Nothing in the logging or packaging work moves anything visually.** The one consumer imports no
-logging symbol and no colour-vision helper and never sets those URL parameters.
+logging symbol and no color-vision helper and never sets those URL parameters.

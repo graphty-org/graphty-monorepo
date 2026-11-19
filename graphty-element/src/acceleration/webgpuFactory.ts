@@ -235,7 +235,7 @@ function toGraphAccelerator(accelerator: GpuAccelerator, release: () => void): G
             description: caps.description === "" ? caps.device : caps.description,
         },
         // Every GPU kernel in the peer computes in single precision, which is why a run that
-        // used one is labelled f32 and the same run on the CPU path is labelled f64.
+        // used one is labeled f32 and the same run on the CPU path is labeled f64.
         precision: "f32",
         // The element watches this. A device the element itself destroyed also resolves it, and
         // the controller ignores a loss reported for an accelerator it has already released.

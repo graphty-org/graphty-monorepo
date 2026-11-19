@@ -74,7 +74,7 @@ type FittedBox = Pick<FramingBox, "min" | "max">;
  * This is what the 2D/3D view-mode switch frames. Zoom-to-fit frames {@link framingBox}, which
  * grows this one by the labels.
  *
- * NO MARGIN on top. A fixed one is paid by every graph, labelled or not, and on a small graph it is
+ * NO MARGIN on top. A fixed one is paid by every graph, labeled or not, and on a small graph it is
  * most of the picture: one world unit on each side moved a two-node graph's camera from 6.0 to 8.6
  * units out. The cameras pad the fit themselves.
  * @param nodes - The nodes to frame; hidden ones are skipped.
@@ -329,7 +329,7 @@ export function framingBox(
 }
 
 /**
- * One set of elements the renderer honours, as the session holds it.
+ * One set of elements the renderer honors, as the session holds it.
  *
  * A MASK, not a list of ids: membership is one array read per element, the bytes are bounded at
  * the element count however many elements are in the set, and the `version` counter is what lets
@@ -870,7 +870,7 @@ export class UpdateManager implements Manager {
      * Say where the renderer reads the selection and visibility masks from.
      *
      * Binding is how the element's own model reaches the render loop: the masks belong to the
-     * session, one per dataset, and every view of that dataset honours the same two. Passing null
+     * session, one per dataset, and every view of that dataset honors the same two. Passing null
      * unbinds them, which draws the whole graph with no highlight.
      * @param masks - The two mask sources, or null.
      */
@@ -1034,7 +1034,7 @@ export class UpdateManager implements Manager {
      * not moved, so the cost lands only while records are actually arriving.
      */
     syncViewMasks(): void {
-        // An unbound renderer is not a renderer that stops honouring the masks: it is one whose
+        // An unbound renderer is not a renderer that stops honoring the masks: it is one whose
         // session says nothing about them, which means the whole graph is drawn and nothing is
         // highlighted. Returning early here instead would freeze the last answer on screen after
         // an unbind, which is the one state nobody asked for.
@@ -1523,7 +1523,7 @@ export class UpdateManager implements Manager {
      *
      * An element whose paint has not changed still costs nothing: `Node.applySessionPaint` and
      * `Edge.applySessionPaint` compare the source mesh they are handed with the one already on
-     * screen and rebuild only when it differs, so a colour change on a node is one buffer write
+     * screen and rebuild only when it differs, so a color change on a node is one buffer write
      * and no geometry at all.
      * @param budgetMs - How long this frame may spend applying paint before it leaves the rest
      *     for the next frame; each kind of element paints at least one batch. Unbounded when absent.
@@ -1765,6 +1765,8 @@ export class UpdateManager implements Manager {
             !this.mapArcsEdges() &&
             !this.endBehindEdges(source) &&
             !this.endBehindEdges(target) &&
+            !this.endInvisible(source) &&
+            !this.endInvisible(target) &&
             !this.rowSelected(index);
         if (lineable && lines.paintRow(index, source, target, paint)) {
             lines.setHidden(index, this.rowHidden(index));
@@ -1902,6 +1904,23 @@ export class UpdateManager implements Manager {
     }
 
     /**
+     * Whether a node row is drawn at opacity 0 (`Node.drawnOpacity`), so an edge ends at its outline (`Edge.bareEnd`),
+     * which a row line, drawn center to center, does not: read from the row's batch when no `Node` draws it.
+     * @param row - The node row.
+     * @returns True when it is.
+     */
+    private endInvisible(row: number): boolean {
+        const node = this.dataManager.nodesByIndex[row];
+        if (node !== undefined) {
+            return node.drawnOpacity <= 0;
+        }
+
+        const batches = this.graphContext.getNodeBatches?.() ?? null;
+        const column = batches?.columnRowOf(row);
+        return column !== undefined && batches !== null && batches.columnOpacityOf(column) <= 0;
+    }
+
+    /**
      * Take one batch of pending nodes and the paint each is to be drawn with.
      * @param painter - Where the paint is read from.
      * @param rows - Every node, by index.
@@ -1937,8 +1956,7 @@ export class UpdateManager implements Manager {
      */
     private unbuiltPainted(painter: StylePainter, index: number): Node | undefined {
         const id = dataManagerInternals.unbuiltAt(this.dataManager, index);
-        // one style per look, not per row (`StylePainter.rowPaint`); a row that needs a `Node` is
-        // painted again below through `nodePaint`, so the Node never holds a shared style
+        // one style per look, not per row (`StylePainter.rowPaint`)
         const paint = id === undefined ? null : painter.rowPaint(index);
         const batches = this.graphContext.getNodeBatches?.() ?? null;
         const table = this.graphContext.getRowTable?.() ?? null;
@@ -2498,6 +2516,20 @@ export class UpdateManager implements Manager {
      */
     operationsPending: (() => boolean) | null = null;
 
+    /**
+     * The renderer's count of fenced WebGL frames and whether the GPU has finished one, so a wait
+     * for the final picture ends only once the GPU has finished the frame that drew it; see
+     * `RenderManager.gpuFinishedFrame`. Null when nothing fences frames.
+     * @internal
+     */
+    gpuFrames: { fenced: () => number; finished: (frame: number) => boolean } | null = null;
+
+    /**
+     * The renderer's fenced-frame count when the frame that drew the finished picture was drawn,
+     * so its own fence is this plus one; null when no such fence is owed.
+     */
+    private finishedFrameFencedAfter: number | null = null;
+
     /** Callers of {@link UpdateManager.onceNothingIsOwed} still waiting. */
     private readonly owedWaiters = new Set<() => void>();
 
@@ -2510,7 +2542,25 @@ export class UpdateManager implements Manager {
         // `wait` work (a queued operation, issue #3528) too: the frame on screen is final about
         // the graph it shows, so `frameIsStable`, the frame announcement and the on-demand loop's
         // rest do not ask it, but a wait for the final picture does.
-        return this.pending.firstPending("wait") === null && this.frameIsStable;
+        return this.pending.firstPending("wait") === null && this.frameIsStable && this.gpuFinishedPicture();
+    }
+
+    /**
+     * Whether the GPU has finished drawing the frame that drew the finished picture. The render
+     * loop lets two WebGL frames be in flight, so the frame called final can still be queued on
+     * the GPU behind an older one, and a screenshot or readback taken then can read the older
+     * frame (issues #8344, #8346). Only that frame is waited for, not every frame since: a picture
+     * that keeps drawing (a moving shader) on a GPU slower than the loop always has one in flight.
+     * @returns True once that frame is done, or when no fence was owed.
+     */
+    private gpuFinishedPicture(): boolean {
+        const before = this.finishedFrameFencedAfter;
+        if (before === null || this.gpuFrames === null) {
+            return true;
+        }
+
+        // Asked while the frame is still being drawn, its fence is not made yet.
+        return this.gpuFrames.fenced() > before && this.gpuFrames.finished(before + 1);
     }
 
     /**
@@ -2753,6 +2803,9 @@ export class UpdateManager implements Manager {
      *
      * Asked under the layer's render pass, because that is where the layer keeps the mesh's
      * shader -- which is what Babylon's own readiness check does before asking the same thing.
+     * A mesh with no geometry -- a model's root, an empty mesh -- has no submeshes and nothing to
+     * draw into the layer, so it is ready, as `Mesh.isReady` answers for it; one still loading was
+     * already answered not ready by `isReady` before the layers are asked.
      * @param layer - The layer drawing the mesh.
      * @param mesh - The mesh.
      * @param instanced - Whether the mesh is drawn through instances.
@@ -2803,6 +2856,7 @@ export class UpdateManager implements Manager {
 
         this.finishedEpoch = this.pending.epoch;
         this.finishedMeshCount = this.graphContext.getScene().meshes.length;
+        this.finishedFrameFencedAfter = this.gpuFrames?.fenced() ?? null;
         // The picture the last fit framed is final: a later input change moves nothing.
         this.fitRead = null;
         this.eventManager.emit("graph-frame-stable", { frames: this.frameCount });
@@ -2849,6 +2903,11 @@ export class UpdateManager implements Manager {
      *     frames are drawn. Omitted or 0 -- every hand-pumped pass -- it takes one step.
      */
     update(frameMs = 0): void {
+        // A finished frame drawn without a fence (by hand, outside the loop) owes the GPU nothing.
+        if (this.finishedFrameFencedAfter !== null && this.gpuFrames?.fenced() === this.finishedFrameFencedAfter) {
+            this.finishedFrameFencedAfter = null;
+        }
+
         // Work waiting for this pass -- a style edit's paint, a layout, a framing -- changes what
         // the next frame draws, so it has to be announced again once that frame is drawn.
         if (!this.pictureIsFinished()) {
@@ -3890,7 +3949,7 @@ export class UpdateManager implements Manager {
      *
      * WHY IT ASKS THE NODES RATHER THAN BEING TOLD. A flag set wherever something moves cannot be
      * trusted: a node's position is written by the layout, by a drag (which Babylon's own drag
-     * behaviour writes straight onto the mesh, through no method of ours), by the two-dimensional
+     * behavior writes straight onto the mesh, through no method of ours), by the two-dimensional
      * mode switch, and by a restore. Missing one of those would leave edges hanging in mid-air
      * with nothing in a test to catch which writer was forgotten. Reading the positions cannot
      * miss a writer, and it is a walk of the NODES -- a hundred thousand where the edges are a
@@ -3923,7 +3982,7 @@ export class UpdateManager implements Manager {
         }
 
         // An edge added or removed since the last walk has never been placed, or has left a
-        // neighbour's slot behind. The store's version says so, and catches one removed and one
+        // neighbor's slot behind. The store's version says so, and catches one removed and one
         // added, which leave a count alone. An engine's array is counted as well, for an engine
         // that takes an edge up after the store told it: read off the array's own length, since
         // COUNTING BY ITERATING would be the million-edge walk this method exists to avoid. An
@@ -4562,7 +4621,7 @@ export class UpdateManager implements Manager {
     /**
      * Whether the camera is looking at something other than what it looked at last frame.
      *
-     * Read rather than signalled, because a camera is moved by a reader's mouse, by an animation,
+     * Read rather than signaled, because a camera is moved by a reader's mouse, by an animation,
      * by zoom-to-fit and by the XR rig, and a frozen scene keeps whatever was inside the frustum
      * when it froze. Six numbers cover the orbit camera the element uses and the free cameras.
      * @returns True when the view has changed.

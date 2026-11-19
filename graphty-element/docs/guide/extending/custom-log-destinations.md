@@ -53,7 +53,7 @@ remove it after that call too.
 
     | Member     | What it holds                                                |
     | ---------- | ------------------------------------------------------------ |
-    | `time`     | when it happened, a `Date` (an ISO string once serialised)   |
+    | `time`     | when it happened, a `Date` (an ISO string once serialized)   |
     | `level`    | `"error"`, `"warn"`, `"info"`, `"debug"` or `"trace"`        |
     | `category` | who said it, as one dotted string: `"graphty.layout.ngraph"` |
     | `message`  | what they said                                               |
@@ -72,7 +72,7 @@ remove it after that call too.
   `graphty.logging` saying how many were. `GraphtyLogger.flush()` waits for the queue, stopping
   the destination sends what is still waiting, and the element flushes every destination when the
   page is hidden.
-- **It lists the destination beside the built-ins.** The catalogue offers it
+- **It lists the destination beside the built-ins.** The catalog offers it
   (`session.catalog.logSinks()`) with its name derived from the id ("acme-telemetry" reads "Acme
   telemetry"), and a stored configuration can turn it on by id:
   `GraphtyLogger.configure({ sinks: [{ use: "acme-telemetry" }] })`. Pass `attach: false` to
@@ -339,7 +339,7 @@ const logger = GraphtyLogger.getLogger(["graphty", "acme"]);
 logger.info("roster loaded", { people: 412 });
 
 // A value that is expensive to compute is not computed when the level filters the record out.
-logger.debug("roster detail", { profile: lazy(() => summarise(roster)) });
+logger.debug("roster detail", { profile: lazy(() => summarize(roster)) });
 ```
 
 ### Filtering

@@ -12,12 +12,12 @@ Saw (02.png): an import preview, "Open as a new graph". It says 331 nodes, 361 e
 ## Step 3
 Maren: "Counts match, nothing lost. Load."
 Command: --step --click "Load"
-Saw (03.png): the network is drawn, flat-looking, blue dots, no labels. Right panel says 331 nodes, 361 edges, 26 components, largest 249 nodes -- nice, I'd have to run Network Analyzer for that. Left: "Style layers" with Hovered, Selected, Everything and a + button, plus a "Find nodes, edges, values" box. In Cytoscape I'd do a column filter "name contains GAL" then a bypass colour. I'll try the find box first to see how many GAL genes there are.
+Saw (03.png): the network is drawn, flat-looking, blue dots, no labels. Right panel says 331 nodes, 361 edges, 26 components, largest 249 nodes -- nice, I'd have to run Network Analyzer for that. Left: "Style layers" with Hovered, Selected, Everything and a + button, plus a "Find nodes, edges, values" box. In Cytoscape I'd do a column filter "name contains GAL" then a bypass color. I'll try the find box first to see how many GAL genes there are.
 
 ## Step 4
 Maren: "Let's search GAL and see what it finds."
 Command: --step --click "Find nodes, edges, values" --type "GAL"
-Saw (04.png): "Nodes 8": GAL10, GAL11, GAL1, GAL2, GAL4, GAL7, GAL80, GAL3, each with its ORF. All eight begin with GAL. Good, a count. Below are "Values" suggestions like "name is GAL10 (1)". Now I need to colour them. The Style layers list has a + button; I'll guess that makes a new style, like a new mapping in Cytoscape.
+Saw (04.png): "Nodes 8": GAL10, GAL11, GAL1, GAL2, GAL4, GAL7, GAL80, GAL3, each with its ORF. All eight begin with GAL. Good, a count. Below are "Values" suggestions like "name is GAL10 (1)". Now I need to color them. The Style layers list has a + button; I'll guess that makes a new style, like a new mapping in Cytoscape.
 
 ## Step 5
 Maren: "Eight. Now the + by Style layers to make a purple style."
@@ -67,7 +67,7 @@ Saw (14.png): "name Starts with GAL -- 8 nodes", "8 of 331 nodes", and a suggest
 
 ## Step 15
 Command: --step --key Escape --click "Done"
-Saw (15.png): condition collapsed to a chip "name starts with GAL, 8 nodes". Now Fill + to set the colour.
+Saw (15.png): condition collapsed to a chip "name starts with GAL, 8 nodes". Now Fill + to set the color.
 
 ## Step 16
 Command: --step --click-at 1404,381
@@ -80,7 +80,7 @@ Saw (17.png): a few dark purple dots in the middle of the network, and a legend 
 
 ## Step 18
 Command: --step --wheel 780,465,-600
-Saw (18.png): barely zoomed. I can count about six or seven purple dots clustered in the centre; the rest still blue. Wheel harder.
+Saw (18.png): barely zoomed. I can count about six or seven purple dots clustered in the center; the rest still blue. Wheel harder.
 
 ## Step 19
 Command: --step --wheel 780,470,-3000
@@ -97,7 +97,7 @@ What went well: the GraphML import showed me "331 node rows and 361 edge rows re
 What confused or annoyed me:
 - After I searched, the + next to "Style layers" moved: my first click only closed the search list, and the panel jumped back up under my pointer.
 - The match dropdown showed "Contains" but I could not pick it by that word. I had to click on the box itself.
-- When I added Fill, the colour started as 6366F1, the same blue-violet every node already has, so nothing seemed to change until I typed a hex code. I had no colour name or swatch to pick "purple" from; I typed 800080 myself.
+- When I added Fill, the color started as 6366F1, the same blue-violet every node already has, so nothing seemed to change until I typed a hex code. I had no color name or swatch to pick "purple" from; I typed 800080 myself.
 - Dark purple next to blue-violet nodes is not much contrast, and the nodes are tiny dots with no labels. I could not zoom in to check: the mouse wheel barely changed the view. For a figure I'd want labels on these 8 nodes and bigger nodes.
 - It opened as "3D" (the button at the bottom says 3D), though the picture looks flat. Is 3D telling me anything here?
-- Scepticism: fine for exploring. I would still want to know how to cite it before a paper figure came from it.
+- Skepticism: fine for exploring. I would still want to know how to cite it before a paper figure came from it.

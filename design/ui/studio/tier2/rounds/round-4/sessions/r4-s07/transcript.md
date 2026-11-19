@@ -79,7 +79,7 @@ file opened outside the session folder.
 **Ease: 6 out of 7.**
 
 **What confused me:**
-- The number was labelled "weight", not runs. I only knew it meant runs because I remembered the
+- The number was labeled "weight", not runs. I only knew it meant runs because I remembered the
   column in the spreadsheet was called that. If someone else had made the file, I'd be guessing
   what "weight" stands for.
 - Ivan is mostly hidden behind Hana. I clicked on his name and it worked, but I wasn't sure until

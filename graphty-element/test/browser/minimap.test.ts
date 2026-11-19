@@ -1,6 +1,6 @@
 /**
  * @file The minimap `<graphty-element minimap>` draws (issue #293), driven by real input: the
- * attribute shows and hides `::part(minimap)`, a click on it centres the view, a drag scrubs, the
+ * attribute shows and hides `::part(minimap)`, a click on it centers the view, a drag scrubs, the
  * arrow keys step the view, and above the point limit it draws a density heatmap.
  */
 
@@ -99,7 +99,7 @@ function inked(canvas: HTMLCanvasElement): number {
 }
 
 /**
- * Asserts a node is drawn at the canvas centre.
+ * Asserts a node is drawn at the canvas center.
  * @param element - The element.
  * @param id - The node.
  */

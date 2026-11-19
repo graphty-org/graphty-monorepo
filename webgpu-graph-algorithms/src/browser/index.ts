@@ -51,7 +51,7 @@ export function probeBrowserWebGpu(options?: BrowserGpuOptions): Promise<ProbeRe
 
 /**
  * GpuContext.create({ gpu: navigator.gpu, powerPreference: "high-performance", runtime: "browser", ...options });
- * pass `{ adapter: probe.adapter }` to reuse the probed adapter; create() honours rejectSoftware.
+ * pass `{ adapter: probe.adapter }` to reuse the probed adapter; create() honors rejectSoftware.
  * @param options - see BrowserGpuOptions
  * @returns the context
  */

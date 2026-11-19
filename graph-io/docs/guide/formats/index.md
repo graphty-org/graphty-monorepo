@@ -55,6 +55,7 @@ file they name is there.
 | [cx](./cx.md)           | `@graphty/graph-io/cx`      | `.cx`                                 | yes   | yes    | yes                     |
 | [obo](./obo.md)         | `@graphty/graph-io/obo`     | `.obo`                                | yes   | yes    | no                      |
 | [cys](./cys.md)         | `@graphty/graph-io/cys`     | `.cys`                                | yes   | yes    | yes                     |
+| [sif](./sif.md)         | `@graphty/graph-io/sif`     | `.sif`                                | yes   | yes    | no                      |
 
 ### What each writer keeps
 
@@ -65,7 +66,7 @@ file they name is there.
 | [json](./json.md) (jgf)        | yes              | optional  | any           | f64, i32, bool, string                           | no      | yes    | no         | no        | no          | none           | yes               | no          | no    | rules kept                |
 | [json](./json.md) (cytoscape)  | no               | required  | any           | f64, i32, bool, string                           | no      | yes    | no         | no        | yes         | none           | yes               | yes         | no    | 81 properties, rules kept |
 | [json](./json.md) (graphology) | yes              | optional  | any           | f64, i32, bool, string                           | no      | yes    | no         | no        | no          | none           | yes               | yes         | no    | 9 properties, rules kept  |
-| [json](./json.md) (vis)        | no               | optional  | any           | f64, i32, bool, string                           | no      | yes    | no         | no        | no          | none           | no                | yes         | no    | 26 properties, rules kept |
+| [json](./json.md) (vis)        | no               | optional  | any           | f64, i32, bool, string                           | no      | yes    | no         | no        | no          | none           | no                | yes         | no    | 28 properties, rules kept |
 | [json](./json.md) (obographs)  | no               | none      | any           | none                                             | no      | no     | no         | no        | no          | none           | no                | no          | no    | rules not kept            |
 | [graphml](./graphml.md)        | yes              | optional  | nmtoken       | bool, i32, f32, f64, string                      | no      | no     | yes        | no        | yes         | none           | yes               | no          | no    | 35 properties, rules kept |
 | [gexf](./gexf.md)              | yes              | optional  | any           | f32, f64, i32, bool, dict, string                | yes     | no     | yes        | yes       | yes         | dynamic-values | no                | yes         | yes   | 11 properties, rules kept |
@@ -79,6 +80,7 @@ file they name is there.
 | [cx](./cx.md)                  | no               | required  | integer       | string, f64, i32, bool                           | yes     | no     | no         | no        | yes         | none           | yes               | yes         | no    | 50 properties, rules kept |
 | [obo](./obo.md)                | no               | none      | any           | none                                             | no      | no     | no         | no        | no          | none           | no                | no          | no    | none                      |
 | [cys](./cys.md)                | yes              | required  | integer       | string, dict, f64, i32, bool, list               | yes     | no     | no         | no        | no          | none           | yes               | yes         | no    | 50 properties, rules kept |
+| [sif](./sif.md)                | no               | none      | any           | dict                                             | no      | no     | no         | no        | no          | none           | no                | no          | no    | none                      |
 
 ### What the capabilities mean
 

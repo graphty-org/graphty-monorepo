@@ -6,7 +6,7 @@
  * becomes the `detail`. That is deliberate for the events consumers are meant to have, and wrong
  * for the ones the element's own managers talk to each other with: an unprefixed name consumers
  * should not build against, carrying a payload of typed arrays and a live `Graph` reference that
- * no listener can structured-clone, post to a worker or serialise.
+ * no listener can structured-clone, post to a worker or serialize.
  *
  * `snapshot-replaced` is the first such event, and it is inert only until something emits it --
  * which is why the exclusion is tested before there is anything to see.

@@ -77,7 +77,7 @@ export const HOSTS: Readonly<Record<ProviderApiId, string>> = {
     google: "generativelanguage.googleapis.com",
 };
 
-/** The default model each fixture asks, as the provider's catalogue names it. */
+/** The default model each fixture asks, as the provider's catalog names it. */
 const MODELS: Readonly<Record<ProviderApiId, string>> = {
     openai: "gpt-4o",
     anthropic: "claude-haiku-4-5-20251001",

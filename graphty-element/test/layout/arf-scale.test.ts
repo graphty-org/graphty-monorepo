@@ -13,7 +13,7 @@ import { ElementPositions } from "../../src/data/positions";
 import type { Edge } from "../../src/Edge";
 import { ArfLayout } from "../../src/layout/ArfLayoutEngine";
 import { layoutEngineInternals } from "../../src/layout/LayoutEngine";
-import type { Node } from "../../src/Node";
+import { fakeEdge, fakeNode } from "../helpers/layout-fakes";
 
 /**
  * Lay out a ring with a chord from every node to the one a third of the way round.
@@ -22,16 +22,11 @@ import type { Node } from "../../src/Node";
  * @returns the farthest any node is from the origin, in scene units
  */
 function farthest(n: number, opts: Record<string, unknown>): number {
-    const nodes = Array.from({ length: n }, (_, i) => ({ id: `n${String(i)}`, index: i }) as unknown as Node);
+    const nodes = Array.from({ length: n }, (_, i) => fakeNode(`n${String(i)}`, { index: i }));
     const edges: Edge[] = [];
     for (let i = 0; i < n; i++) {
         for (const j of [(i + 1) % n, (i + Math.floor(n / 3)) % n]) {
-            edges.push({
-                srcId: nodes[i].id,
-                dstId: nodes[j].id,
-                srcNode: nodes[i],
-                dstNode: nodes[j],
-            } as unknown as Edge);
+            edges.push(fakeEdge(nodes[i], nodes[j]));
         }
     }
 

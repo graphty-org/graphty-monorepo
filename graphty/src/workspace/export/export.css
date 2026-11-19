@@ -112,3 +112,13 @@
     align-items: center;
     gap: 4px;
 }
+
+/* The Report output's sections checklist: a fieldset for its group, drawn without a frame. */
+.ws-export-sections {
+    border: 0;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}

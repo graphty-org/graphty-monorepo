@@ -1,8 +1,8 @@
 /**
  * `Node.index` (graph-format design 14.4 rule 5), and the pin lifecycle it shipped alongside.
  *
- * The index is the element's handle into the current GraphSnapshot. Pinning is the neighbouring
- * behaviour, and it is INDEXED BY THE SAME NUMBER: a pin is one byte beside the node's
+ * The index is the element's handle into the current GraphSnapshot. Pinning is the neighboring
+ * behavior, and it is INDEXED BY THE SAME NUMBER: a pin is one byte beside the node's
  * coordinates in the element's own position array, so a node with no row in the graph has nowhere
  * to record one. This file pins the round trip, the ordering the live simulations depend on, and
  * the one way a pin must NOT be acquired -- a plain click never pins.
@@ -160,7 +160,7 @@ function createHarness(): Harness {
  * Create a node and register it where a real load would.
  * @param harness - The test harness
  * @param id - The node id
- * @param pinOnDrag - The node's pinOnDrag behaviour option, as the configuration document sets it
+ * @param pinOnDrag - The node's pinOnDrag behavior option, as the configuration document sets it
  * @returns The created node
  */
 function addNode(harness: Harness, id: string, pinOnDrag = true): Node {

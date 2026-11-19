@@ -5,7 +5,7 @@
  * here with a reason.
  *
  * It is a secondary guard. Which algorithms compute over their scope is decided by each class's
- * `scopeInput` declaration at run time, and proved behaviourally, not by which file reads what.
+ * `scopeInput` declaration at run time, and proved behaviorally, not by which file reads what.
  */
 
 import { readdirSync, readFileSync } from "node:fs";

@@ -23,7 +23,7 @@
 export type GraphtyErrorCode =
     /**
      * A command or a call is malformed: a missing required field, or two fields that may not be
-     * set together (the `src` and `sample` attributes, for instance). `details` name the fields.
+     * set together. `details` name the fields.
      * The caller fixes the call; retrying the same call always fails the same way.
      */
     | "E_BAD_COMMAND"
@@ -848,12 +848,6 @@ export type GraphtyWarningCode =
      * @experimental cosmograph
      */
     | "W_OBJECT_CAP"
-    /**
-     * A style layer writes a text size under 1 (a label's, a tooltip's or an arrow caption's),
-     * which draws no text. `params.channel` is the channel, `params.path` where in the layer the
-     * size sits, and `params.value` the size.
-     */
-    | "W_TEXT_TOO_SMALL"
     /**
      * A style layer binds a whole label style channel (`node.labelStyle`) to a path. No scale
      * produces a whole label style, so the binding paints nothing. `params.channel` is the channel,

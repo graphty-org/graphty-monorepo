@@ -3,7 +3,8 @@ name: Tooltip Display
 category: interaction
 description: Show quick information tooltips when hovering over nodes and edges. Display key attributes without
     requiring full detail panel. Balance informativeness with brevity.
-status: planned
+status: implemented
+notes: "Ships: the element's tooltip style option (graphty-element/api/schema.api.md)."
 algorithms: []
 used_by_workflows:
     - W14

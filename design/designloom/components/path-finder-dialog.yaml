@@ -3,7 +3,8 @@ name: Path Finder Dialog
 category: dialog
 description: Dialog for finding paths between nodes. Supports shortest path, all paths, and k-shortest paths with
     configurable parameters.
-status: planned
+status: in-progress
+notes: "Partly ships: shortest path ships in graphty/src/workspace/analyze/PathForm.tsx; all paths and k-shortest paths do not."
 implements_capabilities:
     - shortest-path
     - all-paths-finding

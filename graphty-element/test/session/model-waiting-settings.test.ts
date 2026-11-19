@@ -107,6 +107,33 @@ describe("a model by address given settings while its pictures download", () => 
         session.dispose();
     });
 
+    it("saves them with a later change under its accepted id, which an undo takes back alone", async () => {
+        const picture = opening<Uint8Array | null>();
+        stubSite(() => picture.promise);
+        const session = createGraphSession({ workingGraph: false });
+        const waiting = opening<AssetRecord>();
+        const added = session.assets.add(`${BASE}tri.gltf`, { onWaiting: waiting.resolve });
+        const early = await waiting.promise;
+
+        await session.assets.setDefaults(early.id, { style: { "node.modelTurn": 90 } });
+        picture.resolve(PNG_1X1);
+        const done = await added;
+        assert.strictEqual(done.state, "accepted", JSON.stringify(done.problems));
+        await session.assets.setDefaults(done.id, { hiddenTextures: ["tex.png"] });
+        const both = { style: { "node.modelTurn": 90 }, hiddenTextures: ["tex.png"] };
+        assert.deepEqual(session.assets.find(done.id)?.defaults, both);
+
+        const { text } = await session.project.save();
+        const file = JSON.parse(text) as { members: { kind: string; assets?: { id: string; defaults?: unknown }[] }[] };
+        const saved = file.members.find((m) => m.kind === "graphty-assets")?.assets?.find((a) => a.id === done.id);
+        assert.deepEqual(saved?.defaults, both, "saved under the id the project reopens by");
+
+        await session.undo();
+        assert.deepEqual(session.assets.find(done.id)?.defaults?.style, { "node.modelTurn": 90 });
+        assert.deepEqual(session.assets.find(done.id)?.defaults?.hiddenTextures ?? [], []);
+        session.dispose();
+    });
+
     it("still has add and ready resolve with the finished model", async () => {
         const picture = opening<Uint8Array | null>();
         stubSite(() => picture.promise);

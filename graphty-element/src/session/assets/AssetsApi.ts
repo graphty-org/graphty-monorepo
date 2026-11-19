@@ -1148,11 +1148,12 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
     const storedAs = new Map<string, "embed" | "url">();
     const lookup = (id: AssetId): Entry | undefined => entries.get(id) ?? samples.get(id);
     let defaultsBinding: ModelDefaultsBinding | undefined;
-    // A model set up while it waited (downloading, or for a part) keeps its settings under the id
-    // it waited as: the project's history names that id, so an undo still reaches them.
+    // A model set up while it waited (downloading, or for a part) reads the settings it was given
+    // then under the id it waited as, until it is given settings of its own: the project's history
+    // names that id, so an undo still reaches them. Later changes are written under its own id.
     const settingsIds = new Map<AssetId, AssetId>();
     /**
-     * The id a model's settings are kept under in the project.
+     * The id a model's settings were given under while it waited.
      * @param id - The record's id.
      * @returns The id it waited as when it was set up then, else the id itself.
      */
@@ -1163,7 +1164,7 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
      * @returns The field, or nothing when the project sets none.
      */
     const defaultsOf = (id: AssetId): { defaults?: ModelDefaults } => {
-        const defaults = defaultsBinding?.read(settingsKey(id));
+        const defaults = defaultsBinding?.read(id) ?? defaultsBinding?.read(settingsKey(id));
         return defaults === undefined ? {} : { defaults };
     };
     /**
@@ -2740,7 +2741,7 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
             );
             await defaultsBinding.dispatch({
                 op: "asset.defaults",
-                id: settingsKey(id),
+                id,
                 patch: { style, hiddenTextures: defaults.hiddenTextures ?? [] },
             });
             api.refreshDefaults([id]);
@@ -2758,9 +2759,20 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
                     });
                 }
 
-                const id = settingsKey(entry.record.id);
+                const { id } = entry.record;
+                // The first change to a model set up while it waited takes those settings along, so
+                // the project keeps them under the id it saves and reopens by.
+                const waited =
+                    defaultsBinding.read(id) === undefined ? defaultsBinding.read(settingsKey(id)) : undefined;
+                const whole: ModelDefaultsPatch =
+                    waited === undefined
+                        ? patch
+                        : {
+                              style: { ...waited.style, ...patch.style },
+                              hiddenTextures: patch.hiddenTextures ?? waited.hiddenTextures,
+                          };
                 // Dispatched before any await, so a call routed into a transaction joins it.
-                return defaultsBinding.dispatch({ op: "asset.defaults", id, patch }).then(() => {
+                return defaultsBinding.dispatch({ op: "asset.defaults", id, patch: whole }).then(() => {
                     api.refreshDefaults([id]);
                     return findEntry(ref)?.record ?? entry.record;
                 });

@@ -311,11 +311,11 @@ function ChoiceValueField(props: KindFieldProps): React.JSX.Element {
         GLYPH_TABLES[descriptor.channel] === undefined
             ? undefined
             : Object.fromEntries([
-                  ...options.map((o) => [
+                  ...options.map((o): [string, React.ReactNode] => [
                       o.value,
                       <CatalogGlyph key={o.value} channel={descriptor.channel} value={o.value} />,
                   ]),
-                  ...extraChoices.map((o) => [
+                  ...extraChoices.map((o): [string, React.ReactNode] => [
                       o.value,
                       o.picture === undefined ? (
                           (o.glyph ?? null)

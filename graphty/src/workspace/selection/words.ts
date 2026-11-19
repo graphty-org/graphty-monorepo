@@ -127,7 +127,7 @@ export function reasonWords(
             return { short: `Run (${about})`, long: `${words.long} (${about})` };
         }
     }
-    return words ?? { short: reason.code, long: reason.code };
+    return words;
 }
 
 /**

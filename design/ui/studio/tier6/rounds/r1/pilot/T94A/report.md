@@ -46,7 +46,7 @@ and 254 edges, so a screen-reader user can confirm the layers. Tab into the list
 row, Everything (defect 7). In the composer Shift+Control+Z redid and Control+Z undid the change, each
 announced, focus staying in the composer. Sending again and pressing Escape at once: "Stopped.
 Changes taken back.", the request back in the composer, no change (48). The tool's line
-`net::ERR_ABORTED` at that step is the cancelled request itself, not an app failure.
+`net::ERR_ABORTED` at that step is the canceled request itself, not an app failure.
 
 Focus never fell to the page body. Records: `styles.json` `changes` empty, `work.json` equal, no runs.
 

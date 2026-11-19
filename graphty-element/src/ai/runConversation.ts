@@ -278,7 +278,7 @@ export interface ConversationRun {
     readonly label: string;
     /** The message's id, stamped on its steps' provenance. */
     readonly message: string;
-    /** Fires when the message is cancelled or undone; a batch's abort aborts it too. */
+    /** Fires when the message is canceled or undone; a batch's abort aborts it too. */
     readonly abort: AbortController;
     readonly sink: ConversationSink;
     /** The model, when the engine does not hold its own. */
@@ -371,7 +371,7 @@ export interface DecidedBatch {
     readonly approved?: GateKind;
 }
 
-/** The model's turn failed: the provider refused or failed, or the turn was cancelled. */
+/** The model's turn failed: the provider refused or failed, or the turn was canceled. */
 export class TurnFailed extends Error {
     /**
      * The turn failed.
@@ -794,7 +794,7 @@ function hostedPart(event: Extract<TurnEvent, { type: "hosted-tool" }>, sink: Co
  * @param onUsage - Told each usage the turn reports.
  * @returns The turn's text and calls.
  * @throws {TurnFailed} When the turn ends with an error, ends without a `finish` (a dropped
- *   stream: its calls may be cut short, so none runs), or finishes after the message was cancelled.
+ *   stream: its calls may be cut short, so none runs), or finishes after the message was canceled.
  */
 async function modelTurn(
     run: ConversationRun,
@@ -834,7 +834,7 @@ async function modelTurn(
 
     // A provider that ignores the signal may still answer after a cancel: the answer is dropped.
     if (abort.signal.aborted || !finished) {
-        const cause = abort.signal.aborted
+        const cause: unknown = abort.signal.aborted
             ? abort.signal.reason
             : new Error("The model's turn ended without finishing.");
         throw new TurnFailed(providerFailure(cause, engine.providerName, abort.signal), text);

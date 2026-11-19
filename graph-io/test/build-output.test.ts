@@ -131,6 +131,7 @@ describe("Build Output Tests", () => {
             "neo4j",
             "obo",
             "pajek",
+            "sif",
             "xgmml",
         ]);
         const subpaths = Object.keys(packageJson.exports).filter((key) => key !== "." && !key.startsWith("./sources/"));

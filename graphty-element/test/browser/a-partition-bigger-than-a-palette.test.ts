@@ -1,13 +1,13 @@
 /**
- * @file A run with more groups than the default palette has colours still draws a picture.
+ * @file A run with more groups than the default palette has colors still draws a picture.
  *
  * WHAT THIS EXISTS TO CATCH, in the words the failure actually used. Two stories --
  * `Algorithms/Community Leiden` and `Algorithms/Component SCC` -- drew nothing for a week, and
  * every reading a consumer can take said the layer was fine: it was in the stack, it was enabled,
  * its selector named the right path, and `applySuggestedStyles` had answered true. Twenty nodes
- * were left at the element's default colour.
+ * were left at the element's default color.
  *
- * The cause was a number nobody had yet. `encode()` chose the eight-colour default palette when
+ * The cause was a number nobody had yet. `encode()` chose the eight-color default palette when
  * it planned the layer, which is before any of the run's values have been read; the run had found
  * ten groups; and a categorical palette never wraps, so the capacity check refused the binding one
  * step later, during the repaint. The repaint is allowed to swallow that -- one bad layer must not
@@ -105,10 +105,10 @@ describe("a run with more groups than the default palette has colours", () => {
         );
 
         // THE DEFAULT OVERFLOW POLICY IS "other": the eight largest groups keep the eight palette
-        // colours and the rest share one grey that the legend names. So twelve pieces are drawn in
-        // nine colours -- and never by WRAPPING, which would give a ninth piece one of the eight
-        // palette colours and say nothing. What is checked is that each palette colour belongs to
-        // exactly one piece, and every other piece is the grey.
+        // colors and the rest share one gray that the legend names. So twelve pieces are drawn in
+        // nine colors -- and never by WRAPPING, which would give a ninth piece one of the eight
+        // palette colors and say nothing. What is checked is that each palette color belongs to
+        // exactly one piece, and every other piece is the gray.
         const colourOfPiece = new Map<string, Set<string | undefined>>();
         for (const node of NODES) {
             const piece = node.id.split("n")[0];

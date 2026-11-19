@@ -1,7 +1,7 @@
 /**
- * Logging extension point. NORMATIVE for shapes; behaviour in design/extensions/logging.md.
+ * Logging extension point. NORMATIVE for shapes; behavior in design/extensions/logging.md.
  * Entry points: @graphty/graphty-element/extend (registerLogSink and the descriptor types) and
- * @graphty/graphty-element/logging (LogLevel, LogRecord, Sink, GraphtyLogger). Serialised form of
+ * @graphty/graphty-element/logging (LogLevel, LogRecord, Sink, GraphtyLogger). Serialized form of
  * the descriptor: design/extensions/descriptors.schema.json#/$defs/LogSinkDescriptor.
  */
 import type { OptionDescriptor, RegisterOptions } from "./common";

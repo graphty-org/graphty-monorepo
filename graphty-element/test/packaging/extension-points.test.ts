@@ -112,7 +112,7 @@ describe("the catalogue tables behind the extension points", () => {
         // Cameras and log destinations are the two that did not exist. Without them, a settings
         // panel could list the element's algorithms, layouts, formats and palettes and then had
         // to hard-code its own list of views and log destinations -- which is exactly the drift
-        // the catalogue exists to prevent.
+        // the catalog exists to prevent.
         assert.isAbove(catalog.CAMERA_DESCRIPTORS.length, 0);
         assert.isAbove(catalog.LOG_SINK_DESCRIPTORS.length, 0);
     });

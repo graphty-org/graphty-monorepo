@@ -223,7 +223,7 @@ layouts (`ngraph`, `d3`, `forceatlas2`, `spring`, `spring-electrical`) accept a 
 refuses one with `E_UNSUPPORTED`. `session.catalog.layouts()` says which, as `scoped`.
 
 **A style layer** paints the set with the selector `{ match: "member", of: scope }`. The layer follows
-the set: redefine it and the picture moves. A set has no colour of its own; colouring one is an
+the set: redefine it and the picture moves. A set has no color of its own; coloring one is an
 ordinary layer.
 
 ```typescript
@@ -479,7 +479,7 @@ A scope saved the old way is a set: its id works as `{ set: id }` exactly as bef
 
 ## Interactive Examples
 
-- [Colour a set](https://graphty.app/storybook/graphty-element/?path=/story/sets-kept-sets--color-a-set)
+- [Color a set](https://graphty.app/storybook/graphty-element/?path=/story/sets-kept-sets--color-a-set)
 - [Combine two sets](https://graphty.app/storybook/graphty-element/?path=/story/sets-kept-sets--combine-two-sets)
 - [A rule set follows the data](https://graphty.app/storybook/graphty-element/?path=/story/sets-kept-sets--rule-set-follows-data)
 - [Filter to a set](https://graphty.app/storybook/graphty-element/?path=/story/sets-kept-sets--filter-to-a-set)

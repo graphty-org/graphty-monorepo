@@ -2,7 +2,8 @@ id: color-picker
 name: Color Picker
 category: control
 description: Color selection control with preset swatches and custom color input. Used for node/edge color encoding configuration.
-status: planned
+status: implemented
+notes: "Ships: compact-mantine/src/components/color/ and compact-mantine/src/components/CompactColorInput.tsx."
 implements_capabilities:
     - visual-encoding-nodes
     - visual-encoding-edges

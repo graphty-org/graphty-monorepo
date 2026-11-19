@@ -3,7 +3,8 @@ name: Graph Rendering
 category: visualization
 description: Render graph data as a visual node-link diagram. Draw nodes as shapes and edges as lines connecting them,
     supporting both 2D and 3D rendering modes with GPU acceleration for performance.
-status: planned
+status: implemented
+notes: "Ships: graphty-element (Babylon.js), graphty-element/src/meshes/."
 algorithms:
     - Instanced rendering
     - WebGL/WebGPU shaders

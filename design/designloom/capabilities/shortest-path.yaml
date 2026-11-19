@@ -3,7 +3,8 @@ name: Shortest Path Finding
 category: analysis
 description: Find the shortest path(s) between two specified nodes. Essential for understanding how entities are
     connected, tracing relationships, and calculating distances in the network.
-status: planned
+status: implemented
+notes: "Ships: graphty-element/src/algorithms/DijkstraAlgorithm.ts, BFSAlgorithm.ts and AStarAlgorithm.ts, run from graphty/src/workspace/analyze/PathForm.tsx."
 algorithms:
     - BFS for unweighted
     - Dijkstra for weighted

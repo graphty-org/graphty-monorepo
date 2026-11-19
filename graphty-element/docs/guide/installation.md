@@ -31,6 +31,17 @@ Then import in your JavaScript/TypeScript:
 import "@graphty/graphty-element";
 ```
 
+### GPU acceleration
+
+Install `@graphty/webgpu-graph-algorithms` as well, and the element runs its layouts and
+algorithms on the GPU wherever the browser has one. There is nothing to import or configure: the
+element finds the package itself. Without it everything runs on the CPU. Building the element with
+webpack needs webpack 5.90.2 or later. See [Acceleration](./acceleration) for the details.
+
+```bash
+npm install @graphty/webgpu-graph-algorithms
+```
+
 ## CDN Usage
 
 For quick prototyping or simple pages, load the self-contained bundle (`dist/graphty.bundle.js`) from a
@@ -182,6 +193,7 @@ Graphty has peer dependencies on Babylon.js and Lit:
 {
     "peerDependencies": {
         "@babylonjs/core": "^8.0.0",
+        "@babylonjs/loaders": "^8.0.0",
         "lit": "^3.0.0"
     }
 }
@@ -190,7 +202,7 @@ Graphty has peer dependencies on Babylon.js and Lit:
 These are typically installed automatically. If you need to install them manually:
 
 ```bash
-npm install @babylonjs/core lit
+npm install @babylonjs/core @babylonjs/loaders lit
 ```
 
 ## TypeScript Setup

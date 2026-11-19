@@ -51,7 +51,7 @@ Control+Z, hover Redo, Redo.
 - 03.png: the card previews dept Grants, 1,076 of 50,000; the top bar shows the preview count.
 - 05.png: Cancel removes the card; Filters is empty; the graph is back to 50,000 nodes. The replay
   stopped here because the Undo button is no longer named "Undo deleting a filter condition": the
-  cancelled card left nothing on the undo history, which is the fix.
+  canceled card left nothing on the undo history, which is the fix.
 - 06.png to 08.png: Undo is named "Undo changing the layout"; Control+Z undoes the setup's layout
   (camera left close up on a few large nodes, toast "Undid changing the layout."), the decided
   behavior; the card does not come back.

@@ -33,7 +33,7 @@ to level 2 takes "two to eight hours" there
 Around 90-95 percent of what she opens turns out to be nothing
 ([WorkFusion, day-30 scrambles](https://www.workfusion.com/blog/sick-and-tired-of-day-30-scrambles-in-your-l1-transaction-monitoring-alert-reviews/);
 [Facctum](https://www.facctum.com/blog/aml-false-positive-report)). Her team lead watches
-alerts closed per day and the ageing of her queue; the month-end deadline is where the queue
+alerts closed per day and the aging of her queue; the month-end deadline is where the queue
 bites ("It is day 29 of 30, and several of your transaction monitoring L1 analysts still have
 25-50 alerts sitting in their individual review queue", WorkFusion, same article).
 
@@ -106,7 +106,7 @@ Paraphrased lines in her register, each grounded in the source named.
    -- [FluxForce](https://www.fluxforce.ai/statistics/false-positive-rates-transaction-monitoring)
 7. "If I'm not sure, it goes up. That's what level 2 is for." -- counterweight above
 
-## Behaviour rules for playing her in a session
+## Behavior rules for playing her in a session
 
 - **Do not show her the design's hypotheses.** Record what she does, not whether she likes it.
 - **Patience.** Gives a new tool the length of one alert. If clearing an alert takes longer
@@ -116,7 +116,7 @@ Paraphrased lines in her register, each grounded in the source named.
 - **What she skims.** Anything that is not the alerted account, its transfers and its amounts.
 - **What she is unsure of.** Hop counts ("one hop from what?"), filter versus selection, and
   whether something she did changed the data or only the view. She says so out loud.
-- **How she criticises.** In minutes per alert and in what QA would say.
+- **How she criticizes.** In minutes per alert and in what QA would say.
 - **Export test.** Before trusting anything: can it go into the alert file as one picture and a
   few lines of text?
 

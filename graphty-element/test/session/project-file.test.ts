@@ -671,11 +671,13 @@ describe("the project file", () => {
         // A hand edit: one more link. The run is computed again over it, so nothing is left out.
         file.members[0].graph?.links.push({ source: "a", target: "d" });
 
-        const { harness } = withDegree();
+        const { harness, calls } = withDegree();
         const report = await harness.session.project.open(JSON.stringify(file));
         assert.deepStrictEqual(report.problems, [
             { code: "W_UNKNOWN_KIND", params: { index: 7, kind: "org.example.bookmarks" } },
         ]);
+        // The run is computed again over the edited data, so it comes back whole.
+        assert.strictEqual(calls(), 1, "the run is computed again");
         const result = harness.session.results.get("links");
         assert.strictEqual(result?.node("d")?.value, Number.POSITIVE_INFINITY);
         assert.strictEqual(result?.node("a")?.value, 2, "computed over the edited data: a gained a link");
@@ -821,7 +823,8 @@ describe("the project file", () => {
         assert.strictEqual(await refusal(session, "{ not json"), "E_PARSE_FAILED");
         assert.strictEqual(await refusal(session, "<not a graph>"), "E_UNKNOWN_FORMAT");
         assert.strictEqual(
-            await refusal(session, '{ "kind": "graphty-document", "version": 2, "members": [] }'),
+            // A version no reader takes: version 2 is read with the save-files-v2 experiment on.
+            await refusal(session, '{ "kind": "graphty-document", "version": 99, "members": [] }'),
             "E_UNSUPPORTED_VERSION",
         );
         assert.strictEqual(await refusal(session, '{ "kind": "graphty-document", "version": 1 }'), "E_BAD_DOCUMENT");

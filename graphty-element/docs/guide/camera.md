@@ -142,8 +142,8 @@ names a node the camera stays where it is:
 await graph.zoomToNodes(["alice", "bob"], { animate: true });
 ```
 
-By default each node counts as its centre, so a big node at the edge of the frame can be cut off,
-and one node is framed in a fixed-size box around its centre. Pass `extent: "drawn"` to measure each
+By default each node counts as its center, so a big node at the edge of the frame can be cut off,
+and one node is framed in a fixed-size box around its center. Pass `extent: "drawn"` to measure each
 node by the box it is drawn in instead, so every framed node is whole on screen:
 
 ```typescript
@@ -346,7 +346,7 @@ graph.on("camera-state-changed", ({ state }) => {
 ## Minimap
 
 Turn on the `minimap` attribute and the element draws a minimap in its bottom-right corner: every
-node seen from where the camera looks, and a rectangle for what the view shows. Click it to centre
+node seen from where the camera looks, and a rectangle for what the view shows. Click it to center
 the view there, drag across it to scrub, or focus it and press the arrow keys to step the view.
 None of this is an undo step. Above 5,000 nodes it draws a density heatmap instead of points.
 
@@ -375,7 +375,7 @@ returns every node seen along the current view, laid flat in a square frame wher
 0 to 1 (y down), and `viewport`, the rectangle of that frame the camera shows. Redraw on
 `overview-changed`, which fires at most once per frame when the camera or a node moves.
 `element.centerOnOverview({ x, y })` moves the camera, keeping its zoom and direction, so the view
-is centred on a frame point: call it on click to centre, and on each pointer move to scrub.
+is centered on a frame point: call it on click to center, and on each pointer move to scrub.
 
 ```ts
 const element = document.querySelector("graphty-element")!;

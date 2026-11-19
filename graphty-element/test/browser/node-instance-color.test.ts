@@ -1,13 +1,13 @@
 /**
- * The per-instance colour the style engine's mesh key depends on.
+ * The per-instance color the style engine's mesh key depends on.
  *
- * WHY THIS TEST EXISTS. `StyleInterner` deliberately leaves colour out of a source mesh's key, so
- * a continuous colour encoding over fifty thousand nodes needs ONE source mesh. That is only true
- * if the renderer can actually paint two instances of one source mesh in two colours -- and the
+ * WHY THIS TEST EXISTS. `StyleInterner` deliberately leaves color out of a source mesh's key, so
+ * a continuous color encoding over fifty thousand nodes needs ONE source mesh. That is only true
+ * if the renderer can actually paint two instances of one source mesh in two colors -- and the
  * mechanism it uses, Babylon's instanced `color` buffer, is a shader define on a material the
  * mesh cache builds and FREEZES. A frozen material has stopped re-evaluating its defines, so
  * registering the buffer behind the freeze compiles nothing and every node draws in the source
- * material's own colour, silently and only on screen.
+ * material's own color, silently and only on screen.
  *
  * So this reads pixels. There is no unit-testable proxy for "the shader recompiled".
  */
@@ -24,10 +24,10 @@ const WIDTH = 200;
 /** How tall the offscreen canvas is. */
 const HEIGHT = 100;
 
-/** The channel value above which a sampled pixel counts as carrying that colour. */
+/** The channel value above which a sampled pixel counts as carrying that color. */
 const STRONG = 100;
 
-/** The channel value below which a sampled pixel counts as NOT carrying that colour. */
+/** The channel value below which a sampled pixel counts as NOT carrying that color. */
 const WEAK = 60;
 
 describe("node instance colour", () => {
@@ -61,7 +61,7 @@ describe("node instance colour", () => {
     /**
      * Draw one node of the neutral style the session painter produces.
      * @param at - Where along x to put it.
-     * @param color - The colour to write into the instance.
+     * @param color - The color to write into the instance.
      * @returns The instance.
      */
     function placeNode(at: number, color: Color4): InstancedMesh {
@@ -69,7 +69,7 @@ describe("node instance colour", () => {
             cache,
             { styleId: "s1", is2D: false, size: 3 },
             // Exactly what StylePainter builds: a neutral material, so what shows is the
-            // instance's own colour.
+            // instance's own color.
             { shape: { type: "box", size: 3 }, texture: { color: "#FFFFFF" } },
             scene,
         ) as InstancedMesh;

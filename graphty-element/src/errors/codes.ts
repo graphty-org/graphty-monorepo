@@ -23,7 +23,7 @@
 export type GraphtyErrorCode =
     /**
      * A command or a call is malformed: a missing required field, or two fields that may not be
-     * set together (the `src` and `sample` attributes, for instance). `details` name the fields.
+     * set together. `details` name the fields.
      * The caller fixes the call; retrying the same call always fails the same way.
      */
     | "E_BAD_COMMAND"
@@ -446,9 +446,10 @@ export type GraphtyErrorCode =
      */
     | "E_NO_ACCELERATOR"
     /**
-     * No accelerator factory is registered, so the element never looked for a GPU. Usually
-     * `import "@graphty/graphty-element/webgpu"` was never evaluated -- not written, or its module
-     * failed to load (a network error, a blocked request, a stale dev-server cache). Reported
+     * No accelerator factory is registered, so the element never looked for a GPU. The root entry
+     * point registers one for `@graphty/webgpu-graph-algorithms` by itself, so this means the
+     * element was used only through an entry point that does not (`./session` and the other
+     * Node-safe entries) and nothing called `import "@graphty/graphty-element/webgpu"`. Reported
      * through `capabilities.acceleration`; a registration that arrives later switches
      * acceleration on without the consumer doing anything.
      */
@@ -457,9 +458,20 @@ export type GraphtyErrorCode =
      * A registered accelerator factory threw while setting up, with an error that is not one of
      * the other acceleration codes -- a module of the backend that failed to load, or a defect in
      * the backend. `reason` carries what it threw. Reported through `capabilities.acceleration`;
-     * the CPU path runs.
+     * the CPU path runs. Also what an installed `@graphty/webgpu-graph-algorithms` reports when
+     * it is present and fails to load (a syntax error, a throw while its module evaluates, an
+     * import-map URL that does not answer); `params.package` names it.
      */
     | "E_ACCELERATOR_FAILED"
+    /**
+     * The installed accelerator package loaded but lacks what this graphty-element needs: an
+     * export it calls is missing, usually because the installed version is older or newer than
+     * the range graphty-element declares as its peer, or because a bundler alias replaced it with
+     * an empty module. Reported through `capabilities.acceleration` with `params.package` and
+     * `params.missing` (the export names); the CPU path runs. The caller installs a version in
+     * the declared peer range.
+     */
+    | "E_ACCELERATOR_INCOMPATIBLE"
     /**
      * The runtime exposes no WebGPU at all: no `navigator.gpu`, usually because the page is not
      * in a secure context or the browser does not implement it. Reported through
@@ -498,6 +510,16 @@ export type GraphtyErrorCode =
      */
     | "E_DEVICE_LOST"
     /**
+     * An accelerated run got no answer from the GPU within its time limit, and the device never
+     * reported itself lost either. WebGPU has no event for a device that stops answering without
+     * being lost, so the element waits for a limit it scales from the run's size, then fails the
+     * run rather than wait forever. `details` carry `capability`, `nodeCount`, `edgeCount`,
+     * `elapsedMs` and `limitMs`. The element releases the device as suspect and tries a fresh one
+     * for the next run; it never finishes the stuck run on the CPU. Change the limit with
+     * `getAcceleration().setRunTimeout(ms)`.
+     */
+    | "E_GPU_TIMEOUT"
+    /**
      * The graphics device the graph is drawn with was lost: the WebGL context or the WebGPU
      * device. `params.renderer` (on the `render-lost` event) or `details.renderer` names which.
      * The session and its data are untouched; the element asks for the device back, and
@@ -528,8 +550,10 @@ export type GraphtyErrorCode =
     /**
      * A feature the caller asked for needs an optional peer package that is not installed.
      * `details.package` names the package to install and `details.feature` the feature that
-     * needs it (for the in-browser AI provider, `"webllm"`). The caller installs the package, or
-     * picks a feature that does not need it.
+     * needs it (for the in-browser AI provider, `"webllm"`; for acceleration, `"webgpu"`). The
+     * caller installs the package, or picks a feature that does not need it. Also reported, not
+     * thrown, on `capabilities.acceleration` when `@graphty/webgpu-graph-algorithms` is not
+     * installed, with `params.package`; nothing is printed then, because nothing asked for a GPU.
      */
     | "E_MISSING_PACKAGE"
     /**
@@ -1114,11 +1138,13 @@ const CODE_TABLE = {
     E_NO_ACCELERATOR: "E_NO_ACCELERATOR",
     E_NO_ACCELERATOR_REGISTERED: "E_NO_ACCELERATOR_REGISTERED",
     E_ACCELERATOR_FAILED: "E_ACCELERATOR_FAILED",
+    E_ACCELERATOR_INCOMPATIBLE: "E_ACCELERATOR_INCOMPATIBLE",
     E_NO_WEBGPU: "E_NO_WEBGPU",
     E_NO_ADAPTER: "E_NO_ADAPTER",
     E_SOFTWARE_ONLY: "E_SOFTWARE_ONLY",
     E_DEVICE_INCORRECT: "E_DEVICE_INCORRECT",
     E_DEVICE_LOST: "E_DEVICE_LOST",
+    E_GPU_TIMEOUT: "E_GPU_TIMEOUT",
     E_RENDER_LOST: "E_RENDER_LOST",
     E_NO_WEBGL: "E_NO_WEBGL",
     E_SHADER_REFUSED: "E_SHADER_REFUSED",
@@ -1194,9 +1220,12 @@ export type AccelerationErrorCode =
     | "E_SOFTWARE_ONLY"
     | "E_DEVICE_INCORRECT"
     | "E_DEVICE_LOST"
+    | "E_GPU_TIMEOUT"
     | "E_TOO_LARGE"
     | "E_NO_ACCELERATOR_REGISTERED"
-    | "E_ACCELERATOR_FAILED";
+    | "E_ACCELERATOR_FAILED"
+    | "E_ACCELERATOR_INCOMPATIBLE"
+    | "E_MISSING_PACKAGE";
 
 /**
  * Every code that can appear on `capabilities.acceleration.code`.
@@ -1207,9 +1236,12 @@ export const ACCELERATION_ERROR_CODES: readonly AccelerationErrorCode[] = Object
     CODE_TABLE.E_SOFTWARE_ONLY,
     CODE_TABLE.E_DEVICE_INCORRECT,
     CODE_TABLE.E_DEVICE_LOST,
+    CODE_TABLE.E_GPU_TIMEOUT,
     CODE_TABLE.E_TOO_LARGE,
     CODE_TABLE.E_NO_ACCELERATOR_REGISTERED,
     CODE_TABLE.E_ACCELERATOR_FAILED,
+    CODE_TABLE.E_ACCELERATOR_INCOMPATIBLE,
+    CODE_TABLE.E_MISSING_PACKAGE,
 ]);
 
 /**

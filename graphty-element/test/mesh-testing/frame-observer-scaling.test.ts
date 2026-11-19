@@ -75,7 +75,8 @@ function registrationWorkDuring(scene: Scene, work: () => void): number {
     const observable = scene.onBeforeRenderObservable as unknown as Observable<Scene> &
         Record<(typeof LIST_METHODS)[number], (...args: unknown[]) => unknown>;
     for (const name of LIST_METHODS) {
-        const original: (...args: unknown[]) => unknown = observable[name];
+        // `_remove` is private on Observable, so the intersection reads it as any.
+        const original = observable[name] as (...args: unknown[]) => unknown;
         observable[name] = function (this: unknown, ...args: unknown[]) {
             counted += name === "add" ? 1 : observable.observers.length;
             return original.call(this, ...args);

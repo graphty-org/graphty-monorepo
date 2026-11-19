@@ -23,7 +23,7 @@ Next: "New from data..." -- my file is a list from a spreadsheet, that sounds li
 
 Command: `--step ... --click "New from data..."` -> 03.png
 Saw: "Open as a new graph". A "Tables" column on the left with a +, "Drop a file here, or choose a
-file..." in small grey text, a "Direction: As the file says" dropdown, Cancel and a greyed Load
+file..." in small grey text, a "Direction: As the file says" dropdown, Cancel and a grayed Load
 ("Choose a file first"). The text is tiny; I had to lean in.
 Tom: "Direction? I don't know what direction my file says. I'll leave it." Next: choose a file...
 and pick friends.csv from Downloads.
@@ -46,7 +46,7 @@ row. I'm not touching any dropdowns. Next: Load.
 ## Step 5 -- Load
 
 Command: `--step ... --click "Load"` -> 05.png
-Saw: the drawing -- 20 blue balls joined by grey lines with little arrowheads on a light panel. Title
+Saw: the drawing -- 20 blue balls joined by gray lines with little arrowheads on a light panel. Title
 bar now says "friends". Right side: "Graph, From friends.csv", Overview: Nodes 20, Edges 41,
 Direction Directed, Density 0.1079, Components 1, Edges per node 3 to 6, mean 4.1. Left: a search
 box, "Selection", "Everything". Bottom toolbar with a few icons and "3D".
@@ -93,7 +93,7 @@ Command: `node tool/real.mjs --end rounds/round-2/sessions/r2-s48`
 
 **Rating: 6 of 7 (easy).** "Quicker than I expected. It told me the counts before I even pressed Load,
 and they matched my own count of the rows. It also said up front that the file stays on my computer,
-which is the first thing I'd have asked. Not a 7 because of the words and the small grey print."
+which is the first thing I'd have asked. Not a 7 because of the words and the small gray print."
 
 **What confused me:**
 
@@ -108,6 +108,6 @@ which is the first thing I'd have asked. Not a 7 because of the words and the sm
 - No names on the dots, and pointing at one showed nothing; I had to click to learn it was Omar.
   "Degree 4" -- I matched it to my 4 rows, but the word means nothing to me.
 - The "Line" column in the preview starts at 2 (header row), which made me double-take.
-- Small grey text (the "Drop a file here, or choose a file..." line, "Choose a file first") is hard
+- Small gray text (the "Drop a file here, or choose a file..." line, "Choose a file first") is hard
   to read at my eyesight.
 - Density 0.1079, Components 1: I don't know what those are and ignored them.

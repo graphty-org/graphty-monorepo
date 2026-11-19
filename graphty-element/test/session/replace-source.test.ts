@@ -116,6 +116,16 @@ describe("replacing a load with a newer copy", () => {
         session.dispose();
     });
 
+    it("names the load an edge list with only source and target columns is a copy of", async () => {
+        const session = createGraphSession({ workingGraph: false });
+        const text = "source,target\na,b\nb,c\nc,a\n";
+        await (await session.data.prepare(file(text, "edges.csv"))).load();
+        const [only] = session.data.sources();
+        assert.strictEqual(await session.data.matchesSource(file(text, "edges.csv")), only.key);
+        assert.isNull(await session.data.matchesSource(file("a,b\n1,2\n", "other.csv")));
+        session.dispose();
+    });
+
     it("counts +12 -3 and 40 changed edges, keeps the style and the filter, and undoes in one step", async () => {
         const { session, october } = await supplyChain();
         const layer = await session.styles.add({

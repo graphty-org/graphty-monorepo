@@ -348,6 +348,16 @@ export {
     type PajekImportOptions,
 } from "./formats/pajek/index.js";
 export {
+    INTERACTION_COLUMN,
+    SIF_CAPABILITIES,
+    SIF_ISSUE,
+    SIF_LOSS,
+    sifExporter,
+    type SifExportOptions,
+    sifImporter,
+    type SifImportOptions,
+} from "./formats/sif/index.js";
+export {
     XGMML_ISSUE,
     XGMML_LOSS,
     xgmmlExporter,

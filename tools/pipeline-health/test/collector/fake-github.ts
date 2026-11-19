@@ -27,7 +27,7 @@ export interface Fake {
     tokenCalls: number;
 }
 
-/** The master list: the recorded green build, and a newer cancelled one whose Build hit its timeout (red). */
+/** The master list: the recorded green build, and a newer canceled one whose Build hit its timeout (red). */
 export function masterRuns(): GhRun[] {
     const green = fixture("run-master-40239928447.json") as GhRun;
     const red: GhRun = {

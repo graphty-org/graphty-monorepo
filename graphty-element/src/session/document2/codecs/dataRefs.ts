@@ -1971,7 +1971,8 @@ function issuesOf(model: DataModel): JsonObject | undefined {
             return [];
         }
 
-        const [from, to] = Array.isArray(ends) ? ends : [];
+        const endList: readonly unknown[] = Array.isArray(ends) ? ends : [];
+        const [from, to] = endList;
         const refs = [from, to].map((end) => model.nodes.find((node) => String(node.id) === String(end)));
         const a = refs[0] === undefined ? undefined : model.nodeRefs.get(refs[0].id);
         const b = refs[1] === undefined ? undefined : model.nodeRefs.get(refs[1].id);

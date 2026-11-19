@@ -81,7 +81,7 @@ export interface GraphtyErrorInit {
 }
 
 /**
- * What a `GraphtyError` looks like once it has been serialised.
+ * What a `GraphtyError` looks like once it has been serialized.
  *
  * Plain JSON: safe to log, to post across a worker boundary, and to put in a bug report.
  */
@@ -100,7 +100,7 @@ export interface GraphtyErrorJson {
     details: Readonly<Record<string, unknown>>;
     /** The run, layer or scope the failure belongs to, when it belongs to one. */
     target?: GraphtyErrorTarget;
-    /** The wrapped failure's message, when there was one. The original object is not serialised. */
+    /** The wrapped failure's message, when there was one. The original object is not serialized. */
     causeMessage?: string;
 }
 
@@ -214,7 +214,7 @@ const EMPTY_DETAILS: Readonly<Record<string, unknown>> = Object.freeze({});
 /**
  * Reads a `code` property off an unknown thrown value.
  * @param value - The thrown value.
- * @returns The code when the value carries one the element recognises, otherwise undefined.
+ * @returns The code when the value carries one the element recognizes, otherwise undefined.
  */
 function codeOf(value: unknown): GraphtyErrorCode | undefined {
     if (typeof value !== "object" || value === null || !("code" in value)) {
@@ -319,7 +319,7 @@ export class GraphtyError extends Error {
     constructor(init: GraphtyErrorInit) {
         super(init.message, init.cause === undefined ? undefined : { cause: init.cause });
 
-        // Keeps instanceof working when this file is downlevelled, and when the class is
+        // Keeps instanceof working when this file is downleveled, and when the class is
         // subclassed.
         Object.setPrototypeOf(this, new.target.prototype);
 
@@ -382,7 +382,7 @@ export class GraphtyError extends Error {
      *
      * Called by `JSON.stringify`, and used wherever an error has to survive a boundary a class
      * cannot cross: a log line, a worker message, a bug report.
-     * @returns The serialisable form.
+     * @returns The serializable form.
      */
     toJSON(): GraphtyErrorJson {
         const json: GraphtyErrorJson = {

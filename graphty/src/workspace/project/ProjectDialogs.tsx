@@ -40,6 +40,9 @@ function SaveAsDialog(): React.JSX.Element {
     // Whether another dialog took the slot during a save (the question about files from the web,
     // or Save as pressed again over it): the save then leaves the slot to that dialog.
     const left = useRef(false);
+    // Read through a call: the effect sets it while the save awaits, which TypeScript's narrowing
+    // after `left.current = false` cannot see.
+    const hasLeft = (): boolean => left.current;
     useEffect(() => {
         if (opened) {
             setName(current);
@@ -60,7 +63,7 @@ function SaveAsDialog(): React.JSX.Element {
         left.current = false;
         try {
             await saveProjectAs(workspace, trimmed);
-            if (!left.current) {
+            if (!hasLeft()) {
                 close();
             }
         } finally {
@@ -218,7 +221,7 @@ function KeepAssetRow({
 
 /**
  * How to keep each model or picture a layer names by web address, asked before a save that holds
- * any (the node models experiment): embed it, so the project opens offline, or keep only its
+ * any: embed it, so the project opens offline, or keep only its
  * address, so the file is fetched again when the project opens.
  * @returns The dialog
  */
@@ -234,7 +237,7 @@ function KeepAssetsDialog(): React.JSX.Element {
         }
         setChoices({});
         // Closed without an answer (another dialog took the slot, as Save as pressed while it
-        // asks): the save waiting on it is cancelled, never left waiting.
+        // asks): the save waiting on it is canceled, never left waiting.
         return () => {
             assetQuestion(store)?.answer(null);
         };
@@ -295,7 +298,7 @@ function KeepAssetsDialog(): React.JSX.Element {
 
 /**
  * The Project package's dialogs (tier1-design.md section T14): Save as..., the unsaved-changes
- * question and, with the node models experiment, how to keep files from the web. It also opens a file waiting for a just-opened project's element, and keeps the
+ * question and how to keep files from the web. It also opens a file waiting for a just-opened project's element, and keeps the
  * header's name in step with the name graphty-element holds (an Undo of a rename, a reopened file).
  * @returns The dialogs
  */

@@ -29,7 +29,7 @@ import { shadersTool } from "./families/shaders";
 import { styleTool } from "./families/style";
 import { conditionsTool, timeTool } from "./families/timeline";
 import { undoTool } from "./families/undo";
-import { hiddenTool, viewTool } from "./families/view";
+import { hiddenTool, tourTool, viewTool } from "./families/view";
 import { text } from "./fields";
 import { INTENT_FIELD, intentField } from "./inputs";
 import { undescribedPlugins } from "./reach";
@@ -647,6 +647,7 @@ export function buildToolset(session: Pick<GraphSession, "catalog">, consumer: r
         filterTool,
         layoutTool(catalog),
         viewTool(catalog),
+        tourTool,
         hiddenTool,
         editDataTool,
         undoTool,

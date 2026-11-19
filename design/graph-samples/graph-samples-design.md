@@ -7,7 +7,7 @@ monorepo: random-graph generators whose output is fixed by their seed, the deter
 families, and real sample datasets with their ground truth. Every graph comes out as typed arrays
 that @graphty/graph-format's `fromEdgeArrays()` loads in one call.
 
-The research behind the choices here -- the catalogue of generation models with papers and
+The research behind the choices here -- the catalog of generation models with papers and
 complexity, and the survey of redistributable datasets with their licenses and file quirks -- was
 done on 2026-09-23 and lives outside the repository, in the owner's `tmp/graph-gen/`
 (`generators.md`, `datasets.md`, `datasets.json`).
@@ -25,7 +25,7 @@ done on 2026-09-23 and lives outside the repository, in the owner's `tmp/graph-g
 3. **Scale.** Linear-time algorithms, typed-array output, no per-edge JavaScript objects: a
    million nodes in well under a second on one core (section 5).
 4. **Ground truth.** Where a model has a planted answer (communities, bipartite sides, DAG layers),
-   it is emitted as a node column so an algorithm's output can be scored and a layout coloured.
+   it is emitted as a node column so an algorithm's output can be scored and a layout colored.
 5. **Bundle only what is used.** Generators are one subpath; no dataset's data is in the npm package
    at all: every dataset is fetched from graphty.app (section 6).
 6. **Removable data.** Every dataset records its source, citation and license, so taking one out on
@@ -90,7 +90,7 @@ Phase 1 generators (all undirected and simple unless noted):
 | --------------------------------------------------------------------- | ------------------------------------ | ------------------------------------------------------------------- | ------------ |
 | `pathGraph`, `cycleGraph`, `starGraph`, `wheelGraph`, `completeGraph` | `n`                                  | closed form, O(n + m)                                               |              |
 | `completeBipartiteGraph`                                              | `a, b`                               | closed form                                                         | `side`       |
-| `gridGraph`, `grid3dGraph`                                            | `rows, cols[, layers]`               | 4- / 6-neighbour lattice                                            |              |
+| `gridGraph`, `grid3dGraph`                                            | `rows, cols[, layers]`               | 4- / 6-neighbor lattice                                             |              |
 | `hypercubeGraph`                                                      | `dimension` (0..26)                  | bit flips                                                           |              |
 | `ladderGraph`                                                         | `n` rungs                            |                                                                     |              |
 | `barbellGraph`, `lollipopGraph`                                       | `cliqueSize, pathLength`             |                                                                     |              |
@@ -166,7 +166,7 @@ Phase 2 adds five small and three large datasets:
 
 | Name                  | Nodes / edges                                 | Source                                                    | License                      | Ground truth |
 | --------------------- | --------------------------------------------- | --------------------------------------------------------- | ---------------------------- | ------------ |
-| `contiguous-usa`      | 49 / 107, lat/lon                             | Census county adjacency 2024 + 2020 centres of population | public domain                |              |
+| `contiguous-usa`      | 49 / 107, lat/lon                             | Census county adjacency 2024 + 2020 centers of population | public domain                |              |
 | `knuth-miles`         | 128 / 8,128 complete, weighted, lat/lon       | Stanford GraphBase `miles.dat` (CTAN)                     | SGB terms: changed file      |              |
 | `celegans-neural`     | 297 / 2,345 directed, weighted                | Newman's page (archived)                                  | unclear                      |              |
 | `political-blogs`     | 1,490 / 19,022 directed                       | Newman's page (archived)                                  | unclear                      | `lean`       |
@@ -193,7 +193,7 @@ and draw order, the paper and the cost.
 
 | Function                                                                                                                                                             | Model, paper                                                                                                                                                                                                                                                | Cost, caps                                      | Domains                                                                                                                           |
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `gridGraph` / `grid3dGraph` options                                                                                                                                  | torus, king / 26-neighbour, forward-only DAG, obstacles, positions                                                                                                                                                                                          | O(n)                                            | `grid-obstacles`                                                                                                                  |
+| `gridGraph` / `grid3dGraph` options                                                                                                                                  | torus, king / 26-neighbor, forward-only DAG, obstacles, positions                                                                                                                                                                                           | O(n)                                            | `grid-obstacles`                                                                                                                  |
 | `triangularLatticeGraph`, `hexagonalLatticeGraph`                                                                                                                    | triangulated grid; honeycomb in brick-wall form, unit-edge positions                                                                                                                                                                                        | O(n)                                            |                                                                                                                                   |
 | `emptyGraph`, `completeMultipartiteGraph`, `circularLadderGraph`, `mobiusLadderGraph`, `ringOfCliquesGraph`                                                          | classic families; ring of cliques as networkx (Fortunato and Barthelemy 2007)                                                                                                                                                                               | O(n + m)                                        |                                                                                                                                   |
 | `namedGraph`                                                                                                                                                         | 21 named graphs, networkx 3.1 edge order                                                                                                                                                                                                                    |                                                 |                                                                                                                                   |
@@ -228,7 +228,7 @@ edge order. Every edge case loads through `fromEdgeArrays` with default options 
 
 **Deferred.**
 
-- Delaunay, Gabriel and relative-neighbourhood graphs: a correct triangulation needs robust
+- Delaunay, Gabriel and relative-neighborhood graphs: a correct triangulation needs robust
   orientation and in-circle predicates (Shewchuk's adaptive arithmetic) or a dependency such as
   `delaunator` (ISC). That dependency is an owner decision; `randomApollonianGraph` covers maximal
   planar graphs meanwhile.
@@ -370,7 +370,7 @@ Watts-Strogatz, G(n, m), the Pruefer tree) draw from block 0 of one stream and r
 | G(n, p)                              | O(n + m), one stream derivation per row                        | 1M nodes, 5M edges: 0.46 s                                         |
 | G(n, m)                              | O(m log m) (sort of pair indices), open-addressing Float64 set | 100k nodes, 500k edges: 0.11 s                                     |
 | Barabasi-Albert                      | O(n m)                                                         | 1M nodes, 5M edges: 0.47 s                                         |
-| Holme-Kim                            | O(n m) plus the target's neighbour list per triad step         | hubs make the step O(degree); per-node JS arrays, fine to about 1M |
+| Holme-Kim                            | O(n m) plus the target's neighbor list per triad step          | hubs make the step O(degree); per-node JS arrays, fine to about 1M |
 | Watts-Strogatz                       | O(n k), a `Set` of pair keys                                   | 100k nodes, k = 6: 0.05 s                                          |
 | block models                         | O(n B + m)                                                     | the n B term matters above about 1e8; iterate non-zero blocks then |
 | Pruefer tree, layered DAG, bipartite | O(n + m)                                                       |                                                                    |
@@ -450,7 +450,7 @@ synchronous.
   this also satisfies the Stanford GraphBase condition that a changed file be renamed and
   identified as not part of the GraphBase (Les Miserables).
 - `test/datasets/datasets.test.ts` fails when NOTICE does not contain a dataset's source, citation
-  and license, or when the catalogue and the dataset directories disagree.
+  and license, or when the catalog and the dataset directories disagree.
 - Removing a dataset: delete `src/datasets/<name>/` and `data/<name>.ts`, its line in `catalog.ts`,
   its NOTICE entry and its README row. The export pattern and the bundle entries follow the directories by themselves.
 - Excluded from the start, per the research: non-commercial and no-redistribution sources (Pajek's
@@ -499,8 +499,8 @@ helper (section 8); hosted large datasets and their publishing (section 6.3); th
 (section 9).
 
 **Phase 3:** what section 2.6 defers. The second wave below was pulled into phase 2 except
-Delaunay / Gabriel / relative-neighbourhood graphs. Originally planned: the second wave -- LFR benchmark, hyperbolic random graphs, Delaunay / Gabriel /
-relative-neighbourhood graphs and Apollonian networks, forest fire, duplication-divergence, random
+Delaunay / Gabriel / relative-neighborhood graphs. Originally planned: the second wave -- LFR benchmark, hyperbolic random graphs, Delaunay / Gabriel /
+relative-neighborhood graphs and Apollonian networks, forest fire, duplication-divergence, random
 regular graphs, Wilson mazes, Gaussian-mixture k-NN clouds, Waxman, Bianconi-Ginestra fitness.
 
 ---

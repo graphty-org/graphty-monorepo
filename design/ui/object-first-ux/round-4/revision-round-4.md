@@ -32,7 +32,7 @@ for the toolbar and the Actions panel).
   nothing is.
 - **Dock**: the drawer under the canvas. Its strip of tabs stays visible as a 32 px handle when
   the drawer is closed.
-- **Toolbar**: the floating bar at the bottom centre of the canvas.
+- **Toolbar**: the floating bar at the bottom center of the canvas.
 - **Tool**: a toolbar button that creates an object. Pressing it **arms** it: it turns blue and
   the **secondary bar** (a second, smaller bar just above the toolbar) says what will run and
   holds the button that runs it.
@@ -56,14 +56,14 @@ for the toolbar and the Actions panel).
 |---|---|---|
 | Bring back the nav rail for managing data, styles, views and AI | A 56 px rail with Objects, Data, Styles, Views and AI, Settings and Help at its foot. Objects (the tree) is a peer item and the default. Data moves out of the Dataset's inspector, styles out of the Canvas tab, Views out of the top of the tree, and the assistant out of the dock | 2 |
 | "Data should ..." (cut off) | Read, until the owner finishes the sentence, as: the Data panel manages the datasets and their sources, the columns and their roles, the import report and joins, with a door to the table. Recorded as an assumption | 2.4 |
-| The bottom-centre toolbar is too complex: too many buttons, too many words | Eight controls, icons only, no labels under them: Select, Filter, Path, Groups, Rank, Structure, Actions and the view mode. Each has one dropdown at most. A ninth, Time, appears only when the data has a time column. Hand, Neighbours, Note and Ask leave the bar, and the secondary bar loses its lead-in phrases | 3 |
+| The bottom-center toolbar is too complex: too many buttons, too many words | Eight controls, icons only, no labels under them: Select, Filter, Path, Groups, Rank, Structure, Actions and the view mode. Each has one dropdown at most. A ninth, Time, appears only when the data has a time column. Hand, Neighbors, Note and Ask leave the bar, and the secondary bar loses its lead-in phrases | 3 |
 | 2D, 3D, AR, VR as one button that shows the current mode and expands to the others | Done. One 40 px button whose face reads "2D", "3D", "VR" or "AR". A click opens a menu of the others. The 5 key still flips between 2D and 3D without opening the menu | 3.4 |
 | Do we still have the command palette? | Yes. It now has a visible door: an Actions button on the toolbar, as in Figma. It lists commands, objects, nodes and recent actions, and a sentence it cannot match becomes "Ask: ..." | 4 |
 | How do we get to the timeline mode? | A Time button (a clock) appears on the toolbar whenever the data has a time column. Pressing it turns time mode on or off. The two old ways in stay, and the Data panel's Time role is a third | 5 |
 | Where are Export styles, Export recipe and Load styles? | Style files live in the Styles panel's Files section: Import styles..., Export styles..., Save look.... Recipes sit in the file menu as a pair beside Save project: Run a recipe..., Export recipe.... The Export menu keeps a row for every file the app writes, and Ctrl+K finds all of them | 6 |
 
 The owner's request for a document on the visual language (how the design looks, not only how
-it behaves) is not answered here. This file is the behaviour and layout change only.
+it behaves) is not answered here. This file is the behavior and layout change only.
 
 ## 2. The rail
 
@@ -135,7 +135,7 @@ Measurements (Figma's, `design/ui/figma/left-sidebar/README.md` section 1; compa
   abstract things ("Styles", "Views") are guesswork. The toolbar's no-words rule (section 3) is
   about the toolbar.
 - The active button's pill is tinted blue (`--cm-bg-selected`, #e5f4ff) and its icon turns
-  brand blue. There is no side bar or underline. Hovering a button shows a grey pill.
+  brand blue. There is no side bar or underline. Hovering a button shows a gray pill.
 - Tooltips open to the right after 500 ms and show the name and the key ("Data  Alt+2").
 - The foot holds two 32 x 32 icon buttons, Settings (gear) and Help ("?").
 - The window is 57 (rail) + 240 (left panel) + canvas + 241 (inspector with its border). The
@@ -216,7 +216,7 @@ Rows, top to bottom (Email network, a CSV of emails with a `sent` date):
 | | Type [none v] | the column that says what kind of node or edge each is |
 | | "Changing a role reloads and keeps your objects" | secondary text; the reload is screen 15's |
 | ATTRIBUTES | two disclosures, ON NODES (3) and ON EDGES (5) | each column is one row: type glyph (text, number, date, category), name, role chip if it has one, completeness as a short bar and a percentage ("94%"), "..." |
-| | a column row's "..." | the column menu of screen 35: colour by, size by, filter by, set as a role, change type (screen 36), fill missing, rename, remove |
+| | a column row's "..." | the column menu of screen 35: color by, size by, filter by, set as a role, change type (screen 36), fill missing, rename, remove |
 | | a click on a column row | expands it in place: type, distinct values, missing count, and a small histogram or top-5 values |
 | | ATTRIBUTES "+" | New column from a formula... (screen 38), Add attributes from a file... (the Import dialog with Into = Add attributes) |
 | IMPORT REPORT | Read 5,842 rows, kept 5,830, 12 rejected | a single line; "See rejected rows" opens the table on its Rejected tab (screen 33) |
@@ -238,8 +238,8 @@ which had no visible home.
 | Section | Row | What it does |
 |---|---|---|
 | title row | Styles [+] [...] | "+" is Save current look...; "..." holds Reset every style (one undo step) |
-| LOOK | Look [Default v] | Default, Presentation, Print, Colour-blind safe, High contrast, Dark, then the reader's saved looks. A look writes only whole-graph layers, so it never overwrites an object's Style (round 2 decision Y6) |
-| | Background [swatch] | colour, gradient, or Image... (the skybox) |
+| LOOK | Look [Default v] | Default, Presentation, Print, Color-blind safe, High contrast, Dark, then the reader's saved looks. A look writes only whole-graph layers, so it never overwrites an object's Style (round 2 decision Y6) |
+| | Background [swatch] | color, gradient, or Image... (the skybox) |
 | | Default node [chip], Default edge [chip] | each opens the default-look popover of screen 88 |
 | PAINT ORDER | one row per object that paints, top wins | kind icon, name, the channels it holds as small words ("Colour, Size"), with a channel it has lost to a higher row struck through; eye. The last row is "Dataset defaults" (locked) |
 | | a click on a row | selects that object; the inspector opens its Style tab |
@@ -314,7 +314,7 @@ Figma's measurements (`design/ui/figma/bottom-toolbar/README.md` sections 1 to 4
 compact-mantine's `Toolbar`, `ToolGroup` and `ToolButton` (spec section 11.1 and 11.2):
 
 - A 48 px bar: padding 8, 8 px between items, radius 13, white, the 200-level shadow, 12 px
-  above whatever is under the canvas. It floats over the canvas centre and never shrinks. Below
+  above whatever is under the canvas. It floats over the canvas center and never shrinks. Below
   about 800 px of canvas it overlaps the panels, as Figma's does.
 - A **tool button** is 32 x 32 with a 24 px icon and **no label**. A tool with variants has a
   16 x 32 chevron 1 px after it; the two halves have separate hover states. The armed tool is
@@ -343,7 +343,7 @@ mode's two characters (3.4).
 | Control | Icon | Key | Dropdown | What it does |
 |---|---|---|---|---|
 | Select | arrow | V | Select, Lasso, Hand (H, or Space held) | click and box select as round 3. Hand moves into this group, as it sits in Figma's Move group |
-| Filter | funnel | F | By values, By range, By connections, By rule, By id list, Largest connected part, Pattern, **Around a node (E)** | makes a Set. Neighbours becomes the "Around a node" row, keeping its key E and its secondary bar (screen 64), because what it makes is a Set of nodes picked by a rule, like every other row here |
+| Filter | funnel | F | By values, By range, By connections, By rule, By id list, Largest connected part, Pattern, **Around a node (E)** | makes a Set. Neighbors becomes the "Around a node" row, keeping its key E and its secondary bar (screen 64), because what it makes is a Set of nodes picked by a rule, like every other row here |
 | Path | two joined dots | P | as round 2 section 3.4 | an edge Set; flow rows land here |
 | Groups | three circles | G | as round 2 | a Grouping |
 | Rank | bar chart | R | as round 2 | a Measure |
@@ -362,7 +362,7 @@ bar.
 | Removed from the toolbar | Its home now | Also reachable by |
 |---|---|---|
 | Hand (its own button) | the Select dropdown's third row | H; Space held; the wheel and right-drag still pan and zoom |
-| Neighbours (its own button) | the Filter dropdown, "Around a node" | E; right-click a node > "Select neighbours" (a selection, not a Set); double-click a node |
+| Neighbors (its own button) | the Filter dropdown, "Around a node" | E; right-click a node > "Select neighbours" (a selection, not a Set); double-click a node |
 | Note | right-click on a node, edge, empty canvas or tree row > "Note..."; the "+" of Notes on the Dataset's Overview and every Record tab | N still arms the note tool; Ctrl+K "Add a note" |
 | Ask | the AI rail item (2.7) | backtick; Ctrl+K's last row "Ask: <sentence>" |
 | The four-segment 2D / 3D / VR / AR switch | one button with a menu (3.4) | 5 |
@@ -421,8 +421,8 @@ sits on the toolbar and opens the same panel as Ctrl+K
 (`design/ui/figma/bottom-toolbar/README.md` section 8).
 
 **Shape.** compact-mantine `QuickActions` (spec 11.9): 529 x 354, white, radius 13, 8 px above
-the toolbar, centred on it. A search field (13 px text), scope pill tabs All | Commands |
-Objects | Nodes, sections with grey headers, 32 px rows with an icon, a name and the key at the
+the toolbar, centered on it. A search field (13 px text), scope pill tabs All | Commands |
+Objects | Nodes, sections with gray headers, 32 px rows with an icon, a name and the key at the
 right. The first row is highlighted on open; arrow keys move; Enter runs; Escape closes.
 
 **What it lists.**
@@ -458,7 +458,7 @@ This is reversible.
 **The way in you can see: a Time button on the toolbar.** It is a 32 px clock icon, key T,
 placed before Actions. It is drawn only when graphty-element reports a time-typed column
 (`session.catalog.timeAttributes()`, #333) or a time role is set. Otherwise it is absent, not
-greyed, so a reader of static data never sees a control that cannot work. The first time it
+grayed, so a reader of static data never sees a control that cannot work. The first time it
 appears in a session, it carries the notification dot for a few seconds; the status bar has
 always had the time glyph for the same purpose.
 
@@ -563,7 +563,7 @@ one project is offered in the next. Storing it in the browser is a two-way door;
 | 3 | The Data and Canvas tabs leave the Dataset's inspector for the Data and Styles panels; the Views list leaves the Objects panel; the Assistant leaves the dock | one home per capability; a full-height panel instead of 14 rows | two-way |
 | 4 | The Data panel's contents follow the assumed reading of "data should" | the sentence was cut off | two-way; the owner may correct it |
 | 5 | The toolbar is icon-only, 32 px buttons on a 48 px bar, 465 px wide (505 with Time), eight controls | the owner's request and Figma's measurements. This supersedes round 2 decisions T3 and P11 (labels under icons) | two-way |
-| 6 | Hand joins Select; Neighbours becomes Filter > Around a node; Note and Ask leave the bar | the fewest controls with no capability lost; each keeps its key | two-way |
+| 6 | Hand joins Select; Neighbors becomes Filter > Around a node; Note and Ask leave the bar | the fewest controls with no capability lost; each keeps its key | two-way |
 | 7 | The view mode is one button with a menu; its face is the mode's two characters | the owner's request; the characters read faster than pictures | two-way |
 | 8 | The secondary bar keeps the variant, scope, count, cost and one verb; Options and Cancel become icons | the owner's "too many words" | two-way |
 | 9 | The palette's door is an Actions button on the toolbar; Find stays separate | Figma's pattern; Find must stay open, the palette must not | two-way |
@@ -601,7 +601,7 @@ the active rail item unless a screen says otherwise.
 | 103 | The round-4 frame on Karate Club in screen 3's state: the rail with Objects active, the tree without the Views list, the eight-control toolbar, the dock handle (Table, History). Insets: a rail tooltip ("Data  Alt+2"), and the Help menu open from the rail's foot |
 | 104 | The Data panel on Email network: two sources (email.csv and a joined contacts.csv), Roles with Time set to sent, columns with completeness bars, the import report with 12 rejected, one join, Open table |
 | 105 | The Data panel on a URL dataset whose column row is expanded (type, distinct values, histogram), and the dataset's "..." menu open (Replace..., Reload, Import options..., Show source, Close dataset) |
-| 106 | The Styles panel on Karate Club after Communities and Connections: Look, the paint order with Colour struck on a covered row, Labels, Legend, Canvas, Library, Files |
+| 106 | The Styles panel on Karate Club after Communities and Connections: Look, the paint order with Color struck on a covered row, Labels, Legend, Canvas, Library, Files |
 | 107 | The Views panel with three views, the View inspector on the right, and the Compare and Present sections |
 | 108 | The AI panel (screen 82's content) with the Objects rail button carrying its notification dot, and a "Made:" row hovered, outlining its members on the canvas |
 | 109 | The command palette open from the Actions button: Recent and For the selection; an inset typed "bridg" showing Commands, Objects, Nodes and the Ask row |

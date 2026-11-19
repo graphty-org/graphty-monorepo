@@ -80,6 +80,37 @@ describe("canvas focus", () => {
         assert.strictEqual(document.activeElement, graph.canvas, "the press still focuses the canvas");
     });
 
+    test("a release over the canvas of a press that began on the host page leaves the host's focus (issue #8920)", async () => {
+        // A host control over the drawing that acts on mouse-down and goes away (a popover's option)
+        // leaves the release to land on the canvas: the host's focus must survive it.
+        graph = await createTestGraph();
+        await graph.setViewMode("3d");
+        const input = document.createElement("input");
+        document.body.appendChild(input);
+        extras.push(input);
+        const rect = graph.canvas.getBoundingClientRect();
+        const option = document.createElement("button");
+        option.textContent = "option";
+        Object.assign(option.style, {
+            position: "fixed",
+            left: `${String(rect.left + 10)}px`,
+            top: `${String(rect.top + 10)}px`,
+            width: "80px",
+            height: "30px",
+        });
+        option.addEventListener("mousedown", (event) => {
+            event.preventDefault();
+            option.remove();
+            input.focus();
+        });
+        document.body.appendChild(option);
+        extras.push(option);
+
+        await userEvent.click(option);
+
+        assert.strictEqual(document.activeElement, input, "the release over the canvas took the host's focus");
+    });
+
     test("clicking the canvas focuses it without scrolling the page", async () => {
         // A spacer before the graph leaves only the canvas's top edge above the fold of a
         // scrollable page: a real pointer can reach it, and a focus that scrolls would bring the

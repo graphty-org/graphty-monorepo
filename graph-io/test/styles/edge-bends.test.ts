@@ -13,6 +13,7 @@ import {
     canonNodeOffsets,
     flattenCubic,
     flattenQuadSpline,
+    naturalSplineControls,
     nodeOffsetsToPoints,
     resolveStyles,
 } from "../../src/styles/internal.js";
@@ -141,6 +142,33 @@ describe("flattenCubic", () => {
                 [2, 2],
             ]),
         ).toBeNull();
+    });
+});
+
+describe("naturalSplineControls", () => {
+    it("draws yEd's spline edge: the natural cubic spline through its ends and bends, one cubic each", () => {
+        // yed-graphml-specimen-edges-lines spline: yEd's SVG draws 562,527 -> 580,497 -> 620,557 -> 638,527 with
+        // these handles
+        const controls = naturalSplineControls([
+            [562, 527],
+            [580, 497],
+            [620, 557],
+            [638, 527],
+        ]);
+        const round = controls?.map(([x, y]) => [Math.round(x * 1000) / 1000, Math.round(y * 1000) / 1000]);
+        expect(round).toEqual([
+            [562, 527],
+            [565.556, 507],
+            [569.111, 487],
+            [580, 497],
+            [590.889, 507],
+            [609.111, 547],
+            [620, 557],
+            [630.889, 567],
+            [634.444, 547],
+            [638, 527],
+        ]);
+        expect(naturalSplineControls([[0, 0]])).toBeNull();
     });
 });
 

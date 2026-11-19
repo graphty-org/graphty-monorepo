@@ -79,10 +79,11 @@ describe("decoder index checks", () => {
         });
     });
 
-    it("refuses an .spz that is not gzip of an NGSP header", async () => {
+    it("refuses Gaussian splats as a format it does not load", async () => {
         const record = await createAssetsApi().add({
-            files: new Map([["bad.spz", Uint8Array.from([0x1f, 0x8b, 0, 0])]]),
+            files: new Map([["points.spz", Uint8Array.from([0x1f, 0x8b, 0, 0])]]),
         });
-        assert.deepStrictEqual(record.problems[0], { code: "E_MODEL_STRUCTURE", params: { rule: "splat" } });
+        assert.deepInclude(record.problems[0], { code: "E_MODEL_FORMAT_UNSUPPORTED" });
+        assert.strictEqual(record.problems[0]?.params.format, "spz");
     });
 });

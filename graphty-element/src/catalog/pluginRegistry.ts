@@ -1,7 +1,7 @@
 /**
  * @file The one registration policy all six extension points obey.
  *
- * Six points that each handled a duplicate differently would be six behaviours to learn and six
+ * Six points that each handled a duplicate differently would be six behaviors to learn and six
  * places for the policy to drift, so the policy is written once here and every registry is a
  * dozen lines over it. What a caller has to know is the same whichever point they are
  * registering into.
@@ -22,7 +22,7 @@
  * - An empty id is `E_BAD_COMMAND`, at the point the author can see it.
  *
  * THE IDENTITY PROMISE. `descriptors()` returns the same frozen array until the map changes.
- * This is a promise the catalogue depends on rather than a micro-optimisation: `session.catalog`
+ * This is a promise the catalog depends on rather than a micro-optimization: `session.catalog`
  * composes the built-in table with this one and returns the built-in array ITSELF while nothing
  * is registered, so two sessions that agree exactly compare equal instead of looking as though
  * they disagreed.
@@ -103,7 +103,7 @@ export interface PluginRegistrySpec<TEntry, TDescriptor> {
     readonly kind: PluginKind;
     /** The id this entry is filed under. */
     idOf(entry: TEntry): string;
-    /** What the catalogue publishes about it. */
+    /** What the catalog publishes about it. */
     descriptorOf(entry: TEntry): TDescriptor;
     /**
      * The thing two registrations are compared on to decide whether the second is a re-import or
@@ -119,7 +119,7 @@ export interface PluginRegistrySpec<TEntry, TDescriptor> {
      * The ids the element itself ships, which no registration may take.
      *
      * A function rather than an array so a registry can be declared before the table it reserves
-     * against has been built, which is what keeps this module free of every catalogue table.
+     * against has been built, which is what keeps this module free of every catalog table.
      */
     builtInIds(): readonly string[];
 }

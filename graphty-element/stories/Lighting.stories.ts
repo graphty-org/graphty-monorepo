@@ -2,10 +2,10 @@
  * How graphty-element lights its 3D nodes, and how a consumer picks a different look.
  *
  * Lighting is a setting of the element, not a style channel: one value for the whole view, set
- * with the `lighting` attribute or property. It changes how every node's style colour is shaded,
- * never the colour itself, and 2D view is always drawn flat whatever it says.
+ * with the `lighting` attribute or property. It changes how every node's style color is shaded,
+ * never the color itself, and 2D view is always drawn flat whatever it says.
  *
- * Every story draws the same sixteen nodes -- four shapes in four colours, a light one and a dark
+ * Every story draws the same sixteen nodes -- four shapes in four colors, a light one and a dark
  * one among them -- so the pictures differ only in the lighting. The grid is tilted back 45
  * degrees, so it is seen face-on from none of the fixed angles and edge-on from none of them.
  *
@@ -35,7 +35,7 @@ import { eventWaitingDecorator, renderFn, type StoryArgs, storySetup, waitForGra
 /** The four shapes, one per row: round, flat-faced, a cylinder and a ring. */
 const SHAPES = ["sphere", "box", "cylinder", "torus"] as const;
 
-/** The four colours, one per column: a strong red, a light yellow, a mid blue and a dark slate. */
+/** The four colors, one per column: a strong red, a light yellow, a mid blue and a dark slate. */
 const COLORS = { red: "#e53935", yellow: "#fdd835", blue: "#1e88e5", slate: "#37474f" } as const;
 
 /** Space between two nodes in the grid, in scene units. */
@@ -80,8 +80,8 @@ function cameraAt(from: { x: number; y: number; z: number }): { x: number; y: nu
 }
 
 /**
- * One node per shape and colour, laid out as a grid tilted back from the front camera.
- * @returns The sixteen nodes, each carrying its shape, its colour and a fixed position.
+ * One node per shape and color, laid out as a grid tilted back from the front camera.
+ * @returns The sixteen nodes, each carrying its shape, its color and a fixed position.
  */
 function gridNodes(): { id: string; shape: string; color: string; position: { x: number; y: number; z: number } }[] {
     const colorNames = Object.keys(COLORS);
@@ -101,8 +101,8 @@ function gridNodes(): { id: string; shape: string; color: string; position: { x:
 }
 
 /**
- * One layer per colour and one per shape, each naming the nodes whose data says so.
- * @returns The layers, colours first.
+ * One layer per color and one per shape, each naming the nodes whose data says so.
+ * @returns The layers, colors first.
  */
 function gridLayers(): LayerSpec[] {
     const byColor = Object.entries(COLORS).map(([name, hex]) => ({
@@ -308,7 +308,7 @@ function modeFrom(mode: Lighting, view: View): Story {
                 return;
             }
 
-            // Unlit means the exact style colour, so a tight window around each one finds it on
+            // Unlit means the exact style color, so a tight window around each one finds it on
             // screen. Read once, from the front: each read renders and copies the whole canvas,
             // and the angle does not change what an unlit pixel is.
             const entries = Object.entries(COLORS);
@@ -330,7 +330,7 @@ function modeFrom(mode: Lighting, view: View): Story {
 
 /**
  * Studio, the default: a light that follows the camera, a soft fill and a rim in each node's own
- * colour.
+ * color.
  */
 export const StudioFront: Story = modeFrom("studio", "Front");
 export const StudioBack: Story = modeFrom("studio", "Back");
@@ -340,7 +340,7 @@ export const StudioAboveLeftFront: Story = modeFrom("studio", "AboveLeftFront");
 export const StudioBelowRightBehind: Story = modeFrom("studio", "BelowRightBehind");
 
 /**
- * Headlight: one light from beside the camera plus a soft fill; never brighter than the style colour.
+ * Headlight: one light from beside the camera plus a soft fill; never brighter than the style color.
  */
 export const HeadlightFront: Story = modeFrom("headlight", "Front");
 export const HeadlightBack: Story = modeFrom("headlight", "Back");
@@ -360,7 +360,7 @@ export const MatteAboveLeftFront: Story = modeFrom("matte", "AboveLeftFront");
 export const MatteBelowRightBehind: Story = modeFrom("matte", "BelowRightBehind");
 
 /**
- * Flat: no lighting; exactly the style colour with a thin outline. Exported as Unshaded, because
+ * Flat: no lighting; exactly the style color with a thin outline. Exported as Unshaded, because
  * "flat" and "unlit" are also words of style channels (node.flat, node.unlit), which these stories
  * do not set.
  */

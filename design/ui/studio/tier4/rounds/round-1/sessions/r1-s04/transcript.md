@@ -5,12 +5,12 @@ Task: put gauges.csv and flows.csv together into one network; report how many ga
 ## Step 0 -- start
 Command: `REAL_DIST=... REAL_TIER=4 node .../real.mjs --start .../r1-s04 empty`
 Screenshot: 01.png
-Notes (Tom): The start screen I know. Big green "Open a file" button. Small grey line under it says "Or drop a file anywhere. It never leaves your computer." Good, that's the river data staying here. I have never put two files together. I'll start the way I always do: Open a file, with the gauge list.
+Notes (Tom): The start screen I know. Big green "Open a file" button. Small gray line under it says "Or drop a file anywhere. It never leaves your computer." Good, that's the river data staying here. I have never put two files together. I'll start the way I always do: Open a file, with the gauge list.
 
 ## Step 1 -- open gauges.csv
 Command: `--step .../r1-s04 --click "Open a file" --upload gauges.csv`
 Screenshot: 02.png
-Notes (Tom): That's the gauge list, as usual. 11 dots, the table says 11 nodes, Edges 0. That makes sense, the gauge list has no stretches in it. Bottom right says "Local only", fine. There's a grey chip "With issues 11" by the table which I don't understand, but I'm not here for that. Now I need to bring flows.csv in. I've never done this. On the left there's "Data" with a database picture. I'll try that.
+Notes (Tom): That's the gauge list, as usual. 11 dots, the table says 11 nodes, Edges 0. That makes sense, the gauge list has no stretches in it. Bottom right says "Local only", fine. There's a gray chip "With issues 11" by the table which I don't understand, but I'm not here for that. Now I need to bring flows.csv in. I've never done this. On the left there's "Data" with a database picture. I'll try that.
 
 ## Step 2 -- Data panel
 Command: `--step .../r1-s04 --click "Data"`

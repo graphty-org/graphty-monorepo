@@ -81,7 +81,7 @@ function turnsOf(messages: readonly AiConversationMessage[]): readonly Turn[] {
                 provenance: message.provenance ?? before?.provenance,
                 undone: message.undone ?? (message.provenance === undefined && before?.undone === true),
             });
-        } else if (message.role === "assistant") {
+        } else {
             if (turns.length === 0) {
                 turns.push({ reader: null, replies: [], provenance: undefined, undone: false });
             }

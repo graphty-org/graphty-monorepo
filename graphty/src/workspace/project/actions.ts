@@ -22,7 +22,7 @@ import {
 import { forgetKeptWork } from "../autosave/autosave";
 import type { CommandContext } from "../commands/registry";
 import { openDataPage } from "../data-page/request";
-import { nodeModelsOn, saveFilesV2On } from "../features";
+import { saveFilesV2On } from "../features";
 import { focusOpenedGraphLater } from "../frame/focus";
 import { runHeld, withHeldShaders } from "../settings/heldShaders";
 import { addSource, incomingFiles } from "../start/open";
@@ -84,18 +84,15 @@ export function assetQuestion(store: WorkspaceStore): AssetQuestion | undefined 
 /**
  * Asks how to keep each model or picture the layers name by web address (embed it, or keep only
  * its address), before a save. graphty-element lists what to ask about
- * (`project.assetChoices()`) and takes the answer (`save({ assets })`). Only the node models
- * experiment asks, and only about addresses not answered before in this session; an answered one
+ * (`project.assetChoices()`) and takes the answer (`save({ assets })`). It asks only about
+ * addresses not answered before in this session; an answered one
  * is kept as the element reports it was last kept.
  * @param store - the workspace store.
  * @param session - the project's session.
  * @returns the choices by address, empty when there is nothing to ask, or null when the reader
- *     cancelled.
+ *     canceled.
  */
 export function askAssetChoices(store: WorkspaceStore, session: GraphSession): Promise<AssetChoices | null> {
-    if (!nodeModelsOn(session)) {
-        return Promise.resolve({});
-    }
     const choices = session.project.assetChoices();
     const known = answeredFor(session);
     const kept: AssetChoices = Object.fromEntries(
@@ -128,15 +125,11 @@ export function askAssetChoices(store: WorkspaceStore, session: GraphSession): P
 
 /**
  * The saved notice, with what of the models the save could not keep as asked.
- * @param session - the project's session.
  * @param message - the notice's sentence.
  * @param report - what the save reported, when it reported.
  * @returns the notice's words.
  */
-function withModelsLeftOut(session: GraphSession, message: string, report: ProjectSaveReport | undefined): string {
-    if (!nodeModelsOn(session)) {
-        return message;
-    }
+function withModelsLeftOut(message: string, report: ProjectSaveReport | undefined): string {
     const lines = (report?.leftOut ?? []).filter((fact) => /^[EW]_MODEL_/.test(fact.code)).map(chipLine);
     return [message, ...lines].join(" ");
 }
@@ -315,7 +308,7 @@ export function saveProblemSentence(name: string, error: unknown): string {
  * @param target - the `browserProjects` id to write again, or null for a new record.
  * @param newName - the name Save as gives the project, or null to keep its name.
  * @param v2 - with version 2 files on, what the reader chose in Save as; null to save as last chosen.
- * @returns false when the reader cancelled the question about files from the web.
+ * @returns false when the reader canceled the question about files from the web.
  */
 async function writeProject(
     { workspace, session }: CommandContext,
@@ -348,7 +341,7 @@ async function writeProject(
         state.v2 = v2;
     }
     await refreshStored();
-    workspace.set({ notice: { message: withModelsLeftOut(session, `Saved ${name} in this browser.`, saved.report) } });
+    workspace.set({ notice: { message: withModelsLeftOut(`Saved ${name} in this browser.`, saved.report) } });
     // Save as reports what the save left out; a later Save says only that it saved.
     if (on && v2 !== null) {
         await reportSave(workspace, session, `Saved ${name}`, saved.report);
@@ -431,7 +424,7 @@ export async function saveProjectAsV2(
             markSaved: false,
             ...(Object.keys(assets).length === 0 ? {} : { assets }),
         });
-        workspace.set({ notice: { message: withModelsLeftOut(session, `Saved ${fileName}`, report) } });
+        workspace.set({ notice: { message: withModelsLeftOut(`Saved ${fileName}`, report) } });
         await reportSave(workspace, session, `Saved ${fileName}`, report);
     } catch {
         workspace.set({ notice: { message: `${fileName} could not be saved.`, error: true } });
@@ -475,7 +468,7 @@ async function saveAs(ctx: CommandContext, name: string, write: () => Promise<bo
     const { workspace, session } = ctx;
     const before = session?.project.name ?? null;
     try {
-        // Cancelled, it returns before naming the project, which keeps the name it had.
+        // Canceled, it returns before naming the project, which keeps the name it had.
         await write();
     } catch (error) {
         workspace.set({ notice: { message: saveProblemSentence(name, error), error: true } });

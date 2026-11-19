@@ -140,14 +140,6 @@
             "issue": "#5905"
         },
         {
-            "file": "graphty/src/workspace/inspector/WhyThisLook.tsx",
-            "rule": "source-by",
-            "detail": "element",
-            "count": 1,
-            "reason": "treats a layer differently because its source is \"element\"",
-            "issue": "#5905"
-        },
-        {
             "file": "graphty/src/workspace/style/coverage.ts",
             "rule": "named",
             "detail": "startingRows",

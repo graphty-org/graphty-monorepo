@@ -51,7 +51,7 @@ export const setLayout: GraphCommand = {
         const { type, options = {} } = params as { type: string; options?: Record<string, unknown> };
 
         try {
-            // The engine name maps to the catalogue id it serves, as the graph's own door maps it.
+            // The engine name maps to the catalog id it serves, as the graph's own door maps it.
             await writerOf(graph, context).layout.set(layoutIdForEngine(type) ?? type, { engine: type, options });
 
             return {

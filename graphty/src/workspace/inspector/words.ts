@@ -209,6 +209,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.shaders": "Shaders",
     "edge.shaders": "Shaders",
     "edge.taper": "Line",
+    "edge.taperSource": "Line",
     "edge.lift": "Line",
     "edge.labelWrapWidth": "Label",
     "edge.labelLetterSize": "Label",
@@ -236,6 +237,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.labelLineHeight": "Label",
     "node.labelLineBox": "Label",
     "node.labelBorderAlign": "Label",
+    "node.labelBorderStyle": "Label",
     "node.labelBackgroundShape": "Label",
     "node.labelOffsetX": "Label",
     "node.labelOffsetY": "Label",
@@ -376,6 +378,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.wavePeriod": "Wave period",
     "edge.dashLength": "Dash length",
     "edge.dashGap": "Dash gap",
+    "edge.dashArray": "Dash array",
     "edge.bendCurve": "Bend curve",
     "edge.arcRadius": "Arc radius",
     "edge.route": "Route",
@@ -451,6 +454,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.labelLineHeight": "Label",
     "edge.labelLineBox": "Label",
     "edge.labelBorderAlign": "Label",
+    "edge.labelBorderStyle": "Label",
     "edge.labelBackgroundShape": "Label",
     "edge.labelOffsetX": "Label",
     "edge.labelOffsetY": "Label",
@@ -666,7 +670,7 @@ export function selectedNameWords(session: GraphSession): string {
 }
 
 /**
- * What Frame selection says once the camera has moved: "Framed Ava", "Framed 3 nodes".
+ * What Fit selection says once the camera has moved: "Framed Ava", "Framed 3 nodes".
  * @param session - the session.
  * @returns the words.
  */
@@ -830,6 +834,7 @@ const RUN_FAILURE_WORDS: Partial<Readonly<Record<GraphtyErrorCode, string>>> = {
     E_SOFTWARE_ONLY: "the graphics card could not run it",
     E_DEVICE_INCORRECT: "the graphics card gave a wrong answer",
     E_DEVICE_LOST: "the graphics card stopped during the run",
+    E_GPU_TIMEOUT: "the graphics card stopped answering",
     E_UNSUPPORTED: "this analysis cannot run here",
 };
 

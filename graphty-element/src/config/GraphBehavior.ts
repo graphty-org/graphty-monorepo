@@ -144,7 +144,7 @@ const CameraBehaviorOpts = z
          * 0 BY DEFAULT, so the camera stays where the reader put it. Above 0 the 3D view turns at
          * that speed every frame, and stops while the reader drags, pinches, holds an arrow key
          * or drags a node, carrying on from wherever they left it. The 2D view and a VR or AR
-         * session never turn. A page that honours `prefers-reduced-motion` sets 0 for those
+         * session never turn. A page that honors `prefers-reduced-motion` sets 0 for those
          * readers. The turning does not hold back `graph-frame-stable`: the picture is finished
          * when the layout and the styles are, however the camera moves.
          */
@@ -258,7 +258,9 @@ export const RenderSettingsOpts = z.strictObject({
      * the picture. A still graph then costs the page nothing per frame, which on a software GPU
      * is tens to hundreds of milliseconds of every frame. Something added to or removed from the
      * scene from outside the element is drawn; a property changed on something already in it
-     * is not seen until something else asks for a frame.
+     * is not seen until something else asks for a frame. Under renderPath "batched", the frames
+     * between two landings of a running GPU layout are skipped even while this is off, so such a
+     * property change waits for the layout's next landing then.
      */
     onDemand: z.boolean().default(false),
 });
@@ -320,14 +322,14 @@ const GraphLayoutOpts = z.strictObject({
      * True: a node a filter hides takes no part in the layout -- it pushes and pulls nothing, its
      * edges pull nothing, and a circle, a grid or any other one-pass layout gives it no slot -- and
      * it stays where it was, so taking the filter away shows it where it was. The layout runs again
-     * whenever a filter changes what is shown, and when this is switched. Every layout honours it.
+     * whenever a filter changes what is shown, and when this is switched. Every layout honors it.
      * False: a layout runs over the whole graph, hidden nodes included. Unset, the default: as the
      * session's `workingGraph` option says.
      */
     visibleOnly: z.boolean().optional(),
 });
 
-/** How the element drives a layout, as the behaviour configuration resolves it. */
+/** How the element drives a layout, as the behavior configuration resolves it. */
 export type GraphLayoutBehavior = z.infer<typeof GraphLayoutOpts>;
 
 /** How the element drives the layout, as a caller supplies it: every field optional. */

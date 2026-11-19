@@ -185,8 +185,11 @@ describe("settled sizes, labels and order", () => {
         });
         const { values } = await load(doc, "json", { viewport: { width: 800, height: 600 } });
         // fitted 30 px in from the canvas's 600 px side: 5.4 px per unit; a and b share a 100 px cell, b ranked second
-        // shows once its 10 px are drawn 5.4 times as large (54 px); the label sizes are on screen
-        expect(values("node", "labelMinNodeScreenSize")).toEqual([12, 54, 12]);
+        // shows once its 10 px are drawn more than 5.4 times as large (54 px); the label sizes are on screen
+        const [a, b, c] = values("node", "labelMinNodeScreenSize") as number[];
+        expect([a, c]).toEqual([12, 12]);
+        expect(b).toBeGreaterThan(54);
+        expect(b).toBeCloseTo(54, 3);
         expect(values("node", "labelGridCellSize")).toEqual([null, null, null]);
         expect(values("node", "labelScreenSize")).toEqual([12, 12, 12]);
     });

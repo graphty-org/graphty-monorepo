@@ -4292,7 +4292,7 @@ export class Edge {
         const [srcGap, dstGap] = [this.gapAt("source"), this.gapAt("target")];
         const outSrc = Edge.outside(this.srcNode, src, srcGap);
         const outDst = Edge.outside(this.dstNode, dst, dstGap);
-        const span = routeOutside(route, outSrc, outDst);
+        const span = routeOutside(route, outSrc, outDst, true);
         if (span === null) {
             return false;
         }

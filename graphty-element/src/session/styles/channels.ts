@@ -5852,8 +5852,9 @@ const NEEDS: ReadonlyMap<string, readonly ChannelNeed[]> = new Map<Channel, read
         "edge.underlayColor",
         [
             { channel: "edge.underlayOpacity", value: 1 },
-            // In the line's width units, twice this wide: 3 stands clear of a thin line.
-            { channel: "edge.underlayPadding", value: 3 },
+            // In the line's width units, twice this wide, and beneath the line: 6 stands clear of the default line,
+            // 8 wide (3 drew a band narrower than the line, hidden under it).
+            { channel: "edge.underlayPadding", value: 6 },
         ],
     ],
     [

@@ -42,7 +42,7 @@ const DRAWS_ALONE: Readonly<Record<string, string>> = {
  * today. The list may only shrink: a gap that starts drawing fails until its entry is deleted.
  */
 const KNOWN_GAPS: Readonly<Record<"2d" | "3d", Readonly<Record<string, string>>>> = {
-    "2d": { "edge.underlayColor": "an edge underlay band draws nothing in the 2D view (style panel round 5, batch 2)" },
+    "2d": {},
     "3d": {},
 };
 

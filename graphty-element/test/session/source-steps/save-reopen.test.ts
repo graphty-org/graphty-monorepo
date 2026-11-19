@@ -469,6 +469,52 @@ describe("source-steps: save and reopen", () => {
         q.dispose();
     });
 
+    it("sources of a file saved without the experiment can be removed and replaced with it", async () => {
+        /**
+         * Two merged CSV loads saved with the experiment off, opened with it on.
+         * @returns The opened session.
+         */
+        async function legacy(): Promise<GraphSession> {
+            const off = createGraphSession({ features: [] });
+            await off.data.import({ type: "csv", config: { data: "source,target\na,b\n" }, name: "one.csv" });
+            await off.data.import(
+                { type: "csv", config: { data: "source,target\nc,d\n" }, name: "two.csv" },
+                { mode: "merge" },
+            );
+            const { q, problems } = await reopen(off);
+            assert.deepStrictEqual(problems, []);
+            assert.deepStrictEqual(
+                q.data.sources().map((s) => s.key),
+                ["s1", "s2"],
+            );
+            return q;
+        }
+        const ids = (s: GraphSession): string[] => s.data.nodes({ scope: "graph" }).map((n) => n.id as string);
+
+        const removed = await legacy();
+        await removed.data.removeSource("s2");
+        assert.sameMembers(ids(removed), ["a", "b"]);
+        const removedAgain = (await reopen(removed)).q;
+        assert.sameMembers(ids(removedAgain), ["a", "b"]);
+        removedAgain.dispose();
+
+        const replaced = await legacy();
+        await replaced.data.replaceSource("s2", { type: "csv", config: { data: "source,target\nc,e\n" } });
+        assert.sameMembers(ids(replaced), ["a", "b", "c", "e"]);
+        const replacedAgain = (await reopen(replaced)).q;
+        assert.sameMembers(ids(replacedAgain), ["a", "b", "c", "e"]);
+        replacedAgain.dispose();
+
+        // Reopened, the session never read s2 itself: refused as with the experiment off, not as unknown.
+        const reloaded = await legacy();
+        const refusal = await reloaded.data.reloadSource("s2", {}).then(
+            () => null,
+            (error: unknown) => (error as { code?: string }).code,
+        );
+        assert.strictEqual(refusal, "E_UNSUPPORTED");
+        reloaded.dispose();
+    });
+
     it("a renamed source keeps its name after save and reopen", async () => {
         const session = createGraphSession({ features: ["source-steps"] });
         await session.data.import({ type: "csv", config: { data: "source,target\na,b\n" }, name: "one.csv" });

@@ -3185,6 +3185,17 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
+     * Whether a key names a source the steps read. A source a file saved without the experiment
+     * brought in is listed by `sources()` but has no steps entry, so remove, replace and reload
+     * take it the way they do with the experiment off.
+     * @param key - The source's key.
+     * @returns True when the experiment is on and the steps hold the key.
+     */
+    private stepsHold(key: SourceKey): boolean {
+        return this.stepsOn() && this.stepsValue().sources[key] !== undefined;
+    }
+
+    /**
      * Refuse a call the source-steps experiment does not compile to steps yet, while it is on, so
      * the old path never runs over a graph the steps built.
      * @param verb - The call.
@@ -3992,7 +4003,7 @@ export class SessionData implements SessionDataApi {
      */
     private async removeSourceNow(key: SourceKey): Promise<RemoveSourceResult> {
         this.requireLive("removeSource");
-        if (this.stepsOn()) {
+        if (this.stepsHold(key)) {
             return this.removeStepsSource(key);
         }
         const sources = this.sources();
@@ -4505,13 +4516,14 @@ export class SessionData implements SessionDataApi {
         this.requireLive("replaceSource");
         if (this.stepsOn()) {
             choices.signal?.throwIfAborted();
-            return this.afterLoads(() => {
-                this.refuseNewReading(key, choices);
-                return this.replaceStepsSource(key, source);
-            });
         }
-
-        return this.afterLoads(() => this.replaceSourceNow(key, source, choices));
+        return this.afterLoads(() => {
+            if (!this.stepsHold(key)) {
+                return this.replaceSourceNow(key, source, choices);
+            }
+            this.refuseNewReading(key, choices);
+            return this.replaceStepsSource(key, source);
+        });
     }
 
     /**
@@ -4951,7 +4963,7 @@ export class SessionData implements SessionDataApi {
      */
     async reloadSource(key: SourceKey, choices: LoadChoices): Promise<ReplaceReport> {
         this.requireLive("reloadSource");
-        if (this.stepsOn()) {
+        if (this.stepsHold(key)) {
             return this.afterLoads(() => this.reloadStepsSource(key, choices));
         }
         return this.afterLoads(() => this.reloadSourceNow(key, choices));

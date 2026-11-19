@@ -1682,10 +1682,6 @@ export class Node implements ModelUser {
     }
 
     /**
-     * Every label this node has on screen: its label, tooltip, external label and further texts.
-     * @returns They.
-     */
-    /**
      * Start the animation of every label this node has on screen (each starts once).
      * @internal
      */
@@ -1695,6 +1691,10 @@ export class Node implements ModelUser {
         }
     }
 
+    /**
+     * Every label this node has on screen: its label, tooltip, external label and further texts.
+     * @returns They.
+     */
     private labels(): RichTextLabel[] {
         const all = [this.label, this.tooltip, this.xlabelLabel, ...this.shapeTextLabels];
         return all.filter((label): label is RichTextLabel => label !== undefined);

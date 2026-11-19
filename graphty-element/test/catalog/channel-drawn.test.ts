@@ -37,6 +37,10 @@ describe("channelDrawn", () => {
         });
     });
 
+    it("draws an arc height with the route unset, which the layout may raise", () => {
+        assert.deepStrictEqual(channelDrawn("edge.arcHeight", reading({}), "3d"), { drawn: true });
+    });
+
     it("holds a channel to its view", () => {
         assert.deepStrictEqual(channelDrawn("node.zIndex", reading({}), "2d"), { drawn: true });
         assert.deepStrictEqual(channelDrawn("node.zIndex", reading({}), "3d"), {

@@ -5657,8 +5657,6 @@ const DRAWN_WHEN: ReadonlyMap<string, readonly ChannelCondition[]> = new Map<Cha
             { channel: "edge.curvature", values: ["false"] },
         ],
     ],
-    // "A straight route ignores it."
-    ["edge.arcHeight", [{ channel: "edge.route", values: ["arc", "great-circle"] }]],
     // "A straight edge ignores it."
     ["edge.supportModel", [CURVED]],
     ["edge.supportSpringLength", SUPPORT],

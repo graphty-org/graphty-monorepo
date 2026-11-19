@@ -1365,6 +1365,7 @@ describe("ChannelDescriptor.drawnWhen", () => {
         "edge.nodeGap": "a self-loop ignores it: a fact of the edge's ends, not a channel",
         "edge.sourceNodeGap": "a self-loop ignores it: a fact of the edge's ends, not a channel",
         "edge.targetNodeGap": "a self-loop ignores it: a fact of the edge's ends, not a channel",
+        "edge.arcHeight": "a straight route ignores it, but an unset route may be raised by the layout",
     };
 
     it("covers every caveat that says a channel is ignored somewhere", () => {

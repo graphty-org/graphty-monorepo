@@ -13,7 +13,7 @@ Sources read for this inventory, all under `/home/apowers/Projects/graphty-monor
 - the session API: `graphty-element/src/session/` (`types.ts`, `GraphSession.ts`, `runs/`,
   `results/`, `scope/`, `selection/`, `visibility/`, `styles/`, `cost/`, `layout.ts`,
   `planning.ts`, `limits.ts`)
-- the catalogues: `graphty-element/src/catalog/` (`types.ts`, `algorithms.ts`, `layouts.ts`,
+- the catalogs: `graphty-element/src/catalog/` (`types.ts`, `algorithms.ts`, `layouts.ts`,
   `cameras.ts`, `formats.ts`, `palettes.ts`, `scales.ts`, `unreachable.ts`)
 - the configuration schemas: `graphty-element/src/config/` (`DataConfig.ts`, `GraphBehavior.ts`,
   `GraphStyle.ts`, `NodeStyle.ts`, `EdgeStyle.ts`, `RichTextStyle.ts`, `StyleTemplate.ts`,
@@ -49,7 +49,7 @@ Node test and a rendered view can share it). Paths like `session.runs.start()` a
 - **set**: a collection of node ids and/or edge ids. A selection, a filter result, a path, a
   spanning tree and a community group are all sets. Sets can overlap.
 - **measure**: one value per node (or per edge), such as a degree, a PageRank score or a rank.
-  A measure is what a colour ramp or a size scale paints. Under the object-first model this is
+  A measure is what a color ramp or a size scale paints. Under the object-first model this is
   the second kind of object, beside a set.
 - **partition**: a measure whose value is a group label (community 3, level 2, category "hub").
   A partition is both a measure (one label per node) and a family of sets (the members of each
@@ -93,7 +93,7 @@ result and caveats.
 | Mixed direction per edge | A file with both directed and undirected edges | proposed #309 (graph-format holds one flag) | -- | data load |
 | Repeated-edge policy | keep / error / first / last / sum / min / max when two edges join the same pair | shipped | `el.repeatedEdges`; report in `lastImport().repeated` | config, fact |
 | Id coercion | `canonical` or `keep` (whether 1 and "1" are one node) | shipped | `DataConfig.knownFields.idCoercion` | config |
-| Position scale and seeded positions | Coordinates in the file are honoured and scaled; the element reports how many nodes the file placed | shipped | `el.positionScale`, `session.seededNodeCount` | position |
+| Position scale and seeded positions | Coordinates in the file are honored and scaled; the element reports how many nodes the file placed | shipped | `el.positionScale`, `session.seededNodeCount` | position |
 | Import report | Format used, records seen vs kept vs rejected, repeats, weight attribute resolved | shipped | `session.data.lastImport()` | fact |
 | Load progress | Percentage and bytes during a load | partial: bytes are estimated, percentage only when a size is passed; not cancellable (#296) | `data-loading-progress` event | event |
 | Cancel a load | Stop a large load half-way | proposed #296 | -- | data load |
@@ -101,8 +101,8 @@ result and caveats.
 | Update attributes after load | Change a node's or edge's data fields in place and have styles repaint | proposed #297 | -- | data load |
 | List edges | Read every edge as a consumer | partial: `el.getNodes()` exists, `getEdges()` does not (#297); per-edge read via `session.data.edge(id)` | `session.data.node(id)`, `session.data.edge(id)`, `el.getNodes()` | data (read) |
 | Clear | Empty the graph | shipped | `el.clearData()` | data load |
-| Expand a node's neighbourhood from a server | Double-click a node to fetch and add its neighbours (lazy loading of a graph too big to load whole) | shipped | `el.layoutBehavior = { fetchNodes, fetchEdges }` | data load |
-| Attribute catalogue | Every attribute the records carry: type (string, number, integer, boolean, time, category, mixed), completeness, unique count, min/max, sample values, origin (imported, joined, computed, result) | shipped | `session.data.attributes()` (`AttributeDescriptor`) | fact / table |
+| Expand a node's neighborhood from a server | Double-click a node to fetch and add its neighbors (lazy loading of a graph too big to load whole) | shipped | `el.layoutBehavior = { fetchNodes, fetchEdges }` | data load |
+| Attribute catalog | Every attribute the records carry: type (string, number, integer, boolean, time, category, mixed), completeness, unique count, min/max, sample values, origin (imported, joined, computed, result) | shipped | `session.data.attributes()` (`AttributeDescriptor`) | fact / table |
 | Graph statistics | Node and edge counts, density, directedness, weighted, self-loops, repeated edges, degree range, mean degree, connected-component count and size distribution, which component a node is in | shipped, cached per snapshot | `session.data.statistics()` (`GraphStatistics`, `ComponentStatistics`) | fact |
 | Status counts | nodes, edges, visible nodes, visible edges, O(1) | shipped | `session.status.counts` | fact |
 | Topology fingerprint | A stable id for "same graph" | shipped | `session.fingerprint()` | fact |
@@ -130,11 +130,11 @@ reusable set object today.
 | Capability | What it does for a reader | Status | API | Produces / acts on |
 |---|---|---|---|---|
 | Select by click | Click a node to select it; a gold halo marks it | shipped (nodes only; edges are unpickable, so there is deliberately no edge click, `events.ts:406`) | pointer; `el.selectNode(id)`, `el.getSelectedNode()` | set |
-| Selection halo style | Colour, scale and opacity of the halo; configuration, not a layer | shipped | `el.selectionStyle` | config |
+| Selection halo style | Color, scale and opacity of the halo; configuration, not a layer | shipped | `el.selectionStyle` | config |
 | Multi-element selection | Hold many nodes and edges at once, capped at 5,000 by default | shipped | `session.selection.nodes`, `.edges`, `.size`, `.cap`, `.truncated` | set |
 | Set operations on the selection | replace, add, remove, toggle, intersect (the design's boolean operations) | shipped | `session.selection.apply(target, op)`, `el.select(target, op)` | set |
 | Select by ids | A list of node and/or edge ids | shipped | target `{nodes, edges}` or `{ids}` | set |
-| Select neighbours | Neighbours of given nodes at depth 1, 2 or 3, following in / out / all directions | shipped | target `{neighborsOf, depth, direction}` | set |
+| Select neighbors | Neighbors of given nodes at depth 1, 2 or 3, following in / out / all directions | shipped | target `{neighborsOf, depth, direction}` | set |
 | Select by scope | Everything in a scope (visible, graph, largest component, a saved set) | shipped | target `{scope}` | set |
 | Select the top N of a result | The N best nodes by a run's field | shipped | target `{top: {run, field, n}}` | set |
 | Select above a threshold | Every element whose result value exceeds a threshold | shipped | target `{above: {run, field, threshold}}` | set |
@@ -153,7 +153,7 @@ reusable set object today.
 | Filter: categories | Keep nodes whose attribute is one of a list of values | shipped | `{kind: "categories", attribute, values}` | set (visible) |
 | Filter: degree | Keep nodes by degree band and direction | shipped | `{kind: "degree", ...}` | set (visible) |
 | Filter: component | Keep one connected component | shipped | `{kind: "component", id}` | set (visible) |
-| Filter: neighbourhood (ego network) | Keep seeds and everything within a depth | shipped (the app's Ego network action is not wired, #314) | `{kind: "neighborhood", seeds, depth}` | set (visible) |
+| Filter: neighborhood (ego network) | Keep seeds and everything within a depth | shipped (the app's Ego network action is not wired, #314) | `{kind: "neighborhood", seeds, depth}` | set (visible) |
 | Filter: edges by expression | Hide edges that fail a query | proposed #149 | `{kind: "edges", where}` | set (visible) |
 | Filter combinators | all / any / not over filters | shipped | `{kind: "all" or "any" or "not", of}` | set (visible) |
 | Time window | Show only elements whose time attribute is within from..to, with an optional step unit | shipped | `visibility.setWindow({attribute, from, to, step})` | set (visible) |
@@ -161,14 +161,14 @@ reusable set object today.
 | Visibility summary and masks | Counts, sets and byte masks of what is showing | shipped | `visibility.summary`, `.nodes`, `.edges`, `.nodeMask()` | set, fact |
 | Visibility change event | What changed and how long the pass took | shipped | `session.on("visibility:changed")` | event |
 | Visible count vs render set | "showing 1,204 of 50,000" counts the DATA scope, never what happened to be drawn | shipped | `session.status.counts.visibleNodes` | fact |
-| Hover | A `node-hover` event fires; a node tooltip channel draws on hover | partial: no hover HIGHLIGHT of a node's neighbours (designloom `hover-highlight`); `LayerSource` reserves `reason: "hover"` for a future element layer | DOM `node-hover`; channels `node.tooltip`, `node.tooltipStyle` | event, style |
+| Hover | A `node-hover` event fires; a node tooltip channel draws on hover | partial: no hover HIGHLIGHT of a node's neighbors (designloom `hover-highlight`); `LayerSource` reserves `reason: "hover"` for a future element layer | DOM `node-hover`; channels `node.tooltip`, `node.tooltipStyle` | event, style |
 | Pick what is under the pointer | Hit-test for a context menu | partial: nodes pick; edges never pick (#319 notes the app must not compute this) | `node-click` | event |
 | Pattern (motif) search | Find every occurrence of a small template graph | proposed (design command `data.match`; designloom `pattern-search`) | -- | set |
 | Query validation and autocomplete | Check an expression before running it; list attribute paths and functions | proposed #335, #332 | `session.catalog.validate()`, `.functions()` (declared, unimplemented) | fact |
 
 ## 3. Algorithms and their results
 
-Every algorithm is a catalogue entry (`graphty-element/src/catalog/algorithms.ts`) with a plain
+Every algorithm is a catalog entry (`graphty-element/src/catalog/algorithms.ts`) with a plain
 name, a technical name, a description, a category, a result shape, its fields, its options, a
 cost class and a complexity string. Running one makes a **run**. A run's result is addressed by
 path (`results.<runId>.<field>`) so a style layer, a selection target or a filter can read it.
@@ -177,9 +177,9 @@ the design's two kinds of object:
 
 | Result shape | Node fields | Graph fields | Design kind | Suggested layer |
 |---|---|---|---|---|
-| `node-metric` | value, rank, percentile | min, max, median, mean, measured, normalization, tiedAtMin | measure | encoding (colour ramp or size scale) |
+| `node-metric` | value, rank, percentile | min, max, median, mean, measured, normalization, tiedAtMin | measure | encoding (color ramp or size scale) |
 | `edge-metric` | (edges) value, rank, percentile | same | measure on edges | encoding |
-| `community` | group, groupSize | groupCount, sizes, modularity | partition (a tree of sets) | encoding (one colour per group) |
+| `community` | group, groupSize | groupCount, sizes, modularity | partition (a tree of sets) | encoding (one color per group) |
 | `layered-grouping` | level, levelSize | levelCount, sizes | partition (ordered) | encoding |
 | `category-table` | category, score, rank | categories | partition | encoding |
 | `path` | onPath, order (edges: onPath) | length, cost, hops | set (ordered) | highlight |
@@ -189,7 +189,7 @@ the design's two kinds of object:
 | `temporal` | -- | steps, series, rates, changeThreshold | table | none |
 | `fact` | -- | (own fields) | fact | none |
 
-### 3.1 Catalogue entries (shipped)
+### 3.1 Catalog entries (shipped)
 
 Plain names are the ones the element publishes; the technical name is in parentheses.
 Options come from each algorithm class in `graphty-element/src/algorithms/`.
@@ -200,12 +200,12 @@ Options come from each algorithm class in `graphty-element/src/algorithms/`.
 | `betweenness` | Bridges (Betweenness centrality) | How often a node sits on shortest paths between others | node-metric | heavy | none (no weight/direction, #313) | measure |
 | `closeness` | Reach (Closeness centrality) | How quickly a node reaches everything else | node-metric | heavy | none | measure |
 | `pagerank` | Influence (PageRank) | Influence flowing in from nodes that point at it | node-metric | iterative | dampingFactor, maxIterations, tolerance, weight, useDelta | measure |
-| `eigenvector` | Influence by association (Eigenvector centrality) | Importance from the importance of neighbours | node-metric | iterative | maxIterations, tolerance, normalized, mode (in/out/total), endpoints | measure |
+| `eigenvector` | Influence by association (Eigenvector centrality) | Importance from the importance of neighbors | node-metric | iterative | maxIterations, tolerance, normalized, mode (in/out/total), endpoints | measure |
 | `katz` | Influence at a distance (Katz centrality) | Every path that reaches a node, longer counting less | node-metric | iterative | alpha, beta, maxIterations, tolerance, normalized, mode, endpoints | measure |
 | `hits` | Hubs and authorities (HITS) | Two scores: points at good things / is pointed at | node-metric (+ authority, hub fields) | iterative | maxIterations, tolerance, normalized, mode, endpoints | measure (two) |
 | `louvain` | Communities (Louvain) | Densely connected groups | community | iterative | resolution, maxIterations, tolerance, useOptimized | partition |
 | `leiden` | Communities, refined (Leiden) | Louvain with guaranteed well-connected groups | community | iterative | resolution, randomSeed, maxIterations, threshold | partition |
-| `label-propagation` | Communities, fast (Label propagation) | Groups by majority vote of neighbours | community | iterative | maxIterations, randomSeed | partition |
+| `label-propagation` | Communities, fast (Label propagation) | Groups by majority vote of neighbors | community | iterative | maxIterations, randomSeed | partition |
 | `girvan-newman` | Communities by cutting bridges (Girvan-Newman) | Groups revealed by removing the most-between edges | community | heavy | maxCommunities, minCommunitySize, maxIterations | partition |
 | `components` | Separate pieces (Connected components) | Which disconnected part each node is in; `{strength: "strong"}` for strongly connected | community | instant | strength (legacy key `scc`) | partition |
 | `shortest-path` | Shortest route (Shortest path) | The cheapest route from A to B; `method` dijkstra or bellman-ford | path (+ hasNegativeCycle) | instant | source, target, method, bidirectional | set (ordered) |
@@ -215,14 +215,14 @@ Options come from each algorithm class in `graphty-element/src/algorithms/`.
 | `kruskal` | Cheapest connecting network (Kruskal MST) | The lightest set of edges joining everything | edge-set (+ totalWeight) | instant | none; requires undirected | set (edges) |
 | `prim` | Cheapest network from one node (Prim MST) | Same, grown from a start node | edge-set (+ totalWeight) | instant | startNode; requires undirected | set (edges) |
 | `bipartite-matching` | Best pairing (Maximum bipartite matching) | The largest set of non-overlapping pairs across two sides | edge-set (+ bipartite, matched, side) | heavy | none; requires undirected | set (edges), partition (side) |
-| `max-flow` | Most that can flow (Maximum flow) | How much can travel from a source to a sink; per-edge flow and utilisation | edge-metric (+ capacity, maxFlow, netFlow, role, utilization) | heavy | source, sink | measure (edges), fact |
+| `max-flow` | Most that can flow (Maximum flow) | How much can travel from a source to a sink; per-edge flow and utilization | edge-metric (+ capacity, maxFlow, netFlow, role, utilization) | heavy | source, sink | measure (edges), fact |
 | `min-cut` | Weakest link (Minimum cut) | The cheapest edges to remove to split the graph | edge-set (+ cutValue, side) | heavy | source, sink, useGlobalMinCut, useKarger, kargerIterations | set (edges), partition (side) |
 
 ### 3.2 Declared but not shipped, and proposed algorithms
 
 | Key or name | What it would answer | Status | Produces |
 |---|---|---|---|
-| `clustering-coefficient` | How tightly a node's neighbours are joined to each other | proposed #330 (in `KNOWN_ALGORITHMS`, no implementation) | measure |
+| `clustering-coefficient` | How tightly a node's neighbors are joined to each other | proposed #330 (in `KNOWN_ALGORITHMS`, no implementation) | measure |
 | `all-paths` | Every simple route from A to B up to a length cap | proposed #329 | set (many, ordered) |
 | `k-core` | The densest shells of the graph | in `KNOWN_ALGORITHMS`; unregistered; the GPU package has `kCoreDecomposition` | partition (ordered) |
 | `link-prediction` | Which unconnected pairs are likely to connect | in `KNOWN_ALGORITHMS`; unregistered (designloom `link-prediction`) | table (pair-list) |
@@ -233,7 +233,7 @@ Options come from each algorithm class in `graphty-element/src/algorithms/`.
 | Temporal analysis | Metric evolution and change events over time | proposed (shape `temporal` is declared; designloom `temporal-analysis`) | table |
 | Community profiling and over-represented values | Per-group attribute profile with corrected p values | proposed #193 | table |
 | Group names | A display name per community group, optionally proposed from the group's dominant attribute | proposed #191 | partition |
-| Parameter sweep | One algorithm across a range of a parameter, summarised per value | proposed #194 | table (of runs) |
+| Parameter sweep | One algorithm across a range of a parameter, summarized per value | proposed #194 | table (of runs) |
 | Weight and direction options everywhere | Per-run "use weights" and "treat as undirected" | proposed #313 | config (per run) |
 | Custom algorithm plugin | A third party defines and registers an algorithm with a descriptor and suggested styles | shipped | `docs/guide/extending/custom-algorithms.md` | measure / set / partition |
 
@@ -243,18 +243,18 @@ Options come from each algorithm class in `graphty-element/src/algorithms/`.
 |---|---|---|---|---|
 | Start a run | Run an algorithm with params over a scope, optionally seeded, named (`as`), approximate (`sample`) or exact, with a style request | shipped | `session.runs.start(key, params, options)`, `el.run(...)`, `session.run({op: "algo.run", ...})` | run |
 | Run on load | A list of algorithms to run every time data loads | shipped | `el.algorithmsOnLoad`, `el.runAlgorithmsOnLoad` | run |
-| Batch | Several runs as one labelled job with per-step success | shipped | `session.runs.batch(specs)` | run (batch) |
+| Batch | Several runs as one labeled job with per-step success | shipped | `session.runs.batch(specs)` | run (batch) |
 | Watch a run | queued, running, succeeded, failed, canceled; progress with phase, fraction and ETA; queue position | shipped | `run.status`, `run.progress`, `session.on("run:changed")`, `onProgress` | event |
 | Cancel | Stop a run, with a reason | shipped where the algorithm is cancellable | `run.cancel()`, `AbortSignal` | run |
 | Re-run | Repeat a run with its own parameters | shipped | `run.rerun()` | run |
 | Queue policy | append, replace (abort the same op in flight), now | shipped | `RunOptions.queue` | config |
-| Cost estimate | Seconds, confidence (measured / calibrated / modelled / unknown), cost class, whether it blocks the frame, whether it is available and why not; synchronous so a button can be drawn from it | shipped | `session.estimate(command)`, `session.catalog.metrics()` | fact |
+| Cost estimate | Seconds, confidence (measured / calibrated / modeled / unknown), cost class, whether it blocks the frame, whether it is available and why not; synchronous so a button can be drawn from it | shipped | `session.estimate(command)`, `session.catalog.metrics()` | fact |
 | Plan | What a command would do (match, mutate, write fields, bytes, image), its cost, whether it would be blocked | shipped for `algo.run`; the other command kinds are not yet commands (#337) | `session.plan(command)` | fact |
 | Cost gate | Refuse or approximate a run over the exact-computation cap (30 s) or the memory budget | shipped; the ceiling is fixed rather than measured (#159, #146) | `SessionRunsOptions.limits`, `gateRun` | config |
 | Caveats | What qualifies the numbers: exact or sampled, seed, converged, iterations, component / filter / window scope, direction, weight meaning, precision, method, partial reason | shipped | `run.caveats` | fact |
 | Stale note | The visible set changed since the run; ran on N, now M | shipped | `run.stale` | fact |
 | Engine versions | Which element, algorithms and layout versions produced the numbers | shipped | `run.engine` | fact |
-| Run record | A serialisable record of the run for a journal or a report | shipped | `run.record` | fact |
+| Run record | A serializable record of the run for a journal or a report | shipped | `run.record` | fact |
 | List, get, remove | Find runs again; removing one removes the layers it created | shipped | `session.runs.list()`, `.get(id)`, `.remove(id)`, `.bindings(id)` | run |
 | Read a result | Per-node and per-edge values, graph fields, a numeric column with min/max/mean/median, a ranking (top N), a histogram (linear or log, banded), a summary (top entries, groups), a plain-language reading | shipped | `session.results.get(run)` -> `RunResult.node()`, `.column()`, `.ranking()`, `.histogram()`, `.summary()`, `.reading({audience})` | measure, table, fact |
 | Column to ids | Which node each column position belongs to | proposed #148 | -- | table |
@@ -304,7 +304,7 @@ Layout control:
 | Wait for settle | A promise that resolves when the layout stops | shipped | `el.waitForSettled()`, `graph-settled` event | event |
 | Pin / unpin nodes | A dragged node stays put; pins survive a layout change, a 2D/3D switch and a template | shipped | `el.pin(ids)`, `el.unpin(ids)`, `el.isPinned`, `el.pinnedNodes`, `layoutBehavior.node.pinOnDrag` | position |
 | Drag a node | Move a node by hand, negotiating with the simulation | shipped | pointer; `node-drag-start` / `node-drag-end` events | position |
-| Edge weights honoured | Force layouts read the weight attribute | shipped | `LayoutDescriptor.honoursWeights` | position |
+| Edge weights honored | Force layouts read the weight attribute | shipped | `LayoutDescriptor.honoursWeights` | position |
 | Play / pause / step / stop a live layout | A transport for the simulation | proposed #144 (design 4.7 `LayoutApi`): the manager has `step()` but no public transport | -- | position |
 | Layout over a scope | Lay out only the selection, the rest keeps its positions | proposed #144 | -- | position |
 | Positions API | Read a node's position by id, set positions, snapshot and restore, a version-stamped buffer | partial: `session.positions` is the raw stride-3 Float32Array; the typed verbs are #144 | `session.positions`, `el.getNode(id).position` | position |
@@ -333,12 +333,12 @@ scale and a palette, onto a channel), a **kind** (base, encoding, highlight, cus
 | Selector: ids | An explicit list | shipped | `{match: "ids", nodes, edges}` | set |
 | Selector: everything | The whole graph | shipped | `{match: "everything"}` | set |
 | Encode a result | One call from a run to a picture: field, channel, scale, palette, domain, clamp, range, missing value, reverse, overflow (other / shape / extend) | shipped | `session.styles.encode({run, field, channel, ...})` | style (encoding layer) |
-| Encode a data attribute | Bind a channel to an imported attribute (colour by conference) | shipped in the element (`encode: {by: path, ...}`); no UI in the app (#190) | `LayerSpec.encode` | style |
+| Encode a data attribute | Bind a channel to an imported attribute (color by conference) | shipped in the element (`encode: {by: path, ...}`); no UI in the app (#190) | `LayerSpec.encode` | style |
 | Highlight a set result | Paint only the members of a path or set result | shipped | `session.styles.highlight({run, field, name, set})` | style (highlight layer) |
-| Scales | linear (Even Steps), log (By Order of Magnitude), neglog10 (By Significance), sqrt (By Area), pow (Curved), bins (Equal Ranges), quantile (Equal Counts), ordinal (One Colour per Value), passthrough | shipped | `session.catalog.scales()` | config |
-| Palettes | Sequential: viridis, ylorbr, plasma, inferno, blues, greens, oranges. Categorical: okabe-ito, tol-vibrant, tol-muted, pastel, carbon. Diverging: purple-green, blue-orange, red-blue. Highlight: blue-, green-, orange-highlight. Each with colour-blind safety flags and capacity | shipped | `session.catalog.palettes()` | config |
+| Scales | linear (Even Steps), log (By Order of Magnitude), neglog10 (By Significance), sqrt (By Area), pow (Curved), bins (Equal Ranges), quantile (Equal Counts), ordinal (One Color per Value), passthrough | shipped | `session.catalog.scales()` | config |
+| Palettes | Sequential: viridis, ylorbr, plasma, inferno, blues, greens, oranges. Categorical: okabe-ito, tol-vibrant, tol-muted, pastel, carbon. Diverging: purple-green, blue-orange, red-blue. Highlight: blue-, green-, orange-highlight. Each with color-blind safety flags and capacity | shipped | `session.catalog.palettes()` | config |
 | Custom palette plugin | Register a palette; saved documents carry it | shipped | `docs/guide/extending/custom-palettes.md` | config |
-| More groups than colours | Overflow policy paints the largest groups and the rest "Other" | shipped | `EncodingSpec.overflow` | style |
+| More groups than colors | Overflow policy paints the largest groups and the rest "Other" | shipped | `EncodingSpec.overflow` | style |
 | Legend model | Blocks per channel: kind (sequential, diverging, categorical, highlight, literal), field words, scale, domain, palette, swatches with counts, overflow, departures | shipped as data; nothing draws it (#292) | `session.styles.legend()` | table |
 | Explain an element's look | Which layers contributed which channels to one node, and whether each is editable | shipped | `session.styles.explain({node})` | fact |
 | Resolve to static | Turn a bound channel into a literal for one element (the "make this one red" door) | shipped | `session.styles.resolveToStatic(id, channel, at)` | style |
@@ -346,7 +346,7 @@ scale and a palette, onto a channel), a **kind** (base, encoding, highlight, cus
 | Style change event and problems | One event per edit with the repaint size; a separate event when the element's own painting was refused | shipped | `session.on("style:changed")`, `session.on("style:problem")`, DOM `style-changed` | event |
 | Settled | Wait for pending repaints | shipped | `session.styles.settled()` | event |
 | Layer groups | Name a group of layers and set a per-group opacity (the run's layers under one parent) | proposed (design 9.3; app #171) | -- | style |
-| Theme (light / dark canvas) | Background follows the page's colour scheme | proposed #291, #331 (`catalog.themes()`) | `el.background` today (`color` or `skybox`) | config |
+| Theme (light / dark canvas) | Background follows the page's color scheme | proposed #291, #331 (`catalog.themes()`) | `el.background` today (`color` or `skybox`) | config |
 | Style presets | Built-in looks a reader can pick | proposed (designloom `style-presets`); templates are the mechanism | -- | style |
 
 ### 5.1 Channels
@@ -356,14 +356,14 @@ literal or bound.
 
 | Channel | What it changes | Status |
 |---|---|---|
-| `node.color`, `node.opacity` | Fill colour and transparency | shipped |
+| `node.color`, `node.opacity` | Fill color and transparency | shipped |
 | `node.size` | Size (the size scale for a measure) | shipped |
 | `node.shape` | One of 25 meshes: box, sphere, cylinder, cone, capsule, torus, torus-knot, tetrahedron, octahedron, dodecahedron, icosahedron, rhombicuboctahedron, three prisms, two pyramids, five dipyramids and cupolas, goldberg, icosphere, geodesic | shipped |
 | `node.outline`, `node.glow`, `node.glowStrength`, `node.wireframe`, `node.flat` | Edge line, glow halo, wireframe and flat shading | shipped |
 | `node.label`, `node.labelStyle` | Label text and its rich-text style | shipped |
 | `node.tooltip`, `node.tooltipStyle` | A hover tooltip and its style | shipped (draws only on hover; listed in `unreachable.ts` because the resting-frame test cannot see it) |
 | `node.marker` | An image, icon or note marker on the node | proposed #295 (declared, `renderable: false`; design reserves it for notes) |
-| `edge.color`, `edge.opacity`, `edge.width` | Line colour, transparency, thickness | shipped |
+| `edge.color`, `edge.opacity`, `edge.width` | Line color, transparency, thickness | shipped |
 | `edge.style`, `edge.patternCount` | Line pattern: solid, dot, star, box, dash, diamond, dash-dot, sinewave, zigzag; how many repeats | shipped |
 | `edge.curvature` | Bezier curve amount | shipped |
 | `edge.arrowHead`, `edge.arrowTail` and their `Size`, `Color`, `Opacity`, `Text`, `TextStyle` | Arrow shapes at each end: normal, inverted, dot, sphere-dot, open-dot, none, tee, open-normal, diamond, open-diamond, crow, box, half-open, vee; with text at the ends | shipped |
@@ -379,7 +379,7 @@ or edge.
 | Capability | What it does for a reader | Status | API | Produces / acts on |
 |---|---|---|---|---|
 | Label text from a path | The label comes from a record key | shipped | `el.nodeLabelPath`, channel `node.label` | style |
-| Rich text | Font, size, weight, line height, colour, gradient (linear / radial; vertical / horizontal / diagonal), outline, shadow, background with padding and corner radius, borders | shipped | `LabelStyle` (`node.labelStyle`) | style |
+| Rich text | Font, size, weight, line height, color, gradient (linear / radial; vertical / horizontal / diagonal), outline, shadow, background with padding and corner radius, borders | shipped | `LabelStyle` (`node.labelStyle`) | style |
 | Placement | Attach at top, top-left, ..., center, ..., bottom-right, with an offset | shipped | `attachPosition`, `attachOffset` | style |
 | Billboarding | Labels face the camera | shipped | `billboardMode` | config |
 | Depth fade | Labels fade with distance | shipped | `depthFadeEnabled`, near / far | style |
@@ -395,7 +395,7 @@ or edge.
 |---|---|---|---|---|
 | View modes | 2d, 3d, vr, ar | shipped | `el.viewMode`, `el.setViewMode()`, `el.getViewMode()` | config |
 | 3D orbit camera | Left-drag orbits; pinch zooms on touch; keyboard keys zoom | shipped; no wheel zoom and no drag-to-pan in 3D (#290) | pointer, `OrbitInputController` | camera state |
-| 2D camera | Wheel zooms, drag pans | shipped; zoom is about the centre, not the cursor (#290) | `TwoDInputController` | camera state |
+| 2D camera | Wheel zooms, drag pans | shipped; zoom is about the center, not the cursor (#290) | `TwoDInputController` | camera state |
 | Camera state | Read and set position, target, up (and ortho bounds in 2D), animated with easing | shipped | `el.getCameraState()`, `el.setCameraState(state, {animate, duration, easing})`, `setCameraPosition`, `setCameraTarget`, `setCameraZoom`, `setCameraPan` | camera state |
 | Fit to graph | Frame every element | shipped | `el.zoomToFit()`, `zoom-to-fit-complete` event, camera view `fitToGraph` | camera state |
 | Built-in views | Fit to graph, From above, From the side, From the front, Isometric; each says which modes it works in | shipped | `session.catalog.cameras()`, `el.applyCameraView(id)`, `el.resolveCameraPreset` | camera state |
@@ -407,9 +407,9 @@ or edge.
 | Linked cameras | Two views share pan / zoom / rotate (Compare mode) | proposed (design 4.8 `linkTo`; app #186) | -- | camera state |
 | Camera change event | Know when the camera moved | shipped | `camera-state-changed` | event |
 | Coordinate transforms | World to screen and back (for overlays and minimaps) | shipped | `el.worldToScreen()`, `el.screenToWorld()` | fact |
-| Minimap / overview | A small map with the viewport rectangle; click to centre | proposed #293 | -- | camera state |
+| Minimap / overview | A small map with the viewport rectangle; click to center | proposed #293 | -- | camera state |
 | Custom camera view plugin | Register a named framing | shipped | `docs/guide/extending/custom-cameras.md` | camera state |
-| Background | A colour or a skybox image | shipped | `el.background` | config |
+| Background | A color or a skybox image | shipped | `el.background` | config |
 | Input enable | Turn pointer input off (for an overlay) | shipped | `el.setInputEnabled(false)` | config |
 | Wheel zoom toward the cursor, right-drag pan | Standard navigation | proposed #290 | -- | camera state |
 
@@ -445,7 +445,7 @@ message into calls to the element's own commands, through an LLM provider.
 | Built-in tools | captureScreenshot, captureVideo, clearStyles, describeProperty, findAndStyleEdges, findAndStyleNodes, findNodes, getSchema, listAlgorithms, queryGraph, runAlgorithm, sampleData, setCameraPosition, setDimension, setImmersiveMode, setLayout, zoomToNodes | shipped (`graphty-element/src/ai/commands/`) | `CommandRegistry` | AI action producing style, run, camera state, export, data (read) |
 | Schema extraction | The assistant is told the graph's attributes so it can write queries | shipped | `graphty-element/src/ai/schema/` | fact |
 | Multi-turn tool use | Follow-up turns after a tool result (sample data, then act) | partial: `design/ai/ai-multi-turn.md` describes the gap and the plan | -- | AI action |
-| Session commands as the tool vocabulary | Every session verb as a serialisable command, with a JSON schema an agent reads | proposed #337 (the `./commands` entry point is empty; design 4.11.1) | `session.run(command)` accepts `algo.run` only today | AI action |
+| Session commands as the tool vocabulary | Every session verb as a serializable command, with a JSON schema an agent reads | proposed #337 (the `./commands` entry point is empty; design 4.11.1) | `session.run(command)` accepts `algo.run` only today | AI action |
 | Say what data leaves the browser | The app's panel does not disclose what is sent | app issue #326; the element's schema extractor decides | -- | fact |
 
 ## 10. Events, session model, performance and acceleration
@@ -461,7 +461,7 @@ message into calls to the element's own commands, through an LLM provider.
 | `data-loaded`, `data-loading-complete`, `data-loading-progress`, `data-loading-error`, `data-loading-error-summary`, `data-added`, `elements-removed`, `snapshot-replaced`, `node-add-before`, `edge-add-before`, `node-update-after`, `edge-update-after` | DOM / graph | load lifecycle and per-record hooks | shipped |
 | `node-click`, `node-hover`, `node-drag-start`, `node-drag-end` (DOM: `graphty-node-*`) | DOM | node id | shipped (no edge events) |
 | `layout-initialized`, `graph-settled`, `zoom-to-fit-complete`, `camera-state-changed` | DOM | layout and camera lifecycle | shipped |
-| `operation-queue-active/idle`, `operation-start/complete/progress/obsoleted`, `operation-batch-complete` | DOM | the operation queue that serialises loads, layouts, runs and repaints | shipped |
+| `operation-queue-active/idle`, `operation-start/complete/progress/obsoleted`, `operation-batch-complete` | DOM | the operation queue that serializes loads, layouts, runs and repaints | shipped |
 | `animation-progress`, `animation-cancelled`, `screenshot-enhancing`, `screenshot-ready` | DOM | capture lifecycle | shipped |
 | `graph-frame-stable`, `render-initialized`, `manager-initialized`, `lifecycle-initialized/disposed`, `skybox-loaded`, `error` | DOM | rendering lifecycle | shipped |
 | `ai-*` (eleven) | DOM | assistant lifecycle (section 9) | shipped |
@@ -479,7 +479,7 @@ message into calls to the element's own commands, through an LLM provider.
 | Notes and annotations | A note pinned to a node, edge or point; tags, author, orphaning when the target leaves; marker clustering; an annotation document | proposed #145 (design 4.15.3 `NotesApi`); the app holds its own notes today | -- | table, style (marker) |
 | Undo / redo | Reverse an edit | not the element's (design 9.2 / 9.3): every session edit returns an inverse-able record; the stack is the consumer's | style and run edits return runs with results | -- |
 | Batch operations | Group several element edits so they repaint once | shipped | `el.batchOperations(fn)` | config |
-| Configuration document | Every setting in one document: data mapping, behaviour, graph style, layers | shipped as the style template document | `StyleTemplate` (`graphtyTemplate: true`, `majorVersion: "1"`) | export |
+| Configuration document | Every setting in one document: data mapping, behavior, graph style, layers | shipped as the style template document | `StyleTemplate` (`graphtyTemplate: true`, `majorVersion: "1"`) | export |
 | Logging | Console and remote log sinks, with a plugin for more | shipped | `session.catalog.logSinks()`, `docs/guide/extending/custom-log-destinations.md` | config |
 | Errors | Every refusal is a `GraphtyError` with a code (`E_UNSUPPORTED`, `E_BAD_COMMAND`, `E_UNKNOWN_OPTION`, `E_DUPLICATE_ID`, `E_OPTION_RANGE`, `E_DISPOSED`, ...), a source and details | shipped | `graphty-element/src/errors/` | fact |
 | Extension points | Six registries a third party may add to: algorithms, layouts, formats (data sources), palettes, cameras, log sinks; plus accelerators | shipped | `docs/guide/extending/index.md`, `pluginRegistry` | -- |
@@ -489,7 +489,7 @@ message into calls to the element's own commands, through an LLM provider.
 
 | Capability | What it does for a reader | Status | API | Produces / acts on |
 |---|---|---|---|---|
-| WebGPU acceleration | When `@graphty/webgpu-graph-algorithms` is installed, PageRank, personalised PageRank, HITS, eigenvector, Katz, connected components, BFS, single-source shortest paths, Bellman-Ford, closeness, betweenness, all-pairs, k-core, triangle count, label propagation, MST and Louvain may run on the GPU; ForceAtlas2, Fruchterman-Reingold and spring-electrical layouts too | shipped for the layouts and the algorithms the accelerator seam covers; the element owns detection, construction and device loss | `session.config.acceleration.policy` (`auto`, `off`, `required`), `.minNodes`; `session.capabilities.acceleration` (state: probing, active, idle, unavailable, error, off; backend, vendor, device, reason) | run, position, fact |
+| WebGPU acceleration | When `@graphty/webgpu-graph-algorithms` is installed, PageRank, personalized PageRank, HITS, eigenvector, Katz, connected components, BFS, single-source shortest paths, Bellman-Ford, closeness, betweenness, all-pairs, k-core, triangle count, label propagation, MST and Louvain may run on the GPU; ForceAtlas2, Fruchterman-Reingold and spring-electrical layouts too | shipped for the layouts and the algorithms the accelerator seam covers; the element owns detection, construction and device loss | `session.config.acceleration.policy` (`auto`, `off`, `required`), `.minNodes`; `session.capabilities.acceleration` (state: probing, active, idle, unavailable, error, off; backend, vendor, device, reason) | run, position, fact |
 | Never fall back silently | A GPU failure mid-run is an error, not a quiet CPU finish | shipped by rule (root `CLAUDE.md` "WebGPU") | -- | fact |
 | Cost model and calibration | Estimates from rates (linear, iterative, heavy pairs, cubic); measured timings replace the model; `calibrate()` to measure this machine | partial: measurements and rates ship; `session.calibrate()` is missing (#146, #159) | `CostEstimate.confidence`, `MachineCalibration` | fact |
 | Exact vs approximate | Above 2,000 nodes a heavy run may sample; the caveats say so | shipped | `StartOptions.exact`, `.sample`; `AlgorithmDescriptor.approximable` | config |
@@ -524,10 +524,10 @@ message into calls to the element's own commands, through an LLM provider.
 Collapsing the tables above by the "produces" column gives the design its object vocabulary.
 The counts are of shipped capabilities unless marked.
 
-- **Sets** (things a reader can name, colour, hide, combine): the selection (one, shared); saved
+- **Sets** (things a reader can name, color, hide, combine): the selection (one, shared); saved
   scopes (named, nestable); filter results (one visible set, from eight filter kinds); path,
   node-set and edge-set results (shortest path, MST, matching, min-cut); the members of each
-  group in a partition; neighbourhoods at depth 1-3; the top-N and above-threshold of a measure.
+  group in a partition; neighborhoods at depth 1-3; the top-N and above-threshold of a measure.
   Set operations exist on the selection only (replace, add, remove, toggle, intersect); saved
   scopes can reference one another but cannot be combined.
 - **Measures** (one value per element): every centrality (7 shipped), DFS order, all-pairs

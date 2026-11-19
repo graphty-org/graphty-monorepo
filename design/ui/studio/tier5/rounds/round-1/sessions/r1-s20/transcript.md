@@ -73,7 +73,7 @@ Ambiguous; its name says "13 of 15 rows joined". Clicking the data source row.
 23.png: menu: Edit join, Replace with file, Select nodes, Export, Rename, Remove. Opening Edit join to see unmatched rows (will not change anything).
 
 ## Step 24 -- --click "Edit join"
-24.png: the join view finally explains it: 15 rows; one "Repeat, not added" (G03-G04 2.1, same as Cedar Bend-Fox Creek), one G09-G12 with an unknown end (4 km -- too long anyway). Chips at the top: "14 edges added, 1 new node, 1 not in graph, 1 repeated key, 1 unknown end". So nothing the crew could walk was lost. Cancelling.
+24.png: the join view finally explains it: 15 rows; one "Repeat, not added" (G03-G04 2.1, same as Cedar Bend-Fox Creek), one G09-G12 with an unknown end (4 km -- too long anyway). Chips at the top: "14 edges added, 1 new node, 1 not in graph, 1 repeated key, 1 unknown end". So nothing the crew could walk was lost. Canceling.
 
 ## Step 25 -- --click "Cancel"
 25.png: back where I was, nothing changed. 7 gauges orange, legend "7 of 11 nodes", filter "km max 2.9 -- 10 of 13" still on. Stopping here.

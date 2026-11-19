@@ -50,7 +50,7 @@ and nobody had measured the thing that decides it.
 ## The second reason, which is about measurement rather than hardware
 
 The lane's own T-7 row, on the run that produced the ladder, reads **13.796 ms** -- under the
-15 ms target -- where the session that recorded the miss read 18.165 ms. Every neighbouring
+15 ms target -- where the session that recorded the miss read 18.165 ms. Every neighboring
 row is 12 to 31 percent faster as well. These are two rented instances of the same card class
 doing identical work, and they differ by up to 1.32x.
 

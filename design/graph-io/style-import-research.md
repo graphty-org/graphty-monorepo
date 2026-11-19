@@ -334,7 +334,7 @@ These are observations for the design work that follows, not the design.
 1. One data-bound layer per style property reproduces any GEXF file exactly with a bound
    independent of graph size. graph-io already puts each viz value in a per-element column, and
    graphty-element's binding grammar has a `passthrough` scale ("a column that already holds
-   channel values -- a colour per node, a shape per node -- is passed through untouched",
+   channel values -- a color per node, a shape per node -- is passed through untouched",
    `graphty-element/src/session/styles/scales.ts`). A GEXF file has at most 6 viz properties (node
    color, size, shape; edge color, thickness, line style), so the bound is 6 layers plus what
    alpha needs. graph-io stores color as an rgba number vector while passthrough accepts a string
@@ -1226,7 +1226,7 @@ defaults, from the attribute reference (https://graphviz.org/doc/info/attrs.html
 
 | Area                  | Attributes                                                                                                                                                                                                                                                            |
 | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Node fill and outline | `color` (N E C, black), `fillcolor` (N E C, lightgrey for nodes), `penwidth` (C N E, 1.0 points), `style` (filled, dashed, dotted, solid, bold, invis, rounded, diagonals, striped, wedged, radial; edges also tapered), `peripheries` (N C), `gradientangle` (N C G) |
+| Node fill and outline | `color` (N E C, black), `fillcolor` (N E C, lightgray for nodes), `penwidth` (C N E, 1.0 points), `style` (filled, dashed, dotted, solid, bold, invis, rounded, diagonals, striped, wedged, radial; edges also tapered), `peripheries` (N C), `gradientangle` (N C G) |
 | Node geometry         | `shape` (about 60 polygon shapes plus `record`, `Mrecord`, `plain`, `plaintext`, `none`, `point`; ellipse by default), `width` (0.75 in), `height` (0.5 in), `fixedsize`, `sides`, `skew`, `distortion`, `orientation`, `regular`, `image`, `imagescale`              |
 | Edge line and ends    | `color`, `penwidth`, `style`, `dir` (forward, back, both, none), `arrowhead`, `arrowtail` (arrowType grammar), `arrowsize` (1.0)                                                                                                                                      |
 | Text                  | `label` (plain or HTML-like `<...>`), `xlabel`, `headlabel`, `taillabel`, `fontname` (Times-Roman), `fontsize` (14 points), `fontcolor`, `labelfontcolor`, `labelfontsize`, `labelfontname`, `labelloc`, `labeljust`                                                  |

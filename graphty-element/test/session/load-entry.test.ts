@@ -212,7 +212,7 @@ async function triangleProject(): Promise<string> {
 }
 
 /**
- * Every row, labelled `Root.member`.
+ * Every row, labeled `Root.member`.
  * @param half - Only the rows of this half, when given.
  * @returns The rows.
  */

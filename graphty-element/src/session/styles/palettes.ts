@@ -1,33 +1,33 @@
 /**
- * @file Binding a palette to a scale: the one place a measurement becomes a colour.
+ * @file Binding a palette to a scale: the one place a measurement becomes a color.
  *
  * A scale says where a value sits. A palette says what that position looks like. This module is
  * the join, and it is a join with a cost rule: everything that can be worked out once per layer
- * -- the palette, the scale, the group count, the colour for a missing value, the ramp itself --
+ * -- the palette, the scale, the group count, the color for a missing value, the ramp itself --
  * is worked out in {@link prepareRamp}, and what runs once per element is a scale call and an
  * array index.
  *
- * THE RAMP IS A TABLE. Interpolating a colour and writing it as a hex string once per element
+ * THE RAMP IS A TABLE. Interpolating a color and writing it as a hex string once per element
  * costs 37 ms at fifty thousand nodes, against a whole-frame budget of 16 ms for a single-layer
- * edit; the same work done once per distinct colour costs 0.6 ms. The table is built lazily, so
- * a layer that paints six elements builds six colours. See {@link rampSteps} for why sampling
- * the ramp costs no colour.
+ * edit; the same work done once per distinct color costs 0.6 ms. The table is built lazily, so
+ * a layer that paints six elements builds six colors. See {@link rampSteps} for why sampling
+ * the ramp costs no color.
  *
- * THE PALETTES ARE NOT RESTATED HERE. Every colour comes from the catalogue, which points at the
+ * THE PALETTES ARE NOT RESTATED HERE. Every color comes from the catalog, which points at the
  * element's own palette constants, so a palette edited once travels to the renderer, the legend
- * and every consumer together. A hex typed into this file would be the drift the catalogue
+ * and every consumer together. A hex typed into this file would be the drift the catalog
  * exists to prevent.
  *
- * A CATEGORICAL PALETTE NEVER WRAPS. Asking a palette of eight colours to name twelve groups
+ * A CATEGORICAL PALETTE NEVER WRAPS. Asking a palette of eight colors to name twelve groups
  * fails with `E_CAP_EXCEEDED`, carrying the count and the capacity. Wrapping would put group
- * eight and group zero in the same colour and say nothing, which is why one consumer refuses the
+ * eight and group zero in the same color and say nothing, which is why one consumer refuses the
  * element's community layer today.
  *
  * THE REFUSAL IS FOR A PALETTE THE CALLER NAMED, NEVER FOR ONE THE ELEMENT PICKED. A binding
  * that names no palette gets one chosen HERE, against the group count the column actually holds,
  * so the element can never hand itself a palette too small for its own data. That distinction is
  * the whole of {@link defaultPaletteFor} and it exists because the element got it wrong: a
- * community run that found ten groups was planned onto an eight-colour palette by a step that
+ * community run that found ten groups was planned onto an eight-color palette by a step that
  * could not yet know there were ten, the capacity check refused it one step later, and the layer
  * sat in the stack enabled, correct, and painting nothing.
  *
@@ -46,41 +46,41 @@ import { type ColorValue, toColorValue } from "./channels";
 import { groupCount, isScaleMiss, type ScaleContext, type ScaleRegistry } from "./scales";
 
 /**
- * The palette a colour binding uses when it does not name one and reads a measurement.
+ * The palette a color binding uses when it does not name one and reads a measurement.
  *
  * Paul Tol's YlOrBr, one hue family from orange to dark brown, because a ramp inside one hue
  * family reads as "how much". Viridis, the default before it, sweeps from purple through green
  * to yellow, and a hue sweep makes a sparse set of nodes read as separate groups rather than as
  * amounts (Reda & Szafir 2021; Tseng et al. 2024). It is trimmed to the steps that stand off the
  * element's light background by at least 2:1, so the palest node is still visible. Viridis stays
- * in the catalogue for a binding that names it. `test/catalog/default-palette-quality.test.ts`
+ * in the catalog for a binding that names it. `test/catalog/default-palette-quality.test.ts`
  * measures whatever this is.
  */
 const DEFAULT_PALETTE: PaletteId = "ylorbr";
 
 /**
- * The palette a colour binding uses when it does not name one and reads groups.
+ * The palette a color binding uses when it does not name one and reads groups.
  *
- * Okabe-Ito as published: eight distinct colours, safe for every form of colour blindness the
- * catalogue names, with yellow last because it barely shows on a light background. It is the
- * first choice rather than the only one: a partition with more groups than it has colours gets a
+ * Okabe-Ito as published: eight distinct colors, safe for every form of color blindness the
+ * catalog names, with yellow last because it barely shows on a light background. It is the
+ * first choice rather than the only one: a partition with more groups than it has colors gets a
  * larger palette from {@link defaultPaletteFor}, and every partition that fits keeps this one, so
- * a picture that is right today does not change colour because the rule grew a branch.
+ * a picture that is right today does not change color because the rule grew a branch.
  */
 const DEFAULT_CATEGORICAL_PALETTE: PaletteId = "okabe-ito";
 
 /** The scale a binding uses when it does not name one. */
 const DEFAULT_SCALE = "linear";
 
-/** The range a colour ramp reads positions in, whatever range the binding asked a channel for. */
+/** The range a color ramp reads positions in, whatever range the binding asked a channel for. */
 const RAMP_RANGE: [number, number] = [0, 1];
 
 /**
- * A colour binding as it is authored: which scale, which palette, and what to do with a value
+ * A color binding as it is authored: which scale, which palette, and what to do with a value
  * that has no place on the scale.
  *
  * The scale's own options ride along, because they are the binding's options -- a domain, a
- * midpoint, a group count, a category list. `range` is not read: a colour ramp is positions, and
+ * midpoint, a group count, a category list. `range` is not read: a color ramp is positions, and
  * a numeric range belongs to a channel that carries numbers.
  */
 export interface RampSpec extends Omit<ScaleContext, "palette" | "range"> {
@@ -90,24 +90,24 @@ export interface RampSpec extends Omit<ScaleContext, "palette" | "range"> {
      * The palette.
      *
      * Left off, the element picks one: a ramp for a measurement, and for groups the smallest
-     * catalogue palette that can name them all. Named, it is used as named and refused with
-     * `E_CAP_EXCEEDED` if it has too few colours for the groups in the column.
+     * catalog palette that can name them all. Named, it is used as named and refused with
+     * `E_CAP_EXCEEDED` if it has too few colors for the groups in the column.
      */
     palette?: PaletteId;
     /**
-     * The binding's own colours, lowest first, in place of a named palette. See
+     * The binding's own colors, lowest first, in place of a named palette. See
      * {@link inlinePalette} for the kind they are read as.
      */
     stops?: readonly string[];
     /**
      * What to paint for a value with no place on the scale. "skip" -- the default -- paints
-     * nothing at all, so the element keeps the colour the layers below it gave it.
+     * nothing at all, so the element keeps the color the layers below it gave it.
      */
     missing?: "skip" | { value: string };
     /**
-     * What to do with more groups than the palette has colours. Set, a palette the element picks
+     * What to do with more groups than the palette has colors. Set, a palette the element picks
      * is the preferred categorical one rather than a bigger one, and a named palette is not
-     * refused: "shape" wraps its colours and "extend" continues past them. "other" expects the
+     * refused: "shape" wraps its colors and "extend" continues past them. "other" expects the
      * caller to have folded the column down to {@link overflowCapacity} groups already, because
      * which groups fold is decided by their sizes and a ramp never sees a size.
      */
@@ -115,7 +115,7 @@ export interface RampSpec extends Omit<ScaleContext, "palette" | "range"> {
 }
 
 /**
- * How many groups keep a colour (or a colour and a shape) of their own under an overflow policy.
+ * How many groups keep a color (or a color and a shape) of their own under an overflow policy.
  *
  * The capacity is the palette's: the one the binding names, else the preferred categorical one,
  * because a binding with an overflow policy is painted through that palette rather than a larger
@@ -131,9 +131,9 @@ export function overflowCapacity(named: PaletteId | undefined): number | null {
 const INLINE_PALETTE_ID: PaletteId = "custom";
 
 /**
- * A binding's own stops as a palette: categorical under a scale that names groups (one colour per
+ * A binding's own stops as a palette: categorical under a scale that names groups (one color per
  * group), diverging with a midpoint, and sequential otherwise.
- * @param stops - The colours, lowest first.
+ * @param stops - The colors, lowest first.
  * @param categorical - Whether the scale names groups.
  * @param diverging - Whether the binding has a midpoint.
  * @returns The palette.
@@ -171,21 +171,21 @@ export function colorsProblem(stops: unknown): string | null {
         : `"${String(bad)}" is not a colour, so it cannot be one of a binding's own colors.`;
 }
 
-/** A colour binding with everything knowable worked out, ready to be asked once per element. */
+/** A color binding with everything knowable worked out, ready to be asked once per element. */
 export interface PreparedRamp {
-    /** The palette the colours come from. */
+    /** The palette the colors come from. */
     readonly palette: PaletteDescriptor;
     /** The scale's name, for the legend. */
     readonly scale: string;
-    /** How many distinct colours the ramp uses, or 0 when it is a continuous interpolation. */
+    /** How many distinct colors the ramp uses, or 0 when it is a continuous interpolation. */
     readonly groups: number;
-    /** The colour a missing value gets, or undefined when a missing value is not painted. */
+    /** The color a missing value gets, or undefined when a missing value is not painted. */
     readonly missing: ColorValue | undefined;
     /**
-     * The colour for one value.
+     * The color for one value.
      * @param value - The element's value for the bound path, including the absent value of an
      *   element the run never measured.
-     * @returns The colour, or undefined when the element is not to be painted.
+     * @returns The color, or undefined when the element is not to be painted.
      */
     color(value: unknown): ColorValue | undefined;
 }
@@ -193,7 +193,7 @@ export interface PreparedRamp {
 /**
  * Whether a palette can name this many groups.
  *
- * A continuous palette has no capacity: its colours are anchors to interpolate between, so it
+ * A continuous palette has no capacity: its colors are anchors to interpolate between, so it
  * answers any number of groups by sampling.
  * @param palette - The palette.
  * @param distinct - How many distinct values the encoding found.
@@ -259,7 +259,7 @@ const OFFERED_NOT_CHOSEN: ReadonlySet<PaletteId> = new Set<PaletteId>(["kelly"])
  * The palette a binding that names none is painted through.
  *
  * DERIVED FROM THE CATALOGUE'S DECLARED CAPACITIES, not from a list of names written here. A
- * palette added to the catalogue with room for twelve groups becomes the answer for twelve groups
+ * palette added to the catalog with room for twelve groups becomes the answer for twelve groups
  * with nothing edited in this file, and a rule spelled "okabe-ito, then tol-muted, then ylorbr"
  * would have been wrong the day that happened while still looking right.
  *
@@ -268,11 +268,11 @@ const OFFERED_NOT_CHOSEN: ReadonlySet<PaletteId> = new Set<PaletteId>(["kelly"])
  * - A scale that reads a measurement gets the continuous default. Ranking values is what a ramp
  *   is for.
  * - A scale that names groups gets {@link DEFAULT_CATEGORICAL_PALETTE} whenever it fits, so every
- *   picture that paints today keeps the colours it has.
+ *   picture that paints today keeps the colors it has.
  * - More groups than that: the SMALLEST categorical palette that can still name them all, which
- *   spends the fewest extra colours to keep nominal values looking nominal.
- * - More groups than any categorical palette in the catalogue: the continuous default, sampled at
- *   one colour per group. This is a compromise and is worth naming as one -- community ids are
+ *   spends the fewest extra colors to keep nominal values looking nominal.
+ * - More groups than any categorical palette in the catalog: the continuous default, sampled at
+ *   one color per group. This is a compromise and is worth naming as one -- community ids are
  *   handed out in discovery order, so a light-to-dark ramp across them suggests a rank that does
  *   not exist. It is taken anyway because the alternatives are worse: wrapping says two groups
  *   are one group, and refusing leaves the reader a blank frame where an algorithm did finish.
@@ -336,10 +336,10 @@ export function sequentialSamples(count: number): readonly string[] {
 }
 
 /**
- * Read the colour a missing value is painted, if any.
+ * Read the color a missing value is painted, if any.
  * @param missing - The binding's missing policy.
- * @returns The colour, or undefined when a missing value is not painted.
- * @throws `E_BAD_LAYER` when a colour was asked for and is not a colour, which is a mistake in
+ * @returns The color, or undefined when a missing value is not painted.
+ * @throws `E_BAD_LAYER` when a color was asked for and is not a color, which is a mistake in
  *   the layer rather than in the data and belongs at the edit.
  */
 function missingColor(missing: RampSpec["missing"]): ColorValue | undefined {
@@ -367,12 +367,12 @@ function missingColor(missing: RampSpec["missing"]): ColorValue | undefined {
  * per-element string work the repaint budget forbids: at fifty thousand nodes it is the
  * difference between a third of a frame and nothing measurable.
  *
- * The table is fine enough that sampling costs no colour. Five hundred and twelve steps per
+ * The table is fine enough that sampling costs no color. Five hundred and twelve steps per
  * segment means one step moves the ramp by a five-hundred-and-twelfth of the distance between
- * two neighbouring anchors, and two anchors are at most 255 units apart in any channel, so no
+ * two neighboring anchors, and two anchors are at most 255 units apart in any channel, so no
  * channel moves by as much as half a unit from one step to the next. The ends are exact: step
  * zero is the first anchor and the last step is the last.
- * @param anchors - How many colours the palette is written with.
+ * @param anchors - How many colors the palette is written with.
  * @returns The number of steps, which is one fewer than the number of table entries.
  */
 function rampSteps(anchors: number): number {
@@ -380,11 +380,11 @@ function rampSteps(anchors: number): number {
 }
 
 /**
- * Parse every colour in a palette, once.
+ * Parse every color in a palette, once.
  * @param palette - The palette.
- * @returns Its colours in order, each with its numbers alongside its string.
- * @throws `E_BAD_LAYER` naming the colour that will not parse. A palette with a typo in it is a
- *   mistake in the element's own catalogue, and finding it before anything is painted is better
+ * @returns Its colors in order, each with its numbers alongside its string.
+ * @throws `E_BAD_LAYER` naming the color that will not parse. A palette with a typo in it is a
+ *   mistake in the element's own catalog, and finding it before anything is painted is better
  *   than finding it as a stripe of magenta across whichever elements happened to sample it.
  */
 function parsedSwatches(palette: PaletteDescriptor): readonly ColorValue[] {
@@ -404,13 +404,13 @@ function parsedSwatches(palette: PaletteDescriptor): readonly ColorValue[] {
 }
 
 /**
- * Work out everything a colour binding can know before it sees an element.
+ * Work out everything a color binding can know before it sees an element.
  * @param spec - The binding.
  * @param registry - The session's scales, so a plugin's scale is reachable here like a built-in.
  * @returns The prepared ramp.
  * @throws `E_UNKNOWN_SCALE` for a scale nobody registered, `E_BAD_LAYER` for a palette the
- *   element does not have or a missing colour that is not a colour, and `E_CAP_EXCEEDED` when a
- *   palette the CALLER named is asked to name more groups than it has colours. A palette the
+ *   element does not have or a missing color that is not a color, and `E_CAP_EXCEEDED` when a
+ *   palette the CALLER named is asked to name more groups than it has colors. A palette the
  *   element chose for itself always fits, because it is chosen from the group count below.
  */
 export function prepareRamp(spec: RampSpec, registry: ScaleRegistry): PreparedRamp {
@@ -461,12 +461,12 @@ export function prepareRamp(spec: RampSpec, registry: ScaleRegistry): PreparedRa
     const last = swatches.length - 1;
     const extraColors = paletteDescriptor(DEFAULT_PALETTE)?.colors ?? colors;
     /**
-     * The colour of the k-th group past a named categorical palette's capacity under "extend":
+     * The color of the k-th group past a named categorical palette's capacity under "extend":
      * the sequential default sampled once per extra group. Distinct from each other, not
-     * guaranteed distinct from the palette's own colours.
+     * guaranteed distinct from the palette's own colors.
      * @param extra - Which extra group, from 0.
      * @param extras - How many extra groups there are.
-     * @returns The colour, or the missing colour when the sample does not parse.
+     * @returns The color, or the missing color when the sample does not parse.
      */
     const extension = (extra: number, extras: number): ColorValue | undefined =>
         toColorValue(interpolatePalette(extras > 1 ? extra / (extras - 1) : 0, extraColors)) ?? absent;
@@ -479,7 +479,7 @@ export function prepareRamp(spec: RampSpec, registry: ScaleRegistry): PreparedRa
         color(value: unknown): ColorValue | undefined {
             const placed = map(value, context);
             if (typeof placed === "string") {
-                // A registered scale that produces colours itself; the palette is not consulted.
+                // A registered scale that produces colors itself; the palette is not consulted.
                 return toColorValue(placed) ?? absent;
             }
 

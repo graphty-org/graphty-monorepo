@@ -7,14 +7,14 @@
  * every operation is set algebra between that pair and the pair the session already holds.
  *
  * EVERY TARGET RESOLVES TO A MASK, never to a list of ids. A target such as "invert" or "every
- * node the predicate matched" can name most of the graph, and materialising that as an array
+ * node the predicate matched" can name most of the graph, and materializing that as an array
  * would cost the size of the answer at a moment when the answer is about to be folded into a
  * structure that costs the size of the graph whatever happens. Ids are produced once, at the end,
  * by the caller that asked for them.
  *
  * A TARGET NAMES BOTH HALVES, and a target that names no edges names an EMPTY edge set rather
  * than "leave the edges alone". That is what keeps the operations honest: replacing the selection
- * with the neighbours of a node leaves no edges selected, and intersecting a selection with a set
+ * with the neighbors of a node leaves no edges selected, and intersecting a selection with a set
  * of nodes leaves no edges selected, because in both cases that is what the set algebra says. A
  * target that meant "only touch the half I mentioned" would make `replace` and `intersect` do
  * something no set operation does, and a consumer could not predict either of them.
@@ -52,10 +52,10 @@ import type { ScopeResolver } from "../scope/ScopeApi";
 import type { ResultRef } from "../shared";
 import { readInstant } from "../time/parse";
 
-/** How far a neighbourhood target reaches when it does not say. */
+/** How far a neighborhood target reaches when it does not say. */
 const DEFAULT_NEIGHBOR_DEPTH = 1;
 
-/** Which way a neighbourhood target walks when it does not say. */
+/** Which way a neighborhood target walks when it does not say. */
 const DEFAULT_DIRECTION = "all";
 
 /** The frozen empty list every arm that cannot produce unmatched ids answers with. */
@@ -94,7 +94,7 @@ export interface ElementIdTarget {
 /**
  * Everything within a few steps of some nodes.
  *
- * The seeds are IN the neighbourhood: a neighbourhood that excluded its own centre would hide the
+ * The seeds are IN the neighborhood: a neighborhood that excluded its own center would hide the
  * very nodes the reader is looking at, and "select around this node" would deselect it. With no
  * seeds named the current node selection is the seed set, which is what "grow the selection"
  * means.
@@ -117,7 +117,7 @@ export interface NeighborhoodTarget {
 }
 
 /**
- * A span of time an edge must fall inside to be followed by a neighbourhood walk.
+ * A span of time an edge must fall inside to be followed by a neighborhood walk.
  *
  * Each edge's time is read from `path` the way a time column reads it: a number as it is, a
  * `Date` as its time, text as an ISO 8601 date-time (UTC when it names no zone). An edge with no
@@ -309,7 +309,7 @@ export interface TargetContext {
      */
     readonly region?: (polygon: readonly RegionPoint[]) => Iterable<NodeId>;
     /**
-     * The value an edge carries at a path. Absent refuses a neighbourhood `window`.
+     * The value an edge carries at a path. Absent refuses a neighborhood `window`.
      * @param edge - The edge's row.
      * @param path - The path, such as `"data.date"`.
      * @returns The value, or undefined when the edge carries none.
@@ -336,8 +336,8 @@ export interface TargetMembers {
 // ---------------------------------------------------------------------------------------------
 
 /**
- * The refusal a target this session cannot honour gets, naming what would honour it.
- * @param what - The target, in the words a caller would recognise.
+ * The refusal a target this session cannot honor gets, naming what would honor it.
+ * @param what - The target, in the words a caller would recognize.
  * @param needs - The capability whose absence is the reason.
  * @returns The error to throw.
  */
@@ -509,9 +509,9 @@ function emptyMasks(context: TargetContext): { nodes: ElementMask<NodeId>; edges
 // ---------------------------------------------------------------------------------------------
 
 /**
- * Tell whether a target is the neighbourhood arm.
+ * Tell whether a target is the neighborhood arm.
  * @param target - The target to test.
- * @returns True when it names a neighbourhood.
+ * @returns True when it names a neighborhood.
  */
 function isNeighborhood(target: SelectionTarget): target is NeighborhoodTarget {
     return "neighborsOf" in target || "depth" in target || "direction" in target || "window" in target;
@@ -587,7 +587,7 @@ function addPastedId(raw: NodeId, nodes: ElementMask<NodeId>, edges: ElementMask
 }
 
 /**
- * Check a neighbourhood target's depth: a whole number of steps from 1.
+ * Check a neighborhood target's depth: a whole number of steps from 1.
  * @param depth - What was passed.
  * @returns The depth to walk.
  * @throws A `GraphtyError` coded `E_OPTION_RANGE` when it is not a whole number from 1.
@@ -644,7 +644,7 @@ function walkNeighborhood(
 }
 
 /**
- * One bound of a neighbourhood window as a number.
+ * One bound of a neighborhood window as a number.
  * @param name - `"from"` or `"to"`, for the refusal.
  * @param bound - The bound as given.
  * @returns The number.
@@ -661,7 +661,7 @@ function windowBound(name: "from" | "to", bound: unknown): number {
 }
 
 /**
- * Which edges a neighbourhood walk may follow.
+ * Which edges a neighborhood walk may follow.
  * @param window - The target's window, if any.
  * @param context - What the resolution reads.
  * @returns A test by edge row.
@@ -693,7 +693,7 @@ function edgeFilter(window: NeighborhoodWindow | undefined, context: TargetConte
 }
 
 /**
- * The elements a neighbourhood target names.
+ * The elements a neighborhood target names.
  * @param target - The target.
  * @param context - What the resolution reads.
  * @returns The two masks.

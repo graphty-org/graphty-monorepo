@@ -1,6 +1,6 @@
 /**
  * The `wcc-link-sample` kernel body: one of Afforest's sampled link rounds -- every vertex links its
- * r-th neighbour, `colIdx[rowPtr[v] + P.r]`, when it has one. `link_pair` is GAP's `Link` (gapbs/cc.cc lines
+ * r-th neighbor, `colIdx[rowPtr[v] + P.r]`, when it has one. `link_pair` is GAP's `Link` (gapbs/cc.cc lines
  * 40-150) transcribed for WGSL: all-u32 CAS on `comp`, which is `array<atomic<u32>>` because WGSL forbids mixing
  * atomic and plain access to one element, with a bounded retry loop. The changed flag is the word at
  * `P.flagIndex` inside the same array. The body is normative: a sabotage mutation is a textual edit of it,

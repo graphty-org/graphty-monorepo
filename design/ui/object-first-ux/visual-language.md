@@ -12,7 +12,7 @@ Every value here comes from one of two measured sources, and each rule says whic
 1. **compact-mantine**, the component library the app is built with. It was rebuilt to match
    the Figma editor's own interface, property by property. Its values live in three files under
    `/home/apowers/Projects/graphty-monorepo/.worktrees/compact-mantine-figma/compact-mantine/`:
-   - `src/theme/tokens.ts`: every colour, type role, spacing step, radius, shadow and duration,
+   - `src/theme/tokens.ts`: every color, type role, spacing step, radius, shadow and duration,
      as code. Cited below as **tokens.ts**.
    - `design/figma-spec.md`: the specification each component was built to, component by
      component and state by state. Cited as **spec** plus its section number ("spec 2.3").
@@ -40,17 +40,17 @@ specified in `round-4/revision-round-4.md` section 9.1 and not yet drawn.
 - **Rail**: the 56 px column of icon buttons at the far left. **Left panel**: the 240 px panel
   the active rail button shows. **Inspector**: the 240 px right panel, which always shows the
   selection. **Dock**: the drawer under the canvas (Table, History). **Toolbar**: the floating
-  bar at the bottom centre of the canvas. **Secondary bar**: the smaller bar above the toolbar
+  bar at the bottom center of the canvas. **Secondary bar**: the smaller bar above the toolbar
   while a tool is armed. **Status bar**: the 24 px strip across the bottom of the window.
 - **Row**: one horizontal band of a panel, holding one thing. **Control**: anything a reader can
-  operate (button, field, select, switch, checkbox, colour chit).
+  operate (button, field, select, switch, checkbox, color chit).
 - **Surface**: a filled area that other things sit on: a panel, the toolbar, a menu, a dialog.
 - **Token**: a named value from compact-mantine, written as its CSS custom property,
-  `--cm-<name>`. A colour token has a light value and a dark value, written `light / dark`.
-- **Ink**: the colour of text and icons. **Fill**: the colour of a surface or a control's face.
+  `--cm-<name>`. A color token has a light value and a dark value, written `light / dark`.
+- **Ink**: the color of text and icons. **Fill**: the color of a surface or a control's face.
 - **Accent**: the one blue, #0d99ff in light and #0c8ce9 in dark (`--cm-bg-brand`).
 - **Elevation**: a drop shadow that says a surface floats above the one under it.
-- **Glyph**: the drawing inside an icon. **Icon box**: the square the glyph is centred in.
+- **Glyph**: the drawing inside an icon. **Icon box**: the square the glyph is centered in.
 - **At rest**: the frame after a load, with nothing hovered, open or running.
 - **App-authored text**: words the app wrote (labels, hints, explanations), as opposed to the
   reader's own words (object names, notes) and the data's (labels, values, column names).
@@ -63,7 +63,7 @@ hard to use (`analysis.md` section 4) and from the Figma study (Figma flows 1).
 
 | # | Principle | The test | Where it comes from |
 |---|---|---|---|
-| P1 | **Restraint.** Chrome is quiet so the graph can be loud | Every chrome colour on screen is a `--cm-*` token; no chrome element uses a data colour; at most one filled accent button per surface (section 7.4) | `analysis.md` section 4, "one primary button" |
+| P1 | **Restraint.** Chrome is quiet so the graph can be loud | Every chrome color on screen is a `--cm-*` token; no chrome element uses a data color; at most one filled accent button per surface (section 7.4) | `analysis.md` section 4, "one primary button" |
 | P2 | **Content over chrome.** At rest, the words on screen are the reader's and the data's | At rest, each panel carries at most one app-authored sentence, and that sentence is about the reader's data (the reading row); no hints, tips, "i" icons, "coming soon" tags or suggestion cards | `analysis.md` section 4, "no app-authored text at rest" |
 | P3 | **One home per capability.** Each capability is drawn in exactly one place | For any control on a screen, the UX documents name one home for it; every other way in is a shortcut (a key, a Ctrl+K row, a menu row) that opens that home, never a second copy of its controls | `analysis.md` section 4; round-4 section 2.1 |
 | P4 | **Disclosure on request.** A section appears when it has content or the reader asks | No empty list, empty chart or placeholder row is drawn; an empty section is only its 40 px header with a "+"; optional canvas furniture (legend, minimap) is off until switched on | `analysis.md` section 4 |
@@ -106,7 +106,7 @@ defect, even when it looks right (root `CLAUDE.md`, "UI Components", the lock-bu
 | Inspector header | 48 tall: framing pill, Export | `--cm-bg`, 1 px `--cm-border` below | round-2 screens conventions |
 | Panel title row (each rail panel) | 40 tall: the panel's name, at most two 24 px icon buttons ("+", "...") | none | round-4 2.3; Figma components 44 (left-panel group header) |
 | Inspector header block | 144 tall, never scrolls: kind and name 48, summary 32, reading 32, tabs 32 | none | round-2 2.6 rule 1 |
-| Toolbar | 48 tall, width hugs content (465 px, 505 with Time), centred on the canvas, 12 px above what is under the canvas | `--cm-bg`, radius 13, elevation 200 | spec 11.1; round-4 3.1 |
+| Toolbar | 48 tall, width hugs content (465 px, 505 with Time), centered on the canvas, 12 px above what is under the canvas | `--cm-bg`, radius 13, elevation 200 | spec 11.1; round-4 3.1 |
 | Secondary bar | 40 tall, 8 px above the toolbar | `--cm-bg`, radius 13, elevation 200 | spec 11.3 |
 | Time transport bar | 40 tall across the canvas's width, above the dock handle; the toolbar rises 40 px with it | `--cm-bg`, 1 px `--cm-border` above | round-2 6.1; round-4 5 |
 | Dock handle (closed dock) | 32 tall strip of pill tabs (Table, History) | `--cm-bg`, 1 px `--cm-border` above | round-2 9.2; round-4 2.8 |
@@ -154,7 +154,7 @@ One row, one job. These are the only row heights in the chrome (spec 9.1, 9.2, 9
 
 | Row type | Height | Anatomy |
 |---|---|---|
-| Property row (one control) | 32 | a 24 px control centred, 4 above and below; padding 0 8 0 16 |
+| Property row (one control) | 32 | a 24 px control centered, 4 above and below; padding 0 8 0 16 |
 | Tree row | 32 | caret 16, kind icon 16, name; hover and selection are a 24 px pill inset 4 8 4 12 |
 | List row (page, view, dataset, column) | 32 | a 24 px pill inset 4 8 4 12 around the content |
 | Checkbox or switch row | 32 | 16 box, 8 gap, label |
@@ -173,7 +173,7 @@ One row, one job. These are the only row heights in the chrome (spec 9.1, 9.2, 9
 - **R1.** A row that needs more than one line does not grow: it is split into two rows, or its
   extra detail goes in a tooltip or a disclosure (spec 9.6; round-2 2.6 rule 3).
 - **R2.** Rows set their line-height to the row height rather than padding (tree rows 11/32),
-  so text is centred by construction (Figma components 1).
+  so text is centered by construction (Figma components 1).
 - **R3.** No inspector tab exceeds 14 rows with every conditional row drawn (round-2 2.6 rule 3).
 
 ### 2.4 Spacing
@@ -200,7 +200,7 @@ The scale is 4, 8, 12, 16, 24, 32 px, nothing else (spec 2.4; tokens.ts `compact
 - **A2.** Numbers in a column of rows (counts, values, percentages) are right-aligned at the
   column's end, and use tabular figures (`font-variant-numeric: tabular-nums`) so digits line
   up. **(decided here**: Inter has tabular figures; without them a column of values jitters.)
-- **A3.** Icons are centred in their icon box; the box, not the glyph, is aligned to the grid.
+- **A3.** Icons are centered in their icon box; the box, not the glyph, is aligned to the grid.
 - **A4.** A row's actions cluster at its end, 4 px apart, the last one at x 232.
 
 ### 2.6 Density
@@ -230,7 +230,7 @@ ui-monospace, SFMono-Regular, Menlo, monospace`, not bundled. (tokens.ts `CM_FON
 - **T2.** No uppercase text anywhere in the chrome, including section headers. (Several UX
   documents write section names in capitals, such as "ROLES" in round-4 2.4, to mark them as
   headers in a table; on screen they are "Roles".) (spec 2.3)
-- **T3.** Emphasis is weight, never size, colour or italics (spec 2.3).
+- **T3.** Emphasis is weight, never size, color or italics (spec 2.3).
 
 ### 3.2 The scale, and one job per size
 
@@ -255,7 +255,7 @@ another job to "make it fit" or "make it stand out". (tokens.ts `CM_TYPE`; spec 
 | Code | 11 / 16, monospace | 400 | normal | formulas, commands ("Copy as command"), error codes in brackets |
 
 - **T4.** The weights in use are 400, 450, 500, 550 and 600, each tied to a style above. A
-  weight is never set on its own to emphasise a word, with one exception: the matched part of a
+  weight is never set on its own to emphasize a word, with one exception: the matched part of a
   Find result is 600 (spec 10.4).
 - **T5.** No text is smaller than 11 px except the three 9 px and 10 px styles above, each in its
   one place.
@@ -278,14 +278,14 @@ compact-mantine's field labels (Mantine's `label` prop) and `ControlGroup` legen
 legend was replaced in the build. A caption names a field in at most three words ("Opacity",
 "Corner radius", "Font size").
 
-## 4. Colour
+## 4. Color
 
-### 4.1 How colour is organised
+### 4.1 How color is organized
 
-Every chrome colour is a compact-mantine token, written with the CSS `light-dark()` function, so
+Every chrome color is a compact-mantine token, written with the CSS `light-dark()` function, so
 one set of rules produces both themes (spec 2). The app never writes a hex value for chrome.
 Ink is translucent black in light (90, 50 and 30 percent) and translucent white in dark (100, 70
-and 40 percent), so the same ink reads correctly on white, grey and tinted fills (Figma
+and 40 percent), so the same ink reads correctly on white, gray and tinted fills (Figma
 components 2).
 
 ### 4.2 The palette by role
@@ -338,7 +338,7 @@ Light / dark. Source: tokens.ts `CM_COLORS`; spec 2.1.
 |---|---|---|---|
 | Danger fill | `--cm-bg-danger` | #f24822 / #e03e1a | the confirm button of a destructive, not undoable action (screen 44), and nothing else |
 | Success fill | `--cm-bg-success` | #14ae5c / #198f51 | not used by the app today (reserved) |
-| Warning fill | `--cm-bg-warning` | #ffcd29 / #f3c11b | the fill of the warning glyph only; never behind text, never as text colour |
+| Warning fill | `--cm-bg-warning` | #ffcd29 / #f3c11b | the fill of the warning glyph only; never behind text, never as text color |
 | Component purple | `--cm-text-component`, `--cm-bg-component-tertiary`, `--cm-icon-component-tertiary` | #8638e5 / #d1a8ff, and tints | reserved; not used by the app (**decided here**: Figma uses purple to mean "an instance of a reusable component"; graphty has no such thing in the chrome yet. The candidate is a saved style applied to an object. Until that is decided, no purple) |
 
 ### 4.3 What the accent means
@@ -372,22 +372,22 @@ canvas.
 | Table rows (dock) | every cell `--cm-bg-selected`; no hover tint | spec 10.6 |
 | Multiple objects selected | the inspector's fields that differ read "Mixed" (section 7.3) | Figma flows 2 |
 
-### 4.5 Data colours are content
+### 4.5 Data colors are content
 
-The graph's colours (community palettes, measure ramps, highlight colours for Sets, the
-reader's own style colours) are the reader's content, like the text of a document.
+The graph's colors (community palettes, measure ramps, highlight colors for Sets, the
+reader's own style colors) are the reader's content, like the text of a document.
 
-- **C1.** Chrome never uses a data colour. A tree row's style chip and a legend swatch SHOW data
-  colours; they do not borrow them for anything else (no tinted rows, no coloured names, no
-  coloured counts).
+- **C1.** Chrome never uses a data color. A tree row's style chip and a legend swatch SHOW data
+  colors; they do not borrow them for anything else (no tinted rows, no colored names, no
+  colored counts).
 - **C2.** Data never uses the accent. graphty-element's highlight palette, from which each new
-  Set takes its colour, is disjoint from every categorical palette and never contains #0d99ff,
+  Set takes its color, is disjoint from every categorical palette and never contains #0d99ff,
   #0c8ce9, #007be5 or the selected tint (round-2 5.4; `analysis.md` 5.13).
-- **C3.** The same data colour is drawn the same everywhere it appears: on the canvas, in the
+- **C3.** The same data color is drawn the same everywhere it appears: on the canvas, in the
   tree chip, in the legend, in the inspector's Style tab. The chrome reads it from
   graphty-element; it never keeps its own copy (root `CLAUDE.md`, "The app MUST NOT work around
   graphty-element").
-- **C4.** Switching the theme does not change data colours. Only the element's default greys
+- **C4.** Switching the theme does not change data colors. Only the element's default grays
   for unstyled nodes and edges change (#757575 nodes and #5a5a5a edges in dark), and that is the
   element's job (`analysis.md` section 3; graphty-element issues #291 and #331).
 
@@ -401,7 +401,7 @@ legend card.
 ### 4.7 The two contrast settings
 
 compact-mantine has a `highContrast` option (`createCompactTheme({ highContrast: true })`),
-off by default. When on, it changes only colour tokens, to values from Figma's own palette, so
+off by default. When on, it changes only color tokens, to values from Figma's own palette, so
 that every text and control pair passes WCAG 2.2 AA (spec 2.9; changelog "The high-contrast
 option"). What it changes:
 
@@ -419,7 +419,7 @@ option"). What it changes:
 
 Dividers do not change. Nothing moves or resizes.
 
-- **C5.** The app offers this as one switch in Settings, labelled "High-contrast interface".
+- **C5.** The app offers this as one switch in Settings, labeled "High-contrast interface".
   **(decided here**: the Styles panel already has a Look called "High contrast", which changes
   the GRAPH. The two must not share a name, by the rule "one word for one thing", `analysis.md`
   section 4.)
@@ -441,7 +441,7 @@ Four values, each with its own set of parts (spec 2.5; tokens.ts `compactRadius`
 
 | Radius | Parts |
 |---|---|
-| 2 | checkbox face, colour chit, key cap, size badge |
+| 2 | checkbox face, color chit, key cap, size badge |
 | 5 | every button, field, select, tab, tooltip, row highlight pill, menu highlight, badge, chip |
 | 13 | menus, list boxes, popovers, dialogs, the toolbar, the secondary bar, the command palette, the toast, the scatter-plot panel |
 | full | switch track, slider track, avatar, help button, notification dot, progress bar |
@@ -474,7 +474,7 @@ Panels have no shadow. Floating surfaces take one of these, and only these (spec
 | 100 | nothing in graphty today (Figma uses it for the sliding thumb of a mode switch) |
 | 200 | the toolbar, the secondary bar, the command palette, the floating help button if one is used |
 | 300 | tooltips |
-| 400 | menus, list boxes, light popovers (the parameters popover, the colour picker, the default-look popover), the scatter-plot panel |
+| 400 | menus, list boxes, light popovers (the parameters popover, the color picker, the default-look popover), the scatter-plot panel |
 | 500 | dialogs (Import, Export, Settings, confirmations) |
 | toast | the toast only |
 
@@ -499,7 +499,7 @@ other work (spec 8.5, `withOverlay` false by default).
 ### 6.2 How a glyph is drawn
 
 - **I1.** Glyphs are outlines drawn with round caps and joins, one CSS pixel wide at the size
-  they are drawn, in `currentColor`. Colour always comes from the control's ink token, never
+  they are drawn, in `currentColor`. Color always comes from the control's ink token, never
   from the drawing (compact-mantine `src/icons/index.tsx`, `strokeFor`).
 - **I2.** A glyph is filled only to show a state that its outline already shows (the bound form
   of a field glyph; a filled dot for "on"). Never for decoration.
@@ -561,7 +561,7 @@ job. A job not in this table is added here before it is drawn.
 | 2 to 6 mutually exclusive options, shown at once | `SegmentedControl` | icon options carry a visually hidden word |
 | On / off | `Switch` in a row; `Checkbox variant="neutral"` in a panel list; blue `Checkbox` in dialogs | |
 | On / off as an icon (eye, lock, pin) | `ToggleIconButton` | fires on pointer down |
-| A colour | `CompactColorInput` (paint row) + `ColorPickerPanel` | 14 px chit inside the field |
+| A color | `CompactColorInput` (paint row) + `ColorPickerPanel` | 14 px chit inside the field |
 | A gradient or ramp | `GradientEditor`, `RampRow` | |
 | Icon button | `ActionIcon` (subtle) | 24 box; 32 for large |
 | Text button | `Button`: filled (primary), `default` (secondary), `subtle` (ghost), `danger` | 24 tall (32 for `md`) |
@@ -584,7 +584,7 @@ job. A job not in this table is added here before it is drawn.
 body text in secondary ink and 20 px subtle `Button`s for its chips), the file header (a
 `SplitButton`-like pair: the name renames, the chevron opens the file menu), the inspector
 header block, and the time transport bar. Each is built only from the components above; none
-introduces a colour, size or radius outside this document. If a second consumer would need one
+introduces a color, size or radius outside this document. If a second consumer would need one
 of them, it moves into compact-mantine.
 
 ### 7.2 States
@@ -594,14 +594,14 @@ Every control has these states, drawn the same everywhere (spec 4 to 11):
 | State | How it is drawn | Notes |
 |---|---|---|
 | Rest | as section 4 | focusable controls carry a transparent 1 px outline so focus never shifts layout |
-| Hover | the control's hover fill (`--cm-bg-hover` for rows, tabs, tools, rail; `--cm-bg-transparent-hover` for ghost and secondary buttons; `--cm-border` outline for fields) | instant; icons do not change colour |
+| Hover | the control's hover fill (`--cm-bg-hover` for rows, tabs, tools, rail; `--cm-bg-transparent-hover` for ghost and secondary buttons; `--cm-border` outline for fields) | instant; icons do not change color |
 | Pressed | `--cm-bg-pressed` or `--cm-bg-transparent-pressed`; primary button `--cm-bg-brand-pressed` | |
 | Focus (keyboard) | 1 px `--cm-border-selected`; outside (+1) on buttons, tabs and checkboxes; inside (-1) on fields, joined segments, toolbar tools and the active rail pill; double ring on a filled accent tool | only on `:focus-visible`, except text and number fields, which ring on any focus |
-| Selected | tint `--cm-bg-selected` for rows; `--cm-bg-secondary` plus weight 550 for the selected pill tab and the current page row; accent fill for the armed tool | a selected tab is grey, not blue |
+| Selected | tint `--cm-bg-selected` for rows; `--cm-bg-secondary` plus weight 550 for the selected pill tab and the current page row; accent fill for the armed tool | a selected tab is gray, not blue |
 | Open | a trigger whose menu or popover is showing: `--cm-bg-selected` with a brand glyph (icon buttons, rail); `--cm-bg-pressed` (tool chevrons, rows that opened a popover) | |
 | On | toggle icon button: `--cm-bg-selected` + brand glyph; switch: accent track | |
 | Disabled | disabled ink; filled buttons `--cm-bg-disabled`; no hover; skipped by Tab | a disabled control that the reader might expect to work has a tooltip saying why ("12,400 nodes showing; VR takes up to 10,000", round-4 3.4) |
-| Mixed | number and text fields show the word "Mixed"; a checkbox shows a dash; a switch shows a centred bar | when several objects are selected and their values differ |
+| Mixed | number and text fields show the word "Mixed"; a checkbox shows a dash; a switch shows a centered bar | when several objects are selected and their values differ |
 | Invalid | field outline `--cm-border-danger-strong`, hidden while focused; bad input reverts on commit | no inline error text in panels (Figma flows 6) |
 | Loading | a filled button keeps its width, shows a 16 px spinner, cursor `progress` | |
 
@@ -642,7 +642,7 @@ drawn.
 
 | What | Property, duration, easing |
 |---|---|
-| Section header title, chevron and "+" on hover, empty sections only | colour, 100 ms ease-out |
+| Section header title, chevron and "+" on hover, empty sections only | color, 100 ms ease-out |
 | Hover-revealed row actions (tree row eye and lock) | opacity, 100 ms ease-out |
 | Checkbox tick, when checking | 100 ms, `--cm-ease-in-out` |
 | Switch knob and track | 100 ms |
@@ -680,10 +680,10 @@ drawn.
   conventions).
 - **W4.** A label is at most three words; a button at most two, not counting an ellipsis.
 
-### 9.2 Capitalisation and punctuation
+### 9.2 Capitalization and punctuation
 
 - **W5.** Sentence case everywhere: "Export styles...", "Open table", "Show hidden faintly".
-  Only proper nouns and the view modes ("2D", "3D", "VR", "AR") are capitalised beyond the first
+  Only proper nouns and the view modes ("2D", "3D", "VR", "AR") are capitalized beyond the first
   word.
 - **W6.** A command that asks for more before it acts ends in "..." (three ASCII dots): "Import
   styles...", "Replace...". A command that acts at once has none: "Reload", "Save view".
@@ -825,7 +825,7 @@ off.
    it off, these known pairs fall short, as Figma's do, and are accepted: secondary text on
    white (4.0:1), placeholder text (2.3:1), white on the accent (2.99:1), the focus ring on
    white (2.99:1), checkbox edges.
-2. **Colour is never the only signal.** A state shown by colour also has a glyph or a word: a
+2. **Color is never the only signal.** A state shown by color also has a glyph or a word: a
    stale object has a glyph and "Stale", an error has a glyph and a sentence, a selected row
    also has `aria-selected`.
 3. **Focus is always visible** on keyboard focus (1 px ring, section 7.2) and never moves the
@@ -858,7 +858,7 @@ built app. The existing mock audit scripts, `tmp/object-first/audit/measure.mjs`
    resized the left panel, which is then between 240 and 480.
 3. The status bar is 24 px tall; the dock handle 32; the toolbar 48; the secondary bar 40; the
    transport bar 40.
-4. The toolbar is horizontally centred on the canvas and its bottom edge is 12 px above the
+4. The toolbar is horizontally centered on the canvas and its bottom edge is 12 px above the
    element under the canvas; the secondary bar's bottom is 8 px above the toolbar's top.
 5. Every panel row is 32 px tall, except section headers and panel title rows (40), field rows
    (48), captioned two-column rows (50), file and inspector headers (48) and chart rows (64).
@@ -882,15 +882,15 @@ built app. The existing mock audit scripts, `tmp/object-first/audit/measure.mjs`
 14. Text that does not fit ends in an ellipsis and has a tooltip with the full text; no count or
     number is truncated.
 
-**Colour**
+**Color**
 
-15. Every colour, background, border and shadow in the chrome resolves to a `--cm-*` token's
+15. Every color, background, border and shadow in the chrome resolves to a `--cm-*` token's
     value for the current theme.
 16. At most one filled accent button per surface (K1).
 17. The accent (#0d99ff, #0c8ce9, #007be5, #7cc4f8, #e5f4ff, #394360) appears only in the
     roles listed in section 4.3.
-18. No chrome element's text or fill uses a data palette colour; the only data colours in the
-    chrome are inside style chips, legend swatches, colour chits and chart rows.
+18. No chrome element's text or fill uses a data palette color; the only data colors in the
+    chrome are inside style chips, legend swatches, color chits and chart rows.
 19. Menus, list boxes and tooltips are #1e1e1e in both themes; the toast is #2c2c2c.
 20. The dark twin of a screen differs from the light one only in token values (compare the
     DOM: same boxes, same text).
@@ -916,7 +916,7 @@ built app. The existing mock audit scripts, `tmp/object-first/audit/measure.mjs`
 **Components and states**
 
 30. Every control is a compact-mantine component from section 7.1, used with its default
-    variant for its job; no app-side style overrides a compact-mantine component's size, colour
+    variant for its job; no app-side style overrides a compact-mantine component's size, color
     or radius.
 31. Every focusable element shows a 1 px `--cm-border-selected` ring on keyboard focus, and its
     box does not move when it does.
@@ -946,7 +946,7 @@ built app. The existing mock audit scripts, `tmp/object-first/audit/measure.mjs`
 42. Every interactive target is at least 24 x 24 px.
 43. With `highContrast` on, every text and control pair measures at least 4.5:1 (text) or 3:1
     (non-text) against what it sits on.
-44. Every state shown by colour is also shown by a glyph, a word or an ARIA state.
+44. Every state shown by color is also shown by a glyph, a word or an ARIA state.
 
 ## 13. Where the current mocks and documents disagree with this
 
@@ -958,12 +958,12 @@ older document should change.
 | # | The mocks or documents say | This document says | Why |
 |---|---|---|---|
 | 1 | The secondary bar is dark with a light Run button (kit `.k-secondary-bar`, `.k-btn-light`) | a light surface (`--cm-bg`, elevation 200) whose Run is the filled accent | compact-mantine `SecondaryToolbar`, spec 11.3 |
-| 2 | Every pill tab is weight 550 (round-2 screens conventions; kit `.k-tab`) | unselected tabs 450 in secondary ink, the selected one 550 on a grey pill | spec 5.1 |
+| 2 | Every pill tab is weight 550 (round-2 screens conventions; kit `.k-tab`) | unselected tabs 450 in secondary ink, the selected one 550 on a gray pill | spec 5.1 |
 | 3 | The selected tree row is weight 550 (round-2 screens conventions) | a tree row's weight is set by its level (600 top, 400 nested), not by selection | spec 10.1 |
 | 4 | Menu rows are 32 px (`analysis.md` section 3) | 24 px | spec 8.1 |
 | 5 | The toolbar is 56 px with 8 px labels under 40 px buttons (round-2 screens conventions) | 48 px, 32 px tools, no labels | round-4 3.1 |
 | 6 | Field captions and legends: 11/16 weight 400 (spec 9.3) | 9/14 weight 500 | changelog items 21 and 39 (what shipped) |
-| 7 | The kit has tokens compact-mantine lacks: `--k-text-warning`, `--k-text-success`, `--k-bg-danger-tertiary`, `--k-bg-success-tertiary`, `--k-bg-warning-tertiary`, and matching borders | they are not used; a status is a glyph and words in normal ink, and a danger sentence in `--cm-text-danger` | P6: the kit may not have colours the component library does not; if the app needs one, it is added to compact-mantine first |
+| 7 | The kit has tokens compact-mantine lacks: `--k-text-warning`, `--k-text-success`, `--k-bg-danger-tertiary`, `--k-bg-success-tertiary`, `--k-bg-warning-tertiary`, and matching borders | they are not used; a status is a glyph and words in normal ink, and a danger sentence in `--cm-text-danger` | P6: the kit may not have colors the component library does not; if the app needs one, it is added to compact-mantine first |
 | 8 | Toolbar tooltips open with no delay (round-4 3.1) | the shared 1000 / 0 / 300 timing until compact-mantine supports a per-tooltip delay inside the group | changelog, "Known differences" |
 | 9 | The "?" button at the right of the status bar (round-2 1.6) | gone; Help is at the rail's foot | round-4 2.8 |
 

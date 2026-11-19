@@ -86,7 +86,7 @@ async function runTypedoc() {
 const ANSI = new RegExp(String.raw`${String.fromCharCode(27)}\[[0-9;]*m`, "g");
 
 /**
- * Strips the ANSI colour codes TypeDoc writes around its severity labels.
+ * Strips the ANSI color codes TypeDoc writes around its severity labels.
  * @param {string} line One line of output.
  * @returns {string} The same line with escape sequences removed.
  */

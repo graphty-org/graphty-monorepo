@@ -8,8 +8,8 @@
 // cancelled() and always() and the implicit success() of an `if:` that names none of them; the needs graph decides
 // what runs (a job whose `if` is false is skipped, and a skipped or failed ancestor, a need's need too, skips a job
 // that only asks success());
-// a job's result comes from the row (default success; a lane can be failure, cancelled or timed_out, which ends a
-// job cancelled); a called workflow (`uses: ./.github/workflows/x.yml`) runs with the caller's github context and
+// a job's result comes from the row (default success; a lane can be failure, canceled or timed_out, which ends a
+// job canceled); a called workflow (`uses: ./.github/workflows/x.yml`) runs with the caller's github context and
 // the inputs its `with:` computes, and fails when one of its jobs fails; steps run in order with their `if`, and a
 // row stubs their outputs (the verdict's are computed by tools/full-run.mjs's own functions from the LANES the
 // workflow templates); attempt N+1 keeps attempt N's results and outputs for every job that did not fail and does not
@@ -144,7 +144,7 @@ function inputsFor(wf, event, given) {
 // file: the workflow's file name
 // sc: the row: github (the context), inputs, vars, results `{ path: result }` (a path is the job id, or
 // `<caller>/<job>` inside a called workflow), outputs `{ path: outputs }` (a job's outputs, instead of its steps'),
-// steps `{ path: { stepId: { outputs, fail } | (step) => ... } }`, cancelled (the run was cancelled), prior (the
+// steps `{ path: { stepId: { outputs, fail } | (step) => ... } }`, canceled (the run was canceled), prior (the
 // previous attempt's run, for a re-run of its failed jobs)
 // returns `{ jobs: { path: { result, outputs, steps, ran } }, conclusion, title, reads }`
 function simulate(file, sc) {
@@ -910,7 +910,7 @@ describe("the nightly path's scenario matrix", () => {
     });
 
     // run 40950661827 attempt 2: GitHub stopped CI's Performance Benchmarks (continue-on-error) after 18 minutes,
-    // the CI call ended cancelled although every job that gates passed, the LLM lane skipped and the verdict filed
+    // the CI call ended canceled although every job that gates passed, the LLM lane skipped and the verdict filed
     // "CI cancelled" as red with a bisect (#4556)
     it("(18) an advisory CI job cancelled, every gating job green: the CI lane passes and the LLM lane still runs", () => {
         const r = fullRun({ results: { "ci/performance": "cancelled" }, judged: { held: "" } });
@@ -919,7 +919,7 @@ describe("the nightly path's scenario matrix", () => {
         ran(r, "llm", "recapture", "verdict");
         skipped(r, ...RED_EARLY);
         assert.equal(r.jobs.verdict.outputs.state, "green-clean");
-        // a gating job that ends cancelled (its own timeout) still makes the lane red
+        // a gating job that ends canceled (its own timeout) still makes the lane red
         const gating = fullRun({ results: { "ci/performance": "cancelled", "ci/all-checks": "failure" }, judged: {} });
         assert.equal(gating.jobs.verdict.outputs.state, "red");
         skipped(gating, "llm");

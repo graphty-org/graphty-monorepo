@@ -201,7 +201,7 @@ export function replaceTargets(ctx: CommandContext): ReplaceTarget[] {
 }
 
 /**
- * Closes the join screen. Cancelling a file keeps its draft and offers Undo, which opens the
+ * Closes the join screen. Canceling a file keeps its draft and offers Undo, which opens the
  * screen on it again; the draft is let go once the notice goes without Undo.
  * @param ctx - the command context.
  * @param subject - the table, or undefined.

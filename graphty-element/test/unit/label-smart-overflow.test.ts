@@ -73,4 +73,12 @@ describe("badge margins", () => {
         assert.deepEqual(margins({ marginTop: 0 }), [0, 5, 5, 5]);
         assert.deepEqual(margins({ marginLeft: 2, marginBottom: 0 }), [5, 5, 0, 2]);
     });
+
+    it("keeps the shortened words beside an icon", () => {
+        assert.strictEqual(shortened({ text: "1500", smartOverflow: true, icon: "*" }), "* 999+");
+        assert.strictEqual(
+            shortened({ text: "1500", smartOverflow: true, icon: "*", iconPosition: "right" }),
+            "999+ *",
+        );
+    });
 });

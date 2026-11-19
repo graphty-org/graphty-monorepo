@@ -173,11 +173,13 @@ export const BadgeStyleManager = {
         if (userOptions.icon && !userOptions.text) {
             options.text = userOptions.icon;
         } else if (userOptions.icon && userOptions.text) {
+            // The words already shortened by smart overflow: "999+" stays "999+" beside its icon.
+            const words = options.text ?? userOptions.text;
             const iconPos = userOptions.iconPosition ?? "left";
             if (iconPos === "left") {
-                options.text = `${userOptions.icon} ${userOptions.text}`;
+                options.text = `${userOptions.icon} ${words}`;
             } else {
-                options.text = `${userOptions.text} ${userOptions.icon}`;
+                options.text = `${words} ${userOptions.icon}`;
             }
         }
     },

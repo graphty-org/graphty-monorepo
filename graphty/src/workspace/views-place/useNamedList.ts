@@ -141,7 +141,7 @@ interface DragOrder {
 
 /**
  * Reorders a CardList by its grip, each move one undo step: while the pointer drags, the cards
- * follow a local preview and nothing is written; the drop commits once, a cancelled drag commits
+ * follow a local preview and nothing is written; the drop commits once, a canceled drag commits
  * nothing. Alt+Up and Alt+Down on the grip commit at once.
  * @param ids - the card ids in their saved order.
  * @param commit - writes one card's move to its new index; `byKey` is true for a key move.

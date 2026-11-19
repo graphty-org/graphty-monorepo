@@ -280,7 +280,7 @@ export function TourVideoOutput({
     const asked: TourVideoChoices = { ...choices, camera, tour };
     const reason = camera === "tour" ? target.tourReason : views.chosen.reason;
 
-    // The recording, for cancelling it when the output closes under it.
+    // The recording, for canceling it when the output closes under it.
     const live = useRef(false);
     useEffect(
         () => () => {
@@ -313,7 +313,7 @@ export function TourVideoOutput({
             const result = await element.captureAnimation(tourAnimationOptions(asked, name));
             recorded(name, result.metadata, onDone);
         } catch (error) {
-            setFailure(isGraphtyError(error) && error.code === "E_CANCELLED" ? null : failureWords(error));
+            setFailure(isGraphtyError(error) && error.code === "E_CANCELED" ? null : failureWords(error));
         } finally {
             live.current = false;
             setRecording(false);

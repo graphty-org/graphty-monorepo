@@ -38,7 +38,7 @@
     padding-inline: 16px 8px;
 }
 
-/* A stop's body and a tour's foot: one labelled field per row, 4 px apart. */
+/* A stop's body and a tour's foot: one labeled field per row, 4 px apart. */
 .vp-stop-body,
 .vp-tour-foot {
     display: flex;

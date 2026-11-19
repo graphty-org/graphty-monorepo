@@ -152,7 +152,7 @@ export interface AnimationOptions {
     destination?: { download?: boolean; filename?: string };
     /**
      * Cancels the recording when it aborts, as `cancelAnimationCapture()` does: the call rejects
-     * with `E_CANCELLED` and no file is made.
+     * with `E_CANCELED` and no file is made.
      */
     signal?: AbortSignal;
     /**

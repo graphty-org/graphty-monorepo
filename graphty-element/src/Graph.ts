@@ -8141,8 +8141,8 @@ export class Graph implements GraphContext {
      *     option }` for a still recording (or the `string[]` tour form) without `duration`, or
      *     `cameraMode: "animated"` without a tour; `{ reason: "no-stops" }` for an empty tour; the
      *     problem `planTour` reports for a tour that cannot be played; `E_UNSUPPORTED`
-     *     `{ reason: "xr", mode }` while immersive; `E_CANCELLED` (an `AnimationCancelledError`) when
-     *     cancelled; `E_CAPTURE_FAILED` `{ media: "video", reason }` when the tab is hidden
+     *     `{ reason: "xr", mode }` while immersive; `E_CANCELED` (an `AnimationCancelledError`) when
+     *     canceled; `E_CAPTURE_FAILED` `{ media: "video", reason }` when the tab is hidden
      *     (`"hidden"`), the canvas changes size (`"resized"`), or the tour ends early
      *     (`"interrupted"`, `"replaced"`, `"mode-changed"`).
      * @example
@@ -8507,7 +8507,7 @@ export class Graph implements GraphContext {
      * @param state - Where the camera goes.
      * @param ms - The flight; 0 jumps.
      * @param easing - The flight's easing.
-     * @returns Settles once the camera has arrived, or the flight was cancelled.
+     * @returns Settles once the camera has arrived, or the flight was canceled.
      */
     #applyTourCamera(
         state: import("./screenshot/types.js").CameraState,
@@ -8724,11 +8724,11 @@ export class Graph implements GraphContext {
      *   console.log('Cancelled:', wasCancelled);
      * }, 2000);
      *
-     * // The promise will reject with E_CANCELLED (an AnimationCancelledError)
+     * // The promise will reject with E_CANCELED (an AnimationCancelledError)
      * try {
      *   await capturePromise;
      * } catch (error) {
-     *   if (isGraphtyError(error) && error.code === 'E_CANCELLED') {
+     *   if (isGraphtyError(error) && error.code === 'E_CANCELED') {
      *     console.log('Capture was cancelled');
      *   }
      * }
@@ -9397,7 +9397,7 @@ export class Graph implements GraphContext {
 
         await Promise.all(motions);
 
-        // A cancelled flight's target is not the camera's now.
+        // A canceled flight's target is not the camera's now.
         if (signal?.aborted === true) {
             return;
         }

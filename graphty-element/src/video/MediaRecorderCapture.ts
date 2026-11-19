@@ -7,7 +7,7 @@ import { outputSize } from "./estimation.js";
 import { type AnimationOptions, type AnimationResult, calculateDropRate } from "./VideoCapture.js";
 
 /**
- * The error a cancelled recording rejects with: a `GraphtyError` with the code `E_CANCELLED`, so a
+ * The error a canceled recording rejects with: a `GraphtyError` with the code `E_CANCELED`, so a
  * caller switches on `code` as for every other failure; its `name` stays `"AnimationCancelledError"`.
  */
 export class AnimationCancelledError extends GraphtyError {
@@ -18,7 +18,7 @@ export class AnimationCancelledError extends GraphtyError {
      * Creates a new AnimationCancelledError
      */
     constructor() {
-        super({ code: "E_CANCELLED", message: "Animation capture cancelled", source: "view" });
+        super({ code: "E_CANCELED", message: "Animation capture cancelled", source: "view" });
     }
 }
 
@@ -201,7 +201,7 @@ export class MediaRecorderCapture {
         onProgress: ((progress: number) => void) | undefined,
         control: RecordingControl,
     ): Promise<AnimationResult> {
-        // Failed or cancelled while the caller was still getting ready (placing stop 0).
+        // Failed or canceled while the caller was still getting ready (placing stop 0).
         const failed = this.pendingFailure;
         if (failed !== null) {
             throw failed === "cancelled" ? new AnimationCancelledError() : recordingFailure(failed);
@@ -436,7 +436,7 @@ export class MediaRecorderCapture {
     }
 
     /**
-     * Fail an ongoing capture: it rejects with `E_CANCELLED` (an `AnimationCancelledError`) or with
+     * Fail an ongoing capture: it rejects with `E_CANCELED` (an `AnimationCancelledError`) or with
      * `E_CAPTURE_FAILED` `{ media: "video", reason }`, and never resolves with what it recorded.
      *
      * The flow is ordered to avoid race conditions:
@@ -474,7 +474,7 @@ export class MediaRecorderCapture {
     }
 
     /**
-     * Cancel an ongoing capture: it rejects with `E_CANCELLED`.
+     * Cancel an ongoing capture: it rejects with `E_CANCELED`.
      * @returns true if a capture was canceled, false if no capture was in progress
      */
     cancel(): boolean {

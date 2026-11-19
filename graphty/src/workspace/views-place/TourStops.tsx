@@ -184,7 +184,7 @@ function Summary({
 }
 
 /**
- * One labelled time: its word in the label column, with what it means as a tooltip, and a number
+ * One labeled time: its word in the label column, with what it means as a tooltip, and a number
  * field in seconds that says the same as its description.
  * @param props - Component props
  * @param props.label - the word: Fly in, Stay or Wait

@@ -39,7 +39,7 @@ rest. `timing` changes that: `{ waitForOperations: false }` or `{ waitForSettle:
 wait, and `{ settleTimeoutMs: 5000 }` sets how long to wait for the layout (default 30,000 ms)
 before the capture fails with the `E_NOT_SETTLED` error code.
 
-A capture that is waiting can be cancelled, or told to stop waiting and take the frame on screen:
+A capture that is waiting can be canceled, or told to stop waiting and take the frame on screen:
 
 ```typescript
 const cancel = new AbortController();
@@ -210,12 +210,12 @@ and read its `details`:
 | `E_OUT_OF_MEMORY`  | The browser would not give a canvas for the image                                                                                   | `of: "canvas"`                                                                                                  |
 | `E_NOT_SETTLED`    | The layout was still moving when the wait for it ran out                                                                            | `timeoutMs`                                                                                                     |
 | `E_CAPTURE_FAILED` | Rendering, encoding, recording or the clipboard write failed                                                                        | `media` (`"image"` or `"video"`), `destination` for a copy; `cause`; for a video, `reason` (below)              |
-| `E_CANCELLED`      | A video recording was cancelled (`signal` or `cancelAnimationCapture()`)                                                            | none                                                                                                            |
+| `E_CANCELED`       | A video recording was canceled (`signal` or `cancelAnimationCapture()`)                                                             | none                                                                                                            |
 
 A video fails with `E_CAPTURE_FAILED` and a `reason` when the tab is hidden (`"hidden"`: the page
 stops drawing frames), the canvas changes size (`"resized"`), or its tour ends early: the reader
 moved the camera (`"interrupted"`), something else moved it (`"replaced"`) or the drawing mode
-switched (`"mode-changed"`). No file is made then. A screenshot that is cancelled rejects with an
+switched (`"mode-changed"`). No file is made then. A screenshot that is canceled rejects with an
 `AbortError` instead, the signal's own reason.
 
 ## Downloading Screenshots
@@ -292,7 +292,7 @@ time, so a busy machine shows up as a drop rate above 0.
 | `height`       | `number`                          | canvas height   | Output height; with `width`, the picture is fitted inside both, centered, with black margins |
 | `camera`       | `CameraState \| { view: string }` | current camera  | Still recording: where the camera stands while recording; it is put back afterwards          |
 | `destination`  | `{ download?, filename? }`        | none            | `download: true` also saves the video as a file                                              |
-| `signal`       | `AbortSignal`                     | none            | Cancels the recording: it rejects with `E_CANCELLED` and no file is made                     |
+| `signal`       | `AbortSignal`                     | none            | Cancels the recording: it rejects with `E_CANCELED` and no file is made                      |
 
 ## Animation Capture Controls
 
@@ -381,10 +381,10 @@ says how many frames to expect and whether the machine is likely to drop some.
 
 **How each call ends.**
 
-| Call                                | When cancelled                                    | The camera afterwards                                                                                |
+| Call                                | When canceled                                     | The camera afterwards                                                                                |
 | ----------------------------------- | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
 | `playTour`                          | Resolves `{ reason: "cancelled" }`                | Stays where the tour left it; with `restoreCamera: true` (default false) put back when it finishes   |
-| `captureAnimation` with a `tour`    | Rejects with a `GraphtyError`, code `E_CANCELLED` | Always put back, except after the reader's own move, an outside camera move or a drawing mode switch |
+| `captureAnimation` with a `tour`    | Rejects with a `GraphtyError`, code `E_CANCELED`  | Always put back, except after the reader's own move, an outside camera move or a drawing mode switch |
 | `captureScreenshot` with a `camera` | Rejects with the signal's reason, an `AbortError` | Always put back                                                                                      |
 
 You can also drive the camera yourself while recording:
@@ -491,7 +491,7 @@ Add a screenshot button to your UI:
             downloadBlob(blob, `recording.${metadata.format}`);
         } catch (error) {
             // Stop cancels the recording: a cancelled recording keeps no video
-            if (error.code !== "E_CANCELLED") {
+            if (error.code !== "E_CANCELED") {
                 throw error;
             }
         } finally {

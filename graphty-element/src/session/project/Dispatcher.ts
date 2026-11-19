@@ -271,7 +271,7 @@ export interface UndoableDefinition<C extends CommandLike> extends DefinitionBas
         /**
          * What the step is called in the history ("Changed colour of Hubs"). `services` reaches
          * what sits beside the state, such as a removed set's name. Optional: a step without one
-         * is labelled with its fact's code, which an application words.
+         * is labeled with its fact's code, which an application words.
          */
         label?(command: C, state: ProjectState, services: CommandServices): string;
         /** What the step did, as a code and its values, for an application to word. */

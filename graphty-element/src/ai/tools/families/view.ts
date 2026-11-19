@@ -330,7 +330,7 @@ export const tourTool: ToolDefinition = {
                 }
 
                 const player = graph as TourPlayer;
-                // A tour takes seconds: it settles after the batch commits, and a cancelled message stops it.
+                // A tour takes seconds: it settles after the batch commits, and a canceled message stops it.
                 return Promise.resolve({
                     settle: async ({ signal }) => {
                         const { reason } = await coded(() => player.playTour(text(args.name), { signal }));

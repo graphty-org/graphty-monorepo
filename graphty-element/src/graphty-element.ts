@@ -391,9 +391,9 @@ export class Graphty extends LitElement {
      * The headless model this element draws.
      *
      * Everything about the graph that needs no screen is here: the data, the coordinates, the
-     * statistics, the catalogue, the runs and their results, which elements a piece of work may
+     * statistics, the catalog, the runs and their results, which elements a piece of work may
      * look at (`scope`), what is selected (`selection`) and what is visible (`visibility`). The
-     * camera, the canvas and the scene stay on the element, because two synchronised views of one
+     * camera, the canvas and the scene stay on the element, because two synchronized views of one
      * dataset disagree about those and agree about everything above.
      *
      * Read-only for now: a session built elsewhere cannot yet be attached to an element.
@@ -550,8 +550,8 @@ export class Graphty extends LitElement {
      * Forwarded from the session, so the first graph needs no session: a page with a tag and
      * three lines of script can run an analysis, await the result and read its ranking without
      * importing a module or learning what a session is.
-     * @param algorithm - Which algorithm to run, by its catalogue key such as "betweenness".
-     * @param params - Its parameters, as the catalogue declares them.
+     * @param algorithm - Which algorithm to run, by its catalog key such as "betweenness".
+     * @param params - Its parameters, as the catalog declares them.
      * @param options - The scope, the seed, the id, the signal and the progress handler.
      * @returns The run. Awaiting it gives the result; every encoding helper takes the run itself.
      * @since 2.0.0
@@ -580,7 +580,7 @@ export class Graphty extends LitElement {
      * One selection per graph, shared by every surface reading it. The five operations are
      * `"replace"` (the default, and what a click does), `"add"`, `"remove"`, `"toggle"` and
      * `"intersect"`.
-     * @param target - What to select: ids, a pasted list, a neighbourhood, a scope, a run's top n.
+     * @param target - What to select: ids, a pasted list, a neighborhood, a scope, a run's top n.
      * @param op - What to do with it; replaces the selection when absent.
      * @returns What changed: what joined, what left, and what the selection holds now.
      * @since 2.0.0
@@ -599,7 +599,7 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Choose the palette a colour binding uses when it names none, one per palette kind.
+     * Choose the palette a color binding uses when it names none, one per palette kind.
      *
      * Forwarded from `session.styles.setDefaultPalettes`. A default is resolved when a style
      * layer is written, so a saved document always names a concrete palette: call it before
@@ -756,7 +756,7 @@ export class Graphty extends LitElement {
      * Mirror one visibility change onto the DOM.
      *
      * Four counts, the paths nothing answered and what produced the change: everything "showing
-     * 1,204 of 50,000" needs, and nothing that cannot be serialised. Every producer arrives here
+     * 1,204 of 50,000" needs, and nothing that cannot be serialized. Every producer arrives here
      * -- a filter, the time window and the context flag -- because a status bar has to update for
      * all three and must not learn about them in three different ways.
      * @param change - The counts, the unresolved paths and what produced them.
@@ -996,7 +996,7 @@ export class Graphty extends LitElement {
     /**
      * Gives the new graph of an element inserted again after its shutdown what the page declared
      * on the old one, as the first update does for a new element: assigned as setup, so none of it
-     * is an undoable step, then initialised and drawn.
+     * is an undoable step, then initialized and drawn.
      * @param carried - Every reactive property's value, read off the old graph.
      */
     #redeclare(carried: Map<string, unknown>): void {
@@ -2420,9 +2420,9 @@ export class Graphty extends LitElement {
         if (ahead === undefined) {
             run = go();
         } else {
-            // A clear asked for while it waited cancelled its place. A pair assigned after the
+            // A clear asked for while it waited canceled its place. A pair assigned after the
             // clear is still waiting to load: it takes a place of its own. One assigned before it
-            // is what the clear cancelled, whichever door the clear came through.
+            // is what the clear canceled, whichever door the clear came through.
             run = ahead.then(go, () => {
                 this.#pairWaiting = undefined;
                 const next = this.#pairNext;
@@ -2661,7 +2661,7 @@ export class Graphty extends LitElement {
      * @param error - whatever the load rejected with
      */
     #reportLoadFailure(error: unknown): void {
-        // A load a clearData cancelled did what the caller asked for: it is no failure.
+        // A load a clearData canceled did what the caller asked for: it is no failure.
         if (isGraphtyError(error) && error.code === "E_SUPERSEDED") {
             return;
         }
@@ -2801,7 +2801,7 @@ export class Graphty extends LitElement {
      * A jmespath naming what to CALL a node, as distinct from how to address it.
      *
      * A result card naming the busiest node, a legend row and a ranked list all want a name a
-     * reader recognises, and an id is only sometimes one -- a GML file keys its nodes by integer
+     * reader recognizes, and an id is only sometimes one -- a GML file keys its nodes by integer
      * while carrying the name beside it. Unset, every one of those falls back to the printed id.
      * @since 2.0.0
      * @example
@@ -3192,7 +3192,7 @@ export class Graphty extends LitElement {
 
     /**
      * Choose a layout from the property pair, as one step. A catalog id ("force") is drawn by
-     * its default engine; an engine name maps to the catalogue id it serves, and the slice keeps
+     * its default engine; an engine name maps to the catalog id it serves, and the slice keeps
      * the engine itself.
      * @param name - The catalog id or the engine name.
      * @param options - Its options.
@@ -3221,7 +3221,7 @@ export class Graphty extends LitElement {
      *
      * CARRIED across `layout` and `layoutConfig` changes, so changing one force setting never
      * un-scopes the layout. Setting it restarts the running layout. Only a live simulation --
-     * whose catalogue entry reads `scoped: true` -- lays out a scope; under any other layout, or
+     * whose catalog entry reads `scoped: true` -- lays out a scope; under any other layout, or
      * when the set it names is removed, the scope is inactive and the whole graph is laid out.
      * Nothing here throws: a value that is not a scope is reported and dropped.
      *
@@ -3460,7 +3460,7 @@ export class Graphty extends LitElement {
 
     /**
      * Whether a minimap is drawn over the graph: every node seen from where the camera looks (a
-     * density heatmap above 5,000 nodes) and the rectangle the view shows. A click on it centres
+     * density heatmap above 5,000 nodes) and the rectangle the view shows. A click on it centers
      * the view there, a drag scrubs, and with it focused the arrow keys step the view.
      * @remarks
      * A preference of this view, not part of the project: switching it, and moving the camera with
@@ -3725,7 +3725,7 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * What a selected node looks like: the halo's colour, how far it stands out past the node,
+     * What a selected node looks like: the halo's color, how far it stands out past the node,
      * and how solid it is.
      * @remarks
      * Merged over what is already set, so naming one field leaves the others alone, and it takes
@@ -3770,14 +3770,14 @@ export class Graphty extends LitElement {
     /**
      * Which algorithms to run once data has finished loading, and how.
      * @remarks
-     * Run in the order given. Each entry is an algorithm -- a catalogue key such as "pagerank" or
+     * Run in the order given. Each entry is an algorithm -- a catalog key such as "pagerank" or
      * a 1.x address such as "graphty:pagerank" -- or an object carrying the algorithm and the
      * run options that make sense on load: `{ algorithm, params?, style?, seed?, as? }`, the same
-     * options `session.runs.start` takes. `style: { size: [1, 5] }` colours AND sizes the nodes
+     * options `session.runs.start` takes. `style: { size: [1, 5] }` colors AND sizes the nodes
      * by the result, exactly as it does there.
      *
      * This is the LIST; `runAlgorithmsOnLoad` is the switch that decides whether the list is
-     * honoured, and a switch with an empty list beside it does nothing.
+     * honored, and a switch with an empty list beside it does nothing.
      *
      * A malformed entry is refused with a `GraphtyError` coded `E_BAD_COMMAND` naming the entry
      * and its index, and the list already set is kept.
@@ -3902,15 +3902,15 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * What the graph is drawn against: a flat colour, or a photo-dome skybox.
+     * What the graph is drawn against: a flat color, or a photo-dome skybox.
      * @remarks
-     * A colour accepts anything CSS does -- a hex string, `rgb(...)`, or a name such as
-     * `whitesmoke` -- and is normalised to hex. A skybox wraps the graph in a photo dome built
+     * A color accepts anything CSS does -- a hex string, `rgb(...)`, or a name such as
+     * `whitesmoke` -- and is normalized to hex. A skybox wraps the graph in a photo dome built
      * from an image, given as a URL or a base64 PNG, and the element fires
      * `graphty-skybox-loaded` (`detail.url`) once its texture has arrived, once per new image; an
      * image that cannot be loaded fires `graphty-skybox-failed` instead, a coded failure
      * `{ code: "E_IMAGE_LOAD", params: { url } }`. Either may carry a background
-     * `shader`, drawn over the colour or the image; where its alpha is low, they show. With no
+     * `shader`, drawn over the color or the image; where its alpha is low, they show. With no
      * `color`, the element draws its default (`session.config.backgroundColor` says which).
      * @since 2.0.0
      * @example JavaScript property
@@ -3964,7 +3964,7 @@ export class Graphty extends LitElement {
      * A value the schema refuses is REPORTED AND DROPPED rather than thrown, on the same terms
      * as `acceleration`: this setter is reached from `attributeChangedCallback`, and a throw
      * there escapes as an unhandled rejection that reaches nobody, leaving the page with an
-     * element that never rendered. A wrong colour in markup must not take the graph down.
+     * element that never rendered. A wrong color in markup must not take the graph down.
      */
     set background(value: GraphBackgroundConfig | undefined) {
         const oldValue = this.background;
@@ -4010,7 +4010,7 @@ export class Graphty extends LitElement {
      * How the globe under the `location-map` layout looks beyond its map.
      * @remarks
      * Three parts, each off unless set: `atmosphere` (a thin blue glow of air around the rim),
-     * `sun` (where the sun is overhead; the far side is drawn dark) and `background` (a colour
+     * `sun` (where the sun is overhead; the far side is drawn dark) and `background` (a color
      * the canvas is cleared to while the globe is drawn, in place of the graph's own background).
      * A 2D map ignores it. A preference of this view, not saved with the project.
      * @since 3.31.0
@@ -4598,7 +4598,7 @@ export class Graphty extends LitElement {
      * @returns Promise<AnimationResult> - Result with video blob and metadata
      * @throws A `GraphtyError`: `E_BAD_COMMAND` for conflicting or missing options or a tour with
      *     no stops, the problem `planTour` reports for a tour that cannot be played,
-     *     `E_UNSUPPORTED` `{ reason: "xr", mode }` while immersive, `E_CANCELLED` when cancelled
+     *     `E_UNSUPPORTED` `{ reason: "xr", mode }` while immersive, `E_CANCELED` when canceled
      *     (`signal`, `cancelAnimationCapture()`), and `E_CAPTURE_FAILED` `{ media: "video", reason }`
      *     when the tab is hidden, the canvas is resized or the tour ends early.
      * @example
@@ -4620,7 +4620,7 @@ export class Graphty extends LitElement {
 
     /**
      * Cancel an ongoing animation capture.
-     * @returns true if a capture was cancelled, false if no capture was in progress
+     * @returns true if a capture was canceled, false if no capture was in progress
      * @example
      * ```typescript
      * const el = document.querySelector("graphty-element");
@@ -4642,7 +4642,7 @@ export class Graphty extends LitElement {
      * try {
      *   await capturePromise;
      * } catch (error) {
-     *   if (isGraphtyError(error) && error.code === 'E_CANCELLED') {
+     *   if (isGraphtyError(error) && error.code === 'E_CANCELED') {
      *     console.log('Capture was cancelled by user');
      *   }
      * }
@@ -4674,7 +4674,7 @@ export class Graphty extends LitElement {
      * Stop the camera's animated moves: the one under way stops where the camera is now, moves
      * still waiting their turn are dropped, and a tour playing (`playTour`) ends. Every caller
      * awaiting one of them resolves.
-     * @returns True if a camera move or tour was cancelled, false if none was under way or waiting
+     * @returns True if a camera move or tour was canceled, false if none was under way or waiting
      */
     cancelCameraAnimation(): boolean {
         return this.#graph.cancelCameraAnimation();
@@ -5004,7 +5004,7 @@ export class Graphty extends LitElement {
      * @param nodeIds - One node id, or several.
      * @param options - Optional animation configuration, and the `extent` each node is measured by.
      * @param options.extent - `"drawn"` (the default) measures each node by the box it is drawn
-     *   in, so every framed node is whole; `"centers"` by its centre alone.
+     *   in, so every framed node is whole; `"centers"` by its center alone.
      * @returns Promise that resolves when the camera has moved.
      * @since 3.3.0
      * @example
@@ -5501,7 +5501,7 @@ export class Graphty extends LitElement {
 
     /**
      * Write the graph in a file format: data, current positions, algorithm results and the drawn
-     * colours and sizes, wherever the format has a place for them. `losses` lists everything the
+     * colors and sizes, wherever the format has a place for them. `losses` lists everything the
      * format could not hold, as codes with the columns and counts they are about.
      * @param format - The format id, as `session.catalog.formats()` lists it ("graphml", "gexf",
      *     "json", "csv", "gml", "dot", "pajek", "graphty" for the project file, or a registered
@@ -5779,10 +5779,10 @@ export class Graphty extends LitElement {
     /**
      * Run a graph algorithm.
      * @deprecated Since 2.0. Use `run()`, which returns a `Run`: the result is on the object the
-     *   call hands back, the work reports progress and can be cancelled, and
+     *   call hands back, the work reports progress and can be canceled, and
      *   `graphty-run-change` follows it from the DOM. This method still works and is expressed in
      *   terms of `run`. (An inline link cannot appear in this tag: the custom-elements-manifest
-     *   build serialises a raw compiler node for one and fails on the cycle inside it.)
+     *   build serializes a raw compiler node for one and fails on the cycle inside it.)
      * @param namespace - Algorithm namespace (e.g., "graphty")
      * @param type - Algorithm type (e.g., "degree", "pagerank")
      * @param options - Algorithm options
@@ -5816,7 +5816,7 @@ export class Graphty extends LitElement {
      * It starts the style edits and returns at once. To wait for the picture -- for a
      * screenshot, an export or a test -- await `waitForStableFrame()` after the call: it
      * settles only once every suggested layer is added, stacked in the order named and painted.
-     * @param algorithmKey - A catalogue key such as "degree", a 1.10 address such as
+     * @param algorithmKey - A catalog key such as "degree", a 1.10 address such as
      *     "graphty:degree", or an array of either.
      * @returns True if anything was applied, false when no finished run of that algorithm has
      *     anything per element to paint.
@@ -5834,7 +5834,7 @@ export class Graphty extends LitElement {
 
     /**
      * What an algorithm's finished runs suggest be drawn from them, without painting any of it.
-     * @param algorithmKey - A catalogue key such as "degree", or a 1.10 address such as
+     * @param algorithmKey - A catalog key such as "degree", or a 1.10 address such as
      *     "graphty:degree".
      * @returns One suggestion per channel a run of that algorithm would paint, empty when it has
      *     finished no run or its result is read rather than painted.
@@ -6168,7 +6168,7 @@ export class Graphty extends LitElement {
      * @param options - What to frame and how to configure the view.
      * @param options.nodes - The nodes to measure the box over. Absent frames the whole graph.
      * @param options.params - The view's own options, filled in from its declared defaults.
-     * @param options.extent - What each node counts as in the box: `"centers"` its centre,
+     * @param options.extent - What each node counts as in the box: `"centers"` its center,
      *   `"drawn"` the box it is drawn in. The default is `"drawn"`.
      * @returns The resolved camera state.
      * @since 1.5.0
@@ -6200,7 +6200,7 @@ export class Graphty extends LitElement {
      *   selected nodes and both ends of every selected edge.
      * @param options.params - The view's own options, filled in from its declared defaults.
      * @param options.extent - What each node counts as in the box the view is handed: `"centers"`
-     *   its centre, `"drawn"` the box it is drawn in. The default is `"drawn"`.
+     *   its center, `"drawn"` the box it is drawn in. The default is `"drawn"`.
      * @returns A promise that resolves once the camera has arrived.
      * @since 1.5.0
      * @example
@@ -6323,9 +6323,9 @@ export class Graphty extends LitElement {
     /**
      * Where a node is drawn on screen, and whether it can be seen there.
      *
-     * `x` and `y` are the node's centre in CSS pixels from the element's top-left corner, the
+     * `x` and `y` are the node's center in CSS pixels from the element's top-left corner, the
      * same pixels {@link worldToScreen} returns: a click there selects the node. `visible` is
-     * false when the centre is outside the element, behind the camera, or the node is hidden by
+     * false when the center is outside the element, behind the camera, or the node is hidden by
      * a filter. `radius` is how big the node is drawn, in pixels; `bounds` is the rectangle it
      * covers, which follows a box's corners or a tall node's height. Read it again after the camera
      * or the layout moves; it is not a live value. It reads where a frame drew the node, so a node
@@ -6435,8 +6435,8 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Move the camera so the view is centred on a point of the overview frame, keeping its zoom
-     * and direction: click-to-centre and drag-to-scrub on a minimap. It changes only the camera,
+     * Move the camera so the view is centered on a point of the overview frame, keeping its zoom
+     * and direction: click-to-center and drag-to-scrub on a minimap. It changes only the camera,
      * so it is not an undo step. Does nothing while no node is placed.
      * @param point - The point, in the frame {@link Graphty.getOverview} returns (0 to 1, y down).
      * @param point.x - Frame x.
@@ -7238,7 +7238,7 @@ export class Graphty extends LitElement {
     /**
      * Sets the acceleration policy and applies it immediately.
      *
-     * An unrecognised value is reported and then ignored, leaving the previous policy in
+     * An unrecognized value is reported and then ignored, leaving the previous policy in
      * force. It is not thrown. Lit drives this setter from `attributeChangedCallback`, so a
      * throw here would abort attribute processing and leave the element unrendered -- a typo
      * in markup would take the whole graph down. HTML has never behaved that way about an
@@ -7327,7 +7327,7 @@ export class Graphty extends LitElement {
     /**
      * Sets the renderer the element opens when it is first drawn.
      *
-     * An unrecognised value, or a change once the element is drawing, is reported and ignored
+     * An unrecognized value, or a change once the element is drawing, is reported and ignored
      * rather than thrown, for the reason given on `acceleration`: Lit drives this setter from
      * `attributeChangedCallback`, and a throw there would leave the element unrendered.
      */
@@ -7554,7 +7554,7 @@ export class Graphty extends LitElement {
      *
      * `active` is `"webgl"` or `"webgpu"`; `reason` is set only when WebGPU was asked for and
      * WebGL is drawing instead (no `navigator.gpu`, or no adapter or device could be opened).
-     * Null until the element has initialised its renderer, which it does once connected; the
+     * Null until the element has initialized its renderer, which it does once connected; the
      * `render-initialized` event fires after.
      * @returns The status, or null before the renderer has been chosen.
      * @since 3.3.0

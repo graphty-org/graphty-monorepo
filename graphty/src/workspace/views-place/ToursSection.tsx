@@ -278,7 +278,7 @@ function AddStops({
 }
 
 /**
- * A tour's Easing: one labelled row under the add row, the only way to set it.
+ * A tour's Easing: one labeled row under the add row, the only way to set it.
  * @param props - Component props
  * @param props.name - the tour
  * @param props.easing - its easing now

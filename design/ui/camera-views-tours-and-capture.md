@@ -260,7 +260,7 @@ Delete
       CardList always draws the fold; folded, the summary reads "Top, fly 2 s, stay 2 s" for a camera stop and
       "Pause 2 s" for a pause, so each number says which time it is. The playing stop gets the active-row fill and
       `aria-current="step"`.
-    - **Camera stop body:** a `Select` labelled "Camera" (not searchable) of the saved cameras in project order,
+    - **Camera stop body:** a `Select` labeled "Camera" (not searchable) of the saved cameras in project order,
       the only way to change the stop's camera. A stop naming a camera view id directly (written through the API)
       shows that view's app word as an extra option. A missing or unusable camera puts the `Select` in its error
       state with the worded code ("Camera not found", "3D only", "Saved in 3D"). Under it, two rows: **Fly in**
@@ -343,7 +343,7 @@ unclipped. `.vp-title`, `.vp-stop-line` and `.vp-stop-number` are deleted.
 - Camera rows are **registry palette rows**, so Quick actions finds every camera, not only the first 12. With no
   cameras, that group and its divider are not drawn. There is no "All cameras..." row: the rail's Views item is the
   door to the rest.
-- **Fit** (`0`) and **Fit selection** (`F`, labelled "Frame selection") only zoom and pan; they never turn the
+- **Fit** (`0`) and **Fit selection** (`F`, labeled "Frame selection") only zoom and pan; they never turn the
   camera (section 4.10).
 - Every row's enable state comes from `viewProblem`; the app only words the code.
 - **Removed** from the menu, and where each went:
@@ -485,7 +485,7 @@ dialog: "export", exportOn: "video", exportSource: null, exportTour: name })`. `
 - **While recording** the app passes `motion: "authored"`, and when `isMotionReduced()` covers the canvas with an
   opaque layer so the reader's screen does not move.
 - **Escape and closing.** While recording, Escape and the close button act as Stop: the first Escape cancels
-  (`E_CANCELLED`) and the dialog stays open; a second closes it. Any other close cancels first, so nothing records
+  (`E_CANCELED`) and the dialog stays open; a second closes it. Any other close cancels first, so nothing records
   unseen.
 - A tour renamed or deleted while the dialog is open shows the Tour select in error, "Tour not found".
 - **Not in the flag-on output** (`TourVideoOutput.tsx`): the views `MultiSelect`, its "2 or more" rule, the even
@@ -766,7 +766,7 @@ One params shape per code, used alike by `viewProblem`, `planTour` and the throw
 | Empty key                                                          | `E_BAD_COMMAND {reason: "empty-key"}`                                                         |
 | `follows` names no camera view                                     | `E_UNKNOWN_CAMERA {name}`                                                                     |
 | Recording failed                                                   | `E_CAPTURE_FAILED {reason: "hidden", "resized", "interrupted", "replaced" or "mode-changed"}` |
-| Recording cancelled                                                | `E_CANCELLED` (new)                                                                           |
+| Recording canceled                                                 | `E_CANCELED` (new)                                                                            |
 
 `modes` lists the modes the view works in (a camera view's descriptor, or the one mode a saved state fits); `name`
 is absent for a raw state; `stop` is the 0-based stop index.
@@ -1291,11 +1291,11 @@ Each step builds, lints and tests on its own.
 - **One experiment gates the app only.** The element's camera fixes help every consumer and the file format must not depend on a reader's flag; the starting-camera call is gated because it writes data into projects.
 - **Keyboard reordering is the grip's own (`keyboardReorder`), not a menu.** A Move up/down item would be a second way to move; Alt+Up/Down matches the Tree. The prop is additive and off by default, so CardList's Figma-locked look is unchanged.
 - **A drag is one undo step through `onReorderEnd`** (default off), not a session transaction held open across pointer events.
-- **Stops are a nested CardList with a "Stop N" title and a labelled Camera select in the body**, since CardList's title is plain text. No per-stop Go: the camera's Go does it.
+- **Stops are a nested CardList with a "Stop N" title and a labeled Camera select in the body**, since CardList's title is plain text. No per-stop Go: the camera's Go does it.
 - **"Fly in", "Stay", "Wait".** They say what the camera does and avoid "Move", which reads as reordering. Stop 1's Fly in stays editable, because a first stop does fly from the camera's place when Play is pressed.
 - **Replace with current camera is dropped**, not moved into the Select: a Select option that creates a camera would be a surprise. To swap in the live camera, save it (`[+]` or `V`), pick it in the stop's Camera select.
 - **Add camera has no "Current camera" item.** It would be a second way to save a camera, and it filled the Cameras list as a side effect. A stop names a saved camera, so the reader saves first, then picks; holding a bare pose in a stop would be an element format change for one shortcut. This and dropping Replace with current camera turn "put this view in the tour" from one step into two (save with `V`, then pick it). That is a workflow cost the owner did not ask for; the report to him states it so he can veto it, and restoring the item is one menu entry.
-- **Stop card ids are the indices from the start of a drag**, recomputed only after the drop, because CardList keys its cards, its grab closure and its focus by id; ids renumbered mid-drag would remount the dragged card and commit the wrong splice. A cancelled drag (`onReorderEnd(id, null)`) commits nothing.
+- **Stop card ids are the indices from the start of a drag**, recomputed only after the drop, because CardList keys its cards, its grab closure and its focus by id; ids renumbered mid-drag would remount the dragged card and commit the wrong splice. A canceled drag (`onReorderEnd(id, null)`) commits nothing.
 - **The stop fold stays, with a summary that names each time** ("Top, fly 2 s, stay 2 s"): CardList always draws a fold, and hiding it would be a CardList change for one list. Stops never auto-fold.
 - **"Add camera" and "Add pause"** read as actions; **both row menus lead with Export**, so they match.
 - **The generic Export dialog drops recent image and video entries**: those outputs are reached from their item.
@@ -1355,7 +1355,7 @@ Each step builds, lints and tests on its own.
 - Views that also keep filters, layers and the legend (issue #816); saving the live camera (issue #3260).
 - An element fact for whether auto-rotate is available (the app's 2D check is filed as an element defect).
 - SVG export from a saved camera, editable file names, custom image sizes; per-stop easing; title cards, captions
-  and audio; moving `captureScreenshot`'s abort to `E_CANCELLED`.
+  and audio; moving `captureScreenshot`'s abort to `E_CANCELED`.
 - Changing what the canvas right-click Fit items and the inspector's Fit selection items do beyond the shared
   command: they run `view.fit` and `view.frame-selection`, so they get the kept angle and the label rule of section
   5 through the command and need no edit of their own.

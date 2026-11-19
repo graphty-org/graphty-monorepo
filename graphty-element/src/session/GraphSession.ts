@@ -104,6 +104,7 @@ import {
 } from "./planning";
 export { dispatcherOf, sessionRunsOf } from "./dispatchers";
 import { ANNOTATIONS_VALUE, type DrawnAnnotation, type DrawnAnnotations, drawnAnnotationsOf } from "./annotations";
+import { graphsOf, type SessionGraphs } from "./graphs/GraphsApi";
 import { boundaryOf, projectBoundary } from "./project/boundary";
 import { dataDigest } from "./project/digest";
 import {
@@ -598,6 +599,7 @@ class Session implements ElementSession {
     readonly shaders: SessionShaders;
     readonly views: SessionViews;
     readonly tours: SessionTours;
+    readonly graphs: SessionGraphs;
     readonly annotations: SessionAnnotations;
     readonly layout: SessionLayout;
     readonly paint: ElementPaint;
@@ -819,6 +821,7 @@ class Session implements ElementSession {
             publish(this.watchers, "views:seeded", { names });
         });
         this.tours = toursOf(this.dispatcher);
+        this.graphs = graphsOf(this);
         this.annotations = annotationsOf(this.dispatcher);
         this.runner = new LayoutRunner({
             // The working graph, never the store: a hidden node is not laid out.

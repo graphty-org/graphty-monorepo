@@ -169,6 +169,7 @@ const SESSION_NAMESPACES = [
     "styles",
     "views",
     "tours",
+    "graphs",
     "layout",
     "positions",
     "hidden",
@@ -634,6 +635,13 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     { root: "NotesApi", members: ["toDocument", "mergeDocument"], reason: "whole-document", kind: BY_DESIGN },
     { root: "ProjectApi", members: ["save", "markSaved", "assetChoices"], reason: "needs-host", kind: BY_DESIGN },
     { root: "ProjectApi", members: ["open"], reason: "replaces-project", kind: BY_DESIGN },
+    // Showing another graph replaces the session's graph and starts its history afresh, as an open does.
+    {
+        root: "SessionGraphs",
+        members: ["current", "list", "create", "switch"],
+        reason: "replaces-project",
+        kind: BY_DESIGN,
+    },
     { root: "SessionConfig", members: ["acceleration"], reason: "machine-preference", kind: BY_DESIGN },
     {
         root: "SessionDataApi",

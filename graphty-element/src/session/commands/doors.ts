@@ -993,6 +993,7 @@ const SESSION: Readonly<Record<string, Door>> = {
     shaders: READ,
     views: READ,
     tours: READ,
+    graphs: READ,
     annotations: READ,
     layout: READ,
     positions: READ,
@@ -3937,6 +3938,22 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 [{ op: "tour.rename", from: "door tour", to: "door renamed" }],
             ),
             move: calls(["door tour", 0], [{ op: "tour.move", name: "door tour", index: 0 }]),
+        },
+    },
+    {
+        name: "SessionGraphs",
+        file: "src/session/graphs/GraphsApi.ts",
+        half: "session",
+        doors: {
+            current: READ,
+            list: READ,
+            create: exempt(
+                "Saves the graph shown and opens its copy through project.save and project.open, whose rows " +
+                    "cover them; trimming the copy to its scope is data.removeNodes, then the copy's history starts.",
+            ),
+            switch: exempt(
+                "Saves the graph shown and opens another through project.save and project.open, whose rows cover them.",
+            ),
         },
     },
     {

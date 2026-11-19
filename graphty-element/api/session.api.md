@@ -1703,6 +1703,7 @@ export interface GraphSession {
     readonly features: EnabledFeatures;
     find(text: string, options?: FindOptions): FindResult;
     fingerprint(): string;
+    readonly graphs: SessionGraphs;
     // @beta
     readonly groups: GroupsApi;
     readonly hidden: SessionHidden;
@@ -6508,6 +6509,27 @@ export interface SessionEventMap {
     "visibility:not-drawn-changed": {
         readonly notDrawn: readonly HiddenNotDrawn[];
     };
+}
+
+// @public
+export interface SessionGraph {
+    readonly current: boolean;
+    readonly id: string;
+    readonly name: string | null;
+}
+
+// @public
+export interface SessionGraphCreateOptions {
+    readonly from?: ScopeInput;
+    readonly name?: string | null;
+}
+
+// @public
+export interface SessionGraphs {
+    create(options?: SessionGraphCreateOptions): Promise<SessionGraph>;
+    readonly current: string;
+    list(): readonly SessionGraph[];
+    switch(id: string): Promise<void>;
 }
 
 // @public

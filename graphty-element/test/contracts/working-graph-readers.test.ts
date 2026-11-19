@@ -170,6 +170,10 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "data.deriveScore()": "writes",
     "data.derivedColumns()": "not the graph",
     // A collapse or an expand edits the original graph, hidden members included, so nothing is lost.
+    "graphs.create()": "writes",
+    "graphs.current": "state",
+    "graphs.list()": "state",
+    "graphs.switch()": "writes",
     "groups.collapse()": "writes",
     "groups.expand()": "writes",
     // The groups the project holds collapsed: project state, kept whatever a filter hides.

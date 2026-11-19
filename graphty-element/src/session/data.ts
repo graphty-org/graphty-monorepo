@@ -4909,7 +4909,7 @@ export class SessionData implements SessionDataApi {
 
     /**
      * The columns a join brought, by `<kind>:<name>`: the names each join still in the graph wrote,
-     * less a column it wrote over or kept (a clash set to `"overwrite"` or `"keep"`), which was the
+     * less a column it wrote over, kept or computed (any clash rule but `"both"`), which was the
      * graph's before the join.
      * @returns the columns
      */
@@ -4922,8 +4922,10 @@ export class SessionData implements SessionDataApi {
 
             const kind = join.shape === "node-values" || join.shape === "merge" ? "node" : "edge";
             for (const name of join.columns) {
-                const rule = join.choices.clash?.[name];
-                if (rule !== "overwrite" && rule !== "keep") {
+                // ponytail: a record keeps no list of the columns that clashed, so only a column with
+                // a rule of its own, or under "*", counts as the graph's; record clashes to tell them apart.
+                const rule = join.choices.clash?.[name] ?? join.choices.clash?.["*"];
+                if (rule === undefined || rule === "both") {
                     out.add(`${kind}:${name}`);
                 }
             }

@@ -125,6 +125,7 @@ export type {
     ImportColumnsInput,
     ImportOptions,
     JoinChoices,
+    JoinClashRule,
     JoinKey,
     JoinLink,
     JoinLookup,

@@ -264,11 +264,12 @@ describe("merging a table into the nodes it names (shape: merge)", () => {
         session.dispose();
     });
 
-    it("keeps a clashing column both ways by default, and survives a save and an open", async () => {
+    it("keeps the graph's value of a clashing column by default, and survives a save and an open", async () => {
         const session = await suppliers();
         const draft = await table(session, "suppliers-erp.csv", "name,tier\nSupplier 1,gold\nAcme,silver\n");
         await draft.load({ join: { keys, shape: "merge" } });
-        assert.deepInclude(session.data.node("S1"), { tier: 1, "tier (suppliers-erp.csv)": "gold" });
+        assert.strictEqual(session.data.node("S1")?.tier, 1);
+        assert.notProperty(session.data.node("S1"), "tier (suppliers-erp.csv)");
         assert.strictEqual(session.data.node("Acme")?.tier, "silver", "a new node has nothing to clash with");
         const { text } = await session.project.save();
         session.dispose();

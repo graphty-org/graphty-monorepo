@@ -11,6 +11,7 @@ import { GraphtyError } from "../../errors/GraphtyError";
 import { oldLookColumns } from "../styles/fileStyles/oldLooks";
 import { DTYPES } from "./basics";
 import { canonicalJson as sharedCanonicalJson } from "./codecs/dataRefs";
+import { ROLE_FIELDS, rolesOf } from "./codecs/roles";
 import type { DocumentProblem, EdgeRef, JsonObject, NodeRef } from "./types";
 
 // ---------------------------------------------------------------------------------------------
@@ -538,20 +539,17 @@ function mappingOf(
     space: string,
 ): { mapping: { nodes: JsonObject; edges: JsonObject }; edgeId: string | undefined } {
     const edgeId = knownColumn(fields, "edgeIdPath", tables.edges);
-    const edgeWeight = knownColumn(fields, "edgeWeightPath", tables.edges);
-    const nodeTime = knownColumn(fields, "timePath", tables.nodes);
-    const edgeTime = knownColumn(fields, "timePath", tables.edges);
+    const roles = rolesOf(fields, (table, column) => column in tables[table]);
     return {
         mapping: {
-            nodes: { key: "id", space, ...(nodeTime === undefined ? {} : { time: nodeTime }) },
+            nodes: { key: "id", space, ...roles.nodes },
             edges: {
                 ...(edgeId === undefined ? {} : { edgeId }),
                 source: "source",
                 sourceSpace: space,
                 target: "target",
                 targetSpace: space,
-                ...(edgeWeight === undefined ? {} : { weight: edgeWeight }),
-                ...(edgeTime === undefined ? {} : { time: edgeTime }),
+                ...roles.edges,
             },
         },
         edgeId,
@@ -710,13 +708,11 @@ export function migrateData(inputs: DataInputs): MigratedData {
         edgeAt: (position) => byPosition.get(position),
         edgeBetween,
         directed,
-        carried: new Set(
-            [
-                ["edgeIdPath", edgeId],
-                ["edgeWeightPath", mapping.edges.weight],
-                ["timePath", mapping.nodes.time ?? mapping.edges.time],
-            ].flatMap(([name, column]) => (column === undefined ? [] : [String(name)])),
-        ),
+        // The known fields written as the edge-id column or a role, each by its own name.
+        carried: new Set([
+            ...(edgeId === undefined ? [] : ["edgeIdPath"]),
+            ...ROLE_FIELDS.filter(({ table, role }) => mapping[table][role] !== undefined).map(({ field }) => field),
+        ]),
         lookPaths,
     };
 }

@@ -31,6 +31,7 @@ import type {
     SourceEmbeddedReason,
     SourceStorage,
 } from "../types";
+import { type MixedRole, ROLE_FIELDS, rolesOf } from "./roles";
 import { mintUlid } from "./viewParts";
 
 // ---------------------------------------------------------------------------------------------
@@ -267,6 +268,11 @@ interface DataMemory {
     readonly addChoices: Map<string, JsonObject>;
     /** The edge each reduced edge's reference is an alias of, by that reference's `edgeKey` (spec 6.1). */
     readonly edgeAliases: Map<string, EdgeId>;
+    /**
+     * The roles the last read's sources differ on, whose setting the open left null: written back
+     * per source while that setting stays null.
+     */
+    mixedRoles: readonly MixedRole[];
 }
 
 const MEMORY = projectMemory<DataMemory>();
@@ -297,6 +303,7 @@ function memoryOf(session: GraphSession): DataMemory {
             offSteps: [],
             addChoices: new Map(),
             edgeAliases: new Map(),
+            mixedRoles: [],
         };
         MEMORY.set(session, memory);
     }
@@ -356,6 +363,8 @@ export interface DataRead {
     readonly offSteps?: readonly JsonObject[];
     /** The choices each built source's `join.add` carried besides its source, by source id. */
     readonly addChoices?: readonly (readonly [string, JsonObject])[];
+    /** The roles the built sources differ on. */
+    readonly mixedRoles?: readonly MixedRole[];
 }
 
 /**
@@ -404,6 +413,7 @@ export function rememberRead(session: GraphSession, read: DataRead): void {
         memory.edgeAliases.set(alias, id);
     }
 
+    memory.mixedRoles = read.mixedRoles ?? [];
     memory.staged = read.staged ?? [];
     memory.offSteps = read.offSteps ?? [];
     memory.types = read.types;
@@ -1225,6 +1235,39 @@ function mappingOf(source: ModelSource, model: DataModel, copy: Copy): JsonObjec
 }
 
 /**
+ * A mapping with the source's weight, time and location roles (spec 4.1.3 rule 7): the graph-wide
+ * settings written as the roles of each table whose rows carry the column they name. A role the
+ * last read's sources differed on is written per source as read while its setting stays null.
+ * @param mapping - The mapping, its roles as read replaced.
+ * @param source - The source.
+ * @param model - The model.
+ * @returns The mapping.
+ */
+function withRoles(mapping: JsonObject, source: ModelSource, model: DataModel): JsonObject {
+    const known: JsonObject = { ...model.session.config.data.knownFields };
+    for (const { field, values } of memoryOf(model.session).mixedRoles) {
+        known[field] ??= values.get(source.id);
+    }
+
+    const rows = { nodes: source.nodes, edges: source.edges } as const;
+    const roles = rolesOf(known, (table, column) => rows[table].some((row) => row[column] !== undefined));
+    const out: JsonObject = {};
+    for (const table of ["nodes", "edges"] as const) {
+        const members = mapping[table] as JsonObject | undefined;
+        if (members !== undefined) {
+            const kept = Object.fromEntries(
+                Object.entries(members).filter(
+                    ([name]) => !ROLE_FIELDS.some((each) => each.table === table && each.role === name),
+                ),
+            );
+            out[table] = { ...kept, ...roles[table] };
+        }
+    }
+
+    return out;
+}
+
+/**
  * A referenced source's `mapping` (spec 4.1.3): the roles its file's rows are read with. A graph
  * file's format sets them, and names them as a copy does; a table's are the columns its load read
  * as the key or the ends, which the one an open read keeps.
@@ -1388,7 +1431,11 @@ function sourceRecordOf(
         ...(load.type === undefined ? {} : { format: load.type }),
         ...(Object.keys(options).length === 0 ? {} : { options: jsonSafe(options) }),
         origin,
-        mapping: storage === "embedded" ? mappingOf(source, model, copy) : readMappingOf(source, model, copy),
+        mapping: withRoles(
+            storage === "embedded" ? mappingOf(source, model, copy) : readMappingOf(source, model, copy),
+            source,
+            model,
+        ),
         settings: { duplicateIds: choices?.duplicateIds ?? "first", unmatched: choices?.unmatched ?? "add" },
         // A referenced source keeps its columns too: what an open checks the rows it reads against.
         ...(storage === "embedded" ? { copy: copy.tables } : {}),
@@ -1993,6 +2040,11 @@ function reportLeftOut(model: DataModel, problems: DocumentProblem[]): void {
                 },
             });
         }
+    }
+
+    // A whole-location column read as "auto" names no kind of place a role can say.
+    for (const field of rolesOf(model.session.config.data.knownFields, () => true).leftOut) {
+        problems.push({ code: "W_MEMBER_LEFT_OUT", params: { section: "data", field: `data.knownFields.${field}` } });
     }
 
     // ponytail: the session keeps no log of the reader's edits, removes and merges, only their

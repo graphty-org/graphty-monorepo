@@ -8,6 +8,7 @@ import type { EdgeId, NodeId, SourceKey } from "../catalog/types";
 import { GraphtyError } from "../errors";
 import type {
     JoinChoices,
+    JoinClashRule,
     JoinKey,
     JoinLookup,
     JoinReduce,
@@ -690,6 +691,7 @@ function checked(table: JoinTable, choices: JoinChoices, shape: JoinShape): Join
         }
     }
 
+    refuseMistypedRules(table, choices);
     if (choices.compare === true && chosen !== "merge") {
         throw badJoin("Only a join of merge can compare two graphs.", { reason: "compare", shape: chosen });
     }
@@ -972,6 +974,93 @@ function groupValues(
  */
 function keepsEveryRow(choices: JoinChoices): boolean {
     return choices.repeated === "both" || choices.aggregate !== undefined;
+}
+
+/** The clash rules that compute over numbers (and, but for `mean`, dates written as ISO text). */
+const NUMBER_RULES: ReadonlySet<JoinClashRule> = new Set(["min", "max", "mean"]);
+
+/**
+ * The rule for a column the graph already has: its own, else `"*"`'s, else `"keep"` (`"both"` when
+ * comparing two graphs).
+ * @param choices - The join.
+ * @param column - The incoming column.
+ * @returns The rule.
+ */
+export function clashRule(choices: JoinChoices, column: string): JoinClashRule {
+    // Comparing two graphs sets their values side by side, so it keeps both unless told otherwise.
+    return choices.clash?.[column] ?? choices.clash?.["*"] ?? (choices.compare === true ? "both" : "keep");
+}
+
+/**
+ * A value's time when a clash rule reads it as a date: an ISO 8601 date or date and time.
+ * @param value - The value.
+ * @returns Its time, or undefined.
+ */
+function dateTime(value: unknown): number | undefined {
+    const time = typeof value === "string" && /^\d{4}-\d{2}-\d{2}/.test(value) ? Date.parse(value) : Number.NaN;
+    return Number.isNaN(time) ? undefined : time;
+}
+
+/**
+ * Whether a value fits a number rule: a finite number, or for `min` and `max` an ISO date.
+ * @param rule - The rule.
+ * @param value - The value.
+ * @returns True when it fits.
+ */
+function fitsRule(rule: JoinClashRule, value: unknown): boolean {
+    return (typeof value === "number" && Number.isFinite(value)) || (rule !== "mean" && dateTime(value) !== undefined);
+}
+
+/**
+ * The value a `keep`, `min`, `max`, `mean` or `vote` rule shows when an element already holds a
+ * value: the held one under `keep`, or what the rule computes; undefined to leave the held value.
+ * ponytail: the join sees only the held value and the incoming one, not each earlier source's own
+ * value, so `mean` and `vote` decide between those two (`vote` keeps the held value on a tie); the
+ * version 2 build computes them over every source. Per-cell provenance in the element lifts this.
+ * @param rule - The rule.
+ * @param held - The held value.
+ * @param incoming - The incoming value.
+ * @returns The value shown, or undefined for the held one.
+ */
+function clashValue(rule: JoinClashRule, held: unknown, incoming: unknown): unknown {
+    if (!NUMBER_RULES.has(rule) || !fitsRule(rule, held) || !fitsRule(rule, incoming)) {
+        return undefined;
+    }
+
+    if (typeof held === "number" && typeof incoming === "number") {
+        const pick = rule === "min" ? Math.min : Math.max;
+        return rule === "mean" ? (held + incoming) / 2 : pick(held, incoming);
+    }
+
+    const [a, b] = [dateTime(held), dateTime(incoming)];
+    if (a === undefined || b === undefined) {
+        return undefined;
+    }
+
+    return (rule === "min" ? b < a : b > a) ? incoming : undefined;
+}
+
+/**
+ * Refuse a number clash rule named for a column whose incoming values it cannot read
+ * (`E_CLASH_RULE_TYPE`); under `"*"` such a cell only keeps the graph's value.
+ * @param table - The incoming table.
+ * @param choices - The join.
+ */
+function refuseMistypedRules(table: JoinTable, choices: JoinChoices): void {
+    for (const [column, rule] of Object.entries(choices.clash ?? {})) {
+        const misfit =
+            column !== "*" && NUMBER_RULES.has(rule)
+                ? table.rows.find((row) => !absent(row[column]) && !fitsRule(rule, row[column]))
+                : undefined;
+        if (misfit !== undefined) {
+            throw new GraphtyError({
+                code: "E_CLASH_RULE_TYPE",
+                source: "data",
+                message: `The clash rule ${rule} reads numbers, and the column ${JSON.stringify(column)} holds other values.`,
+                details: { column, rule },
+            });
+        }
+    }
 }
 
 /**
@@ -1402,8 +1491,7 @@ function valuesOf(
 } {
     const byId = new Map(elements.map((element) => [element.id, element]));
     const clashing = new Set(clashesOf(elements, columns));
-    const ruleOf = (column: string): "keep" | "overwrite" | "both" =>
-        clashing.has(column) ? (choices.clash?.[column] ?? "both") : "overwrite";
+    const ruleOf = (column: string): JoinClashRule => (clashing.has(column) ? clashRule(choices, column) : "overwrite");
     const nameOf = (column: string): string =>
         ruleOf(column) === "both" ? bothColumn(column, table, choices) : column;
     // Each element's rows, in table order.
@@ -1420,8 +1508,11 @@ function valuesOf(
     for (const [id, matchedRows] of rowsOf) {
         const held = byId.get(id)?.data ?? {};
         const values: Record<string, unknown> = {};
-        for (const { column, name, value } of groupValues(matchedRows, columns, choices, nameOf)) {
-            if (ruleOf(column) === "keep" && !absent(held[name])) {
+        for (const { column, name, value: incoming } of groupValues(matchedRows, columns, choices, nameOf)) {
+            const rule = ruleOf(column);
+            const decided = rule === "overwrite" || rule === "both" || absent(held[name]);
+            const value = decided ? incoming : clashValue(rule, held[name], incoming);
+            if (value === undefined) {
                 continue;
             }
 
@@ -1484,7 +1575,7 @@ function mergeOf(table: JoinTable, graph: JoinGraph, choices: JoinChoices): Merg
         // Comparing two graphs keeps the table's clashing values in their own columns on every node.
         const clashing = new Set(choices.compare === true ? clashesOf(graph.nodes, columns) : ["id"]);
         const nameOf = (column: string): string =>
-            clashing.has(column) && (column === "id" || (choices.clash?.[column] ?? "both") === "both")
+            clashing.has(column) && (column === "id" || clashRule(choices, column) === "both")
                 ? bothColumn(column, table, choices)
                 : column;
         for (const ats of unmatched.values()) {
@@ -1767,9 +1858,7 @@ function planEdges(
     const [source, target] = choices.keys.map((key) => key.file);
     const clashing = new Set(clashesOf(graph.edges, columns));
     const nameOf = (column: string): string =>
-        clashing.has(column) && (choices.clash?.[column] ?? "both") === "both"
-            ? bothColumn(column, table, choices)
-            : column;
+        clashing.has(column) && clashRule(choices, column) === "both" ? bothColumn(column, table, choices) : column;
     // The rows of each pair, or of each row with "both"; a Map keeps the pair where it first
     // appeared. Without aggregate, one row is kept: the first, or the last with "last".
     const groups = new Map<string, EdgeRow[]>();

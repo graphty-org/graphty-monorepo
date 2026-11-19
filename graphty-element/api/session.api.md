@@ -1025,7 +1025,7 @@ export interface DocumentBindFacts {
 }
 
 // @beta
-export type DocumentCode = "E_UNKNOWN_COMMAND" | "W_SCHEMA_MISMATCH" | "W_SECTION_KEPT" | "W_EXTENSION_REQUIRED" | "W_SECTION_UPGRADED" | "W_ELEMENT_NAMING_LEFT_OUT" | "W_SOURCE_NO_PATH" | "W_SOURCE_UNAVAILABLE" | "W_SOURCE_EMBEDDED" | "W_REFERENCE_UNBOUND" | "W_DATA_CHANGED" | "W_DATA_MISMATCH" | "W_JOIN_HISTORY_DIFFERS" | "W_CAMERA_CONTROLLER_UNKNOWN" | "W_RUN_NOT_RUN" | "W_RESULTS_DIFFER" | "W_EDGE_MATCH_AMBIGUOUS" | "W_SOURCE_UNKEYED" | "W_NODE_NAMED_ONLY" | "W_EDGE_END_MISSING" | "W_KEY_EMPTY" | "W_COLUMN_WIDENED" | "W_MEMBER_LEFT_OUT" | "W_RECIPE_NOT_APPLIED";
+export type DocumentCode = "E_UNKNOWN_COMMAND" | "W_SCHEMA_MISMATCH" | "W_SECTION_KEPT" | "W_EXTENSION_REQUIRED" | "W_SECTION_UPGRADED" | "W_ELEMENT_NAMING_LEFT_OUT" | "W_SOURCE_NO_PATH" | "W_SOURCE_UNAVAILABLE" | "W_SOURCE_EMBEDDED" | "W_REFERENCE_UNBOUND" | "W_DATA_CHANGED" | "W_DATA_MISMATCH" | "W_JOIN_HISTORY_DIFFERS" | "W_CAMERA_CONTROLLER_UNKNOWN" | "W_RUN_NOT_RUN" | "W_RESULTS_DIFFER" | "W_EDGE_MATCH_AMBIGUOUS" | "W_SOURCE_UNKEYED" | "W_NODE_NAMED_ONLY" | "W_EDGE_END_MISSING" | "W_KEY_EMPTY" | "W_ROLES_DIFFER" | "W_CLASH_RULE_TYPE" | "W_COLUMN_WIDENED" | "W_MEMBER_LEFT_OUT" | "W_RECIPE_NOT_APPLIED";
 
 // @beta
 export interface DocumentHeldFacts {
@@ -2045,6 +2045,13 @@ export type GraphtyErrorCode =
 */
 | "E_DUPLICATE_ID"
 /**
+* A join names a clash rule that reads numbers (`min`, `max`, `mean`) for a column whose
+* incoming values are not all numbers (or, for `min` and `max`, ISO 8601 dates).
+* `details.column` and `details.rule` name them. The caller picks another rule for that column.
+* @since 3.40.0
+*/
+| "E_CLASH_RULE_TYPE"
+/**
 * Two edges run between the same ordered pair of nodes and `data.knownFields.repeatedEdges`
 * is `"error"`. `details` name both endpoints and the index of the edge already present. The
 * caller sets the policy to `keep`, `first`, `last`, `sum`, `min` or `max`.
@@ -2561,6 +2568,10 @@ export type GraphtyErrorDetails<C extends GraphtyErrorCode = GraphtyErrorCode> =
 
 // @public
 export interface GraphtyErrorDetailsMap {
+    E_CLASH_RULE_TYPE: {
+        readonly column: string;
+        readonly rule: string;
+    };
     E_DUPLICATE_ID: {
         readonly id?: string | number;
     };
@@ -3193,7 +3204,7 @@ export type ItemKey = {
 // @public
 export interface JoinChoices {
     readonly aggregate?: Readonly<Record<string, JoinReduce | readonly JoinReduce[]>>;
-    readonly clash?: Readonly<Record<string, "keep" | "overwrite" | "both">>;
+    readonly clash?: Readonly<Record<string, JoinClashRule>>;
     readonly columns?: readonly string[];
     readonly compare?: boolean;
     readonly endKinds?: {
@@ -3217,6 +3228,9 @@ export interface JoinChoices {
     readonly unmatchedRows?: "leave-out" | "add";
     readonly via?: SourceKey;
 }
+
+// @public
+export type JoinClashRule = "keep" | "overwrite" | "both" | "min" | "max" | "mean" | "vote";
 
 // @public
 export interface JoinKey {

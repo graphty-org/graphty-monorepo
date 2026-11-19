@@ -113,6 +113,8 @@ export type DocumentCode =
     | "W_NODE_NAMED_ONLY"
     | "W_EDGE_END_MISSING"
     | "W_KEY_EMPTY"
+    | "W_ROLES_DIFFER"
+    | "W_CLASH_RULE_TYPE"
     | "W_COLUMN_WIDENED"
     | "W_MEMBER_LEFT_OUT"
     | "W_RECIPE_NOT_APPLIED";

@@ -264,6 +264,18 @@ function reportLine(fact: ProjectProblem, names: ReportNames): ReportLine {
             return { item: sectionWord("results"), outcome: "Differ from saved", reason: "" };
         case "W_RECIPE_NOT_APPLIED":
             return { item: sectionWord("recipe"), outcome: "Kept, not applied", reason: "" };
+        case "W_ROLES_DIFFER":
+            return {
+                item: sectionWord("data"),
+                outcome: "Loaded",
+                reason: `Sources disagree on ${String(params.role)}`,
+            };
+        case "W_CLASH_RULE_TYPE":
+            return {
+                item: String(params.column),
+                outcome: "First value kept",
+                reason: `Not readable by ${String(params.rule)}`,
+            };
         case "W_MEMBER_LEFT_OUT":
             return { item: sectionWord(params.section), outcome: "Partly left out", reason: "Not in version 2 yet" };
         default:

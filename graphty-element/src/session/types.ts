@@ -3228,6 +3228,17 @@ export interface JoinSuggestion {
 }
 
 /**
+ * A clash rule: what a join shows for a column the element already holds a value in. `"keep"`
+ * (the default) the held value, `"overwrite"` the incoming one, `"both"` the held one with the
+ * incoming one beside it as `<column> (<table name>)`, `"min"` or `"max"` the smaller or larger
+ * (numbers, or dates written as ISO 8601 text), `"mean"` their mean (numbers), `"vote"` the value
+ * most sources hold, the held one on a tie. A cell a number rule cannot read keeps the held value.
+ * OPEN UNION: later releases may add rules.
+ * @since 3.40.0
+ */
+export type JoinClashRule = "keep" | "overwrite" | "both" | "min" | "max" | "mean" | "vote";
+
+/**
  * How a table joins onto the graph: what `draft.joinReport` and `draft.load({ join })` take.
  * @since 3.30.0
  */
@@ -3243,10 +3254,16 @@ export interface JoinChoices {
     /** The incoming columns to bring; every column but the keys when absent. */
     readonly columns?: readonly string[];
     /**
-     * A column the graph already has: `"keep"` the graph's value where it has one, `"overwrite"`
-     * it, or keep `"both"` (the default), the incoming one as `<column> (<table name>)`.
+     * What to do with a column the graph already has, by column name, `"*"` for every column not
+     * named: see {@link JoinClashRule}. A column with no rule keeps the graph's value (`"keep"`).
+     * A number rule (`min`, `max`, `mean`) named for a column holding another value is refused with
+     * `E_CLASH_RULE_TYPE` (`details.column`, `details.rule`); under `"*"` such a cell keeps its value.
+     *
+     * ```ts
+     * draft.load({ join: { keys, clash: { "*": "both", amount: "max" } } });
+     * ```
      */
-    readonly clash?: Readonly<Record<string, "keep" | "overwrite" | "both">>;
+    readonly clash?: Readonly<Record<string, JoinClashRule>>;
     /**
      * Several rows with one key: `"first"` (the default) takes the first row, `"last"` the last
      * one; `"both"` keeps every row, as a list of values for values, as one edge each for edges.

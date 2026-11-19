@@ -596,10 +596,13 @@ describe("data section version 2", () => {
         // Under sum, the two calls from A fold (1 + 2); the text call and B's call, whose weight
         // means distance, stay edges of their own.
         const summed = createGraphSession(ON);
-        assert.deepStrictEqual(
-            await readBody(summed, rowsBody(sources("distance"), { types, repeatedEdges: "sum" })),
-            [],
-        );
+        // The session holds one weight meaning, so the two sources' meanings are reported.
+        assert.deepStrictEqual(await readBody(summed, rowsBody(sources("distance"), { types, repeatedEdges: "sum" })), [
+            {
+                code: "W_ROLES_DIFFER",
+                params: { table: "edges", role: "weightMeaning", sources: [SRC_A, SRC_B] },
+            },
+        ]);
         assert.deepStrictEqual(weights(summed), [
             ["p:a", "p:b", "call", 3, 1],
             ["p:a", "p:b", "call", 4, 1],
@@ -980,7 +983,7 @@ describe("data section version 2", () => {
         session.dispose();
     });
 
-    it("names a value a later source gives differently <column> (<source id>)", async () => {
+    it("names a value a later source gives under clash both <column> (<source id>)", async () => {
         const source = (id: string, label: string): JsonObject => ({
             id,
             label: id,
@@ -998,7 +1001,7 @@ describe("data section version 2", () => {
             types: [],
             joins: [
                 { op: "join.add", source: a },
-                { op: "join.add", source: b },
+                { op: "join.add", source: b, clash: "both" },
             ],
             graph: { directed: false, multigraph: false, graph: {}, nodes: [], links: [] },
         };
@@ -1008,6 +1011,15 @@ describe("data section version 2", () => {
         assert.strictEqual(ava.label, "Ava");
         assert.strictEqual(ava[`label (${b})`], "Ava R.");
         session.dispose();
+
+        // No rule keeps the held value, and writes no second column.
+        const kept = createGraphSession(ON);
+        (body.joins as JsonObject[])[1] = { op: "join.add", source: b };
+        assert.deepStrictEqual(await readBody(kept, body), []);
+        const [held] = kept.data.nodes();
+        assert.strictEqual(held.label, "Ava");
+        assert.notProperty(held, `label (${b})`);
+        kept.dispose();
     });
 
     it("mints a new build when the open left part of the section out, and binds runs to the build read", async () => {
@@ -1708,5 +1720,188 @@ describe("a source saved by reference, read again", () => {
         assert.deepStrictEqual(problems, [{ code: "W_SOURCE_EMBEDDED", params: { source: pets, reason: "rows" } }]);
         session.dispose();
         opened.dispose();
+    });
+});
+
+describe("clash rules, per-source roles and picks (spec 4.1.3 rule 7, 4.1.4, 4.1.8 rule 11)", () => {
+    const SRC_C = `src_${"C".repeat(26)}`;
+
+    /**
+     * An embedded source of one node row keyed `id` in the space `p`.
+     * @param id - The source id.
+     * @param nodes - Its node columns, one row.
+     * @param roles - More node mapping members.
+     * @returns The record.
+     */
+    function nodeSource(id: string, nodes: Record<string, unknown[]>, roles: JsonObject = {}): JsonObject {
+        const record = rowsSource(id, { nodes: { id: ["ava"], ...nodes } });
+        record.mapping = { nodes: { key: "id", space: "p", ...roles } };
+        return record;
+    }
+
+    it('computes min, max, mean and vote over every source\'s own value, by column with "*" for the rest', async () => {
+        const body = rowsBody([
+            nodeSource(SRC_A, { amount: [10], city: ["x"], when: ["2026-01-02"] }),
+            nodeSource(SRC_B, { amount: [30], city: ["y"], when: ["2026-01-01"] }),
+            nodeSource(SRC_C, { amount: [20], city: ["x"], when: ["2026-01-03"] }),
+        ]);
+        (body.joins as JsonObject[])[2].clash = { "*": "vote", amount: "mean", when: "min" };
+        assert.deepStrictEqual(invalid(asSection(body)), []);
+        const session = createGraphSession(ON);
+        assert.deepStrictEqual(await readBody(session, body), []);
+        const [ava] = session.data.nodes();
+        // B kept A's values (no rule); C's rules read all three sources, not only the held value.
+        assert.strictEqual(ava.amount, 20);
+        assert.strictEqual(ava.city, "x");
+        assert.strictEqual(ava.when, "2026-01-01");
+
+        // The rules are written back on the step that carried them.
+        const { body: saved } = await writeBody(session);
+        assert.deepInclude(saved.joins as JsonObject[], {
+            op: "join.add",
+            source: SRC_C,
+            clash: { "*": "vote", amount: "mean", when: "min" },
+        });
+        session.dispose();
+    });
+
+    it("overwrites, and keeps the held value where a number rule meets a value it cannot read", async () => {
+        const body = rowsBody([
+            nodeSource(SRC_A, { amount: ["lots"], city: ["x"] }),
+            nodeSource(SRC_B, { amount: [5], city: ["y"] }),
+        ]);
+        (body.joins as JsonObject[])[1].clash = { amount: "max", city: "overwrite" };
+        const session = createGraphSession(ON);
+        assert.deepStrictEqual(await readBody(session, body), [
+            { code: "W_CLASH_RULE_TYPE", params: { step: 1, column: "amount", rule: "max", cells: 1 } },
+        ]);
+        const [ava] = session.data.nodes();
+        assert.strictEqual(ava.amount, "lots");
+        assert.strictEqual(ava.city, "y");
+        session.dispose();
+    });
+
+    it("holds the section for a clash rule it does not know", async () => {
+        for (const clash of ["newest", { amount: "sum" }, {}]) {
+            const body = rowsBody([nodeSource(SRC_A, {}), nodeSource(SRC_B, {})]);
+            (body.joins as JsonObject[])[1].clash = clash;
+            assert.isNotEmpty(invalid(asSection(body)), JSON.stringify(clash));
+            const session = createGraphSession(ON);
+            assert.deepStrictEqual(await readBody(session, body), [
+                { code: "W_SECTION_KEPT", params: { section: "data", version: 2, reason: "data" } },
+            ]);
+            session.dispose();
+        }
+    });
+
+    it("sets the time settings from a source's roles, and writes them back as its roles", async () => {
+        const roles = { time: "when", timeUnit: "year", timeEnd: "until", timeParseZone: "Europe/Paris" };
+        const body = rowsBody([nodeSource(SRC_A, { when: [1990], until: [2000] }, roles)]);
+        assert.deepStrictEqual(invalid(asSection(body)), []);
+        const session = createGraphSession(ON);
+        assert.deepStrictEqual(await readBody(session, body), []);
+        const known = session.config.data.knownFields;
+        assert.strictEqual(known.nodeTimePath, "when");
+        assert.strictEqual(known.nodeTimeUnit, "year");
+        assert.strictEqual(known.nodeTimeEndPath, "until");
+        assert.strictEqual(known.nodeTimeParseZone, "Europe/Paris");
+        assert.isNull(known.edgeWeightPath, "an absent role means none");
+
+        const { body: saved, problems } = await writeBody(session);
+        assert.deepStrictEqual(problems, []);
+        assert.deepStrictEqual(invalid(asSection(saved)), []);
+        const [record] = saved.sources as JsonObject[];
+        assert.deepInclude((record.mapping as JsonObject).nodes as JsonObject, roles);
+        session.dispose();
+    });
+
+    it("reports a role two sources name differently, leaves its setting null, and writes each back", async () => {
+        const body = rowsBody([
+            nodeSource(SRC_A, { when: [1990] }, { time: "when" }),
+            nodeSource(SRC_B, { id: ["ben"], at: [1991] }, { time: "at" }),
+        ]);
+        const session = createGraphSession(ON);
+        assert.deepStrictEqual(await readBody(session, body), [
+            { code: "W_ROLES_DIFFER", params: { table: "nodes", role: "time", sources: [SRC_A, SRC_B] } },
+        ]);
+        assert.isNull(session.config.data.knownFields.nodeTimePath);
+        const { body: saved } = await writeBody(session);
+        const timeOf = (id: string): unknown =>
+            (
+                ((saved.sources as JsonObject[]).find((each) => each.id === id)?.mapping as JsonObject)
+                    .nodes as JsonObject
+            ).time;
+        assert.strictEqual(timeOf(SRC_A), "when");
+        assert.strictEqual(timeOf(SRC_B), "at");
+
+        // A setting chosen since is the view again: every source carrying the column takes it.
+        await session.config.set({ data: { knownFields: { nodeTimePath: "when" } } });
+        const { body: chosen } = await writeBody(session);
+        const mappings = (chosen.sources as JsonObject[]).map(
+            (each) => (each.mapping as JsonObject).nodes as JsonObject,
+        );
+        assert.deepStrictEqual(
+            mappings.map((each) => each.time),
+            ["when", undefined],
+        );
+        session.dispose();
+    });
+
+    it("writes the weight setting as the role of the source whose edges carry it, and reads it back", async () => {
+        const session = createGraphSession(ON);
+        await session.data.import({
+            type: "csv",
+            config: { data: "source,target,cost\nAva,Ben,2\n" },
+            name: "trips.csv",
+        });
+        await session.config.set({ data: { knownFields: { edgeWeightPath: "cost", edgeWeightMeaning: "distance" } } });
+        const { body } = await writeBody(session);
+        const [record] = (body.sources as JsonObject[]).filter((each) => each.kind !== "reader");
+        assert.deepInclude((record.mapping as JsonObject).edges as JsonObject, {
+            weight: "cost",
+            weightMeaning: "distance",
+        });
+        const reopened = createGraphSession(ON);
+        await readBody(reopened, body);
+        assert.strictEqual(reopened.config.data.knownFields.edgeWeightPath, "cost");
+        assert.strictEqual(reopened.config.data.knownFields.edgeWeightMeaning, "distance");
+        session.dispose();
+        reopened.dispose();
+    });
+
+    it("applies a pick like any edit, and holds the section for a pick naming no source", async () => {
+        const reader = {
+            id: "reader",
+            label: "Edits",
+            kind: "reader",
+            origin: { copy: "0".repeat(26) },
+            copy: {
+                operations: [
+                    {
+                        op: "edit",
+                        node: { space: "p", key: "ava" },
+                        column: "city",
+                        value: "y",
+                        was: "x",
+                        picked: SRC_B,
+                    },
+                ],
+            },
+        };
+        const body = rowsBody([nodeSource(SRC_A, { city: ["x"] }), nodeSource(SRC_B, { city: ["y"] })]);
+        (body.sources as JsonObject[]).push(reader);
+        assert.deepStrictEqual(invalid(asSection(body)), []);
+        const session = createGraphSession(ON);
+        assert.deepStrictEqual(await readBody(session, body), []);
+        assert.strictEqual(session.data.nodes()[0].city, "y");
+        session.dispose();
+
+        const operation = (reader.copy.operations as JsonObject[])[0];
+        operation.picked = SRC_C;
+        const held = createGraphSession(ON);
+        assert.deepStrictEqual(await readBody(held, body), [
+            { code: "W_SECTION_KEPT", params: { section: "data", version: 2, reason: "data" } },
+        ]);
+        held.dispose();
     });
 });

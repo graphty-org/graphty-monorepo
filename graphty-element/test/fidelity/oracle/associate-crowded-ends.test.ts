@@ -201,6 +201,55 @@ describe("edge ends where nodes crowd", () => {
         assert.deepEqual(pairs(associate(prims, 1200, 900, g).scene), ["grp-s"]);
     });
 
+    it("gives a line its neighbor's edge where a group member drawn under its end hands the end to a group already read", () => {
+        // cx2-signor-aml: 107 -> 65 ends on the top edge of mir-143, a flat member drawn on its group's bottom border,
+        // 11 px short of BRAF; the line to the group itself (107 -> 55) ends at the group's outline
+        const { prims, add } = drawing();
+        const rect = (x0: number, y0: number, x1: number, y1: number): Pt[] =>
+            evenly([
+                [x0, y0],
+                [x1, y0],
+                [x1, y1],
+                [x0, y1],
+            ]);
+        add({ tag: "ellipse", points: disc(300, 400, 20) });
+        add({ points: rect(600, 380, 760, 430), corners: 4, fill: null, stroke: ink });
+        add({ tag: "ellipse", points: disc(640, 400, 12) });
+        add({ points: rect(695, 425, 745, 435), corners: 4 });
+        add({ tag: "ellipse", points: disc(770, 432, 20) });
+        add(
+            line([
+                [320, 402],
+                [740, 425.5],
+            ]),
+        );
+        add(
+            line([
+                [320, 400],
+                [598, 400],
+            ]),
+        );
+        const group: PGroup = {
+            id: "grp",
+            box: { x0: 600, y0: 380, x1: 760, y1: 430 },
+            fill: null,
+            stroke: ink,
+            label: null,
+            members: ["x", "m"],
+        };
+        const g = guide(
+            [
+                node("s", 300, 400, 40),
+                node("x", 640, 400, 24),
+                node("m", 720, 430, 50, 10, "rect"),
+                node("b", 770, 432, 40),
+            ],
+            [edge("e1", "s", "b"), edge("e2", "s", "grp")],
+            [group],
+        );
+        assert.deepEqual(pairs(associate(prims, 1200, 900, g).scene), ["b-s", "grp-s"]);
+    });
+
     it("reads a loop graphty draws on a node as that loop where its end lies as near a neighbor", () => {
         const { prims, add } = drawing();
         // a 60 x 30 ellipse, and a neighbor whose left end touches its top right

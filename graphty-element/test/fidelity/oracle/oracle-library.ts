@@ -201,8 +201,10 @@ async function associateOracle(
                 : prims;
         return associate(named, size.width, size.height, graphty, {
             ownLayout,
-            // desktop strokes a node's border, then paints its fill over the inner half (cytoscape-painted-borders)
-            fillOverStroke: meta.program === "Cytoscape desktop",
+            // desktop strokes a node's border, then paints its fill over the inner half (cytoscape-painted-borders);
+            // graph-io reads that half only from Cytoscape's own formats, so desktop standing in for another format's
+            // program (its drawing of a GML sheet, where yEd shows the whole border) is read at the stroke it drew
+            fillOverStroke: meta.program === "Cytoscape desktop" && !isStandIn(meta),
             ...(named === prims
                 ? {}
                 : {

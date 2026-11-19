@@ -84,8 +84,13 @@ export interface LayoutImplementation {
     /**
      * Whether this engine arranges a graph differently when its edges carry weights.
      *
-     * Read off the engine class's own `static honoursWeights` rather than written here, so the
+     * Read off the engine class's own `static honorsWeights` rather than written here, so the
      * catalog cannot claim a weight channel an engine does not have.
+     */
+    honorsWeights: boolean;
+    /**
+     * The British spelling of {@link LayoutImplementation.honorsWeights}, always the same value.
+     * @deprecated Read `honorsWeights`. Removed in the next major.
      */
     honoursWeights: boolean;
     /** Whether this engine accepts a scope, read off the engine class's own `static scoped`. */
@@ -211,7 +216,7 @@ const LOCATION_OVERRIDE: Readonly<Record<string, Partial<OptionDescriptor>>> = {
 /** Everything about a layout that is not its default engine, as an entry is authored. */
 interface LayoutBase extends Omit<
     LayoutDescriptor,
-    "engine" | "options" | "honoursWeights" | "scoped" | "description" | "descriptionId"
+    "engine" | "options" | "honorsWeights" | "honoursWeights" | "scoped" | "description" | "descriptionId"
 > {
     /** What the layout does, in English: written to the published descriptor's deprecated field. */
     description: string;
@@ -236,7 +241,8 @@ function entry(
             descriptionId: `layout.${base.id}`,
             engine: primary.engine,
             options: withDescriptionIds(`layout.${primary.engine}`, primary.options),
-            honoursWeights: primary.honoursWeights,
+            honorsWeights: primary.honorsWeights,
+            honoursWeights: primary.honorsWeights,
             scoped: primary.scoped,
             ...(primary.requires === undefined ? {} : { requires: primary.requires }),
         },

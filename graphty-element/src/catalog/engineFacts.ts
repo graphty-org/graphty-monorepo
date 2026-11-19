@@ -28,6 +28,7 @@ export interface AlgorithmClassFacts {
 export interface LayoutClassFacts {
     /** Its Zod options schema, emitted by `optionsFromZod` with no overrides. */
     readonly options: readonly OptionDescriptor[];
+    /** The JSON key keeps the British spelling; `layoutFacts` also returns it as `honorsWeights`. */
     readonly honoursWeights: boolean;
     readonly scoped: boolean;
 }
@@ -106,9 +107,12 @@ export function algorithmOptions(type: string, overrides: OptionOverrides = {}):
  * The static fields of one built-in layout engine class, its options with overrides applied.
  * @param type - The engine's `static type`, such as "ngraph".
  * @param overrides - Descriptor fields its Zod schema cannot express, by option name.
- * @returns Its options, `honoursWeights` and `scoped`.
+ * @returns Its options, `honorsWeights` (also under its deprecated British spelling) and `scoped`.
  */
-export function layoutFacts(type: string, overrides: OptionOverrides = {}): LayoutClassFacts {
+export function layoutFacts(
+    type: string,
+    overrides: OptionOverrides = {},
+): LayoutClassFacts & { readonly honorsWeights: boolean } {
     const facts = factsOf(FACTS.layouts, type);
-    return { ...facts, options: withOverrides(facts.options, overrides) };
+    return { ...facts, honorsWeights: facts.honoursWeights, options: withOverrides(facts.options, overrides) };
 }

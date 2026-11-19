@@ -64,7 +64,7 @@ describe("curved edges: yEd GraphML", () => {
         expect(await curved(doc, "graphml")).toEqual([false, true, false]);
     });
 
-    it("draws a Bezier, quad curve or spline edge straight until it has control points, and an arc curved", async () => {
+    it("draws a Bezier edge curved once it has control points, a quad curve edge as its flattened points, a spline edge curved once it has bends, and an arc curved", async () => {
         const doc = `${YED_HEAD}
             ${yedEdge("BezierEdge", "")}
             ${yedEdge("BezierEdge", BEND)}

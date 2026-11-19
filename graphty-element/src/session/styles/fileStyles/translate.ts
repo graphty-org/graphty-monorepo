@@ -697,6 +697,7 @@ function channelPlans(
         ["labelLineHeight", [label("labelLineHeight")]],
         ["labelLineBox", [label("labelLineBox")]],
         ["labelBorderAlign", [label("labelBorderAlign")]],
+        ["labelBorderStyle", [label("labelBorderStyle")]],
         ["labelBackgroundShape", [label("labelBackgroundShape")]],
     ];
     if (kind === "node") {
@@ -963,6 +964,7 @@ function channelPlans(
         ["wavePeriod", [length("edge.wavePeriod")]],
         // a ratio of two widths: no unit to convert
         ["taper", [id("edge.taper")]],
+        ["taperSource", [id("edge.taperSource")]],
         ["targetArrow", [table("edge.arrowHead", arrows)]],
         ["sourceArrow", [table("edge.arrowTail", arrows)]],
         ["targetArrowColor", [id("edge.arrowHeadColor")]],

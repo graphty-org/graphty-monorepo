@@ -442,32 +442,22 @@ export type CameraId = (typeof KNOWN_CAMERA_IDS)[number] | (string & {});
 // @public
 export interface CameraState {
     alpha?: number;
-    // (undocumented)
     beta?: number;
-    // (undocumented)
     cameraDistance?: number;
-    // (undocumented)
     fov?: number;
-    // (undocumented)
     orthoBottom?: number;
-    // (undocumented)
     orthoLeft?: number;
-    // (undocumented)
     orthoRight?: number;
-    // (undocumented)
     orthoTop?: number;
-    // (undocumented)
     pan?: {
         x: number;
         y: number;
     };
-    // (undocumented)
     pivotRotation?: {
         x: number;
         y: number;
         z: number;
     };
-    // (undocumented)
     position?: {
         x: number;
         y: number;
@@ -475,13 +465,11 @@ export interface CameraState {
     };
     radius?: number;
     rotation?: number;
-    // (undocumented)
     target?: {
         x: number;
         y: number;
         z: number;
     };
-    // (undocumented)
     type?: "arcRotate" | "free" | "universal" | "orthographic";
     zoom?: number;
 }
@@ -501,7 +489,6 @@ export interface CameraViewInput {
     };
     readonly fov?: number;
     readonly insets?: Required<ViewInsets>;
-    // (undocumented)
     readonly mode: DrawingMode;
     readonly options: Readonly<Record<string, unknown>>;
     readonly viewport: {
@@ -512,9 +499,7 @@ export interface CameraViewInput {
 
 // @public
 export interface CameraViewRegistration {
-    // (undocumented)
     readonly compute: (input: CameraViewInput) => CameraState;
-    // (undocumented)
     readonly descriptor: CameraDescriptor;
 }
 
@@ -911,11 +896,8 @@ export interface EdgePosition {
 // @public
 export interface EdgeScoreDefinition<O extends OptionsShorthand> extends AlgorithmDefinitionBase<O> {
     readonly edge: (edge: EdgeView, context: AlgorithmContext<OptionValuesOf<O>>) => Score;
-    // (undocumented)
     readonly groups?: never;
-    // (undocumented)
     readonly node?: never;
-    // (undocumented)
     readonly nodes?: never;
 }
 
@@ -1110,16 +1092,12 @@ export interface GraphAccelerator {
 
 // @public
 export interface GraphBounds {
-    // (undocumented)
     readonly center: Vec3;
-    // (undocumented)
     readonly max: Vec3;
     readonly maxDimension: number;
     readonly measured: number;
-    // (undocumented)
     readonly min: Vec3;
     readonly points?: readonly Vec3[];
-    // (undocumented)
     readonly size: Vec3;
 }
 
@@ -1582,9 +1560,10 @@ export type GraphtyErrorCode =
 */
 | "E_NO_ACCELERATOR"
 /**
-* No accelerator factory is registered, so the element never looked for a GPU. Usually
-* `import "@graphty/graphty-element/webgpu"` was never evaluated -- not written, or its module
-* failed to load (a network error, a blocked request, a stale dev-server cache). Reported
+* No accelerator factory is registered, so the element never looked for a GPU. The root entry
+* point registers one for `@graphty/webgpu-graph-algorithms` by itself, so this means the
+* element was used only through an entry point that does not (`./session` and the other
+* Node-safe entries) and nothing called `import "@graphty/graphty-element/webgpu"`. Reported
 * through `capabilities.acceleration`; a registration that arrives later switches
 * acceleration on without the consumer doing anything.
 */
@@ -1593,9 +1572,20 @@ export type GraphtyErrorCode =
 * A registered accelerator factory threw while setting up, with an error that is not one of
 * the other acceleration codes -- a module of the backend that failed to load, or a defect in
 * the backend. `reason` carries what it threw. Reported through `capabilities.acceleration`;
-* the CPU path runs.
+* the CPU path runs. Also what an installed `@graphty/webgpu-graph-algorithms` reports when
+* it is present and fails to load (a syntax error, a throw while its module evaluates, an
+* import-map URL that does not answer); `params.package` names it.
 */
 | "E_ACCELERATOR_FAILED"
+/**
+* The installed accelerator package loaded but lacks what this graphty-element needs: an
+* export it calls is missing, usually because the installed version is older or newer than
+* the range graphty-element declares as its peer, or because a bundler alias replaced it with
+* an empty module. Reported through `capabilities.acceleration` with `params.package` and
+* `params.missing` (the export names); the CPU path runs. The caller installs a version in
+* the declared peer range.
+*/
+| "E_ACCELERATOR_INCOMPATIBLE"
 /**
 * The runtime exposes no WebGPU at all: no `navigator.gpu`, usually because the page is not
 * in a secure context or the browser does not implement it. Reported through
@@ -1664,8 +1654,10 @@ export type GraphtyErrorCode =
 /**
 * A feature the caller asked for needs an optional peer package that is not installed.
 * `details.package` names the package to install and `details.feature` the feature that
-* needs it (for the in-browser AI provider, `"webllm"`). The caller installs the package, or
-* picks a feature that does not need it.
+* needs it (for the in-browser AI provider, `"webllm"`; for acceleration, `"webgpu"`). The
+* caller installs the package, or picks a feature that does not need it. Also reported, not
+* thrown, on `capabilities.acceleration` when `@graphty/webgpu-graph-algorithms` is not
+* installed, with `params.package`; nothing is printed then, because nothing asked for a GPU.
 */
 | "E_MISSING_PACKAGE"
 /**
@@ -1996,12 +1988,9 @@ export interface GraphView {
 
 // @public
 export interface GroupingDefinition<O extends OptionsShorthand> extends AlgorithmDefinitionBase<O> {
-    // (undocumented)
     readonly edge?: never;
     readonly groups: (graph: GraphView, context: AlgorithmContext<OptionValuesOf<O>>) => ReadonlyMap<NodeId, string | number | null | undefined> | Promise<ReadonlyMap<NodeId, string | number | null | undefined>>;
-    // (undocumented)
     readonly node?: never;
-    // (undocumented)
     readonly nodes?: never;
 }
 
@@ -2311,7 +2300,6 @@ class Node_2 implements ModelUser {
     // @internal
     get decorationPieces(): readonly NodeDecorationPiece[];
     dispose(): void;
-    // (undocumented)
     dragging: boolean;
     get dragHandler(): NodeDragHandler | undefined;
     set dragHandler(handler: NodeDragHandler | undefined);
@@ -2389,7 +2377,6 @@ class Node_2 implements ModelUser {
     hideTooltip(): void;
     // @internal
     holdOffBatch(): void;
-    // (undocumented)
     readonly id: NodeIdType;
     // @internal
     imageDrawn(): BaseTexture | null;
@@ -2403,7 +2390,6 @@ class Node_2 implements ModelUser {
     isDrawnInFrustum(planes: Plane[]): boolean;
     isPinned(): boolean;
     isSelected(): boolean;
-    // (undocumented)
     label?: RichTextLabel;
     // @internal
     get layoutRadius(): number;
@@ -2418,7 +2404,6 @@ class Node_2 implements ModelUser {
         readonly colored: boolean;
         readonly clip: string | null;
     };
-    // (undocumented)
     opts: NodeOpts;
     // @internal
     get outlineHalfExtents(): Readonly<{
@@ -2432,10 +2417,8 @@ class Node_2 implements ModelUser {
     get paintedOpacity(): number;
     // @internal
     get paintedSourceMesh(): AbstractMesh;
-    // (undocumented)
     parentGraph: Graph | GraphContext;
     pin(): void;
-    // (undocumented)
     pinOnDrag: boolean;
     // @internal
     get reachOutline(): readonly (readonly [x: number, y: number])[] | null;
@@ -2462,7 +2445,6 @@ class Node_2 implements ModelUser {
     shapeTextLabels: RichTextLabel[];
     shapeType?: NonNullable<NodeStyleConfig["shape"]>["type"];
     showTooltip(): void;
-    // (undocumented)
     size: number;
     // @internal
     get sizeSpace(): NodeSizeSpace | undefined;
@@ -2498,7 +2480,7 @@ export { Node_2 as Node }
 // @public
 export type NodeId = string | number;
 
-// @public (undocumented)
+// @public
 export type NodeIdType = string | number;
 
 export { NodeMask }
@@ -2508,12 +2490,9 @@ export function nodeMetricFields(value: MetricValueName): readonly FieldDescript
 
 // @public
 export interface NodeScoreDefinition<O extends OptionsShorthand> extends AlgorithmDefinitionBase<O> {
-    // (undocumented)
     readonly edge?: never;
-    // (undocumented)
     readonly groups?: never;
     readonly node: (node: NodeView, context: AlgorithmContext<OptionValuesOf<O>>) => Score;
-    // (undocumented)
     readonly nodes?: never;
 }
 
@@ -3455,23 +3434,16 @@ export function validateOption(key: string, value: unknown, def: OptionDefinitio
 
 // @public
 export interface Vec3 {
-    // (undocumented)
     readonly x: number;
-    // (undocumented)
     readonly y: number;
-    // (undocumented)
     readonly z: number;
 }
 
 // @public
 export interface ViewInsets {
-    // (undocumented)
     readonly bottom?: number;
-    // (undocumented)
     readonly left?: number;
-    // (undocumented)
     readonly right?: number;
-    // (undocumented)
     readonly top?: number;
 }
 
@@ -3487,11 +3459,8 @@ export type WeightSkip = CodedFact<"weight.meaning-mismatch">;
 
 // @public
 export interface WholeGraphScoreDefinition<O extends OptionsShorthand> extends AlgorithmDefinitionBase<O> {
-    // (undocumented)
     readonly edge?: never;
-    // (undocumented)
     readonly groups?: never;
-    // (undocumented)
     readonly node?: never;
     readonly nodes: (graph: GraphView, context: AlgorithmContext<OptionValuesOf<O>>) => ReadonlyMap<NodeId, Score> | Promise<ReadonlyMap<NodeId, Score>>;
 }

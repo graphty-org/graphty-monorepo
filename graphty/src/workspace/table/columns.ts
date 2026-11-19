@@ -377,7 +377,7 @@ export function groupName(group: SummaryGroup): string {
 }
 
 /** Each issue code's words after its count: "3 decimal commas". */
-const ISSUE_WORDS: Readonly<Record<string, readonly [one: string, many: string]>> = {
+const ISSUE_WORDS: Readonly<Partial<Record<string, readonly [one: string, many: string]>>> = {
     "not-a-number": ["not a number", "not numbers"],
     "decimal-comma": ["decimal comma", "decimal commas"],
     "unknown-end": ["unknown end", "unknown ends"],
@@ -408,7 +408,7 @@ export function issueLabel(issue: DataIssue): string {
 }
 
 /** An unknown-end issue's words by the end it is on. */
-const UNKNOWN_END_WORDS: Readonly<Record<string, readonly [string, string]>> = {
+const UNKNOWN_END_WORDS: Readonly<Partial<Record<string, readonly [string, string]>>> = {
     source: ["edge with an unknown source", "edges with an unknown source"],
     target: ["edge with an unknown target", "edges with an unknown target"],
     both: ["edge with an unknown end", "edges with an unknown end"],

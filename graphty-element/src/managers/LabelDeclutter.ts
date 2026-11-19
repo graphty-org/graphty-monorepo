@@ -450,7 +450,7 @@ export class LabelDeclutter {
      * @returns The pass.
      */
     private static of(scene: Scene, context: GraphContext): LabelDeclutter {
-        scene.metadata = scene.metadata ?? {};
+        scene.metadata ??= {};
         if (!(scene.metadata.labelDeclutter instanceof LabelDeclutter)) {
             scene.metadata.labelDeclutter = new LabelDeclutter(scene, context);
         }

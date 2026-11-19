@@ -12,7 +12,7 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import type { Binding, Channel, ChannelValue, LayerId, LayerSpec, Rgba } from "../../catalog/types";
+import type { Binding, Channel, ChannelValue, Encoding, LayerId, LayerSpec, Rgba } from "../../catalog/types";
 import { channelDescriptor, toColorValue } from "./channels";
 import type { Layer } from "./Layer";
 import { type LegendBlock, luminance } from "./legend";
@@ -129,7 +129,7 @@ export function colorsOf(layers: readonly Layer[]): readonly StyleColor[] {
  */
 export function replaceColorPatch(layer: Layer, from: string, to: string): Pick<LayerSpec, "set" | "encode"> | null {
     let changed = false;
-    const swap = (value: ChannelValue | string | number): ChannelValue => {
+    const swap = <T extends ChannelValue>(value: T): T | string => {
         if (hexOf(value) === from) {
             changed = true;
             return to;
@@ -145,28 +145,30 @@ export function replaceColorPatch(layer: Layer, from: string, to: string): Pick<
         ]),
     );
     const encode = Object.fromEntries(
-        (Object.entries(layer.encode ?? {}) as [string, Binding | undefined][]).map(([channel, binding]) => {
-            if (binding === undefined || !isColorChannel(channel)) {
-                return [channel, binding];
-            }
+        (Object.entries(layer.encode ?? {}) as [string, Binding | undefined][]).map(
+            ([channel, binding]): [string, Binding | undefined] => {
+                if (binding === undefined || !isColorChannel(channel)) {
+                    return [channel, binding];
+                }
 
-            if ("value" in binding) {
-                return [channel, { ...binding, value: swap(binding.value) }];
-            }
+                if ("value" in binding) {
+                    return [channel, { ...binding, value: swap(binding.value) }];
+                }
 
-            return !("by" in binding) || binding.map === undefined
-                ? [channel, binding]
-                : [
-                      channel,
-                      {
-                          ...binding,
-                          map: Object.fromEntries(
-                              Object.entries(binding.map).map(([entry, value]) => [entry, swap(value)]),
-                          ),
-                      },
-                  ];
-        }),
-    );
+                return !("by" in binding) || binding.map === undefined
+                    ? [channel, binding]
+                    : [
+                          channel,
+                          {
+                              ...binding,
+                              map: Object.fromEntries(
+                                  Object.entries(binding.map).map(([entry, value]) => [entry, swap(value)]),
+                              ),
+                          },
+                      ];
+            },
+        ),
+    ) as Encoding; // an undefined binding only ever comes from a channel key, which Encoding leaves optional
 
     if (!changed) {
         return null;

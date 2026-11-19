@@ -164,6 +164,28 @@ async function waitForPicture(graph: Graph, want: string): Promise<void> {
     }
 }
 
+/**
+ * Destroys the graph's device when no restore can succeed, and checks the graph says it stopped
+ * drawing rather than waiting forever (issue #6422).
+ * @param graph - The graph.
+ * @returns The error the graph reported.
+ */
+async function destroyUntilGone(graph: Graph): Promise<GraphtyError> {
+    const refused = new Promise<Error>((resolve) => {
+        graph.on("error", (event) => {
+            resolve(event.error);
+        });
+    });
+
+    deviceNowOf(graph).destroy();
+    const error = await refused;
+
+    assert.instanceOf(error, GraphtyError);
+    assert.strictEqual(error.code, "E_DEVICE_LOST");
+    assert.isFalse(graph.rendererStatus?.drawing);
+    return error;
+}
+
 const DRILLS: Record<string, (device: GPUDevice) => Promise<void>> = {
     destroy: async (device) => {
         device.destroy();
@@ -277,17 +299,21 @@ describe("a lost WebGPU device", () => {
     it("says the graph stopped drawing when no new device can be had", async () => {
         const graph = await openRing(false);
         vi.spyOn(GPU.prototype, "requestAdapter").mockResolvedValue(null);
-        const refused = new Promise<Error>((resolve) => {
-            graph.on("error", (event) => {
-                resolve(event.error);
-            });
+
+        await destroyUntilGone(graph);
+    });
+
+    it("says the graph stopped drawing when rebuilding on the new device throws", async () => {
+        const graph = await openRing(true);
+        const broken = new Error("rebuild failed");
+        // Told only once the engine rebuilt on the new device: Babylon's own restore, on the lost
+        // device, is skipped while the engine waits.
+        (graph.engine as WebGPUEngine).onContextRestoredObservable.addOnce(() => {
+            throw broken;
         });
 
-        deviceNowOf(graph).destroy();
-        const error = await refused;
+        const error = await destroyUntilGone(graph);
 
-        assert.instanceOf(error, GraphtyError);
-        assert.strictEqual(error.code, "E_DEVICE_LOST");
-        assert.isFalse(graph.rendererStatus?.drawing);
+        assert.strictEqual(error.cause, broken);
     });
 });

@@ -34,7 +34,7 @@ export function NodeMenu(): React.JSX.Element | null {
             return;
         }
         store.set({ dialog: null });
-        const [id] = session.selection.nodes;
+        const id = session.selection.nodes.at(0);
         if (id === undefined) {
             return;
         }

@@ -232,7 +232,8 @@ const LineStyle = z.strictObject({
     /**
      * How long each dash of a "dash" line is, in the line's own width units. Unset, 3. On a "dot" line with a
      * `dashGap`, the length of each dot in a program's pattern: the dot is still drawn round, one width across, and
-     * the dots repeat every `dashLength + dashGap` widths, as the program's do. Unset there, 1.
+     * the dots repeat every `dashLength + dashGap` widths, as the program's do; a dot shorter than 1 is drawn as a
+     * square-ended dash that long, as a disc that short would not show. Unset there, 1.
      * @experimental file-styles
      */
     dashLength: z.number().nonnegative().optional(),
@@ -332,6 +333,11 @@ const LineStyle = z.strictObject({
     bends: z.string().optional(),
     /** The width at the target as a multiple of the width at the source; 1 draws no taper. */
     taper: z.number().min(0).max(4).optional(),
+    /**
+     * The width at the source as a multiple of the line's width; 1 draws no taper there. When it and `taper` are both
+     * below 1, the line is its full width at the middle and narrows straight to each end.
+     */
+    taperSource: z.number().min(0).max(4).optional(),
     /** How far the route's middle rises out of a flat layout's plane in the 3D view, world units. */
     lift: z.number().optional(),
     /**

@@ -101,6 +101,7 @@ import {
 } from "./session/styles/channels";
 import { transitionsOf } from "./transitions/LayoutTransitionRunner";
 
+/** A node's id, as the data gave it: a string or a number. */
 export type NodeIdType = string | number;
 
 /**
@@ -240,6 +241,7 @@ function groupRegionPaint(meshKey: string, style: NodeStyleConfig): { meshKey: s
 }
 
 interface NodeOpts {
+    /** Whether dropping the node after a drag pins it in place; defaults to true. */
     pinOnDrag?: boolean;
 }
 
@@ -455,8 +457,11 @@ function exactOf(stored: number, measured: number | null): number {
  * Manages node rendering, styling, drag behavior, and interactions with the layout engine.
  */
 export class Node implements ModelUser {
+    /** The graph this node belongs to. */
     parentGraph: Graph | GraphContext;
+    /** The options the node was created with. */
     opts: NodeOpts;
+    /** The node's id, as the data gave it. */
     readonly id: NodeIdType;
 
     private row: number = INVALID_INDEX;
@@ -504,6 +509,10 @@ export class Node implements ModelUser {
         return this.row;
     }
 
+    /**
+     * Moves the node to a new row and marks the edges drawn from it as changed.
+     * @param row - The new row.
+     */
     private set index(row: number) {
         this.row = row;
         // the edge ID target draws each line from its nodes' rows
@@ -587,6 +596,7 @@ export class Node implements ModelUser {
     /** The shared mesh a batch draws this node from, or null while it has its own. */
     private batchSource: AbstractMesh | null = null;
     private batchOpacity = 1;
+    /** The node's label on screen, or undefined while it shows none. */
     label?: RichTextLabel;
 
     /** The further texts on screen (`shape.texts`), one label each. */
@@ -737,8 +747,11 @@ export class Node implements ModelUser {
         this.pointerHandler = handler;
     }
 
+    /** Whether a pointer drag is moving the node right now. */
     dragging = false;
+    /** Whether dropping the node after a drag pins it in place, from the node's options. */
     pinOnDrag!: boolean;
+    /** The shape size the node is drawn at, from its style (`shape.size`); 0 when the style sets none. */
     size!: number;
 
     /**
@@ -864,6 +877,10 @@ export class Node implements ModelUser {
      * mesh cache keeps its source, and with it the material the ring is drawn with.
      */
     private groupBorderSource: AbstractMesh | null = null;
+    /** The source a group's fill is drawn from at its box's size, while its instance is drawn from it. */
+    private groupFill: Mesh | null = null;
+    /** A hidden instance keeping alive the shared source a group's own fill took the place of. */
+    private groupFillKeep: InstancedMesh | null = null;
     /** The cache key of the halo's source mesh, so a node that changes shape rebuilds its halo. */
     private haloKey: string | null = null;
 
@@ -1484,12 +1501,65 @@ export class Node implements ModelUser {
         stretch.set(scale(half.x * grow, extendSize.x), scale(half.y * grow, extendSize.y), scale(thin, extendSize.z));
         this.setMeshPosition(center.x, center.y, back);
         this.measureRow();
-        if (
+        const refit =
             this.border !== this.groupBorder ||
-            !stretch.equalsWithEpsilon(before, GROUP_RESIZE_EPSILON * stretch.length())
-        ) {
+            !stretch.equalsWithEpsilon(before, GROUP_RESIZE_EPSILON * stretch.length());
+        if (refit) {
             this.fitGroupChildren(2 * half.x * grow, 2 * half.y * grow, 2 * thin);
         }
+
+        const mesh = this.#mesh;
+        // a repaint that only moved the instance to another source (`moveTo`) draws it stretched again
+        if (mesh instanceof InstancedMesh && (refit || mesh.sourceMesh !== this.groupFill)) {
+            this.fitGroupFill(mesh, 2 * half.x * grow, 2 * half.y * grow, 2 * thin);
+        }
+    }
+
+    /**
+     * Draw a group's fill at its box's size, as its border is: from a source of its own, built at the box's size and
+     * shrunk by the stretch, so a rounded rectangle keeps its corners' radius rather than stretching them into long
+     * ellipses with the box (issue #8194).
+     * @param mesh - The group's instance.
+     * @param width - The box's drawn width.
+     * @param height - Its drawn height.
+     * @param depth - Its drawn depth.
+     */
+    private fitGroupFill(mesh: InstancedMesh, width: number, height: number, depth: number): void {
+        const from = mesh.sourceMesh;
+        const shared = from === this.groupFill ? (this.groupFillKeep?.sourceMesh ?? from) : from;
+        const fill = NodeMesh.createGroupFill(
+            shared,
+            this.drawnStyle?.shape,
+            { x: width, y: height, z: depth },
+            this.#anchor.scaling,
+            this.context.is2D(),
+        );
+        if (fill === null) {
+            return;
+        }
+
+        moveInstance(mesh, fill);
+        // The same box as the shared source's, which it is but for float32 rounding of the rebuilt vertices: the
+        // group's size is read off it (drawAsGroup's stretch, drawnHalfExtents), and must not move by a rebuild.
+        const { minimum, maximum } = shared.getBoundingInfo();
+        mesh.buildBoundingInfo(minimum, maximum);
+        if (from !== this.groupFill) {
+            // The shared source stays alive under a hidden instance: the mesh cache disposes a source with no
+            // instance left, and its material with it, which the group's own fill is drawn with (as groupBorderSource).
+            this.groupFillKeep?.dispose();
+            this.groupFillKeep = NodeMesh.keepSource(from);
+        }
+
+        this.groupFill?.dispose(false, false);
+        this.groupFill = fill;
+    }
+
+    /** Dispose a group's own fill source and the hidden instance keeping its shared source; see {@link fitGroupFill}. */
+    private dropGroupFill(): void {
+        this.groupFill?.dispose(false, false);
+        this.groupFill = null;
+        this.groupFillKeep?.dispose();
+        this.groupFillKeep = null;
     }
 
     /**
@@ -1806,6 +1876,8 @@ export class Node implements ModelUser {
         if (!this.#anchor.isDisposed()) {
             this.#anchor.dispose();
         }
+
+        this.dropGroupFill();
     }
 
     /**
@@ -1847,7 +1919,7 @@ export class Node implements ModelUser {
         to.rotation.copyFrom(from.rotation);
         to.rotationQuaternion = from.rotationQuaternion?.clone() ?? null;
         to.parent = from.parent;
-        to.metadata = from.metadata;
+        to.metadata = from.metadata as unknown;
         to.setEnabled(from.isEnabled(false));
         for (const child of from.getChildren()) {
             child.parent = to;
@@ -2902,11 +2974,18 @@ export class Node implements ModelUser {
             ...this.sourceArgs(meshKey, style, this.drawnImage),
             this.context.getScene(),
         );
-        if (source !== mesh.sourceMesh) {
+        // A group draws from a fill of its own, built over the shared source it stands for (see fitGroupFill)
+        const drawn = mesh.sourceMesh === this.groupFill ? this.groupFillKeep?.sourceMesh : mesh.sourceMesh;
+        if (source !== drawn) {
             moveInstance(mesh, source);
             this.#source = source;
             // A new source has no color buffer until a paint registers one: paint the instance again.
             this.applyInstancePaint(this.drawnStyle ?? style, this.drawnColor);
+            // and a group's fill is rebuilt over it at once, never drawn stretched until the next frame
+            const box = this.context.getLayoutManager().groupBox(this.id);
+            if (box !== undefined && this.drawnAsGroup) {
+                this.drawAsGroup(box);
+            }
         }
     }
 
@@ -3975,7 +4054,14 @@ export class Node implements ModelUser {
      * `ngraph`'s `nodeGap` and by edge self-loops. Measured once per mesh and scaling.
      * @returns The half-extents; the style's own size on every axis when the mesh has no bounds yet.
      */
-    get drawnHalfExtents(): Readonly<{ x: number; y: number; z: number }> {
+    get drawnHalfExtents(): Readonly<{
+        /** Half the drawn width. */
+        x: number;
+        /** Half the drawn height. */
+        y: number;
+        /** Half the drawn depth. */
+        z: number;
+    }> {
         const batched = this.batchTable;
         if (batched !== null) {
             const { half } = batched.extentOf(this.row);
@@ -4817,7 +4903,14 @@ export class Node implements ModelUser {
      * {@link Graph.waitForStableFrame} before reading it.
      * @returns An object containing the x, y, and z coordinates of the node
      */
-    getPosition(): { x: number; y: number; z: number } {
+    getPosition(): {
+        /** The x coordinate. */
+        x: number;
+        /** The y coordinate. */
+        y: number;
+        /** The z coordinate. */
+        z: number;
+    } {
         this.followRow();
         return {
             x: this.#anchor.position.x,

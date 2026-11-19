@@ -21,7 +21,7 @@ const SHAPES = ["sphere", "box", "cylinder", "torus"] as const;
 /** Space between two nodes, in scene units. */
 const SPACING = 4;
 
-/** Half the side of the square read around a node's projected centre, in pixels. */
+/** Half the side of the square read around a node's projected center, in pixels. */
 const HALF = 4;
 
 /** How far, summed over red, green and blue, a pixel must be from the background to be drawn. */
@@ -78,7 +78,7 @@ describe("several graphs on one page", () => {
     });
 
     /**
-     * Render one graph's frame and say which of its nodes have pixels drawn at their centre.
+     * Render one graph's frame and say which of its nodes have pixels drawn at their center.
      * @param graph - The graph to read.
      * @returns The ids of the nodes nothing was drawn for.
      */

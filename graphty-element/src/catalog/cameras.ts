@@ -1,5 +1,5 @@
 /**
- * @file The camera catalogue: the named views the element can put the viewer in.
+ * @file The camera catalog: the named views the element can put the viewer in.
  *
  * A view is a way of DECIDING where the viewer stands and what they look at -- not a camera, not
  * an input model, not a projection. That distinction is what makes the point publishable: a view

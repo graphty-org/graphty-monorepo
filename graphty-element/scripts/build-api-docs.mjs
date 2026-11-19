@@ -45,7 +45,7 @@ const KNOWN_BROKEN_LINKS = [];
  * type the public API names. A run below prints the lower number; lower the ceiling to it in the
  * same change, so the debt paid off cannot come back.
  */
-const DEBT_CEILING = { undocumented: 4594, unexported: 140, misplacedTags: 16 };
+const DEBT_CEILING = { undocumented: 2609, unexported: 140, misplacedTags: 16 };
 
 /** Warning text that means a documentation link does not resolve to a page. */
 const LINK_PATTERNS = [/Failed to resolve link to /, /links to ".*" which was resolved but is not included/];
@@ -86,7 +86,7 @@ async function runTypedoc() {
 const ANSI = new RegExp(String.raw`${String.fromCharCode(27)}\[[0-9;]*m`, "g");
 
 /**
- * Strips the ANSI colour codes TypeDoc writes around its severity labels.
+ * Strips the ANSI color codes TypeDoc writes around its severity labels.
  * @param {string} line One line of output.
  * @returns {string} The same line with escape sequences removed.
  */

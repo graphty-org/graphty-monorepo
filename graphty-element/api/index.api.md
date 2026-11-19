@@ -160,7 +160,7 @@ export const ACCELERATION_POLICY_DEFAULT: AccelerationPolicy;
 export type AccelerationCapabilities = Pick<Capabilities, "acceleration">;
 
 // @public
-export type AccelerationErrorCode = "E_NO_WEBGPU" | "E_NO_ADAPTER" | "E_SOFTWARE_ONLY" | "E_DEVICE_INCORRECT" | "E_DEVICE_LOST" | "E_TOO_LARGE" | "E_NO_ACCELERATOR_REGISTERED" | "E_ACCELERATOR_FAILED";
+export type AccelerationErrorCode = "E_NO_WEBGPU" | "E_NO_ADAPTER" | "E_SOFTWARE_ONLY" | "E_DEVICE_INCORRECT" | "E_DEVICE_LOST" | "E_TOO_LARGE" | "E_NO_ACCELERATOR_REGISTERED" | "E_ACCELERATOR_FAILED" | "E_ACCELERATOR_INCOMPATIBLE" | "E_MISSING_PACKAGE";
 
 // @public
 export type AccelerationPolicy = "auto" | "off" | "required";
@@ -177,6 +177,7 @@ export interface AccelerationStatus {
     readonly backend?: "webgpu" | (string & {});
     readonly code?: AccelerationErrorCode;
     readonly device?: string;
+    readonly params?: Readonly<Record<string, CodedFactParam>>;
     readonly policy: AccelerationPolicy;
     readonly reason?: string;
     readonly state: AccelerationState;
@@ -319,6 +320,12 @@ export const AlgorithmOnLoad: z.ZodUnion<readonly [z.ZodString, z.ZodObject<{
 
 // @public (undocumented)
 export type AlgorithmOnLoad = z.infer<typeof AlgorithmOnLoad>;
+
+// @public
+export const AnimationCanceledError: typeof AnimationCancelledError;
+
+// @public
+export type AnimationCanceledError = AnimationCancelledError;
 
 // @public
 export class AnimationCancelledError extends Error {
@@ -540,7 +547,6 @@ export interface BasemapStatusEvent {
     };
     source: string;
     state: "off" | "loading" | "ready" | "fallback";
-    // (undocumented)
     type: "basemap-status";
 }
 
@@ -627,9 +633,8 @@ export interface CameraState {
     zoom?: number;
 }
 
-// @public (undocumented)
+// @public
 export interface CameraStateChangedEvent {
-    // (undocumented)
     state: {
         position?: {
             x: number;
@@ -648,7 +653,6 @@ export interface CameraStateChangedEvent {
         };
         [key: string]: unknown;
     };
-    // (undocumented)
     type: "camera-state-changed";
 }
 
@@ -771,23 +775,17 @@ export class CredentialStore {
     remember(target: SourceCredentialTarget, credential: Credential_2): Promise<void>;
 }
 
-// @public (undocumented)
+// @public
 export interface DataLoadingCompleteEvent {
-    // (undocumented)
     duration: number;
     edgesLoaded: number;
-    // (undocumented)
     errors: number;
-    // (undocumented)
     format: string;
     loadId?: number;
     nodesLoaded: number;
     report: ImportReport;
-    // (undocumented)
     success: boolean;
-    // (undocumented)
     type: "data-loading-complete";
-    // (undocumented)
     warnings: number;
 }
 
@@ -800,24 +798,16 @@ export interface DataLoadingError {
     params?: Readonly<Record<string, unknown>>;
 }
 
-// @public (undocumented)
+// @public
 export interface DataLoadingErrorEvent {
-    // (undocumented)
     canContinue: boolean;
-    // (undocumented)
     context: "detection" | "validation" | "parsing";
-    // (undocumented)
     edgeId?: string;
-    // (undocumented)
     error: Error;
-    // (undocumented)
     format?: string;
-    // (undocumented)
     line?: number;
     loadId?: number;
-    // (undocumented)
     nodeId?: unknown;
-    // (undocumented)
     type: "data-loading-error";
 }
 
@@ -825,7 +815,6 @@ export interface DataLoadingErrorEvent {
 export interface DataLoadingErrorSummaryEvent {
     code: "load-errors";
     errors: readonly LoadError[];
-    // (undocumented)
     format: string;
     loadId?: number;
     params: {
@@ -835,23 +824,19 @@ export interface DataLoadingErrorSummaryEvent {
     };
     primaryCategory?: string;
     totalErrors: number;
-    // (undocumented)
     type: "data-loading-error-summary";
 }
 
-// @public (undocumented)
+// @public
 export interface DataLoadingProgressEvent {
     bytesProcessed: number;
-    // (undocumented)
     chunksProcessed: number;
     edgeRecordsLoaded: number;
-    // (undocumented)
     format: string;
     loadId?: number;
     nodeRecordsLoaded: number;
     percentage?: number;
     totalBytes?: number;
-    // (undocumented)
     type: "data-loading-progress";
 }
 
@@ -1040,7 +1025,7 @@ export const DEFAULT_VIEW_MODE: ViewMode;
 // @public (undocumented)
 export const defaultEdgeStyle: EdgeStyleConfig;
 
-// @public (undocumented)
+// @public
 export const defaultNodeStyle: NodeStyleConfig;
 
 // @public
@@ -1065,6 +1050,12 @@ export function definePalette(definition: PaletteDefinition, options?: RegisterO
 export function defineShader(definition: ShaderDefinition, options?: RegisterOptions): void;
 
 export { defineSource }
+
+// @beta
+export type DocumentCode = "E_UNKNOWN_COMMAND" | "W_SCHEMA_MISMATCH" | "W_SECTION_KEPT" | "W_EXTENSION_REQUIRED" | "W_SECTION_UPGRADED" | "W_ELEMENT_NAMING_LEFT_OUT" | "W_SOURCE_NO_PATH" | "W_SOURCE_UNAVAILABLE" | "W_SOURCE_CHANGED" | "W_SOURCE_EMBEDDED" | "W_REFERENCE_UNBOUND" | "W_DATA_CHANGED" | "W_DATA_MISMATCH" | "W_JOIN_HISTORY_DIFFERS" | "W_CAMERA_CONTROLLER_UNKNOWN" | "W_RUN_NOT_RUN" | "W_RESULTS_DIFFER" | "W_EDGE_MATCH_AMBIGUOUS" | "W_SOURCE_UNKEYED" | "W_NODE_NAMED_ONLY" | "W_EDGE_END_MISSING" | "W_COLUMN_WIDENED" | "W_MEMBER_LEFT_OUT" | "W_RECIPE_NOT_APPLIED";
+
+// @beta
+export type DocumentSection = "data" | "style" | "recipe" | "settings" | "results" | "notes" | "view";
 
 // @public
 export interface DrawnShaders {
@@ -1107,6 +1098,8 @@ export class Edge {
         span: number;
         visibility: number;
     }[];
+    get drawnCenter(): Vector3;
+    // @deprecated
     get drawnCentre(): Vector3;
     get drawnCurve(): Vector3[] | null;
     get drawnEffects(): {
@@ -1120,6 +1113,7 @@ export class Edge {
         length: number;
         width: number;
         visibility: number;
+        center: Vector3;
         centre: Vector3;
         pattern: JoinedPatternKind | null;
     } | null;
@@ -1181,7 +1175,7 @@ export class Edge {
     xlabelLabel: RichTextLabel | null;
 }
 
-// @public (undocumented)
+// @public
 export const EDGE_CONSTANTS: {
     readonly DEFAULT_LINE_WIDTH: 8;
     readonly DEFAULT_LINE_COLOR: "#FFFFFF";
@@ -1215,32 +1209,26 @@ export const EDGE_CONSTANTS: {
     readonly BEZIER_MAX_SEGMENTS: 64;
 };
 
-// @public (undocumented)
+// @public
 export interface EdgeAddEvent {
-    // (undocumented)
     dstNodeId: NodeIdType_2;
-    // (undocumented)
     metadata: object;
-    // (undocumented)
     srcNodeId: NodeIdType_2;
-    // (undocumented)
     type: "edge-add-before";
 }
 
 // @public (undocumented)
 export type EdgeCapEnd = "arrowHead" | "arrowTail" | "arrowMiddleHead" | "arrowMiddleTail";
 
-// @public (undocumented)
+// @public
 export type EdgeEvent = EdgeGenericEvent | EdgeAddEvent;
 
-// @public (undocumented)
+// @public
 export type EdgeEventType = EdgeEvent["type"];
 
-// @public (undocumented)
+// @public
 export interface EdgeGenericEvent {
-    // (undocumented)
     edge: Edge;
-    // (undocumented)
     type: "edge-update-after" | "edge-update-before";
 }
 
@@ -2026,6 +2014,7 @@ export const EdgeStyle: z.ZodObject<{
         bezier: z.ZodOptional<z.ZodBoolean>;
         bends: z.ZodOptional<z.ZodString>;
         taper: z.ZodOptional<z.ZodNumber>;
+        taperSource: z.ZodOptional<z.ZodNumber>;
         lift: z.ZodOptional<z.ZodNumber>;
         fanSpacing: z.ZodOptional<z.ZodNumber>;
         fanned: z.ZodOptional<z.ZodBoolean>;
@@ -2594,7 +2583,7 @@ export interface ErrorSummary {
     totalErrors: number;
 }
 
-// @public (undocumented)
+// @public
 export type EventCallbackType = (evt: GraphEvent | NodeEvent | EdgeEvent | AiEvent) => void;
 
 // @public
@@ -2696,7 +2685,7 @@ export type ExportScope = RuleTree | "all" | "shown" | "selection" | {
 export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];
 
 // @public
-export type FeatureId = "assistant" | "data-management" | "location-map" | "cosmograph" | "file-styles" | "node-models";
+export type FeatureId = "assistant" | "data-management" | "location-map" | "cosmograph" | "file-styles" | "node-models" | "save-files-v2";
 
 // @public
 export interface FigureOptions {
@@ -2835,13 +2824,9 @@ export interface FindValueRow {
 
 // @public
 export interface FitInsets {
-    // (undocumented)
     readonly bottom: number;
-    // (undocumented)
     readonly left: number;
-    // (undocumented)
     readonly right: number;
-    // (undocumented)
     readonly top: number;
 }
 
@@ -3198,6 +3183,7 @@ export class Graph implements GraphContext {
         onStart?: (started: boolean, error?: string) => void;
     }): boolean;
     stopAiSpeech(): void;
+    stopAnimationCapture(): boolean;
     stopInputRecording(): RecordedInputEvent[];
     stopVoiceInput(): void;
     get styles(): Styles;
@@ -3311,78 +3297,60 @@ export interface GraphContextConfig {
     xr?: XRConfig;
 }
 
-// @public (undocumented)
+// @public
 export interface GraphDataAddedEvent {
     cause?: HistoryCause;
-    // (undocumented)
     count: number;
-    // (undocumented)
     dataType: "nodes" | "edges";
-    // (undocumented)
     shouldStartLayout: boolean;
-    // (undocumented)
     shouldZoomToFit: boolean;
-    // (undocumented)
     type: "data-added";
 }
 
 // @public
 export interface GraphDataClearedEvent {
-    // (undocumented)
     type: "data-cleared";
 }
 
-// @public (undocumented)
+// @public
 export interface GraphDataLoadedEvent {
     cause?: HistoryCause;
-    // (undocumented)
     details: {
         chunksLoaded: number;
         dataSourceType: string;
         report: ImportReport;
         loadId?: number;
     };
-    // (undocumented)
     graph: Graph;
-    // (undocumented)
     type: "data-loaded";
 }
 
-// @public (undocumented)
+// @public
 export interface GraphErrorEvent {
-    // (undocumented)
     context: "init" | "data-loading" | "layout" | "algorithm" | "xr" | "other";
-    // (undocumented)
     details?: Record<string, unknown>;
-    // (undocumented)
     error: Error;
-    // (undocumented)
     graph: Graph | null;
-    // (undocumented)
     type: "error";
 }
 
-// @public (undocumented)
+// @public
 export type GraphEvent = GraphSettledEvent | GraphErrorEvent | GraphDataLoadedEvent | GraphDataAddedEvent | GraphSnapshotReplacedEvent | GraphSnapshotDroppedEvent | GraphDataClearedEvent | GraphLayoutInitializedEvent | CameraStateChangedEvent | OverviewChangedEvent | GraphGenericEvent | DataLoadingProgressEvent | DataLoadingErrorEvent | DataLoadingErrorSummaryEvent | DataLoadingCompleteEvent | ElementsRemovedEvent | StyleChangedEvent | SelectionChangedEvent | GraphStartedEvent | LayoutChangedEvent | LayoutWarningEvent | LimitsWarningEvent | BasemapStatusEvent | RenderLostEvent | RenderRestoredEvent | OperationCancelledEvent | StatsUpdateEvent | InputEnabledChangedEvent | XRSessionStartedEvent | XRSessionEndedEvent | InputPointerEvent | InputWheelEvent | InputTouchEvent | InputTouchEndEvent | InputKeyEvent | InputShortcutEvent;
 
-// @public (undocumented)
+// @public
 export type GraphEventType = GraphEvent["type"];
 
-// @public (undocumented)
+// @public
 export interface GraphGenericEvent {
     // (undocumented)
     [key: string]: unknown;
-    // (undocumented)
     type: "render-initialized" | "manager-initialized" | "lifecycle-initialized" | "lifecycle-disposed" | "skybox-loaded" | "skybox-failed" | "operation-queue-active" | "operation-queue-idle" | "operation-batch-complete" | "operation-start" | "operation-complete" | "operation-progress" | "layout-progress" | "operation-obsoleted" | "animation-progress" | "animation-cancelled" | "screenshot-enhancing" | "screenshot-ready" | "zoom-to-fit-complete" | "graph-frame-stable" | "graph-first-frame";
 }
 
-// @public (undocumented)
+// @public
 export interface GraphLayoutInitializedEvent {
-    // (undocumented)
     layoutType: string;
-    // (undocumented)
     shouldZoomToFit: boolean;
-    // (undocumented)
     type: "layout-initialized";
 }
 
@@ -3397,11 +3365,9 @@ export interface GraphOverview {
     viewport: OverviewRect;
 }
 
-// @public (undocumented)
+// @public
 export interface GraphSettledEvent {
-    // (undocumented)
     graph: Graph;
-    // (undocumented)
     type: "graph-settled";
 }
 
@@ -3410,7 +3376,6 @@ export { GraphSource }
 // @public
 export interface GraphStartedEvent {
     timestamp: number;
-    // (undocumented)
     type: "graph-started";
 }
 
@@ -3815,6 +3780,7 @@ export class Graphty extends LitElement {
         onStart?: (started: boolean, error?: string) => void;
     }): boolean;
     stopAiSpeech(): void;
+    stopAnimationCapture(): boolean;
     stopVoiceInput(): void;
     static styles: CSSResult;
     unpin(ids: (string | number) | readonly (string | number)[]): void;
@@ -3889,7 +3855,7 @@ export class GraphtyError extends Error {
 export type GraphtyErrorCode =
 /**
 * A command or a call is malformed: a missing required field, or two fields that may not be
-* set together (the `src` and `sample` attributes, for instance). `details` name the fields.
+* set together. `details` name the fields.
 * The caller fixes the call; retrying the same call always fails the same way.
 */
 "E_BAD_COMMAND"
@@ -4312,9 +4278,10 @@ export type GraphtyErrorCode =
 */
 | "E_NO_ACCELERATOR"
 /**
-* No accelerator factory is registered, so the element never looked for a GPU. Usually
-* `import "@graphty/graphty-element/webgpu"` was never evaluated -- not written, or its module
-* failed to load (a network error, a blocked request, a stale dev-server cache). Reported
+* No accelerator factory is registered, so the element never looked for a GPU. The root entry
+* point registers one for `@graphty/webgpu-graph-algorithms` by itself, so this means the
+* element was used only through an entry point that does not (`./session` and the other
+* Node-safe entries) and nothing called `import "@graphty/graphty-element/webgpu"`. Reported
 * through `capabilities.acceleration`; a registration that arrives later switches
 * acceleration on without the consumer doing anything.
 */
@@ -4323,9 +4290,20 @@ export type GraphtyErrorCode =
 * A registered accelerator factory threw while setting up, with an error that is not one of
 * the other acceleration codes -- a module of the backend that failed to load, or a defect in
 * the backend. `reason` carries what it threw. Reported through `capabilities.acceleration`;
-* the CPU path runs.
+* the CPU path runs. Also what an installed `@graphty/webgpu-graph-algorithms` reports when
+* it is present and fails to load (a syntax error, a throw while its module evaluates, an
+* import-map URL that does not answer); `params.package` names it.
 */
 | "E_ACCELERATOR_FAILED"
+/**
+* The installed accelerator package loaded but lacks what this graphty-element needs: an
+* export it calls is missing, usually because the installed version is older or newer than
+* the range graphty-element declares as its peer, or because a bundler alias replaced it with
+* an empty module. Reported through `capabilities.acceleration` with `params.package` and
+* `params.missing` (the export names); the CPU path runs. The caller installs a version in
+* the declared peer range.
+*/
+| "E_ACCELERATOR_INCOMPATIBLE"
 /**
 * The runtime exposes no WebGPU at all: no `navigator.gpu`, usually because the page is not
 * in a secure context or the browser does not implement it. Reported through
@@ -4394,8 +4372,10 @@ export type GraphtyErrorCode =
 /**
 * A feature the caller asked for needs an optional peer package that is not installed.
 * `details.package` names the package to install and `details.feature` the feature that
-* needs it (for the in-browser AI provider, `"webllm"`). The caller installs the package, or
-* picks a feature that does not need it.
+* needs it (for the in-browser AI provider, `"webllm"`; for acceleration, `"webgpu"`). The
+* caller installs the package, or picks a feature that does not need it. Also reported, not
+* thrown, on `capabilities.acceleration` when `@graphty/webgpu-graph-algorithms` is not
+* installed, with `params.package`; nothing is printed then, because nothing asked for a GPU.
 */
 | "E_MISSING_PACKAGE"
 /**
@@ -4816,12 +4796,6 @@ export type GraphtyWarningCode =
 */
 | "W_OBJECT_CAP"
 /**
-* A style layer writes a text size under 1 (a label's, a tooltip's or an arrow caption's),
-* which draws no text. `params.channel` is the channel, `params.path` where in the layer the
-* size sits, and `params.value` the size.
-*/
-| "W_TEXT_TOO_SMALL"
-/**
 * A style layer binds a whole label style channel (`node.labelStyle`) to a path. No scale
 * produces a whole label style, so the binding paints nothing. `params.channel` is the channel,
 * `params.path` where in the layer, and `params.fieldChannels` the label field channels that
@@ -5088,25 +5062,17 @@ export const INFERNO_COLORS: readonly ["#000004", "#1b0c41", "#4a0c6b", "#781c6d
 // @public
 export interface InputEnabledChangedEvent {
     enabled: boolean;
-    // (undocumented)
     type: "input-enabled-changed";
 }
 
 // @public
 export interface InputKeyEvent {
-    // (undocumented)
     altKey: boolean;
-    // (undocumented)
     code: string;
-    // (undocumented)
     ctrlKey: boolean;
-    // (undocumented)
     key: string;
-    // (undocumented)
     metaKey: boolean;
-    // (undocumented)
     shiftKey: boolean;
-    // (undocumented)
     type: "input:key-down" | "input:key-up";
 }
 
@@ -5149,7 +5115,6 @@ export class InputManager implements Manager {
 
 // @public
 export interface InputPointerEvent {
-    // (undocumented)
     type: "input:pointer-down" | "input:pointer-move" | "input:pointer-up";
     x: number;
     y: number;
@@ -5157,7 +5122,6 @@ export interface InputPointerEvent {
 
 // @public
 export interface InputShortcutEvent {
-    // (undocumented)
     type: "input:undo" | "input:redo" | "input:select-all";
 }
 
@@ -5166,7 +5130,6 @@ export interface InputTouchEndEvent {
     array: {
         value: number;
     }[];
-    // (undocumented)
     type: "input:touch-end";
 }
 
@@ -5176,20 +5139,15 @@ export interface InputTouchEvent {
         x: number;
         y: number;
     }[];
-    // (undocumented)
     type: "input:touch-start" | "input:touch-move";
 }
 
 // @public
 export interface InputWheelEvent {
     deltaMode: number;
-    // (undocumented)
     deltaX: number;
-    // (undocumented)
     deltaY: number;
-    // (undocumented)
     deltaZ: number;
-    // (undocumented)
     type: "input:wheel";
 }
 
@@ -5215,7 +5173,6 @@ export const KELLY_COLORS: readonly ["#F3C300", "#875692", "#F38400", "#A1CAF1",
 export interface LayoutChangedEvent {
     layoutType: string;
     options: Record<string, unknown>;
-    // (undocumented)
     type: "layout-changed";
 }
 
@@ -5414,7 +5371,6 @@ export interface LayoutWarningEvent {
     code: GraphtyWarningCode;
     layoutType: string;
     params: Readonly<Record<string, unknown>>;
-    // (undocumented)
     type: "layout-warning";
 }
 
@@ -5428,7 +5384,6 @@ export const LIGHTING_VALUES: readonly ["studio", "headlight", "matte", "flat"];
 
 // @public
 export interface Limits {
-    approximateAboveNodes: number;
     edgesDrawn: number;
     graphMemoryBudgetBytes: number;
     largeGraphThreshold: number;
@@ -5712,6 +5667,8 @@ class Node_2 implements ModelUser {
     // @internal
     get paintedColor(): Rgba | null;
     // @internal
+    get paintedOpacity(): number;
+    // @internal
     get paintedSourceMesh(): AbstractMesh;
     // (undocumented)
     parentGraph: Graph | GraphContext;
@@ -5776,59 +5733,46 @@ class Node_2 implements ModelUser {
 }
 export { Node_2 as Node }
 
-// @public (undocumented)
+// @public
 export interface NodeAddEvent {
-    // (undocumented)
     metadata: object;
-    // (undocumented)
     nodeId: NodeIdType_2;
-    // (undocumented)
     type: "node-add-before";
 }
 
 // @public
 export interface NodeClickEvent {
-    // (undocumented)
     data: Record<string, unknown>;
-    // (undocumented)
     event: PointerEvent;
-    // (undocumented)
     node: Node_2;
-    // (undocumented)
     type: "node-click";
 }
 
 // @public
 export interface NodeDragEndEvent {
-    // (undocumented)
     node: Node_2;
     pinned: boolean;
-    // (undocumented)
     position: {
         x: number;
         y: number;
         z: number;
     };
-    // (undocumented)
     type: "node-drag-end";
 }
 
 // @public
 export interface NodeDragStartEvent {
-    // (undocumented)
     node: Node_2;
     pinned: boolean;
-    // (undocumented)
     position: {
         x: number;
         y: number;
         z: number;
     };
-    // (undocumented)
     type: "node-drag-start";
 }
 
-// @public (undocumented)
+// @public
 export type NodeEvent = NodeGenericEvent | NodeAddEvent | NodeClickEvent | NodeHoverEvent | NodeDragStartEvent | NodeDragEndEvent;
 
 // @public
@@ -5851,24 +5795,19 @@ export interface NodeEventDetail {
     tooltip?: string;
 }
 
-// @public (undocumented)
+// @public
 export type NodeEventType = NodeEvent["type"];
 
-// @public (undocumented)
+// @public
 export interface NodeGenericEvent {
-    // (undocumented)
     node: Node_2;
-    // (undocumented)
     type: "node-update-after" | "node-update-before";
 }
 
 // @public
 export interface NodeHoverEvent {
-    // (undocumented)
     data: Record<string, unknown>;
-    // (undocumented)
     node: Node_2;
-    // (undocumented)
     type: "node-hover";
 }
 
@@ -7165,7 +7104,7 @@ export const NodeStyle: z.ZodObject<{
     visible: z.ZodOptional<z.ZodBoolean>;
 }, z.core.$strict>;
 
-// @public (undocumented)
+// @public
 export type NodeStyleConfig = z.infer<typeof NodeStyle>;
 
 // @public
@@ -7348,10 +7287,12 @@ export interface NoteTargetStatus {
 export const OKABE_ITO_COLORS: readonly ["#E69F00", "#56B4E9", "#009E73", "#0072B2", "#D55E00", "#CC79A7", "#000000", "#F0E442"];
 
 // @public
+export type OperationCanceledEvent = OperationCancelledEvent;
+
+// @public
 export interface OperationCancelledEvent {
     code: "queue-cleared" | "cancelled";
     id: string;
-    // (undocumented)
     type: "operation-cancelled";
 }
 
@@ -7410,7 +7351,6 @@ export const OTHER_GROUP_COLOR = "#686868";
 
 // @public
 export interface OverviewChangedEvent {
-    // (undocumented)
     type: "overview-changed";
 }
 
@@ -7480,37 +7420,22 @@ export type PixelRatio = number | "device";
 // @public
 export const PLASMA_COLORS: readonly ["#0d0887", "#5302a3", "#8b0aa5", "#b83289", "#db5c68", "#f48849", "#febd2a", "#f0f921"];
 
-// @public (undocumented)
+// @public
 export enum PolyhedronType {
-    // (undocumented)
     DODECAHEDRON = 2,
-    // (undocumented)
     ELONGATED_PENTAGONAL_CUPOLA = 14,
-    // (undocumented)
     ELONGATED_PENTAGONAL_DIPYRAMID = 13,
-    // (undocumented)
     ELONGATED_SQUARE_DIPYRAMID = 12,
-    // (undocumented)
     HEXAGONAL_PRISM = 7,
-    // (undocumented)
     ICOSAHEDRON = 3,
-    // (undocumented)
     OCTAHEDRON = 1,
-    // (undocumented)
     PENTAGONAL_DIPYRAMID = 11,
-    // (undocumented)
     PENTAGONAL_PRISM = 6,
-    // (undocumented)
     PENTAGONAL_PYRAMID = 9,
-    // (undocumented)
     RHOMBICUBOCTAHEDRON = 4,
-    // (undocumented)
     SQUARE_PYRAMID = 8,
-    // (undocumented)
     TETRAHEDRON = 0,
-    // (undocumented)
     TRIANGULAR_DIPYRAMID = 10,
-    // (undocumented)
     TRIANGULAR_PRISM = 5
 }
 
@@ -7589,18 +7514,36 @@ export function projectFileName(name: string | null | undefined): string;
 
 // @public
 export interface ProjectOpenOptions {
+    // @beta
+    readonly bindOtherData?: boolean;
+    // @beta
+    readonly dataMode?: "replace" | "add";
     readonly discard?: boolean;
     readonly draft?: {
         readonly onto?: "graph";
         readonly guess?: "names" | "values";
     };
+    // @beta
+    readonly fetchSources?: boolean;
     readonly fileName?: string;
+    // @beta
+    readonly files?: Readonly<Record<string, Blob>>;
     readonly history?: "step" | "start";
     // (undocumented)
     readonly limits?: {
         readonly fileBytes?: number;
     };
+    // @beta
+    readonly location?: string;
+    // @beta
+    readonly migrate?: boolean;
     readonly ownWork?: boolean;
+    // @beta
+    readonly rerun?: boolean;
+    // @beta
+    readonly sections?: readonly DocumentSection[];
+    // @beta
+    readonly signal?: AbortSignal;
 }
 
 // @public
@@ -7614,14 +7557,26 @@ export interface ProjectOpenReport {
 }
 
 // @public
-export type ProjectProblem = CodedFact<GraphtyErrorCode | GraphtyWarningCode | "shader.unknown" | "shader.not-saved">;
+export type ProjectProblem = CodedFact<GraphtyErrorCode | GraphtyWarningCode | DocumentCode | "shader.unknown" | "shader.not-saved">;
 
 // @public
 export interface ProjectSaveOptions {
     readonly assets?: Readonly<Record<string, AssetStorage>>;
+    // @beta
+    readonly embed?: Readonly<Record<string, SourceStorage>>;
     readonly extensions?: Readonly<Record<string, unknown>>;
+    // @beta
+    readonly form?: "full" | "section";
+    // @beta
+    readonly format?: 1 | 2;
     readonly leaveOut?: readonly ("graphty-style" | "graphty-notes" | "graphty-view-state")[];
     readonly markSaved?: boolean;
+    // @beta
+    readonly paths?: Readonly<Record<string, string>>;
+    // @beta
+    readonly results?: boolean;
+    // @beta
+    readonly sections?: readonly DocumentSection[];
 }
 
 // @public
@@ -7711,7 +7666,6 @@ export interface RenderLostEvent {
     params: {
         readonly renderer: "webgl" | "webgpu";
     };
-    // (undocumented)
     type: "render-lost";
 }
 
@@ -7797,7 +7751,6 @@ export type RenderQualityCode = "guard.slow-gpu" | "guard.paused" | "guard.long-
 // @public
 export interface RenderRestoredEvent {
     renderer: "webgl" | "webgpu";
-    // (undocumented)
     type: "render-restored";
 }
 
@@ -7815,7 +7768,7 @@ export interface ResultRef {
 
 export { RetryOptions }
 
-// @public (undocumented)
+// @public
 export const RichTextStyle: z.ZodObject<{
     enabled: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
     textPath: z.ZodOptional<z.ZodString>;
@@ -8056,7 +8009,7 @@ export const RichTextStyle: z.ZodObject<{
     closeButton: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
 }, z.core.$strict>;
 
-// @public (undocumented)
+// @public
 export type RichTextStyleType = z.infer<typeof RichTextStyle>;
 
 // @public
@@ -8219,7 +8172,7 @@ export interface ShaderSettings {
     readonly untrusted?: "hold" | "run" | "refuse";
 }
 
-// @public (undocumented)
+// @public
 export const SHAPE_CONSTANTS: {
     readonly GOLDEN_RATIO: 1.618;
     readonly DEFAULT_NODE_SIZE: 1;
@@ -8534,6 +8487,9 @@ export type SourceSettings = Pick<SourceLoadRecord, "source" | "endpoint" | "con
     readonly limits?: SourceLimitOptions;
 };
 
+// @beta
+export type SourceStorage = "embedded" | "referenced";
+
 export { SourceValidators }
 
 // @public
@@ -8615,7 +8571,6 @@ export class StatsManager implements Manager {
 export interface StatsUpdateEvent {
     stats: ReturnType<StatsManager["getStats"]>;
     totalUpdates: number;
-    // (undocumented)
     type: "stats-update";
 }
 
@@ -8637,7 +8592,6 @@ export interface StyleChangedEvent {
     layers: number;
     painted: StyleChange["painted"];
     reason: StyleChange["reason"];
-    // (undocumented)
     type: "style-changed";
     unresolvedPaths: string[];
     warnings: StyleChange["warnings"];
@@ -8854,7 +8808,6 @@ export interface XRModeConfig {
 export interface XRSessionEndedEvent {
     cause: "exit" | "device";
     mode: "vr" | "ar";
-    // (undocumented)
     type: "xr-session-ended";
 }
 
@@ -8863,7 +8816,6 @@ export interface XRSessionStartedEvent {
     mode: "vr" | "ar";
     referenceSpace: "local" | "local-floor" | "bounded-floor" | "unbounded" | "viewer";
     requestedReferenceSpace: "local" | "local-floor" | "bounded-floor" | "unbounded";
-    // (undocumented)
     type: "xr-session-started";
 }
 

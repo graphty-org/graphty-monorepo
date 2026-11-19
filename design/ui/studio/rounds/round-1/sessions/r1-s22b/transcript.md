@@ -90,7 +90,7 @@ selected the Medici again, and the panel shows Degree 6.
 defaults (Color, Size, Shape)". Labels aren't mentioned.
 
 **20.png -- `--click-at 838,864` (Quick actions).** A command list: Go to Graph or Data, Find,
-"Add label line" (greyed out), Analyze, and New from data... "Add label line" sounds like what I
+"Add label line" (grayed out), Analyze, and New from data... "Add label line" sounds like what I
 want, but I can't click it and nothing tells me why.
 
 **21.png -- `--key Escape --click-at 753,252`.** I gave up on getting a list and started clicking
@@ -121,9 +121,9 @@ then. Each click gave me one name, and I wrote them down on paper.
 - **The selection summary shows one name with "(1)".** I wanted all seven names. Clicking it did
   nothing.
 - **Clicking "Node t..." opened "Add to Florentine families".** I wanted to look at the data, not
-  add to it. Cancelling also threw away my selection.
+  add to it. Canceling also threw away my selection.
 - **Hovering a ball shows nothing.** I expected a name.
-- **"Add label line" is greyed out** with no reason given.
+- **"Add label line" is grayed out** with no reason given.
 - **No way to copy the list.** I'd want to paste these six names into Excel. In the end I copied
   them by hand, one click at a time.
 
@@ -143,5 +143,5 @@ let me copy them.
 **What confused me:** the drawing has no names on it; "Degree" and "Edges per n..." are jargon;
 "0 edges" next to "Edges among them 7"; the summary showing one family with "(1)" when I'd picked
 seven; "Node table" opening an add-a-file screen and losing my selection; and "Add label line"
-being greyed out with no reason. If I had to do this for the board with 200 donors, clicking one
+being grayed out with no reason. If I had to do this for the board with 200 donors, clicking one
 ball at a time wouldn't work.

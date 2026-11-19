@@ -1,11 +1,11 @@
 /**
- * @file A third party's colour palette, and whether the element paints with it the way it paints
+ * @file A third party's color palette, and whether the element paints with it the way it paints
  * with its own.
  *
- * WHAT A PALETTE IS, for a reader who has never opened this package. graphty-element colours a
+ * WHAT A PALETTE IS, for a reader who has never opened this package. graphty-element colors a
  * graph by putting a style layer on a stack and telling that layer to read a value out of the
- * data -- a degree, a score, a team name -- and turn it into a colour. Which colours it may reach
- * for is a palette: a named, ordered list of colour anchors. Eighteen ship with the element
+ * data -- a degree, a score, a team name -- and turn it into a color. Which colors it may reach
+ * for is a palette: a named, ordered list of color anchors. Eighteen ship with the element
  * (viridis, okabe-ito, purple-green and the rest), and until this extension point existed those
  * built-ins were the whole world. There was no registration call of any kind, and a layer naming
  * anything else was refused.
@@ -17,15 +17,15 @@
  * once.
  *
  * A PALETTE IS THE ONE EXTENSION POINT WITH NO CODE IN IT. Nothing in the element ever asks a
- * palette for behaviour. The categorical index path, the continuous interpolation, the step
+ * palette for behavior. The categorical index path, the continuous interpolation, the step
  * table, the over-subscription refusal, the legend and the reversal flag are all implemented by
  * code that reads six fields off a plain object. So the unit that gets registered is that plain
  * object, and `registerPalette` is a free function rather than a class registration.
  *
  * WHAT THIS FILE PROVES. That two palettes nobody here has heard of get everything the element's
- * own eighteen get: a place in the catalogue a picker reads, resolution by the same lookup that
- * finds a built-in, a value ramped onto a colour by the continuous path and by the categorical
- * one, a capacity that refuses over-subscription rather than wrapping two groups onto one colour,
+ * own eighteen get: a place in the catalog a picker reads, resolution by the same lookup that
+ * finds a built-in, a value ramped onto a color by the continuous path and by the categorical
+ * one, a capacity that refuses over-subscription rather than wrapping two groups onto one color,
  * reversal, a missing-value policy, a legend block, and a round trip through a saved document.
  * Every assertion reads what the element RESOLVED for a node or what the session REPORTED, never
  * a private field: `styles.explain({ node })` is the element saying, in its own words, what that
@@ -33,11 +33,11 @@
  *
  * THE TWO DUMMIES. `acme-heat` is a five-anchor sequential ramp, written the way a brand palette
  * arrives -- mostly hex, with one anchor in `oklch()` because that is what a design system
- * exports. `acme-teams` is a four-colour categorical palette with one anchor written as a CSS
- * colour name, claiming safety for deuteranopia and making no claim about the other two. Neither
+ * exports. `acme-teams` is a four-color categorical palette with one anchor written as a CSS
+ * color name, claiming safety for deuteranopia and making no claim about the other two. Neither
  * duplicates a built-in. Both are deliberately arithmetic a reader can check by eye: with five
  * anchors, a value a quarter of the way along the ramp lands exactly on the second anchor, so
- * every colour asserted below is an anchor written at the top of this file rather than a mixture
+ * every color asserted below is an anchor written at the top of this file rather than a mixture
  * nobody can verify.
  *
  * EVERY IMPORT BELOW IS ONE A CUSTOMER COULD WRITE. The relative paths are this repository
@@ -66,7 +66,7 @@ import type { GraphSession, LayerSpec, StyleDocument } from "../../../session";
 /**
  * The five anchors of the sequential ramp, as the brand's design system exports them.
  *
- * The middle one is `oklch()` on purpose. The element's colour parser reads it, but the
+ * The middle one is `oklch()` on purpose. The element's color parser reads it, but the
  * interpolation that builds a ramp reads six hex digits and answers magenta for anything else --
  * so an anchor stored as written would give this palette correct endpoints and a magenta middle,
  * with no error attached to it. What registration does about that is asserted below.
@@ -76,7 +76,7 @@ const HEAT_ANCHORS = ["#0B1D51", "#1B7F79", "oklch(0.7 0.15 30)", "#F2A65A", "#F
 /** The same five anchors as every reader of a palette actually sees them. */
 const HEAT_HEXES = ["#0B1D51", "#1B7F79", "#ED7665", "#F2A65A", "#F7F056"] as const;
 
-/** The four anchors of the categorical palette, one of them written as a CSS colour name. */
+/** The four anchors of the categorical palette, one of them written as a CSS color name. */
 const TEAM_ANCHORS = ["#1B6CA8", "#E07A1F", "rebeccapurple", "#3F8F5B"] as const;
 
 /** The same four anchors as every reader of a palette actually sees them. */
@@ -93,7 +93,7 @@ const ACME_HEAT: PaletteDescriptor = {
 };
 
 /**
- * The categorical palette, claiming safety for one form of colour blindness and none of the
+ * The categorical palette, claiming safety for one form of color blindness and none of the
  * others.
  *
  * An empty or partial claim means "makes no claim about the rest", not "known to fail", which is
@@ -112,7 +112,7 @@ const ACME_TEAMS: PaletteDescriptor = {
  * File both palettes.
  *
  * Called at module scope, the way a plugin package registers itself on import, and again by the
- * one test that has to see the catalogue with nothing registered in it. Registering the identical
+ * one test that has to see the catalog with nothing registered in it. Registering the identical
  * palette twice is a no-op, so calling this twice is safe.
  */
 function registerAcmePalettes(): void {
@@ -133,7 +133,7 @@ registerAcmePalettes();
  * group sizes are what make "alpha gets the first anchor" a fact rather than a coincidence of
  * insertion order. `heat` runs 0, 25, 50, 75, 100 because a five-anchor ramp lands exactly on its
  * anchors at those five values. `squad` cuts the same nodes five ways instead of four, which is
- * one more group than the four-colour palette has colours.
+ * one more group than the four-color palette has colors.
  *
  * `ghost` carries a team and a squad and no heat at all: it is the element the ramp has nothing
  * to say about, which is what the missing-value policy is about.
@@ -257,9 +257,9 @@ async function closeGraph(): Promise<void> {
 }
 
 /**
- * The colour the element says one node is painted, in the one spelling every anchor is stored in.
+ * The color the element says one node is painted, in the one spelling every anchor is stored in.
  * @param id - the node id
- * @returns six upper-case hex digits behind a hash, or null when nothing painted a colour
+ * @returns six upper-case hex digits behind a hash, or null when nothing painted a color
  */
 function paintedColor(id: string): string | null {
     const painted = session.styles.explain({ node: id }).merged["node.color"];
@@ -333,7 +333,7 @@ afterAll(() => {
 });
 
 // -------------------------------------------------------------------------------------------
-// The catalogue
+// The catalog
 // -------------------------------------------------------------------------------------------
 
 describe("a third party's palette, in the catalogue a picker reads", () => {
@@ -444,7 +444,7 @@ describe("a third party's palette, painting a real graph", () => {
 
         // a3's heat is 50, which on a five-anchor ramp is the third anchor exactly -- the one
         // written in oklch. Magenta here would be the interpolation path reporting "this anchor
-        // is not six hex digits" in the only way it can: silently, as a colour.
+        // is not six hex digits" in the only way it can: silently, as a color.
         assert.strictEqual(paintedColor("a3"), "#ED7665");
         assert.notStrictEqual(paintedColor("a3"), MAGENTA, "the anchor was normalised, not passed through");
     });

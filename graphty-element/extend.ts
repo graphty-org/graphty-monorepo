@@ -13,7 +13,7 @@
  *
  * THE RULE THE SIX ARE HELD TO: an extension must be able to do everything its built-in peer can.
  * It appears in `session.catalog` so a picker can offer it; it is addressable by the key a
- * consumer types and a saved document records; it reports progress and honours cancellation
+ * consumer types and a saved document records; it reports progress and honors cancellation
  * wherever its built-in peer does; it is configured through the same options mechanism; it
  * reports failure as a `GraphtyError` carrying a code; and it can be written in TypeScript
  * against this entry point with no cast and no re-declaration of a type the element already has.
@@ -56,9 +56,9 @@ export { setDefaultFeatures } from "./src/features/resolve";
 
 /*
  * AN EXTENSION DECLARES `readonly OptionDescriptor[]` AND THE ELEMENT VALIDATES AGAINST IT. One
- * declaration is what a form renders, what the catalogue publishes and what validation reads, so
+ * declaration is what a form renders, what the catalog publishes and what validation reads, so
  * the three cannot disagree -- which is what ended the algorithm double-declaration, where a
- * catalogue descriptor and a constructor schema said the same thing in two vocabularies that did
+ * catalog descriptor and a constructor schema said the same thing in two vocabularies that did
  * not correspond and nothing cross-checked them. `optionsFromZod` stays as a convenience for an
  * author who would rather write a Zod schema: it emits the descriptors, and the descriptors are
  * the contract.
@@ -85,8 +85,8 @@ export { isOptionType, OPTION_TYPES } from "./src/catalog/types";
  * NOTHING IN THE ELEMENT EVER ASKS A PALETTE FOR BEHAVIOUR. The categorical index path, the
  * continuous interpolation, the step table, the over-subscription refusal, the legend and the
  * reversal flag are all implemented by code that reads six fields off a descriptor -- so the
- * descriptor is the whole unit. Anchors are normalised to six-digit hex at registration, so an
- * author may write `oklch(...)` or a CSS colour name and the renderer, the legend and a saved
+ * descriptor is the whole unit. Anchors are normalized to six-digit hex at registration, so an
+ * author may write `oklch(...)` or a CSS color name and the renderer, the legend and a saved
  * document all read the same hexes.
  */
 export {
@@ -134,7 +134,7 @@ export { clearRegisteredTransitionsForTesting, registerTransition } from "./src/
  * A FORMAT IS A CLASS WITH TWO STATICS: `type`, and `descriptor` -- plus an optional
  * `detect(sample)` content sniffer. `DataSource.register` files the class AND publishes the
  * descriptor, so one act is the only act: a descriptor filed without its reader would be a
- * catalogue entry a consumer can see, select, and then be told does not exist.
+ * catalog entry a consumer can see, select, and then be told does not exist.
  *
  * Everything else is inherited and already works: fetching from a string, a `File` or a URL,
  * retries with backoff, chunking, per-record validation, error aggregation, and declaring the
@@ -168,7 +168,7 @@ export type { TimeField, TimeSource, TimeUnit } from "./src/session/time/TimeApi
  * A READER FROM A GRAPH-IO IMPORTER. `DataSource.fromImporter(importer, descriptor)` turns a
  * graph-io `GraphImporter` into a reader class for `DataSource.register`. Take the importer's
  * types, and above all `ImportError`, from here rather than from your own copy of graph-io: the
- * element recognises a refused file by `instanceof ImportError`, which fails across copies.
+ * element recognizes a refused file by `instanceof ImportError`, which fails across copies.
  * graph-io's report is published as `ImporterReport`, because `ImportReport` is the element's own
  * report of a load (`@graphty/graphty-element/session`).
  */
@@ -188,7 +188,7 @@ export { ImportError } from "@graphty/graph-io";
 /**
  * A FILE WRITER. `registerFormatWriter({ descriptor, exporter })` teaches the element to write a
  * format: `exporter` is a graph-io `GraphExporter` (`check`, `export`, `exportToString`) and
- * `descriptor` is the catalogue entry, with `canExport: true`. The format then appears in
+ * `descriptor` is the catalog entry, with `canExport: true`. The format then appears in
  * `session.catalog.formats()` and `exportGraph(id)` reaches it, with the same loss notes, option
  * validation and error codes the built-in writers have. Take the writer's types from here, not
  * from your own copy of graph-io, so the snapshot type is the one the element builds.
@@ -256,7 +256,7 @@ export { twoHandGestureDelta } from "./src/cameras/twoHandGesture";
  * `compute` from the graph-format snapshot (with the rows it may not move, an abort signal and a
  * progress channel) to coordinates. The element's own single-pass layouts are built on the same
  * contract, so a plugin reaches everything they do. `SimpleLayoutEngine`, the class that served
- * this before, is deprecated in its favour and keeps working through 3.x. A LIVE SIMULATION stays
+ * this before, is deprecated in its favor and keeps working through 3.x. A LIVE SIMULATION stays
  * a class extending `LayoutEngine`, registered with `LayoutEngine.register`.
  *
  * `Node`, `Edge` and `NodeIdType` are published as TYPE-ONLY re-exports, which the emitter
@@ -271,7 +271,7 @@ export { twoHandGestureDelta } from "./src/cameras/twoHandGesture";
  * A plugin's `static descriptor` is an `AuthoredLayoutDescriptor`, which is the published
  * `LayoutDescriptor` minus `honoursWeights` and `scoped`. Those two facts are declared on the
  * class instead, as `static honoursWeights` and `static scoped`, and `LayoutEngine.register`
- * copies them onto what the catalogue publishes -- so whether an engine reads edge weights, and
+ * copies them onto what the catalog publishes -- so whether an engine reads edge weights, and
  * whether it can lay out a set while holding the rest still, is written once, where it is true.
  *
  * A REGISTERED LAYOUT IS NOT ACCELERATED. Its own code runs on the CPU even when an accelerator
@@ -312,10 +312,10 @@ export type { Node, NodeIdType } from "./src/Node";
 /*
  * `DeclaredAlgorithm` IS THE PUBLISHED BASE. `Algorithm` alone gets a class registered and
  * callable, and that was all it ever got: the run machinery resolves a key through the
- * catalogue, so a class the catalogue did not carry could not be started as a run, and
+ * catalog, so a class the catalog did not carry could not be started as a run, and
  * everything hanging off a run -- progress, cancellation, a cost estimate, a ranking, a summary,
  * a reading, the styling derived from a result's shape -- was out of reach. A `descriptor` on
- * the class is what puts it in the catalogue; `DeclaredAlgorithm` implements `publishResult`, so
+ * the class is what puts it in the catalog; `DeclaredAlgorithm` implements `publishResult`, so
  * a subclass returns a result instead of writing one.
  *
  * The field-spec builders and `metricField`/`nodeMetricFields` are published because the
@@ -383,7 +383,7 @@ export { maskTest } from "@graphty/graph-format";
 
 /*
  * THE OLDER OPTION SCHEMA, KEPT FOR BACK-COMPAT AND DEPRECATED. It is a second vocabulary for the
- * same declaration -- `select`/`nodeId` where the catalogue says `enum`/`node-id` -- and its
+ * same declaration -- `select`/`nodeId` where the catalog says `enum`/`node-id` -- and its
  * failure type is a plain `Error` with no code, where the contract asks for a coded one. Declare
  * `descriptor.options` as `OptionDescriptor[]` and validate with `resolveOptionValues` instead.
  */

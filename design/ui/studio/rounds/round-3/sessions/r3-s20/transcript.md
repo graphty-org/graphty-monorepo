@@ -116,7 +116,7 @@ Heard: complementary "Inspector": "Javert Node", button "Node actions", tabs Sty
 
 Morgan: "So it is Javert, and the program knows his id, his name, and a degree of 17. That is all
 it knows about him -- the sample has no other attributes. Degree 17 is a button, which suggests it
-leads somewhere: probably the neighbours. Tab to it and press Enter."
+leads somewhere: probably the neighbors. Tab to it and press Enter."
 
 ## Step 11 -- tab to Degree
 

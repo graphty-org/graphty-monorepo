@@ -201,9 +201,10 @@ function columnOf(path: Path): { column: unknown[]; unmeasured: number } {
  * verbs that read these -- the legend and the explanation -- are synchronous. This stands in for
  * the pass that would have prepared them.
  * @param layer - The layer, or undefined when it has gone.
+ * @param scales - The registry palettes are read from: the session's, so a palette a document carries resolves.
  * @returns Its prepared bindings, fixed values first and rules second.
  */
-function prepareLayer(layer: Layer | undefined): readonly PreparedBinding[] {
+function prepareLayer(layer: Layer | undefined, scales: ScaleRegistry = SCALES): readonly PreparedBinding[] {
     if (layer === undefined) {
         return [];
     }
@@ -211,7 +212,7 @@ function prepareLayer(layer: Layer | undefined): readonly PreparedBinding[] {
     const prepared: PreparedBinding[] = [];
 
     for (const [name, value] of Object.entries(layer.set ?? {})) {
-        prepared.push(prepareBinding({ channel: name as Channel, binding: { value }, scales: SCALES }));
+        prepared.push(prepareBinding({ channel: name as Channel, binding: { value }, scales }));
     }
 
     for (const [name, binding] of Object.entries(layer.encode ?? {})) {
@@ -221,7 +222,7 @@ function prepareLayer(layer: Layer | undefined): readonly PreparedBinding[] {
 
         const column = "by" in binding ? columnOf(binding.by) : undefined;
 
-        prepared.push(prepareBinding({ channel: name as Channel, binding, scales: SCALES, ...column }));
+        prepared.push(prepareBinding({ channel: name as Channel, binding, scales, ...column }));
     }
 
     return prepared;
@@ -235,11 +236,11 @@ function prepareLayer(layer: Layer | undefined): readonly PreparedBinding[] {
  * removed, and an index keyed by id would answer for the layer that has gone. Reading the entry
  * handed in also makes this late rather than captured, so a layer that has just been updated is
  * read through its new binding -- which is what a repaint pass does too.
- * @param entry - The compiled layer the stack holds.
- * @returns The bindings a legend and an explanation read.
+ * @param scales - The registry the session's styles API holds.
+ * @returns For each compiled layer the stack holds, the bindings a legend and an explanation read.
  */
-function liveEncoding(entry: CompiledLayer): readonly PreparedBinding[] {
-    return prepareLayer(entry.layer);
+function liveEncoding(scales: ScaleRegistry): (entry: CompiledLayer) => readonly PreparedBinding[] {
+    return (entry) => prepareLayer(entry.layer, scales);
 }
 
 /**
@@ -301,13 +302,17 @@ function makeStyles(extra: Partial<StylesSources> = {}): Harness {
     };
 
     const built = harness as Harness & { styles: SessionStylesApi };
+    // One registry for the styles API and the paint pass, as a session wires them, so a palette a
+    // document carries is what both read; a fresh one per harness keeps it out of other tests.
+    const scales = createScaleRegistry();
     const sources: StylesSources = {
         elements: ELEMENTS,
         base: [ELEMENT_BASE],
         paths: DIRECTORY,
         repaint,
         runs: RUN_SOURCE,
-        encoding: liveEncoding,
+        scales,
+        encoding: liveEncoding(scales),
         nodeIndex: (id) => {
             const at = Number(String(id).slice(1));
 
@@ -1313,9 +1318,9 @@ describe("the legend, and why one element looks the way it does", () => {
         assert.isTrue(swatches.every((swatch) => typeof swatch.color === "string"));
     });
 
-    /* Two runs stacked on node colour: each run-made layer is scoped `{match:"has"}` to the
+    /* Two runs stacked on node color: each run-made layer is scoped `{match:"has"}` to the
        elements its run measured, so a cover test that only believed `{match:"everything"}`
-       never reported one run's colours hidden under another's. */
+       never reported one run's colors hidden under another's. */
     describe("a layer above that selects every element this one does", () => {
         /**
          * A session whose selector source can enumerate the elements a column holds a value for,

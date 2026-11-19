@@ -67,7 +67,7 @@ export abstract class MetricAlgorithm<
      * @param context - A signal, a progress channel and a yield.
      * @param runId - The id the result is published under.
      * @returns The result, or undefined when there was nothing to measure.
-     * @throws Whatever the context's signal throws once the run has been cancelled.
+     * @throws Whatever the context's signal throws once the run has been canceled.
      */
     publishResult(context: RunControls, runId: string): Promise<RunResult | undefined> {
         return this.measureRun({ runId, ...context });
@@ -78,7 +78,7 @@ export abstract class MetricAlgorithm<
      * @param context - Where progress goes, where cancellation arrives, and which run id to
      *   publish under.
      * @returns The result, or undefined when there was nothing to measure.
-     * @throws Whatever the context's signal throws once the run has been cancelled, which is a
+     * @throws Whatever the context's signal throws once the run has been canceled, which is a
      *   `DOMException` named `AbortError`.
      */
     async measureRun(context: MetricRunContext): Promise<RunResult | undefined> {
@@ -126,7 +126,7 @@ export abstract class MetricAlgorithm<
 
     /**
      * The fields this metric publishes, which are the shape's uniform ones plus its own.
-     * @returns The field list, which must equal the catalogue's for this algorithm.
+     * @returns The field list, which must equal the catalog's for this algorithm.
      */
     protected abstract resultFields(): readonly FieldDescriptor[];
 

@@ -118,7 +118,7 @@ type Refused = Exclude<LiveOpened, { code: "AI_COMPLETED" }>;
  * What a failure while opening means, as a code.
  * @param error - What was thrown.
  * @param settings - The provider and key, which is scrubbed.
- * @param signal - The opening's signal: when it fired, the opening was cancelled.
+ * @param signal - The opening's signal: when it fired, the opening was canceled.
  * @returns The outcome.
  */
 function refused(error: unknown, settings: ProviderApiSettings, signal: AbortSignal): Refused {

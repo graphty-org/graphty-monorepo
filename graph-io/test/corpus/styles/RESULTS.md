@@ -52,8 +52,8 @@ Tool values are elements drawn with the writing program's default.
 | cyjs/adv/cyjs-500-classes.cyjs | ok | 3000 | 0 | 2 | 1 | 5910 | 0% | 0% | 0 | 66000 | 0 |  |
 | cyjs/adv/cyjs-selector-zoo.cyjs | ok | 300 | 400 | 15 | 8 | 779 | 0% | 0% | 0 | 15031 | 0 | W_STYLE_BAD_VALUE, W_STYLE_LAYER_CAP, W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR, W_STYLE_SELECTOR_AS_COLUMN |
 | cyjs/adv/cyjs-string-stylesheet.cyjs | ok | 50 | 0 | 4 | 1 | 25 | 0% | 0% | 0 | 1125 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
-| cyjs/adv3/cyjs-overlap-30cols.cyjs | ok | 400 | 400 | 15 | 15 | 2557 | 0% | 0% | 0 | 14410 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| cyjs/adv3/cyjs-overlap-80cols.cyjs | ok | 400 | 400 | 15 | 15 | 2406 | 0% | 0% | 0 | 14399 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| cyjs/adv3/cyjs-overlap-30cols.cyjs | ok | 400 | 400 | 15 | 15 | 2643 | 0% | 0% | 0 | 14410 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| cyjs/adv3/cyjs-overlap-80cols.cyjs | ok | 400 | 400 | 15 | 15 | 2536 | 0% | 0% | 0 | 14399 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
 | cyjs/adv4/opacity-only-10.cyjs | ok | 400 | 0 | 14 | 1 | 422 | 0% | 0% | 0 | 9214 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
 | cyjs/adv4/opacity-only-160.cyjs | ok | 400 | 0 | 15 | 1 | 215 | 0% | 0% | 0 | 9200 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
 | cyjs/adv4/opacity-only-20.cyjs | ok | 400 | 0 | 15 | 1 | 536 | 0% | 0% | 0 | 9203 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
@@ -97,9 +97,9 @@ Tool values are elements drawn with the writing program's default.
 | cyjs/adv6/size-then-sizebg.cyjs | ok | 4 | 0 | 3 | 1 | 2 | 0% | 0% | 0 | 88 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
 | cyjs/adv6/three-rules.cyjs | ok | 4 | 0 | 5 | 1 | 4 | 50% | 0% | 0 | 90 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
 | cyjs/adv6/two-rules.cyjs | ok | 4 | 0 | 4 | 1 | 0 | - | - | 0 | 92 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
-| cyjs/adv7/fold-no-clash.cyjs | ok | 400 | 400 | 15 | 15 | 2001 | 0% | 0% | 0 | 15208 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| cyjs/adv7/fold-with-prefix-clash.cyjs | ok | 400 | 400 | 15 | 15 | 2001 | 0% | 0% | 0 | 15208 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| cyjs/rules/cyjs-semantics.cyjs | ok | 60 | 91 | 15 | 16 | 364 | 4% | 4% | 0 | 2571 | 0 | W_STYLE_BAD_VALUE, W_STYLE_LAYER_CAP, W_STYLE_SELECTOR, W_STYLE_SELECTOR_AS_COLUMN |
+| cyjs/adv7/fold-no-clash.cyjs | ok | 400 | 400 | 15 | 15 | 2087 | 0% | 0% | 0 | 15208 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| cyjs/adv7/fold-with-prefix-clash.cyjs | ok | 400 | 400 | 15 | 15 | 2087 | 0% | 0% | 0 | 15208 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| cyjs/rules/cyjs-semantics.cyjs | ok | 60 | 91 | 15 | 16 | 390 | 4% | 4% | 0 | 2571 | 0 | W_STYLE_BAD_VALUE, W_STYLE_LAYER_CAP, W_STYLE_SELECTOR, W_STYLE_SELECTOR_AS_COLUMN |
 | cyjs/rules/cyjs-text-stops.cyjs | ok | 60 | 91 | 7 | 5 | 23 | 43% | 43% | 0 | 3683 | 0 | W_STYLE_BAD_VALUE, W_STYLE_SELECTOR_AS_COLUMN, W_STYLE_UNREADABLE |
 | cyjs/rules/cyjs-text.cyjs | ok | 60 | 91 | 14 | 6 | 96 | 10% | 10% | 0 | 3451 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN |
 | cys/BasicDataVizDemo.cys | ok | 249 | 299 | 3 | 4 | 1 | 100% | 100% | 0 | 2988 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_OTHER_STYLES |
@@ -199,89 +199,89 @@ Tool values are elements drawn with the writing program's default.
 | gexf/sigma-moroccan-ediaspora.gexf.gz | ok | 156 | 397 | 7 | 5 | 160 | 0% | 0% | 196 | 3901 | 0 | W_STYLE_RAMP_ROUNDED |
 | gexf/sigma-standard_graph.gexf | ok | 17 | 35 | 6 | 5 | 26 | 100% | 0% | 0 | 367 | 0 |  |
 | gexf/sigma-website-diseasome.gexf.gz | ok | 1419 | 3926 | 7 | 4 | 1060 | 0% | 0% | 1148 | 38603 | 0 | W_STYLE_RAMP_ROUNDED |
-| gml/ImperialCollegeLondon_pyrealm__pmodel.gml | ok | 36 | 57 | 5 | 6 | 55 | 36% | 4% | 0 | 651 | 0 |  |
+| gml/ImperialCollegeLondon_pyrealm__pmodel.gml | ok | 36 | 57 | 5 | 6 | 55 | 36% | 4% | 0 | 765 | 0 |  |
 | gml/TwelveYC_network-vi__metabolicpos.gml | ok | 453 | 2040 | 7 | 5 | 0 | - | - | 0 | 17919 | 0 |  |
 | gml/di-unipi-socc_dgLBF__germany50.gml | ok | 50 | 88 | 2 | 1 | 0 | - | - | 0 | 0 | 0 | W_STYLE_UNKNOWN_VALUE |
-| gml/fidelity/bionetgen-ruleviz-pattern.gml | ok | 134 | 40 | 6 | 3 | 72 | 0% | 0% | 0 | 1566 | 0 |  |
-| gml/fidelity/dunnart-autobahn.gml | ok | 53 | 83 | 4 | 4 | 31 | 100% | 0% | 0 | 1102 | 0 |  |
-| gml/fidelity/dunnart-planar-orthogonal.gml | ok | 60 | 65 | 3 | 3 | 7 | 100% | 0% | 0 | 1000 | 0 |  |
-| gml/fidelity/jgrapht-grid-territorio.gml | ok | 25 | 40 | 5 | 2 | 5 | 0% | 0% | 0 | 585 | 0 |  |
-| gml/fidelity/repro-groups-no-creator.gml | ok | 21 | 11 | 6 | 3 | 36 | 25% | 25% | 0 | 304 | 0 |  |
-| gml/fidelity/synthetic-coverage.gml | ok | 82 | 80 | 3 | 3 | 750 | 100% | 0% | 0 | 773 | 0 | W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
-| gml/fidelity/visualgraph-tree30.gml | ok | 30 | 29 | 4 | 2 | 30 | 97% | 0% | 0 | 472 | 0 |  |
+| gml/fidelity/bionetgen-ruleviz-pattern.gml | ok | 134 | 40 | 6 | 3 | 72 | 0% | 0% | 0 | 1646 | 0 |  |
+| gml/fidelity/dunnart-autobahn.gml | ok | 53 | 83 | 4 | 4 | 31 | 100% | 0% | 0 | 1268 | 0 |  |
+| gml/fidelity/dunnart-planar-orthogonal.gml | ok | 60 | 65 | 3 | 3 | 7 | 100% | 0% | 0 | 1130 | 0 |  |
+| gml/fidelity/jgrapht-grid-territorio.gml | ok | 25 | 40 | 5 | 2 | 5 | 0% | 0% | 0 | 665 | 0 |  |
+| gml/fidelity/repro-groups-no-creator.gml | ok | 21 | 11 | 6 | 3 | 36 | 25% | 25% | 0 | 326 | 0 |  |
+| gml/fidelity/synthetic-coverage.gml | ok | 82 | 80 | 3 | 3 | 750 | 100% | 0% | 0 | 933 | 0 | W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
+| gml/fidelity/visualgraph-tree30.gml | ok | 30 | 29 | 4 | 2 | 30 | 97% | 0% | 0 | 530 | 0 |  |
 | gml/generated/cytoscape-interactions.gml | ok | 30 | 45 | 4 | 3 | 117 | 0% | 0% | 0 | 1080 | 0 |  |
 | gml/generated/gephi-unquoted-creator.gml | ok | 40 | 70 | 7 | 5 | 87 | 0% | 0% | 0 | 812 | 0 |  |
 | gml/generated/graphics-mix.gml | ok | 60 | 60 | 4 | 1 | 234 | 78% | 0% | 0 | 0 | 0 | W_STYLE_BAD_VALUE, W_STYLE_UNKNOWN_VALUE |
-| gml/generated/graphty-written.gml | ok | 30 | 40 | 7 | 4 | 74 | 14% | 0% | 0 | 230 | 0 | W_STYLE_EXTRA_LABELS |
+| gml/generated/graphty-written.gml | ok | 30 | 40 | 7 | 4 | 74 | 14% | 0% | 0 | 310 | 0 | W_STYLE_EXTRA_LABELS |
 | gml/generated/igraph-flat-attributes.gml | ok | 20 | 25 | - | - | 0 | - | - | 0 | 0 | 0 |  |
 | gml/generated/networkx-graphics.gml | ok | 24 | 30 | 3 | 2 | 45 | 33% | 0% | 0 | 0 | 0 |  |
 | gml/generated/ogdf-escaped-labels.gml | ok | 25 | 35 | 10 | 6 | 67 | 18% | 4% | 0 | 240 | 0 |  |
 | gml/generated/tamper-block-truncated.gml | ok | 30 | 40 | 8 | 6 | 74 | 24% | 11% | 0 | 0 | 0 | W_STYLE_BLOCK_IGNORED, W_STYLE_EXTRA_LABELS |
-| gml/generated/tamper-native-edited.gml | ok | 30 | 40 | 8 | 4 | 74 | 15% | 1% | 0 | 230 | 0 | W_STYLE_EXTRA_LABELS |
+| gml/generated/tamper-native-edited.gml | ok | 30 | 40 | 8 | 4 | 74 | 15% | 1% | 0 | 310 | 0 | W_STYLE_EXTRA_LABELS |
 | gml/generated/tamper-node-added.gml | ok | 31 | 40 | 8 | 6 | 74 | 24% | 11% | 0 | 0 | 0 | W_STYLE_BLOCK_IGNORED, W_STYLE_EXTRA_LABELS |
-| gml/generated/yed-labels-and-arrows.gml | ok | 30 | 40 | 7 | 4 | 34 | 0% | 0% | 0 | 502 | 0 | W_STYLE_EXTRA_LABELS, W_STYLE_NO_FILL |
-| gml/spupyrev_bob__need4stacks261.gml | ok | 261 | 777 | 5 | 3 | 165 | 12% | 4% | 0 | 9018 | 0 |  |
-| graphml/LTVA1_STM32CrapSynth__func.graphml.gz | ok | 147 | 94 | 5 | 4 | 468 | 81% | 4% | 0 | 1325 | 0 |  |
-| graphml/SleepyTrousers_EnderIO-1.5-1.12__TileEntities.graphml | ok | 70 | 72 | 6 | 7 | 164 | 84% | 2% | 0 | 645 | 0 |  |
-| graphml/StateSmith_StateSmith__Spec1Sm.graphml | ok | 14 | 7 | 2 | 3 | 49 | 100% | 0% | 0 | 107 | 0 | W_STYLE_NO_FILL |
-| graphml/a-little-srdjan_grapher__bleve.graphml.gz | ok | 39 | 120 | 3 | 3 | 229 | 100% | 0% | 0 | 396 | 0 |  |
-| graphml/architolk_mimtools__fbm-mim2.graphml.gz | ok | 73 | 38 | 6 | 6 | 150 | 63% | 14% | 0 | 657 | 0 | W_STYLE_EXTRA_LABELS |
+| gml/generated/yed-labels-and-arrows.gml | ok | 30 | 40 | 7 | 4 | 34 | 0% | 0% | 0 | 582 | 0 | W_STYLE_EXTRA_LABELS, W_STYLE_NO_FILL |
+| gml/spupyrev_bob__need4stacks261.gml | ok | 261 | 777 | 5 | 3 | 165 | 12% | 4% | 0 | 10572 | 0 |  |
+| graphml/LTVA1_STM32CrapSynth__func.graphml.gz | ok | 147 | 94 | 5 | 4 | 468 | 81% | 4% | 0 | 1513 | 0 |  |
+| graphml/SleepyTrousers_EnderIO-1.5-1.12__TileEntities.graphml | ok | 70 | 72 | 6 | 7 | 164 | 84% | 2% | 0 | 789 | 0 |  |
+| graphml/StateSmith_StateSmith__Spec1Sm.graphml | ok | 14 | 7 | 2 | 3 | 49 | 100% | 0% | 0 | 121 | 0 | W_STYLE_NO_FILL |
+| graphml/a-little-srdjan_grapher__bleve.graphml.gz | ok | 39 | 120 | 3 | 3 | 229 | 100% | 0% | 0 | 636 | 0 |  |
+| graphml/architolk_mimtools__fbm-mim2.graphml.gz | ok | 73 | 38 | 6 | 6 | 150 | 63% | 14% | 0 | 733 | 0 | W_STYLE_EXTRA_LABELS |
 | graphml/color-key/iVis-at-Bilkent__chilay__circle.graphml | ok | 64 | 64 | - | - | 0 | - | - | 0 | 0 | 0 |  |
 | graphml/cytoscape/Multiomics-Analytics-Group__MicW2Graph__Wastewater_assembly_nosinglt_cclasso_10.graphml | ok | 4 | 6 | 2 | 1 | 0 | - | - | 0 | 204 | 0 |  |
 | graphml/cytoscape/Thakar-Lab__WikiNetworks__WP3935_cytoscape.graphml | ok | 24 | 14 | 2 | 1 | 0 | - | - | 0 | 784 | 0 |  |
 | graphml/cytoscape/chatox__networks-science-course__karate.graphml | ok | 34 | 78 | 2 | 1 | 0 | - | - | 0 | 2274 | 0 |  |
 | graphml/cytoscape/coinslab__pgdcm__AH_DCM.graphml | ok | 31 | 39 | 2 | 1 | 0 | - | - | 0 | 1431 | 0 |  |
 | graphml/cytoscape/karchern__network_connectivity_queries__eco03258.graphml | ok | 21 | 0 | 2 | 1 | 0 | - | - | 0 | 441 | 0 |  |
-| graphml/fidelity/galaxy-lcms-workflow.graphml | ok | 55 | 39 | 7 | 6 | 144 | 59% | 10% | 0 | 479 | 0 | W_STYLE_NO_FILL |
-| graphml/fidelity/libcitygml-mapping.graphml | ok | 51 | 57 | 7 | 5 | 119 | 76% | 11% | 0 | 489 | 0 | W_STYLE_UNKNOWN_VALUE |
-| graphml/fidelity/magiclantern-architecture.graphml | ok | 43 | 34 | 6 | 4 | 152 | 56% | 2% | 0 | 370 | 0 |  |
-| graphml/fidelity/open-archaeo.graphml | ok | 61 | 54 | 6 | 5 | 148 | 61% | 9% | 0 | 567 | 0 | W_STYLE_NO_FILL |
-| graphml/fidelity/scala-collection-mutable.graphml | ok | 42 | 42 | 4 | 6 | 69 | 46% | 0% | 0 | 395 | 0 | W_STYLE_NO_FILL |
-| graphml/fidelity/synthetic-edges.graphml | ok | 40 | 109 | 3 | 2 | 353 | 100% | 0% | 0 | 675 | 0 | W_STYLE_UNKNOWN_VALUE |
-| graphml/fidelity/synthetic-nodes.graphml | ok | 74 | 24 | 2 | 3 | 363 | 100% | 0% | 0 | 433 | 0 | W_STYLE_EXTRA_LABELS, W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
-| graphml/generated/fill-oddities.graphml | ok | 15 | 3 | 4 | 2 | 18 | 100% | 11% | 0 | 159 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NO_FILL |
-| graphml/generated/graphty-written.graphml | ok | 50 | 50 | 4 | 3 | 326 | 87% | 0% | 0 | 300 | 0 |  |
+| graphml/fidelity/galaxy-lcms-workflow.graphml | ok | 55 | 39 | 7 | 6 | 144 | 59% | 10% | 0 | 557 | 0 | W_STYLE_NO_FILL |
+| graphml/fidelity/libcitygml-mapping.graphml | ok | 51 | 57 | 7 | 5 | 119 | 76% | 11% | 0 | 603 | 0 | W_STYLE_UNKNOWN_VALUE |
+| graphml/fidelity/magiclantern-architecture.graphml | ok | 43 | 34 | 6 | 4 | 152 | 56% | 2% | 0 | 438 | 0 |  |
+| graphml/fidelity/open-archaeo.graphml | ok | 61 | 54 | 6 | 5 | 148 | 61% | 9% | 0 | 675 | 0 | W_STYLE_NO_FILL |
+| graphml/fidelity/scala-collection-mutable.graphml | ok | 42 | 42 | 4 | 6 | 69 | 46% | 0% | 0 | 479 | 0 | W_STYLE_NO_FILL |
+| graphml/fidelity/synthetic-edges.graphml | ok | 40 | 109 | 3 | 2 | 353 | 100% | 0% | 0 | 893 | 0 | W_STYLE_UNKNOWN_VALUE |
+| graphml/fidelity/synthetic-nodes.graphml | ok | 74 | 24 | 2 | 3 | 363 | 100% | 0% | 0 | 481 | 0 | W_STYLE_EXTRA_LABELS, W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
+| graphml/generated/fill-oddities.graphml | ok | 15 | 3 | 4 | 2 | 18 | 100% | 11% | 0 | 165 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NO_FILL |
+| graphml/generated/graphty-written.graphml | ok | 50 | 50 | 4 | 3 | 326 | 87% | 0% | 0 | 400 | 0 |  |
 | graphml/generated/labels-multi.graphml | ok | 6 | 0 | 3 | 1 | 0 | - | - | 0 | 49 | 0 | W_STYLE_ALPHA_DROPPED, W_STYLE_EXTRA_LABELS |
 | graphml/generated/ramp-with-exceptions.graphml.gz | ok | 1000 | 0 | 4 | 1 | 1551 | 63% | 0% | 1420 | 9000 | 0 | W_STYLE_RAMP_ROUNDED |
-| graphml/generated/scale-50.graphml | ok | 50 | 50 | 4 | 3 | 326 | 87% | 0% | 0 | 600 | 0 |  |
-| graphml/generated/scale-500.graphml.gz | ok | 500 | 500 | 4 | 4 | 3372 | 66% | 0% | 0 | 6000 | 0 |  |
-| graphml/generated/scale-5000.graphml.gz | ok | 5000 | 5000 | 4 | 4 | 34099 | 66% | 0% | 0 | 60000 | 0 |  |
-| graphml/generated/tamper-block-truncated.graphml | ok | 50 | 50 | 4 | 3 | 326 | 87% | 0% | 0 | 450 | 0 | W_STYLE_BLOCK_IGNORED |
-| graphml/generated/tamper-native-edited.graphml | ok | 50 | 50 | 5 | 3 | 327 | 87% | 0% | 0 | 300 | 0 |  |
-| graphml/generated/tamper-node-added.graphml | ok | 51 | 50 | 3 | 3 | 326 | 87% | 0% | 0 | 464 | 0 | W_STYLE_BLOCK_IGNORED |
+| graphml/generated/scale-50.graphml | ok | 50 | 50 | 4 | 3 | 326 | 87% | 0% | 0 | 700 | 0 |  |
+| graphml/generated/scale-500.graphml.gz | ok | 500 | 500 | 4 | 4 | 3372 | 66% | 0% | 0 | 7000 | 0 |  |
+| graphml/generated/scale-5000.graphml.gz | ok | 5000 | 5000 | 4 | 4 | 34099 | 66% | 0% | 0 | 70000 | 0 |  |
+| graphml/generated/tamper-block-truncated.graphml | ok | 50 | 50 | 4 | 3 | 326 | 87% | 0% | 0 | 550 | 0 | W_STYLE_BLOCK_IGNORED |
+| graphml/generated/tamper-native-edited.graphml | ok | 50 | 50 | 5 | 3 | 327 | 87% | 0% | 0 | 400 | 0 |  |
+| graphml/generated/tamper-node-added.graphml | ok | 51 | 50 | 3 | 3 | 326 | 87% | 0% | 0 | 564 | 0 | W_STYLE_BLOCK_IGNORED |
 | graphml/generated/yfiles3-shared-cycle.graphml | ok | 3 | 0 | 2 | 1 | 1 | 100% | 0% | 0 | 24 | 0 | W_STYLE_REFERENCE_CYCLE, W_STYLE_UNRESOLVED |
 | graphml/gephi-large/othercriteria__StochasticBlockmodel__celegans-modified.graphml.gz | ok | 306 | 2345 | 8 | 4 | 770 | 0% | 0% | 2 | 18863 | 0 | W_STYLE_RAMP_ROUNDED |
 | graphml/gephi-large/saraiva3__Shape-of-War__ONLY_RED.graphml | ok | 166 | 544 | 8 | 3 | 423 | 71% | 0% | 0 | 5136 | 0 |  |
 | graphml/gephi-rgb/NetworkGraphs__graphysics__LesMiserables.graphml | ok | 77 | 254 | 8 | 3 | 182 | 0% | 0% | 0 | 2394 | 0 |  |
 | graphml/gephi-rgb/nielmclaren__constellation.js__data.graphml | ok | 47 | 57 | 8 | 4 | 102 | 0% | 0% | 0 | 775 | 0 |  |
-| graphml/inbloom_secure-data-service__index.graphml | ok | 100 | 51 | 4 | 5 | 560 | 39% | 0% | 0 | 718 | 0 | W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
-| graphml/java-graphml-lib/ZUGFeRD__mustangproject__mustangArchitecture.graphml | ok | 10 | 4 | 6 | 2 | 20 | 75% | 20% | 0 | 70 | 0 |  |
-| graphml/java-graphml-lib/boschglobal__dse.clib__arch__fmi_library.graphml | ok | 33 | 5 | 8 | 3 | 55 | 84% | 24% | 0 | 187 | 0 | W_STYLE_EXTRA_LABELS, W_STYLE_NO_FILL |
+| graphml/inbloom_secure-data-service__index.graphml | ok | 100 | 51 | 4 | 5 | 560 | 39% | 0% | 0 | 820 | 0 | W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
+| graphml/java-graphml-lib/ZUGFeRD__mustangproject__mustangArchitecture.graphml | ok | 10 | 4 | 6 | 2 | 20 | 75% | 20% | 0 | 78 | 0 |  |
+| graphml/java-graphml-lib/boschglobal__dse.clib__arch__fmi_library.graphml | ok | 33 | 5 | 8 | 3 | 55 | 84% | 24% | 0 | 197 | 0 | W_STYLE_EXTRA_LABELS, W_STYLE_NO_FILL |
 | graphml/java-graphml-lib/domondi1__KEVGraph__guin-D__Library-Management-System.graphml | ok | 16 | 15 | - | - | 0 | - | - | 0 | 0 | 0 |  |
-| graphml/yed-genericnode/Accenture__reactive-interaction-gateway__overview.graphml | ok | 13 | 4 | 5 | 3 | 29 | 79% | 0% | 0 | 107 | 0 |  |
+| graphml/yed-genericnode/Accenture__reactive-interaction-gateway__overview.graphml | ok | 13 | 4 | 5 | 3 | 29 | 79% | 0% | 0 | 115 | 0 |  |
 | graphml/yed-genericnode/CERT-Polska__ursadb__dataset.graphml | ok | 11 | 0 | 4 | 1 | 18 | 44% | 0% | 0 | 44 | 0 |  |
-| graphml/yed-genericnode/TimothyJones__github-cognito-openid-wrapper__overview.graphml | ok | 8 | 3 | 4 | 2 | 14 | 100% | 29% | 0 | 83 | 0 | W_STYLE_NO_FILL |
+| graphml/yed-genericnode/TimothyJones__github-cognito-openid-wrapper__overview.graphml | ok | 8 | 3 | 4 | 2 | 14 | 100% | 29% | 0 | 89 | 0 | W_STYLE_NO_FILL |
 | graphml/yed-genericnode/awslabs__aws-c-io__slots.graphml | ok | 4 | 0 | 3 | 1 | 6 | 100% | 0% | 0 | 21 | 0 |  |
-| graphml/yed-genericnode/brucou__kingly__hero_graph.graphml | ok | 6 | 8 | 3 | 3 | 1 | 100% | 0% | 0 | 55 | 0 |  |
-| graphml/yed-genericnode/buaazp__zimg__arch.graphml | ok | 32 | 27 | 10 | 4 | 163 | 53% | 1% | 0 | 303 | 0 |  |
+| graphml/yed-genericnode/brucou__kingly__hero_graph.graphml | ok | 6 | 8 | 3 | 3 | 1 | 100% | 0% | 0 | 71 | 0 |  |
+| graphml/yed-genericnode/buaazp__zimg__arch.graphml | ok | 32 | 27 | 10 | 4 | 163 | 53% | 1% | 0 | 357 | 0 |  |
 | graphml/yed-genericnode/diennea__herddb__herddb.graphml | ok | 14 | 0 | 4 | 1 | 37 | 70% | 0% | 0 | 82 | 0 |  |
-| graphml/yed-large/IBM__responsible-prompting-course__prompt_anatomy.graphml.gz | ok | 98 | 162 | 6 | 5 | 444 | 76% | 3% | 0 | 1202 | 0 |  |
+| graphml/yed-large/IBM__responsible-prompting-course__prompt_anatomy.graphml.gz | ok | 98 | 162 | 6 | 5 | 444 | 76% | 3% | 0 | 1526 | 0 |  |
 | graphml/yed-large/crocs-muni__scrutiny__SCRUTINYWholeProcess.graphml.gz | ok | 31 | 0 | 3 | 1 | 71 | 70% | 0% | 0 | 288 | 0 | W_STYLE_NO_FILL |
-| graphml/yed-large/cuba-platform__documentation__DeploymentStructure.graphml.gz | ok | 263 | 6 | 6 | 3 | 273 | 84% | 18% | 0 | 2607 | 0 | W_STYLE_NO_FILL |
-| graphml/yed-large/ministryofjustice__cla_backend__checker-graph.graphml.gz | ok | 152 | 254 | 9 | 3 | 736 | 93% | 5% | 0 | 1878 | 0 |  |
-| graphml/yed-shapenode/Animatron__player__flow.graphml | ok | 12 | 14 | 7 | 4 | 43 | 60% | 2% | 0 | 115 | 0 |  |
-| graphml/yed-shapenode/awslabs__ml-io__architecture.graphml | ok | 14 | 6 | 8 | 3 | 20 | 70% | 35% | 0 | 80 | 0 |  |
-| graphml/yed-shapenode/getopt-php__getopt-php__getopt.graphml | ok | 13 | 8 | 6 | 4 | 35 | 29% | 3% | 0 | 97 | 0 | W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
-| graphml/yed-shapenode/kwk__docker-registry-setup__setup.graphml | ok | 7 | 12 | 3 | 3 | 33 | 100% | 0% | 0 | 66 | 0 | W_STYLE_NO_FILL |
-| graphml/yed-shapenode/linux4sam__egt__v4l2.graphml | ok | 9 | 5 | 6 | 3 | 23 | 35% | 26% | 0 | 64 | 0 | W_STYLE_NO_FILL |
-| graphml/yed-shapenode/svanoort__pyresttest__contexts.graphml | ok | 32 | 18 | 6 | 4 | 123 | 45% | 0% | 0 | 248 | 0 | W_STYLE_NO_FILL |
-| graphml/yed-shapenode/voc__voctomix__schema.graphml | ok | 43 | 48 | 4 | 4 | 244 | 47% | 0% | 0 | 445 | 0 |  |
+| graphml/yed-large/cuba-platform__documentation__DeploymentStructure.graphml.gz | ok | 263 | 6 | 6 | 3 | 273 | 84% | 18% | 0 | 2619 | 0 | W_STYLE_NO_FILL |
+| graphml/yed-large/ministryofjustice__cla_backend__checker-graph.graphml.gz | ok | 152 | 254 | 9 | 3 | 736 | 93% | 5% | 0 | 2386 | 0 |  |
+| graphml/yed-shapenode/Animatron__player__flow.graphml | ok | 12 | 14 | 7 | 4 | 43 | 60% | 2% | 0 | 143 | 0 |  |
+| graphml/yed-shapenode/awslabs__ml-io__architecture.graphml | ok | 14 | 6 | 8 | 3 | 20 | 70% | 35% | 0 | 92 | 0 |  |
+| graphml/yed-shapenode/getopt-php__getopt-php__getopt.graphml | ok | 13 | 8 | 6 | 4 | 35 | 29% | 3% | 0 | 113 | 0 | W_STYLE_NO_FILL, W_STYLE_UNKNOWN_VALUE |
+| graphml/yed-shapenode/kwk__docker-registry-setup__setup.graphml | ok | 7 | 12 | 3 | 3 | 33 | 100% | 0% | 0 | 90 | 0 | W_STYLE_NO_FILL |
+| graphml/yed-shapenode/linux4sam__egt__v4l2.graphml | ok | 9 | 5 | 6 | 3 | 23 | 35% | 26% | 0 | 74 | 0 | W_STYLE_NO_FILL |
+| graphml/yed-shapenode/svanoort__pyresttest__contexts.graphml | ok | 32 | 18 | 6 | 4 | 123 | 45% | 0% | 0 | 284 | 0 | W_STYLE_NO_FILL |
+| graphml/yed-shapenode/voc__voctomix__schema.graphml | ok | 43 | 48 | 4 | 4 | 244 | 47% | 0% | 0 | 541 | 0 |  |
 | graphml/yed-svgnode/JustDerb__yed-aws-palettes__AWS_-_Blockchain.graphml | ok | 2 | 0 | 3 | 1 | 2 | 100% | 0% | 0 | 26 | 0 |  |
-| graphml/yed-svgnode/ZUGFeRD__quba-viewer__XSLGenesis.graphml | ok | 62 | 9 | 3 | 3 | 135 | 59% | 0% | 0 | 547 | 0 | W_STYLE_NO_FILL |
+| graphml/yed-svgnode/ZUGFeRD__quba-viewer__XSLGenesis.graphml | ok | 62 | 9 | 3 | 3 | 135 | 59% | 0% | 0 | 565 | 0 | W_STYLE_NO_FILL |
 | graphml/yed-svgnode/japila-books__apache-spark-internals__spark-rdd-partitioned-distributed.graphml | ok | 17 | 0 | 3 | 1 | 36 | 53% | 0% | 0 | 104 | 0 | W_STYLE_NO_FILL |
-| graphml/yed-svgnode/kyriosdata__rnds__xds.b.graphml | ok | 12 | 11 | 6 | 3 | 23 | 61% | 26% | 0 | 97 | 0 |  |
-| graphml/yed-svgnode/mitogen-hq__mitogen__persistent.graphml | ok | 9 | 6 | 5 | 3 | 21 | 81% | 29% | 0 | 76 | 0 |  |
-| graphml/yed-svgnode/sk2__autonetkit-py__small_internet.graphml | ok | 15 | 18 | 3 | 4 | 1 | 0% | 0% | 0 | 210 | 0 |  |
+| graphml/yed-svgnode/kyriosdata__rnds__xds.b.graphml | ok | 12 | 11 | 6 | 3 | 23 | 61% | 26% | 0 | 119 | 0 |  |
+| graphml/yed-svgnode/mitogen-hq__mitogen__persistent.graphml | ok | 9 | 6 | 5 | 3 | 21 | 81% | 29% | 0 | 88 | 0 |  |
+| graphml/yed-svgnode/sk2__autonetkit-py__small_internet.graphml | ok | 15 | 18 | 3 | 4 | 1 | 0% | 0% | 0 | 246 | 0 |  |
 | graphml/yfiles-html-large/Arannamoy-Mondal__Cryptocurrency-Yearly-Market-Analysis-Using-SQL__Schema.graphml | ok | 23 | 24 | 3 | 3 | 104 | 100% | 0% | 0 | 117 | 0 |  |
 | graphml/yfiles-html-large/ctmrbio__stag-mwc__stag_flowchart.graphml | ok | 37 | 37 | 6 | 3 | 96 | 50% | 3% | 27 | 222 | 0 | W_STYLE_RAMP_ROUNDED |
 | graphml/yfiles-html-large/spacestation13__SS13-Codebases__tree.graphml.gz | ok | 177 | 183 | 6 | 6 | 290 | 96% | 24% | 0 | 1774 | 0 | W_STYLE_UNKNOWN_VALUE |
@@ -304,8 +304,8 @@ Tool values are elements drawn with the writing program's default.
 | json/cyjs/adv/cyjs-500-classes.cyjs | ok | 3000 | 0 | 2 | 1 | 5910 | 0% | 0% | 0 | 66000 | 0 |  |
 | json/cyjs/adv/cyjs-selector-zoo.cyjs | ok | 300 | 400 | 15 | 8 | 779 | 0% | 0% | 0 | 15031 | 0 | W_STYLE_BAD_VALUE, W_STYLE_LAYER_CAP, W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR, W_STYLE_SELECTOR_AS_COLUMN |
 | json/cyjs/adv/cyjs-string-stylesheet.cyjs | ok | 50 | 0 | 4 | 1 | 25 | 0% | 0% | 0 | 1125 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
-| json/cyjs/adv3/cyjs-overlap-30cols.cyjs | ok | 400 | 400 | 15 | 15 | 2557 | 0% | 0% | 0 | 14410 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| json/cyjs/adv3/cyjs-overlap-80cols.cyjs | ok | 400 | 400 | 15 | 15 | 2406 | 0% | 0% | 0 | 14399 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| json/cyjs/adv3/cyjs-overlap-30cols.cyjs | ok | 400 | 400 | 15 | 15 | 2643 | 0% | 0% | 0 | 14410 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| json/cyjs/adv3/cyjs-overlap-80cols.cyjs | ok | 400 | 400 | 15 | 15 | 2536 | 0% | 0% | 0 | 14399 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
 | json/cyjs/adv4/opacity-only-10.cyjs | ok | 400 | 0 | 14 | 1 | 422 | 0% | 0% | 0 | 9214 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
 | json/cyjs/adv4/opacity-only-160.cyjs | ok | 400 | 0 | 15 | 1 | 215 | 0% | 0% | 0 | 9200 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
 | json/cyjs/adv4/opacity-only-20.cyjs | ok | 400 | 0 | 15 | 1 | 536 | 0% | 0% | 0 | 9203 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
@@ -349,16 +349,16 @@ Tool values are elements drawn with the writing program's default.
 | json/cyjs/adv6/size-then-sizebg.cyjs | ok | 4 | 0 | 3 | 1 | 2 | 0% | 0% | 0 | 88 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
 | json/cyjs/adv6/three-rules.cyjs | ok | 4 | 0 | 5 | 1 | 4 | 50% | 0% | 0 | 90 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
 | json/cyjs/adv6/two-rules.cyjs | ok | 4 | 0 | 4 | 1 | 0 | - | - | 0 | 92 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
-| json/cyjs/adv7/fold-no-clash.cyjs | ok | 400 | 400 | 15 | 15 | 2001 | 0% | 0% | 0 | 15208 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| json/cyjs/adv7/fold-with-prefix-clash.cyjs | ok | 400 | 400 | 15 | 15 | 2001 | 0% | 0% | 0 | 15208 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| json/cyjs/rules/cyjs-semantics.cyjs | ok | 60 | 91 | 15 | 16 | 364 | 4% | 4% | 0 | 2571 | 0 | W_STYLE_BAD_VALUE, W_STYLE_LAYER_CAP, W_STYLE_SELECTOR, W_STYLE_SELECTOR_AS_COLUMN |
+| json/cyjs/adv7/fold-no-clash.cyjs | ok | 400 | 400 | 15 | 15 | 2087 | 0% | 0% | 0 | 15208 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| json/cyjs/adv7/fold-with-prefix-clash.cyjs | ok | 400 | 400 | 15 | 15 | 2087 | 0% | 0% | 0 | 15208 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| json/cyjs/rules/cyjs-semantics.cyjs | ok | 60 | 91 | 15 | 16 | 390 | 4% | 4% | 0 | 2571 | 0 | W_STYLE_BAD_VALUE, W_STYLE_LAYER_CAP, W_STYLE_SELECTOR, W_STYLE_SELECTOR_AS_COLUMN |
 | json/cyjs/rules/cyjs-text-stops.cyjs | ok | 60 | 91 | 7 | 5 | 23 | 43% | 43% | 0 | 3683 | 0 | W_STYLE_BAD_VALUE, W_STYLE_SELECTOR_AS_COLUMN, W_STYLE_UNREADABLE |
 | json/cyjs/rules/cyjs-text.cyjs | ok | 60 | 91 | 14 | 6 | 96 | 10% | 10% | 0 | 3451 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN |
 | json/fidelity/cyjs-graphmaker.json | ok | 211 | 271 | 4 | 6 | 115 | 0% | 0% | 0 | 10068 | 0 | W_STYLE_BAD_VALUE, W_STYLE_SELECTOR_AS_COLUMN |
 | json/fidelity/cyjs-perf.json.gz | ok | 500 | 1000 | 2 | 5 | 1959 | 0% | 0% | 0 | 35000 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
 | json/fidelity/cyjs-sbgn-sciluna.json | ok | 52 | 53 | 10 | 4 | 177 | 30% | 0% | 0 | 2184 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN |
-| json/fidelity/cyjs-synth-edges-saved.json | ok | 101 | 58 | 7 | 14 | 64 | 13% | 2% | 0 | 3319 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN, W_STYLE_UNKNOWN_VALUE |
-| json/fidelity/cyjs-synth-edges.json | ok | 101 | 58 | 7 | 14 | 64 | 13% | 2% | 0 | 3319 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN, W_STYLE_UNKNOWN_VALUE |
+| json/fidelity/cyjs-synth-edges-saved.json | ok | 101 | 58 | 7 | 14 | 66 | 15% | 2% | 0 | 3319 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN, W_STYLE_UNKNOWN_VALUE |
+| json/fidelity/cyjs-synth-edges.json | ok | 101 | 58 | 7 | 14 | 66 | 15% | 2% | 0 | 3319 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN, W_STYLE_UNKNOWN_VALUE |
 | json/fidelity/cyjs-synth-nodes.json | ok | 110 | 0 | 13 | 1 | 227 | 11% | 8% | 0 | 2049 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN, W_STYLE_UNKNOWN_VALUE |
 | json/fidelity/cyjs-tokyo.json.gz | ok | 943 | 860 | 2 | 5 | 410 | 0% | 0% | 0 | 35034 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR |
 | json/fidelity/cyjs-winecheese.json.gz | ok | 369 | 1333 | 7 | 5 | 2131 | 0% | 0% | 0 | 36564 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR, W_STYLE_SELECTOR_AS_COLUMN |
@@ -396,8 +396,8 @@ Tool values are elements drawn with the writing program's default.
 | pajek/fidelity/football.net | ok | 35 | 118 | 2 | 4 | 207 | 33% | 33% | 0 | 1150 | 0 |  |
 | pajek/fidelity/kdorola.net | ok | 127 | 152 | 5 | 3 | 109 | 0% | 0% | 0 | 2030 | 0 |  |
 | pajek/fidelity/lin-rel4.net | ok | 234 | 604 | 4 | 3 | 300 | 0% | 0% | 0 | 6828 | 0 |  |
-| pajek/fidelity/synth-lines.net | ok | 40 | 111 | 3 | 5 | 261 | 64% | 54% | 0 | 720 | 0 |  |
-| pajek/fidelity/synth-vertices.net | ok | 81 | 112 | 2 | 1 | 277 | 100% | 0% | 0 | 1312 | 0 | W_STYLE_UNKNOWN_VALUE |
+| pajek/fidelity/synth-lines.net | ok | 40 | 111 | 3 | 5 | 262 | 63% | 54% | 0 | 720 | 0 |  |
+| pajek/fidelity/synth-vertices.net | ok | 81 | 112 | 2 | 1 | 277 | 100% | 0% | 0 | 1292 | 0 | W_STYLE_UNKNOWN_VALUE |
 | pajek/generated/b98-trailing-zero.net | ok | 12 | 26 | 5 | 4 | 29 | 55% | 14% | 0 | 250 | 0 |  |
 | pajek/generated/color-forms.net | ok | 8 | 5 | 3 | 4 | 12 | 100% | 25% | 0 | 139 | 0 | W_STYLE_BAD_VALUE |
 | pajek/generated/colors-mix.net | ok | 80 | 80 | 4 | 8 | 289 | 36% | 26% | 0 | 1242 | 0 | W_STYLE_BAD_VALUE, W_STYLE_UNKNOWN_VALUE |

@@ -957,7 +957,7 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
 
     /**
      * load()'s CPU statistics (contract 3.13 ForceSimulation.load): the centroid in f64 (the paper-mode gravity
-     * centre and the |p - c|^2 reference of the first iteration), settledCount 0.
+     * center and the |p - c|^2 reference of the first iteration), settledCount 0.
      */
     private writeInitialStatistics(): void {
         const { n, positions: pos } = this;
@@ -1010,7 +1010,7 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
     }
 
     /**
-     * The repulsion on node i through the Barnes-Hut tree: the far cells as one body each at their centre of mass,
+     * The repulsion on node i through the Barnes-Hut tree: the far cells as one body each at their center of mass,
      * the near nodes pair by pair with the exact law (the distance floor and the coincident kick included).
      * @param i - the node
      * @returns the force
@@ -1138,7 +1138,7 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
      * w log(1 + d) with linlog (7.2 rows "Attraction", "Attraction (linlog)"); with nodeSize d is replaced by
      * d' = d less both radii, and nodes that touch or overlap do not attract (paper 2.6).
      * @param i - the node
-     * @param j - its neighbour
+     * @param j - its neighbor
      * @param w - the arc's weight
      * @param dx - the offset, x
      * @param dy - y
@@ -1178,7 +1178,7 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
         for (let a = rowPtr[i]; a < rowPtr[i + 1]; a++) {
             const j = colIdx[a];
             if (j === i || mass[j] === 0) {
-                continue; // a self-loop exerts no force, and an inert neighbour none (setInert)
+                continue; // a self-loop exerts no force, and an inert neighbor none (setInert)
             }
             const w = weights === null ? 1 : weights[a];
             const dx = pos[3 * j] - px;

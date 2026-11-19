@@ -139,7 +139,7 @@ at 1380,264: button "Size by attribute"
 /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/rounds/round-2/sessions/r2-s33/12.png
 ```
 
-Saw: 'Size by attribute' list: Influence, Influence rank, Influence percentile; greyed out id and name ('Holds groups, not amounts'). Hesitated briefly between Influence and rank -- rank 1 might be the biggest number for the least important, so plain Influence is safer.
+Saw: 'Size by attribute' list: Influence, Influence rank, Influence percentile; grayed out id and name ('Holds groups, not amounts'). Hesitated briefly between Influence and rank -- rank 1 might be the biggest number for the least important, so plain Influence is safer.
 
 ## Step 13
 

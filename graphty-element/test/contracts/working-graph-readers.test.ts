@@ -174,7 +174,7 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "groups.expand()": "writes",
     // The groups the project holds collapsed: project state, kept whatever a filter hides.
     "groups.list()": "state",
-    // The colours the drawing paints: the drawing already leaves out what a filter hides.
+    // The colors the drawing paints: the drawing already leaves out what a filter hides.
     "styles.grayCollisions()": "not the graph",
     "annotations.add()": "writes",
     "annotations.clear()": "writes",
@@ -197,6 +197,8 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "assets.states()": "not the graph",
     "assets.supply()": "writes",
     "assets.waiting()": "not the graph",
+    // Measures this machine for cost estimates.
+    "calibrate()": "not the graph",
     canRedo: "not the graph",
     canUndo: "not the graph",
     capabilities: "not the graph",

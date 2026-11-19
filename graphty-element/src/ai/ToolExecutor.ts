@@ -728,7 +728,7 @@ async function runCommandBatch(batch: ToolBatch): Promise<BatchOutcome> {
             );
             const results: CallResult[] = [];
             for (const request of batch.calls) {
-                // Cancelled, or undone while the message was going: no further tool runs.
+                // Canceled, or undone while the message was going: no further tool runs.
                 abort.signal.throwIfAborted();
                 started(batch, request);
                 const tool = request.name;
@@ -783,7 +783,7 @@ async function runInTransaction(
     const affected: string[] = [];
     const targets: AiTarget[] = [];
     for (const [index, call] of ready.entries()) {
-        // Cancelled, or undone while the message was going: no further tool runs.
+        // Canceled, or undone while the message was going: no further tool runs.
         batch.abort.signal.throwIfAborted();
         let result: CallResult;
         try {

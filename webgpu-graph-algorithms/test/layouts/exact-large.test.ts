@@ -109,7 +109,7 @@ describe("the exact tier sums every node at any n (issue #87)", () => {
                         }
                         const d = [0, 1, 2].map((a) => pos[4 * i + a] - pos[4 * j + a]);
                         const d2 = d[0] * d[0] + d[1] * d[1] + d[2] * d[2];
-                        coincident = d2 < FA2_COINCIDENT_SQ; // the hashed kick is not modelled here: skip the node
+                        coincident = d2 < FA2_COINCIDENT_SQ; // the hashed kick is not modeled here: skip the node
                         const k = law(d2, pos[4 * i + 3], pos[4 * j + 3]);
                         for (let a = 0; a < 3; a++) {
                             ref[a] += d[a] * k;

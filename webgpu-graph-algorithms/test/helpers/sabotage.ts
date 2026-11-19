@@ -100,7 +100,7 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
             test: DEGREE_TEST,
         },
         {
-            // a neighbour == n is impossible on a valid CSR, so the bounds check is sabotaged by counting each target twice
+            // a neighbor == n is impossible on a valid CSR, so the bounds check is sabotaged by counting each target twice
             name: "target-counted-twice",
             find: "select(0u, 1u, nbr < P.n)",
             replace: "select(0u, 2u, nbr < P.n)",
@@ -144,7 +144,7 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
     ]),
     "fa2-repulsion-exact": Object.freeze([
         {
-            // regular gravity pushes away from the centre instead of towards it (7.9)
+            // regular gravity pushes away from the center instead of towards it (7.9)
             name: "gravity-sign-flipped",
             find: "return -P.gravity * pi.w * q / d;",
             replace: "return P.gravity * pi.w * q / d;",
@@ -285,7 +285,7 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
     ]),
     "fa2-attraction": Object.freeze([
         {
-            // attraction pushes away from the neighbour instead of towards it (row_force_dense: karate reaches no
+            // attraction pushes away from the neighbor instead of towards it (row_force_dense: karate reaches no
             // degree of 32, so every check in this suite folds through TIER 0)
             name: "attraction-sign-flipped",
             find: "total = total + d * select(",
@@ -434,7 +434,7 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
     ]),
     "wcc-link-sample": Object.freeze([
         {
-            // a row of degree exactly r links the NEXT row's first neighbour (colIdx[rowPtr[v + 1]])
+            // a row of degree exactly r links the NEXT row's first neighbor (colIdx[rowPtr[v + 1]])
             name: "degree-guard-inclusive",
             find: "if (a0 + P.r < a1) {",
             replace: "if (a0 + P.r <= a1) {",
@@ -443,7 +443,7 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
         },
         {
             // PLAN DECISION (replaces the plan's inert `high-low-swapped`, measured 0: a sampled round that links
-            // NOTHING is repaired by the each-edge-once round): the CAS lands on the root's neighbour by index, so
+            // NOTHING is repaired by the each-edge-once round): the CAS lands on the root's neighbor by index, so
             // an unrelated node joins lo's tree and the real pair stays apart
             name: "root-off-by-one",
             find: "let hi = max(p1, p2);",
@@ -454,7 +454,7 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
         {
             // PLAN DECISION (replaces the plan's inert `changed-flag-never-set`, measured 0: the host clears the
             // flag before every edge batch and never reads the one the setup batch sets): every row of degree > r
-            // links the NEXT row instead of its r-th neighbour, chaining the blocks together
+            // links the NEXT row instead of its r-th neighbor, chaining the blocks together
             name: "neighbour-is-next-row",
             find: "link_pair(v, colIdx[a0 + P.r]);",
             replace: "link_pair(v, v + 1u);",
@@ -848,7 +848,7 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
             test: GRID_TEST,
         },
         {
-            // x and y swapped in the linearisation: the key of every off-diagonal cell changes
+            // x and y swapped in the linearization: the key of every off-diagonal cell changes
             name: "axes-swapped",
             find: "key = u32(c.x) + P.gridMax * u32(c.y);",
             replace: "key = u32(c.y) + P.gridMax * u32(c.x);",
@@ -1164,7 +1164,7 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
         },
         {
             // lower_bound instead of upper_bound: off by one at every block boundary (the reversed frontier and the
-            // grid levels read a neighbouring row's arc there)
+            // grid levels read a neighboring row's arc there)
             name: "lower-bound-not-upper",
             find: "if (sh[mid] > p) { hi = mid; } else { lo = mid + 1u; }",
             replace: "if (sh[mid] >= p) { hi = mid; } else { lo = mid + 1u; }",
@@ -1238,7 +1238,7 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
     ]),
     "sssp-pred": Object.freeze([
         {
-            // a same-depth neighbour attains: level consistency breaks (parent miss against the host rule)
+            // a same-depth neighbor attains: level consistency breaks (parent miss against the host rule)
             name: "same-depth-attains",
             find: "tight = (du + 1u) == dv;",
             replace: "tight = du == dv;",
@@ -1818,8 +1818,8 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
     ]),
     "bc-count": Object.freeze([
         {
-            // the depth test one level off: the in-neighbours at the vertex's own depth are summed instead of its
-            // predecessors (dropping the test is no mutant: the only other reached in-neighbours share the depth and
+            // the depth test one level off: the in-neighbors at the vertex's own depth are summed instead of its
+            // predecessors (dropping the test is no mutant: the only other reached in-neighbors share the depth and
             // still hold the fill's 0)
             name: "depth-test-off-by-one",
             find: "if (depthK[v] == level) {",
@@ -1987,7 +1987,7 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
             test: COO_TEST,
         },
         {
-            // the first arc never opens a run: vertex 0's first neighbour is lost
+            // the first arc never opens a run: vertex 0's first neighbor is lost
             name: "first-arc-unmarked",
             find: "var first = a != INVALID_INDEX;",
             replace: "var first = a != INVALID_INDEX && i > 0u;",
@@ -2234,7 +2234,7 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
  * Rows added on the P1 kernels by P3-T5's review fix (docs/decisions/G3.md, the review of 2026-09-16), kept out of
  * SABOTAGE because test/sabotage/coverage.test.ts pins the P1 rows by name and test/sabotage/fa2-skeleton.test.ts
  * requires every K4 row to name the skeleton test (both P1-T5 files): test/sabotage/fa2.test.ts runs these rows with
- * the P3 checks (the re-synchronised trace legs) exactly as it runs SABOTAGE's, with the same find-uniqueness check.
+ * the P3 checks (the re-synchronized trace legs) exactly as it runs SABOTAGE's, with the same find-uniqueness check.
  */
 export const SABOTAGE_P3_ADDENDUM: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> = Object.freeze({
     "fa2-speed-finalize": Object.freeze([
@@ -2242,7 +2242,7 @@ export const SABOTAGE_P3_ADDENDUM: Readonly<Partial<Record<KernelId, readonly Mu
             // CONTRACT DECISION K4-1 (G3-F6): the halving predicate at its exact-equality knife edge. After load() the
             // paper-mode traction is EXACTLY half the swing (oldForce = 0), so `>=` halves the efficiency at every
             // first iteration where `>` (the port's `swing / traction > 2`) never does; the difference is a factor 2
-            // in speedEfficiency from iteration 1 on, measured 7.4e+3x the re-synchronised f32 tolerance on karate
+            // in speedEfficiency from iteration 1 on, measured 7.4e+3x the re-synchronized f32 tolerance on karate
             name: "halving-at-exact-equality",
             find: "swing > 2.0 * tr",
             replace: "swing >= 2.0 * tr",
@@ -2614,7 +2614,7 @@ export const SABOTAGE_P4_TIERS: Readonly<Partial<Record<KernelId, readonly Mutat
         },
         {
             // the arc window's rebase ignored: a windowed dispatch reads past its copy into the poison tail, whose
-            // INVALID_INDEX neighbours read pos out of bounds (WGSL clamps) and change the force by order 1. The
+            // INVALID_INDEX neighbors read pos out of bounds (WGSL clamps) and change the force by order 1. The
             // rebase of row_force_dense, the fold the windowed check's TIER 0 dispatch runs
             name: "tier0-rebase-ignored",
             find: "let k = arc - P.arcBase;",

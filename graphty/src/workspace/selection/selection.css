@@ -162,13 +162,6 @@
     white-space: nowrap;
 }
 
-.sel-advanced {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    height: 24px;
-}
-
 .sel-more {
     flex: none;
 }

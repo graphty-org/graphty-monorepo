@@ -12,7 +12,7 @@ import { inputCountersOfSession } from "../../src/session/GraphSession";
 import { type Harness, makeSession } from "./helpers";
 
 /**
- * A session with two labelled, weighted nodes and one labelled edge between them, added through
+ * A session with two labeled, weighted nodes and one labeled edge between them, added through
  * the session so every record is the graph primitives' to write.
  * @returns the harness
  */

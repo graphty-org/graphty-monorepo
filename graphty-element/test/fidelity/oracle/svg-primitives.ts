@@ -396,6 +396,7 @@ function strokeOf(
         dash: solid ? null : dashAsDrawn(dash, width, cs.strokeLinecap),
         dashClass: dashClassOf(solid ? null : dash, width, cs.strokeLinecap),
         gradient,
+        ...(cs.strokeLinejoin === "round" || cs.strokeLinejoin === "bevel" ? { join: cs.strokeLinejoin } : {}),
     };
 }
 

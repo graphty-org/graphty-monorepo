@@ -14,19 +14,19 @@ out-degree when unweighted), reads it through `pr-scale` for every iteration, an
 with the lease when the call ends. A second PageRank call on the same snapshot recomputes it.
 
 Nothing else moves: `GraphResidency.array(key, label, owner)` keeps its signature and its
-CPU-array key, the `reverse()` view stays memoised per snapshot record, and the pool sees one
+CPU-array key, the `reverse()` view stays memoized per snapshot record, and the pool sees one
 more `n`-word lease per call.
 
 ## Why
 
 The residency keys uploads on the CPU typed-array object: `array(key, ...)` looks `key` up in a
-`WeakMap` of residents, and a view is memoised on the snapshot's record by name. A device-computed
-array has no CPU object to key on and no view name to memoise under. Registering it means a new
+`WeakMap` of residents, and a view is memoized on the snapshot's record by name. A device-computed
+array has no CPU object to key on and no view name to memoize under. Registering it means a new
 residency surface -- a snapshot-keyed derived slot with its own release, invalidation and memory
 accounting -- that the memory spec (4.1-4.3) does not describe and that P7 has no second use for.
 
 The saving it would buy is one O(A) pass per call against the O(A) pass every iteration already
-costs: at the default `maxIterations` of 100 the normaliser is about one percent of a call, and
+costs: at the default `maxIterations` of 100 the normalizer is about one percent of a call, and
 with `tolerance` typically met earlier, a few percent.
 
 ## What we are giving up, and why it is acceptable
@@ -51,7 +51,7 @@ caller assumes it. If a second caller appears, the API can be designed for both.
 
 Two conditions, counted:
 
-- A measured `pagerank` benchmark in which the normaliser pass is more than ten percent of a call:
+- A measured `pagerank` benchmark in which the normalizer pass is more than ten percent of a call:
   in practice a personalized run that converges in a handful of iterations and is repeated per
   seed. The number comes from `inspect()` on the real fixture, not from this estimate.
 - A second algorithm wants a device-computed per-snapshot array shared across calls, at which point

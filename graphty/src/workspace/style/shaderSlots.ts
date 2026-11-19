@@ -119,15 +119,12 @@ export function shaderEntries(ctx: RowContext): ShaderEntry[] {
 
 /**
  * The layer a row's shader writes go to: its topmost unlocked layer (on the Everything row, the
- * one with the Everything selector). None for several rows edited together, or a row with no
- * layer yet.
+ * one with the Everything selector). None for a row with no layer yet. Several rows edited
+ * together never ask: their callers write each layer themselves.
  * @param ctx - the row.
  * @returns the layer, or undefined.
  */
 function ownLayer(ctx: RowContext): Layer | undefined {
-    if (ctx.many !== undefined) {
-        return undefined;
-    }
     const everything = ctx.fresh?.selector.match === "everything";
     const home = JSON.stringify(ctx.fresh?.selector);
     return [...ctx.layers]

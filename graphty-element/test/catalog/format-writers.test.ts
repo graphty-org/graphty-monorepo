@@ -3,7 +3,7 @@
  *
  * The browser suite (`test/browser/extensions/format-writer.test.ts`) drives `exportGraph` on a
  * real graph through every format. This file pins what does not need one: the registration
- * rules, the catalogue entry a writer produces, and what the export snapshot holds for a session
+ * rules, the catalog entry a writer produces, and what the export snapshot holds for a session
  * with a published result.
  */
 

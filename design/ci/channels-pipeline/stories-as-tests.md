@@ -233,7 +233,7 @@ The flow for a full run on master's tip, commit C:
 3. **The offered candidate is frozen.** _Superseded: the page no longer moves to a newer run._ The
    page offers the oldest unpromoted green-images candidate C and keeps it until C is promoted or
    rejected; a newer green-images candidate C2 queues behind it (the cut moving under review cost 3
-   to 6 Finish rounds per cut and a cancelled ship). When C2 is offered, every item whose
+   to 6 Finish rounds per cut and a canceled ship). When C2 is offered, every item whose
    `capture_sha` the owner already decided arrives decided, so an image is never decided twice.
 4. **Finish** commits the accepted PNGs, the review record and the signed approval as one accept
    commit A whose parent is C, on branch `visual/approve-<C short sha>`. The review server runs as the

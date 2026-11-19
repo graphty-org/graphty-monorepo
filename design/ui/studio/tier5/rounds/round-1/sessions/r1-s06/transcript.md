@@ -20,7 +20,7 @@ Screenshot 04.png. Good: 4 of 11, Cedar Bend, Old Bridge, Heron Marsh, Birch Hol
 
 ## Step 5
 Command: --step --click-at 1238,100 (button "Or...")
-Screenshot 05.png. Now there's an "A" (telemetry no, 4) and "or B" (0) with the column list open again. The A and B and the colours are new to me -- I'm not sure what they are for -- but "or" is what I asked for. Picking "installed" for B.
+Screenshot 05.png. Now there's an "A" (telemetry no, 4) and "or B" (0) with the column list open again. The A and B and the colors are new to me -- I'm not sure what they are for -- but "or" is what I asked for. Picking "installed" for B.
 
 ## Step 6
 Command: --step --click-at 1193,340 (option "installed")
@@ -49,7 +49,7 @@ Did I finish? Yes. Six gauges are still in the picture: Upper Falls, Cedar Bend,
 Ease: 6 out of 7. The funnel button took me straight to it, "no" had a count next to it, and "Or..." did what the word says. Every step showed me the count changing, and I could check it against the table myself.
 
 What confused me:
-- After "Or..." the screen suddenly had "A" and "B" with green and orange squares, and the table grew a "Group" column. I didn't ask for groups or colours; I wasn't sure if I'd just changed the lab's colours. Once I pressed Done the dots were all the same blue again, so I think it was only for the filter screen, but nothing told me that.
+- After "Or..." the screen suddenly had "A" and "B" with green and orange squares, and the table grew a "Group" column. I didn't ask for groups or colors; I wasn't sure if I'd just changed the lab's colors. Once I pressed Done the dots were all the same blue again, so I think it was only for the filter screen, but nothing told me that.
 - The filter is still called "telemetry no" in the list on the left and at the top, even though it has the 1990s part too. If someone else looks at it next week they might think it's only the "no" gauges.
 - B said 3 but only 2 new gauges appeared, because Old Bridge is in both. I worked that out from the dates; the screen didn't say so.
 - "Between 1990 and 1999" -- I wasn't sure 1999 meant the whole of 1999 until I saw Lake Inlet (October 1999) made it in.
@@ -62,6 +62,6 @@ Question: "On a scale from 1 (calm: you knew what to do next) to 7 (overwhelming
 
 Answer: 3. Mostly calm -- I always had a next thing to click and a number to check.
 
-The moment I was least sure was right after I pressed "Or...". The screen suddenly had an "A" with a green square and a "B" with an orange square, B said 0, the column list was open on the right, the table at the bottom grew a "Group" column, and up at the top there were buttons I hadn't touched -- "Group colors", "Styled", "Table". The dots in the drawing had turned green. I didn't know whether I had just put new colours on the lab's file or whether that was only how the filter screen shows things. I went on because "or" was the word I wanted, but for a moment I didn't know if I was building a filter or making groups.
+The moment I was least sure was right after I pressed "Or...". The screen suddenly had an "A" with a green square and a "B" with an orange square, B said 0, the column list was open on the right, the table at the bottom grew a "Group" column, and up at the top there were buttons I hadn't touched -- "Group colors", "Styled", "Table". The dots in the drawing had turned green. I didn't know whether I had just put new colors on the lab's file or whether that was only how the filter screen shows things. I went on because "or" was the word I wanted, but for a moment I didn't know if I was building a filter or making groups.
 
 Besides the drawing I mostly looked at the table underneath and the counts. The table helped the most: I could read station names and the installed dates myself and add them up -- 4 "no" plus Upper Falls and Lake Inlet makes 6 -- and the "6 of 11" at the top agreed. The counts next to "no", A and B helped too. Two things got in the way a bit: B said 3 but only two new gauges turned up, because Old Bridge is in both, and nothing said so; and the "Oct 11, 1999" suggestion that popped up under my 1999 covered part of the box, and I had to decide to ignore it. The "No match 5" line was useful once I understood it was the ones going out of the picture. The left side, where the filter is still called "telemetry no", I glanced at and didn't trust -- it doesn't say the 1990s part is in there.

@@ -77,7 +77,6 @@ export const FILE_STYLE_CHANNELS: ReadonlySet<string> = new Set([
     "edge.labelBorder",
     "edge.labelBorderOpacity",
     "edge.labelBorderWidth",
-    "edge.labelBox",
     "edge.labelCornerRadius",
     "edge.labelGapOf",
     "edge.labelLetterSize",

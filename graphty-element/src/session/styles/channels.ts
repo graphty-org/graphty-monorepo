@@ -752,7 +752,6 @@ export interface ChannelValues {
     "edge.labelShiftY": number;
     "edge.labelShiftOf": LabelShiftOfValue;
     "edge.labelGapOf": LabelShiftOfValue;
-    "edge.labelBox": LabelBoxValue;
     "node.xlabel": string;
     "node.xlabelStyle": LabelStyle;
     "node.xlabelLocation": LabelLocation;
@@ -1661,9 +1660,14 @@ function arrowMidChannels<End extends "MiddleHead" | "MiddleTail">(
     return Object.fromEntries(rows.map((row) => [row.channel, row])) as Record<ArrowMidChannel<End>, ChannelDescriptor>;
 }
 
-/** The label channels that write one field of a label style. */
-type LabelFieldChannel<Target extends "node" | "edge"> =
-    `${Target}.label${"Color" | "Size" | "LetterSize" | "Font" | "Weight" | "Italic" | "WrapWidth" | "WrapTrailingSpace" | "WrapSkipEndSpace" | "WrapEllipsis" | "WrapAnywhere" | "WrapSpaceCount" | "MaxLines" | "MaxLinesEllipsis" | "RunAlign" | "MinScreenSize" | "OnTop" | "Rotation" | "Background" | "Outline" | "OutlineWidth" | "Border" | "BorderWidth" | "Opacity" | "BackgroundOpacity" | "OutlineOpacity" | "BorderOpacity" | "Padding" | "CornerRadius" | "LineHeight" | "LineBox" | "BorderAlign" | "BackgroundShape" | "OffsetX" | "OffsetY" | "ShiftX" | "ShiftY" | "ShiftOf" | "GapOf" | "Box"}`;
+/**
+ * The label channels that write one field of a label style. An edge text has no target box to size against, so
+ * there is no `edge.labelBox`.
+ */
+type LabelFieldChannel<Target extends "node" | "edge"> = Exclude<
+    `${Target}.label${"Color" | "Size" | "LetterSize" | "Font" | "Weight" | "Italic" | "WrapWidth" | "WrapTrailingSpace" | "WrapSkipEndSpace" | "WrapEllipsis" | "WrapAnywhere" | "WrapSpaceCount" | "MaxLines" | "MaxLinesEllipsis" | "RunAlign" | "MinScreenSize" | "OnTop" | "Rotation" | "Background" | "Outline" | "OutlineWidth" | "Border" | "BorderWidth" | "Opacity" | "BackgroundOpacity" | "OutlineOpacity" | "BorderOpacity" | "Padding" | "CornerRadius" | "LineHeight" | "LineBox" | "BorderAlign" | "BackgroundShape" | "OffsetX" | "OffsetY" | "ShiftX" | "ShiftY" | "ShiftOf" | "GapOf" | "Box"}`,
+    "edge.labelBox"
+>;
 
 /** The field of a label style each label field channel writes, by the channel's suffix. */
 const LABEL_FIELD_OF_SUFFIX = {
@@ -2071,15 +2075,20 @@ function labelFieldChannels<Target extends "node" | "edge">(
                 'the margins round its words, or "words", its words\' own font box, as Cytoscape.js puts a label ' +
                 'outside its node. Unset, "box".',
         }),
-        row("Box", "Box", {
-            accepts: "enum",
-            values: LABEL_BOX_VALUES,
-            caveat:
-                'What the label\'s box is sized to: "words", round its words, an inside label too large for its ' +
-                'node being centered; "words-at-side", round its words, an inside label staying against the side ' +
-                'it names however large it is; "target-width", as "words-at-side" and at least as wide as its ' +
-                'node, a band across it. Unset, "words".',
-        }),
+        // an edge text has no target box to size against, so only a node label has a box channel
+        ...(target === "edge"
+            ? []
+            : [
+                  row("Box", "Box", {
+                      accepts: "enum",
+                      values: LABEL_BOX_VALUES,
+                      caveat:
+                          'What the label\'s box is sized to: "words", round its words, an inside label too large for its ' +
+                          'node being centered; "words-at-side", round its words, an inside label staying against the side ' +
+                          'it names however large it is; "target-width", as "words-at-side" and at least as wide as its ' +
+                          'node, a band across it. Unset, "words".',
+                  }),
+              ]),
     ];
 
     return Object.fromEntries(rows.map((entry) => [entry.channel, entry])) as Record<

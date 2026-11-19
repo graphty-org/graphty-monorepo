@@ -526,7 +526,6 @@ export const PARTS: Readonly<Record<"node" | "edge", readonly PartSpec[]>> = {
                             "edge.labelBorderAlign",
                             "edge.labelBackgroundShape",
                             "edge.labelPadding",
-                            "edge.labelBox",
                         ],
                         Place: [
                             "edge.labelLocation",

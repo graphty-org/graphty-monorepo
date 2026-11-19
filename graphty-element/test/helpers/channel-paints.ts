@@ -646,20 +646,15 @@ export const STRUCTURE_ONLY_VALUES: Readonly<Partial<Record<string, string>>> = 
             "node.modelTint=untextured",
         ].map((key) => [
             key,
-            "The probe scene has no model that loads (a model is a served file); each value's picture is measured " +
-                "on a real model in test/browser/models/.",
+            "The probe scene has no model that loads (a model is a served file); each value's pixels are measured " +
+                "on a real model in test/browser/models/ (model-animation.test.ts: up axes, origin, fit, sides; " +
+                "model-looks.test.ts: tints).",
         ]),
     ),
     "node.labelDeclutter=degree":
         "Declutter thins overlapping labels; the probe's two labels never overlap. Measured in label-declutter.test.ts.",
     "node.labelDeclutter=size":
         "Declutter thins overlapping labels; the probe's two labels never overlap. Measured in label-declutter.test.ts.",
-    "edge.labelBox=words-at-side":
-        "An edge text has no target box to size against, so it keeps the box round its words (LabelStyle.box, and " +
-        "LABEL_STYLE_DESCRIPTORS box.drawnOn names node texts only). The edge channel draws nothing: an open defect.",
-    "edge.labelBox=target-width":
-        "An edge text has no target box to size against, so it keeps the box round its words (LabelStyle.box, and " +
-        "LABEL_STYLE_DESCRIPTORS box.drawnOn names node texts only). The edge channel draws nothing: an open defect.",
     "node.labelLocation=automatic":
         'By design "automatic" draws a node label at its normal place, the top, which is the default (Node.ts).',
     "edge.xlabelLocation=automatic":
@@ -668,13 +663,23 @@ export const STRUCTURE_ONLY_VALUES: Readonly<Partial<Record<string, string>>> = 
 
 /**
  * Whether a measurement shows a value drawn: pixels changed, or, for a value on {@link STRUCTURE_ONLY_VALUES}, the
- * structure changed.
+ * structure changed. A listed value that starts changing pixels fails until its entry is deleted, so the list only
+ * shrinks.
  * @param measure - The measurement.
  * @param key - `channel=value`, or `channel`.
  * @returns Whether it drew.
  */
 export function drewPixels(measure: PaintMeasure, key: string): boolean {
-    return STRUCTURE_ONLY_VALUES[key] === undefined ? measure.changed > PIXEL_CHANGE : measure.painted;
+    if (STRUCTURE_ONLY_VALUES[key] === undefined) {
+        return measure.changed > PIXEL_CHANGE;
+    }
+
+    assert.isAtMost(
+        measure.changed,
+        PIXEL_CHANGE,
+        `${key} now changes ${String(measure.changed)} pixels: delete its STRUCTURE_ONLY_VALUES entry.`,
+    );
+    return measure.painted;
 }
 
 /** vitest's describe, beforeAll, afterAll and it, handed in so this module registers no tests by itself. */

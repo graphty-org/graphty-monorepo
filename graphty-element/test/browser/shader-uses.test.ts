@@ -16,7 +16,7 @@ import type { Graph } from "../../src/Graph";
 import { NodeShaderDrawing } from "../../src/meshes/NodeShaderDrawing";
 import type { GraphSession } from "../../src/session";
 import { shadersControllerOf } from "../../src/session/shaders";
-import { mountProbeGraph, PIXEL_CHANGE, pixelsMoved, readScene } from "../helpers/channel-paints";
+import { mountProbeGraph, PIXEL_CHANGE, pixelsChanged, readScene } from "../helpers/channel-paints";
 import { drawnFrames } from "../helpers/drawn-frames";
 
 /**
@@ -35,7 +35,7 @@ function heldParams(descriptor: ShaderDescriptor): ShaderParams {
 }
 
 /**
- * How many pixels a use moves on the probe graph. A heavy surface's body loads after the use lands, so where it
+ * How many pixels a use changes on the probe graph, place by place (a same-area change moves no histogram bucket). A heavy surface's body loads after the use lands, so where it
  * should draw the frame is read once the shader draws a node. A shader that reads a clock straight in its body
  * (change-flash's `sinceChanged`) draws only while its event plays: the event is fired, and frames are read as
  * they are drawn until one differs from the rest.
@@ -44,9 +44,9 @@ function heldParams(descriptor: ShaderDescriptor): ShaderParams {
  * @param descriptor - The shader.
  * @param params - Its parameters.
  * @param claims - Whether it should draw in this view.
- * @returns The pixels that moved.
+ * @returns The pixels that changed colour, place by place.
  */
-async function useMoves(
+async function useChanges(
     graph: Graph,
     session: GraphSession,
     descriptor: ShaderDescriptor,
@@ -97,7 +97,7 @@ async function useMoves(
             await session.data.updateEdges([{ id: edge.id, values: { changed: 1 } }]);
         }
 
-        for (let frame = 0; frame < 120 && pixelsMoved(rest, after) <= PIXEL_CHANGE; frame++) {
+        for (let frame = 0; frame < 120 && pixelsChanged(rest, after) <= PIXEL_CHANGE; frame++) {
             await drawnFrames(scene, 1);
             after = await readScene(graph, false);
         }
@@ -105,7 +105,7 @@ async function useMoves(
 
     await session.styles.remove(use.id);
     await session.styles.remove(base.id);
-    return pixelsMoved(rest, after);
+    return pixelsChanged(rest, after);
 }
 
 const SHADERS = [...shaderDescriptors()].sort((one, other) => one.id.localeCompare(other.id));
@@ -136,7 +136,7 @@ for (const view of ["2d", "3d"] as const) {
             const claims = descriptor.views?.includes(view) ?? true;
             it(`${claims ? "draws" : "draws nothing"}: ${descriptor.id} (${descriptor.target}, ${String(descriptor.place)})`, async () => {
                 const params = heldParams(descriptor);
-                let moved: number;
+                let changed: number;
                 if (descriptor.target === "background") {
                     graph.setBackground({
                         backgroundType: "color",
@@ -146,19 +146,19 @@ for (const view of ["2d", "3d"] as const) {
                     const after = await readScene(graph);
                     graph.setBackground({ backgroundType: "color", color: "#202020" });
                     const plain = await readScene(graph);
-                    moved = pixelsMoved(after, plain);
+                    changed = pixelsChanged(after, plain);
                 } else {
-                    moved = await useMoves(graph, session, descriptor, params, claims);
+                    changed = await useChanges(graph, session, descriptor, params, claims);
                 }
 
                 // The picture, not the scene's structure: a use builds its drawing in every view, and draws nothing in
                 // one its `views` leave out.
-                const painted = moved > PIXEL_CHANGE;
+                const painted = changed > PIXEL_CHANGE;
                 assert.strictEqual(
                     painted,
                     claims,
                     `${descriptor.id} names ${String(descriptor.views ?? "both views")}; in ${view} it ` +
-                        `${painted ? "changed" : "did not change"} the picture (${String(moved)} pixels).`,
+                        `${painted ? "changed" : "did not change"} the picture (${String(changed)} pixels changed).`,
                 );
             });
         }

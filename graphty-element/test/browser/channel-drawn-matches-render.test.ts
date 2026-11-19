@@ -72,11 +72,12 @@ for (const view of ["2d", "3d"] as const) {
                         ...shown?.base,
                     },
                 );
-                // Only the picture counts, both ways: where it claims to draw, its pixels must move (a mesh built and
-                // then hidden or covered changes the structure and nothing a reader sees); where it claims nothing, a
-                // 2D node keeps a lit material it draws unlit, so writing node.unlit there changes a material and no
-                // pixel. STRUCTURE_ONLY_VALUES names, with reasons, what the probe scene cannot show.
-                const drew = claims ? drewPixels(measure, descriptor.channel) : measure.moved > PIXEL_CHANGE;
+                // Only the picture counts, both ways, place by place (a cap flipped or a same-size shape swapped moves
+                // no histogram bucket): where it claims to draw, its pixels must change (a mesh built and then hidden
+                // or covered changes the structure and nothing a reader sees); where it claims nothing, a 2D node keeps
+                // a lit material it draws unlit, so writing node.unlit there changes a material and no pixel.
+                // STRUCTURE_ONLY_VALUES names, with reasons, what the probe scene cannot show.
+                const drew = claims ? drewPixels(measure, descriptor.channel) : measure.changed > PIXEL_CHANGE;
                 assert.strictEqual(
                     drew,
                     claims,

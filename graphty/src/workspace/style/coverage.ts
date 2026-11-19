@@ -392,7 +392,6 @@ export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "edge.labelShiftY": NOT_PLACED,
     "edge.labelShiftOf": NOT_PLACED,
     "edge.labelGapOf": NOT_PLACED,
-    "edge.labelBox": NOT_PLACED,
     "node.groupPadding": NOT_PLACED,
     "node.groupPaddingRatio": NOT_PLACED,
     "node.groupPaddingOf": NOT_PLACED,

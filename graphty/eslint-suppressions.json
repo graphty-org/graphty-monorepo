@@ -292,9 +292,6 @@
   "src/workspace/style/CustomModelDialog.tsx": {
     "sonarjs/cognitive-complexity": {
       "count": 1
-    },
-    "unicorn/no-array-callback-reference": {
-      "count": 3
     }
   },
   "src/workspace/style/Groups.tsx": {

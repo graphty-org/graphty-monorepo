@@ -34,7 +34,13 @@ import { LazySource } from '@graphty/graph-io';
 import { listSources } from '@graphty/graph-io';
 import { LoadFromSourceOptions } from '@graphty/graph-io';
 import { LOSS } from '@graphty/graph-io';
+import { ModelCompression } from 'babylonjs-models/files';
+import { ModelEncoding } from 'babylonjs-models/files';
 import { ModelFormat } from 'babylonjs-models/detect';
+import { ModelGeometry } from 'babylonjs-models/files';
+import type { ModelLimits as ModelLimits_2 } from 'babylonjs-models/files';
+import { ModelPicture } from 'babylonjs-models/files';
+import { ModelSummary } from 'babylonjs-models/files';
 import { NEO4J_LOSS } from '@graphty/graph-io';
 import type { NodeId as NodeId_2 } from '@graphty/graph-format';
 import { PAJEK_LOSS } from '@graphty/graph-io';
@@ -132,8 +138,10 @@ export interface AddAssetOptions {
     readonly main?: string;
     readonly name?: AssetId;
     readonly onProgress?: (change: ProgressChange) => void;
+    readonly onWaiting?: (record: AssetRecord) => void;
     readonly signal?: AbortSignal;
     readonly skipped?: readonly string[];
+    readonly stopPictures?: AbortSignal;
 }
 
 // @public
@@ -172,6 +180,7 @@ export interface AssetOffer {
 // @public
 export interface AssetRecord {
     readonly byteLength: number;
+    readonly defaults?: ModelDefaults;
     readonly digest: string;
     readonly format: ModelFormat;
     readonly id: AssetId;
@@ -187,9 +196,14 @@ export interface AssetRecord {
 
 // @public
 export interface AssetsApi {
+    accept(ref: string, options: {
+        readonly without: "missing";
+    }): Promise<AssetRecord>;
     add(source: AssetSource, options?: AddAssetOptions): Promise<AssetRecord>;
     addEach(source: AssetSource, options?: AddAssetOptions): Promise<readonly AssetRecord[]>;
     allowHosts(hosts: readonly string[]): void;
+    copy(ref: string): Promise<AssetRecord>;
+    dropPart(ref: string, name: string): Promise<AssetRecord>;
     files(id: AssetId): ReadonlyMap<string, Uint8Array>;
     find(ref: string): AssetRecord | undefined;
     get(id: AssetId): AssetRecord | undefined;
@@ -203,6 +217,7 @@ export interface AssetsApi {
     }): Promise<AssetRecord>;
     remove(id: string): void;
     rename(ref: string, plainName?: string): AssetRecord;
+    setDefaults(ref: string, patch: ModelDefaultsPatch): Promise<AssetRecord>;
     setLimits(limits: Partial<ModelLimits>): void;
     states(): readonly ModelChange[];
     supply(ref: string, answer: PartAnswer, options?: {
@@ -650,6 +665,7 @@ export interface CommandOutcomeMap {
     "algo.run": Run;
     "annotations.patch": Promise<void>;
     "annotations.set": Promise<void>;
+    "asset.defaults": Promise<void>;
     "config.set": Promise<void>;
     "data.apply": Promise<void>;
     "data.collapse": Promise<void>;
@@ -1259,7 +1275,7 @@ export type ExportFlattenReason = (typeof EXPORT_FLATTEN_REASONS)[number];
 export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];
 
 // @public
-export type FeatureId = "assistant" | "data-management" | "location-map" | "cosmograph" | "file-styles" | "node-models" | "save-files-v2";
+export type FeatureId = "assistant" | "data-management" | "location-map" | "cosmograph" | "file-styles" | "save-files-v2";
 
 // @public
 export interface FieldBand {
@@ -2407,11 +2423,11 @@ export type GraphtyErrorCode =
 */
 | "E_MODEL_TOO_LARGE"
 /**
-* A model's structure is unsafe or broken, found before anything decodes it or by graphty-element's own reader while drawing it. `params.rule` (`index`, `cycle`, `parent`, `depth`, `accessor`, `json`, `instancing`, `image`, `length`, `header`, `path`; a reader's damaged-file refusals `ply`, `splat`, `babylon`, and `delayLoad` for a `.babylon` whose meshes load from other files).
+* A model's structure is unsafe or broken, found before anything decodes it or by graphty-element's own reader while drawing it. `params.rule` (`index`, `cycle`, `parent`, `depth`, `accessor`, `json`, `instancing`, `image`, `length`, `header`, `path`; `fbx`, `usd` and `usdz` for a damaged file of that format; a reader's damaged-file refusals `ply`, `babylon`, `delayLoad` for a `.babylon` whose meshes load from other files, and `empty` for a USD stage that defines nothing to draw).
 */
 | "E_MODEL_STRUCTURE"
 /**
-* A recognized 3D format graphty-element does not load (FBX, USD and USDZ, DAE, .blend, 3MF, BVH animation). `params.format`, `params.fileName`; `params.extension` for a glTF that requires an extension graphty-element does not read.
+* A recognized 3D format graphty-element does not load (DAE, .blend, 3MF, BVH, and Gaussian splats: `.splat`, `.spz`, `.sog` and `splat-ply`, a PLY holding splats; a glTF or GLB that uses `KHR_gaussian_splatting`, required or not, names it in `params.extension`). `params.format`, `params.fileName`; `params.extension` for a glTF that requires an extension graphty-element does not read, or uses Gaussian splatting; `params.kind` is `"splat"` for every Gaussian splat refusal, whatever its format.
 * `params.assetKind` is `"image"` when `node.model` names a picture and `"model"` when `node.texture` names a model.
 */
 | "E_MODEL_FORMAT_UNSUPPORTED"
@@ -2704,8 +2720,9 @@ export type GraphtyWarningCode =
 /**
 * A glTF uses an extension that is drawn without: the transmission family
 * (`KHR_materials_transmission`, `_volume`, `_dispersion`, `_diffuse_transmission`,
-* `_volume_scatter`), whose parts are drawn opaque. `params.extension` names it; one fact per
-* extension.
+* `_volume_scatter`). A transmissive part is drawn alpha blended, as see-through as its
+* transmission factor says (at least 20% opaque); the rest of the family draws opaque.
+* `params.extension` names it; one fact per extension.
 */
 | "W_MODEL_EXTENSION_IGNORED"
 /**
@@ -2724,9 +2741,8 @@ export type GraphtyWarningCode =
 */
 | "W_MODEL_ANIMATION_PARTIAL"
 /**
-* A point cloud or Gaussian splat model is drawn as small solids, one per point: a splat's
-* size, opacity falloff and rotation are not drawn, and more points than are drawn were thinned
-* evenly. `params.points` is the count in the file, `params.drawn` how many are drawn at most.
+* A point cloud model is drawn as small solids, one per point, and more points than are drawn
+* were thinned evenly. `params.points` is the count in the file, `params.drawn` how many are drawn at most.
 */
 | "W_MODEL_POINTS_APPROXIMATED"
 /**
@@ -2989,7 +3005,7 @@ export interface HistoryClearOptions {
 }
 
 // @public
-export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.move" | "algo.rename" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.fix-issue" | "data.ignore-issue" | "data.ignore-issues" | "data.issues" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.merge-nodes" | "groups.collapse" | "groups.expand" | "data.import" | "data.import-source" | "data.expand" | "data.source-expand" | "data.collapse" | "data.declare" | "data.set-source" | "data.remove-source" | "data.replace-source" | "data.join" | "data.edit-join" | "data.label" | "data.set-role" | "data.set-type" | "data.rename-column" | "data.hide-columns" | "data.show-columns" | "data.columns" | "data.derive" | "annotations.set" | "annotations.patch" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "style.add-folder" | "style.rename-row" | "style.move-row" | "style.pin-row" | "style.lock-row" | "style.hide-row" | "style.delete-row" | "style.add-default-rows" | "shader.add" | "shader.replace" | "shader.remove" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "visibility.step-add" | "visibility.step-edit" | "visibility.step-on" | "visibility.step-off" | "visibility.step-remove" | "visibility.condition-add" | "visibility.condition-edit" | "visibility.condition-on" | "visibility.condition-off" | "visibility.condition-remove" | "visibility.steps" | "visibility.playback" | "visibility.hide-nodes" | "visibility.show-nodes" | "time.field" | "time.clear-field" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.rerun" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
+export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.move" | "algo.rename" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.fix-issue" | "data.ignore-issue" | "data.ignore-issues" | "data.issues" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.merge-nodes" | "groups.collapse" | "groups.expand" | "data.import" | "data.import-source" | "data.expand" | "data.source-expand" | "data.collapse" | "data.declare" | "data.set-source" | "data.remove-source" | "data.replace-source" | "data.join" | "data.edit-join" | "data.label" | "data.set-role" | "data.set-type" | "data.rename-column" | "data.hide-columns" | "data.show-columns" | "data.columns" | "data.derive" | "annotations.set" | "annotations.patch" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "style.add-folder" | "style.rename-row" | "style.move-row" | "style.pin-row" | "style.lock-row" | "style.hide-row" | "style.delete-row" | "style.add-default-rows" | "shader.add" | "shader.replace" | "shader.remove" | "asset.defaults" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "visibility.step-add" | "visibility.step-edit" | "visibility.step-on" | "visibility.step-off" | "visibility.step-remove" | "visibility.condition-add" | "visibility.condition-edit" | "visibility.condition-on" | "visibility.condition-off" | "visibility.condition-remove" | "visibility.steps" | "visibility.playback" | "visibility.hide-nodes" | "visibility.show-nodes" | "time.field" | "time.clear-field" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.rerun" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
 
 // @public
 export type HistoryOutcome = {
@@ -3838,6 +3854,9 @@ export interface MergeNodesOptions {
 export type MissingValues = "include" | "exclude";
 
 // @public
+export const MODEL_DEFAULT_CHANNELS: readonly ModelDefaultChannel[];
+
+// @public
 export interface ModelChange {
     readonly id?: AssetId;
     readonly layerIds: readonly LayerId[];
@@ -3846,27 +3865,32 @@ export interface ModelChange {
     readonly state: ModelState;
 }
 
-// @public
-export type ModelCompression = "draco" | "meshopt" | "ktx2" | "webp" | "avif";
+export { ModelCompression }
 
 // @public
-export type ModelEncoding = "ascii" | "binary" | "binaryBigEndian";
+export type ModelDefaultChannel = "node.modelSourceUp" | "node.modelTurn" | "node.modelTint" | "node.modelAnimation" | "node.modelAnimationSpeed" | "node.modelAnimationOffset" | "node.modelFit" | "node.modelCenter" | "node.modelDoubleSided";
+
+// @public
+export interface ModelDefaults {
+    readonly hiddenTextures: readonly string[];
+    readonly style: Readonly<Partial<Record<ModelDefaultChannel, ChannelValue>>>;
+}
+
+// @public
+export interface ModelDefaultsPatch {
+    readonly hiddenTextures?: readonly string[];
+    readonly style?: Readonly<Partial<Record<ModelDefaultChannel, ChannelValue | null | undefined>>>;
+}
+
+export { ModelEncoding }
 
 export { ModelFormat }
 
-// @public
-export type ModelGeometry = "mesh" | "points" | "splats";
+export { ModelGeometry }
 
 // @public
-export interface ModelLimits {
-    readonly fetchTimeoutMs: number;
-    readonly maxBytes: number;
-    readonly maxDecodedBytes: number;
-    readonly maxTextBytes: number;
-    readonly maxTextureBytes: number;
-    readonly maxTextureSize: number;
-    readonly maxTriangles: number;
-    readonly sceneTextureBytes: number;
+export interface ModelLimits extends ModelLimits_2 {
+    readonly documentBytes: number;
     readonly sceneTriangleBudget: number;
     readonly sessionBytes: number;
 }
@@ -3887,45 +3911,12 @@ export type ModelPartRole = "model" | "geometry" | "materials" | "texture" | "ot
 // @public
 export type ModelPartState = "found" | "substituted" | "missing" | "ambiguous" | "skipped" | "unused";
 
+export { ModelPicture }
+
 // @public
 export type ModelState = "pending" | "accepted" | "drawn" | "rejected" | "failed";
 
-// @public
-export interface ModelSummary {
-    // (undocumented)
-    readonly animations: readonly {
-        readonly name: string;
-        readonly seconds: number;
-    }[];
-    readonly bounds?: {
-        readonly min: readonly [number, number, number];
-        readonly max: readonly [number, number, number];
-    };
-    readonly compression?: readonly ModelCompression[];
-    readonly encoding?: ModelEncoding;
-    readonly extensionsRequired: readonly string[];
-    readonly extensionsUsed?: readonly string[];
-    // (undocumented)
-    readonly format: ModelFormat;
-    readonly geometry?: ModelGeometry;
-    readonly gltfVersion?: "1.0" | "2.0";
-    readonly materials: readonly string[];
-    // (undocumented)
-    readonly meshes: number;
-    // (undocumented)
-    readonly morphTargets: number;
-    readonly points?: number;
-    // (undocumented)
-    readonly skinned: boolean;
-    readonly textureBytes: number;
-    // (undocumented)
-    readonly textures: number;
-    // (undocumented)
-    readonly transparent: boolean;
-    readonly triangles: number;
-    readonly upAxis: "y" | "z" | "-y" | "unknown";
-    readonly vertexColors?: boolean;
-}
+export { ModelSummary }
 
 // @public
 export type MultipleTestingCorrection = "benjamini-hochberg" | "bonferroni" | "holm";
@@ -4704,7 +4695,7 @@ export interface ProjectShader {
 }
 
 // @public
-export type ProjectSlice = "graph" | "config" | "layout" | "pins" | "arrangement" | "runs" | "styles" | "visibility" | "sets" | "views" | "notes" | "attributes" | "valueLabels" | "shaders";
+export type ProjectSlice = "graph" | "config" | "layout" | "pins" | "arrangement" | "runs" | "styles" | "visibility" | "sets" | "views" | "notes" | "attributes" | "valueLabels" | "shaders" | "modelDefaults";
 
 // @public
 export type ProjectSource = Blob | Uint8Array | string;
@@ -6188,7 +6179,7 @@ export type SessionCapabilities = Pick<Capabilities, "acceleration" | "xr" | "ca
 export type SessionCatalogApi = Omit<CatalogApi, DeprecatedCatalogMethod>;
 
 // @public
-export type SessionCommand = AlgorithmRunCommand | AlgoLegacyCommand | AlgoRemoveCommand | AlgoMoveCommand | AlgoRenameCommand | DataCommand | DataDeriveCommand | DataIssuesCommand | SourceExpandOpCommand | StyleCommand | ShaderCommand | VisibilityCommand | SetCommand | NoteCommand | ViewCommand | AnnotationsCommand | ConfigSetCommand | PositionsCommand | LayoutCommand | BatchCommand;
+export type SessionCommand = AlgorithmRunCommand | AlgoLegacyCommand | AlgoRemoveCommand | AlgoMoveCommand | AlgoRenameCommand | DataCommand | DataDeriveCommand | DataIssuesCommand | SourceExpandOpCommand | StyleCommand | ShaderCommand | AssetCommand | VisibilityCommand | SetCommand | NoteCommand | ViewCommand | AnnotationsCommand | ConfigSetCommand | PositionsCommand | LayoutCommand | BatchCommand;
 
 // @public
 export interface SessionConfig extends ProjectConfig {
@@ -6284,6 +6275,7 @@ export interface SessionDataApi {
         readonly signal?: AbortSignal;
         readonly onto?: "graph";
         readonly guess?: "names" | "values";
+        readonly onProgress?: (change: ProgressChange) => void;
     }): Promise<LoadDraft>;
     previewSource(source: SourceInput, options?: SourcePreviewOptions): Promise<SourcePreview>;
     previewType(column: ColumnRef, type: ValueType): TypeChangePreview;

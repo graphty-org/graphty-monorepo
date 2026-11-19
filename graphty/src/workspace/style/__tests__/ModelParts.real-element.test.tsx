@@ -1,5 +1,5 @@
 /**
- * A model missing parts with the node models experiment on (issue #3396), on the real
+ * A model missing parts (issue #3396), on the real
  * graphty-element, by real input: the Kenney car kit's police.glb names its picture as the separate
  * file Textures/colormap.png. By a folder or a .zip in the Load custom model dialog it draws at
  * once; a layer naming it alone shows the Parts button, whose Parts pop-over takes the picture
@@ -151,7 +151,7 @@ async function drawn(session: GraphSession): Promise<void> {
  */
 async function policeAlone(): Promise<{ session: GraphSession; tab: HTMLElement; chip: HTMLElement }> {
     const police = await policeFile();
-    const { session, tab } = await openShapes(["node-models"], async (each) => ({
+    const { session, tab } = await openShapes([], async (each) => ({
         "node.model": (await each.assets.add(police)).id,
     }));
     const chip = await within(tab).findByRole("button", { name: CHIP });
@@ -217,7 +217,7 @@ describe("a model missing parts, on the real element", () => {
         assert.isNull(within(tab).queryByRole("button", { name: CHIP }));
     });
 
-    it("shows '1 missing' for police.glb alone, and takes colormap.png dropped on its row", async () => {
+    it("offers Parts for police.glb alone, and takes colormap.png dropped on its row", async () => {
         const { session, tab, chip } = await policeAlone();
         // What is missing is the Parts button's tooltip.
         assert.include(await tooltipOf(chip), PART);
@@ -233,6 +233,30 @@ describe("a model missing parts, on the real element", () => {
         const parts = await openParts(chip);
         dropOn(within(parts).getByText("Drop files here"), [await colormapFile()]);
         await finished(session, tab);
+    });
+
+    it("says a dropped file the model does not use as a plain row, never a pill", async () => {
+        const { session, chip } = await policeAlone();
+        const parts = await openParts(chip);
+        const stray = new File([await bytesOf(colormapUrl)], "stray.png", { type: "image/png" });
+        dropOn(within(parts).getByText("Drop files here"), [stray]);
+        const row = await within(parts).findByRole("group", { name: "Not needed" });
+        assert.include(row.textContent, "stray.png");
+        assert.isNull(parts.querySelector(".mantine-Badge-root, .mantine-Pill-root"), "no pill in the Parts pop-over");
+        assert.notEqual(
+            session.assets.states().find((change) => change.ref === written(session, "node.model"))?.state,
+            "drawn",
+        );
+    });
+
+    it("says why a layer's model is not drawn as a plain row in its Model settings, never a pill", async () => {
+        const { tab } = await openShapes([], () => Promise.resolve({ "node.model": "asset:not-held" }));
+        await userEvent.click(await within(tab).findByRole("button", { name: "Model settings" }));
+        const settings = await screen.findByRole("dialog", { name: "Model settings" });
+        const notes = await within(settings).findByTestId("model-notes");
+        assert.isNotNull(within(notes).getByRole("group", { name: "Not loaded" }));
+        assert.include(notes.textContent, "model not in this project");
+        assert.isNull(settings.querySelector(".mantine-Badge-root, .mantine-Pill-root"), "no pill in Model settings");
     });
 
     it("takes colormap.png from the row's Choose button", async () => {
@@ -264,7 +288,7 @@ describe("a model missing parts, on the real element", () => {
             return url === main ? Promise.resolve(new Response(police, { status: 200 })) : original(input, init);
         });
         // A layer naming the address, as a saved project does.
-        const { session, tab } = await openShapes(["node-models"], { "node.model": main });
+        const { session, tab } = await openShapes([], { "node.model": main });
         let parts = await openParts(await within(tab).findByRole("button", { name: CHIP }));
 
         // Another site: the web-address question comes first, worded for a part the reader supplied.
@@ -302,7 +326,7 @@ describe("a model missing parts, on the real element", () => {
 
         // Known as a page by its address: no question, and nothing fetched.
         const row = within(parts).getByRole("group", { name: PART_NAME });
-        assert.isNotNull(await within(row).findByText("Web page"));
+        assert.isNotNull(await within(row).findByText(/^Web page/));
         assert.isNull(screen.queryByRole("dialog", { name: "Open a web address?" }));
         assert.notInclude(requested, blob);
         await userEvent.click(within(row).getByRole("button", { name: "Use file address" }));

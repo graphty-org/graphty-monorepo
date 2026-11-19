@@ -7,7 +7,7 @@ import type { GraphSession, Layer } from "@graphty/graphty-element/session";
 import { Box, Checkbox, Stack, Tabs, Tooltip, VisuallyHidden } from "@mantine/core";
 import React, { useEffect, useId, useRef, useState } from "react";
 
-import { cosmographOn, fileStylesOn, nodeModelsOn } from "../features";
+import { cosmographOn, fileStylesOn } from "../features";
 import { findTreeRow, isLocked, rowLayers as treeRowLayers } from "../graph-place/rows";
 import { errorWords } from "../project/words";
 import type { WorkspaceStore } from "../state/store";
@@ -445,13 +445,12 @@ export function RowStyle({
         }
         return (
             <section className="ws-style-group" data-group={side}>
-                {sectionsFor(side, { cosmograph: cosmographOn(session), nodeModels: nodeModelsOn(session) }).map(
-                    (spec) =>
-                        spec.id === "text" ? (
-                            <LabelSection key={spec.id} ctx={ctx} />
-                        ) : (
-                            <Section key={spec.id} ctx={ctx} spec={spec} />
-                        ),
+                {sectionsFor(side, { cosmograph: cosmographOn(session) }).map((spec) =>
+                    spec.id === "text" ? (
+                        <LabelSection key={spec.id} ctx={ctx} />
+                    ) : (
+                        <Section key={spec.id} ctx={ctx} spec={spec} />
+                    ),
                 )}
             </section>
         );

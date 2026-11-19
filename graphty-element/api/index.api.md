@@ -71,6 +71,8 @@ import type { MapSourceId } from 'babylonjs-map';
 import { Matrix } from '@babylonjs/core/Maths/math.vector.js';
 import { Mesh } from '@babylonjs/core/Meshes/mesh.js';
 import { ModelFormat } from 'babylonjs-models/detect';
+import type { ModelLimits as ModelLimits_2 } from 'babylonjs-models/files';
+import type { ModelSummary } from 'babylonjs-models/files';
 import { NEO4J_LOSS } from '@graphty/graph-io';
 import { NodeId as NodeId_2 } from '@graphty/graph-format';
 import { NodeMask } from '@graphty/graph-format';
@@ -2683,7 +2685,7 @@ export type ExportScope = RuleTree | "all" | "shown" | "selection" | {
 export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];
 
 // @public
-export type FeatureId = "assistant" | "data-management" | "location-map" | "cosmograph" | "file-styles" | "node-models" | "save-files-v2";
+export type FeatureId = "assistant" | "data-management" | "location-map" | "cosmograph" | "file-styles" | "save-files-v2";
 
 // @public
 export interface FigureOptions {
@@ -2889,6 +2891,7 @@ export class Graph implements GraphContext {
         x: number;
         y: number;
     }, options?: CameraAnimationOptions): Promise<void>;
+    checkModel(ref: string, options?: ModelCheckOptions): Promise<ModelCheck>;
     clearAiHistory(options?: {
         readonly database?: string;
     }): Promise<void>;
@@ -3448,6 +3451,7 @@ export class Graphty extends LitElement {
         x: number;
         y: number;
     }, options?: CameraAnimationOptions): Promise<void>;
+    checkModel(ref: string, options?: ModelCheckOptions): Promise<ModelCheck>;
     clearAiHistory(options?: {
         readonly database?: string;
     }): Promise<void>;
@@ -4504,11 +4508,11 @@ export type GraphtyErrorCode =
 */
 | "E_MODEL_TOO_LARGE"
 /**
-* A model's structure is unsafe or broken, found before anything decodes it or by graphty-element's own reader while drawing it. `params.rule` (`index`, `cycle`, `parent`, `depth`, `accessor`, `json`, `instancing`, `image`, `length`, `header`, `path`; a reader's damaged-file refusals `ply`, `splat`, `babylon`, and `delayLoad` for a `.babylon` whose meshes load from other files).
+* A model's structure is unsafe or broken, found before anything decodes it or by graphty-element's own reader while drawing it. `params.rule` (`index`, `cycle`, `parent`, `depth`, `accessor`, `json`, `instancing`, `image`, `length`, `header`, `path`; `fbx`, `usd` and `usdz` for a damaged file of that format; a reader's damaged-file refusals `ply`, `babylon`, `delayLoad` for a `.babylon` whose meshes load from other files, and `empty` for a USD stage that defines nothing to draw).
 */
 | "E_MODEL_STRUCTURE"
 /**
-* A recognized 3D format graphty-element does not load (FBX, USD and USDZ, DAE, .blend, 3MF, BVH animation). `params.format`, `params.fileName`; `params.extension` for a glTF that requires an extension graphty-element does not read.
+* A recognized 3D format graphty-element does not load (DAE, .blend, 3MF, BVH, and Gaussian splats: `.splat`, `.spz`, `.sog` and `splat-ply`, a PLY holding splats; a glTF or GLB that uses `KHR_gaussian_splatting`, required or not, names it in `params.extension`). `params.format`, `params.fileName`; `params.extension` for a glTF that requires an extension graphty-element does not read, or uses Gaussian splatting; `params.kind` is `"splat"` for every Gaussian splat refusal, whatever its format.
 * `params.assetKind` is `"image"` when `node.model` names a picture and `"model"` when `node.texture` names a model.
 */
 | "E_MODEL_FORMAT_UNSUPPORTED"
@@ -4830,8 +4834,9 @@ export type GraphtyWarningCode =
 /**
 * A glTF uses an extension that is drawn without: the transmission family
 * (`KHR_materials_transmission`, `_volume`, `_dispersion`, `_diffuse_transmission`,
-* `_volume_scatter`), whose parts are drawn opaque. `params.extension` names it; one fact per
-* extension.
+* `_volume_scatter`). A transmissive part is drawn alpha blended, as see-through as its
+* transmission factor says (at least 20% opaque); the rest of the family draws opaque.
+* `params.extension` names it; one fact per extension.
 */
 | "W_MODEL_EXTENSION_IGNORED"
 /**
@@ -4850,9 +4855,8 @@ export type GraphtyWarningCode =
 */
 | "W_MODEL_ANIMATION_PARTIAL"
 /**
-* A point cloud or Gaussian splat model is drawn as small solids, one per point: a splat's
-* size, opacity falloff and rotation are not drawn, and more points than are drawn were thinned
-* evenly. `params.points` is the count in the file, `params.drawn` how many are drawn at most.
+* A point cloud model is drawn as small solids, one per point, and more points than are drawn
+* were thinned evenly. `params.points` is the count in the file, `params.drawn` how many are drawn at most.
 */
 | "W_MODEL_POINTS_APPROXIMATED"
 /**
@@ -5464,6 +5468,18 @@ export interface MarkSuggestion {
 }
 
 // @public
+export interface ModelCheck {
+    readonly drawable: boolean | null;
+    readonly failure?: CodedFact;
+}
+
+// @public
+export interface ModelCheckOptions {
+    readonly signal?: AbortSignal;
+    readonly standInMissing?: boolean;
+}
+
+// @public
 export interface ModelPreview {
     readonly canvas: HTMLCanvasElement;
     dispose(): void;
@@ -5473,12 +5489,14 @@ export interface ModelPreview {
 
 // @public
 export interface ModelPreviewOptions {
+    readonly hiddenTextures?: readonly string[];
     readonly standInMissing?: boolean;
     readonly style?: Readonly<Partial<Record<Channel, ChannelValue>>>;
 }
 
 // @public
 export interface ModelThumbnailOptions {
+    readonly hiddenTextures?: readonly string[];
     readonly size?: number;
     readonly standInMissing?: boolean;
     readonly style?: Readonly<Partial<Record<Channel, ChannelValue>>>;

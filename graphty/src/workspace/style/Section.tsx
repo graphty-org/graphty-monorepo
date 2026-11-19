@@ -4,7 +4,6 @@ import type { Channel } from "@graphty/graphty-element/schema";
 import { ActionIcon, Menu, Tooltip } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
-import { nodeModelsOn } from "../features";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { ControlLabel } from "./ControlLabel";
@@ -57,14 +56,13 @@ function isSet(ctx: RowContext, descriptor: ChannelDescriptor): boolean {
 }
 
 /**
- * Whether the Shape field holds a model in place of a built-in shape (node-models design 13.2),
- * with the experiment on.
+ * Whether the Shape field holds a model in place of a built-in shape (node-models design 13.2).
  * @param ctx - the row.
  * @param channel - the property.
  * @returns true for Shape on a row whose own layer names a model.
  */
 function modelSet(ctx: RowContext, channel: Channel): boolean {
-    if (channel !== "node.shape" || !nodeModelsOn(ctx.session)) {
+    if (channel !== "node.shape") {
         return false;
     }
     const model = lineIn(ctx, "node.model");
@@ -89,7 +87,7 @@ function optionsFor(descriptor: ChannelDescriptor): AddOption[] {
         return [{ key: "node.wireframe=true", label: channelWord(descriptor.channel) }];
     }
     if (descriptor.channel === "node.texture") {
-        // Only Fill with the node-models experiment on lists it, by the panel's word for it.
+        // Only Fill lists it, by the panel's word for it.
         return [{ key: descriptor.channel, label: PICTURE_WORD }];
     }
     return [{ key: descriptor.channel, label: channelWord(descriptor.channel) }];

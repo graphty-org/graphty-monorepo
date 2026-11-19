@@ -77,7 +77,7 @@ export function DocumentOutput({ kind, onCancel, onDone }: Readonly<DocumentOutp
 
     const save = async (): Promise<void> => {
         if (kind === "project") {
-            // The node models experiment first asks how to keep each model named by web address.
+            // It first asks how to keep each model named by web address.
             const assets = session === null ? {} : await askAssetChoices(store, session);
             if (assets === null) {
                 return;

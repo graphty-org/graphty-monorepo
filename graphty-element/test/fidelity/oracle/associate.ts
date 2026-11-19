@@ -34,6 +34,7 @@ import {
     type PShape,
     type PStop,
     type PStray,
+    type PStroke,
     type Pt,
     type PText,
     shapeId,
@@ -1156,12 +1157,19 @@ function arrowFrom(p: Prim, path: readonly Pt[], end: ArrowEnd, background: stri
  * A path carried on to the tip of the arrowhead at one end, when the program stopped the line at
  * the arrow's base (Graphviz does), so its route is judged to the same place graphty's is: graphty
  * reports an edge as ending at its arrow's tip. It is carried along the head's axis, which runs through the tip.
+ * A head drawn with a stroke ends where its stroke does, past its outline's tip (`strokeReach`).
  * @param path - the edge's path, source end first
  * @param outline - the arrowhead's points
  * @param end - which end it caps
+ * @param stroke - the arrowhead's stroke, or null for a head drawn by its fill alone
  * @returns the path, extended when the tip lies beyond its end
  */
-export function extendToTip(path: readonly Pt[], outline: readonly Pt[], end: "source" | "target"): Pt[] {
+export function extendToTip(
+    path: readonly Pt[],
+    outline: readonly Pt[],
+    end: "source" | "target",
+    stroke: PStroke | null = null,
+): Pt[] {
     const pts = end === "target" ? [...path] : [...path].reverse();
     const last = pts.at(-1);
     const run = capRun(pts, outline);
@@ -1179,11 +1187,56 @@ export function extendToTip(path: readonly Pt[], outline: readonly Pt[], end: "s
     const along = (q: Pt): number => (q[0] - last[0]) * dx + (q[1] - last[1]) * dy;
     // the head's reach along the line, on the line: a flat head (a tee's bar, a half circle) has its farthest points at
     // its corners, beside the line, and a line bent to one of them reads as curved
-    const reach = Math.max(...outline.map(along));
+    const tipReach = Math.max(...outline.map(along));
+    const reach = tipReach + strokeReach(outline, [dx, dy], last, tipReach, stroke);
     if (reach > 0.5) {
         pts.push([last[0] + dx * reach, last[1] + dy * reach]);
     }
     return end === "target" ? pts : pts.reverse();
+}
+
+/** SVG's default `stroke-miterlimit`: a sharper corner is drawn beveled. */
+const MITER_LIMIT = 4;
+
+/** How far behind a head's tip a point of its outline must lie to say how sharp the tip is, in the side's units. */
+const TIP_LEVEL = 0.25;
+
+/**
+ * How far a head's stroke reaches past its outline's tip, along its axis. A stroke wider than a pixel draws the tip on
+ * past the outline: Graphviz moves a thick-stroked arrowhead back so the stroke's mitered point, not the outline's,
+ * lands where the line ends (dot-real-linux-kernel `HI -> HI_`, penwidth 5: the outline's tip 6.2 points short of
+ * it), where graphty draws its head's tip. Only a pointed head's mitered corner is read, w/2/sin(a) for a half
+ * angle a: a round, beveled or flat front reaches at most half the stroke past its outline, which programs place
+ * either way (Cytoscape desktop strokes a ring head across its node's outline, associate-lineless-edges).
+ * @param outline - the head's points
+ * @param dir - its axis, back to tip
+ * @param from - a point on the axis
+ * @param tip - the outline's reach along the axis from that point
+ * @param stroke - the head's stroke, or null
+ * @returns the reach past the tip, 0 for an unstroked head
+ */
+function strokeReach(outline: readonly Pt[], dir: Pt, from: Pt, tip: number, stroke: PStroke | null): number {
+    if (stroke === null || !(stroke.width > 0) || stroke.join !== undefined) {
+        return 0;
+    }
+    // pointed as seen from well behind it on its axis: the line's end may lie a rounding past the outline's tip
+    const span = Math.max(...outline.map(([x, y]) => Math.hypot(x - from[0], y - from[1])));
+    if (pointedAxis(outline, [from[0] - dir[0] * 2 * span, from[1] - dir[1] * 2 * span]) === null) {
+        return 0;
+    }
+    const half = stroke.width / 2;
+    // the corner's half angle at the tip: the steepest the outline falls away from it, across over back, which on a
+    // triangle is its sides' slope and on a flat front nearly square (points level with the tip are a rounding off it)
+    let slope = 0;
+    for (const [x, y] of outline) {
+        const back = tip - ((x - from[0]) * dir[0] + (y - from[1]) * dir[1]);
+        const across = Math.abs((x - from[0]) * -dir[1] + (y - from[1]) * dir[0]);
+        if (back > TIP_LEVEL) {
+            slope = Math.max(slope, across / back);
+        }
+    }
+    const sin = slope / Math.hypot(1, slope);
+    return sin > 0 && 1 / sin <= MITER_LIMIT ? half / sin : 0;
 }
 
 /** How far outside an arrowhead's outline a point of its line may lie and still be under it: a coordinate's rounding. */
@@ -3034,7 +3087,7 @@ export function associate(
                         return arrowFrom(h, points, covered.end, canvas);
                     }
                     const end = endOf(h);
-                    points = extendToTip(points, h.points, end);
+                    points = extendToTip(points, h.points, end, h.stroke);
                     return arrowFrom(h, line.points, end, canvas);
                 });
                 // Graphviz's curve and icurve (and their l / r halves): a stroked stem along the line to the tip and
@@ -4120,7 +4173,7 @@ export function associate(
                 ownArrows.add(arrow);
             }
             if (best.end !== "middle") {
-                best.e.points = extendToTip(best.e.points, p.points, best.end);
+                best.e.points = extendToTip(best.e.points, p.points, best.end, p.stroke);
             }
         }
     }

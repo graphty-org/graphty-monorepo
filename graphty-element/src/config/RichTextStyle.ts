@@ -175,7 +175,7 @@ export const RichTextStyle = z.strictObject({
     /** Below how many screen pixels across its node is drawn this node label is hidden; unset, never. */
     minNodeScreenSize: z.number().min(0).optional(),
 
-    /** The color of the words. Default "#000000". */
+    /** The color of the words. Default "#000000", or a light gray under a dark color scheme when the label has no panel. */
     textColor: ColorStyle.default("#000000").optional(),
     /** How opaque the words are, over their color's own alpha; unset, 1. */
     textOpacity: z.number().min(0).max(1).optional(),

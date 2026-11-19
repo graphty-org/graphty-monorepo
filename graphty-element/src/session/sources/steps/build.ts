@@ -69,6 +69,13 @@ const edgeId = (load: string, key: string): string => `${load}\u0001${key}`;
 export const ownSpace = (sourceId: string): string => `source:${sourceId}`;
 
 /**
+ * The key a source's rows as read are held under in the copies.
+ * @param src - The source.
+ * @returns Its `origin.rows`, else its copy id.
+ */
+export const copyKey = (src: Source): string => src.origin.rows ?? src.origin.copy;
+
+/**
  * The space a source's node rows key into.
  * @param src - The source.
  * @returns Its mapping's node space, else its own space.
@@ -103,7 +110,7 @@ const listed = (f: RowFilter, r: Row): boolean => f.values.some((v) => normalize
  * @returns The rows, or null when the source's copy has no such table.
  */
 function tableRows(src: Source, copies: ReadonlyMap<string, CopyTables>, table: TableName): readonly Row[] | null {
-    const rows = copies.get(src.origin.copy)?.[table];
+    const rows = copies.get(copyKey(src))?.[table];
     if (!rows) {
         return null;
     }
@@ -282,7 +289,7 @@ export function missingColumns(
     const out: SourceRefreshIssue[] = [];
     for (const id of new Set(stepSources(step))) {
         const src = value.sources[id] as Source | undefined;
-        const tables = src === undefined ? undefined : copyOf(src.origin.copy);
+        const tables = src === undefined ? undefined : copyOf(copyKey(src));
         if (src === undefined || tables === undefined) {
             continue;
         }

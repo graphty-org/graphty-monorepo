@@ -15,7 +15,7 @@ import type { EdgeId, NodeId } from "../../../catalog/types";
 import { GraphtyError } from "../../../errors/GraphtyError";
 import type { JoinRecord } from "../../types";
 import { applyAct, type StepsAct } from "./acts";
-import { build, isStaged, nodeSpace, ownSpace, resolveNode, stepSources } from "./build";
+import { build, copyKey, isStaged, nodeSpace, ownSpace, resolveNode, stepSources } from "./build";
 import { RECORD_PATHS } from "./paths";
 import { conflictReport, readableRecord, type StepsOutcome } from "./provenance";
 import { applyRefreshEdit, editStates, missingColumns, type RefreshEdit, type RefreshIssue } from "./refresh";
@@ -177,10 +177,30 @@ export function mintUlid(): string {
 export const mintSourceId = (): string => `src_${mintUlid()}`;
 
 /**
- * A new copy id.
- * @returns `copy_` and a ULID.
+ * A new copy id for rows that are not bytes as read (version 2, 4.1.2 rule 1).
+ * @returns A ULID.
  */
-export const mintCopyId = (): string => `copy_${mintUlid()}`;
+export const mintCopyId = (): string => mintUlid();
+
+/**
+ * The copy id of a source's rows, and the key the session holds them under: `sha256:` and the
+ * digest of the bytes as read for a file, URL or downloaded sample, under a key of its own since
+ * two sources may read the same bytes; else a new ULID, which is its own key (4.1.2 rule 1).
+ * @param kind - How the source was obtained.
+ * @param digest - The lower-case hex SHA-256 of the bytes its rows were read from, when known.
+ * @returns The origin, and the key its rows go under in the copies.
+ */
+export function copyOrigin(
+    kind: StepsSourceKind,
+    digest: string | undefined,
+): { readonly origin: { readonly copy: string; readonly rows?: string }; readonly key: string } {
+    if (digest === undefined || (kind !== "file" && kind !== "url" && kind !== "sample")) {
+        const copy = mintCopyId();
+        return { origin: { copy }, key: copy };
+    }
+    const rows = mintUlid();
+    return { origin: { copy: `sha256:${digest}`, rows }, key: rows };
+}
 
 /**
  * A new reader operation id.
@@ -300,7 +320,7 @@ export function declared(types: readonly TypeEntry[], entry: TypeEntry): readonl
  */
 function nodeKeys(src: StepsSource, copies: Copies): Set<string> {
     const key = src.mapping.nodes?.key;
-    const rows = copies[src.origin.copy]?.nodes ?? [];
+    const rows = copies[copyKey(src)]?.nodes ?? [];
     const out = new Set<string>();
     if (key === undefined) {
         return out;
@@ -481,7 +501,7 @@ function withoutSource(prior: SourceSteps, id: string): SourceSteps {
  * @returns The copies by id.
  */
 export function copiesOf(value: SourceSteps, copies: Copies): Copies {
-    const named = new Set(Object.values(value.sources).map((s) => s.origin.copy));
+    const named = new Set(Object.values(value.sources).map((s) => copyKey(s)));
     if (Object.keys(copies).every((id) => named.has(id))) {
         return copies;
     }

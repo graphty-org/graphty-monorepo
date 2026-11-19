@@ -21,7 +21,8 @@
  */
 
 import type { JoinRecord } from "../../types";
-import { ownSpace } from "./build";
+import { copyKey, ownSpace } from "./build";
+import { stagedJoinSteps } from "./compile";
 import { type Copies, mintEditId, mintUlid, type SourceSteps, type StepsSource, type StepsSourceKind } from "./project";
 import {
     type CellValue,
@@ -184,7 +185,6 @@ function sourceOut(src: StepsSource, copy: CopyTables): Record<string, unknown> 
         ...defined({
             settings: src.settings,
             metadata: src.declared === undefined ? undefined : { ...src.declared },
-            held: src.held,
         }),
         copy: Object.fromEntries(tables.map(([table, saved]) => [table, saved.cells])),
         columns: Object.fromEntries(tables.map(([table, saved]) => [table, saved.decls])),
@@ -315,7 +315,7 @@ export function stepsMemberFields(value: SourceSteps, copies: Copies): Record<st
     const { copy, loaded } = readerCopy(JSON.stringify(operations));
     return {
         sources: [
-            ...sources.map((src) => sourceOut(src, copies[src.origin.copy] ?? {})),
+            ...sources.map((src) => sourceOut(src, copies[copyKey(src)] ?? {})),
             {
                 id: READER_SOURCE,
                 label: READER_SOURCE,
@@ -325,8 +325,12 @@ export function stepsMemberFields(value: SourceSteps, copies: Copies): Record<st
                 loaded,
             },
         ],
-        types: value.types.map((entry) => typeOut(entry)),
-        joins: value.steps.map((step) => stepOut(step)),
+        // A type left with no rules is not written: version 2 asks at least one (4.1.5).
+        types: value.types.filter((entry) => entry.rules.length > 0).map((entry) => typeOut(entry)),
+        // A staged joined table's join is written as its steps, off: a proposal (version 2, 4.1.8 rule 1).
+        joins: [...value.steps, ...sources.flatMap((src) => stagedJoinSteps(value, copies, src))].map((step) =>
+            stepOut(step),
+        ),
         ...(value.build === undefined ? {} : { build: value.build }),
     };
 }
@@ -456,7 +460,7 @@ function sourceIn(
     facts: LoadFacts | undefined,
     types: readonly TypeEntry[],
 ): { source: StepsSource; copy: CopyTables } | null {
-    const { id, label, kind, format, options, origin, mapping, settings, metadata, held, copy, columns } = raw;
+    const { id, label, kind, format, options, origin, mapping, settings, metadata, copy, columns } = raw;
     if (
         typeof id !== "string" ||
         typeof kind !== "string" ||
@@ -484,7 +488,8 @@ function sourceIn(
             : undefined;
     const source = {
         id,
-        origin: { copy: origin.copy },
+        // Sources reading the same bytes share a copy id, so a digest's rows go under the source's id.
+        origin: origin.copy.startsWith("sha256:") ? { copy: origin.copy, rows: id } : { copy: origin.copy },
         mapping: mapping,
         kind: KIND_IN[kind],
         label: label === "" ? null : label,
@@ -493,7 +498,6 @@ function sourceIn(
             type: format,
             config: options,
             settings: isObject(settings) ? settings : undefined,
-            held: held === true ? true : undefined,
             tableRows: facts?.tableRows,
             join: facts?.join,
             stagedType,
@@ -641,7 +645,7 @@ export function readStepsMember(member: Readonly<Record<string, unknown>>): Step
             return { pointer: `/sources/${String(at)}` };
         }
         sources[read.source.id] = read.source;
-        copies[read.source.origin.copy] = read.copy;
+        copies[copyKey(read.source)] = read.copy;
     }
     const { build } = member;
     return {

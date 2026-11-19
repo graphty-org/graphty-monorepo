@@ -62,6 +62,7 @@ import {
     DETECTION_SAMPLE,
     fetchBytes,
     isSourceData,
+    peekFetched,
     sampleOf,
     takeFetched,
     toSourceInput,
@@ -210,14 +211,22 @@ import { pendingSourceLoads, targetOf } from "./sources/pending";
 import { type Provenance, PROVENANCE_VALUE, provenanceIndex, withoutSource, withSupplied } from "./sources/provenance";
 import { refreshReport } from "./sources/refreshReport";
 import type { StepsAct } from "./sources/steps/acts";
-import { resolveNode } from "./sources/steps/build";
-import { compileCommand, compileImport, compileJoin, readerOps, withoutJoin } from "./sources/steps/compile";
+import { copyKey, resolveNode } from "./sources/steps/build";
+import {
+    compileCommand,
+    compileImport,
+    compileJoin,
+    readerOps,
+    withDigest,
+    withoutJoin,
+} from "./sources/steps/compile";
 import { RECORD_PATHS } from "./sources/steps/paths";
 import {
     applyEdit,
     buildOf,
     checkSpace,
     type Copies,
+    copyOrigin,
     diffGraph,
     editRows,
     EMPTY_STEPS,
@@ -1618,9 +1627,12 @@ export class SessionData implements SessionDataApi {
         if (readsThroughDraft(options) || (this.stepsOn() && sample?.held === undefined)) {
             const draft = await this.prepare(source, options.signal === undefined ? {} : { signal: options.signal });
             try {
+                // The bytes the rows were read from name their copy (a dataset's are its download).
+                const bytes = sample === undefined ? await copyDigest(source.config) : sample.url?.sha256;
+                const digest = this.stepsOn() ? bytes : undefined;
                 await turn.wait();
                 const read = this.stepsOn() ? withStepsMapping(options) : options;
-                await draft.loadVia((command) => turn.issue(() => send(command)), read);
+                await draft.loadVia((command) => turn.issue(() => send(withDigest(command, digest))), read);
             } finally {
                 draft.dispose();
             }
@@ -3387,12 +3399,13 @@ export class SessionData implements SessionDataApi {
         this.requireSteps("stage");
         checkSpace(options.space);
         const draft = await this.prepare(source);
+        const digest = await copyDigest(source.config);
         let id = "";
         try {
             await draft.loadVia(
                 (command) => {
                     const load = (command.op === "batch" ? command.steps.at(-1) : command) as DataImportCommand;
-                    const compiled = compileImport(load, options, this.readConfig().knownFields);
+                    const compiled = compileImport(withDigest(load, digest), options, this.readConfig().knownFields);
                     if (compiled === null) {
                         return Promise.resolve();
                     }
@@ -4297,6 +4310,7 @@ export class SessionData implements SessionDataApi {
         }
         const options = readChoicesOf(src);
         let captured: DataImportCommand | undefined;
+        const digest = (): Promise<string | undefined> => copyDigest(source.config);
         try {
             captured = await this.captureLoad(source, options);
         } catch (error) {
@@ -4311,6 +4325,7 @@ export class SessionData implements SessionDataApi {
             const counts = await this.swapStepsCopy(key, tables, {
                 label: source.name ?? src.label,
                 input: this.keep(source),
+                digest: await digest(),
             });
             return Object.freeze({
                 nodes: counts.nodes,
@@ -4321,7 +4336,7 @@ export class SessionData implements SessionDataApi {
         }
         const compiled =
             captured === undefined ? null : compileImport(captured, options, this.readConfig().knownFields);
-        const tables = compiled?.copies?.[compiled.edit.source.origin.copy];
+        const tables = compiled?.copies?.[copyKey(compiled.edit.source)];
         if (compiled === null || tables === undefined) {
             throw new GraphtyError({
                 code: "E_BAD_COMMAND",
@@ -4334,6 +4349,7 @@ export class SessionData implements SessionDataApi {
             label: compiled.edit.source.label ?? src.label,
             input: this.keep(source),
             tables: compiled.edit.source.tables,
+            digest: await digest(),
         });
         return Object.freeze({
             nodes: counts.nodes,
@@ -4377,12 +4393,18 @@ export class SessionData implements SessionDataApi {
      * @param about.label - Its name.
      * @param about.input - Its input token.
      * @param about.tables - Its tables.
+     * @param about.digest - The SHA-256 of the bytes the rows were read from, which names the copy.
      * @returns What changed and the issues.
      */
     private async swapStepsCopy(
         key: SourceKey,
         tables: CopyTables,
-        about: { readonly label?: string | null; readonly input?: string; readonly tables?: readonly string[] },
+        about: {
+            readonly label?: string | null;
+            readonly input?: string;
+            readonly tables?: readonly string[];
+            readonly digest?: string;
+        },
     ): Promise<
         ChangeCounts & {
             readonly issues: readonly SourceRefreshIssue[];
@@ -4401,13 +4423,14 @@ export class SessionData implements SessionDataApi {
                 details: { reason: "name-taken", source: key, ...taken },
             });
         }
-        if (sameRows(tables, copies[src.origin.copy])) {
+        if (sameRows(tables, copies[copyKey(src)])) {
             const zero = Object.freeze({ added: 0, removed: 0, changed: 0 });
             const issues = Object.freeze(refreshIssues(value, value, copies, key));
             return { nodes: zero, edges: zero, issues, unbound: Object.freeze([]) };
         }
-        const copy = mintCopyId();
-        const edit: StepsEdit = { kind: "replace-copy", id: key, copy, ...about };
+        const { digest, ...named } = about;
+        const { origin, key: copy } = copyOrigin(src.kind, digest);
+        const edit: StepsEdit = { kind: "replace-copy", id: key, ...origin, ...named };
         const all = { ...copies, [copy]: tables };
         // ponytail: the report builds the next value once more than the command does; share the
         // command's build if a large source's refresh shows up in a profile.
@@ -6767,7 +6790,7 @@ export class SessionData implements SessionDataApi {
             return null;
         }
         const tableOf = (id: string): "nodes" | "edges" | null => {
-            const tables = copies[value.sources[id].origin.copy] ?? {};
+            const tables = copies[copyKey(value.sources[id])] ?? {};
             if (column in (tables.edges?.[0] ?? {})) {
                 return "edges";
             }
@@ -9024,6 +9047,29 @@ async function bytesFacts(config: Readonly<Record<string, unknown>>): Promise<Pa
     }
 
     return {};
+}
+
+/**
+ * The SHA-256 of the bytes a source's rows are read from, which names its copy under the
+ * source-steps experiment (version 2, 4.1.2 rule 1): inline data, a file, or what a reader fetched
+ * for a URL. Nothing for anything else (a pair of files).
+ * @param config - The source's options.
+ * @returns The lower-case hex digest, or undefined.
+ */
+async function copyDigest(config: Readonly<Record<string, unknown>> | undefined): Promise<string | undefined> {
+    const { data, file, url } = config ?? {};
+    const blob = fileOf(file);
+    if (typeof url === "string" && !(data instanceof Uint8Array)) {
+        return peekFetched(url)?.sha256;
+    }
+    if (blob !== null) {
+        return sha256Hex(new Uint8Array(await blob.slice(0, blob.size).arrayBuffer()));
+    }
+    if (!isSourceData(data)) {
+        return undefined;
+    }
+    const input = toSourceInput(data);
+    return sha256Hex(typeof input === "string" ? new TextEncoder().encode(input) : input);
 }
 
 /**

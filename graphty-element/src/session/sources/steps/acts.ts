@@ -8,7 +8,7 @@
 
 import type { GraphtyErrorCode } from "../../../errors/codes";
 import { GraphtyError } from "../../../errors/GraphtyError";
-import { isStaged, mintPart, nodeSpace, ownSpace } from "./build";
+import { copyKey, isStaged, mintPart, nodeSpace, ownSpace } from "./build";
 import { addSource, buildOf, type Copies, declared, type SourceSteps, type StepsSource } from "./project";
 import { checkClashRule, conflicts, isOutcome, pickEdit, type Rename, renameColumn } from "./provenance";
 import type { ClashRule, EdgesStep, ElementRef, MergeStep, NodeValuesStep, RowFilter, Step, TableName } from "./types";
@@ -123,7 +123,7 @@ function sourceOf(value: SourceSteps, id: string): StepsSource {
  */
 function nodeSource(value: SourceSteps, copies: Copies, id: string): StepsSource {
     const src = sourceOf(value, id);
-    if (src.mapping.nodes === undefined || (copies[src.origin.copy]?.nodes?.length ?? 0) === 0) {
+    if (src.mapping.nodes === undefined || (copies[copyKey(src)]?.nodes?.length ?? 0) === 0) {
         throw refused("E_STEP_NEEDS_NODES", `Source ${id} holds no node rows.`, { source: id });
     }
     return src;

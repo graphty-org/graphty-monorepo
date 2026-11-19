@@ -6,7 +6,7 @@
  * parameters, never English. Pure and free of Babylon.js, Lit and the DOM.
  */
 
-import { build, isEmpty, resolveEdge, resolveNode, ruleFits } from "./build";
+import { build, copyKey, isEmpty, resolveEdge, resolveNode, ruleFits } from "./build";
 import { RECORD_PATHS } from "./paths";
 import {
     type BuildInput,
@@ -552,7 +552,7 @@ export function renameColumn(
         return { code: "E_EDIT_ROLE_COLUMN", params: { column: r.from } };
     }
     const renamed = src.mapping[r.table]?.renamed ?? {};
-    const first = copies.get(src.origin.copy)?.[r.table]?.[0] ?? {};
+    const first = copies.get(copyKey(src))?.[r.table]?.[0] ?? {};
     if (r.to !== r.from && Object.keys(first).some((k) => (renamed[k] ?? k) === r.to)) {
         return {
             code: "E_BAD_COMMAND",

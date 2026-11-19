@@ -106,8 +106,13 @@ export interface SourceSettings {
 export interface Source {
     /** `src_` plus a ULID; the reader's edits are the source `reader`. */
     readonly id: string;
-    /** How it was obtained; `copy` names its rows as read. */
-    readonly origin: { readonly copy: string };
+    /**
+     * How it was obtained: `copy` is its copy id (version 2, 4.1.2 rule 1), `sha256:` and the hex
+     * digest of the bytes as read for a file, URL or downloaded sample, else a ULID; `rows`, when
+     * set, is the key the session holds the rows under, since sources reading the same bytes share
+     * a copy id. Read the rows with `copyKey`.
+     */
+    readonly origin: { readonly copy: string; readonly rows?: string };
     readonly mapping: Mapping;
     readonly settings?: SourceSettings;
     /** A held source is kept but not built, with every step that depends on it (7.15). */

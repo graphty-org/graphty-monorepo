@@ -11,7 +11,7 @@
  */
 
 import type { SourceRefreshIssue } from "../../types";
-import { build, columnsOf, missingColumns as missingOf, stepSources } from "./build";
+import { build, columnsOf, copyKey, missingColumns as missingOf, stepSources } from "./build";
 import type { Copies, SourceSteps, StepsSource } from "./project";
 import { element, values } from "./provenance";
 import type { BuildResult, CopyTables, ReaderEdit, ReaderOp, Step, TableName, Value } from "./types";
@@ -38,6 +38,8 @@ export type RefreshEdit =
           readonly id: string;
           /** The new copy's id. */
           readonly copy: string;
+          /** The key its rows are held under, when not its copy id. */
+          readonly rows?: string;
           /** What the new copy was read from, its name and its tables, as `data.sources()` lists them. */
           readonly label?: string | null;
           readonly input?: string;
@@ -101,7 +103,7 @@ function missingRuleColumns(value: SourceSteps, copies: Copies, id: string): Ref
     if (src === undefined) {
         return [];
     }
-    const have = columnsOf(src, copies[src.origin.copy]);
+    const have = columnsOf(src, copies[copyKey(src)]);
     return value.types.flatMap((t) =>
         t.rules
             .filter((r) => r.source === id && r.column !== undefined)
@@ -131,7 +133,7 @@ function replaceCopy(prior: SourceSteps, edit: Extract<RefreshEdit, { kind: "rep
     }
     const swapped: StepsSource = {
         ...src,
-        origin: { ...src.origin, copy: edit.copy },
+        origin: edit.rows === undefined ? { copy: edit.copy } : { copy: edit.copy, rows: edit.rows },
         ...(edit.label === undefined ? {} : { label: edit.label }),
         ...(edit.input === undefined ? {} : { input: edit.input }),
         ...(edit.tables === undefined ? {} : { tables: edit.tables }),
@@ -344,8 +346,8 @@ export function refreshIssues(prior: SourceSteps, next: SourceSteps, copies: Cop
     const after = next.sources[id] as StepsSource | undefined;
     const unused: RefreshIssue[] = [];
     if (before !== undefined && after !== undefined) {
-        const old = columnsOf(before, copies[before.origin.copy]);
-        const now = columnsOf(after, copies[after.origin.copy]);
+        const old = columnsOf(before, copies[copyKey(before)]);
+        const now = columnsOf(after, copies[copyKey(after)]);
         for (const table of ["nodes", "edges"] as const) {
             for (const column of now[table]) {
                 if (!old[table].has(column)) {

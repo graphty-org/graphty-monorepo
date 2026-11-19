@@ -101,6 +101,7 @@ export type GraphEvent =
     | BasemapStatusEvent
     | RenderLostEvent
     | RenderRestoredEvent
+    | OperationCanceledEvent
     | OperationCancelledEvent
     | StatsUpdateEvent
     | InputEnabledChangedEvent
@@ -356,6 +357,9 @@ export interface GraphGenericEvent {
         | "layout-progress"
         | "operation-obsoleted"
         | "animation-progress"
+        // A video capture was stopped before it finished. `animation-cancelled` is the same event
+        // under its British name, emitted right after it and removed in the next major.
+        | "animation-canceled"
         | "animation-cancelled"
         | "screenshot-enhancing"
         | "screenshot-ready"
@@ -684,6 +688,24 @@ export interface BasemapStatusEvent {
 }
 
 /** Emitted when a queued operation is aborted before it finished. */
+export interface OperationCanceledEvent {
+    /** The event's name. */
+    type: "operation-canceled";
+    /** The operation's id, as `operation-start` carried it. */
+    id: string;
+    /**
+     * Why it was aborted: `"queue-cleared"` when the whole queue was cleared, `"canceled"` when
+     * this one operation was canceled. Write the reader-facing words from this code.
+     */
+    code: "queue-cleared" | "canceled";
+}
+
+/**
+ * The British spelling of `operation-canceled`: emitted right after it for every
+ * aborted operation, with `"cancelled"` where that one says `"canceled"`.
+ * @deprecated Listen for `operation-canceled` ({@link OperationCanceledEvent}). Removed in the
+ * next major.
+ */
 export interface OperationCancelledEvent {
     /** The event's name. */
     type: "operation-cancelled";
@@ -695,9 +717,6 @@ export interface OperationCancelledEvent {
      */
     code: "queue-cleared" | "cancelled";
 }
-
-/** The American spelling of {@link OperationCancelledEvent}. */
-export type OperationCanceledEvent = OperationCancelledEvent;
 
 /** Emitted every 60 graph updates with the counters `getStatsManager().getStats()` returns. */
 export interface StatsUpdateEvent {
@@ -1072,6 +1091,8 @@ export type AiEvent =
     | AiCommandStartEvent
     | AiCommandCompleteEvent
     | AiCommandErrorEvent
+    | AiCommandCanceledEvent
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- the British alias is still emitted until the next major
     | AiCommandCancelledEvent
     | AiStreamChunkEvent
     | AiStreamToolCallEvent
@@ -1134,12 +1155,25 @@ export interface AiCommandErrorEvent {
 }
 
 /** Emitted when an AI command is canceled */
+export interface AiCommandCanceledEvent {
+    /** The event's name. */
+    type: "ai-command-canceled";
+    /** The command's text. */
+    input: string;
+    /** Whether the reader canceled it or it ran out of time. */
+    reason: "user" | "timeout";
+}
+
+/**
+ * The British spelling of `ai-command-canceled`, emitted right after it with the same fields.
+ * @deprecated Listen for `ai-command-canceled`. Removed in the next major.
+ */
 interface AiCommandCancelledEvent {
     /** The event's name. */
     type: "ai-command-cancelled";
     /** The command's text. */
     input: string;
-    /** Whether the reader cancelled it or it ran out of time. */
+    /** Whether the reader canceled it or it ran out of time. */
     reason: "user" | "timeout";
 }
 

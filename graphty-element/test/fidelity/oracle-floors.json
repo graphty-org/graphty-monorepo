@@ -4090,8 +4090,8 @@
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
-            "edge.present": 0.99,
-            "edge.extra": 0.98,
+            "edge.present": 0.993,
+            "edge.extra": 0.984,
             "edge.route": 0.967,
             "edge.curve": 1,
             "edge.color": 1,
@@ -4161,8 +4161,8 @@
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
-            "edge.present": 0.99,
-            "edge.extra": 0.98,
+            "edge.present": 0.993,
+            "edge.extra": 0.984,
             "edge.route": 0.967,
             "edge.curve": 1,
             "edge.color": 1,
@@ -25291,8 +25291,8 @@
             "label.family": 0.933,
             "label.lines": 1,
             "label.align": 0,
-            "label.alongLine": 0.9,
-            "label.offLine": 0.933,
+            "label.alongLine": 0.933,
+            "label.offLine": 0.967,
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
@@ -25353,8 +25353,8 @@
             "label.family": 0.933,
             "label.lines": 1,
             "label.align": 0,
-            "label.alongLine": 0.9,
-            "label.offLine": 0.933,
+            "label.alongLine": 0.933,
+            "label.offLine": 0.967,
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
@@ -28897,8 +28897,8 @@
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
-            "edge.present": 0.893,
-            "edge.extra": 0.979,
+            "edge.present": 0.903,
+            "edge.extra": 0.989,
             "edge.route": 1,
             "edge.curve": 1,
             "edge.wiggle": 1,
@@ -28969,8 +28969,8 @@
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
-            "edge.present": 0.893,
-            "edge.extra": 0.979,
+            "edge.present": 0.903,
+            "edge.extra": 0.989,
             "edge.route": 1,
             "edge.curve": 1,
             "edge.wiggle": 1,
@@ -56337,102 +56337,6 @@
                 "to": 0.917,
                 "reason": "comparator (#8198): a label box is now measured along its border's middle on both sides, as the oracle's box is its stroked path; Gephi's 'label=entities' box (57.7 wide at its outline's middle) is 17% wider than graphty's (47.8), which measuring graphty's outer edge had hidden at a 0.854 ratio",
                 "date": "2026-11-18"
-            }
-        },
-        "gml-specimen-arrows-p4": {
-            "node.strokeWidth": {
-                "floor": 1,
-                "to": 0,
-                "reason": "accepted difference, tracked by #8200: Cytoscape desktop paints a node's fill over the inner half of its border, so half the border shows in its drawing of a GML file; graph-io reads GML with yEd's meaning, where the whole border shows, so graphty draws it whole. The oracle reader reads desktop's half since 2026-11-17 (oracle/associate.ts fillOverStroke)",
-                "date": "2026-11-17"
-            }
-        },
-        "gml-specimen-arrows-p4@matched": {
-            "node.strokeWidth": {
-                "floor": 1,
-                "to": 0,
-                "reason": "accepted difference, tracked by #8200: Cytoscape desktop paints a node's fill over the inner half of its border, so half the border shows in its drawing of a GML file; graph-io reads GML with yEd's meaning, where the whole border shows, so graphty draws it whole. The oracle reader reads desktop's half since 2026-11-17 (oracle/associate.ts fillOverStroke)",
-                "date": "2026-11-17"
-            }
-        },
-        "gml-specimen-edges-lines-p3": {
-            "node.strokeWidth": {
-                "floor": 1,
-                "to": 0,
-                "reason": "accepted difference, tracked by #8200: Cytoscape desktop paints a node's fill over the inner half of its border, so half the border shows in its drawing of a GML file; graph-io reads GML with yEd's meaning, where the whole border shows, so graphty draws it whole. The oracle reader reads desktop's half since 2026-11-17 (oracle/associate.ts fillOverStroke)",
-                "date": "2026-11-17"
-            }
-        },
-        "gml-specimen-edges-lines-p3@matched": {
-            "node.strokeWidth": {
-                "floor": 1,
-                "to": 0,
-                "reason": "accepted difference, tracked by #8200: Cytoscape desktop paints a node's fill over the inner half of its border, so half the border shows in its drawing of a GML file; graph-io reads GML with yEd's meaning, where the whole border shows, so graphty draws it whole. The oracle reader reads desktop's half since 2026-11-17 (oracle/associate.ts fillOverStroke)",
-                "date": "2026-11-17"
-            }
-        },
-        "gml-specimen-labels-p4": {
-            "node.strokeWidth": {
-                "floor": 1,
-                "to": 0,
-                "reason": "accepted difference, tracked by #8200: Cytoscape desktop paints a node's fill over the inner half of its border, so half the border shows in its drawing of a GML file; graph-io reads GML with yEd's meaning, where the whole border shows, so graphty draws it whole. The oracle reader reads desktop's half since 2026-11-17 (oracle/associate.ts fillOverStroke)",
-                "date": "2026-11-17"
-            }
-        },
-        "gml-specimen-labels-p4@matched": {
-            "node.strokeWidth": {
-                "floor": 1,
-                "to": 0,
-                "reason": "accepted difference, tracked by #8200: Cytoscape desktop paints a node's fill over the inner half of its border, so half the border shows in its drawing of a GML file; graph-io reads GML with yEd's meaning, where the whole border shows, so graphty draws it whole. The oracle reader reads desktop's half since 2026-11-17 (oracle/associate.ts fillOverStroke)",
-                "date": "2026-11-17"
-            }
-        },
-        "gml-specimen-node-fills-borders-p3": {
-            "node.strokeWidth": {
-                "floor": 1,
-                "to": 0,
-                "reason": "accepted difference, tracked by #8200: Cytoscape desktop paints a node's fill over the inner half of its border, so half the border shows in its drawing of a GML file; graph-io reads GML with yEd's meaning, where the whole border shows, so graphty draws it whole. The oracle reader reads desktop's half since 2026-11-17 (oracle/associate.ts fillOverStroke)",
-                "date": "2026-11-17"
-            }
-        },
-        "gml-specimen-node-fills-borders-p3@matched": {
-            "node.strokeWidth": {
-                "floor": 1,
-                "to": 0,
-                "reason": "accepted difference, tracked by #8200: Cytoscape desktop paints a node's fill over the inner half of its border, so half the border shows in its drawing of a GML file; graph-io reads GML with yEd's meaning, where the whole border shows, so graphty draws it whole. The oracle reader reads desktop's half since 2026-11-17 (oracle/associate.ts fillOverStroke)",
-                "date": "2026-11-17"
-            }
-        },
-        "gml-specimen-node-shapes-p4": {
-            "node.strokeWidth": {
-                "floor": 1,
-                "to": 0,
-                "reason": "accepted difference, tracked by #8200: Cytoscape desktop paints a node's fill over the inner half of its border, so half the border shows in its drawing of a GML file; graph-io reads GML with yEd's meaning, where the whole border shows, so graphty draws it whole. The oracle reader reads desktop's half since 2026-11-17 (oracle/associate.ts fillOverStroke)",
-                "date": "2026-11-17"
-            }
-        },
-        "gml-specimen-node-shapes-p4@matched": {
-            "node.strokeWidth": {
-                "floor": 1,
-                "to": 0,
-                "reason": "accepted difference, tracked by #8200: Cytoscape desktop paints a node's fill over the inner half of its border, so half the border shows in its drawing of a GML file; graph-io reads GML with yEd's meaning, where the whole border shows, so graphty draws it whole. The oracle reader reads desktop's half since 2026-11-17 (oracle/associate.ts fillOverStroke)",
-                "date": "2026-11-17"
-            }
-        },
-        "gml-specimen-node-sizes-opacity-p3": {
-            "node.strokeWidth": {
-                "floor": 1,
-                "to": 0,
-                "reason": "accepted difference, tracked by #8200: Cytoscape desktop paints a node's fill over the inner half of its border, so half the border shows in its drawing of a GML file; graph-io reads GML with yEd's meaning, where the whole border shows, so graphty draws it whole. The oracle reader reads desktop's half since 2026-11-17 (oracle/associate.ts fillOverStroke)",
-                "date": "2026-11-17"
-            }
-        },
-        "gml-specimen-node-sizes-opacity-p3@matched": {
-            "node.strokeWidth": {
-                "floor": 1,
-                "to": 0,
-                "reason": "accepted difference, tracked by #8200: Cytoscape desktop paints a node's fill over the inner half of its border, so half the border shows in its drawing of a GML file; graph-io reads GML with yEd's meaning, where the whole border shows, so graphty draws it whole. The oracle reader reads desktop's half since 2026-11-17 (oracle/associate.ts fillOverStroke)",
-                "date": "2026-11-17"
             }
         },
         "gml-synthetic-coverage": {

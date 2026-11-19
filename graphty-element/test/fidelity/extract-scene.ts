@@ -20,6 +20,8 @@
  * expresses every length in reference units with its scale. The vocabulary maps are unit-tested in
  * Node (`extract-scene.test.ts`); the reader runs in the browser (`fidelity.test.ts`).
  */
+import type { GraphSnapshot } from "@graphty/graph-format";
+
 import { resample } from "../../../graph-io/test/fidelity/compare";
 import { canCarry } from "../../../graph-io/test/fidelity/routes";
 import {
@@ -36,6 +38,7 @@ import {
 import { channelDescriptor } from "../../catalog";
 import type { Graphty } from "../../index.js";
 import { polygonPoints } from "../../src/meshes/shapeOutlines";
+import { childrenOf } from "../../src/session/styles/fileStyles/translate";
 import type { DrawnEdge, DrawnGraph, DrawnNode, ScreenBox } from "./drawn-scene";
 import { insideFigure } from "./oracle/primitives";
 
@@ -727,6 +730,16 @@ export function comparerEdgeIds(
 }
 
 /**
+ * The nodes a graph nests others in (graph-io's `parent` or `parents` column), by id: the ones the reference
+ * extractors read groups off.
+ * @param snapshot - the graph
+ * @returns their ids
+ */
+export function nestingNodes(snapshot: GraphSnapshot): Set<string> {
+    return new Set([...childrenOf(snapshot).keys()].map((row) => String(snapshot.ids.idOf(row))));
+}
+
+/**
  * Builds the scene from what was drawn. Call `readDrawn(element.graph)` after
  * `waitForStableFrame()` and hand its result here.
  * @param element - the mounted element, for its records and the requested styles
@@ -742,8 +755,10 @@ export function extractScene(element: Graphty, drawn: DrawnGraph, provenance: Gr
     const hidden = occluders(drawn.nodes);
     const nodes: SceneNode[] = [];
     // the nodes the file nests others in: the file styles draw each behind its members by the "node.groups" rule
-    // (`fileStyles/translate.ts`), which matches the file's containment (graph-io's `parent` or `parents` column)
-    const declared = new Set<string>();
+    // (`fileStyles/translate.ts`), which matches the file's containment (graph-io's `parent` or `parents` column);
+    // that rule's name is gone once the file's layers are folded to the cap (`fileStyles/fold.ts`;
+    // dot-synth-edges-clusters), so the containment is read off the data too
+    const declared = nestingNodes(session.data.snapshot());
     for (const record of session.data.nodes()) {
         const id = String(record.id);
         const d = drawn.nodes.get(id);

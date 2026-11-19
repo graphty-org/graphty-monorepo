@@ -2574,6 +2574,68 @@ function pairBestTotal(
 }
 
 /**
+ * Re-reads a line whose pair is read more often than graphty draws it, where one of its ends also lands on a node that
+ * makes a pair graphty draws and no line has taken: a node drawn over another node's edge end (cx2-signor-aml: a small
+ * member drawn on its group's border, under the end of a line to the node beside it, 107 -> 65) hands that end to the
+ * group, and a second line already reads the group's own edge (107 -> 55), so graphty's 107 -> 65 found no line and
+ * the line was judged as a second 107 -> 55. The nearest such end moves first, and only to a pair the line's width and
+ * color fit as well as they fit the pair it leaves (#8382).
+ * @param pieces - every line read by geometry, in drawing order
+ * @param edges - the edges found so far; only the geometric ones between two nodes are re-read
+ * @param left - per unordered pair, the edges graphty draws there less the lines read for it (below 0: read too often)
+ * @param pairOf - the unordered pair key of two node ids
+ * @param near - the nodes a point lands on, with how far, nearest first
+ * @param paintFits - how well a line's width and color fit the edges graphty draws between two nodes (higher fits)
+ * @returns whether any line changed its ends (their `#g` ids then need numbering again)
+ */
+function readUntakenPairs(
+    pieces: readonly PEdge[],
+    edges: readonly PEdge[],
+    left: Map<string, number>,
+    pairOf: (a: string, b: string) => string,
+    near: (q: Pt) => { n: PNode; d: number }[],
+    paintFits: (e: PEdge, u: string, v: string) => number,
+): boolean {
+    const listed = new Set(edges);
+    const lines = pieces.filter((e) => listed.has(e) && e.id.includes("#g") && e.source !== e.target);
+    let changed = false;
+    for (;;) {
+        let best: { e: PEdge; end: "source" | "target"; to: string; d: number } | null = null;
+        for (const e of lines) {
+            for (const end of ["source", "target"] as const) {
+                const shared = end === "source" ? e.target : e.source;
+                const y = e[end];
+                if ((left.get(pairOf(shared, y)) ?? 0) >= 0) {
+                    continue;
+                }
+                for (const { n, d } of near(end === "source" ? e.points[0] : (e.points.at(-1) ?? e.points[0]))) {
+                    if (
+                        n.id !== y &&
+                        n.id !== shared &&
+                        (left.get(pairOf(shared, n.id)) ?? 0) > 0 &&
+                        paintFits(e, shared, n.id) >= paintFits(e, shared, y) &&
+                        (best === null || d < best.d)
+                    ) {
+                        best = { e, end, to: n.id, d };
+                    }
+                }
+            }
+        }
+        if (best === null) {
+            return changed;
+        }
+        const { e, end, to } = best;
+        const shared = end === "source" ? e.target : e.source;
+        const from = pairOf(shared, e[end]);
+        const into = pairOf(shared, to);
+        left.set(from, (left.get(from) ?? 0) + 1);
+        left.set(into, (left.get(into) ?? 0) - 1);
+        e[end] = to;
+        changed = true;
+    }
+}
+
+/**
  * Whether a line came to its end through a node: a point back along it, half the node's size or the line's length
  * from the end, is inside the node's box, and the end is not at its middle (a program that runs its lines to the
  * centers ends them there).
@@ -3981,7 +4043,8 @@ export function associate(
     const paintFits = (e: PEdge, u: string, v: string): number =>
         (e.stroke !== null && widthDrawn(pairOf(u, v), e.stroke.width) ? 1 : 0) +
         (guideColors.get(pairOf(u, v))?.has(e.stroke?.color ?? "") === true ? 1 : 0);
-    if (pairBestTotal(withPieces, edges, ownCaps, (q) => nodesOn(q), paintFits)) {
+    const repaired = pairBestTotal(withPieces, edges, ownCaps, (q) => nodesOn(q), paintFits);
+    if (readUntakenPairs(withPieces, edges, guidePairs, pairOf, (q) => nodesOn(q), paintFits) || repaired) {
         geoEdges.clear();
         for (const e of withPieces) {
             if (!e.id.includes("#g-outline")) {

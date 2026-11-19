@@ -2723,6 +2723,9 @@ const YED_EDGE_SPOTS: ReadonlyMap<string, EdgeSpot> = new Map([
     // a GML side_slider label with no stored box: yEd 3.25 draws it at the line's start, above it on the page, left of
     // a vertical line (gml-synthetic-coverage e2, e11, e20, e29, e38, e56, e74)
     ["side_slider/start", ["source", "above"]],
+    // a GML center_slider label with no stored box: the same place, on the line (gml-specimen-edge-labels-p2
+    // model-center-slider-center, its text 12.1 px past the line's start like its side_slider neighbor's)
+    ["center_slider/start", ["source", 0]],
     ["two_pos/head", ["middle", -1]],
     ["two_pos/tail", ["middle", 1]],
     ["three_center/scentr", ["source", 0]],

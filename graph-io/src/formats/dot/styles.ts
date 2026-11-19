@@ -915,8 +915,8 @@ function drawsTableOutline(n: NodeRead): n is NodeRead & { readonly table: HtmlT
     if (shape === "plain") {
         return true;
     }
-    // ponytail: with a margin or a least size larger than the table, Graphviz draws the border inside the node's
-    // box, which graphty cannot draw yet (it draws the node's box), so it draws none
+    // with a margin or a least size larger than the table, the border is inside the node's box: the node draws no
+    // outline, and whoever draws the table (`labelTable`) draws its border where the table is
     // no margin (or an empty one) is Graphviz's 8 by 4 points
     const margin = (get("margin") ?? "")
         .split(",")
@@ -1525,7 +1525,7 @@ function readNodeOutline(n: NodeRead): void {
             readTableOutline(n);
             return;
         }
-        put("borderWidth", 0);
+        readBodilessOutline(n);
     } else {
         const outline = cx.cluster ? (nonEmpty(get("pencolor")) ?? n.color) : n.color;
         const alpha = readColor(outline, n.scheme, "line", "borderColor", null, put, at);
@@ -1546,6 +1546,18 @@ function readNodeOutline(n: NodeRead): void {
     }
     if (!cx.cluster) {
         readNodeRings(n);
+    }
+}
+
+/**
+ * The outline of a node whose shape draws none and that does not draw its table's outline as its own: none, but its
+ * table's cells and its table's outline inside its margin are drawn in the table's color, else the node's pen color.
+ * @param n - the node
+ */
+function readBodilessOutline(n: NodeRead): void {
+    n.put("borderWidth", 0);
+    if (n.table !== null) {
+        readColor(n.table.color ?? n.color, n.scheme, "line", "borderColor", null, n.put, n.at);
     }
 }
 

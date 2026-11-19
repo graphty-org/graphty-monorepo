@@ -122,6 +122,19 @@ export function rowsView(source: RowSource): readonly GraphRecord[] {
 /** Each `rowsView` array's source, so the journal can hand out its records as plain data. */
 const viewSources = new WeakMap<object, RowSource>();
 
+/** Each record array an add stored under `"batched"`, with the frozen copies the graph slice holds of it. */
+const storedCopies = new WeakMap<object, readonly GraphRecord[]>();
+
+/**
+ * Say which frozen copies the graph stored for an add's records, one per record in order, so the
+ * journal keeps those (the graph slice holds them already) and lets the caller's own objects go.
+ * @param records - The records the add was handed.
+ * @param copies - The frozen copy of each.
+ */
+export function keepStoredRecords(records: readonly object[], copies: readonly GraphRecord[]): void {
+    storedCopies.set(records, Object.freeze(copies));
+}
+
 /**
  * A `rowsView` array as the journal hands it out: a getter that builds a plain frozen array of
  * plain records on read, so a consumer may clone or freeze it, and keeps it only while the reader
@@ -131,6 +144,11 @@ const viewSources = new WeakMap<object, RowSource>();
  * @returns A property descriptor for `records`.
  */
 export function plainRecords(records: readonly GraphRecord[]): PropertyDescriptor {
+    const stored = storedCopies.get(records);
+    if (stored !== undefined) {
+        return { value: stored, enumerable: true };
+    }
+
     const source = viewSources.get(records);
     if (source === undefined) {
         return { value: records, enumerable: true };

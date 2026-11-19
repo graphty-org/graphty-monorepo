@@ -252,7 +252,8 @@ export function createJournal(options: {
 
 /**
  * The command as the journal keeps it: a batched `importColumns`' adds hold their records as
- * columns (row-renderer.md 4.6), handed out as a plain array built on read; any other command as
+ * columns (row-renderer.md 4.6), handed out as a plain array built on read; a batched add of
+ * records holds the frozen copies the graph stored, not the caller's objects; any other command as
  * it ran.
  * @param command - The command.
  * @returns The command to keep.
@@ -263,7 +264,7 @@ function plainCommand(command: SessionCommand): SessionCommand {
     }
 
     const records = plainRecords(command.mutation.records);
-    if (!("get" in records)) {
+    if (records.value === command.mutation.records) {
         return command;
     }
 

@@ -1,9 +1,8 @@
 /**
- * @file Under `renderPath: "batched"` the element's record properties (`nodeData`, `edgeData`) read
- * an eligible array into columns, as `session.data.addNodes` and `addEdges` do: neither the graph
- * slice nor the journal keeps the page's record objects, the journal hands its records out as built
- * from the session's columns, and the graph comes out the same as on `"objects"`. The first edit
- * after the load is correct.
+ * @file Under `renderPath: "batched"` the element's record properties (`nodeData`, `edgeData`) leave
+ * the page's record objects to the page: the journal keeps the frozen copies the graph stored, equal
+ * in value, and the graph store lets its builder go once the load is in, rebuilding it once on the
+ * first edit after the load, which comes out correct.
  */
 
 import "../../src/graphty-element";
@@ -14,7 +13,6 @@ import type { Graphty } from "../../index.js";
 import type { GraphStore } from "../../src/data/GraphStore";
 import { operationQueueOf } from "../../src/Graph";
 import { dispatcherOf } from "../../src/session/GraphSession";
-import type { RecordMap } from "../../src/session/project/recordMap";
 
 afterEach(() => {
     document.body.replaceChildren();
@@ -111,20 +109,22 @@ function journaled(element: Graphty): readonly object[][] {
 }
 
 describe("the record properties on the batched path", () => {
-    it("keep none of the page's records in the graph or the journal", async () => {
+    it("keep the graph's own copies in the journal, not the page's records", async () => {
         const n = nodes();
         const m = edges();
         const element = await loaded("batched", n, m);
         const { graph } = dispatcherOf(element.session).state;
-        assert.strictEqual((graph.nodes as RecordMap<unknown>).heldRecords(), 0, "node records kept as objects");
-        assert.strictEqual((graph.edges as RecordMap<unknown>).heldRecords(), 0, "edge records kept as objects");
-
         const [nodeRecords, edgeRecords] = journaled(element);
         assert.strictEqual(nodeRecords.length, n.length);
         assert.strictEqual(edgeRecords.length, m.length);
         assert.isFalse(
-            nodeRecords.some((record, row) => record === n[row]),
-            "the journal hands out the session's records, not the page's",
+            nodeRecords.some((record, row) => record === n[row]) ||
+                edgeRecords.some((record, row) => record === m[row]),
+            "the journal holds none of the page's records",
+        );
+        assert.isTrue(
+            nodeRecords.every((record, row) => graph.nodes.get(row) === record),
+            "it holds the records the graph holds",
         );
         assert.deepEqual(nodeRecords, n);
         assert.deepEqual(edgeRecords, m);

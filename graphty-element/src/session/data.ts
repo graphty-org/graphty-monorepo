@@ -1186,7 +1186,18 @@ export class SessionData implements SessionDataApi {
             return mutation;
         }
 
-        return throughColumns(mutation, this.readConfig().knownFields);
+        const { knownFields } = this.readConfig();
+        const edges =
+            mutation.kind === "add-edges"
+                ? {
+                      repeated: mutation.repeated ?? knownFields.repeatedEdges,
+                      weight: mutation.weight ?? knownFields.edgeWeightPath,
+                  }
+                : undefined;
+        const path = columnsEligible({ batched: true, records: mutation.records, edges });
+        return path.code === "PATH_COLUMNS"
+            ? { ...mutation, records: rowsView(recordsSource(mutation.records)) }
+            : mutation;
     }
 
     /**
@@ -6718,32 +6729,6 @@ export interface ColumnRecords extends SessionRecordSource {
 
 /** The element-assigned edge id column. */
 const EDGE_ID_COLUMN = "graphty.edgeId";
-
-/**
- * An eligible add of records read into columns, so the graph and the journal keep no record object
- * per row (row-renderer.md 4.6, stage 29); anything else as it came. Only for `"batched"`: the
- * caller checks the render path.
- * @param mutation - The mutation.
- * @param knownFields - The data configuration's known fields.
- * @returns The mutation to dispatch.
- */
-export function throughColumns(mutation: DataMutation, knownFields: SessionDataConfig["knownFields"]): DataMutation {
-    if (mutation.kind !== "add-nodes" && mutation.kind !== "add-edges") {
-        return mutation;
-    }
-
-    const edges =
-        mutation.kind === "add-edges"
-            ? {
-                  repeated: mutation.repeated ?? knownFields.repeatedEdges,
-                  weight: mutation.weight ?? knownFields.edgeWeightPath,
-              }
-            : undefined;
-    const path = columnsEligible({ batched: true, records: mutation.records, edges });
-    return path.code === "PATH_COLUMNS"
-        ? { ...mutation, records: rowsView(recordsSource(mutation.records)) }
-        : mutation;
-}
 
 /**
  * The graph's records in row order: what the element's `nodeData` and `edgeData` read. A node

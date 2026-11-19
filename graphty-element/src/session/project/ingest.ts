@@ -57,7 +57,7 @@ import { type Provenance, PROVENANCE_VALUE, provenanceIndex, withSupplied } from
 import { HELD_READERS, type ImportOutcome } from "../styles/fileStyles/apply";
 import type { DataSourceDescriptor, EdgeEnd, LeftOutEdge, LoadedSource, LoadedSourceKind } from "../types";
 import { frozenRecord } from "./draft";
-import { isRowsView } from "./recordMap";
+import { isRowsView, keepStoredRecords } from "./recordMap";
 
 /** The two ends of an edge, in the order a record names them. */
 const EDGE_ENDS = ["source", "target"] as const;
@@ -714,6 +714,14 @@ export class Ingest<K extends KnownEdge> {
      * Null on the "objects" path and whenever the store held edges this ingest did not store.
      */
     private storedPairs: StoredPairs | null = null;
+    /**
+     * Under `"batched"`, the records of the add under way and the frozen copy the graph stored for
+     * each, by place, so the journal keeps the copies and not the caller's objects.
+     */
+    private keeping: { readonly records: readonly object[]; readonly copies: (GraphRecord | undefined)[] } | null =
+        null;
+    /** The place of the edge record being added, while {@link keeping} names its batch. */
+    private keepingAt = -1;
 
     /**
      * The endpoint expressions the load in progress resolved, so a chunked load probes ONCE.
@@ -1192,9 +1200,52 @@ export class Ingest<K extends KnownEdge> {
         idPath: string | undefined,
         writer: GraphWriter,
     ): void {
-        this.outsideLoad(() => {
-            this.addNodeRows(nodes, idPath, writer);
+        this.keepingCopies(nodes, () => {
+            this.outsideLoad(() => {
+                this.addNodeRows(nodes, idPath, writer);
+            });
         });
+    }
+
+    /**
+     * Note the frozen copy the graph stored for one record of the add under way.
+     * @param records - The batch the record is in.
+     * @param at - Its place there.
+     * @param copy - The copy.
+     */
+    private keepCopy(records: readonly object[], at: number, copy: GraphRecord): void {
+        if (this.keeping?.records === records) {
+            this.keeping.copies[at] = copy;
+        }
+    }
+
+    /**
+     * Run an add of records and, under `"batched"`, tell the journal which frozen copy the graph
+     * stored for each (a record the add skipped gets a frozen copy of its own), so the journal keeps
+     * those instead of the caller's objects.
+     * @param records - The records handed in.
+     * @param write - The add.
+     */
+    private keepingCopies(records: readonly object[], write: () => void): void {
+        if (this.host.batched?.() !== true || isRowsView(records) || this.keeping !== null) {
+            write();
+            return;
+        }
+
+        const copies = new Array<GraphRecord | undefined>(records.length);
+        this.keeping = { records, copies };
+        try {
+            write();
+        } finally {
+            this.keeping = null;
+            this.keepingAt = -1;
+        }
+
+        for (let at = 0; at < records.length; at++) {
+            copies[at] ??= frozenRecord(records[at]) as GraphRecord;
+        }
+
+        keepStoredRecords(records, copies as GraphRecord[]);
     }
 
     /**
@@ -1329,6 +1380,7 @@ export class Ingest<K extends KnownEdge> {
             // graph-format will not take, and the host draws the node anyway.
             // Frozen once, here, so the render object holds the record the graph slice holds.
             const record = frozenRecord(node);
+            this.keepCopy(nodes, i, record);
             const { index } = writer.addNode(nodeId, record, readSeedPosition(node));
             this.noteMade(nodeId);
             this.host.nodeStored(nodeId, record, index);
@@ -1452,8 +1504,10 @@ export class Ingest<K extends KnownEdge> {
         ids?: readonly (EdgeId | undefined)[],
     ): void {
         // A write of its own, not the rows of a load running beside it (issue #5416).
-        this.outsideLoad(() => {
-            this.addEdgeRows(edges, options, writer, ids);
+        this.keepingCopies(edges, () => {
+            this.outsideLoad(() => {
+                this.addEdgeRows(edges, options, writer, ids);
+            });
         });
     }
 
@@ -1517,12 +1571,16 @@ export class Ingest<K extends KnownEdge> {
 
         this.host.edgesArriving?.(edges.length);
         let at = 0;
+        const keeping = this.keeping?.records === edges;
         for (const edge of edges) {
+            this.keepingAt = keeping ? at : -1;
             if (this.addEdgeRecord(edge, batch, writer, batch.ids?.[at])) {
                 legacyWeights++;
             }
             at++;
         }
+
+        this.keepingAt = -1;
 
         if (legacyWeights > 0) {
             // One line per burst, not per edge: this is a deprecation signal, not a per-record
@@ -1598,6 +1656,10 @@ export class Ingest<K extends KnownEdge> {
 
         const recordId = batch.recordIdPath === null ? undefined : readEndpoint(edge, batch.recordIdPath);
         const record = frozenRecord(edge);
+        if (this.keepingAt >= 0 && this.keeping !== null) {
+            this.keeping.copies[this.keepingAt] = record;
+        }
+
         const repeat = { record, weight: weight.weight, sourceId: srcNodeId, targetId: dstNodeId };
         if (this.repeatConsumed(repeat, recordId, batch, writer)) {
             return legacy;

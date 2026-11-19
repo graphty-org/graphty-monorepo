@@ -85,6 +85,9 @@ const IDENTITY = Matrix.Identity();
 /** Every scene's cap batches, by the key that says what the caps in one have in common. */
 const batchesByScene = new WeakMap<Scene, Map<string, ArrowCapBatch>>();
 
+/** How far a cap is pulled toward the camera in depth (a material's `zOffset` and `zOffsetUnits`). */
+const CAP_DEPTH_OFFSET = -4;
+
 /**
  * Every arrow cap drawn with one appearance, as thin instances of a single mesh.
  *
@@ -239,6 +242,16 @@ export class ArrowCapBatch {
         // wrong anyway: the shader builds the cap's geometry from the camera, not from the box.
         mesh.doNotSyncBoundingInfo = true;
         mesh.alwaysSelectAsActiveMesh = true;
+
+        // A CAP IS DRAWN IN FRONT OF THE LINE IT STANDS ON. A cap part-way along a line
+        // (`arrowMiddleHead`, `arrowMiddleTail`) lies on it, in its plane in 2D and through it in
+        // 3D, and the line, drawn at least `minScreenWidth` wide and after the caps, covered it: a
+        // middle stem and a middle sphere-dot drew nothing. An end cap is past the line's end, so
+        // pulling caps toward the camera in depth changes nothing there.
+        if (mesh.material) {
+            mesh.material.zOffset = CAP_DEPTH_OFFSET;
+            mesh.material.zOffsetUnits = CAP_DEPTH_OFFSET;
+        }
 
         mesh.thinInstanceSetBuffer("matrix", this.matrices, FLOATS_PER_MATRIX, false);
         mesh.thinInstanceCount = 0;

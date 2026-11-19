@@ -36,6 +36,7 @@ import {
     borderRing,
     convexHull,
     drawnAgainstBox,
+    flatShapeOf,
     flatShapeOutline,
     inUnitBox,
     isFlatShape,
@@ -602,7 +603,9 @@ export class NodeMesh {
      * @internal
      */
     static waveOf(border: NodeStyleConfig["border"], perSize: number): WaveShape | undefined {
-        const amplitude = border?.waveAmplitude;
+        // A period with no swing of its own swings a quarter of it, the ratio a swing with no period gets: drawn
+        // within the ring instead, the period drew nothing.
+        const amplitude = border?.waveAmplitude ?? (border?.wavePeriod ? border.wavePeriod / 4 : undefined);
         if (amplitude === undefined) {
             return undefined;
         }
@@ -859,10 +862,11 @@ export class NodeMesh {
         const sized = this.extentsOf(shape, Math.max(shape.size ?? options.size, MIN_NODE_SIZE));
         const flat = isFlatShape(shape.type);
         const instance = cache.get(`node-${kind}-${options.styleId}-${options.is2D ? "2d" : "3d"}`, () => {
-            const own = halo?.shape;
+            // a solid shape of its own is drawn as its flat silhouette: a halo is a flat slab
+            const own = halo?.shape === undefined ? undefined : flatShapeOf(halo.shape);
             const corner = halo?.cornerRadius === undefined ? undefined : halo.cornerRadius * perSize;
             let outline: Point2[];
-            if (own !== undefined && isFlatShape(own)) {
+            if (own !== undefined) {
                 outline = flatShapeOutline(
                     own,
                     (sized.x ?? sized.across) + 2 * pad,

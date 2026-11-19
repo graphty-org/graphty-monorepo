@@ -311,7 +311,10 @@ export class EdgeMesh {
      * @returns The wave, or undefined.
      */
     private static waveOf(style: EdgeStyleConfig): WaveShape | undefined {
-        const amplitude = style.line?.waveAmplitude;
+        // A period with no swing of its own swings a quarter of it, the ratio a swing with no period gets: drawn
+        // within the line's width instead, the period drew nothing.
+        const wavePeriod = style.line?.wavePeriod;
+        const amplitude = style.line?.waveAmplitude ?? (wavePeriod ? wavePeriod / 4 : undefined);
         if (amplitude === undefined) {
             return undefined;
         }

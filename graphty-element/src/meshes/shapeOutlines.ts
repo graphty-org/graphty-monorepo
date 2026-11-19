@@ -581,6 +581,47 @@ export function isRoundRectangle(shape: string): boolean {
 }
 
 /**
+ * The flat outline a solid shape is drawn as where only a flat outline can be (a node's underlay or overlay, its
+ * `shape`): its silhouette seen from the front, as near as a flat shape gets.
+ */
+const SOLID_SILHOUETTES: Readonly<Record<string, string>> = {
+    sphere: "ellipse",
+    icosphere: "ellipse",
+    geodesic: "ellipse",
+    goldberg: "ellipse",
+    torus: "ellipse",
+    "torus-knot": "ellipse",
+    dodecahedron: "ellipse",
+    icosahedron: "hexagon",
+    rhombicuboctahedron: "octagon",
+    capsule: "round-rectangle",
+    box: "rectangle",
+    cylinder: "rectangle",
+    triangular_prism: "rectangle",
+    pentagonal_prism: "rectangle",
+    hexagonal_prism: "rectangle",
+    cone: "triangle",
+    tetrahedron: "triangle",
+    square_pyramid: "triangle",
+    pentagonal_pyramid: "triangle",
+    elongated_pentagonal_cupola: "trapezoid",
+    octahedron: "diamond",
+    triangular_dipyramid: "diamond",
+    pentagonal_dipyramid: "diamond",
+    elongated_square_dipyramid: "hexagon",
+    elongated_pentagonal_dipyramid: "hexagon",
+};
+
+/**
+ * The flat shape a shape is drawn as where only a flat outline can be: itself when flat, else its silhouette.
+ * @param shape - A node shape name.
+ * @returns A flat shape name, or undefined for a shape with no flat outline.
+ */
+export function flatShapeOf(shape: string): string | undefined {
+    return isFlatShape(shape) ? shape : SOLID_SILHOUETTES[shape];
+}
+
+/**
  * Whether a shape name is one of the flat outlines this module draws.
  * @param shape - A node shape name.
  * @returns True for the flat shapes.

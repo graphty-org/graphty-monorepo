@@ -2563,7 +2563,8 @@ function haloChannels(target: "node" | "edge", kind: HaloKind): ChannelDescripto
         target === "node"
             ? `A filled shape drawn ${where} the node, \`node.${kind}Padding\` beyond its box on every side ` +
               `(in the units of \`node.size\`), as Cytoscape.js draws its ${kind}. Drawn only with an ` +
-              "opacity above 0; unset, its shape is the node's own."
+              "opacity above 0; unset, its shape is the node's own, and a solid shape is drawn as its flat " +
+              "silhouette."
             : `A band drawn ${where} the edge's line along its whole length, twice \`edge.${kind}Padding\` ` +
               `wide (in the line's width units) whatever the line's own width, as Cytoscape.js draws its ` +
               `${kind}. Drawn only with an opacity above 0.`;
@@ -3083,7 +3084,8 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         caveat:
             "How far a zigzag or sinewave border swings to either side of the ring's middle, in the units of " +
             "`node.borderWidth`. Set, the border's width is the thickness of the waving line and " +
-            "`node.borderWavePeriod` how often it repeats; unset, the wave is drawn within the ring. A sine " +
+            "`node.borderWavePeriod` how often it repeats; unset, a quarter of a set period, else the wave is " +
+            "drawn within the ring. A sine " +
             "wave's periods are each drawn straight from where they start, so on a small node they loop out " +
             "past it, as Cytoscape desktop draws them.",
     },
@@ -3099,7 +3101,8 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         renderable: true,
         caveat:
             "How far round the node a zigzag or sinewave border runs before it repeats, in the units of " +
-            "`node.borderWidth`. Used with `node.borderWaveAmplitude`; unset or 0, it is four times the amplitude.",
+            "`node.borderWidth`. Unset or 0, it is four times `node.borderWaveAmplitude`; set with no amplitude, the " +
+            "wave swings a quarter of it.",
     },
     "node.outerBorderColor": {
         channel: "node.outerBorderColor",
@@ -4886,7 +4889,7 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         caveat:
             "How far a sinewave or zigzag line swings to either side of its path, in the units of " +
             "`edge.width`. Set, the edge's width is the thickness of the waving line and `edge.wavePeriod` " +
-            "how often it repeats; unset, the wave is drawn within the edge's width.",
+            "how often it repeats; unset, a quarter of a set period, else the wave is drawn within the edge's width.",
     },
     "edge.wavePeriod": {
         channel: "edge.wavePeriod",
@@ -4900,7 +4903,8 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         renderable: true,
         caveat:
             "How far along its path a sinewave or zigzag line runs before it repeats, in the units of " +
-            "`edge.width`. Used with `edge.waveAmplitude`; unset or 0, it is four times the amplitude.",
+            "`edge.width`. Unset or 0, it is four times `edge.waveAmplitude`; set with no amplitude, the wave " +
+            "swings a quarter of it.",
     },
     "edge.dashLength": {
         channel: "edge.dashLength",

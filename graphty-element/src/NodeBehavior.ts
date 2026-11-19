@@ -1190,8 +1190,7 @@ export class NodeDragHandler {
     private isXRMode(): boolean {
         // Check if we're in an XR session
         // The scene has an xrSession property when XR is active
-        const xrHelper = this.scene.metadata?.xrHelper;
-        return xrHelper?.baseExperience?.state === 2; // WebXRState.IN_XR
+        return inXR(this.scene);
     }
 
     private getContext(): GraphContext {

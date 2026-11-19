@@ -1488,7 +1488,7 @@ function appliesKey(stack: readonly StackEntry[], at: Located): string {
  * Count what one layer covers and where it wins.
  *
  * ONE PASS over the elements of the layer's kind. Each matched element is read through the same
- * walk {@link explainStyle} takes, so "this layer decides the colour of 77 nodes" agrees with an
+ * walk {@link explainStyle} takes, so "this layer decides the color of 77 nodes" agrees with an
  * explanation of each of those 77.
  * @param layerId - The layer.
  * @param elements - Every node and edge in the session, as dense indices.

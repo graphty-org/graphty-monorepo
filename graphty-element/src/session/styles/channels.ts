@@ -710,6 +710,7 @@ export interface ChannelValues {
     "node.shaders": readonly ShaderUse[];
     "edge.shaders": readonly ShaderUse[];
     "edge.taper": number;
+    "edge.taperSource": number;
     "edge.lift": number;
     "edge.labelTextAlign": LabelTextAlign;
     "edge.labelLocation": LabelLocation;
@@ -5089,6 +5090,25 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "The arrowhead sits at the target, where the line arrives at its tapered width. A patterned " +
             "line drawn as separate elements (star, diamond, box, dash-dot, zigzag, sinewave) does " +
             "not taper.",
+    },
+    "edge.taperSource": {
+        channel: "edge.taperSource",
+        target: "edge",
+        plainName: "Edge Source Taper",
+        shortName: "Source Taper",
+        group: "line",
+        default: 1,
+        accepts: "number",
+        min: 0,
+        max: 4,
+        stylePath: "line.taperSource",
+        renderable: true,
+        caveat:
+            "The width at the source as a multiple of the line's width: 1 leaves the source end at the " +
+            "line's width, 0 narrows the line to a point there. When it and the taper are both below 1, " +
+            "the line is its full width at the middle and narrows straight to each end; otherwise it runs " +
+            "straight from the source's width to the target's. A patterned line drawn as separate elements " +
+            "does not taper.",
     },
     "edge.lift": {
         channel: "edge.lift",

@@ -137,7 +137,7 @@ export class NodeEffects {
     private static writeStencilOnlyFor(mesh: Mesh): void {
         const scene = mesh.getScene();
         const engine = scene.getEngine();
-        scene.metadata = scene.metadata ?? {};
+        scene.metadata ??= {};
         // Only inside the main pass: a render target drawn before it (the layers' own glow maps)
         // and the next frame's clear keep the full write mask.
         let main = scene.metadata.stencilMainPass as { on: boolean } | undefined;
@@ -193,7 +193,7 @@ export class NodeEffects {
      * @param width - The width as a multiple of the ring's own, or undefined for that.
      */
     static setOutlineWidth(scene: Scene, width: number | undefined): void {
-        scene.metadata = scene.metadata ?? {};
+        scene.metadata ??= {};
         scene.metadata.outlineWidth = width;
         const outer = this.ringOuterOf(this.outlineWidthOf(scene, undefined));
         for (const mesh of scene.meshes) {
@@ -478,7 +478,7 @@ export class NodeEffects {
 
         const glowLayer = new NodeGlowLayer(this.GLOW_LAYER_NAME, scene);
 
-        scene.metadata = scene.metadata ?? {};
+        scene.metadata ??= {};
         scene.metadata.glowLayer = glowLayer;
 
         // Strengths are re-shared every frame, not only when a glow is applied: a node that
@@ -574,9 +574,8 @@ export class NodeEffects {
      * @returns The per-source-mesh strengths and opacities
      */
     private static glowStrengths(scene: Scene): Map<Mesh, { strength: number; alpha: number }> {
-        scene.metadata = scene.metadata ?? {};
-        scene.metadata.glowStrengths =
-            scene.metadata.glowStrengths ?? new Map<Mesh, { strength: number; alpha: number }>();
+        scene.metadata ??= {};
+        scene.metadata.glowStrengths ??= new Map<Mesh, { strength: number; alpha: number }>();
 
         return scene.metadata.glowStrengths as Map<Mesh, { strength: number; alpha: number }>;
     }

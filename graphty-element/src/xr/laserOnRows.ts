@@ -61,7 +61,7 @@ export function laserOnRows(scene: Scene, helper: WebXRDefaultExperience): () =>
                 }
 
                 standIn.name = anchor.name;
-                standIn.metadata = anchor.metadata;
+                standIn.metadata = anchor.metadata as unknown;
                 standIn.parent = anchor;
                 standIn.setEnabled(true);
             }

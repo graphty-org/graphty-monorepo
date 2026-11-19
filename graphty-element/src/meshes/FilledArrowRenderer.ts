@@ -307,7 +307,7 @@ varying float vClip;
 // head of its edge turned round), and what it stands back by; its place is read from the row
 // table each frame, so a move uploads no cap byte.
 attribute vec2 capRows;
-// The source end's gap, the target end's gap, the cap's own gap, and how far its centre sits
+// The source end's gap, the target end's gap, the cap's own gap, and how far its center sits
 // behind its tip at scale 1.
 attribute vec4 capPlace;
 uniform highp sampler2D rowPosition;
@@ -353,8 +353,8 @@ void main() {
 
 #ifdef INSTANCES
     vec3 lineDir = arrowDirection;
-    // A hidden or handed-back slot holds a ZERO matrix (ArrowCapBatch.hide). Its centre then
-    // reads as the world origin, and since this shader builds the cap from the centre and
+    // A hidden or handed-back slot holds a ZERO matrix (ArrowCapBatch.hide). Its center then
+    // reads as the world origin, and since this shader builds the cap from the center and
     // arrowSize, not from the matrix, it would draw a full-size cap there. A placed slot's
     // bottom-right is 1, so a zero there means "draw nothing": collapse the cap to a point.
     float scale = finalWorld[3][3] == 0.0 || arrowHidden > 0.5 ? 0.0 : arrowSize;
@@ -369,7 +369,7 @@ void main() {
     vec3 worldCenter = vec3(finalWorld[3][0], finalWorld[3][1], finalWorld[3][2]);
 #ifdef CAP_PULLED
     // Edge.placeArrowHead over the include's ends: the tip stands its gap back from where the line
-    // meets the head's node, the centre its offset behind the tip, both along the trimmed line.
+    // meets the head's node, the center its offset behind the tip, both along the trimmed line.
     scale = 0.0;
     if (capRows.x >= 0.0 && capRows.y >= 0.0) {
         int fromRow = int(capRows.x + 0.5);
@@ -386,12 +386,12 @@ void main() {
             vec3 tip = ends.dst;
             bool placed = ends.hasSrc && ends.hasDst && ends.dst != ends.src;
             if (placed) {
-                // A closed end lies on the line between the centres, so that line's direction is
+                // A closed end lies on the line between the centers, so that line's direction is
                 // the trimmed line's, with fewer roundings.
                 lineDir = normalize(b.xyz - a.xyz);
             } else if (any(greaterThan(abs(b.xyz - a.xyz), vec3(0.01)))) {
                 // Edge.placeArrowFromCentres: the line has no ends (the nodes overlap), so the
-                // tip stands at the target's box along the line between the centres.
+                // tip stands at the target's box along the line between the centers.
                 lineDir = normalize(b.xyz - a.xyz);
                 target.radius = -1.0;
                 tip = b.xyz - lineDir * edgeTrimReach(-lineDir, target);

@@ -533,6 +533,7 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     // Per edge by nature, like the bends: a taper is drawn from the line batch's per-slot static
     // attributes and a lift is the route, so neither keys a line batch (Edge.syncShading).
     "edge.taper": "content",
+    "edge.taperSource": "content",
     "edge.lift": "content",
     // A second label, drawn beside the node by the label renderer like the first.
     "node.xlabel": "content",

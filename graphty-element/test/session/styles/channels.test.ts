@@ -409,6 +409,7 @@ const DECLARED = [
     "node.shaders",
     "edge.shaders",
     "edge.taper",
+    "edge.taperSource",
     "edge.lift",
     "node.xlabel",
     "node.xlabelStyle",
@@ -447,9 +448,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into two hundred and seventeen node channels and one hundred and seventy-five edge channels", () => {
+    it("splits into two hundred and seventeen node channels and one hundred and seventy-six edge channels", () => {
         assert.strictEqual(channelsFor("node").length, 217);
-        assert.strictEqual(channelsFor("edge").length, 175);
+        assert.strictEqual(channelsFor("edge").length, 176);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),

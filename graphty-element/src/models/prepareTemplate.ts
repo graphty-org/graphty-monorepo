@@ -1036,7 +1036,7 @@ async function build(
     const size = lockBounds(meshes, fit, animation?.bounds);
     if (animation !== null) {
         // From the posed vertices themselves: the corners of their box would be its diagonal. The
-        // in-place reach over every frame, not a travelling clip's path, which would shrink the model
+        // in-place reach over every frame, not a traveling clip's path, which would shrink the model
         // to a speck, nor the rest pose, which no node draws.
         ({ radius } = animation);
     }

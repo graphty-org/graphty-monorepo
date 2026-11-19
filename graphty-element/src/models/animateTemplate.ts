@@ -322,7 +322,7 @@ function mapBones(parts: readonly AnimatedPart[], morphs: ReadonlyMap<AnimatedPa
 
 /** Directions spread evenly over the sphere: the vertices furthest along each stand for a bone's. */
 const DIRECTIONS: readonly Vector3[] = Array.from({ length: 64 }, (_, i) => {
-    // A Fibonacci sphere: no two neighbours more than about 15 degrees apart, so the furthest of
+    // A Fibonacci sphere: no two neighbors more than about 15 degrees apart, so the furthest of
     // these points is within 4% of the furthest vertex.
     const y = 1 - ((i + 0.5) * 2) / 64;
     const r = Math.sqrt(1 - y * y);

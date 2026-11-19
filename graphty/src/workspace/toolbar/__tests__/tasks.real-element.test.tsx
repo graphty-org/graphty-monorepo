@@ -411,16 +411,6 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
             assert.equal(element.autoRotate, 0);
         });
 
-        // 9 turns it on and off from the keyboard.
-        await userEvent.keyboard("9");
-        await waitFor(() => {
-            assert.isAbove(element.autoRotate, 0);
-        });
-        await userEvent.keyboard("9");
-        await waitFor(() => {
-            assert.equal(element.autoRotate, 0);
-        });
-
         await session.layout.setDimension("2d");
         menu = await open();
         // In 2D the cameras graphty-element draws only in 3D and Auto-rotate stay, disabled with

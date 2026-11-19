@@ -8,6 +8,7 @@
  * element's own name is not what the panel shows (a unit "Graph", an icon segment).
  */
 
+import type { CompactMantineLabels } from "@graphty/compact-mantine";
 import type { Channel } from "@graphty/graphty-element/catalog";
 
 import type { GLYPHS } from "../../glyphs";
@@ -827,3 +828,9 @@ export function lineFor(side: "node" | "edge", channel: Channel): FoundLine | un
         found.find(({ line }) => lineChannels(line).includes(channel))
     );
 }
+
+/**
+ * compact-mantine's words v2 replaces: a set color field says its name and color only, never
+ * "set here" (issue #8739: the panel never says where a value comes from).
+ */
+export const V2_LABELS: Partial<CompactMantineLabels> = { fieldSet: "" };

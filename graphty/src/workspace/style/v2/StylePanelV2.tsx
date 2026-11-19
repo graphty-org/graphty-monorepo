@@ -6,7 +6,7 @@
  * lists one row per thing the layer sets or the reader just added.
  */
 
-import { ControlSection } from "@graphty/compact-mantine";
+import { ControlSection, LabelsProvider } from "@graphty/compact-mantine";
 import { type Channel, writeChannelList } from "@graphty/graphty-element/catalog";
 import React, { useRef, useState } from "react";
 
@@ -16,6 +16,7 @@ import { FindSettingBox, FindSettingResults } from "../parts/FindSetting";
 import { ChannelLine } from "../parts/PartPage";
 import { itemChannels, partsFor, type PartSpec } from "../parts/parts";
 import { useFindKey } from "../parts/useFindKey";
+import { PickerNamesOnly } from "../pickerNames";
 import type { RowContext } from "../PropertyRow";
 import { startForOrNone, writeIn, writeLine } from "../row";
 import { AddButton, type AddOption, Section } from "../Section";
@@ -25,7 +26,7 @@ import { focusLineNext } from "../useFocusLine";
 import { channelWord, experimentChannelsOff, failureWords } from "../words";
 import { groupOutlineShaders, isGroupOutline, replaceUse } from "./families";
 import { ITEM_LISTS, LISTS, nextColor } from "./lists";
-import { FIT_TO_LABEL, lineFor } from "./rubric";
+import { FIT_TO_LABEL, lineFor, V2_LABELS } from "./rubric";
 import { RubricLine } from "./RubricLine";
 import { ThingRow } from "./ThingRow";
 import { mainOf, SECTIONS, type SectionThings, setOn, type ThingSpec } from "./things";
@@ -407,11 +408,20 @@ export function StylePanelV2({ ctx: row }: Readonly<{ ctx: RowContext }>): React
         <div // eslint-disable-line jsx-a11y/no-static-element-interactions -- only catches the "/" key bubbling from the panel's own controls
             onKeyDown={onKeyDown}
         >
-            <section className="ws-style-group" data-group={ctx.side} data-style-parts="" data-style-panel-v2="">
-                <FindSettingBox query={query} onQuery={setQuery} inputRef={box} />
-                {body}
-                {query.trim() === "" ? addSection : null}
-            </section>
+            <LabelsProvider labels={V2_LABELS}>
+                <PickerNamesOnly.Provider value>
+                    <section
+                        className="ws-style-group"
+                        data-group={ctx.side}
+                        data-style-parts=""
+                        data-style-panel-v2=""
+                    >
+                        <FindSettingBox query={query} onQuery={setQuery} inputRef={box} />
+                        {body}
+                        {query.trim() === "" ? addSection : null}
+                    </section>
+                </PickerNamesOnly.Provider>
+            </LabelsProvider>
         </div>
     );
 }

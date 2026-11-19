@@ -11,10 +11,15 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { Box, Button } from "@mantine/core";
 import React, { useState } from "react";
 
-import type { ValueSection } from "../v2/valueSections";
 import { channelWord, countName } from "../words";
 
 /** A choice listed after the property's own, as a value field takes it. */
+/** One section of a value list: its name and the value ids it holds, in the list's order. */
+export interface ValueSection {
+    readonly name: string;
+    readonly values: readonly string[];
+}
+
 interface ExtraChoice {
     readonly value: string;
     readonly label: string;

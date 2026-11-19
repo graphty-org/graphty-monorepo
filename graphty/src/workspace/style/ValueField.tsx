@@ -7,8 +7,7 @@ import React from "react";
 
 import { useModelPicture } from "../canvas/models";
 import { GLYPHS } from "../glyphs";
-import { ValueListbox } from "./parts/ValueListbox";
-import type { ValueSection } from "./v2/valueSections";
+import { ValueListbox, type ValueSection } from "./parts/ValueListbox";
 import { channelWord, colorName, enumWords, GLYPH_TABLES, hexOf, isPercent, TWO_WORDS, valueFieldKind } from "./words";
 
 /**

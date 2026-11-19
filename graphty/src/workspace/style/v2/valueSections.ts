@@ -8,11 +8,7 @@
 
 import type { Channel } from "@graphty/graphty-element/catalog";
 
-/** One section of a value list: its name and the value ids it holds, in the list's order. */
-export interface ValueSection {
-    readonly name: string;
-    readonly values: readonly string[];
-}
+import type { ValueSection } from "../parts/ValueListbox";
 
 /** A node's shapes, flat ones first, then the solids. */
 const SHAPES: readonly ValueSection[] = [

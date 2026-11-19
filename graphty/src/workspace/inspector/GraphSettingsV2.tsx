@@ -11,6 +11,7 @@ import {
     CompactColorInput,
     ControlGroup,
     ControlSection,
+    LabelsProvider,
     PanelField,
     Popout,
 } from "@graphty/compact-mantine";
@@ -24,14 +25,18 @@ import {
     LIGHTING_VALUES,
 } from "@graphty/graphty-element/schema";
 import type { GraphSession } from "@graphty/graphty-element/session";
-import { Checkbox } from "@mantine/core";
+import { Checkbox, Group } from "@mantine/core";
 import React, { useEffect, useReducer, useRef, useState } from "react";
 
 import { APP_HIGHLIGHT_COLOR } from "../../constants/highlight";
 import { useSizeBound } from "../frame/useSizeBound";
+import { GLYPHS } from "../glyphs";
+import { SettingsPopout } from "../options/SettingsPopout";
 import { BackgroundShader, ShaderSection } from "../settings/ShaderSettings";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
+import { PickerNamesOnly } from "../style/pickerNames";
 import { AddButton } from "../style/Section";
+import { V2_LABELS } from "../style/v2/rubric";
 import { LineFrame, SegmentsLine } from "../style/v2/RubricLine";
 import { failureWords } from "../style/words";
 import { LIGHTING_WORDS, useNotInEffect } from "./graphSettingReads";
@@ -50,6 +55,7 @@ const EXTENT_OPTIONS = FRAMING_EXTENT_VALUES.map((value) => ({ value, name: EXTE
 const REMOVE_WORDS: Readonly<Record<string, string>> = {
     "framing.extent": "Framing",
     highlightColor: "Highlight color",
+    minMarkSize: "Smallest mark",
 };
 
 /**
@@ -112,7 +118,10 @@ function NumberField({
 }
 
 /**
- * The Background section: see the file header.
+ * The Background section: see the file header. One row (design 4.3): its color, or its Sky
+ * picture, with a settings button whose pop-over starts with Switch to Color / Sky, as every
+ * family's does (design 5), and a "-" that takes the background back to the element's own. A
+ * shader added from the header's "+" is a line under it.
  * @param props - Component props
  * @param props.session - the element's session
  * @returns The section
@@ -123,6 +132,7 @@ function BackgroundRow({ session }: Readonly<{ session: GraphSession }>): React.
     const sky = background.backgroundType === "skybox";
     // Sky picked and waiting for its picture; and the picture left by a switch to Color, for a switch back.
     const [waiting, setWaiting] = useState(false);
+    const [settings, setSettings] = useState(false);
     const leftSky = useRef<string | undefined>(undefined);
     const [shaderAdded, setShaderAdded] = useState(false);
     const fail = (error: unknown): void => {
@@ -158,6 +168,30 @@ function BackgroundRow({ session }: Readonly<{ session: GraphSession }>): React.
     };
     const options = (BACKGROUND?.members ?? []).map((each) => ({ value: each.id, name: each.plainName }));
     const shaderShown = background.shader !== undefined || shaderAdded;
+    const set = sky || background.color !== undefined;
+    const pickSky = (data: string): void => {
+        setWaiting(false);
+        write({ backgroundType: "skybox", data, ...rest });
+    };
+    const control =
+        member === "color" ? (
+            <CompactColorInput
+                label="Background color"
+                hideLabel
+                color={background.color}
+                defaultColor={DEFAULT_BACKGROUND_COLOR}
+                showOpacity={false}
+                showReset={false}
+                onChangeEnd={(next) => {
+                    write({ backgroundType: "color", ...rest, color: next ?? undefined });
+                }}
+            />
+        ) : (
+            <BackgroundImage
+                address={sky && !background.data.startsWith("data:") ? background.data : ""}
+                onCommit={pickSky}
+            />
+        );
     return (
         <ControlSection
             label="Background"
@@ -179,14 +213,43 @@ function BackgroundRow({ session }: Readonly<{ session: GraphSession }>): React.
         >
             <div ref={anchor}>
                 <LineFrame
-                    line="background.backgroundType"
+                    line="background"
                     name={null}
-                    set={false}
-                    rule="R8"
-                    control={<SegmentsLine label="Switch to" options={options} value={member} onPick={switchTo} />}
-                    modifier={null}
-                    removeName={undefined}
-                    onRemove={() => undefined}
+                    set={set}
+                    rule={member === "color" ? "R1" : "R16"}
+                    control={control}
+                    modifier={
+                        <SettingsPopout
+                            label="Background settings"
+                            title="Background"
+                            opened={settings}
+                            onOpenChange={setSettings}
+                            icon={<GLYPHS.sliders size={14} aria-hidden />}
+                        >
+                            <LineFrame
+                                line="switch:graph.background"
+                                name={null}
+                                set={false}
+                                rule="R8f"
+                                control={
+                                    <SegmentsLine
+                                        label="Switch to"
+                                        options={options}
+                                        value={member}
+                                        onPick={switchTo}
+                                    />
+                                }
+                                modifier={null}
+                                removeName={undefined}
+                                onRemove={() => undefined}
+                            />
+                        </SettingsPopout>
+                    }
+                    removeName={set ? "Remove background" : undefined}
+                    onRemove={() => {
+                        const { color: _color, ...others } = rest;
+                        write({ backgroundType: "color", ...others });
+                    }}
                 />
             </div>
             <Popout
@@ -206,61 +269,10 @@ function BackgroundRow({ session }: Readonly<{ session: GraphSession }>): React.
                     closeLabel="Close Sky"
                 >
                     <Popout.Content>
-                        <BackgroundImage
-                            address=""
-                            onCommit={(data) => {
-                                setWaiting(false);
-                                write({ backgroundType: "skybox", data, ...rest });
-                            }}
-                        />
+                        <BackgroundImage address="" onCommit={pickSky} />
                     </Popout.Content>
                 </Popout.Panel>
             </Popout>
-            {member === "color" ? (
-                <LineFrame
-                    line="background.color"
-                    name={null}
-                    set={background.color !== undefined}
-                    rule="R1"
-                    control={
-                        <CompactColorInput
-                            label="Background color"
-                            color={background.color}
-                            defaultColor={DEFAULT_BACKGROUND_COLOR}
-                            showOpacity={false}
-                            showReset={false}
-                            onChangeEnd={(next) => {
-                                write({ backgroundType: "color", ...rest, color: next ?? undefined });
-                            }}
-                        />
-                    }
-                    modifier={null}
-                    removeName={background.color === undefined ? undefined : "Remove background color"}
-                    onRemove={() => {
-                        const { color: _color, ...others } = rest;
-                        write({ backgroundType: "color", ...others });
-                    }}
-                />
-            ) : (
-                <LineFrame
-                    line="background.data"
-                    name={null}
-                    set={sky}
-                    rule="R16"
-                    control={
-                        <BackgroundImage
-                            address={sky && !background.data.startsWith("data:") ? background.data : ""}
-                            onCommit={(data) => {
-                                setWaiting(false);
-                                write({ backgroundType: "skybox", data, ...rest });
-                            }}
-                        />
-                    }
-                    modifier={null}
-                    removeName={undefined}
-                    onRemove={() => undefined}
-                />
-            )}
             {shaderShown && (
                 <LineFrame
                     line="background.shader"
@@ -273,6 +285,10 @@ function BackgroundRow({ session }: Readonly<{ session: GraphSession }>): React.
                             shader={background.shader?.id}
                             params={background.shader?.params ?? {}}
                             startOpen={background.shader === undefined}
+                            onCancel={() => {
+                                // The gallery closed with nothing picked: the line "+" added goes again.
+                                setShaderAdded(false);
+                            }}
                             onWrite={async (id, params, scope = session) => {
                                 await scope.config.set({ background: { ...background, shader: { id, params } } });
                                 setShaderAdded(false);
@@ -313,7 +329,8 @@ export function GraphSettingsV2(): React.JSX.Element | null {
     };
     const { framing, minMarkSize, viewRotation } = session.config;
     const highlightNow = colorText(session.styles.highlightStyle("node")["node.color"]);
-    // Set when it is not the app's own highlight color (ElementHost's), which "-" goes back to.
+    // The reader's choice: set when it is not the color the app gives every session (ElementHost's,
+    // a consumer's choice, not the element's), which "-" goes back to. Unset, the field is empty.
     const highlightSet = highlightNow !== "" && highlightNow.toLowerCase() !== APP_HIGHLIGHT_COLOR.toLowerCase();
     const writeHighlight = (next: string | undefined): void => {
         try {
@@ -339,7 +356,7 @@ export function GraphSettingsV2(): React.JSX.Element | null {
             control={control}
             modifier={null}
             removeName={
-                set && onRemove !== undefined ? `Remove ${(name ?? REMOVE_WORDS[key] ?? key).toLowerCase()}` : undefined
+                set && onRemove !== undefined ? `Remove ${(REMOVE_WORDS[key] ?? name ?? key).toLowerCase()}` : undefined
             }
             onRemove={onRemove ?? (() => undefined)}
         />
@@ -357,173 +374,182 @@ export function GraphSettingsV2(): React.JSX.Element | null {
         session.config.set({ minMarkSize: empty ? undefined : next }).catch(fail("Smallest mark"));
     };
     return (
-        <div data-graph-settings-v2="">
-            <BackgroundRow session={session} />
-            <ControlSection label="Canvas" collapsible={false} headingLevel={3}>
-                <ControlGroup label="View">
-                    {!hidden.includes("lighting") &&
-                        line(
-                            "lighting",
-                            "Lighting",
-                            "R9",
-                            <PanelField
-                                label="Lighting"
-                                kind="select"
-                                width="fill"
-                                data={LIGHTING_VALUES.map((value) => ({ value, label: LIGHTING_WORDS[value] }))}
-                                value={lighting}
-                                onChange={(picked) => {
-                                    const next = LIGHTING_VALUES.find((value) => value === picked);
-                                    if (next !== undefined) {
-                                        store.set({ lighting: next });
-                                    }
-                                }}
-                            />,
-                            false,
-                        )}
-                    {line(
-                        "viewRotation",
-                        "Rotation",
-                        "R5",
-                        <NumberField
-                            label="Rotation"
-                            value={viewRotation}
-                            onWrite={(value) => {
-                                session.config.set({ viewRotation: value }).catch(fail("Rotation"));
-                            }}
-                        />,
-                        viewRotation !== undefined,
-                        () => {
-                            session.config.set({ viewRotation: undefined }).catch(fail("Rotation"));
-                        },
-                    )}
-                    {line(
-                        "highlightColor",
-                        null,
-                        "R1",
-                        <CompactColorInput
-                            label="Highlight color"
-                            color={highlightNow === "" ? undefined : highlightNow}
-                            defaultColor={APP_HIGHLIGHT_COLOR}
-                            showOpacity={false}
-                            showReset={false}
-                            onChangeEnd={(next) => {
-                                writeHighlight(next ?? APP_HIGHLIGHT_COLOR);
-                            }}
-                        />,
-                        highlightSet,
-                        () => {
-                            writeHighlight(APP_HIGHLIGHT_COLOR);
-                        },
-                    )}
-                </ControlGroup>
-                <ControlGroup label="Framing">
-                    {line(
-                        "framing.extent",
-                        null,
-                        "R8",
-                        <SegmentsLine
-                            label="Framing extent"
-                            options={EXTENT_OPTIONS}
-                            value={framing?.extent ?? ""}
-                            onPick={(picked) => {
-                                const extent = FRAMING_EXTENT_VALUES.find((value) => value === picked);
-                                if (extent !== undefined) {
-                                    setFraming({ extent });
-                                }
-                            }}
-                        />,
-                        framing !== undefined,
-                        () => {
-                            session.config.set({ framing: undefined }).catch(fail("Framing"));
-                        },
-                    )}
-                    {line(
-                        "framing.padding",
-                        "Padding",
-                        "R5",
-                        <NumberField
-                            label="Padding"
-                            value={framing?.padding}
-                            min={0}
-                            onWrite={(padding) => {
-                                setFraming({ padding });
-                            }}
-                        />,
-                        framing?.padding !== undefined,
-                        () => {
-                            setFraming({ padding: undefined });
-                        },
-                    )}
-                </ControlGroup>
-                <ControlGroup label="Marks">
-                    {!hidden.includes("node.sizeSpace") &&
-                        line(
-                            "node.sizeSpace",
+        <LabelsProvider labels={V2_LABELS}>
+            <PickerNamesOnly.Provider value>
+                <div data-graph-settings-v2="">
+                    <BackgroundRow session={session} />
+                    <ControlSection label="Canvas" collapsible={false} headingLevel={3}>
+                        <ControlGroup label="View">
+                            {!hidden.includes("lighting") &&
+                                line(
+                                    "lighting",
+                                    "Lighting",
+                                    "R9",
+                                    <PanelField
+                                        label="Lighting"
+                                        kind="select"
+                                        width="fill"
+                                        data={LIGHTING_VALUES.map((value) => ({ value, label: LIGHTING_WORDS[value] }))}
+                                        value={lighting}
+                                        onChange={(picked) => {
+                                            const next = LIGHTING_VALUES.find((value) => value === picked);
+                                            if (next !== undefined) {
+                                                store.set({ lighting: next });
+                                            }
+                                        }}
+                                    />,
+                                    false,
+                                )}
+                            {line(
+                                "viewRotation",
+                                "Rotation",
+                                "R5",
+                                <NumberField
+                                    label="Rotation"
+                                    value={viewRotation}
+                                    onWrite={(value) => {
+                                        session.config.set({ viewRotation: value }).catch(fail("Rotation"));
+                                    }}
+                                />,
+                                viewRotation !== undefined,
+                                () => {
+                                    session.config.set({ viewRotation: undefined }).catch(fail("Rotation"));
+                                },
+                            )}
+                            {line(
+                                "highlightColor",
+                                "Highlight",
+                                "R1",
+                                <CompactColorInput
+                                    label="Highlight color"
+                                    hideLabel
+                                    color={highlightSet ? highlightNow : undefined}
+                                    defaultColor={APP_HIGHLIGHT_COLOR}
+                                    showOpacity={false}
+                                    showReset={false}
+                                    onChangeEnd={(next) => {
+                                        writeHighlight(next ?? APP_HIGHLIGHT_COLOR);
+                                    }}
+                                />,
+                                highlightSet,
+                                () => {
+                                    writeHighlight(APP_HIGHLIGHT_COLOR);
+                                },
+                            )}
+                        </ControlGroup>
+                        <ControlGroup label="Framing">
+                            {line(
+                                "framing.extent",
+                                null,
+                                "R8",
+                                <SegmentsLine
+                                    label="Framing extent"
+                                    options={EXTENT_OPTIONS}
+                                    value={framing?.extent ?? ""}
+                                    onPick={(picked) => {
+                                        const extent = FRAMING_EXTENT_VALUES.find((value) => value === picked);
+                                        if (extent !== undefined) {
+                                            setFraming({ extent });
+                                        }
+                                    }}
+                                />,
+                                framing !== undefined,
+                                () => {
+                                    session.config.set({ framing: undefined }).catch(fail("Framing"));
+                                },
+                            )}
+                            {line(
+                                "framing.padding",
+                                "Padding",
+                                "R5",
+                                <NumberField
+                                    label="Padding"
+                                    value={framing?.padding}
+                                    min={0}
+                                    onWrite={(padding) => {
+                                        setFraming({ padding });
+                                    }}
+                                />,
+                                framing?.padding !== undefined,
+                                () => {
+                                    setFraming({ padding: undefined });
+                                },
+                            )}
+                        </ControlGroup>
+                        <ControlGroup label="Marks">
+                            {!hidden.includes("node.sizeSpace") &&
+                                line(
+                                    "node.sizeSpace",
+                                    null,
+                                    "R7",
+                                    <Checkbox
+                                        size="xs"
+                                        label="Same size at any depth"
+                                        checked={sameSizeChosen ?? sizeBound}
+                                        onChange={(event) => {
+                                            store.set({ sameSizeAtAnyDepth: event.currentTarget.checked });
+                                        }}
+                                    />,
+                                    false,
+                                )}
+                            {line(
+                                "minMarkSize",
+                                "Smallest",
+                                "R5",
+                                // One pair, node | edge (design 4.3).
+                                <Group grow gap={4} wrap="nowrap">
+                                    {(["node", "edge"] as const).map((which) => (
+                                        <NumberField
+                                            key={which}
+                                            label={which === "node" ? "Smallest node" : "Smallest edge"}
+                                            min={0}
+                                            value={minMarkSize?.[which]}
+                                            onWrite={(value) => {
+                                                setMinMark(which, value);
+                                            }}
+                                        />
+                                    ))}
+                                </Group>,
+                                minMarkSize !== undefined,
+                                () => {
+                                    session.config.set({ minMarkSize: undefined }).catch(fail("Smallest mark"));
+                                },
+                            )}
+                        </ControlGroup>
+                    </ControlSection>
+                    <ControlSection label="Labels" collapsible={false} headingLevel={3}>
+                        {line(
+                            "labels.declutter",
                             null,
                             "R7",
                             <Checkbox
                                 size="xs"
-                                label="Same size at any depth"
-                                checked={sameSizeChosen ?? sizeBound}
+                                label="Hide overlaps"
+                                checked={!allLabelsShown}
                                 onChange={(event) => {
-                                    store.set({ sameSizeAtAnyDepth: event.currentTarget.checked });
+                                    store.set({ allLabelsShown: !event.currentTarget.checked });
                                 }}
                             />,
                             false,
                         )}
-                    {(["node", "edge"] as const).map((which) =>
-                        line(
-                            `minMarkSize.${which}`,
-                            which === "node" ? "Smallest node" : "Smallest edge",
-                            "R5",
-                            <NumberField
-                                label={which === "node" ? "Smallest node" : "Smallest edge"}
-                                min={0}
-                                value={minMarkSize?.[which]}
-                                onWrite={(value) => {
-                                    setMinMark(which, value);
+                        {line(
+                            "labels.avoidNodesAndEdges",
+                            null,
+                            "R7",
+                            <Checkbox
+                                size="xs"
+                                label="Avoid nodes and edges"
+                                checked={labelsAvoid}
+                                onChange={(event) => {
+                                    store.set({ labelsAvoid: event.currentTarget.checked });
                                 }}
                             />,
-                            minMarkSize?.[which] !== undefined,
-                            () => {
-                                setMinMark(which, undefined);
-                            },
-                        ),
-                    )}
-                </ControlGroup>
-            </ControlSection>
-            <ControlSection label="Labels" collapsible={false} headingLevel={3}>
-                {line(
-                    "labels.declutter",
-                    null,
-                    "R7",
-                    <Checkbox
-                        size="xs"
-                        label="Hide overlapping labels"
-                        checked={!allLabelsShown}
-                        onChange={(event) => {
-                            store.set({ allLabelsShown: !event.currentTarget.checked });
-                        }}
-                    />,
-                    false,
-                )}
-                {line(
-                    "labels.avoidNodesAndEdges",
-                    null,
-                    "R7",
-                    <Checkbox
-                        size="xs"
-                        label="Move labels off nodes and edges"
-                        checked={labelsAvoid}
-                        onChange={(event) => {
-                            store.set({ labelsAvoid: event.currentTarget.checked });
-                        }}
-                    />,
-                    false,
-                )}
-            </ControlSection>
-            <ShaderSection />
-        </div>
+                            false,
+                        )}
+                    </ControlSection>
+                    <ShaderSection />
+                </div>
+            </PickerNamesOnly.Provider>
+        </LabelsProvider>
     );
 }

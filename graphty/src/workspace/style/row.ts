@@ -595,7 +595,7 @@ export function startingValue(
  * @param selector - the selector of the layer the line goes on, when known.
  * @returns the value, or undefined.
  */
-export function startingValueOrNone(
+function startingValueOrNone(
     descriptor: ChannelDescriptor,
     session?: GraphSession,
     selector?: Layer["selector"],

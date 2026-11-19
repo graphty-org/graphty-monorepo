@@ -1,9 +1,10 @@
 import { type QuickAction, QuickActions } from "@graphty/compact-mantine";
 import type { GraphSession } from "@graphty/graphty-element/session";
-import React, { useState } from "react";
+import React, { useContext, useState } from "react";
 
 import { GLYPHS, VALUE_GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
+import { PickerNamesOnly } from "./pickerNames";
 import { type DataChoice, propose, type Target } from "./row";
 import { useStyleVersion } from "./useStyleVersion";
 import {
@@ -123,9 +124,15 @@ interface SortedRows {
  * @param session - the element's session.
  * @param entries - the entries.
  * @param channel - the property the pick goes on, if any.
+ * @param namesOnly - whether rows drop their facts (Style panel v2).
  * @returns the rows.
  */
-function sortRows(session: GraphSession, entries: readonly Entry[], channel: EncodeKey | undefined): SortedRows {
+function sortRows(
+    session: GraphSession,
+    entries: readonly Entry[],
+    channel: EncodeKey | undefined,
+    namesOnly: boolean,
+): SortedRows {
     const sorted: SortedRows = { fits: [], used: [], elsewhere: [], refused: [] };
     for (const entry of entries) {
         const proposal = channel === undefined ? null : propose(session, entry.choice, channel);
@@ -133,7 +140,7 @@ function sortRows(session: GraphSession, entries: readonly Entry[], channel: Enc
             value: entry.key,
             label: entry.name,
             icon: entry.icon,
-            description: entry.fact,
+            description: namesOnly ? undefined : entry.fact,
             keywords: [entry.technicalName],
         };
         if (proposal !== null && !proposal.ok) {
@@ -333,12 +340,13 @@ export function ValuePicker({
     useStyleVersion(session, element);
     const [unfolded, setUnfolded] = useState(false);
     const [query, setQuery] = useState("");
+    const namesOnly = useContext(PickerNamesOnly);
     if (session === null) {
         return null;
     }
 
     const entries = entriesOf(session, target, inUse, channel === undefined || TEXT_CHANNEL.test(channel));
-    const { fits, used, elsewhere, refused } = sortRows(session, entries, channel);
+    const { fits, used, elsewhere, refused } = sortRows(session, entries, channel, namesOnly);
     const fold = channel === undefined ? [] : foldRows(refused, unfolded);
 
     // The list opens on the value in force (the one this line reads, or its typed words), as a

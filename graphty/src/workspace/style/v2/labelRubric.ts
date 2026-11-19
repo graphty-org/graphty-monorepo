@@ -23,7 +23,7 @@ import type { OptionName, Rule } from "./rubric";
 export type LabelField = keyof LabelStyle;
 
 /** One unit of a Unit line: its name, the field holding the value in it, and what else it writes. */
-export interface LabelUnit {
+interface LabelUnit {
     readonly name: string;
     readonly field: LabelField;
     /** Fields written with it, and taken off when another unit is picked (Screen's `sizeMode`). */
@@ -61,7 +61,7 @@ export interface LabelGroup {
 }
 
 /** A label style's rubric. */
-export interface LabelRubric {
+interface LabelRubric {
     readonly common: readonly LabelLineSpec[];
     readonly main: readonly LabelLineSpec[];
     readonly groups: readonly LabelGroup[];

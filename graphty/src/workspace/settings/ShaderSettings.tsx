@@ -42,6 +42,8 @@ interface BackgroundShaderProps {
     readonly onWrite: (shader: string, params: Params, scope?: TransactionScope) => Promise<void> | void;
     /** Whether the gallery is open when the row appears: the row was just added by a "+". */
     readonly startOpen?: boolean;
+    /** Called when the gallery closes with no shader in force (Graph settings v2 takes its line away). */
+    readonly onCancel?: () => void;
 }
 
 /**
@@ -55,6 +57,7 @@ interface BackgroundShaderProps {
  * @param props.params - its parameters
  * @param props.onWrite - writes the background
  * @param props.startOpen - whether the gallery is open when the row appears
+ * @param props.onCancel - called when the gallery closes with no shader in force
  * @returns The row
  */
 export function BackgroundShader({
@@ -63,6 +66,7 @@ export function BackgroundShader({
     params,
     onWrite,
     startOpen = false,
+    onCancel,
 }: Readonly<BackgroundShaderProps>): React.JSX.Element {
     const { store } = useWorkspace();
     const [picking, setPicking] = useState(startOpen);
@@ -77,7 +81,15 @@ export function BackgroundShader({
     const name = descriptor?.plainName ?? shader ?? "None";
     return (
         <Group gap={4} wrap="nowrap" className="ws-shader-control">
-            <Popout opened={picking} onOpenChange={setPicking}>
+            <Popout
+                opened={picking}
+                onOpenChange={(open) => {
+                    setPicking(open);
+                    if (!open && shader === undefined) {
+                        onCancel?.();
+                    }
+                }}
+            >
                 <Popout.Trigger>
                     <UnstyledButton
                         className="ws-shader-pick"

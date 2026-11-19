@@ -129,18 +129,28 @@ export async function moveUnit(
     if (value === undefined) {
         return undefined;
     }
-    if (ctx.many !== undefined || line === undefined) {
-        return unsetIn(
-            ctx,
-            from.filter((c) => c !== to),
-        ).then(() => writeIn(ctx, to, { value }));
+    if (line === undefined) {
+        // Nothing to move: the start is written, as any first value is.
+        return writeIn(ctx, to, { value });
     }
-    const { layer } = line;
     const others = new Set(from.filter((c) => c !== to));
     const strip = <T>(record: Readonly<Partial<Record<Channel, T>>> | undefined): Partial<Record<Channel, T>> =>
         Object.fromEntries(Object.entries(record ?? {}).filter(([c]) => !others.has(c as Channel)));
+    // One row: the layer that holds the value; several: every layer of theirs holding a unit, each
+    // keeping its own value. One undo step either way (design 5.2).
+    const layers =
+        ctx.many === undefined
+            ? [line.layer]
+            : ctx.layers.filter((each) => !each.locked && from.some((c) => each.set?.[c] !== undefined));
     return ctx.session.transaction(`changing ${channelWord(to).toLowerCase()}'s unit`, async (tx) => {
-        await tx.styles.update(layer.id, { set: { ...strip(layer.set), [to]: value }, encode: strip(layer.encode) });
+        for (const { id } of layers) {
+            const own = tx.styles.get(id);
+            const unit = from.find((c) => own?.set?.[c] !== undefined && c !== to) ?? to;
+            const kept = own?.set?.[unit] ?? value;
+            if (own !== undefined) {
+                await tx.styles.update(id, { set: { ...strip(own.set), [to]: kept }, encode: strip(own.encode) });
+            }
+        }
     });
 }
 

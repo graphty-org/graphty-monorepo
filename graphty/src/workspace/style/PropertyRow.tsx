@@ -13,6 +13,7 @@ import { useWorkspace } from "../state/WorkspaceContext";
 import { BindingPopover } from "./BindingPopover";
 import { BulkBinding, type LayerSequence } from "./BulkBinding";
 import { useAssetLine } from "./ModelField";
+import type { ValueSection } from "./parts/ValueListbox";
 import {
     carriedOpacity,
     type DataBinding,
@@ -33,7 +34,6 @@ import {
     writeIn,
 } from "./row";
 import { focusLineNext, focusSectionNext, lineTarget, listOpensNext, openListNext } from "./useFocusLine";
-import type { ValueSection } from "./v2/valueSections";
 import { ValueField } from "./ValueField";
 import { ValuePicker } from "./ValuePicker";
 import {

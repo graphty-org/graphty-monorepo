@@ -116,7 +116,7 @@ describe("Graph settings v2", () => {
         });
 
         const marks = within(panel).getByRole("group", { name: "Marks" });
-        await typeNumber(fieldOf(marks, "minMarkSize.node"), "3");
+        await typeNumber(fieldOf(marks, "minMarkSize"), "3");
         await waitFor(() => {
             assert.strictEqual(element.session.config.minMarkSize?.node, 3);
         });
@@ -130,8 +130,11 @@ describe("Graph settings v2", () => {
         await waitFor(() => {
             assert.strictEqual(element.session.config.background.color?.toLowerCase(), "#445566");
         });
-        // Sky opens its picture picker and waits for a pick: Escape changes nothing.
-        await clickSegment(panel, "Sky");
+        // Switch to is the first line of the row's settings, as every family's is (design 5). Sky
+        // opens its picture picker and waits for a pick: Escape changes nothing.
+        await userEvent.click(within(panel).getByRole("button", { name: "Background settings" }));
+        const settings = await screen.findByRole("dialog", { name: "Background" });
+        await clickSegment(settings, "Sky");
         await screen.findByRole("dialog", { name: "Sky" });
         assert.strictEqual(element.session.config.background.backgroundType, "color", "Sky waits for its picture");
         assert.isNotNull(within(panel).queryByRole("textbox", { name: /^Background color(,|$)/ }), "Color stays");

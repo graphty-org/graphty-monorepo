@@ -797,3 +797,9 @@
 [data-style-panel-v2] .ws-shader-row .ws-field[data-shader-use] {
     grid-template-columns: 22px minmax(0, 1fr) 0 24px 24px;
 }
+
+/* Style panel v2's Find a setting box sits on the sections' 16 px gutter (design 2.2), its "/" key
+   inside the content's right edge. */
+[data-style-panel-v2] > .ws-find-setting {
+    padding-inline: 16px;
+}

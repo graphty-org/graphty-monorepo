@@ -15,14 +15,14 @@ import { sha256HexSync } from "@graphty/graph-io";
 import { fetchBytes } from "../../../data/source-bytes";
 import { isGraphtyError } from "../../../errors/GraphtyError";
 import type { GraphSession, LoadChoices, TableMapping } from "../../types";
-import type { JsonObject } from "../types";
+import type { JsonObject, SourceUnavailableReason } from "../types";
 import { copyTables, isPlainObject, isReserved, repeatedEdgeRows } from "./dataRefs";
 
 /**
  * Why a referenced source supplied nothing: unreachable, no location to read it from, unreadable,
  * over the open's size limit, or a fetch the caller did not allow.
  */
-export type UnavailableReason = "unreachable" | "needs-file" | "read" | "too-large" | "consent";
+type UnavailableReason = Exclude<SourceUnavailableReason, "kind">;
 
 /** A referenced source read again: its tables in copy form and its bytes' digest, or why not. */
 export type Refetched =

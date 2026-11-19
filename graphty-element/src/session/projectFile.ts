@@ -56,7 +56,7 @@ import { openDocument2, saveDocument2 } from "./document2/document";
 import {
     describeFile,
     describeSave,
-    isProjectSection,
+    isWholeSave,
     type ProjectFileFacts,
     type ProjectSaveFacts,
 } from "./document2/facts";
@@ -64,13 +64,7 @@ import { assertIJson, isJsonObject, isVersion2, newDocumentId, parseDocument } f
 import { migrateDocument1 } from "./document2/migration";
 import { DTYPES } from "./document2/migrationParts";
 import { SECTION_CODECS } from "./document2/registry";
-import {
-    DOCUMENT_SECTIONS,
-    type DocumentCode,
-    type DocumentProblem,
-    type DocumentSection,
-    type SourceStorage,
-} from "./document2/types";
+import type { DocumentCode, DocumentProblem, DocumentSection, SourceStorage } from "./document2/types";
 import { expandedGraph, type SavedCollapse } from "./groups";
 import { ISSUES_VALUE, type IssueState } from "./issues";
 import { loadLineOf } from "./loadLine";
@@ -176,11 +170,14 @@ export type ProjectProblem = CodedFact<
 >;
 
 export type { AssetStorage, ProjectAssetChoice } from "./assets/projectMember";
+export type { SectionBinding } from "./document2/document";
 export type {
     DocumentBindFacts,
     DocumentHeldFacts,
     DocumentHeldReason,
+    DocumentSectionAbout,
     DocumentSectionFacts,
+    DocumentSectionNeed,
     ProjectFileFacts,
     ProjectFileRun,
     ProjectFileSection,
@@ -190,7 +187,13 @@ export type {
     ProjectSourceChoice,
     ProjectSourceKind,
 } from "./document2/facts";
-export type { DocumentCode, DocumentSection, SourceStorage } from "./document2/types";
+export type {
+    DocumentCode,
+    DocumentSection,
+    SourceEmbeddedReason,
+    SourceStorage,
+    SourceUnavailableReason,
+} from "./document2/types";
 
 /** How `project.save` writes the file. */
 export interface ProjectSaveOptions {
@@ -597,8 +600,10 @@ export interface ProjectApi {
     /**
      * What a version 2 save of the session would write, asked before saving (the `save-files-v2`
      * experiment): each section with what it holds, whether a save writes it by default, whether
-     * it is held, and each source with how a save keeps it and whether it can be referenced.
-     * Changes nothing.
+     * it is held, and each source with how a save keeps it and whether it can be referenced; and
+     * whether a save with the `sections` and `form` given is the project or a copy. Changes nothing.
+     * @param options - The save's `sections` and `form` (for `project`) and the `paths` the host
+     *     supplies (for each source's `referable` and `refused`), as `save` takes them.
      * @returns The facts.
      * @throws A `GraphtyError` (as a rejection) with `E_FEATURE_OFF` without the experiment.
      * @example
@@ -611,13 +616,14 @@ export interface ProjectApi {
      * @experimental save-files-v2
      * @beta
      */
-    describe(): Promise<ProjectSaveFacts>;
+    describe(options?: Pick<ProjectSaveOptions, "sections" | "form" | "paths">): Promise<ProjectSaveFacts>;
     /**
      * Read a version 2 file without opening it (the `save-files-v2` experiment): its sections,
      * held ones and what each bound one binds to, the runs an open would start, and the sources it
      * names. What to ask the reader before `open`.
      * @param source - The file, its bytes, or its text.
-     * @param options - `migrate` to read a version 1 file through its migration, and `limits`.
+     * @param options - `migrate` to read a version 1 file through its migration, and `limits`; the
+     *     open's `sections` and `dataMode`, for each bound section's `binding`.
      * @returns The facts, or undefined for a file that is not a version 2 document (a version 1
      *     file without `migrate`, a data file).
      * @throws A `GraphtyError` (as a rejection) with `E_FEATURE_OFF` without the experiment, and
@@ -628,7 +634,7 @@ export interface ProjectApi {
      */
     inspect(
         source: ProjectSource,
-        options?: Pick<ProjectOpenOptions, "migrate" | "limits">,
+        options?: Pick<ProjectOpenOptions, "migrate" | "limits" | "sections" | "dataMode">,
     ): Promise<ProjectFileFacts | undefined>;
 }
 
@@ -3519,9 +3525,7 @@ export function projectOf(
             isDerived,
         );
         // Only a full file of every default section, the data included, is the project.
-        const whole =
-            options.form !== "section" &&
-            DOCUMENT_SECTIONS.every((name) => !isProjectSection(name) || written.includes(name));
+        const whole = isWholeSave(written, options.form);
         return finishSave(
             document,
             written,
@@ -3588,6 +3592,7 @@ export function projectOf(
                     projectChanged?.();
                 },
                 name: wrapperName ?? nameOfFile(typeof fileName === "string" ? fileName : undefined),
+                clear: (tx) => clearInto(tx, dispatcher.state.visibility.playback),
             },
         );
         fresh = false;
@@ -3622,12 +3627,16 @@ export function projectOf(
         assetChoices() {
             return assetChoices(session);
         },
-        describe() {
+        describe(options = {}) {
             if (!session.features.has("save-files-v2")) {
                 return Promise.reject(featureOff("save-files-v2", "project.describe"));
             }
 
-            return describeSave(session, SECTION_CODECS, isDerived);
+            return describeSave(session, SECTION_CODECS, isDerived, {
+                ...(options.sections === undefined ? {} : { sections: options.sections }),
+                ...(options.form === undefined ? {} : { form: options.form }),
+                ...(options.paths === undefined ? {} : { paths: options.paths }),
+            });
         },
         async inspect(source, options = {}) {
             if (!session.features.has("save-files-v2")) {
@@ -3641,7 +3650,10 @@ export function projectOf(
             }
 
             const parsed = parseDocument(read.value, SECTION_CODECS);
-            return describeFile(session, SECTION_CODECS, parsed, [...read.problems, ...parsed.problems]);
+            return describeFile(session, SECTION_CODECS, parsed, [...read.problems, ...parsed.problems], {
+                ...(options.sections === undefined ? {} : { sections: options.sections }),
+                ...(options.dataMode === undefined ? {} : { dataMode: options.dataMode }),
+            });
         },
         save(options = {}) {
             const versionTwoOnly = (["sections", "form", "results", "embed", "paths"] as const).find(

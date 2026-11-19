@@ -1035,10 +1035,23 @@ export interface DocumentHeldFacts {
 }
 
 // @beta
-export type DocumentHeldReason = "version" | "extension" | "data" | "kind" | "unknown" | "malformed" | "graphs";
+export type DocumentHeldReason = "version" | "extension" | "data" | "kind" | "unknown" | "malformed" | "graphs" | "add";
 
 // @beta
 export type DocumentSection = "data" | "style" | "recipe" | "settings" | "results" | "notes" | "view";
+
+// @beta
+export interface DocumentSectionAbout {
+    readonly authors?: readonly {
+        readonly name: string;
+        readonly uri?: string;
+    }[];
+    readonly created?: string;
+    readonly description?: string;
+    readonly from?: string;
+    readonly license?: string;
+    readonly modified?: string;
+}
 
 // @beta
 export interface DocumentSectionFacts {
@@ -1046,6 +1059,14 @@ export interface DocumentSectionFacts {
     readonly held?: DocumentHeldFacts;
     readonly name?: string;
     readonly section: DocumentSection;
+}
+
+// @beta
+export interface DocumentSectionNeed {
+    readonly found?: boolean;
+    readonly kind: "column" | "type" | "source" | "result";
+    readonly name: string;
+    readonly table?: "node" | "edge";
 }
 
 // @public
@@ -4576,11 +4597,11 @@ export const PROJECT_FILE: Readonly<{
 export interface ProjectApi {
     assetChoices(): ProjectAssetChoice[];
     // @beta
-    describe(): Promise<ProjectSaveFacts>;
+    describe(options?: Pick<ProjectSaveOptions, "sections" | "form" | "paths">): Promise<ProjectSaveFacts>;
     readonly dirty: boolean;
     readonly id: string;
     // @beta
-    inspect(source: ProjectSource, options?: Pick<ProjectOpenOptions, "migrate" | "limits">): Promise<ProjectFileFacts | undefined>;
+    inspect(source: ProjectSource, options?: Pick<ProjectOpenOptions, "migrate" | "limits" | "sections" | "dataMode">): Promise<ProjectFileFacts | undefined>;
     markSaved(saved: SavedProject): void;
     readonly name: string | null;
     open(source: ProjectSource, options?: ProjectOpenOptions): Promise<ProjectOpenReport>;
@@ -4678,7 +4699,10 @@ export interface ProjectFileRun {
 
 // @beta
 export interface ProjectFileSection extends DocumentSectionFacts {
+    readonly about: DocumentSectionAbout;
+    readonly binding?: SectionBinding;
     readonly binds?: DocumentBindFacts;
+    readonly needs: readonly DocumentSectionNeed[];
     readonly version: number | null;
 }
 
@@ -4743,6 +4767,7 @@ export type ProjectProblem = CodedFact<GraphtyErrorCode | GraphtyWarningCode | D
 
 // @beta
 export interface ProjectSaveFacts {
+    readonly project: boolean;
     readonly sections: readonly ProjectSaveSection[];
     readonly sources: readonly ProjectSourceChoice[];
 }
@@ -5963,6 +5988,9 @@ export interface ScreenshotPreset {
 // @public
 export type ScreenshotPresetId = "print" | "web-share" | "thumbnail" | "documentation";
 
+// @beta
+export type SectionBinding = "loads" | "held" | "other-data";
+
 // @public
 export interface SelectionApi {
     apply(target: SelectionTarget, op?: SelectionOp, options?: SelectionApplyOptions): Promise<SelectionDelta>;
@@ -7043,6 +7071,9 @@ export { SourceDescriptor }
 
 export { SourceEdgeRecord }
 
+// @beta
+export type SourceEmbeddedReason = "edited" | "bytes" | "rows" | "mapping" | "kind";
+
 export { sourceEndpoint }
 
 export { SourceExample }
@@ -7219,6 +7250,9 @@ export type SourceSettings = Pick<SourceLoadRecord, "source" | "endpoint" | "con
 
 // @beta
 export type SourceStorage = "embedded" | "referenced";
+
+// @beta
+export type SourceUnavailableReason = "unreachable" | "needs-file" | "read" | "too-large" | "consent" | "kind";
 
 export { SourceValidators }
 

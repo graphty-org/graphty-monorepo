@@ -21,7 +21,16 @@ import { type LoadFacts, redactedParams } from "../../sources/member";
 import { type Provenance, PROVENANCE_VALUE, provenanceIndex } from "../../sources/provenance";
 import type { EdgeRecord, GraphSession, LoadedSource, NodeRecord } from "../../types";
 import { projectMemory } from "../memory";
-import type { BuildStamp, DocumentProblem, EdgeRef, ElementRefs, JsonObject, NodeRef, SourceStorage } from "../types";
+import type {
+    BuildStamp,
+    DocumentProblem,
+    EdgeRef,
+    ElementRefs,
+    JsonObject,
+    NodeRef,
+    SourceEmbeddedReason,
+    SourceStorage,
+} from "../types";
 import { mintUlid } from "./viewParts";
 
 // ---------------------------------------------------------------------------------------------
@@ -1735,7 +1744,7 @@ interface WrittenBody {
  * @param model - The model.
  * @returns The reason, or undefined when a reference can stand for it.
  */
-function embedReason(source: ModelSource, model: DataModel): string | undefined {
+function embedReason(source: ModelSource, model: DataModel): SourceEmbeddedReason | undefined {
     if ((model.copies.get(source.id) as Copy).embedOnly) {
         return foldedOperations(model.session).size > 0 ? "edited" : "bytes";
     }

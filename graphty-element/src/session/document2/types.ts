@@ -58,6 +58,26 @@ export const APPLY_ORDER: readonly DocumentSection[] = Object.freeze([
  */
 export type SourceStorage = "embedded" | "referenced";
 
+/**
+ * Why a save asked to reference a source embedded it (`W_SOURCE_EMBEDDED` `params.reason`):
+ * `edited`, the reader edited, removed or merged rows; `bytes`, the session kept no digest of the
+ * bytes it read; `rows`, another load also supplied one of its rows; `mapping`, its read has no
+ * spelling in a mapping; `kind`, no open reads its kind again. OPEN UNION.
+ * @experimental save-files-v2
+ * @beta
+ */
+export type SourceEmbeddedReason = "edited" | "bytes" | "rows" | "mapping" | "kind";
+
+/**
+ * Why a referenced source supplied nothing on open (`W_SOURCE_UNAVAILABLE` `params.reason`):
+ * `unreachable`, `needs-file` (no location to read it from), `read` (unreadable), `too-large`
+ * (over the open's size limit), `consent` (a fetch the caller did not allow), `kind` (no open
+ * reads its kind again). OPEN UNION.
+ * @experimental save-files-v2
+ * @beta
+ */
+export type SourceUnavailableReason = "unreachable" | "needs-file" | "read" | "too-large" | "consent" | "kind";
+
 /** A JSON object as read from or written to a document. */
 export type JsonObject = Record<string, unknown>;
 

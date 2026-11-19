@@ -528,7 +528,9 @@ export type {
     DocumentHeldFacts,
     DocumentHeldReason,
     DocumentSection,
+    DocumentSectionAbout,
     DocumentSectionFacts,
+    DocumentSectionNeed,
     ProjectApi,
     ProjectAssetChoice,
     ProjectFileFacts,
@@ -547,7 +549,10 @@ export type {
     ProjectSourceKind,
     ProjectStatus,
     SavedProject,
+    SectionBinding,
+    SourceEmbeddedReason,
     SourceStorage,
+    SourceUnavailableReason,
 } from "./src/session/projectFile";
 export { DOCUMENT_SECTIONS, PROJECT_FILE, projectFileName } from "./src/session/projectFile";
 // Autosaved work read and deleted without an element (a start screen that offers it first).

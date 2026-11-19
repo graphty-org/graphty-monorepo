@@ -12,7 +12,18 @@ import type { ProjectProblem } from "../projectFile";
 import type { CodedFact } from "../shared";
 import type { GraphSession } from "../types";
 import { sourceChoicesOf } from "./codecs/dataRefs";
-import { lazyRefs, sectionsToSave, writeContextOf } from "./document";
+import { splitRunId } from "./codecs/recipeCommands";
+import {
+    bindingOf,
+    type BindPlan,
+    bindPlanOf,
+    lazyRefs,
+    type OpenChoices,
+    type SaveChoices,
+    type SectionBinding,
+    sectionsToSave,
+    writeContextOf,
+} from "./document";
 import { documentStateOf, type HeldSection, isJsonObject, type ParsedDocument } from "./framing";
 import {
     type CodecRegistry,
@@ -26,13 +37,14 @@ import {
 } from "./types";
 
 /**
- * Why a section is held: a newer `version`, a required `extension`, `data` that cannot be built
- * whole, a known key holding another `kind`, an `unknown` key, a `malformed` value, or a file of
- * several `graphs`. OPEN UNION.
+ * Why a section is held (`DocumentHeldFacts.reason`, and `W_SECTION_KEPT` `params.reason`): a newer
+ * `version`, a required `extension`, `data` that cannot be built whole, a known key holding another
+ * `kind`, an `unknown` key, a `malformed` value, or a file of several `graphs`; and, in
+ * `W_SECTION_KEPT` only, `add`: a data section an open in add mode kept rather than added. OPEN UNION.
  * @experimental save-files-v2
  * @beta
  */
-export type DocumentHeldReason = "version" | "extension" | "data" | "kind" | "unknown" | "malformed" | "graphs";
+export type DocumentHeldReason = "version" | "extension" | "data" | "kind" | "unknown" | "malformed" | "graphs" | "add";
 
 /**
  * A held section: kept exactly as read and written back on save; the session's own content of
@@ -81,6 +93,7 @@ export interface ProjectSaveSection extends DocumentSectionFacts {
     /**
      * Whether a full file must hold it to be the project. A save without every such section, or a
      * section file, is a copy: it never clears `dirty` or moves the save point.
+     * `ProjectSaveFacts.project` gives that verdict for the sections asked about.
      */
     readonly required: boolean;
 }
@@ -133,6 +146,12 @@ export interface ProjectSourceChoice {
 export interface ProjectSaveFacts {
     /** Every section, in file order. */
     readonly sections: readonly ProjectSaveSection[];
+    /**
+     * Whether a save with the `sections` and `form` asked about is the project: it clears `dirty`
+     * and moves the save point (unless `markSaved` is false). False for a copy: a section file, or
+     * a full file without every `required` section.
+     */
+    readonly project: boolean;
     /** Every source of the open data, the reader's own changes first. */
     readonly sources: readonly ProjectSourceChoice[];
 }
@@ -161,6 +180,58 @@ export interface ProjectFileSection extends DocumentSectionFacts {
     readonly version: number | null;
     /** For a dataset-bound section (results, notes, view): what it binds to. */
     readonly binds?: DocumentBindFacts;
+    /**
+     * For a dataset-bound section an open with the `sections` and `dataMode` asked about would
+     * load: whether it binds to the data the open leaves open (`loads`), is held with the file's
+     * held data section (`held`), or was written on other data (`other-data`: reported
+     * `W_DATA_MISMATCH` and left out unless the open passes `bindOtherData`).
+     */
+    readonly binding?: SectionBinding;
+    /** What the section says of itself, for display only. */
+    readonly about: DocumentSectionAbout;
+    /** What the section needs from the data before it can work (spec 3.6), in file order. */
+    readonly needs: readonly DocumentSectionNeed[];
+}
+
+/**
+ * What a section says of itself (spec 3): text and dates for display only, as the file gives
+ * them; a member the file leaves out is absent.
+ * @experimental save-files-v2
+ * @beta
+ */
+export interface DocumentSectionAbout {
+    /** A sentence of what it is for, as its author wrote it. */
+    readonly description?: string;
+    /** When it first existed (ISO 8601). */
+    readonly created?: string;
+    /** When its content last changed (ISO 8601). */
+    readonly modified?: string;
+    /** Its authors. */
+    readonly authors?: readonly { readonly name: string; readonly uri?: string }[];
+    /** An SPDX license expression, or text. */
+    readonly license?: string;
+    /** The URL or file name a copied-in section was taken from. */
+    readonly from?: string;
+}
+
+/**
+ * One thing a section needs from the data (spec 3.6): a `column` (with its `table`), a node or edge
+ * `type`, a `source` role, or a `result` of a run (by its `as`).
+ * @experimental save-files-v2
+ * @beta
+ */
+export interface DocumentSectionNeed {
+    /** What it is. OPEN UNION. */
+    readonly kind: "column" | "type" | "source" | "result";
+    /** Its name. */
+    readonly name: string;
+    /** For a column: the table it is a column of. */
+    readonly table?: "node" | "edge";
+    /**
+     * Whether the data open now answers it: a column of that name in that table, or one open run
+     * with that `as`. Absent when the open would replace the data, and for types and source roles.
+     */
+    readonly found?: boolean;
 }
 
 /**
@@ -285,17 +356,20 @@ function heldFacts(held: HeldSection, codecs: CodecRegistry, section: DocumentSe
  * @param session - The session.
  * @param codecs - The codecs.
  * @param isDerived - Whether the element minted a run's id.
+ * @param choices - The save's `sections` and `form`, and the `paths` the host supplies.
  * @returns The facts.
  */
 export async function describeSave(
     session: GraphSession,
     codecs: CodecRegistry,
     isDerived: (id: RunId) => boolean,
+    choices: Pick<SaveChoices, "paths" | "sections" | "form"> = {},
 ): Promise<ProjectSaveFacts> {
     const state = documentStateOf(session);
     const saved = new Set(sectionsToSave({}, state));
     const refs = lazyRefs(session);
-    const all = new Set(DOCUMENT_SECTIONS);
+    const paths = choices.paths ?? {};
+    const all = new Set(DOCUMENT_SECTIONS.filter((section) => !state.held.has(section)));
     const sections: ProjectSaveSection[] = [];
     // ponytail: every codec writes the whole session once per call (the data section copies every
     // row); cache by history position if a dialog calls it often on large graphs.
@@ -306,7 +380,7 @@ export async function describeSave(
         if (held !== undefined) {
             sections.push({ ...sectionFacts(section, held.value), ...flags, held: heldFacts(held, codecs, section) });
         } else if (codec !== undefined) {
-            const context = writeContextOf(session, state, all, {}, isDerived, [], refs);
+            const context = writeContextOf(session, state, all, { paths }, isDerived, [], refs);
             const written = await codec.write(context);
             const facts = sectionFacts(section, { ...written.header, ...written.body });
             // The open data's whole graph, referenced rows included.
@@ -318,7 +392,11 @@ export async function describeSave(
         }
     }
 
-    return { sections, sources: sourceChoicesOf(session) as ProjectSourceChoice[] };
+    return {
+        sections,
+        project: isWholeSave(sectionsToSave(choices, state), choices.form),
+        sources: sourceChoicesOf(session, paths) as ProjectSourceChoice[],
+    };
 }
 
 /**
@@ -327,8 +405,22 @@ export async function describeSave(
  * @param section - The section.
  * @returns True when it must.
  */
-export function isProjectSection(section: DocumentSection): boolean {
+function isProjectSection(section: DocumentSection): boolean {
     return section !== "results";
+}
+
+/**
+ * Whether a save writing these sections in this form is the project rather than a copy: a full
+ * file holding every section a project needs.
+ * @param written - The sections it writes.
+ * @param form - The file's form.
+ * @returns True for the project.
+ */
+export function isWholeSave(written: readonly string[], form: "full" | "section" | undefined): boolean {
+    return (
+        form !== "section" &&
+        DOCUMENT_SECTIONS.every((section) => !isProjectSection(section) || written.includes(section))
+    );
 }
 
 /**
@@ -359,7 +451,7 @@ function runsOf(view: JsonObject | undefined, results: JsonObject | undefined): 
             ...(name === undefined ? {} : { name }),
             ...(algorithm === undefined ? {} : { algorithm }),
             replayable: record.replayable !== false,
-            restorable: id in saved,
+            restorable: Object.hasOwn(saved, id),
         };
     });
     if (isJsonObject(view?.layout)) {
@@ -407,6 +499,10 @@ function sourcesOf(data: JsonObject | undefined): ProjectFileSource[] {
  * @param ids - The file's data id and the open data's id.
  * @param ids.file - The file's data section id.
  * @param ids.open - The open data's id.
+ * @param open - The open asked about.
+ * @param open.plan - What it binds to.
+ * @param open.chosen - Whether it loads this section.
+ * @param open.session - The session, for the data open now.
  * @returns Its facts, or undefined when the file holds none.
  */
 function fileSection(
@@ -414,6 +510,7 @@ function fileSection(
     parsed: ParsedDocument,
     section: DocumentSection,
     ids: { readonly file: string | undefined; readonly open: string | undefined },
+    open: { readonly plan: BindPlan; readonly chosen: boolean; readonly session: GraphSession },
 ): ProjectFileSection | undefined {
     const loads = parsed.sections.get(section);
     const held = parsed.held.get(section);
@@ -425,12 +522,80 @@ function fileSection(
     const version = isJsonObject(value) && typeof value.version === "number" ? value.version : null;
     const bound = stringOf(isJsonObject(value) ? value.bindsTo : undefined, "data");
     const binds = (id: string | undefined): boolean => bound !== undefined && bound === id;
+    const isBound = codecs[section]?.bound === true;
     return {
         ...sectionFacts(section, value),
         version,
         ...(held === undefined ? {} : { held: heldFacts(held, codecs, section) }),
-        ...(codecs[section]?.bound === true ? { binds: { file: binds(ids.file), open: binds(ids.open) } } : {}),
+        ...(isBound ? { binds: { file: binds(ids.file), open: binds(ids.open) } } : {}),
+        ...(isBound && loads !== undefined && open.chosen ? { binding: bindingOf(bound, open.plan) } : {}),
+        about: aboutOf(value),
+        needs: needsOf(value, open.plan.replaced ? undefined : open.session),
     };
+}
+
+/**
+ * What a section says of itself.
+ * @param value - The section.
+ * @returns The facts.
+ */
+function aboutOf(value: unknown): DocumentSectionAbout {
+    const text = (member: string, of: unknown = value): Record<string, string> => {
+        const each = stringOf(of, member);
+        return each === undefined ? {} : { [member]: each };
+    };
+    const authors = isJsonObject(value) && Array.isArray(value.authors) ? value.authors : [];
+    const named = authors.filter(isJsonObject).flatMap((author) => {
+        const name = stringOf(author, "name");
+        const uri = stringOf(author, "uri");
+        return name === undefined ? [] : [{ name, ...(uri === undefined ? {} : { uri }) }];
+    });
+    return {
+        ...text("description"),
+        ...text("created"),
+        ...text("modified"),
+        ...(named.length === 0 ? {} : { authors: named }),
+        ...text("license"),
+        ...text("from", isJsonObject(value) ? value.origin : undefined),
+    };
+}
+
+/**
+ * What a section needs from the data (spec 3.6), each with whether the open data answers it.
+ * @param value - The section.
+ * @param session - The session whose open data the section meets, or undefined when the open
+ *     replaces the data.
+ * @returns The needs.
+ */
+function needsOf(value: unknown, session: GraphSession | undefined): DocumentSectionNeed[] {
+    const dependencies = isJsonObject(value) && isJsonObject(value.dependencies) ? value.dependencies : {};
+    const listOf = (member: string): unknown[] => {
+        const each = dependencies[member];
+        return Array.isArray(each) ? each : [];
+    };
+    const attributes = session?.data.attributes() ?? [];
+    const runs = session?.runs.list() ?? [];
+    const columns = listOf("columns")
+        .filter(isJsonObject)
+        .flatMap((column): DocumentSectionNeed[] => {
+            const name = stringOf(column, "name");
+            const table = column.kind === "edge" ? "edge" : "node";
+            if (name === undefined) {
+                return [];
+            }
+
+            const found = attributes.some((each) => each.kind === table && each.name === name);
+            return [{ kind: "column", name, table, ...(session === undefined ? {} : { found }) }];
+        });
+    const named = (member: string, kind: DocumentSectionNeed["kind"]): DocumentSectionNeed[] =>
+        listOf(member)
+            .filter((name): name is string => typeof name === "string")
+            .map((name) => {
+                // A result binds to the one open run with that `as` (spec 8.2 rule 7).
+                const matching = runs.filter((run) => run.id === name || splitRunId(run.id)?.as === name).length;
+                return { kind, name, ...(session === undefined || kind !== "result" ? {} : { found: matching === 1 }) };
+            });
+    return [...columns, ...named("types", "type"), ...named("sources", "source"), ...named("results", "result")];
 }
 
 /**
@@ -439,6 +604,7 @@ function fileSection(
  * @param codecs - The codecs.
  * @param parsed - The file.
  * @param problems - What reading it reported.
+ * @param choices - The open's `sections` and `dataMode`.
  * @returns The facts.
  */
 export function describeFile(
@@ -446,12 +612,15 @@ export function describeFile(
     codecs: CodecRegistry,
     parsed: ParsedDocument,
     problems: readonly DocumentProblem[],
+    choices: Pick<OpenChoices, "sections" | "dataMode"> = {},
 ): ProjectFileFacts {
     const data = parsed.sections.get("data");
     const fileDataId = data?.header.id ?? stringOf(parsed.held.get("data")?.value, "id");
     const ids = { file: fileDataId, open: documentStateOf(session).dataId };
+    const plan = bindPlanOf(parsed, choices, ids.open);
     const sections = DOCUMENT_SECTIONS.flatMap((section) => {
-        const facts = fileSection(codecs, parsed, section, ids);
+        const chosen = choices.sections === undefined || choices.sections.includes(section);
+        const facts = fileSection(codecs, parsed, section, ids, { plan, chosen, session });
         return facts === undefined ? [] : [facts];
     });
 

@@ -183,3 +183,140 @@ describe("projectFileName", () => {
         assert.strictEqual(projectFileName("Fraud"), "Fraud.graphty.json");
     });
 });
+
+describe("project.describe with the save's options", () => {
+    it("answers for the paths a host supplies, and says whether the save is the project", async () => {
+        const session = createGraphSession(ON);
+        await session.data.import({ type: "csv", config: { data: "source,target\nAva,Ben\n" }, name: "a.csv" });
+        const [source] = (await session.project.describe()).sources;
+        assert.isFalse(source.referable, "a file read with no path");
+        const given = (await session.project.describe({ paths: { [source.id]: "a.csv" } })).sources[0];
+        assert.isTrue(given.referable, "the host gives its path");
+        assert.isUndefined(given.refused);
+        const saved = await session.project.save({
+            format: 2,
+            markSaved: false,
+            embed: { [source.id]: "referenced" },
+            paths: { [source.id]: "a.csv" },
+        });
+        assert.notDeepInclude(saved.report.leftOut, { code: "W_SOURCE_NO_PATH", params: { source: source.id } });
+
+        assert.isTrue((await session.project.describe()).project, "the default save is the project");
+        const allButResults = DOCUMENT_SECTIONS.filter((section) => section !== "results");
+        assert.isTrue((await session.project.describe({ sections: allButResults })).project);
+        assert.isFalse((await session.project.describe({ sections: ["style"] })).project);
+        assert.isFalse((await session.project.describe({ sections: ["style"], form: "section" })).project);
+        session.dispose();
+    });
+});
+
+describe("project.inspect binding", () => {
+    it("says how an open with the chosen sections binds each bound section", async () => {
+        const text = readText(EXAMPLE);
+        const bindingOfView = async (
+            session: ReturnType<typeof createGraphSession>,
+            file: string,
+            sections?: ("data" | "view")[],
+            dataMode?: "replace" | "add",
+        ): Promise<string | undefined> =>
+            (
+                await session.project.inspect(file, {
+                    ...(sections === undefined ? {} : { sections }),
+                    ...(dataMode === undefined ? {} : { dataMode }),
+                })
+            )?.sections.find((section) => section.section === "view")?.binding;
+
+        const empty = createGraphSession(ON);
+        assert.strictEqual(await bindingOfView(empty, text), "loads", "with its own data");
+        assert.strictEqual(await bindingOfView(empty, text, ["view"]), "other-data", "without its data");
+        assert.strictEqual(await bindingOfView(empty, text, ["data", "view"], "add"), "other-data", "data added");
+        assert.isUndefined(await bindingOfView(empty, text, ["data"]), "not chosen");
+        const example = JSON.parse(text) as { sections: Record<string, Record<string, unknown>> };
+        example.sections.data.version = 99;
+        assert.strictEqual(await bindingOfView(empty, JSON.stringify(example)), "held", "its data is held");
+
+        const opened = createGraphSession(ON);
+        await opened.project.open(text, { rerun: false });
+        assert.strictEqual(await bindingOfView(opened, text, ["view"]), "loads", "on the same data");
+        empty.dispose();
+        opened.dispose();
+    });
+
+    it("never takes a name of Object's prototype for a saved run", async () => {
+        const session = createGraphSession(ON);
+        const example = JSON.parse(readText(EXAMPLE)) as { sections: { view: { runs: { id: string }[] } } };
+        example.sections.view.runs[0].id = "toString";
+        const run = (await session.project.inspect(JSON.stringify(example)))?.runs.find(
+            (each) => each.id === "toString",
+        );
+        assert.isFalse(run?.restorable);
+        session.dispose();
+    });
+
+    it("gives a section file's own facts and what it needs from the open data", async () => {
+        const session = createGraphSession(ON);
+        await session.data.addNodes([{ id: "a", mcc: "5947" }]);
+        const [style] =
+            (await session.project.inspect(readText("examples/card-fraud.graphty-style.json")))?.sections ?? [];
+        assert.deepEqual(style.about, {
+            description: "Highlights near-limit gift card payments and colors accounts by PageRank.",
+            created: "2026-09-02T16:20:00.000Z",
+            modified: "2026-11-12T21:05:00.000Z",
+            authors: [{ name: "Fraud analytics team", uri: "https://example-bank.test/fraud" }],
+            license: "CC-BY-4.0",
+            from: "https://example-bank.test/kits/fraud-team-kit.graphty.json",
+        });
+        assert.deepEqual(style.needs, [
+            { kind: "column", name: "amount", table: "edge", found: false },
+            { kind: "column", name: "mcc", table: "node", found: true },
+            { kind: "type", name: "merchant" },
+            { kind: "result", name: "pagerank", found: false },
+            { kind: "result", name: "communities", found: false },
+        ]);
+        session.dispose();
+    });
+});
+
+describe("a version 2 project opened over another", () => {
+    it("leaves nothing of the project it replaced", async () => {
+        const session = createGraphSession(ON);
+        const text = readText(EXAMPLE);
+        await session.project.open(text, { rerun: false });
+        const layers = session.styles.list().map((layer) => layer.name);
+        const notes = session.notes.list().length;
+        await session.project.open(text, { rerun: false, discard: true });
+        assert.deepEqual(
+            session.styles.list().map((layer) => layer.name),
+            layers,
+        );
+        assert.strictEqual(session.notes.list().length, notes);
+        session.dispose();
+    });
+});
+
+describe("a layer left out of a save after an open", () => {
+    it("is reported when the rest of the style is unchanged, and never moved to a held view", async () => {
+        const report = async (heldView: boolean, sections: ("style" | "view")[]): Promise<unknown[]> => {
+            const session = createGraphSession(ON);
+            const example = JSON.parse(readText(EXAMPLE)) as { sections: Record<string, Record<string, unknown>> };
+            if (heldView) {
+                example.sections.view.version = 99;
+            }
+            await session.project.open(JSON.stringify(example), { rerun: false });
+            const { id } = await session.styles.add({
+                name: "Picked",
+                target: "node",
+                selector: { match: "ids", nodes: [session.data.nodes()[0].id] },
+                set: { "node.color": "#ff0000" },
+            });
+            const { report: saved } = await session.project.save({ format: 2, sections, markSaved: false });
+            session.dispose();
+            return saved.leftOut
+                .filter((fact) => fact.code === "W_ELEMENT_NAMING_LEFT_OUT" && fact.params.layer === id)
+                .map(({ params }) => params.movedTo ?? null);
+        };
+        assert.deepEqual(await report(false, ["style"]), [null]);
+        assert.deepEqual(await report(false, ["style", "view"]), ["view"]);
+        assert.deepEqual(await report(true, ["style", "view"]), [null], "a held view is written as read");
+    });
+});

@@ -47,9 +47,10 @@ import type {
     ReadContext,
     ReadSection,
     SectionCodec,
+    SourceUnavailableReason,
     WriteContext,
 } from "../types";
-import { refetchedOf, type UnavailableReason } from "./dataFetch";
+import { refetchedOf } from "./dataFetch";
 import {
     canonicalJson,
     dataBodyOf,
@@ -325,7 +326,7 @@ interface ReadSource {
     /** For a referenced source read again: the copy id its record names, and the roles its rows are built with. */
     readonly rebuilt?: { readonly expected: string; readonly mapping: JsonObject };
     /** For a referenced source not read again: why. */
-    readonly reason?: UnavailableReason | "kind";
+    readonly reason?: SourceUnavailableReason;
 }
 
 /**

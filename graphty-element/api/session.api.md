@@ -1429,6 +1429,15 @@ export const FILE_STYLE_TRANSLATION_ISSUE: Readonly<{
     NOT_UNDERSTOOD: "W_STYLE_NOT_UNDERSTOOD";
 }>;
 
+// @beta
+export type FileKind = "project" | "recipe" | "style" | "document" | "graph";
+
+// @public
+export interface FilesApi {
+    // @beta
+    kindOf(source: ProjectSource): Promise<FileKind>;
+}
+
 // @public
 export type FileStyleCode = (typeof FILE_STYLE_ISSUE)[keyof typeof FILE_STYLE_ISSUE];
 
@@ -1701,6 +1710,8 @@ export interface GraphSession {
     estimate(command: SessionCommand): CostEstimate;
     execute<C extends SessionCommand>(command: C): CommandOutcome<C>;
     readonly features: EnabledFeatures;
+    // @beta
+    readonly files: FilesApi;
     find(text: string, options?: FindOptions): FindResult;
     fingerprint(): string;
     // @beta
@@ -1716,6 +1727,8 @@ export interface GraphSession {
     readonly positions: SessionPositions;
     readonly project: ProjectApi;
     recipe(): RecipeDocument;
+    // @beta
+    readonly recipes: RecipesApi;
     recommendLayout(): LayoutRecommendation | undefined;
     redo(): Promise<HistoryOutcome>;
     readonly results: ResultsApi;
@@ -4671,6 +4684,8 @@ export function projectFileName(name: string | null | undefined): string;
 // @public
 export interface ProjectOpenOptions {
     // @beta
+    readonly applyRecipe?: boolean;
+    // @beta
     readonly bindOtherData?: boolean;
     // @beta
     readonly dataMode?: "replace" | "add";
@@ -4731,6 +4746,8 @@ export interface ProjectSaveOptions {
     readonly paths?: Readonly<Record<string, string>>;
     // @beta
     readonly results?: boolean;
+    // @beta
+    readonly rewriteRecipe?: boolean;
     // @beta
     readonly sections?: readonly DocumentSection[];
 }
@@ -4932,6 +4949,12 @@ export interface RecipeJoin {
 
 // @public
 export type RecipeLeftOutCode = "names-elements";
+
+// @beta
+export interface RecipesApi {
+    apply(recipe: ProjectSource): Promise<ProjectOpenReport>;
+    export(): Promise<SavedProject>;
+}
 
 // @public
 export interface RecipeSource {

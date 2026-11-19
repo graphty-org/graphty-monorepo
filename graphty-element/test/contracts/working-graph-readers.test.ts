@@ -154,6 +154,7 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "data.roleCandidate()": "not the graph",
     "data.sourceSettings()": "not the graph",
     "features.has()": "not the graph",
+    "files.kindOf()": "not the graph",
     "project.assetChoices()": "not the graph",
     "results.compare()": "state",
     "selection.members()": "state",
@@ -437,6 +438,9 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     // The project file holds the whole graph (agreed point 5): what the file's data member writes.
     "project.save()": { wholeProbe: async (s) => savedGraph((await s.project.save()).text) },
     "recipe()": "not the graph",
+    "recipes.apply()": "writes",
+    // The recipe names columns, never a node or an edge.
+    "recipes.export()": "not the graph",
     "recommendLayout()": { view: (s) => s.recommendLayout() },
     "redo()": "writes",
     "results.get()": "state",

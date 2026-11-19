@@ -245,7 +245,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     ...(["GraphSession", "ElementSession"] as const).flatMap((root): Exclusion[] => [
         {
             root,
-            members: ["assets", "network", "time", "shaders", "features", "groups", "annotations"],
+            members: ["assets", "network", "time", "shaders", "features", "groups", "annotations", "recipes", "files"],
             reason: "namespace",
             kind: BY_DESIGN,
         },
@@ -634,6 +634,8 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     { root: "NotesApi", members: ["toDocument", "mergeDocument"], reason: "whole-document", kind: BY_DESIGN },
     { root: "ProjectApi", members: ["save", "markSaved", "assetChoices"], reason: "needs-host", kind: BY_DESIGN },
     { root: "ProjectApi", members: ["open"], reason: "replaces-project", kind: BY_DESIGN },
+    { root: "RecipesApi", members: ["export", "apply"], reason: "needs-host", kind: BY_DESIGN },
+    { root: "FilesApi", members: ["kindOf"], reason: "needs-host", kind: BY_DESIGN },
     { root: "SessionConfig", members: ["acceleration"], reason: "machine-preference", kind: BY_DESIGN },
     {
         root: "SessionDataApi",

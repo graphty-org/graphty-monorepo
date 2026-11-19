@@ -80,6 +80,7 @@ import {
 } from "./cost";
 import { headlessDataService, SessionData, sliceRecords } from "./data";
 import { dispatcherOf, registerDispatcher, registerSessionRuns } from "./dispatchers";
+import { FILES_API, type FilesApi } from "./files/kindOf";
 import { createGroupsApi, type GroupsApi } from "./groups";
 import { createJournal, type JournalApi } from "./journal";
 import { type LayoutRecommendation, recommendLayout } from "./layout";
@@ -128,6 +129,7 @@ import { reportCaught } from "./project/strict";
 import { answeringFromProject, type CannedOutcomes, type ProjectApi, projectOf } from "./projectFile";
 import { createQueryEngine, type QueryEngine } from "./query";
 import { type RecipeDocument, recipeOf } from "./recipe";
+import { type RecipesApi, recipesOf } from "./recipes/RecipesApi";
 import { createResultsApi, type ResultsApi, type ResultsRunEntry, type RunRef } from "./results";
 import { resultExecutionOf } from "./results/ResultsApi";
 import { shareNodeIndex } from "./results/RunResult";
@@ -602,6 +604,8 @@ class Session implements ElementSession {
     readonly layout: SessionLayout;
     readonly paint: ElementPaint;
     readonly project: ProjectApi;
+    readonly recipes: RecipesApi;
+    readonly files: FilesApi = FILES_API;
 
     /**
      * Publish what happened to a model a layer names, as `model:changed`.
@@ -919,6 +923,7 @@ class Session implements ElementSession {
                 },
             },
         });
+        this.recipes = recipesOf(this.project, () => this.features);
     }
 
     /**

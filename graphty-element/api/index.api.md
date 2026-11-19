@@ -2735,6 +2735,15 @@ export interface FigureResult {
     width: number;
 }
 
+// @beta
+export type FileKind = "project" | "recipe" | "style" | "document" | "graph";
+
+// @public
+export interface FilesApi {
+    // @beta
+    kindOf(source: ProjectSource): Promise<FileKind>;
+}
+
 // @public
 export interface FindAtLeastRow {
     readonly count: number;
@@ -7656,6 +7665,8 @@ export function projectFileName(name: string | null | undefined): string;
 // @public
 export interface ProjectOpenOptions {
     // @beta
+    readonly applyRecipe?: boolean;
+    // @beta
     readonly bindOtherData?: boolean;
     // @beta
     readonly dataMode?: "replace" | "add";
@@ -7717,6 +7728,8 @@ export interface ProjectSaveOptions {
     // @beta
     readonly results?: boolean;
     // @beta
+    readonly rewriteRecipe?: boolean;
+    // @beta
     readonly sections?: readonly DocumentSection[];
 }
 
@@ -7761,6 +7774,12 @@ export interface QueueableOptions {
     obsoletes?: OperationCategory[];
     respectProgress?: boolean;
     skipQueue?: boolean;
+}
+
+// @beta
+export interface RecipesApi {
+    apply(recipe: ProjectSource): Promise<ProjectOpenReport>;
+    export(): Promise<SavedProject>;
 }
 
 export { RecordBatch }

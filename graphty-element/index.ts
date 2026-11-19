@@ -213,6 +213,7 @@ export type {
 } from "./src/session/notes/types";
 
 // The project file: the whole session as one graphty document, as `element.session.project`
+export type { FileKind, FilesApi } from "./src/session/files/kindOf";
 export type {
     AssetStorage,
     DocumentCode,
@@ -230,6 +231,7 @@ export type {
     SourceStorage,
 } from "./src/session/projectFile";
 export { PROJECT_FILE, projectFileName } from "./src/session/projectFile";
+export type { RecipesApi } from "./src/session/recipes/RecipesApi";
 // What autosave reports: its status, its codes, its entries and what a restore found.
 export type { AutosaveAtRisk } from "./src/autosave/elementAutosave";
 export type {

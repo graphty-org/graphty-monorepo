@@ -262,6 +262,14 @@ export interface ProjectSaveOptions {
      * @beta
      */
     readonly paths?: Readonly<Record<string, string>>;
+    /**
+     * Version 2 only: write the recipe from the session's state even when the session holds a
+     * recipe opened from a file, which is otherwise written back as read. Default false.
+     * @since 3.40.0
+     * @experimental save-files-v2
+     * @beta
+     */
+    readonly rewriteRecipe?: boolean;
 }
 
 /** What the session lends the project file for the loads. */
@@ -405,6 +413,15 @@ export interface ProjectOpenOptions {
      * @beta
      */
     readonly migrate?: boolean;
+    /**
+     * Version 2 only: apply a recipe the file holds to the data open now -- its filters, sets,
+     * runs and layout, in order -- instead of only keeping it for the next save. Default false.
+     * `session.recipes.apply` opens a recipe this way.
+     * @since 3.40.0
+     * @experimental save-files-v2
+     * @beta
+     */
+    readonly applyRecipe?: boolean;
     /**
      * Version 2 only: the URL of the file being opened, which a referenced source's relative
      * `url` or `path` is resolved against. Without it, a referenced source with a relative
@@ -3498,6 +3515,7 @@ export function projectOf(
                 ...(options.results === undefined ? {} : { results: options.results }),
                 ...(options.embed === undefined ? {} : { embed: options.embed }),
                 ...(options.paths === undefined ? {} : { paths: options.paths }),
+                ...(options.rewriteRecipe === undefined ? {} : { rewriteRecipe: options.rewriteRecipe }),
                 extensions,
             },
             isDerived,
@@ -3558,6 +3576,7 @@ export function projectOf(
                 ...(options.rerun === undefined ? {} : { rerun: options.rerun }),
                 ...(options.dataMode === undefined ? {} : { dataMode: options.dataMode }),
                 ...(options.bindOtherData === undefined ? {} : { bindOtherData: options.bindOtherData }),
+                ...(options.applyRecipe === undefined ? {} : { applyRecipe: options.applyRecipe }),
             },
             {
                 canned,
@@ -3606,7 +3625,7 @@ export function projectOf(
             return assetChoices(session);
         },
         save(options = {}) {
-            const versionTwoOnly = (["sections", "form", "results", "embed", "paths"] as const).find(
+            const versionTwoOnly = (["sections", "form", "results", "embed", "paths", "rewriteRecipe"] as const).find(
                 (key) => options[key] !== undefined,
             );
             if (options.format !== 2 && versionTwoOnly !== undefined) {

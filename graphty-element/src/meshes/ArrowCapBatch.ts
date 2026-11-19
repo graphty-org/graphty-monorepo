@@ -3,6 +3,8 @@
 import "@babylonjs/core/Meshes/thinInstanceMesh.js";
 
 import { BoundingBox } from "@babylonjs/core/Culling/boundingBox.js";
+import type { Material } from "@babylonjs/core/Materials/material.js";
+import { MultiMaterial } from "@babylonjs/core/Materials/multiMaterial.js";
 import { Color3 } from "@babylonjs/core/Maths/math.color.js";
 import { Matrix, Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 import type { Mesh } from "@babylonjs/core/Meshes/mesh.js";
@@ -247,10 +249,15 @@ export class ArrowCapBatch {
         // (`arrowMiddleHead`, `arrowMiddleTail`) lies on it, in its plane in 2D and through it in
         // 3D, and the line, drawn at least `minScreenWidth` wide and after the caps, covered it: a
         // middle stem and a middle sphere-dot drew nothing. An end cap is past the line's end, so
-        // pulling caps toward the camera in depth changes nothing there.
-        if (mesh.material) {
-            mesh.material.zOffset = CAP_DEPTH_OFFSET;
-            mesh.material.zOffsetUnits = CAP_DEPTH_OFFSET;
+        // pulling caps toward the camera in depth changes nothing there. A filled open cap carries a
+        // material of two (frame and inside), and each part is drawn with its own offset.
+        const parts: (Material | null)[] =
+            mesh.material instanceof MultiMaterial ? mesh.material.subMaterials : [mesh.material];
+        for (const part of parts) {
+            if (part) {
+                part.zOffset = CAP_DEPTH_OFFSET;
+                part.zOffsetUnits = CAP_DEPTH_OFFSET;
+            }
         }
 
         mesh.thinInstanceSetBuffer("matrix", this.matrices, FLOATS_PER_MATRIX, false);

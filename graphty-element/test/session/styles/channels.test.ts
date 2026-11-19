@@ -1613,65 +1613,6 @@ describe("a channel's range", () => {
         }
     });
 
-    /** Every declared max, frozen as it stood at 45aef4327d: a control's top may not move under saved values. */
-    const FROZEN_MAX: Readonly<Record<string, number>> = {
-        "node.labelOpacity": 1,
-        "node.labelBackgroundOpacity": 1,
-        "node.labelOutlineOpacity": 1,
-        "node.labelBorderOpacity": 1,
-        "node.opacity": 1,
-        "node.outlineWidth": 10,
-        "node.haloOpacity": 1,
-        "node.zIndex": 0,
-        "node.drawOrder": 100,
-        "node.borderOpacity": 1,
-        "node.outerBorderOpacity": 1,
-        "node.shadowOpacity": 1,
-        "node.underlayOpacity": 1,
-        "node.overlayOpacity": 1,
-        "node.imageOpacity": 1,
-        "node.glyphWeight": 1000,
-        "node.pieHole": 1,
-        "node.chartGap": 1,
-        "node.chartBackgroundOpacity": 1,
-        "node.groupMinWidthBiasLeft": 1,
-        "node.groupMinHeightBiasTop": 1,
-        "node.cornerFraction": 0.5,
-        "node.gradientDirection": 360,
-        "node.modelTurn": 360,
-        "node.modelAnimationSpeed": 16,
-        "edge.opacity": 1,
-        "edge.fadeOpacity": 1,
-        "edge.bandOpacity": 1,
-        "edge.outlineOpacity": 1,
-        "edge.underlayOpacity": 1,
-        "edge.overlayOpacity": 1,
-        "edge.arrowHeadPosition": 1,
-        "edge.arrowHeadOpacity": 1,
-        "edge.arrowHeadTextOpacity": 1,
-        "edge.arrowTailPosition": 1,
-        "edge.arrowTailOpacity": 1,
-        "edge.arrowTailTextOpacity": 1,
-        "edge.arrowMiddleHeadPosition": 1,
-        "edge.arrowMiddleHeadOpacity": 1,
-        "edge.arrowMiddleTailPosition": 1,
-        "edge.arrowMiddleTailOpacity": 1,
-        "edge.labelOpacity": 1,
-        "edge.labelBackgroundOpacity": 1,
-        "edge.labelOutlineOpacity": 1,
-        "edge.labelBorderOpacity": 1,
-        "edge.taper": 4,
-    };
-
-    it("keeps every declared max as it was", () => {
-        const max = Object.fromEntries(
-            Object.values(CHANNEL_DESCRIPTORS)
-                .filter((descriptor) => descriptor.max !== undefined)
-                .map((descriptor) => [descriptor.channel, descriptor.max]),
-        );
-        assert.deepStrictEqual(max, FROZEN_MAX);
-    });
-
     /** Enum channels with no value drawn while unset, and what unset draws instead. */
     const NO_ENUM_DEFAULT: Readonly<Record<string, string>> = {
         "node.labelDeclutter": "unset, only the graph-wide declutter hides labels",

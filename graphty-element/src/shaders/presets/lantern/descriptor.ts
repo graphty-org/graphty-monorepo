@@ -12,6 +12,7 @@ export const LANTERN: ShaderDescriptor = Object.freeze({
     id: "lantern",
     plainName: "Lantern",
     target: "node",
+    views: Object.freeze(["3d"] as const),
     place: "paint",
     categories: Object.freeze(["Light"]),
     tags: Object.freeze(["3D"]),

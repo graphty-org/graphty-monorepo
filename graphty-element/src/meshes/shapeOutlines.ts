@@ -538,6 +538,25 @@ export function shapeTexts(text: string | undefined, keepEmpty = false): [number
 }
 
 /**
+ * Whether a shape is drawn with rounded corners whose radius `node.cornerRadius` sets: the round
+ * rectangles and the round-* polygons.
+ * @param shape - A node shape name.
+ * @returns True for those shapes.
+ */
+export function isRoundCornerShape(shape: string): boolean {
+    return Object.hasOwn(ROUND_RECTANGLES, shape) || Object.hasOwn(ROUNDED, shape);
+}
+
+/**
+ * Whether a shape is one of the round rectangles, whose corners `node.cornerFraction` sizes.
+ * @param shape - A node shape name.
+ * @returns True for those shapes.
+ */
+export function isRoundRectangle(shape: string): boolean {
+    return Object.hasOwn(ROUND_RECTANGLES, shape);
+}
+
+/**
  * Whether a shape name is one of the flat outlines this module draws.
  * @param shape - A node shape name.
  * @returns True for the flat shapes.

@@ -105,6 +105,7 @@ const HEADER_KEYS: ReadonlySet<string> = new Set([
     "blend",
     "form",
     "bloom",
+    "views",
     "requires",
     "reads",
     "webgpu",
@@ -503,6 +504,11 @@ const OPTIONAL_KEYS: Readonly<Record<string, (value: unknown) => boolean>> = {
     blend: (value) => value === "over" || value === "add",
     form: (value) => value === "field" || value === "sphere",
     bloom: (value) => typeof value === "boolean",
+    views: (value) =>
+        Array.isArray(value) &&
+        value.length > 0 &&
+        new Set(value).size === value.length &&
+        value.every((entry) => entry === "2d" || entry === "3d"),
     requires: (value) => Array.isArray(value) && value.every((entry) => entry === "webgl2"),
     reads: (value) => Array.isArray(value) && value.every((entry) => INPUTS.has(entry as string)),
     webgpu: (value) => value === "translate" || value === "none",
@@ -1531,7 +1537,17 @@ export function formatShaderText(registration: ShaderRegistration): ShaderText {
         header.motion = motion;
     }
 
-    for (const key of ["reach", "reachParam", "blend", "form", "bloom", "requires", "reads", "webgpu"] as const) {
+    for (const key of [
+        "reach",
+        "reachParam",
+        "blend",
+        "form",
+        "bloom",
+        "views",
+        "requires",
+        "reads",
+        "webgpu",
+    ] as const) {
         if (descriptor[key] !== undefined) {
             header[key] = descriptor[key];
         }

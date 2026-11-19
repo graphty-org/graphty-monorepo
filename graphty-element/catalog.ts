@@ -229,6 +229,7 @@ export type { GeneratorParams } from "@graphty/graph-samples/generators";
 // `src/session/styles/channels.ts`; it is plain data and carries no renderer.
 export type {
     ChannelCaveatCode,
+    ChannelCondition,
     ChannelDescriptor,
     ChannelGroup,
     ChannelValueKind,
@@ -242,6 +243,10 @@ export {
     labelFieldOf,
     PRIMARY_CHANNELS,
 } from "./src/session/styles/channels";
+// Whether a channel or a label style field changes the picture where it is set (its `drawnWhen`),
+// read the one way: an unset channel counts as its default.
+export type { DrawnResult } from "./src/catalog/drawnWhen";
+export { channelDrawn, labelFieldDrawn } from "./src/catalog/drawnWhen";
 // Every value of an enum channel with a default name and picture (`catalog.channelValues`), and the
 // one reader and writer of a list channel's items (`ChannelDescriptor.listOf`).
 export type { ChannelValueDescriptor } from "./src/catalog/channelValues";

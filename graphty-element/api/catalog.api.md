@@ -623,6 +623,20 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>>;
 export type ChannelCaveatCode = never;
 
 // @public
+export type ChannelCondition = {
+    readonly channel: Channel;
+    readonly values: readonly string[];
+} | {
+    readonly channel: Channel;
+    readonly set: true;
+} | {
+    readonly channel: Channel;
+    readonly unset: true;
+} | {
+    readonly dimension: "2d" | "3d";
+};
+
+// @public
 export interface ChannelDescriptor {
     readonly accepts: ChannelValueKind;
     readonly appliesWhen?: {
@@ -633,6 +647,7 @@ export interface ChannelDescriptor {
     readonly caveatCode?: ChannelCaveatCode;
     readonly channel: Channel;
     readonly default?: string | number | boolean;
+    readonly drawnWhen?: readonly ChannelCondition[];
     readonly exclusiveMin?: boolean;
     readonly feature?: "file-styles";
     readonly follows?: Channel;
@@ -660,6 +675,9 @@ export interface ChannelDescriptor {
 
 // @public
 export function channelDescriptor(channel: string): ChannelDescriptor | undefined;
+
+// @public
+export function channelDrawn(channel: Channel, read: (other: Channel) => unknown, dimension: "2d" | "3d"): DrawnResult<ChannelCondition>;
 
 // @public
 export type ChannelGroup = "shape" | "color" | "effects" | "text" | "line" | "arrows";
@@ -774,6 +792,14 @@ export { detectModelFormat }
 
 // @public
 export type DrawingMode = "2d" | "3d";
+
+// @public
+export type DrawnResult<Condition> = {
+    readonly drawn: true;
+} | {
+    readonly drawn: false;
+    readonly unmet: Condition;
+};
 
 // @public
 export const EDGE_ARROW_DESCRIPTORS: readonly GlyphDescriptor<EdgeArrowKind>[];
@@ -1838,6 +1864,23 @@ export type LabelBadge = "notification" | "label" | "label-success" | "label-war
 export type LabelDeclutterOrder = "degree" | "size";
 
 // @public
+export type LabelFieldCondition = {
+    readonly field: keyof LabelStyle;
+    readonly values: readonly string[];
+} | {
+    readonly field: keyof LabelStyle;
+    readonly set: true;
+} | {
+    readonly field: keyof LabelStyle;
+    readonly unset: true;
+} | {
+    readonly dimension: "2d" | "3d";
+};
+
+// @public
+export function labelFieldDrawn(field: keyof LabelStyle, read: (other: keyof LabelStyle) => unknown, dimension: "2d" | "3d"): DrawnResult<LabelFieldCondition>;
+
+// @public
 export type LabelFieldName = "background" | "backgroundOpacity" | "backgroundShape" | "borderAlign" | "borderColor" | "borderOpacity" | "borderWidth" | "box" | "boxPadding" | "color" | "cornerRadius" | "declutter" | "font" | "gapOf" | "italic" | "letterSize" | "lineBox" | "lineHeight" | "location" | "maxLines" | "maxLinesEllipsis" | "minNodeScreenSize" | "minScreenSize" | "offsetX" | "offsetY" | "onTop" | "opacity" | "outline" | "outlineOpacity" | "outlineWidth" | "rotation" | "runAlign" | "shiftOf" | "shiftX" | "shiftY" | "sizePx" | "textAlign" | "weight" | "wrapAnywhere" | "wrapEllipsis" | "wrapSkipEndSpace" | "wrapSpaceCount" | "wrapTrailingSpace" | "wrapWidth";
 
 // @public
@@ -1990,6 +2033,7 @@ export interface LabelStyle {
 export interface LabelStyleFieldDescriptor {
     readonly accepts: LabelFieldValueKind;
     readonly default?: string | number | boolean | readonly string[];
+    readonly drawnWhen?: readonly LabelFieldCondition[];
     readonly exclusiveMin?: boolean;
     readonly field: keyof LabelStyle;
     readonly integer?: boolean;
@@ -2370,13 +2414,18 @@ export type ModelTurnStep = "left" | "right" | "forward" | "back";
 export type ModelUpAxis = "y" | "z" | "-y" | "-z" | "x" | "-x";
 
 // @public
-export const NODE_SHAPE_DESCRIPTORS: readonly GlyphDescriptor<NodeShape>[];
+export const NODE_SHAPE_DESCRIPTORS: readonly NodeShapeDescriptor[];
 
 // @public
 export type NodeId = string | number;
 
 // @public
 export type NodeShape = NonNullable<NonNullable<NodeStyleConfig["shape"]>["type"]>;
+
+// @public
+export interface NodeShapeDescriptor extends GlyphDescriptor<NodeShape> {
+    readonly flat: boolean;
+}
 
 // @beta
 export interface NonemptyLeaf {
@@ -3048,6 +3097,7 @@ export interface ShaderDescriptor {
     readonly tags?: readonly string[];
     readonly target: ShaderTarget;
     readonly thumbnail?: string;
+    readonly views?: readonly ("2d" | "3d")[];
     readonly webgpu: ShaderWebGpu;
 }
 

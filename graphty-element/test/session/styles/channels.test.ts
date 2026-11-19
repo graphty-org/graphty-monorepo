@@ -1,7 +1,7 @@
 import { assert, describe, it } from "vitest";
 
-import { LABEL_STYLE_FIELDS } from "../../../src/catalog/label-style";
-import type { Binding, EdgeLinePattern } from "../../../src/catalog/types";
+import { LABEL_STYLE_DESCRIPTORS, LABEL_STYLE_FIELDS } from "../../../src/catalog/label-style";
+import type { Binding, Channel, EdgeLinePattern } from "../../../src/catalog/types";
 import { defaultEdgeStyle } from "../../../src/config/EdgeStyle";
 import { defaultNodeStyle, NodeShapes } from "../../../src/config/NodeStyle";
 import {
@@ -1297,5 +1297,124 @@ describe("ChannelDescriptor.appliesWhen", () => {
             values: ["linear"],
         });
         assert.deepStrictEqual(CHANNEL_DESCRIPTORS["node.gradientRadius"].appliesWhen?.values, ["radial"]);
+    });
+});
+
+describe("ChannelDescriptor.drawnWhen", () => {
+    /** Whether a condition value is one a channel takes. */
+    const takes = (channel: Channel, value: string): boolean => {
+        const descriptor = CHANNEL_DESCRIPTORS[channel];
+        if (descriptor.accepts === "boolean") {
+            return value === "true" || value === "false";
+        }
+
+        return descriptor.values?.includes(value) === true;
+    };
+
+    it("starts with appliesWhen, where a channel has one", () => {
+        for (const descriptor of Object.values(CHANNEL_DESCRIPTORS)) {
+            if (descriptor.appliesWhen === undefined) {
+                continue;
+            }
+
+            const first = descriptor.drawnWhen?.find((condition) => "channel" in condition && "values" in condition);
+            assert.deepStrictEqual(first, descriptor.appliesWhen, descriptor.channel);
+        }
+    });
+
+    it("names channels that exist, by values they take", () => {
+        for (const descriptor of Object.values(CHANNEL_DESCRIPTORS)) {
+            for (const condition of descriptor.drawnWhen ?? []) {
+                if ("dimension" in condition) {
+                    assert.include(["2d", "3d"], condition.dimension, descriptor.channel);
+                    continue;
+                }
+
+                assert.isDefined(CHANNEL_DESCRIPTORS[condition.channel], `${descriptor.channel}: ${condition.channel}`);
+                assert.notStrictEqual(condition.channel, descriptor.channel, `${descriptor.channel} names itself`);
+                if ("values" in condition) {
+                    assert.isAbove(condition.values.length, 0, descriptor.channel);
+                    for (const value of condition.values) {
+                        assert.isTrue(
+                            takes(condition.channel, value),
+                            `${descriptor.channel}: ${condition.channel} ${value}`,
+                        );
+                    }
+                }
+            }
+        }
+    });
+
+    it("names label fields that exist, by values they take", () => {
+        const fields = new Map(LABEL_STYLE_DESCRIPTORS.map((descriptor) => [descriptor.field, descriptor]));
+        for (const descriptor of LABEL_STYLE_DESCRIPTORS) {
+            for (const condition of descriptor.drawnWhen ?? []) {
+                if ("dimension" in condition) {
+                    continue;
+                }
+
+                const other = fields.get(condition.field);
+                assert.isDefined(other, `${descriptor.field}: ${condition.field}`);
+                assert.notStrictEqual(condition.field, descriptor.field);
+                if ("values" in condition) {
+                    for (const value of condition.values) {
+                        const ok =
+                            other.accepts === "boolean"
+                                ? value === "true" || value === "false"
+                                : other.values?.includes(value);
+                        assert.isTrue(ok, `${descriptor.field}: ${condition.field} ${value}`);
+                    }
+                }
+            }
+        }
+    });
+
+    /**
+     * Channels whose caveat says they are ignored somewhere, and why that is not a drawn-when
+     * condition: what the sentence describes is not a value of another channel or the view.
+     */
+    const CAVEAT_ALLOWED: Readonly<Record<string, string>> = {
+        "node.tooltip": "drawn on hover: the condition is the pointer, not a channel",
+        "node.tooltipStyle": "drawn on hover: the condition is the pointer, not a channel",
+        "node.tooltipSize": "drawn on hover: the condition is the pointer, not a channel",
+        "node.tooltipColor": "drawn on hover: the condition is the pointer, not a channel",
+        "node.tooltipBackground": "drawn on hover: the condition is the pointer, not a channel",
+        "node.borderColor": "turns to face the camera in 3D; drawn in both views",
+        "node.borderWidth": "turns to face the camera in 3D; drawn in both views",
+        "node.borderOpacity": "turns to face the camera in 3D; drawn in both views",
+        "node.borderStyle": "turns to face the camera in 3D; drawn in both views",
+        "node.texture": "replaces a model's base color texture; drawn on every node",
+        "edge.nodeGap": "a self-loop ignores it: a fact of the edge's ends, not a channel",
+        "edge.sourceNodeGap": "a self-loop ignores it: a fact of the edge's ends, not a channel",
+        "edge.targetNodeGap": "a self-loop ignores it: a fact of the edge's ends, not a channel",
+    };
+
+    it("covers every caveat that says a channel is ignored somewhere", () => {
+        const says = /in 2D|3D view|Solids ignore|Other shapes ignore|ignores it|changes nothing|replaces/;
+        const missing = Object.values(CHANNEL_DESCRIPTORS)
+            .filter((descriptor) => says.test(descriptor.caveat ?? ""))
+            .filter(
+                (descriptor) => descriptor.drawnWhen === undefined && CAVEAT_ALLOWED[descriptor.channel] === undefined,
+            )
+            .map((descriptor) => descriptor.channel);
+        assert.deepStrictEqual(missing, []);
+        for (const channel of Object.keys(CAVEAT_ALLOWED)) {
+            assert.isUndefined(
+                CHANNEL_DESCRIPTORS[channel as Channel].drawnWhen,
+                `${channel} needs no allow-list entry`,
+            );
+        }
+    });
+
+    it("says which channels draw in one view only, and that an animated edge is a straight solid line", () => {
+        assert.deepStrictEqual(CHANNEL_DESCRIPTORS["node.zIndex"].drawnWhen, [{ dimension: "2d" }]);
+        assert.deepStrictEqual(CHANNEL_DESCRIPTORS["node.unlit"].drawnWhen, [{ dimension: "3d" }]);
+        assert.deepStrictEqual(CHANNEL_DESCRIPTORS["edge.animationSpeed"].drawnWhen, [
+            { channel: "edge.style", values: ["solid"] },
+            { channel: "edge.curvature", values: ["false"] },
+        ]);
+        assert.deepStrictEqual(CHANNEL_DESCRIPTORS["edge.supportModel"].drawnWhen, [
+            { channel: "edge.curvature", values: ["true"] },
+        ]);
     });
 });

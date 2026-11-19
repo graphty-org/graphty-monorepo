@@ -22,6 +22,7 @@ export type {
     LabelAnimation,
     LabelBadge,
     LabelDeclutterOrder,
+    LabelFieldCondition,
     LabelFieldValueKind,
     LabelGradientDirection,
     LabelGradientType,
@@ -41,7 +42,7 @@ export {
 } from "./label-style";
 export type { OptionsFromZodOptions, OptionsSource, OptionUiMeta } from "./optionsFromZod";
 export { optionsFromZod } from "./optionsFromZod";
-export type { EdgeArrowKind, GlyphDescriptor, NodeShape } from "./shapes";
+export type { EdgeArrowKind, GlyphDescriptor, NodeShape, NodeShapeDescriptor } from "./shapes";
 export { EDGE_ARROW_DESCRIPTORS, EDGE_LINE_DESCRIPTORS, NODE_SHAPE_DESCRIPTORS } from "./shapes";
 export type {
     AlgorithmDescriptor,

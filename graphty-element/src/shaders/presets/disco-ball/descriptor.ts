@@ -12,6 +12,7 @@ export const DISCO_BALL: ShaderDescriptor = Object.freeze({
     id: "disco-ball",
     plainName: "Disco ball",
     target: "node",
+    views: Object.freeze(["3d"] as const),
     place: "paint",
     categories: Object.freeze(["Sparkle"]),
     tags: Object.freeze(["shiny", "3D", "metal"]),

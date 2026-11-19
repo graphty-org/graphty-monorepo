@@ -486,6 +486,13 @@ export interface ShaderDescriptor {
     readonly requires?: readonly ShaderRequirement[];
     /** Whether it contributes to the shared bloom pass. */
     readonly bloom?: boolean;
+    /**
+     * The views it draws anything in: `["3d"]` on a shader whose look needs a lit, turning solid
+     * (a gemstone's facets), so a 2D view shows nothing of it. Absent means both views. A shader
+     * text's header may declare it (`"views": ["2d"]`), so a custom shader carries the same fact.
+     * @since 3.62.0
+     */
+    readonly views?: readonly ("2d" | "3d")[];
     /** Square-drawn places and `along`: the drawn size is `reach` times the radius, 1 to 6. Absent means 1. */
     readonly reach?: number;
     /** Stacking places and group outlines: how the result combines. Absent means `"over"`. */

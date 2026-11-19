@@ -84,6 +84,7 @@ import {
     FILE_STYLE_NODE_SHAPES,
     FILE_STYLE_SIZE_MODES,
 } from "../../features/fileStyles";
+import { isFlatShape, isRoundCornerShape, isRoundRectangle } from "../../meshes/shapeOutlines";
 import { isAssetId } from "../assets/assetId";
 
 // ---------------------------------------------------------------------------------------------
@@ -994,10 +995,34 @@ export interface ChannelDescriptor {
      * while that channel holds one of them: a gradient's direction only on a linear gradient, a
      * dash's length only on a dashed or dotted line. An unset `channel` counts as its `default`. A
      * style editor offers the setting only then. Absent on a channel drawn whatever another holds.
+     * It is the first channel condition of {@link ChannelDescriptor.drawnWhen}, kept for readers
+     * written before that list; read `drawnWhen` (or `channelDrawn`) for every condition.
      * @since 3.59.0
      */
     readonly appliesWhen?: { readonly channel: Channel; readonly values: readonly string[] };
+    /**
+     * Everything that must hold for the channel to change the picture, every one of them: a value
+     * another channel holds, another channel set or unset, or the view (`"2d"` or `"3d"`). A node's
+     * draw order only in 2D; a support point only on a curved edge; a polygon's corners only on a
+     * polygon. Evaluate it with `channelDrawn` from the `./catalog` entry, which reads an unset
+     * channel as its default. Absent on a channel drawn whenever it is set.
+     * @since 3.62.0
+     */
+    readonly drawnWhen?: readonly ChannelCondition[];
 }
+
+/**
+ * One thing that must hold for a channel to change the picture (see
+ * {@link ChannelDescriptor.drawnWhen}): another channel holds one of `values` (a boolean is written
+ * `"true"` or `"false"`, a number as its digits; an unset channel counts as its default), another
+ * channel is `set` to anything, another channel is `unset`, or the view is `dimension`.
+ * @since 3.62.0
+ */
+export type ChannelCondition =
+    | { readonly channel: Channel; readonly values: readonly string[] }
+    | { readonly channel: Channel; readonly set: true }
+    | { readonly channel: Channel; readonly unset: true }
+    | { readonly dimension: "2d" | "3d" };
 
 /**
  * A caveat a channel carries, as a code. No channel carries one now: `"outline.sharedWidth"`
@@ -5388,6 +5413,142 @@ const APPLIES_WHEN: ReadonlyMap<string, NonNullable<ChannelDescriptor["appliesWh
     ["edge.wavePeriod", { channel: "edge.style", values: ["sinewave", "zigzag"] }],
 ] satisfies [Channel, NonNullable<ChannelDescriptor["appliesWhen"]>][]);
 
+/** The node shapes drawn as flat outlines, read from the renderer's own test. */
+const FLAT_SHAPES: readonly string[] = NODE_SHAPE_VALUES.filter((shape) => isFlatShape(shape));
+
+/** The node shapes whose corners `node.cornerRadius` rounds. */
+const ROUND_CORNER_SHAPES: readonly string[] = NODE_SHAPE_VALUES.filter((shape) => isRoundCornerShape(shape));
+
+/** The line patterns drawn as separate elements a count caps: every one but solid, zigzag and sinewave. */
+const COUNTED_PATTERNS: readonly string[] = EdgeLineTypes.options.filter(
+    (style) => style !== "solid" && style !== "zigzag" && style !== "sinewave",
+);
+
+const ONLY_2D: ChannelCondition = { dimension: "2d" };
+const ONLY_3D: ChannelCondition = { dimension: "3d" };
+const CURVED: ChannelCondition = { channel: "edge.curvature", values: ["true"] };
+const FLAT_SHAPE: ChannelCondition = { channel: "node.shape", values: FLAT_SHAPES };
+const LABEL_FIT: ChannelCondition = { channel: "node.labelFit", set: true };
+const MODEL: ChannelCondition = { channel: "node.model", set: true };
+const BLENDED: ChannelCondition = { channel: "edge.blending", values: ["true"] };
+const IMAGE_AT_OWN_SIZE: ChannelCondition = { channel: "node.imageFit", values: ["none"] };
+const SUPPORT: readonly ChannelCondition[] = [CURVED, { channel: "edge.supportModel", set: true }];
+const SHAPE_LINES: readonly ChannelCondition[] = [FLAT_SHAPE, { channel: "node.shapeLines", set: true }];
+
+/**
+ * What each channel needs beyond {@link APPLIES_WHEN} to change the picture, read from its
+ * caveat: see {@link ChannelDescriptor.drawnWhen}. `test/session/styles/channels.test.ts` fails
+ * when a caveat says a channel is ignored somewhere and it has no entry here or in its allow-list.
+ */
+const DRAWN_WHEN: ReadonlyMap<string, readonly ChannelCondition[]> = new Map<Channel, readonly ChannelCondition[]>([
+    // "3D views draw by real depth and ignore it."
+    ["node.zIndex", [ONLY_2D]],
+    ["node.drawOrder", [ONLY_2D]],
+    // "In 2D every node is drawn unlit already, so it changes nothing there."
+    ["node.unlit", [ONLY_3D]],
+    ["node.flat", [ONLY_3D]],
+    // A 2D view draws every node thin already.
+    ["node.planar", [ONLY_3D]],
+    // "Drawn only for a flat layout in the 3D view."
+    ["edge.lift", [ONLY_3D]],
+    // "An edge animates only where it is a straight solid line."
+    [
+        "edge.animationSpeed",
+        [
+            { channel: "edge.style", values: ["solid"] },
+            { channel: "edge.curvature", values: ["false"] },
+        ],
+    ],
+    // "A straight route ignores it."
+    ["edge.arcHeight", [{ channel: "edge.route", values: ["arc", "great-circle"] }]],
+    // "A straight edge ignores it."
+    ["edge.supportModel", [CURVED]],
+    ["edge.supportSpringLength", SUPPORT],
+    ["edge.supportSpringConstant", SUPPORT],
+    ["edge.supportRepulsion", SUPPORT],
+    ["edge.supportCentralGravity", SUPPORT],
+    ["edge.supportUnit", SUPPORT],
+    ["edge.supportScale", SUPPORT],
+    ["edge.arcRadius", [CURVED]],
+    ["edge.bendCurve", [CURVED]],
+    ["edge.fanned", [CURVED]],
+    ["edge.fanSpacing", [CURVED]],
+    // "It applies to a patterned line only."
+    ["edge.patternCount", [{ channel: "edge.style", values: COUNTED_PATTERNS }]],
+    // "Drawn on solid lines."
+    ["edge.gradientColors", [{ channel: "edge.style", values: ["solid"] }]],
+    ["edge.gradientStops", [{ channel: "edge.style", values: ["solid"] }]],
+    ["edge.gradientKind", [{ channel: "edge.style", values: ["solid"] }]],
+    // "Every pixel the line covers is its color at full strength" without blending.
+    ["edge.opacity", [BLENDED]],
+    ["edge.fadeEnd", [BLENDED]],
+    ["edge.fadeStart", [BLENDED, { channel: "edge.fadeEnd", set: true }]],
+    ["edge.fadeOpacity", [BLENDED, { channel: "edge.fadeEnd", set: true }]],
+    // "Other shapes ignore it."
+    ["node.cornerRadius", [{ channel: "node.shape", values: ROUND_CORNER_SHAPES }]],
+    ["node.exactCornerRadius", [{ channel: "node.shape", values: ROUND_CORNER_SHAPES }]],
+    [
+        "node.cornerFraction",
+        [
+            { channel: "node.shape", values: NODE_SHAPE_VALUES.filter((shape) => isRoundRectangle(shape)) },
+            { channel: "node.exactCornerRadius", values: ["false"] },
+        ],
+    ],
+    ["node.shapePoints", [{ channel: "node.shape", values: ["polygon", "round-polygon"] }]],
+    ["node.shapeStretchPoints", [{ channel: "node.shape", values: ["polygon", "round-polygon"] }]],
+    // "Solids ignore it."
+    ["node.shapeRotation", [FLAT_SHAPE]],
+    ["node.shapeParts", [FLAT_SHAPE]],
+    ["node.shapeLines", [FLAT_SHAPE]],
+    ["node.shapeLineWidth", SHAPE_LINES],
+    ["node.shapeLineHaloColor", SHAPE_LINES],
+    ["node.shapeLineHaloWidth", SHAPE_LINES],
+    // Raised edge imitates a flat bevel cut to the node's outline.
+    ["node.raisedBorderWidth", [FLAT_SHAPE]],
+    ["node.raisedBorderLightColor", [FLAT_SHAPE]],
+    ["node.raisedBorderDarkColor", [FLAT_SHAPE]],
+    // A zigzag or sinewave border's wave.
+    ["node.borderWaveAmplitude", [{ channel: "node.borderStyle", values: ["zigzag", "sinewave"] }]],
+    ["node.borderWavePeriod", [{ channel: "node.borderStyle", values: ["zigzag", "sinewave"] }]],
+    // "Without `node.labelFit` it changes nothing."
+    ["node.labelPaddingX", [LABEL_FIT]],
+    ["node.labelPaddingY", [LABEL_FIT]],
+    ["node.labelFitSquare", [LABEL_FIT]],
+    ["node.labelFitQuantum", [LABEL_FIT]],
+    ["node.labelFitImage", [LABEL_FIT]],
+    ["node.labelFitImagePadding", [LABEL_FIT, { channel: "node.labelFitImage", set: true }]],
+    // A model's settings, only on a node drawn as a model.
+    ...(
+        [
+            "node.modelSourceUp",
+            "node.modelTurn",
+            "node.modelTint",
+            "node.modelAnimation",
+            "node.modelAnimationSpeed",
+            "node.modelAnimationOffset",
+            "node.modelDoubleSided",
+            "node.modelFit",
+            "node.modelCenter",
+        ] as const
+    ).map((channel): [Channel, readonly ChannelCondition[]] => [channel, [MODEL]]),
+    // "A cap of another type ignores it."
+    ["edge.arrowHeadImage", [{ channel: "edge.arrowHead", values: ["image"] }]],
+    ["edge.arrowTailImage", [{ channel: "edge.arrowTail", values: ["image"] }]],
+    ["edge.arrowMiddleHeadImage", [{ channel: "edge.arrowMiddleHead", values: ["image"] }]],
+    ["edge.arrowMiddleTailImage", [{ channel: "edge.arrowMiddleTail", values: ["image"] }]],
+    // A picture drawn at a size of its own (`node.imageFit` "none").
+    ["node.imageWidth", [IMAGE_AT_OWN_SIZE]],
+    ["node.imageHeight", [IMAGE_AT_OWN_SIZE]],
+    ["node.imagePixelSize", [IMAGE_AT_OWN_SIZE]],
+    ["node.imageAutoSize", [IMAGE_AT_OWN_SIZE]],
+    // A chart's line width only on a line chart; its border and background settings only with a color.
+    ["node.chartLineWidth", [{ channel: "node.chartKind", values: ["line"] }]],
+    ["node.chartBorderWidth", [{ channel: "node.chartBorderColor", set: true }]],
+    ["node.chartBackgroundOpacity", [{ channel: "node.chartBackgroundColor", set: true }]],
+    // What a group's padding is a share of, only with a share.
+    ["node.groupPaddingOf", [{ channel: "node.groupPaddingRatio", set: true }]],
+]);
+
 /**
  * How far one step moves a number channel: see {@link ChannelDescriptor.step}.
  * @param descriptor - The declared descriptor.
@@ -5418,6 +5579,10 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
         const modifies = MODIFIES.get(descriptor.channel);
         const listOf = LIST_OF.get(descriptor.channel);
         const appliesWhen = APPLIES_WHEN.get(descriptor.channel);
+        const drawnWhen = [
+            ...(appliesWhen === undefined ? [] : [appliesWhen]),
+            ...(DRAWN_WHEN.get(descriptor.channel) ?? []),
+        ];
 
         return [
             descriptor.channel,
@@ -5428,6 +5593,7 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
                 ...(modifies === undefined ? {} : { modifies }),
                 ...(listOf === undefined ? {} : { listOf }),
                 ...(appliesWhen === undefined ? {} : { appliesWhen }),
+                ...(drawnWhen.length === 0 ? {} : { drawnWhen: Object.freeze(drawnWhen) }),
                 // @experimental file-styles
                 ...(FILE_STYLE_CHANNELS.has(descriptor.channel) ? { feature: "file-styles" as const } : {}),
             },

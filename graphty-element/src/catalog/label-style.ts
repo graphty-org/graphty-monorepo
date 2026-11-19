@@ -758,9 +758,81 @@ export interface LabelStyleFieldDescriptor {
     readonly integer?: boolean;
     /** What is drawn while nothing sets it, as {@link LABEL_STYLE_DEFAULTS} says; absent when nothing is. */
     readonly default?: string | number | boolean | readonly string[];
+    /**
+     * Everything that must hold, in the same label style, for the field to change the picture:
+     * a background's corner only with a background, a margin only while `boxPadding` is unset.
+     * Evaluate it with `labelFieldDrawn` from the `./catalog` entry. Absent on a field drawn
+     * whenever it is set.
+     * @since 3.62.0
+     */
+    readonly drawnWhen?: readonly LabelFieldCondition[];
 }
 
-type FieldRow = Omit<LabelStyleFieldDescriptor, "field" | "default">;
+/**
+ * One thing that must hold for a label style field to change the picture (see
+ * {@link LabelStyleFieldDescriptor.drawnWhen}): another field of the same style holds one of
+ * `values` (a boolean written `"true"` or `"false"`; an unset field counts as its default), is
+ * `set`, is `unset`, or the view is `dimension`.
+ * @since 3.62.0
+ */
+export type LabelFieldCondition =
+    | { readonly field: keyof LabelStyle; readonly values: readonly string[] }
+    | { readonly field: keyof LabelStyle; readonly set: true }
+    | { readonly field: keyof LabelStyle; readonly unset: true }
+    | { readonly dimension: "2d" | "3d" };
+
+type FieldRow = Omit<LabelStyleFieldDescriptor, "field" | "default" | "drawnWhen">;
+
+const isSet = (field: keyof LabelStyle): LabelFieldCondition => ({ field, set: true });
+const isOn = (field: keyof LabelStyle): LabelFieldCondition => ({ field, values: ["true"] });
+const MARGINS: readonly LabelFieldCondition[] = [{ field: "boxPadding", unset: true }];
+const BACKGROUND: readonly LabelFieldCondition[] = [isSet("background")];
+
+/** What each field needs from its siblings to change the picture: see {@link LabelStyleFieldDescriptor.drawnWhen}. */
+const FIELD_DRAWN_WHEN: Partial<Record<keyof LabelStyle, readonly LabelFieldCondition[]>> = {
+    // "Set, it replaces the margins and `padding`."
+    marginTop: MARGINS,
+    marginBottom: MARGINS,
+    marginLeft: MARGINS,
+    marginRight: MARGINS,
+    padding: [...BACKGROUND, ...MARGINS],
+    backgroundOpacity: BACKGROUND,
+    backgroundShape: BACKGROUND,
+    cornerRadius: BACKGROUND,
+    borderWidth: [isSet("borderColor")],
+    borderAlign: [isSet("borderColor")],
+    borderOpacity: [isSet("borderColor")],
+    // "Writing one is what switches the outline on."
+    outlineWidth: [isSet("outline")],
+    outlineOpacity: [isSet("outline")],
+    gradientType: [isOn("gradient")],
+    gradientColors: [isOn("gradient")],
+    gradientDirection: [isOn("gradient"), { field: "gradientType", values: ["linear"] }],
+    maxLinesEllipsis: [isSet("maxLines")],
+    wrapTrailingSpace: [isSet("wrapWidth")],
+    wrapSkipEndSpace: [isSet("wrapWidth")],
+    wrapEllipsis: [isSet("wrapWidth")],
+    wrapAnywhere: [isSet("wrapWidth")],
+    wrapSpaceCount: [isSet("wrapWidth")],
+    pointerDirection: [isOn("pointer")],
+    pointerWidth: [isOn("pointer")],
+    pointerHeight: [isOn("pointer")],
+    pointerOffset: [isOn("pointer")],
+    pointerCurve: [isOn("pointer")],
+    shadowColor: [isOn("shadow")],
+    shadowBlur: [isOn("shadow")],
+    shadowOffsetX: [isOn("shadow")],
+    shadowOffsetY: [isOn("shadow")],
+    panelShadowColor: [isOn("panelShadow")],
+    panelShadowBlur: [isOn("panelShadow")],
+    panelShadowOffsetX: [isOn("panelShadow")],
+    panelShadowOffsetY: [isOn("panelShadow")],
+    depthFadeNear: [isOn("depthFade")],
+    depthFadeFar: [isOn("depthFade")],
+    animationSpeed: [{ field: "animation", values: ["pulse", "bounce", "shake", "glow", "fill"] }],
+    progress: [{ field: "badge", values: ["progress"] }],
+    iconPosition: [isSet("icon")],
+};
 
 const num = (plainName: string, bounds: Partial<FieldRow> = {}): FieldRow => ({
     plainName,
@@ -926,10 +998,12 @@ const FIELD_ROWS = {
 export const LABEL_STYLE_DESCRIPTORS: readonly LabelStyleFieldDescriptor[] = Object.freeze(
     LABEL_STYLE_FIELDS.map((field): LabelStyleFieldDescriptor => {
         const value = LABEL_STYLE_DEFAULTS[field];
+        const drawnWhen = FIELD_DRAWN_WHEN[field];
         return Object.freeze({
             field,
             ...FIELD_ROWS[field],
             ...(value === undefined ? {} : { default: value }),
+            ...(drawnWhen === undefined ? {} : { drawnWhen }),
         });
     }),
 );

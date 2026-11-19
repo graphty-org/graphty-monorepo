@@ -3016,6 +3016,7 @@ export interface ShaderDescriptor {
     readonly tags?: readonly string[];
     readonly target: ShaderTarget;
     readonly thumbnail?: string;
+    readonly views?: readonly ("2d" | "3d")[];
     readonly webgpu: ShaderWebGpu;
 }
 

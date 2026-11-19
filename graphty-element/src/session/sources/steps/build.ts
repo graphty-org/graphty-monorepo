@@ -961,10 +961,14 @@ class Builder {
         }
     }
 
-    // One edge end: whether it found a node already built, by the space it looks in.
-    private end(st: StepStats, space: string, met: boolean, at: DrillUnit): void {
-        bump(met ? st.endsMeet : st.endsMissing, space);
-        this.mark(st, met ? "endsMeet" : "endsMissing", { ...at, name: space });
+    // One edge end: the node already built it found (its id), else none, by the space it looks in.
+    private end(st: StepStats, space: string, met: string | undefined, at: DrillUnit): void {
+        bump(met === undefined ? st.endsMissing : st.endsMeet, space);
+        this.mark(
+            st,
+            met === undefined ? "endsMissing" : "endsMeet",
+            met === undefined ? { ...at, name: space } : { ...at, name: space, element: met },
+        );
     }
 
     private bind(op: Extract<ReaderOp, { op: "remove" | "edit" }>): BuiltNode | BuiltEdge | null {
@@ -1179,9 +1183,9 @@ class Builder {
                 return;
             }
             const here = { table: "edges", row: i } as const;
-            this.end(st, sSpace, this.resolve(sSpace, text(a)) !== undefined, here);
+            this.end(st, sSpace, this.resolve(sSpace, text(a)), here);
             const na = this.node(sSpace, text(a), { source: s.source, end: "source" }, r, st, how);
-            this.end(st, tSpace, this.resolve(tSpace, text(b)) !== undefined, here);
+            this.end(st, tSpace, this.resolve(tSpace, text(b)), here);
             const nb = this.node(tSpace, text(b), { source: s.source, end: "target" }, r, st, how);
             for (const n of [na, nb]) {
                 if (n?.space === own) {
@@ -1316,12 +1320,11 @@ class Builder {
                 continue;
             }
             st.matched++;
-            this.mark(st, "matched", here);
             reach(a.n, s.source);
             reach(b.n, s.source);
             const skip = new Set([rd.source, rd.target, rd.edgeId]);
             const cols = s.columns ?? Object.keys(r).filter((c) => !skip.has(c));
-            this.addEdge(s, si, st, {
+            const made = this.addEdge(s, si, st, {
                 load: s.source,
                 key: edgeStepKey(s, src, r, i, a.n, b.n),
                 from: a.n,
@@ -1336,6 +1339,7 @@ class Builder {
                 ends: { source: rd.source, target: rd.target },
                 repeated: s.repeated,
             });
+            this.mark(st, "matched", { ...here, element: made });
         }
         this.reportEmpty(s.source, empties);
     }
@@ -1383,13 +1387,13 @@ class Builder {
                 return { miss: "left-out:fan-out" };
             }
             const n = ids.length === 1 ? this.nodes.get(ids[0]) : undefined;
-            this.end(st, n?.space ?? space, n !== undefined, at);
+            this.end(st, n?.space ?? space, n?.id, at);
             return n ? { n } : { miss: "left-out:unmatched" };
         }
         const how = s.unmatchedRows ?? this.source(s.source).settings?.unmatched ?? "add";
         const idx = loose === null ? null : this.looseKeys(loose, space, s);
         const key = idx?.get(normalize(v, s)) ?? text(v);
-        this.end(st, space, this.resolve(space, key) !== undefined, at);
+        this.end(st, space, this.resolve(space, key), at);
         const n = this.node(space, key, { source: s.source, part: s.part, end: which }, r, st, how);
         if (n && idx && !idx.has(normalize(v, s))) {
             idx.set(normalize(v, s), n.key);
@@ -1439,14 +1443,15 @@ class Builder {
         }
     }
 
-    // One edge, keyed { load, key }, reduced by the step's `repeated`, else the graph's repeatedEdges (3.4, 3.8).
-    private addEdge(step: Step, si: number, st: StepStats, a: EdgeArgs): void {
+    // One edge, keyed { load, key }, reduced by the step's `repeated`, else the graph's repeatedEdges (3.4, 3.8);
+    // returns the id of the edge the row went into.
+    private addEdge(step: Step, si: number, st: StepStats, a: EdgeArgs): string {
         const id = edgeId(a.load, a.key);
         const { w, meaning, weightDefault, timeCol } = edgeRoles(a);
         const existing = this.edges.get(id);
         if (existing) {
             this.repeatEdge(existing, step, si, st, a, timeCol);
-            return;
+            return existing.id;
         }
         const policy = a.repeated === undefined ? (this.input.repeatedEdges ?? "keep") : "keep";
         const type = typeOf(this.types, "edge", a.ctx, a.row);
@@ -1463,7 +1468,7 @@ class Builder {
                 this.edgeAliases.set(id, twin.id);
                 span(twin, a, timeCol);
                 reduceWeight(twin, policy, w, meaning, weightDefault);
-                return;
+                return twin.id;
             }
         }
         const e: BuiltEdge = {
@@ -1499,6 +1504,7 @@ class Builder {
             this.write(e, c, v, { src: a.load, si, row: a.index, step, st });
         }
         span(e, a, timeCol);
+        return e.id;
     }
 
     // A second row with an existing edge's key: the step's `repeated`, else E_EDGE_KEY_COLLISION (3.3).

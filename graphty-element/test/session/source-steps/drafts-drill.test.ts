@@ -360,6 +360,21 @@ describe("source-steps drafts: every count's rows add up to it", () => {
             ],
         );
         assert.lengthOf(pv.elements({ step: edges.index, bucket: "newEdges" }), 5);
+        // The matched rows are the rows the commit turns into edges, as newEdges reports them.
+        const matched = pv.rows({ step: edges.index, bucket: "matched" });
+        assert.strictEqual(matched.total, 5);
+        assert.deepStrictEqual(
+            matched.rows.map((r) => [r.key, r.effect, r.element]),
+            pv.rows({ step: edges.index, bucket: "newEdges" }).rows.map((r) => [r.key, "added", r.element]),
+        );
+        assert.lengthOf(pv.elements({ step: edges.index, bucket: "matched" }), 5);
+        // An end that meets names the node it met, so its row is never shown as left out.
+        const meet = pv.rows({ step: edges.index, bucket: "endsMeet", name: "person" });
+        assert.strictEqual(meet.total, 5);
+        for (const r of meet.rows) {
+            assert.notStrictEqual(r.effect, "left-out", `${String(r.key)} met a person`);
+            assert.deepInclude(r.element, { space: "person" });
+        }
         session.dispose();
     });
 });

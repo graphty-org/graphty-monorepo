@@ -702,7 +702,7 @@ const ABORT_CHECK_INTERVAL = 64;
 
 /**
  * Header names made unique within the table: a repeated name becomes `<name>#<position>` (1-based,
- * the CSV analogue of the `#<origin.id>` rule of design section 5.6) and is reported.
+ * the CSV analog of the `#<origin.id>` rule of design section 5.6) and is reported.
  * @param names - the header names
  * @param report - the report
  * @param line - the header line
@@ -825,7 +825,7 @@ function parseKind(text: string): EdgeKind | null | undefined {
  * @returns the id text and the weight (undefined when the cell has none)
  * @category Plugin helpers
  */
-export function splitNeighbour(
+export function splitNeighbor(
     text: string,
     report?: ImportReportBuilder,
 ): { readonly id: string; readonly weight: number | undefined } {
@@ -1885,7 +1885,7 @@ class TableReader {
             const text = idCell(row[k], quoted[k]);
             where.element = text;
             try {
-                const cell = splitNeighbour(text, report);
+                const cell = splitNeighbor(text, report);
                 const target = this.coerce(cell.id);
                 const targetNew = sink.indexOf(target) === INVALID_INDEX;
                 const before = sink.edgeCount;

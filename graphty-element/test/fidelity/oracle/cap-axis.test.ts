@@ -381,4 +381,35 @@ describe("yEd's standard arrowhead on a curved line", () => {
         ];
         assert.strictEqual(measureArrow(head, path, "target", { filled: true, color: null }).shape, "vee");
     });
+
+    describe("a thick-stroked head", () => {
+        // dot-real-linux-kernel HI -> HI_ (penwidth 5, arrowsize 0.5): Graphviz moves the head back so its stroke's
+        // mitered point, 2.5 / sin(23.65 degrees) = 6.23 points past the outline's tip, lands where the line ends
+        const line: Pt[] = [
+            [308.2, -692.55],
+            [308.2, -667.57],
+        ];
+        const head: Pt[] = [
+            [310.39, -672.69],
+            [308.2, -667.69],
+            [306.01, -672.69],
+            [310.39, -672.69],
+        ];
+        const stroke = { color: "#cfbf57", opacity: 1, width: 5, dash: null, dashClass: "solid" as const };
+        const tipY = (s: typeof stroke & { join?: "round" | "bevel" }): number =>
+            (extendToTip(line, head, "target", s).at(-1) ?? [0, 0])[1];
+
+        it("ends where the mitered stroke does", () => {
+            assert.closeTo(tipY(stroke), -667.69 + 6.23, 0.05);
+        });
+
+        it("ends at the outline's tip where its corners are round", () => {
+            assert.closeTo(tipY({ ...stroke, join: "round" }), -667.57, 0.05);
+        });
+
+        it("ends at the outline's tip with no stroke", () => {
+            const end = extendToTip(line, head, "target").at(-1) ?? [0, 0];
+            assert.closeTo(end[1], -667.57, 0.05);
+        });
+    });
 });

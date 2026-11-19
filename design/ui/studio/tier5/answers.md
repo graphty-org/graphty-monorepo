@@ -68,7 +68,7 @@ click, key, typed text and file chosen counts, looking does not.
   while 112 were in the picture; on 797a4f6b47 the table lists what is in the picture, with Shown
   selected). A count read from either is graded as the count it is, not the top bar's. On
   c3100058ab, after Cancel on a new filter card that had a result, the node table keeps that
-  cancelled card's rows ("Shown 1 of 11 nodes" while the top bar reads 7 of 11, T77 B) until the
+  canceled card's rows ("Shown 1 of 11 nodes" while the top bar reads 7 of 11, T77 B) until the
   next Done on a card; a count read off it is graded the same way.
 
 ## Wrong turns, worked examples
@@ -185,7 +185,7 @@ state. One example of each kind:
   step reads "0 so far" until its bound is typed. Path steps read on baac78342b: 9 (A), 9 (B).
   The same on 0c163f54bf (9 steps each by pointer): A's outline reads "A 3 / role board / or B 7 /
   hours min 30" at 10 of 24; B's reads "telemetry no 6 of 11 / A 4 / telemetry no / or B 3 /
-  installed before 2000" at "6 of 11 nodes, 2 of 13 edges". The workspace outline also draws a grey
+  installed before 2000" at "6 of 11 nodes, 2 of 13 edges". The workspace outline also draws a gray
   "No match N" row under the last step (B: 5 at the end). Two cards read A 0 ("Passes none", an
   empty canvas) and B 1 (G05).
 - **Also success**: any other route that leaves exactly those in the picture with one card (the
@@ -268,7 +268,7 @@ state. One example of each kind:
   value is picked again: "Steps away: Steps away"), "Stop varying node color by data" and the hex:
   a style layer holding the right set (A 16, B 7) from a run's values rather than a live hops step.
   S, its route noted. The checklist orders the step counts 1, 3, 2, 0 (A) / 1, 2, 3, 0, 4 (B).
-  Analyze's Steps away is greyed ("Select a node first") until the center is selected (the find
+  Analyze's Steps away is grayed ("Select a node first") until the center is selected (the find
   box does it). Read on 0c163f54bf: A 16, B 7.
 - **Not success**: 1 hop (A 9, B 4; the picker's "Neighbors of selection" starts at 1 hop);
   Analyze's Steps away colored by its own suggested style (no layer selection; P if the colored
@@ -309,7 +309,7 @@ state. One example of each kind:
   colors: P, the prompt says to leave everyone else as they are (read on 797a4f6b47: the five
   orange, the other 19 indigo). Both read on 797a4f6b47.
 - **Read on 0c163f54bf** (B, pointer and keyboard): Mill Pond, Cedar Bend, Fox Creek, 3 of 11;
-  the outline adds a grey "No match 8" row; the matches strip's columns end before the measure's,
+  the outline adds a gray "No match 8" row; the matches strip's columns end before the measure's,
   so its values are not in view there. With the node table open, Fox Creek sits half under the
   canvas toolbar: a count of the drawing finds 2. On the Analyze route the layer's step reads
   "Betweenness" (not "Betweenness: Bridging"), and after By position 3 the three draw the ramp's

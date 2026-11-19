@@ -1,7 +1,7 @@
 /**
  * Adversarial corruption fuzzer of the GSNP container and the in-memory wire form (design sections
  * 9.1, 9.2, 9.5 and 11.2). Golden snapshots covering every id-map kind and every dtype are
- * serialised with toBytes() and then mutated: single-bit flips of the header, random byte flips and
+ * serialized with toBytes() and then mutated: single-bit flips of the header, random byte flips and
  * overwrites in the manifest and in every region segment, truncation at every section boundary,
  * lies about lengths, offsets, alignment, counts, flags, versions, the arena and the id map, unknown
  * dtypes / id-map kinds / view names, column metadata lies, a swapped endianness probe, every chunk
@@ -9,7 +9,7 @@
  * in an in-memory manifest. Every outcome of fromBytes() / fromByteChunks() / fromWire() must be:
  *
  * - a snapshot that passes validate({ level: "full" }), whose views, ids and columns are readable
- *   and in range, and that re-serialises to a container decoding to an equal snapshot; or
+ *   and in range, and that re-serializes to a container decoding to an equal snapshot; or
  * - a GraphFormatError carrying one of the reader's documented codes (E_BAD_SERIALIZATION,
  *   E_UNSUPPORTED_VERSION, E_UNSUPPORTED, E_INVALID_SNAPSHOT).
  *
@@ -251,7 +251,7 @@ function run(fn: () => GraphSnapshot): Outcome {
 /**
  * Judge one outcome: a foreign error or an undocumented code is always an anomaly; a returned
  * snapshot must pass validation at the level requested, and at "full" it must also be exercisable
- * and re-serialise to an equal snapshot with the same content hash.
+ * and re-serialize to an equal snapshot with the same content hash.
  */
 function judge(outcome: Outcome, level: ValidationLevel, golden: string, mutation: string, into: Anomaly[]): void {
     if (outcome.kind === "foreign") {

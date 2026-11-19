@@ -9,7 +9,7 @@
  *
  * So it does exactly one thing the run machinery needs and nothing the element's queue does: it
  * runs one operation at a time, in the order they arrived, and it can stop one. No categories, no
- * triggers, no batching, no obsolescence, no events. If a behaviour beyond that is wanted in a
+ * triggers, no batching, no obsolescence, no events. If a behavior beyond that is wanted in a
  * headless session, it belongs in the element's queue and the session should be handed that one.
  *
  * Nothing here reaches Babylon.js, Lit or the DOM.
@@ -39,11 +39,11 @@ const NO_PROGRESS: RunProgressSink = Object.freeze({
 
 /** One piece of work waiting its turn. */
 interface LocalOperation {
-    /** Its id, which is what cancelling names. */
+    /** Its id, which is what canceling names. */
     readonly id: string;
     /** The work. */
     readonly execute: (context: RunQueueContext) => Promise<void> | void;
-    /** Aborted when the operation is cancelled. */
+    /** Aborted when the operation is canceled. */
     readonly controller: AbortController;
     /** Whether its turn has come. */
     started: boolean;

@@ -13,7 +13,7 @@
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
-import type { GraphSession, Layer } from "@graphty/graphty-element/session";
+import type { GraphSession, Layer, ValueGroup } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
@@ -782,6 +782,46 @@ describe("naming and picking groups", () => {
         await userEvent.click(button);
         await waitFor(() => {
             assert.equal(session.selection.nodes.length, count);
+        });
+    });
+
+    it("Les Miserables: a group's detail renames it, clears its own color, and selects its nodes", async () => {
+        await page.viewport(1440, 900);
+        const { session, store } = await openSample("Les Miserables", 77);
+        const { layer, path } = await runGroups(session, "louvain");
+        const popover = await openBinding(store, layer);
+        const [row] = gridRows(popover);
+        const key = row.querySelector("[data-group-row]")?.getAttribute("data-group-row") ?? "";
+        const name = nameCell(row).firstChild?.textContent ?? "";
+        await userEvent.click(nameCell(row));
+        const detail = await screen.findByRole("group", { name: `${name} properties` });
+
+        // The Name field names the group when it is left.
+        const box = within(detail).getByRole("textbox", { name: new RegExp(`^Name of .* ${name}$`) });
+        await userEvent.clear(box);
+        await userEvent.type(box, "Bishop's circle{Enter}");
+        await waitFor(() => {
+            assert.equal(session.data.valueLabels(path).get(key), "Bishop's circle");
+        });
+
+        // Its own color, then its Clear: back to the layer's.
+        const group = (): ValueGroup | undefined =>
+            session.styles.groups(layer.id, path).find((g) => String(g.value) === key);
+        await userEvent.tripleClick(within(detail).getByTestId("compact-color-input-hex"));
+        await userEvent.keyboard("00AA00{Enter}");
+        await waitFor(() => {
+            assert.match(String(group()?.entries["node.color"]), /^#00aa00/i, "the group takes its own color");
+        });
+        const clear = await within(detail).findByRole("button", { name: /^Clear .* color$/ });
+        await userEvent.click(clear);
+        await waitFor(() => {
+            assert.isUndefined(group()?.entries["node.color"], "the group's own color is cleared");
+        });
+
+        // Select these: the group's nodes.
+        await userEvent.click(within(detail).getByRole("button", { name: /^Select these / }));
+        await waitFor(() => {
+            assert.equal(session.selection.nodes.length, group()?.count);
         });
     });
 });

@@ -14,7 +14,7 @@ import addFormatsModule from "ajv-formats";
 import { assert, describe, it } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../../session";
-import type { RuleTree } from "../../../src/catalog/types";
+import type { RuleTree, RunId } from "../../../src/catalog/types";
 import { dispatcherOf } from "../../../src/session/dispatchers";
 import { markRecipeRun } from "../../../src/session/document2/codecs/results";
 import { viewCodec } from "../../../src/session/document2/codecs/view";
@@ -30,6 +30,7 @@ import {
     type WriteContext,
 } from "../../../src/session/document2/types";
 import { answeringFromProject, type CannedOutcomes } from "../../../src/session/projectFile";
+import type { RunOutcome } from "../../../src/session/runs";
 import { finishAtOnce } from "../runs/harness";
 
 const SPEC = new URL("../../../spec/", import.meta.url);
@@ -182,7 +183,7 @@ async function open(
             dataMode: "replace",
             restored: new Set(),
             other: (name) => (name === "style" && choices.style === true ? style : undefined),
-            canned: choices.canned ?? new Map(),
+            canned: choices.canned ?? new Map<RunId, RunOutcome>(),
             restoreDerived: (id) => {
                 derived.push(id);
             },

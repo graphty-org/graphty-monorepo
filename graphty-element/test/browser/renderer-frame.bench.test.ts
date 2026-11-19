@@ -9,7 +9,7 @@
  * The number to compare is `draws/s`: pictures the element drew (calls of `scene.render`) per
  * second of wall time. The animation-frame interval (`rafInterval`) is printed too but does not
  * compare the renderers: on WebGL the loop skips a tick while the last frame's fence is
- * unsignalled, and each skipped tick is a short interval that draws nothing, so WebGL's median
+ * unsignaled, and each skipped tick is a short interval that draws nothing, so WebGL's median
  * interval reads about 17 ms however slowly it draws. On WebGPU under the default render path the
  * loop draws every tick, so its interval is the whole frame. Issue #6689's 17 ms against 81 ms was
  * that difference, not a slower draw. Also printed: the layout steps taken, the median time of the

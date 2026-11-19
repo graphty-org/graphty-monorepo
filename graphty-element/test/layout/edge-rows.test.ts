@@ -10,13 +10,14 @@ import { D3GraphEngine } from "../../src/layout/D3GraphLayoutEngine";
 import { layoutEngineInternals } from "../../src/layout/LayoutEngine";
 import { NGraphEngine } from "../../src/layout/NGraphLayoutEngine";
 import type { Node } from "../../src/Node";
+import { fakeEdge, fakeNode } from "../helpers/layout-fakes";
 
 function node(id: string, index: number): Node {
-    return { id, index } as unknown as Node;
+    return fakeNode(id, { index });
 }
 
 function edge(src: Node, dst: Node): Edge {
-    return { id: `${src.id}-${dst.id}`, srcId: src.id, dstId: dst.id, srcNode: src, dstNode: dst } as unknown as Edge;
+    return fakeEdge(src, dst, { id: `${src.id}-${dst.id}` });
 }
 
 /**

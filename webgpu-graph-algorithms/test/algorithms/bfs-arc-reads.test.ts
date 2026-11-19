@@ -78,9 +78,9 @@ function powerLaw(n: number, m: number): EdgeSpec[] {
 }
 
 /**
- * A Watts-Strogatz ring: each node links to its next k neighbours, a fraction p rewired at random.
+ * A Watts-Strogatz ring: each node links to its next k neighbors, a fraction p rewired at random.
  * @param n - the node count
- * @param k - the neighbours per side
+ * @param k - the neighbors per side
  * @param p - the rewiring probability
  * @returns the edges
  */

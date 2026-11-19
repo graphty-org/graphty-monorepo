@@ -36,7 +36,7 @@ import type { DrawnAnnotation } from "../annotations";
 import type { SessionCommand } from "../planning";
 import type { ImportSource } from "./data";
 
-/** A layer writing one fixed colour, for the colour replacement door. */
+/** A layer writing one fixed color, for the color replacement door. */
 const DOOR_RED: LayerSpec = {
     name: "door red",
     target: "node",
@@ -1340,7 +1340,7 @@ const STYLES_API: Readonly<Record<string, Door>> = {
     parts: READ,
     colors: READ,
     grayCollisions: READ,
-    // One fixed colour written by a layer the call sets up; the swap is one update of it.
+    // One fixed color written by a layer the call sets up; the swap is one update of it.
     replaceColor: {
         kind: "dispatches",
         op: "style.patch",
@@ -1459,7 +1459,7 @@ const STYLES_API: Readonly<Record<string, Door>> = {
 
 /**
  * What applying the suggested styles of `degree` on the doors tests' small graph dispatches: the
- * run's suggested colour, in the call's one step. An unnamed degree run is named after its
+ * run's suggested color, in the call's one step. An unnamed degree run is named after its
  * algorithm, so the id is "degree" on every such graph.
  */
 const DEGREE_ENCODE: SessionCommand = {
@@ -1595,6 +1595,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             globeLook: VIEW_SETTING,
             cameraTransitionDuration: CAMERA,
             reducedMotion: VIEW_SETTING,
+            colorScheme: VIEW_SETTING,
             startingCameraDistance: CAMERA,
             autoFrame: CAMERA,
             zoomToPointer: CAMERA,
@@ -1829,6 +1830,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             setCameraTransitionDuration: CAMERA,
             getReducedMotion: READ,
             setReducedMotion: VIEW_SETTING,
+            getColorScheme: READ,
+            setColorScheme: VIEW_SETTING,
             setSelectionStyle: calls(
                 [{ color: "#00ff00" }],
                 [{ op: "config.set", values: { selectionStyle: { color: "#00ff00" } } }],
@@ -2223,6 +2226,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             refreshShaderPaint: RENDER,
             shaderDataChanged: RENDER,
             drawnPattern: READ,
+            drawnCenter: READ,
             drawnCentre: READ,
             drawnCaps: READ,
             arrowHeadStackCaps: READ,
@@ -2302,7 +2306,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             record: READ,
             journalId: READ,
             cancel: IN_FLIGHT,
-            // Called on a run the doors test has already cancelled, so there is something to redo.
+            // Called on a run the doors test has already canceled, so there is something to redo.
             rerun: calls([], [RUN_DEGREE]),
             suggestEncodings: READ,
         },
@@ -4341,6 +4345,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             requestFrame: RENDER,
             applyBackground: RENDER,
             backgroundOverride: RENDER,
+            darkScheme: RENDER,
             bindShaderScene: RENDER,
             pickGroupOutline: READ,
             shaderPasses: READ,

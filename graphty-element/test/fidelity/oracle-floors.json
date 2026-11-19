@@ -7876,7 +7876,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.994,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -7931,7 +7931,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.994,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -11590,7 +11590,7 @@
             "edge.width": 1,
             "edge.opacity": 1,
             "edge.dash": 1,
-            "edge.dashPeriod": 0.75,
+            "edge.dashPeriod": 1,
             "edge.gradient": 1,
             "edge.outline": 1,
             "edge.arrow": 1,
@@ -11702,7 +11702,7 @@
             "edge.width": 1,
             "edge.opacity": 1,
             "edge.dash": 1,
-            "edge.dashPeriod": 0.75,
+            "edge.dashPeriod": 1,
             "edge.gradient": 1,
             "edge.outline": 1,
             "edge.arrow": 1,
@@ -11947,7 +11947,7 @@
             "label.anchor": 1,
             "label.outline": 1,
             "label.background": 1,
-            "label.backgroundBox": 0.938,
+            "label.backgroundBox": 1,
             "label.backgroundBorder": 1,
             "stray.present": 0,
             "frame.mirror": 1,
@@ -11989,7 +11989,7 @@
             "label.anchor": 1,
             "label.outline": 1,
             "label.background": 1,
-            "label.backgroundBox": 0.938,
+            "label.backgroundBox": 1,
             "label.backgroundBorder": 1,
             "stray.present": 0,
             "frame.mirror": 1,
@@ -12568,7 +12568,7 @@
             "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.927,
+            "node.shape": 1,
             "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
@@ -12630,7 +12630,7 @@
             "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.927,
+            "node.shape": 1,
             "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
@@ -13148,7 +13148,7 @@
             "stray.extra": 1
         },
         "dot-real-softmaint": {
-            "node.present": 0.995,
+            "node.present": 1,
             "node.extra": 1,
             "node.position": 1,
             "node.width": 1,
@@ -13207,7 +13207,7 @@
             "edge.wiggle": 1
         },
         "dot-real-softmaint@matched": {
-            "node.present": 0.995,
+            "node.present": 1,
             "node.extra": 1,
             "node.position": 1,
             "node.width": 1,
@@ -13322,7 +13322,7 @@
             "label.present": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.983,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -13368,7 +13368,7 @@
             "label.present": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.983,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -13494,7 +13494,7 @@
             "label.present": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.75,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -13539,7 +13539,7 @@
             "label.present": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.75,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -13755,7 +13755,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.982,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -13779,7 +13779,7 @@
             "background": 1,
             "raster.arrowhead": 0.95,
             "raster.canvas": 0.99,
-            "raster.edge": 0.88,
+            "raster.edge": 0.9,
             "raster.label": 0.94,
             "raster.nodeBody": 0.98,
             "raster.nodeOutline": 0.94,
@@ -14288,7 +14288,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.9,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -14348,7 +14348,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.9,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -14790,7 +14790,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.982,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -16063,11 +16063,11 @@
             "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
-            "node.stroke": 0.981,
+            "node.stroke": 1,
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "label.text": 0.96,
+            "label.text": 1,
             "label.size": 1,
             "label.weight": 1,
             "label.style": 1,
@@ -16103,11 +16103,11 @@
             "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
-            "node.stroke": 0.981,
+            "node.stroke": 1,
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "label.text": 0.96,
+            "label.text": 1,
             "label.size": 1,
             "label.weight": 1,
             "label.style": 1,
@@ -16142,7 +16142,7 @@
             "node.stroke": 1,
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
-            "label.present": 0.929,
+            "label.present": 1,
             "label.text": 1,
             "label.size": 1,
             "label.weight": 1,
@@ -16163,7 +16163,7 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.label": 0.93,
+            "raster.label": 0.94,
             "raster.nodeBody": 0.95,
             "raster.nodeOutline": 0.94
         },
@@ -16182,7 +16182,7 @@
             "node.stroke": 1,
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
-            "label.present": 0.929,
+            "label.present": 1,
             "label.text": 1,
             "label.size": 1,
             "label.weight": 1,
@@ -16346,7 +16346,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.692,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -16415,7 +16415,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.692,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -17306,11 +17306,11 @@
             "edge.dashPeriod": 1,
             "edge.gradient": 0.99,
             "edge.arrow": 1,
-            "edge.arrowShape": 0.951,
+            "edge.arrowShape": 1,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
             "edge.arrowFill": 1,
-            "edge.arrowColor": 0.99,
+            "edge.arrowColor": 1,
             "edge.arrowLength": 1,
             "edge.arrowWidth": 0.99,
             "edge.arrowToSpacing": 1,
@@ -17332,11 +17332,11 @@
             "background": 1,
             "edge.wiggle": 1,
             "raster.nodeBody": 0.97,
-            "raster.nodeOutline": 0.92,
+            "raster.nodeOutline": 0.93,
             "raster.edge": 0.91,
             "raster.arrowhead": 0.9,
             "raster.label": 0.97,
-            "raster.canvas": 0.98
+            "raster.canvas": 0.99
         },
         "dot-synth-edges-clusters@matched": {
             "node.present": 1,
@@ -17382,11 +17382,11 @@
             "edge.dashPeriod": 1,
             "edge.gradient": 0.99,
             "edge.arrow": 1,
-            "edge.arrowShape": 0.951,
+            "edge.arrowShape": 1,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
             "edge.arrowFill": 1,
-            "edge.arrowColor": 0.99,
+            "edge.arrowColor": 1,
             "edge.arrowLength": 1,
             "edge.arrowWidth": 0.99,
             "edge.arrowToSpacing": 1,
@@ -17420,7 +17420,7 @@
             "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
-            "node.stroke": 0.99,
+            "node.stroke": 1,
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "node.ring": 1,
@@ -17442,7 +17442,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.982,
+            "edge.route": 0.991,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -17484,7 +17484,7 @@
             "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
-            "node.stroke": 0.99,
+            "node.stroke": 1,
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "node.ring": 1,
@@ -17506,7 +17506,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.945,
+            "edge.route": 0.963,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -25291,7 +25291,7 @@
             "label.family": 0.933,
             "label.lines": 1,
             "label.align": 0,
-            "label.alongLine": 0.867,
+            "label.alongLine": 0.9,
             "label.offLine": 0.933,
             "label.outline": 1,
             "label.background": 1,
@@ -25353,7 +25353,7 @@
             "label.family": 0.933,
             "label.lines": 1,
             "label.align": 0,
-            "label.alongLine": 0.867,
+            "label.alongLine": 0.9,
             "label.offLine": 0.933,
             "label.outline": 1,
             "label.background": 1,
@@ -27719,8 +27719,8 @@
             "label.family": 0.562,
             "label.lines": 1,
             "label.anchor": 1,
-            "label.alongLine": 0.5,
-            "label.offLine": 0.429,
+            "label.alongLine": 0.875,
+            "label.offLine": 0.875,
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
@@ -27795,8 +27795,8 @@
             "label.family": 0.562,
             "label.lines": 1,
             "label.anchor": 1,
-            "label.alongLine": 0.5,
-            "label.offLine": 0.429,
+            "label.alongLine": 0.875,
+            "label.offLine": 0.875,
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
@@ -29064,7 +29064,7 @@
             "background": 1,
             "raster.nodeBody": 0.98,
             "raster.nodeOutline": 0.96,
-            "raster.edge": 0.92,
+            "raster.edge": 0.93,
             "raster.arrowhead": 0.94,
             "raster.label": 0.94,
             "raster.canvas": 0.99
@@ -29805,7 +29805,7 @@
             "node.stroke": 1,
             "label.present": 1,
             "edge.present": 1,
-            "edge.extra": 0.999,
+            "edge.extra": 1,
             "edge.route": 1,
             "edge.curve": 1,
             "edge.color": 1,
@@ -29847,7 +29847,7 @@
             "node.stroke": 1,
             "label.present": 1,
             "edge.present": 1,
-            "edge.extra": 0.999,
+            "edge.extra": 1,
             "edge.route": 1,
             "edge.curve": 1,
             "edge.color": 1,
@@ -30045,7 +30045,7 @@
             "edge.width": 1,
             "edge.opacity": 1,
             "edge.dash": 1,
-            "edge.dashPeriod": 0.667,
+            "edge.dashPeriod": 1,
             "edge.gradient": 1,
             "edge.arrow": 1,
             "edge.arrowShape": 1,
@@ -30118,7 +30118,7 @@
             "edge.width": 1,
             "edge.opacity": 1,
             "edge.dash": 1,
-            "edge.dashPeriod": 0.667,
+            "edge.dashPeriod": 1,
             "edge.gradient": 1,
             "edge.arrow": 1,
             "edge.arrowShape": 1,
@@ -30191,7 +30191,7 @@
             "edge.width": 1,
             "edge.opacity": 1,
             "edge.dash": 1,
-            "edge.dashPeriod": 0.667,
+            "edge.dashPeriod": 1,
             "edge.gradient": 1,
             "edge.arrow": 1,
             "edge.arrowShape": 1,
@@ -30258,7 +30258,7 @@
             "edge.width": 1,
             "edge.opacity": 1,
             "edge.dash": 1,
-            "edge.dashPeriod": 0.667,
+            "edge.dashPeriod": 1,
             "edge.gradient": 1,
             "edge.arrow": 1,
             "edge.arrowShape": 1,
@@ -39283,11 +39283,11 @@
             "label.opacity": 1,
             "label.family": 1,
             "label.lines": 1,
-            "label.alongLine": 0.976,
+            "label.alongLine": 1,
             "label.offLine": 1,
             "label.outline": 1,
             "label.background": 1,
-            "label.backgroundBox": 0.5,
+            "label.backgroundBox": 1,
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
@@ -39345,11 +39345,11 @@
             "label.opacity": 1,
             "label.family": 1,
             "label.lines": 1,
-            "label.alongLine": 0.976,
+            "label.alongLine": 1,
             "label.offLine": 1,
             "label.outline": 1,
             "label.background": 1,
-            "label.backgroundBox": 0.5,
+            "label.backgroundBox": 1,
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
@@ -39395,7 +39395,7 @@
             "label.present": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.976,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.wiggle": 1,
             "edge.color": 1,
@@ -39420,7 +39420,7 @@
             "raster.nodeBody": 0.96,
             "raster.nodeOutline": 0.95,
             "raster.edge": 0.92,
-            "raster.arrowhead": 0.95,
+            "raster.arrowhead": 0.96,
             "raster.canvas": 0.99,
             "edge.outline": 1
         },
@@ -39442,7 +39442,7 @@
             "label.present": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.976,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.wiggle": 1,
             "edge.color": 1,
@@ -40331,7 +40331,7 @@
             "label.present": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.964,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.wiggle": 1,
             "edge.color": 0.964,
@@ -40376,7 +40376,7 @@
             "label.present": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.952,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.wiggle": 1,
             "edge.color": 0.952,
@@ -40421,7 +40421,7 @@
             "label.present": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.952,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.wiggle": 1,
             "edge.color": 0.952,
@@ -40461,7 +40461,7 @@
             "label.present": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.964,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.wiggle": 1,
             "edge.color": 0.964,
@@ -56233,22 +56233,6 @@
                 "date": "2026-11-16"
             }
         },
-        "cys-annotation-example": {
-            "edge.route": {
-                "floor": 0.994,
-                "to": 0.989,
-                "reason": "tracked by #8200: the redrawn Cytoscape desktop oracle lists the same edge paths in another order, and the oracle's geometric edge association pairs two 16-unit edges at node 169397 greedily in that order (a path end equally near 169396 and 169391 takes 169396 first), so it judges each against the other edge; the paths are unchanged",
-                "date": "2026-11-18"
-            }
-        },
-        "cys-annotation-example@matched": {
-            "edge.route": {
-                "floor": 0.994,
-                "to": 0.989,
-                "reason": "tracked by #8200: the redrawn Cytoscape desktop oracle lists the same edge paths in another order, and the oracle's geometric edge association pairs two 16-unit edges at node 169397 greedily in that order (a path end equally near 169396 and 169391 takes 169396 first), so it judges each against the other edge; the paths are unchanged",
-                "date": "2026-11-18"
-            }
-        },
         "cys-syn-mappings": {
             "label.alongLine": {
                 "floor": 1,
@@ -56263,78 +56247,6 @@
                 "to": 0.971,
                 "reason": "edge.route: #4254 (af97c848cc) sizes Cytoscape desktop's arrowheads as it draws them, which took cx-syn-mappings edge.arrowLength from 236 to 256 of 258 heads; one route's bow (309->312, 0.068 of its chord against 0.05) is past tolerance since. label.alongLine: the floor of 1 came with the round 4 merge (#4096) and no master commit measured it (0.906 on #3246, 0.971 on #4096, its branch head and every merge since); edge 327->333's label is the one off (bisected in #5332)",
                 "date": "2026-11-01"
-            }
-        },
-        "dot-real-depcruise": {
-            "group.stroke": {
-                "floor": 1,
-                "to": 0.895,
-                "reason": "drawing, issue #5756: a rounded group's fill is the shared group mesh stretched over its box (Node.drawAsGroup), so its corners stretch into long ellipses, while its border is rebuilt at the box's own size (NodeMesh.createGroupBorder) with small round corners; the drawn-border reader (#5364) measures the ring against the stretched fill's sides and reads it wider (cluster_rounded 1.73 px against 1.10 px drawn; cluster_src and cluster_src/formats 0.65 px against 0.216 px, so outlined where Graphviz's 0.237 px line counts as none). Fix: draw a group's fill at its box's size, as its border is",
-                "date": "2026-11-04"
-            }
-        },
-        "dot-real-depcruise@matched": {
-            "group.stroke": {
-                "floor": 1,
-                "to": 0.895,
-                "reason": "drawing, issue #5756: a rounded group's fill is the shared group mesh stretched over its box (Node.drawAsGroup), so its corners stretch into long ellipses, while its border is rebuilt at the box's own size (NodeMesh.createGroupBorder) with small round corners; the drawn-border reader (#5364) measures the ring against the stretched fill's sides and reads it wider (cluster_rounded 1.73 px against 1.10 px drawn; cluster_src and cluster_src/formats 0.65 px against 0.216 px, so outlined where Graphviz's 0.237 px line counts as none). Fix: draw a group's fill at its box's size, as its border is",
-                "date": "2026-11-04"
-            }
-        },
-        "dot-real-linux-kernel": {
-            "edge.route": {
-                "floor": 1,
-                "to": 0.755,
-                "reason": "DOT style=invis nodes now paint nothing but keep their edges, as Graphviz does (dot-real-linux-kernel.svg draws HI->HI_ and its head with no HI_ node group): the 13 edges that failed edge.present now are drawn and judged, and miss edge.route by about 0.22 of the chord (graphty's HI->HI_ ends near 111.6, Graphviz's at 107.7) because the oracle has no position for an invisible node, so the matched view leaves HI_ where graphty's own layout put it",
-                "date": "2026-11-07"
-            }
-        },
-        "dot-real-linux-kernel@matched": {
-            "edge.route": {
-                "floor": 1,
-                "to": 0.736,
-                "reason": "DOT style=invis nodes now paint nothing but keep their edges, as Graphviz does (dot-real-linux-kernel.svg draws HI->HI_ and its head with no HI_ node group): the 13 edges that failed edge.present now are drawn and judged, and miss edge.route by about 0.22 of the chord (graphty's HI->HI_ ends near 111.6, Graphviz's at 107.7) because the oracle has no position for an invisible node, so the matched view leaves HI_ where graphty's own layout put it",
-                "date": "2026-11-07"
-            }
-        },
-        "dot-real-softmaint@matched": {
-            "edge.route": {
-                "floor": 1,
-                "to": 0.996,
-                "reason": "2026-11-15: oracle redrawn by Graphviz 16.1.0 in WebAssembly with each fontname sized as graphty-element sizes it (#8195): at that oracle two elements miss by under two render px -- s_proteinstab's place (1.6 px against a 1.5 px floor of the tolerance) and one softmaint route at matched places; left to judge under #8194",
-                "date": "2026-11-16"
-            }
-        },
-        "dot-specimen-edges-lines": {
-            "edge.dash": {
-                "floor": 1,
-                "to": 0.946,
-                "reason": "Graphviz tapered edges (style=tapered, one filled polygon, lib/common/taper.c) are now read by the comparator as the edge's line; graphty draws them as plain solid lines (no reader feeds edge.taper), so their dash differs",
-                "date": "2026-11-09"
-            }
-        },
-        "dot-specimen-edges-lines@matched": {
-            "edge.dash": {
-                "floor": 1,
-                "to": 0.946,
-                "reason": "Graphviz tapered edges (style=tapered, one filled polygon, lib/common/taper.c) are now read by the comparator as the edge's line; graphty draws them as plain solid lines (no reader feeds edge.taper), so their dash differs",
-                "date": "2026-11-09"
-            }
-        },
-        "dot-synth-edges-clusters": {
-            "group.strokeWidth": {
-                "floor": 1,
-                "to": 0.9,
-                "reason": "drawing, issue #5756: a rounded group's fill is the shared group mesh stretched over its box (Node.drawAsGroup), so its corners stretch into long ellipses, while its border is rebuilt at the box's own size (NodeMesh.createGroupBorder) with small round corners; the drawn-border reader (#5364) measures the ring against the stretched fill's sides and reads it wider (cluster_rounded 1.73 px against 1.10 px drawn; cluster_src and cluster_src/formats 0.65 px against 0.216 px, so outlined where Graphviz's 0.237 px line counts as none). Fix: draw a group's fill at its box's size, as its border is",
-                "date": "2026-11-04"
-            }
-        },
-        "dot-synth-edges-clusters@matched": {
-            "group.strokeWidth": {
-                "floor": 1,
-                "to": 0.9,
-                "reason": "drawing, issue #5756: a rounded group's fill is the shared group mesh stretched over its box (Node.drawAsGroup), so its corners stretch into long ellipses, while its border is rebuilt at the box's own size (NodeMesh.createGroupBorder) with small round corners; the drawn-border reader (#5364) measures the ring against the stretched fill's sides and reads it wider (cluster_rounded 1.73 px against 1.10 px drawn; cluster_src and cluster_src/formats 0.65 px against 0.216 px, so outlined where Graphviz's 0.237 px line counts as none). Fix: draw a group's fill at its box's size, as its border is",
-                "date": "2026-11-04"
             }
         },
         "dot-synth-nodes": {
@@ -56522,12 +56434,6 @@
             }
         },
         "gml-synthetic-coverage": {
-            "label.offLine": {
-                "floor": 0.429,
-                "to": 0.375,
-                "reason": "comparator: yEd text is now measured in the face Java drew (DejaVu) and raised borders are folded into their bodies; a label that passed on a box too narrow now shows its real place, and edges and arrowheads read wrongly before are judged for the first time (#5785)",
-                "date": "2026-11-05"
-            },
             "edge.arrowLength": {
                 "floor": 0.99,
                 "to": 0.98,
@@ -56542,12 +56448,6 @@
             }
         },
         "gml-synthetic-coverage@matched": {
-            "label.offLine": {
-                "floor": 0.429,
-                "to": 0.375,
-                "reason": "comparator: yEd text is now measured in the face Java drew (DejaVu) and raised borders are folded into their bodies; a label that passed on a box too narrow now shows its real place, and edges and arrowheads read wrongly before are judged for the first time (#5785)",
-                "date": "2026-11-05"
-            },
             "edge.arrowLength": {
                 "floor": 0.99,
                 "to": 0.98,

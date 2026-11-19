@@ -34,6 +34,7 @@ import {
     type PShape,
     type PStop,
     type PStray,
+    type PStroke,
     type Pt,
     type PText,
     shapeId,
@@ -1004,17 +1005,30 @@ function pointedAxis(pts: readonly Pt[], end: Pt): Pt | null {
 }
 
 /**
- * The axis of an inverted triangle drawn on from a line's end, its point on the end: the unit direction from the point
- * to the middle of its two far corners, when those lie about as far from the point (within a tenth) and the cap's
- * middle lies on that line, within CAP_AXIS_AGREE. Graphviz's `inv` on a spline that kinks at its end
- * (dot-synth-edges-clusters c7_1 -> c8_0: the line's last sampled run is 30 degrees off the head) was read along the
- * kinked run, which makes no shape of it.
+ * A closed outline's corners: its points with each repeat (a closing point, a point drawn twice) dropped.
+ * @param pts - the outline's points
+ * @returns its corners, in drawing order
+ */
+function cornersOf(pts: readonly Pt[]): Pt[] {
+    return pts.filter((p, i) => pts.findIndex((q) => Math.hypot(q[0] - p[0], q[1] - p[1]) < 1e-6) === i);
+}
+
+/**
+ * The axis of an inverted triangle drawn on from a line's end, its point on the line ahead of the end: the unit
+ * direction from the end to the middle of its two far corners, when those lie about as far from the end (within a
+ * tenth), its point lies on that line (within a twentieth of the reach, and no more than a quarter of it behind the
+ * end) and the cap's middle lies on it, within
+ * CAP_AXIS_AGREE. Graphviz's `inv` on a spline that kinks at its end (dot-synth-edges-clusters c7_1 -> c8_0: the
+ * line's last sampled run is 30 degrees off the head) was read along the kinked run, which makes no shape of it; and
+ * Graphviz lays every part of a head of several (`invdot`, `invnormal`) along the line from the spline's end to the
+ * node, up to 4 degrees off the spline's own end direction, where the `inv` against the node, its point a disc's
+ * length past the line's end, read as half an arrow.
  * @param pts - the cap's points
  * @param end - the point
  * @returns the direction, or null for a cap that is not so
  */
 function invertedAxis(pts: readonly Pt[], end: Pt): Pt | null {
-    const corners = pts.filter((p, i) => pts.findIndex((q) => Math.hypot(q[0] - p[0], q[1] - p[1]) < 1e-6) === i);
+    const corners = cornersOf(pts);
     if (corners.length !== 3) {
         return null;
     }
@@ -1023,16 +1037,100 @@ function invertedAxis(pts: readonly Pt[], end: Pt): Pt | null {
     );
     const [near, a, b] = byDist;
     const [da, db] = [a, b].map((p) => Math.hypot(p[0] - end[0], p[1] - end[1]));
-    const toNear = Math.hypot(near[0] - end[0], near[1] - end[1]);
     const back: Pt = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
     const reach = Math.hypot(back[0] - end[0], back[1] - end[1]);
     const mid = areaCentroid(pts);
-    if (mid === null || !(reach > 1e-9) || Math.abs(da - db) > 0.1 * Math.max(da, db) || toNear > 0.25 * reach) {
+    if (mid === null || !(reach > 1e-9) || Math.abs(da - db) > 0.1 * Math.max(da, db)) {
         return null;
     }
     const axis: Pt = [(back[0] - end[0]) / reach, (back[1] - end[1]) / reach];
+    // its point on the line from the end to its back: ahead of the end, or on it for a lone `inv`, up to a quarter of
+    // the reach behind it (a wide pen runs the line on past the point: dot-real-depcruise's `inv` at penwidth 2)
+    const [nx, ny] = [near[0] - end[0], near[1] - end[1]];
+    if (Math.abs(nx * axis[1] - ny * axis[0]) > 0.05 * reach || nx * axis[0] + ny * axis[1] < -0.25 * reach) {
+        return null;
+    }
     const off = Math.abs(Math.atan2(mid[1] - end[1], mid[0] - end[0]) - Math.atan2(axis[1], axis[0]));
     return Math.min(off, 2 * Math.PI - off) <= CAP_AXIS_AGREE ? axis : null;
+}
+
+/**
+ * The axis of half an arrow drawn on from a line's end, one corner on the end: the unit direction from the end to its
+ * farthest corner (its tip), when its third corner lies at its back (within a quarter of its length), off to one side
+ * by at least a fifth of its length. Graphviz's `rnormal` and `lnormal` keep the side along the line from the end to the
+ * tip; on a polyline route whose last run (under a pixel) turns 16 degrees off the run before it
+ * (dot-synth-edges-clusters c1_4 -> f9, `ornormal`), the line's end direction is read over the run before, which made
+ * a whole triangle of it.
+ * @param pts - the cap's points
+ * @param end - the line's end
+ * @returns the direction, or null for a cap that is not so
+ */
+function halfAxis(pts: readonly Pt[], end: Pt): Pt | null {
+    const corners = cornersOf(pts);
+    if (corners.length !== 3) {
+        return null;
+    }
+    const [on, side, tip] = [...corners].sort(
+        (a, b) => Math.hypot(a[0] - end[0], a[1] - end[1]) - Math.hypot(b[0] - end[0], b[1] - end[1]),
+    );
+    const reach = Math.hypot(tip[0] - end[0], tip[1] - end[1]);
+    if (!(reach > 1e-9) || Math.hypot(on[0] - end[0], on[1] - end[1]) > 0.1 * reach) {
+        return null;
+    }
+    const axis: Pt = [(tip[0] - end[0]) / reach, (tip[1] - end[1]) / reach];
+    const [sx, sy] = [side[0] - end[0], side[1] - end[1]];
+    return sx * axis[0] + sy * axis[1] <= 0.25 * reach && Math.abs(sx * axis[1] - sy * axis[0]) >= 0.2 * reach
+        ? axis
+        : null;
+}
+
+/** How far from square a rectangle's corners may be, as the cosine of the angle between its sides. */
+const SQUARE_CORNER = 0.035;
+
+/** How far off the line's end direction a rectangle's own axis may lie and still be read as the cap's. */
+const SQUARE_AXIS_TURN = (20 * Math.PI) / 180;
+
+/**
+ * The axis of a cap drawn as a rectangle (a box, a bar), as it is drawn: the one of its two side directions nearest the
+ * line's end direction, within SQUARE_AXIS_TURN. Graphviz lays a head of several parts along the line from the
+ * spline's end to the node, up to 5 degrees off the spline's own end direction (dot-synth-edges-clusters c6_1 -> c5_1,
+ * `lteeoldiamond`), and a bar as short as `ltee`'s, read 5 degrees off its own frame, has no full width at its ends and
+ * read as half an arrow.
+ * @param pts - the cap's points
+ * @param dir - the line's unit end direction
+ * @returns the direction, or null for a cap that is no rectangle
+ */
+function squareAxis(pts: readonly Pt[], dir: Pt): Pt | null {
+    const corners = cornersOf(pts);
+    if (corners.length !== 4) {
+        return null;
+    }
+    const sides = corners.map((p, i): Pt => {
+        const q = corners[(i + 1) % 4];
+        return [q[0] - p[0], q[1] - p[1]];
+    });
+    const lengths = sides.map(([x, y]) => Math.hypot(x, y));
+    if (!lengths.every((l) => l > 1e-9)) {
+        return null;
+    }
+    const square = sides.every(
+        (u, i) =>
+            Math.abs(u[0] * sides[(i + 1) % 4][0] + u[1] * sides[(i + 1) % 4][1]) <=
+            SQUARE_CORNER * lengths[i] * lengths[(i + 1) % 4],
+    );
+    if (!square) {
+        return null;
+    }
+    const [ux, uy] = [sides[0][0] / lengths[0], sides[0][1] / lengths[0]];
+    // the side, or the one square to it, that runs nearest the line, pointing the way the line does
+    const candidates: Pt[] = [
+        [ux, uy],
+        [-uy, ux],
+    ].map(([x, y]): Pt => (x * dir[0] + y * dir[1] < 0 ? [-x, -y] : [x, y]));
+    const axis = candidates.reduce((best, c) =>
+        c[0] * dir[0] + c[1] * dir[1] > best[0] * dir[0] + best[1] * dir[1] ? c : best,
+    );
+    return Math.acos(Math.min(1, axis[0] * dir[0] + axis[1] * dir[1])) <= SQUARE_AXIS_TURN ? axis : null;
 }
 
 /**
@@ -1042,10 +1140,12 @@ function invertedAxis(pts: readonly Pt[], end: Pt): Pt | null {
  * between large nodes, `gexf-graphology-rio` ncs337->ncs291), and Graphviz draws the arrowhead of an edge whose `pos`
  * names an end point (`e,x,y`, `s,x,y`) from the spline's end to that point, at any angle to the spline
  * (`dot-specimen-edges-lines-p11` pos-arrow-both-points: 65 degrees). The axis is from the line's end through the cap's
- * tip when the cap is pointed and symmetric about that axis (`pointedAxis`), it lies ahead of the line's end (a back
- * corner may poke behind it by under a third of its length), and the line three quarters of its length behind its end
- * lies behind it and outside it; otherwise -- half an arrow, a box, a tee, a cap the line runs into -- along the line
- * where the cap is (`capRun`).
+ * tip when the cap is pointed and symmetric about that axis (`pointedAxis`), from the end to an inverted triangle's
+ * back (`invertedAxis`), from the end to the tip of half an arrow with a corner on the end (`halfAxis`), or along a
+ * rectangle's own side nearest the line (`squareAxis`), when it lies ahead of the line's end (a back corner may poke
+ * behind it by under a third of its length), and the line three quarters of its length behind its end lies behind it
+ * and outside it; otherwise -- a cap the line runs into, any other shape -- along the line where the cap is
+ * (`capRun`).
  * @param outline - the cap's drawn points
  * @param line - the line, its end last
  * @param dir - the line's unit end direction
@@ -1056,7 +1156,8 @@ function capAxis(outline: readonly Pt[], line: readonly Pt[], dir: Pt): Pt {
     if (end === undefined) {
         return dir;
     }
-    const axis = pointedAxis(outline, end) ?? invertedAxis(outline, end);
+    const axis =
+        pointedAxis(outline, end) ?? invertedAxis(outline, end) ?? halfAxis(outline, end) ?? squareAxis(outline, dir);
     if (axis === null) {
         return dir;
     }
@@ -1156,12 +1257,19 @@ function arrowFrom(p: Prim, path: readonly Pt[], end: ArrowEnd, background: stri
  * A path carried on to the tip of the arrowhead at one end, when the program stopped the line at
  * the arrow's base (Graphviz does), so its route is judged to the same place graphty's is: graphty
  * reports an edge as ending at its arrow's tip. It is carried along the head's axis, which runs through the tip.
+ * A head drawn with a stroke ends where its stroke does, past its outline's tip (`strokeReach`).
  * @param path - the edge's path, source end first
  * @param outline - the arrowhead's points
  * @param end - which end it caps
+ * @param stroke - the arrowhead's stroke, or null for a head drawn by its fill alone
  * @returns the path, extended when the tip lies beyond its end
  */
-export function extendToTip(path: readonly Pt[], outline: readonly Pt[], end: "source" | "target"): Pt[] {
+export function extendToTip(
+    path: readonly Pt[],
+    outline: readonly Pt[],
+    end: "source" | "target",
+    stroke: PStroke | null = null,
+): Pt[] {
     const pts = end === "target" ? [...path] : [...path].reverse();
     const last = pts.at(-1);
     const run = capRun(pts, outline);
@@ -1179,11 +1287,56 @@ export function extendToTip(path: readonly Pt[], outline: readonly Pt[], end: "s
     const along = (q: Pt): number => (q[0] - last[0]) * dx + (q[1] - last[1]) * dy;
     // the head's reach along the line, on the line: a flat head (a tee's bar, a half circle) has its farthest points at
     // its corners, beside the line, and a line bent to one of them reads as curved
-    const reach = Math.max(...outline.map(along));
+    const tipReach = Math.max(...outline.map(along));
+    const reach = tipReach + strokeReach(outline, [dx, dy], last, tipReach, stroke);
     if (reach > 0.5) {
         pts.push([last[0] + dx * reach, last[1] + dy * reach]);
     }
     return end === "target" ? pts : pts.reverse();
+}
+
+/** SVG's default `stroke-miterlimit`: a sharper corner is drawn beveled. */
+const MITER_LIMIT = 4;
+
+/** How far behind a head's tip a point of its outline must lie to say how sharp the tip is, in the side's units. */
+const TIP_LEVEL = 0.25;
+
+/**
+ * How far a head's stroke reaches past its outline's tip, along its axis. A stroke wider than a pixel draws the tip on
+ * past the outline: Graphviz moves a thick-stroked arrowhead back so the stroke's mitered point, not the outline's,
+ * lands where the line ends (dot-real-linux-kernel `HI -> HI_`, penwidth 5: the outline's tip 6.2 points short of
+ * it), where graphty draws its head's tip. Only a pointed head's mitered corner is read, w/2/sin(a) for a half
+ * angle a: a round, beveled or flat front reaches at most half the stroke past its outline, which programs place
+ * either way (Cytoscape desktop strokes a ring head across its node's outline, associate-lineless-edges).
+ * @param outline - the head's points
+ * @param dir - its axis, back to tip
+ * @param from - a point on the axis
+ * @param tip - the outline's reach along the axis from that point
+ * @param stroke - the head's stroke, or null
+ * @returns the reach past the tip, 0 for an unstroked head
+ */
+function strokeReach(outline: readonly Pt[], dir: Pt, from: Pt, tip: number, stroke: PStroke | null): number {
+    if (stroke === null || !(stroke.width > 0) || stroke.join !== undefined) {
+        return 0;
+    }
+    // pointed as seen from well behind it on its axis: the line's end may lie a rounding past the outline's tip
+    const span = Math.max(...outline.map(([x, y]) => Math.hypot(x - from[0], y - from[1])));
+    if (pointedAxis(outline, [from[0] - dir[0] * 2 * span, from[1] - dir[1] * 2 * span]) === null) {
+        return 0;
+    }
+    const half = stroke.width / 2;
+    // the corner's half angle at the tip: the steepest the outline falls away from it, across over back, which on a
+    // triangle is its sides' slope and on a flat front nearly square (points level with the tip are a rounding off it)
+    let slope = 0;
+    for (const [x, y] of outline) {
+        const back = tip - ((x - from[0]) * dir[0] + (y - from[1]) * dir[1]);
+        const across = Math.abs((x - from[0]) * -dir[1] + (y - from[1]) * dir[0]);
+        if (back > TIP_LEVEL) {
+            slope = Math.max(slope, across / back);
+        }
+    }
+    const sin = slope / Math.hypot(1, slope);
+    return sin > 0 && 1 / sin <= MITER_LIMIT ? half / sin : 0;
 }
 
 /** How far outside an arrowhead's outline a point of its line may lie and still be under it: a coordinate's rounding. */
@@ -2021,7 +2174,7 @@ export function arrowheadEdge(
             size <= lineCapSize(e) && (toBox(endOf(e, "source"), p.box) <= 1 || toBox(endOf(e, "target"), p.box) <= 1),
     );
     // A shape holding a node's center, or centered in a node and half its size, is part of the node's drawing. A flat
-    // node's size is not its thickness: vis-network's 5 px arrowheads lying over a neighbour's 26 x 7 box, drawn after
+    // node's size is not its thickness: vis-network's 5 px arrowheads lying over a neighbor's 26 x 7 box, drawn after
     // every node, are their lines' (json-vis-siblings, 31 of 284 read as free shapes)
     // Two arms drawn out and back have no inside to hold anything: a plain head as wide as the small node it meets only
     // spans its middle (gml-synthetic-coverage, 29->40).
@@ -2343,6 +2496,82 @@ const STUB_TOUCH = 3;
 
 /** How much nearer, in px, one node a line's end lands on may be than another and the two still be tied for it. */
 const END_TIE = 2;
+
+/**
+ * Re-pairs the lines read by geometry for the best total, not the first come: each line takes the pair of nodes
+ * its ends land on in drawing order, and a pair graphty draws once is gone once taken, so an end tied between two
+ * nodes can take the one a later line needs, leaving that line the far one (cys-annotation-example: a line from 169397
+ * whose end is as near 169396 as 169391 took 169396 first, and the line ending on 169396 alone got 169391). Two lines
+ * that share a node swap their other ends where each then lands on its nearest node (or one tied with it) and the
+ * two ends lie nearer in all. An end its own arrowhead caps keeps its node: the head, not the line, decided it; and
+ * neither line may take a pair whose edges graphty draws at another width or color than one it has now (#8382).
+ * @param pieces - every line read by geometry, in drawing order
+ * @param edges - the edges found so far; only the geometric ones between two nodes are re-paired
+ * @param ownCaps - the arrowheads drawn with each line, by the end they cap
+ * @param near - the nodes a point lands on, with how far, nearest first
+ * @param paintFits - how well a line's width and color fit the edges graphty draws between two nodes (higher fits)
+ * @returns whether any line changed its ends (their `#g` ids then need numbering again)
+ */
+function pairBestTotal(
+    pieces: readonly PEdge[],
+    edges: readonly PEdge[],
+    ownCaps: ReadonlyMap<Prim, { e: PEdge; end: "source" | "target" }>,
+    near: (q: Pt) => { n: PNode; d: number }[],
+    paintFits: (e: PEdge, u: string, v: string) => number,
+): boolean {
+    const listed = new Set(edges);
+    const capped = new Set([...ownCaps.values()].map(({ e, end }) => `${e.id}\u0000${end}`));
+    const lines = pieces.filter((e) => listed.has(e) && e.id.includes("#g") && e.source !== e.target);
+    type End = "source" | "target";
+    const landing = new Map<string, { n: PNode; d: number }[]>();
+    const at = (e: PEdge, end: End): { n: PNode; d: number }[] => {
+        const k = `${e.id}\u0000${end}`;
+        let list = landing.get(k);
+        if (list === undefined) {
+            list = near(end === "source" ? e.points[0] : (e.points.at(-1) ?? e.points[0]));
+            landing.set(k, list);
+        }
+        return list;
+    };
+    const gap = (e: PEdge, end: End, id: string): number =>
+        at(e, end).find((x) => x.n.id === id)?.d ?? Number.POSITIVE_INFINITY;
+    const nearest = (e: PEdge, end: End, id: string): boolean =>
+        gap(e, end, id) <= (at(e, end)[0]?.d ?? Number.POSITIVE_INFINITY) + END_TIE;
+    let changed = false;
+    for (const a of lines) {
+        for (const ea of ["source", "target"] as const) {
+            const shared = ea === "source" ? a.target : a.source;
+            const y = a[ea];
+            if (capped.has(`${a.id}\u0000${ea}`) || nearest(a, ea, y)) {
+                continue;
+            }
+            // another line from the shared node whose free end lands where this one's should, and that can take y
+            for (const b of lines) {
+                if (b === a || (b.source !== shared && b.target !== shared)) {
+                    continue;
+                }
+                const eb: End = b.source === shared ? "target" : "source";
+                if (capped.has(`${b.id}\u0000${eb}`)) {
+                    continue;
+                }
+                const z = b[eb];
+                if (z === y || z === shared || !nearest(a, ea, z) || !nearest(b, eb, y)) {
+                    continue;
+                }
+                const keeps =
+                    paintFits(a, shared, z) >= paintFits(a, shared, y) &&
+                    paintFits(b, shared, y) >= paintFits(b, shared, z);
+                if (keeps && gap(a, ea, z) + gap(b, eb, y) < gap(a, ea, y) + gap(b, eb, z) - END_TIE) {
+                    a[ea] = z;
+                    b[eb] = y;
+                    changed = true;
+                    break;
+                }
+            }
+        }
+    }
+    return changed;
+}
 
 /**
  * Whether a line came to its end through a node: a point back along it, half the node's size or the line's length
@@ -3034,7 +3263,7 @@ export function associate(
                         return arrowFrom(h, points, covered.end, canvas);
                     }
                     const end = endOf(h);
-                    points = extendToTip(points, h.points, end);
+                    points = extendToTip(points, h.points, end, h.stroke);
                     return arrowFrom(h, line.points, end, canvas);
                 });
                 // Graphviz's curve and icurve (and their l / r halves): a stroked stem along the line to the tip and
@@ -3748,6 +3977,21 @@ export function associate(
             strokes.set(p, edge);
         }
     }
+    // how well a line's paint fits the edges graphty draws between two nodes: at its width, in its color
+    const paintFits = (e: PEdge, u: string, v: string): number =>
+        (e.stroke !== null && widthDrawn(pairOf(u, v), e.stroke.width) ? 1 : 0) +
+        (guideColors.get(pairOf(u, v))?.has(e.stroke?.color ?? "") === true ? 1 : 0);
+    if (pairBestTotal(withPieces, edges, ownCaps, (q) => nodesOn(q), paintFits)) {
+        geoEdges.clear();
+        for (const e of withPieces) {
+            if (!e.id.includes("#g-outline")) {
+                const key = `${e.source}->${e.target}`;
+                const k = geoEdges.get(key) ?? 0;
+                geoEdges.set(key, k + 1);
+                e.id = `${key}#g${String(k)}`;
+            }
+        }
+    }
     // A self-loop a program draws as a whole circle on its node's outline (vis-network's selfReference) is a closed
     // stroked shape, or a path whose ends meet, with no end on the node: where graphty draws a loop on that node and no line was found for it, the circle
     // centered off the node that crosses its outline is the loop. So is a polyline from the node's center through its
@@ -4120,7 +4364,7 @@ export function associate(
                 ownArrows.add(arrow);
             }
             if (best.end !== "middle") {
-                best.e.points = extendToTip(best.e.points, p.points, best.end);
+                best.e.points = extendToTip(best.e.points, p.points, best.end, p.stroke);
             }
         }
     }
@@ -4194,7 +4438,7 @@ export function associate(
 
     // ---- labels by geometry: graphty's label text near the node it belongs to. Every line goes to
     // the nearest node that wants those words, closest pairs first, so a node met early cannot take
-    // a neighbour's line that sits nearer the neighbour (two labels ending in the same word).
+    // a neighbor's line that sits nearer the neighbor (two labels ending in the same word).
     const guideById = new Map(guide.nodes.map((n) => [n.id, n]));
     const guideWords = new Set(guide.texts.map((t) => norm(t.content)).filter((t) => t !== ""));
     const wanting = nodeList
@@ -4280,7 +4524,7 @@ export function associate(
             // node wants those words: an end label drawn over its own node (Cytoscape.js's source label at its
             // default offset, cytoscapejs-specimen-edge-labels' source-text-rotation-none) is the edge's
             // nor are words graphty draws as a text of their own (a text-only node over a box, cx2-wp1449-tlr's
-            // "Peptidoglycan(G+)" over the unlabelled group box 136935)
+            // "Peptidoglycan(G+)" over the unlabeled group box 136935)
             const endWords = endWordsAt(guide, w.n.id);
             const box = nodeBox(w.n);
             const hit = free()
@@ -4301,7 +4545,7 @@ export function associate(
             apartAsGraphty(w.picked, guideById.get(w.n.id)?.label ?? null),
         );
     }
-    // one guide edge per pair, a labelled one where parallel edges are not all labelled
+    // one guide edge per pair, a labeled one where parallel edges are not all labeled
     const guideEdges = new Map<string, (typeof guide.edges)[number]>();
     for (const e of guide.edges) {
         const k = `${e.source}\u0000${e.target}`;
@@ -4544,8 +4788,14 @@ export function associate(
                 (filled === undefined || p.fill === null) &&
                 (p.index < words || (filled !== undefined && boxIoU(p.box, filled.box) >= ROUND_THE_FILL)),
         );
-        const bordered =
+        const inner =
             strokes.find((p) => filled !== undefined && boxIoU(p.box, filled.box) >= ROUND_THE_FILL) ?? strokes[0];
+        // a double line is the outer of its two: the inner one is the same line again inside it
+        const outer = inner === undefined ? undefined : strokes.find((p) => doubles(p, inner));
+        const bordered = outer ?? inner;
+        if (outer !== undefined && inner !== undefined) {
+            take(inner);
+        }
         const parts = [filled, bordered].filter((p): p is Prim => p !== undefined);
         if (parts.length === 0) {
             continue;
@@ -4594,6 +4844,29 @@ export function associate(
 
 /** The share of a group's side a band behind its label runs: a rounded group's band stops short of its outline. */
 const BAND_OF_GROUP = 0.9;
+
+/**
+ * Whether a stroked outline is the outer line of a double one round a label's box: the same line drawn again inside it,
+ * two of its widths in on every side (Cytoscape.js `text-border-style: double`: two lines a quarter of the border's
+ * width, half of it apart).
+ * @param outer - the outline that may be the outer line
+ * @param inner - the outline inside it
+ * @returns true when the two are one double line
+ */
+function doubles(outer: Prim, inner: Prim): boolean {
+    const [o, i] = [outer.stroke, inner.stroke];
+    if (outer === inner || o === null || i === null || o.color !== i.color || !(o.width > 0)) {
+        return false;
+    }
+    const tol = Math.max(0.25 * o.width, 0.05);
+    const insets = [
+        inner.box.x0 - outer.box.x0,
+        inner.box.y0 - outer.box.y0,
+        outer.box.x1 - inner.box.x1,
+        outer.box.y1 - inner.box.y1,
+    ];
+    return Math.abs(i.width - o.width) <= tol && insets.every((d) => Math.abs(d - 2 * o.width) <= 2 * tol);
+}
 
 /**
  * Whether a shape is the box drawn behind a label: it holds the label's middle and most of its words, and reaches past
@@ -5156,7 +5429,7 @@ function besideTexts(texts: readonly Prim[], gap = 0.5): Prim[] {
 /** Where a guide node should be in the oracle's frame, how big, and how far its body may sit from there (in sizes). */
 /**
  * graphty's groups that are containers: drawn, holding two or more nodes, and at least twice the
- * area of the largest of them. A node that merely covers its neighbours in a dense drawing holds
+ * area of the largest of them. A node that merely covers its neighbors in a dense drawing holds
  * them too, but is no box drawn around them.
  * @param guide - graphty's drawing
  * @returns the groups
@@ -5285,7 +5558,7 @@ function spotsOf(guideNodes: readonly PNode[], predict: Predict): Map<PNode, Non
         return at === null ? [] : [{ n, at }];
     });
     byId.sort((a, b) => compareIds(a.n.id, b.n.id));
-    // in buckets of a pixel, so each node is compared with its neighbours only
+    // in buckets of a pixel, so each node is compared with its neighbors only
     const bucket = new Map<string, { x: number; y: number }[]>();
     const key = (x: number, y: number): string => `${String(Math.floor(x))},${String(Math.floor(y))}`;
     for (const { n, at } of byId) {

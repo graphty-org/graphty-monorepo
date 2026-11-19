@@ -1151,7 +1151,7 @@ export class SessionData implements SessionDataApi {
      */
     async clear(): Promise<void> {
         this.requireLive("clear");
-        // A load still reading when the clear is asked for is cancelled: it rejects with
+        // A load still reading when the clear is asked for is canceled: it rejects with
         // E_SUPERSEDED and adds nothing, so the cleared graph does not come back (issue #3524). An
         // edit still waiting resolves and adds nothing either.
         const send = this.writes.applier();
@@ -1166,7 +1166,7 @@ export class SessionData implements SessionDataApi {
      * lands on what they load instead of under them (issue #3526).
      * A clear asked for while it waits cancels it: it resolves without applying.
      * @param mutation - The edit.
-     * @returns Settles once it is applied, or cancelled by a clear.
+     * @returns Settles once it is applied, or canceled by a clear.
      */
     private edit(mutation: DataMutation): Promise<unknown> {
         checkMutation(mutation);
@@ -1271,9 +1271,9 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
-     * Load a generated graph from the catalogue, as one undoable step.
+     * Load a generated graph from the catalog, as one undoable step.
      * @param name - The generator's name.
-     * @param params - Its parameters; each one left out takes its catalogue default.
+     * @param params - Its parameters; each one left out takes its catalog default.
      * @param options - Whether to replace the graph (the default) or add to it.
      * @returns Settles once the graph is loaded.
      */
@@ -1324,7 +1324,7 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
-     * Download a sample dataset from the catalogue and load it, as one undoable step.
+     * Download a sample dataset from the catalog and load it, as one undoable step.
      * @param name - The dataset's name.
      * @param options - The import mode, a mirror to download from, and a signal.
      * @returns Settles once the graph is loaded.
@@ -1901,7 +1901,7 @@ export class SessionData implements SessionDataApi {
      * clear asked for while it waits cancels it: it resolves with `skipped`, or by default
      * rejects with `E_SUPERSEDED`, since what it names is gone.
      * @param run - The door's work.
-     * @param skipped - What a cancelled door resolves with; rejects when not given.
+     * @param skipped - What a canceled door resolves with; rejects when not given.
      * @returns What `run` returned.
      */
     private afterLoads<T>(run: () => Promise<T>, skipped?: () => T): Promise<T> {
@@ -4041,7 +4041,8 @@ export class SessionData implements SessionDataApi {
         snapshot: GraphSnapshot,
         space: ReturnType<typeof edgeSpaceOf>,
     ): Set<string> {
-        const columns = new Set<string>();
+        // The id and end columns are read into the graph's structure, not its records.
+        const columns = new Set<string>(roleColumns(entry));
         const nodeRows = (entry.tableRows ?? []).includes("nodes");
         for (const id of supplied.nodes) {
             const row = snapshot.ids.indexOf(id);
@@ -5464,7 +5465,10 @@ export class SessionData implements SessionDataApi {
      */
     async deriveScore(name: string, terms: readonly ScoreTerm[], options: DeriveOptions = {}): Promise<void> {
         this.requireLive("deriveScore");
-        if (!Array.isArray(terms) || terms.length === 0) {
+        // Checked as unknown: a caller's terms may break their type, and narrowing `terms` itself
+        // would leave it an any[].
+        const given: unknown = terms;
+        if (!Array.isArray(given) || given.length === 0) {
             throw new GraphtyError({
                 code: "E_BAD_COMMAND",
                 message: "A score has at least one term.",
@@ -5767,10 +5771,10 @@ export class SessionData implements SessionDataApi {
     groupTable(groupBy: Path, options: GroupTableOptions = {}): GroupTable {
         const summaries = Object.entries(options.summaries ?? {});
         for (const [path, asked] of summaries) {
-            const unknown = (Array.isArray(asked) ? asked : [asked]).find(
-                (each) => !GROUP_SUMMARIES.includes(each as GroupSummary),
-            );
-            if (!Array.isArray(asked) || unknown !== undefined) {
+            const given: unknown = asked;
+            const list: readonly unknown[] = Array.isArray(given) ? given : [given];
+            const unknown = list.find((each) => !GROUP_SUMMARIES.includes(each as GroupSummary));
+            if (!Array.isArray(given) || unknown !== undefined) {
                 throw new GraphtyError({
                     code: "E_OPTION_RANGE",
                     message: `summaries of ${path} must be a list of ${GROUP_SUMMARIES.join(", ")}`,
@@ -5996,6 +6000,19 @@ function countHeldEnds(
  */
 function sameColumns(columns: readonly string[], header: ReadonlySet<string>): boolean {
     return columns.length === header.size && columns.every((name) => header.has(name));
+}
+
+/**
+ * The columns a load read as node ids or edge ends.
+ * @param entry - The load.
+ * @returns The column names; none when the load kept no mapping (a graph file, a plain `import`).
+ */
+function roleColumns(entry: LoadedSource): string[] {
+    return Object.values(entry.mapping?.tables ?? {}).flatMap((table) =>
+        [table.key, table.source, table.target].flatMap((role) =>
+            role === undefined || role === null ? [] : [typeof role === "string" ? role : role.column],
+        ),
+    );
 }
 
 /**
@@ -7026,7 +7043,7 @@ function pairName(config: Readonly<Record<string, unknown>>): string | undefined
  * @param source - The source as the caller named it.
  * @param signal - Cancels reading the file's head or fetching the URL.
  * @returns The source the `data.import` command carries.
- * @throws A `GraphtyError` with `E_UNKNOWN_FORMAT` when nothing recognises the data, and
+ * @throws A `GraphtyError` with `E_UNKNOWN_FORMAT` when nothing recognizes the data, and
  *     `E_FETCH_FAILED` when the URL cannot be read.
  */
 /**

@@ -87,7 +87,7 @@ on:
                     - machine/gpu=t4/cpu=4/ram=16/tenancy=on_demand
                     - machine/gpu=t4/cpu=4/ram=16/tenancy=spot
 permissions: { contents: read }
-# One paid run at a time, never cancelled: a cancelled run is a paid hour thrown away. A bisect point has a group
+# One paid run at a time, never canceled: a canceled run is a paid hour thrown away. A bisect point has a group
 # of its own, so it neither waits behind nor cancels the full run's lane; bisect.yml runs its points one at a time.
 concurrency:
     group: ${{ inputs.bisect_point && format('bisect-{0}', inputs.bisect_point) || 'gpu-lane' }}
@@ -132,7 +132,7 @@ jobs:
         # write of issue #273 needs a writable /proc/sys. The runner is a single-use machine.dev VM, so the wider
         # container boundary exposes nothing another job shares.
         container:
-            image: ubuntu:24.04
+            image: ubuntu:24.04@sha256:73b999393d07f2bf65a40373778a44dc9a6d54ad7718d29247d8ff9413c4d6a8
             options: --gpus all --ipc=host --privileged
             env:
                 NVIDIA_VISIBLE_DEVICES: all
@@ -168,8 +168,11 @@ jobs:
             # The .deb files apt chose are cached, keyed on the bare image's own package list (every package and
             # version dpkg reports before anything is installed) and the packages asked for, so a hit installs with
             # dpkg and never touches archive.ubuntu.com: in run 42555029230 the runner could not reach it, apt
-            # found "no installation candidate" for libvulkan1 and the full run went red (#6390). A new ubuntu:24.04
-            # build changes the key, so its first run fetches once more (with apt's retries) and saves the set.
+            # found "no installation candidate" for libvulkan1 and the full run went red (#6390). The image is pinned
+            # by digest (above) because a new ubuntu:24.04 build changes the key, and the first run on it must reach
+            # the archive: full run 44519887010 met a new build while archive.ubuntu.com refused connections and went
+            # red (#9035). Bump the digest on purpose (`docker pull ubuntu:24.04` prints it) in both T4 workflows; the
+            # first run after the bump fetches once (with apt's retries) and saves the set.
             # The image's docker-clean hook deletes every .deb apt downloads; it is removed so the Playwright
             # system packages below can be cached the same way.
             - name: Key the container's packages by its image
@@ -349,8 +352,8 @@ jobs:
             # vitest's own code, and on a non-zero exit or 90 seconds of silence prints the test files that started
             # but never reported, the process table and a Node diagnostic report per surviving process (G4-F14).
             # Each project is an invocation of its own. vitest reads fileParallelism from the ROOT config, so the
-            # config serialises a whole run that selects node-device-errors or node-limits; naming either beside
-            # `node` would serialise the main suite too.
+            # config serializes a whole run that selects node-device-errors or node-limits; naming either beside
+            # `node` would serialize the main suite too.
             # node-gpu-alone is the rest of the main suite: the files that hold the GPU for seconds per submission,
             # run after the node project and one at a time, so no short GPU test waits behind them (issue #1884).
             - name: Bisect point -- only the failing files, under each project that holds them and its no-subgroups twin

@@ -199,7 +199,7 @@ export function modelChip(fact: CodedFact): ModelChipWords {
  * @returns the chip, or undefined for none.
  */
 export function countChip(facts: readonly CodedFact[]): ModelChipWords | undefined {
-    const [first] = facts;
+    const first = facts.at(0);
     if (first === undefined) {
         return undefined;
     }

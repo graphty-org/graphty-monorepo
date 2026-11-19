@@ -91,15 +91,13 @@ one into the app: a control the app needs that compact-mantine lacks, or gets wr
 `workspace/frame/ElementHost.tsx` renders `<graphty-element>` and writes its attributes; the graph's
 state lives in the element and its session, the workspace keeps only UI state.
 
-Acceleration: `elementLoader.ts` imports `@graphty/graphty-element/webgpu` after the element, and
-that is the whole GPU integration. The element probes, attaches and recovers; the app writes the
-reader's `acceleration` policy on the tag (`ElementHost.tsx`), remembers it under
-`graphty.acceleration.v1` (`workspace/settings/preferences.ts`, set in `SettingsDialog.tsx`), and
-shows `capabilities.acceleration` from the `graphty-capabilities-change` event
-(`workspace/frame/useAccelerationStatus.ts`, drawn by `WebGpuChip.tsx`). Nothing in this app may
-probe, construct or catch a GPU failure. The loader's `.catch` on the peer's import only logs a
-module that failed to download; the element still reports that peer as
-`E_NO_ACCELERATOR_REGISTERED`, so it is not a GPU failure being caught.
+Acceleration: the app lists `@graphty/webgpu-graph-algorithms` as a dependency and that is the whole
+GPU integration -- graphty-element finds and loads the installed package itself. The element probes,
+attaches and recovers; the app writes the reader's `acceleration` policy on the tag
+(`ElementHost.tsx`), remembers it under `graphty.acceleration.v1` (`workspace/settings/preferences.ts`,
+set in `SettingsDialog.tsx`), and shows `capabilities.acceleration` from the
+`graphty-capabilities-change` event (`workspace/frame/useAccelerationStatus.ts`, drawn by
+`WebGpuChip.tsx`). Nothing in this app may probe, construct or catch a GPU failure.
 
 ### Changing the graph, and undo
 

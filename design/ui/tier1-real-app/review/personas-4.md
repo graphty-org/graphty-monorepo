@@ -9,8 +9,8 @@ Every section stands alone. Paths are relative to the worktree root.
 
 1. The element already says this verb must not be synchronous. The doc comment on
    `SessionDataApi` reads: "The verbs that walk a part of the graph -- id listings over a scope,
-   neighbour pages, search -- are asynchronous by construction and are not part of this surface
-   yet" (graphty-element/src/session/types.ts:376-378). Item 4 adds exactly a "neighbour page" as a
+   neighbor pages, search -- are asynchronous by construction and are not part of this surface
+   yet" (graphty-element/src/session/types.ts:376-378). Item 4 adds exactly a "neighbor page" as a
    synchronous method and never mentions that rule. Either the rule is wrong and must be deleted
    with a reason, or item 4 must be async. Today's closest code, `edgePage({ touching })`, scans
    every edge once per node per revision (graphty-element/src/session/data.ts:560-561, the

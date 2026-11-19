@@ -983,7 +983,9 @@ export class GraphStore {
             throw new Error("GraphStore: the builder was let go with no snapshot to rebuild it from");
         }
 
-        const builder = this.createBuilder(released.directed);
+        // Locked as it was let go, not as the setting is now: a `data.directed` set while it was let
+        // go is still to be followed, which reads the direction the graph had before the setting.
+        const builder = this.createBuilder(released.directed, released.directedLocked);
         this.held = builder;
         // A rebuild before any edge is in is still the load (nodes, then edges in a second
         // command), so the builder may go again once the edges are in.
@@ -1135,12 +1137,13 @@ export class GraphStore {
 
     /**
      * A builder with the element's two columns declared.
-     * @param directed - Its direction; locked when the configuration named one.
+     * @param directed - Its direction.
+     * @param locked - Whether to lock it; by default when the configuration named one.
      * @returns the builder
      */
-    private createBuilder(directed: boolean): GraphBuilder {
+    private createBuilder(directed: boolean, locked = typeof this.directedSetting() === "boolean"): GraphBuilder {
         const builder = new GraphBuilder({ directed, addMissingNodes: true });
-        if (typeof this.directedSetting() === "boolean") {
+        if (locked) {
             // Free only while the builder is empty (graph-format/src/builder/graph-builder.ts);
             // once edges exist, directed -> undirected throws E_DIRECTED. "auto" deliberately does
             // NOT lock (PLAN DECISION 2): an importer that learns the direction from the file it is

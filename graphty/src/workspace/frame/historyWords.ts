@@ -201,6 +201,7 @@ const WORDS: Readonly<Record<HistoryCode, (params: Params, session: GraphSession
     "shader.add": (p, s) => `adding ${shaderName(s, p.id)}`,
     "shader.replace": (p, s) => `changing ${shaderName(s, p.id)}`,
     "shader.remove": (p, s) => `removing ${shaderName(s, p.id)}`,
+    "asset.defaults": () => "changing a model's settings",
     "visibility.filter": () => "filtering",
     "visibility.clear-filter": () => "clearing the filter",
     "visibility.window": () => "setting the time window",

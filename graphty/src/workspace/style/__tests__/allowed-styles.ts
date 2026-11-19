@@ -9,11 +9,8 @@
 import type { Channel } from "@graphty/graphty-element/catalog";
 import type { LabelStyle } from "@graphty/graphty-element/schema";
 
-/**
- * graphty-element's channels at merge base d37f036915 (`ChannelValues` in src/session/styles/channels.ts), as
- * names: some have since been withdrawn (`edge.labelBox`).
- */
-export const BASE_CHANNELS: readonly string[] = [
+/** graphty-element's channels at merge base d37f036915 (`ChannelValues` in src/session/styles/channels.ts). */
+export const BASE_CHANNELS: readonly Channel[] = [
     "node.color",
     "node.size",
     "node.sizeMode",

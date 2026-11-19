@@ -246,10 +246,10 @@ describe("Style panel v2's keys inside a thing's pop-over", () => {
         assert.equal(written(session, id, "node.cornerRadius"), 0.2, "its corners stay");
         assert.equal(written(session, id, "node.size"), 2, "its size stays");
 
-        // A second click closes the select and leaves focus on it.
+        // Opened and closed again with Escape, the select keeps focus.
         const select = within(line).getByRole("combobox", { name: "Switch to" });
         await userEvent.click(select);
-        await userEvent.click(select);
+        await userEvent.keyboard("{Escape}");
         await userEvent.keyboard("{Backspace}");
         assert.equal(written(session, id, "node.shape"), "star", "Backspace on Switch to leaves the shape");
         assert.equal(written(session, id, "node.size"), 2);

@@ -379,6 +379,7 @@ function SaveAsV2Dialog({ saveAsDialog, save: saveAs }: SaveFilesV2DialogsProps)
             left.current = true;
             return undefined;
         }
+        left.current = false;
         setName(workspace.store.get().project?.name ?? "");
         setChosen([...DOCUMENT_SECTIONS]);
         setForm("full");
@@ -441,7 +442,6 @@ function SaveAsV2Dialog({ saveAsDialog, save: saveAs }: SaveFilesV2DialogsProps)
             return;
         }
         setSaving(true);
-        left.current = false;
         try {
             await saveAs(workspace, trimmed, { sections: chosen, form: fileForm, embed: storage }, whole);
             if (!left.current) {
@@ -492,7 +492,7 @@ function SaveAsV2Dialog({ saveAsDialog, save: saveAs }: SaveFilesV2DialogsProps)
                     <FileForm sectionFile={sectionFile} oneSection={one !== null} onChange={setForm} />
                     {whole === false ? (
                         <Text size="sm" ff="monospace" c={SECONDARY}>
-                            {projectFileName(trimmed, sectionFile && one !== null ? { section: one } : {})}
+                            {projectFileName(trimmed, sectionFile ? { section: one } : {})}
                         </Text>
                     ) : null}
                 </Stack>
@@ -587,7 +587,8 @@ function ReferencedRow({
                     variant="default"
                     aria-label={`Locate ${name}`}
                     onClick={() => {
-                        void pickFiles().then(([file]) => {
+                        void pickFiles().then((files) => {
+                            const file = files.at(0);
                             if (file !== undefined) {
                                 onPick(file);
                             }
@@ -734,7 +735,7 @@ function ColumnMapping({
  * @returns the option, or undefined when nothing is paired.
  */
 function columnsOption(columns: ColumnMap): ColumnMap | undefined {
-    const tables = Object.entries(columns).filter(([, renames]) => Object.keys(renames ?? {}).length > 0);
+    const tables = Object.entries(columns).filter(([, renames]) => Object.keys(renames).length > 0);
     return tables.length === 0 ? undefined : Object.fromEntries(tables);
 }
 
@@ -938,7 +939,7 @@ function OpenV2Dialog(): React.JSX.Element {
             </ChoiceRow>
         ) : null;
     // A section file other than data is added to the project.
-    const [only] = sections;
+    const only = sections.at(0);
     const adds = facts?.form === "section" && only !== undefined && only.section !== "data" ? only : undefined;
 
     if (adds !== undefined) {

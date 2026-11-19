@@ -195,7 +195,7 @@ export interface ReportNames {
  * @returns its name, or "Project" for none.
  */
 function sectionWord(value: unknown): string {
-    return SECTION_LABELS[value as DocumentSection] ?? "Project";
+    return typeof value === "string" && value in SECTION_LABELS ? SECTION_LABELS[value as DocumentSection] : "Project";
 }
 
 /**

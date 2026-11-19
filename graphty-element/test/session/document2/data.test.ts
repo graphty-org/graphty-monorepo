@@ -557,7 +557,7 @@ describe("data section version 2", () => {
         assert.deepStrictEqual(invalid(asSection(written)), []);
         const typeOf = Object.fromEntries(
             ((written.graph as JsonObject).nodes as JsonObject[]).map((node) => [
-                node["graphty.key"],
+                String(node["graphty.key"]),
                 node["graphty.types"],
             ]),
         );
@@ -671,7 +671,7 @@ describe("data section version 2", () => {
         const { body: written } = await writeBody(session);
         const loads = Object.fromEntries(
             ((written.graph as JsonObject).nodes as JsonObject[]).map((node) => [
-                node["graphty.key"],
+                String(node["graphty.key"]),
                 node["_source.loads"],
             ]),
         );
@@ -691,7 +691,7 @@ describe("data section version 2", () => {
         const { body: written } = await writeBody(session);
         const loads = Object.fromEntries(
             ((written.graph as JsonObject).nodes as JsonObject[]).map((node) => [
-                node["graphty.key"],
+                String(node["graphty.key"]),
                 node["_source.loads"],
             ]),
         );
@@ -772,7 +772,7 @@ describe("data section version 2", () => {
         assert.deepStrictEqual(held(session), [[7, [SRC_A, SRC_B]]]);
         const { body: written } = await writeBody(session);
         const copies = Object.fromEntries(
-            (written.sources as JsonObject[]).map((source) => [source.id, (source.copy as JsonObject).edges]),
+            (written.sources as JsonObject[]).map((source) => [String(source.id), (source.copy as JsonObject).edges]),
         );
         assert.deepStrictEqual((copies[SRC_A] as JsonObject).w, [1, 2]);
         assert.deepStrictEqual((copies[SRC_B] as JsonObject).w, [4]);
@@ -807,7 +807,7 @@ describe("data section version 2", () => {
         const [json, csv] = (body.sources as JsonObject[]).map((source) => String(source.id));
         const loads = Object.fromEntries(
             ((body.graph as JsonObject).nodes as JsonObject[]).map((node) => [
-                node["graphty.key"],
+                String(node["graphty.key"]),
                 node["_source.loads"],
             ]),
         );

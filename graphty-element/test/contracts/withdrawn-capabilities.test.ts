@@ -62,6 +62,11 @@ const PROBES: Readonly<Record<string, () => string | null>> = {
 
         return parsed.success ? "EdgeStyle accepts `enabled` again, and nothing reads it." : null;
     },
+    "edge.labelBox": () =>
+        isChannel("edge.labelBox")
+            ? "`edge.labelBox` is a channel again. An edge text has no target box to size against, so " +
+              "every value draws the same picture."
+            : null,
 };
 
 describe("the capabilities 2.0 withdrew", () => {

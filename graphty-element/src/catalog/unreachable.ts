@@ -475,11 +475,11 @@ export interface WithdrawnCapability {
 }
 
 /**
- * Everything 2.0 stopped publishing, with the reason and the replacement for each.
+ * Everything this package stopped publishing, with the reason and the replacement for each.
  *
- * All three entries are the same shape of defect: a name the element published, a renderer that
- * never read it, and no way for a consumer to find that out but by writing it and watching
- * nothing happen. 2.0 is the first opportunity to take any of them back.
+ * Every entry is the same shape of defect: a name the element published, a renderer that never
+ * read it (or read it to no effect), and no way for a consumer to find that out but by writing it
+ * and watching nothing happen.
  */
 export const WITHDRAWN_CAPABILITIES: readonly WithdrawnCapability[] = [
     {
@@ -523,5 +523,17 @@ export const WITHDRAWN_CAPABILITIES: readonly WithdrawnCapability[] = [
         instead:
             "Hide edges through the session's filters. `edge.labelStyle` with `enabled: false` " +
             "takes an edge's words away without touching the line.",
+    },
+    {
+        subject: "edge.labelBox",
+        withdrawnIn: "3.62",
+        reason:
+            "It drew nothing on an edge. The channel chose what a label's box is sized to -- its " +
+            "words, or the width of its target -- and an edge text has no target box to size " +
+            "against, so every value drew the same picture.",
+        instead:
+            "Nothing is needed for an edge: its label's box is always sized round its words. " +
+            "`node.labelBox` and the `box` field of a label style (`LabelStyle.box`) are " +
+            "unchanged and still size a node label.",
     },
 ];

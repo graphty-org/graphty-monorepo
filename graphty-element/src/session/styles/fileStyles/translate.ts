@@ -879,6 +879,7 @@ function channelPlans(
                 ],
             ],
             ["xlabelOffsetY", [length("node.xlabelOffsetY", factors.node * SCENE_PER_UNIT.node)]],
+            ["xlabelTextAlign", [id("node.xlabelTextAlign")]],
             ["shape", [table("node.shape", shapeTable)]],
             ["labelColor", [label("labelColor")]],
             ["labelSize", labelSize("node.labelSize", "node.labelLetterSize")],

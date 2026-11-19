@@ -73,7 +73,7 @@ export function shownReport(store: WorkspaceStore): ReportV2 | undefined {
  * @param session - the session it opens in.
  * @param file - the file.
  * @returns the open's options and what the file names, `{}` for a file not asked about, or null
- *     when the reader cancelled.
+ *     when the reader canceled.
  */
 export async function askOpenV2(
     store: WorkspaceStore,

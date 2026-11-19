@@ -763,7 +763,7 @@ function heldNotice(workspace: WorkspaceStore, session: GraphSession, notice: No
  * @param workspace - the workspace store.
  * @param session - the session.
  * @param pending - the file and where it came from.
- * @returns false when the reader cancelled.
+ * @returns false when the reader canceled.
  */
 async function askBeforeOpen(workspace: WorkspaceStore, session: GraphSession, pending: PendingFile): Promise<boolean> {
     if (!saveFilesV2On(session) || pending.v2 !== undefined) {

@@ -650,7 +650,7 @@ function OpenV2Dialog(): React.JSX.Element {
         setFetch(false);
         setBind(false);
         setFiles({});
-        // Closed without an answer (another dialog took the slot): the open is cancelled.
+        // Closed without an answer (another dialog took the slot): the open is canceled.
         return () => {
             openQuestion(store)?.answer(null);
         };

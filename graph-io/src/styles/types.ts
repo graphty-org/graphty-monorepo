@@ -614,6 +614,11 @@ export interface NodeStyleValues {
      */
     readonly labelBorderAlign: string;
     /**
+     * How the line round the box behind the label's words is drawn: `solid`, one line; `double`, the line drawn again
+     * inside it, one line's width in, as Cytoscape.js draws `text-border-style: double`. Unset, `solid`.
+     */
+    readonly labelBorderStyle: string;
+    /**
      * The shape of the box behind the label's words and its line: `rectangle` (rounded by `labelCornerRadius`), or
      * `circle`, a disc whose diameter is the box's shorter side, centered on it (Cytoscape.js
      * `text-background-shape: circle`). Unset, `rectangle`.
@@ -971,6 +976,13 @@ export interface EdgeStyleValues {
      * Cytoscape.js's `curve-style: straight-triangle`).
      */
     readonly taper: number;
+    /**
+     * The line's width at the source as a multiple of `width`: 1 (the default) leaves the source end at `width`, 0
+     * narrows the line to a point there (Graphviz's `style=tapered`, `dir=back`). When it and `taper` are both below
+     * 1, the line is `width` wide at its middle and narrows straight to each end (`dir=both`); otherwise it runs
+     * straight from its width at the source to its width at the target.
+     */
+    readonly taperSource: number;
     /** The arrow at the source end. */
     readonly sourceArrow: StyleArrowShape;
     /** The arrow at the target end. */
@@ -1179,6 +1191,11 @@ export interface EdgeStyleValues {
      * `center`, centered on the edge, as Cytoscape.js strokes it. Unset, `outside`.
      */
     readonly labelBorderAlign: string;
+    /**
+     * How the line round the box behind the label's words is drawn: `solid`, one line; `double`, the line drawn again
+     * inside it, one line's width in, as Cytoscape.js draws `text-border-style: double`. Unset, `solid`.
+     */
+    readonly labelBorderStyle: string;
     /**
      * The shape of the box behind the label's words and its line: `rectangle` (rounded by `labelCornerRadius`), or
      * `circle`, a disc whose diameter is the box's shorter side, centered on it (Cytoscape.js

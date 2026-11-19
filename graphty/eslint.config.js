@@ -146,6 +146,7 @@ export default tseslint.config(
         // Stories are linted without type information (root eslint.config.js), and the rules need it.
         ignores: ["**/*.stories.ts", "**/*.stories.tsx", "**/stories/**/*.ts"],
         rules: {
+            "@typescript-eslint/no-unsafe-assignment": "error",
             "@typescript-eslint/no-unsafe-call": "error",
             "@typescript-eslint/no-unsafe-return": "error",
         },

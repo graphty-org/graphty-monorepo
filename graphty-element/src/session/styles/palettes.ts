@@ -43,31 +43,8 @@ import type { BindingOverflow, PaletteDescriptor, PaletteId } from "../../catalo
 import { GraphtyError } from "../../errors";
 import { interpolatePalette } from "../../utils/styleHelpers/color/interpolation";
 import { type ColorValue, toColorValue } from "./channels";
+import { DEFAULT_CATEGORICAL_PALETTE, DEFAULT_PALETTE } from "./defaultPalettes";
 import { groupCount, isScaleMiss, type ScaleContext, type ScaleRegistry } from "./scales";
-
-/**
- * The palette a color binding uses when it does not name one and reads a measurement.
- *
- * Paul Tol's YlOrBr, one hue family from orange to dark brown, because a ramp inside one hue
- * family reads as "how much". Viridis, the default before it, sweeps from purple through green
- * to yellow, and a hue sweep makes a sparse set of nodes read as separate groups rather than as
- * amounts (Reda & Szafir 2021; Tseng et al. 2024). It is trimmed to the steps that stand off the
- * element's light background by at least 2:1, so the palest node is still visible. Viridis stays
- * in the catalog for a binding that names it. `test/catalog/default-palette-quality.test.ts`
- * measures whatever this is.
- */
-const DEFAULT_PALETTE: PaletteId = "ylorbr";
-
-/**
- * The palette a color binding uses when it does not name one and reads groups.
- *
- * Okabe-Ito as published: eight distinct colors, safe for every form of color blindness the
- * catalog names, with yellow last because it barely shows on a light background. It is the
- * first choice rather than the only one: a partition with more groups than it has colors gets a
- * larger palette from {@link defaultPaletteFor}, and every partition that fits keeps this one, so
- * a picture that is right today does not change color because the rule grew a branch.
- */
-const DEFAULT_CATEGORICAL_PALETTE: PaletteId = "okabe-ito";
 
 /** The scale a binding uses when it does not name one. */
 const DEFAULT_SCALE = "linear";
@@ -164,11 +141,12 @@ export function colorsProblem(stops: unknown): string | null {
         return 'A binding\'s own colors are two or more colors, lowest first, such as ["#fff7bc", "#993404"].';
     }
 
-    const bad = stops.find((stop) => typeof stop !== "string" || toColorValue(stop) === null);
+    const authored: readonly unknown[] = stops;
+    const bad = authored.find((stop) => typeof stop !== "string" || toColorValue(stop) === null);
 
     return bad === undefined
         ? null
-        : `"${String(bad)}" is not a colour, so it cannot be one of a binding's own colors.`;
+        : `"${typeof bad === "string" ? bad : JSON.stringify(bad)}" is not a colour, so it cannot be one of a binding's own colors.`;
 }
 
 /** A color binding with everything knowable worked out, ready to be asked once per element. */

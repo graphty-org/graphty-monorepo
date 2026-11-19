@@ -614,6 +614,23 @@ const MAX_PATH_POINTS = 65;
 const PATTERN_STYLES: Readonly<Record<string, LineStyle>> = { dash: "dashed", dot: "dotted" };
 
 /**
+ * The line style of a drawn edge, by its pattern's name; a dash pattern whose every element is no longer than the line is
+ * wide draws dots (a dot shorter than the line is wide is drawn as a short square-ended dash, `EdgeMesh.joinedPattern`).
+ * @param d - what the renderer drew
+ * @returns the style
+ */
+function drawnStyleOf(d: DrawnEdge): LineStyle {
+    if (d.pattern === null) {
+        return "solid";
+    }
+    const on = d.dashPx?.filter((_, i) => i % 2 === 0) ?? [];
+    if (d.pattern === "dash" && on.length > 0 && on.every((len) => len <= d.thicknessPx)) {
+        return "dotted";
+    }
+    return PATTERN_STYLES[d.pattern] ?? "other";
+}
+
+/**
  * One edge as drawn, and what its style asked for.
  * @param record - the edge's id and ends
  * @param record.id - the edge id
@@ -645,7 +662,7 @@ function sceneEdge(
         color: d.color ?? "#000000",
         opacity: d.opacity,
         width: d.thicknessPx,
-        style: d.pattern === null ? "solid" : (PATTERN_STYLES[d.pattern] ?? "other"),
+        style: drawnStyleOf(d),
         arrow: { source: capAt("arrowTail"), target: capAt("arrowHead") },
         label: d.label?.enabled === true && d.label.text !== "" ? d.label.text : null,
         requested: {

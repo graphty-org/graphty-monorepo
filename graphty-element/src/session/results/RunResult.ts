@@ -941,12 +941,13 @@ function toSummaryGroups(
     const groups: SummaryGroup[] = [];
     let groupCount = 0;
 
-    for (const row of value) {
+    const rows: readonly unknown[] = value;
+    for (const row of rows) {
         if (typeof row !== "object" || row === null) {
             continue;
         }
 
-        const record: Record<string, unknown> = row;
+        const record = row as Record<string, unknown>;
         const group = record.group ?? record.category;
         const size = record.size ?? record.count;
         if (isGroupKey(group) && typeof size === "number") {

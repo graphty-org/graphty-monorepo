@@ -72,9 +72,12 @@ describe("DOT styles: an edge label Graphviz places itself", () => {
     it("hangs a loop's label outside the loop, its box's left side on the loop's far point (selfRight)", async () => {
         const doc = `digraph { a -> a [label="lbl"]; b -> b; c -> c [label="lbl", tailport=n]; d [pos="0,0"];
             d -> d [label="lbl", pos="e,0,0 1,1 2,2 3,3 4,4"] }`;
-        expect(await edges(doc, "labelShiftX")).toEqual([0.5, null, null, null]);
+        // c's one port on top still sends its loop round the right (makeSelfEdge), and its label with it
+        expect(await edges(doc, "labelShiftX")).toEqual([0.5, null, 0.5, null]);
         expect(await edges(doc, "labelShiftY")).toEqual([null, null, null, null]);
-        expect(await edges(doc, "labelPosition")).toEqual(["center", null, null, null]);
+        expect(await edges(doc, "labelPosition")).toEqual(["center", null, "center", null]);
+        // a loop laid over the node's top keeps the element's label place
+        expect(await edges(`digraph { a -> a [label="lbl", tailport=n, headport=n] }`, "labelShiftX")).toEqual([null]);
         expect(await edges(`digraph { splines=ortho; a -> a [label="lbl"] }`, "labelShiftX")).toEqual([null]);
     });
 

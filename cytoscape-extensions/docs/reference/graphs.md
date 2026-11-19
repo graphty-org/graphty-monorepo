@@ -546,7 +546,7 @@ A uniformly-ish random d-regular simple graph by the pairing algorithm of A. Ste
 
 ### `random-tree`
 
-A uniformly random labelled tree. Also takes `seed` and `weights`.
+A uniformly random labeled tree. Also takes `seed` and `weights`.
 
 | Option | Type     | Default  | Meaning               |
 | ------ | -------- | -------- | --------------------- |

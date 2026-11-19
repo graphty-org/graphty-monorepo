@@ -472,7 +472,7 @@ export function SelectionEditor({
             onEmptyCancel();
             return;
         }
-        say(how === "done" ? `Done, ${formatNumber(reading.total.count)} of ${formatNumber(of)}` : "Cancelled");
+        say(how === "done" ? `Done, ${formatNumber(reading.total.count)} of ${formatNumber(of)}` : "Canceled");
         // The host folds the selection back to its row (a filter card); its row then takes focus.
         if (onDone !== undefined) {
             onDone();
@@ -1755,9 +1755,10 @@ export function SelectionEditor({
                               }}
                               onKeyDownCapture={(event) => {
                                   escaped.current = event.key === "Escape";
-                                  // Escape in a card's box, unless the box's own list is open, is the
-                                  // workspace's Escape: a box never takes it as "discard what I typed"
-                                  // (spec 3.4).
+                                  // Escape in a card's box, unless the box's own list is open, leaves the
+                                  // box for its card and keeps what was typed (spec 3.4): a box never
+                                  // takes it as "discard what I typed", and the workspace stays open with
+                                  // its edits. A second Escape, now on the card, is the workspace's.
                                   const target = event.target as HTMLElement;
                                   if (
                                       event.key === "Escape" &&
@@ -1769,7 +1770,7 @@ export function SelectionEditor({
                                   ) {
                                       event.preventDefault();
                                       event.stopPropagation();
-                                      wsKeys(event);
+                                      (target.closest<HTMLElement>("[data-card-id]") ?? wsBox.current)?.focus();
                                   }
                               }}
                               onKeyDown={(event) => {

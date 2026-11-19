@@ -291,7 +291,7 @@ async function heldSession(execute: (context: RunExecutionContext) => Promise<Ru
     return session;
 }
 
-/** Runs until it is cancelled. */
+/** Runs until it is canceled. */
 const untilCancelled = (context: RunExecutionContext): Promise<RunOutcome> =>
     new Promise((_resolve, reject) => {
         context.signal.addEventListener("abort", () => {

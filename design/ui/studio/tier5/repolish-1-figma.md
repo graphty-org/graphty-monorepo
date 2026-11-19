@@ -141,7 +141,7 @@ logic sits in the app.
 
 - **Evidence.** `k1/98.png`: the step's "..." menu shows "Move down" with "Already the last step"
   under it; the group menu has "Already at the top" / "Already at the bottom" (`SelectionEditor.tsx`
-  `reason`). Figma's menus grey a disabled item and say nothing; graphty's style tree menu does the
+  `reason`). Figma's menus gray a disabled item and say nothing; graphty's style tree menu does the
   same. The two-line row also breaks the 24 px menu rhythm.
 - **Fix.** Drop `reason` for Move up and Move down (keep it only where the reason is not obvious,
   as for "Or..." at the palette's end, and there in the tooltip).

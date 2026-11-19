@@ -3,7 +3,7 @@
  * named in `src/catalog/unreachable.ts` with the reason it is not.
  *
  * WHY THIS EXISTS. `EdgeStyle` has declared `arrowHead.size`, `arrowHead.color` and
- * `arrowHead.opacity` since 1.x, with defaults, and the renderer honours all three --
+ * `arrowHead.opacity` since 1.x, with defaults, and the renderer honors all three --
  * `Edge.ts` reads `style.arrowHead?.size ?? 1.0` to size the cap. The 2.0 channel set publishes
  * `edge.arrowHead` as the cap TYPE and nothing else, so a consumer cannot set any of them. The
  * capability is built, drawn, tested, and has no door. Three separate agents noticed across three
@@ -24,11 +24,11 @@
  * Two consequences of deriving it that way, both deliberate:
  *
  * - `texture.color.colorType` and `texture.color.value` come out UNREACHABLE even though the
- *   painter writes both. It pins them to a neutral solid so a node's per-instance colour can
+ *   painter writes both. It pins them to a neutral solid so a node's per-instance color can
  *   show (or, for `colorType`, to "gradient" whenever a gradient channel is painted), so no one
  *   channel can choose them -- precisely the kind of thing a restated list would have hidden.
  * - `node.color` writes nothing into the style at all; its value is diverted into
- *   `NodePaint.color`, beside the style, so that one material is not minted per colour. The run
+ *   `NodePaint.color`, beside the style, so that one material is not minted per color. The run
  *   below sees that divergence in the paint and credits the channel's declared `stylePath` with
  *   it, rather than this file knowing the name "node.color".
  *
@@ -70,8 +70,8 @@ interface SchemaNode {
  * The alternative shapes one schema node can take, with nested unions flattened away.
  *
  * A union arm that is an object contributes its own fields; an arm that is a scalar makes the
- * union itself a settable leaf. `NodeStyle.texture.color` is both -- a colour string, or an
- * advanced colour object -- and both halves are real surfaces a consumer could be given.
+ * union itself a settable leaf. `NodeStyle.texture.color` is both -- a color string, or an
+ * advanced color object -- and both halves are real surfaces a consumer could be given.
  * @param node - The schema node.
  * @returns Its arms, or the node itself when it is not a union.
  */
@@ -103,7 +103,7 @@ function schemaLeaves(node: SchemaNode, prefix: string, found: Set<string>): voi
  * Walk a painted style to its leaves, as dotted paths against their values.
  * @param value - The value at this path.
  * @param prefix - The path so far.
- * @param found - Where to collect path against serialised value.
+ * @param found - Where to collect path against serialized value.
  */
 function paintedLeaves(value: unknown, prefix: string, found: Map<string, string>): void {
     if (typeof value === "object" && value !== null && !Array.isArray(value)) {
@@ -207,7 +207,7 @@ function probeValue(descriptor: ChannelDescriptor, run: 0 | 1): unknown {
             return run === 0 ? low + (high - low) * 0.25 : low + (high - low) * 0.75;
         }
         case "text":
-            // A gradient's stops are numbers, one per colour: the node's own colour alone takes one.
+            // A gradient's stops are numbers, one per color: the node's own color alone takes one.
             if (descriptor.channel === "node.gradientStops") {
                 return run === 0 ? "0.25" : "0.75";
             }
@@ -266,8 +266,8 @@ function reachedBy(descriptor: ChannelDescriptor): Set<string> {
         }
     }
 
-    // The value went beside the style rather than into it, which is what the node colour does so
-    // that one material is not minted per colour. Credit the field the channel declares.
+    // The value went beside the style rather than into it, which is what the node color does so
+    // that one material is not minted per color. Credit the field the channel declares.
     if (runs[0].beside !== runs[1].beside) {
         reached.add(descriptor.stylePath);
     }

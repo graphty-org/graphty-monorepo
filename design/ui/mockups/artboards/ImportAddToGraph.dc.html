@@ -103,13 +103,13 @@
   panel header overflow. Nothing else in the panel or on the canvas moved.
   Resident Data panel rows 18 -> 15. The one transient surface drawn open is the Import options dialog,
   which is opened by a file dropped on the canvas and so has no anchor box: it takes the CENTRED form,
-  720 wide on 1440 (x 360 to 1080), vertically centred on 900. No anchored pop-over is drawn open.
+  720 wide on 1440 (x 360 to 1080), vertically centered on 900. No anchored pop-over is drawn open.
 
   REVISION 1.9 (SECTIONS-1.9.md). NO PIXEL ON THIS BOARD CHANGES, and that is the finding rather than an
   omission. 5.14 Validation report split the set in two: DataPanelLoaded and ValidationPopout drew it as a
   permanent door with the whole report in a 360 pop-out, while this board and TableJoin drew it as an
   ordinary live collapsed section with its own state mark. 5.8's board-divergence clause settles that
-  split in favour of the collapsed section -- "the boards that draw the live collapsed section are
+  split in favor of the collapsed section -- "the boards that draw the live collapsed section are
   correct and the others are brought to them" -- so this board is the TARGET of the 1.9 edit, not its
   subject. Its 33px header at [64,446 255x32] with the amber dot and "4 issue types (27)" is what
   DataPanelLoaded's and ValidationPopout's headers were measured against.
@@ -891,7 +891,7 @@
                                     "
                                 >
                                     <!-- RT-7 Add data. Rule 8: the drop sentence restates the dashed border and the zone's own name, and
-                 the format list is teaching text, so both ride in the zone's title. 120px of centred prose becomes
+                 the format list is teaching text, so both ride in the zone's title. 120px of centered prose becomes
                  one 44px row. "Choose file" keeps its words (register 1.6: open has no glyph). -->
                                     <div
                                         title="Drop a graph file here, or a nodes file and an edges file. JSON, CSV or TSV, GraphML, GEXF, GML, DOT, Pajek, SIF, CX2."
@@ -2425,7 +2425,7 @@
                between blocks. The set ran ten widths; 256 is the one. It is the smallest 8px step whose
                content box -- 256 less 16 of padding and 2 of border, so 238 -- holds every name pair in
                the set on one line but two (the longest is the 230.5px "Arrow: payment direction (edge
-               direction)"), and it still clears the centred 246px toolbar by 25px against the 16px
+               direction)"), and it still clears the centered 246px toolbar by 25px against the 16px
                minimum 5.6 sets.
                A quantitative block is MIN / MEDIAN / MAX, which is what 5.1 asks for and what the
                one-line "1 to 44" string could not say -- 1 / 6 / 44 and 1 / 22 / 44 print the same
@@ -2579,13 +2579,13 @@
 
                                 <!-- CANVAS TOOLBAR (5.6, 5.1; TB-1, TB-2, TB-4), verbatim from VOCAB.md section 12. The 5.6
                navigation cluster that stood at left: 12px; bottom: 120px is retired: the same six items,
-               rotated and centred on the LIVE CANVAS RECT with left: 50% and translateX(-50%), never on the
+               rotated and centered on the LIVE CANVAS RECT with left: 50% and translateX(-50%), never on the
                window. 246 x 36, derived as 3 + 60 + 12 + (28*4 + 2*3) + 12 + 36 + 3 + 2 borders and measured
                privately at this file:// URL. It is the one canvas overlay with a shadow and the one surface
                at radius 7 -- both deliberate two-value exceptions; the minimap and the legend stay flat at 4.
                TB-4, the bottom stack: this board draws no time slider and no Data table drawer, so the canvas
                floor is the canvas rect itself and the offset is the plain bottom: 12px.
-               TB-3, the clearances: centred on the 832 canvas the bar spans canvas x 293 to 539. The minimap
+               TB-3, the clearances: centered on the 832 canvas the bar spans canvas x 293 to 539. The minimap
                ends at 172 and the legend starts at 660, so the bar clears each of them by 121px and all three
                sit on one 12px baseline. The two-line rule fires below 172 + 16 + 246 + 16 + 172 = 622px of
                canvas; 832 is far above it, so nothing reflows and neither overlay rises.

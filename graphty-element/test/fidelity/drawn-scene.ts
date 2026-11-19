@@ -1579,6 +1579,8 @@ export interface DrawnEdge {
      * does not taper.
      */
     taper?: number;
+    /** Its width at the source over the line's width (`line.taperSource`), where the line tapers there. */
+    taperSource?: number;
     /**
      * The band drawn under the line (`line.outline`): its color, opacity, whole width in pixels and the pattern it is
      * drawn in (a joined line's "dash" or "dot"; absent, solid); null for none.
@@ -1731,7 +1733,7 @@ function capOutline(cap: ArrowCap | null, p: Projector): [number, number][] | nu
 
 /**
  * A joined line's dashes or dots on screen: each element is `elementLength` long along the line and the elements sit
- * `spacing` apart centre to centre (the slot's spacing, `EdgeLineBatch`), so each gap is the spacing less the length.
+ * `spacing` apart center to center (the slot's spacing, `EdgeLineBatch`), so each gap is the spacing less the length.
  * @param batch - the line's batch
  * @param slots - the edge's slots in it
  * @param pattern - the batch's pattern, or undefined for a solid line
@@ -1864,6 +1866,7 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
     let pattern: string | null = null;
     let dashPx: number[] | null = null;
     let taper: number | undefined;
+    let taperSource: number | undefined;
     if (batch !== null) {
         const slots = internal.lineSlots;
         const flat = (batch.mesh.metadata as { is2DLine?: boolean } | null)?.is2DLine === true;
@@ -1875,7 +1878,8 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
             const straight = flat ? "line-2d" : "screen-line";
             kind = internal.drawnStyle?.line?.bezier === true || !internal.lineIsCurve ? "curve" : straight;
         } else {
-            world = slots.length > 0 ? batch.endsOf(slots[0]) : [];
+            // one straight line, in one piece or in a run of them (a line tapered at both ends is two halves)
+            world = slots.length > 0 ? [batch.endsOf(slots[0])[0], batch.endsOf(slots[slots.length - 1])[1]] : [];
             kind = flat ? "line-2d" : "screen-line";
         }
         const mid = world[Math.floor(world.length / 2)] ?? Vector3.Zero();
@@ -1897,6 +1901,8 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
         dashPx = joinedDashes(batch, slots, meta?.pattern, mid, p);
         const asked = internal.drawnStyle?.line?.taper;
         taper = asked !== undefined && asked !== 1 && batch.widened ? asked : undefined;
+        const askedSource = internal.drawnStyle?.line?.taperSource;
+        taperSource = askedSource !== undefined && askedSource !== 1 && batch.widened ? askedSource : undefined;
         const styled = own?.alpha ?? meta?.lineOpacity;
         // A joined line's shader draws its own `opacity` and never reads the mesh's visibility, which
         // it sets only to be drawn in the transparent pass, so the visibility is not ink.
@@ -1925,7 +1931,7 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
         ({ opacity } = fields);
         dashPx = elementDashes(pm.elements, p);
     } else if (internal.pulled?.run === null) {
-        // a straight line pulled from the row table (`PulledLineBatch`) runs between its two node centres, stopped at
+        // a straight line pulled from the row table (`PulledLineBatch`) runs between its two node centers, stopped at
         // a translucent end's outline as its shader stops it (`PULLED_TRIM_GLSL`, the object line's bare ends), in the
         // color, opacity and width its piece carries (`PulledLineBatch.setLook`): the batched path's plain lines
         const [src, dst] = [edge.srcNode.drawnPosition, edge.dstNode.drawnPosition];
@@ -2027,6 +2033,7 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
         pattern,
         dashPx,
         ...(taper === undefined ? {} : { taper }),
+        ...(taperSource === undefined ? {} : { taperSource }),
         outline: readOutline(internal, p),
         overlay: readOverlay(internal, p),
         caps,

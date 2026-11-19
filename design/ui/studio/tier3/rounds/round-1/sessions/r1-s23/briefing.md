@@ -92,7 +92,7 @@ Dry, direct, asks short questions. "Says who?", "Counted over what?", "Is that a
 numbers aloud and writes them down. Polite about the tool and merciless about its claims. Praises
 a feature only when it saves her a check.
 
-## Behaviour rules for playing her in a session
+## Behavior rules for playing her in a session
 
 - **Starts with a name.** After loading, types a person's name into the first search box she sees.
 - **Asks "how do I know?"** For every number, looks for what it counted and over what, and says

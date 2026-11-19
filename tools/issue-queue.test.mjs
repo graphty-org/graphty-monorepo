@@ -1,9 +1,12 @@
 // Tests of tools/issue-queue.mjs on GraphQL answers shaped like GitHub's (the fields its queries ask for).
 // Run: node tools/issue-queue.test.mjs
 import assert from "node:assert/strict";
+import { chmodSync, existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, it } from "node:test";
 
-import { main } from "./issue-queue.mjs";
+import { claimsCommand, heldBy, heldEntry, main, namedIssues, sweepClaims } from "./issue-queue.mjs";
 
 const NOW = Date.parse("2026-11-02T12:00:00Z");
 const user = (login) => ({ __typename: "User", login });
@@ -450,5 +453,403 @@ describe("taken", () => {
         assert.match(take(["fix/7-x", ".worktrees/x", "7", "--files", "a.ts", "--why", "w"], {}).out, /SESSION_ID/);
         assert.equal(take(["fix/7-x", ".worktrees/x", "--files", "a.ts", "--why", "w"]).code, 2);
         assert.deepEqual(calls, []);
+    });
+});
+
+describe("sweepClaims", () => {
+    const MIN = 60_000;
+    const agent = user("graphty-agent");
+    const marker = (id, body, at) => ({
+        databaseId: id,
+        createdAt: new Date(at).toISOString(),
+        body,
+        author: agent,
+        editor: null,
+        lastEditedAt: null,
+    });
+    const takenBody = (session, branch) =>
+        `pipeline-round: taken by session ${session}, branch ${branch}, worktree .worktrees/w${branch.length} -- x; files a.ts`;
+    const claimed = (n, comments, extra = {}) => ({
+        id: `I_${n}`,
+        number: n,
+        title: `t${n}`,
+        labels: { nodes: [{ id: "L_ip", name: "in-progress" }] },
+        comments: { nodes: comments },
+        timelineItems: { nodes: [] },
+        ...extra,
+    });
+    // facts with nothing alive: no pull request, no commit, no change, no ticket, no transcript, no live session
+    const facts = (over = {}) => ({
+        openPrBranches: new Set(),
+        roundSession: "round",
+        branchCommitAt: () => 0,
+        worktreeChangedAt: () => 0,
+        ticketIn: () => false,
+        transcriptAt: () => 0,
+        sessionAlive: () => false,
+        commitsAhead: () => 0,
+        ...over,
+    });
+    const judge = (issue, f = facts()) => sweepClaims([issue], f, NOW).claims[0];
+
+    it("(a) releases the round session's claim with no commit, change, ticket or transcript for 61 min", () => {
+        const c = judge(
+            claimed(1, [marker(1, takenBody("round", "fix/1-a"), NOW - 61 * MIN)]),
+            facts({ sessionAlive: () => true }),
+        );
+        assert.equal(c.live, false);
+        assert.equal(c.action, "release");
+        assert.equal(c.branch, "fix/1-a");
+        assert.equal(judge(claimed(1, [marker(1, takenBody("round", "fix/1-a"), NOW - 59 * MIN)])).live, true);
+    });
+
+    it("(b) keeps the same claim while its worktree holds or waits for a test slot, or its subagent writes", () => {
+        const issue = claimed(1, [marker(1, takenBody("round", "fix/1-a"), NOW - 3 * 60 * MIN)]);
+        assert.equal(judge(issue, facts({ ticketIn: (wt) => wt === ".worktrees/w7" })).live, true);
+        assert.equal(judge(issue, facts({ transcriptAt: (s, b) => (b === "fix/1-a" ? NOW - 5 * MIN : 0) })).live, true);
+        assert.equal(judge(issue, facts({ openPrBranches: new Set(["fix/1-a"]) })).why, "open pull request");
+        assert.equal(judge(issue, facts({ worktreeChangedAt: () => NOW - 10 * MIN })).live, true);
+    });
+
+    it("keeps another live session's claim for 24 h of branch activity, never the round's own", () => {
+        const issue = (s, age) => claimed(1, [marker(1, takenBody(s, "fix/1-a"), NOW - age)]);
+        const alive = facts({ sessionAlive: () => true });
+        assert.equal(judge(issue("other", 23 * 60 * MIN), alive).live, true);
+        assert.equal(judge(issue("other", 25 * 60 * MIN), alive).live, false);
+        assert.equal(judge(issue("round", 2 * 60 * MIN), alive).live, false);
+    });
+
+    it("(c) reports a dead claim with commits of its own as stranded, never released", () => {
+        const c = judge(
+            claimed(1, [marker(1, "pipeline-round: ready fix/1-a abc", NOW - 5 * 60 * MIN)]),
+            facts({ commitsAhead: (b) => (b === "fix/1-a" ? 3 : 0) }),
+        );
+        assert.equal(c.kind, "ready");
+        assert.equal(c.action, "stranded");
+        assert.equal(c.commits, 3);
+    });
+
+    it("(d) judges a bare label with no marker by its label event, and a label left after a release as label-only", () => {
+        const bare = claimed(1, [], {
+            timelineItems: {
+                nodes: [{ createdAt: new Date(NOW - 30 * MIN).toISOString(), label: { name: "in-progress" } }],
+            },
+        });
+        assert.equal(judge(bare).kind, "label");
+        assert.equal(judge(bare).live, true);
+        const old = {
+            timelineItems: {
+                nodes: [{ createdAt: new Date(NOW - 90 * MIN).toISOString(), label: { name: "in-progress" } }],
+            },
+        };
+        assert.equal(judge(claimed(1, [], old)).action, "release");
+        const released = claimed(1, [
+            marker(1, takenBody("s", "fix/1-a"), NOW - 9e6),
+            marker(2, "pipeline-round: released -- x", NOW - 8e6),
+        ]);
+        assert.equal(judge(released).action, "unlabel");
+        const stranger = claimed(1, [{ ...marker(1, takenBody("s", "fix/1-a"), NOW), author: user("stranger") }]);
+        assert.equal(judge(stranger).kind, "label", "an untrusted marker is no claim");
+    });
+
+    it("(e) judges all 140 claims across pages, releases dead ones in batched mutations and writes state.json", () => {
+        const issues = Array.from({ length: 140 }, (_, k) => {
+            const n = k + 1;
+            const age = n <= 70 ? 2 * 60 * MIN : 10 * MIN;
+            return claimed(n, [marker(n, takenBody(n % 2 ? "round" : "other", `fix/${n}-a`), NOW - age)]);
+        });
+        const mutations = [];
+        const run = (query, vars) => {
+            if (query.startsWith("mutation")) {
+                mutations.push(query);
+                return {};
+            }
+            if (query.includes("pullRequests(states: OPEN")) {
+                return {
+                    repository: {
+                        pullRequests: {
+                            pageInfo: { hasNextPage: false },
+                            nodes: [{ number: 5, headRefName: "fix/2-a" }],
+                        },
+                    },
+                };
+            }
+            const label = vars.label;
+            if (label === "blocked") return { repository: { issues: { pageInfo: { hasNextPage: false }, nodes: [] } } };
+            const i = vars.after === undefined ? 0 : Number(vars.after);
+            const page = issues.slice(i * 50, i * 50 + 50);
+            return {
+                repository: {
+                    issues: { pageInfo: { hasNextPage: i * 50 + 50 < 140, endCursor: String(i + 1) }, nodes: page },
+                },
+            };
+        };
+        const dir = mkdtempSync(join(tmpdir(), "claims-"));
+        const f = facts();
+        delete f.openPrBranches; // the command reads the open pull requests itself
+        const r = main(["claims", "--fix"], run, NOW, undefined, {
+            claims: { dir, facts: { ...f, openPrBranches: new Set(["fix/2-a"]) } },
+        });
+        assert.equal(r.code, 0);
+        assert.match(r.out, /^claims: 140 in-progress, 71 live, 69 released, 0 label-only, 0 stranded$/m);
+        assert.equal(mutations.length, 4, "69 releases in batches of 20");
+        assert.equal((mutations.join("").match(/addComment/g) ?? []).length, 69);
+        assert.equal((mutations.join("").match(/removeLabelsFromLabelable/g) ?? []).length, 69);
+        const state = readFileSync(join(dir, "state.json"), "utf8");
+        // (f) worktree-cleanup.mjs heldBranches holds a branch whose state text has `branch <b>,`
+        assert.ok(state.includes("branch fix/2-a,"), "the live claim with an open pull request keeps its worktree");
+        assert.ok(state.includes("branch fix/100-a,"));
+        assert.ok(!state.includes("branch fix/1-a,"), "a released claim no longer holds its worktree");
+        assert.equal(JSON.parse(state).claims.length, 140);
+    });
+});
+
+describe("claims judged by the work that names them (2026-11-18: 18 live claims released)", () => {
+    const MIN = 60_000;
+    const HOUR = 60 * MIN;
+    const bare = (n, age) => ({
+        id: `I_${n}`,
+        number: n,
+        title: `t${n}`,
+        labels: { nodes: [{ id: "L_ip", name: "in-progress" }] },
+        comments: { nodes: [] },
+        timelineItems: {
+            nodes: [{ createdAt: new Date(NOW - age).toISOString(), label: { name: "in-progress" } }],
+        },
+    });
+    const marker = (id, body, at) => ({
+        databaseId: id,
+        createdAt: new Date(at).toISOString(),
+        body,
+        author: user("graphty-agent"),
+        editor: null,
+        lastEditedAt: null,
+    });
+    const taken7284 = {
+        ...bare(7284, 9 * HOUR),
+        comments: {
+            nodes: [
+                marker(
+                    1,
+                    "pipeline-round: taken by session round, branch fix/7284-node-size, worktree .worktrees/w1 -- x",
+                    NOW - 9 * HOUR,
+                ),
+            ],
+        },
+    };
+    // The model dialog branch of live session c03ac0af, last commit 2 hours earlier, names four issues it closes.
+    const modelDialog = {
+        name: "fix/8609-model-dialog-round-5",
+        messages:
+            "fix(graphty): model dialog round 5\n\nFixes #8604\nFixes #8605\n\n" +
+            "docs(graphty): name the model dialog issues this branch closes\n\nRefs #8606, #8311\n",
+    };
+    // Pull request #8757 names #7284 from a branch whose name does not.
+    const pr8757 = {
+        number: 8757,
+        headRefName: "fix/8700-sizing",
+        title: "fix(graphty): node sizes",
+        body: "Fixes #7284",
+    };
+    const deadFacts = {
+        openPrBranches: new Set(["fix/8700-sizing"]),
+        roundSession: "round",
+        branchCommitAt: () => 0,
+        worktreeChangedAt: () => 0,
+        ticketIn: () => false,
+        transcriptAt: () => 0,
+        sessionAlive: () => false,
+        commitsAhead: () => 0,
+        recentBranches: () => [modelDialog],
+    };
+    const fakeRun = (issues, prs, mutations) => (query, vars) => {
+        if (query.startsWith("mutation")) {
+            mutations.push(query);
+            return {};
+        }
+        if (query.includes("pullRequests(states: OPEN")) {
+            return { repository: { pullRequests: { pageInfo: { hasNextPage: false }, nodes: prs } } };
+        }
+        const nodes = vars.label === "in-progress" ? issues : [];
+        return { repository: { issues: { pageInfo: { hasNextPage: false }, nodes } } };
+    };
+
+    it("keeps #8604-#8606, #8311 and #7284 live and releases only the claim nothing names", () => {
+        const issues = [8604, 8605, 8606, 8311].map((n) => bare(n, 3 * HOUR)).concat([taken7284, bare(9001, 3 * HOUR)]);
+        const mutations = [];
+        const r = main(["claims", "--fix"], fakeRun(issues, [pr8757], mutations), NOW, undefined, {
+            claims: { dir: mkdtempSync(join(tmpdir(), "claims-")), facts: deadFacts },
+        });
+        const by = new Map(r.claims.map((c) => [c.n, c]));
+        for (const n of [8604, 8605, 8606, 8311]) {
+            assert.equal(by.get(n).live, true, `#${n}`);
+            assert.match(by.get(n).why, /branch fix\/8609-model-dialog-round-5/);
+        }
+        assert.equal(by.get(7284).live, true);
+        assert.equal(by.get(7284).why, "open pull request #8757 names it");
+        assert.equal(by.get(9001).action, "release");
+        const sent = mutations.join("\n");
+        assert.equal((sent.match(/addComment/g) ?? []).length, 1);
+        assert.match(sent, /subjectId: "I_9001"/);
+        for (const n of [8604, 8605, 8606, 8311, 7284]) assert.doesNotMatch(sent, new RegExp(`"I_${n}"`));
+    });
+
+    it("never removes a label or posts a release comment on an issue an open pull request names", () => {
+        const released = {
+            ...bare(7284, 9 * HOUR),
+            comments: {
+                nodes: [
+                    taken7284.comments.nodes[0],
+                    marker(2, "pipeline-round: released -- claims sweep: no activity", NOW - 8 * HOUR),
+                ],
+            },
+        };
+        const judged = sweepClaims([released], { ...deadFacts, namedBy: () => null }, NOW).claims[0];
+        assert.equal(judged.action, "unlabel", "the label-only case on its own");
+        const mutations = [];
+        const r = main(["claims", "--fix"], fakeRun([released], [pr8757], mutations), NOW, undefined, {
+            claims: { dir: mkdtempSync(join(tmpdir(), "claims-")), facts: deadFacts },
+        });
+        assert.equal(r.claims[0].action, null);
+        assert.deepEqual(mutations, []);
+    });
+
+    it("names an issue by Fixes/Refs/Closes lines or a branch number, never by a longer number or a date", () => {
+        const named = namedIssues({
+            prs: [{ number: 1, headRefName: "fix/42-x", title: "closes #7", body: "Refs #86040" }],
+            branches: [
+                { name: "chore/99-x", messages: "Closes #12" },
+                { name: "release/2026-11-17", messages: "x" },
+            ],
+        });
+        assert.deepEqual(
+            [...named.keys()].sort((a, b) => a - b),
+            [7, 12, 42, 99, 86040],
+        );
+        assert.equal(named.has(8604), false);
+    });
+
+    it("never names an issue a pull request or commit only mentions in prose", () => {
+        const named = namedIssues({
+            prs: [
+                {
+                    number: 7381,
+                    headRefName: "fix/7380-x",
+                    title: "fix(graphty): x (#7424)",
+                    body: "Fixes #7380\n\nCollisions: open PRs #6344, #7424\n#7188 released as deferred\nAs #6166 landed",
+                },
+            ],
+            branches: [{ name: "fix/8609-model", messages: "fix: y\n\nlike #8112\nRefs #8606, #8311 and #8605" }],
+        });
+        assert.deepEqual(
+            [...named.keys()].sort((a, b) => a - b),
+            [7380, 8311, 8605, 8606, 8609],
+        );
+    });
+});
+
+describe("tests never reach GitHub", () => {
+    // A fake gh first on PATH records any spawn; the tools refuse before spawning, since node was not started with them.
+    const withFakeGh = (fn) => {
+        const bin = mkdtempSync(join(tmpdir(), "fake-gh-"));
+        const log = join(bin, "called");
+        writeFileSync(join(bin, "gh"), `#!/bin/sh\necho "$@" >> ${JSON.stringify(log)}\necho '{"data":{}}'\n`);
+        chmodSync(join(bin, "gh"), 0o755);
+        const path = process.env.PATH;
+        process.env.PATH = `${bin}:${path}`;
+        try {
+            fn();
+        } finally {
+            process.env.PATH = path;
+        }
+        return existsSync(log);
+    };
+
+    it("refuses the default runner in claims --fix, list and taken without spawning gh", () => {
+        const dir = mkdtempSync(join(tmpdir(), "claims-"));
+        const spawned = withFakeGh(() => {
+            assert.throws(
+                () => main(["claims", "--fix"], undefined, NOW, undefined, { claims: { dir, facts: {} } }),
+                /gh refused/,
+            );
+            assert.throws(() => main(["list"], undefined, NOW), /gh refused/);
+            const taken = main(
+                ["taken", "fix/1-a", ".worktrees/a", "1", "--files", "a", "--why", "x"],
+                undefined,
+                NOW,
+                undefined,
+                {
+                    env: { CLAUDE_CODE_SESSION_ID: "s" },
+                },
+            );
+            assert.match(taken.out, /gh refused/);
+        });
+        assert.equal(spawned, false);
+    });
+
+    it("refuses a claims sweep with no runner at all", () => {
+        assert.throws(() => claimsCommand({ fix: true, now: NOW, facts: {} }), /no GraphQL runner/);
+    });
+});
+
+describe("held", () => {
+    const GUARD = /^(visual-review\/|\.claude\/settings\.json$|tools\/pr-open\.sh$)/;
+    const c = (body, login = "graphty-agent") => ({
+        createdAt: "2026-11-01T00:00:00Z",
+        body,
+        author: user(login),
+        editor: null,
+        lastEditedAt: null,
+    });
+    const held = (n, labels, comments = []) => issue(n, `t${n}`, labels, { comments: { nodes: comments } });
+
+    it("lists an issue held only by ux-owner, never one also in progress", () => {
+        assert.deepEqual(heldBy(held(1, ["enhancement", "ux-owner"])), ["ux-owner"]);
+        assert.deepEqual(heldBy(held(2, ["enhancement"])), ["no ux label"]);
+        assert.equal(heldBy(held(3, ["bug", "ux-owner", "in-progress"])), null);
+        assert.equal(heldBy(held(4, ["bug"])), null);
+    });
+
+    it("flags a blocked issue citing only .claude/settings.json as misheld, never one citing visual-review/trusted/", () => {
+        const only = heldEntry(
+            held(5, ["bug", "blocked"], [c("blocked: needs .claude/settings.json, owner-guarded")]),
+            GUARD,
+        );
+        assert.equal(only.misheld, true);
+        const owner = heldEntry(
+            held(6, ["bug", "blocked"], [c("blocked: touches visual-review/trusted/ and .claude/settings.json")]),
+            GUARD,
+        );
+        assert.equal(owner.misheld, false);
+        const e = heldEntry(held(7, ["bug", "blocked"], [c("decided", "apowers313"), c("blocked on #8123")]), GUARD);
+        assert.equal(e.ownerComment.body, "decided");
+        assert.deepEqual(e.cites, [8123]);
+        assert.equal(e.misheld, false);
+    });
+
+    it("lists a blocked issue that something else also skips without throwing (claims --fix lifts it)", () => {
+        const both = heldEntry(held(8, ["bug", "blocked", "hold"], [c("blocked on #8124")]), GUARD);
+        assert.deepEqual(both.held, []);
+        assert.deepEqual(both.cites, [8124]);
+        assert.equal(both.misheld, false);
+    });
+
+    it("prints the held listing as JSON from one paged query", () => {
+        const pages = [
+            [
+                held(1, ["enhancement", "ux-owner"]),
+                held(2, ["bug", "in-progress"]),
+                held(3, ["bug", "blocked"], [c("blocked: .claude/settings.json")]),
+            ],
+        ];
+        const r = main(["list", "--held", "--json"], runner({ pages }).run, NOW, undefined, { guard: () => GUARD });
+        const out = JSON.parse(r.out);
+        assert.deepEqual(
+            out.map((h) => [h.number, h.misheld]),
+            [
+                [1, false],
+                [3, true],
+            ],
+        );
     });
 });

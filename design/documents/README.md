@@ -502,7 +502,7 @@ Not in version 1; each is a later version's work, and version 1 files stay valid
   `sha256`, `E_DIGEST_MISMATCH`, `W_DATA_DIFFERS`), and saving one;
 - service: replaying other people's documents against private data, with report redaction;
 - results: expected results, result signatures and comparison, dataset fingerprints in the report;
-- recipe 1.x ops: computed columns, kept sets, choosing nodes by a rule, randomised null models,
+- recipe 1.x ops: computed columns, kept sets, choosing nodes by a rule, randomized null models,
   fetching data, a precision request;
 - style v2: list and text membership tests, quoted path segments holding a dot, edges selected by
   id, splitting a look across style versions, down-conversion;
@@ -618,7 +618,7 @@ Objections raised in review that were not taken as asked, one line each; those t
 - Let an unknown-type value drop only its channel entry: no -- it refuses its layer; widening needs style v2.
 - Lay out only the kept graph: later -- it needs a new layout input for every engine.
 - Make the session's largest component read the visible graph: no -- it changes existing runs.
-- Skip a command whose randomised path takes no seed: no -- planned with a notice.
+- Skip a command whose randomized path takes no seed: no -- planned with a notice.
 - A color-and-size example with a recommended size range: no -- style.md covers both.
 - Raise the load ceilings everywhere: only in a session that draws nothing.
 - An application-built starter recipe for a refused table: no -- read-time filtering is the data plan's.

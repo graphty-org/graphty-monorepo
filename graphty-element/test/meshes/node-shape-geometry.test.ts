@@ -181,7 +181,7 @@ describe("flat shape outlines", () => {
     });
 
     test("a polygon keeps its corners where they are around its centre, the farthest reaching its sides", () => {
-        // clockwise and lopsided: read counter-clockwise, stretched about the centre and not re-centred
+        // clockwise and lopsided: read counter-clockwise, stretched about the center and not re-centered
         const outline = flatShapeOutline("polygon", 8, 2, undefined, "2,0 -1,-1 -1,0.5");
         assert.deepEqual(
             outline.map(([x, y]) => [x + 0, y + 0]),
@@ -499,9 +499,9 @@ describe("node extents", () => {
     }
 
     /**
-     * A mesh's full size along each axis, and its centre.
+     * A mesh's full size along each axis, and its center.
      * @param mesh - The mesh.
-     * @returns The sizes and the centre.
+     * @returns The sizes and the center.
      */
     function extentOf(mesh: Mesh): { x: number; y: number; z: number; centre: number[] } {
         mesh.refreshBoundingInfo();

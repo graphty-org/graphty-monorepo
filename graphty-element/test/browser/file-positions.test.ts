@@ -20,7 +20,7 @@ afterEach(() => {
 });
 
 /**
- * A graph in its own container, initialised, with its render loop stopped.
+ * A graph in its own container, initialized, with its render loop stopped.
  * @returns The graph.
  */
 async function newGraph(): Promise<Graph> {

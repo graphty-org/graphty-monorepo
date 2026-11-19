@@ -5,12 +5,22 @@
  * every setting the family keeps through a switch.
  */
 
-import { type Channel, channelsFor, labelFieldOf, STYLE_FAMILIES } from "@graphty/graphty-element/catalog";
+import { type Channel, channelsFor, STYLE_FAMILIES, textFieldOf } from "@graphty/graphty-element/catalog";
 import { assert, describe, it } from "vitest";
 
-import { itemChannels, PARTS } from "../parts/parts";
+import { LABEL_COVERED, TEXT_THINGS } from "../v2/labelRubric";
 import { EDGE_RUBRIC, NODE_RUBRIC, rubricChannels, SHAPE_REPLACE_RUBRIC, type ThingRubric } from "../v2/rubric";
 import { SECTIONS } from "../v2/things";
+
+/**
+ * Channels with no normal visible v2 control today, exactly: a channel that gains one must leave this list, and
+ * none may join it. The flag-off panel's parts table is not a home, and a label field's own channel is placed
+ * only through its text kind's field line.
+ */
+const KNOWN_GAPS: Readonly<Record<"node" | "edge", readonly Channel[]>> = {
+    node: ["node.labelBackgroundShape", "node.borderOpacity", "node.gradientColor", "node.labels"],
+    edge: ["edge.labelBackgroundShape", "edge.labels"],
+};
 
 /** Each kind's rubric table. */
 const RUBRICS = { node: NODE_RUBRIC, edge: EDGE_RUBRIC } as const;
@@ -60,20 +70,26 @@ describe("Style panel v2's home table", () => {
         });
 
         it(`${side}: every channel the element offers has a place in the panel`, () => {
-            // Channels with no place yet, exactly: a channel that gains a place must leave this
-            // list. The label lists get their rows with the panel's several-labels work.
-            const knownGaps: Channel[] = [`${side}.labels`];
             const placed = new Set<Channel>([
                 ...Object.values(RUBRICS[side]).flatMap((rubric) => rubricChannels(rubric)),
                 ...SECTIONS[side].flatMap((section) => section.groups.flat().flatMap((thing) => thing.main)),
-                ...PARTS[side].flatMap((part) => part.items.flatMap((item) => itemChannels(item))),
+                ...Object.values(TEXT_THINGS[side]).flatMap((thing) => [
+                    thing.words,
+                    thing.style,
+                    ...(thing.distance === undefined ? [] : [thing.distance]),
+                ]),
+                `${side}.shaders`,
             ]);
+            const fieldLine = (channel: Channel): boolean => {
+                const found = textFieldOf(channel);
+                return found !== undefined && found.into !== channel && LABEL_COVERED.has(found.field);
+            };
             // A channel the element does not draw (`renderable: false`) is offered nowhere.
             const unplaced = channelsFor(side)
                 .filter(({ renderable }) => renderable)
                 .map(({ channel }) => channel)
-                .filter((channel) => !placed.has(channel) && labelFieldOf(channel) === undefined);
-            assert.deepEqual(unplaced, knownGaps);
+                .filter((channel) => !placed.has(channel) && !fieldLine(channel));
+            assert.deepEqual(unplaced, KNOWN_GAPS[side]);
         });
     }
 

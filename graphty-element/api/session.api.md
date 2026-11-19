@@ -1397,6 +1397,9 @@ export const FILE_STYLE_TRANSLATION_ISSUE: Readonly<{
 }>;
 
 // @public
+export function fileStyleChannels(): readonly Channel[];
+
+// @public
 export type FileStyleCode = (typeof FILE_STYLE_ISSUE)[keyof typeof FILE_STYLE_ISSUE];
 
 // @public

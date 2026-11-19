@@ -68,6 +68,7 @@ export {
     FILE_STYLE_TRANSLATION_ISSUE,
 } from "./styles/fileStyles/codes";
 export type { FileStyleNote, FileStyleOptions } from "./styles/fileStyles/translate";
+export { fileStyleChannels } from "./styles/fileStyles/translate";
 export type {
     ColumnHistogram,
     ColumnRole,

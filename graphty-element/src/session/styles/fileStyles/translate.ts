@@ -1117,6 +1117,33 @@ function channelPlans(
     ]);
 }
 
+/** Channels a file's styles reach in passes of their own, outside the per-property plans. */
+const PASS_CHANNELS: readonly Channel[] = ["node.size", "node.width", "node.height", "node.opacity", "node.zIndex"];
+
+/**
+ * Every channel a file's styles can be translated into: what loading a file with styles may write
+ * to a layer. A style editor that offers every style a file can carry reads this list.
+ * @returns The channels, once each, nodes first.
+ * @since 3.63.0
+ */
+export function fileStyleChannels(): readonly Channel[] {
+    const found = new Set<Channel>();
+    for (const kind of ["node", "edge"] as const) {
+        for (const screenLabels of [false, true]) {
+            for (const plans of channelPlans(kind, KEPT, screenLabels).values()) {
+                for (const plan of plans) {
+                    found.add(plan.channel);
+                }
+            }
+        }
+    }
+    for (const channel of PASS_CHANNELS) {
+        found.add(channel);
+    }
+    const nodes = [...found].filter((channel) => channel.startsWith("node."));
+    return [...nodes, ...[...found].filter((channel) => !channel.startsWith("node."))];
+}
+
 /** The element's curve through bends for each neutral one. */
 const BEND_CURVES: ReadonlyMap<string, string> = new Map([
     ["corners", "corners"],

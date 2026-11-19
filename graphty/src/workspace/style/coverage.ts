@@ -5,6 +5,9 @@ import { GraphBackground, GraphSelectionStyleOpts } from "@graphty/graphty-eleme
  * Where a style lives in the panel: the control that sets it, or why the panel does not offer it.
  * Every channel, label style field and graph setting graphty-element publishes has one, so a style
  * the element adds cannot go missing from the panel unnoticed (`__tests__/coverage.test.ts`).
+ * These places describe the Style panel drawn with the style-panel-v2 experiment off only; they are
+ * never homes for Style panel v2, whose coverage is read from its own tables by
+ * `__tests__/v2-inventory.real-element.test.tsx`.
  */
 export type Home = { readonly place: string } | { readonly notOffered: string };
 

@@ -331,6 +331,7 @@ export {
     FILE_STYLE_CODES,
     FILE_STYLE_ISSUE,
     FILE_STYLE_TRANSLATION_ISSUE,
+    fileStyleChannels,
 } from "./src/session";
 
 // ---------------------------------------------------------------------------------------------

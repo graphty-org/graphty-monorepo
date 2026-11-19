@@ -615,7 +615,9 @@ is output, never input to the build):
   `"_source.loads"`: the source ids that supplied it, in step order. A node no source's rows supply
   (only edges name it) is supplied by the sources whose edges reach it, and lists those; it is no
   row of their copies, keeps its key when the file is saved again, and is never a reader addition.
-  This is decided after the build, so load order never changes it. `["reader"]` is the list of a
+  This is decided after the build, so load order never changes it, and holds for a source read
+  from any file format. Once no edge reaches it, or once it holds a value, the save writes it as a
+  row of the sources that named it, so a reopen keeps it. `["reader"]` is the list of a
   node the reader added (in the space `source:reader`) and nothing else lists `reader`: an edit to
   another element never adds it, and a merge keeps the union of both nodes' lists.
 - Each edge carries `"graphty.load"`, `"graphty.key"`, `"graphty.types"` (at most one item) and
@@ -908,16 +910,19 @@ source whose row made it.
   else by a ULID minted once and kept, and its `load` is `reader`. A row whose node-key or
   edge-end cell is null or empty names no node: it is left out of the build and counted
   (`W_KEY_EMPTY`), as a load leaves it out.
-- **Repeated edges.** `repeatedEdges` (`keep` by default) decides what becomes of edges between
+- **Repeated edges.** `repeatedEdges` (`keep` when absent, whatever the session that opens the
+  file held before) decides what becomes of edges between
   one pair of nodes (an unordered pair on an undirected graph), within one step or across sources:
-  `keep` holds every one; `first` keeps the first and `last` the last row's values; `sum`, `min`
+  `keep` holds every one; `first` keeps the first and `last` the last row's values (but the first
+  row's edge-id cell, so its key); `sum`, `min`
   and `max` keep the first with the reduced weight (an edge with no weight weighs 1); `error`
   refuses the build. Edges of different types are never reduced into one, and edges whose sources'
   weight meanings differ only by `first` or `last`. A reduced edge keeps the key and `load` of the
   first row read, in join step order and then row order (a `join.edges` step's own reduction keys
   it by its end pair, 4.1.8 rule 3); `_source.loads` lists every source it was reduced from, and
   every contributing row's `{ load, key }` is an alias of it, so a reference naming that row binds
-  to it (6.3).
+  to it (6.3). Each source's copy keeps every row as read, the folded rows in their places, so
+  saving and reopening reduces them again to the same edge.
 
 ### 6.2 Element references
 

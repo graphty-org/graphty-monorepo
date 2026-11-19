@@ -678,6 +678,8 @@ interface Supplied {
     readonly nodes: Set<NodeId>;
     readonly edges: Set<EdgeId>;
     readonly made: Set<NodeId>;
+    /** The nodes its node rows named, the rest of `nodes` only its edges named. */
+    readonly rows: Set<NodeId>;
 }
 
 /**
@@ -784,6 +786,12 @@ export class Ingest<K extends KnownEdge> {
 
     /** Each node record's line in the draft the load in progress reads, or null when it reads no draft. */
     private loadNodeLines: readonly number[] | null = null;
+
+    /**
+     * How many of the load's node records are rows of its node table, when its draft says (the
+     * rest a draft made for edge ends), or null when every one is.
+     */
+    private loadNodeRows: number | null = null;
 
     /** What the load in progress does with a node record repeating an id an earlier one gave. */
     private duplicateIds: NonNullable<DataImportCommand["duplicateIds"]> = "first";
@@ -1041,6 +1049,7 @@ export class Ingest<K extends KnownEdge> {
             this.leftOutEnds = null;
             this.loadEdgeLines = null;
             this.loadNodeLines = null;
+            this.loadNodeRows = null;
             this.duplicateIds = "first";
             this.updateExisting = false;
             this.measure = null;
@@ -1059,6 +1068,7 @@ export class Ingest<K extends KnownEdge> {
         this.leftOutEnds = null;
         this.loadEdgeLines = command.held === undefined ? null : (command.held.edgeLines ?? []);
         this.loadNodeLines = command.held === undefined ? null : (command.held.nodeLines ?? []);
+        this.loadNodeRows = command.held?.nodeLines?.length ?? null;
         this.duplicateIds = command.duplicateIds ?? "first";
         this.updateExisting = command.mode === "merge" && command.existing === "update";
         // A replacing load is measured against an empty graph, which is what it leaves. Set before
@@ -1066,7 +1076,12 @@ export class Ingest<K extends KnownEdge> {
         // as there, as the real merge does (#935).
         this.measure = command.measure === undefined || command.mode === "merge" ? (command.measure ?? null) : EMPTY;
         this.loadBeganWithNodes = command.mode === "merge" && this.heldCounts().nodes > 0;
-        const supplied: Supplied = { nodes: new Set<NodeId>(), edges: new Set<EdgeId>(), made: new Set<NodeId>() };
+        const supplied: Supplied = {
+            nodes: new Set<NodeId>(),
+            edges: new Set<EdgeId>(),
+            made: new Set<NodeId>(),
+            rows: new Set<NodeId>(),
+        };
         this.supplied = supplied;
         this.sealedTally = null;
         return supplied;
@@ -1132,6 +1147,15 @@ export class Ingest<K extends KnownEdge> {
             ...(had?.held ?? []),
             ...[...supplied.nodes].filter((id) => !supplied.made.has(id) && !earlierNodes.has(id)),
         ];
+        // The nodes only its edges named, in this run and the runs it adds to (design 3.1). A CSV
+        // edge table with no node table names every node by its ends, though its reader hands
+        // the ends over as node records.
+        // ponytail: a CSV pair read without a draft counts the ends its node file lacks as rows.
+        const endsOnly = readBy !== undefined && "source" in readBy && command.held?.nodeLines === undefined;
+        const rows = endsOnly ? new Set<NodeId>() : supplied.rows;
+        const hadNamed = new Set(had?.named ?? []);
+        const hadRows = new Set((had?.nodes ?? []).filter((id) => !hadNamed.has(id)));
+        const named = [...nodes].filter((id) => !rows.has(id) && !hadRows.has(id));
         const entry: LoadedSource =
             prior === undefined
                 ? loaded
@@ -1147,7 +1171,12 @@ export class Ingest<K extends KnownEdge> {
             [SOURCES_VALUE]: Object.freeze(
                 prior === undefined ? [...earlier, entry] : earlier.map((each, at) => (at === same ? entry : each)),
             ),
-            [PROVENANCE_VALUE]: withSupplied(earlierProvenance, key, { nodes: [...nodes], edges: [...edges], held }),
+            [PROVENANCE_VALUE]: withSupplied(earlierProvenance, key, {
+                nodes: [...nodes],
+                edges: [...edges],
+                held,
+                named,
+            }),
             ...(facts === null
                 ? {}
                 : {
@@ -1175,6 +1204,23 @@ export class Ingest<K extends KnownEdge> {
         supplied.edges.add(edge);
         supplied.nodes.add(source);
         supplied.nodes.add(target);
+    }
+
+    /**
+     * Record a node record as supplied by the load in progress, and as one of its rows unless its
+     * draft made it for an edge end (design 3.1).
+     * @param id - The node's id.
+     * @param ordinal - The record's position among the load's node records, from 1.
+     */
+    private noteRow(id: NodeIdType, ordinal: number): void {
+        if (!isStorableId(id)) {
+            return;
+        }
+
+        this.supplied?.nodes.add(id);
+        if (this.loadNodeRows === null || ordinal <= this.loadNodeRows) {
+            this.supplied?.rows.add(id);
+        }
     }
 
     /**
@@ -1346,9 +1392,7 @@ export class Ingest<K extends KnownEdge> {
                 continue;
             }
 
-            if (isStorableId(nodeId)) {
-                this.supplied?.nodes.add(nodeId);
-            }
+            this.noteRow(nodeId, ordinal);
 
             if (this.hasNode(nodeId)) {
                 if (MADE_RECORDS.has(writer.nodeRecord(nodeId) ?? {})) {

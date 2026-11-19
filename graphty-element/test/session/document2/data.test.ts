@@ -270,6 +270,15 @@ afterEach(() => {
     vi.unstubAllGlobals();
 });
 
+/**
+ * An open's problems without `W_NODE_NAMED_ONLY`, which a CSV edge list reports for the nodes its
+ * ends only name (design 3.1), for tests about something else.
+ * @param problems - The problems.
+ * @returns The rest.
+ */
+const quiet = (problems: DocumentProblem[]): DocumentProblem[] =>
+    problems.filter((problem) => problem.code !== "W_NODE_NAMED_ONLY");
+
 describe("data section version 2", () => {
     it("round-trips a session: state to section to state, and section to state to section byte for byte", async () => {
         const session = await sampleSession();
@@ -278,7 +287,7 @@ describe("data section version 2", () => {
         assert.deepStrictEqual(invalid(asSection(body)), []);
 
         const reopened = createGraphSession(ON);
-        assert.deepStrictEqual(await readBody(reopened, body), []);
+        assert.deepStrictEqual(quiet(await readBody(reopened, body)), []);
         assert.deepStrictEqual(stateOf(reopened), stateOf(session));
 
         const again = await writeBody(reopened);
@@ -413,7 +422,7 @@ describe("data section version 2", () => {
         const id = String(file.id);
 
         const opened = createGraphSession(ON);
-        assert.deepStrictEqual(await readBody(opened, written), []);
+        assert.deepStrictEqual(quiet(await readBody(opened, written)), []);
         const untouched = await writeBody(opened, { [id]: "referenced" });
         const before = (untouched.body.sources as JsonObject[]).find((source) => source.id === id);
         assert.notProperty(before, "copy", "a file with a known path is referenced as asked");
@@ -431,7 +440,7 @@ describe("data section version 2", () => {
         assert.match(String((after.origin as JsonObject).copy), ULID);
 
         const reopened = createGraphSession(ON);
-        assert.deepStrictEqual(await readBody(reopened, body), []);
+        assert.deepStrictEqual(quiet(await readBody(reopened, body)), []);
         assert.strictEqual(reopened.data.node("Ava")?.mood, "calm");
         session.dispose();
         opened.dispose();
@@ -661,6 +670,149 @@ describe("data section version 2", () => {
         const b = (written.sources as JsonObject[]).find((source) => source.id === SRC_B) as JsonObject;
         assert.notProperty(b.copy, "nodes", "z is no node row of B's copy");
         session.dispose();
+    });
+
+    it("keeps a reduced edge's first key under last, and every row's key an alias of it", async () => {
+        const body = rowsBody(
+            [
+                rowsSource(SRC_A, {
+                    nodes: { id: ["a", "b"] },
+                    edges: { eid: ["e1", "e2"], source: ["a", "a"], target: ["b", "b"], w: [1, 2] },
+                }),
+            ],
+            { repeatedEdges: "last" },
+        );
+        const session = createGraphSession(ON);
+        await readBody(session, body);
+        const [edge] = session.data.edges();
+        assert.strictEqual(edge.w, 2, "the last row's values");
+        const refs = elementRefsOf(session);
+        assert.strictEqual(refs.edge({ load: SRC_A, key: "e1" }), edge.id, "the first row's key");
+        assert.strictEqual(refs.edge({ load: SRC_A, key: "e2" }), edge.id, "the last row's key is an alias");
+        const { body: written } = await writeBody(session);
+        const [link] = (written.graph as JsonObject).links as JsonObject[];
+        assert.strictEqual(link["graphty.key"], "e1");
+        const copy = ((written.sources as JsonObject[])[0].copy as JsonObject).edges as JsonObject;
+        assert.deepStrictEqual(
+            [copy.eid, copy.w],
+            [
+                ["e1", "e2"],
+                [1, 2],
+            ],
+            "the copy holds both rows as read",
+        );
+        session.dispose();
+    });
+
+    it("keeps keyless row keys bound to the edge each row built or folded into", async () => {
+        const body = rowsBody(
+            [
+                rowsSource(SRC_A, {
+                    nodes: { id: ["a", "b", "c"] },
+                    edges: { source: ["a", "a", "b"], target: ["b", "b", "c"], w: [1, 2, 7] },
+                }),
+            ],
+            { repeatedEdges: "sum" },
+        );
+        const session = createGraphSession(ON);
+        await readBody(session, body);
+        const byEnds = new Map(session.data.edges().map((edge) => [`${edge.source}>${edge.target}`, edge.id]));
+        const refs = elementRefsOf(session);
+        const copy = "A".repeat(26);
+        assert.strictEqual(refs.edge({ load: SRC_A, key: `${copy}#0` }), byEnds.get("p:a>p:b"));
+        assert.strictEqual(refs.edge({ load: SRC_A, key: `${copy}#1` }), byEnds.get("p:a>p:b"));
+        assert.strictEqual(refs.edge({ load: SRC_A, key: `${copy}#2` }), byEnds.get("p:b>p:c"));
+        session.dispose();
+    });
+
+    it("writes a reduced edge's rows back as read, so a reduction survives save and reopen", async () => {
+        const body = rowsBody(
+            [
+                rowsSource(SRC_A, {
+                    nodes: { id: ["a", "b"] },
+                    edges: { source: ["a", "a"], target: ["b", "b"], w: [1, 2] },
+                }),
+                rowsSource(SRC_B, { edges: { source: ["a"], target: ["b"], w: [4] } }),
+            ],
+            { repeatedEdges: "sum" },
+        );
+        const held = (session: GraphSession): unknown[] =>
+            session.data.edges().map((edge) => [edge.w, session.data.sourcesOf(edge.id, { kind: "edge" })]);
+        const session = createGraphSession(ON);
+        await readBody(session, body);
+        assert.deepStrictEqual(held(session), [[7, [SRC_A, SRC_B]]]);
+        const { body: written } = await writeBody(session);
+        const copies = Object.fromEntries(
+            (written.sources as JsonObject[]).map((source) => [source.id, (source.copy as JsonObject).edges]),
+        );
+        assert.deepStrictEqual((copies[SRC_A] as JsonObject).w, [1, 2]);
+        assert.deepStrictEqual((copies[SRC_B] as JsonObject).w, [4]);
+
+        const reopened = createGraphSession(ON);
+        await readBody(reopened, written);
+        assert.deepStrictEqual(held(reopened), [[7, [SRC_A, SRC_B]]]);
+        assert.strictEqual(JSON.stringify((await writeBody(reopened)).body), JSON.stringify(written));
+        session.dispose();
+        reopened.dispose();
+    });
+
+    it("builds a file opened with no repeatedEdges as keep, whatever the session held", async () => {
+        const edges = { source: ["a", "a"], target: ["b", "b"], w: [1, 2] };
+        const session = createGraphSession(ON);
+        await readBody(
+            session,
+            rowsBody([rowsSource(SRC_A, { nodes: { id: ["a", "b"] }, edges })], { repeatedEdges: "sum" }),
+        );
+        await readBody(session, rowsBody([rowsSource(SRC_B, { nodes: { id: ["a", "b"] }, edges })]));
+        assert.strictEqual(session.config.data.knownFields.repeatedEdges, "keep");
+        assert.strictEqual(session.data.edges().length, 2);
+        assert.notProperty((await writeBody(session)).body, "repeatedEdges");
+        session.dispose();
+    });
+
+    it("manages a node an imported file's edges only name as a version 2 source's", async () => {
+        const session = createGraphSession(ON);
+        await session.data.import({ type: "json", config: { data: JSON.stringify({ nodes: [{ id: "a" }] }) } });
+        await session.data.import({ type: "csv", config: { data: "source,target\na,z\n" } }, { mode: "merge" });
+        const { body } = await writeBody(session);
+        const [json, csv] = (body.sources as JsonObject[]).map((source) => String(source.id));
+        const loads = Object.fromEntries(
+            ((body.graph as JsonObject).nodes as JsonObject[]).map((node) => [
+                node["graphty.key"],
+                node["_source.loads"],
+            ]),
+        );
+        assert.deepStrictEqual(loads, { a: [json], z: [csv] });
+        const csvCopy = (body.sources as JsonObject[])[1].copy as JsonObject;
+        assert.notProperty(csvCopy, "nodes", "the csv had no node rows");
+        const reopened = createGraphSession(ON);
+        assert.deepStrictEqual(await readBody(reopened, body), [
+            { code: "W_NODE_NAMED_ONLY", params: { source: csv, count: 1 } },
+        ]);
+        session.dispose();
+        reopened.dispose();
+    });
+
+    it("keeps a node only edges named once no edge reaches it", async () => {
+        const body = rowsBody([
+            rowsSource(SRC_A, { nodes: { id: ["a"] } }),
+            rowsSource(SRC_B, { edges: { source: ["a"], target: ["z"], w: [1] } }),
+        ]);
+        const session = createGraphSession(ON);
+        await readBody(session, body);
+        await session.data.removeEdges(session.data.edges().map((edge) => edge.id));
+        const { body: written } = await writeBody(session);
+        const reopened = createGraphSession(ON);
+        assert.deepStrictEqual(await readBody(reopened, written), []);
+        assert.deepStrictEqual(
+            reopened.data
+                .nodes()
+                .map((node) => node.id)
+                .sort(),
+            ["p:a", "p:z"],
+        );
+        session.dispose();
+        reopened.dispose();
     });
 
     it("declares a reader add's column types, so a non-finite number reopens as a number", async () => {
@@ -946,7 +1098,7 @@ describe("data section version 2", () => {
             { op: "remove", node: { space, key: "Nobody" } },
         );
         const reopened = createGraphSession(ON);
-        const problems = await readBody(reopened, body);
+        const problems = quiet(await readBody(reopened, body));
         assert.deepStrictEqual(problems, [
             {
                 code: "W_REFERENCE_UNBOUND",
@@ -1471,7 +1623,7 @@ describe("the join history: steps that read sources (spec 4.1.8)", () => {
         const plain = createGraphSession(ON);
         await readBody(plain, body);
         const reopened = createGraphSession(ON);
-        const problems = await readBody(reopened, staged);
+        const problems = quiet(await readBody(reopened, staged));
         assert.deepStrictEqual(problems, [], "a staged source is no part left out");
         assert.strictEqual(reopened.data.nodes().length, plain.data.nodes().length, "it builds nothing");
         assert.notInclude(
@@ -1486,7 +1638,7 @@ describe("the join history: steps that read sources (spec 4.1.8)", () => {
         assert.notProperty((await dataBindingOf(reopened)).sources, STAGED, "not in bindsTo.sources");
 
         const again = createGraphSession(ON);
-        assert.deepStrictEqual(await readBody(again, saved), []);
+        assert.deepStrictEqual(quiet(await readBody(again, saved)), []);
         assert.deepStrictEqual(recordOf((await writeBody(again)).body, STAGED), recordOf(staged, STAGED));
         for (const each of [plain, reopened, again]) {
             each.dispose();
@@ -1512,7 +1664,7 @@ describe("the join history: steps that read sources (spec 4.1.8)", () => {
         const plain = createGraphSession(ON);
         await readBody(plain, body);
         const reopened = createGraphSession(ON);
-        assert.deepStrictEqual(await readBody(reopened, staged), []);
+        assert.deepStrictEqual(quiet(await readBody(reopened, staged)), []);
         assert.strictEqual(reopened.data.edges().length, plain.data.edges().length, "an off step builds nothing");
 
         const saved = (await writeBody(reopened)).body;
@@ -1530,7 +1682,7 @@ describe("the join history: steps that read sources (spec 4.1.8)", () => {
         (body.joins as JsonObject[]).splice(at, 0, edgesOff);
         assert.deepStrictEqual(invalid(asSection(body)), []);
         const reopened = createGraphSession(ON);
-        assert.deepStrictEqual(await readBody(reopened, body), []);
+        assert.deepStrictEqual(quiet(await readBody(reopened, body)), []);
         const saved = (await writeBody(reopened)).body;
         assert.deepStrictEqual(saved.joins, body.joins);
         assert.strictEqual(saved.build, body.build);
@@ -1543,7 +1695,7 @@ describe("the join history: steps that read sources (spec 4.1.8)", () => {
         staged.types = [...(staged.types as JsonObject[]), later];
         assert.deepStrictEqual(invalid(asSection(staged)), []);
         const reopened = createGraphSession(ON);
-        assert.deepStrictEqual(await readBody(reopened, staged), []);
+        assert.deepStrictEqual(quiet(await readBody(reopened, staged)), []);
         const saved = (await writeBody(reopened)).body;
         assert.deepInclude(saved.types as JsonObject[], later);
         assert.strictEqual(saved.build, staged.build);
@@ -1597,7 +1749,7 @@ describe("the join history: steps that read sources (spec 4.1.8)", () => {
         ];
         assert.deepStrictEqual(invalid(asSection(body)), []);
         const session = createGraphSession(ON);
-        assert.deepStrictEqual(await readBody(session, body), []);
+        assert.deepStrictEqual(quiet(await readBody(session, body)), []);
         assert.deepInclude((await writeBody(session)).body.types as JsonObject[], (body.types as JsonObject[])[0]);
         session.dispose();
     });
@@ -1756,12 +1908,12 @@ describe("a source saved by reference, read again", () => {
         vi.stubGlobal("fetch", () => Promise.resolve(new Response(CSV)));
         const { body, at } = await referencedFriends();
         const record = (body.sources as JsonObject[])[at];
-        ((record.columns as JsonObject).nodes as JsonObject).mood = { name: "mood", dtype: "string", nullable: true };
+        ((record.columns as JsonObject).edges as JsonObject).mood = { name: "mood", dtype: "string", nullable: true };
         await refetchSources(body, { location: LOCATION, ...how });
         const reopened = createGraphSession(ON);
         assert.deepInclude(await readBody(reopened, body), {
             code: "W_MEMBER_LEFT_OUT",
-            params: { section: "data", pointer: `/sources/${String(at)}/columns/nodes/mood` },
+            params: { section: "data", pointer: `/sources/${String(at)}/columns/edges/mood` },
         });
         reopened.dispose();
     });
@@ -1809,7 +1961,8 @@ describe("a source saved by reference, read again", () => {
 
     it("embeds a source another load also supplied rows to, and says why", async () => {
         const session = createGraphSession(ON);
-        await session.data.import({ type: "csv", config: { data: CSV }, name: "friends.csv" });
+        // A node table: an edge list's ends only name their nodes, so they would share no row.
+        await session.data.import({ type: "csv", config: { data: "id,age\nAva,30\nBen,40\n" }, name: "friends.csv" });
         await session.data.import(
             {
                 type: "json",
@@ -1824,7 +1977,7 @@ describe("a source saved by reference, read again", () => {
         }
 
         const opened = createGraphSession(ON);
-        assert.deepStrictEqual(await readBody(opened, body), []);
+        assert.deepStrictEqual(quiet(await readBody(opened, body)), []);
         const pets = String((body.sources as JsonObject[]).find((source) => source.label === "pets.json")?.id);
         const { problems } = await writeBody(opened, { [pets]: "referenced" });
         assert.deepStrictEqual(problems, [{ code: "W_SOURCE_EMBEDDED", params: { source: pets, reason: "rows" } }]);

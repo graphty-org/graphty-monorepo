@@ -55,7 +55,10 @@ async function open(
     });
     return {
         session,
-        problems: report.problems.filter((problem) => problem.code !== "W_RECIPE_NOT_APPLIED"),
+        // A CSV edge list's ends only name its nodes (design 3.1), which these tests are not about.
+        problems: report.problems.filter(
+            (problem) => problem.code !== "W_RECIPE_NOT_APPLIED" && problem.code !== "W_NODE_NAMED_ONLY",
+        ),
     };
 }
 

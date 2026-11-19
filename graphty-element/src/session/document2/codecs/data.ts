@@ -908,6 +908,14 @@ interface BuiltEdge {
     readonly unmatched: string;
     /** The sources whose rows it was reduced from, in step order, the minting source first. */
     readonly loads: string[];
+    /** Its row in its source's edge table, for a row a copy built. */
+    readonly row?: number;
+}
+
+/** An edge reduced from several rows: its columns as reduced, and its rows as read, its own first. */
+interface ReducedRows {
+    baseline: JsonObject;
+    readonly rows: BuiltEdge[];
 }
 
 /** What the build gives. */
@@ -945,6 +953,8 @@ interface Built {
     readonly referenced: readonly (readonly [string, JsonObject])[];
     /** The edges reduced into another, by their own `edgeKey` (spec 6.1). */
     readonly aliases: ReadonlyMap<string, BuiltEdge>;
+    /** Each edge reduced from several rows, and those rows. */
+    readonly reduced: ReadonlyMap<BuiltEdge, ReducedRows>;
     /** The graph's `repeatedEdges`. */
     readonly repeatedEdges: DuplicatePolicy;
     /** The `knownFields` settings the built sources' roles give, and the roles they differ on. */
@@ -965,6 +975,8 @@ interface Building {
     readonly heldOperations: JsonObject[];
     /** The edges reduced into another, by their own `edgeKey`: aliases of the edge kept (spec 6.1). */
     readonly aliases: Map<string, BuiltEdge>;
+    /** Each edge reduced from several rows, and those rows as read, so a save writes them back. */
+    readonly reduced: Map<BuiltEdge, ReducedRows>;
 }
 
 /**
@@ -1263,6 +1275,7 @@ function buildEdges(source: ReadSource, into: Building, edgeMap: JsonObject, cho
                 ref,
                 unmatched: choices.unmatched,
                 loads: [id],
+                row,
             };
             own.add(edge);
             into.edges.set(edgeKey(ref), edge);
@@ -1381,6 +1394,42 @@ function creditNamed(into: Building): void {
     }
 }
 
+/**
+ * Keep the rows an edge is reduced from, as read, so a save writes them back (spec 6.1).
+ * @param into - The build so far.
+ * @param first - The edge kept.
+ * @param edge - The edge folded into it.
+ * @returns The kept edge's own row's columns, as read.
+ */
+function keepRows(into: Building, first: BuiltEdge, edge: BuiltEdge): JsonObject {
+    let reduced = into.reduced.get(first);
+    if (reduced === undefined) {
+        reduced = { baseline: {}, rows: [{ ...first, columns: { ...first.columns } }] };
+        into.reduced.set(first, reduced);
+    }
+
+    reduced.rows.push(edge);
+    return reduced.rows[0].columns;
+}
+
+/**
+ * The columns an edge reduced under `last` takes: the last row's values, but the first row's key,
+ * so the edge-id cell stays the first's (spec 6.1).
+ * @param edge - The last row's edge.
+ * @param own - The kept edge's own row's columns, as read.
+ * @param idColumns - The kept edge's and the last row's edge-id columns.
+ * @returns The columns.
+ */
+function lastColumns(edge: BuiltEdge, own: JsonObject, idColumns: readonly (string | undefined)[]): JsonObject {
+    const [kept, its] = idColumns;
+    const columns = Object.fromEntries(Object.entries(edge.columns).filter(([name]) => name !== its));
+    if (kept !== undefined && kept in own) {
+        columns[kept] = own[kept];
+    }
+
+    return columns;
+}
+
 /** The `repeatedEdges` values that combine weights, and so reduce only repeats of one weight meaning. */
 const COMBINING: Readonly<Record<string, (held: number, next: number) => number>> = {
     sum: (held, next) => held + next,
@@ -1408,12 +1457,13 @@ function reduceRepeats(into: Building, section: Checked, graph: { policy: string
         return;
     }
 
-    const roles = (load: string): { weight?: string; meaning: unknown } => {
+    const roles = (load: string): { weight?: string; edgeId?: string; meaning: unknown } => {
         const source = section.sources.get(load);
         const mapping = source?.rebuilt?.mapping ?? source?.record.mapping;
         const edges = isPlainObject(mapping) && isPlainObject(mapping.edges) ? mapping.edges : {};
         return {
             ...(typeof edges.weight === "string" ? { weight: edges.weight } : {}),
+            ...(typeof edges.edgeId === "string" ? { edgeId: edges.edgeId } : {}),
             meaning: edges.weightMeaning ?? null,
         };
     };
@@ -1451,8 +1501,9 @@ function reduceRepeats(into: Building, section: Checked, graph: { policy: string
             first.loads.push(edge.ref.load);
         }
 
+        const own = keepRows(into, first, edge);
         if (policy === "last") {
-            first.columns = edge.columns;
+            first.columns = lastColumns(edge, own, [roles(first.ref.load).edgeId, roles(edge.ref.load).edgeId]);
         } else if (combine !== undefined) {
             weights.set(first, combine(weights.get(first) ?? weightOf(first), weightOf(edge)));
         }
@@ -1463,6 +1514,10 @@ function reduceRepeats(into: Building, section: Checked, graph: { policy: string
         if (column !== undefined) {
             edge.columns[column] = weight;
         }
+    }
+
+    for (const [edge, reduced] of into.reduced) {
+        reduced.baseline = { ...edge.columns };
     }
 }
 
@@ -1864,6 +1919,7 @@ function build(body: Readonly<JsonObject>, problems: DocumentProblem[]): Built {
         held,
         heldOperations: [],
         aliases: new Map(),
+        reduced: new Map(),
     };
 
     const { loads, unavailable, copies, referenced, changed, edgeIdColumn } = buildJoins(section, into);
@@ -1904,6 +1960,7 @@ function build(body: Readonly<JsonObject>, problems: DocumentProblem[]): Built {
         edgeIds,
         heldOperations: into.heldOperations,
         aliases: into.aliases,
+        reduced: into.reduced,
         repeatedEdges,
         roles,
         ...joinsKept(section),
@@ -1955,7 +2012,8 @@ async function restoreSettings(built: Built, tx: TransactionScope): Promise<void
         data: {
             knownFields: {
                 ...built.roles.patch,
-                ...(built.repeatedEdges === "keep" ? {} : { repeatedEdges: built.repeatedEdges }),
+                // Always: a file with none builds as keep, whatever the session held before.
+                repeatedEdges: built.repeatedEdges,
             },
         },
     });
@@ -2032,6 +2090,8 @@ async function apply(
             source: "source",
             target: "target",
             directed: built.directed,
+            // The build reduced repeats by the file's own repeatedEdges; the session's never applies.
+            repeated: "keep",
             ...(wanted.some((id) => id !== undefined) ? { ids: wanted } : {}),
             ...(reserve.length === 0 ? {} : { reserve }),
         },
@@ -2049,11 +2109,18 @@ async function apply(
             });
         }
     });
-    const provenance: Record<string, { nodes: NodeId[]; edges: EdgeId[] }> = {};
-    const entry = (key: string): { nodes: NodeId[]; edges: EdgeId[] } => (provenance[key] ??= { nodes: [], edges: [] });
+    // What each source supplied as a load records it: every node its rows built or its edges named,
+    // the named ones also as such (spec 3.1), so a session opened from a file holds what one that
+    // imported the same rows does.
+    type Entry = { nodes: Set<NodeId>; edges: EdgeId[]; named: Set<NodeId> };
+    const supplied: Record<string, Entry> = {};
+    const entry = (key: string): Entry => (supplied[key] ??= { nodes: new Set(), edges: [], named: new Set() });
     for (const node of built.nodes) {
         for (const load of node.loads.filter((each) => each !== READER)) {
-            entry(load).nodes.push(node.id);
+            entry(load).nodes.add(node.id);
+            if (node.named === true) {
+                entry(load).named.add(node.id);
+            }
         }
     }
 
@@ -2066,15 +2133,48 @@ async function apply(
 
         if (edge.ref.load === READER) {
             readerEdges.push([id, edge.ref.key]);
-        } else {
-            // An edge reduced from several sources' rows is supplied by each of them (spec 4.1.9).
-            edge.loads.forEach((load) => entry(load).edges.push(id));
+            return;
+        }
+
+        // An edge reduced from several sources' rows is supplied by each of them (spec 4.1.9).
+        for (const load of edge.loads) {
+            entry(load).edges.push(id);
+            for (const end of [edge.from, edge.to].filter((node) => !node.loads.includes(load))) {
+                entry(load).nodes.add(end.id);
+                entry(load).named.add(end.id);
+            }
         }
     });
+    const provenance = Object.fromEntries(
+        Object.entries(supplied).map(([key, { nodes, edges, named }]) => [
+            key,
+            { nodes: [...nodes], edges, ...(named.size === 0 ? {} : { named: [...named] }) },
+        ]),
+    );
     const ids = new Map(built.edges.map((edge, at) => [edge, edgeIds[at]]));
     const edgeAliases = [...built.aliases].flatMap(([alias, edge]) => {
         const id = ids.get(edge);
         return id === undefined ? [] : [[alias, id] as const];
+    });
+    const reduced = [...built.reduced].flatMap(([edge, { baseline, rows }]) => {
+        const id = ids.get(edge);
+        return id === undefined
+            ? []
+            : [
+                  [
+                      id,
+                      {
+                          baseline,
+                          rows: rows.map((row) => ({
+                              load: row.ref.load,
+                              row: row.row ?? 0,
+                              columns: row.columns,
+                              source: row.from.id,
+                              target: row.to.id,
+                          })),
+                      },
+                  ] as const,
+              ];
     });
 
     const last = built.loads.at(-1);
@@ -2097,7 +2197,6 @@ async function apply(
         copies: built.copies,
         types: built.types,
         nodeRefs: built.nodes.map((node) => [node.id, node.ref] as const),
-        namedOnly: built.nodes.filter((node) => node.named === true).map((node) => node.id),
         origins: built.origins,
         kinds: built.kinds,
         folded: built.folded,
@@ -2105,6 +2204,7 @@ async function apply(
         refused: built.refused,
         readerEdges,
         edgeAliases,
+        reduced,
         unavailable: built.unavailable,
         edgeIds: built.edgeIds,
         referenced: built.referenced,

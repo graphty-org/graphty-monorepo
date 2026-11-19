@@ -21,9 +21,11 @@ import {
     DEFAULT_OUTLINE_COLOR,
     type EdgeLineValue,
     isChannel,
+    labelFieldOf,
     modelBindingProblem,
     type NodeShapeValue,
     type PaintedValue,
+    textFieldOf,
     toColorValue,
 } from "../../../src/session/styles/channels";
 
@@ -1709,5 +1711,57 @@ describe("what the border, outline and halo caveats say", () => {
         assert.include(CHANNEL_DESCRIPTORS["node.borderColor"].caveat, "camera-facing circular ring");
         assert.include(CHANNEL_DESCRIPTORS["node.outline"].caveat, "camera-facing circular ring");
         assert.include(CHANNEL_DESCRIPTORS["node.outlineWidth"].caveat, "camera-facing circular ring");
+    });
+});
+
+describe("textFieldOf", () => {
+    /** Each text kind's channel: its field channels start with it. */
+    const KINDS = [
+        "node.label",
+        "node.tooltip",
+        "node.xlabel",
+        "edge.xlabel",
+        "edge.label",
+        "edge.arrowHeadText",
+        "edge.arrowTailText",
+    ] as const;
+
+    /** Channels under a text kind's name that set no field of its style, and why. */
+    const NOT_A_FIELD: Readonly<Record<string, string>> = {
+        "node.labelTable": "a table of label rows, not a field",
+        "edge.labelTable": "a table of label rows, not a field",
+        "node.labelFit": "sizes the node to its label",
+        "node.labelPaddingX": "sizes the node to its label",
+        "node.labelPaddingY": "sizes the node to its label",
+        "node.labelFitSquare": "sizes the node to its label",
+        "node.labelFitQuantum": "sizes the node to its label",
+        "node.labelFitImage": "sizes the node to its label",
+        "node.labelFitImagePadding": "sizes the node to its label",
+        "edge.arrowHeadTextDistance": "where the caption sits along the edge, not a text field",
+        "edge.arrowTailTextDistance": "where the caption sits along the edge, not a text field",
+    };
+
+    it("maps every field channel of all seven text kinds to its style head and a real field", () => {
+        const fields = new Set<string>(LABEL_STYLE_FIELDS);
+        let mapped = 0;
+        for (const channel of CHANNELS) {
+            const kind = KINDS.filter((each) => channel.startsWith(each)).sort((a, b) => b.length - a.length)[0];
+            if (kind === undefined || channel === kind || channel === `${kind}Style` || NOT_A_FIELD[channel]) {
+                continue;
+            }
+
+            const field = textFieldOf(channel);
+            assert.isDefined(field, channel);
+            assert.strictEqual(field?.into, `${kind}Style`, channel);
+            assert.isTrue(fields.has(field?.field ?? ""), `${channel}: ${field?.field}`);
+            if (kind === "node.label" || kind === "edge.label") {
+                assert.deepStrictEqual(labelFieldOf(channel), field, channel);
+            } else {
+                // labelFieldOf answers only for the label kinds: the graph-io gate leans on it.
+                assert.isUndefined(labelFieldOf(channel), channel);
+            }
+            mapped += 1;
+        }
+        assert.isAbove(mapped, 100);
     });
 });

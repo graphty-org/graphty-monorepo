@@ -1,6 +1,7 @@
 /**
  * @file A higher layer changes one item of a list a lower layer resolves, by the item's address,
- * and nothing else of the list. An index past the list's end changes nothing.
+ * and nothing else of the list. An index past the list's end changes nothing and says so, as a
+ * `W_LIST_ITEM_PAST_END` note on the element's explanation.
  */
 
 import { assert, describe, it } from "vitest";
@@ -35,10 +36,11 @@ describe("one list item, overridden from above", () => {
         });
         await session.styles.settled();
         assert.strictEqual(pieOf(session), "#111111 #ff0000 #333333");
+        assert.isUndefined(session.styles.explain({ node: "a" }).notes, "an item inside the list notes nothing");
         session.dispose();
     });
 
-    it("changes nothing for an index past the list's end, or over no list", async () => {
+    it("changes nothing for an index past the list's end, or over no list, and notes it", async () => {
         const session = createGraphSession();
         await session.data.addNodes([{ id: "a" }]);
         const over = await session.styles.add({
@@ -49,6 +51,12 @@ describe("one list item, overridden from above", () => {
         });
         await session.styles.settled();
         assert.isUndefined(pieOf(session), "over no list there is nothing to change");
+        assert.deepStrictEqual(session.styles.explain({ node: "a" }).notes, [
+            {
+                code: "W_LIST_ITEM_PAST_END",
+                params: { channel: "node.pieColors", index: 5, length: 0, layerId: over.id },
+            },
+        ]);
         await session.styles.add(
             {
                 name: "Pie",
@@ -60,6 +68,12 @@ describe("one list item, overridden from above", () => {
         );
         await session.styles.settled();
         assert.strictEqual(pieOf(session), "#111111 #222222");
+        assert.deepStrictEqual(session.styles.explain({ node: "a" }).notes, [
+            {
+                code: "W_LIST_ITEM_PAST_END",
+                params: { channel: "node.pieColors", index: 5, length: 2, layerId: over.id },
+            },
+        ]);
         session.dispose();
     });
 

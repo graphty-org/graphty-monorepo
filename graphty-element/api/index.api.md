@@ -4804,6 +4804,15 @@ export type GraphtyWarningCode =
 */
 | "W_ALPHA_IGNORED"
 /**
+* A style layer changes one item of a list channel by its address (`node.pieColors.5`), but the
+* list the layers beneath give the element is shorter, so the item changes nothing.
+* `params.channel` is the list channel, `params.index` the item's index from 0,
+* `params.length` how many items the list beneath holds (0 over no list) and `params.layerId`
+* the layer. Reported per element, on `session.styles.explain(...).notes`.
+* @since 3.62.0
+*/
+| "W_LIST_ITEM_PAST_END"
+/**
 * The element's `limits` were set, or are held, while `render-path` is `"objects"`, where the
 * shipped ceilings stand: they are honored only under `"batched"`. `params.renderPath`.
 * @experimental cosmograph

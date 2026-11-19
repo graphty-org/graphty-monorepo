@@ -1735,7 +1735,10 @@ function checkParamBinding(
     if (param === undefined || (!("value" in binding) && param.varies !== true)) {
         report(log, {
             code: "E_UNKNOWN_SHADER_PARAM",
-            message: `The shader "${shader.id}" declares no parameter "${address.param}" that varies per element.`,
+            message:
+                param === undefined
+                    ? `The shader "${shader.id}" declares no parameter "${address.param}".`
+                    : `The shader "${shader.id}" parameter "${address.param}" does not vary per element: bind it to one { value }.`,
             path,
             candidates: shader.params.filter((entry) => entry.varies === true).map((entry) => entry.name),
         });

@@ -48,7 +48,7 @@ import type {
     RuleTree,
     TopTies,
 } from "../../catalog/types";
-import { GraphtyError } from "../../errors";
+import { GraphtyError, type GraphtyWarningCode } from "../../errors";
 import { rankEntries, topOfRanking } from "../results/statistics";
 import type { CodedFact } from "../shared";
 import {
@@ -60,6 +60,7 @@ import {
     isShaderListChannel,
     labelFieldOf,
     labelPatchOf,
+    listItemsPastEnd,
     mergeChannelValue,
     mergeLabelStyle,
     parseListItemAddress,
@@ -151,6 +152,12 @@ export interface StyleExplanation {
      * channel and its rows must not move when a layer is added.
      */
     readonly channels: readonly ChannelExplanation[];
+    /**
+     * What a layer asked of this element that changed nothing, as codes: `W_LIST_ITEM_PAST_END`
+     * for a list item addressed past the end of the list beneath. Absent when there is none.
+     * @since 3.62.0
+     */
+    readonly notes?: readonly CodedFact<GraphtyWarningCode>[];
 }
 
 /** One value a channel is painted across several elements, and the layer that decided it. */
@@ -754,6 +761,7 @@ export function explainStyle(target: ExplainTarget, sources: ExplainSources): St
 
     const stack = prepareStack(sources);
     const useLayers = new Map<ShaderUse, LayerId>();
+    const notes: CodedFact<GraphtyWarningCode>[] = [];
     paintOne(stack, at, columnsFor(sources.elements, at.target), (layer, prepared, result) => {
         const { channel } = prepared;
         // Label styles stack field by field, as the repaint stacks them, and a label field
@@ -767,7 +775,13 @@ export function explainStyle(target: ExplainTarget, sources: ExplainSources): St
             CHANNEL_DESCRIPTORS[channel].accepts === "labelStyle" ||
             (CHANNEL_DESCRIPTORS[channel].listOf !== undefined && typeof result === "object" && result !== null)
         ) {
-            // A list item's patch changes one item of the list resolved beneath.
+            // A list item's patch changes one item of the list resolved beneath; one past its end changes nothing.
+            if (CHANNEL_DESCRIPTORS[channel].listOf !== undefined) {
+                const { indices, length } = listItemsPastEnd(merged[channel], result as object);
+                for (const index of indices) {
+                    notes.push({ code: "W_LIST_ITEM_PAST_END", params: { channel, index, length, layerId: layer.id } });
+                }
+            }
             merged[channel] = mergeChannelValue(channel, merged[channel], result as object);
         } else {
             merged[channel] = result;
@@ -829,6 +843,7 @@ export function explainStyle(target: ExplainTarget, sources: ExplainSources): St
         merged: Object.freeze(style),
         contributions: Object.freeze(contributions),
         channels: Object.freeze(channels),
+        ...(notes.length === 0 ? {} : { notes: Object.freeze(notes) }),
     };
 }
 

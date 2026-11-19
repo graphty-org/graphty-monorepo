@@ -6509,6 +6509,25 @@ function mergeListItems(held: unknown, over: object): unknown {
     return list.join(" ");
 }
 
+/**
+ * The indices of a list item patch that land past the end of the list beneath, and so change
+ * nothing: every one of them over no list.
+ * @param held - What the layers beneath painted, or undefined.
+ * @param over - The list item patch.
+ * @returns The indices left out, and the length of the list beneath (0 over no list).
+ */
+export function listItemsPastEnd(held: unknown, over: object): { readonly indices: number[]; readonly length: number } {
+    const items = (over as { readonly [LIST_ITEMS]?: Readonly<Record<string, unknown>> })[LIST_ITEMS] ?? {};
+    const length = typeof held === "string" ? held.split(/\s+/).filter((item) => item !== "").length : 0;
+
+    return {
+        indices: Object.keys(items)
+            .map(Number)
+            .filter((index) => index >= length),
+        length,
+    };
+}
+
 /** Where a parameter address points: the list channel, the shader and the parameter. */
 export interface ShaderParamTarget {
     /** The list channel the value lands in. */

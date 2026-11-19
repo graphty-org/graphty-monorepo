@@ -2974,7 +2974,10 @@ export function shaderParamDescriptor(
     if (param === undefined || (!literal && param.varies !== true)) {
         throw new GraphtyError({
             code: "E_UNKNOWN_SHADER_PARAM",
-            message: `The shader "${shader.id}" declares no parameter "${address.param}" that varies per element.`,
+            message:
+                param === undefined
+                    ? `The shader "${shader.id}" declares no parameter "${address.param}".`
+                    : `The shader "${shader.id}" parameter "${address.param}" does not vary per element: bind it to one { value }.`,
             source: "style",
             details: {
                 shader: shader.id,

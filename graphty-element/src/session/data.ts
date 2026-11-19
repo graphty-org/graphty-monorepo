@@ -3932,7 +3932,20 @@ export class SessionData implements SessionDataApi {
         const supplied = this.provenance()?.[key] ?? { nodes: [], edges: [] };
         const before = this.current();
         const bound = this.boundNow();
-        await this.sender("remove a load")({ op: "data.steps-set", edit: { kind: "remove-source", id: key } });
+        const removal = { op: "data.steps-set", edit: { kind: "remove-source", id: key } } as const;
+        // The source's own filters go with it, in the same step, so one Undo gives both back (7.12).
+        const { conditions } = this.writes.readers().visibility;
+        const kept = conditions.filter((each) => each.source !== key);
+        await this.sender("remove a load")(
+            kept.length === conditions.length
+                ? removal
+                : {
+                      op: "batch",
+                      label: "Removed a source",
+                      fact: { code: "data.steps-set", params: { kind: "remove-source", source: key, name: null } },
+                      steps: [removal, { op: "visibility.conditions", conditions: kept }],
+                  },
+        );
         const after = this.current();
         issues.push(...this.unboundSince(bound).issues);
         const space = edgeSpaceOf(after);

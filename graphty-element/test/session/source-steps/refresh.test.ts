@@ -102,6 +102,34 @@ describe("source-steps: removal as a rebuild", () => {
         session.dispose();
     });
 
+    it("removing a source takes its section's filters with it, and one Undo brings both back (7.12)", async () => {
+        const { session, a, t } = await phase6();
+        await session.visibility.addCondition({
+            id: "fa",
+            effect: "keep",
+            rule: { kind: "range", attribute: "data.opened", min: 2021 },
+            source: a,
+        });
+        await session.visibility.addCondition({
+            id: "ft",
+            effect: "keep",
+            rule: { kind: "range", attribute: "data.amount", min: 0 },
+            source: t,
+        });
+        const history = session.history.steps.length;
+        await session.data.removeSource(a);
+        assert.deepStrictEqual(
+            session.visibility.conditions.map((c) => c.id),
+            ["ft"],
+            "only the removed source's filter goes",
+        );
+        assert.lengthOf(session.history.steps, history + 1, "one undo step");
+        await session.undo();
+        assert.deepStrictEqual(session.visibility.conditions.map((c) => c.id).sort(), ["fa", "ft"]);
+        assert.isDefined(session.data.sources().find((s) => s.key === a), "the source is back too");
+        session.dispose();
+    });
+
     it("removing the transactions after a merge that drops what meets no account keeps accounts.csv's nodes", async () => {
         const { session, t, a } = await phase6("drop");
         const supplied = (): number => session.data.sources().find((s) => s.key === a)?.counts.nodes ?? 0;

@@ -768,7 +768,8 @@ export const STRUCTURE_ONLY_VALUES: Readonly<Partial<Record<string, string>>> = 
             "node.modelTint=untextured",
         ].map((key) => [
             key,
-            "The probe scene has no model that loads (a model is a served file); each value's pixels are measured " +
+            "The enum gate writes no node.model beneath these values (none of these channels names it in " +
+                "its needs or drawnWhen), so they draw on the default shape; each value's pixels are measured " +
                 "on a real model in test/browser/models/ (model-animation.test.ts: up axes, origin, fit, sides; " +
                 "model-looks.test.ts: tints).",
         ]),

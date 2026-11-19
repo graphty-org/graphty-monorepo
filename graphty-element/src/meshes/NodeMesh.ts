@@ -1133,6 +1133,9 @@ export class NodeMesh {
             return key;
         }
         const source = fill instanceof Mesh ? fill : (fill as InstancedMesh).sourceMesh;
+        // ponytail: MeshCache never evicts, so the rings built round a model's placeholder stay cached (with no
+        // instances) for the life of the scene: one set per style per model, never per node. Evict the
+        // placeholder's ring keys when its model lands if many distinct model styles ever make this matter.
         return `${key}-of${String(source.uniqueId)}`;
     }
 

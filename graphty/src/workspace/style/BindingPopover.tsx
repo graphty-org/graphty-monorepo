@@ -404,7 +404,7 @@ function dataParts(
         source,
         inUse: [binding.by],
         noun: "values",
-        groups: categorical ? preview?.bins.length : undefined,
+        groups: categorical ? preview.bins.length : undefined,
         categorical,
         asWritten,
         palette:
@@ -594,7 +594,7 @@ function PaletteSelect({
     patch: (change: { palette: string | undefined }) => void;
 }>): React.JSX.Element {
     const palettes = session.catalog.palettes().filter((p) => p.kind === "categorical");
-    const inForce = shown ?? palettes[0]?.id;
+    const inForce = shown ?? palettes.at(0)?.id;
     const strips = Object.fromEntries(
         palettes.map((p) => [
             p.id,

@@ -34,6 +34,9 @@ function SaveAsDialog(): React.JSX.Element {
     // Whether another dialog took the slot during a save (the question about files from the web,
     // or Save as pressed again over it): the save then leaves the slot to that dialog.
     const left = useRef(false);
+    // Read through a call: the effect sets it while the save awaits, which TypeScript's narrowing
+    // after `left.current = false` cannot see.
+    const hasLeft = (): boolean => left.current;
     useEffect(() => {
         if (opened) {
             setName(current);
@@ -54,7 +57,7 @@ function SaveAsDialog(): React.JSX.Element {
         left.current = false;
         try {
             await saveProjectAs(workspace, trimmed);
-            if (!left.current) {
+            if (!hasLeft()) {
                 close();
             }
         } finally {

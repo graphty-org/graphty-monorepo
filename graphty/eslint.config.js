@@ -147,9 +147,32 @@ export default tseslint.config(
         ignores: ["**/*.stories.ts", "**/*.stories.tsx", "**/stories/**/*.ts"],
         rules: {
             "@typescript-eslint/no-unsafe-assignment": "error",
+            "@typescript-eslint/no-unsafe-argument": "error",
+            "@typescript-eslint/no-unsafe-member-access": "error",
             "@typescript-eslint/no-unsafe-call": "error",
             "@typescript-eslint/no-unsafe-return": "error",
         },
+    },
+    // A condition that can never be false is a wrong type or dead code. Still off for the tests
+    // (__tests__, *.test.*, src/test/), whose findings are not fixed yet, and for the assistant files
+    // that read an AI result's params: graphty-element types AiResultParams as a Record whose every
+    // key is present, so each check for a param a code leaves out reads as unnecessary.
+    {
+        files: ["src/**/*.ts", "src/**/*.tsx"],
+        ignores: [
+            "**/*.stories.ts",
+            "**/*.stories.tsx",
+            "**/stories/**/*.ts",
+            "**/__tests__/**",
+            "**/*.test.ts",
+            "**/*.test.tsx",
+            "src/test/**",
+            "src/workspace/assistant/AiProviderSection.tsx",
+            "src/workspace/assistant/Checks.tsx",
+            "src/workspace/assistant/Conversation.tsx",
+            "src/workspace/assistant/words.ts",
+        ],
+        rules: { "@typescript-eslint/no-unnecessary-condition": "error" },
     },
 
     // ============================================

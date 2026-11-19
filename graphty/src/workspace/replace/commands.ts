@@ -76,7 +76,7 @@ export async function replaceWith(
     const replaced = session.data.sources().find((each) => each.key === key);
     const before = replaced === undefined ? key : sourceName(replaced);
     const report = await session.data.replaceSource(key, incoming.source, choices);
-    const [first] = report.unbound;
+    const first = report.unbound.at(0);
     workspace.set({
         notice: {
             message: replacedWords(before, incoming.name, report),
@@ -109,7 +109,7 @@ export async function replaceWith(
  */
 async function chooseReplacement(ctx: CommandContext, key: SourceKey): Promise<void> {
     const { session, workspace } = ctx;
-    const [file] = await pickFiles();
+    const file = (await pickFiles()).at(0);
     if (session === null || file === undefined) {
         return;
     }

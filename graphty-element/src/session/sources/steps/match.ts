@@ -15,7 +15,7 @@ import { buildOf, type Copies, copyMap, type SourceSteps } from "./project";
 import type { CellValue, Row } from "./types";
 
 /** Side 2: the incoming source and the field it names node 1 by. */
-export interface MatchFrom {
+interface MatchFrom {
     readonly source: string;
     readonly field: string;
 }

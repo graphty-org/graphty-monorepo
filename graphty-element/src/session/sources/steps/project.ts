@@ -168,7 +168,7 @@ const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
  * A ULID: 48 bits of the time and 80 random bits, in Crockford base 32.
  * @returns The 26 characters.
  */
-export function ulid(): string {
+function ulid(): string {
     let time = Date.now();
     let head = "";
     for (let i = 0; i < 10; i++) {

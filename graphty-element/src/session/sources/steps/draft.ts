@@ -132,7 +132,7 @@ export function draftApply(state: DraftState, edit: StepsEdit, more?: Copies): D
  * @param origins - The committed places before it; absent, each step's own place.
  * @returns The committed places after it.
  */
-export function carried(
+function carried(
     before: readonly Step[],
     after: readonly Step[],
     origins: readonly (number | null)[] | undefined,

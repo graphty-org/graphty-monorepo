@@ -7308,6 +7308,164 @@ export interface SourceDraftChange {
     readonly reason: "opened" | "changed" | "committed" | "discarded";
 }
 
+// @public
+export interface SourceDraftPreview {
+    readonly after: SourceDraftPreviewTotals;
+    readonly before: SourceDraftPreviewTotals;
+    readonly draft: string;
+    // (undocumented)
+    readonly edges: SourceDraftPreviewChanges;
+    readonly edits: readonly ReaderEditRow[];
+    // (undocumented)
+    readonly issues: readonly SourceDraftPreviewIssue[];
+    // (undocumented)
+    readonly nodes: SourceDraftPreviewChanges;
+    readonly sources: readonly SourceDraftPreviewSource[];
+    readonly steps: readonly SourceDraftPreviewStep[];
+}
+
+// @public
+export interface SourceDraftPreviewChanges {
+    // (undocumented)
+    readonly added: number;
+    // (undocumented)
+    readonly changed: number;
+    // (undocumented)
+    readonly removed: number;
+}
+
+// @public
+export type SourceDraftPreviewIssue = {
+    readonly code: "W_STEP_REMOVED";
+    readonly params: {
+        readonly step: number;
+        readonly reason: "source-removed" | "step-removed" | "source-held";
+        readonly source: SourceKey;
+    };
+} | {
+    readonly code: "W_REFERENCE_UNBOUND";
+    readonly params: {
+        readonly ref: SourceElementRef;
+    };
+} | {
+    readonly code: "W_FILTER_HELD";
+    readonly params: {
+        readonly filter: string;
+        readonly column: Path;
+    };
+} | Extract<SourceRefreshIssue, {
+    readonly code: "W_EDIT_SOURCE_CHANGED";
+}> | SourceValuesDiffer | {
+    readonly code: "W_FAN_OUT";
+    readonly params: {
+        readonly step: number;
+        readonly rows: number;
+    };
+} | {
+    readonly code: "W_UNMATCHED";
+    readonly params: {
+        readonly step: number;
+        readonly rows: number;
+    };
+} | {
+    readonly code: "W_UNTOUCHED";
+    readonly params: {
+        readonly step: number;
+        readonly nodes: number;
+    };
+} | {
+    readonly code: "W_PARALLEL_EDGES";
+    readonly params: {
+        readonly step: number;
+        readonly pairs: number;
+    };
+} | {
+    readonly code: "W_SELF_LOOPS";
+    readonly params: {
+        readonly step: number;
+        readonly count: number;
+    };
+} | {
+    readonly code: "W_ROWS_DIFFER";
+    readonly params: {
+        readonly step: number;
+        readonly column: string;
+        readonly keys: number;
+    };
+} | {
+    readonly code: "W_NODE_NAMED_ONLY";
+    readonly params: {
+        readonly step: number;
+        readonly source: SourceKey;
+        readonly nodes: number;
+    };
+} | {
+    readonly code: "W_EDGE_END_MISSING";
+    readonly params: {
+        readonly step: number;
+        readonly space: SourceSpaceName;
+        readonly ends: number;
+    };
+} | {
+    readonly code: "W_KEY_EMPTY";
+    readonly params: {
+        readonly source: SourceKey;
+        readonly column: string;
+        readonly rows: number;
+    };
+} | {
+    readonly code: "W_VALUE_HUB";
+    readonly params: {
+        readonly source: SourceKey;
+        readonly column: string;
+        readonly value: string;
+        readonly rows: number;
+    };
+} | {
+    readonly code: "E_EDGE_KEY_COLLISION";
+    readonly params: {
+        readonly load: SourceKey;
+        readonly key: string;
+        readonly steps: readonly number[];
+    };
+};
+
+// @public
+export interface SourceDraftPreviewSource {
+    readonly change: {
+        readonly nodes: number;
+        readonly edges: number;
+        readonly named: number;
+        readonly noStep: number;
+    };
+    readonly edges: number;
+    readonly named: number;
+    readonly nodes: number;
+    readonly noStep: number;
+    // (undocumented)
+    readonly source: SourceKey;
+    readonly state: "staged" | "built" | "off" | "held" | "removed";
+}
+
+// @public
+export interface SourceDraftPreviewStep extends SourceStepRow {
+    readonly change: SourceStepCountsChange | null;
+    readonly committed: number | null;
+    readonly state: "new" | "edited" | "kept";
+}
+
+// @public
+export interface SourceDraftPreviewTotals {
+    // (undocumented)
+    readonly edges: number;
+    // (undocumented)
+    readonly edgeTypes: Readonly<Record<SourceTypeName, number>>;
+    // (undocumented)
+    readonly nodes: number;
+    // (undocumented)
+    readonly nodeTypes: Readonly<Record<SourceTypeName, number>>;
+}
+
 export { SourceEdgeRecord }
 
 // @public
@@ -7775,6 +7933,13 @@ export interface SourceStepCounts {
     readonly untouched: number;
     readonly valuesDiffer: Readonly<Record<string, number>>;
 }
+
+// @public
+export type SourceStepCountsChange = {
+    readonly [K in SourceStepNumber]: number;
+} & {
+    readonly [K in SourceStepByName]: Readonly<Record<string, number>>;
+};
 
 // @public
 export type SourceStepOp = "join.add" | "join.merge" | "join.node-values" | "join.edge-values" | "join.edges";

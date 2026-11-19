@@ -54,11 +54,10 @@ const BY_NAME = [
 ] as const;
 
 /** A step's counts minus the committed ones. */
-export type StatsChange = Record<(typeof NUMBERS)[number], number> &
-    Record<(typeof BY_NAME)[number], Record<string, number>>;
+type StatsChange = Record<(typeof NUMBERS)[number], number> & Record<(typeof BY_NAME)[number], Record<string, number>>;
 
 /** How many nodes and edges a build holds, in all and by type. */
-export interface Totals {
+interface Totals {
     readonly nodes: number;
     readonly edges: number;
     readonly nodeTypes: Readonly<Record<string, number>>;
@@ -66,14 +65,14 @@ export interface Totals {
 }
 
 /** One step of the draft, with how it stands against the committed steps. */
-export interface PreviewStep extends StepRow {
+interface PreviewStep extends StepRow {
     readonly state: "new" | "edited" | "kept";
     readonly committed: number | null;
     readonly change: StatsChange | null;
 }
 
 /** One source of the draft or the committed project, with its counts and their change. */
-export interface PreviewSource {
+interface PreviewSource {
     readonly source: string;
     readonly state: SourceState | "removed";
     readonly nodes: number;
@@ -121,7 +120,7 @@ export interface PreviewData extends ChangeCounts {
 }
 
 /** A filter condition, by the paths it reads: what `W_FILTER_HELD` checks. */
-export interface FilterRead {
+interface FilterRead {
     readonly filter: string;
     readonly paths: readonly string[];
     /** The source a source-scoped condition judges by its own values. */

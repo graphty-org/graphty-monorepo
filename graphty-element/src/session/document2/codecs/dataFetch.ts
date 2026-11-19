@@ -335,9 +335,16 @@ export async function refetchSources(value: JsonObject, how: RefetchOptions): Pr
         return;
     }
 
+    // Only a source a step builds is read again; a staged one is written back as read (spec 4.1.8).
+    const built = new Set(
+        (Array.isArray(body.joins) ? (body.joins as unknown[]) : []).flatMap((step) =>
+            isPlainObject(step) && step.off !== true ? [step.source] : [],
+        ),
+    );
     const referenced = (body.sources as unknown[]).filter(
         (record): record is JsonObject =>
             isPlainObject(record) &&
+            built.has(record.id) &&
             record.copy === undefined &&
             (record.kind === "file" || record.kind === "url") &&
             isPlainObject(record.origin),

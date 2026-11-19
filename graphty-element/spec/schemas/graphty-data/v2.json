@@ -668,6 +668,11 @@
                                 "source": {
                                     "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/sourceId"
                                 },
+                                "part": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "description": "Types only what the join.edges step of this part made: its edges, or with end the nodes it names at that end."
+                                },
                                 "end": {
                                     "enum": ["source", "target"]
                                 },

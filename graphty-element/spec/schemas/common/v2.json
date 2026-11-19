@@ -1153,7 +1153,7 @@
         },
         "joinStep": {
             "type": "object",
-            "description": "A join step: { op, source, ...choices }, naming sources by id in the join history and by role in a recipe. Closed. op is an open vocabulary: an unknown op holds the data section, or stops a recipe's replay.",
+            "description": "A join step: { op, source, ...choices }, naming sources by id in the join history and by role in a recipe. One source may be named by several steps. Closed. op is an open vocabulary: an unknown op holds the data section, or stops a recipe's replay.",
             "required": ["op", "source"],
             "properties": {
                 "op": {
@@ -1173,15 +1173,66 @@
                     "minLength": 1
                 },
                 "clash": true,
-                "repeated": true,
+                "repeated": {
+                    "enum": ["first", "last", "both"],
+                    "description": "Rows of one key or one end pair: first or last (both on join.edges only). Absent: first on node steps; on join.edges, the graph's repeatedEdges decides."
+                },
                 "lookup": true,
                 "mapping": true,
                 "aggregate": true,
                 "unmatchedFrom": true,
-                "unmatchedRows": true,
+                "unmatchedRows": {
+                    "enum": ["add", "leave-out"],
+                    "description": "On join.node-values (default leave-out) and join.edges (absent: the source's settings.unmatched)."
+                },
                 "compare": true,
                 "membership": true,
-                "names": true
+                "names": true,
+                "read": {
+                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/joinRead"
+                },
+                "part": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "A join.edges step's name among its source's steps: minted by graphty-element, never reused, never derived from a column name. Its edges are keyed under it."
+                },
+                "columns": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "uniqueItems": true,
+                    "description": "The working columns the step brings besides its role columns. Absent: every column (on join.add, every column no other step of the source moves onto nodes); []: none."
+                },
+                "rows": {
+                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/joinRows"
+                },
+                "except": {
+                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/joinRows"
+                },
+                "viaEnd": {
+                    "enum": ["source", "target"],
+                    "default": "target",
+                    "description": "On join.edges: the end via or lookup translates."
+                },
+                "duplicateIds": {
+                    "enum": ["first", "merge", "refuse"],
+                    "description": "On join.add only: repeated keys; absent, the source's settings.duplicateIds decides."
+                },
+                "ignoreCase": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Match keys whatever their letter case. Every step but join.add."
+                },
+                "ignoreSpaces": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Match keys with every white space character removed. Every step but join.add."
+                },
+                "off": {
+                    "const": true,
+                    "description": "Written only by graphty-element: the step is kept and listed but not built (a refresh left it without a column it reads)."
+                }
             },
             "allOf": [
                 {
@@ -1194,6 +1245,158 @@
                     },
                     "then": {
                         "required": ["edges"]
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "op": {
+                                "const": "join.add"
+                            }
+                        },
+                        "required": ["op"]
+                    },
+                    "then": {
+                        "not": {
+                            "anyOf": [
+                                {
+                                    "required": ["read"]
+                                },
+                                {
+                                    "required": ["part"]
+                                },
+                                {
+                                    "required": ["via"]
+                                },
+                                {
+                                    "required": ["lookup"]
+                                },
+                                {
+                                    "required": ["mapping"]
+                                },
+                                {
+                                    "required": ["repeated"]
+                                },
+                                {
+                                    "required": ["aggregate"]
+                                },
+                                {
+                                    "required": ["unmatchedFrom"]
+                                },
+                                {
+                                    "required": ["unmatchedRows"]
+                                },
+                                {
+                                    "required": ["rows"]
+                                },
+                                {
+                                    "required": ["except"]
+                                },
+                                {
+                                    "required": ["viaEnd"]
+                                },
+                                {
+                                    "required": ["ignoreCase"]
+                                },
+                                {
+                                    "required": ["ignoreSpaces"]
+                                },
+                                {
+                                    "required": ["edges"]
+                                },
+                                {
+                                    "required": ["names"]
+                                },
+                                {
+                                    "required": ["compare"]
+                                },
+                                {
+                                    "required": ["membership"]
+                                }
+                            ]
+                        }
+                    },
+                    "else": {
+                        "not": {
+                            "anyOf": [
+                                {
+                                    "required": ["duplicateIds"]
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "op": {
+                                "const": "join.edges"
+                            }
+                        },
+                        "required": ["op"]
+                    },
+                    "then": {
+                        "required": ["part"]
+                    },
+                    "else": {
+                        "allOf": [
+                            {
+                                "not": {
+                                    "anyOf": [
+                                        {
+                                            "required": ["part"]
+                                        },
+                                        {
+                                            "required": ["viaEnd"]
+                                        }
+                                    ]
+                                }
+                            },
+                            {
+                                "properties": {
+                                    "repeated": {
+                                        "enum": ["first", "last"]
+                                    },
+                                    "read": {
+                                        "not": {
+                                            "anyOf": [
+                                                {
+                                                    "required": ["weight"]
+                                                },
+                                                {
+                                                    "required": ["weightMeaning"]
+                                                },
+                                                {
+                                                    "required": ["time"]
+                                                },
+                                                {
+                                                    "required": ["timeUnit"]
+                                                }
+                                            ]
+                                        }
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "op": {
+                                "enum": ["join.edges", "join.node-values"]
+                            }
+                        },
+                        "required": ["op"]
+                    },
+                    "else": {
+                        "not": {
+                            "anyOf": [
+                                {
+                                    "required": ["unmatchedRows"]
+                                }
+                            ]
+                        }
                     }
                 }
             ],
@@ -1225,6 +1428,81 @@
                 }
             },
             "required": ["where"],
+            "unevaluatedProperties": false
+        },
+        "joinRows": {
+            "type": "object",
+            "description": "A step's rows or except: the rows whose cell in column is (rows) or is not (except) one of values, compared as exact strings after NFC, cells turned to text as keys are.",
+            "required": ["column", "values"],
+            "properties": {
+                "column": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "values": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            },
+            "unevaluatedProperties": false
+        },
+        "joinRead": {
+            "type": "object",
+            "description": "A step's own roles, spelled as a mapping spells them: which table it reads, its key and end columns and their spaces, and on join.edges only its weight and time (null: none; absent: the source's role). A space is written exactly when its column is. Closed.",
+            "properties": {
+                "table": {
+                    "enum": ["nodes", "edges"]
+                },
+                "key": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "space": {
+                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/space"
+                },
+                "edgeId": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "source": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "sourceSpace": {
+                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/space"
+                },
+                "target": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "targetSpace": {
+                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/space"
+                },
+                "weight": {
+                    "type": ["string", "null"],
+                    "minLength": 1
+                },
+                "weightMeaning": {
+                    "type": "string"
+                },
+                "time": {
+                    "type": ["string", "null"],
+                    "minLength": 1
+                },
+                "timeUnit": {
+                    "type": "string"
+                }
+            },
+            "dependentRequired": {
+                "key": ["space"],
+                "space": ["key"],
+                "source": ["sourceSpace"],
+                "sourceSpace": ["source"],
+                "target": ["targetSpace"],
+                "targetSpace": ["target"]
+            },
             "unevaluatedProperties": false
         }
     }

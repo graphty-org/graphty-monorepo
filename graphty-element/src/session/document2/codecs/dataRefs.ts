@@ -259,6 +259,12 @@ interface DataMemory {
      * a save that asks nothing keeps each referenced (spec 8.1 rule 5) and read the same way.
      */
     readonly referenced: Map<string, JsonObject>;
+    /** The records of the sources no step built, written back as read (spec 4.1.8 rule 1). */
+    staged: readonly JsonObject[];
+    /** The `off` steps the last read kept, written back after their source's `join.add`. */
+    offSteps: readonly JsonObject[];
+    /** The choices each built source's `join.add` carried besides its source, by source id. */
+    readonly addChoices: Map<string, JsonObject>;
 }
 
 const MEMORY = projectMemory<DataMemory>();
@@ -285,6 +291,9 @@ function memoryOf(session: GraphSession): DataMemory {
             heldOperations: [],
             edgeIds: new Map(),
             referenced: new Map(),
+            staged: [],
+            offSteps: [],
+            addChoices: new Map(),
         };
         MEMORY.set(session, memory);
     }
@@ -336,6 +345,12 @@ export interface DataRead {
     readonly edgeIds?: ReadonlyMap<string, ReadonlyMap<string, EdgeId>>;
     /** The sources rebuilt from their files, with the `mapping` each was read with, by source id. */
     readonly referenced?: readonly (readonly [string, JsonObject])[];
+    /** The records of the sources no step built. */
+    readonly staged?: readonly JsonObject[];
+    /** The `off` steps. */
+    readonly offSteps?: readonly JsonObject[];
+    /** The choices each built source's `join.add` carried besides its source, by source id. */
+    readonly addChoices?: readonly (readonly [string, JsonObject])[];
 }
 
 /**
@@ -376,6 +391,12 @@ export function rememberRead(session: GraphSession, read: DataRead): void {
         memory.referenced.set(id, mapping);
     }
 
+    for (const [id, choices] of read.addChoices ?? []) {
+        memory.addChoices.set(id, choices);
+    }
+
+    memory.staged = read.staged ?? [];
+    memory.offSteps = read.offSteps ?? [];
     memory.types = read.types;
     memory.folded = read.folded ?? [];
     memory.heldOperations = read.heldOperations ?? [];
@@ -2043,6 +2064,26 @@ function reportLeftOut(model: DataModel, problems: DocumentProblem[]): void {
 }
 
 /**
+ * The join history (spec 4.1.8): one `join.add` per load, with the choices the open read on it,
+ * each followed by its source's `off` steps; then the `off` steps of the sources no step builds.
+ * @param model - The model.
+ * @returns The steps.
+ */
+function joinsOf(model: DataModel): JsonObject[] {
+    const { offSteps, staged, addChoices } = memoryOf(model.session);
+    // ponytail: an off step is written after its source's join.add, not where it was read; keep
+    // the read order once the session holds steps (the data store).
+    const offOf = (id: string): readonly JsonObject[] => offSteps.filter((step) => step.source === id);
+    return [
+        ...model.sources.flatMap((source) => [
+            { op: "join.add", source: source.id, ...addChoices.get(source.id) },
+            ...offOf(source.id),
+        ]),
+        ...staged.flatMap((record) => offOf(String(record.id))),
+    ];
+}
+
+/**
  * The data section's body (spec 4.1) from a model, with its build stamp: the one remembered while
  * the build inputs are unchanged, else a newly minted one.
  * @param model - The model.
@@ -2056,7 +2097,9 @@ function bodyOf(model: DataModel, choices: SourceChoices, problems: DocumentProb
     const types = typesOf(model);
     const conversions = conversionsOf(model.session);
     const issues = issuesOf(model);
-    const joins = model.sources.map((source) => ({ op: "join.add", source: source.id }));
+    const joins = joinsOf(model);
+    const { staged } = memoryOf(model.session);
+    records.push(...staged);
     const edgeIds = edgeIdsOf(model);
     const digest = digestOf({
         directed: model.directed,
@@ -2076,7 +2119,7 @@ function bodyOf(model: DataModel, choices: SourceChoices, problems: DocumentProb
     }
 
     const sources: Record<string, string> = {};
-    for (const record of records) {
+    for (const record of records.slice(0, records.length - staged.length)) {
         if (!model.unavailable.has(String(record.id)) || embedded.has(String(record.id))) {
             sources[String(record.id)] = String((record.origin as JsonObject).copy);
         }

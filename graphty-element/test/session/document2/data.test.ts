@@ -1165,6 +1165,216 @@ describe("data section version 2", () => {
     });
 });
 
+describe("the join history: steps that read sources (spec 4.1.8)", () => {
+    const STAGED = "src_01JZ0000000000000000000000";
+
+    /**
+     * A sample session's body, the first loaded source's id, and the same body with a staged
+     * source: a copy of that source's record under another id, which no step names.
+     * @returns The body, the source and the staged body.
+     */
+    async function stagedBody(): Promise<{ body: JsonObject; first: string; staged: JsonObject }> {
+        const session = await sampleSession();
+        const { body } = await writeBody(session);
+        session.dispose();
+        const record = (body.sources as JsonObject[]).find((source) => source.kind !== "reader") as JsonObject;
+        const staged = structuredClone(body);
+        (staged.sources as JsonObject[]).push({ ...structuredClone(record), id: STAGED });
+        return { body, first: String(record.id), staged };
+    }
+
+    const recordOf = (body: JsonObject, id: string): JsonObject | undefined =>
+        (body.sources as JsonObject[]).find((source) => source.id === id);
+
+    it("keeps a source no step builds: stage, save, reopen, save, and it is still there, built by nothing", async () => {
+        const { body, staged } = await stagedBody();
+        const plain = createGraphSession(ON);
+        await readBody(plain, body);
+        const reopened = createGraphSession(ON);
+        const problems = await readBody(reopened, staged);
+        assert.deepStrictEqual(problems, [], "a staged source is no part left out");
+        assert.strictEqual(reopened.data.nodes().length, plain.data.nodes().length, "it builds nothing");
+        assert.notInclude(
+            reopened.data.sources().map((load) => load.key),
+            STAGED,
+        );
+
+        const saved = (await writeBody(reopened)).body;
+        assert.deepStrictEqual(invalid(asSection(saved)), []);
+        assert.deepStrictEqual(recordOf(saved, STAGED), recordOf(staged, STAGED), "written back as read");
+        assert.strictEqual(saved.build, staged.build, "no build input, so no new build");
+        assert.notProperty((await dataBindingOf(reopened)).sources, STAGED, "not in bindsTo.sources");
+
+        const again = createGraphSession(ON);
+        assert.deepStrictEqual(await readBody(again, saved), []);
+        assert.deepStrictEqual(recordOf((await writeBody(again)).body, STAGED), recordOf(staged, STAGED));
+        for (const each of [plain, reopened, again]) {
+            each.dispose();
+        }
+    });
+
+    it("keeps off steps, and a source whose only steps are off, without building them", async () => {
+        const { body, first, staged } = await stagedBody();
+        const edgesOff: JsonObject = {
+            op: "join.edges",
+            source: first,
+            part: 1,
+            read: { table: "edges", source: "source", sourceSpace: "x", target: "target", targetSpace: "y" },
+            columns: [],
+            repeated: "first",
+            unmatchedRows: "leave-out",
+            off: true,
+        };
+        const addOff: JsonObject = { op: "join.add", source: STAGED, off: true };
+        staged.joins = [...(body.joins as JsonObject[]), edgesOff, addOff];
+        assert.deepStrictEqual(invalid(asSection(staged)), []);
+
+        const plain = createGraphSession(ON);
+        await readBody(plain, body);
+        const reopened = createGraphSession(ON);
+        assert.deepStrictEqual(await readBody(reopened, staged), []);
+        assert.strictEqual(reopened.data.edges().length, plain.data.edges().length, "an off step builds nothing");
+
+        const saved = (await writeBody(reopened)).body;
+        assert.deepStrictEqual(invalid(asSection(saved)), []);
+        const joins = saved.joins as JsonObject[];
+        const at = joins.findIndex((step) => step.op === "join.add" && step.source === first);
+        assert.deepStrictEqual(joins[at + 1], edgesOff, "an off step follows its source's join.add");
+        assert.deepStrictEqual(joins.at(-1), addOff);
+        assert.deepStrictEqual(recordOf(saved, STAGED), recordOf(staged, STAGED));
+        plain.dispose();
+        reopened.dispose();
+    });
+
+    it("applies a join.add step's own duplicateIds over its source's, and writes it back", async () => {
+        const session = createGraphSession(ON);
+        await session.data.import({
+            type: "json",
+            config: { data: JSON.stringify({ nodes: [{ id: "a", role: "x" }, { id: "b" }], edges: [] }) },
+            name: "people.json",
+        });
+        const { body } = await writeBody(session);
+        session.dispose();
+        const file = (body.sources as JsonObject[]).find((source) => source.kind === "file") as JsonObject;
+        const nodes = (file.copy as JsonObject).nodes as Record<string, unknown[]>;
+        for (const [column, cells] of Object.entries(nodes)) {
+            cells.push({ id: "a", role: "y" }[column] ?? null);
+        }
+
+        file.settings = { duplicateIds: "refuse" };
+        const refused = createGraphSession(ON);
+        assert.deepInclude(await readBody(refused, body), {
+            code: "W_MEMBER_LEFT_OUT",
+            params: { section: "data", pointer: `/sources/${String(file.id)}` },
+        });
+        refused.dispose();
+
+        const step = (body.joins as JsonObject[]).find((each) => each.source === file.id) as JsonObject;
+        step.duplicateIds = "first";
+        const reopened = createGraphSession(ON);
+        assert.deepStrictEqual(await readBody(reopened, body), []);
+        assert.strictEqual(reopened.data.nodes().length, 2);
+        assert.strictEqual(reopened.data.node("a")?.role, "x", "the step's first row stands");
+        const saved = (await writeBody(reopened)).body;
+        assert.deepInclude(saved.joins as JsonObject[], { op: "join.add", source: file.id, duplicateIds: "first" });
+        reopened.dispose();
+    });
+
+    it("keeps a type rule naming a part", async () => {
+        const { body, first } = await stagedBody();
+        body.types = [
+            {
+                name: "contact",
+                kind: "edge",
+                plainName: "Contact",
+                rules: [{ source: first, part: 1 }],
+                schema: { type: "object" },
+            },
+        ];
+        assert.deepStrictEqual(invalid(asSection(body)), []);
+        const session = createGraphSession(ON);
+        assert.deepStrictEqual(await readBody(session, body), []);
+        assert.deepInclude((await writeBody(session)).body.types as JsonObject[], (body.types as JsonObject[])[0]);
+        session.dispose();
+    });
+
+    it("holds the section for a step this reader does not build, and for a step outside its shape", async () => {
+        const { body, first } = await stagedBody();
+        const edges = { op: "join.edges", source: first, part: 1 };
+        const values = { op: "join.node-values", source: first, read: { table: "edges", key: "source", space: "x" } };
+        // Steps the schema accepts that this reader does not build, or may not: held, never built another way.
+        const unbuilt: [string, JsonObject[]][] = [
+            ["join.merge (folds nodes an earlier step built)", [{ op: "join.merge", source: first }]],
+            ["join.node-values", [values]],
+            ["join.edge-values", [{ op: "join.edge-values", source: first, edges: first }]],
+            ["join.edges", [edges]],
+            ["join.add with columns", [{ op: "join.add", source: STAGED, columns: ["w"] }]],
+            ["a second join.add of one source", [{ op: "join.add", source: first }]],
+            // A rule no schema can state.
+            [
+                "a part repeated in one source",
+                [
+                    { ...edges, off: true },
+                    { ...edges, off: true },
+                ],
+            ],
+        ];
+        // Steps outside the shape: the schema refuses them too.
+        const malformed: [string, JsonObject[]][] = [
+            ["read on join.add", [{ op: "join.add", source: STAGED, read: { table: "nodes" } }]],
+            ["ignoreCase on join.add", [{ op: "join.add", source: STAGED, ignoreCase: true }]],
+            ["join.edges with no part", [{ ...edges, part: undefined, off: true }]],
+            ["part on a node step", [{ ...values, part: 2, off: true }]],
+            ["viaEnd on a node step", [{ ...values, viaEnd: "target", off: true }]],
+            ["repeated both on a node step", [{ ...values, repeated: "both", off: true }]],
+            ["a weight role on a node step", [{ ...values, read: { table: "edges", weight: "w" }, off: true }]],
+            ["a key without its space", [{ ...values, read: { key: "source" }, off: true }]],
+            ["duplicateIds on a step but join.add", [{ ...edges, duplicateIds: "first", off: true }]],
+            ["unmatchedRows on join.merge", [{ op: "join.merge", source: first, unmatchedRows: "add", off: true }]],
+            ["off: false", [{ op: "join.add", source: STAGED, off: false }]],
+            ["the refused keys", [{ ...values, keys: [], off: true }]],
+            ["rows without values", [{ ...values, rows: { column: "kind" }, off: true }]],
+        ];
+        for (const [what, steps, schemaToo] of [
+            ...unbuilt.map(([w, s]) => [w, s, false] as const),
+            ...malformed.map(([w, s]) => [w, s, true] as const),
+        ]) {
+            const copy = structuredClone(body);
+            (copy.sources as JsonObject[]).push({
+                ...structuredClone(recordOf(body, first) as JsonObject),
+                id: STAGED,
+            });
+            copy.joins = [...(copy.joins as JsonObject[]), ...(JSON.parse(JSON.stringify(steps)) as JsonObject[])];
+            assert.strictEqual(invalid(asSection(copy)).length > 0, schemaToo, `${what}: schema`);
+            const target = createGraphSession(ON);
+            assert.deepStrictEqual(
+                await readBody(target, copy),
+                [{ code: "W_SECTION_KEPT", params: { section: "data", version: 2, reason: "data" } }],
+                what,
+            );
+            assert.strictEqual(target.data.nodes().length, 0, `${what}: nothing applied`);
+            target.dispose();
+        }
+    });
+
+    it("holds the section for a referenced source whose parse options its parser does not read", async () => {
+        const { body, first } = await stagedBody();
+        for (const name of ["pointer", "sheet", "missing"]) {
+            const copy = structuredClone(body);
+            const record = recordOf(copy, first) as JsonObject;
+            delete record.copy;
+            record.options = { ...(record.options as JsonObject | undefined), [name]: "x" };
+            const target = createGraphSession(ON);
+            assert.include(
+                (await readBody(target, copy)).map((problem) => problem.code),
+                "W_SECTION_KEPT",
+                name,
+            );
+            target.dispose();
+        }
+    });
+});
+
 describe("a source saved by reference, read again", () => {
     const LOCATION = "https://example.test/p/x.graphty.json";
     const CSV = "source,target\nAva,Ben\n";

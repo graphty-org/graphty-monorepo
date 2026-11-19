@@ -23,10 +23,16 @@
  *   removals and merges are already in the records, so no `edit`, `remove` or `merge` operation is
  *   ever written (read ones are applied, then baked into the copies).
  * - Types: the registry the last open read, its rules on sources still open, then one type per
- *   today's `kind` value, `schema` `{ "type": "object" }`. `joins` is one `join.add` per load.
+ *   today's `kind` value, `schema` `{ "type": "object" }`. `joins` is one `join.add` per load,
+ *   with the `duplicateIds` the open read on it, each followed by the `off` steps of its source
+ *   (not where they were read); then the `off` steps of the sources no step builds, whose records
+ *   are written back as read.
  *   `annotations`, `metadata`, `license`, `citation`, `mediaType` and `path` are never written.
- * - On read: only `join.add` and `join.merge` build (both by key in the mapping's spaces); the
- *   other known shapes hold the section. `repeatedEdges` other than `keep` is built as `keep` and
+ * - On read: only `join.add` builds (by key in the mapping's spaces), with its own `duplicateIds`;
+ *   every other step that is not `off` (`join.merge`, `join.node-values`, `join.edge-values`,
+ *   `join.edges`), a `join.add` with `columns`, and a second `join.add` of one source hold the
+ *   section. A referenced source parsed again with a `pointer`, `sheet` or `missing` option holds
+ *   it too: no parser here reads them. `repeatedEdges` other than `keep` is built as `keep` and
  *   reported. A referenced `file` or `url` source is built from the rows an open read again
  *   (dataFetch.ts); one it could not read supplies nothing, is reported `W_SOURCE_UNAVAILABLE` with
  *   why, and its record is written back as read. Types are kept for the next
@@ -86,9 +92,8 @@ const HASHED_KINDS = new Set(["file", "url", "sample"]);
 const SHA256 = /^sha256:[0-9a-f]{64}$/;
 /** A network source's closed `origin` (spec 4.1.2). */
 const NETWORK_ORIGIN = new Set(["copy", "url", "credentials", "etag", "lastModified", "ledger"]);
-/** The join shapes of version 2; only the first two are built by this reader. */
+/** The join shapes of version 2; only `join.add` is built by this reader (spec 4.1.8). */
 const JOIN_OPS = new Set(["join.add", "join.merge", "join.node-values", "join.edge-values", "join.edges"]);
-const BUILT_OPS = new Set(["join.add", "join.merge"]);
 const JOIN_MEMBERS = new Set([
     "op",
     "source",
@@ -104,7 +109,45 @@ const JOIN_MEMBERS = new Set([
     "compare",
     "membership",
     "names",
+    "read",
+    "part",
+    "columns",
+    "rows",
+    "except",
+    "viaEnd",
+    "off",
+    "ignoreCase",
+    "ignoreSpaces",
+    "duplicateIds",
 ]);
+/** What a `join.add` may carry (spec 4.1.8): it reads every table through the source's mapping. */
+const ADD_MEMBERS = new Set(["op", "source", "off", "clash", "columns", "duplicateIds"]);
+/** A step's own roles (spec 4.1.8 rule 2), closed. */
+const READ_MEMBERS = new Set([
+    "table",
+    "key",
+    "space",
+    "edgeId",
+    "source",
+    "sourceSpace",
+    "target",
+    "targetSpace",
+    "weight",
+    "weightMeaning",
+    "time",
+    "timeUnit",
+]);
+/** The `read` members only a `join.edges` step may carry; `weight` and `time` may be null. */
+const EDGE_READ = new Set(["weight", "weightMeaning", "time", "timeUnit"]);
+/** Each column role of `read` and the space written exactly when it is. */
+const READ_SPACES = [
+    ["key", "space"],
+    ["source", "sourceSpace"],
+    ["target", "targetSpace"],
+] as const;
+const DUPLICATE_IDS = new Set(["first", "merge", "refuse"]);
+/** Parse options this reader's parsers do not read (spec 4.1.2 rule 9): a source parsed again with one is held. */
+const UNREAD_OPTIONS = ["pointer", "sheet", "missing"];
 const SOURCE_MEMBERS = new Set([
     "id",
     "label",
@@ -151,7 +194,7 @@ const EDGE_MAPPING = new Set([
 ]);
 const SETTINGS = new Set(["duplicateIds", "unmatched"]);
 const TYPE_MEMBERS = new Set(["name", "kind", "plainName", "rules", "schema"]);
-const RULE_MEMBERS = new Set(["source", "end", "column", "values"]);
+const RULE_MEMBERS = new Set(["source", "part", "end", "column", "values"]);
 const READER_MEMBERS = new Set(["id", "label", "kind", "origin", "copy", "loaded"]);
 const OPERATION_MEMBERS: Readonly<Record<string, ReadonlySet<string>>> = {
     merge: new Set(["op", "into", "from"]),
@@ -529,8 +572,155 @@ interface Checked {
     readonly reader?: { readonly copyId: string; readonly operations: readonly JsonObject[] };
     readonly types: readonly JsonObject[];
     readonly joins: readonly JsonObject[];
+    /** The `join.add` step that builds each built source, by source id, in join order. */
+    readonly adds: ReadonlyMap<string, JsonObject>;
     readonly conversions: readonly JsonObject[];
     readonly issues: JsonObject;
+}
+
+/**
+ * Check `{ column, values }` (a step's `rows` or `except`, spec 4.1.8 rule 4).
+ * @param value - The member.
+ * @param pointer - Its pointer.
+ */
+function checkRows(value: unknown, pointer: string): void {
+    closed(value, new Set(["column", "values"]), pointer);
+    need(typeof value.column === "string" && value.column !== "", `${pointer}/column`);
+    need(Array.isArray(value.values) && value.values.every((each) => typeof each === "string"), `${pointer}/values`);
+}
+
+/**
+ * Check a step's own roles (spec 4.1.8 rule 2): closed, each role a working column name (`weight`
+ * and `time` may be null), each column role's space written exactly when it is, the edge roles on
+ * `join.edges` only.
+ * @param read - The member.
+ * @param op - The step's op.
+ * @param pointer - Its pointer.
+ */
+function checkRead(read: unknown, op: string, pointer: string): void {
+    closed(read, READ_MEMBERS, pointer);
+    need(read.table === undefined || read.table === "nodes" || read.table === "edges", `${pointer}/table`);
+    for (const [name, value] of Object.entries(read)) {
+        const nullable = name === "weight" || name === "time";
+        need(name === "table" || (nullable && value === null) || typeof value === "string", `${pointer}/${name}`);
+        need(op === "join.edges" || !EDGE_READ.has(name), `${pointer}/${name}`);
+    }
+
+    for (const [column, space] of READ_SPACES) {
+        need((read[column] === undefined) === (read[space] === undefined), `${pointer}/${space}`);
+        if (read[space] !== undefined) {
+            spaceOf(read[space], `${pointer}/${space}`);
+        }
+    }
+}
+
+/**
+ * Check the choices that split `join.add` from every other step (spec 4.1.8): `join.add` carries
+ * only `clash`, `columns` and `duplicateIds`; `ignoreCase` and `ignoreSpaces` belong to the rest.
+ * @param step - The step, closed.
+ * @param at - A member's pointer.
+ */
+function checkAddChoices(step: Readonly<JsonObject>, at: (name: string) => string): void {
+    if (step.op !== "join.add") {
+        need(step.duplicateIds === undefined, at("duplicateIds"));
+        for (const name of ["ignoreCase", "ignoreSpaces"]) {
+            need(step[name] === undefined || typeof step[name] === "boolean", at(name));
+        }
+
+        return;
+    }
+
+    for (const name of Object.keys(step)) {
+        need(ADD_MEMBERS.has(name), at(name));
+    }
+
+    const { duplicateIds } = step;
+    need(
+        duplicateIds === undefined || (typeof duplicateIds === "string" && DUPLICATE_IDS.has(duplicateIds)),
+        at("duplicateIds"),
+    );
+}
+
+/**
+ * Check one join step's shape (spec 4.1.8), whether or not this reader builds it.
+ * @param step - The step.
+ * @param pointer - Its pointer.
+ * @param sources - The section's sources.
+ */
+function checkStep(
+    step: unknown,
+    pointer: string,
+    sources: ReadonlyMap<string, ReadSource>,
+): asserts step is JsonObject {
+    closed(step, JOIN_MEMBERS, pointer);
+    const { op } = step;
+    need(typeof op === "string" && JOIN_OPS.has(op), `${pointer}/op`);
+    need(typeof step.source === "string" && sources.has(step.source), `${pointer}/source`);
+    need(step.off === undefined || step.off === true, `${pointer}/off`);
+    const at = (name: string): string => `${pointer}/${name}`;
+    checkAddChoices(step, at);
+    const edges = op === "join.edges";
+    need(edges === (step.part !== undefined), at("part"));
+    need(step.part === undefined || (Number.isSafeInteger(step.part) && Number(step.part) >= 1), at("part"));
+    need(step.viaEnd === undefined || (edges && (step.viaEnd === "source" || step.viaEnd === "target")), at("viaEnd"));
+    const repeated = edges ? ["first", "last", "both"] : ["first", "last"];
+    need(
+        step.repeated === undefined || (typeof step.repeated === "string" && repeated.includes(step.repeated)),
+        at("repeated"),
+    );
+    need(
+        step.unmatchedRows === undefined ||
+            ((edges || op === "join.node-values") &&
+                (step.unmatchedRows === "add" || step.unmatchedRows === "leave-out")),
+        at("unmatchedRows"),
+    );
+    need(
+        step.columns === undefined ||
+            (Array.isArray(step.columns) && step.columns.every((each) => typeof each === "string")),
+        at("columns"),
+    );
+    for (const name of ["rows", "except"]) {
+        if (step[name] !== undefined) {
+            checkRows(step[name], at(name));
+        }
+    }
+
+    if (step.read !== undefined) {
+        checkRead(step.read, op, at("read"));
+    }
+}
+
+/**
+ * Check the join history (spec 4.1.8) and find the steps this reader builds: one `join.add` per
+ * built source, carrying no `columns`. Any other step that is not `off` holds the section, since
+ * this reader does not build it; an `off` step is checked, kept and not built.
+ * @param joins - The history.
+ * @param sources - The section's sources.
+ * @returns The `join.add` of each built source.
+ */
+function checkJoins(joins: readonly unknown[], sources: ReadonlyMap<string, ReadSource>): Map<string, JsonObject> {
+    const parts = new Set<string>();
+    const adds = new Map<string, JsonObject>();
+    joins.forEach((step: unknown, at: number) => {
+        const pointer = `/joins/${String(at)}`;
+        checkStep(step, pointer, sources);
+        if (step.op === "join.edges") {
+            // A part names a step among its source's steps (spec 4.1.8 rule 3).
+            const part = JSON.stringify([step.source, step.part]);
+            need(!parts.has(part), `${pointer}/part`);
+            parts.add(part);
+        }
+
+        if (step.off === true) {
+            return;
+        }
+
+        need(step.op === "join.add", `${pointer}/op`);
+        need(step.columns === undefined, `${pointer}/columns`);
+        need(!adds.has(String(step.source)), `${pointer}/source`);
+        adds.set(String(step.source), step);
+    });
+    return adds;
 }
 
 /**
@@ -545,7 +735,10 @@ function checkRegistry(body: Readonly<JsonObject>): void {
         need(type.kind === "node" || type.kind === "edge", `${pointer}/kind`);
         need(Array.isArray(type.rules), `${pointer}/rules`);
         (type.rules as unknown[]).forEach((rule, index) => {
-            closed(rule, RULE_MEMBERS, `${pointer}/rules/${String(index)}`);
+            const at = `${pointer}/rules/${String(index)}`;
+            closed(rule, RULE_MEMBERS, at);
+            // A part names one `join.edges` step of the rule's source (spec 4.1.5).
+            need(rule.part === undefined || (Number.isSafeInteger(rule.part) && Number(rule.part) >= 1), `${at}/part`);
         });
     });
     need(Array.isArray(body.conversions ?? []), "/conversions");
@@ -599,20 +792,24 @@ function checked(body: Readonly<JsonObject>): Checked {
         sources.set(source.id, source);
     });
 
-    body.joins.forEach((step: unknown, at: number) => {
-        const pointer = `/joins/${String(at)}`;
-        closed(step, JOIN_MEMBERS, pointer);
-        need(typeof step.op === "string" && JOIN_OPS.has(step.op), `${pointer}/op`);
-        // A known shape this reader does not build cannot be built whole either.
-        need(BUILT_OPS.has(step.op), `${pointer}/op`);
-        need(typeof step.source === "string" && sources.has(step.source), `${pointer}/source`);
-    });
+    const adds = checkJoins(body.joins, sources);
+    for (const id of adds.keys()) {
+        const { record, pointer } = sources.get(id) as ReadSource;
+        const options = isPlainObject(record.options) ? record.options : {};
+        // Parsed again with an option its parser does not read, it would build another graph.
+        if (record.copy === undefined) {
+            for (const name of UNREAD_OPTIONS) {
+                need(!(name in options), `${pointer}/options/${name}`);
+            }
+        }
+    }
 
     return {
         sources,
         ...(reader === undefined ? {} : { reader }),
         types: body.types as JsonObject[],
         joins: body.joins as JsonObject[],
+        adds,
         conversions: (body.conversions ?? []) as JsonObject[],
         issues: (body.issues ?? {}) as JsonObject,
     };
@@ -665,6 +862,12 @@ interface Built {
     readonly heldOperations: readonly JsonObject[];
     /** Each edge's saved element-assigned id, by its load and then its key (spec 6.2). */
     readonly edgeIds: SavedEdgeIds;
+    /** The records of the sources no step builds, kept as read (spec 4.1.8 rule 1). */
+    readonly staged: readonly JsonObject[];
+    /** The `off` steps, kept as read (spec 4.1.8 rule 8). */
+    readonly offSteps: readonly JsonObject[];
+    /** The choices a built source's `join.add` carries besides its source, by source id. */
+    readonly addChoices: readonly (readonly [string, JsonObject])[];
     /** The referenced sources read again, with the `mapping` each record names. */
     readonly referenced: readonly (readonly [string, JsonObject])[];
 }
@@ -840,17 +1043,20 @@ function buildEdges(source: ReadSource, into: Building, edgeMap: JsonObject, cho
 }
 
 /**
- * Build one `join.add` or `join.merge` step: the source's node rows by key in its space, then its
- * edge rows between the nodes their ends name (spec 4.1.3, 6.1).
+ * Build one `join.add` step: the source's node rows by key in its space, then its edge rows between
+ * the nodes their ends name (spec 4.1.3, 6.1). Repeated keys follow the step's `duplicateIds`, else
+ * the source's.
  * @param source - The source.
  * @param into - The build so far.
+ * @param step - The step.
  */
-function buildSource(source: ReadSource, into: Building): void {
+function buildSource(source: ReadSource, into: Building, step: Readonly<JsonObject>): void {
     const { record, id } = source;
     const mapping = source.rebuilt?.mapping ?? (isPlainObject(record.mapping) ? record.mapping : {});
     const settings = isPlainObject(record.settings) ? record.settings : {};
+    const duplicates = step.duplicateIds ?? settings.duplicateIds;
     const choices: Choices = {
-        duplicates: typeof settings.duplicateIds === "string" ? settings.duplicateIds : "first",
+        duplicates: typeof duplicates === "string" ? duplicates : "first",
         unmatched: typeof settings.unmatched === "string" ? settings.unmatched : "add",
     };
     const nodeMap = isPlainObject(mapping.nodes) ? mapping.nodes : {};
@@ -1234,8 +1440,8 @@ function buildJoins(section: Checked, into: Building): Joined {
         referenced: [],
         changed: false,
     };
-    for (const step of section.joins) {
-        const source = section.sources.get(String(step.source)) as ReadSource;
+    for (const [id, step] of section.adds) {
+        const source = section.sources.get(id) as ReadSource;
         const before = { nodes: into.nodes.size, edges: into.edges.size };
         if (source.embedded) {
             if (source.rebuilt !== undefined) {
@@ -1243,7 +1449,7 @@ function buildJoins(section: Checked, into: Building): Joined {
                 joined.referenced.push([source.id, source.record.mapping as JsonObject]);
             }
 
-            buildSource(source, into);
+            buildSource(source, into, step);
             joined.copies[source.id] = source.copyId;
             const edges = (source.record.mapping as JsonObject | undefined)?.edges;
             joined.edgeIdColumn ??= isPlainObject(edges) && typeof edges.edgeId === "string" ? edges.edgeId : undefined;
@@ -1266,6 +1472,23 @@ function buildJoins(section: Checked, into: Building): Joined {
 }
 
 /**
+ * What the join history keeps that this build does not use, for the next save (spec 4.1.8 rules
+ * 1 and 8): each source no step builds (staged, or named only by `off` steps) as its record was
+ * read, every `off` step, and the choices each built source's `join.add` carries besides its source.
+ * @param section - The checked section.
+ * @returns The kept parts.
+ */
+function joinsKept(section: Checked): Pick<Built, "staged" | "offSteps" | "addChoices"> {
+    return {
+        staged: [...section.sources.values()].filter(({ id }) => !section.adds.has(id)).map(({ record }) => record),
+        offSteps: section.joins.filter((step) => step.off === true),
+        addChoices: [...section.adds].flatMap(([id, step]) =>
+            step.duplicateIds === undefined ? [] : [[id, { duplicateIds: step.duplicateIds }] as const],
+        ),
+    };
+}
+
+/**
  * Build every node and edge the sources supply, in join order, then the conversions and the
  * reader's operations, without touching the session.
  * @param body - The section's body.
@@ -1275,18 +1498,12 @@ function buildJoins(section: Checked, into: Building): Joined {
 function build(body: Readonly<JsonObject>, problems: DocumentProblem[]): Built {
     const section = checked(body);
     const before = problems.length;
-    const held = new Set([...section.sources.values()].filter((source) => !source.embedded).map(({ id }) => id));
+    const held = new Set(
+        [...section.sources.values()]
+            .filter((source) => !source.embedded && section.adds.has(source.id))
+            .map(({ id }) => id),
+    );
     const into: Building = { nodes: new Map(), edges: new Map(), problems, held, heldOperations: [] };
-    const named = new Set(section.joins.map((step) => String(step.source)));
-    for (const [at, id] of [...section.sources.keys()].entries()) {
-        if (!named.has(id)) {
-            // A source no step names is not built (spec 4.1.8 rule 1).
-            problems.push({
-                code: "W_MEMBER_LEFT_OUT",
-                params: { section: "data", pointer: `/sources/${String(at)}` },
-            });
-        }
-    }
 
     const { loads, unavailable, copies, referenced, changed, edgeIdColumn } = buildJoins(section, into);
     if (body.repeatedEdges !== undefined && body.repeatedEdges !== "keep") {
@@ -1325,6 +1542,7 @@ function build(body: Readonly<JsonObject>, problems: DocumentProblem[]): Built {
             .filter((op) => op !== "add"),
         edgeIds,
         heldOperations: into.heldOperations,
+        ...joinsKept(section),
         refused: problems
             .slice(before)
             .some((problem) => problem.code === "W_MEMBER_LEFT_OUT" && problem.params.section === "data"),
@@ -1509,6 +1727,9 @@ async function apply(
         unavailable: built.unavailable,
         edgeIds: built.edgeIds,
         referenced: built.referenced,
+        staged: built.staged,
+        offSteps: built.offSteps,
+        addChoices: built.addChoices,
         ...(built.edgeIdColumn === undefined ? {} : { edgeIdColumn: built.edgeIdColumn }),
     });
     context.restored.add("graph");

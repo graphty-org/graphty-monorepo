@@ -2372,10 +2372,10 @@
                     "plainName": "Dimensions",
                     "technicalName": "dim",
                     "type": "integer",
-                    "description": "Layout dimensionality (2D only for spiral)",
+                    "description": "Layout dimensionality: 2D, or 3D for a spiral rising into a cone",
                     "default": 2,
                     "min": 2,
-                    "max": 2
+                    "max": 3
                 },
                 {
                     "name": "resolution",
@@ -2395,6 +2395,16 @@
                     "type": "boolean",
                     "description": "Place nodes at equal distances along the spiral",
                     "default": false,
+                    "advanced": true
+                },
+                {
+                    "name": "height",
+                    "plainName": "Height",
+                    "technicalName": "height",
+                    "type": "number",
+                    "description": "In 3D, how far the spiral rises per unit of radius; 0 lies flat",
+                    "default": 1,
+                    "step": 0.1,
                     "advanced": true
                 }
             ],

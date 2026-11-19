@@ -129,6 +129,7 @@
         "Layout/3D::KamadaKawai",
         "Layout/3D::KamadaKawaiWeighted",
         "Layout/3D::Random",
+        "Layout/3D::Spiral",
         "Layout/3D::Spring",
         "Layout/3D::ngraph",
         "Layout/GPU::ForceAtlas2Fake",

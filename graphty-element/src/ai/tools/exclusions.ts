@@ -155,6 +155,29 @@ function coveredBy(root: string, byAction: Readonly<Record<string, readonly stri
     }));
 }
 
+/** The session's namespaces (`session.data`, `session.views`, ...): each has its own members. */
+const SESSION_NAMESPACES = [
+    "data",
+    "runs",
+    "results",
+    "scope",
+    "sets",
+    "notes",
+    "journal",
+    "selection",
+    "visibility",
+    "styles",
+    "views",
+    "tours",
+    "layout",
+    "positions",
+    "hidden",
+    "config",
+    "capabilities",
+    "history",
+    "project",
+];
+
 /**
  * What the assistant does not reach. The graph's and the element's own members are the session's
  * capabilities a second time, so most of their rows say which tool covers the same op.
@@ -165,6 +188,19 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     { op: "style.template", reason: "whole-document", kind: BY_DESIGN },
     { op: "note.merge", reason: "whole-document", kind: BY_DESIGN },
     { op: "layout.transport", reason: "in-flight", kind: BY_DESIGN },
+    // Where a saved view sits in the list is how a panel arranges them; nothing a reader asks for.
+    { op: "view.move", reason: "panel-state", kind: BY_DESIGN },
+    // A saved view's key chord is what the application binds; save sets one with the view.
+    { op: "view.key", reason: "panel-state", kind: BY_DESIGN },
+    // The starting cameras are the application's option, written once per project by the element.
+    { op: "view.starting", reason: "mechanism", kind: BY_DESIGN },
+    { root: "SessionViews", members: ["move", "setKey", "setStartingCameras"], reason: "panel-state", kind: BY_DESIGN },
+    // Where a saved tour sits in the list, and what it is called or whether it is kept, is how the
+    // tour editor arranges them; the assistant lists, plays and writes tours, it does not manage the list.
+    { op: "tour.move", reason: "panel-state", kind: BY_DESIGN },
+    { op: "tour.remove", reason: "panel-state", kind: BY_DESIGN },
+    { op: "tour.rename", reason: "panel-state", kind: BY_DESIGN },
+    { root: "SessionTours", members: ["move", "remove", "rename"], reason: "panel-state", kind: BY_DESIGN },
 
     // What the door list already calls render bookkeeping: a decision made once, in `doors.ts`.
     ...DOOR_ROOTS.flatMap((root): Exclusion[] =>
@@ -225,9 +261,9 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     ...(["Graphty", "Graph"] as const).flatMap((root): Exclusion[] => [
         { root, members: ["nodeThumbnail", "modelThumbnail", "modelPreview"], reason: "raw-data", kind: BY_DESIGN },
         { root, members: ["cancelCameraAnimation"], reason: "in-flight", kind: BY_DESIGN },
-        // A tour is a run of camera moves; the assistant makes each with view.camera.
-        { root, members: ["playTour"], reason: "covered-by", by: "view.camera", kind: BY_DESIGN },
     ]),
+    // How a capture's camera ends a tour and is put back: the capture's own machinery.
+    { root: "Graph", members: ["replaceTour", "applyCaptureCamera"], reason: "internal-handle", kind: BY_DESIGN },
     // A figure is a file for the reader to save; its SVG text is nothing the assistant reads or acts on.
     { root: "Graphty", members: ["exportFigure"], reason: "raw-data", kind: BY_DESIGN },
     // The live handle modelPreview returns: it draws in a canvas of its own, which no tool can show.
@@ -237,6 +273,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         members: [
             "setCameraTransitionDuration",
             "setReducedMotion",
+            "setColorScheme",
             "setPixelRatio",
             "setZoomToPointer",
             "setLighting",
@@ -256,6 +293,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
             "globeLook",
             "cameraTransitionDuration",
             "reducedMotion",
+            "colorScheme",
             "zoomToPointer",
             "viewInsets",
             "autosave",
@@ -541,31 +579,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     { root: "SessionStylesApi", members: ["modelUrlFromCode"], reason: "reader-trust", kind: BY_DESIGN },
 
     // The session.
-    {
-        root: "GraphSession",
-        members: [
-            "data",
-            "runs",
-            "results",
-            "scope",
-            "sets",
-            "notes",
-            "journal",
-            "selection",
-            "visibility",
-            "styles",
-            "views",
-            "layout",
-            "positions",
-            "hidden",
-            "config",
-            "capabilities",
-            "history",
-            "project",
-        ],
-        reason: "namespace",
-        kind: BY_DESIGN,
-    },
+    { root: "GraphSession", members: SESSION_NAMESPACES, reason: "namespace", kind: BY_DESIGN },
     {
         root: "GraphSession",
         members: ["acceleration", "setAccelerator", "calibrate"],
@@ -577,31 +591,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     { root: "GraphSession", members: ["execute", "transaction", "plan"], reason: "mechanism", kind: BY_DESIGN },
     { root: "GraphSession", members: ["on", "dispose"], reason: "lifecycle", kind: BY_DESIGN },
     { root: "ElementSession", members: ["paint"], reason: "internal-handle", kind: BY_DESIGN },
-    {
-        root: "ElementSession",
-        members: [
-            "data",
-            "runs",
-            "results",
-            "scope",
-            "sets",
-            "notes",
-            "journal",
-            "selection",
-            "visibility",
-            "styles",
-            "views",
-            "layout",
-            "positions",
-            "hidden",
-            "config",
-            "capabilities",
-            "history",
-            "project",
-        ],
-        reason: "namespace",
-        kind: BY_DESIGN,
-    },
+    { root: "ElementSession", members: SESSION_NAMESPACES, reason: "namespace", kind: BY_DESIGN },
     {
         root: "ElementSession",
         members: ["acceleration", "setAccelerator", "calibrate"],

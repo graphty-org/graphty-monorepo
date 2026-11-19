@@ -121,7 +121,7 @@ registerSource(
  * @returns the node, as the Query API encodes it
  */
 function neoNode(id: string, label: string, name: string): unknown {
-    const value = Object.fromEntries([
+    const value = Object.fromEntries<unknown>([
         ["_element_id", id],
         ["_labels", [label]],
         ["_properties", { name: { $type: "String", _value: name } }],
@@ -140,7 +140,7 @@ function cappedMovies(rows: number): Parameters<typeof replayFetch>[0][number] {
         neoNode(`4:m:${String(i)}`, "Movie", `Movie ${String(i)}`),
         {
             $type: "Relationship",
-            _value: Object.fromEntries([
+            _value: Object.fromEntries<unknown>([
                 ["_element_id", `5:r:${String(i)}`],
                 ["_start_node_element_id", `4:p:${String(i)}`],
                 ["_end_node_element_id", `4:m:${String(i)}`],

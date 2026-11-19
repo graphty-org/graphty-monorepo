@@ -259,6 +259,46 @@ export const COMMANDS = Object.freeze({
         /** "undoable": a step in the history. */
         undo: "undoable",
     },
+    /** `view.rename`: give a saved view another name. */
+    "view.rename": {
+        /** "undoable": a step in the history. */
+        undo: "undoable",
+    },
+    /** `view.move`: move a saved view to another place in the list. */
+    "view.move": {
+        /** "undoable": a step in the history. */
+        undo: "undoable",
+    },
+    /** `view.key`: give a saved view a key, or take it away. */
+    "view.key": {
+        /** "undoable": a step in the history. */
+        undo: "undoable",
+    },
+    /** `view.starting`: write the starting cameras into a project that has none. */
+    "view.starting": {
+        /** "undoable": a step in the history. */
+        undo: "undoable",
+    },
+    /** `tour.save`: keep a tour under a name, replacing any tour already under it. */
+    "tour.save": {
+        /** "undoable": a step in the history. */
+        undo: "undoable",
+    },
+    /** `tour.remove`: forget saved tours. */
+    "tour.remove": {
+        /** "undoable": a step in the history. */
+        undo: "undoable",
+    },
+    /** `tour.rename`: give a saved tour another name. */
+    "tour.rename": {
+        /** "undoable": a step in the history. */
+        undo: "undoable",
+    },
+    /** `tour.move`: move a saved tour to another place in the list. */
+    "tour.move": {
+        /** "undoable": a step in the history. */
+        undo: "undoable",
+    },
     /** `view.camera`: move the camera to a named view, or to a position and target. */
     "view.camera": {
         /** "exempt": not recorded in the history. */

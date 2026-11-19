@@ -294,7 +294,7 @@ function reachWords(session: GraphSession, id: unknown, channel: Channel, side: 
 }
 
 /** What a field's caption says when the element draws nothing for the value it sets, by the element's code. */
-const UNDRAWN_WORDS: Readonly<Record<string, string>> = { "edge.lift-needs-flat-layout": "Flat in this view" };
+const UNDRAWN_WORDS: Readonly<Partial<Record<string, string>>> = { "edge.lift-needs-flat-layout": "Flat in this view" };
 
 /**
  * The element's code for why a channel a layer sets draws nothing, among the ones a field words.
@@ -1172,7 +1172,7 @@ function fieldNotes({ ctx, channel, own, pending, hiddenBy, label, breakdown }: 
         // The row's own shader draws instead of the node: the value is kept, and comes back when the
         // shader moves to another place.
         hiddenBy === undefined ? "" : hiddenByWords(hiddenBy),
-        undrawn === undefined ? "" : UNDRAWN_WORDS[undrawn],
+        undrawn === undefined ? "" : (UNDRAWN_WORDS[undrawn] ?? ""),
         firstValue ? firstValueWords(label) : "",
         breakdown,
     ].filter((note) => note !== "");

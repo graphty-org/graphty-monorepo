@@ -269,8 +269,8 @@ export { twoHandGestureDelta } from "./src/cameras/twoHandGesture";
  * twice and `layoutIdForEngine` answers a plugin's own id.
  *
  * A plugin's `static descriptor` is an `AuthoredLayoutDescriptor`, which is the published
- * `LayoutDescriptor` minus `honoursWeights` and `scoped`. Those two facts are declared on the
- * class instead, as `static honoursWeights` and `static scoped`, and `LayoutEngine.register`
+ * `LayoutDescriptor` minus `honorsWeights` and `scoped`. Those two facts are declared on the
+ * class instead, as `static honorsWeights` and `static scoped`, and `LayoutEngine.register`
  * copies them onto what the catalog publishes -- so whether an engine reads edge weights, and
  * whether it can lay out a set while holding the rest still, is written once, where it is true.
  *

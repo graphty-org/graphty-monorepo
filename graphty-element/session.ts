@@ -63,6 +63,7 @@ import type { RuleTree, SelectionDirection } from "./src/catalog/types";
 import { englishReading, type ReadingOptions, type RunResult } from "./src/session/results";
 import type { SelectionOp } from "./src/session/selection";
 
+export type { EasingName, Tour, TourPause, TourStop } from "./src/camera/tour";
 export type { FeatureId } from "./src/features/registry";
 export type { EnabledFeatures } from "./src/features/resolve";
 export type {
@@ -183,6 +184,7 @@ export type {
     RowReasonCode,
     RowUpdate,
     RunPlacement,
+    SavedView,
     ScoreTerm,
     SessionAnnotations,
     SessionAttributes,
@@ -199,9 +201,11 @@ export type {
     SessionPositions,
     SessionRunsOptions,
     SessionStatus,
+    SessionTours,
     SessionViews,
     SettingEffect,
     SettingEffectCode,
+    StartingCamera,
     StyleProblem,
     TableMapping,
     TableMappingRead,
@@ -650,7 +654,15 @@ export type {
 // Asking what something would do and cost, before doing it
 // ---------------------------------------------------------------------------------------------
 
-export type { AlgorithmRunCommand, Plan, PlanBlock, PlanEffect, SessionCommand } from "./src/session";
+export type { AlgorithmRunCommand, AssetCommand, Plan, PlanBlock, PlanEffect, SessionCommand } from "./src/session";
+export type {
+    SavedTour,
+    TourCommand,
+    TourMoveCommand,
+    TourRemoveCommand,
+    TourRenameCommand,
+    TourSaveCommand,
+} from "./src/session";
 export { isAlgorithmRunCommand } from "./src/session";
 export type {
     CostBasis,

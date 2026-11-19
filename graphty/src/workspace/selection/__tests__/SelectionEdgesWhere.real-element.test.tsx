@@ -3,7 +3,7 @@
  * Miserables, driven by real clicks and keys: a Degree card's settings choose "Edges where ...",
  * which closes them and draws the card's edge value; picking an edge value and typing its
  * Min scopes the step to the edges that pass, as the element holds it; "All edges" takes the
- * condition away again.
+ * condition away again. The settings' Test switches a Degree card between By position and By value.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -62,30 +62,60 @@ async function openLayer(): Promise<{ session: GraphSession; layer: Layer }> {
  * @param id - the layer.
  * @returns the step's links condition, and whether there is a step at all.
  */
-function firstStep(session: GraphSession, id: string): { found: boolean; links: RuleTree | undefined } {
+function firstStep(
+    session: GraphSession,
+    id: string,
+): { found: boolean; links: RuleTree | undefined; mode: string | undefined } {
     const selector = session.styles.get(id)?.selector;
     const where: UnionLeaf | undefined =
         selector?.match === "rule" && selector.where.kind === "union" ? selector.where : undefined;
     const step = where?.branches[0]?.steps[0];
-    return { found: step !== undefined, links: step?.links };
+    return { found: step !== undefined, links: step?.links, mode: step?.mode };
 }
+
+/**
+ * Opens the selection workspace on the layer and picks Degree in its empty card.
+ * @param session - the session.
+ * @param id - the layer.
+ */
+async function pickDegree(session: GraphSession, id: string): Promise<void> {
+    await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
+    await waitFor(() => {
+        assert.isNotNull(document.querySelector(".sel-ws"), "the workspace is open");
+    });
+    // An empty card's Value opens its picker.
+    const empty = [...document.querySelectorAll<HTMLElement>(".sel-ws [data-new-step] [data-first-focus]")].at(-1);
+    assert.isDefined(empty, "an empty card's Value");
+    await userEvent.click(empty);
+    await screen.findByRole("combobox", { name: "Find attributes, results" });
+    await userEvent.keyboard("Degree{Enter}");
+    await waitFor(() => {
+        assert.isTrue(firstStep(session, id).found, "the Degree step is in the selection");
+    });
+}
+
+describe("a number card's Test", () => {
+    it("switches a Degree card to By position and back to By value", async () => {
+        const { session, layer } = await openLayer();
+        await pickDegree(session, layer.id);
+        await userEvent.click(await screen.findByRole("button", { name: "Settings for Degree" }));
+        const settings = await screen.findByRole("dialog", { name: "Degree" });
+        await userEvent.click(within(settings).getByText("By position"));
+        await waitFor(() => {
+            assert.strictEqual(firstStep(session, layer.id).mode, "top", "the step keeps By position");
+        });
+        const again = await screen.findByRole("dialog", { name: "Degree" });
+        await userEvent.click(within(again).getByText("By value"));
+        await waitFor(() => {
+            assert.strictEqual(firstStep(session, layer.id).mode, "range", "the step is By value again");
+        });
+    });
+});
 
 describe("a step's Edges where ...", () => {
     it("scopes a Degree card to the edges whose value passes, and All edges takes the scope away", async () => {
         const { session, layer } = await openLayer();
-        await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
-        await waitFor(() => {
-            assert.isNotNull(document.querySelector(".sel-ws"), "the workspace is open");
-        });
-        // An empty card's Value opens its picker.
-        const empty = [...document.querySelectorAll<HTMLElement>(".sel-ws [data-new-step] [data-first-focus]")].at(-1);
-        assert.isDefined(empty, "an empty card's Value");
-        await userEvent.click(empty);
-        await screen.findByRole("combobox", { name: "Find attributes, results" });
-        await userEvent.keyboard("Degree{Enter}");
-        await waitFor(() => {
-            assert.isTrue(firstStep(session, layer.id).found, "the Degree step is in the selection");
-        });
+        await pickDegree(session, layer.id);
         assert.isNull(document.querySelector("[data-card-links]"), "no edge condition while every edge counts");
 
         // Settings: Edges where ... closes them, draws the card's edge value and hands it focus. The

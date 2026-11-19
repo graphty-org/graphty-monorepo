@@ -2,7 +2,7 @@ import "./style.css";
 
 import { ComboInput, CompactColorInput, FieldRow } from "@graphty/compact-mantine";
 import { channelsFor, toColorValue } from "@graphty/graphty-element/catalog";
-import { DEFAULT_SELECTION_STYLE, type LayerId } from "@graphty/graphty-element/schema";
+import { type Binding, DEFAULT_SELECTION_STYLE, type LayerId } from "@graphty/graphty-element/schema";
 import type { GraphSession, Layer } from "@graphty/graphty-element/session";
 import { Box, Checkbox, Stack, Tabs, Tooltip, VisuallyHidden } from "@mantine/core";
 import React, { useEffect, useId, useRef, useState } from "react";
@@ -722,7 +722,7 @@ export function GroupStyle({
         if (!owned.includes(layer.id)) {
             continue;
         }
-        for (const binding of Object.values(layer.encode ?? {})) {
+        for (const binding of Object.values<Binding | undefined>(layer.encode ?? {})) {
             if (
                 binding !== undefined &&
                 "by" in binding &&

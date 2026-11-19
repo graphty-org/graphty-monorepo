@@ -99,9 +99,17 @@ const SLICES: Record<ProjectSlice, SliceCase> = {
     views: {
         change: (session) =>
             session.views.save([
-                { name: "Overview", camera: { position: { x: 0, y: 0, z: 10 }, target: { x: 0, y: 0, z: 0 } } },
+                {
+                    name: "Overview",
+                    camera: { mode: "3d", position: { x: 0, y: 0, z: 10 }, target: { x: 0, y: 0, z: 0 } },
+                },
             ]),
         read: (session) => [...session.views],
+    },
+    tours: {
+        change: (session) =>
+            session.tours.save([{ name: "Walk", tour: { stops: [{ view: "Overview", duration: 0, hold: 2000 }] } }]),
+        read: (session) => [...session.tours],
     },
     notes: {
         change: (session) => {
@@ -184,7 +192,7 @@ describe("the member builders", () => {
         const members = [
             sessionMember(sources),
             arrangementMember(session, ids),
-            resultsMember(session, [runEntry(sources, "links", ids) ?? {}]),
+            resultsMember(session, [runEntry(sources, "links") ?? {}]),
             styleMember(session),
             notesMember(session),
             viewStateMember(session, ids),
@@ -206,7 +214,7 @@ describe("the member builders", () => {
     it("name a run that has not finished as nothing", async () => {
         const session = await baseSession();
         const sources: ProjectSources = { session, dispatcher: dispatcherOf(session), isDerived: () => false };
-        assert.isUndefined(runEntry(sources, "missing", graphIdsOf(session)));
+        assert.isUndefined(runEntry(sources, "missing"));
         session.dispose();
     });
 });

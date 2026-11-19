@@ -155,7 +155,7 @@ function settingsOf(session: GraphSession, member: Member, record: AssetRecord =
         return member.settings;
     }
     const own = member.held.record.defaults?.style ?? {};
-    const [first] = clipsOf(session, record);
+    const first = clipsOf(session, record).at(0);
     return own["node.modelAnimation"] === undefined && first !== undefined
         ? { ...own, "node.modelAnimation": first.name }
         : own;
@@ -1229,7 +1229,7 @@ export function CustomModelDialog({
         }
         const [record] = records;
         if (records.length === 1 && record.state === "accepted" && record.kind === "image") {
-            setPicture({ id: record.id, name: fileStem(record.path ?? files[0]?.name ?? "") || "picture" });
+            setPicture({ id: record.id, name: fileStem(record.path ?? files.at(0)?.name ?? "") || "picture" });
             say(CUSTOM_MODEL.notModel(fileStem(record.path ?? "") || "picture", MODEL_FORMATS));
             return;
         }
@@ -1911,7 +1911,7 @@ export function CustomModelDialog({
                             {CUSTOM_MODEL.layerOwn(layerOwn)}
                         </Text>
                     )}
-                    <TextureRows pictures={summary?.pictures ?? []} hidden={hidden} onChange={hide} />
+                    <TextureRows pictures={summary.pictures} hidden={hidden} onChange={hide} />
                     {forLayer ? (
                         <Stack gap={4} data-testid="model-layer-settings">
                             <Text size="xs" c="dimmed">

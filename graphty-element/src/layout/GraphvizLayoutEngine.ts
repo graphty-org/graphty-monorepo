@@ -488,7 +488,7 @@ type GraphvizLayoutClass = (new (opts: object) => SnapshotLayoutEngine) & {
     readonly type: string;
     readonly maxDimensions: number;
     readonly zodOptionsSchema: OptionsSchema;
-    readonly honoursWeights: boolean;
+    readonly honorsWeights: boolean;
     readonly scoped: boolean;
 };
 
@@ -569,7 +569,7 @@ function graphvizLayout(engine: GraphvizEngine): GraphvizLayoutClass {
                 this.lineEnds =
                     this.options.nodeSize === "label"
                         ? new Map([...ends].map(([k, at]) => [structure.edgeOf[k], { at, chord: chord(k) }]))
-                        : new Map();
+                        : new Map<Edge, { at: NonNullable<EdgePosition["lineEnds"]>; chord: readonly number[] }>();
                 this.labelPlaces = new Map([...labels].map(([k, place]) => [structure.edgeOf[k], place]));
                 this.xlabelPlaces = new Map(
                     [...xlabels].map(([row, place]) => [String(input.stored.ids.idOf(row)), place]),

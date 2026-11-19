@@ -227,7 +227,7 @@ export interface GraphtyElementJSXProps {
      * A value the schema refuses is REPORTED AND DROPPED rather than thrown, on the same terms
      * as `acceleration`: this setter is reached from `attributeChangedCallback`, and a throw
      * there escapes as an unhandled rejection that reaches nobody, leaving the page with an
-     * element that never rendered. A wrong colour in markup must not take the graph down.
+     * element that never rendered. A wrong color in markup must not take the graph down.
      */
     background?: Graphty["background"];
     /**
@@ -242,6 +242,10 @@ export interface GraphtyElementJSXProps {
      * Sets whether the graph reduces motion.
      */
     reducedMotion?: Graphty["reducedMotion"];
+    /**
+     * Sets which background color the canvas draws.
+     */
+    colorScheme?: Graphty["colorScheme"];
     /**
      * Sets the starting camera distance.
      */
@@ -281,7 +285,7 @@ export interface GraphtyElementJSXProps {
     /**
      * Sets the acceleration policy and applies it immediately.
      *
-     * An unrecognised value is reported and then ignored, leaving the previous policy in
+     * An unrecognized value is reported and then ignored, leaving the previous policy in
      * force. It is not thrown. Lit drives this setter from `attributeChangedCallback`, so a
      * throw here would abort attribute processing and leave the element unrendered -- a typo
      * in markup would take the whole graph down. HTML has never behaved that way about an
@@ -299,7 +303,7 @@ export interface GraphtyElementJSXProps {
     /**
      * Sets the renderer the element opens when it is first drawn.
      *
-     * An unrecognised value, or a change once the element is drawing, is reported and ignored
+     * An unrecognized value, or a change once the element is drawing, is reported and ignored
      * rather than thrown, for the reason given on `acceleration`: Lit drives this setter from
      * `attributeChangedCallback`, and a throw there would leave the element unrendered.
      */
@@ -472,6 +476,10 @@ export interface GraphtyElementJSXProps {
      */
     "reduced-motion"?: string;
     /**
+     * Sets which background color the canvas draws.
+     */
+    "color-scheme"?: string;
+    /**
      * Sets the starting camera distance.
      */
     "starting-camera-distance"?: string;
@@ -534,6 +542,10 @@ export interface GraphtyElementJSXProps {
     "onai-capability-unavailable"?: (event: CustomEvent<EventOfType<"ai-capability-unavailable">>) => void;
     /**
      * Emitted when an AI command is canceled
+     */
+    "onai-command-canceled"?: (event: CustomEvent<EventOfType<"ai-command-canceled">>) => void;
+    /**
+     * The British spelling of `ai-command-canceled`, emitted right after it with the same fields.
      */
     "onai-command-cancelled"?: (event: CustomEvent<EventOfType<"ai-command-cancelled">>) => void;
     /**
@@ -615,9 +627,13 @@ export interface GraphtyElementJSXProps {
     /**
      * The graph's lifecycle, operation, animation and screenshot events, which carry no declared fields beyond their name; any facts they carry are extra properties.
      */
-    "onanimation-cancelled"?: (event: CustomEvent<EventOfType<"animation-cancelled">>) => void;
+    "onanimation-canceled"?: (event: CustomEvent<EventOfType<"animation-canceled">>) => void;
     /**
      * The graph's lifecycle, operation, animation and screenshot events, which carry no declared fields beyond their name; any facts they carry are extra properties.
+     */
+    "onanimation-cancelled"?: (event: CustomEvent<EventOfType<"animation-cancelled">>) => void;
+    /**
+     * Emitted while `captureAnimation` records: how far the recording has got, from 0 to 100. A tour recording follows the tour's own clock, so it reaches 100 only with the tour.
      */
     "onanimation-progress"?: (event: CustomEvent<EventOfType<"animation-progress">>) => void;
     /**
@@ -796,6 +812,10 @@ export interface GraphtyElementJSXProps {
     /**
      * Emitted when a queued operation is aborted before it finished.
      */
+    "onoperation-canceled"?: (event: CustomEvent<EventOfType<"operation-canceled">>) => void;
+    /**
+     * The British spelling of `operation-canceled`: emitted right after it for every aborted operation, with `"cancelled"` where that one says `"canceled"`.
+     */
     "onoperation-cancelled"?: (event: CustomEvent<EventOfType<"operation-cancelled">>) => void;
     /**
      * The graph's lifecycle, operation, animation and screenshot events, which carry no declared fields beyond their name; any facts they carry are extra properties.
@@ -825,6 +845,10 @@ export interface GraphtyElementJSXProps {
      * What `getOverview()` returns has changed: the camera, the graph root or a node moved. Fired at most once per drawn frame, never per node; read `getOverview()` in the listener.
      */
     "onoverview-changed"?: (event: CustomEvent<EventOfType<"overview-changed">>) => void;
+    /**
+     * Emitted when whether motion is reduced changes: `setReducedMotion` was called with a different answer, or, under `"auto"`, the platform's `prefers-reduced-motion` changed. Read `isMotionReduced()` for the answer at any time.
+     */
+    "onreduced-motion-changed"?: (event: CustomEvent<EventOfType<"reduced-motion-changed">>) => void;
     /**
      * The graph's lifecycle, operation, animation and screenshot events, which carry no declared fields beyond their name; any facts they carry are extra properties.
      */
@@ -865,6 +889,18 @@ export interface GraphtyElementJSXProps {
      * Emitted after the style stack changed and the graph was repainted for it.
      */
     "onstyle-changed"?: (event: CustomEvent<EventOfType<"style-changed">>) => void;
+    /**
+     * Emitted once when a tour ends, however it ended; `playTour` resolves with the same reason.
+     */
+    "ontour-ended"?: (event: CustomEvent<EventOfType<"tour-ended">>) => void;
+    /**
+     * Emitted while a tour plays or records, on each stop or phase change (never on a timer): the flight to a stop (`"flight"`, absent for a zero-length flight), the hold there (`"hold"`), or a pause stop's wait where the camera is (`"pause"`, one event per pause).
+     */
+    "ontour-progress"?: (event: CustomEvent<EventOfType<"tour-progress">>) => void;
+    /**
+     * Emitted when anything `planTour` or `viewProblem` reads may have changed: the saved views, their order or the tours, the 2D/3D dimension, an XR session starting or ending, or a camera view being registered. An editor showing tour lengths or broken stops plans again on it alone.
+     */
+    "onviews-changed"?: (event: CustomEvent<EventOfType<"views-changed">>) => void;
     /**
      * Emitted when a VR or AR session has ended and the graph is back in its 3D view.
      */

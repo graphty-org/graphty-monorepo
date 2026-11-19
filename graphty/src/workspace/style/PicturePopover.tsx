@@ -38,7 +38,7 @@ function useThumbnail(session: GraphSession | null, ref: string): string | undef
             setUrl(undefined);
             return undefined;
         }
-        const [bytes] = [...session.assets.files(record.id).values()];
+        const bytes = [...session.assets.files(record.id).values()].at(0);
         if (bytes === undefined) {
             setUrl(undefined);
             return undefined;

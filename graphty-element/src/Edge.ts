@@ -56,6 +56,7 @@ import {
     raisedArc,
     roundCorners,
     routeEnds,
+    routeMiddle,
     routeOutside,
     surfaceReach,
     type Xyz,
@@ -352,13 +353,23 @@ function alongUsesOf(
 }
 
 /**
- * The taper a style asks for: the width at the target over the width at the source.
+ * The taper a style asks for at one end: the width there over the line's width.
  * @param style - The resolved style.
+ * @param end - `taper` for the target, `taperSource` for the source.
  * @returns The taper, 1 for none.
  */
-function taperOf(style: EdgeStyleConfig | null): number {
-    const taper = style?.line?.taper;
+function taperOf(style: EdgeStyleConfig | null, end: "taper" | "taperSource" = "taper"): number {
+    const taper = style?.line?.[end];
     return typeof taper === "number" && Number.isFinite(taper) ? Math.min(Math.max(taper, 0), 4) : 1;
+}
+
+/**
+ * Whether a style narrows its line at both ends, so it is widest at its middle.
+ * @param style - The resolved style.
+ * @returns True when both tapers are below 1.
+ */
+function tapersBothEnds(style: EdgeStyleConfig | null): boolean {
+    return taperOf(style) < 1 && taperOf(style, "taperSource") < 1;
 }
 
 /**
@@ -383,7 +394,7 @@ function flavorOf(style: EdgeStyleConfig | null): string {
  * @returns True for a taper or a fade.
  */
 function widensLine(style: EdgeStyleConfig | null): boolean {
-    return taperOf(style) !== 1 || EdgeMesh.fadeOf(style) !== undefined;
+    return taperOf(style) !== 1 || taperOf(style, "taperSource") !== 1 || EdgeMesh.fadeOf(style) !== undefined;
 }
 
 /**
@@ -1063,6 +1074,13 @@ export class Edge {
     /** Whether the line is drawn lifted out of a flat layout's plane now (`edge.lift`): a run of slots. */
     private lifted = false;
 
+    /**
+     * Where the label hangs on a line drawn through its bends, solid or patterned: the middle of its route through its
+     * ends and bends ({@link routeMiddle}), which an importer measures a label's offset from (issue #8190); null for
+     * any other line.
+     */
+    private bentMiddle: Vector3 | null = null;
+
     /** When something last happened to this edge that a shader's entrance plays for, by `performance.now()`. */
     private causedAt = Number.NEGATIVE_INFINITY;
 
@@ -1555,7 +1573,7 @@ export class Edge {
             return Vector3.FromArray(bendPoints(src, dst, labelAt));
         }
 
-        return (bent || this.bundled ? this.routeMiddle() : null) ?? Vector3.Center(src, dst);
+        return (bent || this.bundled ? (this.bentMiddle ?? this.routeMiddle()) : null) ?? Vector3.Center(src, dst);
     }
 
     /**
@@ -1647,6 +1665,7 @@ export class Edge {
         const dst = new Vector3(lnk.dst.x, lnk.dst.y, lnk.dst.z ?? 0);
         const lift = this.liftDrawn();
         const bentBefore = this.bundled || this.lifted;
+        this.bentMiddle = null;
         this.lifted = lift !== 0 && this.laysRoute();
         let bent = this.lifted;
         if (this.lifted) {
@@ -1701,14 +1720,21 @@ export class Edge {
         const batch = lays ? this.lineBatch : null;
         const stored = this.lineRoute;
         const bent = lays && stored !== null && this.placeBent(batch, src, dst, stored);
-        // a patterned line (no batch) follows the route as its elements (issue #3102)
+        // a patterned line (no batch) follows the route as its elements (issue #3102); a self-loop's laid bends lie
+        // round its node (Graphviz's splines=ortho rectangle), cut where they cross its outline
         const followsLayout =
             !bent &&
             lays &&
             stored === null &&
             laid !== undefined &&
-            !this.isLoop &&
-            this.placeBent(batch, src, dst, Edge.laidRoute(laid ?? [], laidEnds));
+            this.placeBent(
+                batch,
+                src,
+                dst,
+                this.isLoop
+                    ? { bends: [...laid], srcPort: null, dstPort: null, loop: true }
+                    : Edge.laidRoute(laid, laidEnds),
+            );
         const route = !bent && !followsLayout && lays ? this.bundleRoute(src, dst) : null;
         this.bundled = followsLayout || (route !== null && this.placeRoute(batch, src, dst, route));
         if (!bent && !this.bundled) {
@@ -2498,6 +2524,7 @@ export class Edge {
             seed: edgeSeedOf(this.id),
             bits,
             taper: taperOf(style),
+            taperSource: taperOf(style, "taperSource"),
             times: [entered, EDGE_NEVER, this.changedStamp],
         };
     }
@@ -3931,8 +3958,15 @@ export class Edge {
             this.placeGradient(curve);
         } else if (this.lineBatch) {
             // One straight piece: a run left from a lift, a fan or a loop is handed back to one slot.
+            // A line tapered at both ends is two, so its middle can be its widest.
             const straight = [srcPoint.x, srcPoint.y, srcPoint.z, dstPoint.x, dstPoint.y, dstPoint.z];
-            if (this.lineSlots.length > 1) {
+            if (tapersBothEnds(this.drawnStyle)) {
+                const middle = Vector3.Center(srcPoint, dstPoint);
+                const halves = [...straight.slice(0, 3), middle.x, middle.y, middle.z, ...straight.slice(3)];
+                this.placeRun(this.lineBatch, this.lineSlots, halves, (slot) => {
+                    this.prepareLineSlot(slot);
+                });
+            } else if (this.lineSlots.length > 1) {
                 this.placeRun(this.lineBatch, this.lineSlots, straight);
             } else {
                 this.lineBatch.place(this.lineSlots[0], srcPoint, dstPoint);
@@ -4419,6 +4453,10 @@ export class Edge {
         if (span === null) {
             return false;
         }
+        // a line drawn through its bends (straight or with its corners rounded) hangs its label on them, not on a curve
+        // that uses them as control points
+        const throughBends = line?.bezier !== true || (!sampled && line.bendCurve !== "midpoints");
+        this.bentMiddle = throughBends ? Vector3.FromArray(routeMiddle(through)) : null;
 
         const a = Vector3.FromArray(route, 3 * span.first);
         const b = Vector3.FromArray(route, 3 * span.last);
@@ -4962,6 +5000,21 @@ export class Edge {
      * @returns Edge line positions adjusted for arrow placement
      */
     transformArrowCap(): EdgeLine {
+        // read at each call: resetMeasurements replaces the counters
+        const counter = this.context.getStatsManager().arrowCapUpdate;
+        counter.beginMonitoring();
+        try {
+            return this.placeArrowCaps();
+        } finally {
+            counter.endMonitoring();
+        }
+    }
+
+    /**
+     * Place the arrow caps and find where the line ends beside them: the measured part of `transformArrowCap`.
+     * @returns Edge line positions adjusted for arrow placement
+     */
+    private placeArrowCaps(): EdgeLine {
         const { arrowCap } = this;
 
         // A TAIL IS PLACED WITHOUT A HEAD TOO. This used to return here unless the edge had a
@@ -5340,6 +5393,20 @@ export class Edge {
      * @returns Intersection points for source, destination, and adjusted endpoint
      */
     getInterceptPoints(): InterceptPoint {
+        const counter = this.context.getStatsManager().intersectCalc;
+        counter.beginMonitoring();
+        try {
+            return this.interceptPoints();
+        } finally {
+            counter.endMonitoring();
+        }
+    }
+
+    /**
+     * Find where the line meets its nodes' surfaces: the measured part of `getInterceptPoints`.
+     * @returns Intersection points for source, destination, and adjusted endpoint
+     */
+    private interceptPoints(): InterceptPoint {
         const fromColumns = this.interceptPointsFromColumns();
         if (fromColumns !== null) {
             return fromColumns;

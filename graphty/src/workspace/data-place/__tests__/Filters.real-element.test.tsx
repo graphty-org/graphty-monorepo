@@ -184,4 +184,121 @@ describe("Filter cards on the real element", () => {
         assert.isNull(filters().querySelector(".sel-editor"), "no editor that would write it as an edges selection");
         assert.equal(session.visibility.summary.visibleNodes, 5);
     });
+
+    it("a row's More renames the card: Enter writes the name as one step, Escape keeps it, an empty name goes back to the summary", async () => {
+        const { session } = await openWithGraph();
+        await addValueCard(session);
+        const rename = async (keys: string): Promise<void> => {
+            await userEvent.click(within(filters()).getByRole("button", { name: "More" }));
+            await userEvent.click(await screen.findByRole("menuitem", { name: /^Rename/ }));
+            const field = await within(filters()).findByRole("textbox", { name: /^Rename / });
+            await userEvent.clear(field);
+            await userEvent.keyboard(keys);
+        };
+        const before = session.history.position;
+        await rename("Heavy ties{Enter}");
+        await waitFor(() => {
+            assert.equal(session.visibility.conditions[0]?.name, "Heavy ties");
+        });
+        assert.equal(session.history.position, before + 1, "one undo step");
+        await card(/^Heavy ties/);
+        await rename("Light ties{Escape}");
+        await card(/^Heavy ties/);
+        assert.equal(session.visibility.conditions[0]?.name, "Heavy ties", "Escape keeps the name");
+        await rename("{Enter}");
+        await waitFor(() => {
+            assert.isUndefined(session.visibility.conditions[0]?.name);
+        });
+        await card(/value/);
+    });
+
+    it("a row's More duplicates the card, selects what it keeps and deletes it, focus going to the card left", async () => {
+        const { session, store } = await openWithGraph();
+        await addValueCard(session);
+        const more = async (item: RegExp, row = 0): Promise<void> => {
+            await userEvent.click(within(filters()).getAllByRole("button", { name: "More" })[row] ?? document.body);
+            await userEvent.click(await screen.findByRole("menuitem", { name: item }));
+        };
+        await more(/^Select 4/);
+        await waitFor(() => {
+            assert.equal(store.get().announcement, "Selected 4 edges");
+        });
+        // Duplicate opens the copy; Done folds it back to its row.
+        await more(/^Duplicate/);
+        await waitFor(() => {
+            assert.lengthOf(session.visibility.conditions, 2);
+        });
+        const [first, copy] = session.visibility.conditions;
+        assert.deepEqual(copy?.rule, first?.rule, "the copy reads the same rule");
+        assert.notEqual(copy?.id, first?.id);
+        await userEvent.click(within(await workspace()).getByRole("button", { name: "Done" }));
+        await waitFor(() => {
+            assert.isNull(document.querySelector(".sel-ws"));
+        });
+        // The newest card is listed first: Delete on its row leaves the other, which takes focus.
+        const gone = filters().querySelector("[data-id]")?.getAttribute("data-id");
+        const kept = gone === first?.id ? copy?.id : first?.id;
+        await more(/^Delete/);
+        await waitFor(() => {
+            assert.lengthOf(session.visibility.conditions, 1);
+        });
+        await waitFor(() => {
+            assert.equal(document.activeElement?.closest("[data-id]")?.getAttribute("data-id"), kept);
+        });
+    });
+
+    it("an Except card's box turns it off as a card that keeps the rest, and on again", async () => {
+        const { session } = await openWithGraph();
+        await session.visibility.addCondition({
+            id: "busy",
+            effect: "exclude",
+            rule: { kind: "degree", min: 3 },
+        });
+        await waitFor(() => {
+            assert.isBelow(session.visibility.summary.visibleNodes, 8);
+        });
+        const hidden = session.visibility.summary.visibleNodes;
+        const box = (await card(/^except Degree 3\+/)).getByRole("checkbox", { name: "Use" });
+        await userEvent.click(box);
+        await waitFor(() => {
+            assert.isFalse(session.visibility.conditions[0]?.on);
+        });
+        assert.equal(session.visibility.conditions[0]?.effect, "keep", "written as the card says it: what stays");
+        assert.equal(session.visibility.summary.visibleNodes, 8);
+        await userEvent.click((await card(/^except Degree 3\+/)).getByRole("checkbox", { name: "Use" }));
+        await waitFor(() => {
+            assert.equal(session.visibility.summary.visibleNodes, hidden);
+        });
+    });
+
+    it("a card's count in the workspace shows what it keeps in the table", async () => {
+        await openWithGraph();
+        await columnVerb("edge", "value", "Filter to...");
+        const from = await screen.findByRole("textbox", { name: "value from, number" });
+        await userEvent.clear(from);
+        await userEvent.type(from, "9{Enter}");
+        const ws = await workspace();
+        // The table is shown at first: its title's More hides it.
+        await within(ws).findByRole("region", { name: "Matches" });
+        const more = within(ws).getAllByRole("button", { name: /^More for / })[0];
+        assert.isDefined(more);
+        await userEvent.click(more);
+        await userEvent.click(await screen.findByRole("menuitem", { name: /^Hide table/ }));
+        await waitFor(() => {
+            assert.isNull(within(ws).queryByRole("region", { name: "Matches" }), "the table is hidden");
+        });
+        await userEvent.click(await within(ws).findByRole("button", { name: /^Show 4 of 9 edges/ }));
+        await within(ws).findByRole("region", { name: "Matches" });
+    });
+
+    it("the header chip opens the Data place from another place", async () => {
+        const { session, store } = await openWithGraph();
+        await addValueCard(session);
+        store.set({ place: "graph" });
+        await userEvent.click(await screen.findByRole("button", { name: /^Filter: / }));
+        await waitFor(() => {
+            assert.equal(store.get().place, "data");
+        });
+        await screen.findByRole("list", { name: "Filters" });
+    });
 });

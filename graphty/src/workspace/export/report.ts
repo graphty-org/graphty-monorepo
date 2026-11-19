@@ -1,16 +1,17 @@
 /**
  * The Export dialog's Report: a Markdown document laid out from what graphty-element publishes --
- * `data.statistics`, `notes.list`, `data.issues`, each run's `record` and the record pages -- with
- * the reader's own title, summary and findings. The facts are the element's; the words, the order
+ * `data.statistics`, `notes.list`, `data.issues`, each run's `record`, each pinned result's `toTsv`
+ * and the record pages -- with the reader's own title, summary, findings and notes on pinned results. The facts are the element's; the words, the order
  * and the layout are the app's. Also the validation report and the cleaning steps on their own, as
  * JSON (the element's issues as they are) or CSV. No React, so the rules are tested on their own.
  */
 
-import type { DataIssue, GraphSession, RunRecord } from "@graphty/graphty-element/session";
+import type { DataIssue, GraphSession, Run, RunRecord } from "@graphty/graphty-element/session";
 
 import { targetWords } from "../notes/words";
 import { runName } from "../runWords";
 import { formatNumber } from "../settings/numberFormat";
+import type { ReportPin } from "../state/store";
 import { columnChoices, fixDone, issueLabel, type RecordKind } from "../table/columns";
 import type { ReportChoices, ReportSection } from "./choices";
 
@@ -45,14 +46,35 @@ function finishedRuns(session: GraphSession): readonly RunRecord[] {
 }
 
 /**
+ * The pinned results that are still there, in the order pinned, each with its run.
+ * @param session - the element's session.
+ * @param pins - the reader's pins.
+ * @returns the pins whose run the session still holds.
+ */
+export function pinnedRuns(
+    session: GraphSession,
+    pins: readonly ReportPin[],
+): readonly { readonly pin: ReportPin; readonly run: Run }[] {
+    return pins.flatMap((pin) => {
+        const run = session.runs.get(pin.run);
+        return run === undefined ? [] : [{ pin, run }];
+    });
+}
+
+/**
  * How many things each section holds, for the checklist.
  * @param session - the element's session.
+ * @param pins - the results pinned to the report.
  * @returns the counts by section.
  */
-export function sectionCounts(session: GraphSession): Readonly<Record<ReportSection, number>> {
+export function sectionCounts(
+    session: GraphSession,
+    pins: readonly ReportPin[] = [],
+): Readonly<Record<ReportSection, number>> {
     const { nodes, edges } = session.data.count();
     return {
         notes: session.notes.list().length,
+        pinned: pinnedRuns(session, pins).length,
         validation: validationIssues(session).length,
         changes: cleaningSteps(session).length,
         methods: finishedRuns(session).length,
@@ -145,6 +167,37 @@ function methodLines(session: GraphSession, record: RunRecord): string[] {
 }
 
 /**
+ * One pinned result: its name, the reader's note, and its values as graphty-element writes them
+ * (`toTsv`, full stored precision), the first `rowCap` rows.
+ * @param session - the element's session.
+ * @param pin - the pin, with its note.
+ * @param run - the pinned run.
+ * @param rowCap - the most rows.
+ * @returns its lines.
+ */
+function pinnedLines(session: GraphSession, pin: ReportPin, run: Run, rowCap: number): string[] {
+    const note = pin.note.trim() === "" ? [] : [pin.note.trim().replaceAll(/\r?\n/g, " "), ""];
+    const tsv = run.result?.toTsv();
+    if (tsv === undefined || tsv === "") {
+        return [`### ${runName(session, run)}`, "", ...note];
+    }
+    const [header = "", ...rows] = tsv.split("\n");
+    const kept = rows.slice(0, Math.max(0, rowCap));
+    const shown =
+        kept.length < rows.length ? ` (first ${formatNumber(kept.length)} of ${formatNumber(rows.length)})` : "";
+    return [
+        `### ${runName(session, run)}${shown}`,
+        "",
+        ...note,
+        ...table(
+            header.split("\t"),
+            kept.map((row) => row.split("\t")),
+        ),
+        "",
+    ];
+}
+
+/**
  * One data table: the first `rowCap` records with their key and loaded columns, hidden ones left out.
  * @param session - the element's session.
  * @param kind - nodes or edges.
@@ -195,9 +248,15 @@ function section(heading: string, body: readonly string[]): string[] {
  * @param session - the element's session.
  * @param choices - the reader's choices.
  * @param fallbackTitle - the title when the reader gave none: the project's name.
+ * @param pins - the results pinned to the report, in the order pinned.
  * @returns the document.
  */
-export function reportMarkdown(session: GraphSession, choices: ReportChoices, fallbackTitle: string): string {
+export function reportMarkdown(
+    session: GraphSession,
+    choices: ReportChoices,
+    fallbackTitle: string,
+    pins: readonly ReportPin[] = [],
+): string {
     const chosen = new Set(choices.sections);
     const { nodeCount, edgeCount } = session.data.statistics({ scope: "all" });
     const title = choices.title.trim() === "" ? fallbackTitle : choices.title.trim();
@@ -220,6 +279,14 @@ export function reportMarkdown(session: GraphSession, choices: ReportChoices, fa
                     const by = note.author === undefined ? "" : `, ${note.author}`;
                     return `- ${note.text.replaceAll(/\r?\n/g, " ")} (${about}${by}, ${note.time})`;
                 }),
+            ),
+        );
+    }
+    if (chosen.has("pinned")) {
+        lines.push(
+            ...section(
+                "Pinned items",
+                pinnedRuns(session, pins).flatMap(({ pin, run }) => pinnedLines(session, pin, run, choices.rowCap)),
             ),
         );
     }

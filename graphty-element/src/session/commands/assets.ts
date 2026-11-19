@@ -16,20 +16,19 @@ import {
     type ModelDefaultsPatch,
 } from "../assets/AssetsApi";
 import type { UndoableDefinition } from "../project/Dispatcher";
+import { createCarriedLooks } from "../styles/carried";
 import { channelDescriptor } from "../styles/channels";
 import { checkStaticValue } from "../styles/Layer";
 
-/** `asset.defaults`: change one model's own settings. */
-interface AssetDefaultsCommand {
+/** Every asset op. `asset.defaults`: change one model's own settings. */
+export interface AssetCommand {
+    /** The op name. */
     readonly op: "asset.defaults";
     /** The model's asset id. */
     readonly id: string;
     /** What to set, take out (`undefined` or `null`) or replace (`hiddenTextures`). */
     readonly patch: ModelDefaultsPatch;
 }
-
-/** Every asset op. */
-export type AssetCommand = AssetDefaultsCommand;
 
 /**
  * Refuse a patch that is not a model's settings.
@@ -72,7 +71,7 @@ export function patchedDefaults(
         }
 
         const descriptor = channelDescriptor(channel);
-        if (descriptor !== undefined && checkStaticValue(descriptor, value, channel) !== null) {
+        if (descriptor !== undefined && checkStaticValue(descriptor, value, channel, createCarriedLooks()) !== null) {
             throw badPatch(id, `${name} does not take ${JSON.stringify(value)}`);
         }
 
@@ -94,7 +93,7 @@ export function patchedDefaults(
     });
 }
 
-const assetDefaults: UndoableDefinition<AssetDefaultsCommand> = {
+const assetDefaults: UndoableDefinition<AssetCommand> = {
     op: "asset.defaults",
     undo: {
         kind: "undoable",

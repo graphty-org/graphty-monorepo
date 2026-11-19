@@ -232,7 +232,8 @@ const LineStyle = z.strictObject({
     /**
      * How long each dash of a "dash" line is, in the line's own width units. Unset, 3. On a "dot" line with a
      * `dashGap`, the length of each dot in a program's pattern: the dot is still drawn round, one width across, and
-     * the dots repeat every `dashLength + dashGap` widths, as the program's do. Unset there, 1.
+     * the dots repeat every `dashLength + dashGap` widths, as the program's do; a dot shorter than 1 is drawn as a
+     * square-ended dash that long, as a disc that short would not show. Unset there, 1.
      * @experimental file-styles
      */
     dashLength: z.number().nonnegative().optional(),
@@ -244,6 +245,15 @@ const LineStyle = z.strictObject({
      * @experimental file-styles
      */
     dashGap: z.number().nonnegative().optional(),
+    /**
+     * A pattern of several dash lengths: dashes and gaps alternating from the line's start, in the line's own width
+     * units, separated by spaces or commas ("8 1 2 1" draws a dash 8 widths long, a gap of 1, a dash of 2 and a gap of
+     * 1, then repeats). An odd count is repeated once, as an SVG dash array is; up to 8 numbers are drawn. Set on a
+     * "dash", "dot" or "dash-dot" line, the line is drawn as these square-ended dashes in place of its own elements,
+     * `dashLength`, `dashGap` and `patternCount`; unset, or on any other line type, it changes nothing.
+     * @experimental file-styles
+     */
+    dashArray: z.string().optional(),
     color: ColorStyle.optional(),
     opacity: z.number().min(0).max(1).optional(),
     /**
@@ -332,6 +342,11 @@ const LineStyle = z.strictObject({
     bends: z.string().optional(),
     /** The width at the target as a multiple of the width at the source; 1 draws no taper. */
     taper: z.number().min(0).max(4).optional(),
+    /**
+     * The width at the source as a multiple of the line's width; 1 draws no taper there. When it and `taper` are both
+     * below 1, the line is its full width at the middle and narrows straight to each end.
+     */
+    taperSource: z.number().min(0).max(4).optional(),
     /** How far the route's middle rises out of a flat layout's plane in the 3D view, world units. */
     lift: z.number().optional(),
     /**

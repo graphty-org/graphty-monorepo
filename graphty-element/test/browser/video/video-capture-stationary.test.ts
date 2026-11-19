@@ -68,7 +68,7 @@ test("fires animation-progress events", async () => {
 
     graph.on("animation-progress", (event) => {
         assert.isNumber(event.progress);
-        progressEvents.push(Number(event.progress));
+        progressEvents.push(event.progress);
     });
 
     await graph.captureAnimation({

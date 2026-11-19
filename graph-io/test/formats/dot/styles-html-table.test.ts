@@ -159,6 +159,7 @@ describe("DOT styles: an HTML-like table's cells (labelTable)", () => {
         nested [label=<<TABLE><TR><TD><TABLE ALIGN="RIGHT" VALIGN="BOTTOM" BORDER="0"><TR><TD>a</TD></TR></TABLE></TD></TR></TABLE>>];
         text [label=<a<BR/>b>];
         invis [label=<<TABLE><TR><TD STYLE="invis">a</TD><TD STYLE="ROUNDED,INVISIBLE">b</TD><TD STYLE="rounded">c</TD></TR></TABLE>>];
+        tinvis [label=<<TABLE STYLE="invisible" BGCOLOR="yellow"><TR><TD>a</TD><TD STYLE="rounded">b</TD></TR></TABLE>>];
     }`;
 
     /**
@@ -204,6 +205,16 @@ describe("DOT styles: an HTML-like table's cells (labelTable)", () => {
             { hidden: true, lines: [{ runs: [{ text: "a" }] }] },
             { hidden: true, lines: [{ runs: [{ text: "b" }] }] },
             { lines: [{ runs: [{ text: "c" }] }] },
+        ]);
+    });
+
+    it("hides every cell and the fill of a table whose STYLE says invis or invisible, keeping its room", async () => {
+        // Graphviz 14 draws <TABLE STYLE="invis"> as nothing at all, its cells' words included (dot-specimen-labels-p3)
+        const t = (await tables()).get("tinvis") as { fill?: string; rows: { cells: unknown[] }[] };
+        expect(t.fill).toBeUndefined();
+        expect(t.rows[0].cells).toEqual([
+            { hidden: true, lines: [{ runs: [{ text: "a" }] }] },
+            { hidden: true, lines: [{ runs: [{ text: "b" }] }] },
         ]);
     });
 

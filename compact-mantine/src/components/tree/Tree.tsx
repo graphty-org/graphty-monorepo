@@ -12,7 +12,7 @@ import { shieldDragSelection } from "../chrome/dragSelectionShield";
 import { ContextMenu } from "../overlays/ContextMenu";
 import { joinPress } from "../pressGesture";
 import { EllipsizedName } from "../rows/EllipsizedName";
-import { InlineRename } from "./InlineRename";
+import { InlineRename, useRenaming } from "./InlineRename";
 import {
     computeDrop,
     flattenTree,
@@ -665,11 +665,7 @@ export function Tree({
     const indexOf = useMemo(() => new Map(rows.map((r, i) => [r.node.id, i])), [rows]);
 
     const [focusedId, setFocusedId] = useState<string | null>(null);
-    const [renaming, setRenaming] = useUncontrolled<string | null>({
-        value: renamingProp,
-        finalValue: null,
-        onChange: onRenamingChange,
-    });
+    const [renaming, setRenaming] = useRenaming(renamingProp, onRenamingChange);
     const [drop, setDrop] = useState<TreeDrop | null>(null);
     const [draggingId, setDraggingId] = useState<string | null>(null);
     const [menuNode, setMenuNode] = useState<TreeNodeData | null>(null);

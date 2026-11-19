@@ -92,7 +92,9 @@ It drives real clicks, drags and keys over a pairwise matrix of card kinds, verb
 entry points, datasets, edits and ways of leaving, then named scenarios (a slider's exact ends, settings
 then ticks, popovers closing on an outside click, order after a delete). What a selection should hold is
 worked out from the graph and the runs' results, and compared with the title bar, the cards, the table,
-the drawing and what is saved. It prints a table of results, exits 1 when a scenario failed, and keeps a
+the drawing and what is saved. The matrix's rows run as a reader who prefers reduced motion (the graph
+is drawn once its layout settles, which is most of a row's CPU on a software GPU); the named scenarios
+keep every transition. It prints a table of results, exits 1 when a scenario failed, and keeps a
 failed scenario's screenshot under `--out` (default `tmp/selection-workspace-uat`).
 
 ## Adding a route

@@ -82,8 +82,20 @@ export function resultPath(runId: RunId, field?: string): Path {
  * @since 3.40.0
  */
 export type PathParts =
-    | { readonly from: "data"; readonly column: string }
-    | { readonly from: "run"; readonly runId: RunId; readonly field: string };
+    | {
+          /** The path reads a data column. */
+          readonly from: "data";
+          /** The column's name. */
+          readonly column: string;
+      }
+    | {
+          /** The path reads a run's result field. */
+          readonly from: "run";
+          /** The run that produced the field. */
+          readonly runId: RunId;
+          /** The field's name within that run's result. */
+          readonly field: string;
+      };
 
 /**
  * Split a value path into what it reads, so a caller never parses the path's spelling itself.
@@ -420,119 +432,218 @@ export interface ResultShapeContract {
  * not exist.
  */
 export const RESULT_SHAPE_CONTRACTS = {
+    /** A number on every node, such as a centrality score. */
     "node-metric": {
+        /** The shape this entry is for. */
         shape: "node-metric",
+        /** Reads `value` when no field is named. */
         primaryField: "value",
+        /** Required on every node: `value`, `rank`, `percentile`. */
         nodeFields: ["value", "rank", "percentile"],
+        /** No required edge fields. */
         edgeFields: [],
+        /** Required on the graph: `min`, `max`, `median`, `mean`, `measured`, `normalization`, `tiedAtMin`. */
         graphFields: ["min", "max", "median", "mean", "measured", "normalization", "tiedAtMin"],
+        /** No optional graph fields. */
         optionalGraphFields: [],
+        /** No headline graph scalar. */
         headlineScalar: false,
+        /** Draws as an encoding: a value mapped to color, size or similar. */
         layer: "encoding",
     },
+    /** A number on every edge, such as edge betweenness. */
     "edge-metric": {
+        /** The shape this entry is for. */
         shape: "edge-metric",
+        /** Reads `value` when no field is named. */
         primaryField: "value",
+        /** No required node fields. */
         nodeFields: [],
+        /** Required on every edge: `value`, `rank`, `percentile`. */
         edgeFields: ["value", "rank", "percentile"],
+        /** Required on the graph: `min`, `max`, `median`, `mean`, `measured`, `normalization`, `tiedAtMin`. */
         graphFields: ["min", "max", "median", "mean", "measured", "normalization", "tiedAtMin"],
+        /** No optional graph fields. */
         optionalGraphFields: [],
+        /** No headline graph scalar. */
         headlineScalar: false,
+        /** Draws as an encoding: a value mapped to color, size or similar. */
         layer: "encoding",
     },
+    /** A partition of the nodes into groups, such as Louvain's communities. */
     community: {
+        /** The shape this entry is for. */
         shape: "community",
+        /** Reads `group` when no field is named. */
         primaryField: "group",
+        /** Required on every node: `group`, `groupSize`. */
         nodeFields: ["group", "groupSize"],
+        /** No required edge fields. */
         edgeFields: [],
+        /** Required on the graph: `groupCount`, `sizes`. */
         graphFields: ["groupCount", "sizes"],
         // Only an algorithm that scores its own partition can publish modularity. Label
         // propagation and connected components do not, and a required field they cannot fill
         // would be a number invented to satisfy a table.
+        /** Carried on the graph when the algorithm can fill them: `modularity`. */
         optionalGraphFields: ["modularity"],
+        /** No headline graph scalar. */
         headlineScalar: false,
+        /** Draws as an encoding: a value mapped to color, size or similar. */
         layer: "encoding",
     },
+    /** Nodes placed on numbered levels, such as breadth-first search depths. */
     "layered-grouping": {
+        /** The shape this entry is for. */
         shape: "layered-grouping",
+        /** Reads `level` when no field is named. */
         primaryField: "level",
+        /** Required on every node: `level`, `levelSize`. */
         nodeFields: ["level", "levelSize"],
+        /** No required edge fields. */
         edgeFields: [],
+        /** Required on the graph: `levelCount`, `sizes`. */
         graphFields: ["levelCount", "sizes"],
+        /** No optional graph fields. */
         optionalGraphFields: [],
+        /** No headline graph scalar. */
         headlineScalar: false,
+        /** Draws as an encoding: a value mapped to color, size or similar. */
         layer: "encoding",
     },
+    /** One category per node, chosen by a score per category. */
     "category-table": {
+        /** The shape this entry is for. */
         shape: "category-table",
+        /** Reads `category` when no field is named. */
         primaryField: "category",
+        /** Required on every node: `category`, `score`, `rank`. */
         nodeFields: ["category", "score", "rank"],
+        /** No required edge fields. */
         edgeFields: [],
+        /** Required on the graph: `categories`. */
         graphFields: ["categories"],
+        /** No optional graph fields. */
         optionalGraphFields: [],
+        /** No headline graph scalar. */
         headlineScalar: false,
+        /** Draws as an encoding: a value mapped to color, size or similar. */
         layer: "encoding",
     },
+    /** One route through the graph, such as a shortest path. */
     path: {
+        /** The shape this entry is for. */
         shape: "path",
+        /** Reads `onPath` when no field is named. */
         primaryField: "onPath",
+        /** Required on every node: `onPath`, `order`. */
         nodeFields: ["onPath", "order"],
         // The edges of the route carry membership but not a position: an edge's place in the
         // route is the order of the node it leaves.
+        /** Required on every edge: `onPath`. */
         edgeFields: ["onPath"],
+        /** Required on the graph: `length`, `cost`, `hops`. */
         graphFields: ["length", "cost", "hops"],
+        /** No optional graph fields. */
         optionalGraphFields: [],
+        /** No headline graph scalar. */
         headlineScalar: false,
+        /** Draws as an exclusive highlight that replaces an earlier one. */
         layer: "highlight",
     },
+    /** A chosen set of nodes. */
     "node-set": {
+        /** The shape this entry is for. */
         shape: "node-set",
+        /** Reads `in` when no field is named. */
         primaryField: "in",
+        /** Required on every node: `in`. */
         nodeFields: ["in"],
+        /** No required edge fields. */
         edgeFields: [],
+        /** Required on the graph: `count`. */
         graphFields: ["count"],
+        /** No optional graph fields. */
         optionalGraphFields: [],
+        /** Also carries one headline graph scalar of the algorithm's own naming. */
         headlineScalar: true,
+        /** Draws as an exclusive highlight that replaces an earlier one. */
         layer: "highlight",
     },
+    /** A chosen set of edges, such as a spanning tree. */
     "edge-set": {
+        /** The shape this entry is for. */
         shape: "edge-set",
+        /** Reads `in` when no field is named. */
         primaryField: "in",
+        /** No required node fields. */
         nodeFields: [],
+        /** Required on every edge: `in`. */
         edgeFields: ["in"],
+        /** Required on the graph: `count`. */
         graphFields: ["count"],
+        /** No optional graph fields. */
         optionalGraphFields: [],
+        /** Also carries one headline graph scalar of the algorithm's own naming. */
         headlineScalar: true,
+        /** Draws as an exclusive highlight that replaces an earlier one. */
         layer: "highlight",
     },
+    /** A list of node pairs, such as predicted links. */
     "pair-list": {
+        /** The shape this entry is for. */
         shape: "pair-list",
+        /** Reads `pairs` when no field is named. */
         primaryField: "pairs",
+        /** No required node fields. */
         nodeFields: [],
+        /** No required edge fields. */
         edgeFields: [],
+        /** Required on the graph: `pairs`. */
         graphFields: ["pairs"],
+        /** No optional graph fields. */
         optionalGraphFields: [],
+        /** No headline graph scalar. */
         headlineScalar: false,
+        /** Draws nothing on its own. */
         layer: "none",
     },
+    /** A series of values over steps. */
     temporal: {
+        /** The shape this entry is for. */
         shape: "temporal",
+        /** Reads `series` when no field is named. */
         primaryField: "series",
+        /** No required node fields. */
         nodeFields: [],
+        /** No required edge fields. */
         edgeFields: [],
+        /** Required on the graph: `steps`, `series`, `rates`, `changeThreshold`. */
         graphFields: ["steps", "series", "rates", "changeThreshold"],
+        /** No optional graph fields. */
         optionalGraphFields: [],
+        /** No headline graph scalar. */
         headlineScalar: false,
+        /** Draws nothing on its own. */
         layer: "none",
     },
+    /** Graph-level values only, named by the algorithm. */
     fact: {
+        /** The shape this entry is for. */
         shape: "fact",
+        /** No primary field: every value is one the algorithm names. */
         primaryField: null,
+        /** No required node fields. */
         nodeFields: [],
+        /** No required edge fields. */
         edgeFields: [],
+        /** No required graph fields. */
         graphFields: [],
+        /** No optional graph fields. */
         optionalGraphFields: [],
+        /** No headline graph scalar. */
         headlineScalar: false,
+        /** Draws nothing on its own. */
         layer: "none",
     },
 } as const satisfies Record<ResultShape, ResultShapeContract>;
@@ -700,7 +811,12 @@ export interface TopRanking {
      * The tie group that stopped the top short: the first group that did not fit, with its
      * value and its size. Null when nothing was left out on account of a tie.
      */
-    readonly leftOut: { readonly value: number; readonly count: number } | null;
+    readonly leftOut: {
+        /** The value the tie group shares. */
+        readonly value: number;
+        /** How many elements share it. */
+        readonly count: number;
+    } | null;
     /**
      * The value of the highest-ranked element left out, or null when every measured element is in
      * the top. An `{ above }` selection target or a `threshold` filter at this value selects

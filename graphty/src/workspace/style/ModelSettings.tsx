@@ -145,7 +145,7 @@ function SettingControl({
             placeholder={chosen === undefined ? unsetWord : undefined}
             onChange={(next) => {
                 // Choosing the chosen value again deselects it (empty): it stays chosen.
-                if (next === null || next === "") {
+                if (next === "") {
                     return;
                 }
                 write(parsed(String(next)));

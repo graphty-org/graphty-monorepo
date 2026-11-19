@@ -232,7 +232,6 @@ export interface GraphtyElementJSXProps {
     "onmanager-initialized"?: (event: CustomEvent<EventOfType<"manager-initialized">>) => void;
     "onoperation-batch-complete"?: (event: CustomEvent<EventOfType<"operation-batch-complete">>) => void;
     "onoperation-canceled"?: (event: CustomEvent<EventOfType<"operation-canceled">>) => void;
-    // (undocumented)
     "onoperation-cancelled"?: (event: CustomEvent<EventOfType<"operation-cancelled">>) => void;
     "onoperation-complete"?: (event: CustomEvent<EventOfType<"operation-complete">>) => void;
     "onoperation-obsoleted"?: (event: CustomEvent<EventOfType<"operation-obsoleted">>) => void;

@@ -701,7 +701,7 @@ export interface OperationCanceledEvent {
 }
 
 /**
- * The British spelling of {@link OperationCanceledEvent}: emitted right after it for every
+ * The British spelling of `operation-canceled`: emitted right after it for every
  * aborted operation, with `"cancelled"` where that one says `"canceled"`.
  * @deprecated Listen for `operation-canceled` ({@link OperationCanceledEvent}). Removed in the
  * next major.
@@ -1155,7 +1155,7 @@ export interface AiCommandErrorEvent {
 }
 
 /** Emitted when an AI command is canceled */
-interface AiCommandCanceledEvent {
+export interface AiCommandCanceledEvent {
     /** The event's name. */
     type: "ai-command-canceled";
     /** The command's text. */

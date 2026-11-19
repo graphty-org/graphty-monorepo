@@ -2136,7 +2136,7 @@ export abstract class LayoutEngine {
     protected get holdsAny(): boolean;
     static honorsWeights: boolean;
     // @deprecated
-    static honoursWeights?: boolean;
+    static readonly honoursWeights?: boolean;
     // (undocumented)
     abstract init(): Promise<void>;
     protected isFollower(index: number): boolean;

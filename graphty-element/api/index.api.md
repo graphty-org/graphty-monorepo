@@ -232,6 +232,13 @@ export type AdHocData<KeyType extends string | number = string> = Record<KeyType
 };
 
 // @public
+export interface AiCommandCanceledEvent {
+    input: string;
+    reason: "user" | "timeout";
+    type: "ai-command-canceled";
+}
+
+// @public
 export type AiEventType = AiEvent["type"];
 
 // @public
@@ -5213,7 +5220,7 @@ export abstract class LayoutEngine {
     protected get holdsAny(): boolean;
     static honorsWeights: boolean;
     // @deprecated
-    static honoursWeights?: boolean;
+    static readonly honoursWeights?: boolean;
     // (undocumented)
     abstract init(): Promise<void>;
     protected isFollower(index: number): boolean;

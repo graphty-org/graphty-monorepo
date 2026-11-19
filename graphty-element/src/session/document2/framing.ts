@@ -549,15 +549,6 @@ export function documentStateOf(session: GraphSession): DocumentState {
 }
 
 /**
- * A fresh id: 128 random bits in hex (`randomUUID` exists only in secure contexts).
- * @returns The id.
- */
-export function newDocumentId(): string {
-    const bytes = globalThis.crypto.getRandomValues(new Uint8Array(16));
-    return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
-/**
  * The hex SHA-256 of a text.
  * @param text - The text.
  * @returns The digest.

@@ -51,20 +51,17 @@ import {
 import { COLUMNS_VALUE, type ColumnSettings } from "./commands/data";
 import { shaderIdsIn } from "./commands/shaderCopies";
 import type { SessionData } from "./data";
-import { refetchSources } from "./document2/codecs/dataFetch";
-import { openDocument2, saveDocument2 } from "./document2/document";
+// The rest of document2/ (the save-files-v2 experiment) is imported on demand from
+// document2/onDemand.ts where a version 2 file is saved or opened, so it stays out of the main entry.
+import { DTYPES, newDocumentId } from "./document2/basics";
+import type { ProjectFileFacts, ProjectSaveFacts } from "./document2/facts";
 import {
-    describeFile,
-    describeSave,
-    isWholeSave,
-    type ProjectFileFacts,
-    type ProjectSaveFacts,
-} from "./document2/facts";
-import { assertIJson, isJsonObject, isVersion2, newDocumentId, parseDocument } from "./document2/framing";
-import { migrateDocument1 } from "./document2/migration";
-import { DTYPES } from "./document2/migrationParts";
-import { SECTION_CODECS } from "./document2/registry";
-import type { DocumentCode, DocumentProblem, DocumentSection, SourceStorage } from "./document2/types";
+    DOCUMENT_SECTIONS,
+    type DocumentCode,
+    type DocumentProblem,
+    type DocumentSection,
+    type SourceStorage,
+} from "./document2/types";
 import { expandedGraph, type SavedCollapse } from "./groups";
 import { ISSUES_VALUE, type IssueState } from "./issues";
 import { loadLineOf } from "./loadLine";
@@ -1733,13 +1730,14 @@ function leftOutOfVersion2(
  * @returns The document and what its migration reported; or, to read the file as before, the
  *     file parsed (so it is not parsed twice), or undefined when it is not JSON.
  */
-function version2Of(
+async function version2Of(
     text: string,
     migrate: boolean,
-):
+): Promise<
     | { readonly value: Record<string, unknown>; readonly problems: DocumentProblem[] }
     | { readonly parsed: { readonly value: unknown } }
-    | undefined {
+    | undefined
+> {
     let value: unknown;
     try {
         value = JSON.parse(text);
@@ -1748,6 +1746,7 @@ function version2Of(
     }
 
     checkTree(value, 1);
+    const { assertIJson, isJsonObject, isVersion2, migrateDocument1 } = await import("./document2/onDemand");
     if (isVersion2(value)) {
         // A version 2 file is I-JSON (spec 1): JSON.parse keeps the last of a duplicate member,
         // so the text itself is checked.
@@ -3511,6 +3510,7 @@ export function projectOf(
      */
     const saveVersion2 = async (options: ProjectSaveOptions): Promise<SavedProject> => {
         const extensions = checkedExtensions(options.extensions ?? {});
+        const { isWholeSave, saveDocument2, SECTION_CODECS } = await import("./document2/onDemand");
         const { document, written, problems } = await saveDocument2(
             session,
             SECTION_CODECS,
@@ -3554,6 +3554,8 @@ export function projectOf(
         // here, before anything is applied. A file cannot approve its own fetches, and never makes
         // one for a data section the open would not build.
         const fetches = options.fetchSources ?? options.ownWork === true;
+        const { isJsonObject, openDocument2, parseDocument, refetchSources, SECTION_CODECS } =
+            await import("./document2/onDemand");
         await refetchSources(value, {
             ...(options.location === undefined ? {} : { location: options.location }),
             ...(options.files === undefined ? {} : { files: options.files }),
@@ -3627,11 +3629,12 @@ export function projectOf(
         assetChoices() {
             return assetChoices(session);
         },
-        describe(options = {}) {
+        async describe(options = {}) {
             if (!session.features.has("save-files-v2")) {
-                return Promise.reject(featureOff("save-files-v2", "project.describe"));
+                throw featureOff("save-files-v2", "project.describe");
             }
 
+            const { describeSave, SECTION_CODECS } = await import("./document2/onDemand");
             return describeSave(session, SECTION_CODECS, isDerived, {
                 ...(options.sections === undefined ? {} : { sections: options.sections }),
                 ...(options.form === undefined ? {} : { form: options.form }),
@@ -3644,11 +3647,12 @@ export function projectOf(
             }
 
             const text = await textOf(source, options.limits?.fileBytes ?? DEFAULT_FILE_BYTES);
-            const read = version2Of(text, options.migrate === true);
+            const read = await version2Of(text, options.migrate === true);
             if (read === undefined || !("value" in read)) {
                 return undefined;
             }
 
+            const { describeFile, parseDocument, SECTION_CODECS } = await import("./document2/onDemand");
             const parsed = parseDocument(read.value, SECTION_CODECS);
             return describeFile(session, SECTION_CODECS, parsed, [...read.problems, ...parsed.problems], {
                 ...(options.sections === undefined ? {} : { sections: options.sections }),
@@ -3711,7 +3715,7 @@ export function projectOf(
                 // With the experiment on, a version 2 file (or, asked to, a migrated version 1
                 // file) opens through the version 2 codecs; every other file reads as before.
                 const read = session.features.has("save-files-v2")
-                    ? version2Of(text, options.migrate === true)
+                    ? await version2Of(text, options.migrate === true)
                     : undefined;
                 version2 = read !== undefined && "value" in read ? read : undefined;
                 const parsed = read !== undefined && "parsed" in read ? read.parsed : undefined;

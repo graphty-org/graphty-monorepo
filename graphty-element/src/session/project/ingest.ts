@@ -991,7 +991,7 @@ export class Ingest<K extends KnownEdge> {
                     : undefined;
             this.recordLoad(command, writer, {
                 described,
-                readBy: csvReadBy(outcome.reader),
+                readBy: csvReadBy(outcome.reader) ?? command.held?.readBy,
                 type,
                 added,
                 leftOut,

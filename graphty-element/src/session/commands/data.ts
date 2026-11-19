@@ -374,6 +374,8 @@ export interface HeldRows {
     readonly repeated?: DuplicatePolicy;
     /** `"held"`: `repeated` covers only pairs held before this load; its own repeats follow the configuration. */
     readonly repeatedScope?: "held";
+    /** The header columns a CSV file's one table was read by, as `CSVDataSource.readBy` keeps them. */
+    readonly readBy?: { readonly source: string; readonly target: string } | { readonly key: string };
 }
 
 /** The load choices a `data.import` command carries. */

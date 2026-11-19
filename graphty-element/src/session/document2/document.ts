@@ -12,6 +12,7 @@ import type { TransactionOptions } from "../project/Dispatcher";
 import type { CannedOutcomes } from "../projectFile";
 import { ENGINE_VERSIONS } from "../runs";
 import type { GraphSession, ProjectSlice, TransactionScope } from "../types";
+import { newDocumentId } from "./basics";
 import { dataBindingOf, elementRefsOf } from "./codecs/dataRefs";
 import {
     assembleSection,
@@ -21,7 +22,6 @@ import {
     documentStateOf,
     type HeldSection,
     isJsonObject,
-    newDocumentId,
     type ParsedDocument,
     plainNumbers,
     rememberOpened,

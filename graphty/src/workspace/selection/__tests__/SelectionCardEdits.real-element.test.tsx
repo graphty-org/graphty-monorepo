@@ -211,6 +211,31 @@ describe("editing a card's steps", () => {
         });
         assert.include(heard, "Removed A");
     });
+
+    it("Escape in a card's box leaves the box and keeps the edit; a second Escape cancels (issue #8937)", async () => {
+        const { session, layer, modal } = await openCards(ONE_CARD);
+        const card = cards()[0];
+        const from = await within(card).findByRole("textbox", { name: /from, number$/ });
+        await userEvent.click(from);
+        await userEvent.clear(from);
+        await userEvent.type(from, "8");
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.strictEqual(document.activeElement, card, "focus left the box for its card");
+        });
+        assert.isNotNull(document.querySelector(".sel-ws"), "the workspace is still open");
+        assert.strictEqual((from as HTMLInputElement).value, "8", "the typed value is kept");
+        await waitFor(() => {
+            const rule = branchesOf(session, layer)[0]?.steps[0]?.rule;
+            assert.strictEqual(rule?.kind === "range" ? rule.min : undefined, 8, "the edit is applied");
+        });
+        assert.isTrue(modal.isConnected);
+
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(document.querySelector(".sel-ws"), "Escape outside any box cancels");
+        });
+    });
 });
 
 describe("a card's keys, as its menu shows them", () => {

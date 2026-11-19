@@ -2281,12 +2281,8 @@ export const CUSTOM_MODEL = {
     add: "Add model",
     addToProject: "Add to project",
     addFirst: "Add a model first",
-    /**
-     * Add's tooltip while a part is missing.
-     * @param part - the part's file name.
-     * @returns the words.
-     */
-    missing: (part: string): string => `${part} is missing`,
+    /** Add's tooltip while a set holds several models and none is said to be the model. */
+    whichModel: "Choose which file is the model",
     /**
      * The preview's text alternative.
      * @param name - the model's name.

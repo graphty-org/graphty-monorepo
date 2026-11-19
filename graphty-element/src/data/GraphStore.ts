@@ -91,6 +91,57 @@ export interface GraphStoreOptions {
      * fresh builder; absent reads false. The element turns it on for the "batched" render path.
      */
     readonly denseEdgeIds?: () => boolean;
+    /**
+     * Whether the builder may be let go once a load has frozen and nothing is waiting, and rebuilt
+     * from the snapshot on the next write (one rebuild per builder: once rebuilt it is kept). The
+     * snapshot answers every read meanwhile, so a graph loaded and only looked at holds one copy of
+     * its structure and columns, not two. Absent reads false. The element turns it on for the
+     * "batched" render path.
+     */
+    readonly releaseBuilder?: () => boolean;
+}
+
+/** What reads of the graph's structure need, answered by the builder or, while it is let go, by the snapshot. */
+export interface BuilderReads {
+    readonly directed: boolean;
+    readonly nodeCount: number;
+    readonly edgeCount: number;
+    indexOf(id: NodeId): number;
+    idOf(index: number): NodeId;
+    hasNode(id: NodeId): boolean;
+    hasEdge(edge: number): boolean;
+    edgeEndpoints(edge: number): readonly [source: number, target: number];
+}
+
+/**
+ * The reads a let-go builder would have answered, from the snapshot frozen from it: the same rows,
+ * as a builder holds exactly its last freeze's rows until its next write.
+ * @param snapshot - The snapshot.
+ * @param directed - The builder's direction.
+ * @returns The reads.
+ */
+function snapshotReads(snapshot: GraphSnapshot, directed: boolean): BuilderReads {
+    return {
+        directed,
+        nodeCount: snapshot.nodeCount,
+        edgeCount: snapshot.edgeCount,
+        indexOf: (id) => snapshot.ids.indexOf(id),
+        idOf: (index) => snapshot.ids.idOf(index),
+        hasNode: (id) => snapshot.ids.has(id),
+        hasEdge: (edge) => Number.isInteger(edge) && edge >= 0 && edge < snapshot.edgeCount,
+        edgeEndpoints: (edge) => [snapshot.edgeSource(edge), snapshot.edgeTarget(edge)],
+    };
+}
+
+/** Stands in for a let-go builder in the keys that name a builder, so none keeps it reachable. */
+const RELEASED_BUILDER = new GraphBuilder({ directed: false });
+
+/** What a let-go builder answered that is not in its snapshot. */
+interface ReleasedBuilder {
+    readonly directed: boolean;
+    readonly directedLocked: boolean;
+    /** Whether {@link GraphStore.restoredFrom} named it, with its count. */
+    readonly restored: boolean;
 }
 
 /** The node column an importer seeds file coordinates into; deleted from every snapshot by the attach. */
@@ -540,8 +591,27 @@ export class GraphStore {
     readonly positions = new ElementPositions();
 
     private readonly options: GraphStoreOptions;
-    /** The builder now. Replaced only by a rebuild; see {@link GraphStore.builder}. */
-    private current: GraphBuilder;
+    /**
+     * The builder now, or null while it is let go ({@link GraphStoreOptions.releaseBuilder}).
+     * Replaced only by a rebuild; see {@link GraphStore.builder}.
+     */
+    private held: GraphBuilder | null = null;
+    /**
+     * Whether the builder may be let go: true from the store's start and from each load that
+     * replaces the graph, false from the first rebuild after a release until then, so editing a
+     * loaded graph rebuilds it once, not after every quiet moment.
+     */
+    private releasable = true;
+    /** The builder let go, while it is. */
+    private released: ReleasedBuilder | null = null;
+    /** How many times a let-go builder was rebuilt. */
+    private revivals = 0;
+    /** The snapshot's answers for the let-go builder, made once per release. */
+    private readsOf: {
+        readonly snapshot: GraphSnapshot;
+        readonly released: ReleasedBuilder;
+        readonly reads: BuilderReads;
+    } | null = null;
     private seedHandle: ColumnHandle;
     private edgeIdHandle: ColumnHandle;
     private capacityHandle: ColumnHandle;
@@ -701,6 +771,166 @@ export class GraphStore {
     }
 
     /**
+     * Reads of the graph's structure, settled as {@link GraphStore.builder} is, that do not bring a
+     * let-go builder back: the snapshot answers them while it is let go.
+     * @returns the builder, or the snapshot's answers for it
+     */
+    get reads(): BuilderReads {
+        this.settle();
+        const { held, released, cache } = this;
+        if (held !== null) {
+            return held;
+        }
+
+        // One reads object per snapshot: a paint asks once per row.
+        if (this.readsOf?.snapshot !== cache || this.readsOf.released !== released) {
+            this.readsOf = {
+                snapshot: cache as GraphSnapshot,
+                released: released as ReleasedBuilder,
+                reads: snapshotReads(cache as GraphSnapshot, (released as ReleasedBuilder).directed),
+            };
+        }
+
+        return this.readsOf.reads;
+    }
+
+    /**
+     * Whether the builder is let go now, and how many times one was rebuilt after a release.
+     * @returns the state
+     */
+    get builderRelease(): { readonly released: boolean; readonly revivals: number } {
+        return { released: this.held === null, revivals: this.revivals };
+    }
+
+    /**
+     * The builder now, rebuilt from the snapshot first when it was let go.
+     * @returns the builder
+     */
+    private get current(): GraphBuilder {
+        return this.held ?? this.revive();
+    }
+
+    private set current(builder: GraphBuilder) {
+        this.held = builder;
+        this.released = null;
+    }
+
+    /**
+     * Let the builder go, when the option is on, this builder was never rebuilt from a release, its
+     * last freeze is current and nothing is waiting that would write it: the snapshot holds the same
+     * rows, and {@link GraphStore.revive} builds it again from there on the next write. The session
+     * calls it once no command is running and every pass has run, so a load's own reads between
+     * its writes never let it go.
+     */
+    releaseIdle(): void {
+        const builder = this.held;
+        const from = this.cachedFrom;
+        if (
+            builder === null ||
+            !this.releasable ||
+            // An empty builder holds nothing worth letting go, and rebuilding it would use up the one rebuild.
+            builder.nodeCount === 0 ||
+            this.options.releaseBuilder?.() !== true ||
+            this.cache === null ||
+            from?.builder !== builder ||
+            from.count !== builder.mutationCount ||
+            from.records !== this.records ||
+            this.structural.length > 0 ||
+            this.loadDepth > 0 ||
+            this.loadLength > 0 ||
+            this.sessionEdges.length > 0 ||
+            this.mintedDeferred ||
+            this.pending !== null ||
+            this.pendingPositions !== null ||
+            this.publishing ||
+            this.restoring !== null ||
+            (this.pairsOrdered === null && builder.edgeCount > 0) ||
+            this.accounted.builder !== builder ||
+            this.accounted.count !== builder.mutationCount ||
+            this.directionOutOfStep()
+        ) {
+            return;
+        }
+
+        const restored = this.restoredFrom;
+        this.released = {
+            directed: builder.directed,
+            directedLocked: builder.directedLocked,
+            restored: restored?.builder === builder && restored.count === builder.mutationCount,
+        };
+        // Nothing may keep the builder reachable: each key that names it is rewritten on revive.
+        this.held = null;
+        this.cachedFrom = { builder: RELEASED_BUILDER, count: 0, records: from.records };
+        this.accounted = { builder: RELEASED_BUILDER, count: 0 };
+        if (restored?.builder === builder) {
+            this.restoredFrom = { kept: restored.kept, builder: RELEASED_BUILDER, count: 0 };
+        }
+
+        this.removedSinceFreeze = null;
+        this.deferredHash = null;
+        this.edgeDirection = null;
+    }
+
+    /**
+     * Build the let-go builder again from the snapshot it was frozen to: every node row with its
+     * cells as frozen (the seed column as it was before the attach replaced it), every edge row with
+     * its endpoints, weight, cells and edge id, in row order, so every row and edge id is where it
+     * was and the snapshot still answers for it. Kept from then on.
+     * @returns the builder
+     */
+    private revive(): GraphBuilder {
+        const base = this.cache;
+        const { released } = this;
+        if (base === null || released === null) {
+            throw new Error("GraphStore: the builder was let go with no snapshot to rebuild it from");
+        }
+
+        const builder = this.createBuilder(released.directed);
+        this.held = builder;
+        this.releasable = false;
+        this.released = null;
+        this.readsOf = null;
+        this.revivals++;
+        if (base.edges.has(EDGE_DIRECTED_COLUMN)) {
+            // Declared before the cells are copied by name, so the column keeps its role.
+            this.edgeDirectedHandle();
+        }
+
+        if (this.pairsOrdered !== null) {
+            builder.setGraphValue(PAIRS_ORDERED_ATTRIBUTE, this.pairsOrdered ? 1 : 0, { dtype: "u8" });
+        }
+
+        const nodeColumns = this.frozenColumns.node;
+        for (let row = 0; row < base.nodeCount; row++) {
+            copyNodeCells(builder, nodeColumns, row, builder.addNode(base.ids.idOf(row)));
+        }
+
+        const list = base.edgeList();
+        const edgeIds = base.edges.typed(EDGE_ID_COLUMN, "u32");
+        for (let row = 0; row < base.edgeCount; row++) {
+            const index = builder.addEdge(
+                base.ids.idOf(list.src[row]),
+                base.ids.idOf(list.dst[row]),
+                list.weights === null ? undefined : list.weights[row],
+            );
+            copyEdgeCells(builder, base.edges, row, index);
+            if (edgeIds?.isSet(row) === true) {
+                builder.setEdgeValue(this.edgeIdHandle, index, edgeIds.data[row]);
+            }
+        }
+
+        const count = builder.mutationCount;
+        this.cachedFrom = { builder, count, records: this.cachedFrom?.records ?? this.records };
+        this.accounted = { builder, count };
+        const restored = this.restoredFrom;
+        if (released.restored && restored !== null) {
+            this.restoredFrom = { kept: restored.kept, builder, count };
+        }
+
+        return builder;
+    }
+
+    /**
      * Handle of the importer seed column; `setNodeValue(seedColumn, i, [x, y, z])` seeds a node.
      * @returns the handle of the current builder
      */
@@ -776,7 +1006,7 @@ export class GraphStore {
      * @returns True when it must be rebuilt to follow the setting.
      */
     private directionOutOfStep(): boolean {
-        const builder = this.current;
+        const builder = this.held ?? (this.released as ReleasedBuilder);
         const setting = this.directedSetting();
         return typeof setting === "boolean"
             ? builder.directed !== setting || !builder.directedLocked
@@ -901,6 +1131,11 @@ export class GraphStore {
      */
     private get fresh(): boolean {
         const from = this.cachedFrom;
+        if (this.held === null) {
+            // A let-go builder has had no write: only a record write moves the key.
+            return this.cache !== null && from?.records === this.records;
+        }
+
         return (
             this.cache !== null &&
             from !== null &&
@@ -929,7 +1164,8 @@ export class GraphStore {
      */
     get mutationDrift(): number {
         const { builder, count } = this.accounted;
-        return this.drift + (builder === this.current ? this.current.mutationCount - count : 0);
+        const { held } = this;
+        return this.drift + (held !== null && builder === held ? held.mutationCount - count : 0);
     }
 
     /**
@@ -962,7 +1198,13 @@ export class GraphStore {
      * builder's `mutationCount` by itself.
      */
     account(): void {
-        this.accounted = { builder: this.current, count: this.current.mutationCount };
+        const { held } = this;
+        if (held === null) {
+            // A let-go builder has had no write to account for.
+            return;
+        }
+
+        this.accounted = { builder: held, count: held.mutationCount };
     }
 
     /**
@@ -1178,7 +1420,7 @@ export class GraphStore {
      * @returns true when it does
      */
     private liveEdgeAt(index: number, edgeId: number): boolean {
-        return this.stampedIdAt(index) === edgeId && this.current.hasEdge(index);
+        return this.stampedIdAt(index) === edgeId && this.reads.hasEdge(index);
     }
 
     /**
@@ -1211,7 +1453,7 @@ export class GraphStore {
     edgeIdAt(edgeIndex: number): number {
         this.settle();
         const edgeId = this.stampedIdAt(edgeIndex);
-        return edgeId !== undefined && this.builder.hasEdge(edgeIndex) ? edgeId : INVALID_INDEX;
+        return edgeId !== undefined && this.reads.hasEdge(edgeIndex) ? edgeId : INVALID_INDEX;
     }
 
     /**
@@ -1250,6 +1492,11 @@ export class GraphStore {
         const inFlight = this.pending;
         if (inFlight !== null && this.publishing) {
             return inFlight.replacement.next;
+        }
+
+        // A let-go builder has had no write, so with nothing waiting the snapshot is still current.
+        if (this.held === null && this.structural.length === 0 && this.fresh && !this.directionOutOfStep()) {
+            return this.cache as GraphSnapshot;
         }
 
         // A step threw on an earlier call: finish THAT freeze before anything else. The position
@@ -1541,7 +1788,7 @@ export class GraphStore {
             return last.kind === "replace" && !last.restore;
         }
 
-        return this.current.nodeCount === 0;
+        return (this.held ?? (this.cache as GraphSnapshot)).nodeCount === 0;
     }
 
     /**
@@ -1977,6 +2224,10 @@ export class GraphStore {
             // Declared before the base's cells are copied by name, so the column keeps its role.
             this.edgeDirectedHandle();
         }
+        if (replace !== null && !replace.restore) {
+            this.releasable = true;
+        }
+
         if (replace !== null) {
             // A graph put back keeps the latch its edge hashes were made under; an emptied one
             // latches afresh, as a new dataset does.
@@ -2612,7 +2863,7 @@ export class GraphStore {
      * @returns the builder's direction
      */
     get directed(): boolean {
-        return this.current.directed;
+        return (this.held ?? (this.released as ReleasedBuilder)).directed;
     }
 
     /**
@@ -2622,8 +2873,14 @@ export class GraphStore {
      * @returns true when the edge is directed
      */
     edgeDirected(row: number): boolean {
-        if (this.current.edgeColumn(EDGE_DIRECTED_COLUMN) === INVALID_INDEX) {
-            return this.current.directed;
+        const { held } = this;
+        if (held === null) {
+            const snapshot = this.getSnapshot();
+            return snapshot.edges.has(EDGE_DIRECTED_COLUMN) ? edgeIsDirected(snapshot, row) : this.directed;
+        }
+
+        if (held.edgeColumn(EDGE_DIRECTED_COLUMN) === INVALID_INDEX) {
+            return held.directed;
         }
 
         return edgeIsDirected(this.getSnapshot(), row);

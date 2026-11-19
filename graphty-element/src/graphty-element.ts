@@ -80,7 +80,7 @@ import {
 } from "./session/commands/data";
 import type { BatchCommand } from "./session/commands/index";
 import { DEFAULT_LAYOUT, type LayoutSetCommand } from "./session/commands/layout";
-import { recordsInRowOrder } from "./session/data";
+import { recordsInRowOrder, throughColumns } from "./session/data";
 import { dispatcherOf, DISPOSED_STATUS } from "./session/GraphSession";
 import type { LimitsOption } from "./session/limits";
 import { loadLineOf } from "./session/loadLine";
@@ -2589,17 +2589,41 @@ export class Graphty extends LitElement {
             }
 
             const { nodes, nodeIdPath = "id", edges } = write.rows;
+            let command: BatchCommand;
             if (nodes !== undefined && edges !== undefined) {
-                return replaceGraphCommand(state.nodes, [...state.edges.keys()], nodes, edges, nodeIdPath, asSetup);
+                command = replaceGraphCommand(state.nodes, [...state.edges.keys()], nodes, edges, nodeIdPath, asSetup);
+            } else {
+                command =
+                    nodes === undefined
+                        ? replaceEdgesCommand([...state.edges.keys()], edges ?? [], {}, asSetup)
+                        : replaceNodesCommand(state.nodes, nodes, nodeIdPath, asSetup);
             }
 
-            return nodes === undefined
-                ? replaceEdgesCommand([...state.edges.keys()], edges ?? [], {}, asSetup)
-                : replaceNodesCommand(state.nodes, nodes, nodeIdPath, asSetup);
+            return this.#throughColumns(command);
         }, setup);
         // Its place in line is taken by now; a write joins it only while nothing joined after it.
         write.joined = line.joined;
         return write.done;
+    }
+
+    /**
+     * Under `"batched"`, a replace's adds read into columns, as `session.data`'s record doors read
+     * theirs, so neither the graph nor the journal keeps the page's record objects.
+     * @param command - The replace.
+     * @returns The replace to dispatch.
+     */
+    #throughColumns(command: BatchCommand): BatchCommand {
+        if (this.#graph.renderPath !== "batched") {
+            return command;
+        }
+
+        const { knownFields } = this.#graph.getStyles().config.data;
+        return {
+            ...command,
+            steps: command.steps.map((step) =>
+                step.op === "data.apply" ? { ...step, mutation: throughColumns(step.mutation, knownFields) } : step,
+            ),
+        };
     }
 
     /**

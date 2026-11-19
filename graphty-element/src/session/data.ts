@@ -1186,18 +1186,7 @@ export class SessionData implements SessionDataApi {
             return mutation;
         }
 
-        const { knownFields } = this.readConfig();
-        const edges =
-            mutation.kind === "add-edges"
-                ? {
-                      repeated: mutation.repeated ?? knownFields.repeatedEdges,
-                      weight: mutation.weight ?? knownFields.edgeWeightPath,
-                  }
-                : undefined;
-        const path = columnsEligible({ batched: true, records: mutation.records, edges });
-        return path.code === "PATH_COLUMNS"
-            ? { ...mutation, records: rowsView(recordsSource(mutation.records)) }
-            : mutation;
+        return throughColumns(mutation, this.readConfig().knownFields);
     }
 
     /**
@@ -6731,6 +6720,32 @@ export interface ColumnRecords extends SessionRecordSource {
 const EDGE_ID_COLUMN = "graphty.edgeId";
 
 /**
+ * An eligible add of records read into columns, so the graph and the journal keep no record object
+ * per row (row-renderer.md 4.6, stage 29); anything else as it came. Only for `"batched"`: the
+ * caller checks the render path.
+ * @param mutation - The mutation.
+ * @param knownFields - The data configuration's known fields.
+ * @returns The mutation to dispatch.
+ */
+export function throughColumns(mutation: DataMutation, knownFields: SessionDataConfig["knownFields"]): DataMutation {
+    if (mutation.kind !== "add-nodes" && mutation.kind !== "add-edges") {
+        return mutation;
+    }
+
+    const edges =
+        mutation.kind === "add-edges"
+            ? {
+                  repeated: mutation.repeated ?? knownFields.repeatedEdges,
+                  weight: mutation.weight ?? knownFields.edgeWeightPath,
+              }
+            : undefined;
+    const path = columnsEligible({ batched: true, records: mutation.records, edges });
+    return path.code === "PATH_COLUMNS"
+        ? { ...mutation, records: rowsView(recordsSource(mutation.records)) }
+        : mutation;
+}
+
+/**
  * The graph's records in row order: what the element's `nodeData` and `edgeData` read. A node
  * record whose id the graph could not store, and so has no row, follows the rows.
  * @param slice - The `graph` slice.
@@ -6850,7 +6865,7 @@ export function headlessDataService(
         ceilings: () => ceilings?.overrides,
         dataConfig: readConfig,
         hasNode: (id) => dispatcher.graph.slice.nodes.has(id),
-        nodeCount: () => store.builder.nodeCount,
+        nodeCount: () => store.reads.nodeCount,
         edgesBetween: (source, target) => {
             const { builder } = store;
             if (!builder.hasNode(source) || !builder.hasNode(target)) {
@@ -6861,7 +6876,7 @@ export function headlessDataService(
                 edgeIndex,
             }));
         },
-        edgeAt: (edgeIndex) => (store.builder.hasEdge(edgeIndex) ? { edgeIndex } : null),
+        edgeAt: (edgeIndex) => (store.reads.hasEdge(edgeIndex) ? { edgeIndex } : null),
         replaceEdgeRecord: () => undefined,
         rowsRemoved: () => undefined,
         cleared: () => undefined,

@@ -178,3 +178,125 @@ export class RowIdRecords<I, R> {
         }
     }
 }
+
+/** One edge row as {@link RowEdges} hands it back: its record, its two node ids, its row and its counter. */
+export interface RowEdge<I, R> {
+    readonly record: R;
+    readonly sourceId: I;
+    readonly targetId: I;
+    readonly edgeIndex: number;
+    readonly edgeId: number;
+}
+
+/**
+ * A map from row to an edge, held as four arrays by row: what a `RowMap` of one five-field object
+ * per edge holds with no object per row (about 40 bytes an edge at a million edges, against 16).
+ * The row is the edge's `edgeIndex`. A read hands back a fresh object; it walks in row order.
+ */
+export class RowEdges<I, R> {
+    private readonly edgeIds = new RowMap<number>();
+    private readonly records: (R | undefined)[] = [];
+    private readonly sources: (I | undefined)[] = [];
+    private readonly targets: (I | undefined)[] = [];
+
+    /**
+     * How many rows hold an edge.
+     * @returns The count.
+     */
+    get size(): number {
+        return this.edgeIds.size;
+    }
+
+    /**
+     * The edge of a row.
+     * @param row - The row.
+     * @returns It, or undefined when the row holds none.
+     */
+    get(row: number): RowEdge<I, R> | undefined {
+        const edgeId = this.edgeIds.get(row);
+        return edgeId === undefined ? undefined : this.at(row, edgeId);
+    }
+
+    /**
+     * The counter of a row's edge, with no object made.
+     * @param row - The row.
+     * @returns It, or undefined when the row holds none.
+     */
+    edgeIdAt(row: number): number | undefined {
+        return this.edgeIds.get(row);
+    }
+
+    /**
+     * Set a row's edge. Its `edgeIndex` is not kept: a read answers the row.
+     * @param row - The row, the edge's `edgeIndex`.
+     * @param value - The edge.
+     */
+    set(row: number, value: RowEdge<I, R>): void {
+        this.edgeIds.set(row, value.edgeId);
+        this.records[row] = value.record;
+        this.sources[row] = value.sourceId;
+        this.targets[row] = value.targetId;
+    }
+
+    /**
+     * Forget a row.
+     * @param row - The row.
+     * @returns True when the row held an edge.
+     */
+    delete(row: number): boolean {
+        if (!this.edgeIds.delete(row)) {
+            return false;
+        }
+
+        this.records[row] = undefined;
+        this.sources[row] = undefined;
+        this.targets[row] = undefined;
+        return true;
+    }
+
+    /** Forget every row. */
+    clear(): void {
+        this.edgeIds.clear();
+        this.records.length = 0;
+        this.sources.length = 0;
+        this.targets.length = 0;
+    }
+
+    /**
+     * The rows that hold an edge.
+     * @returns Each row, in row order.
+     */
+    keys(): Generator<number> {
+        return this.edgeIds.keys();
+    }
+
+    /**
+     * The edges.
+     * @yields Each, in row order.
+     */
+    *values(): Generator<RowEdge<I, R>> {
+        for (const [row, edgeId] of this.edgeIds) {
+            yield this.at(row, edgeId);
+        }
+    }
+
+    /**
+     * The rows with their edges.
+     * @yields Each row and its edge, in row order.
+     */
+    *[Symbol.iterator](): Generator<[number, RowEdge<I, R>]> {
+        for (const [row, edgeId] of this.edgeIds) {
+            yield [row, this.at(row, edgeId)];
+        }
+    }
+
+    private at(row: number, edgeId: number): RowEdge<I, R> {
+        return {
+            record: this.records[row] as R,
+            sourceId: this.sources[row] as I,
+            targetId: this.targets[row] as I,
+            edgeIndex: row,
+            edgeId,
+        };
+    }
+}

@@ -56,6 +56,7 @@
  */
 
 import { withLabelLook } from "../../catalog/label-looks";
+import { LABEL_STYLE_DEFAULTS } from "../../catalog/label-style";
 import type { ShaderUse } from "../../catalog/shaders";
 import type { Binding, Channel, GraphtyErrorCode, LabelStyle, LayerId, Path } from "../../catalog/types";
 import { isGraphtyError } from "../../errors";
@@ -1067,9 +1068,12 @@ function writeChannel(channel: PreparedChannel, index: number, painted: unknown)
     }
 
     // A label field combines with the same field of the label style beneath, which its column holds: written over
-    // it, "label size x 1.5" drew every label 1.5 pixels tall.
+    // it, "label size x 1.5" drew every label 1.5 pixels tall. Where nothing beneath sets the field, it combines
+    // with what is drawn then, the field's default.
     if (combine !== null && labelField !== null && typeof painted === "number") {
-        const beneath = (readColumn(column, index) as Record<string, unknown> | undefined)?.[labelField];
+        const set = (readColumn(column, index) as Record<string, unknown> | undefined)?.[labelField];
+        const drawn: unknown = LABEL_STYLE_DEFAULTS[labelField];
+        const beneath = typeof set === "number" ? set : drawn;
         const value = combined(combine, typeof beneath === "number" ? beneath : Number.NaN, painted);
         writeColumn(column, index, channel.toColumn === null ? value : channel.toColumn(value), channel.plainText);
         return;

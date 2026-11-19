@@ -7,6 +7,7 @@
  */
 import { assert, describe, it } from "vitest";
 
+import { LABEL_STYLE_DEFAULTS } from "../../../src/catalog/label-style";
 import type { Channel } from "../../../src/catalog/types";
 import { createGraphSession, type GraphSession } from "../../../src/session";
 import type { ElementSession } from "../../../src/session/types";
@@ -46,6 +47,21 @@ describe("a label field with combine", () => {
 
         await session.styles.update(above.id, { encode: { "node.labelSize": { value: 4, combine: "add" } } });
         assert.strictEqual((await labelStyleOf(session, "node.labelStyle"))?.sizePx, 24, "20 plus 4");
+        session.dispose();
+    });
+
+    it("multiplies the drawn default when nothing beneath sets the size", async () => {
+        const session = createGraphSession();
+        await session.data.addNodes([{ id: "a" }]);
+        await session.styles.add({
+            name: "above",
+            target: "node",
+            selector: { match: "everything" },
+            encode: { "node.labelSize": { value: 1.5, combine: "multiply" } },
+        });
+        const drawn = LABEL_STYLE_DEFAULTS.sizePx ?? Number.NaN;
+        assert.isAbove(drawn, 1.5);
+        assert.strictEqual((await labelStyleOf(session, "node.labelStyle"))?.sizePx, drawn * 1.5);
         session.dispose();
     });
 });

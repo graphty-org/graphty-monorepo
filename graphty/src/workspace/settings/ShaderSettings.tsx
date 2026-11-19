@@ -44,6 +44,8 @@ interface BackgroundShaderProps {
     readonly startOpen?: boolean;
     /** Called when the gallery closes with no shader in force (Graph settings v2 takes its line away). */
     readonly onCancel?: () => void;
+    /** The gallery's tiles are a picture and a name only, with no filter chips (Graph settings v2, #8739). */
+    readonly bare?: boolean;
 }
 
 /**
@@ -58,6 +60,7 @@ interface BackgroundShaderProps {
  * @param props.onWrite - writes the background
  * @param props.startOpen - whether the gallery is open when the row appears
  * @param props.onCancel - called when the gallery closes with no shader in force
+ * @param props.bare - tiles of a picture and a name only, no filter chips
  * @returns The row
  */
 export function BackgroundShader({
@@ -67,6 +70,7 @@ export function BackgroundShader({
     onWrite,
     startOpen = false,
     onCancel,
+    bare = false,
 }: Readonly<BackgroundShaderProps>): React.JSX.Element {
     const { store } = useWorkspace();
     const [picking, setPicking] = useState(startOpen);
@@ -119,6 +123,7 @@ export function BackgroundShader({
                         <ShaderGallery
                             session={session}
                             tab="background"
+                            bare={bare}
                             marked={shader === undefined ? [] : [shader]}
                             onNew={() => {
                                 setPicking(false);

@@ -285,6 +285,7 @@ function BackgroundRow({ session }: Readonly<{ session: GraphSession }>): React.
                             shader={background.shader?.id}
                             params={background.shader?.params ?? {}}
                             startOpen={background.shader === undefined}
+                            bare
                             onCancel={() => {
                                 // The gallery closed with nothing picked: the line "+" added goes again.
                                 setShaderAdded(false);

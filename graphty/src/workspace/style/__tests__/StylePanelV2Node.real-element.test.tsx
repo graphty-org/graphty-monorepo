@@ -231,4 +231,38 @@ describe("Style panel v2's node things", () => {
         });
         assert.isNotNull(await rowOf(fill, "pie"), "the Pie row is its swatch strip");
     });
+
+    it("Record and Inner lines write their first item, open on their list and take items by hand", async () => {
+        const { session, id } = await openProject();
+        const tab = await openStyle("Key people");
+        const text = sectionOf(tab, "node-text");
+        await userEvent.click(within(text).getByRole("button", { name: /^Add to node text|^Add Text/ }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Record" }));
+        await waitFor(() => {
+            assert.isString(written(session, id, "node.shapeTexts"), "Record starts with one field");
+        });
+        const words = await screen.findByRole("textbox", { name: "Field 1 text" });
+        await userEvent.click(words);
+        await userEvent.keyboard("Hello{Enter}");
+        await waitFor(() => {
+            assert.deepEqual(JSON.parse(String(written(session, id, "node.shapeTexts"))), [[0, 0, "Hello"]]);
+        });
+        await userEvent.keyboard("{Escape}");
+        assert.isNotNull(await rowOf(text, "record"), "the Record row stays");
+
+        const border = sectionOf(tab, "node-border");
+        await userEvent.click(within(border).getByRole("button", { name: /^Add to node border|^Add Border/ }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Inner lines" }));
+        await waitFor(() => {
+            assert.equal(written(session, id, "node.shapeLines"), "-1,0 1,0", "Inner lines start with one line");
+        });
+        await userEvent.click(await screen.findByRole("button", { name: "Add line" }));
+        await waitFor(() => {
+            assert.equal(written(session, id, "node.shapeLines"), "-1,0 1,0; -1,0 1,0", "a second line");
+        });
+        await userEvent.click(screen.getByRole("button", { name: "Remove line 2" }));
+        await waitFor(() => {
+            assert.equal(written(session, id, "node.shapeLines"), "-1,0 1,0", "one line again");
+        });
+    });
 });

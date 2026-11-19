@@ -2312,7 +2312,12 @@ export function graphvizPosCurve(
     source: BendPoint,
     target: BendPoint,
     pos: string,
-): { points: string; params: number[] } | null {
+): {
+    /** The samples as a `bends` value. */
+    points: string;
+    /** One measure from 0 to 1 per sample, rising. */
+    params: number[];
+} | null {
     const { splines, tips } = parsePos(pos);
     const route = routePoints(splines, tips);
     const points = route === null ? null : canonBends(source, target, route.points, false);

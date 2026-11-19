@@ -3,7 +3,7 @@
  * that refuses to grow.
  */
 
-import { GraphBuilder, GraphFormatError } from "@graphty/graph-format";
+import { GraphBuilder, GraphFormatError, type GraphSnapshot } from "@graphty/graph-format";
 
 import { ImportError, type ImportReport } from "../../src/types.js";
 
@@ -86,6 +86,25 @@ export function codes(report: ImportReport): string[] {
 }
 
 /**
+ * The distinct issue codes of a report, in order of first appearance; for an assertion that does
+ * not care how often a code was recorded.
+ * @param report - the report
+ * @returns the codes, each once
+ */
+export function uniqueCodes(report: ImportReport): string[] {
+    return [...new Set(codes(report))];
+}
+
+/**
+ * The node ids of a snapshot, in index order.
+ * @param s - the snapshot
+ * @returns the ids
+ */
+export function ids(s: GraphSnapshot): unknown[] {
+    return Array.from({ length: s.nodeCount }, (_, i) => s.ids.idOf(i));
+}
+
+/**
  * A builder that throws GraphFormatError E_TOO_LARGE once it holds `limit` nodes, as a sink with a
  * capacity does.
  * @param limit - the most nodes it takes
@@ -113,7 +132,7 @@ export function cappedSink(limit: number): GraphBuilder {
 
 /**
  * A ReadableStream that delivers the given chunks and then never delivers again nor closes (a
- * stalled network body), recording how it was cancelled.
+ * stalled network body), recording how it was canceled.
  * @param chunks - the chunks delivered first
  * @returns the stream and its cancellation record
  */

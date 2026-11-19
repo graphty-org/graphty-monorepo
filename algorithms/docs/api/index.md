@@ -8,7 +8,7 @@ See [Graph Data Structure](../guide/graph.md) for building a snapshot and mappin
 
 ## Traversal
 
-- `breadthFirstSearch()` - BFS; `target` stops early, `maxDepth` bounds the depth, `arcOrder` sets the neighbour order
+- `breadthFirstSearch()` - BFS; `target` stops early, `maxDepth` bounds the depth, `arcOrder` sets the neighbor order
 - `directionOptimizedBfs()` - BFS that switches to bottom-up steps over `reverse()` on large frontiers
 - `depthFirstSearch()` - DFS in pre- or post-order; takes `target` and `arcOrder`
 - `hasCycle()` - Whether the graph has a cycle
@@ -19,7 +19,7 @@ See [Graph Data Structure](../guide/graph.md) for building a snapshot and mappin
 
 - `connectedComponents()` - Components of an undirected graph: a label per node, `count`, `groups()`
 - `weaklyConnectedComponents()` - Components ignoring direction
-- `stronglyConnectedComponents()` - Tarjan, components labelled in completion order
+- `stronglyConnectedComponents()` - Tarjan, components labeled in completion order
 - `condensation()` - Strongly connected components and the condensed DAG
 
 ## Shortest Paths
@@ -39,7 +39,7 @@ See [Graph Data Structure](../guide/graph.md) for building a snapshot and mappin
 ## Centrality
 
 - `degrees()` - Each node's in- and out-degree as counted from the edge list, by the orientation each edge was declared with (on an undirected snapshot too, so in plus out is the degree counted once); also a member of the `accelerated()` dispatcher
-- `degreeCentrality()` - In-, out- or total degree, optionally normalised
+- `degreeCentrality()` - In-, out- or total degree, optionally normalized
 - `betweennessCentrality()`, `edgeBetweennessCentrality()` - Brandes betweenness, exact or sampled
 - `closenessCentrality()`, `nodeClosenessCentrality()` - Closeness or harmonic closeness, by hops or by weight, exact or sampled
 - `eigenvectorCentrality()` - Power iteration; throws `ConvergenceError` when it does not converge
@@ -50,7 +50,7 @@ See [Graph Data Structure](../guide/graph.md) for building a snapshot and mappin
 
 ## Community Detection
 
-- `louvain()`, `leiden()` - Modularity optimisation, seeded
+- `louvain()`, `leiden()` - Modularity optimization, seeded
 - `girvanNewman()` - Divisive clustering by edge betweenness, one label vector per level
 - `labelPropagation()`, `labelPropagationSynchronous()`, `labelPropagationSemiSupervised()` - Label propagation
 - `modularity()` - Newman's modularity of a partition
@@ -67,7 +67,7 @@ See [Graph Data Structure](../guide/graph.md) for building a snapshot and mappin
 
 - `maxFlow()` - Maximum flow (Edmonds-Karp or Ford-Fulkerson), flow per edge and the minimum cut
 - `minSTCut()` - Minimum cut between two nodes
-- `stoerWagner()`, `kargerMinCut()` - Global minimum cut, exact or seeded randomised
+- `stoerWagner()`, `kargerMinCut()` - Global minimum cut, exact or seeded randomized
 - `bipartiteFlowNetwork()` - The flow network of a bipartite matching problem
 
 ## Matching and Isomorphism
@@ -78,7 +78,7 @@ See [Graph Data Structure](../guide/graph.md) for building a snapshot and mappin
 ## Link Prediction
 
 - `commonNeighborsScore()`, `commonNeighborsForPairs()`, `commonNeighborsPrediction()`, `getTopCandidatesForNode()`,
-  `evaluateCommonNeighbors()` - Common neighbours
+  `evaluateCommonNeighbors()` - Common neighbors
 - `adamicAdarScore()`, `adamicAdarForPairs()`, `adamicAdarPrediction()`, `getTopAdamicAdarCandidatesForNode()`,
   `evaluateAdamicAdar()`, `compareAdamicAdarWithCommonNeighbors()` - Adamic-Adar
 

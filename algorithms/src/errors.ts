@@ -83,6 +83,27 @@ export function checkNumber(fn: string, name: string, value: number, rule: Numbe
     }
 }
 
+/** The seed option every seeded algorithm takes. @public */
+export interface SeedOptions {
+    /** Seed of the algorithm's random draws; one seed gives one result, bit for bit. An integer; default 42. */
+    readonly seed?: number | undefined;
+    /** The earlier spelling of `seed`, deprecated: still read when `seed` is not given, and goes in a later major. */
+    readonly randomSeed?: number | undefined;
+}
+
+/**
+ * The seed a seeded algorithm runs with: `seed`, else the deprecated `randomSeed`, else 42.
+ * @param fn - The algorithm's name, for the message
+ * @param options - The algorithm's options
+ * @returns The seed
+ * @throws RangeError with code `E_BAD_OPTION` when the seed is not an integer
+ */
+export function seedOption(fn: string, options: SeedOptions): number {
+    const seed = options.seed ?? options.randomSeed ?? 42;
+    checkNumber(fn, "seed", seed, { integer: true });
+    return seed;
+}
+
 /**
  * Refuse a weight vector of the wrong length (`E_BAD_OPTION`) or holding a NaN weight, or an infinite or negative one
  * unless `ordered` allows it (`E_BAD_WEIGHT`).

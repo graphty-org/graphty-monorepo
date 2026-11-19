@@ -9,13 +9,13 @@
  *   selfLoopCount) against the accepted command log;
  * - degree / inDegree / outDegree per node, documenting the self-loop convention difference of
  *   section 3.4 exactly where the design declares it;
- * - neighbour sets from a row scan vs legacy `neighbors()` / `inNeighbors()`;
+ * - neighbor sets from a row scan vs legacy `neighbors()` / `inNeighbors()`;
  * - `hasEdge` vs `findArc` / `hasArc`, `getEdge().weight` vs `weights[arc]`;
  * - the builder's own dirty-path queries (section 6.6) vs the legacy class before any freeze;
  * - id round trips through the id map, including the kind selection rules of section 4.2.
  *
  * Legacy quirks the comparison has to route around are documented at the comparison site: the
- * legacy adjacency Map cannot hold parallel edges (so its degrees count DISTINCT neighbours and
+ * legacy adjacency Map cannot hold parallel edges (so its degrees count DISTINCT neighbors and
  * `getEdge` returns the LAST parallel), and an undirected self-loop is counted once by the legacy
  * class whereas `degree()` counts it twice (section 3.4).
  */
@@ -334,7 +334,7 @@ function buildBoth(c: GraphCase, options: { weighted?: boolean | "auto" } = {}):
 
 // ============================================================ comparison helpers
 
-/** SameValueZero normalisation: the format stores -0 as 0 (design 4.1); the legacy Node keeps -0. */
+/** SameValueZero normalization: the format stores -0 as 0 (design 4.1); the legacy Node keeps -0. */
 function norm(id: NodeId): NodeId {
     return typeof id === "number" && id === 0 ? 0 : id;
 }
@@ -344,7 +344,7 @@ function keyOf(id: NodeId): string {
     return typeof id === "number" ? `n:${String(id)}` : `s:${id}`;
 }
 
-/** The legacy node ids in insertion order, -0 normalised. */
+/** The legacy node ids in insertion order, -0 normalized. */
 function legacyIds(legacy: LegacyGraph): NodeId[] {
     return [...legacy.nodes()].map((node) => norm(node.id));
 }
@@ -445,8 +445,8 @@ function checkDegrees(c: GraphCase): void {
         expect(outDegree[u]).toBe(s.outDegreeOf(u));
         expect(outDegree[u]).toBe(s.rowPtr[u + 1] - s.rowPtr[u]);
         expect(loopsPerNode[u]).toBe(s.selfLoopsAt(u));
-        // The legacy adjacency Map holds one entry per DISTINCT neighbour, so on a multigraph
-        // its degrees are distinct-neighbour counts; the row scan's distinct target count is
+        // The legacy adjacency Map holds one entry per DISTINCT neighbor, so on a multigraph
+        // its degrees are distinct-neighbor counts; the row scan's distinct target count is
         // the comparable quantity (design 3.5, adjacent-skip idiom).
         const distinctOut = distinctRowIds(s, s.rowPtr, s.colIdx, u).size;
         const distinctIn = distinctRowIds(s, reverse.rowPtr, reverse.colIdx, u).size;
@@ -488,7 +488,7 @@ function checkDegrees(c: GraphCase): void {
     expect(sumDegree).toBe(2 * s.edgeCount);
 }
 
-/** Neighbour sets from a row scan vs legacy neighbors() / inNeighbors() (design 3.3, 3.5, 7.2). */
+/** Neighbor sets from a row scan vs legacy neighbors() / inNeighbors() (design 3.3, 3.5, 7.2). */
 function checkNeighbours(c: GraphCase): void {
     const { legacy, builder } = buildBoth(c);
     const s = builder.freeze();
@@ -503,7 +503,7 @@ function checkNeighbours(c: GraphCase): void {
             expect(s.colIdx[a]).toBeGreaterThanOrEqual(s.colIdx[a - 1]);
         }
     }
-    // the builder's incidence lists must give the same neighbour sets while dirty (6.6):
+    // the builder's incidence lists must give the same neighbor sets while dirty (6.6):
     // findEdges(u, v) is non-empty exactly when the legacy adjacency has the pair
     for (let u = 0; u < s.nodeCount; u++) {
         const id = s.ids.idOf(u);

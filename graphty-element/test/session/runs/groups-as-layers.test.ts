@@ -227,7 +227,7 @@ describe("a partition's groups as layers", () => {
         await s.runs.start("louvain", {}, { as: "louvain", style: { groups: "layers" } });
         await s.styles.settled();
         const [folder] = s.styles.tree().filter((row) => row.kind === "folder");
-        // Each layer holds one group: its copy keeps that group's colour in its own table.
+        // Each layer holds one group: its copy keeps that group's color in its own table.
         await s.styles.updateMany(
             folder.children.map((row) => {
                 const selector = s.styles.get(row.id)?.selector;

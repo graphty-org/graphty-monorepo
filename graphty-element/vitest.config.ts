@@ -156,8 +156,9 @@ const AI_FRAMEWORKS = ["@tanstack/ai", "@tanstack/ai-openai", "@tanstack/ai-anth
 const GRAPHVIZ = ["@hpcc-js/wasm-graphviz"];
 
 /**
- * What the model chunk (src/models/chunk.ts) imports from Babylon.js, pre-bundled for the same
- * reason: the chunk is imported lazily, so Vite would otherwise discover these mid-run.
+ * What the model chunk (src/models/chunk.ts) and babylonjs-models import from Babylon.js,
+ * pre-bundled for the same reason: both are imported lazily, so Vite would otherwise discover these
+ * mid-run.
  */
 const MODEL_CHUNK = [
     "@babylonjs/loaders/glTF/2.0/glTFLoader.js",
@@ -194,7 +195,7 @@ const MODEL_CHUNK = [
     "@babylonjs/core/Materials/Textures/texture.js",
     "@babylonjs/core/Loading/sceneLoader.js",
     "@babylonjs/core/Loading/sceneLoaderFlags.js",
-    // The model template builder and the request guard (src/models/).
+    // The model template builder (src/models/) and babylonjs-models' request guard.
     "@babylonjs/core/Maths/math.color.js",
     "@babylonjs/core/Maths/math.vector.js",
     "@babylonjs/core/Meshes/Builders/boxBuilder.js",
@@ -894,7 +895,7 @@ const config = defineConfig({
                         "test/browser/channel-paints.test.ts",
                         // Reads the shading on a node's surface, which nothing else in the
                         // package can see: the style model, the instance buffer and the mesh all
-                        // report the right colour while the lit half of the node is drawn flat.
+                        // report the right color while the lit half of the node is drawn flat.
                         // It is also the only thing that notices if a Babylon upgrade moves the
                         // line of the stock shader that src/meshes/InstanceColorShading.ts
                         // rewrites -- the rewrite then matches nothing, silently.
@@ -1114,9 +1115,10 @@ const config = defineConfig({
             },
             {
                 // The `"batched"` render path against `"objects"`, on SwiftShader with both engines
-                // (design/rendering/row-renderer.md 7). Neither this nor "forced-batched" joins a pull
-                // request or the full run: a stage runs the files it touches, and
-                // .github/workflows/render-proof.yml dispatches the whole of both.
+                // (design/rendering/row-renderer.md 7). This never joins a pull request; "forced-batched" joins
+                // one only as the selected files of a change to a browser test or the render path, and the full
+                // run runs it in twelve shards (tools/ci-test-matrix.mjs). .github/workflows/render-proof.yml
+                // dispatches the whole of both.
                 define: { ...define },
                 envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU"],
                 resolve: {
@@ -1179,7 +1181,12 @@ const config = defineConfig({
                     fileParallelism: false,
                     browser: {
                         enabled: true,
-                        commands: { ...mapTileCommands, ...samplePictureCommands, ...heldRequestCommands },
+                        commands: {
+                            ...mapTileCommands,
+                            ...samplePictureCommands,
+                            ...heldRequestCommands,
+                            emulateReducedMotion,
+                        },
                         headless: true,
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
                         provider: playwright(),
@@ -1496,6 +1503,8 @@ const config = defineConfig({
                     name: "llm-regression",
                     env: LLM_REGRESSION_ASKED ? loadEnv("", "..", LLM_REGRESSION_ENV) : {},
                     setupFiles: ["./test/ai/llm-regression/setup.ts"],
+                    // The directory every file's Gemini transport shares its prompt caches in, and their deletion.
+                    globalSetup: ["./test/ai/llm-regression/global-setup.ts"],
                     include: ["test/ai/llm-regression/**/*.test.ts"],
                     exclude: [
                         // Exclude experimental/temporary folders ending with ~
@@ -1508,10 +1517,11 @@ const config = defineConfig({
                         "**/.{idea,git,cache,output,temp}/**",
                         "**/{karma,rollup,webpack,vite,vitest,jest,ava,babel,nyc,cypress,tsup,build}.config.*",
                     ],
-                    // Six files at a time, each in its own process (so no two share the transport's
-                    // caches or the harness's request recorder). One file at a time took about 50
-                    // minutes on the release job (#6549); six keep under ten requests in flight,
-                    // far below Gemini's per-minute limits, and the transport waits out any 429.
+                    // Six files at a time, each in its own process (so no two share the harness's request
+                    // recorder; the transport's caches they share through global-setup.ts's directory).
+                    // One file at a time took about 50 minutes on the release job (#6549); six keep under
+                    // ten requests in flight, far below Gemini's per-minute limits, and the transport
+                    // waits out any 429.
                     // Spend is the same: every case still runs once.
                     pool: "forks",
                     maxWorkers: 6,

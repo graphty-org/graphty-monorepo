@@ -3,7 +3,8 @@ name: Keyboard Shortcuts
 category: interaction
 description: Enable keyboard shortcuts for common operations to speed up expert workflows. Provide discoverable
     shortcuts that don't conflict with browser defaults.
-status: planned
+status: implemented
+notes: "Ships: graphty/src/workspace/keys/keys.ts and the shortcuts dialog in graphty/src/workspace/frame/HelpDialogs.tsx."
 algorithms: []
 used_by_workflows:
     - W02

@@ -470,7 +470,7 @@ describe("the shared builder Map (decision C17)", () => {
     it("does not validate trusted ids", () => {
         const builder = builderState([Number.NaN]);
         const map = nodeIdMapFromIds(builder.ids, 1, { map: builder.map });
-        // the id is stored exactly as the builder holds it: no normalisation, no rejection
+        // the id is stored exactly as the builder holds it: no normalization, no rejection
         expect(map.kind).toBe("numeric");
         expect(map.size).toBe(1);
         expect(Number.isNaN(map.idOf(0))).toBe(true);

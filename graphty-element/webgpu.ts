@@ -37,7 +37,7 @@
  * device over, and before any of the graph goes near it. A wrong word comes back as an
  * `E_DEVICE_INCORRECT` decline, which this file turns into the element's `E_DEVICE_INCORRECT`
  * error; the element then reports acceleration unavailable with that code and draws the graph on
- * the CPU. The peer memoises the result per device, so the 14 to 20 milliseconds are paid once.
+ * the CPU. The peer memoizes the result per device, so the 14 to 20 milliseconds are paid once.
  *
  * That is detection, not a fallback: the decision is made before any accelerated work starts.
  * The peer also guards its own compute entry points, so a device that somehow gets past the
@@ -67,6 +67,57 @@ import type { AcceleratorDeclined } from "@graphty/webgpu-graph-algorithms/brows
 
 import { type AcceleratorFactoryOptions, type GraphAccelerator, registerAccelerator } from "./src/acceleration";
 import { GraphtyError } from "./src/errors";
+import { GraphtyLogger } from "./src/logging/GraphtyLogger";
+
+/**
+ * The device the accelerator got and each step of its work: adapter, limits, uncaptured errors and
+ * the GPU package's trace. Silent unless a consumer turns on the `acceleration` module.
+ */
+const gpuLog = GraphtyLogger.getLogger(["graphty", "acceleration", "gpu"]);
+
+/** The device limits the GPU kernels plan against, logged as granted. */
+const LOGGED_LIMITS = [
+    "maxBufferSize",
+    "maxStorageBufferBindingSize",
+    "maxStorageBuffersPerShaderStage",
+    "maxComputeWorkgroupsPerDimension",
+    "maxComputeInvocationsPerWorkgroup",
+    "maxComputeWorkgroupSizeX",
+    "maxComputeWorkgroupStorageSize",
+    "maxUniformBufferBindingSize",
+] as const;
+
+/**
+ * Logs the device an accelerator got, and routes its trace and its uncaptured errors to the log.
+ * @param accelerator - The accelerator just acquired.
+ * @returns Stops listening; called when the accelerator is released.
+ */
+function watchDevice(accelerator: GpuAccelerator): () => void {
+    const { ctx } = accelerator;
+    const { caps, device } = ctx;
+    gpuLog.info("device", {
+        vendor: caps.vendor,
+        architecture: caps.architecture,
+        device: caps.device,
+        description: caps.description,
+        software: caps.software,
+        runtime: caps.runtime,
+        features: [...caps.features],
+        limits: Object.fromEntries(LOGGED_LIMITS.map((name) => [name, caps.limits[name]])),
+    });
+    ctx.trace = (event, facts): void => {
+        gpuLog.info(event, { ...facts });
+    };
+    const onError = (event: Event): void => {
+        const { error } = event as GPUUncapturedErrorEvent;
+        gpuLog.error("uncaptured error", undefined, { type: error.constructor.name, message: error.message });
+    };
+    device.addEventListener("uncapturederror", onError);
+    return (): void => {
+        ctx.trace = null;
+        device.removeEventListener("uncapturederror", onError);
+    };
+}
 
 /**
  * The peer, loaded on first use rather than with this entry point (issue #6389): importing this
@@ -222,7 +273,7 @@ function toGraphAccelerator(accelerator: GpuAccelerator, release: () => void): G
             description: caps.description === "" ? caps.device : caps.description,
         },
         // Every GPU kernel in the peer computes in single precision, which is why a run that
-        // used one is labelled f32 and the same run on the CPU path is labelled f64.
+        // used one is labeled f32 and the same run on the CPU path is labeled f64.
         precision: "f32",
         // The element watches this. A device the element itself destroyed also resolves it, and
         // the controller ignores a loss reported for an accelerator it has already released.
@@ -269,7 +320,9 @@ async function createWebGpuAccelerator(options?: AcceleratorFactoryOptions): Pro
         throw declineFailure(result);
     }
 
+    const unwatch = watchDevice(result.accelerator);
     return toGraphAccelerator(result.accelerator, () => {
+        unwatch();
         gpu.dispose();
     });
 }

@@ -361,3 +361,55 @@ describe("an inverted arrowhead on a line that kinks at its end", () => {
         assert.strictEqual(measureArrow(head, path, "target", { filled: true, color: null }).shape, "inverted");
     });
 });
+
+describe("yEd's standard arrowhead on a curved line", () => {
+    it("is read along its own axis where the line stops on its notch (yed-graphml-specimen-edges-lines bezier)", () => {
+        // yEd's standard head is notched (a vee to the comparator); yEd cuts the flattened curve where the head begins, its last run 21 degrees off the head's axis, and aims
+        // the head from the cut at the node; the head's back corners lie half its length behind the cut
+        const path: Pt[] = [
+            [834.7891, 442.1523],
+            [845.0625, 445.8438],
+            [849.8447, 445.9976],
+            [852.8885, 445.0529],
+            [852.9625, 444.9855],
+        ];
+        const head: Pt[] = [
+            [859.2877, 440.0873],
+            [846.7385, 443.4814],
+            [852.1718, 445.5978],
+            [852.8613, 451.3878],
+        ];
+        assert.strictEqual(measureArrow(head, path, "target", { filled: true, color: null }).shape, "vee");
+    });
+
+    describe("a thick-stroked head", () => {
+        // dot-real-linux-kernel HI -> HI_ (penwidth 5, arrowsize 0.5): Graphviz moves the head back so its stroke's
+        // mitered point, 2.5 / sin(23.65 degrees) = 6.23 points past the outline's tip, lands where the line ends
+        const line: Pt[] = [
+            [308.2, -692.55],
+            [308.2, -667.57],
+        ];
+        const head: Pt[] = [
+            [310.39, -672.69],
+            [308.2, -667.69],
+            [306.01, -672.69],
+            [310.39, -672.69],
+        ];
+        const stroke = { color: "#cfbf57", opacity: 1, width: 5, dash: null, dashClass: "solid" as const };
+        const tipY = (s: typeof stroke & { join?: "round" | "bevel" }): number =>
+            (extendToTip(line, head, "target", s).at(-1) ?? [0, 0])[1];
+
+        it("ends where the mitered stroke does", () => {
+            assert.closeTo(tipY(stroke), -667.69 + 6.23, 0.05);
+        });
+
+        it("ends at the outline's tip where its corners are round", () => {
+            assert.closeTo(tipY({ ...stroke, join: "round" }), -667.57, 0.05);
+        });
+
+        it("ends at the outline's tip with no stroke", () => {
+            const end = extendToTip(line, head, "target").at(-1) ?? [0, 0];
+            assert.closeTo(end[1], -667.57, 0.05);
+        });
+    });
+});

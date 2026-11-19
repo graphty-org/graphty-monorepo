@@ -331,7 +331,7 @@ describe("the project file", () => {
         const report = await harness.session.styles.applyTemplate(harness.session.styles.toDocument());
         assert.deepStrictEqual(report.unbound, [], "results.links.value is answered by the run links");
         const [block] = harness.session.styles.legend().filter((entry) => entry.runId === "links");
-        assert.strictEqual(block.field?.plainName, "Connections", "the legend names the column in the run's words");
+        assert.strictEqual(block.field?.result?.algorithm, "degree", "the legend names the run field by its algorithm");
         harness.session.dispose();
     });
 
@@ -617,7 +617,7 @@ describe("the project file", () => {
         // The reader's edit is dispatched the moment the open is pending work.
         let styled: PromiseLike<unknown> | undefined;
         const off = session.on("history:changed", () => {
-            if (session.history.pending.some((each) => each.label === "Open project")) {
+            if (session.history.pending.some((each) => each.fact.code === "project.open")) {
                 off();
                 styled = session.styles.add({
                     name: "during",
@@ -696,7 +696,8 @@ describe("the project file", () => {
         assert.strictEqual(await refusal(session, "{ not json"), "E_PARSE_FAILED");
         assert.strictEqual(await refusal(session, "<not a graph>"), "E_UNKNOWN_FORMAT");
         assert.strictEqual(
-            await refusal(session, '{ "kind": "graphty-document", "version": 2, "members": [] }'),
+            // A version no reader takes: version 2 is read with the save-files-v2 experiment on.
+            await refusal(session, '{ "kind": "graphty-document", "version": 99, "members": [] }'),
             "E_UNSUPPORTED_VERSION",
         );
         assert.strictEqual(await refusal(session, '{ "kind": "graphty-document", "version": 1 }'), "E_BAD_DOCUMENT");

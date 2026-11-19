@@ -6,7 +6,7 @@ import type { OptionDescriptor } from "../../src/catalog/types";
 
 /**
  * Find one option of one built-in algorithm, failing the test when it is missing.
- * @param key - The algorithm's catalogue key.
+ * @param key - The algorithm's catalog key.
  * @param name - The option's name.
  * @returns The option's descriptor.
  */

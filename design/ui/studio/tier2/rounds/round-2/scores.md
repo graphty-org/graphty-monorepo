@@ -430,7 +430,7 @@ at severity 2 or more. Deterministic layout overlaps count once per dataset.
 
 - **Sev 2** -- A new note takes whatever the inspector shows as its subject, and the form cannot
   change it (r2-s45, s46, s47; controls expert 20). Round 1 rated it 3; this round each participant
-  cancelled before saving.
+  canceled before saving.
 - **Sev 2** -- A note about the whole network takes a guessed click on empty canvas (r2-s46, s47).
   The controls expert found that a click on empty canvas does not deselect a selected run (expert
   finding 5), which these two sessions contradict; worth a script.

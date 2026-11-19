@@ -378,19 +378,21 @@ last kind away (`setRole(column, null)`) turns the search off. Before any kind i
 - **Extent.** `extent: "data"` (the default) fits the map to the located nodes; `"world"` shows
   the whole world. `size` is the map's width in scene units; a globe's radius is `size`, or more
   when the data spans a small part of it, so it is drawn `size` across. The camera opens framed on
-  the whole globe, which fills the view.
+  the data, turned to face it; data that spans most of the earth opens on the whole globe, which
+  fills the view.
 - **Map scale.** `mapScale` (default 1) draws the map, flat or globe, that many times larger
   than `size` makes it while nodes and edges keep their size in scene units, so a dense region (an airline network over the United States or
-  Europe) draws its nodes further apart instead of as one grey patch: `{ mapScale: 3 }` gives
+  Europe) draws its nodes further apart instead of as one gray patch: `{ mapScale: 3 }` gives
   three times the room between neighbors. The camera still opens framed on the whole map. With
-  `nodeScale: "screen"`, a flat map's nodes are drawn `mapScale` times smaller on screen, which
-  gives the same room; a globe's keep their size on screen.
-- **Node size.** `nodeScale: "scene"` (the default) draws a node of size 1 one scene unit wide,
-  so it grows as the camera zooms in; `"screen"` keeps it at `1 / size` of the view's height
-  (`flatNodeScale / (size * mapScale)` on a flat map, where `flatNodeScale` defaults to 1) whatever
-  the zoom, measured at the map's surface, with its arrowheads in proportion.
+  nodes sized on screen (below), a flat map's nodes are drawn `mapScale` times smaller on screen,
+  which gives the same room; a globe's keep their size on screen.
+- **Node size.** The map supplies the screen reference for the `node.sizeSpace: "screen"` style
+  option (see [Node size and the camera](./styling.md#node-size-and-the-camera)): a node of size 1
+  is drawn at `1 / size` of the view's height on a globe and at `flatNodeScale / (size * mapScale)`
+  on a flat map (`flatNodeScale` defaults to 1), whatever the zoom, with its arrowheads in
+  proportion.
 - **The globe's look.** `element.globeLook = { atmosphere: true, background: "#05070d", sun: { lat, lon } }`
-  draws a glow of air around the globe's rim, clears the canvas to a colour while the globe is drawn,
+  draws a glow of air around the globe's rim, clears the canvas to a color while the globe is drawn,
   and lights one side from where the sun is overhead. Each part is off unless set; a view
   setting, not saved with the project.
 - **No location.** A node with no usable location goes to a row below the map (`unplaced: "tray"`)
@@ -407,7 +409,8 @@ last kind away (`setRole(column, null)`) turns the search off. Before any kind i
     g.layoutConfig = { location: "where", mapDimension: "3d", map: { source: "nasa-gibs-blue-marble" } };
     ```
 
-    The map's credits are drawn in the canvas's corner and are on `element.basemapStatus.attribution`.
+    The element draws no credit over the canvas; the map's credits are data on
+    `element.basemapStatus.attribution`, for the page to show where it chooses.
     The map is saved with the layout in the project.
 
 ### forceatlas2 (Force-Directed, live)
@@ -418,7 +421,7 @@ Gephi's ForceAtlas2, kept running rather than solved once. Good for pulling comm
 graph.setLayout("forceatlas2", {
     seed: 42, // Same seed, same settled shape
     scalingRatio: 2.0, // Node repulsion
-    gravity: 1.0, // Pull towards the centre
+    gravity: 1.0, // Pull towards the center
     linlog: false, // Log attraction: tighter clusters
     dissuadeHubs: false, // Push high-degree nodes outwards
 });
@@ -634,7 +637,7 @@ Where a weight comes from is `data.knownFields.edgeWeightPath`, which defaults t
 Parallel edges are summed into one weight per ordered pair, because the layout functions read a
 weight by endpoint pair and have nowhere to put a second one.
 
-Ask the catalogue rather than hard-coding the list of two:
+Ask the catalog rather than hard-coding the list of two:
 
 ```typescript
 for (const layout of element.session.catalog.layouts()) {
@@ -657,7 +660,7 @@ element.unpin("alice");
 element.pinnedNodes; // a Set of the pinned node ids
 ```
 
-Turn the drag behaviour off with `pinOnDrag: false` in the graph's behaviour configuration; the
+Turn the drag behavior off with `pinOnDrag: false` in the graph's behavior configuration; the
 verbs above still work.
 
 ## Laying out part of the graph
@@ -694,9 +697,11 @@ The same scope is the `layoutScope` property and the `layout-scope` attribute (J
 
 ## Laying out only what the filter shows
 
-By default a layout runs over the whole graph, nodes the [visibility filter](./filter-conditions)
-hides included, so the shown nodes keep the places the whole graph gave them. Set
-`layout.visibleOnly` in the layout behaviour to lay out only what the filter shows:
+A layout runs over what is shown -- the nodes and edges the [filters](./filter-conditions) leave
+visible -- while the element's `workingGraph` option is on, the default,
+and over the whole graph while it is off. Set `layout.visibleOnly` in the layout behavior to choose for layouts
+alone: `true` lays out only what is shown, `false` the whole graph, hidden nodes included, so the
+shown nodes keep the places the whole graph gave them.
 
 ```typescript
 element.layoutBehavior = { layout: { visibleOnly: true } };
@@ -706,14 +711,13 @@ await element.session.visibility.set({ kind: "member", of: { nodes: ["a", "b", "
 ```
 
 - **A hidden node takes no part.** It pushes and pulls nothing, its edges pull nothing, and a
-  circle, a grid or any other layout gives it no slot. Every layout honours it, your own included.
-- **The layout runs again when the filter changes**, and when `visibleOnly` is switched on or off.
+  circle, a grid or any other layout gives it no slot. Every layout honors it, your own included.
+- **The layout runs again when a filter changes what is shown**, and when `visibleOnly` is switched.
 - **A hidden node stays where it was**, so taking the filter away shows it where it last was
   drawn; the layout then runs again over everything shown.
-- **While time plays, it can hold.** A playing [time window](./timeline) changes what the
-  filter shows at every step, so by default the layout runs again at every step. Set
-  `layout.visibleOnlyWhilePlaying: "hold"` to keep the nodes where they are during the play and
-  lay out once, over what is shown, when the play pauses or ends.
+- **The [time window](./timeline) never moves it.** The window hides what lies outside it with a
+  style, so stepping or playing time lays nothing out and no node moves. The layout follows the
+  filters only.
 - **It combines with a scope.** A scoped layout still holds the nodes outside its scope, and
   those still push and pull on its members unless the filter hides them.
 

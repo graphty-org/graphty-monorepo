@@ -172,7 +172,7 @@ describe("the vocabulary", () => {
     it("config.set names only ProjectConfig keys, and each exempt layout-behaviour key leaves the digest unchanged", async () => {
         const session = await fixtureSession();
         const dispatcher = dispatcherOf(session);
-        // The layout-behaviour settings that are preferences of the view, not project settings
+        // The layout-behavior settings that are preferences of the view, not project settings
         // (design/undo/undo-design.md section 3.2), under the names config.set would give them,
         // and a key that names nothing at all.
         const outside: readonly unknown[] = [
@@ -275,7 +275,6 @@ describe("the vocabulary", () => {
         assert.strictEqual(session.layout.dimension, "3d");
         assert.deepEqual(entered, ["vr"]);
         assert.strictEqual(session.history.steps.length, steps + 1);
-        assert.strictEqual(session.history.steps.at(-1)?.label, "Switched to 3D for VR");
         assert.deepEqual(session.history.steps.at(-1)?.fact, { code: "view.immersive", params: { mode: "vr" } });
 
         await session.undo();

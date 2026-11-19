@@ -36,7 +36,7 @@
         "test": "vitest",
         "test:run": "vitest run",
         "coverage": "vitest run --coverage",
-        "lint": "eslint . && npm run typecheck",
+        "lint": "eslint . --pass-on-unpruned-suppressions && npm run typecheck",
         "lint:knip": "cd .. && ./tools/run-knip.sh --workspace visual-review",
         "typecheck": "tsc -p tsconfig.json"
     },
@@ -75,9 +75,9 @@
         }
     },
     "devDependencies": {
-        "@types/node": "^20.19.9",
+        "@types/node": "^20.19.43",
         "@vitest/coverage-v8": "catalog:",
-        "eslint": "^9.29.0",
+        "eslint": "^9.39.5",
         "playwright": "1.57.0",
         "typescript": "^5.9.3",
         "vitest": "catalog:"

@@ -96,7 +96,7 @@ test("camera animation can be interrupted", async () => {
             { animate: true, duration: 1000 },
         )
         .catch(() => {
-            /* Expected to be cancelled */
+            /* Expected to be canceled */
         });
 
     // Interrupt only once the first animation has actually started moving the camera
@@ -146,7 +146,7 @@ test("an interrupted animation stops moving the camera", async () => {
                 { animate: true, duration: 1000 },
             )
             .catch(() => {
-                /* Expected to be cancelled */
+                /* Expected to be canceled */
             });
         await animationFrames(Math.ceil(300 / ANIMATION_FRAME_MS));
         await graph.setCameraState(
@@ -154,7 +154,7 @@ test("an interrupted animation stops moving the camera", async () => {
             { animate: true, duration: 200 },
         );
 
-        // Past the end of the cancelled run: nothing it started may still be writing the camera.
+        // Past the end of the canceled run: nothing it started may still be writing the camera.
         await animationFrames(Math.ceil(1000 / ANIMATION_FRAME_MS));
     });
 

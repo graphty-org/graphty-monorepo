@@ -1,0 +1,136 @@
+/**
+ * graph-io's `url` source through `session.data`: a graph file at a web address with a query
+ * string loads, its address is kept in the load's params, a credential remembered for the
+ * address's origin is used on the load and on Refresh, and a saved project reopens with the load
+ * waiting against that address.
+ */
+
+import { assert, describe, it } from "vitest";
+
+import { createGraphSession, credentials, type GraphSession, GraphtyError, replayFetch } from "../../../session";
+import { attachCredentials } from "../../../src/session/sources/credentialLookup";
+
+const HOST = "https://files.example.com";
+const URL_WITH_QUERY = `${HOST}/data/buildings.csv?v=1`;
+const CSV = "source,target\na,b\nb,c\n";
+
+/**
+ * A fetch that answers every request for the address with the CSV, needing a credential.
+ * @param times - how many requests it answers
+ * @returns the fetch
+ */
+function csvFetch(times: number): ReturnType<typeof replayFetch> {
+    return replayFetch(Array.from({ length: times }, () => ({ url: URL_WITH_QUERY, body: CSV, credential: true })));
+}
+
+/**
+ * Run a test against a fresh headless session, disposed afterwards.
+ * @param body - the test
+ * @returns settles when it is done
+ */
+async function withSession(body: (session: GraphSession) => Promise<void>): Promise<void> {
+    const session = createGraphSession();
+    try {
+        await body(session);
+    } finally {
+        session.dispose();
+    }
+}
+
+describe("the url source in a session", () => {
+    it("loads by address, finds the remembered credential by its origin, and refreshes with it", async () => {
+        await withSession(async (session) => {
+            const asked: string[] = [];
+            attachCredentials(session.data, (source, origin) => {
+                asked.push(`${source} ${origin}`);
+                return Promise.resolve(credentials.bearer("remembered"));
+            });
+            const fetch = csvFetch(2);
+            await session.data.import({ source: "url", config: { url: URL_WITH_QUERY } }, { fetch });
+            assert.strictEqual(session.data.nodes().length, 3);
+            assert.deepEqual(asked, [`url ${HOST}`]);
+
+            const [load] = session.data.loads();
+            const settings = session.data.sourceSettings(session.data.sources()[0].key);
+            assert.strictEqual(settings?.config.url, URL_WITH_QUERY, "the address keeps its query");
+            assert.strictEqual(settings?.endpoint, `${HOST}/data/buildings.csv`);
+
+            await session.data.refresh(load.key, { fetch });
+            assert.deepEqual(
+                fetch.calls.map((c) => c.credential),
+                [true, true],
+            );
+        });
+    });
+
+    it("saves the address and reopens with the load waiting against it", async () => {
+        let text = "";
+        await withSession(async (session) => {
+            await session.data.import(
+                { source: "url", config: { url: URL_WITH_QUERY } },
+                { fetch: csvFetch(1), credential: credentials.bearer("typed") },
+            );
+            ({ text } = await session.project.save());
+        });
+        assert.notInclude(text, "typed");
+
+        await withSession(async (session) => {
+            await session.project.open(text);
+            const [pending] = session.data.pendingSourceLoads();
+            assert.strictEqual(pending.endpoint, `${HOST}/data/buildings.csv`);
+            assert.strictEqual(pending.params.url, URL_WITH_QUERY);
+            assert.isFalse(pending.isLocalNetwork);
+            const fetch = csvFetch(1);
+            await session.data.runPendingSourceLoad(pending.id, { fetch, credential: credentials.bearer("again") });
+            assert.strictEqual(fetch.calls.length, 1);
+            assert.strictEqual(session.data.nodes().length, 3);
+        });
+    });
+
+    it("reopens a CSV node table keyed by the id column it was loaded with, not the importer's default now", async () => {
+        // person_id and name are both filled and distinct: graph-io's default picks person_id,
+        // an older default picked name. A reopened load must key the rows as they were saved.
+        const peopleUrl = `${HOST}/data/people.csv`;
+        const people = "person_id,name,age\np1,Ann,30\np2,Bob,41\np3,Cy,25\n";
+        const peopleFetch = (): ReturnType<typeof replayFetch> => replayFetch([{ url: peopleUrl, body: people }]);
+        let text = "";
+        await withSession(async (session) => {
+            await session.data.import({ source: "url", config: { url: peopleUrl } }, { fetch: peopleFetch() });
+            assert.sameMembers(
+                session.data.nodes().map((node) => node.id),
+                ["p1", "p2", "p3"],
+            );
+            const settings = session.data.sourceSettings(session.data.sources()[0].key);
+            assert.strictEqual(settings?.config.idColumn, "person_id", "the column the import used is saved");
+            ({ text } = await session.project.save());
+        });
+
+        await withSession(async (session) => {
+            await session.project.open(text);
+            const [pending] = session.data.pendingSourceLoads();
+            assert.strictEqual(pending.params.idColumn, "person_id");
+            await session.data.runPendingSourceLoad(pending.id, { fetch: peopleFetch() });
+            assert.sameMembers(
+                session.data.nodes().map((node) => node.id),
+                ["p1", "p2", "p3"],
+                "the same nodes, none added under other ids",
+            );
+        });
+    });
+
+    it("refuses a file at the address its format cannot read as E_PARSE_FAILED, naming the format", async () => {
+        await withSession(async (session) => {
+            const url = `${HOST}/friends.csv`;
+            const fetch = replayFetch([{ url, body: "user_id,friend_id\nu1,u2\nu2,u3\n" }]);
+            const error: unknown = await session.data.import({ source: "url", config: { url } }, { fetch }).then(
+                () => null,
+                (caught: unknown) => caught,
+            );
+            if (!(error instanceof GraphtyError)) {
+                assert.fail("expected a GraphtyError");
+            }
+            assert.strictEqual(error.code, "E_PARSE_FAILED");
+            assert.strictEqual(error.details.format, "csv");
+        });
+    });
+});

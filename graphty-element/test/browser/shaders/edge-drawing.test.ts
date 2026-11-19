@@ -335,7 +335,7 @@ describe("edge effects", () => {
             if (line === null) {
                 assert.lengthOf(effect.points, 2, "a straight edge's effect is one piece");
                 const middle = effect.points[0].add(effect.points[1]).scale(0.5);
-                assert.isTrue(middle.equalsWithEpsilon(edge.drawnCentre, 1e-4), "on the straight line");
+                assert.isTrue(middle.equalsWithEpsilon(edge.drawnCenter, 1e-4), "on the straight line");
             } else {
                 assert.strictEqual(
                     effect.points.length,
@@ -351,7 +351,7 @@ describe("edge effects", () => {
             }
 
             // The effect draws three times the line's width: green just beside the line.
-            const centre = edge.drawnCentre;
+            const centre = edge.drawnCenter;
             assert.isTrue(
                 leads(await pixelAt(element, centre.add(new Vector3(0, 0.12, 0))), 1),
                 `edge ${String(i)} glows beside its line`,

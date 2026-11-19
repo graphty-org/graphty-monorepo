@@ -14,17 +14,19 @@ components, their variants and the slice each change lands in (`interface-specif
 and dates for individual slices (the issue tracker). **Owner:** front-end architect. **Ceiling:**
 the README's table. **Validated by:** section 12.
 
-**Status, the one place it is kept.** This line tracks the latest graphty-element release, not a
-commit: 2.6.1 (published 2026-09-28 UTC, a dependency update over 2.6.0, which carried the sets
-work of PR #540 and computes every built-in algorithm over its run's scope), checked on
-**origin/master at `9fc948ee`**, whose later commits change no element code. The local checkout
-these documents sit in is behind origin/master and lacks `design/sets/`, so every code citation in
-the framework is to origin/master at this commit unless it names another. The undo design is on the
-`feat/element-undo` branch (PR #553, open). compact-mantine is at `a6b63bf6` on the PR #409 branch
-(open). Other
-documents cite this line instead of restating branch status. Every element claim here says which
-timeline it belongs to: **master** (the release above), **PR #553**, **door n** (`one-way-doors.md`),
-or **proposed** (not in any branch). graphty file references and line counts are at `9fc948ee`.
+**Status, the one place it is kept.** Checked on 2026-11-16 against origin/master at
+`8d8c682fb6`, where graphty-element is 3.39.0. Both branches the framework once waited on have
+merged: the undo design (PR #553) and compact-mantine's Figma work (PR #409), so "waits for PR
+#553" below means only that the work was built after it. The old app shell under
+`graphty/src/components/` was removed on 2026-10-16 (`0895d66703`); the app is now
+`graphty/src/workspace/`. **Code citations stay pinned** to origin/master at `9fc948ee`
+(graphty-element 2.6.1, 2026-09-27) unless they name another commit, so a cited path or line is
+read there (`git show 9fc948ee:<path>`), not in today's tree. **What the element does today** is
+kept only in `element-needs.md`'s "graphty-element today" column, re-checked against master on the
+date above; any other sentence in these documents about what master does describes `9fc948ee`.
+Other documents cite this line instead of restating branch status. Every element claim here says
+which timeline it belongs to: **master**, **PR #553** (merged since), **door n** (`one-way-doors.md`), or **proposed** (not in
+any branch).
 
 **The shape in one picture.**
 
@@ -373,7 +375,7 @@ built in that pull request and is absent until then.
 | 6 Header rows | the undo label (PR #553) | Export image through `captureScreenshot()` on the element (master, `src/graphty-element.ts:1745`) | `history.nextUndo`; the exported-figure rules |
 | 7 Filter chip | the filter's rule and result count (`visibility`) | `visibility.set`, `visibility.setWindow` | ordered filter steps |
 | 8 Inspector | the sections above; for Several, a breakdown of the selection by kind and type | the type-row commands | the breakdown; scoped reads; the Mixed read; object selection |
-| 9 Style-layer list | `styles.list()` | `styles.encode` for Color by and for "+" on a data-bound channel; `styles.add` for a constant channel; `styles.move`, `styles.remove` | the Overrides layer; the elements a layer paints; a layer's source; `encode` over a data attribute; the drawn state for Hide on canvas |
+| 9 Style-layer list | `styles.list()` | `styles.encode` for Color by and for "+" on a data-bound channel; `styles.add` for a constant channel; `styles.move`, `styles.remove` | Override; the elements a layer paints; a layer's source; `encode` over a data attribute; the drawn state for Hide on canvas |
 | 10 Editor popovers | `styles.get(id)`; a run's options and readings (`results.get(run)`); the layout settings | `styles.encode`, `styles.update`; `runs.start`; `sets.redefine` | the gesture handle; the saved layout scope |
 | 11 The option form | option descriptors (`catalog/types.ts`); channel descriptors (`session/styles/channels.ts`); `data.attributes()` | the owning editor's command | the descriptor fields; pick-a-target; `catalog.optionsFor` |
 | 12 Histogram popover | a result's `histogram(field)` over the whole graph | `sets.createFrom` for a band | histogram bins over a scope |
@@ -581,11 +583,11 @@ is gone. The old shell is what graphty.app serves.
   forbidden workarounds ("The app MUST NOT work around graphty-element"): reimplementing, wrapping,
   copying constants, defaults or option schemas, re-declaring types, private reaches. A row that
   matches is marked *defect* and gets an issue now, with the repository's type, priority and effort
-  labels; its Issue cell holds the number, or "to file" until the owner files it, and slice 0 does
-  not merge while any cell reads "to file" (section 12). Missing capabilities, the unmarked rows,
+  labels; its Issue cell holds the number, filed by whoever finds the defect (section 12). Missing capabilities, the unmarked rows,
   are filed per slice (section 9).
 
-**Deleted with the old shell**, each with the element need that makes it unnecessary:
+**Deleted with the old shell**, on 2026-10-16 (`0895d66703`): the record of what each module
+worked around, with the element need that made it unnecessary. None of these files exists today.
 
 | Module | What it works around | Replaced by | Issue |
 |---|---|---|---|
@@ -600,7 +602,7 @@ is gone. The old shell is what graphty.app serves.
 | `analysis/nodeMetrics.ts`, `graphShape.ts`, `metricCost.ts`, `readings/*.ts` | metrics, shape and readings computed in the app; the cost estimate, once copied, is now read from `session.estimate` | scoped reads; the cost estimate as a read | -- |
 | `insights/insightsRules.ts` | rules about the graph | nothing: the suggestion cards are removed (`principles.md` 5) | -- |
 | `canvas/Legend.tsx`, `legend*.ts`, `Minimap.tsx` | a legend and a minimap drawn from graph content | the element's legend and minimap (door 58, The legend and not-drawn notice) | -- |
-| `statusbar/formatCounts.ts`, `readings/readingFormat.ts`, `statusbar/formatAcceleration.ts` | counts and the acceleration chip's text formatted in the app | the element's value formatter; its reader text for capabilities (`element-needs.md`, "Reader-facing text for graph facts") | -- |
+| `statusbar/formatCounts.ts`, `readings/readingFormat.ts`, `statusbar/formatAcceleration.ts` | counts and the acceleration chip's text formatted in the app | raw values the app formats itself; message keys for capabilities (`element-needs.md`, "Message keys for graph facts") | -- |
 | `bindings.ts` `ESCAPE_LADDER` | an Esc ladder in the app | the element's keymap and dispatcher (`decided-doors.md`, "The default keymap and tools") | -- |
 | `topbar/undoStore.ts`, `topbar/UndoSplitButton.tsx`, `topbar/HistoryPopover.tsx` | project history in the app | the element's history (PR #553); the history list returns only if graphty-element restores a canceled run on Redo (`element-needs.md`, the Undo rows) | -- |
 | `constants.ts` | a 280 px panel and 108 px fields from a superseded build spec | widths derived from `PANEL_GRID` (`interface-specification.md` 1.3) | -- |
@@ -671,7 +673,7 @@ lands in the same pull request.
 | 2b | Menus and Quick actions | part of 4 (act on what was found) | `select-neighbors-from-menu` (Filter to neighbors needs undoable ordered steps, slice 6) | intent commands from `./commands` with the generated menus and palette; availability with a reason; load preview |
 | 3 | Reopen where I left off | the Load bookend, reopened (the journey's Re-enter stage, `task-flows.md` 2.2) | `reopen-where-left`, which states in writing which sections survive a reopen | the project id; the autosave adapter with one writer; the envelope, reserving the checkpoints' place; committed-only saves by the gesture flag (section 6); node and edge identity and the graph qualifier on references; a section whose doors are undecided stays in the session only (door 88) |
 | 4a | Rank | 2 | `rank-by-centrality` | the ranking read, `ranking(field)`, for a metric result's Top nodes; scoped reads with histogram bins; binned density; the cost estimate as a read; requirement notes; pick-a-target; `catalog.optionsFor`; `OptionDescriptor`'s shared descriptor names |
-| 4b | Color by value (waits for PR #553) | 8 | `color-by-value` | **hard prerequisites, landed first, because a half-working verb is absent until it works (section 7)**: a default range per numeric channel, one scale default on both write paths, and encoding a data attribute keyed by source and channel, so Size by, Width by and a column-header verb never write nothing or stack a second layer; the gesture handle and its proof, with `useGesture`; the Styles list in the left panel under the Graph rail (`information-architecture.md` 11), on `Tree` as it ships, the section doing the scrolling; `ChannelDescriptor`'s `group`, `advanced`, `default`, `description`, a short label and the shared descriptor names; `encode` over a data attribute; `overflow: "other"` the default on the layer-binding path; the Mixed read; bulk resolved values; the repaint with results and calculated values; the Overrides layer; the elements a layer paints and its source; `history.nextUndo`; the drawn legend and minimap; the many-layers fixtures |
+| 4b | Color by value (waits for PR #553) | 8 | `color-by-value` | **hard prerequisites, landed first, because a half-working verb is absent until it works (section 7)**: a default range per numeric channel, one scale default on both write paths, and encoding a data attribute keyed by source and channel, so Size by, Width by and a column-header verb never write nothing or stack a second layer; the gesture handle and its proof, with `useGesture`; the Styles list in the left panel under the Graph rail (`information-architecture.md` 11), on `Tree` as it ships, the section doing the scrolling; `ChannelDescriptor`'s `group`, `advanced`, `default`, `description`, a short label and the shared descriptor names; `encode` over a data attribute; `overflow: "other"` the default on the layer-binding path; the Mixed read; bulk resolved values; the repaint with results and calculated values; Override; the elements a layer paints and its source; `history.nextUndo`; the drawn legend and minimap; the many-layers fixtures |
 | 4c | The Assistant | -- (restores an old-shell feature) | parity: `assistant-parity` | the assistant's provider settings through the element; the `/ai` class types |
 | 5 | Sets, paths, shortest path; then notes with targets | 3, 9, 11; 5 | `create-and-combine-sets`, `find-shortest-path`, `take-a-note` | object selection; ids for found sets and paths; the painted query; a set's paint; the live set operation; the notes collection with targets (citations wait for 7) |
 | 6 | Filters and layout (waits for PR #553) | 6, 7 | `filter-then-characterize`, `make-layout-readable` | ordered filter steps, each undoable; per-step membership; the offered steps past the drawing limit ("Largest component", "Top N by degree with neighbors"); the drawn state for Hide on canvas, and the layout's count of hidden nodes it reads; the saved layout scope; the layout-option gesture contract test, first |
@@ -758,7 +760,7 @@ Slice: the build slice that lands the change (`implementation-mapping.md` 9).
 | `Tree` | virtualizing against an outside scroll element with no fixed height, filed only if a decision study moves the style stack into the inspector (`information-architecture.md` 11); `Tree` virtualizes against its own root at a fixed height past 200 rows today (`Tree.tsx` 248, 283 to 287, 577) | style layers in the inspector | -- |
 | `Toast` | the one running notice: persistent, with progress and Cancel | long-running work while the Results panel is closed (`interaction-pattern-entries.md` 7.1) | 4a |
 | `Toast` | `live?: LiveSetting` (`"assertive"`, `"polite"`, `"off"`, as `ActionRow` has), `"off"` dropping the role; today always `role="alert"` (`overlays/Toast.tsx`), so an element announcement repeated by a toast is heard twice | every notice (`implementation-mapping.md`, "Reads and writes") | 1 |
-| `QuickAction`, `ToolButton`, the themed menu item, `ActionRow` | a `disabledReason` through the shared `useControlAnnotation` (`aria-describedby`), as `StyleSelect` already has; today `disabled` only | every disabled command (`element-needs.md`, "Availability with a reader-facing reason") | 2 |
+| `QuickAction`, `ToolButton`, the themed menu item, `ActionRow` | a `disabledReason` through the shared `useControlAnnotation` (`aria-describedby`), as `StyleSelect` already has; today `disabled` only | every disabled command (`element-needs.md`, "Availability with a coded reason") | 2 |
 | `GestureHandlers` (`types/events.ts`) | the end reports its outcome (`onGestureEnd(outcome: "commit" \| "cancel", event)`), start fires on press or focus, keyboard and focus events accepted (typing then Enter, arrow steps, Esc); adopted by numeric `ComboInput`, `PanelField`'s `onScrub*`, the Mantine `Slider` theme, `ColorPickerPanel` and `GradientEditor`. Retyping `GestureEndHandler` is a minor release with a changelog entry | host gestures (`implementation-mapping.md` 3.2) | 4b, with the element's handle |
 | `PopoutManager` | a `maxDepth` prop enforcing one editor plus one nested picker (it nests at any depth today) | editors (`interaction-pattern-entries.md` 6.2) | 4a |
 | `PopoutManager` | Esc: one listener, returning when `defaultPrevented`, acting only on keys from the top-most popout or its portal dropdowns; `useClickOutside` on `pointerdown`. Today one Esc closes a Combobox and its Popout together | every popover (`interaction-patterns.md` 3.6) | 4a |

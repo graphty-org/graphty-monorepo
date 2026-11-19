@@ -195,7 +195,7 @@ describe("runs on the session", () => {
 
         assert.isTrue(estimate.available);
         assert.isBelow(estimate.seconds, 1, "counting two degrees is not slow");
-        assert.include(estimate.basis, "n=2");
+        assert.strictEqual(estimate.basisFacts.nodes, 2);
         assert.strictEqual(harness.session.run(command).id, "degree");
         harness.session.dispose();
     });

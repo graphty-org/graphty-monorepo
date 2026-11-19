@@ -36,29 +36,6 @@ export function newSelection(side: UnionLeaf["side"], within: UnionLeaf["within"
 }
 
 /**
- * The verbs that can change a group (spec 4.1): an empty None group only grows (Add); an All group
- * with no step only narrows (Keep, Except); afterwards all three.
- * @param branch - the group.
- * @returns the verbs, in the order the Add row draws them.
- */
-function verbsFor(branch: UnionBranch): readonly Verb[] {
-    if (branch.steps.length > 0) {
-        return ["add", "keep", "except"];
-    }
-    return branch.start === "all" ? ["keep", "except"] : ["add"];
-}
-
-/**
- * The verbs that can change a group at one of its steps: the verbs of the group cut short there.
- * @param branch - the group.
- * @param index - the step's place.
- * @returns the verbs.
- */
-export function verbsAt(branch: UnionBranch, index: number): readonly Verb[] {
-    return verbsFor({ ...branch, steps: branch.steps.slice(0, index) });
-}
-
-/**
  * A new step's verb: Keep in a group that starts with All, Add in one that starts with none.
  * @param branch - the group.
  * @returns the verb.
@@ -280,37 +257,3 @@ export const editStep = (rule: UnionLeaf, branchId: string, stepId: string, patc
  */
 export const removeStep = (rule: UnionLeaf, branchId: string, stepId: string): UnionLeaf =>
     withSteps(rule, branchId, (steps) => steps.filter((step) => step.id !== stepId));
-
-/**
- * Moves a step within its group. Start with never changes (spec 1).
- * @param rule - the selection.
- * @param branchId - the group.
- * @param stepId - the step.
- * @param to - its new place.
- * @returns the selection.
- */
-export const moveStep = (rule: UnionLeaf, branchId: string, stepId: string, to: number): UnionLeaf =>
-    withSteps(rule, branchId, (steps) =>
-        moveItem(
-            steps,
-            steps.findIndex((step) => step.id === stepId),
-            to,
-        ),
-    );
-
-/**
- * A copy of a step, under it, with a new id.
- * @param rule - the selection.
- * @param branchId - the group.
- * @param stepId - the step.
- * @returns the selection and the copy's id.
- */
-export function duplicateStep(rule: UnionLeaf, branchId: string, stepId: string): { rule: UnionLeaf; id: string } {
-    const id = newId("s");
-    return {
-        rule: withSteps(rule, branchId, (steps) =>
-            steps.flatMap((step) => (step.id === stepId ? [step, { ...step, id }] : [step])),
-        ),
-        id,
-    };
-}

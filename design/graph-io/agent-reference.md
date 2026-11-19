@@ -8,16 +8,19 @@ The rules stay in [graph-io/CLAUDE.md](../../graph-io/CLAUDE.md); this file hold
 
 ```
 graph-io/
-+-- package.json                  # @graphty/graph-io, ESM only, sideEffects false, "." + one subpath per format + "./positions"
++-- package.json                  # @graphty/graph-io, ESM only, sideEffects false, "." + one subpath per format + "./sources/<name>" + "./styles" + "./positions"
 +-- project.json                  # Nx project "graph-io"
 +-- tsconfig.json                 # lint/typecheck: src/ test/ benchmarks/ + ../graph-format/src (paths), noEmit, lib DOM
 +-- tsconfig.build.json           # emit: src/ only, rootDir ".", outDir dist (-> dist/src/), format resolved from its dist
 +-- tsconfig.strict-consumer.json # test/types/*.test-d.ts against dist/*.d.ts under the strict flags
-+-- vitest.config.ts              # single project, environment node, pool forks, thresholds 80/80/75/80
-+-- scripts/entries.js            # the bundle entries: graph-io + one per format
++-- vitest.config.ts              # single project, environment node, pool forks, thresholds 90/90/90/90
++-- vitest.browser.config.ts      # the network sources and fidelity stories in a real browser (CI shard graph-io-browser)
++-- vitest.storybook.config.ts    # the fidelity-stories Storybook as story tests
++-- scripts/entries.js            # the bundle entries: graph-io + one per format, per source and styles
 +-- scripts/build-bundle.js       # one multi-entry vite lib build -> dist/graph-io.js, dist/<format>.js, dist/chunks/*, and dist/<entry>.d.ts one-line re-exports of dist/src/** (tools/build-bundle.mjs)
 +-- scripts/docs-reference.ts     # renders the generated blocks of docs/ (npm run docs:reference; --check verifies)
 +-- typedoc.json                  # the API reference (root `pnpm run docs:api:graph-io`); every subpath barrel is an entry
++-- fidelity-stories/             # a Storybook (not published) showing each style fidelity sample beside its oracle drawing
 +-- docs/                         # the user guide, published at https://graphty.app/docs/graph-io/
 |   +-- examples/<topic>/<name>.ts  # every code example the guide shows, runnable; <name>.txt is what it prints
 +-- src/
@@ -28,7 +31,7 @@ graph-io/
 |   |                             # exportGraphToBlob / downloadGraph, listFormats (tests: test/simple.test.ts)
 |   +-- sniff.ts                  # rankFormats / sniffFormat (extension + MIME + content), the JSON dialect head sniff
 |   +-- children.ts               # the children CSR over a parent / parents column (design 7.1)
-|   +-- common/                   # shared by every format (see the module map in STATUS.md)
+|   +-- common/                   # shared by every format
 |   |   +-- codes.ts              # the one definition of every shared issue / loss code (E_MISSING_ID, W_ROLE_DROPPED, ...)
 |   |   +-- report.ts             # ImportReportBuilder: issues, error limit, warnOnce, fail() -> ImportError
 |   |   +-- input.ts              # textChunks / readText / LineReader: the one byte decoder (BOM, option, declaration, UTF-8, windows-1252 fallback), the text checks, input shapes, abort, progress
@@ -43,15 +46,22 @@ graph-io/
 |   |   +-- escape.ts  format.ts  writer.ts   # quoting per format, formatDecimal / formatGmlReal, encodeChunks / joinText
 |   |   +-- ontology.ts  ontology-export.ts   # the OBO column vocabulary (OBO and OBO Graphs), what the two ontology exporters share
 |   |   +-- notes.ts  units.ts    # the aggregated note collector, LengthUnit / GraphTool (shared by file positions and file styles)
+|   |   +-- compare.ts            # compareSnapshots (public)
+|   |   +-- cell-budget.ts  choose.ts  cx-export.ts  json-elements.ts  line-format.ts  plural.ts  zip.ts   # smaller helpers
 |   +-- sources/                  # network sources (experimental): the contract (types.ts), codes.ts (SOURCE_ISSUE), ids.ts
 |   |                             # (every source id and _source. attribute name), credentials.ts, context.ts (the guarded
 |   |                             # ctx.fetch), run.ts (records / file / import paths), registry.ts, builtins.ts (lazy
-|   |                             # registrations), testing.ts (replayFetch), and one directory per built-in source
-|   |                             # (ndex/, cypher/, rest/: params.ts, descriptor.ts, index.ts = the subpath barrel)
+|   |                             # registrations), define.ts, params.ts, fail.ts, link.ts, sigv4.ts, sha256.ts,
+|   |                             # testing.ts (replayFetch), and one directory per built-in source (ndex/, cypher/, rest/,
+|   |                             # gremlin/, sparql/, github/, s3/, zenodo/, url/: params.ts, descriptor.ts, helpers,
+|   |                             # index.ts = the subpath barrel; url/ has no subpath of its own)
+|   +-- styles/                   # @graphty/graph-io/styles: the format-independent style module (types, vocabulary, codes,
+|   |                             # defaults, budget) with canon/ (value parsing), plan/ (style plans), io/ (the style block
+|   |                             # a file carries), cyjs/ and cytoscape/ (Cytoscape stylesheets and sessions)
 |   +-- positions/                # @graphty/graph-io/positions: extractPositions() (stored coordinates as center, y up, file
 |   |                             # units), toFilePositions(), POSITION_ISSUE; never imports a format module. A format says how
 |   |                             # its coordinates are spelled in the position column's meta.extra or an importer positions() hook
-|   +-- formats/<format>/         # gexf graphml gml dot pajek csv json neo4j
+|   +-- formats/<format>/         # gexf graphml gml dot pajek csv json neo4j xgmml cx cx2 cys obo
 |       +-- index.ts              # the subpath barrel: <fmt>Importer, <fmt>Exporter, option types, code tables
 |       +-- importer.ts           # GraphImporter<Opts>
 |       +-- exporter.ts           # GraphExporter<Opts>
@@ -62,6 +72,8 @@ graph-io/
 |   +-- helpers/roundtrip.ts      # expectSameSnapshot / roundTrip (compareSnapshots is public: src/common/compare.ts)
 |   +-- common/*.test.ts          # one per common module
 |   +-- formats/<format>/*.test.ts
+|   +-- positions/  sources/  styles/   # the subpath modules; sources/browser/ runs under vitest.browser.config.ts
+|   +-- fidelity/  robustness/  audit/  # style fidelity against program oracles, malformed-input robustness, audits
 |   +-- registry.test.ts  sniff.test.ts  children.test.ts  index.test.ts  build-output.test.ts
 |   +-- types/*.test-d.ts         # compile-only, run under tsconfig.json and tsconfig.strict-consumer.json
 |   +-- conformance/              # the format conformance suite (see "Conformance suite" below)
@@ -71,12 +83,12 @@ graph-io/
 ## Conformance suite
 
 `test/conformance/` runs every fixture under `fixtures/<format>/` through `importGraph()` as bytes and
-checks it against the expected-result record in that format's `manifest.json` (origin, licence,
+checks it against the expected-result record in that format's `manifest.json` (origin, license,
 version, what it exercises, which oracle produced the expectation). `tools/oracle.py` regenerates the
 oracle-derived expectations (networkx 3.1, Graphviz 2.43 `gvpr`, Python's json and csv modules;
 `oracle_<format>.py` per format): `python3 test/conformance/tools/oracle.py [format ...]`.
 
-- An expectation states the RIGHT behaviour. Where graph-io misses it, the fixture carries
+- An expectation states the RIGHT behavior. Where graph-io misses it, the fixture carries
   `knownFailure` (or `roundTripFailure`): the cause and its section in the research notes. The
   test then runs as an expected failure, so a fix turns it red until the marker is removed. Remove
   the marker in the same change as the fix; never weaken an expectation to make it pass.
@@ -87,7 +99,7 @@ oracle-derived expectations (networkx 3.1, Graphviz 2.43 `gvpr`, Python's json a
   rank as its own format; `sniffAs` asks the same of any other fixture (null: no format).
 - `CONFORMANCE_REPORT=1 pnpm exec vitest run test/conformance` regenerates `test/conformance/REPORT.md`
   (the known failures grouped by cause: the work list).
-- Fixtures under GPL / LGPL / EPL / CDDL / CC-BY-NC licences are test-only: `test/` is not in the
+- Fixtures under GPL / LGPL / EPL / CDDL / CC-BY-NC licenses are test-only: `test/` is not in the
   package's `files`, so they are never published.
 - Three generative layers run in the same file (`conformance.test.ts`):
     - `generative.ts`: fast-check graphs (ids with Unicode, quotes, delimiters, XML / DOT / GML

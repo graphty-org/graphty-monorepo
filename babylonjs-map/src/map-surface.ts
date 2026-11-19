@@ -338,8 +338,8 @@ export abstract class MapSurface {
     }
 
     /**
-     * The credits of the sources that drew a tile in the last update, without repeats. Show them
-     * whenever the map is visible; a source whose tiles all failed is not drawn and not credited.
+     * The credits of the sources that drew a tile in the last update, without repeats, as data for
+     * the page to show where it chooses; a source whose tiles all failed is not drawn and not credited.
      * @returns The credits.
      */
     get attribution(): string[] {
@@ -576,7 +576,7 @@ export abstract class MapSurface {
 
     /**
      * How bright the picture is at a point of the surface, from 0 to 1, multiplied into its
-     * colour; null draws every point at full brightness.
+     * color; null draws every point at full brightness.
      * @returns The shading of a point in the root's own space, or null.
      */
     protected pointShade(): ((x: number, y: number, z: number) => number) | null {

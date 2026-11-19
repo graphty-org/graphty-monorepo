@@ -1,0 +1,43 @@
+name: Refresh inherited pull requests
+
+# When a master break's issue closes as fixed, merges master into each open pull request whose newest commit failed a
+# check on a test file the issue names, so its checks run on the fix (tools/refresh-inherited-prs.mjs, #8363). A pull
+# request run tests the merge of its head with master as master was at its push: without this, one red on a master
+# break stayed red after the fix landed, and a re-run keeps the stale merge commit. The merge is pushed as
+# graphty-agent with AGENT_AUTOMERGE_TOKEN (Contents and Pull requests write) from the master-only environment
+# `dependabot-automerge`, because a push made with GITHUB_TOKEN starts no checks. An issues event runs master's copy
+# of this file; it checks out only master's tools.
+on:
+    issues:
+        types: [closed]
+
+permissions:
+    contents: read
+
+jobs:
+    refresh:
+        name: Refresh inherited pull requests
+        if: github.event.issue.state_reason == 'completed'
+        runs-on: ubuntu-24.04
+        timeout-minutes: 5
+        environment: dependabot-automerge
+        steps:
+            - uses: actions/checkout@v7
+              with:
+                  sparse-checkout: tools
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v7
+              with:
+                  node-version: 22.x
+
+            # The issue's title and body are read from the event file, never through the script text.
+            - name: Merge master into the pull requests the break held
+              env:
+                  GH_TOKEN: ${{ secrets.AGENT_AUTOMERGE_TOKEN }}
+              run: |
+                  if [ -z "$GH_TOKEN" ]; then
+                    echo "::warning::AGENT_AUTOMERGE_TOKEN is not set in environment dependabot-automerge"
+                    exit 0
+                  fi
+                  node tools/refresh-inherited-prs.mjs

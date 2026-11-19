@@ -1,5 +1,5 @@
 /**
- * The `scan-add` kernel body (spec 6 row 2 step (c); P4-T2): adds the exclusive prefix of its block's sum,
+ * The `scan-add` kernel body (the scan's third step): adds the exclusive prefix of its block's sum,
  * `blockOffsets[group]`, to every element of the block. Body only; normative text.
  */
 export const scanAddWgsl = /* wgsl */ `

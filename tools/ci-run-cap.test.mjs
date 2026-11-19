@@ -8,6 +8,7 @@ import {
     DEFAULT_BUDGET,
     earlierActive,
     FULL_RUN_MAX_PARALLEL,
+    MAX_WAIT_MINUTES,
     parseBudget,
     parseCap,
     POLL_SECONDS,
@@ -98,7 +99,7 @@ test("parseBudget: unset is the runner ceiling less the full run's share, off is
 test("earlierActive counts only earlier, active pull request runs", () => {
     const runs = [
         ME,
-        run(40268220173, "2026-10-26T04:16:32Z", "completed"), // cancelled by a newer push: frees its place
+        run(40268220173, "2026-10-26T04:16:32Z", "completed"), // canceled by a newer push: frees its place
         run(40264114276, "2026-10-26T03:26:48Z", "in_progress"),
         run(40264114000, "2026-10-26T03:20:00Z", "queued"),
         run(40269999999, "2026-10-26T04:20:00Z", "in_progress"), // later: never counts (no deadlock)
@@ -241,7 +242,7 @@ test("a run queued for over a day is stuck, not load, and never counts", async (
     assert.ok(!f.calls.includes("graphql"), "no earlier run, no query");
 });
 
-test("waits its turn with no time limit of its own: past 25 minutes until the jobs drain", async () => {
+test("waits its turn past 25 minutes until the jobs drain", async () => {
     const ci = [ME, suite(run(1, "2026-10-26T04:00:00Z", "in_progress"), "CS_1")];
     const f = fake({ ci, suites: { CS_1: { build: "COMPLETED", queued: 200 } } });
     // the earlier run's jobs drain after an hour
@@ -253,6 +254,20 @@ test("waits its turn with no time limit of its own: past 25 minutes until the jo
     const r = await waitTurn({ cap: null, budget: DEFAULT_BUDGET, runId: ME.id, ...f, api });
     assert.equal(r.outcome, "proceeded");
     assert.ok(r.waitedSeconds >= 3600, `waited ${r.waitedSeconds} s`);
+});
+
+test("ends its wait at MAX_WAIT_MINUTES and proceeds, so the job's timeout never cancels the run", async () => {
+    const ci = [ME, suite(run(1, "2026-10-26T04:00:00Z", "in_progress"), "CS_1")];
+    const f = fake({ ci, suites: { CS_1: { build: "COMPLETED", queued: 1000 } } });
+    const r = await waitTurn({ cap: null, budget: DEFAULT_BUDGET, runId: ME.id, ...f });
+    assert.equal(r.outcome, "wait limit");
+    assert.equal(r.waitedSeconds, MAX_WAIT_MINUTES * 60);
+});
+
+test("MAX_WAIT_MINUTES ends before the Run cap job's timeout in ci.yml", () => {
+    const yml = readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8");
+    const timeout = Number(/\n {4}run-cap:\n(?: {8}.*\n)*? {8}timeout-minutes: (\d+)\n/.exec(yml)?.[1]);
+    assert.ok(MAX_WAIT_MINUTES + 5 <= timeout, `wait ${MAX_WAIT_MINUTES} min, job timeout ${timeout} min`);
 });
 
 test("a failed GraphQL query is an API failure: it proceeds", async () => {

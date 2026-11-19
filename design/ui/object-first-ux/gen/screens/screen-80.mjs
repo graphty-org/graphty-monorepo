@@ -3,7 +3,7 @@
 // run once per month ("Communities over time..." from the Grouping's "..."
 // menu or the transport gear's OVER TIME "+"), and each month's groups were
 // matched to the previous month's by largest overlap, so a group keeps its
-// colour while it lasts. The Groups tab carries the over-time row; its
+// color while it lasts. The Groups tab carries the over-time row; its
 // settings popover is open beside it; the Table dock is on Findings with the
 // flow chart of groups across months (an alluvial chart: one band per group,
 // splits and merges as forks) above the events (form, split, merge,

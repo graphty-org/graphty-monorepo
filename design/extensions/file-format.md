@@ -10,11 +10,11 @@ section the writer), `descriptors.schema.json#/$defs/FormatDescriptor`, and this
 A file format extension teaches the element to read a graph file it does not ship a reader for --
 CX2 for NDEx, SIF, a lab's own tab-separated format, a vendor export -- reached by exactly the
 routes the built-in formats are: a string, a dropped `File`, a URL, a format named explicitly, a
-format recognised from the file name or from its first bytes.
+format recognized from the file name or from its first bytes.
 
 In graphty-element 2.6.1 the point is **read-only**. `DataSource.register` refuses a descriptor that
 claims `canExport: true`, because there is no writer seam: a "Save as" menu built from the
-catalogue would otherwise offer a format nothing can save. The owner's request names a reader AND
+catalog would otherwise offer a format nothing can save. The owner's request names a reader AND
 a writer; section 8 specifies the writer as a proposal, because where writers register has not been
 decided (README open decision 1).
 
@@ -62,10 +62,10 @@ number and boolean columns on load so a cell of `-2.31` is a number and not text
 (`simple-tier.md` section 2.6), and wraps a throw from `read` as `E_PARSE_FAILED`. For `write` it
 builds the graph-io exporter registered through `registerFormatWriter` (section 8): it resolves the
 snapshot into plain records -- ids resolved, mixed-direction pairs folded, internal columns
-removed, unmeasured values left out -- neutralises formula-looking STRING cells only for a
+removed, unmeasured values left out -- neutralizes formula-looking STRING cells only for a
 spreadsheet format (`.csv`, `.tsv`, `text/csv`, `text/tab-separated-values`; rule 4 of section 4),
 derives the capability table and loss notes from `keeps` (default: edge attributes only), and
-encodes the text. One catalogue entry covers both directions. A file is opened with
+encodes the text. One catalog entry covers both directions. A file is opened with
 `element.loadFromUrl(url)` or `loadFromFile(file)`; the extension picks the format.
 
 Move to the advanced tier for a binary format, streaming without holding the whole text, a
@@ -214,7 +214,7 @@ the static or member:
 8. A built-in id -> `E_DUPLICATE_PLUGIN`. Sameness for re-registration is decided by the class.
 
 `register` files the class AND publishes the descriptor in one act. A descriptor without its reader
-would be a catalogue entry a consumer can select and then be told does not exist; the element MUST
+would be a catalog entry a consumer can select and then be told does not exist; the element MUST
 NOT offer a way to publish one without the other.
 
 ## 4. Detection
@@ -233,7 +233,7 @@ NOT offer a way to publish one without the other.
    built-in's id first however greedy the plugin's sniffer is. In practice this makes content
    detection unreachable for any tab- or space-separated plugin format: the built-in CSV sniffer
    (`graphty-element/src/catalog/detect.ts`) claims any line of the form word, separator, word, and
-   `detectFormat({ sample })` then returns `csv`. Such a format is recognised by its extension or
+   `detectFormat({ sample })` then returns `csv`. Such a format is recognized by its extension or
    by name. Letting a specific sniffer outrank a generic one is open decision 2.
 5. **Extension beats content.** When both a file name and a sample are given, the formats that
    claim the extension are the answer; the sample only reorders them (a claimant whose sniffer
@@ -248,7 +248,7 @@ NOT offer a way to publish one without the other.
    length. **(not yet met)** The element MUST truncate the sample to a documented maximum (4 KiB)
    before calling any registered `detect`, on every route.
 8. `detect` receives text. A binary format cannot be sniffed by content in this version; it is
-   recognised by extension or by name (open decision 20).
+   recognized by extension or by name (open decision 20).
 9. **Media types are declared but never consulted.** Every descriptor must list `mimeTypes`, but
    `DetectionInput` carries only a file name and a sample, so an HTTP `Content-Type` (`text/turtle`)
    and a dropped file's `File.type` are ignored. A URL with no known extension is therefore
@@ -279,11 +279,11 @@ confidence model is part of open decision 2.
 | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Loaded from a string                                                           | `graph.addDataFromSource("<id>", { data })`                              | "a third party's file format"                                                                                                                                                                                                                                                         |
 | Loaded from a `File`, named or detected                                        | `graph.loadFromFile(file, { format })`, `graph.loadFromFile(file)`       | same                                                                                                                                                                                                                                                                                  |
-| Loaded from a URL, with three attempts and exponential backoff                 | `graph.loadFromUrl(url)`                                                 | same. **(not yet met)** only when the format is named or recognised by extension: a URL whose extension is unknown is first fetched ONCE with a bare `fetch` for sniffing, with no retry, and a failure there is an uncoded `Error`, not `E_FETCH_FAILED` (`Graph.ts`, `loadFromUrl`) |
+| Loaded from a URL, with three attempts and exponential backoff                 | `graph.loadFromUrl(url)`                                                 | same. **(not yet met)** only when the format is named or recognized by extension: a URL whose extension is unknown is first fetched ONCE with a bare `fetch` for sniffing, with no retry, and a failure there is an uncoded `Error`, not `E_FETCH_FAILED` (`Graph.ts`, `loadFromUrl`) |
 | Listed beside built-ins with its plain name                                    | `session.catalog.formats()`                                              | "...in the catalogue a picker is built from"                                                                                                                                                                                                                                          |
-| Found by the id a saved document records                                       | catalogue lookup by id                                                   | "is found by the name a saved document records"                                                                                                                                                                                                                                       |
+| Found by the id a saved document records                                       | catalog lookup by id                                                     | "is found by the name a saved document records"                                                                                                                                                                                                                                       |
 | Found from a file name before the file is read                                 | `detectFormats({ filename })`                                            | "is found from a file name's extension..."                                                                                                                                                                                                                                            |
-| Recognised from content                                                        | `detectFormats({ sample })`                                              | "...being recognised from a file"                                                                                                                                                                                                                                                     |
+| Recognized from content                                                        | `detectFormats({ sample })`                                              | "...being recognised from a file"                                                                                                                                                                                                                                                     |
 | Options published for an import dialog, defaulted and validated                | `descriptor.options`, `resolveOptions`                                   | "...being configured"                                                                                                                                                                                                                                                                 |
 | Coded failure for unreadable content and for an unreachable URL                | `data-loading-error` event carrying `E_PARSE_FAILED` or `E_FETCH_FAILED` | "...failing"                                                                                                                                                                                                                                                                          |
 | Declaring what the file says about direction                                   | `declareDirection`                                                       | "...declaring what its file says"                                                                                                                                                                                                                                                     |
@@ -295,7 +295,7 @@ Parity statements:
 
 1. A registered reader MUST be reachable by every route in the table, with the same arguments a
    built-in takes.
-2. **Cancellation is vacuous.** No load can be cancelled, built-in or plugin. When load
+2. **Cancellation is vacuous.** No load can be canceled, built-in or plugin. When load
    cancellation is added it MUST reach every reader through the base class, preferably as an
    argument rather than an inherited member (README section 6.2 item 1); open decision 20.
 3. **Errors: parity is inverted.** A registered reader reports `E_PARSE_FAILED` and
@@ -363,7 +363,7 @@ Parity statements:
    short of replacing everything: a 9-million-triple file that fails at triple 6 million leaves 6
    million triples silently merged into a graph built from other sources, and every later run
    computes over it. This is a DEFECT the parity rule does not excuse. Open decision 20
-   recommends staged loads, committed only on success, so that a failed or cancelled load in any
+   recommends staged loads, committed only on success, so that a failed or canceled load in any
    mode leaves the graph as it was. The parity suite does not pin any of this for plugin readers
    yet.
 
@@ -382,7 +382,7 @@ specification reads that as:
    element's tie rule and not the spreadsheet's.
 2. Whatever the format cannot hold MUST be reported, as a `LossNote` per omission, before or with
    the export. An export MUST NOT silently drop anything.
-3. The ELEMENT, not the writer, resolves style layers into concrete per-element values (colour,
+3. The ELEMENT, not the writer, resolves style layers into concrete per-element values (color,
    size, shape, thickness) and algorithm results into attribute columns, and hands the writer a
    `GraphSnapshot` whose role columns carry them. A writer therefore cannot disagree with the
    element about what a node looks like. This matches graph-io's `ExportCapabilities.viz` and
@@ -390,7 +390,7 @@ specification reads that as:
 
 Three consequences of item 3 conflict with items 1 and 2, and are open decision 24:
 
-- A style MAPPING (a colour mapped from a column with a midpoint and a missing-value colour, a
+- A style MAPPING (a color mapped from a column with a midpoint and a missing-value color, a
   size mapped from a p-value) reaches the writer only as fixed per-element values. A format that
   can hold the mapping itself (CX2, XGMML) loses it, and today nothing raises a loss note for
   that. Whether "whatever the format supports" requires writing the mapping is a reading of the
@@ -429,7 +429,7 @@ Two further rules for any writer:
 
 4. Every exported string -- values, attribute keys, node and edge ids, and exported column names
    -- MUST be escaped for the target syntax (XML and DOT quoting of keys and ids as well as values,
-   CSV quoting). A CSV or TSV writer MUST, by default, neutralise a STRING cell, header cells
+   CSV quoting). A CSV or TSV writer MUST, by default, neutralize a STRING cell, header cells
    included, that begins with `=`, `+`, `-`, `@`, tab or carriage return (a hostile GraphML key
    named `=HYPERLINK(...)` becomes a CSV header), because imported attribute values are untrusted and a spreadsheet executes
    a formula. It MUST NOT touch a value that is a finite number in the snapshot (a column of type
@@ -437,10 +437,10 @@ Two further rules for any writer:
    down-regulated gene would be read back as text. Nor does it touch a STRING cell that is itself
    a number in the JSON number grammar (`-2.31` in a column that stayed text because of one odd
    cell): a spreadsheet reads it as that number, and no formula can hide in it. The rule is per value type, the writer offers
-   an option to switch neutralisation off for a pipeline that reads the file with a CSV parser,
+   an option to switch neutralization off for a pipeline that reads the file with a CSV parser,
    and the conformance kit checks that a numeric column with negative values round-trips byte for
    byte. **(not yet met)** graph-io's CSV writer, which the element's own export will use,
-   neutralises nothing (README section 10 item 9).
+   neutralizes nothing (README section 10 item 9).
 5. Whether a caller may export a chosen subset (a selection, some columns, pseudonymised ids) and
    report each deliberate omission as a loss note is part of open decision 24, and needs the
    owner's confirmation as consistent with "whatever the format supports".
@@ -478,7 +478,7 @@ Option B fails four parity clauses and makes the consumer wire graph-io to the e
 architectural principles forbid (a consumer must never write the integration). Option C ties a
 writer to a class built around asynchronous record generation. Option A keeps the writing code in
 graph-io's contract, where the built-in writers already live, and gives the third party the same
-registration, catalogue, options and errors as every other point.
+registration, catalog, options and errors as every other point.
 
 ### 8.3 The writer contract under option A
 
@@ -488,7 +488,7 @@ These requirements apply only if option A is chosen.
    Its id is `registration.descriptor.id`; sameness is decided by `registration.exporter`.
 2. `registration.descriptor.canExport` MUST be `true`. If a reader for the same id is registered,
    the two descriptors MUST agree on `plainName`, `extensions` and `mimeTypes`, or the second
-   registration is refused with `E_BAD_COMMAND`, `field: "descriptor"`; the catalogue publishes one
+   registration is refused with `E_BAD_COMMAND`, `field: "descriptor"`; the catalog publishes one
    entry with both flags true.
 3. `registration.exporter.format` MUST equal the descriptor id.
    Detection and every load route consider only descriptors with `canImport: true`; a "Save as"
@@ -532,7 +532,7 @@ and graph-io, and a writer to take those types from `./extend`. That is part of 
 
 The migration (branch `feat/graph-format-migration`) rewrites the built-in readers as thin
 `DataSource` subclasses over graph-io importers. From the consumer's side nothing changes: every
-format is still a registered class in the catalogue. From an author's side there are then two
+format is still a registered class in the catalog. From an author's side there are then two
 reader contracts in the monorepo: the element's `DataSource` (yield records) and graph-io's
 `GraphImporter` (push into a builder, `sniff` by confidence).
 
@@ -575,7 +575,7 @@ Until that is decided, a third party writes a `DataSource` subclass as specified
 4. `detect` receives untrusted text and MUST NOT perform I/O.
 5. **(not yet met)** `getContent` bounds only the time to receive response headers: the body of a
    URL (`response.text()`) and of a `File` (`file.text()`) is read with no size cap and no time
-   limit, and the load cannot be cancelled, so a server that drip-feeds bytes or a multi-gigabyte
+   limit, and the load cannot be canceled, so a server that drip-feeds bytes or a multi-gigabyte
    file holds the load forever. Limits on bytes, body time, node and edge counts and nesting depth
    are element obligations every reader inherits, not something each reader re-implements; open
    decision 20.
@@ -723,7 +723,7 @@ await graph.loadFromFile(droppedFile); // recognised by ".sif"; by content alone
 - No writer seam; `canExport: true` is refused (section 8). No CX2 file can be produced, so the
   NDEx deliverable of `design/designloom/workflows/W25.yaml` is unmet, and that workflow's
   adoption note claiming CX2 export is wrong until open decision 1 is taken and a writer ships.
-- Imports cannot be cancelled, for any reader; body size and time are unbounded (section 11).
+- Imports cannot be canceled, for any reader; body size and time are unbounded (section 11).
 - `getContent` returns one string: no binary format from a URL, no compressed file, no file larger
   than the engine's maximum string (open decision 20).
 - Built-in readers throw uncoded errors and skip option validation (parity inverted).
@@ -750,7 +750,7 @@ await graph.loadFromFile(droppedFile); // recognised by ".sif"; by content alone
 - The built-in CSV reader turns `00123` into the number 123 and types node-list and edge-list ids
   differently (section 2.2 item 9).
 - Multi-dot extensions register but never match (section 2.1); input is always decoded as UTF-8
-  and missing-value tokens are not recognised (open decision 20).
+  and missing-value tokens are not recognized (open decision 20).
 - An unmeasured result value and the element's internal columns have export rules no writer
   implements yet (section 8.1 items 6 and 7).
 - A reader cannot report progress in bytes or against a known total, so a large plugin format

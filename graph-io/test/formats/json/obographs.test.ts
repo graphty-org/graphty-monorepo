@@ -11,6 +11,7 @@ import { oboImporter } from "../../../src/formats/obo/importer.js";
 import { importAllGraphs, importGraph, listGraphs } from "../../../src/registry.js";
 import { sniffJsonDialectHead } from "../../../src/sniff.js";
 import { type CommonImportOptions, ImportError, type ImportReport } from "../../../src/types.js";
+import { expectImportError } from "../../helpers/import-error.js";
 
 type Options = JsonImportOptions & CommonImportOptions;
 
@@ -26,13 +27,7 @@ async function load(doc: unknown, options?: Options): Promise<{ s: GraphSnapshot
 }
 
 async function fails(doc: unknown, options?: Options): Promise<ImportError> {
-    try {
-        await load(doc, options);
-    } catch (err) {
-        expect(err).toBeInstanceOf(ImportError);
-        return err as ImportError;
-    }
-    throw new Error("expected ImportError");
+    return expectImportError(() => load(doc, options), { format: "json" });
 }
 
 function codes(report: ImportReport): string[] {

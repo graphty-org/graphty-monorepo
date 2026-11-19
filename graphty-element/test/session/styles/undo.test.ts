@@ -1,5 +1,5 @@
 /**
- * @file Style edits under undo: every edit is one step, a colour picker's drag is one step, undo
+ * @file Style edits under undo: every edit is one step, a color picker's drag is one step, undo
  * puts back the identical stack without compiling anything, and a verb's `Run` handle keeps the
  * meaning the design gives it (an aborted signal writes nothing; a cancel after the call keeps
  * the edit).
@@ -60,8 +60,8 @@ describe("a style edit in the history", () => {
         const layer = await session.styles.add(RED);
 
         assert.deepEqual(
-            session.history.steps.map((step) => step.label),
-            ['Added layer "Red"'],
+            session.history.steps.map((step) => step.fact),
+            [{ code: "style.add-layer", params: { layer: "Red" } }],
         );
         assert.deepEqual(session.history.steps[0]?.ops, ["style.patch"]);
         assert.deepEqual(session.history.steps[0]?.slices, ["styles"]);

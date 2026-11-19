@@ -1,5 +1,9 @@
 # Implementation Plan for Run Layouts Modal
 
+Status: historical record. It specifies part of the graphty app's first shell, removed on
+2026-10-16 (commit 0895d66703); the app is now the workspace (`graphty/src/workspace/`), designed
+in [framework/](framework/README.md).
+
 ## Overview
 
 This implementation plan covers the creation of a "Run Layouts" modal dialog that allows users to select from all 16 available graph layout algorithms, configure their parameters via dynamically-generated forms based on Zod schemas, and apply layouts to the graph visualization. The modal integrates with graphty-element as the source of truth for layout state.
@@ -324,7 +328,7 @@ graphty-element (web component - source of truth)
 2. Toggle view mode to 3D (bottom toolbar)
 3. Open "Run Layouts..." → select "Circular" (supports 3D) → see 2D/3D radio, both enabled
 4. Toggle view mode to 2D
-5. Open "Run Layouts..." → select "Circular" → 3D radio is disabled/greyed
+5. Open "Run Layouts..." → select "Circular" → 3D radio is disabled/grayed
 6. Select "Spiral" (2D only) → dimension radio hidden
 7. Apply layout and verify correct `dim` value is passed
 

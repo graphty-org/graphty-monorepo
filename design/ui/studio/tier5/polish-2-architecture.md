@@ -92,10 +92,10 @@ first renders.
 Fix as round 1: `watchSteps` reports `run-needed`/`computing` and starts nothing; runs start on
 write or through an explicit additive `scope.startSteps(rule)`; the app drops the render peek.
 
-### 5. The import filter lists filtered-graph runs un-greyed, and a pick reads a different run
+### 5. The import filter lists filtered-graph runs un-grayed, and a pick reads a different run
 
 Carried from round 1 (finding 5). After Analyze, Betweenness (run on the filtered graph), the
-filter card's picker lists Results "Betweenness" with no greying and no tooltip (`s1/11.png`,
+filter card's picker lists Results "Betweenness" with no graying and no tooltip (`s1/11.png`,
 hover printed `tooltip: null`) and the Analyze categories omit it because it "ran" on some
 scope (`values.ts:164-170`). `checkStep` on that measure in a filter still returns `null`
 (probe Q3), the readable value still has no run-field name (probe Q3 keys:
@@ -104,7 +104,7 @@ fits, usedBy, tests`), and a measure picked from a full-graph run in a style hos
 reads a second, filtered-graph run (probe Q2: `louvain:"graph"` then `louvain:"visible"`).
 
 Fix as round 1: graphty-element's `checkStep` (or the readable value) states whether a step on
-this host and base can read the run and which run a measure would read; the app greys by it and
+this host and base can read the run and which run a measure would read; the app grays by it and
 lists the algorithm under Analyze for the host's base.
 
 ## Minor

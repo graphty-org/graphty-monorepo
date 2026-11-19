@@ -74,7 +74,7 @@ export type JoinedPatternKind = keyof typeof JOINED_PATTERN_KINDS;
 export interface JoinedLineOptions {
     /** The line's width: screen width (the 3D line's own scale), or world units with `worldWidth`. */
     width: number;
-    /** Hex colour. */
+    /** Hex color. */
     color: string;
     /** Opacity 0-1; default 1. */
     opacity?: number;
@@ -127,8 +127,32 @@ export interface JoinedLineOptions {
     pulled?: boolean;
     /** With `pulled`, read each piece as a point of a lone curve's cut path (`EDGE_PULLED_CURVE`). */
     pulledCurve?: boolean;
-    /** With `pulled` and no `pulledCurve`, draw each piece's rectangle alone (`EDGE_PULLED_LEAN`). */
-    pulledLean?: boolean;
+    /**
+     * With `pulled` and no `pulledCurve`, draw each piece's rectangle alone (`EDGE_PULLED_LEAN`);
+     * `"smooth"` also widens it by a pixel and smooths its edges in the fragment shader (`EDGE_LINE_AA`).
+     */
+    pulledLean?: boolean | "smooth";
+}
+
+/**
+ * The lean program's defines for a straight pulled line: none, the lean rectangle, or the lean
+ * rectangle with shader-smoothed edges. A 3D line (its width not in world units) also drops the
+ * outer half of its smoothed fringe and its near-invisible fragments (`EDGE_LINE_AA_CUT`), which
+ * would write depth and cut a hole in a farther line it crosses; the 2D view has no such hole and
+ * keeps the whole fringe.
+ * @param options - The line's options.
+ * @returns The defines.
+ */
+function leanDefines(options: JoinedLineOptions): string[] {
+    if (options.pulledLean === "smooth") {
+        return [
+            "#define EDGE_PULLED_LEAN",
+            "#define EDGE_LINE_AA",
+            ...(options.worldWidth === true ? [] : ["#define EDGE_LINE_AA_CUT"]),
+        ];
+    }
+
+    return options.pulledLean === true ? ["#define EDGE_PULLED_LEAN"] : [];
 }
 
 /**
@@ -146,9 +170,7 @@ function joinedLineDefines(options: JoinedLineOptions, widened: boolean): string
         ...(options.opaque === true ? ["#define EDGE_OPAQUE"] : []),
         ...(options.pulled === true ? ["#define EDGE_PULLED"] : []),
         ...(options.pulled === true && options.pulledCurve === true ? ["#define EDGE_PULLED_CURVE"] : []),
-        ...(options.pulled === true && options.pulledCurve !== true && options.pulledLean === true
-            ? ["#define EDGE_PULLED_LEAN"]
-            : []),
+        ...(options.pulled === true && options.pulledCurve !== true ? leanDefines(options) : []),
         ...(drawsSlotColor(options, widened) ? ["#define EDGE_SLOT_COLOR"] : []),
     ];
 }
@@ -226,7 +248,8 @@ function joinedLineSamplers(options: JoinedLineOptions): string[] {
     }
 
     const tables = ["rowPosition", "edgeRows", "edgeHidden", "edgeOrder"];
-    return options.pulledCurve === true ? [...tables, "edgeRoutes"] : tables;
+    // a straight piece stops at a translucent row's outline (`PULLED_TRIM_GLSL`)
+    return options.pulledCurve === true ? [...tables, "edgeRoutes"] : [...tables, "rowExtent", "rowOutline"];
 }
 
 interface LineGeometry {
@@ -332,10 +355,9 @@ export class CustomLineRenderer {
 
         const moduleShaderStore = Effect.ShadersStore;
 
-        // Vertex Shader: Screen-space width expansion
-        // This matches the formula we learned from GreasedLine and dot arrowhead work
-        // Updated to support instancing (required for BabylonJS mesh caching)
-        // FIXED: Uses segmentStart/segmentEnd for consistent perpendicular calculation
+        // Vertex Shader: Screen-space width expansion. Supports instancing (Babylon.js mesh caching
+        // needs it), and both vertices of a segment take their perpendicular from
+        // segmentStart/segmentEnd, so the two ends of the quad agree.
         const vertexShaderCode = `
 precision highp float;
 
@@ -371,8 +393,8 @@ void main() {
     // Transform vertex to clip space using finalWorld (supports instancing)
     vec4 vertexClip = viewProjection * finalWorld * vec4(position, 1.0);
 
-    // FIXED: Calculate screen-space direction using segment start/end
-    // This ensures both start and end vertices use the SAME perpendicular direction
+    // Screen-space direction from the segment's start and end, so both vertices of the segment
+    // use the same perpendicular
     vec4 segmentStartClip = viewProjection * finalWorld * vec4(segmentStart, 1.0);
     vec4 segmentEndClip = viewProjection * finalWorld * vec4(segmentEnd, 1.0);
 
@@ -426,8 +448,8 @@ void main() {
     vec2 offset = perpendicular * width * 0.5 * side * grow;
 
     // Apply screen-space sizing with perspective tapering
-    // NOTE: Removed * vertexClip.w to enable perspective tapering
-    // GPU will apply perspective divide (/= w), making distant lines smaller
+    // The offset is not multiplied by vertexClip.w, so the GPU's perspective divide (/= w)
+    // makes distant lines thinner (perspective tapering)
     // Divide by resolution to convert from pixels to NDC (-1 to +1)
     offset /= resolution;
 
@@ -455,7 +477,7 @@ void main() {
         moduleShaderStore.customLineVertexShader = vertexShaderCode;
 
         // Fragment Shader: Pattern rendering
-        // Updated to support 7 pattern types:
+        // Seven pattern types:
         // 0=solid, 1=dash, 2=dash-dot, 3=equal-dash, 4=sinewave, 5=zigzag, 6=dots
         const fragmentShaderCode = `
 precision highp float;
@@ -534,10 +556,10 @@ void main(void) {
 
     /**
      * The mesh a batch of joined lines is drawn from: one instance per straight piece, joined to
-     * its neighbours at every corner by `edgeJoinShader`. `EdgeLineBatch` supplies the instances.
-     * A piece with no neighbours is the same rectangle the line renderer always drew, at the same
+     * its neighbors at every corner by `edgeJoinShader`. `EdgeLineBatch` supplies the instances.
+     * A piece with no neighbors is the same rectangle the line renderer always drew, at the same
      * width, so a straight edge looks exactly as it did.
-     * @param options - Width, colour, opacity, the width's unit and a dash or dot pattern.
+     * @param options - Width, color, opacity, the width's unit and a dash or dot pattern.
      * @param scene - The scene it is drawn in.
      * @returns The template mesh with its material, marked `joinedLine` for `EdgeLineBatch`.
      */
@@ -1041,7 +1063,7 @@ void main(void) {
      * pass, where Babylon draws with blending off, so this turns blending on for this mesh's own
      * draw and off again after it. Moving the line to the transparent pass instead would reorder
      * it against labels and every other transparent mesh. A fragment of alpha 1 -- every line of
-     * one pixel or more at full opacity -- blends to exactly the colour it wrote before.
+     * one pixel or more at full opacity -- blends to exactly the color it wrote before.
      * @param mesh - The line mesh.
      * @param blend - Straight alpha over (a line, a surface), premultiplied over or added (an effect).
      */
@@ -1141,7 +1163,7 @@ void main(void) {
         // Blocked for the material's life, as in FilledArrowRenderer.applyShader: a ShaderMaterial
         // re-derives its defines on every readiness check, and everything set on it later is a
         // uniform. Unblocked, the setter below walks every mesh in the scene, so a line in a new
-        // colour cost the size of the graph (issue #2894).
+        // color cost the size of the graph (issue #2894).
         shaderMaterial.blockDirtyMechanism = true;
         // Disable backface culling for double-sided rendering
         shaderMaterial.backFaceCulling = false;

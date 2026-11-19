@@ -56,11 +56,11 @@ export const DEFAULT_DATA: DataChoices = { format: "csv", variant: "csv", values
 /**
  * The element's export scope for a scope choice.
  * @param scope - the choice.
- * @returns the scope, or undefined for the whole graph.
+ * @returns the scope.
  */
-export function exportScope(scope: DataScope): ExportScope | undefined {
+export function exportScope(scope: DataScope): ExportScope {
     if (scope === "all") {
-        return undefined;
+        return "all";
     }
     if (scope.startsWith("source:")) {
         return { kind: "source", sources: [scope.slice(7)] };
@@ -196,7 +196,7 @@ export function dataExportOptions(
     }
     return {
         ...options,
-        ...(scope === undefined ? {} : { scope }),
+        scope,
         ...(columns === undefined ? {} : { columns }),
     };
 }
@@ -237,7 +237,6 @@ const FAILURE_WORDS: Partial<Readonly<Record<GraphtyErrorCode | `${GraphtyErrorC
     E_DISPOSED: "The graph was closed.",
     E_UNKNOWN_CAMERA: "This view is not available.",
     "E_UNSUPPORTED/format": "This browser cannot write this image format.",
-    "E_UNSUPPORTED/preserve-drawing-buffer": "The drawing is not ready yet.",
     E_CAPTURE_FAILED: "The drawing could not be captured.",
 };
 
@@ -452,7 +451,7 @@ export function saveBlob(blob: Blob, name: string): void {
 }
 
 /** The outputs, in the dialog's list order. */
-export type OutputId = "image" | "video" | "data" | "styles" | "recipe" | "project";
+export type OutputId = "image" | "video" | "data" | "report" | "styles" | "recipe" | "project";
 
 /** One file exported in this visit, which Recent lists and opens again with its choices. */
 export interface RecentExport {
@@ -460,3 +459,35 @@ export interface RecentExport {
     readonly name: string;
     readonly choices?: ImageChoices | VideoChoices | DataChoices;
 }
+
+/** A section the reader can put in the report or leave out. */
+export type ReportSection = "notes" | "validation" | "changes" | "methods" | "tables";
+
+/** The sections, in the report's order, with the checklist's names. */
+export const REPORT_SECTIONS: readonly { readonly id: ReportSection; readonly name: string }[] = [
+    { id: "notes", name: "Notes" },
+    { id: "validation", name: "Validation report" },
+    { id: "changes", name: "Data changes" },
+    { id: "methods", name: "Methods" },
+    { id: "tables", name: "Data tables" },
+];
+
+/** The Report output's choices. */
+export interface ReportChoices {
+    readonly title: string;
+    /** The most rows each data table shows. */
+    readonly rowCap: number;
+    readonly sections: readonly ReportSection[];
+    /** The reader's own words, put in as written; left out when blank. */
+    readonly summary: string;
+    readonly findings: string;
+}
+
+/** Every section, the first 20 rows of each table, and no prose yet. */
+export const DEFAULT_REPORT: ReportChoices = {
+    title: "",
+    rowCap: 20,
+    sections: REPORT_SECTIONS.map((section) => section.id),
+    summary: "",
+    findings: "",
+};

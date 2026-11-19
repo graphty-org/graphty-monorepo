@@ -62,7 +62,7 @@ export function PreviewRows({ preview }: Readonly<{ preview: SourcePreview }>): 
             <Divider />
             <ScrollArea.Autosize mah={280}>
                 <Stack
-                    // NOSONAR(S6819): a <fieldset> brings a border and legend layout the compact row does not use; the role names the group
+                    // a <fieldset> brings a border and legend layout the compact row does not use; the role names the group
                     role="group"
                     aria-label="Preview"
                     gap={6}

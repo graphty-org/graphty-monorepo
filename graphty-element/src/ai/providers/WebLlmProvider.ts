@@ -18,6 +18,7 @@ import { aiProviderDescriptor } from "../../catalog/ai";
 import { GraphtyError } from "../../errors/GraphtyError";
 import { toolJsonSchema } from "../engine/jsonSchema";
 import { missingPackage } from "../missingPackage";
+import { uniqueId } from "../uniqueId";
 import type {
     LlmProvider,
     LlmResponse,
@@ -104,7 +105,7 @@ const MODEL_DESCRIPTIONS: Readonly<Record<string, string>> = {
 };
 
 /**
- * Available models with their metadata: the WebLLM models of the AI catalogue
+ * Available models with their metadata: the WebLLM models of the AI catalog
  * (`AI_PROVIDER_DESCRIPTORS` in `./catalog`).
  *
  * `supportsTools` mirrors WebLLM's exported `functionCallingModelIds`, which cannot be read
@@ -174,7 +175,8 @@ function emitToolCalls(
     for (const tc of toolCallsArray) {
         if (tc.function?.name) {
             const toolCall: ToolCall = {
-                id: tc.id ?? `call_${Date.now()}`,
+                // WebLLM numbers calls per response ("0" every turn) and gives streamed calls none: mint one.
+                id: uniqueId("call_"),
                 name: tc.function.name,
                 ...parseArguments(tc.function.arguments),
             };
@@ -187,13 +189,13 @@ function emitToolCalls(
 }
 
 /**
- * The error a cancelled request rejects with.
+ * The error a canceled request rejects with.
  * @returns A new one.
  */
 const ABORTED = (): Error => new Error("Request was aborted");
 
 /**
- * Throw the cancelled error once the signal has fired.
+ * Throw the canceled error once the signal has fired.
  * @param signal - The request's signal.
  */
 function throwIfAborted(signal: AbortSignal | undefined): void {
@@ -203,7 +205,7 @@ function throwIfAborted(signal: AbortSignal | undefined): void {
 }
 
 /**
- * Stop the engine's generation when the signal fires, so a cancelled turn frees the GPU at once.
+ * Stop the engine's generation when the signal fires, so a canceled turn frees the GPU at once.
  * @param engine - The engine generating.
  * @param signal - The request's signal.
  * @returns Stops listening.
@@ -702,7 +704,8 @@ export class WebLlmProvider implements LlmProvider {
         // OpenAI API uses snake_case
         for (const tc of message?.tool_calls ?? []) {
             toolCalls.push({
-                id: tc.id,
+                // WebLLM numbers calls per response ("0" every turn): mint one.
+                id: uniqueId("call_"),
                 name: tc.function.name,
                 ...parseArguments(tc.function.arguments),
             });

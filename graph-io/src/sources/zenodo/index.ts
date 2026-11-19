@@ -17,6 +17,7 @@ import { defineSource } from "../define.js";
 import { failOn } from "../fail.js";
 import { ZENODO_SOURCE_ID } from "../ids.js";
 import { readLink, refuseLink } from "../link.js";
+import { pageNames } from "../page.js";
 import { type GraphSource, type SourceContext, type SourceListing, type SourceListQuery } from "../types.js";
 import { ZENODO_DESCRIPTOR, type ZenodoParams } from "./descriptor.js";
 
@@ -24,9 +25,6 @@ export { ZENODO_DESCRIPTOR, type ZenodoParams } from "./descriptor.js";
 
 /** A record number: Zenodo's ids are digits. */
 const RECORD = /^\d+$/;
-
-/** Files a listing returns when the caller gives no size. */
-const DEFAULT_PAGE = 100;
 
 /**
  * Check the record parameter.
@@ -75,15 +73,10 @@ export const zenodoSource: GraphSource<ZenodoParams> = defineSource<ZenodoParams
                 contentType: "application/json",
             });
         }
-        const search = query.search?.toLowerCase() ?? "";
         const files = (body.files as readonly { key?: unknown }[]).flatMap((entry) =>
-            typeof entry.key === "string" && entry.key.toLowerCase().includes(search) ? [entry.key] : [],
+            typeof entry.key === "string" ? [entry.key] : [],
         );
-        const start = Number(query.cursor?.start ?? 0);
-        const size = query.size ?? DEFAULT_PAGE;
-        const items = files.slice(start, start + size).map((file) => ({ params: { record, file }, name: file }));
-        const end = start + items.length;
-        return { items, next: end < files.length ? { start: end } : null, total: files.length };
+        return pageNames(files, query, (file) => ({ record, file }));
     },
 });
 

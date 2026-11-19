@@ -60,7 +60,9 @@ describe("project:derived", () => {
         });
         await s.styles.settled();
         const categories = (): string[] =>
-            s.styles.legend().flatMap((block) => ("swatches" in block ? block.swatches.map((w) => w.label) : []));
+            s.styles
+                .legend()
+                .flatMap((block) => ("swatches" in block ? block.swatches.map((w) => String(w.value)) : []));
         assert.deepEqual(categories(), ["x", "y"]);
 
         let read: string[] = [];

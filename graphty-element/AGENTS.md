@@ -49,12 +49,12 @@ needs no import map.
    `node-data='[...]'`. The same goes for `edgeData`, `layoutConfig`, `dataSourceConfig`,
    `background` and `xr`. The attributes are strings, numbers and booleans; the complete list,
    with types, is in `dist/custom-elements.json`.
-4. **The `layout` attribute takes an engine name, not a catalogue id.** Working values today are
+4. **The `layout` attribute takes an engine name, not a catalog id.** Working values today are
    `ngraph`, `d3`, `forceatlas2`, `spring`, `kamada-kawai`, `arf`, `circular`, `shell`, `spiral`,
-   `spectral`, `planar`, `random`, `bfs`, `bipartite`, `multipartite` and `fixed`. The catalogue
+   `spectral`, `planar`, `random`, `bfs`, `bipartite`, `multipartite` and `fixed`. The catalog
    describes layouts under stable ids (`force`, `hierarchical`, `layers`, ...) and lists the
    engines that serve each one under `implementations[].engine`; four of the ids are not
-   themselves accepted by the attribute, so read the engine name out of the catalogue rather than
+   themselves accepted by the attribute, so read the engine name out of the catalog rather than
    passing the id.
 5. **DOM events are unprefixed.** They are named `node-click`, `node-hover`, `graph-settled`,
    `data-loaded`, `selection-changed` and so on -- the element forwards every internal graph
@@ -65,18 +65,18 @@ needs no import map.
 
 ## Entry points
 
-| Import                             | What it carries                                                                                                                                                                                                                                 | Runs in Node |
-| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
-| `@graphty/graphty-element`         | The custom element. Importing it defines the tag and registers the built-in layouts, data sources and algorithms. Pulls in Babylon.js and Lit.                                                                                                  | No           |
-| `@graphty/graphty-element/schema`  | Palettes, `NodeShapes`, `EdgeLineTypes`, `EdgeArrowTypes`, `defaultNodeStyle`, `defaultEdgeStyle`, `defaultRichTextLabelStyle`, the style config types and the colour helpers (`interpolatePalette`, `hexToRgb`, the colour-vision simulators). | Yes          |
-| `@graphty/graphty-element/catalog` | Plain-JSON descriptors for every algorithm, layout, file format, palette and scale, with the options each accepts. Build an options form from these instead of hard-coding a list.                                                              | Yes          |
-| `@graphty/graphty-element/extend`  | The registration surface: `Algorithm`, `LayoutEngine`, `DataSource`, `registerAccelerator`, `registerLogSink`, `GraphtyError`.                                                                                                                  | Yes          |
-| `@graphty/graphty-element/format`  | The read-only half of the graph-format vocabulary: `isGraphSnapshot`, the mask helpers, `expandEdges`, `foldArcs`, the gather/scatter/remap helpers.                                                                                            | Yes          |
-| `@graphty/graphty-element/session` | The error model (`GraphtyError`, `GRAPHTY_ERROR_CODES`, `isGraphtyError`) and the identity and result-shape types.                                                                                                                              | Yes          |
-| `@graphty/graphty-element/logging` | `GraphtyLogger`, `LogLevel`, `LogRecord`, `Sink`, the console and remote destinations, `formatLogRecord`, the stored configuration, `parseLoggingURLParams` and `lazy`. Register a destination by name with `registerLogSink` from `/extend`.   | Yes          |
-| `@graphty/graphty-element/webgpu`  | A side-effect import that registers the WebGPU accelerator. It is the only module that touches the optional `@graphty/webgpu-graph-algorithms` peer, so a consumer that never imports it never needs that package installed.                    | No           |
-| `@graphty/graphty-element/ai`      | The natural-language layer and its LLM SDKs, behind optional peers.                                                                                                                                                                             | No           |
-| `@graphty/graphty-element/bundle`  | One self-contained file for a `<script>` tag.                                                                                                                                                                                                   | No           |
+| Import                             | What it carries                                                                                                                                                                                                                               | Runs in Node |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
+| `@graphty/graphty-element`         | The custom element. Importing it defines the tag and registers the built-in layouts, data sources and algorithms. Pulls in Babylon.js and Lit.                                                                                                | No           |
+| `@graphty/graphty-element/schema`  | Palettes, `NodeShapes`, `EdgeLineTypes`, `EdgeArrowTypes`, `defaultNodeStyle`, `defaultEdgeStyle`, `defaultRichTextLabelStyle`, the style config types and the color helpers (`interpolatePalette`, `hexToRgb`, the color-vision simulators). | Yes          |
+| `@graphty/graphty-element/catalog` | Plain-JSON descriptors for every algorithm, layout, file format, palette and scale, with the options each accepts. Build an options form from these instead of hard-coding a list.                                                            | Yes          |
+| `@graphty/graphty-element/extend`  | The registration surface: `Algorithm`, `LayoutEngine`, `DataSource`, `registerAccelerator`, `registerLogSink`, `GraphtyError`.                                                                                                                | Yes          |
+| `@graphty/graphty-element/format`  | The read-only half of the graph-format vocabulary: `isGraphSnapshot`, the mask helpers, `expandEdges`, `foldArcs`, the gather/scatter/remap helpers.                                                                                          | Yes          |
+| `@graphty/graphty-element/session` | The error model (`GraphtyError`, `GRAPHTY_ERROR_CODES`, `isGraphtyError`) and the identity and result-shape types.                                                                                                                            | Yes          |
+| `@graphty/graphty-element/logging` | `GraphtyLogger`, `LogLevel`, `LogRecord`, `Sink`, the console and remote destinations, `formatLogRecord`, the stored configuration, `parseLoggingURLParams` and `lazy`. Register a destination by name with `registerLogSink` from `/extend`. | Yes          |
+| `@graphty/graphty-element/webgpu`  | A side-effect import that registers the WebGPU accelerator. It is the only module that touches the optional `@graphty/webgpu-graph-algorithms` peer, so a consumer that never imports it never needs that package installed.                  | No           |
+| `@graphty/graphty-element/ai`      | The natural-language layer and its LLM SDKs, behind optional peers.                                                                                                                                                                           | No           |
+| `@graphty/graphty-element/bundle`  | One self-contained file for a `<script>` tag.                                                                                                                                                                                                 | No           |
 
 "Runs in Node" means the module resolves with no Babylon.js, no Lit and no DOM anywhere in its
 import graph, which is what makes it usable in a test, a build step or a server.
@@ -109,7 +109,7 @@ layer stack -- write against those freely.
 What follows is designed and NOT implemented. Code written against it will not compile, or will
 silently do nothing:
 
-- **Neighbour pages.** The session's data surface answers one node and one edge by id, and has
+- **Neighbor pages.** The session's data surface answers one node and one edge by id, and has
   no verb for "the neighbours of this node". Walking the records yourself is the only route.
 - **`session.calibrate()`.** The limits a session publishes are shipped defaults, not measured
   ones; nothing times this machine yet.

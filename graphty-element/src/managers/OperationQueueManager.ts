@@ -11,7 +11,6 @@ import type { Manager } from "./interfaces";
 // Constants for operation queue management
 const PROGRESS_CANCELLATION_THRESHOLD = 90; // Progress threshold for respecting in-progress operations
 const CLEANUP_DELAY_MS = 1000; // Delay before cleaning up operation progress tracking
-const OPERATION_POLL_INTERVAL_MS = 10; // Polling interval for waitForCompletion
 
 interface ProgressContext {
     setProgress(percent: number): void;
@@ -67,7 +66,7 @@ export type OperationCategory =
     //   element.viewMode = "2d";
     //   element.layout = "circular";
     //
-    // -- queued the switch and then cancelled it, and the element went on reporting "2d" from its
+    // -- queued the switch and then canceled it, and the element went on reporting "2d" from its
     // own property while the graph drew a perspective 3D scene. Reversing the two lines, or
     // setting the mode again a moment later, worked; nothing said why.
     | "view-mode" // Switch between the 2d, 3d, vr and ar views
@@ -110,11 +109,6 @@ export class OperationQueueManager implements Manager {
     // Track completed operation categories for cross-batch dependency resolution
     private readonly completedCategories = new Set<OperationCategory>();
 
-    // Batch mode support
-    private batchMode = false;
-    private readonly batchOperations = new Set<string>();
-    private readonly batchPromises = new Map<string, Promise<void>>();
-
     // Trigger system
     private readonly triggers = new Map<
         OperationCategory,
@@ -124,9 +118,6 @@ export class OperationQueueManager implements Manager {
             description?: string;
         } | null)[]
     >();
-
-    // Callback for when operations are queued (for testing)
-    onOperationQueued?: (category: OperationCategory, description?: string) => void;
 
     // Check if layout engine exists (will be set by Graph)
     hasLayoutEngine?: () => boolean;
@@ -323,31 +314,24 @@ export class OperationQueueManager implements Manager {
             description: options?.description,
         });
 
-        // Handle batch mode differently
-        if (this.batchMode) {
-            // In batch mode: queue but don't execute yet
-            this.batchOperations.add(id);
-        } else {
-            // Normal mode: add to current batch for immediate execution
-            this.currentBatch.add(id);
+        this.currentBatch.add(id);
 
-            // Apply obsolescence rules before scheduling
-            this.applyObsolescenceRules(operation);
+        // Apply obsolescence rules before scheduling
+        this.applyObsolescenceRules(operation);
 
-            // Schedule batch execution
-            if (this.batchingEnabled) {
-                // When batching is enabled, schedule batch execution on next microtask
-                if (this.currentBatch.size === 1) {
-                    queueMicrotask(() => {
-                        this.executeBatch();
-                    });
-                }
-            } else {
-                // When batching is disabled, execute immediately
+        // Schedule batch execution
+        if (this.batchingEnabled) {
+            // When batching is enabled, schedule batch execution on next microtask
+            if (this.currentBatch.size === 1) {
                 queueMicrotask(() => {
                     this.executeBatch();
                 });
             }
+        } else {
+            // When batching is disabled, execute immediately
+            queueMicrotask(() => {
+                this.executeBatch();
+            });
         }
 
         return id;
@@ -415,7 +399,7 @@ export class OperationQueueManager implements Manager {
     }
 
     /**
-     * Whether a running operation is far enough along that it is not cancelled.
+     * Whether a running operation is far enough along that it is not canceled.
      * @param operation - The operation.
      * @returns True when it is running and past the cancellation threshold.
      */
@@ -714,7 +698,7 @@ export class OperationQueueManager implements Manager {
             // operation's own signal, not by the shape of the throw: a body that checks
             // `context.signal.aborted` and gives up throws whatever it likes, and a `fetch` deep
             // inside a body that ran to completion can raise an `AbortError` of its own that has
-            // nothing to do with this queue. A cancelled operation resolves and is not reported;
+            // nothing to do with this queue. A canceled operation resolves and is not reported;
             // anything else is the caller's error and the graph's.
             const cancelled = operation.abortController?.signal.aborted === true;
 
@@ -746,8 +730,8 @@ export class OperationQueueManager implements Manager {
      * can obsolete it, and a rejection there would print an error on the console of every page
      * that sets a layout, for the element doing precisely what it was built to do.
      *
-     * The resolvers are dropped as they are called, so an operation that is cancelled and then
-     * finishes anyway, or is cancelled twice, settles once.
+     * The resolvers are dropped as they are called, so an operation that is canceled and then
+     * finishes anyway, or is canceled twice, settles once.
      * @param operation - The operation nobody will hear from again.
      */
     private settleResolved(operation: Operation): void {
@@ -940,7 +924,7 @@ export class OperationQueueManager implements Manager {
      */
     clear(): void {
         // Cancel every operation that has not finished. A finished one keeps its controller until
-        // its cleanup runs, and is not cancelled: its work is done.
+        // its cleanup runs, and is not canceled: its work is done.
         this.activeControllers.forEach((controller, id) => {
             if (!controller.signal.aborted && this.rankOf(id) !== -1) {
                 controller.abort();
@@ -948,7 +932,6 @@ export class OperationQueueManager implements Manager {
                     type: "operation-cancelled",
                     id,
                     code: "queue-cleared",
-                    reason: "Queue cleared",
                 } satisfies OperationCancelledEvent);
             }
         });
@@ -979,55 +962,7 @@ export class OperationQueueManager implements Manager {
     }
 
     /**
-     * Enter batch mode - operations will be queued but not executed
-     */
-    enterBatchMode(): void {
-        this.batchMode = true;
-        this.batchOperations.clear();
-    }
-
-    /**
-     * Exit batch mode - execute all batched operations in dependency order
-     */
-    async exitBatchMode(): Promise<void> {
-        if (!this.batchMode) {
-            return;
-        }
-
-        this.batchMode = false;
-
-        // Move all batched operations to currentBatch
-        this.batchOperations.forEach((id) => {
-            this.currentBatch.add(id);
-        });
-
-        // Collect all batch promises
-        const promises = Array.from(this.batchPromises.values());
-
-        // Clear batch tracking
-        this.batchOperations.clear();
-        this.batchPromises.clear();
-
-        // Execute the batch
-        this.executeBatch();
-
-        // Wait for all operations to complete
-        // Use allSettled to handle both resolved and rejected promises
-        // Individual operation errors are already handled via handleOperationError
-        await Promise.allSettled(promises);
-    }
-
-    /**
-     * Check if currently in batch mode
-     * @returns True if in batch mode, false otherwise
-     */
-    isInBatchMode(): boolean {
-        return this.batchMode;
-    }
-
-    /**
      * Queue an operation and get a promise for its completion
-     * Used for batch mode operations
      * @param category - Category of the operation
      * @param execute - Function to execute for this operation
      * @param options - Optional metadata for the operation
@@ -1044,7 +979,7 @@ export class OperationQueueManager implements Manager {
 
         if (!operation) {
             // The operation was gone before the resolvers could be hung on it, which means it was
-            // cancelled. Attaching them to nothing and returning the promise anyway is what used
+            // canceled. Attaching them to nothing and returning the promise anyway is what used
             // to leave the caller waiting for ever.
             return Promise.resolve();
         }
@@ -1056,27 +991,8 @@ export class OperationQueueManager implements Manager {
             operation.reject = reject;
         });
 
-        if (this.batchMode) {
-            // In batch mode, track the promise for later
-            this.batchPromises.set(id, promise);
-            // Return immediately resolved promise to avoid deadlock
-            // The actual operation will execute when exitBatchMode is called
-            return Promise.resolve();
-        }
-
-        // Not in batch mode, execute normally
         this.executeBatch();
         return promise;
-    }
-
-    /**
-     * Wait for a specific operation to complete
-     * @param id - Operation ID to wait for
-     */
-    private async _waitForOperation(id: string): Promise<void> {
-        while (this.pendingOperations.has(id) || this.queuedOperations.has(id) || this.runningOperations.has(id)) {
-            await new Promise((resolve) => setTimeout(resolve, OPERATION_POLL_INTERVAL_MS));
-        }
     }
 
     /**
@@ -1091,11 +1007,11 @@ export class OperationQueueManager implements Manager {
     /**
      * Cancel a specific operation
      * @param operationId - ID of the operation to cancel
-     * @returns True if the operation was cancelled, false otherwise
+     * @returns True if the operation was canceled, false otherwise
      */
     cancelOperation(operationId: string): boolean {
         const controller = this.activeControllers.get(operationId);
-        // A finished operation keeps its controller until its cleanup runs; it is not cancelled.
+        // A finished operation keeps its controller until its cleanup runs; it is not canceled.
         if (controller && !controller.signal.aborted && this.rankOf(operationId) !== -1) {
             controller.abort();
 
@@ -1114,7 +1030,6 @@ export class OperationQueueManager implements Manager {
                 type: "operation-cancelled",
                 id: operationId,
                 code: "cancelled",
-                reason: "Manual cancellation",
             } satisfies OperationCancelledEvent);
 
             return true;
@@ -1146,7 +1061,7 @@ export class OperationQueueManager implements Manager {
     /**
      * Cancel all operations of a specific category: pending, queued and running.
      * @param category - The operation category to cancel
-     * @returns Number of operations cancelled
+     * @returns Number of operations canceled
      */
     cancelByCategory(category: OperationCategory): number {
         let cancelledCount = 0;
@@ -1222,7 +1137,7 @@ export class OperationQueueManager implements Manager {
                 }
 
                 // Queue the triggered operation
-                this.fireAndForget(this.queueTriggeredOperation(triggerCategory, operation.metadata));
+                this.fireAndForget(this.queueTriggeredOperation(triggerCategory));
             }
         }
 
@@ -1231,14 +1146,7 @@ export class OperationQueueManager implements Manager {
             const result = trigger(operation.metadata);
             if (result) {
                 // Queue the custom triggered operation
-                this.fireAndForget(
-                    this.queueTriggeredOperation(
-                        result.category,
-                        operation.metadata,
-                        result.execute,
-                        result.description,
-                    ),
-                );
+                this.fireAndForget(this.queueTriggeredOperation(result.category, result.execute, result.description));
             }
         }
     }
@@ -1250,7 +1158,7 @@ export class OperationQueueManager implements Manager {
      * the nodes after a data change -- and no caller holds its promise. Discarding that promise
      * with `void` meant a repaint that threw reached nobody: not the host, not
      * `emitGraphError`, only the page's unhandled-rejection channel, where it reads as a stray
-     * error with no graph attached to it. Being cancelled is the ordinary end of such an
+     * error with no graph attached to it. Being canceled is the ordinary end of such an
      * operation -- a second load arrives and the repaint queued behind the first is not wanted --
      * so an abort passes in silence and everything else is reported as the graph's own error.
      * @param work - The promise nobody is holding.
@@ -1270,21 +1178,14 @@ export class OperationQueueManager implements Manager {
     /**
      * Queue a triggered operation
      * @param category - Category of the triggered operation
-     * @param _sourceMetadata - Metadata from the source operation (reserved for future use)
      * @param execute - Optional execution function
      * @param description - Optional description of the operation
      */
     private async queueTriggeredOperation(
         category: OperationCategory,
-        _sourceMetadata?: OperationMetadata,
         execute?: (context: OperationContext) => Promise<void> | void,
         description?: string,
     ): Promise<void> {
-        // Notify test callback if set
-        if (this.onOperationQueued) {
-            this.onOperationQueued(category, description);
-        }
-
         // Default execute function for layout-update
         if (!execute && category === "layout-update") {
             execute = (context: OperationContext) => {

@@ -1,6 +1,6 @@
 // What screens 4, 5, 7 and 9 share about College football: the "Conference"
 // Grouping (by the `value` attribute, 12 groups named by the raw value,
-// painted with the twelve-colour palette), its legend block, the node fills,
+// painted with the twelve-color palette), its legend block, the node fills,
 // and the Dataset inspector's Overview rows. Sizes are the real ones from
 // football.mjs.
 import { COMMUNITIES } from "./football.mjs";
@@ -14,7 +14,7 @@ for (const v of CONF_IDS) CONF_SIZE[v] = COMMUNITIES[v].length;
 export const CONF_OF = {};
 for (const [v, ids] of Object.entries(COMMUNITIES)) for (const id of ids) CONF_OF[id] = Number(v);
 
-// Every node filled with its conference colour.
+// Every node filled with its conference color.
 export function conferenceFills() {
   const byId = {};
   for (const [id, v] of Object.entries(CONF_OF)) byId[id] = { fill: CONF_COLOR[v] };

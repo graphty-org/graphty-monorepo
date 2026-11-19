@@ -1,3 +1,4 @@
+import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -44,6 +45,53 @@ const chooseNextFile: BrowserCommand<[name: string, mimeType: string, text: stri
     });
 };
 
+/** A file a test chooses: a path from this package's folder (a folder chooses all of it), or its bytes. */
+type ChosenFile =
+    { readonly path: string } | { readonly name: string; readonly mimeType: string; readonly base64: string };
+
+/**
+ * Answers the next file picker the page opens with several files, or a folder, as the reader
+ * choosing them; call it before the click that opens the picker, as {@link chooseNextFile}. A path
+ * that names a folder chooses that folder (a picker opened for a folder).
+ * @param ctx - the browser command context.
+ * @param files - the files, by path from this package's folder or by their bytes.
+ */
+const chooseNextFiles: BrowserCommand<[files: ChosenFile[]]> = (ctx, files) => {
+    const folder = files.find((file) => "path" in file && statSync(path.resolve(dirname, file.path)).isDirectory());
+    const payloads = (): { name: string; mimeType: string; buffer: Buffer }[] =>
+        files.map((file) =>
+            "path" in file
+                ? {
+                      name: path.basename(file.path),
+                      mimeType: "",
+                      buffer: readFileSync(path.resolve(dirname, file.path)),
+                  }
+                : { name: file.name, mimeType: file.mimeType, buffer: Buffer.from(file.base64, "base64") },
+        );
+    const chosen = folder !== undefined && "path" in folder ? path.resolve(dirname, folder.path) : payloads();
+    // Settles once the picker opens, so a test asking about it right after the click waits for it.
+    lastChooser = new Promise((resolve) => {
+        ctx.page.once("filechooser", (chooser) => {
+            void chooser
+                .element()
+                .getAttribute("accept")
+                .then((accept) => {
+                    resolve({ accept, multiple: chooser.isMultiple() });
+                });
+            void chooser.setFiles(chosen);
+        });
+    });
+};
+
+/** What the last picker {@link chooseNextFiles} answered offered: its `accept` and whether it took several files. */
+let lastChooser: Promise<{ accept: string | null; multiple: boolean }> | undefined;
+
+/**
+ * The `accept` attribute and the multiple flag of the last file picker {@link chooseNextFiles} answered.
+ * @returns them, or null before any picker.
+ */
+const lastFileChooser: BrowserCommand<[]> = async () => (await lastChooser) ?? null;
+
 /**
  * Lets the page read and write the clipboard, as a reader who allowed it, so a test can press
  * Control+V and Copy against the real clipboard.
@@ -68,6 +116,36 @@ const failRequests: BrowserCommand<[fragment: string, failing: boolean]> = async
         : ctx.page.unroute(glob));
 };
 
+/** Per browser context: the off-origin requests seen since the last takeOffOriginRequests. */
+const offOrigin = new WeakMap<object, string[]>();
+
+/**
+ * Starts (or restarts) listing every request the page and its workers make to a host other than
+ * the test server, so a test can prove nothing reached a third-party CDN. A listener, not a route:
+ * a route switches the browser's HTTP cache off (issue #3350).
+ * @param ctx - the browser command context.
+ */
+const watchOffOriginRequests: BrowserCommand<[]> = (ctx) => {
+    if (!offOrigin.has(ctx.context)) {
+        const seen: string[] = [];
+        offOrigin.set(ctx.context, seen);
+        ctx.context.on("request", (request) => {
+            const url = new URL(request.url());
+            if (/^https?:$/.test(url.protocol) && url.origin !== new URL(ctx.page.url()).origin) {
+                seen.push(request.url());
+            }
+        });
+    }
+    offOrigin.get(ctx.context)?.splice(0);
+};
+
+/**
+ * The off-origin requests seen since watchOffOriginRequests, emptying the list.
+ * @param ctx - the browser command context.
+ * @returns their URLs.
+ */
+const takeOffOriginRequests: BrowserCommand<[]> = (ctx) => offOrigin.get(ctx.context)?.splice(0) ?? [];
+
 /**
  * The two app modules the app's own tests replace, swapped by Vite as it serves them rather than by
  * `vi.mock` in the setup file. Every `vi.mock` makes Vitest add a Playwright route to the page's
@@ -75,7 +153,7 @@ const failRequests: BrowserCommand<[fragment: string, failing: boolean]> = async
  * holds every request until this process answers it. Registered in the setup file, those routes
  * covered every test file: each one fetched its whole module graph again, megabytes of dependency
  * bundles included, through the same Node process that carries every click and keystroke of the
- * other pages, and on a loaded core one file starting held a neighbour's `userEvent` call for 10 to
+ * other pages, and on a loaded core one file starting held a neighbor's `userEvent` call for 10 to
  * 15 seconds (issue #3350).
  *
  * - `src/elementLoader.ts` never loads `<graphty-element>`: a test that wants the real element
@@ -134,7 +212,16 @@ const chromium = () => ({
     // The clipboard, so Paste reads what a test wrote, as a reader's browser lets it after asking.
     provider: playwright({ contextOptions: { permissions: ["clipboard-read", "clipboard-write"] } }),
     instances: [{ browser: "chromium" as const }],
-    commands: { chooseNextFile, failRequests, grantClipboard, ...mapTileCommands },
+    commands: {
+        chooseNextFile,
+        chooseNextFiles,
+        lastFileChooser,
+        failRequests,
+        grantClipboard,
+        watchOffOriginRequests,
+        takeOffOriginRequests,
+        ...mapTileCommands,
+    },
 });
 
 /**
@@ -204,7 +291,7 @@ const config = defineConfig({
         // The tests that mount the real graphty-element get a project of their own, run after
         // the others finish (sequence.groupOrder). Browser test files share the renderer's main
         // thread, and a real element loading and laying out a sample holds it for seconds at a
-        // time: run beside the rest, a neighbouring file's import of the element bundle
+        // time: run beside the rest, a neighboring file's import of the element bundle
         // (src/types/__tests__/ai.test.ts) took tens of seconds.
         projects: [
             {

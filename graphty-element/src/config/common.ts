@@ -36,7 +36,7 @@ export function colorToHex(s: string): string | undefined {
 }
 
 // The output type stays `string | undefined`, as published: narrowing it would break code that
-// builds a parsed style by hand with a colour it has not got yet.
+// builds a parsed style by hand with a color it has not got yet.
 export const ColorStyle = z.string().transform((s, ctx): string | undefined => {
     const hex = colorToHex(s);
     if (hex === undefined) {

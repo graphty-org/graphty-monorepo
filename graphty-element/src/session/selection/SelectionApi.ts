@@ -9,7 +9,7 @@
  * THE SETS ARE MASKS, one byte per element, addressed by the dense index every node and edge
  * already carries. That is what makes selecting forty thousand nodes cost forty thousand bytes
  * rather than forty thousand ids, and it is what makes `has()` an array read a render loop can
- * afford to do once per element per frame. The id arrays are a lazy materialisation of the masks
+ * afford to do once per element per frame. The id arrays are a lazy materialization of the masks
  * and are identity-stable: the same frozen array comes back until the contents change, so a
  * consumer can hold the previous answer and test `previous === next`.
  *
@@ -32,7 +32,7 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import { type GraphSnapshot, INVALID_INDEX, type U8, type U32 } from "@graphty/graph-format";
+import { type GraphSnapshot, INVALID_INDEX, maskTest, type U8, type U32 } from "@graphty/graph-format";
 
 import type { EdgeId, NodeId, Path, Query, ScopeId, ScopeInput, Selector } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
@@ -173,7 +173,7 @@ export interface RuleCheck {
     readonly suggestion?: Query;
 }
 
-/** One attribute of the selected nodes, summarised against the same attribute across the graph. */
+/** One attribute of the selected nodes, summarized against the same attribute across the graph. */
 export interface SelectionAttributeStatistics {
     /** The attribute's published path, such as "data.department". */
     readonly path: Path;
@@ -206,10 +206,10 @@ export interface SelectionAttributeStatistics {
     readonly direction?: "above" | "below" | "equal";
 }
 
-/** What {@link SelectionApi.statistics} summarises. */
+/** What {@link SelectionApi.statistics} summarizes. */
 export interface SelectionStatisticsOptions {
     /**
-     * Summarise this scope's nodes and edges instead of the selection: `"visible"`, `"graph"`, a
+     * Summarize this scope's nodes and edges instead of the selection: `"visible"`, `"graph"`, a
      * kept set `{ set: id }` or any other scope a selection target takes. The selection when absent.
      */
     readonly scope?: ScopeInput;
@@ -506,7 +506,7 @@ export interface SelectionApi {
      * const cost = attributes.find((a) => a.path === "data.cost");
      * console.log(cost?.sum, cost?.min, cost?.max);
      * ```
-     * @param options - What to summarise instead of the selection, such as `{ scope: "visible" }`.
+     * @param options - What to summarize instead of the selection, such as `{ scope: "visible" }`.
      * @returns The statistics.
      * @throws A `GraphtyError` (as a rejection) when the scope is not one this session holds.
      */
@@ -629,6 +629,15 @@ export interface SelectionSources {
      * @returns The check.
      */
     readonly checkRule?: (where: Query) => RuleCheck;
+    /** The scope a `where` or `text` target naming none reads. Absent, the whole graph. */
+    readonly defaultScope?: TargetContext["defaultScope"];
+    /** What the filter keeps, which every target is narrowed to. Absent, nothing is narrowed. */
+    readonly filterKeeps?: TargetContext["filterKeeps"];
+    /**
+     * The edges the session's working graph shows, one bit per row of the snapshot, or null when
+     * it reads the whole graph. The statistics count only these. Absent, every edge.
+     */
+    readonly shownEdges?: () => U32 | null;
     /** What a note's targets select. Absent refuses a `note` target. */
     readonly note?: TargetContext["note"];
     /** What a style layer's rule matches. Absent refuses a `layer` target. */
@@ -1428,7 +1437,7 @@ class Selection implements SelectionOwner {
 
     /**
      * What the current selection, or a scope, adds up to.
-     * @param options - What to summarise instead of the selection.
+     * @param options - What to summarize instead of the selection.
      * @returns The statistics.
      */
     statistics(options?: SelectionStatisticsOptions): Promise<SelectionStatistics> {
@@ -1440,7 +1449,7 @@ class Selection implements SelectionOwner {
 
     /**
      * What the selection, or a scope, adds up to, now.
-     * @param options - What to summarise instead of the selection.
+     * @param options - What to summarize instead of the selection.
      * @returns The statistics.
      */
     #statisticsNow(options: SelectionStatisticsOptions | undefined): SelectionStatistics {
@@ -1451,10 +1460,22 @@ class Selection implements SelectionOwner {
                 : resolveTarget({ scope: options.scope }, this.#context());
         const { graph } = this.#frame;
         const list = graph.edgeList();
+        // With the working graph on, an edge it hides is neither counted nor part of a degree.
+        const shown = this.#sources.shownEdges?.() ?? null;
+        const degrees = shown === null ? graph.degree() : new Uint32Array(graph.nodeCount);
         let induced = 0;
         let cut = 0;
 
         for (let edge = 0; edge < graph.edgeCount; edge++) {
+            if (shown !== null && !maskTest(shown, edge)) {
+                continue;
+            }
+
+            if (shown !== null) {
+                degrees[list.src[edge]] += 1;
+                degrees[list.dst[edge]] += 1;
+            }
+
             const source = nodes.has(list.src[edge]);
             const target = nodes.has(list.dst[edge]);
 
@@ -1465,7 +1486,6 @@ class Selection implements SelectionOwner {
             }
         }
 
-        const degrees = graph.degree();
         let min = Infinity;
         let max = -Infinity;
 
@@ -1524,10 +1544,10 @@ class Selection implements SelectionOwner {
 
     /**
      * What a target resolution reads.
-     * @returns The context, built around the frame the selection is synchronised to.
+     * @returns The context, built around the frame the selection is synchronized to.
      */
     #context(): TargetContext {
-        const { scope, results, match, find, note, layer, region, records } = this.#sources;
+        const { scope, results, match, find, note, layer, region, defaultScope, filterKeeps, records } = this.#sources;
 
         return {
             graph: this.#frame.graph,
@@ -1542,6 +1562,8 @@ class Selection implements SelectionOwner {
             ...(note === undefined ? {} : { note }),
             ...(layer === undefined ? {} : { layer }),
             ...(region === undefined ? {} : { region }),
+            ...(defaultScope === undefined ? {} : { defaultScope }),
+            ...(filterKeeps === undefined ? {} : { filterKeeps }),
             ...(records === undefined
                 ? {}
                 : {
@@ -1683,7 +1705,7 @@ class Selection implements SelectionOwner {
      * The graph-wide average is computed the same way as the members' -- the same function over
      * the values in the same order -- so a selection of every element reports `"equal"` rather than
      * a direction invented by the last bits of two different summations.
-     * @param members - The nodes or the edges to summarise.
+     * @param members - The nodes or the edges to summarize.
      * @param kind - Which of the two they are.
      * @returns The entries, in the order the attribute names were first seen.
      */
@@ -1735,7 +1757,7 @@ class Selection implements SelectionOwner {
     }
 
     /**
-     * Every graph-wide value of the attributes the selection summarised numerically.
+     * Every graph-wide value of the attributes the selection summarized numerically.
      * @param bagOf - Reads one element's attribute bag by row.
      * @param count - How many elements of that kind the graph holds.
      * @param wanted - The attribute names to gather.

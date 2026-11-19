@@ -13,7 +13,7 @@
  * WHAT A CONSUMER SAW. Removing a style layer that moved an edge to another source mesh rebuilds
  * the edge's line in a new batch. With the stale list in place the line vanished, and
  * `test/browser/a-layer-added-later-paints.test.ts` failed in CI with "Taking the layer away left
- * 847 pixels changed" for both arrow colours -- 847 being exactly the edge's line.
+ * 847 pixels changed" for both arrow colors -- 847 being exactly the edge's line.
  *
  * Frames are pumped by hand so the test, not the machine's speed, decides when the poll lands.
  */
@@ -71,8 +71,8 @@ describe("a freeze Babylon puts off", () => {
     }
 
     /**
-     * Count the pixels of the frame last drawn by colour.
-     * @returns How many pixels fall in each coarse colour bucket.
+     * Count the pixels of the frame last drawn by color.
+     * @returns How many pixels fall in each coarse color bucket.
      */
     async function histogram(): Promise<Uint32Array> {
         const { engine } = graph;

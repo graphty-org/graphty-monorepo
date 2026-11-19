@@ -35,6 +35,7 @@ import {
     FLOOR_SECTIONS,
     type Floors,
     type FloorSection,
+    floorsFileText,
     type KeyGate,
     type KnownRecords,
     knownText,
@@ -138,26 +139,19 @@ if (suite === "all" || suite === "oracle") {
         }
         const kept = (section: FloorSection): Floors =>
             Object.fromEntries(
-                Object.keys(sections[section])
-                    .filter((k) => (sectionOf.get(k) ?? section) === section)
-                    .sort((a, b) => a.localeCompare(b))
-                    .map((k) => [k, sections[section][k]]),
+                Object.entries(sections[section]).filter(([k]) => (sectionOf.get(k) ?? section) === section),
             );
         writeFileSync(knownPath, knownText(out.records));
         writeFileSync(
             floorsPath,
-            `${JSON.stringify(
-                {
-                    about: floors.about,
-                    floors: kept("floors"),
-                    standInFloors: kept("standInFloors"),
-                    specificationFloors: kept("specificationFloors"),
-                    lowered: floors.lowered,
-                    drops: drops.drops,
-                },
-                null,
-                4,
-            )}\n`,
+            floorsFileText({
+                about: floors.about,
+                floors: kept("floors"),
+                standInFloors: kept("standInFloors"),
+                specificationFloors: kept("specificationFloors"),
+                lowered: floors.lowered,
+                drops: drops.drops,
+            }),
         );
         report(knownPath, out, raised);
         console.log(

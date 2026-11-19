@@ -182,7 +182,7 @@ fi
 scan="${PR_OPEN_SCAN:-$here/scan-secrets.sh}"
 PREPUSH_ROOT="$PWD" "$scan" "$base" HEAD || die "the secret scan refused the branch"
 # The push below skips .husky/pre-push, so its spelling check runs here (issue #9011).
-node "$here/check-spelling.mjs" --diff "$base" || die "British spelling on a line this branch adds; node tools/check-spelling.mjs --fix <file> rewrites it"
+node "$here/check-spelling.mjs" --diff "$base" || die "the spelling check refused the branch (above); node tools/check-spelling.mjs --fix <file> rewrites a file"
 zero=0000000000000000000000000000000000000000
 remote_sha=$(git rev-parse -q --verify "refs/remotes/origin/$branch" || echo "$zero")
 printf 'refs/heads/%s %s refs/heads/%s %s\n' "$branch" "$(git rev-parse HEAD)" "$branch" "$remote_sha" |

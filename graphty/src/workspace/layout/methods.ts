@@ -25,7 +25,7 @@ const logger = GraphtyLogger.getLogger(["graphty", "layout"]);
  * The app's name for each of the element's layouts, by catalog id. A layout a third party
  * registered reads under its technical name, the element's fact about it.
  */
-const LAYOUT_NAMES: Readonly<Record<string, string>> = {
+const LAYOUT_NAMES: Readonly<Partial<Record<string, string>>> = {
     force: "Force",
     circular: "Circle",
     radial: "Rings around a node",

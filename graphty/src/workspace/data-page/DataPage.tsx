@@ -797,7 +797,7 @@ function MainView({
             </Stack>
         );
     }
-    const table = draft.tables.find((each) => each.id === page.tableId) ?? draft.tables[0];
+    const table = draft.tables.find((each) => each.id === page.tableId) ?? draft.tables.at(0);
     const tooLarge = page.report?.tooLarge ?? null;
     let problem: Refusal | null = tooLarge === null ? null : tooLargeRefusal(tooLarge);
     if (page.reportError !== null) {

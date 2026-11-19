@@ -1,9 +1,8 @@
 import { Anchor, Button, CloseButton, Group, Paper, Stack, Text } from "@mantine/core";
 import React, { type RefObject, useRef, useState } from "react";
 
-import { useAppFeature } from "../../features";
 import { useWorkspace } from "../state/WorkspaceContext";
-import { answerUsageData, type UsageAnswer, useUsageAnswer } from "./usageData";
+import { answerUsageData, type UsageAnswer, useAnalyticsSends, useUsageAnswer } from "./usageData";
 import { UsageDataText } from "./UsageDataText";
 
 /** The line after an answer, by the answer, with the usage-analytics experiment off. */
@@ -36,7 +35,7 @@ export function UsageDataCard({
 }: Readonly<{ returnFocus?: RefObject<HTMLElement | null> }>): React.JSX.Element | null {
     const { run, store, element } = useWorkspace();
     const answer = useUsageAnswer();
-    const analytics = useAppFeature("usage-analytics");
+    const analytics = useAnalyticsSends();
     const words = analytics ? ANALYTICS_ANSWER_WORDS : ANSWER_WORDS;
     const [answeredNow, setAnsweredNow] = useState(false);
     const [closed, setClosed] = useState(false);

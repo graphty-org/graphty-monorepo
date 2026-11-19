@@ -5,13 +5,15 @@
  * PostHog's shared mode; Share itself is one anonymous count, `usage_data_shared`. The answer is
  * the reader's own preference, kept in this browser. With the usage-analytics experiment off
  * (src/features.ts), Share and No start and stop error reporting alone, in this tab alone, and No
- * still deletes what an earlier visit with it on stored for analytics.
+ * still deletes what an earlier visit with it on stored for analytics. A Share given with it off
+ * never starts PostHog once it is on: the card asks again (SHARE_WITH_ANALYTICS).
  */
 
 import { useSyncExternalStore } from "react";
 
 import { appFeatureOn } from "../../features";
 import {
+    analyticsSends,
     count,
     forgetAnalyticsRecords,
     onOwnHost,
@@ -20,11 +22,39 @@ import {
     stripQueryForRecorders,
 } from "../../lib/analytics";
 import { initSentry, stopSentry } from "../../lib/sentry";
+import { onSiteConfig } from "../../siteConfig";
 
 /** The reader's answer to the usage data card. */
 export type UsageAnswer = "share" | "declined";
 
 const KEY = "graphty.usageData.v1";
+/**
+ * The stored Share given under the words that list PostHog (the page sends PostHog: analyticsSends).
+ * A plain "share" was given under the words that never name it (error reports and replay only), so
+ * where PostHog would run it reads as unanswered and the card asks again: it never starts PostHog.
+ */
+const SHARE_WITH_ANALYTICS = "share-analytics";
+
+/**
+ * The answer a stored value holds, for the words this page shows.
+ * @param stored - the stored value.
+ * @returns the answer, or null when there is none for this page's words.
+ */
+function parse(stored: string | null): UsageAnswer | null {
+    if (stored === SHARE_WITH_ANALYTICS || stored === "declined") {
+        return stored === "declined" ? "declined" : "share";
+    }
+    return stored === "share" && !analyticsSends() ? "share" : null;
+}
+
+/**
+ * The value an answer is stored as, for the words this page shows now.
+ * @param answer - the reader's answer.
+ * @returns the stored value.
+ */
+function encode(answer: UsageAnswer): string {
+    return answer === "share" && analyticsSends() ? SHARE_WITH_ANALYTICS : answer;
+}
 const listeners = new Set<() => void>();
 /** What Share and No switch on and off: the address bar's query is removed before either recorder starts. */
 const live = {
@@ -73,8 +103,12 @@ export function setUsageSenderForTests(sender?: { start: (fresh?: boolean) => vo
     sending = sender ?? live;
 }
 
-/** The answer when browser storage is unavailable (a private window): kept for this page view. */
-let remembered: UsageAnswer | null = null;
+/**
+ * This page view's answer, as stored (encode), for when browser storage is unavailable (a private
+ * window). Kept in its stored form so a Share given under the words that never name PostHog reads as
+ * unanswered once site.json switches PostHog on, here as in storage.
+ */
+let remembered: string | null = null;
 /** True when this page's answer could not be stored: it wins over what storage still holds. */
 let unsaved = false;
 
@@ -84,17 +118,17 @@ let unsaved = false;
  */
 export function readUsageAnswer(): UsageAnswer | null {
     if (unsaved) {
-        return remembered;
+        return parse(remembered);
     }
     try {
-        const stored = localStorage.getItem(KEY);
-        if (stored === "share" || stored === "declined") {
+        const stored = parse(localStorage.getItem(KEY));
+        if (stored !== null) {
             return stored;
         }
     } catch {
         // Storage blocked: fall through to this page view's answer.
     }
-    return remembered;
+    return parse(remembered);
 }
 
 /**
@@ -105,7 +139,7 @@ export function readUsageAnswer(): UsageAnswer | null {
  */
 function store(answer: UsageAnswer): void {
     try {
-        localStorage.setItem(KEY, answer);
+        localStorage.setItem(KEY, encode(answer));
         unsaved = false;
     } catch {
         unsaved = true;
@@ -122,7 +156,7 @@ function store(answer: UsageAnswer): void {
  * @param answer - the reader's answer.
  */
 export function answerUsageData(answer: UsageAnswer): void {
-    remembered = answer;
+    remembered = encode(answer);
     if (answer === "share") {
         // Counted before PostHog's shared mode starts, so it is always an anonymous-mode event: its count over first_visit is the opt-in rate.
         count("usage_data_shared");
@@ -149,11 +183,10 @@ globalThis.addEventListener("storage", (event) => {
         return;
     }
     unsaved = false;
-    if (event.newValue === "share") {
-        remembered = "share";
+    remembered = event.newValue;
+    if (parse(remembered) === "share") {
         sending.start(false);
     } else {
-        remembered = event.newValue === "declined" ? "declined" : null;
         sending.stop();
     }
     listeners.forEach((listener) => {
@@ -205,8 +238,11 @@ export function forgetUsageAnswer(): void {
  */
 function subscribe(listener: () => void): () => void {
     listeners.add(listener);
+    // The experiment decides what a stored Share means (parse), and is known once site.json loads.
+    const stopSite = onSiteConfig(listener);
     return () => {
         listeners.delete(listener);
+        stopSite();
     };
 }
 
@@ -216,4 +252,13 @@ function subscribe(listener: () => void): () => void {
  */
 export function useUsageAnswer(): UsageAnswer | null {
     return useSyncExternalStore(subscribe, readUsageAnswer);
+}
+
+/**
+ * Whether this page sends PostHog anything (lib/analytics.ts, analyticsSends), re-read once the
+ * site configuration loads. The words that say what is sent, and the privacy page's links, follow it.
+ * @returns true when PostHog may run on this page.
+ */
+export function useAnalyticsSends(): boolean {
+    return useSyncExternalStore(onSiteConfig, () => analyticsSends());
 }

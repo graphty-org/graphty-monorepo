@@ -671,6 +671,17 @@ function postHogTarget(config: SiteConfig): { key: string; host: string } | unde
 }
 
 /**
+ * Whether this page sends PostHog anything: the usage-analytics experiment on, a PostHog key and
+ * host in site.json, and the site's own host. The words that say what is sent follow this, so a
+ * site with the experiment on and nothing to send to (canary) says what it does: nothing.
+ * @param config - the site's configuration; the loaded one by default.
+ * @returns true when PostHog may run on this page.
+ */
+export function analyticsSends(config: SiteConfig = siteConfig()): boolean {
+    return appFeatureOn("usage-analytics", config.features) && postHogTarget(config) !== undefined;
+}
+
+/**
  * Starts this page view's counts: the page view (into the mode current now), then the visit event,
  * then removes the channel parameters from the address bar. Sends nothing without a PostHog key or
  * off the site's own host.

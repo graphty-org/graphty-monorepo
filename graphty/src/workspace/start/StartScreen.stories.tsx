@@ -1,8 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { expect, waitFor } from "storybook/test";
 
+import { setAnalyticsCallsForTests } from "../../lib/analytics";
 import { loadSiteConfig, resetSiteConfig, siteConfig } from "../../siteConfig";
 import { realInput } from "../../stories/real-input";
+import { TEST_ANALYTICS } from "../../test/usage-recorders";
 import { answerUsageData, forgetUsageAnswer } from "../privacy/usageData";
 import { clearRecent, rememberRecent } from "../project/recent";
 import { SINGLE_KEY_SHORTCUTS } from "../settings/preferences";
@@ -61,15 +63,21 @@ async function heroDrawn(canvasElement: HTMLElement): Promise<void> {
 }
 
 /**
- * A story's `beforeEach` that switches the usage-analytics experiment on, as a site whose site.json
- * names it would, keeping whatever else the configuration has on.
+ * A story's `beforeEach` that switches the usage-analytics experiment on, as graphty.app's site.json
+ * would with PostHog ids (the words follow whether the page sends PostHog anything), keeping
+ * whatever else the configuration has on. PostHog's code never arrives, so nothing is sent.
  * @returns the cleanup, which switches it off again.
  */
 async function withUsageAnalytics(): Promise<() => void> {
-    const features = [...siteConfig().features, "usage-analytics"];
+    const kept = siteConfig().features;
     resetSiteConfig();
-    await loadSiteConfig(`data:application/json,${encodeURIComponent(JSON.stringify({ features }))}`);
-    return resetSiteConfig;
+    const site = { site: "production", features: ["usage-analytics", ...kept], analytics: TEST_ANALYTICS };
+    await loadSiteConfig(`data:application/json,${encodeURIComponent(JSON.stringify(site))}`);
+    setAnalyticsCallsForTests({ hostname: () => "graphty.app", importPostHog: () => new Promise(() => undefined) });
+    return () => {
+        setAnalyticsCallsForTests();
+        resetSiteConfig();
+    };
 }
 
 const meta: Meta<typeof Workspace> = {

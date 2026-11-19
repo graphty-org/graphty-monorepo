@@ -119,6 +119,7 @@ describe("check-features", () => {
                 "graphty/src/features.ts": appRows(`    { id: "usage-analytics", issue: 8818, since: "2026-11-18" },`),
                 "graphty/src/Card.tsx": `const on = useAppFeature("usage-analytics");\nappFeatureOn("nope");\n`,
                 "graphty/sites/canary.json": `{ "site": "canary", "features": ["usage-analytics"] }\n`,
+                "graphty/src/Chip.tsx": `const sends = useAnalyticsSends();\n`,
             }),
         );
         assert.deepEqual(found, [
@@ -127,6 +128,7 @@ describe("check-features", () => {
         assert.deepEqual(flags.find((f) => f.id === "usage-analytics")?.files, [
             "graphty/sites/canary.json",
             "graphty/src/Card.tsx",
+            "graphty/src/Chip.tsx",
         ]);
         assert.deepEqual(
             problems({

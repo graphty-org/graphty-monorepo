@@ -3,7 +3,7 @@ import "./privacy.css";
 import { List, Text } from "@mantine/core";
 import type React from "react";
 
-import { useAppFeature } from "../../features";
+import { useAnalyticsSends } from "./usageData";
 
 /** The owner's words, kept whole (tier1-design.md section 2.11; an owner decision). */
 const OWNER_HEADLINE = "Your data is yours, but please help us.";
@@ -12,7 +12,7 @@ const OWNER_TEXT =
 
 /** What is collected, with the usage-analytics experiment off. */
 const COLLECTED = [
-    "A replay of each session, with every node name, attribute value, label and file content masked.",
+    "A replay of the moments before an error, with every node name, attribute value, label and file content masked.",
     "Anonymous task events with their timings: file loaded, first graph drawn, measure run, result read, style added, export, undo.",
     "Errors and performance.",
     "A feedback widget.",
@@ -40,7 +40,7 @@ export function UsageDataText({
     headline = true,
     assistantSends = false,
 }: Readonly<{ headline?: boolean; assistantSends?: boolean }>): React.JSX.Element {
-    const analytics = useAppFeature("usage-analytics");
+    const analytics = useAnalyticsSends();
     return (
         <>
             {headline ? (

@@ -309,7 +309,7 @@ describe("anonymous counts", () => {
                 return Promise.resolve({ default: fake as unknown as PostHog });
             },
         });
-        localStorage.setItem(USAGE, "share");
+        localStorage.setItem(USAGE, "share-analytics");
         startAnalyticsAtBoot(await site(PH));
         await vi.waitFor(() => {
             assert.include(capturedNames(fake.capture), "$pageview");
@@ -773,7 +773,7 @@ describe("PostHog", () => {
         resetAnalyticsForTests();
         // posthog-js never arrives, and no anonymous instance is ready yet.
         installCalls({ importPostHog: () => new Promise<never>(() => undefined) });
-        localStorage.setItem(USAGE, "share");
+        localStorage.setItem(USAGE, "share-analytics");
         startAnalyticsAtBoot(await site(PH));
         count("sample_loaded", { sample: "karate" });
         stopPostHog();
@@ -914,7 +914,7 @@ describe("PostHog", () => {
 
         freshPage();
         localStorage.removeItem(VISITS);
-        localStorage.setItem(USAGE, "share");
+        localStorage.setItem(USAGE, "share-analytics");
         startAnalyticsAtBoot(config);
         await loaded;
         assert.equal(imports.mock.calls.length, 1);
@@ -938,7 +938,7 @@ describe("PostHog", () => {
                 },
             });
             if (answer !== null) {
-                localStorage.setItem(USAGE, answer);
+                localStorage.setItem(USAGE, answer === "share" ? "share-analytics" : answer);
             }
             startAnalyticsAtBoot(await site(PH));
             assert.equal(imports.mock.calls.length, answer === "share" ? 1 : 0, "Share loads at once");

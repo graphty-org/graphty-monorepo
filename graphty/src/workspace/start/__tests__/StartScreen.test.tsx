@@ -7,7 +7,7 @@ import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
 import { count, resetAnalyticsForTests, setPostHogClientForTests, SURVEYS_KEY } from "../../../lib/analytics";
-import { withFeatures, withoutFeatures } from "../../../test/features";
+import { withFeatures, withoutFeatures, withPostHogSite } from "../../../test/features";
 import { sampleTile } from "../../../test/samples-dialog";
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
 import { USE_CASE_SURVEY } from "../../privacy/__tests__/surveyFixtures";
@@ -28,6 +28,16 @@ withoutFeatures(["usage-analytics"]);
 
 const OWNER_WORDS =
     "We will never see the data you analyze, but we would like to collect information about how you use the app so that we can improve the user experience. This data will only ever be used by the author of the application and his Claude Code sessions.";
+
+/**
+ * Opens a project, hovers the privacy chip in its status bar and reads the chip's tooltip.
+ * @returns the tooltip's words.
+ */
+async function chipTooltip(): Promise<string> {
+    renderStart({ project: { name: "Les Miserables", id: 1 } });
+    await userEvent.hover(screen.getByRole("button", { name: "Local only" }));
+    return (await screen.findByRole("tooltip", undefined)).textContent;
+}
 
 /**
  * Renders the workspace with no project open.
@@ -168,7 +178,13 @@ describe("the start screen", () => {
         assert.isFalse(collected.checkVisibility());
         await userEvent.click(within(card).getByText("What is collected"));
         assert.isTrue(collected.checkVisibility());
+        assert.isNotNull(within(card).getByText("A feedback widget."));
+        assert.isNull(within(card).queryByText(/PostHog/));
         assert.equal(initSentry.mock.calls.length, 0);
+    });
+
+    it("says nothing is sent in the privacy chip's tooltip", async () => {
+        assert.equal(await chipTooltip(), "Nothing is sent. Opens Settings > Privacy");
     });
 
     it("turns usage data on with Share usage data, and says so", async () => {
@@ -321,8 +337,28 @@ describe("the start screen", () => {
     });
 });
 
+describe("the start screen with the usage-analytics experiment on and nothing to send PostHog", () => {
+    // canary's site.json: the experiment on, no PostHog ids.
+    withFeatures(["usage-analytics"]);
+
+    it("says nothing is sent, as it is, and links no privacy page", async () => {
+        renderStart();
+
+        const card = screen.getByRole("complementary", { name: "Usage data" });
+        assert.isNotNull(within(card).getByText("Nothing is collected until you answer."));
+        assert.isNull(screen.queryByRole("link", { name: "Privacy" }));
+        await userEvent.click(within(card).getByText("What is collected"));
+        assert.isNull(within(card).queryByText(/PostHog/));
+    });
+
+    it("says nothing is sent in the privacy chip's tooltip", async () => {
+        assert.equal(await chipTooltip(), "Nothing is sent. Opens Settings > Privacy");
+    });
+});
+
 describe("the start screen with the usage-analytics experiment on", () => {
     withFeatures(["usage-analytics"]);
+    withPostHogSite();
 
     it("says anonymous counts are sent, links the privacy page, and stacks the card in its corner", async () => {
         renderStart();
@@ -333,6 +369,9 @@ describe("the start screen with the usage-analytics experiment on", () => {
         assert.equal(getComputedStyle(corner).position, "fixed");
         assert.isNotNull(within(card).getByText(/^Until you share, anonymous counts are sent/));
         assert.equal(screen.getByRole("link", { name: "Privacy" }).getAttribute("href"), "/privacy.html");
+        await userEvent.click(within(card).getByText("What is collected"));
+        assert.isNotNull(within(card).getByText("PostHog keeps a random id in this browser while sharing is on."));
+        assert.isNull(within(card).queryByText("A feedback widget."));
 
         await userEvent.click(within(card).getByRole("button", { name: "No thanks" }));
         assert.isNotNull(
@@ -348,6 +387,13 @@ describe("the start screen with the usage-analytics experiment on", () => {
             ),
         );
         assert.isNotNull(within(dialog).getByRole("link", { name: "Privacy details" }));
+    });
+
+    it("says anonymous counts are sent in the privacy chip's tooltip", async () => {
+        assert.equal(
+            await chipTooltip(),
+            "Your files stay on this computer. Anonymous counts are sent. Opens Settings > Privacy",
+        );
     });
 
     it("stacks a survey that comes up beside the answer line, hiding neither, and keeps focus", async () => {

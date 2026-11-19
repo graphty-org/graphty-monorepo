@@ -15,14 +15,13 @@ import {
 } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
-import { useAppFeature } from "../../features";
 import { siteFileStyles } from "../../siteConfig";
 import { AiProviderPage, type PageCommit } from "../assistant-door/AssistantPlace";
 import { AI_PROVIDER_SECTION, assistantOn } from "../assistant-door/commands";
 import { providerDisclosure } from "../assistant-door/provider";
 import { fileStylesOn } from "../features";
 import { useAccelerationStatus } from "../frame/useAccelerationStatus";
-import { answerUsageData, useUsageAnswer } from "../privacy/usageData";
+import { answerUsageData, useAnalyticsSends, useUsageAnswer } from "../privacy/usageData";
 import { UsageDataText } from "../privacy/UsageDataText";
 import { useAssistantSendsTo } from "../privacy/useAssistantSendsTo";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
@@ -189,7 +188,7 @@ function General(): React.JSX.Element {
 function Privacy(): React.JSX.Element {
     const on = useUsageAnswer() === "share";
     const sendsTo = useAssistantSendsTo();
-    const analytics = useAppFeature("usage-analytics");
+    const analytics = useAnalyticsSends();
     let usageOff = sendsTo === null ? "Usage data: off. Nothing is sent." : "Usage data: off.";
     if (analytics) {
         usageOff =

@@ -18,6 +18,7 @@ import { commands, userEvent } from "vitest/browser";
 
 import {
     type AnalyticsCalls,
+    APP_CALLER_KEY,
     importPostHogModule,
     onUsageEvent,
     postHog,
@@ -27,13 +28,14 @@ import {
 } from "../../../lib/analytics";
 import { resetSentryState, type SentryCalls, setSentryCallsForTests } from "../../../lib/sentry";
 import { loadSiteConfig, resetSiteConfig } from "../../../siteConfig";
+import { openSampleFromStart } from "../../../test/open";
 import {
     interceptPostHog,
     POSTHOG_TEST_HOST,
     type PostHogTestNetwork,
     sentEvents,
 } from "../../../test/posthog-network";
-import { render, screen, within } from "../../../test/test-utils";
+import { act, render, screen, within } from "../../../test/test-utils";
 import { TEST_ANALYTICS } from "../../../test/usage-recorders";
 import { PROTOTYPE_SAMPLES, sampleName, sampleUrl } from "../../start/samples";
 import { createWorkspaceStore } from "../../state/store";
@@ -231,6 +233,18 @@ function stopRecording(): void {
     setSentryCallsForTests();
 }
 
+/**
+ * Opens a sample from the start page, as a reader does, and counts the settings steps (the project's
+ * name, the app's starting settings) its element journaled, by whether the app marked them as its own.
+ * @returns the app's own and the rest.
+ */
+async function configStepsOfASample(): Promise<{ app: number; other: number }> {
+    const { session } = await openSampleFromStart("Florentine families");
+    const steps = session.journal.entries.filter((entry) => entry.kind === "config" && entry.trigger === undefined);
+    const app = steps.filter((entry) => entry.callerKey === APP_CALLER_KEY).length;
+    return { app, other: steps.length - app };
+}
+
 /** The storage keys only analytics writes: PostHog's, its surveys', and the app's visit and survey records. */
 function analyticsKeys(): string[] {
     return Object.keys(localStorage).filter((key) =>
@@ -252,6 +266,7 @@ describe("with the usage-analytics experiment off", () => {
         assert.isNull(screen.queryByRole("complementary", { name: "Usage data" }), "the question was answered");
         await useTheApp();
         assert.isNull(screen.queryByRole("complementary", { name: "Survey" }));
+        assert.isNull(document.querySelector(".ws-usage-corner"), "no survey corner: the card is laid out as before");
 
         assert.strictEqual(imports, 0, "PostHog's code was never asked for");
         assert.isEmpty(network.urls, "no request reached PostHog");
@@ -272,11 +287,19 @@ describe("with the usage-analytics experiment off", () => {
         assert.isEmpty(network.urls, "no request reached PostHog");
         assert.isEmpty(analyticsKeys(), "nothing was stored for analytics");
         assert.isNull(screen.queryByRole("complementary", { name: "Survey" }));
+        assert.isNull(document.querySelector(".ws-usage-corner"), "no survey corner: the card is laid out as before");
+    });
+
+    it("writes an opened project's name and starting settings as plain settings, as before", async () => {
+        await loadSiteConfig(`data:application/json,${encodeURIComponent(JSON.stringify({ features: [] }))}`);
+        const steps = await configStepsOfASample();
+        assert.strictEqual(steps.app, 0, "no step is marked as the app's own");
+        assert.isAtLeast(steps.other, 2, "the name and the starting settings were written");
     });
 
     it("deletes what an earlier visit with the experiment on stored, when the reader turns sharing off", async () => {
         // A reader who shared on a visit with the experiment on, back on a site with it off.
-        localStorage.setItem("graphty.usageData.v1", "share");
+        localStorage.setItem("graphty.usageData.v1", "share-analytics");
         localStorage.setItem("ph_phc_test_posthog", '{"distinct_id":"someone"}');
         localStorage.setItem("seenSurvey_x", "true");
         localStorage.setItem("graphty.visits.v1", '{"first":"2026-01-01","last":"2026-01-02"}');
@@ -302,6 +325,14 @@ describe("a reader who never shares usage data", () => {
     beforeEach(startRecording);
     afterEach(stopRecording);
 
+    it("marks an opened project's name and starting settings as the app's own steps", async () => {
+        const site = { site: "production", features: ["usage-analytics"], analytics: TEST_ANALYTICS };
+        await loadSiteConfig(`data:application/json,${encodeURIComponent(JSON.stringify(site))}`);
+        const steps = await configStepsOfASample();
+        assert.strictEqual(steps.other, 0, "no settings step is counted as the reader's");
+        assert.isAtLeast(steps.app, 2, "the name and the starting settings");
+    });
+
     it("sends PostHog only anonymous counts and Sentry nothing after No thanks, with no secret", async () => {
         await boot();
         const card = screen.getByRole("complementary", { name: "Usage data" });
@@ -312,6 +343,15 @@ describe("a reader who never shares usage data", () => {
             sentEvents(network.bodies).map((event) => event.event),
             "usage_data_shared",
         );
+    });
+
+    it("asks again, and sends only anonymous counts, when the reader's Share was given with the experiment off", async () => {
+        // Share answered under the words that never named PostHog, then a visit with the experiment on.
+        localStorage.setItem("graphty.usageData.v1", "share");
+        await boot();
+        assert.isNotNull(screen.getByRole("complementary", { name: "Usage data" }), "the card asks again");
+        await useTheApp();
+        await assertOnlyAnonymousCounts();
     });
 
     it("sends PostHog only anonymous counts and Sentry nothing while the question is unanswered", async () => {
@@ -380,5 +420,33 @@ describe("a reader who never shares usage data", () => {
             Object.keys(localStorage).filter((key) => key.startsWith("ph_")),
             "and none is saved later",
         );
+    });
+});
+
+describe("the usage card while site.json loads", () => {
+    beforeEach(startRecording);
+    afterEach(stopRecording);
+
+    it("keeps the answer line and its focus when site.json switches the experiment on after an answer", async () => {
+        // The page paints before site.json settles, with every experiment off.
+        render(<Workspace store={createWorkspaceStore()} />);
+        const card = screen.getByRole("complementary", { name: "Usage data" });
+        await userEvent.click(within(card).getByRole("button", { name: "No thanks" }));
+        const line = document.querySelector(".ws-start-answer");
+        assert.isNotNull(line, "the answer line");
+        const close = await vi.waitFor(() => {
+            const focused = document.activeElement;
+            assert.strictEqual(focused?.getAttribute("aria-label"), "Close", "focus moved to the line's Close");
+            return focused;
+        });
+
+        const site = { site: "production", features: ["usage-analytics"], analytics: TEST_ANALYTICS };
+        await act(async () => {
+            await loadSiteConfig(`data:application/json,${encodeURIComponent(JSON.stringify(site))}`);
+        });
+
+        assert.isNotNull(document.querySelector(".ws-usage-corner"), "the experiment is on");
+        assert.strictEqual(document.querySelector(".ws-start-answer"), line, "the same answer line is still shown");
+        assert.strictEqual(document.activeElement, close, "focus stayed on its Close");
     });
 });

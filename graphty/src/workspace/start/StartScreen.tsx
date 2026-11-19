@@ -8,11 +8,11 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 
 import { ColorSchemeToggle } from "../../components/ColorSchemeToggle";
 import { START_SAMPLES } from "../../data/sampleManifest";
-import { useAppFeature } from "../../features";
 import { RecoveredWork } from "../autosave/RecoveredWork";
 import { CommandButton } from "../frame/CommandButton";
 import { GLYPHS } from "../glyphs";
 import { count } from "../inspector/words";
+import { useAnalyticsSends } from "../privacy/usageData";
 import { openRecent } from "../project/actions";
 import { type RecentProject, useRecentProjects } from "../project/recent";
 import { RecentProjects } from "../project/RecentProjects";
@@ -413,12 +413,12 @@ function SampleLibrary(): React.JSX.Element {
 }
 
 /**
- * The foot of the page: the formats it opens, the license, the code, the docs and, with the
- * usage-analytics experiment on, the privacy page.
+ * The foot of the page: the formats it opens, the license, the code, the docs and, when the page
+ * sends PostHog anything (the usage-analytics experiment on a site with PostHog ids), the privacy page.
  * @returns The footer
  */
 function PageFoot(): React.JSX.Element {
-    const analytics = useAppFeature("usage-analytics");
+    const analytics = useAnalyticsSends();
     return (
         <footer className="ws-land-foot">
             <span>

@@ -60,7 +60,7 @@ describe("a sharing reader's reload", () => {
         localStorage.setItem(STORE, seeded);
         sessionStorage.setItem(STORE, seeded);
         localStorage.setItem(`__ph_opt_in_out_${KEY}`, "1");
-        localStorage.setItem("graphty.usageData.v1", "share");
+        localStorage.setItem("graphty.usageData.v1", "share-analytics");
         // Every removal made while the anonymous instance is being created. The shared instance
         // rewrites its own entries as it runs, so only this window says what the anonymous init did.
         const { default: posthog } = await importPostHogModule();

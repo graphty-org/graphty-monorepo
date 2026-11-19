@@ -55,6 +55,9 @@ export function readRegistry(text, rowsName = "FEATURES") {
     return { rows, graduated: quoted(block("GRADUATED_FEATURES") ?? "") };
 }
 
+// The app's gates named for what they decide rather than for their experiment, with the id each reads.
+const GATE_ALIASES = { analyticsSends: "usage-analytics", useAnalyticsSends: "usage-analytics" };
+
 // Every place a file names an experiment id: [{ id, line, kind }].
 function references(file, text) {
     const refs = [];
@@ -68,6 +71,8 @@ function references(file, text) {
     add(/^(?!.*\b(?:details|params):).*?\bfeature:\s*["']([^"']+)["']/gm, "feature field");
     add(/\bfeatures\.has\(\s*["']([^"']+)["']/g, "features.has call");
     add(/\b(?:appFeatureOn|useAppFeature)\(\s*["']([^"']+)["']/g, "app gate");
+    // Gates that read an app experiment under a name of their own: whoever retires the id finds them too.
+    add(/\b(useAnalyticsSends|analyticsSends)\(/g, "app gate", (m) => [GATE_ALIASES[m[1]]]);
     if (/\.stories\.[cm]?[jt]sx?$/.test(file))
         add(/\bfeatures:\s*\[([^\]]*)\]/g, "story features parameter", (m) => quoted(m[1]));
     if (file.startsWith("graphty/sites/") && file.endsWith(".json")) {

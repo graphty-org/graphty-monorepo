@@ -442,15 +442,13 @@ export function Workspace({
             {/* One corner for the usage data question (on whatever page a first visit lands, until it
                 is answered) and a short survey, only while usage data is shared (usage-analytics.md
                 section 4.4): stacked, so neither covers or hides the other. With the usage-analytics
-                experiment off, the question alone, with no survey. */}
-            {usageAnalytics ? (
-                <div className="ws-usage-corner">
-                    <UsageDataCard returnFocus={projectOpen ? undefined : firstDoor} />
-                    <SurveyCard />
-                </div>
-            ) : (
+                experiment off, the question alone, with no survey, in a plain wrapper that draws
+                nothing: the card keeps its place in the tree when site.json switches the experiment
+                on, so it is not remounted and keeps its answer line and focus. */}
+            <div className={usageAnalytics ? "ws-usage-corner" : undefined}>
                 <UsageDataCard returnFocus={projectOpen ? undefined : firstDoor} />
-            )}
+                {usageAnalytics ? <SurveyCard /> : null}
+            </div>
             <ProjectDialogs />
             {/* The one status line, outside the start screen, the frame and every surface the Data
                 page hides, so it is on the page, empty, before anything is written to it and a

@@ -938,7 +938,7 @@ function loadedWeightOf(graph: Graph, algorithm: object): LoadedWeightFact | nul
     if (session !== undefined) {
         // The one weight rule is judged over the edges the run reads (design 8.6).
         const data = session.data as typeof session.data & Partial<Pick<SessionData, "loadedWeightOver">>;
-        const loaded = data.loadedWeight();
+        const loaded = data.loadedWeightOver === undefined ? data.loadedWeight() : data.loadedWeightOver(null);
         const scope = loaded?.mixed === undefined ? null : runScopeOf(algorithm);
         if (scope === null || data.loadedWeightOver === undefined) {
             return loaded;

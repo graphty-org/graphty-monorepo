@@ -217,6 +217,7 @@ import {
     cell as stepsCell,
     conflicts as stepsConflicts,
     lineage as stepsLineage,
+    READABLE_PATHS,
     readPath,
     values as stepsValues,
 } from "./sources/steps/provenance";
@@ -3306,11 +3307,16 @@ export class SessionData implements SessionDataApi {
         const { nodes, edges } = elementsById(result, this.stepsEdgeIds());
         const snapshot = this.current();
         const space = edgeSpaceOf(snapshot);
+        const readable: ReadonlySet<string> = new Set(READABLE_PATHS);
         const read = (el: BuiltElementOf | undefined, path: string): unknown => {
             if (el === undefined) {
                 return undefined;
             }
             const column = path.startsWith("data.") ? path.slice("data.".length) : path;
+            // A readable path is on the element itself, carried by every element the source supplied.
+            if (readable.has(column)) {
+                return el.loads.includes(source) ? (readPath(el, column) ?? undefined) : undefined;
+            }
             return el.edited?.[column] === undefined ? el.own[source]?.[column]?.v : el.values[column];
         };
         const carried = (els: Iterable<BuiltElementOf>, path: string): boolean => {
@@ -5761,18 +5767,47 @@ export class SessionData implements SessionDataApi {
      * @returns The weight, or null.
      */
     private stepsWeight(loaded: LoadedWeight): LoadedWeight | null {
+        return this.stepsWeightColumns().size > 1 ? null : this.withMixed(loaded);
+    }
+
+    /**
+     * The columns the built sources that make edges read the weight role from.
+     * @returns The column names.
+     */
+    private stepsWeightColumns(): Set<string> {
         const value = this.stepsValue();
-        const columns = new Set(
+        return new Set(
             Object.keys(value.sources)
                 .filter((id) => sourceState(value, id) === "built")
                 .map((id) => value.sources[id].mapping.edges?.weight)
                 .filter((column) => column !== undefined),
         );
-        if (columns.size > 1) {
-            return null;
-        }
+    }
+
+    /**
+     * A weight with the build's mixed meanings, when they mix (design 8.6).
+     * @param loaded - The weight.
+     * @returns The weight, with `mixed` when the edges' weights do not share one meaning.
+     */
+    private withMixed(loaded: LoadedWeight): LoadedWeight {
         const mixed = mixedWeight(this.stepsBuild().result);
         return mixed === null ? loaded : Object.freeze({ ...loaded, mixed: Object.freeze({ sources: mixed }) });
+    }
+
+    /**
+     * The weight a run over every edge reads. It is {@link loadedWeight}, except under source-steps
+     * when built sources read the weight role from differently named columns: the setting then names
+     * none, but every edge still holds its weight in `graphty.weight`, so a run reads that, and the
+     * one weight rule decides by meanings alone (design 3.9, 8.6).
+     * @returns The weight, or null.
+     */
+    private runWeight(): LoadedWeight | null {
+        const loaded = this.loadedWeight();
+        if (loaded !== null || !this.stepsOn() || this.stepsWeightColumns().size <= 1) {
+            return loaded;
+        }
+        const { edgeWeightMeaning } = this.readConfig().knownFields;
+        return this.withMixed(Object.freeze({ attribute: "graphty.weight", meaning: edgeWeightMeaning }));
     }
 
     /**
@@ -5798,12 +5833,13 @@ export class SessionData implements SessionDataApi {
     /**
      * The weight a run over some edges reads (design 8.6): {@link loadedWeight}, with the one weight
      * rule judged over those edges alone, so a run on one source's edges is weighted when they share
-     * one meaning, whatever other sources' edges mix.
+     * one meaning, whatever other sources' edges mix. Under source-steps it reads `graphty.weight`
+     * when built sources weight from differently named columns (see {@link runWeight}).
      * @param inScope - Whether the run reads an edge; null for every edge.
      * @returns The weight, or null.
      */
     loadedWeightOver(inScope: ((edge: EdgeId) => boolean) | null): LoadedWeight | null {
-        const loaded = this.loadedWeight();
+        const loaded = this.runWeight();
         if (inScope === null || loaded?.mixed === undefined) {
             return loaded;
         }
@@ -6541,7 +6577,8 @@ export class SessionData implements SessionDataApi {
             edit = this.roleTarget(edgeWeightPath, "weight", {}, base()) ?? edit;
         }
         for (const path of [edgeTimePath, nodeTimePath]) {
-            if (typeof path === "string") {
+            // A readable path such as graphty.time is the build's own, never a source's column.
+            if (typeof path === "string" && !(READABLE_PATHS as readonly string[]).includes(path)) {
                 edit = this.roleTarget(path, "time", {}, base()) ?? edit;
             }
         }

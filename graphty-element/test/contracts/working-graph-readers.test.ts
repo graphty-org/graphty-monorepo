@@ -676,6 +676,7 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "visibility.edgeMask()": "the filter's own",
     "visibility.edges": "the filter's own",
     "visibility.filter": "the filter's own",
+    "visibility.held": "the filter's own",
     "visibility.isVisible()": "names its target",
     "visibility.nodeMask()": "the filter's own",
     "visibility.nodes": "the filter's own",

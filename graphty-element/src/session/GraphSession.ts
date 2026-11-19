@@ -3934,6 +3934,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
 
             return data.setType({ kind, name }, "date");
         },
+        settingRoles: (knownFields) => data.settingRoles(knownFields),
     });
     timeInternals = time.internals;
     dispatcher.services.timeFieldChanged = () => {
@@ -5516,7 +5517,7 @@ function planningContext(
         defaultCaveats,
         // The one weight rule is judged over the edges the run reads (design 8.6).
         loadedWeight: (spec) => {
-            const loaded = data.loadedWeight();
+            const loaded = data.loadedWeightOver(null);
             // Only a source-steps build mixes meanings; nothing else resolves the scope here.
             if (loaded?.mixed === undefined || spec === undefined || spec === "graph") {
                 return loaded;

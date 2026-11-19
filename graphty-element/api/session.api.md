@@ -7155,6 +7155,12 @@ export type SourceEditChoice = "follow" | "keep" | "drop";
 export type SourceElementRef = SourceNodeRef | SourceEdgeRef;
 
 // @public
+export interface SourceElementsFilter {
+    readonly source?: string;
+    readonly type?: string | null;
+}
+
+// @public
 export interface SourceEndOption {
     readonly column: string;
     readonly space?: SourceSpaceName;
@@ -7448,6 +7454,11 @@ export { SourceRequestInit }
 
 // @public
 export type SourceRoleName = "weight" | "time" | "timeEnd" | "latitude" | "longitude" | "coordinates" | "country" | "region" | "city";
+
+// @public
+export interface SourceRoleOptions {
+    readonly source?: string;
+}
 
 // @public
 export interface SourceRowFilter {

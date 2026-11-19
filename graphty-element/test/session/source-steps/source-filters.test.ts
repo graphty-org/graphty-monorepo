@@ -8,7 +8,7 @@
 import { assert, describe, it } from "vitest";
 
 import type { GraphSession } from "../../../src/session";
-import { clashing, full, phase1 } from "./scenario";
+import { clashing, full, phase1, phase2 } from "./scenario";
 
 /**
  * The ids shown now.
@@ -138,6 +138,21 @@ describe("source-steps: a source's filter", () => {
             rule: { kind: "categories", attribute: "graphty.type", values: ["account"] },
         });
         assert.deepStrictEqual(session.visibility.held, []);
+        session.dispose();
+    });
+
+    it("judges a source section's filter on graphty.type, never holds it (type-filter-is-judged)", async () => {
+        const { session, t } = await phase2();
+        assert.isTrue((await shown(session)).nodes.has("D-1"));
+        await session.visibility.addCondition({
+            effect: "keep",
+            source: t,
+            rule: { kind: "categories", attribute: "graphty.type", values: ["transfer", "account", "merchant"] },
+        });
+        assert.deepStrictEqual(session.visibility.held, []);
+        const { nodes } = await shown(session);
+        assert.isFalse(nodes.has("D-1"), "T's device nodes are judged and hidden");
+        assert.isTrue(nodes.has("A-1"));
         session.dispose();
     });
 });

@@ -8,7 +8,7 @@
 import { assert, describe, it } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../../src/session";
-import { edgeFile, full, phase2, phase6, refused } from "./scenario";
+import { BANK_B, edgeFile, full, phase2, phase6, refused, TRANSACTIONS } from "./scenario";
 
 /**
  * A fresh session under the experiment whose weight setting names a column before any data.
@@ -167,6 +167,22 @@ describe("source-steps: the one weight rule", () => {
         const { session } = await phase2(await weightedBeforeData("amount"));
         const run = await pagerank(session);
         assert.isTrue(run.weighted, `went unweighted: ${JSON.stringify(run.skipped)}`);
+        session.dispose();
+    });
+
+    it("two sources weighted from differently named columns with one meaning give a weighted run", async () => {
+        const session = createGraphSession({ features: ["source-steps"] });
+        await session.config.set({ data: { knownFields: { edgeWeightMeaning: "strength" } } });
+        const t = await edgeFile(session, TRANSACTIONS, "transactions.csv");
+        const b = await edgeFile(session, BANK_B.replace("amount", "amt"), "bank-b.csv", "merge");
+        await session.data.setRole({ kind: "edge", name: "amount" }, "weight", { source: t });
+        await session.data.setRole({ kind: "edge", name: "amt" }, "weight", { source: b });
+        assert.deepStrictEqual(weights(session), [4, 5, 6, 7, 10, 20]);
+        // The setting is a view of one role column, so it names none here.
+        assert.isNull(session.data.loadedWeight());
+        const run = await pagerank(session);
+        assert.isTrue(run.weighted, `went unweighted: ${JSON.stringify(run.skipped)}`);
+        assert.isUndefined(run.skipped);
         session.dispose();
     });
 

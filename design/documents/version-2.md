@@ -338,6 +338,7 @@ The full rules are in design/data/data-store-options.md, section 5; in short:
     { "load": "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y", "key": "pay-889" }     // an edge
     { "load": "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
       "key": "01JCBQ2F5H7K9M1P3R5T7W9Y2A#3" }                          // a keyless edge row
+    { "load": "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y", "key": "2/acct-7|m\\|3" } // part 2's edge from acct-7 to m|3
     ```
 
 - **Keys.** `key` is always a JSON string. An edge's key is its `edgeId` value; repeated ids within
@@ -345,11 +346,18 @@ The full rules are in design/data/data-store-options.md, section 5; in short:
   standing and a later row filling only what it left unset, as for nodes. Otherwise, when the session
   holds two edges with one edge id in one source, the writer leaves the later row's edge-id cell out
   and reports it, so that row is keyless and both edges reopen. A keyless row's key, node or edge,
-  is `"<copy id>#<row from 0>"`; a row whose node-key or edge-id cell is null or empty is keyless,
-  so the form applies per row, and a node whose id is empty is written that way.
-  `load` names the source that made the edge; `key` is the record key, never NetworkX's multigraph
-  key. An edge built from several rows, including an edge two sources both supply, takes the key
-  of the first row read, in join step order. The member is `load`, not `source`, because every
+  is `"<copy id>#<row from 0>"`: every node row of a source whose mapping names no key column, and
+  an edge row whose edge-id cell is null or empty. A row whose node-key or edge-end cell is null
+  or empty names no node: it is left out and counted (`W_KEY_EMPTY { source, column, rows }`),
+  exactly as a load from any other file format leaves it out, so an empty key never becomes a node.
+  A `join.edges` step keys its edges under its `part`: `<part>/<key>` from the edge-id cell,
+  `<part>/<from key>|<to key>` when the step reduces its rows to one edge per end pair (each key
+  with `\` written `\\` and `|` written `\|`, so removing or re-sorting rows never re-keys it),
+  else `<part>/<copy id>#<row>`. `load` names the source that made the edge; `key` is the record
+  key, never NetworkX's multigraph key. An edge reduced from several rows, including an edge two
+  sources both supply, takes the key of the first row read, in join step order, and every
+  contributing row's `{ load, key }` stays an alias of it, so a note on any of them still binds.
+  The member is `load`, not `source`, because every
   other edge object uses `source` for the node the edge leaves (graphty-element's stored edge
   member, node-link links, a mapping's `edges.source`).
 - **Spaces.** A space is an opaque string, always written for the node key, `sourceSpace` and
@@ -422,7 +430,11 @@ header:
   node-link graph's `directed` is written from it and never read. A source file's own direction
   goes in that source's `metadata`; a source that disagrees is read under `directed` and reported.
 - **`repeatedEdges`**: one value for the whole graph, graphty-element's name, governing repeated
-  edges within a source and between sources alike.
+  edges within a source and between sources alike: `keep` (default), `first`, `last`, `sum`, `min`,
+  `max` or `error`. Edges of two types are never reduced into one, and edges whose sources' weight
+  meanings differ (distance beside strength) are reduced only by `first` or `last`, keeping that
+  row's weight and meaning, never by a rule that adds or compares weights across meanings. A
+  reduced edge's `_source.loads` lists every source it came from.
 - **`sources`**: one record per source, with exactly the fields of data-store-options.md 4.5:
   `id` (`src_` plus a ULID; see "Identity"), `label`, `kind` (`file`, `url`, `network`, `sample`,
   `derived`, `reader`), `format` and `options` (the parser and its parse options only), `origin`,
@@ -496,7 +508,12 @@ weight, weightMeaning, time, timeUnit, renamed }`. With `key` absent, every node
   absent, the rule reads the source's node rows. `part` narrows the rule to one `join.edges` step
   of the source (see "recipe"). Without `column` every row read has the type; with
   it, `values` lists the cell values meaning this type, so "Person" and "people" become one type. A
-  node may match several types; an edge takes the first in registry order. A row matching no rule
+  node and every edge holds exactly one type, for now: one type keeps colors, filters and grouping
+  to one value. Among the types matching one row of one source, a rule with `column` and `values`
+  beats the source's whole-source or whole-end rule (which acts as "others"), then the first in
+  registry order wins; when two steps would give a node different types, the first step in build
+  order sets it. The saved graph keeps the plural `"graphty.types"` with at most one item, so
+  several types per element can come later without breaking a file. A row matching no rule
   has the default type, which has no name and no entry: its node or edge writes
   `"graphty.types": []`, and no selector or scope names it. `schema` is a JSON Schema (draft
   2020-12) of the working record the type carries, with graphty's two keywords `unit` and
@@ -533,17 +550,20 @@ weight, weightMeaning, time, timeUnit, renamed }`. With `key` absent, every node
   (graph-level attributes, `{}` when none). `multigraph` is true exactly when two edges share both
   ends, never a reader choice: NetworkX assumes `true` when it is missing and silently merges
   parallel edges when it is `false`. Each node carries `"graphty.space"`, `"graphty.key"`,
-  `"graphty.types"` and `_source.loads`; each edge carries `"graphty.load"`, `"graphty.key"`,
+  `"graphty.types"` (at most one item) and `_source.loads`; each edge carries `"graphty.load"`, `"graphty.key"`,
   `"graphty.types"` (at most one item) and `_source.loads`. Beside them every node and edge
   carries each of its working columns as an attribute, key, end, edge-id and type-rule columns
   included, even one that repeats `"graphty.key"`; a column named after a node-link handle (`id`,
   `source`, `target` or `key`) is written as `<name> (column)`. graphty never writes a node-link
   `key`. The node-link `id`, `source` and `target` are handles unique within the file only, since
   a key repeats across spaces (account 12 and merchant 12).
-- **`_source.loads`** lists the sources that supplied the row. A node only named by an edge writes
-  `[]`, and keeps its key when the file is saved again: it is not a reader addition. `reader` is
-  listed only on an element the reader added; an edit does not add it, and a merge keeps the union
-  of both nodes' lists. Only the nodes and edges the reader added are written as reader `add`
+- **`_source.loads`** lists the sources that supplied the element, in step order. A node no
+  source's rows supply (only edges name it) is supplied by the sources whose edges reach it and
+  lists them, so "only <source>" and the source sections find it; it is no row of their copies,
+  keeps its key when the file is saved again, and is not a reader addition. This is decided after
+  the build, so load order never changes it. A node the reader added lists `["reader"]` (in the
+  space `source:reader`), and nothing else lists `reader`: an edit to another element never adds
+  it, and a merge keeps the union of both nodes' lists. Only the nodes and edges the reader added are written as reader `add`
   operations. An `add` declares the graph-format dtype of each column it gives (`dtypes`), and its
   cells are written and read as a copy's are, so a non-finite number reopens as a number.
 
@@ -756,8 +776,8 @@ frame later would be a view major version.
 - **The refusal rule.** A save that cannot express something refuses that part and reports it.
   Nothing is ever silently simplified. A save that refuses any part of the data section writes a
   newly minted `build` in that file, so every saved run reads as stale (Partial) on reopen. This
-  holds for a part refused when the file was opened, too (a `repeatedEdges` value built as
-  `keep`): a re-save never keeps the stamp it read when what it
+  holds for a part refused when the file was opened, too (a saved edge id it could not
+  use): a re-save never keeps the stamp it read when what it
   writes differs from what it read.
 - **Results are optional.** Default: not saved, so opening reruns the behaviors (the 2026-11-13
   rule). A record or archive save includes them.

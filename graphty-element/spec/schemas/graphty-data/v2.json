@@ -850,7 +850,8 @@
                                 "type": "array",
                                 "items": {
                                     "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/typeName"
-                                }
+                                },
+                                "maxItems": 1
                             },
                             "_source.loads": {
                                 "type": "array",

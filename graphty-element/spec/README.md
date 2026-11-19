@@ -244,8 +244,8 @@ The closed objects of section 10 are the exceptions. Every default lives in the 
 A writer that changes a build input -- a source copy, a mapping or setting, a type, a join step, a
 kept pair, `directed`, `repeatedEdges`, a conversion, a reader operation -- MUST mint a new
 `build`. A save that refuses any part of the data section (8.1 rule 2) MUST write a newly minted
-`build` in that file, a part refused when the file was opened included (a `repeatedEdges` value
-built as `keep`): a re-save never keeps the stamp it read when
+`build` in that file, a part refused when the file was opened included (a saved edge id it could
+not use): a re-save never keeps the stamp it read when
 what it writes differs from what it read. Nothing is canonicalized or hashed to compare builds; a hand-edited section
 that keeps its old stamp makes its results look current, which is the accepted cost.
 
@@ -332,8 +332,10 @@ A source record has exactly these fields: `id`, `label`, `kind`, `format`, `opti
 1. An absent role means none, never graphty-element's guess. Nothing is read from a column the
    mapping does not name.
 2. With `nodes.key` absent every node row is keyless and in the space `source:<source id>`.
-   `nodes.space` is written exactly when `nodes.key` is. `sourceSpace` and `targetSpace` are always
-   written.
+   With it, a node row whose key cell is null or empty is no node: it is left out and counted
+   (`W_KEY_EMPTY`, params `{ source, column, rows }`), and so is an edge row whose `source` or
+   `target` cell is null or empty. `nodes.space` is written exactly when `nodes.key` is.
+   `sourceSpace` and `targetSpace` are always written.
 3. A file's own ids (GraphML `n0`, a node-link `id`) are only what graphty-element proposes as the
    key at load time; the chosen column is written to `key` like any other role.
 4. A `label` role is saved as a style layer reading that column; a save that cannot write that
@@ -375,9 +377,16 @@ only), `rules` and `schema`.
   end; a rule naming a part no step carries types nothing and is kept. Without `column` every row read has the type; with it,
   `values` lists the cell values meaning this type, compared as exact strings after NFC, cells
   turned to text as keys are (11).
-- A node has every type whose rules match a row that supplies or names it; an edge takes the first
-  matching type in registry order. A row matching no rule has the default type, which has no name
-  and no entry: its element writes `"graphty.types": []`, and no selector or scope names it.
+- Every node and every edge holds exactly one type. Among the types whose rules match one row of
+  one source, a type matched by a rule with `column` and `values` beats a type matched only by a
+  rule without `column` (the source's whole-source or whole-end rule, which acts as "others"), and
+  among those the first in registry order wins. A row's own rules decide its edge's type. When
+  rows of several steps would give one node different types (keys of two sources meeting in a
+  space), the first step in build order sets it, a source's node rows before its edge ends. A row
+  matching no rule gives the default type, which has no name and no entry: its element writes
+  `"graphty.types": []`, and no selector or scope names it. `graphty.types` keeps its plural
+  spelling and holds at most one name, so several types per element can be added later without
+  breaking a file.
 - `schema` is a JSON Schema (draft 2020-12) of the working record the type carries, with
   `measurement` and `unit`. It has no role keyword.
 
@@ -435,8 +444,12 @@ then row order.
    reused after a step is deleted, and never derived from a column name. The file keeps no
    counter, so a writer mints one above every `part` that a step of the source, a type rule, or a
    saved reference to its edges names. No other step carries `part`. A `join.add` keys its edges
-   by their plain keys and a `join.edges` step keys them `<part>/<key>`, so adding, editing or
-   deleting another step never re-keys an existing edge. Conformance cases: two `join.edges` steps
+   by their plain keys (6.1) and a `join.edges` step keys them under its part, so adding, editing
+   or deleting another step never re-keys an existing edge: `<part>/<key>` from the row's edge-id
+   cell; `<part>/<from key>|<to key>` when the step reduces its rows to one edge per end pair (by
+   `repeated` or `aggregate`), each key with `\` written `\\` and `|` written `\|`, so removing or
+   re-sorting rows never re-keys it; else `<part>/<copy id>#<row>`. Every row a reduced edge was
+   built from keeps its own `{ load, key }` as an alias of that edge (6.1). Conformance cases: two `join.edges` steps
    (parts 1 and 2); delete the first, add another: part 3; save, reopen, and part 2's edge keys
    are unchanged.
 4. **Which columns and which rows.** `columns` lists the working columns a step brings besides its
@@ -451,7 +464,10 @@ then row order.
    else the source's `settings.duplicateIds`. For every other step, `repeated` (`first` or
    `last`; `both` on `join.edges` only) or `aggregate` decides; `first` is the default on
    `join.merge` and `join.node-values`. On `join.edges` an absent `repeated` leaves repeated end
-   pairs to the graph's `repeatedEdges`, whatever that value reaches. `join.merge` folds every
+   pairs to the graph's `repeatedEdges`, whatever that value reaches. Neither `repeated` nor
+   `repeatedEdges` ever reduces two edges of different types into one, and repeats whose sources'
+   weight meanings differ are reduced only by `first` or `last` (keeping that row's weight and
+   meaning), never by a rule that combines weights (`sum`, `min`, `max`, `aggregate`). `join.merge` folds every
    node 2 whose field names a node 1; `repeated` and `aggregate` decide only which values the
    merged node takes. A key another source supplied is a meeting, never a repeat.
 7. **Loose matching.** `ignoreCase` and `ignoreSpaces` (both `false` by default) are choices of
@@ -510,7 +526,8 @@ the device part is off.
 
 A payment row whose kind is neither is read by no `join.edges` step and makes no edge.
 
-graphty-element today builds only `join.add`, with its own `duplicateIds`. It holds the data
+graphty-element today builds only `join.add`, with its own `duplicateIds`, and the graph's
+`repeatedEdges` (6.1); it never builds a `join.edges` step, so it writes no `<part>/` key. It holds the data
 section (4.1.10) for any other step that is not `off`, for a `join.add` carrying `columns`, and
 for a second `join.add` of one source, so such a file is written back exactly as read (8.4).
 
@@ -522,11 +539,13 @@ is output, never input to the build):
 - It always writes `directed`, `multigraph` and `graph` (graph-level attributes, `{}` when none).
   `multigraph` is `true` exactly when two edges share both ends (an unordered pair on an
   undirected graph), never a reader choice.
-- Each node carries `"graphty.space"`, `"graphty.key"`, `"graphty.types"` and `"_source.loads"`
-  (the source ids that supplied the row; `[]` for a node an edge only named, which keeps its key
-  when the file is saved again and is never a reader addition). `reader` is listed only on an
-  element the reader added; an edit does not add it, and a merge keeps the union of both nodes'
-  lists.
+- Each node carries `"graphty.space"`, `"graphty.key"`, `"graphty.types"` (at most one item) and
+  `"_source.loads"`: the source ids that supplied it, in step order. A node no source's rows supply
+  (only edges name it) is supplied by the sources whose edges reach it, and lists those; it is no
+  row of their copies, keeps its key when the file is saved again, and is never a reader addition.
+  This is decided after the build, so load order never changes it. `["reader"]` is the list of a
+  node the reader added (in the space `source:reader`) and nothing else lists `reader`: an edit to
+  another element never adds it, and a merge keeps the union of both nodes' lists.
 - Each edge carries `"graphty.load"`, `"graphty.key"`, `"graphty.types"` (at most one item) and
   `"_source.loads"`. graphty never writes a node-link `key`.
 - The node-link `id`, `source` and `target` are handles unique within the file only, since a key
@@ -784,16 +803,27 @@ source whose row made it.
 - A **key** is always a JSON string (11). An edge's key is its `edgeId` value; repeated ids within
   one source follow `duplicateIds`. A writer whose data holds two edges with one edge id in a
   source that does not `merge` leaves the later row's edge-id cell unset, so that row is keyless,
-  and reports it (`W_MEMBER_LEFT_OUT`). A node whose id is empty is written as its keyless row. A keyless row's key, node or edge, is
-  `"<copy id>#<row from 0>"`; an edge row whose edge-id cell is null or empty is keyless, so the
-  form applies per row. A reader-added node is keyed by its id exactly as a source row is (its
+  and reports it (`W_MEMBER_LEFT_OUT`). A keyless row's key, node or edge, is
+  `"<copy id>#<row from 0>"`: every node row of a source whose mapping names no key column, and an
+  edge row whose edge-id cell is null or empty, so the form applies per row. A `join.edges` step
+  puts its `part` in front (4.1.8 rule 3). A reader-added node is keyed by its id exactly as a source row is (its
   typed id in the `add`'s `columns.id`), so its id is the same after a save and a reopen; when
   another reader node's id has the same text (`1` and `"1"`), the later is keyed by a ULID minted
   once and kept, its typed id still in `columns.id`; a
   reader-added edge is keyed by its edge-id value when it has one no other reader edge repeats,
-  else by a ULID minted once and kept, and its `load` is `reader`. An edge built from several rows takes the key and edge type of the first
-  row read, in join step order, then row order. A row whose node-key or edge-end cell is null or
-  empty has no key and is left out of the build.
+  else by a ULID minted once and kept, and its `load` is `reader`. A row whose node-key or
+  edge-end cell is null or empty names no node: it is left out of the build and counted
+  (`W_KEY_EMPTY`), as a load leaves it out.
+- **Repeated edges.** `repeatedEdges` (`keep` by default) decides what becomes of edges between
+  one pair of nodes (an unordered pair on an undirected graph), within one step or across sources:
+  `keep` holds every one; `first` keeps the first and `last` the last row's values; `sum`, `min`
+  and `max` keep the first with the reduced weight (an edge with no weight weighs 1); `error`
+  refuses the build. Edges of different types are never reduced into one, and edges whose sources'
+  weight meanings differ only by `first` or `last`. A reduced edge keeps the key and `load` of the
+  first row read, in join step order and then row order (a `join.edges` step's own reduction keys
+  it by its end pair, 4.1.8 rule 3); `_source.loads` lists every source it was reduced from, and
+  every contributing row's `{ load, key }` is an alias of it, so a reference naming that row binds
+  to it (6.3).
 
 ### 6.2 Element references
 
@@ -802,6 +832,7 @@ source whose row made it.
 { "load": "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y", "key": "pay-889" }     // an edge
 { "load": "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
   "key": "01JCBQ2F5H7K9M1P3R5T7W9Y2A#3" }                          // a keyless edge row
+{ "load": "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y", "key": "2/acct-7|m\\|3" } // part 2's edge from acct-7 to m|3
 ```
 
 A reference names the element by record key and nothing else; it never names an element-assigned
@@ -1132,7 +1163,8 @@ application words them.
 | `W_RUN_NOT_RUN`               | a run was neither rerun nor restored                                         | `run`                                     |
 | `W_RESULTS_DIFFER`            | a rerun disagrees with the saved results                                     | `run`                                     |
 | `W_SOURCE_UNKEYED`            | a source has no key column                                                   | `source`                                  |
-| `W_NODE_NAMED_ONLY`           | edges named nodes no source supplies, kept as named-only nodes               | `source`, `count`                         |
+| `W_NODE_NAMED_ONLY`           | nodes only edges name, kept, supplied by those edges' sources                | `source`, `count`                         |
+| `W_KEY_EMPTY`                 | rows whose key or end cell is null or empty were left out                    | `source`, `column`, `rows`                |
 | `W_EDGE_END_MISSING`          | edges naming missing nodes were left out                                     | `source`, `count`                         |
 | `W_COLUMN_WIDENED`            | two types declare one column with different dtypes                           | `column`                                  |
 

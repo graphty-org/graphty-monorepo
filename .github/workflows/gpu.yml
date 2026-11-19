@@ -132,7 +132,7 @@ jobs:
         # write of issue #273 needs a writable /proc/sys. The runner is a single-use machine.dev VM, so the wider
         # container boundary exposes nothing another job shares.
         container:
-            image: ubuntu:24.04
+            image: ubuntu:24.04@sha256:73b999393d07f2bf65a40373778a44dc9a6d54ad7718d29247d8ff9413c4d6a8
             options: --gpus all --ipc=host --privileged
             env:
                 NVIDIA_VISIBLE_DEVICES: all
@@ -168,8 +168,11 @@ jobs:
             # The .deb files apt chose are cached, keyed on the bare image's own package list (every package and
             # version dpkg reports before anything is installed) and the packages asked for, so a hit installs with
             # dpkg and never touches archive.ubuntu.com: in run 42555029230 the runner could not reach it, apt
-            # found "no installation candidate" for libvulkan1 and the full run went red (#6390). A new ubuntu:24.04
-            # build changes the key, so its first run fetches once more (with apt's retries) and saves the set.
+            # found "no installation candidate" for libvulkan1 and the full run went red (#6390). The image is pinned
+            # by digest (above) because a new ubuntu:24.04 build changes the key, and the first run on it must reach
+            # the archive: full run 44519887010 met a new build while archive.ubuntu.com refused connections and went
+            # red (#9035). Bump the digest on purpose (`docker pull ubuntu:24.04` prints it) in both T4 workflows; the
+            # first run after the bump fetches once (with apt's retries) and saves the set.
             # The image's docker-clean hook deletes every .deb apt downloads; it is removed so the Playwright
             # system packages below can be cached the same way.
             - name: Key the container's packages by its image

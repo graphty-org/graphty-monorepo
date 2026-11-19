@@ -7876,7 +7876,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.994,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -7931,7 +7931,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.994,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -12568,7 +12568,7 @@
             "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.927,
+            "node.shape": 1,
             "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
@@ -12630,7 +12630,7 @@
             "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.927,
+            "node.shape": 1,
             "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
@@ -13148,7 +13148,7 @@
             "stray.extra": 1
         },
         "dot-real-softmaint": {
-            "node.present": 0.995,
+            "node.present": 1,
             "node.extra": 1,
             "node.position": 1,
             "node.width": 1,
@@ -13207,7 +13207,7 @@
             "edge.wiggle": 1
         },
         "dot-real-softmaint@matched": {
-            "node.present": 0.995,
+            "node.present": 1,
             "node.extra": 1,
             "node.position": 1,
             "node.width": 1,
@@ -16067,7 +16067,7 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "label.text": 0.96,
+            "label.text": 1,
             "label.size": 1,
             "label.weight": 1,
             "label.style": 1,
@@ -16107,7 +16107,7 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "label.text": 0.96,
+            "label.text": 1,
             "label.size": 1,
             "label.weight": 1,
             "label.style": 1,
@@ -16142,7 +16142,7 @@
             "node.stroke": 1,
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
-            "label.present": 0.929,
+            "label.present": 1,
             "label.text": 1,
             "label.size": 1,
             "label.weight": 1,
@@ -16182,7 +16182,7 @@
             "node.stroke": 1,
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
-            "label.present": 0.929,
+            "label.present": 1,
             "label.text": 1,
             "label.size": 1,
             "label.weight": 1,
@@ -25291,7 +25291,7 @@
             "label.family": 0.933,
             "label.lines": 1,
             "label.align": 0,
-            "label.alongLine": 0.867,
+            "label.alongLine": 0.9,
             "label.offLine": 0.933,
             "label.outline": 1,
             "label.background": 1,
@@ -25353,7 +25353,7 @@
             "label.family": 0.933,
             "label.lines": 1,
             "label.align": 0,
-            "label.alongLine": 0.867,
+            "label.alongLine": 0.9,
             "label.offLine": 0.933,
             "label.outline": 1,
             "label.background": 1,
@@ -27719,8 +27719,8 @@
             "label.family": 0.562,
             "label.lines": 1,
             "label.anchor": 1,
-            "label.alongLine": 0.5,
-            "label.offLine": 0.429,
+            "label.alongLine": 0.875,
+            "label.offLine": 0.875,
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
@@ -27795,8 +27795,8 @@
             "label.family": 0.562,
             "label.lines": 1,
             "label.anchor": 1,
-            "label.alongLine": 0.5,
-            "label.offLine": 0.429,
+            "label.alongLine": 0.875,
+            "label.offLine": 0.875,
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
@@ -56233,22 +56233,6 @@
                 "date": "2026-11-16"
             }
         },
-        "cys-annotation-example": {
-            "edge.route": {
-                "floor": 0.994,
-                "to": 0.989,
-                "reason": "tracked by #8200: the redrawn Cytoscape desktop oracle lists the same edge paths in another order, and the oracle's geometric edge association pairs two 16-unit edges at node 169397 greedily in that order (a path end equally near 169396 and 169391 takes 169396 first), so it judges each against the other edge; the paths are unchanged",
-                "date": "2026-11-18"
-            }
-        },
-        "cys-annotation-example@matched": {
-            "edge.route": {
-                "floor": 0.994,
-                "to": 0.989,
-                "reason": "tracked by #8200: the redrawn Cytoscape desktop oracle lists the same edge paths in another order, and the oracle's geometric edge association pairs two 16-unit edges at node 169397 greedily in that order (a path end equally near 169396 and 169391 takes 169396 first), so it judges each against the other edge; the paths are unchanged",
-                "date": "2026-11-18"
-            }
-        },
         "cys-syn-mappings": {
             "label.alongLine": {
                 "floor": 1,
@@ -56450,12 +56434,6 @@
             }
         },
         "gml-synthetic-coverage": {
-            "label.offLine": {
-                "floor": 0.429,
-                "to": 0.375,
-                "reason": "comparator: yEd text is now measured in the face Java drew (DejaVu) and raised borders are folded into their bodies; a label that passed on a box too narrow now shows its real place, and edges and arrowheads read wrongly before are judged for the first time (#5785)",
-                "date": "2026-11-05"
-            },
             "edge.arrowLength": {
                 "floor": 0.99,
                 "to": 0.98,
@@ -56467,21 +56445,9 @@
                 "to": 0.97,
                 "reason": "comparator (#8189): yEd's head on 19->30 is now read along its own axis where the line stops on its notch, so it reads as yEd's vee; graphty's line hooks 7 px down and right past the head (its edge.route failure), which turns graphty's head off its line and misreads its length and width",
                 "date": "2026-11-17"
-            },
-            "label.alongLine": {
-                "floor": 0.5,
-                "to": 0.375,
-                "reason": "drawing (#8190): yEd edge labels now get yEd's box (2 px padding, line height 1), which drops the words of e2 (a side_slider label) 1.6 px on its diagonal line; its place along the line was already at the edge of tolerance (yEd 0.228, graphty 0.389), as for the other side_slider labels here that yEd slides toward their source",
-                "date": "2026-11-19"
             }
         },
         "gml-synthetic-coverage@matched": {
-            "label.offLine": {
-                "floor": 0.429,
-                "to": 0.375,
-                "reason": "comparator: yEd text is now measured in the face Java drew (DejaVu) and raised borders are folded into their bodies; a label that passed on a box too narrow now shows its real place, and edges and arrowheads read wrongly before are judged for the first time (#5785)",
-                "date": "2026-11-05"
-            },
             "edge.arrowLength": {
                 "floor": 0.99,
                 "to": 0.98,
@@ -56493,12 +56459,6 @@
                 "to": 0.97,
                 "reason": "comparator (#8189): yEd's head on 19->30 is now read along its own axis where the line stops on its notch, so it reads as yEd's vee; graphty's line hooks 7 px down and right past the head (its edge.route failure), which turns graphty's head off its line and misreads its length and width",
                 "date": "2026-11-17"
-            },
-            "label.alongLine": {
-                "floor": 0.5,
-                "to": 0.375,
-                "reason": "drawing (#8190): yEd edge labels now get yEd's box (2 px padding, line height 1), which drops the words of e2 (a side_slider label) 1.6 px on its diagonal line; its place along the line was already at the edge of tolerance (yEd 0.228, graphty 0.389), as for the other side_slider labels here that yEd slides toward their source",
-                "date": "2026-11-19"
             }
         },
         "graphml-yfiles-html-ss13-tree": {

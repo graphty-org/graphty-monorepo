@@ -7208,7 +7208,7 @@ export interface StepReading {
 }
 
 // @beta
-export type StepReasonCode = "test-unset" | "no-reference" | "one-node-only" | "computing" | "run-needed" | "stale" | "run-paused" | "run-failed" | "waits-for" | "input-empty" | "reference-empty" | "frozen-from";
+export type StepReasonCode = "test-unset" | "no-reference" | "one-node-only" | "computing" | "run-needed" | "stale" | "run-paused" | "run-failed" | "waits-for" | "input-empty" | "reference-empty" | "frozen-from" | "unknown-algorithm";
 
 // @beta
 export type StepReference = Scope | "hovered-or-selected" | "so-far";

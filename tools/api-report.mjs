@@ -334,8 +334,15 @@ const COLUMN_NAME_TYPES = new Set(["TableMapping", "JoinKey"]);
  * link join gives the nodes and edges it adds (JoinLink.kind).
  */
 // TourStop.view: the name of the view a tour stop flies to, a camera view's id or the consumer's
-// saved view name, never words the element shows.
-const PLAIN_STRING_MEMBERS = new Set(["JoinChoices.membership", "JoinLink.kind", "TourStop.view"]);
+// saved view name, never words the element shows. TourRenameCommand.from and .to: the consumer's
+// own names for a saved tour, before and after.
+const PLAIN_STRING_MEMBERS = new Set([
+    "JoinChoices.membership",
+    "JoinLink.kind",
+    "TourStop.view",
+    "TourRenameCommand.from",
+    "TourRenameCommand.to",
+]);
 
 /**
  * Whether a result type may hold a plain string under this property name.

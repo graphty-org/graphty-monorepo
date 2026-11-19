@@ -9840,8 +9840,8 @@ export class Graph implements GraphContext {
      * move. The camera is view state, so this is not an undoable step.
      * @param nodeIds - One node id, or several.
      * @param options - Optional animation configuration, and the `extent` each node is measured by.
-     * @param options.extent - `"centers"` (the default) measures each node by its center;
-     *   `"drawn"` by the box it is drawn in, so a big node is framed whole.
+     * @param options.extent - `"drawn"` (the default) measures each node by the box it is drawn
+     *   in, so every framed node is whole; `"centers"` by its center alone.
      * @returns Promise that resolves when the camera has moved.
      * @since 3.3.0
      * @example
@@ -10027,10 +10027,10 @@ export class Graph implements GraphContext {
     }
 
     private boundsToFrame(nodeIds?: Iterable<string | number>, extentOption?: CameraViewExtent): GraphBounds {
-        // The whole graph is framed as the project's framing says, by what is drawn when it says
-        // nothing, so no node at the rim is cut off; a subset by its centers unless the caller asks otherwise.
+        // The whole graph is framed as the project's framing says, and a subset by what is drawn,
+        // unless the caller asks otherwise: so no framed node at the rim is cut off.
         const whole = nodeIds === undefined;
-        const extent = extentOption ?? (whole ? (this.session.config.framing?.extent ?? "drawn") : "centers");
+        const extent = extentOption ?? (whole ? this.session.config.framing?.extent : undefined) ?? "drawn";
         // The `Node`s, and the rows drawn with no `Node` (renderPath "batched"), measured by row:
         // building a `Node` for a row only to measure it cost 8.7 KB a row (#8204).
         const { nodes: measured, columns } = this.#measuredNodes(nodeIds);
@@ -10125,8 +10125,7 @@ export class Graph implements GraphContext {
      * @param options.nodes - The nodes to measure the box over. Absent frames the whole graph.
      * @param options.params - The view's own options, filled in from its declared defaults.
      * @param options.extent - What each node counts as in the box: `"centers"` its center,
-     *   `"drawn"` the box it is drawn in. The default is `"drawn"` for the whole graph and
-     *   `"centers"` when `nodes` names a subset.
+     *   `"drawn"` the box it is drawn in. The default is `"drawn"`.
      * @returns The camera state the view computed.
      * @throws A `GraphtyError` with `E_BAD_COMMAND` `{ reason: "empty-name" }` for an empty name,
      * `E_UNKNOWN_CAMERA` `{ name, available }` (camera views, then saved views) when nothing
@@ -10290,8 +10289,7 @@ export class Graph implements GraphContext {
      *   selected nodes and both ends of every selected edge.
      * @param options.params - The view's own options, filled in from its declared defaults.
      * @param options.extent - What each node counts as in the box the view is handed: `"centers"`
-     *   its center, `"drawn"` the box it is drawn in. The default is `"drawn"` for the whole graph
-     *   and `"centers"` when `scope` names a subset.
+     *   its center, `"drawn"` the box it is drawn in. The default is `"drawn"`.
      * @returns A promise that resolves once the camera has arrived.
      * @throws A `GraphtyError` with `E_UNKNOWN_CAMERA`, `E_UNSUPPORTED`, `E_UNKNOWN_OPTION` or
      * `E_OPTION_RANGE`, exactly as `resolveCameraPreset` does; `E_UNSUPPORTED`

@@ -39,6 +39,36 @@ function newStopId(): string {
     return `stop-${String(stopCount)}`;
 }
 
+/**
+ * The ids for stops written from outside (Undo, Redo, another writer): each stop takes the id of
+ * the first unused earlier stop equal to it, so a fold follows its stop back after an undone
+ * move; a stop with no equal keeps the id at its place, or a new one.
+ * @param before - The ids and the stops they were made for.
+ * @param stops - The stops now.
+ * @returns each stop's id, in stop order.
+ */
+function carryIds(before: StopIds, stops: readonly TourStop[]): readonly string[] {
+    const was = before.stops.map((stop) => JSON.stringify(stop));
+    const used = new Set<number>();
+    const matched = stops.map((stop) => {
+        const key = JSON.stringify(stop);
+        const at = was.findIndex((each, i) => each === key && !used.has(i));
+        if (at === -1) {
+            return undefined;
+        }
+        used.add(at);
+        return before.ids[at];
+    });
+    const taken = new Set(matched);
+    return matched.map((id, at) => {
+        if (id !== undefined) {
+            return id;
+        }
+        const placed = before.ids[at];
+        return placed !== undefined && !taken.has(placed) ? placed : newStopId();
+    });
+}
+
 /** A stop that names a camera (not a pause). */
 type CameraStop = Extract<TourStop, { view: string }>;
 
@@ -235,10 +265,7 @@ export function TourStops({
     let { ids } = ident;
     if (ident.stops !== stops) {
         const { pending } = ident;
-        ids =
-            pending !== null && pending.length === stops.length
-                ? pending
-                : stops.map((_, at) => ident.ids[at] ?? newStopId());
+        ids = pending !== null && pending.length === stops.length ? pending : carryIds(ident, stops);
         setIdent({ stops, ids, pending: null });
     }
     const index = (id: string): number => ids.indexOf(id);

@@ -331,8 +331,16 @@ const COLUMN_NAME_TYPES = new Set(["TableMapping", "JoinKey"]);
  * too much: the column a comparing join writes regions to (JoinChoices.membership) and the kind a
  * link join gives the nodes and edges it adds (JoinLink.kind).
  */
-// SourceHubValue.value: a key value of the consumer's own rows.
-const PLAIN_STRING_MEMBERS = new Set(["JoinChoices.membership", "JoinLink.kind", "SourceHubValue.value"]);
+// SourceHubValue.value and SourceDraftPreviewIssue.value: a key value of the consumer's own rows.
+// SourceDraftPreview.draft: the draft's id. SourceDraftPreviewIssue.filter: a filter condition's id.
+const PLAIN_STRING_MEMBERS = new Set([
+    "JoinChoices.membership",
+    "JoinLink.kind",
+    "SourceHubValue.value",
+    "SourceDraftPreview.draft",
+    "SourceDraftPreviewIssue.filter",
+    "SourceDraftPreviewIssue.value",
+]);
 
 /**
  * Whether a result type may hold a plain string under this property name.

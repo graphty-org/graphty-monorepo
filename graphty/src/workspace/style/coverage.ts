@@ -79,6 +79,8 @@ export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "edge.labelItalic": TEXT_FIELD,
     "node.shaders": at("Nodes, Shaders, one row per use, added from the gallery"),
     "edge.shaders": at("Edges, Shaders, one row per use, added from the gallery"),
+    "node.labels": NOT_PLACED,
+    "edge.labels": NOT_PLACED,
     "edge.taper": at("Edges, Line, Taper"),
     "edge.lift": at("Edges, Line, Lift"),
     "edge.color": at("Edges, Line, Color"),

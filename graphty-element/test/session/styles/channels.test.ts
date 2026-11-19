@@ -409,6 +409,8 @@ const DECLARED = [
     "edge.labelGapOf",
     "node.shaders",
     "edge.shaders",
+    "node.labels",
+    "edge.labels",
     "edge.taper",
     "edge.lift",
     "node.xlabel",
@@ -448,9 +450,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into two hundred and seventeen node channels and one hundred and seventy-four edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 217);
-        assert.strictEqual(channelsFor("edge").length, 174);
+    it("splits into two hundred and eighteen node channels and one hundred and seventy-five edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 218);
+        assert.strictEqual(channelsFor("edge").length, 175);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -844,6 +846,9 @@ describe("what a style editor needs to draw a row", () => {
         // Unset, no shader parameter is set and no effect is drawn.
         "node.shaders",
         "edge.shaders",
+        // Unset, no further label is drawn.
+        "node.labels",
+        "edge.labels",
         "node.labelLetterSize",
         "node.labelWrapWidth",
         "node.labelWrapTrailingSpace",
@@ -1678,6 +1683,8 @@ describe("textFieldOf", () => {
         "node.labelFitQuantum": "sizes the node to its label",
         "node.labelFitImage": "sizes the node to its label",
         "node.labelFitImagePadding": "sizes the node to its label",
+        "node.labels": "a list of labels, each with its own fields",
+        "edge.labels": "a list of labels, each with its own fields",
         "edge.arrowHeadTextDistance": "where the caption sits along the edge, not a text field",
         "edge.arrowTailTextDistance": "where the caption sits along the edge, not a text field",
     };

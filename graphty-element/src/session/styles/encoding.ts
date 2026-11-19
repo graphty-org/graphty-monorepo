@@ -84,10 +84,14 @@ import {
     type ColorValue,
     type EdgeLineValue,
     isEnumCount,
+    labelEntryPatch,
+    labelFieldChannel,
+    type LabelFieldTarget,
     listItemPatch,
     type ListItemTarget,
     type NodeShapeValue,
     OFF_COLOR,
+    parseLabelFieldAddress,
     parseListItemAddress,
     parseShaderParamAddress,
     prototypeFreeMap,
@@ -1109,6 +1113,12 @@ function authoredValue(descriptor: ChannelDescriptor, value: ChannelValue, what:
             }
 
             return prototypeFreeMap(value);
+        case "labelEntries":
+            if (!Array.isArray(value)) {
+                throw wrongKind('a list of labels, such as [{ id: "top", text: "Top" }]');
+            }
+
+            return prototypeFreeMap(value);
         default:
             throw unsupportedChannel(descriptor);
     }
@@ -1278,6 +1288,13 @@ function assertChannelTakesScale(descriptor: ChannelDescriptor, scale: string, n
     if (accepts === "labelStyle") {
         throw badBinding(
             `${channel} carries a whole label style, which no scale produces, so it is written as a value rather than bound to a path.`,
+            { channel },
+        );
+    }
+
+    if (accepts === "labelEntries") {
+        throw badBinding(
+            `${channel} carries a list, which no scale produces; bind one label's field with "${channel}.<id>.<field>".`,
             { channel },
         );
     }
@@ -2309,6 +2326,11 @@ export function prepareBinding(options: PrepareBindingOptions): PreparedBinding 
         return prepareListItemBinding(item, options);
     }
 
+    const label = parseLabelFieldAddress(options.channel);
+    if (label !== null) {
+        return prepareLabelFieldBinding(label, options);
+    }
+
     const descriptor = requireChannel(options.channel);
     const { binding } = options;
 
@@ -3134,6 +3156,49 @@ function prepareListItemBinding(item: ListItemTarget, options: PrepareBindingOpt
     return {
         ...prepared,
         channel: item.channel,
+        paint: (value) => patch(prepared.paint(value)),
+        paintIgnoringHidden: (value) => patch(prepared.paintIgnoringHidden(value)),
+    };
+}
+
+/**
+ * Prepare a binding of one field of one label of a label list: prepared as the field's own channel
+ * (`node.labelColor` for `color`, `node.label` for `text`), each value then written as the partial
+ * label `{ [id]: { style: { [field]: value } } }`, one shared object per distinct value, which the
+ * repaint merges over the list the layers beneath resolve (see `mergeChannelValue`).
+ * @param target - Where the address points.
+ * @param options - Everything preparing it was given.
+ * @returns The prepared binding, painting into the label list channel.
+ * @throws A `GraphtyError` with code `E_BAD_LAYER` for a field no label field channel sets.
+ */
+function prepareLabelFieldBinding(target: LabelFieldTarget, options: PrepareBindingOptions): PreparedBinding {
+    const descriptor = labelFieldChannel(target);
+    if (descriptor === undefined) {
+        throw badBinding(`"${options.channel}" names no label field: "<target>.labels.<id>.<field>".`, {
+            channel: options.channel,
+        });
+    }
+
+    const prepared = prepareBinding({ ...options, channel: descriptor.channel });
+    const patches = new Map<unknown, EncodedValue>();
+    const patch = (value: EncodedValue | undefined): EncodedValue | undefined => {
+        if (value === undefined) {
+            return undefined;
+        }
+
+        const key = typeof value === "object" && value !== null && "hex" in value ? value.hex : value;
+        let made = patches.get(key);
+        if (made === undefined) {
+            made = labelEntryPatch(target, value);
+            patches.set(key, made);
+        }
+
+        return made;
+    };
+
+    return {
+        ...prepared,
+        channel: target.channel,
         paint: (value) => patch(prepared.paint(value)),
         paintIgnoringHidden: (value) => patch(prepared.paintIgnoringHidden(value)),
     };

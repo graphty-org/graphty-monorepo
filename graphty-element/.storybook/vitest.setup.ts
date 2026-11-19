@@ -61,6 +61,7 @@ import {
 import { click, doubleClick, hover, press, release } from "../test/helpers/real-input";
 import * as projectAnnotations from "./preview";
 import { operationQueueOf } from "../src/Graph";
+import { parseLabelFieldAddress, parseListItemAddress, parseShaderParamAddress } from "../src/session/styles/channels";
 
 // Real input for every play function's `userEvent` (vitest.real-user-event.mjs at the root): Playwright drives
 // the browser, as a reader's mouse and keyboard do. Storybook's own UI and a capture keep its replay.
@@ -215,7 +216,13 @@ function channelsAsked(setup: StorySetupLike, target: "node" | "edge"): readonly
     const fixed = target === "node" ? setup.node : setup.edge;
     const bound = target === "node" ? setup.nodeEncode : setup.edgeEncode;
 
-    return [...Object.keys(fixed ?? {}), ...Object.keys(bound ?? {})];
+    // An address (a label's field, a shader's parameter, a list's item) paints its list channel.
+    const channelOf = (name: string): string =>
+        parseLabelFieldAddress(name)?.channel ??
+        parseShaderParamAddress(name)?.channel ??
+        parseListItemAddress(name)?.channel ??
+        name;
+    return [...new Set([...Object.keys(fixed ?? {}), ...Object.keys(bound ?? {})].map(channelOf))];
 }
 
 /**

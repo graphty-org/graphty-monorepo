@@ -81,6 +81,7 @@
 import { type GraphSnapshot, maskToIndices } from "@graphty/graph-format";
 
 import { styleFamily, type StyleFamilyDescriptor, type StyleFamilyId } from "../../catalog/families";
+import { type LabelEntry, MAIN_LABEL_ID } from "../../catalog/label-style";
 import { knownPaletteIds, PALETTE_DESCRIPTORS, paletteDescriptor } from "../../catalog/palettes";
 import { isShaderId, type ShaderProblem, type ShaderUse } from "../../catalog/shaders";
 import type {
@@ -159,6 +160,7 @@ import {
     isChannel,
     labelStyleFieldChannels,
     mergeShaderUses,
+    parseLabelFieldAddress,
     placeOfUse,
     readRenamedChannels,
     toColorValue,
@@ -999,6 +1001,20 @@ export interface StylesApi {
      * @since 3.17.0
      */
     legendOf(id: LayerId): readonly LegendBlock[];
+    /**
+     * An id for a new label of a label list (`node.labels`, `edge.labels`) that no label on the
+     * layer's stack uses yet, so a label added to that layer never merges into another one.
+     * @param id - The layer the label is added to; its target picks the list.
+     * @returns The id, such as `"label-2"`.
+     * @throws A `GraphtyError` with code `E_UNKNOWN_LAYER` when the stack holds no layer with that id.
+     * @example
+     * ```ts
+     * const labelId = session.styles.newLabelId("hubs");
+     * await session.styles.update("hubs", { set: { "node.labels": [{ id: labelId, text: "Hub" }] } });
+     * ```
+     * @since 3.63.0
+     */
+    newLabelId(id: LayerId): string;
     /**
      * Resolve once the element has finished painting everything it started for itself.
      *
@@ -5975,6 +5991,40 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
 
         legend(): readonly LegendBlock[] {
             return buildLegend(legendSources);
+        },
+
+        newLabelId(id: LayerId): string {
+            const layers = listLayers();
+            const layer = layers.find((each) => each.id === id);
+            if (layer === undefined) {
+                throw unknownLayer(
+                    id,
+                    layers.map((each) => each.id),
+                );
+            }
+
+            const list = `${layer.target}.labels`;
+            const used = new Set<string>([MAIN_LABEL_ID]);
+            for (const each of layers) {
+                const set = each.set?.[list as Channel];
+                for (const entry of Array.isArray(set) ? (set as readonly LabelEntry[]) : []) {
+                    used.add(entry.id);
+                }
+
+                for (const name of Object.keys(each.encode ?? {})) {
+                    const address = parseLabelFieldAddress(name);
+                    if (address?.channel === list) {
+                        used.add(address.id);
+                    }
+                }
+            }
+
+            let n = 2;
+            while (used.has(`label-${String(n)}`)) {
+                n++;
+            }
+
+            return `label-${String(n)}`;
         },
 
         legendOf(id: LayerId): readonly LegendBlock[] {

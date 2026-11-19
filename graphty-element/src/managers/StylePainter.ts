@@ -2,7 +2,7 @@ import cloneDeep from "lodash/cloneDeep.js";
 import get from "lodash/get.js";
 
 import { BadgeStyleManager } from "../BadgeStyleManager";
-import { type LabelBadge, RICH_TEXT_KEYS } from "../catalog/label-style";
+import { type LabelBadge, type LabelEntry, MAIN_LABEL_ID, RICH_TEXT_KEYS } from "../catalog/label-style";
 import type { Channel, LabelStyle, Rgba } from "../catalog/types";
 import {
     defaultEdgeStyle,
@@ -22,6 +22,7 @@ import {
     CHANNEL_DESCRIPTORS,
     type ChannelDescriptor,
     type ColorValue,
+    drawnLabelEntries,
     EFFECT_OFF,
     labelFieldOf,
     labelPatchOf,
@@ -446,7 +447,8 @@ function richTextOf(style: LabelStyle): Record<string, unknown> {
 function writeChannel(bag: Record<string, unknown>, channel: Channel, value: unknown, plainText: boolean): void {
     const descriptor = CHANNEL_DESCRIPTORS[channel];
 
-    if (!descriptor.renderable) {
+    // A label list is written once every other channel is in: see {@link writeLabelEntries}.
+    if (!descriptor.renderable || descriptor.accepts === "labelEntries") {
         return;
     }
 
@@ -503,6 +505,62 @@ function writeChannel(bag: Record<string, unknown>, channel: Channel, value: unk
             setAtPath(bag, `${blockOf(descriptor.stylePath)}.plainText`, true);
         }
     }
+}
+
+/** One further label a node or an edge draws (`node.labels`), as the renderer reads it: its id and its rich-text block. */
+export interface DrawnLabel {
+    /** The label's id in its list. */
+    readonly id: string;
+    /** The resolved rich-text block it is drawn from, as `style.label` is. */
+    readonly block: NonNullable<NodeStyleConfig["label"]>;
+}
+
+/**
+ * Write a label list (`node.labels`, `edge.labels`) into the style being built, once every other
+ * channel is in: the entry with id {@link MAIN_LABEL_ID} restyles (or with `off` hides) the label
+ * `style.label` draws, and every other drawn entry becomes a block of `style.labels`, the label's
+ * block as the layers wrote it (the base style of every entry) with the entry's own fields over
+ * it, filled with the label defaults.
+ * @param bag - The style being built.
+ * @param entries - The resolved list, or undefined.
+ * @param base - The label defaults.
+ */
+function writeLabelEntries(bag: Record<string, unknown>, entries: unknown, base: unknown): void {
+    if (!Array.isArray(entries)) {
+        return;
+    }
+
+    const own: Record<string, unknown> = { ...(bag.label as Record<string, unknown> | undefined) };
+    const main = (entries as readonly LabelEntry[]).find((entry) => entry.id === MAIN_LABEL_ID);
+    if (main?.off === true) {
+        setAtPath(bag, "label.enabled", false);
+    } else if (main !== undefined) {
+        for (const [field, setting] of Object.entries(richTextOf(main.style ?? {}))) {
+            setAtPath(bag, `label.${field}`, setting);
+        }
+
+        if (main.text !== undefined) {
+            setAtPath(bag, "label.text", main.text);
+            setAtPath(bag, "label.enabled", true);
+        }
+    }
+
+    const { drawn } = drawnLabelEntries(entries);
+    if (drawn.length === 0) {
+        return;
+    }
+
+    bag.labels = drawn.map((entry): DrawnLabel => {
+        const fields = richTextOf(entry.style ?? {});
+        const block: Record<string, unknown> = {
+            ...own,
+            ...fields,
+            ...(entry.text === undefined ? {} : { text: entry.text }),
+            // Drawn unless a style beneath or its own switches labels off.
+            enabled: fields.enabled ?? own.enabled ?? true,
+        };
+        return { id: entry.id, block: fillDefaults(block, base) as DrawnLabel["block"] };
+    });
 }
 
 /**
@@ -673,6 +731,8 @@ function nodePaintOf(resolved: ResolvedStyle, meshKey: number, plainText: (chann
         }
     }
 
+    writeLabelEntries(bag, resolved["node.labels"], NODE_BASE.label);
+
     const painted = fill.color ?? null;
     // NO LAYER PAINTS A COLOR: THE ELEMENT'S OWN DEFAULT, never "leave the instance as it was".
     // The color lives in the instance buffer, and a null here used to skip the write, so a node
@@ -821,6 +881,8 @@ function edgePaintOf(
     for (const [name, value] of inWriteOrder(resolved)) {
         writeChannel(bag, name as Channel, value, plainText(name as Channel));
     }
+
+    writeLabelEntries(bag, resolved["edge.labels"], EDGE_BASE.label);
 
     const headed = edgeHeaded(resolved, directed);
     const base = headed ? EDGE_BASE_DIRECTED : EDGE_BASE;

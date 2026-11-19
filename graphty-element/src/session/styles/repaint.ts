@@ -71,6 +71,7 @@ import {
     labelFieldOf,
     labelPatchOf,
     mergeChannelValue,
+    parseLabelFieldAddress,
     parseListItemAddress,
     parseShaderParamAddress,
     placeOfUse,
@@ -576,7 +577,12 @@ function kindFor(channel: Channel): ChannelColumn["kind"] {
     }
 
     // A list merges too: a list item's address changes one item of what the layers beneath resolve.
-    if (accepts === "labelStyle" || accepts === "shaderUses" || channelDescriptor(channel)?.listOf !== undefined) {
+    if (
+        accepts === "labelStyle" ||
+        accepts === "shaderUses" ||
+        accepts === "labelEntries" ||
+        channelDescriptor(channel)?.listOf !== undefined
+    ) {
         return "merge";
     }
 
@@ -1485,7 +1491,10 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
             // A shader parameter's address paints into its shader map.
             // A shader parameter's address paints into its shader map, a list item's into its list.
             const descriptor = channelDescriptor(
-                parseShaderParamAddress(name)?.channel ?? parseListItemAddress(name)?.channel ?? name,
+                parseShaderParamAddress(name)?.channel ??
+                    parseListItemAddress(name)?.channel ??
+                    parseLabelFieldAddress(name)?.channel ??
+                    name,
             );
 
             // A channel of the wrong target, a channel the element cannot draw and a name that is

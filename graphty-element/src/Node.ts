@@ -41,6 +41,7 @@ import {
     batchableOf,
     type BatchView,
     bootstrapNodePaint,
+    type DrawnLabel,
     type NodePaint,
     type NodeSizeSpace,
     shaderPartOf,
@@ -600,6 +601,12 @@ export class Node implements ModelUser {
 
     /** The external label on screen (`xlabel`), drawn beside the node. */
     xlabelLabel?: RichTextLabel;
+
+    /** The further labels on screen (`node.labels`), by id, beside the label `node.label` draws. */
+    readonly extraLabels = new Map<string, RichTextLabel>();
+
+    /** What the further labels on screen were drawn from, or undefined for none. See {@link syncExtraLabels}. */
+    private drawnExtraLabels?: string;
 
     /** What the external label on screen was drawn from, or undefined for none. See {@link syncXlabel}. */
     private drawnXlabel?: string;
@@ -1579,6 +1586,9 @@ export class Node implements ModelUser {
 
         this.label?.reattach();
         this.xlabelLabel?.reattach();
+        for (const label of this.extraLabels.values()) {
+            label.reattach();
+        }
     }
 
     /**
@@ -1696,7 +1706,7 @@ export class Node implements ModelUser {
      * @returns They.
      */
     private labels(): RichTextLabel[] {
-        const all = [this.label, this.tooltip, this.xlabelLabel, ...this.shapeTextLabels];
+        const all = [this.label, this.tooltip, this.xlabelLabel, ...this.shapeTextLabels, ...this.extraLabels.values()];
         return all.filter((label): label is RichTextLabel => label !== undefined);
     }
 
@@ -2309,7 +2319,13 @@ export class Node implements ModelUser {
             return false;
         }
 
-        const texts = [this.label, this.tooltip, this.xlabelLabel, ...this.shapeTextLabels];
+        const texts = [
+            this.label,
+            this.tooltip,
+            this.xlabelLabel,
+            ...this.shapeTextLabels,
+            ...this.extraLabels.values(),
+        ];
         const textsUse = texts.some((text) => text?.usesFont(families) === true);
         // A glyph drawn in the family was forgotten by the mesh cache (`forgetGlyphs`), its instance with it.
         const glyphGone = this.decorations.some((mesh) => mesh.isDisposed());
@@ -2322,6 +2338,7 @@ export class Node implements ModelUser {
             this.drawnLabelStyle = undefined;
             this.drawnShapeTexts = undefined;
             this.drawnXlabel = undefined;
+            this.drawnExtraLabels = undefined;
             this.fittedFor = null;
             const tooltipShown = this.tooltip !== undefined;
             this.updateStyle();
@@ -3441,6 +3458,8 @@ export class Node implements ModelUser {
         this.xlabelLabel?.dispose();
         this.xlabelLabel = undefined;
         this.drawnXlabel = undefined;
+        this.disposeExtraLabels();
+        this.drawnExtraLabels = undefined;
 
         // A tooltip outlives no node: its plane is not parented to the node's mesh, so nothing
         // else would take it down and a hovered node that is then removed would leave its words
@@ -3569,9 +3588,11 @@ export class Node implements ModelUser {
             }
         }
 
-        const labelMesh = this.label?.labelMesh;
-        if (labelMesh && !labelMesh.isDisposed()) {
-            labelMesh.setEnabled(drawn);
+        for (const label of [this.label, ...this.extraLabels.values()]) {
+            const labelMesh = label?.labelMesh;
+            if (labelMesh && !labelMesh.isDisposed()) {
+                labelMesh.setEnabled(drawn);
+            }
         }
 
         // A node that has just been filtered out cannot be under the pointer any more, and a
@@ -4426,6 +4447,41 @@ export class Node implements ModelUser {
         this.syncShapeTexts(o, rebuild);
         this.syncXlabel(o, rebuild);
         this.syncOwnLabel(o, rebuild);
+        this.syncExtraLabels(o, rebuild);
+    }
+
+    /**
+     * Bring the further labels on screen (`node.labels`) into line with one resolved style: each
+     * block `StylePainter` resolved into `style.labels` is built as the label is. Rebuilt only when
+     * what they are drawn from changes, or the mesh they hang from was replaced.
+     * @param o - The resolved style.
+     * @param rebuild - True to build them again even when they ask for what is drawn.
+     */
+    private syncExtraLabels(o: NodeStyleConfig, rebuild: boolean): void {
+        const wanted = (o as NodeStyleConfig & { labels?: readonly DrawnLabel[] }).labels ?? [];
+        const drawn = wanted.filter(({ block }) => drawnText(block) !== undefined);
+        const key =
+            drawn.length === 0
+                ? undefined
+                : JSON.stringify(drawn.map(({ id, block }) => [id, this.extractLabelText(block), block]));
+        if (!rebuild && key === this.drawnExtraLabels) {
+            return;
+        }
+
+        this.disposeExtraLabels();
+        this.drawnExtraLabels = key;
+        for (const { id, block } of drawn) {
+            this.extraLabels.set(id, this.createLabel({ ...o, label: block }));
+        }
+    }
+
+    /** Take the further labels (`node.labels`) off screen. */
+    private disposeExtraLabels(): void {
+        for (const label of this.extraLabels.values()) {
+            label.dispose();
+        }
+
+        this.extraLabels.clear();
     }
 
     /**

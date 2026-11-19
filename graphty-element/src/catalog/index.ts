@@ -22,6 +22,7 @@ export type {
     LabelAnimation,
     LabelBadge,
     LabelDeclutterOrder,
+    LabelEntry,
     LabelFieldCondition,
     LabelFieldValueKind,
     LabelGradientDirection,
@@ -39,6 +40,7 @@ export {
     LABEL_STYLE_DEFAULTS,
     LABEL_STYLE_DESCRIPTORS,
     LABEL_STYLE_FIELDS,
+    MAIN_LABEL_ID,
 } from "./label-style";
 export type { OptionsFromZodOptions, OptionsSource, OptionUiMeta } from "./optionsFromZod";
 export { optionsFromZod } from "./optionsFromZod";

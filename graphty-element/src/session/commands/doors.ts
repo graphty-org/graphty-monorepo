@@ -1433,6 +1433,7 @@ const STYLES_API: Readonly<Record<string, Door>> = {
     drawnCount: READ,
     drawnValues: READ,
     legendOf: READ,
+    newLabelId: READ,
     resolveToStatic: calls(
         ["no-such-layer", "node.color"],
         [{ op: "style.patch", action: "resolveToStatic", id: "no-such-layer", channel: "node.color" }],
@@ -2171,6 +2172,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             decorationPieces: READ,
             shapeTextLabels: RENDER,
             xlabelLabel: RENDER,
+            extraLabels: RENDER,
             syncXlabelPlace: RENDER,
             resampleLabel: RENDER,
             isDrawnAsGroup: READ,
@@ -2238,6 +2240,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             ray: RENDER,
             label: RENDER,
             xlabelLabel: RENDER,
+            extraLabels: RENDER,
             arrowHeadText: RENDER,
             arrowTailText: RENDER,
             parallelRank: RENDER,

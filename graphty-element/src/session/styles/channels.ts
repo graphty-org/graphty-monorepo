@@ -50,13 +50,20 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import type { LabelDeclutterOrder, LabelLocation, LabelTextAlign } from "../../catalog/label-style";
+import {
+    type LabelDeclutterOrder,
+    type LabelEntry,
+    type LabelLocation,
+    type LabelTextAlign,
+    MAIN_LABEL_ID,
+} from "../../catalog/label-style";
 import { projectShaderDescriptor } from "../../catalog/shaderRegistry";
 import { isExclusivePlace, type ShaderPlace, type ShaderUse } from "../../catalog/shaders";
 import type {
     Binding,
     Channel,
     EdgeLinePattern,
+    LabelFieldAddress,
     LabelStyle,
     ListItemAddress,
     Rgba,
@@ -716,6 +723,8 @@ export interface ChannelValues {
     "edge.labelItalic": boolean;
     "node.shaders": readonly ShaderUse[];
     "edge.shaders": readonly ShaderUse[];
+    "node.labels": readonly LabelEntry[];
+    "edge.labels": readonly LabelEntry[];
     "edge.taper": number;
     "edge.lift": number;
     "edge.labelTextAlign": LabelTextAlign;
@@ -841,7 +850,12 @@ export type ChannelValueKind =
      * A list of shader uses ({@link ShaderUse}), resolved across layers by place: see
      * `node.shaders`. @since 3.36.0
      */
-    | "shaderUses";
+    | "shaderUses"
+    /**
+     * A list of labels ({@link LabelEntry}), merged across layers by id: see `node.labels`.
+     * @since 3.63.0
+     */
+    | "labelEntries";
 
 /**
  * Whether a value is the whole number an "enum" channel with a `min` takes beside its words: a
@@ -2527,6 +2541,33 @@ function shaderChannel(target: "node" | "edge"): ChannelDescriptor {
         renderable: true,
         caveat: SHADER_CAVEAT,
         shaderTarget: target,
+    };
+}
+
+/** The most further labels (beside `node.label`'s own) one element draws; see `label.cap`. */
+export const LABEL_CAP = 8;
+
+/**
+ * A node's or an edge's label list: several labels, merged by id.
+ * @param target - Nodes or edges.
+ * @returns The descriptor.
+ */
+function labelListChannel(target: "node" | "edge"): ChannelDescriptor {
+    return {
+        channel: `${target}.labels`,
+        target,
+        plainName: `${target === "node" ? "Node" : "Edge"} Labels`,
+        shortName: "Labels",
+        group: "text",
+        accepts: "labelEntries",
+        stylePath: "labels",
+        renderable: true,
+        caveat:
+            `Several labels on one ${target}, each { id, text?, style?, off? }. Entries merge by id across ` +
+            `layers, field by field; \`${target}.labelStyle\` and the label field channels are the base style ` +
+            `of every entry. The entry with id "label" is \`${target}.label\`'s own label. ` +
+            `A field of one label varies by data through the encode key "${target}.labels.<id>.<field>". ` +
+            `At most ${String(LABEL_CAP)} further labels are drawn per element.`,
     };
 }
 
@@ -5303,6 +5344,8 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
     },
     "node.shaders": shaderChannel("node"),
     "edge.shaders": shaderChannel("edge"),
+    "node.labels": labelListChannel("node"),
+    "edge.labels": labelListChannel("edge"),
     "edge.taper": {
         channel: "edge.taper",
         target: "edge",
@@ -6436,7 +6479,7 @@ export function drawnUses(uses: readonly ShaderUse[] | undefined): {
 
 /**
  * Stack a value over what lies beneath on a channel whose values merge rather than replace: a
- * label style (field by field) or a shader list (resolved by place).
+ * label style (field by field), a shader list (resolved by place) or a label list (merged by id).
  * @param channel - The channel.
  * @param held - What the layers beneath painted, or undefined.
  * @param over - What this layer paints.
@@ -6445,6 +6488,10 @@ export function drawnUses(uses: readonly ShaderUse[] | undefined): {
 export function mergeChannelValue(channel: string, held: unknown, over: object): unknown {
     if (LIST_OF.has(channel)) {
         return mergeListItems(held, over);
+    }
+
+    if (isLabelListChannel(channel)) {
+        return mergeLabelEntries(held, over);
     }
 
     return isShaderListChannel(channel) ? mergeShaderUses(held, over) : mergeLabelStyle(held, over);
@@ -6607,4 +6654,152 @@ export function prototypeFreeMap(value: object): Record<string, unknown> {
     }
 
     return copy;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Label lists: several labels per element, merged by id
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * Whether a channel's values are label lists: `node.labels` and `edge.labels`.
+ * @param channel - The channel.
+ * @returns True for the two label list channels.
+ */
+export function isLabelListChannel(channel: string): boolean {
+    return channel === "node.labels" || channel === "edge.labels";
+}
+
+/**
+ * Stack one layer's labels over what the layers beneath resolved, by id: an entry sets the fields
+ * it names over the entry with its id beneath (its style field by field), `off` removes the label
+ * with its id (kept as an off entry, so the main label is hidden too), and a new id adds a label.
+ * A map of partial entries by id instead of a list (what a label field bound per element paints)
+ * merges the same way.
+ * @param held - What the layers beneath resolved, or undefined.
+ * @param over - What this layer paints: a list of entries, or partial entries by id.
+ * @returns The resolved list, a fresh array; nothing it is given is changed.
+ */
+export function mergeLabelEntries(held: unknown, over: unknown): readonly LabelEntry[] {
+    const out = new Map<string, LabelEntry>();
+    for (const entry of Array.isArray(held) ? (held as readonly LabelEntry[]) : []) {
+        out.set(entry.id, entry);
+    }
+
+    for (const [id, entry] of labelWritesOf(over)) {
+        if (entry.off === true) {
+            out.set(id, { id, off: true });
+            continue;
+        }
+
+        const beneath = out.get(id);
+        const base = beneath?.off === true ? undefined : beneath;
+        const text = entry.text ?? base?.text;
+        const style =
+            entry.style === undefined ? base?.style : (mergeLabelStyle(base?.style, entry.style) as LabelStyle);
+        out.set(id, { id, ...(text === undefined ? {} : { text }), ...(style === undefined ? {} : { style }) });
+    }
+
+    return [...out.values()];
+}
+
+/**
+ * What one layer's label value writes, by id: a list's entries, or a patch's partial entries.
+ * @param over - The value.
+ * @returns The writes, in order.
+ */
+function labelWritesOf(over: unknown): readonly [string, Partial<LabelEntry>][] {
+    if (Array.isArray(over)) {
+        return (over as readonly LabelEntry[]).map((entry) => [entry.id, entry]);
+    }
+
+    return typeof over === "object" && over !== null ? Object.entries(over as Record<string, Partial<LabelEntry>>) : [];
+}
+
+/** Where a label field address points: the list channel, the label's id and the field. */
+export interface LabelFieldTarget {
+    /** The list channel the value lands in: `node.labels` or `edge.labels`. */
+    readonly channel: Channel;
+    /** The label's id. */
+    readonly id: string;
+    /** A label style field, or `text` for the label's words. */
+    readonly field: LabelFieldName | "text";
+}
+
+/**
+ * The `encode` key that addresses one field of one label of a label list,
+ * `"<target>.labels.<label id>.<field>"`: see {@link LabelFieldAddress}.
+ * @param target - Nodes or edges.
+ * @param id - The label's id; {@link MAIN_LABEL_ID} is `node.label`'s own.
+ * @param field - A label style field, or `text`.
+ * @returns The address.
+ * @since 3.63.0
+ */
+export function labelFieldAddress(
+    target: "node" | "edge",
+    id: string,
+    field: LabelFieldName | "text",
+): LabelFieldAddress {
+    return `${target}.labels.${id}.${field}`;
+}
+
+/**
+ * Read an `encode` key that addresses one field of one label: `"<target>.labels.<label id>.<field>"`.
+ * @param name - The key.
+ * @returns Where it points, or null when it is not a label field address.
+ * @since 3.63.0
+ */
+export function parseLabelFieldAddress(name: string): LabelFieldTarget | null {
+    const match = /^(node|edge)\.labels\.(.+)\.([A-Za-z]+)$/.exec(name);
+    if (match === null) {
+        return null;
+    }
+
+    return { channel: `${match[1]}.labels` as Channel, id: match[2], field: match[3] as LabelFieldName | "text" };
+}
+
+/**
+ * The partial label one painted label field stands for, by id: `{ top: { style: { color } } }`,
+ * or `{ top: { text } }` for the words.
+ * @param target - Where the value lands.
+ * @param painted - What the field's binding painted; a color arrives resolved.
+ * @returns The patch {@link mergeLabelEntries} merges.
+ */
+export function labelEntryPatch(target: LabelFieldTarget, painted: unknown): object {
+    const patch = Object.create(null) as Record<string, Partial<LabelEntry>>;
+    patch[target.id] =
+        target.field === "text" ? { text: String(painted) } : { style: labelPatchOf(target.field, painted) };
+    return patch;
+}
+
+/**
+ * The labels one element draws beside `node.label`'s own: every entry not off, other than
+ * {@link MAIN_LABEL_ID}, at most {@link LABEL_CAP}, the first kept.
+ * @param entries - The resolved list, or anything else.
+ * @returns The drawn entries and how many the cap left out.
+ */
+export function drawnLabelEntries(entries: unknown): { readonly drawn: readonly LabelEntry[]; readonly left: number } {
+    const all = (Array.isArray(entries) ? (entries as readonly LabelEntry[]) : []).filter(
+        (entry) => entry.off !== true && entry.id !== MAIN_LABEL_ID,
+    );
+    return { drawn: all.slice(0, LABEL_CAP), left: Math.max(0, all.length - LABEL_CAP) };
+}
+
+/**
+ * The channel one label field address is bound as: `node.label` for its words, else the field's
+ * own channel (`node.labelColor` for `color`).
+ * @param target - Where the address points.
+ * @returns The descriptor, or undefined for a field no channel sets on its own.
+ */
+export function labelFieldChannel(target: LabelFieldTarget): ChannelDescriptor | undefined {
+    const list = CHANNEL_DESCRIPTORS[target.channel] as ChannelDescriptor | undefined;
+    if (list?.accepts !== "labelEntries") {
+        return undefined;
+    }
+
+    if (target.field === "text") {
+        return CHANNEL_DESCRIPTORS[`${list.target}.label` as Channel];
+    }
+
+    const [channel] = labelStyleFieldChannels(`${list.target}.labelStyle` as Channel, { [target.field]: true });
+    return channel === undefined ? undefined : CHANNEL_DESCRIPTORS[channel];
 }

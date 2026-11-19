@@ -88,8 +88,10 @@ import {
     channelDescriptor,
     channelsFor,
     isEnumCount,
+    labelFieldChannel,
     labelFieldOf,
     modelBindingProblem,
+    parseLabelFieldAddress,
     parseListItemAddress,
     parseShaderParamAddress,
     toColorValue,
@@ -728,6 +730,8 @@ function checkStaticValue(descriptor: ChannelDescriptor, value: ChannelValue, pa
             return checkEnum(descriptor, value, path);
         case "labelStyle":
             return checkLabelStyle(descriptor, value, path);
+        case "labelEntries":
+            return checkLabelEntries(descriptor, value, path);
         default:
             return {
                 code: "E_UNSUPPORTED",
@@ -767,6 +771,60 @@ function checkLabelStyle(descriptor: ChannelDescriptor, value: ChannelValue, pat
         path: `${path}.look`,
         candidates,
     };
+}
+
+/** The members a label list entry may carry. */
+const LABEL_ENTRY_KEYS: ReadonlySet<string> = new Set(["id", "text", "style", "off"]);
+
+/**
+ * Check a label list: a list of `{ id, text?, style?, off? }`, each id written once.
+ * @param descriptor - The channel.
+ * @param value - The value.
+ * @param path - Where it sits in the specification.
+ * @returns The first problem, or null.
+ */
+function checkLabelEntries(descriptor: ChannelDescriptor, value: ChannelValue, path: string): LayerProblem | null {
+    const shape = `${descriptor.plainName} takes a list of labels, such as [{ id: "top", text: "Top" }].`;
+    if (!Array.isArray(value)) {
+        return { code: "E_BAD_LAYER", message: shape, path };
+    }
+
+    const seen = new Set<string>();
+    for (const [at, entry] of (value as readonly unknown[]).entries()) {
+        const where = `${path}.${String(at)}`;
+        if (
+            !isPlainObject(entry) ||
+            typeof entry.id !== "string" ||
+            entry.id === "" ||
+            Object.keys(entry).some((key) => !LABEL_ENTRY_KEYS.has(key)) ||
+            (entry.text !== undefined && typeof entry.text !== "string") ||
+            (entry.off !== undefined && entry.off !== true)
+        ) {
+            return {
+                code: "E_BAD_LAYER",
+                message: 'A label is { id: "<id>", text?, style?, off?: true }.',
+                path: where,
+            };
+        }
+
+        if (seen.has(entry.id)) {
+            return {
+                code: "E_BAD_LAYER",
+                message: `${descriptor.plainName} lists the label "${entry.id}" twice; each id is written once.`,
+                path: `${where}.id`,
+            };
+        }
+
+        seen.add(entry.id);
+        if (entry.style !== undefined) {
+            const problem = checkLabelStyle(descriptor, entry.style as ChannelValue, `${where}.style`);
+            if (problem !== null) {
+                return problem;
+            }
+        }
+    }
+
+    return null;
 }
 
 /**
@@ -1361,6 +1419,48 @@ function checkModelBinding(descriptor: ChannelDescriptor, binding: Binding, path
 }
 
 /**
+ * Check an `encode` key that binds one field of one label of a label list.
+ * @param name - The key.
+ * @param binding - Its binding.
+ * @param at - The layer's target, where the key sits, the scales a binding may name and whether the selector matches everything.
+ * @param at.target - The layer's target, or null when it could not be settled.
+ * @param at.path - Where the key sits in the specification.
+ * @param at.options - The scales a binding may name.
+ * @param at.universal - Whether the selector matches everything.
+ * @param log - Where problems and paths are collected.
+ * @returns False when the key is not a label field address, and nothing was checked.
+ */
+function checkLabelFieldBinding(
+    name: string,
+    binding: Binding,
+    at: { target: SelectorTarget | null; path: string; options: LayerCheckOptions; universal: boolean },
+    log: ProblemLog,
+): boolean {
+    const label = parseLabelFieldAddress(name);
+    if (label === null) {
+        return false;
+    }
+
+    if (checkChannel(label.channel, at.target, at.path, log) === null) {
+        return true;
+    }
+
+    const field = labelFieldChannel(label);
+    if (field === undefined) {
+        report(log, {
+            code: "E_BAD_LAYER",
+            message: `"${name}" names no label field: "<target>.labels.<id>.<field>", the field a label style field or "text".`,
+            path: at.path,
+        });
+
+        return true;
+    }
+
+    checkBinding(field, binding, at.path, at.options, at.universal, log);
+    return true;
+}
+
+/**
  * Check every channel the specification writes.
  * @param spec - The specification.
  * @param target - The layer's target, or null when it could not be settled.
@@ -1381,29 +1481,55 @@ function checkChannels(
     }
 
     for (const [channel, binding] of Object.entries(spec.encode ?? {})) {
-        const path = `encode.${channel}`;
-        const address = parseShaderParamAddress(channel);
-        if (address !== null && binding !== undefined) {
-            checkParamBinding(channel, binding, target, path, catalog, log);
-            continue;
+        checkEncodeKey(channel, binding, { target, path: `encode.${channel}`, options, universal }, catalog, log);
+    }
+}
+
+/**
+ * Check one `encode` key: a channel, or the address of a shader parameter, a label field or a list item.
+ * @param channel - The key.
+ * @param binding - Its binding.
+ * @param at - The layer's target, where the key sits, the scales a binding may name and whether the selector matches everything.
+ * @param at.target - The layer's target, or null when it could not be settled.
+ * @param at.path - Where the key sits in the specification.
+ * @param at.options - The scales a binding may name.
+ * @param at.universal - Whether the selector matches everything.
+ * @param catalog - Whether to consult the shader catalog.
+ * @param log - Where problems and paths are collected.
+ */
+function checkEncodeKey(
+    channel: string,
+    binding: Binding | undefined,
+    at: { target: SelectorTarget | null; path: string; options: LayerCheckOptions; universal: boolean },
+    catalog: boolean,
+    log: ProblemLog,
+): void {
+    const { target, path, options, universal } = at;
+    const address = parseShaderParamAddress(channel);
+    if (address !== null && binding !== undefined) {
+        checkParamBinding(channel, binding, target, path, catalog, log);
+        return;
+    }
+
+    if (binding !== undefined && checkLabelFieldBinding(channel, binding, at, log)) {
+        return;
+    }
+
+    const item = parseListItemAddress(channel);
+    if (item !== null && binding !== undefined) {
+        const list = checkChannel(item.channel, target, path, log);
+        if (list !== null) {
+            checkBinding(listItemDescriptor(item), binding, path, options, universal, log);
         }
 
-        const item = parseListItemAddress(channel);
-        if (item !== null && binding !== undefined) {
-            const list = checkChannel(item.channel, target, path, log);
-            if (list !== null) {
-                checkBinding(listItemDescriptor(item), binding, path, options, universal, log);
-            }
+        return;
+    }
 
-            continue;
-        }
+    const descriptor = checkChannel(channel, target, path, log);
 
-        const descriptor = checkChannel(channel, target, path, log);
-
-        if (descriptor !== null && binding !== undefined) {
-            checkBinding(descriptor, binding, path, options, universal, log);
-            checkModelBinding(descriptor, binding, path, log);
-        }
+    if (descriptor !== null && binding !== undefined) {
+        checkBinding(descriptor, binding, path, options, universal, log);
+        checkModelBinding(descriptor, binding, path, log);
     }
 }
 

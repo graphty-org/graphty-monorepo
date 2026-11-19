@@ -24,7 +24,7 @@ import type { LocationMapFrame } from "./layout/locationMap/place";
 import { dataManagerInternals } from "./managers/DataManager";
 import type { GraphContext } from "./managers/GraphContext";
 import { LabelDeclutter } from "./managers/LabelDeclutter";
-import { bootstrapEdgePaint, type EdgePaint } from "./managers/StylePainter";
+import { bootstrapEdgePaint, type DrawnLabel, type EdgePaint } from "./managers/StylePainter";
 import type { ArrowCap } from "./meshes/ArrowCapBatch";
 import { type ArrowStackPart, parseArrowStack } from "./meshes/arrowStack";
 import type { JoinedPatternKind } from "./meshes/CustomLineRenderer";
@@ -1101,6 +1101,12 @@ export class Edge {
 
     /** The external label on screen (`xlabel`), drawn beside the line's middle. */
     xlabelLabel: RichTextLabel | null = null;
+
+    /** The further labels on screen (`edge.labels`), by id, each placed against the line's middle as the label is. */
+    readonly extraLabels = new Map<string, { label: RichTextLabel; offset: number; attachPosition: AttachPosition }>();
+
+    /** What the further labels on screen were drawn from, or undefined for none. See {@link syncExtraLabels}. */
+    private drawnExtraLabels?: string;
     private _xlabelOffset = 0;
     private _xlabelAttachPosition: AttachPosition = EDGE_XLABEL_LOCATION;
     /** The labels the layout left out when it last placed this edge ({@link EdgePosition.leftOut}). */
@@ -1655,6 +1661,10 @@ export class Edge {
         );
 
         this.placeXlabel(src, dst, bent, lnk.xlabelAt);
+        for (const { label, offset, attachPosition } of this.extraLabels.values()) {
+            label.attachTo(this.labelPoint(src, dst, bent, undefined), attachPosition, offset);
+        }
+
         this.placeArrowCaptions(src, dst, lnk);
         // the layout may leave a label out (Graphviz's `forcelabels=false` with no room for it)
         this.leftOutLabels = lnk.leftOut ?? [];
@@ -1969,7 +1979,13 @@ export class Edge {
      * @internal
      */
     refreshFonts(families: ReadonlySet<string>): boolean {
-        const texts = [this.label, this.xlabelLabel, this.arrowHeadText, this.arrowTailText];
+        const texts = [
+            this.label,
+            this.xlabelLabel,
+            this.arrowHeadText,
+            this.arrowTailText,
+            ...[...this.extraLabels.values()].map((extra) => extra.label),
+        ];
         if (this.disposed || this.drawnStyle === null || !texts.some((text) => text?.usesFont(families) === true)) {
             return false;
         }
@@ -3289,7 +3305,9 @@ export class Edge {
      */
     private syncContent(style: EdgeStyleConfig, rebuild: boolean): void {
         // Every one runs: each brings its own part into line, whatever the others found.
-        const label = this.syncLabel(style, rebuild);
+        const own = this.syncLabel(style, rebuild);
+        const extra = this.syncExtraLabels(style, rebuild);
+        const label = own || extra;
         const xlabel = this.syncXlabel(style, rebuild);
         const captions = this.syncArrowCaptions(style, rebuild);
         const bends = this.syncBends(style);
@@ -3302,6 +3320,42 @@ export class Edge {
                 LabelDeclutter.trackEdge(this.context.getScene(), this.context, this);
             }
         }
+    }
+
+    /**
+     * Bring the further labels (`edge.labels`) into line with one resolved style: each block `StylePainter` resolved
+     * into `style.labels` is built as the label is. See {@link syncContent}.
+     * @param style - The resolved style.
+     * @param rebuild - True when the meshes the labels are positioned against have just been replaced.
+     * @returns True when they were rebuilt.
+     */
+    private syncExtraLabels(style: EdgeStyleConfig, rebuild: boolean): boolean {
+        const wanted = (style as EdgeStyleConfig & { labels?: readonly DrawnLabel[] }).labels ?? [];
+        const drawn = wanted.filter(({ block }) => drawnText(block) !== undefined);
+        const key =
+            drawn.length === 0
+                ? undefined
+                : JSON.stringify(drawn.map(({ id, block }) => [id, this.extractLabelText(block), block]));
+        if (!rebuild && key === this.drawnExtraLabels) {
+            return false;
+        }
+
+        this.disposeExtraLabels();
+        this.drawnExtraLabels = key;
+        for (const { id, block } of drawn) {
+            this.extraLabels.set(id, this.createLabel({ ...style, label: block }));
+        }
+
+        return true;
+    }
+
+    /** Take the further labels (`edge.labels`) off screen. */
+    private disposeExtraLabels(): void {
+        for (const { label } of this.extraLabels.values()) {
+            label.dispose();
+        }
+
+        this.extraLabels.clear();
     }
 
     /**
@@ -3606,6 +3660,8 @@ export class Edge {
         this.xlabelLabel?.dispose();
         this.xlabelLabel = null;
         this.drawnXlabel = undefined;
+        this.disposeExtraLabels();
+        this.drawnExtraLabels = undefined;
         this.arrowHeadText?.dispose();
         this.arrowHeadText = null;
         this.arrowTailText?.dispose();
@@ -3857,6 +3913,7 @@ export class Edge {
     private textMeshes(): [AbstractMesh, "label" | "xlabel" | "headLabel" | "tailLabel"][] {
         const texts = [
             [this.label, "label"],
+            ...[...this.extraLabels.values()].map(({ label }) => [label, "label"] as const),
             [this.xlabelLabel, "xlabel"],
             [this.arrowHeadText, "headLabel"],
             [this.arrowTailText, "tailLabel"],
@@ -5790,6 +5847,10 @@ export class Edge {
     startLabelAnimations(): void {
         for (const label of [this.label, this.xlabelLabel, this.arrowHeadText, this.arrowTailText]) {
             label?.startAnimation();
+        }
+
+        for (const { label } of this.extraLabels.values()) {
+            label.startAnimation();
         }
     }
 

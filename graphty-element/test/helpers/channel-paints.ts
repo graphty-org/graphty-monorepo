@@ -381,6 +381,9 @@ export function probeFor(descriptor: ChannelDescriptor): unknown {
         }
         case "labelStyle":
             return LABEL_PROBE;
+        case "labelEntries":
+            // A further label beside the element's own, which draws a text mesh of its own.
+            return [{ id: "probe", text: "CHANNEL PROBE WORDS" }];
         case "shaderUses":
             // A shipped preset, in its declared place, that draws in both views (shader-uses.test.ts measures every
             // one).

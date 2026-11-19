@@ -191,6 +191,8 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.labelItalic": "Label",
     "node.shaders": "Shaders",
     "edge.shaders": "Shaders",
+    "node.labels": "Labels",
+    "edge.labels": "Labels",
     "edge.taper": "Line",
     "edge.lift": "Line",
     "edge.labelWrapWidth": "Label",

@@ -2039,3 +2039,46 @@ export const KeepInView: Story = {
         await assertDistinctPicture(scene, "Styles/Label", labelDigest(scene));
     },
 };
+
+/**
+ * Several labels on every cat (`node.labels`): its name above it and its group below it, each placed and
+ * styled on its own, beside no `node.label` at all.
+ */
+export const SeveralLabels: Story = {
+    args: {
+        ...CAT_NETWORK,
+        setup: storySetup({
+            node: {
+                "node.labels": [
+                    { id: "name", text: "", style: { location: "top" } },
+                    { id: "group", text: "", style: { location: "bottom", color: "#c0392b" } },
+                ],
+            },
+            nodeEncode: {
+                "node.labels.name.text": { by: "data.id", scale: "passthrough" },
+                "node.labels.group.text": { by: "data.group", scale: "passthrough" },
+            },
+        }),
+    },
+    parameters: {
+        controls: {
+            include: ["node.labels"],
+        },
+    },
+    play: async ({ canvasElement }) => {
+        const scene = await loaded(canvasElement, "SeveralLabels");
+        const nodes = [...scene.graph.getDataManager().nodes.values()];
+        const short = nodes.filter((node) => {
+            const top = node.extraLabels.get("name")?.labelMesh;
+            const bottom = node.extraLabels.get("group")?.labelMesh;
+            return !top || !bottom || top.getAbsolutePosition().y <= bottom.getAbsolutePosition().y;
+        });
+
+        await holds(
+            short.length === 0,
+            `Styles/Label SeveralLabels: every cat should draw its name above it and its group below it; ` +
+                `these do not: ${short.map((node) => String(node.id)).join(", ")}`,
+        );
+        await assertDistinctPicture(scene, "Styles/Label");
+    },
+};

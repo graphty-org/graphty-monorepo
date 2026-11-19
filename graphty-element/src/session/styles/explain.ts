@@ -55,14 +55,18 @@ import {
     CHANNEL_DESCRIPTORS,
     CHANNELS,
     type ChannelValues,
+    drawnLabelEntries,
     drawnUses,
     isChannel,
+    isLabelListChannel,
     isShaderListChannel,
+    LABEL_CAP,
     labelFieldOf,
     labelPatchOf,
     listItemsPastEnd,
     mergeChannelValue,
     mergeLabelStyle,
+    parseLabelFieldAddress,
     parseListItemAddress,
     parseShaderParamAddress,
     STACK_CAP,
@@ -378,6 +382,7 @@ export interface ChannelCovers {
  * | `shader.place-unsupported` | `channel`; `shader`; `place`: a place the shader does not allow, so the use draws nothing; `count` |
  * | `shader.stack-cap` | `left`: the most stacking uses left out on one element; `limit`: how many draw; `count`: how many elements lost one the layer adds |
  * | `shader.group-cap` | `left`: how many of the layer's groups draw no outline, because the graph already draws `limit` (32) outlines across its layers, lowest layers first |
+ * | `label.cap` | `left`: the most labels of a label list (`node.labels`, `edge.labels`) left out on one element; `limit`: how many draw; `count`: how many elements lost one the layer adds |
  * | `edge.lift-needs-flat-layout` | `count`: how many edges the layer lifts that are drawn flat, because the view is not a flat layout in 3D (`edge.lift` rises out of a flat layout's plane, so it draws only there) |
  *
  * New codes may be added in a minor release: word an unknown one generically.
@@ -390,6 +395,7 @@ export type UndrawnCode =
     | "shader.place-unsupported"
     | "shader.stack-cap"
     | "shader.group-cap"
+    | "label.cap"
     | "edge.lift-needs-flat-layout";
 
 /**
@@ -773,6 +779,7 @@ export function explainStyle(target: ExplainTarget, sources: ExplainSources): St
             merged[channel] = mergeListValue(channel, merged[channel], result, layer.id, useLayers);
         } else if (
             CHANNEL_DESCRIPTORS[channel].accepts === "labelStyle" ||
+            isLabelListChannel(channel) ||
             (CHANNEL_DESCRIPTORS[channel].listOf !== undefined && typeof result === "object" && result !== null)
         ) {
             // A list item's patch changes one item of the list resolved beneath; one past its end changes nothing.
@@ -1047,7 +1054,11 @@ function zeroPerChannel(layer: Layer): Partial<Record<Channel, number>> {
     const painted: Partial<Record<Channel, number>> = {};
     for (const name of [...Object.keys(layer.set ?? {}), ...Object.keys(layer.encode ?? {})]) {
         // A shader parameter's address paints its shader map.
-        const channel = parseShaderParamAddress(name)?.channel ?? parseListItemAddress(name)?.channel ?? name;
+        const channel =
+            parseShaderParamAddress(name)?.channel ??
+            parseListItemAddress(name)?.channel ??
+            parseLabelFieldAddress(name)?.channel ??
+            name;
         if (isChannel(channel)) {
             painted[channel] = 0;
         }
@@ -1238,9 +1249,13 @@ function walkWins(stack: readonly StackEntry[], at: Located, columns: ElementCol
     paintOne(stack, at, columns, (winner, prepared, result) => {
         const { channel } = prepared;
         winners.set(channel, winner.id);
-        values[channel] = isShaderListChannel(channel)
-            ? mergeListValue(channel, values[channel], result, winner.id, useLayers)
-            : result;
+        if (isShaderListChannel(channel)) {
+            values[channel] = mergeListValue(channel, values[channel], result, winner.id, useLayers);
+        } else {
+            values[channel] = isLabelListChannel(channel)
+                ? mergeChannelValue(channel, values[channel], result as object)
+                : result;
+        }
         if (winner.id === layerId) {
             own[channel] = isShaderListChannel(channel) ? [...((own[channel] as []) ?? []), ...(result as [])] : result;
         }
@@ -1540,6 +1555,10 @@ export function styleCounts(
     // A lift the layer wins on an edge drawn flat; see `edge.lift-needs-flat-layout`.
     const liftFlat = layer.target === "edge" && sources.liftDrawn?.() === false;
     let flatLifts = 0;
+    // Labels of a list the layer writes past what one element draws; see `label.cap`.
+    const labelList: Channel = `${layer.target}.labels`;
+    let labelsCapped = 0;
+    let labelsLeft = 0;
     const perChannel = new Map<Channel, Map<LayerId, number>>();
     // The elements once, as an array: the walk below and the tops' ranking both read them.
     const indices = [...(layer.target === "node" ? elements.nodes : elements.edges)];
@@ -1562,6 +1581,11 @@ export function styleCounts(
             }
 
             shaders.add(found, weight);
+            const lostLabels = found.own[labelList] === undefined ? 0 : drawnLabelEntries(found.values[labelList]).left;
+            if (lostLabels > 0) {
+                labelsCapped += weight;
+                labelsLeft = Math.max(labelsLeft, lostLabels);
+            }
         },
     };
     const count = (index: number, weight: number): void => {
@@ -1623,6 +1647,9 @@ export function styleCounts(
         undrawn: Object.freeze([
             ...captions.facts(),
             ...shaders.facts(),
+            ...(labelsCapped > 0
+                ? [{ code: "label.cap" as const, params: { left: labelsLeft, limit: LABEL_CAP, count: labelsCapped } }]
+                : []),
             ...(flatLifts > 0 ? [{ code: "edge.lift-needs-flat-layout" as const, params: { count: flatLifts } }] : []),
         ]),
         ...topFacts(layer.selector, columns, indices, layer.target === "node" ? shown?.nodes : shown?.edges),

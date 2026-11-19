@@ -385,7 +385,8 @@
         "Data/Network sources/Errors::Blocked",
         "Data/Network sources/Errors::RefusedHttp",
         "Data/Network sources/Errors::Cancelled",
-        "Data/Network sources/Errors::MissingCredential"
+        "Data/Network sources/Errors::MissingCredential",
+        "Styles/Label::SeveralLabels"
     ],
     "retired": [
         {

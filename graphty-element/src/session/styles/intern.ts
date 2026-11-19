@@ -369,6 +369,9 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.marker": "content",
     "edge.label": "content",
     "edge.labelStyle": "content",
+    // Further labels: per element, drawn by `Node.syncLabel` and `Edge.syncContent` like the label.
+    "node.labels": "content",
+    "edge.labels": "content",
     // A label field lands in its label style's column and is drawn with it.
     "node.labelColor": "content",
     "node.labelSize": "content",

@@ -28,7 +28,7 @@ import type { CodedFact } from "../session/shared";
 import type { ChannelDescriptor } from "../session/styles/channels";
 import type { TransitionDescriptor } from "../transitions/registry";
 import type { ChannelValueDescriptor } from "./channelValues";
-import type { LabelStyle } from "./label-style";
+import type { LabelEntry, LabelStyle } from "./label-style";
 import type { ModelDescriptor } from "./models";
 import type { ScreenshotPreset } from "./screenshotPresets";
 import type { ShaderDescriptor, ShaderFilter, ShaderProblem, ShaderText, ShaderUse } from "./shaders";
@@ -1011,6 +1011,8 @@ export type Channel =
     | "edge.arrowTailTextBackground"
     | "node.shaders"
     | "edge.shaders"
+    | "node.labels"
+    | "edge.labels"
     | "edge.taper"
     | "edge.lift"
     | "edge.labelWrapWidth"
@@ -1099,9 +1101,10 @@ export type { LabelStyle } from "./label-style";
 
 /**
  * A literal value written to a channel. The shader channels (`node.shaders`, `edge.shaders`) take
- * a list of {@link ShaderUse}.
+ * a list of {@link ShaderUse}; the label lists (`node.labels`, `edge.labels`) a list of
+ * {@link LabelEntry}.
  */
-export type ChannelValue = string | number | boolean | LabelStyle | Rgba | readonly ShaderUse[];
+export type ChannelValue = string | number | boolean | LabelStyle | Rgba | readonly ShaderUse[] | readonly LabelEntry[];
 
 /**
  * An `encode` key that binds one shader parameter per element:
@@ -1111,6 +1114,15 @@ export type ChannelValue = string | number | boolean | LabelStyle | Rgba | reado
  * @since 3.36.0
  */
 export type ShaderParamAddress = `${"node" | "edge"}.shaders.${string}.${string}`;
+
+/**
+ * An `encode` key that binds one field of one label of a label list per element:
+ * `"<target>.labels.<label id>.<field>"`, such as `"node.labels.top.color"`. The field is a label
+ * style field (`LabelFieldName`) or `text`, the label's words. It sets that field of the label with
+ * that id over what the layers beneath give, and nothing else of it.
+ * @since 3.63.0
+ */
+export type LabelFieldAddress = `${"node" | "edge"}.labels.${string}.${string}`;
 
 /** Literal values, one per channel. */
 export type StaticStyle = Partial<Record<Channel, ChannelValue>>;
@@ -1306,11 +1318,13 @@ export type ListItemAddress = `${"node" | "edge"}.${string}.${number}`;
 
 /**
  * Declarative attribute-to-channel bindings. A key is a channel, a shader parameter's address
- * (see {@link ShaderParamAddress}) or a list item's address (see {@link ListItemAddress}).
+ * (see {@link ShaderParamAddress}), a list item's address (see {@link ListItemAddress}) or a
+ * label field's address (see {@link LabelFieldAddress}).
  */
 export type Encoding = Partial<Record<Channel, Binding>> & {
     [address: ShaderParamAddress]: Binding;
     [address: ListItemAddress]: Binding;
+    [address: LabelFieldAddress]: Binding;
 };
 
 /**

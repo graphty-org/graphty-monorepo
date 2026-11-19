@@ -1130,6 +1130,11 @@ export class Edge {
     set dstNode(node: Node_2);
     // @internal
     endRow(end: "source" | "target"): number;
+    readonly extraLabels: Map<string, {
+        label: RichTextLabel;
+        offset: number;
+        attachPosition: AttachPosition;
+    }>;
     // @internal
     followRenumberedRows(): void;
     // @internal
@@ -5661,6 +5666,7 @@ class Node_2 implements ModelUser {
     get drawnWorldScaling(): Vector3;
     // @internal
     drawShrunk(scale: number, whole: number): void;
+    readonly extraLabels: Map<string, RichTextLabel>;
     // @internal
     framingBounds(): {
         min: Vector3;

@@ -203,7 +203,7 @@ export {
     splitShaderText,
 } from "./src/catalog/shaderText";
 export { sourceDescriptors } from "./src/catalog/sources";
-export type { ListItemAddress, ShaderParamAddress } from "./src/catalog/types";
+export type { LabelFieldAddress, ListItemAddress, ShaderParamAddress } from "./src/catalog/types";
 export type { CodedFact, CodedFactParam } from "./src/session/shared";
 export type { SourceCatalogEntry, SourceFeatures } from "./src/session/sources/types";
 export type { TransitionDescriptor, TransitionDrawable } from "./src/transitions/registry";
@@ -238,6 +238,7 @@ export type {
     ChannelScalar,
     ChannelValueKind,
     LabelFieldName,
+    LabelFieldTarget,
     ListItemTarget,
     ShaderParamTarget,
 } from "./src/session/styles/channels";
@@ -246,8 +247,10 @@ export {
     channelDescriptor,
     CHANNELS,
     channelsFor,
+    labelFieldAddress,
     labelFieldOf,
     listItemAddress,
+    parseLabelFieldAddress,
     parseListItemAddress,
     parseShaderParamAddress,
     PRIMARY_CHANNELS,

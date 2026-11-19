@@ -850,7 +850,7 @@ export function columnFits(
         return true;
     }
 
-    if (accepts === "nothing" || accepts === "labelStyle") {
+    if (accepts === "nothing" || accepts === "labelStyle" || accepts === "labelEntries") {
         return false;
     }
 

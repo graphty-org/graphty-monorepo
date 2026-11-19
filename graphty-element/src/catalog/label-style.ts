@@ -139,6 +139,42 @@ export type LabelIconPosition = "left" | "right";
  */
 export type LabelSizeMode = "world" | "screen";
 
+/**
+ * The id of the label `node.label` and `edge.label` draw, as an entry of `node.labels` or
+ * `edge.labels` addresses it: an entry with this id restyles (or, with `off`, hides) that label.
+ * @since 3.63.0
+ */
+export const MAIN_LABEL_ID = "label";
+
+/**
+ * One label of a node's or an edge's label list (`node.labels`, `edge.labels`), so an element can
+ * carry several labels, each placed and styled on its own.
+ *
+ * Entries merge by `id`, layer over layer: a higher layer's entry sets the fields it names over the
+ * entry with the same id beneath, field by field. `node.labelStyle` and the flat label channels
+ * (`node.labelColor`, ...) are the base style of every entry; an entry's own `style` wins over
+ * them. The entry with id {@link MAIN_LABEL_ID} is the label `node.label` draws. `styles.newLabelId`
+ * gives an id no label on a layer's stack uses. At most 8 further labels are drawn per element.
+ * @example
+ * ```ts
+ * session.styles.add({
+ *     selector: "*",
+ *     set: { "node.labels": [{ id: "top", text: "Top" }, { id: "bottom", text: "Bottom", style: { location: "bottom" } }] },
+ * });
+ * ```
+ * @since 3.63.0
+ */
+export interface LabelEntry {
+    /** The label's id, unique in one list; {@link MAIN_LABEL_ID} is `node.label`'s own. */
+    readonly id: string;
+    /** The words, as `node.label` takes them. Absent, the label draws the words `node.label` draws. */
+    readonly text?: string;
+    /** How it is drawn, merged field by field over the base label style. */
+    readonly style?: LabelStyle;
+    /** True removes the label with this id the layers beneath give. */
+    readonly off?: true;
+}
+
 /** How a label is drawn. */
 export interface LabelStyle {
     /**

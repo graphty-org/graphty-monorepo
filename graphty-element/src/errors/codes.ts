@@ -808,7 +808,7 @@ export type GraphtyWarningCode =
      * know: kept and never run (`params.kind`, `params.pointer`, `params.found`).
      */
     | "W_UNKNOWN_KIND"
-    /** A project's data is not the data its results were saved against: each such run was computed again over the open data. */
+    /** No longer reported: a project open computes each saved run again over the data it holds, so no saved result can disagree with it. */
     | "W_DATA_DIFFERS"
     /** A run was still computing when the project was saved, so the file does not hold it. */
     | "W_RUN_PENDING"

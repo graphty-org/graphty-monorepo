@@ -481,6 +481,19 @@ function copyEdgeCells(builder: GraphBuilder, columns: Iterable<Column>, row: nu
 }
 
 /**
+ * Hand every set cell of a column to a writer, row by row.
+ * @param column - The column.
+ * @param write - Writes one cell.
+ */
+function copyColumnCells(column: Column, write: (row: number, value: unknown) => void): void {
+    for (let row = 0; row < column.length; row++) {
+        if (column.isSet(row)) {
+            write(row, column.value(row));
+        }
+    }
+}
+
+/**
  * Add one base edge row to a builder: its endpoints, weight and set cells, not its edge id.
  * @param builder - The builder written.
  * @param base - The base snapshot.
@@ -919,17 +932,25 @@ export class GraphStore {
             builder.setGraphValue(PAIRS_ORDERED_ATTRIBUTE, this.pairsOrdered ? 1 : 0, { dtype: "u8" });
         }
 
-        const nodeColumns = this.frozenColumns.node;
+        // Rows in row order, so each lands on its own row; then the cells a column at a time.
         for (let row = 0; row < base.nodeCount; row++) {
-            copyNodeCells(builder, nodeColumns, row, builder.addNode(base.ids.idOf(row)));
+            builder.addNode(base.ids.idOf(row));
         }
 
         const list = base.edgeList();
-        const edgeIds = base.edges.typed(EDGE_ID_COLUMN, "u32");
-        for (let row = 0; row < base.edgeCount; row++) {
-            const index = addBaseEdge(builder, base, list, row);
-            if (edgeIds?.isSet(row) === true) {
-                builder.setEdgeValue(this.edgeIdHandle, index, edgeIds.data[row]);
+        builder.addEdges(list.src, list.dst, list.weights ?? undefined);
+        for (const column of this.frozenColumns.node) {
+            copyColumnCells(column, (row, value) => {
+                builder.setNodeValue(column.meta.name, row, value);
+            });
+        }
+
+        for (const column of base.edges) {
+            if (column.meta.role !== "weight") {
+                const handle = column.meta.name === EDGE_ID_COLUMN ? this.edgeIdHandle : column.meta.name;
+                copyColumnCells(column, (row, value) => {
+                    builder.setEdgeValue(handle, row, value);
+                });
             }
         }
 

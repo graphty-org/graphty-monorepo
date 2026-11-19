@@ -1847,7 +1847,7 @@ export class Node implements ModelUser {
         to.rotation.copyFrom(from.rotation);
         to.rotationQuaternion = from.rotationQuaternion?.clone() ?? null;
         to.parent = from.parent;
-        to.metadata = from.metadata;
+        to.metadata = from.metadata as unknown;
         to.setEnabled(from.isEnabled(false));
         for (const child of from.getChildren()) {
             child.parent = to;

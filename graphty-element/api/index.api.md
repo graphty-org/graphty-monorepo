@@ -1174,7 +1174,7 @@ export class Edge {
     xlabelLabel: RichTextLabel | null;
 }
 
-// @public (undocumented)
+// @public
 export const EDGE_CONSTANTS: {
     readonly DEFAULT_LINE_WIDTH: 8;
     readonly DEFAULT_LINE_COLOR: "#FFFFFF";
@@ -7405,37 +7405,22 @@ export type PixelRatio = number | "device";
 // @public
 export const PLASMA_COLORS: readonly ["#0d0887", "#5302a3", "#8b0aa5", "#b83289", "#db5c68", "#f48849", "#febd2a", "#f0f921"];
 
-// @public (undocumented)
+// @public
 export enum PolyhedronType {
-    // (undocumented)
     DODECAHEDRON = 2,
-    // (undocumented)
     ELONGATED_PENTAGONAL_CUPOLA = 14,
-    // (undocumented)
     ELONGATED_PENTAGONAL_DIPYRAMID = 13,
-    // (undocumented)
     ELONGATED_SQUARE_DIPYRAMID = 12,
-    // (undocumented)
     HEXAGONAL_PRISM = 7,
-    // (undocumented)
     ICOSAHEDRON = 3,
-    // (undocumented)
     OCTAHEDRON = 1,
-    // (undocumented)
     PENTAGONAL_DIPYRAMID = 11,
-    // (undocumented)
     PENTAGONAL_PRISM = 6,
-    // (undocumented)
     PENTAGONAL_PYRAMID = 9,
-    // (undocumented)
     RHOMBICUBOCTAHEDRON = 4,
-    // (undocumented)
     SQUARE_PYRAMID = 8,
-    // (undocumented)
     TETRAHEDRON = 0,
-    // (undocumented)
     TRIANGULAR_DIPYRAMID = 10,
-    // (undocumented)
     TRIANGULAR_PRISM = 5
 }
 
@@ -8172,7 +8157,7 @@ export interface ShaderSettings {
     readonly untrusted?: "hold" | "run" | "refuse";
 }
 
-// @public (undocumented)
+// @public
 export const SHAPE_CONSTANTS: {
     readonly GOLDEN_RATIO: 1.618;
     readonly DEFAULT_NODE_SIZE: 1;

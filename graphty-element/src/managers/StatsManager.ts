@@ -218,11 +218,11 @@ export class StatsManager implements Manager {
     nodeUpdate = new PerfCounter();
     /** Time spent moving and redrawing edges in each graph update. */
     edgeUpdate = new PerfCounter();
-    /** Meant to time arrowhead updates. Nothing measures into it today, so it always reads zero. */
+    /** Time spent placing an edge's arrowheads and trimming its line beside them, one sample per edge placed. */
     arrowCapUpdate = new PerfCounter();
-    /** Meant to time ray intersection tests. Nothing measures into it today, so it always reads zero. */
+    /** Time spent finding where an edge meets its nodes' surfaces, one sample per edge end search. */
     intersectCalc = new PerfCounter();
-    /** Meant to time loading graph data. Nothing measures into it today, so it always reads zero. */
+    /** Time each data load took, from its first read to its last record, one sample per finished load. */
     loadTime = new PerfCounter();
     /** How many graph updates have run since the counters were last reset. */
     totalUpdates = 0;
@@ -409,7 +409,7 @@ export class StatsManager implements Manager {
         nodeUpdateCount: number;
         /** How many times edges were updated (`edgeUpdate`'s count). */
         edgeUpdateCount: number;
-        /** `arrowCapUpdate`'s count. Nothing measures into it today, so it is always zero. */
+        /** How many times an edge's arrowheads were placed (`arrowCapUpdate`'s count). */
         arrowCapUpdateCount: number;
     } {
         return {
@@ -466,7 +466,7 @@ export class StatsManager implements Manager {
 
         // Graph engine performance
         statsSection("Graph Engine Performance");
-        appendPerf("JSON Load Time", this.loadTime);
+        appendPerf("Data Load Time", this.loadTime);
         appendPerf("Graph Physics Engine Time", this.graphStep);
         appendPerf("Node Update Time", this.nodeUpdate);
         appendPerf("Edge Update Time", this.edgeUpdate);

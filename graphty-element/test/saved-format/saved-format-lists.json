@@ -1,5 +1,5 @@
 {
-    "selfContained": ["shaders", "defaultPalettes"],
+    "selfContained": ["shaders", "default-settings", "defaultPalettes"],
     "exceptions": [
         {
             "kind": "palette",
@@ -100,13 +100,6 @@
             "finding": "A map layout names its basemap by MapSourceId, and no map means the bundled world image."
         },
         {
-            "kind": "default-settings",
-            "paths": [],
-            "catalogs": [],
-            "issue": 6515,
-            "finding": "Settings equal to the default are omitted from the file and filled from the reader's defaults, so a changed default changes old files."
-        },
-        {
             "kind": "style-tree-mode",
             "paths": [],
             "catalogs": [],
@@ -132,7 +125,7 @@
             "paths": [],
             "catalogs": [],
             "issue": 6519,
-            "finding": "Saved runs match data by an unversioned FNV-1a hash; a change to the hash orphans every saved run."
+            "finding": "Saved runs match data by an unversioned FNV-1a hash. Kept on purpose: the owner decided on 2026-11-13 that behaviors run again on open; a run whose hash does not match the open data (edited data, or a build whose hash changed) is computed again over it rather than restored, so a change to the hash costs a rerun and never loses a result (design/owner-standing-rules.md, rule 6)."
         },
         {
             "kind": "project-format-tag",

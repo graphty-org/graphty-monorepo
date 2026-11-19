@@ -118,6 +118,7 @@ import type {
 } from "./catalog/types";
 import {
     AdHocData,
+    type ColorScheme,
     defaultXRConfig,
     FetchEdgesFn,
     FetchNodesFn,
@@ -373,19 +374,11 @@ function isAbort(error: unknown): boolean {
     return (error as { name?: unknown } | null)?.name === "AbortError";
 }
 
+/** A 2D camera's frustum edges, as a camera state names them. */
+const ORTHO_EDGES = ["orthoLeft", "orthoRight", "orthoTop", "orthoBottom"] as const;
+
 /** The camera state fields that set where the camera stands or how much of the graph it shows. */
-const FRAMING_FIELDS = [
-    "position",
-    "target",
-    "cameraDistance",
-    "radius",
-    "zoom",
-    "pan",
-    "orthoLeft",
-    "orthoRight",
-    "orthoTop",
-    "orthoBottom",
-] as const;
+const FRAMING_FIELDS = ["position", "target", "cameraDistance", "radius", "zoom", "pan", ...ORTHO_EDGES] as const;
 
 /**
  * Whether a camera placement sets anything a framing sets, rather than only turning the camera.
@@ -6476,6 +6469,53 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * Which background color the canvas is cleared to; see {@link setColorScheme}.
+     * @returns The setting: "light", "dark" or "auto".
+     */
+    getColorScheme(): ColorScheme {
+        return this.#colorScheme;
+    }
+
+    /**
+     * Clear the canvas to the background's `color` (`"light"`, the default) or its `darkColor`
+     * (`"dark"`); `"auto"` follows the page's `prefers-color-scheme` as it changes. Repaints at
+     * once, with nothing reloaded. A preference of the view, not saved in a project file.
+     * @param scheme - "light", "dark" or "auto".
+     * @throws TypeError when the scheme is none of the three; nothing is changed then.
+     * @since 3.58.0
+     */
+    setColorScheme(scheme: ColorScheme): void {
+        if (scheme !== "light" && scheme !== "dark" && scheme !== "auto") {
+            throw new TypeError(`colorScheme must be "light", "dark" or "auto", not ${JSON.stringify(scheme)}`);
+        }
+
+        this.#colorScheme = scheme;
+        this.#schemeQuery?.abort();
+        this.#schemeQuery = null;
+        const query =
+            scheme === "auto" && typeof globalThis.matchMedia === "function"
+                ? matchMedia("(prefers-color-scheme: dark)")
+                : null;
+        const apply = (): void => {
+            this.renderManager.darkScheme = scheme === "dark" || (query?.matches ?? false);
+        };
+        if (query !== null) {
+            this.#schemeQuery = new AbortController();
+            query.addEventListener("change", apply, {
+                signal: AbortSignal.any([this.#schemeQuery.signal, this.#teardown.signal]),
+            });
+        }
+
+        apply();
+    }
+
+    /** See {@link setColorScheme}. */
+    #colorScheme: ColorScheme = "light";
+
+    /** Ends the platform-preference listener `"auto"` adds. */
+    #schemeQuery: AbortController | null = null;
+
+    /**
      * Where the active map layout read its locations, and how it lays the map, as plain facts:
      * the surface, the box or the globe's radius, the location columns (with the half of a pair
      * it found itself) or the location column and its format, and the nodes it could not place.
@@ -8507,6 +8547,7 @@ export class Graph implements GraphContext {
             }
 
             state.cameraDistance = orbitController.cameraDistance;
+            state.fov = orbitController.camera.fov;
         } else if (controller instanceof TwoDCameraController) {
             // TwoDCameraController - get zoom and pan
             const twoDController = controller;
@@ -8715,6 +8756,10 @@ export class Graph implements GraphContext {
             orbitController.cameraDistance = orbitController.clampDistance(Math.hypot(dx, dy, dz));
         }
 
+        if (state.fov !== undefined) {
+            orbitController.camera.fov = state.fov;
+        }
+
         // Update the pivot's world matrix and camera position
         orbitController.pivot.computeWorldMatrix(true);
         orbitController.updateCameraPosition();
@@ -8729,9 +8774,16 @@ export class Graph implements GraphContext {
         controller: TwoDCameraController,
         state: import("./screenshot/types.js").CameraState,
     ): void {
-        // Set zoom (ortho bounds)
+        // Set zoom (ortho bounds), then any edge the state names over it
         if (state.zoom !== undefined) {
             controller.updateOrtho(controller.config.initialOrthoSize / state.zoom);
+        }
+
+        for (const edge of ORTHO_EDGES) {
+            const value = state[edge];
+            if (value !== undefined) {
+                controller.camera[edge] = value;
+            }
         }
 
         if (state.rotation !== undefined) {
@@ -8753,6 +8805,10 @@ export class Graph implements GraphContext {
         // Fallback for other camera types
         if (state.position && "position" in camera) {
             camera.position.set(state.position.x, state.position.y, state.position.z);
+        }
+
+        if (state.fov !== undefined) {
+            camera.fov = state.fov;
         }
 
         const targeted = camera as Camera & { setTarget?: (target: Vector3) => void };
@@ -8905,6 +8961,11 @@ export class Graph implements GraphContext {
         }
 
         const orbitController = controller;
+
+        // The field of view is not animated: it is set at the start, so the move glides in the new lens.
+        if (targetState.fov !== undefined) {
+            orbitController.camera.fov = targetState.fov;
+        }
 
         const fps = 60;
         const duration = options.duration ?? 1000;
@@ -9158,70 +9219,40 @@ export class Graph implements GraphContext {
 
         const animations: Animation[] = [];
 
-        // Animate zoom (ortho bounds)
+        // Animate the frustum: the zoom's symmetric frame, with any edge the state names over it
+        const edges = { ...dummy };
         if (targetState.zoom !== undefined) {
-            // Calculate target ortho bounds based on zoom factor
             // Zoom is absolute: 1.0 = initial size, 2.0 = half size (zoomed in), 0.5 = double size (zoomed out)
-            const initialSize = twoDController.config.initialOrthoSize;
-            const targetSize = initialSize / targetState.zoom;
-
-            const orthoLeftAnim = new Animation(
-                "ortho_left",
-                "orthoLeft",
-                fps,
-                Animation.ANIMATIONTYPE_FLOAT,
-                Animation.ANIMATIONLOOPMODE_CONSTANT,
-            );
-            orthoLeftAnim.setKeys([
-                { frame: 0, value: dummy.orthoLeft },
-                { frame: frameCount, value: -targetSize },
-            ]);
-            this.applyEasing(orthoLeftAnim, options.easing);
-            animations.push(orthoLeftAnim);
-
-            const orthoRightAnim = new Animation(
-                "ortho_right",
-                "orthoRight",
-                fps,
-                Animation.ANIMATIONTYPE_FLOAT,
-                Animation.ANIMATIONLOOPMODE_CONSTANT,
-            );
-            orthoRightAnim.setKeys([
-                { frame: 0, value: dummy.orthoRight },
-                { frame: frameCount, value: targetSize },
-            ]);
-            this.applyEasing(orthoRightAnim, options.easing);
-            animations.push(orthoRightAnim);
-
-            // Calculate aspect ratio to maintain proportions
+            const targetSize = twoDController.config.initialOrthoSize / targetState.zoom;
+            // Keep the current proportions
             const aspect = (dummy.orthoTop - dummy.orthoBottom) / (dummy.orthoRight - dummy.orthoLeft);
-            const orthoTopAnim = new Animation(
-                "ortho_top",
-                "orthoTop",
-                fps,
-                Animation.ANIMATIONTYPE_FLOAT,
-                Animation.ANIMATIONLOOPMODE_CONSTANT,
-            );
-            orthoTopAnim.setKeys([
-                { frame: 0, value: dummy.orthoTop },
-                { frame: frameCount, value: targetSize * aspect },
-            ]);
-            this.applyEasing(orthoTopAnim, options.easing);
-            animations.push(orthoTopAnim);
+            edges.orthoLeft = -targetSize;
+            edges.orthoRight = targetSize;
+            edges.orthoTop = targetSize * aspect;
+            edges.orthoBottom = -targetSize * aspect;
+        }
 
-            const orthoBottomAnim = new Animation(
-                "ortho_bottom",
-                "orthoBottom",
-                fps,
-                Animation.ANIMATIONTYPE_FLOAT,
-                Animation.ANIMATIONLOOPMODE_CONSTANT,
-            );
-            orthoBottomAnim.setKeys([
-                { frame: 0, value: dummy.orthoBottom },
-                { frame: frameCount, value: -targetSize * aspect },
-            ]);
-            this.applyEasing(orthoBottomAnim, options.easing);
-            animations.push(orthoBottomAnim);
+        for (const edge of ORTHO_EDGES) {
+            edges[edge] = targetState[edge] ?? edges[edge];
+        }
+
+        const framed = targetState.zoom !== undefined || ORTHO_EDGES.some((edge) => targetState[edge] !== undefined);
+        if (framed) {
+            for (const edge of ORTHO_EDGES) {
+                const edgeAnim = new Animation(
+                    `ortho_${edge}`,
+                    edge,
+                    fps,
+                    Animation.ANIMATIONTYPE_FLOAT,
+                    Animation.ANIMATIONLOOPMODE_CONSTANT,
+                );
+                edgeAnim.setKeys([
+                    { frame: 0, value: dummy[edge] },
+                    { frame: frameCount, value: edges[edge] },
+                ]);
+                this.applyEasing(edgeAnim, options.easing);
+                animations.push(edgeAnim);
+            }
         }
 
         // Animate pan (camera position)
@@ -9305,7 +9336,7 @@ export class Graph implements GraphContext {
                     twoDController.camera.position.y = dummy.posY;
                 }
 
-                if (targetState.zoom !== undefined) {
+                if (framed) {
                     twoDController.camera.orthoLeft = dummy.orthoLeft;
                     twoDController.camera.orthoRight = dummy.orthoRight;
                     twoDController.camera.orthoTop = dummy.orthoTop;

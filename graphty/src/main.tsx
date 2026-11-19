@@ -42,7 +42,7 @@ if (import.meta.env.DEV) {
 
 /** Logs what a remote log reader needs to tie a session to a server, a browser and a navigation. */
 function logPageStart(): void {
-    const [navigation] = performance.getEntriesByType("navigation") as PerformanceNavigationTiming[];
+    const navigation = (performance.getEntriesByType("navigation") as PerformanceNavigationTiming[]).at(0);
     GraphtyLogger.getLogger(["graphty", "workspace"]).info("page start", {
         origin: location.origin,
         path: location.pathname,

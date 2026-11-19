@@ -15,6 +15,7 @@ export type { FetchEdgesFn, FetchNodesFn, FitInsets, GraphBehaviorConfig } from 
 export type { NodeIdType } from "./GraphBehavior";
 export { GraphBehaviorOpts } from "./GraphBehavior";
 export type {
+    ColorScheme,
     GraphBackgroundConfig,
     GraphSelectionStyleConfig,
     GraphSelectionStyleInput,
@@ -22,6 +23,7 @@ export type {
 } from "./GraphStyle";
 export {
     DEFAULT_BACKGROUND_COLOR,
+    DEFAULT_DARK_BACKGROUND_COLOR,
     DEFAULT_SELECTION_STYLE,
     GraphBackground,
     GraphSelectionStyleOpts,

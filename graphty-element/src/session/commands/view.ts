@@ -15,7 +15,7 @@
  * design/undo/undo-design.md sections 3.1, 3.2, 10.5 and 11.4.
  */
 
-import { isCameraViewName } from "../../camera/resolve";
+import { isCameraViewName } from "../../camera/names";
 import type { CameraState, Vec3 } from "../../camera/types";
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { Dispatcher, ExemptDefinition, UndoableDefinition } from "../project/Dispatcher";

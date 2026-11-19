@@ -213,7 +213,9 @@ export interface ProjectState {
 
 /** One saved camera tour: its name and the tour. */
 export interface SavedTour {
+    /** The name the tour is saved under. */
     readonly name: string;
+    /** The tour. */
     readonly tour: Tour;
 }
 

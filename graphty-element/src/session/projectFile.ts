@@ -18,7 +18,7 @@ import { fromEdgeArrays } from "@graphty/graph-format";
 import { GENERATOR_CATALOG } from "@graphty/graph-samples";
 
 import { withStateMode } from "../camera/mode";
-import { isCameraViewName } from "../camera/resolve";
+import { isCameraViewName } from "../camera/names";
 import type { Tour } from "../camera/tour";
 import { sourceDescriptors } from "../catalog/sources";
 import {

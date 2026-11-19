@@ -26,7 +26,9 @@ import type { CameraState } from "./types";
 
 /** An entry `importCameraPresets` left out, with the code `session.views.save` would refuse it with. */
 export interface SkippedPreset {
+    /** The preset's name. */
     name: string;
+    /** Why it was left out: the name belongs to a camera view, or the preset is malformed. */
     code: "E_PROTECTED" | "E_BAD_COMMAND";
 }
 

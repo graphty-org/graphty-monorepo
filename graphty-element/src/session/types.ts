@@ -4294,7 +4294,10 @@ export interface SessionEventMap {
      * step and no `project:changed`, so a list of saved views re-reads `session.views` on this.
      * @since 3.58.0
      */
-    "views:seeded": { readonly names: readonly string[] };
+    "views:seeded": {
+        /** The names of the views written. */
+        readonly names: readonly string[];
+    };
     /**
      * The picture has caught up with every project change made so far: published once nothing is
      * left to derive or repaint -- after the per-domain events, and after any repaint the element

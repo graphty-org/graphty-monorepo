@@ -13,26 +13,26 @@ import type { UndoableDefinition } from "../project/Dispatcher";
 import type { SavedTour } from "../project/state";
 
 /** `tour.save`: keep tours under names, replacing a tour already under one in its place. */
-interface TourSaveCommand {
+export interface TourSaveCommand {
     readonly op: "tour.save";
     readonly tours: readonly SavedTour[];
 }
 
 /** `tour.remove`: forget saved tours. */
-interface TourRemoveCommand {
+export interface TourRemoveCommand {
     readonly op: "tour.remove";
     readonly names: readonly string[];
 }
 
 /** `tour.rename`: give a saved tour a new name, keeping its place. */
-interface TourRenameCommand {
+export interface TourRenameCommand {
     readonly op: "tour.rename";
     readonly from: string;
     readonly to: string;
 }
 
 /** `tour.move`: put a saved tour at a place in the order. */
-interface TourMoveCommand {
+export interface TourMoveCommand {
     readonly op: "tour.move";
     readonly name: string;
     /** The 0-based place, clamped to the order. */

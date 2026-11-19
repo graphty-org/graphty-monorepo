@@ -23,13 +23,16 @@
  * view and the render size, and passes numbers.
  */
 
-import { registeredCameraById, registeredCameraDescriptors } from "../catalog/cameraRegistry";
+import { registeredCameraById } from "../catalog/cameraRegistry";
 import { CAMERA_DESCRIPTORS } from "../catalog/cameras";
 import { resolveOptionValues } from "../catalog/options";
 import type { CameraDescriptor } from "../catalog/types";
 import { GraphtyError } from "../errors";
 import { builtInCameraView } from "./builtins";
+import { cameraViewIds } from "./names";
 import type { CameraState, CameraViewInput, DrawingMode, GraphBounds, ViewInsets } from "./types";
+
+export { cameraViewIds, isCameraViewName } from "./names";
 
 /** Everything the element measures before it can ask a view where the viewer stands. */
 export interface CameraViewContext {
@@ -51,29 +54,6 @@ export interface CameraViewContext {
     readonly facing?: CameraViewInput["facing"];
     /** What the caller configured, before the declared defaults are filled in. */
     readonly options?: Readonly<Record<string, unknown>>;
-}
-
-/**
- * Every camera view that can be named right now: the element's own, then the registered ones.
- * @returns The names, the element's own first.
- */
-export function cameraViewIds(): readonly string[] {
-    return [
-        ...CAMERA_DESCRIPTORS.map((descriptor) => descriptor.id),
-        ...registeredCameraDescriptors().map((descriptor) => descriptor.id),
-    ];
-}
-
-/**
- * Whether a name already belongs to a camera view, the element's own or a registered one.
- *
- * What `saveCameraPreset` asks before it stores a snapshot: a snapshot that shadowed a view would
- * turn a rule that recomputes itself for whatever is on screen into a fixed position, silently.
- * @param name - The name being claimed.
- * @returns True when a view already holds it.
- */
-export function isCameraViewName(name: string): boolean {
-    return CAMERA_DESCRIPTORS.some((descriptor) => descriptor.id === name) || registeredCameraById(name) !== undefined;
 }
 
 /**

@@ -653,6 +653,14 @@ export type {
 export type { AlgorithmRunCommand, Plan, PlanBlock, PlanEffect, SessionCommand } from "./src/session";
 export { isAlgorithmRunCommand } from "./src/session";
 export type {
+    SavedTour,
+    TourCommand,
+    TourMoveCommand,
+    TourRemoveCommand,
+    TourRenameCommand,
+    TourSaveCommand,
+} from "./src/session";
+export type {
     CostBasis,
     CostConfidence,
     CostEstimate,

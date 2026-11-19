@@ -763,6 +763,7 @@ export interface AnimationProgressEvent {
  * @since 3.58.0
  */
 export interface TourProgressEvent {
+    /** The event's name. */
     type: "tour-progress";
     /** The saved tour's name, or null for a tour given inline. */
     tour: string | null;
@@ -784,9 +785,11 @@ export interface TourProgressEvent {
  * @since 3.58.0
  */
 export interface TourEndedEvent {
+    /** The event's name. */
     type: "tour-ended";
     /** The saved tour's name, or null for a tour given inline. */
     tour: string | null;
+    /** Why the tour ended. */
     reason: TourEndReason;
 }
 
@@ -797,6 +800,7 @@ export interface TourEndedEvent {
  * @since 3.58.0
  */
 export interface ViewsChangedEvent {
+    /** The event's name. */
     type: "views-changed";
 }
 

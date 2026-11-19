@@ -51,6 +51,14 @@ export { DEFAULT_LIMITS } from "./limits";
 export type { NetworkApi, NetworkPolicy, NetworkRequest, NetworkRequestAsker, NetworkRequestKind } from "./network";
 export type { AlgorithmRunCommand, Plan, PlanBlock, PlanEffect, SessionCommand } from "./planning";
 export { isAlgorithmRunCommand } from "./planning";
+export type {
+    TourCommand,
+    TourMoveCommand,
+    TourRemoveCommand,
+    TourRenameCommand,
+    TourSaveCommand,
+} from "./commands/tour";
+export type { SavedTour } from "./project/state";
 export type { CodedFact, ColumnRef, ProgressChange, ResultRef } from "./shared";
 export type { LoadStyleReport } from "./styles/fileStyles/apply";
 export type {

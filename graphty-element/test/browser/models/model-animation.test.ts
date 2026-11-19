@@ -217,10 +217,11 @@ describe("model animation", () => {
 });
 
 /**
- * One single-sided triangle twice as wide as it is tall, leaning back: an open model with no two extents equal.
+ * One triangle twice as wide as it is tall, leaning back: an open model with no two extents equal.
+ * @param doubleSided - Whether its material asks for both faces to be drawn; single-sided unless asked.
  * @returns The model's files.
  */
-function wideTriangle(): Map<string, Uint8Array> {
+function wideTriangle(doubleSided = false): Map<string, Uint8Array> {
     const positions = new Float32Array([0, 0, 0, 2, 0, 0, 0, 1, 0.5]);
     const json = {
         asset: { version: "2.0" },
@@ -228,7 +229,7 @@ function wideTriangle(): Map<string, Uint8Array> {
         scenes: [{ nodes: [0] }],
         nodes: [{ mesh: 0 }],
         meshes: [{ primitives: [{ attributes: { POSITION: 0 }, material: 0 }] }],
-        materials: [{ pbrMetallicRoughness: { baseColorFactor: [1, 1, 1, 1] } }],
+        materials: [{ pbrMetallicRoughness: { baseColorFactor: [1, 1, 1, 1] }, doubleSided }],
         accessors: [{ bufferView: 0, componentType: 5126, count: 3, type: "VEC3", min: [0, 0, 0], max: [2, 1, 0.5] }],
         bufferViews: [{ buffer: 0, byteLength: positions.byteLength }],
         buffers: [{ byteLength: positions.byteLength }],
@@ -277,6 +278,41 @@ describe("model fit and sides", () => {
             Math.max(front, back),
             100,
             `two sides draw the back of the face: ${JSON.stringify({ front, back })}`,
+        );
+    });
+
+    it("draws every up axis, the file's origin as the pivot, and only the fronts when false", async () => {
+        const element = await mount();
+        await element.setViewMode("3d");
+        // both faces drawn, so the triangle shows however it is turned
+        const { layer, asset } = await drawModel(element, wideTriangle(true), [{ id: "a", x: 0 }], {
+            "node.modelDoubleSided": "true",
+        });
+        const turned = async (set: Record<string, unknown>): Promise<Frame> =>
+            hold(element, layer, { "node.model": asset, "node.modelDoubleSided": "true", ...set });
+        const detected = await turned({});
+        // glTF is Y up by its specification, so "y" is what "detected" draws: it is measured against "-y"
+        const upsideDown = await turned({ "node.modelSourceUp": "-y" });
+        for (const up of ["-x", "x", "-y", "y", "-z", "z"]) {
+            const against = up === "y" ? upsideDown : detected;
+            const changed = pixelsChanged(against, await turned({ "node.modelSourceUp": up }));
+            assert.isAbove(changed, 100, `up axis ${up} turns the model (${String(changed)} pixels changed)`);
+        }
+
+        const origin = pixelsChanged(detected, await turned({ "node.modelCenter": "origin" }));
+        assert.isAbove(origin, 100, `the file's origin as the pivot moves the model (${String(origin)} pixels)`);
+
+        // The file asks for both faces; "false" draws only the front, so from one side or the other its back is gone.
+        const fileFront = await hold(element, layer, { "node.model": asset, "node.modelDoubleSided": "file" });
+        const frontOnlyFront = await hold(element, layer, { "node.model": asset, "node.modelDoubleSided": "false" });
+        const frontOnlyBack = await fromBehind(element);
+        const fileBack = await hold(element, layer, { "node.model": asset, "node.modelDoubleSided": "file" });
+        const front = pixelsChanged(fileFront, frontOnlyFront);
+        const back = pixelsChanged(fileBack, frontOnlyBack);
+        assert.isAbove(
+            Math.max(front, back),
+            100,
+            `false hides the back the file draws: ${JSON.stringify({ front, back })}`,
         );
     });
 });

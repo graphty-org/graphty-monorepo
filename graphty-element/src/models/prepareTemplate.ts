@@ -444,7 +444,7 @@ function allPlainGray(groups: ReadonlyMap<string, Part[]>): boolean {
  * @param gray - Whether the whole model states no color of its own (`allPlainGray`) and no layer
  *   set `node.modelTint` to false.
  * @param options - The template options.
- * @param flat - The template's flat material, made on first use.
+ * @param flat - The template's flat material for a side choice, made on first use.
  * @returns The material, and whether the group follows the node's color.
  */
 function lookOf(
@@ -452,16 +452,18 @@ function lookOf(
     colored: boolean,
     gray: boolean,
     options: TemplateOptions,
-    flat: () => PBRMaterial,
+    flat: (twoSided: boolean) => PBRMaterial,
 ): { material: Material; follows: boolean } {
+    const { material } = first;
+    // the file's own side choice (glTF's doubleSided) survives the flat material taking the part's place
+    const twoSided = material?.backFaceCulling === false;
     if (options.replace) {
-        return { material: flat(), follows: true };
+        return { material: flat(twoSided), follows: true };
     }
 
-    const { material } = first;
     if (colored) {
         // Vertex colors state the part's color; with no material they draw in the flat one.
-        return { material: material ?? flat(), follows: false };
+        return { material: material ?? flat(twoSided), follows: false };
     }
 
     if (
@@ -470,7 +472,7 @@ function lookOf(
         statesNoColor(material) ||
         (options.untextured === true && !hasPicture(material))
     ) {
-        return { material: flat(), follows: true };
+        return { material: flat(twoSided), follows: true };
     }
 
     return { material, follows: false };
@@ -482,7 +484,7 @@ function lookOf(
  * @param name - A name for the template's meshes.
  * @param groups - The parts by group key.
  * @param options - The template options.
- * @param flat - The template's flat material, made on first use.
+ * @param flat - The template's flat material for a side choice, made on first use.
  * @param made - Where each material and mesh goes as it is made, and the groups that follow the
  *   node's color.
  */
@@ -491,7 +493,7 @@ function mergeGroups(
     name: string,
     groups: ReadonlyMap<string, Part[]>,
     options: TemplateOptions,
-    flat: () => PBRMaterial,
+    flat: (twoSided: boolean) => PBRMaterial,
     made: Made,
 ): void {
     const { used, meshes, follows } = made;
@@ -784,14 +786,19 @@ async function build(
     const animation =
         options.animated === true ? bakeAnimation(scene, container, parts, turn.multiply(fit.matrix), name) : null;
     made.animation = animation;
-    let flatMaterial: PBRMaterial | null = null;
-    const flat = (): PBRMaterial => {
-        if (flatMaterial === null) {
-            flatMaterial = new PBRMaterial(`${name}-flat`, scene);
+    // One flat material per side choice, so a part the file draws from both sides keeps doing so in it.
+    const flatMaterials = new Map<boolean, PBRMaterial>();
+    const flat = (twoSided: boolean): PBRMaterial => {
+        let flatMaterial = flatMaterials.get(twoSided);
+        if (flatMaterial === undefined) {
+            flatMaterial = new PBRMaterial(twoSided ? `${name}-flat-two-sided` : `${name}-flat`, scene);
             used.add(flatMaterial);
             flatMaterial.albedoColor = Color3.White();
             flatMaterial.metallic = 0;
             flatMaterial.roughness = 1;
+            flatMaterial.backFaceCulling = !twoSided;
+            flatMaterial.twoSidedLighting = twoSided;
+            flatMaterials.set(twoSided, flatMaterial);
         }
 
         return flatMaterial;

@@ -84,8 +84,11 @@ import {
     type ColorValue,
     type EdgeLineValue,
     isEnumCount,
+    listItemPatch,
+    type ListItemTarget,
     type NodeShapeValue,
     OFF_COLOR,
+    parseListItemAddress,
     parseShaderParamAddress,
     prototypeFreeMap,
     type ShaderParamTarget,
@@ -2301,6 +2304,11 @@ export function prepareBinding(options: PrepareBindingOptions): PreparedBinding 
         return prepareParamBinding(address, options);
     }
 
+    const item = parseListItemAddress(options.channel);
+    if (item !== null) {
+        return prepareListItemBinding(item, options);
+    }
+
     const descriptor = requireChannel(options.channel);
     const { binding } = options;
 
@@ -2944,10 +2952,13 @@ export function sequenceOf(options: SequenceOptions): StyleSequence {
  * @returns A descriptor the binding is prepared against.
  * @throws A `GraphtyError`: `E_UNKNOWN_SHADER` when the catalog lists no such shader, and
  *   `E_UNKNOWN_SHADER_PARAM` when it declares no such parameter or does not let it vary.
+ * @param literal - Whether the binding is one value for every element (`{ value }`), which any
+ *   declared parameter takes: only a parameter bound per element must be declared `varies`.
  */
 export function shaderParamDescriptor(
     address: ShaderParamTarget,
     describe: (id: string) => ShaderDescriptor | undefined = projectShaderDescriptor,
+    literal = false,
 ): ChannelDescriptor {
     const shader = describe(address.shader);
     if (shader === undefined) {
@@ -2960,7 +2971,7 @@ export function shaderParamDescriptor(
     }
 
     const param = shader.params.find((entry) => entry.name === address.param);
-    if (param?.varies !== true) {
+    if (param === undefined || (!literal && param.varies !== true)) {
         throw new GraphtyError({
             code: "E_UNKNOWN_SHADER_PARAM",
             message: `The shader "${shader.id}" declares no parameter "${address.param}" that varies per element.`,
@@ -3019,8 +3030,8 @@ export function shaderParamChannel(address: ShaderParamAddress): ChannelDescript
  * @returns The prepared binding, painting map patches on the map channel.
  */
 function prepareParamBinding(address: ShaderParamTarget, options: PrepareBindingOptions): PreparedBinding {
-    const descriptor = shaderParamDescriptor(address);
     const { binding } = options;
+    const descriptor = shaderParamDescriptor(address, projectShaderDescriptor, "value" in binding);
     const integer =
         projectShaderDescriptor(address.shader)?.params.find((entry) => entry.name === address.param)?.type ===
         "integer";
@@ -3066,6 +3077,60 @@ function prepareParamBinding(address: ShaderParamTarget, options: PrepareBinding
     return {
         ...prepared,
         channel: address.channel,
+        paint: (value) => patch(prepared.paint(value)),
+        paintIgnoringHidden: (value) => patch(prepared.paintIgnoringHidden(value)),
+    };
+}
+
+/**
+ * The channel one item of a list channel is bound as: a color or a number, by what the list holds.
+ * @param item - Where the address points.
+ * @returns The descriptor; its `channel` is the list channel.
+ */
+export function listItemDescriptor(item: ListItemTarget): ChannelDescriptor {
+    const list = requireChannel(item.channel);
+    const accepts = list.listOf === "color" ? "color" : "number";
+    return { ...list, accepts };
+}
+
+/**
+ * Prepare a binding for one item of a list channel: it paints a patch that changes that item of
+ * the list the layers beneath resolve (see `mergeChannelValue`).
+ * @param item - Where the address points.
+ * @param options - The binding and the rest of what preparing one takes.
+ * @returns The prepared binding, painting into the list channel.
+ */
+function prepareListItemBinding(item: ListItemTarget, options: PrepareBindingOptions): PreparedBinding {
+    const descriptor = listItemDescriptor(item);
+    const { binding } = options;
+    let prepared: PreparedBinding;
+    if ("template" in binding) {
+        prepared = prepareTemplateBinding(descriptor, binding.template, options);
+    } else if ("value" in binding) {
+        prepared = prepareLiteral(descriptor, binding);
+    } else {
+        prepared = prepareRule(descriptor, binding, options);
+    }
+
+    const patches = new Map<unknown, EncodedValue>();
+    const patch = (value: EncodedValue | undefined): EncodedValue | undefined => {
+        if (value === undefined) {
+            return undefined;
+        }
+
+        const key = typeof value === "object" && value !== null && "hex" in value ? value.hex : value;
+        let made = patches.get(key);
+        if (made === undefined) {
+            made = listItemPatch(item.index, value);
+            patches.set(key, made);
+        }
+
+        return made;
+    };
+
+    return {
+        ...prepared,
+        channel: item.channel,
         paint: (value) => patch(prepared.paint(value)),
         paintIgnoringHidden: (value) => patch(prepared.paintIgnoringHidden(value)),
     };

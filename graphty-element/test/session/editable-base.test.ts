@@ -10,6 +10,7 @@ import type { Channel } from "../../src/catalog/types";
 import { createGraphSession, type GraphSession } from "../../src/session";
 import { createRunResult } from "../../src/session/results";
 import type { RunExecutionContext, RunOutcome } from "../../src/session/runs";
+import { CHANNEL_DESCRIPTORS } from "../../src/session/styles/channels";
 import type { ElementSession } from "../../src/session/types";
 
 /**
@@ -118,6 +119,24 @@ describe("editableBase", () => {
         await session.undo();
         await session.undo();
         assert.isFalse(session.config.editableBase, "one undo takes the setting and the row back");
+        session.dispose();
+    });
+
+    it("leaves out of Everything every base value that draws nothing", async () => {
+        const session = await triangle();
+        await session.config.set({ startingRows: true, editableBase: true });
+        const row = everything(session);
+        const parts = session.styles.list().filter((layer) => layer.row === row || layer.id === row);
+        for (const part of parts) {
+            for (const [channel, value] of Object.entries(part.set ?? {})) {
+                const { off } = CHANNEL_DESCRIPTORS[channel as Channel];
+                const hex = typeof value === "object" && value !== null && "hex" in value ? value.hex : undefined;
+                assert.isTrue(off === undefined || (value !== off && hex !== off), `${channel} is written off`);
+            }
+        }
+
+        const edge = parts.find((layer) => layer.target === "edge");
+        assert.notProperty(edge?.set ?? {}, "edge.animationSpeed", "a still line is not an animation written off");
         session.dispose();
     });
 

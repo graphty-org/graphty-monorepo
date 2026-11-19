@@ -62,6 +62,7 @@ import {
     labelPatchOf,
     mergeChannelValue,
     mergeLabelStyle,
+    parseListItemAddress,
     parseShaderParamAddress,
     STACK_CAP,
 } from "./channels";
@@ -762,7 +763,11 @@ export function explainStyle(target: ExplainTarget, sources: ExplainSources): St
             merged[labelField.into] = mergeLabelStyle(merged[labelField.into], labelPatchOf(labelField.field, result));
         } else if (isShaderListChannel(channel)) {
             merged[channel] = mergeListValue(channel, merged[channel], result, layer.id, useLayers);
-        } else if (CHANNEL_DESCRIPTORS[channel].accepts === "labelStyle") {
+        } else if (
+            CHANNEL_DESCRIPTORS[channel].accepts === "labelStyle" ||
+            (CHANNEL_DESCRIPTORS[channel].listOf !== undefined && typeof result === "object" && result !== null)
+        ) {
+            // A list item's patch changes one item of the list resolved beneath.
             merged[channel] = mergeChannelValue(channel, merged[channel], result as object);
         } else {
             merged[channel] = result;
@@ -1027,7 +1032,7 @@ function zeroPerChannel(layer: Layer): Partial<Record<Channel, number>> {
     const painted: Partial<Record<Channel, number>> = {};
     for (const name of [...Object.keys(layer.set ?? {}), ...Object.keys(layer.encode ?? {})]) {
         // A shader parameter's address paints its shader map.
-        const channel = parseShaderParamAddress(name)?.channel ?? name;
+        const channel = parseShaderParamAddress(name)?.channel ?? parseListItemAddress(name)?.channel ?? name;
         if (isChannel(channel)) {
             painted[channel] = 0;
         }

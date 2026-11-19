@@ -492,8 +492,9 @@ describe("what the element can really draw", () => {
         // A curvature is a switch, not an amount.
         assert.isDefined(CHANNEL_DESCRIPTORS["edge.curvature"].caveat);
         assert.strictEqual(CHANNEL_DESCRIPTORS["edge.curvature"].accepts, "boolean");
-        // An outline's width is set per layer by `node.outlineWidth`, so the outline carries no caveat.
-        assert.isUndefined(CHANNEL_DESCRIPTORS["node.outline"].caveat);
+        // An outline's width is set per layer by `node.outlineWidth`, so the outline's caveat says
+        // only what it is (a circle whatever the shape), never that its width is shared.
+        assert.notInclude(CHANNEL_DESCRIPTORS["node.outline"].caveat ?? "", "one fixed width");
         assert.isUndefined(CHANNEL_DESCRIPTORS["node.outline"].caveatCode);
         // A glow's strength is drawn per style (one source mesh per strength), so it carries no
         // caveat: the old one said two glowing styles shared whichever strength landed last.
@@ -692,13 +693,11 @@ describe("what a style editor needs to draw a row", () => {
         // Unset, a node has no external label, and one that has sits at its corner or where the layout put it.
         "node.xlabel",
         "node.xlabelStyle",
-        "node.xlabelLocation",
         "node.xlabelOffsetX",
         "node.xlabelOffsetY",
         // Unset, an edge has no external label, and one that has sits beside its middle or where the layout put it.
         "edge.xlabel",
         "edge.xlabelStyle",
-        "edge.xlabelLocation",
         "edge.xlabelOffsetX",
         "edge.xlabelOffsetY",
         "node.tooltipStyle",
@@ -802,7 +801,6 @@ describe("what a style editor needs to draw a row", () => {
         "edge.supportRepulsion",
         "edge.supportCentralGravity",
         "edge.supportUnit",
-        "edge.supportScale",
         // Unset, the layout decides the route: straight but on a geographic map.
         "edge.route",
         "edge.sourcePort",
@@ -814,7 +812,6 @@ describe("what a style editor needs to draw a row", () => {
         "edge.arrowHeadTextStyle",
         "edge.arrowHeadTextLetterSize",
         "edge.arrowHeadTextFont",
-        "edge.arrowHeadTextWeight",
         "edge.arrowHeadTextOpacity",
         "edge.arrowHeadTextDistance",
         "edge.arrowHeadTextRotation",
@@ -824,7 +821,6 @@ describe("what a style editor needs to draw a row", () => {
         "edge.arrowTailTextStyle",
         "edge.arrowTailTextLetterSize",
         "edge.arrowTailTextFont",
-        "edge.arrowTailTextWeight",
         "edge.arrowTailTextOpacity",
         "edge.arrowTailTextDistance",
         "edge.arrowTailTextRotation",
@@ -839,12 +835,10 @@ describe("what a style editor needs to draw a row", () => {
         "edge.arrowHeadTextBackground",
         "edge.arrowTailTextBackground",
         // A label's size and color state what an unset label is drawn with (48 per world unit,
-        // black), so a style editor's line starts there; font, weight and italic do not.
+        // black), so a style editor's line starts there; font and italic do not (weight is "normal").
         "node.labelFont",
-        "node.labelWeight",
         "node.labelItalic",
         "edge.labelFont",
-        "edge.labelWeight",
         "edge.labelItalic",
         // Unset, no shader parameter is set and no effect is drawn.
         "node.shaders",
@@ -858,12 +852,9 @@ describe("what a style editor needs to draw a row", () => {
         "node.labelWrapSpaceCount",
         "node.labelMaxLines",
         "node.labelMaxLinesEllipsis",
-        "node.labelRunAlign",
         "node.labelMinScreenSize",
         "node.labelOnTop",
         "node.labelDeclutter",
-        "node.labelTextAlign",
-        "node.labelLocation",
         "node.labelRotation",
         "node.labelOutline",
         "node.labelOutlineWidth",
@@ -876,19 +867,11 @@ describe("what a style editor needs to draw a row", () => {
         "node.labelPadding",
         "node.labelCornerRadius",
         "node.labelLineHeight",
-        "node.labelLineBox",
-        "node.labelBorderAlign",
-        "node.labelBackgroundShape",
         "node.labelOffsetX",
         "node.labelOffsetY",
         "node.labelShiftX",
         "node.labelShiftY",
-        "node.labelShiftOf",
-        "node.labelGapOf",
-        "node.labelBox",
         "edge.labelLetterSize",
-        "edge.labelTextAlign",
-        "edge.labelLocation",
         "edge.labelWrapWidth",
         "edge.labelWrapTrailingSpace",
         "edge.labelWrapSkipEndSpace",
@@ -897,7 +880,6 @@ describe("what a style editor needs to draw a row", () => {
         "edge.labelWrapSpaceCount",
         "edge.labelMaxLines",
         "edge.labelMaxLinesEllipsis",
-        "edge.labelRunAlign",
         "edge.labelMinScreenSize",
         "edge.labelOnTop",
         "edge.labelRotation",
@@ -912,16 +894,10 @@ describe("what a style editor needs to draw a row", () => {
         "edge.labelPadding",
         "edge.labelCornerRadius",
         "edge.labelLineHeight",
-        "edge.labelLineBox",
-        "edge.labelBorderAlign",
-        "edge.labelBackgroundShape",
         "edge.labelOffsetX",
         "edge.labelOffsetY",
         "edge.labelShiftX",
         "edge.labelShiftY",
-        "edge.labelShiftOf",
-        "edge.labelGapOf",
-        "edge.labelBox",
     ]);
 
     /** The JavaScript type a default must have, per value kind. */
@@ -1483,5 +1459,189 @@ describe("ChannelDescriptor.needs and start", () => {
     it("starts a label field on a size that can be read", () => {
         const size = LABEL_STYLE_DESCRIPTORS.find((descriptor) => descriptor.field === "size");
         assert.strictEqual(size?.start, 3);
+    });
+});
+
+describe("every sub-setting names its part", () => {
+    it("is a part head, or names a head that exists and is not itself a sub-setting", () => {
+        for (const descriptor of Object.values(CHANNEL_DESCRIPTORS)) {
+            if (descriptor.modifies === undefined) {
+                continue;
+            }
+
+            const head = CHANNEL_DESCRIPTORS[descriptor.modifies];
+            assert.isDefined(head, `${descriptor.channel} names ${descriptor.modifies}`);
+            assert.isUndefined(head.modifies, `${descriptor.channel}: ${descriptor.modifies} is a head`);
+            assert.strictEqual(head.target, descriptor.target, descriptor.channel);
+        }
+    });
+
+    it("lists the heads that have a value drawing nothing", () => {
+        const heads = Object.values(CHANNEL_DESCRIPTORS)
+            .filter((descriptor) => descriptor.modifies === undefined && descriptor.off !== undefined)
+            .map((descriptor) => descriptor.channel)
+            .sort();
+        assert.deepStrictEqual(heads, ["edge.animationSpeed", "edge.bandColor", "node.glow", "node.outline"]);
+    });
+
+    it("groups each part's settings under the channel that switches it on", () => {
+        const of = (channel: Channel): Channel | undefined => CHANNEL_DESCRIPTORS[channel].modifies;
+        assert.strictEqual(of("node.borderWidth"), "node.borderColor");
+        assert.strictEqual(of("node.outerBorderOffset"), "node.outerBorderColor");
+        assert.strictEqual(of("node.raisedBorderDarkColor"), "node.raisedBorderWidth");
+        assert.strictEqual(of("node.shadowBlur"), "node.shadowColor");
+        assert.strictEqual(of("node.pieHole"), "node.pieColors");
+        assert.strictEqual(of("node.chartKind"), "node.chartValues");
+        assert.strictEqual(of("node.modelTurn"), "node.model");
+        assert.strictEqual(of("node.xlabelLocation"), "node.xlabel");
+        assert.strictEqual(of("node.labelFont"), "node.label");
+        assert.strictEqual(of("edge.arrowHeadGap"), "edge.arrowHead");
+        assert.strictEqual(of("edge.arrowHeadTextFont"), "edge.arrowHeadText");
+        assert.isUndefined(of("edge.arrowHeadText"), "a caption is a part of its own");
+        assert.isUndefined(of("node.labelFit"), "fitting the node to its label sizes the node, not the label");
+    });
+});
+
+describe("a channel's range", () => {
+    /** Every declared max at the start of style panel round 5: a max refuses values, so none may move. */
+    const MAX_SNAPSHOT: Readonly<Record<string, number>> = {
+        "edge.arrowHeadOpacity": 1,
+        "edge.arrowHeadPosition": 1,
+        "edge.arrowHeadTextOpacity": 1,
+        "edge.arrowMiddleHeadOpacity": 1,
+        "edge.arrowMiddleHeadPosition": 1,
+        "edge.arrowMiddleTailOpacity": 1,
+        "edge.arrowMiddleTailPosition": 1,
+        "edge.arrowTailOpacity": 1,
+        "edge.arrowTailPosition": 1,
+        "edge.arrowTailTextOpacity": 1,
+        "edge.bandOpacity": 1,
+        "edge.fadeOpacity": 1,
+        "edge.labelBackgroundOpacity": 1,
+        "edge.labelBorderOpacity": 1,
+        "edge.labelOpacity": 1,
+        "edge.labelOutlineOpacity": 1,
+        "edge.opacity": 1,
+        "edge.outlineOpacity": 1,
+        "edge.overlayOpacity": 1,
+        "edge.taper": 4,
+        "edge.underlayOpacity": 1,
+        "node.borderOpacity": 1,
+        "node.chartBackgroundOpacity": 1,
+        "node.chartGap": 1,
+        "node.cornerFraction": 0.5,
+        "node.drawOrder": 100,
+        "node.glyphWeight": 1000,
+        "node.gradientDirection": 360,
+        "node.groupMinHeightBiasTop": 1,
+        "node.groupMinWidthBiasLeft": 1,
+        "node.haloOpacity": 1,
+        "node.imageOpacity": 1,
+        "node.labelBackgroundOpacity": 1,
+        "node.labelBorderOpacity": 1,
+        "node.labelOpacity": 1,
+        "node.labelOutlineOpacity": 1,
+        "node.modelAnimationSpeed": 16,
+        "node.modelTurn": 360,
+        "node.opacity": 1,
+        "node.outerBorderOpacity": 1,
+        "node.outlineWidth": 10,
+        "node.overlayOpacity": 1,
+        "node.pieHole": 1,
+        "node.shadowOpacity": 1,
+        "node.underlayOpacity": 1,
+        "node.zIndex": 0,
+    };
+
+    it("keeps every declared max", () => {
+        const now = Object.fromEntries(
+            Object.values(CHANNEL_DESCRIPTORS)
+                .filter((descriptor) => descriptor.max !== undefined)
+                .map((descriptor) => [descriptor.channel, descriptor.max]),
+        );
+        assert.deepStrictEqual(now, MAX_SNAPSHOT);
+    });
+
+    /** Why an unbounded number channel has no top for a control, by channel. */
+    const NO_TOP_REASON = (channel: string): string | undefined => {
+        if (
+            /(size|width|height|depth|padding|radius|gap|length|offset|spacing|blur|quantum|period|amplitude|image|paddingx|paddingy)$/i.test(
+                channel,
+            )
+        ) {
+            return "a length in scene or screen units: as large as the graph or the screen it is drawn on";
+        }
+
+        if (/(MaxLines|SpaceCount|ScreenSize|Count)$/.test(channel)) {
+            return "a count or a screen threshold with no natural ceiling";
+        }
+
+        if (
+            /(fadeEnd|fadeStart|arcHeight|groupPaddingRatio|supportSpringConstant|supportRepulsion|supportCentralGravity|supportUnit|AnimationOffset|minScreenWidth)$/.test(
+                channel,
+            )
+        ) {
+            return "a distance, a share or a force constant whose useful range depends on the graph";
+        }
+
+        return undefined;
+    };
+
+    it("gives each unbounded number channel a control top, or says why it has none", () => {
+        const missing = Object.values(CHANNEL_DESCRIPTORS)
+            .filter((descriptor) => descriptor.accepts === "number" && descriptor.min !== undefined)
+            .filter((descriptor) => descriptor.max === undefined && descriptor.suggestedMax === undefined)
+            .filter((descriptor) => NO_TOP_REASON(descriptor.channel) === undefined)
+            .map((descriptor) => descriptor.channel);
+        assert.deepStrictEqual(missing, []);
+        assert.strictEqual(CHANNEL_DESCRIPTORS["node.glowStrength"].suggestedMax, 4);
+        assert.strictEqual(CHANNEL_DESCRIPTORS["node.glowStrength"].step, 0.1);
+        for (const descriptor of Object.values(CHANNEL_DESCRIPTORS)) {
+            if (descriptor.suggestedMax !== undefined) {
+                assert.isUndefined(descriptor.max, `${descriptor.channel}: a suggested top never sits beside a max`);
+                assert.isAbove(descriptor.suggestedMax, descriptor.min ?? 0, descriptor.channel);
+            }
+        }
+    });
+
+    /** Enum channels with no value drawn while unset, and what unset draws instead. */
+    const NO_ENUM_DEFAULT: Readonly<Record<string, string>> = {
+        "node.labelDeclutter": "unset, only the graph-wide declutter hides labels",
+        "node.underlayShape": "unset, the node's own shape",
+        "node.overlayShape": "unset, the node's own shape",
+        "node.labelFit": "unset, the node is not fitted to its label",
+        "edge.supportModel": "unset, no support point",
+        "edge.route": "unset, the layout chooses the route",
+        "edge.arrowHeadSide": "unset, the whole cap",
+        "edge.arrowTailSide": "unset, the whole cap",
+        "edge.arrowMiddleHeadSide": "unset, the whole cap",
+        "edge.arrowMiddleTailSide": "unset, the whole cap",
+    };
+
+    it("declares the value every enum channel draws while unset, or says what unset draws", () => {
+        for (const descriptor of Object.values(CHANNEL_DESCRIPTORS)) {
+            if (descriptor.accepts !== "enum") {
+                continue;
+            }
+
+            if (NO_ENUM_DEFAULT[descriptor.channel] !== undefined) {
+                assert.isUndefined(descriptor.default, `${descriptor.channel} needs no allow-list entry`);
+                continue;
+            }
+
+            assert.include(descriptor.values ?? [], String(descriptor.default), descriptor.channel);
+        }
+    });
+});
+
+describe("what the border, outline and halo caveats say", () => {
+    it("never calls the outline a screen-space glow, and tells border from outline", () => {
+        for (const descriptor of Object.values(CHANNEL_DESCRIPTORS)) {
+            assert.notInclude(descriptor.caveat ?? "", "screen-space glow", descriptor.channel);
+        }
+
+        assert.include(CHANNEL_DESCRIPTORS["node.borderColor"].caveat, "camera-facing circular ring");
+        assert.include(CHANNEL_DESCRIPTORS["node.outline"].caveat, "camera-facing circular ring");
+        assert.include(CHANNEL_DESCRIPTORS["node.outlineWidth"].caveat, "camera-facing circular ring");
     });
 });

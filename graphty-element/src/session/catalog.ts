@@ -51,7 +51,7 @@ import { registeredAlgorithmDescriptors } from "../catalog/registry";
 import { SCALE_DESCRIPTORS } from "../catalog/scales";
 import { SCREENSHOT_PRESET_DESCRIPTORS } from "../catalog/screenshotPresets";
 import { shaderDescriptors } from "../catalog/shaderRegistry";
-import type { ShaderDescriptor } from "../catalog/shaders";
+import { type ShaderDescriptor, shaderMatches } from "../catalog/shaders";
 import type {
     AlgorithmDescriptor,
     AttributeDescriptor,
@@ -379,18 +379,21 @@ export function createSessionCatalog(
          * project's own (pasted, or carried in by a file). A project shader replaces a catalog entry
          * with its id, since a use of that id draws the project's text; `copyOf` says which catalog
          * entry a project shader's content equals.
+         * @param filter - Which shaders to list, by what each declares; absent lists every one.
          * @returns the shader descriptors, the element's own first
          */
-        shaders: () => {
+        shaders: (filter) => {
             const pasted = source.projectShaders?.() ?? [];
-            if (pasted.length === 0) {
-                return shaderDescriptors();
-            }
-
             const own = new Map(pasted.map((descriptor) => [descriptor.id, descriptor]));
             const listed = shaderDescriptors().map((descriptor) => own.get(descriptor.id) ?? descriptor);
             const catalog = new Set(listed.map((descriptor) => descriptor.id));
-            return Object.freeze([...listed, ...pasted.filter((descriptor) => !catalog.has(descriptor.id))]);
+            const all =
+                pasted.length === 0
+                    ? listed
+                    : [...listed, ...pasted.filter((descriptor) => !catalog.has(descriptor.id))];
+            return Object.freeze(
+                filter === undefined ? all : all.filter((descriptor) => shaderMatches(descriptor, filter)),
+            );
         },
         /**
          * Every metric the element could compute on this graph, with what it would cost and

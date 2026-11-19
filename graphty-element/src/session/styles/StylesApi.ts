@@ -1043,6 +1043,9 @@ export interface StylesApi {
      * decided it. The answer is counts, never lists of ids, and it costs one pass over the scope.
      * Over `"graph"` or `"selection"` the answer is kept: asked again before the stack, the data, a
      * run, the selection or an element's state changes, it is returned without another pass.
+     * On a list channel (`node.pieColors`) the value is the whole list as the layers resolve it,
+     * items a layer changed by their address (`"node.pieColors.1"`) included; an editor that
+     * changes one item reads the item there and writes it back by its address.
      * @param scope - The elements to read: the selection, a kept set, a list of node ids, or any
      *     other scope the session resolves.
      * @param channel - One channel to restrict the answer to. Absent, every channel something
@@ -3156,10 +3159,20 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      * @param target - Nodes or edges.
      * @returns The values, by channel.
      */
-    const baseValues = (target: "node" | "edge"): StaticStyle =>
-        (sources.base ?? [])
+    const baseValues = (target: "node" | "edge"): StaticStyle => {
+        const all = (sources.base ?? [])
             .filter((spec) => spec.target === target && spec.selector.match === "everything")
-            .reduce<StaticStyle>((all, spec) => Object.assign(all, spec.set), {});
+            .reduce<StaticStyle>((merged, spec) => Object.assign(merged, spec.set), {});
+        // A value that draws nothing (an animation speed of 0, an effect written "none") is not
+        // part of the look: written into Everything it would read as a style that is there and off.
+        return Object.fromEntries(
+            Object.entries(all).filter(([channel, value]) => {
+                const off = channelDescriptor(channel)?.off;
+                const hex = typeof value === "object" && value !== null && "hex" in value ? value.hex : undefined;
+                return off === undefined || (value !== off && hex !== off);
+            }),
+        );
+    };
 
     /**
      * The layers of the stack by id, cached until the stack changes.

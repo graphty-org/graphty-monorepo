@@ -70,6 +70,7 @@ import {
     labelFieldOf,
     labelPatchOf,
     mergeChannelValue,
+    parseListItemAddress,
     parseShaderParamAddress,
     placeOfUse,
 } from "./channels";
@@ -573,7 +574,8 @@ function kindFor(channel: Channel): ChannelColumn["kind"] {
         return "number";
     }
 
-    if (accepts === "labelStyle" || accepts === "shaderUses") {
+    // A list merges too: a list item's address changes one item of what the layers beneath resolve.
+    if (accepts === "labelStyle" || accepts === "shaderUses" || channelDescriptor(channel)?.listOf !== undefined) {
         return "merge";
     }
 
@@ -1466,7 +1468,10 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
          */
         const add = (name: string, path: Path | null, binding: Binding): void => {
             // A shader parameter's address paints into its shader map.
-            const descriptor = channelDescriptor(parseShaderParamAddress(name)?.channel ?? name);
+            // A shader parameter's address paints into its shader map, a list item's into its list.
+            const descriptor = channelDescriptor(
+                parseShaderParamAddress(name)?.channel ?? parseListItemAddress(name)?.channel ?? name,
+            );
 
             // A channel of the wrong target, a channel the element cannot draw and a name that is
             // not a channel are all refused by the layer check before a layer is accepted. Here

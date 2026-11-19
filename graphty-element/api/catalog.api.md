@@ -597,7 +597,7 @@ export interface CatalogApi {
     // (undocumented)
     scales(): readonly ScaleDescriptor[];
     screenshotPresets(): readonly ScreenshotPreset[];
-    shaders(): readonly ShaderDescriptor[];
+    shaders(filter?: ShaderFilter): readonly ShaderDescriptor[];
     // @deprecated (undocumented)
     themes(): readonly ThemeDescriptor[];
     timeAttributes(): readonly AttributeDescriptor[];
@@ -667,6 +667,7 @@ export interface ChannelDescriptor {
     readonly start?: ChannelScalar;
     readonly step?: number;
     readonly stylePath: string;
+    readonly suggestedMax?: number;
     readonly target: "node" | "edge";
     readonly unsupported?: {
         readonly code: "channel.not-drawn";
@@ -856,6 +857,7 @@ export interface EnabledFeatures {
 // @public
 export type Encoding = Partial<Record<Channel, Binding>> & {
     [address: ShaderParamAddress]: Binding;
+    [address: ListItemAddress]: Binding;
 };
 
 // @public
@@ -2310,6 +2312,18 @@ export interface LegacyAlgorithmMapping {
 export function listGraphs(source: DataSourceInput): Promise<readonly GraphListing[] | null>;
 
 // @public
+export type ListItemAddress = `${"node" | "edge"}.${string}.${number}`;
+
+// @public
+export function listItemAddress(channel: Channel, index: number): ListItemAddress;
+
+// @public
+export interface ListItemTarget {
+    readonly channel: Channel;
+    readonly index: number;
+}
+
+// @public
 export const LOG_SINK_DESCRIPTORS: readonly LogSinkDescriptor[];
 
 // @public
@@ -2571,10 +2585,16 @@ export type PaletteId = (typeof KNOWN_PALETTE_IDS)[number] | (string & {});
 export function palettesOfKind(kind: PaletteDescriptor["kind"]): readonly PaletteDescriptor[];
 
 // @public
+export function parseListItemAddress(name: string): ListItemTarget | null;
+
+// @public
 export function parseScope(value: unknown): Scope;
 
 // @public
 export function parseSetDefinition(value: unknown): SetDefinition;
+
+// @public
+export function parseShaderParamAddress(name: string): ShaderParamTarget | null;
 
 // @public
 export function parseShaderText(text: ShaderText, options?: ShaderTextOptions): ShaderTextResult;
@@ -3114,6 +3134,13 @@ export interface ShaderDescriptor {
 }
 
 // @public
+export interface ShaderFilter {
+    readonly allows?: ShaderPlace;
+    readonly place?: ShaderPlace;
+    readonly target?: ShaderTarget;
+}
+
+// @public
 export interface ShaderGlyph {
     // (undocumented)
     readonly outline?: boolean;
@@ -3126,6 +3153,9 @@ export function shaderIdForName(name: string): string;
 
 // @public
 export type ShaderInput = "color" | "opacity" | "size" | "shape" | "width" | "selected" | "hovered" | "pinned" | "times" | "members" | "light";
+
+// @public
+export function shaderMatches(descriptor: Pick<ShaderDescriptor, "id" | "target" | "place" | "places">, filter: ShaderFilter): boolean;
 
 // @public
 export interface ShaderMotion {
@@ -3142,6 +3172,9 @@ export type ShaderOrigin = "element" | "registered" | "pasted";
 
 // @public
 export type ShaderParamAddress = `${"node" | "edge"}.shaders.${string}.${string}`;
+
+// @public
+export function shaderParamAddress(target: "node" | "edge", shader: string, param: string): ShaderParamAddress;
 
 // @public
 export function shaderParamChannel(address: ShaderParamAddress): ChannelDescriptor;
@@ -3188,6 +3221,13 @@ export function shaderParamShape(type: ShaderParamDescriptor["type"]): {
     readonly fields: readonly ("min" | "max" | "step" | "values" | "varies")[];
     readonly clock: boolean;
 };
+
+// @public
+export interface ShaderParamTarget {
+    readonly channel: Channel;
+    readonly param: string;
+    readonly shader: string;
+}
 
 // @public
 export type ShaderParamValue = number | string | boolean | ShaderClockBinding;
@@ -3305,10 +3345,8 @@ export interface ShapeTextItem {
     readonly look?: ShapeTextLook;
     // (undocumented)
     readonly text: string;
-    // (undocumented)
-    readonly x: number;
-    // (undocumented)
-    readonly y: number;
+    readonly x?: number;
+    readonly y?: number;
 }
 
 // @public
@@ -3436,6 +3474,12 @@ export type TableAlign = "left" | "right" | "center";
 
 // @public
 export type TableVAlign = "top" | "bottom" | "middle";
+
+// @public
+export function textFieldOf(channel: Channel): {
+    readonly into: Channel;
+    readonly field: LabelFieldName;
+} | undefined;
 
 // @public
 export type TextMatchMode = "substring" | "exact" | "starts-with" | "ends-with" | "regex";

@@ -31,7 +31,7 @@ import type { ChannelValueDescriptor } from "./channelValues";
 import type { LabelStyle } from "./label-style";
 import type { ModelDescriptor } from "./models";
 import type { ScreenshotPreset } from "./screenshotPresets";
-import type { ShaderDescriptor, ShaderProblem, ShaderText, ShaderUse } from "./shaders";
+import type { ShaderDescriptor, ShaderFilter, ShaderProblem, ShaderText, ShaderUse } from "./shaders";
 
 /**
  * Every error code the element reports. Codes are the contract; messages are not.
@@ -1297,10 +1297,22 @@ export type Binding =
       };
 
 /**
- * Declarative attribute-to-channel bindings. A key is a channel, or a shader parameter's address
- * (see {@link ShaderParamAddress}).
+ * The encode key that addresses one item of a list channel, `"<list channel>.<index>"` from 0:
+ * `"node.pieColors.1"` is the second slice's color. A layer that encodes it changes that item of
+ * the list the layers beneath resolve, and nothing else of it; an index past the list's end draws
+ * nothing.
+ * @since 3.62.0
  */
-export type Encoding = Partial<Record<Channel, Binding>> & { [address: ShaderParamAddress]: Binding };
+export type ListItemAddress = `${"node" | "edge"}.${string}.${number}`;
+
+/**
+ * Declarative attribute-to-channel bindings. A key is a channel, a shader parameter's address
+ * (see {@link ShaderParamAddress}) or a list item's address (see {@link ListItemAddress}).
+ */
+export type Encoding = Partial<Record<Channel, Binding>> & {
+    [address: ShaderParamAddress]: Binding;
+    [address: ListItemAddress]: Binding;
+};
 
 /**
  * What a "top N" does with the tie group its cut falls in. `"fewer"` (the default) leaves the
@@ -2997,10 +3009,13 @@ export interface CatalogApi {
     scales(): readonly ScaleDescriptor[];
     /**
      * Every shader the element can draw: its presets first, then shaders registered through
-     * `registerShader` or `defineShader`.
+     * `registerShader` or `defineShader`, then (on a session's catalog) the project's own. Given a
+     * filter (since 3.62.0), only the shaders whose declarations meet it: `{ place: "replace" }`
+     * lists every shader that draws a node in place of its shape, built-in or custom alike.
+     * @param filter - Which shaders to list; absent lists every one.
      * @since 3.36.0
      */
-    shaders(): readonly ShaderDescriptor[];
+    shaders(filter?: ShaderFilter): readonly ShaderDescriptor[];
     /**
      * Every layout transition `layoutTransition` can name: the element's presets first, then the
      * ones registered through `registerTransition`.

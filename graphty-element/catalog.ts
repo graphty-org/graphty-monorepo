@@ -147,6 +147,7 @@ export type {
     ShaderClockBinding,
     ShaderCost,
     ShaderDescriptor,
+    ShaderFilter,
     ShaderGlyph,
     ShaderInput,
     ShaderMotion,
@@ -181,6 +182,7 @@ export {
     shaderAnimates,
     shaderCovers,
     shaderIdForName,
+    shaderMatches,
     shaderParamShape,
     shaderPlaceUsesReach,
 } from "./src/catalog/shaders";
@@ -201,7 +203,7 @@ export {
     splitShaderText,
 } from "./src/catalog/shaderText";
 export { sourceDescriptors } from "./src/catalog/sources";
-export type { ShaderParamAddress } from "./src/catalog/types";
+export type { ListItemAddress, ShaderParamAddress } from "./src/catalog/types";
 export type { CodedFact, CodedFactParam } from "./src/session/shared";
 export type { SourceCatalogEntry, SourceFeatures } from "./src/session/sources/types";
 export type { TransitionDescriptor, TransitionDrawable } from "./src/transitions/registry";
@@ -236,6 +238,8 @@ export type {
     ChannelScalar,
     ChannelValueKind,
     LabelFieldName,
+    ListItemTarget,
+    ShaderParamTarget,
 } from "./src/session/styles/channels";
 export {
     CHANNEL_DESCRIPTORS,
@@ -243,7 +247,12 @@ export {
     CHANNELS,
     channelsFor,
     labelFieldOf,
+    listItemAddress,
+    parseListItemAddress,
+    parseShaderParamAddress,
     PRIMARY_CHANNELS,
+    shaderParamAddress,
+    textFieldOf,
 } from "./src/session/styles/channels";
 // Whether a channel or a label style field changes the picture where it is set (its `drawnWhen`),
 // read the one way: an unset channel counts as its default.

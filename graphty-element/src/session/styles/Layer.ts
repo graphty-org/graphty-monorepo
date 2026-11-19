@@ -90,10 +90,11 @@ import {
     isEnumCount,
     labelFieldOf,
     modelBindingProblem,
+    parseListItemAddress,
     parseShaderParamAddress,
     toColorValue,
 } from "./channels";
-import { type RuleBinding, stopsProblem } from "./encoding";
+import { listItemDescriptor, type RuleBinding, stopsProblem } from "./encoding";
 import { parseTemplate, TEMPLATE_CHANNELS } from "./labelTemplate";
 import { colorsProblem } from "./palettes";
 import { columnsFor, type CompiledSelector, type SelectorSource, type SelectorTarget } from "./predicate";
@@ -1387,6 +1388,16 @@ function checkChannels(
             continue;
         }
 
+        const item = parseListItemAddress(channel);
+        if (item !== null && binding !== undefined) {
+            const list = checkChannel(item.channel, target, path, log);
+            if (list !== null) {
+                checkBinding(listItemDescriptor(item), binding, path, options, universal, log);
+            }
+
+            continue;
+        }
+
         const descriptor = checkChannel(channel, target, path, log);
 
         if (descriptor !== null && binding !== undefined) {
@@ -1718,8 +1729,10 @@ function checkParamBinding(
         return;
     }
 
+    // One value for every element overrides any declared parameter; only a parameter bound per
+    // element has to be declared `varies`.
     const param = shader.params.find((entry) => entry.name === address.param);
-    if (param?.varies !== true) {
+    if (param === undefined || (!("value" in binding) && param.varies !== true)) {
         report(log, {
             code: "E_UNKNOWN_SHADER_PARAM",
             message: `The shader "${shader.id}" declares no parameter "${address.param}" that varies per element.`,

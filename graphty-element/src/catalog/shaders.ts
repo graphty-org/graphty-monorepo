@@ -128,6 +128,39 @@ export function shaderPlaceProblem(
 }
 
 /**
+ * Which shaders `catalog.shaders` lists: every condition given must hold. Membership is decided by
+ * what each shader declares, never by its id, so a custom shader is listed exactly as a built-in
+ * one with the same declarations.
+ * @since 3.62.0
+ */
+export interface ShaderFilter {
+    /** Only shaders whose declared `place` is this: `"replace"` lists the shaders that draw a node in place of its shape. */
+    readonly place?: ShaderPlace;
+    /** Only shaders a use may place here (see {@link shaderPlaceProblem}). */
+    readonly allows?: ShaderPlace;
+    /** Only shaders that draw on this target. */
+    readonly target?: ShaderTarget;
+}
+
+/**
+ * Whether a shader meets a filter.
+ * @param descriptor - The shader.
+ * @param filter - The filter; every condition given must hold.
+ * @returns True when it does.
+ * @since 3.62.0
+ */
+export function shaderMatches(
+    descriptor: Pick<ShaderDescriptor, "id" | "target" | "place" | "places">,
+    filter: ShaderFilter,
+): boolean {
+    return (
+        (filter.place === undefined || descriptor.place === filter.place) &&
+        (filter.target === undefined || descriptor.target === filter.target) &&
+        (filter.allows === undefined || shaderPlaceProblem(descriptor, filter.allows) === null)
+    );
+}
+
+/**
  * The frame a shader's thumbnail is drawn from: its parameters and the time, in seconds.
  * @since 3.36.0
  */

@@ -1141,6 +1141,7 @@ export interface EnabledFeatures {
 // @public
 export type Encoding = Partial<Record<Channel, Binding>> & {
     [address: ShaderParamAddress]: Binding;
+    [address: ListItemAddress]: Binding;
 };
 
 // @public

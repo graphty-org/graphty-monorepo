@@ -53,7 +53,15 @@
 import type { LabelDeclutterOrder, LabelLocation, LabelTextAlign } from "../../catalog/label-style";
 import { projectShaderDescriptor } from "../../catalog/shaderRegistry";
 import { isExclusivePlace, type ShaderPlace, type ShaderUse } from "../../catalog/shaders";
-import type { Binding, Channel, EdgeLinePattern, LabelStyle, Rgba } from "../../catalog/types";
+import type {
+    Binding,
+    Channel,
+    EdgeLinePattern,
+    LabelStyle,
+    ListItemAddress,
+    Rgba,
+    ShaderParamAddress,
+} from "../../catalog/types";
 import { colorToHex } from "../../config/common";
 import {
     defaultEdgeStyle,
@@ -907,6 +915,13 @@ export interface ChannelDescriptor {
     /** The largest value the renderer draws, when `accepts` is "number" and it is bounded. */
     readonly max?: number;
     /**
+     * The top of a control's range, on an unbounded number channel with a natural top: a glow's
+     * strength past 4 looks no different. A suggestion only: a larger value is still taken and
+     * drawn, an encoding's default range does not read it, and `max` is what refuses a value.
+     * @since 3.62.0
+     */
+    readonly suggestedMax?: number;
+    /**
      * Whether it takes whole numbers only, when `accepts` is "number": a line count. An encoding rounds
      * what it computes for such a channel.
      * @since 3.40.0
@@ -1105,8 +1120,9 @@ export const DEFAULT_GLOW_COLOR = "#00B4FF";
  * What the four halo channels draw, written once and read by each of them.
  */
 const NODE_HALO_CAVEAT =
-    "The halo is the selection highlight -- the node's own shape, scaled about its center -- drawn " +
-    "on any node a layer picks. Any of its color, scale or opacity switches it on; `node.halo` " +
+    "The halo is the selection settings' highlight (`selectionStyle`) -- the node's own shape, scaled " +
+    "about its center, so it looks like a border (`node.borderColor`) as wide as the scale reaches; " +
+    "the starting Selected and Pinned rows draw a border instead -- drawn on any node a layer picks. Any of its color, scale or opacity switches it on; `node.halo` " +
     "alone switches it on in the selection's look, and false takes it off, even off a selected " +
     "node. A selected node a layer gives a halo shows one halo: each value the layer sets wins, " +
     "and the selection style (`selectionStyle`) gives the rest. Each distinct color and opacity " +
@@ -2172,6 +2188,77 @@ export function labelFieldOf(channel: Channel): { readonly into: Channel; readon
 }
 
 /**
+ * The field channels of the text kinds other than a label: a tooltip's, an external label's and
+ * an arrow caption's, each writing one field of its own label style.
+ */
+type TextField = readonly [string, { readonly into: Channel; readonly field: LabelFieldName }];
+const OTHER_TEXT_FIELDS: ReadonlyMap<string, { readonly into: Channel; readonly field: LabelFieldName }> = new Map<
+    string,
+    { readonly into: Channel; readonly field: LabelFieldName }
+>([
+    ...(
+        [
+            ["Size", "sizePx"],
+            ["Color", "color"],
+            ["Background", "background"],
+        ] as const
+    ).map(([suffix, field]): TextField => [`node.tooltip${suffix}`, { into: "node.tooltipStyle", field }]),
+    ...(["node", "edge"] as const).flatMap((target) =>
+        (
+            [
+                ["Location", "location"],
+                ["OffsetX", "offsetX"],
+                ["OffsetY", "offsetY"],
+            ] as const
+        ).map(([suffix, field]): TextField => [
+            `${target}.xlabel${suffix}`,
+            { into: `${target}.xlabelStyle` as Channel, field },
+        ]),
+    ),
+    ...(["Head", "Tail"] as const).flatMap((end) =>
+        (
+            [
+                ["Size", "sizePx"],
+                ["LetterSize", "letterSize"],
+                ["Font", "font"],
+                ["Color", "color"],
+                ["Weight", "weight"],
+                ["Opacity", "opacity"],
+                ["Rotation", "rotation"],
+                ["OffsetX", "offsetX"],
+                ["OffsetY", "offsetY"],
+                ["Background", "background"],
+            ] as const
+        ).map(([suffix, field]): TextField => [
+            `edge.arrow${end}Text${suffix}`,
+            { into: `edge.arrow${end}TextStyle` as Channel, field },
+        ]),
+    ),
+]);
+
+/**
+ * The text and the field one channel sets, for every text kind: a label's field channels (as
+ * {@link labelFieldOf} answers), a tooltip's (`node.tooltipSize` the `sizePx` of
+ * `node.tooltipStyle`), an external label's (`node.xlabelLocation`) and an arrow caption's
+ * (`edge.arrowHeadTextFont`). Absent for a channel that sets no text field, such as a caption's
+ * distance from its node.
+ *
+ * It is a fact for a style editor, which offers each as a field of its text's style. A tooltip's,
+ * an external label's and a caption's field channels are painted by their own style paths, which
+ * draw the same field.
+ * @param channel - The channel.
+ * @returns The text's style channel and the field, or undefined.
+ * @since 3.62.0
+ * @example
+ * ```ts
+ * textFieldOf("edge.arrowHeadTextFont"); // { into: "edge.arrowHeadTextStyle", field: "font" }
+ * ```
+ */
+export function textFieldOf(channel: Channel): { readonly into: Channel; readonly field: LabelFieldName } | undefined {
+    return OTHER_TEXT_FIELDS.get(channel) ?? labelFieldOf(channel);
+}
+
+/**
  * The label style one painted label field stands for: `{ sizePx: 12 }` for a size of 12.
  * @param field - The field.
  * @param painted - What the field's channel painted; a color arrives resolved.
@@ -2231,8 +2318,17 @@ const NODE_BORDER_CAVEAT =
     "A border is a ring drawn OUTSIDE the node's fill, so it never covers it, and an edge " +
     "stops at its outer edge; `node.borderPosition` sets whether the fill is the node's size or shrinks inside it. Its width is in the units of `node.size` and is drawn only when it is " +
     "above 0. A flat shape's border follows its outline in every view; a solid's follows the " +
-    "outline it shows from the front and turns to face the camera in a 3D view. Unlike " +
-    "`node.outline`, which is a screen-space glow of one fixed width, a border scales with the node.";
+    "outline it shows from the front and turns to face the camera in a 3D view. Unlike `node.outline` " +
+    "-- a camera-facing circular ring at the node's radius, its band set by `node.outlineWidth` -- a " +
+    "border follows the node's own outline and an edge stops at it.";
+
+/**
+ * What a node outline is, written once and read by its two channels.
+ */
+const NODE_OUTLINE_CAVEAT =
+    "A camera-facing circular ring at the node's radius, its band `node.outlineWidth` wide, whatever " +
+    "the node's shape: on a box or a star it is still a circle. Unlike a border (`node.borderColor`), " +
+    "it does not follow the node's outline, and edges do not stop at it.";
 
 /** How a reader says a node measures along each axis. */
 const EXTENT_ADJECTIVE = { width: "wide", height: "tall", depth: "deep" } as const;
@@ -2650,6 +2746,7 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         stylePath: "effect.outline.color",
         off: EFFECT_OFF,
         renderable: true,
+        caveat: NODE_OUTLINE_CAVEAT,
     },
     "node.outlineWidth": {
         channel: "node.outlineWidth",
@@ -2665,6 +2762,7 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         max: 10,
         stylePath: "effect.outline.width",
         renderable: true,
+        caveat: NODE_OUTLINE_CAVEAT,
     },
     "node.glow": {
         channel: "node.glow",
@@ -2689,6 +2787,8 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         default: 1,
         accepts: "number",
         min: 0,
+        suggestedMax: 4,
+        step: 0.1,
         stylePath: "effect.glow.strength",
         renderable: true,
     },
@@ -4072,8 +4172,10 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             '(`[[-0.5, 0, "a"], [0.5, 0, "b"]]` is two words side by side, as Graphviz draws a record\'s ' +
             "fields). A fourth item gives what differs from the label: " +
             '`{ "size": 0.2, "color": "#404040", "font": "Arial", "rotation": 45 }`, the size a share of the ' +
-            "node's height, the rotation in degrees clockwise (a chart's item labels). Drawn beside the node's " +
-            "label, whatever it says.",
+            "node's height, the rotation in degrees clockwise (a chart's item labels). An entry may leave its " +
+            'point out, `["text"]` or `["text", look]`: it sits one line below the entry before it, at its x ' +
+            "(the first at the center), so a record's fields stack without placing each. Drawn beside the " +
+            "node's label, whatever it says.",
     },
     "node.labelTable": {
         channel: "node.labelTable",
@@ -5395,7 +5497,7 @@ function shippedDefault(descriptor: ChannelDescriptor): string | number | boolea
 }
 
 /** Which drawn part each sub-setting channel adjusts: see {@link ChannelDescriptor.modifies}. */
-const MODIFIES: ReadonlyMap<string, Channel> = new Map<string, Channel>([
+const DECLARED_MODIFIES: ReadonlyMap<string, Channel> = new Map<string, Channel>([
     ["node.glowStrength", "node.glow"],
     ["node.outlineWidth", "node.outline"],
     ["node.haloScale", "node.haloColor"],
@@ -5419,6 +5521,66 @@ const MODIFIES: ReadonlyMap<string, Channel> = new Map<string, Channel>([
         ["Style", "Size", "Color", "Background"].map((suffix): [string, Channel] => [`${base}${suffix}`, base]),
     ),
 ]);
+
+/**
+ * The parts whose settings share the part's name as a prefix: every channel named `<part><Setting>`
+ * adjusts `<part>`'s drawn part. The head named second is the channel that switches the part on.
+ */
+const PART_PREFIXES: readonly (readonly [prefix: string, head: Channel])[] = [
+    ["node.border", "node.borderColor"],
+    ["node.outerBorder", "node.outerBorderColor"],
+    ["node.raisedBorder", "node.raisedBorderWidth"],
+    ["node.shadow", "node.shadowColor"],
+    ["node.underlay", "node.underlayColor"],
+    ["node.overlay", "node.overlayColor"],
+    ["edge.outline", "edge.outlineColor"],
+    ["edge.underlay", "edge.underlayColor"],
+    ["edge.overlay", "edge.overlayColor"],
+    ["node.glyph", "node.glyph"],
+    ["node.image", "node.image"],
+    ["node.pie", "node.pieColors"],
+    ["node.stripe", "node.stripeColors"],
+    ["node.chart", "node.chartValues"],
+    ["node.model", "node.model"],
+    ["node.xlabel", "node.xlabel"],
+    ["edge.xlabel", "edge.xlabel"],
+    // Longest first, so an arrow's caption settings find the caption before the cap.
+    ["edge.arrowHeadText", "edge.arrowHeadText"],
+    ["edge.arrowTailText", "edge.arrowTailText"],
+    ["edge.arrowMiddleHead", "edge.arrowMiddleHead"],
+    ["edge.arrowMiddleTail", "edge.arrowMiddleTail"],
+    ["edge.arrowHead", "edge.arrowHead"],
+    ["edge.arrowTail", "edge.arrowTail"],
+];
+
+/**
+ * The text a label field channel adjusts: `node.labelFont` the node's label, `edge.arrowHeadTextColor`
+ * the caption at the head.
+ * @param channel - The channel.
+ * @returns The text's channel, or undefined for a channel that sets no label field.
+ */
+function textHeadOf(channel: Channel): Channel | undefined {
+    const into = textFieldOf(channel)?.into;
+    return into === undefined || into === channel ? undefined : (into.replace(/Style$/, "") as Channel);
+}
+
+/** Which drawn part each sub-setting channel adjusts: see {@link ChannelDescriptor.modifies}. */
+const MODIFIES: ReadonlyMap<string, Channel> = new Map<string, Channel>(
+    (Object.keys(DECLARED) as Channel[]).flatMap((channel): [string, Channel][] => {
+        const declared = DECLARED_MODIFIES.get(channel) ?? textHeadOf(channel);
+        if (declared !== undefined) {
+            return [[channel, declared]];
+        }
+
+        // A part's own channel (a caption, a cap) is a head, even where a shorter prefix matches it.
+        if (PART_PREFIXES.some(([, head]) => head === channel)) {
+            return [];
+        }
+
+        const part = PART_PREFIXES.find(([prefix]) => channel.startsWith(prefix));
+        return part === undefined ? [] : [[channel, part[1]]];
+    }),
+);
 
 /** What each space-separated list channel holds: see {@link ChannelDescriptor.listOf}. */
 const LIST_OF: ReadonlyMap<string, "color" | "number"> = new Map<string, "color" | "number">([
@@ -5708,6 +5870,46 @@ const NEEDS: ReadonlyMap<string, readonly ChannelNeed[]> = new Map<Channel, read
     ]),
 ]);
 
+/** Tops of a control's range: see {@link ChannelDescriptor.suggestedMax}. */
+const SUGGESTED_MAX: ReadonlyMap<string, number> = new Map<Channel, number>([
+    ["node.haloScale", 3],
+    ["node.outerBorderCount", 10],
+    ["edge.animationSpeed", 5],
+    ["edge.patternCount", 50],
+    ...(["Head", "Tail", "MiddleHead", "MiddleTail"] as const).flatMap((end) =>
+        (["Size", "Width"] as const).map((what): [Channel, number] => [`edge.arrow${end}${what}` as Channel, 5]),
+    ),
+]);
+
+/**
+ * The value an enum channel is drawn with while nothing sets it, where the renderer's own
+ * fallback is not in the element's default style: each is the "Unset, ..." of its field.
+ */
+const ENUM_DEFAULTS: ReadonlyMap<string, string> = new Map<Channel, string>([
+    ...(["node", "edge"] as const).flatMap((target): [Channel, string][] =>
+        (
+            [
+                ["Weight", "normal"],
+                ["TextAlign", "center"],
+                ["Location", "top"],
+                ["RunAlign", "baseline"],
+                ["LineBox", "font"],
+                ["BorderAlign", "outside"],
+                ["BackgroundShape", "rectangle"],
+                ["ShiftOf", "box"],
+                ["GapOf", "box"],
+                ["Box", "words"],
+            ] as const
+        ).map(([field, value]): [Channel, string] => [`${target}.label${field}` as Channel, value]),
+    ),
+    // Unset, an external label sits against its node's top left corner (or up and left of a line's middle).
+    ["node.xlabelLocation", "top-left"],
+    ["edge.xlabelLocation", "top-left"],
+    ["edge.supportScale", "unit"],
+    ["edge.arrowHeadTextWeight", "normal"],
+    ["edge.arrowTailTextWeight", "normal"],
+]);
+
 /** A label line three node sizes tall, which reads at the default camera on a fitted graph. */
 const READABLE_LABEL_SIZE = 3 * LABEL_SIZE_PER_WORLD_UNIT;
 
@@ -5746,7 +5948,8 @@ function stepOf(descriptor: ChannelDescriptor): number | undefined {
  */
 export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> = Object.fromEntries(
     Object.values(DECLARED).map((descriptor): [Channel, ChannelDescriptor] => {
-        const value = shippedDefault(descriptor) ?? descriptor.default;
+        const value = shippedDefault(descriptor) ?? descriptor.default ?? ENUM_DEFAULTS.get(descriptor.channel);
+        const suggestedMax = descriptor.suggestedMax ?? SUGGESTED_MAX.get(descriptor.channel);
         const step = descriptor.step ?? stepOf(descriptor);
         const modifies = MODIFIES.get(descriptor.channel);
         const listOf = LIST_OF.get(descriptor.channel);
@@ -5764,6 +5967,7 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
                 ...descriptor,
                 ...(value === undefined ? {} : { default: value }),
                 ...(step === undefined ? {} : { step }),
+                ...(suggestedMax === undefined ? {} : { suggestedMax }),
                 ...(modifies === undefined ? {} : { modifies }),
                 ...(listOf === undefined ? {} : { listOf }),
                 ...(appliesWhen === undefined ? {} : { appliesWhen }),
@@ -6215,8 +6419,89 @@ export function drawnUses(uses: readonly ShaderUse[] | undefined): {
  * @param over - What this layer paints.
  * @returns The merged value.
  */
-export function mergeChannelValue(channel: string, held: unknown, over: object): object {
+export function mergeChannelValue(channel: string, held: unknown, over: object): unknown {
+    if (LIST_OF.has(channel)) {
+        return mergeListItems(held, over);
+    }
+
     return isShaderListChannel(channel) ? mergeShaderUses(held, over) : mergeLabelStyle(held, over);
+}
+
+/** Where a list item's address points: the list channel and the item's index from 0. */
+export interface ListItemTarget {
+    /** The list channel. */
+    readonly channel: Channel;
+    /** The item's index, from 0. */
+    readonly index: number;
+}
+
+/** The key a list item patch carries its items under, so it is never taken for a list. */
+const LIST_ITEMS = "listItems";
+
+/**
+ * The `encode` key that addresses one item of a list channel: see {@link ListItemAddress}.
+ * @param channel - The list channel (its descriptor has a `listOf`).
+ * @param index - The item, from 0.
+ * @returns The address.
+ * @since 3.62.0
+ */
+export function listItemAddress(channel: Channel, index: number): ListItemAddress {
+    return `${channel}.${index}` as ListItemAddress;
+}
+
+/**
+ * Read an `encode` key that addresses one item of a list channel.
+ * @param name - The key.
+ * @returns Where it points, or null when it is not a list item's address.
+ * @since 3.62.0
+ */
+export function parseListItemAddress(name: string): ListItemTarget | null {
+    const match = /^((?:node|edge)\.[A-Za-z]+)\.(\d+)$/.exec(name);
+    if (match === null || !LIST_OF.has(match[1])) {
+        return null;
+    }
+
+    return { channel: match[1] as Channel, index: Number(match[2]) };
+}
+
+/**
+ * One item of a list, as the patch a list item binding paints.
+ * @param index - The item.
+ * @param value - Its value: a number, or a color (written as its hex).
+ * @returns The patch.
+ */
+export function listItemPatch(index: number, value: unknown): object {
+    const items = Object.create(null) as Record<string, unknown>;
+    items[String(index)] = typeof value === "object" && value !== null && "hex" in value ? value.hex : value;
+    return { [LIST_ITEMS]: items };
+}
+
+/**
+ * Change items of a resolved list (its items separated by spaces): see {@link listItemPatch}.
+ * @param held - The list the layers beneath resolve, or what a patch over nothing holds.
+ * @param over - The patch, or a whole list.
+ * @returns The list.
+ */
+function mergeListItems(held: unknown, over: object): unknown {
+    const items = (over as { readonly [LIST_ITEMS]?: Readonly<Record<string, unknown>> })[LIST_ITEMS];
+    if (items === undefined) {
+        return over;
+    }
+
+    // An item over no list draws nothing: there is no list to change.
+    if (typeof held !== "string") {
+        return held;
+    }
+
+    const list = held.split(/\s+/).filter((item) => item !== "");
+    for (const [at, value] of Object.entries(items)) {
+        const index = Number(at);
+        if (index < list.length && (typeof value === "string" || typeof value === "number")) {
+            list[index] = String(value);
+        }
+    }
+
+    return list.join(" ");
 }
 
 /** Where a parameter address points: the list channel, the shader and the parameter. */
@@ -6230,10 +6515,25 @@ export interface ShaderParamTarget {
 }
 
 /**
+ * The `encode` key that addresses one shader parameter, `"<target>.shaders.<shader id>.<parameter id>"`:
+ * a layer that encodes it overrides that parameter of the shader's use, its own or the one the
+ * layers beneath give, and nothing else of it.
+ * @param target - Nodes or edges.
+ * @param shader - The shader id.
+ * @param param - The parameter's name.
+ * @returns The address.
+ * @since 3.62.0
+ */
+export function shaderParamAddress(target: "node" | "edge", shader: string, param: string): ShaderParamAddress {
+    return `${target}.shaders.${shader}.${param}`;
+}
+
+/**
  * Read an `encode` key that addresses one shader parameter:
  * `"<target>.shaders.<shader id>.<parameter id>"`.
  * @param name - The key.
  * @returns Where it points, or null when it is not a parameter address.
+ * @since 3.62.0
  */
 export function parseShaderParamAddress(name: string): ShaderParamTarget | null {
     const match = /^(node|edge)\.(shaders)\.(.+)\.([^./]+)$/.exec(name);

@@ -43,6 +43,9 @@ afterEach(() => {
 async function loaded(path: RenderPath, speed: number): Promise<Graphty> {
     const element = document.createElement("graphty-element");
     element.renderPath = path;
+    // Frames drawn continuously, so a still line at speed 0 is drawn the same counted frames apart as a moving one:
+    // on demand, a still graph draws no frame at all and the two reads would be of one frame.
+    element.renderOnDemand = false;
     element.style.display = "block";
     element.style.width = "400px";
     element.style.height = "300px";
@@ -95,7 +98,7 @@ describe.each(["objects", "batched"] as const)("animated lines in 2D on the %s p
     it("draws the same frame twice at speed 0", async () => {
         const element = await loaded(path, 0);
         const first = await readCanvas(element.graph);
-        await element.waitForStableFrame();
+        await framesDrawn(element, FRAMES_APART);
         const later = await readCanvas(element.graph);
         assert.equal(pixelsOverBar(first, later), 0, "a line at speed 0 does not move");
     });

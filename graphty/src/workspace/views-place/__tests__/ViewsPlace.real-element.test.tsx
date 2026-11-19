@@ -216,6 +216,24 @@ describe("the Views place", () => {
         assert.isNotNull(within(place()).getByRole("button", { name: /^Expand Video tours/ }));
     });
 
+    it("takes focus to Cameras from Quick actions, and leaves it on the rail after a rail click", async () => {
+        await openRing();
+        const rail = screen.getByRole("toolbar", { name: "Places" });
+        await userEvent.click(within(rail).getByRole("button", { name: "Data" }));
+        await userEvent.keyboard("{Control>}k{/Control}");
+        await userEvent.click(await screen.findByRole("option", { name: /^Views/ }));
+        await waitFor(() => {
+            assert.match(document.activeElement?.getAttribute("aria-label") ?? "", /^Go to /);
+            assert.isTrue(place().querySelector(".vp-cameras")?.contains(document.activeElement) === true);
+        });
+
+        await userEvent.click(within(rail).getByRole("button", { name: "Data" }));
+        const views = within(rail).getByRole("button", { name: "Views" });
+        await userEvent.click(views);
+        await within(place()).findAllByRole("button", { name: /^Go to / });
+        assert.strictEqual(document.activeElement, views, "a rail click keeps focus on the rail");
+    });
+
     it("goes to a camera with its Go button, renames with a title click or F2, and moves with Mod+[", async () => {
         const { element, session } = await openRing();
         await userEvent.click(within(cameraCard("Side")).getByRole("button", { name: "Go to Side" }));
@@ -334,13 +352,17 @@ describe("the Views place", () => {
         assert.isTrue(session.views.has("Camera 1"));
         await userEvent.type(field, "{Escape}");
         const card = cameraCard("Camera 1");
-        for (const label of ["Kind", "Mode", "Position", "Target"]) {
+        const rows = ["Kind", "Mode", "Position", "Target", "Distance", "Field of view"];
+        for (const label of rows) {
             assert.isNotNull(within(card).getByRole("group", { name: label }), label);
         }
         assert.include(within(card).getByRole("group", { name: "Kind" }).textContent, "Fixed");
 
         await userEvent.click(within(cameraCard("Top")).getByRole("button", { name: /^Expand Top/ }));
         const top = cameraCard("Top");
+        for (const label of rows) {
+            assert.isNotNull(within(top).getByRole("group", { name: label }), `Top ${label}`);
+        }
         assert.include(within(top).getByRole("group", { name: "Kind" }).textContent, "Recomputed from the top view");
         await userEvent.click(within(top).getByRole("button", { name: "Update to current camera" }));
         await waitFor(() => {
@@ -362,6 +384,22 @@ describe("the Views place", () => {
         assert.isNull(
             within(cameraCard("Top")).getByRole("button", { name: "Go to Top" }).getAttribute("aria-disabled"),
         );
+
+        // A tour's + Camera lists them the same way, so no stop is added that the tour cannot fly.
+        await userEvent.click(within(place()).getAllByRole("button", { name: "New tour" })[0]);
+        const rename = await within(place()).findByRole("textbox", { name: "Rename Tour 1" });
+        await userEvent.type(rename, "{Enter}");
+        await userEvent.click(within(place()).getByRole("button", { name: "Add camera to Tour 1" }));
+        for (const name of ["Bottom", "Front", "Side", "Isometric"]) {
+            const item = await screen.findByRole("menuitem", { name: new RegExp(`^${name}`) });
+            assert.equal(item.getAttribute("aria-disabled"), "true", name);
+            assert.include(item.textContent, "3D only", name);
+        }
+        const top = screen.getByRole("menuitem", { name: /^Top/ });
+        assert.equal(top.getAttribute("aria-disabled"), "false");
+        // Playwright will not click a row it reads as disabled; force the real mouse click through.
+        await userEvent.click(screen.getByRole("menuitem", { name: /^Side/ }), { force: true });
+        assert.deepEqual(stopsOf(session, "Tour 1"), [], "a disabled camera adds no stop");
     });
 
     it("makes a tour of cameras and a pause, edits a hold, plays it and puts the camera back", async () => {

@@ -8,7 +8,7 @@
 import { FieldRow, PanelField } from "@graphty/compact-mantine";
 import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import type { CodedFact, GraphSession, Tour, TourStop } from "@graphty/graphty-element/session";
-import { Select, Text } from "@mantine/core";
+import { Select, Stack, Text } from "@mantine/core";
 import React from "react";
 
 import { orRefusal } from "../graph-place/actions";
@@ -18,6 +18,7 @@ import type { WorkspaceStore } from "../state/store";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { goToSavedView, nextName } from "../toolbar/commands";
 import { cameraViewName, stopProblemWords } from "../toolbar/viewWords";
+import { cameraReason } from "./commands";
 
 /** A stop that names a camera (not a pause). */
 type CameraStop = Extract<TourStop, { view: string }>;
@@ -42,16 +43,26 @@ interface TourStopsProps {
  * directly (written through the API) adds that view in the app's words; a name nothing answers to
  * is kept as a choice of its own, so the field shows it.
  * @param session - the element's session.
+ * @param element - the element, which judges each camera.
  * @param view - the stop's camera now.
- * @returns the choices, in Mantine's `Select` shape.
+ * @returns the choices, in Mantine's `Select` shape, each with why it cannot be chosen now.
  */
-function cameraChoices(session: GraphSession, view: string): { value: string; label: string }[] {
-    const saved = [...session.views.keys()].map((each) => ({ value: each, label: each }));
+function cameraChoices(
+    session: GraphSession,
+    element: GraphtyElement | null,
+    view: string,
+): { value: string; label: string; reason: string | null; disabled: boolean }[] {
+    // A camera that cannot be flown now (3D only in 2D) is listed disabled, with its reason.
+    const saved = [...session.views].map(([each, camera]) => {
+        const reason = each === view ? null : cameraReason(element, each, camera);
+        return { value: each, label: each, reason, disabled: reason !== null };
+    });
     if (session.views.has(view)) {
         return saved;
     }
     const camera = session.catalog.cameras().find(({ id }) => id === view);
-    return [{ value: view, label: camera === undefined ? view : cameraViewName(view, camera.plainName) }, ...saved];
+    const label = camera === undefined ? view : cameraViewName(view, camera.plainName);
+    return [{ value: view, label, reason: null, disabled: false }, ...saved];
 }
 
 /**
@@ -108,11 +119,26 @@ export function TourStops({
         write(`move a stop of ${name}`, next);
         return to;
     };
+    // Focus goes to the next stop's "..." (stops are drawn by place, so it is this row's), or to
+    // + Camera when the last stop went; the list may be gone by then, so the card is found first.
     const remove = (at: number): void => {
-        write(
+        const card = list.current?.closest<HTMLElement>("[data-card-id]");
+        const addCamera = CSS.escape(`Add camera to ${name}`);
+        const next = stops.filter((_, i) => i !== at);
+        void orRefusal(
+            store,
             `delete a stop of ${name}`,
-            stops.filter((_, i) => i !== at),
-        );
+            session.tours.save([{ name, tour: { ...tour, stops: next } }]),
+        ).then(() => {
+            if (session.tours.get(name)?.stops.length !== next.length) {
+                return;
+            }
+            const target =
+                at < next.length
+                    ? list.current?.querySelector<HTMLElement>(`[aria-label="More for Stop ${String(at + 1)}"]`)
+                    : card?.querySelector<HTMLElement>(`[aria-label="${addCamera}"]`);
+            target?.focus();
+        });
     };
     // A new "Camera N" at the camera on screen; the old camera and every tour using it stay as they are.
     const replace = (at: number): void => {
@@ -251,6 +277,7 @@ export function TourStops({
         <ol className="vp-stops" ref={list} aria-label={`Stops of ${name}`}>
             {stops.map((stop, at) => {
                 const reason = isPause(stop) ? null : stopProblemWords(problems[at] ?? null, element);
+                const choices = isPause(stop) ? [] : cameraChoices(session, element, stop.view);
                 const label = `Stop ${String(at + 1)}`;
                 const more = (
                     <RowMore
@@ -279,7 +306,20 @@ export function TourStops({
                                     size="xs"
                                     aria-label={`${label} camera`}
                                     aria-description={reason ?? undefined}
-                                    data={cameraChoices(session, stop.view)}
+                                    data={choices}
+                                    renderOption={({ option }) => {
+                                        const why = choices.find((each) => each.value === option.value)?.reason;
+                                        return why === null || why === undefined ? (
+                                            option.label
+                                        ) : (
+                                            <Stack gap={0}>
+                                                <Text size="xs">{option.label}</Text>
+                                                <Text size="xs" c="dimmed">
+                                                    {why}
+                                                </Text>
+                                            </Stack>
+                                        );
+                                    }}
                                     value={stop.view}
                                     error={reason ?? undefined}
                                     allowDeselect={false}

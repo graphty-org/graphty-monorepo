@@ -83,6 +83,8 @@ export function Rail(): React.JSX.Element {
                 aria-current={place === "views" ? "page" : undefined}
                 onClick={() => {
                     run("place.views");
+                    // A rail click keeps focus on the rail; only the other doors move it in.
+                    store.set({ viewsFocus: null });
                 }}
             />
             {assistant === null ? null : (

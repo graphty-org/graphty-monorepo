@@ -1,4 +1,5 @@
-import type { GraphSession } from "@graphty/graphty-element/session";
+import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
+import type { GraphSession, SavedView } from "@graphty/graphty-element/session";
 import { type RefObject, useEffect, useRef } from "react";
 
 import { type Command, defineRegistration } from "../commands/registry";
@@ -7,12 +8,30 @@ import { matchesKey } from "../keys/keys";
 import { panelsInView } from "../time/timeActions";
 import { goToSavedView, immersiveMode, nextName, savedViewReason } from "../toolbar/commands";
 import { nothingDrawn } from "../toolbar/disabledReasons";
+import { viewProblemWords } from "../toolbar/viewWords";
 
 /**
  * The keys a camera can hold, in the order the Key list offers them: the digits but 0 (Fit) and
  * 5 (Switch between 2D and 3D) (design/ui/camera-views-tours-and-capture.md, section 3.4).
  */
 export const CAMERA_KEYS = ["1", "2", "3", "4", "6", "7", "8", "9"] as const;
+
+/**
+ * Why a camera cannot be applied now, from the element's `viewProblem` judged as a saved view:
+ * "3D only" for a camera that follows a camera view, "Saved in 3D" for a fixed one, "Camera view
+ * gone" when the view it follows is no longer registered.
+ * @param element - the element.
+ * @param name - the camera.
+ * @param saved - the camera.
+ * @returns the reason, or null.
+ */
+export function cameraReason(element: GraphtyElement | null, name: string, saved: SavedView): string | null {
+    const problem = element?.viewProblem(name, { saved: true }) ?? null;
+    if (problem?.code === "E_UNKNOWN_CAMERA" && saved.follows !== undefined) {
+        return "Camera view gone";
+    }
+    return viewProblemWords(problem, saved.follows === undefined);
+}
 
 /**
  * Saves the camera on screen as the first free "Camera N", at the end of the list, one undo step.
@@ -79,8 +98,11 @@ export const registration = defineRegistration({
             label: "Views",
             group: "Go to",
             keywords: ["camera", "tour", "video", "hotkey"],
+            // A door (Quick actions, All cameras...) moves focus into Cameras, unless it asked for
+            // another section first (the Export dialog asks for Video tours). The rail clears it.
             run: ({ workspace }) => {
-                workspace.set({ page: "panels", place: "views", ...panelsInView() });
+                const viewsFocus = workspace.get().viewsFocus ?? "cameras";
+                workspace.set({ page: "panels", place: "views", ...panelsInView(), viewsFocus });
             },
         },
         {

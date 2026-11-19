@@ -10,8 +10,10 @@ import { ToursSection } from "./ToursSection";
 
 /** Where a door's focus lands in each section: its first Go button else Save camera, and New tour. */
 const FOCUS = {
-    cameras: '.vp-cameras [aria-label^="Go to "], .vp-cameras [aria-label="Save camera"]',
-    tours: '.vp-tours [aria-label="New tour"]',
+    // The first camera's Go button, else (no cameras) Save camera: tried in this order, since one
+    // selector list would match Save camera first, in the section's header.
+    cameras: ['.vp-cameras [aria-label^="Go to "]', '.vp-cameras [aria-label="Save camera"]'],
+    tours: ['.vp-tours [aria-label="New tour"]'],
 } as const;
 
 /**
@@ -35,7 +37,9 @@ export function ViewsPlace(): React.JSX.Element {
             return;
         }
         store.set({ viewsFocus: null });
-        const target = root.current?.querySelector<HTMLElement>(FOCUS[focus]);
+        const target = FOCUS[focus]
+            .map((selector) => root.current?.querySelector<HTMLElement>(selector))
+            .find((each) => each !== null && each !== undefined);
         target?.focus({ preventScroll: true });
         target?.scrollIntoView({ block: "nearest" });
     }, [focus, store]);

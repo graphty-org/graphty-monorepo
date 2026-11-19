@@ -5,22 +5,25 @@
  * worded here. The app keeps only which card is unfolded and the tour playing (`tour-progress`).
  */
 
-import { ActionRow, CardList, type CardListItem, ControlSection, MenuCheckItem } from "@graphty/compact-mantine";
+import { ActionRow, CardList, type CardListItem, ControlSection } from "@graphty/compact-mantine";
 import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import type { EasingName, GraphSession, Tour, TourStop } from "@graphty/graphty-element/session";
 import { ActionIcon, Button, Menu, Text, Tooltip } from "@mantine/core";
-import React, { useState } from "react";
+import React from "react";
 
+import { CommandMenuItem } from "../frame/menus";
 import { GLYPHS } from "../glyphs";
 import { orRefusal } from "../graph-place/actions";
-import { RowMore, type SelectionMenuItem, SelectionMenuItems } from "../selection/SelectionMenu";
+import type { SelectionMenuItem } from "../selection/SelectionMenu";
 import type { WorkspaceStore } from "../state/store";
 import { useCommand, useWorkspaceState } from "../state/WorkspaceContext";
 import { nextName } from "../toolbar/commands";
 import { nothingDrawn } from "../toolbar/disabledReasons";
 import { lengthWords, tourProblemWords } from "../toolbar/viewWords";
-import { type CardKey, copyName, moveBy, useHeaderKeys } from "./commands";
+import { CardMenu } from "./CardMenu";
+import { cameraReason, copyName } from "./commands";
 import { TourStops } from "./TourStops";
+import { useNamedList } from "./useNamedList";
 
 /** A new camera stop's flight and hold, and a new pause's length, in milliseconds. */
 const STOP_MS = 2000;
@@ -63,22 +66,14 @@ export function ToursSection({ session, element, store }: ToursProps): React.JSX
     const save = useCommand("camera.save");
     const opened = useWorkspaceState((state) => state.viewsToursOpen);
     const progress = useWorkspaceState((state) => state.tourProgress);
-    const [open, setOpen] = useState<string | null>(null);
-    const [renaming, setRenaming] = useState<string | null>(null);
-    const names = [...session.tours.keys()];
+    const { names, setOpen, setRenaming, wrapper, moveItems, deleteItems, listProps, cards } = useNamedList(
+        session.tours,
+        store,
+    );
     const drawn = nothingDrawn(session);
 
     const writeTour = (what: string, name: string, tour: Tour): void => {
         void orRefusal(store, what, session.tours.save([{ name, tour }]));
-    };
-    const remove = (name: string): void => {
-        void orRefusal(store, `delete ${name}`, session.tours.remove([name]));
-    };
-    const move = (name: string, by: -1 | 1): void => {
-        const work = moveBy(session.tours, name, by);
-        if (work !== undefined) {
-            void orRefusal(store, `move ${name}`, work);
-        }
     };
     const newTour = (): void => {
         const name = nextName(session.tours, "Tour");
@@ -109,16 +104,6 @@ export function ToursSection({ session, element, store }: ToursProps): React.JSX
             }
         });
     };
-    const onKey = (name: string, key: CardKey): void => {
-        if (key === "rename") {
-            setRenaming(name);
-        } else if (key === "delete") {
-            remove(name);
-        } else {
-            move(name, key === "up" ? -1 : 1);
-        }
-    };
-    const wrapper = useHeaderKeys(onKey);
 
     const card = (name: string, tour: Tour, at: number): CardListItem => {
         const plan = element?.planTour(name) ?? null;
@@ -156,44 +141,8 @@ export function ToursSection({ session, element, store }: ToursProps): React.JSX
                 },
             },
         ];
-        const rest: SelectionMenuItem[] = [
-            {
-                id: "up",
-                label: "Move up",
-                icon: "moveUp",
-                group: "edit",
-                key: "Mod+]",
-                reason: at === 0 ? "Already at the top" : null,
-                reasonDrawn: false,
-                onRun: () => {
-                    move(name, -1);
-                },
-            },
-            {
-                id: "down",
-                label: "Move down",
-                icon: "moveDown",
-                group: "edit",
-                key: "Mod+[",
-                reason: at === names.length - 1 ? "Already at the bottom" : null,
-                reasonDrawn: false,
-                onRun: () => {
-                    move(name, 1);
-                },
-            },
-        ];
-        const removal: SelectionMenuItem[] = [
-            {
-                id: "delete",
-                label: "Delete",
-                icon: "delete",
-                group: "remove",
-                key: "Delete",
-                onRun: () => {
-                    remove(name);
-                },
-            },
-        ];
+        const rest = moveItems(name, at);
+        const removal = deleteItems(name);
         return {
             id: name,
             title: name,
@@ -222,31 +171,21 @@ export function ToursSection({ session, element, store }: ToursProps): React.JSX
                 />
             ),
             menu: (
-                <RowMore name={name} items={[]}>
-                    <SelectionMenuItems items={first} />
-                    <Menu.Sub>
-                        <Menu.Sub.Target>
-                            <Menu.Sub.Item>Easing</Menu.Sub.Item>
-                        </Menu.Sub.Target>
-                        <Menu.Sub.Dropdown>
-                            {EASINGS.map(({ id, label }) => (
-                                <MenuCheckItem
-                                    key={id}
-                                    radio
-                                    checked={(tour.easing ?? "easeInOut") === id}
-                                    onClick={() => {
-                                        writeTour(`change ${name}`, name, { ...tour, easing: id });
-                                    }}
-                                >
-                                    {label}
-                                </MenuCheckItem>
-                            ))}
-                        </Menu.Sub.Dropdown>
-                    </Menu.Sub>
-                    <SelectionMenuItems items={rest} />
-                    <Menu.Divider />
-                    <SelectionMenuItems items={removal} />
-                </RowMore>
+                <CardMenu
+                    name={name}
+                    first={first}
+                    choose="Easing"
+                    choices={EASINGS.map(({ id, label }) => ({ value: id, label }))}
+                    chosen={tour.easing ?? "easeInOut"}
+                    onChoose={(value) => {
+                        const easing = EASINGS.find(({ id }) => id === value);
+                        if (easing !== undefined) {
+                            writeTour(`change ${name}`, name, { ...tour, easing: easing.id });
+                        }
+                    }}
+                    rest={rest}
+                    removal={removal}
+                />
             ),
             children:
                 tour.stops.length === 0 ? undefined : (
@@ -263,6 +202,7 @@ export function ToursSection({ session, element, store }: ToursProps): React.JSX
             footer: (
                 <AddStops
                     session={session}
+                    element={element}
                     store={store}
                     name={name}
                     tour={tour}
@@ -304,40 +244,8 @@ export function ToursSection({ session, element, store }: ToursProps): React.JSX
                 ) : (
                     <CardList
                         label="Saved tours"
-                        items={names.flatMap((name, at) => {
-                            const tour = session.tours.get(name);
-                            return tour === undefined ? [] : [card(name, tour, at)];
-                        })}
-                        autoFold={false}
-                        folded={new Set(names.filter((name) => name !== open))}
-                        onFoldedChange={(folded) => {
-                            // One unfolded at a time: the card just unfolded, or none.
-                            setOpen(names.find((name) => !folded.has(name) && name !== open) ?? null);
-                        }}
-                        onReorder={(name, to) => {
-                            void orRefusal(store, `move ${name}`, session.tours.move(name, to));
-                        }}
-                        renaming={renaming}
-                        onRenamingChange={setRenaming}
-                        onRename={(from, typed) => {
-                            const to = typed.trim();
-                            if (to === "" || to === from) {
-                                return;
-                            }
-                            let renamed = false;
-                            const work = session.tours.rename(from, to).then(() => {
-                                renamed = true;
-                            });
-                            void orRefusal(store, `rename ${from}`, work).then(() => {
-                                const now = renamed ? to : from;
-                                if (open === from) {
-                                    setOpen(now);
-                                }
-                                wrapper.current
-                                    ?.querySelector<HTMLElement>(`[data-card-id="${CSS.escape(now)}"] .cm-card-name`)
-                                    ?.focus();
-                            });
-                        }}
+                        items={cards((name) => session.tours.get(name), card)}
+                        {...listProps}
                     />
                 )}
             </ControlSection>
@@ -349,6 +257,7 @@ export function ToursSection({ session, element, store }: ToursProps): React.JSX
  * A tour card's foot: + Camera (Current camera, then every saved camera) and + Pause.
  * @param props - Component props
  * @param props.session - the element's session
+ * @param props.element - the element, which judges each camera
  * @param props.store - the chrome store
  * @param props.name - the tour
  * @param props.tour - the tour
@@ -358,6 +267,7 @@ export function ToursSection({ session, element, store }: ToursProps): React.JSX
  */
 function AddStops({
     session,
+    element,
     store,
     name,
     tour,
@@ -365,6 +275,7 @@ function AddStops({
     onCurrent,
 }: Readonly<{
     session: GraphSession;
+    element: GraphtyElement | null;
     store: WorkspaceStore;
     name: string;
     tour: Tour;
@@ -388,22 +299,26 @@ function AddStops({
                     </Button>
                 </Menu.Target>
                 <Menu.Dropdown data-portal="">
-                    <Menu.Item disabled={saveReason !== null} onClick={onCurrent}>
-                        Current camera
-                    </Menu.Item>
+                    <CommandMenuItem
+                        label="Current camera"
+                        shortcut={undefined}
+                        reason={saveReason}
+                        onRun={onCurrent}
+                    />
                     {session.views.size === 0 ? null : <Menu.Divider />}
-                    {[...session.views.keys()].map((view) => (
-                        <Menu.Item
+                    {[...session.views].map(([view, saved]) => (
+                        <CommandMenuItem
                             key={view}
-                            onClick={() => {
+                            label={view}
+                            shortcut={undefined}
+                            reason={cameraReason(element, view, saved)}
+                            onRun={() => {
                                 writeTour(`add a stop to ${name}`, {
                                     ...tour,
                                     stops: [...tour.stops, cameraStop(tour.stops, view)],
                                 });
                             }}
-                        >
-                            {view}
-                        </Menu.Item>
+                        />
                     ))}
                 </Menu.Dropdown>
             </Menu>

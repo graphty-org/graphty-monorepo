@@ -351,9 +351,11 @@ function useCameraFacts(element: ReturnType<typeof useWorkspace>["element"]): vo
 /**
  * The Camera tool while a tour plays outside a recording: Stop, in the Camera tool's place and
  * size, so nothing shifts and Escape has a visible button exactly while it applies.
+ * @param props - Component props
+ * @param props.onStop - called as the button stops the tour
  * @returns The tool, or nothing when Stop tour is not built
  */
-function StopTourTool(): React.JSX.Element | null {
+function StopTourTool({ onStop }: Readonly<{ onStop: () => void }>): React.JSX.Element | null {
     const door = useCommand("tour.stop");
     if (door === null) {
         return null;
@@ -366,7 +368,10 @@ function StopTourTool(): React.JSX.Element | null {
             icon={<GLYPHS.stop size={20} />}
             shortcut={key === undefined ? undefined : formatKey(key)}
             aria-keyshortcuts={key === undefined ? undefined : ariaKey(key)}
-            onClick={door.run}
+            onClick={() => {
+                onStop();
+                door.run();
+            }}
         />
     );
 }
@@ -430,6 +435,14 @@ export function WorkspaceToolbar(): React.JSX.Element {
     const anchor = (id: ToolbarPopover) => (button: HTMLButtonElement | null) => {
         anchors.current[id] = button;
     };
+    // Stop tour pressed on the toolbar hands focus to the Camera tool that comes back in its place.
+    const focusCamera = useRef(false);
+    useEffect(() => {
+        if (!touring && focusCamera.current) {
+            focusCamera.current = false;
+            anchors.current.camera?.focus();
+        }
+    }, [touring]);
     const close = (): void => {
         store.set((state) => (state.dialog === dialog ? { dialog: null } : {}));
     };
@@ -546,7 +559,11 @@ export function WorkspaceToolbar(): React.JSX.Element {
                 </Popover.Dropdown>
             </Popover>
             {touring ? (
-                <StopTourTool />
+                <StopTourTool
+                    onStop={() => {
+                        focusCamera.current = true;
+                    }}
+                />
             ) : (
                 <Menu {...popoverProps("camera")}>
                     <Menu.Target>

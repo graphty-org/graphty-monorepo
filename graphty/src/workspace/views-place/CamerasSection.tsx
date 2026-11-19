@@ -6,52 +6,30 @@
  * which is being renamed.
  */
 
-import {
-    ActionRow,
-    CardList,
-    type CardListItem,
-    ControlSection,
-    DataRow,
-    MenuCheckItem,
-} from "@graphty/compact-mantine";
+import { ActionRow, CardList, type CardListItem, ControlSection, DataRow } from "@graphty/compact-mantine";
 import type { CameraState, Graphty as GraphtyElement } from "@graphty/graphty-element";
 import type { GraphSession, SavedView } from "@graphty/graphty-element/session";
-import { ActionIcon, Button, Menu, Select, Text, Tooltip } from "@mantine/core";
-import React, { useEffect, useRef, useState } from "react";
+import { ActionIcon, Button, Select, Text, Tooltip } from "@mantine/core";
+import React, { useEffect } from "react";
 
 import { GLYPHS } from "../glyphs";
 import { orRefusal } from "../graph-place/actions";
 import { ariaKey, formatKey } from "../keys/keys";
-import { RowMore, type SelectionMenuItem, SelectionMenuItems } from "../selection/SelectionMenu";
+import type { SelectionMenuItem } from "../selection/SelectionMenu";
 import type { WorkspaceStore } from "../state/store";
 import { type CommandDoor, useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { goToSavedView } from "../toolbar/commands";
 import { nothingDrawn } from "../toolbar/disabledReasons";
-import { cameraViewPhrase, modeListWords, viewProblemWords } from "../toolbar/viewWords";
-import { CAMERA_KEYS, type CardKey, copyName, moveBy, useHeaderKeys } from "./commands";
+import { cameraViewPhrase, modeListWords } from "../toolbar/viewWords";
+import { CardMenu } from "./CardMenu";
+import { CAMERA_KEYS, cameraReason, copyName } from "./commands";
+import { useNamedList } from "./useNamedList";
 
 /** Props for CamerasSection. */
 interface CamerasProps {
     readonly session: GraphSession;
     readonly element: GraphtyElement | null;
     readonly store: WorkspaceStore;
-}
-
-/**
- * Why a camera cannot be applied now, from the element's `viewProblem` judged as a saved view:
- * "3D only" for a camera that follows a camera view, "Saved in 3D" for a fixed one, "Camera view
- * gone" when the view it follows is no longer registered.
- * @param element - the element.
- * @param name - the camera.
- * @param saved - the camera.
- * @returns the reason, or null.
- */
-function cameraReason(element: GraphtyElement | null, name: string, saved: SavedView): string | null {
-    const problem = element?.viewProblem(name, { saved: true }) ?? null;
-    if (problem?.code === "E_UNKNOWN_CAMERA" && saved.follows !== undefined) {
-        return "Camera view gone";
-    }
-    return viewProblemWords(problem, saved.follows === undefined);
 }
 
 /**
@@ -195,13 +173,14 @@ export function CamerasSection({ session, element, store }: CamerasProps): React
     const opened = useWorkspaceState((state) => state.viewsCamerasOpen);
     const lastView = useWorkspaceState((state) => state.lastView);
     const asked = useWorkspaceState((state) => state.viewsRename);
-    const [open, setOpen] = useState<string | null>(null);
-    const [renaming, setRenaming] = useState<string | null>(null);
-    const names = [...session.views.keys()];
-
-    // A card's title to focus once the list draws again: after a rename, under its new name (or
-    // its old one when the element refused it).
-    const focusTitle = useRef<string | null>(null);
+    const { names, setOpen, setRenaming, wrapper, moveItems, deleteItems, listProps, cards } = useNamedList(
+        session.views,
+        store,
+        // The camera last gone to keeps its mark under its new name.
+        (from, to) => {
+            store.set((state) => (state.lastView === from ? { lastView: to } : {}));
+        },
+    );
     // Save camera (V, or the section's +) asks for its new card unfolded with its name open.
     useEffect(() => {
         if (asked !== null && session.views.has(asked)) {
@@ -209,17 +188,8 @@ export function CamerasSection({ session, element, store }: CamerasProps): React
             setOpen(asked);
             setRenaming(asked);
         }
-    }, [asked, session, store]);
+    }, [asked, session, store, setOpen, setRenaming]);
 
-    const remove = (name: string): void => {
-        void orRefusal(store, `delete ${name}`, session.views.remove([name]));
-    };
-    const move = (name: string, by: -1 | 1): void => {
-        const work = moveBy(session.views, name, by);
-        if (work !== undefined) {
-            void orRefusal(store, `move ${name}`, work);
-        }
-    };
     const go = (name: string): void => {
         void orRefusal(store, `go to ${name}`, goToSavedView(workspace, name));
     };
@@ -250,23 +220,6 @@ export function CamerasSection({ session, element, store }: CamerasProps): React
             ]),
         );
     };
-    const onKey = (name: string, key: CardKey): void => {
-        if (key === "rename") {
-            setRenaming(name);
-        } else if (key === "delete") {
-            remove(name);
-        } else {
-            move(name, key === "up" ? -1 : 1);
-        }
-    };
-    const wrapper = useHeaderKeys(onKey);
-    useEffect(() => {
-        const name = focusTitle.current;
-        if (name !== null && names.includes(name)) {
-            focusTitle.current = null;
-            wrapper.current?.querySelector<HTMLElement>(`[data-card-id="${CSS.escape(name)}"] .cm-card-name`)?.focus();
-        }
-    });
 
     const card = (name: string, saved: SavedView, at: number): CardListItem => {
         const reason = cameraReason(element, name, saved);
@@ -316,43 +269,9 @@ export function CamerasSection({ session, element, store }: CamerasProps): React
                     duplicate(name, saved);
                 },
             },
-            {
-                id: "up",
-                label: "Move up",
-                icon: "moveUp",
-                group: "edit",
-                key: "Mod+]",
-                reason: at === 0 ? "Already at the top" : null,
-                reasonDrawn: false,
-                onRun: () => {
-                    move(name, -1);
-                },
-            },
-            {
-                id: "down",
-                label: "Move down",
-                icon: "moveDown",
-                group: "edit",
-                key: "Mod+[",
-                reason: at === names.length - 1 ? "Already at the bottom" : null,
-                reasonDrawn: false,
-                onRun: () => {
-                    move(name, 1);
-                },
-            },
+            ...moveItems(name, at),
         ];
-        const removal: SelectionMenuItem[] = [
-            {
-                id: "delete",
-                label: "Delete",
-                icon: "delete",
-                group: "remove",
-                key: "Delete",
-                onRun: () => {
-                    remove(name);
-                },
-            },
-        ];
+        const removal = deleteItems(name);
         const choices = keyChoices(session, name);
         const badKey = key !== undefined && !(CAMERA_KEYS as readonly string[]).includes(key);
         const goTip = goReason ?? (key === undefined ? `Go to ${name}` : `Go to ${name} (${key})`);
@@ -387,31 +306,18 @@ export function CamerasSection({ session, element, store }: CamerasProps): React
                 </Tooltip>
             ),
             menu: (
-                <RowMore name={name} items={[]}>
-                    <SelectionMenuItems items={first} />
-                    <Menu.Sub>
-                        <Menu.Sub.Target>
-                            <Menu.Sub.Item>Key</Menu.Sub.Item>
-                        </Menu.Sub.Target>
-                        <Menu.Sub.Dropdown>
-                            {choices.map((choice) => (
-                                <MenuCheckItem
-                                    key={choice.value}
-                                    radio
-                                    checked={(key ?? "") === choice.value}
-                                    onClick={() => {
-                                        setKey(name, choice.value === "" ? null : choice.value);
-                                    }}
-                                >
-                                    {choice.label}
-                                </MenuCheckItem>
-                            ))}
-                        </Menu.Sub.Dropdown>
-                    </Menu.Sub>
-                    <SelectionMenuItems items={rest} />
-                    <Menu.Divider />
-                    <SelectionMenuItems items={removal} />
-                </RowMore>
+                <CardMenu
+                    name={name}
+                    first={first}
+                    choose="Key"
+                    choices={choices}
+                    chosen={key ?? ""}
+                    onChoose={(value) => {
+                        setKey(name, value === "" ? null : value);
+                    }}
+                    rest={rest}
+                    removal={removal}
+                />
             ),
             children: (
                 <div className="vp-inspect">
@@ -483,47 +389,8 @@ export function CamerasSection({ session, element, store }: CamerasProps): React
                 ) : (
                     <CardList
                         label="Saved cameras"
-                        items={names.flatMap((name, at) => {
-                            const saved = session.views.get(name);
-                            return saved === undefined ? [] : [card(name, saved, at)];
-                        })}
-                        autoFold={false}
-                        folded={new Set(names.filter((name) => name !== open))}
-                        onFoldedChange={(folded) => {
-                            // One unfolded at a time: the card just unfolded, or none.
-                            setOpen(names.find((name) => !folded.has(name) && name !== open) ?? null);
-                        }}
-                        onReorder={(name, to) => {
-                            void orRefusal(store, `move ${name}`, session.views.move(name, to));
-                        }}
-                        renaming={renaming}
-                        onRenamingChange={setRenaming}
-                        onRename={(from, typed) => {
-                            const to = typed.trim();
-                            if (to === "" || to === from) {
-                                return;
-                            }
-                            let renamed = false;
-                            const work = session.views.rename(from, to).then(() => {
-                                renamed = true;
-                            });
-                            void orRefusal(store, `rename ${from}`, work).then(() => {
-                                const now = renamed ? to : from;
-                                if (open === from) {
-                                    setOpen(now);
-                                }
-                                // The list may not draw again after a refusal: focus the title now
-                                // when it is drawn, else once it is.
-                                const title = wrapper.current?.querySelector<HTMLElement>(
-                                    `[data-card-id="${CSS.escape(now)}"] .cm-card-name`,
-                                );
-                                if (title === null || title === undefined) {
-                                    focusTitle.current = now;
-                                } else {
-                                    title.focus();
-                                }
-                            });
-                        }}
+                        items={cards((name) => session.views.get(name), card)}
+                        {...listProps}
                     />
                 )}
             </ControlSection>

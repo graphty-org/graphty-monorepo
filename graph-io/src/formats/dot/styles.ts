@@ -2258,13 +2258,22 @@ function splineBends(snapshot: GraphSnapshot, e: number, pos: string | null): st
 /**
  * The bends of an edge Graphviz laid, from its `pos` text (`[e,x,y] [s,x,y]` arrow tips, then each spline's
  * `3n + 1` control points, y up, splines separated by `;`), between the two nodes' centers in the same coordinates.
+ * A self-loop has no line between two centers to place bends against: given its node's size, its bends are offsets
+ * from the node's center as fractions of its half width and half height (as a self-loop's `bends` always are), its
+ * whole route included, ends and all -- the route Graphviz lays round a node with `splines=ortho`, say.
  * @param source - the source node's center
  * @param target - the target node's center
  * @param pos - the edge's `pos` text
+ * @param loopSize - for a self-loop, its node's width and height in the same units; without it a self-loop has no bends
  * @returns the `bends` value, or null for a straight route or a `pos` that is not a spline
  * @category Styles
  */
-export function graphvizPosBends(source: BendPoint, target: BendPoint, pos: string): string | null {
+export function graphvizPosBends(
+    source: BendPoint,
+    target: BendPoint,
+    pos: string,
+    loopSize?: BendPoint,
+): string | null {
     // the arrow tips of the first spline's start and the last spline's end
     const tip = (spline: string | undefined, flag: "s" | "e"): BendPoint | null => {
         const token = (spline ?? "")
@@ -2287,6 +2296,10 @@ export function graphvizPosBends(source: BendPoint, target: BendPoint, pos: stri
                 return [x, y];
             }),
     );
+    if (loopSize !== undefined && source[0] === target[0] && source[1] === target[1]) {
+        const points = routePoints(splines, tips);
+        return points === null ? null : canonNodeOffsets(source, loopSize, points, false);
+    }
     return graphvizRouteBends(source, target, splines, tips);
 }
 
@@ -2321,8 +2334,8 @@ function graphvizLoops(snapshot: GraphSnapshot): { routeOf: (e: number, get: Att
         portText(get, "headport", e, TARGET_PORT_COLUMN),
     ];
     const groups = new Map<string, number[]>();
-    // ponytail: ortho routes a loop through its maze of the whole drawing and none draws no edge; both keep the
-    // element's loop
+    // ortho routes a loop through its maze of the whole drawing, which no local rule lays: graphty-element has
+    // Graphviz route it (neato -n2, read back by graphvizPosBends with the node's size); none draws no edge
     const splines = (nonEmpty(cellText(snapshot.graph, "splines", 0)) ?? "").toLowerCase();
     // a file graphty wrote keeps its loops' look in its own block
     const laid =
@@ -2371,23 +2384,17 @@ function graphvizLoops(snapshot: GraphSnapshot): { routeOf: (e: number, get: Att
 }
 
 /**
- * The bends of a route Graphviz laid: B-splines of `3n + 1` control points each (y up), flattened into bends between
- * the two nodes' centers. Null for a route on the line between the centers, which is the straight edge it looks like,
- * or for control points that are not a spline. Also reads the `Line` of a GML file Graphviz's gv2gml wrote.
- * @param source - the source node's center
- * @param target - the target node's center
- * @param splines - the control points of each spline, joined end to end
- * @param tips - the arrow tips `pos` stores (`s,x,y` and `e,x,y`): the line runs on to each, along its arrow
+ * The points of a route Graphviz laid: its B-splines flattened end to end, run on to its arrow tips.
+ * @param splines - the control points of each spline
+ * @param tips - the arrow tips, as {@link graphvizRouteBends} takes them
  * @param tips.start - the tail arrow's tip, or null
  * @param tips.end - the head arrow's tip, or null
- * @returns the `bends` value, or null
+ * @returns the points, or null for control points that are not a spline
  */
-export function graphvizRouteBends(
-    source: BendPoint,
-    target: BendPoint,
+function routePoints(
     splines: readonly (readonly BendPoint[])[],
     tips?: { readonly start: BendPoint | null; readonly end: BendPoint | null },
-): string | null {
+): BendPoint[] | null {
     const points: BendPoint[] = [];
     for (const controls of splines) {
         const flat = flattenCubic(controls);
@@ -2406,6 +2413,31 @@ export function graphvizRouteBends(
     }
     if (end !== null && apart(end, points.at(-1))) {
         points.push(end);
+    }
+    return points;
+}
+
+/**
+ * The bends of a route Graphviz laid: B-splines of `3n + 1` control points each (y up), flattened into bends between
+ * the two nodes' centers. Null for a route on the line between the centers, which is the straight edge it looks like,
+ * or for control points that are not a spline. Also reads the `Line` of a GML file Graphviz's gv2gml wrote.
+ * @param source - the source node's center
+ * @param target - the target node's center
+ * @param splines - the control points of each spline, joined end to end
+ * @param tips - the arrow tips `pos` stores (`s,x,y` and `e,x,y`): the line runs on to each, along its arrow
+ * @param tips.start - the tail arrow's tip, or null
+ * @param tips.end - the head arrow's tip, or null
+ * @returns the `bends` value, or null
+ */
+export function graphvizRouteBends(
+    source: BendPoint,
+    target: BendPoint,
+    splines: readonly (readonly BendPoint[])[],
+    tips?: { readonly start: BendPoint | null; readonly end: BendPoint | null },
+): string | null {
+    const points = routePoints(splines, tips);
+    if (points === null) {
+        return null;
     }
     const [dx, dy] = [target[0] - source[0], target[1] - source[1]];
     const length = Math.hypot(dx, dy);

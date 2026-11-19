@@ -1711,14 +1711,21 @@ export class Edge {
         const batch = lays ? this.lineBatch : null;
         const stored = this.lineRoute;
         const bent = lays && stored !== null && this.placeBent(batch, src, dst, stored);
-        // a patterned line (no batch) follows the route as its elements (issue #3102)
+        // a patterned line (no batch) follows the route as its elements (issue #3102); a self-loop's laid bends lie
+        // round its node (Graphviz's splines=ortho rectangle), cut where they cross its outline
         const followsLayout =
             !bent &&
             lays &&
             stored === null &&
             laid !== undefined &&
-            !this.isLoop &&
-            this.placeBent(batch, src, dst, Edge.laidRoute(laid, laidEnds));
+            this.placeBent(
+                batch,
+                src,
+                dst,
+                this.isLoop
+                    ? { bends: [...laid], srcPort: null, dstPort: null, loop: true }
+                    : Edge.laidRoute(laid, laidEnds),
+            );
         const route = !bent && !followsLayout && lays ? this.bundleRoute(src, dst) : null;
         this.bundled = followsLayout || (route !== null && this.placeRoute(batch, src, dst, route));
         if (!bent && !this.bundled) {

@@ -149,6 +149,9 @@ export type ChannelValue = string | number | boolean | LabelStyle | Rgba | reado
 export function colorDifference(hex1: string, hex2: string): number;
 
 // @public
+export type ColorScheme = "light" | "dark" | "auto";
+
+// @public
 export function colorToHex(s: string): string | undefined;
 
 // @public
@@ -156,6 +159,9 @@ export type CombineMode = "replace" | "multiply" | "add";
 
 // @public
 export const DEFAULT_BACKGROUND_COLOR = "#F5F5F5";
+
+// @public
+export const DEFAULT_DARK_BACKGROUND_COLOR = "#121212";
 
 // @public
 export const DEFAULT_LIGHTING: Lighting;
@@ -1623,6 +1629,7 @@ export interface GlobeLook {
 export const GraphBackground: z.ZodDiscriminatedUnion<[z.ZodObject<{
     backgroundType: z.ZodLiteral<"color">;
     color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+    darkColor: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
     shader: z.ZodOptional<z.ZodObject<{
         id: z.ZodString;
         params: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnion<readonly [z.ZodNumber, z.ZodString, z.ZodBoolean]>>>;
@@ -1631,6 +1638,7 @@ export const GraphBackground: z.ZodDiscriminatedUnion<[z.ZodObject<{
     backgroundType: z.ZodLiteral<"skybox">;
     data: z.ZodUnion<[z.ZodURL, z.ZodString]>;
     color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+    darkColor: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
     shader: z.ZodOptional<z.ZodObject<{
         id: z.ZodString;
         params: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnion<readonly [z.ZodNumber, z.ZodString, z.ZodBoolean]>>>;

@@ -491,9 +491,10 @@ weight, weightMeaning, time, timeUnit, renamed }`. With `key` absent, every node
 
 - **`types`**: the type registry. Each entry is a closed object: `name` (its id in the file),
   `kind` (`"node"` or `"edge"`, as graphty-element's `ColumnRef` spells it), `plainName`, `rules`
-  and `schema`. `rules` is a list of closed objects `{ source, end, column, values }`. `end`
+  and `schema`. `rules` is a list of closed objects `{ source, part, end, column, values }`. `end`
   (`"source"` or `"target"`, node types only) types the nodes an edge source names at that end;
-  absent, the rule reads the source's node rows. Without `column` every row read has the type; with
+  absent, the rule reads the source's node rows. `part` narrows the rule to one `join.edges` step
+  of the source (see "recipe"). Without `column` every row read has the type; with
   it, `values` lists the cell values meaning this type, so "Person" and "people" become one type. A
   node may match several types; an edge takes the first in registry order. A row matching no rule
   has the default type, which has no name and no entry: its node or edge writes
@@ -512,8 +513,15 @@ weight, weightMeaning, time, timeUnit, renamed }`. With `key` absent, every node
   `name` the working column name, written when the issue has a column; this round-trips every
   issue id the element mints. `kept` is a list of `{ from, to }` node references, the pairs whose
   repeated edges the reader kept.
-- **`joins`**: the join history, the join steps (see "recipe") naming sources by id. A source no
-  step names is not built, and is reported; a one-source file writes one `join.add`. When a step's
+- **`joins`**: the join history, the join steps (see "recipe") naming sources by id, folded in
+  order over an empty graph. One source may be named by several steps, so one table can be read
+  several ways (a flat file's edges once, then each entity it names); a source has at most one
+  `join.add`. A source no step names, or whose only steps are `off`, is staged: it is not built,
+  is no build input and is in no `bindsTo.sources`, but it is kept, and written back with its copy
+  and its off steps exactly as read, never reported as left out (stage, save, reopen, save, and it
+  is still there). `off: true`, written only by graphty-element when a refresh leaves a step
+  without a column it reads, keeps a step listed and saved but not built. A one-source file
+  writes one `join.add`. When a step's
   source gives a node a value for a column the node already holds from an earlier source, and the
   two differ, the later value is kept as the column `<column> (<source id>)`; when that name is
   taken too (one source giving two values of one name), ` 2`, ` 3`, ... is appended until it is
@@ -577,12 +585,28 @@ recipe.md's `commands` (`graph.filter`, `algo.run` with `params`, `layout.set` w
 - the join steps `join.add`, `join.merge`, `join.node-values`, `join.edge-values` and
   `join.edges`, each `{ op, source, ...choices }` with graphty-element's `JoinShape` and
   `JoinChoices` names, naming sources by role (data-store-options.md 4.1). `join.add` is version
-  2's own name for a plain load and for the element's `rows` shape. The element's `endKinds` is
+  2's own name for a plain load and for the element's `rows` shape. `join.merge` folds nodes an
+  earlier step of the same source built into the nodes its field names: node 1 keeps its type,
+  node 2's key becomes an alias, and a kept unmatched node 2 moves into node 1's space; rows that
+  should become new nodes are `join.node-values` with `unmatchedRows: "add"`. Every step but
+  `join.add` may carry `read`, its own roles for one table (`table`, `key`, `space`, `edgeId`,
+  `source`, `sourceSpace`, `target`, `targetSpace`, and on `join.edges` only `weight`,
+  `weightMeaning`, `time` and `timeUnit`; an absent `weight` or `time` means the source's role,
+  `null` none). Each `join.edges` step carries `part`, a positive integer graphty-element mints,
+  unique among its source's steps, never reused and never derived from a column name, and its
+  edges are keyed under it; a type rule may name a `part`. The choices `columns` (absent: every
+  column), `rows` and `except` (`{ column, values }`), `viaEnd` on `join.edges` (default
+  `"target"`), `repeated` (`first`, `last`, and `both` on `join.edges`; absent on `join.edges`,
+  the graph's `repeatedEdges` decides), `unmatchedRows` on `join.node-values` and `join.edges`,
+  `ignoreCase` and `ignoreSpaces` (default `false`, every step but `join.add`) and `duplicateIds`
+  (on `join.add` only; absent, the source's setting) complete the set. The element's `endKinds` is
   saved as `end` type rules on the step's source, and `kindIds: "scoped"` as that source's written
   `sourceSpace` and `targetSpace`; `ignore` only silences report warnings, is not saved, and the
-  save reports that. A join step that makes elements from no row (a link step), connect's "a node
-  per row" form, and the choices `keys` onto a graph column, `columns`, `ignoreCase` and
-  `ignoreSpaces` have no version 2 spelling: saving one refuses that part and reports it. A
+  save reports that. A join step that makes elements from no row (a link step, `join.link`),
+  connect's "a node per row" form, and the choice `keys` onto a graph column have no version 2
+  spelling: saving one refuses that part and reports it. graphty-element today builds only
+  `join.add` (with its own `duplicateIds`); a file holding any other step that is not off, or a
+  `join.add` with `columns`, opens with its data section held and is written back as read. A
   clashing column kept twice is named `<column> (<source id>)`. A reader merge stays in the data
   section's reader source;
 - `set.define`, for rule sets whose rule names no element, carrying the set's bare `id`, `name`,
@@ -732,8 +756,8 @@ frame later would be a view major version.
 - **The refusal rule.** A save that cannot express something refuses that part and reports it.
   Nothing is ever silently simplified. A save that refuses any part of the data section writes a
   newly minted `build` in that file, so every saved run reads as stale (Partial) on reopen. This
-  holds for a part refused when the file was opened, too (a source no join step names, a
-  `repeatedEdges` value built as `keep`): a re-save never keeps the stamp it read when what it
+  holds for a part refused when the file was opened, too (a `repeatedEdges` value built as
+  `keep`): a re-save never keeps the stamp it read when what it
   writes differs from what it read.
 - **Results are optional.** Default: not saved, so opening reruns the behaviors (the 2026-11-13
   rule). A record or archive save includes them.
@@ -893,7 +917,11 @@ vocabulary that shapes the build, or an unknown member of one of the data sectio
 objects, makes the reader skip the whole data section and hold it unchanged, reported with
 `W_SECTION_KEPT`. It is never built in part, so nothing binds to, or saves, a partial graph. The
 data section's closed objects are a source's `mapping` and `settings`, a type entry and its rules,
-a join step, a reader operation, and a key in `options` that its parser does not read. Ignoring any
+a join step and its `read`, `rows` and `except`, a reader operation, and a key in `options` that
+its parser does not read. Three `options` keys are spelled as parser conformance cases: `pointer`
+(a JSON Pointer to the collection a JSON source reads), `sheet` (a workbook sheet by name) and
+`missing` (cell texts read as unset); graphty-element's parsers read none of them yet, so a
+source it would parse again with one holds the section. Ignoring any
 of these would build a different graph -- an unknown `settings.directionColumn` would give edges
 the wrong direction -- under the same build stamp, so saved results would still count as a match.
 

@@ -2225,7 +2225,7 @@ export function sourceChoicesOf(
 }
 
 /**
- * A column's name (spec 4.1.8 rule 3): the key itself when free, else `<key> (<source id>)`, else
+ * A column's name (spec 4.1.8 rule 11): the key itself when free, else `<key> (<source id>)`, else
  * that name followed by ` 2`, ` 3`, ... until free.
  * @param key - The wanted name.
  * @param source - The source id the column belongs to.

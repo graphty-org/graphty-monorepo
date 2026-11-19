@@ -244,8 +244,8 @@ The closed objects of section 10 are the exceptions. Every default lives in the 
 A writer that changes a build input -- a source copy, a mapping or setting, a type, a join step, a
 kept pair, `directed`, `repeatedEdges`, a conversion, a reader operation -- MUST mint a new
 `build`. A save that refuses any part of the data section (8.1 rule 2) MUST write a newly minted
-`build` in that file, a part refused when the file was opened included (a source no join step
-names, a `repeatedEdges` value built as `keep`): a re-save never keeps the stamp it read when
+`build` in that file, a part refused when the file was opened included (a `repeatedEdges` value
+built as `keep`): a re-save never keeps the stamp it read when
 what it writes differs from what it read. Nothing is canonicalized or hashed to compare builds; a hand-edited section
 that keeps its old stamp makes its results look current, which is the accepted cost.
 
@@ -311,6 +311,16 @@ A source record has exactly these fields: `id`, `label`, `kind`, `format`, `opti
    nodes or edges), `mapping` (its read has no spelling in 4.1.3: several tables read as one, ids
    scoped by kind, or table columns the writer does not know it was read by) or `kind` (a kind an
    open does not read again: only `file` and `url` sources are).
+9. **Parse options for one part of a file.** Three `options` keys are spelled here, each a parser
+   conformance case rather than a change to any other member: `pointer`, a JSON Pointer (RFC 6901)
+   to the collection a JSON source reads (several sources may read one file's bytes, one
+   collection each, and are refreshed together); `sheet`, the name of the workbook sheet a
+   spreadsheet source reads; and `missing`, a list of cell texts read as unset (`["null", "N/A"]`),
+   compared as exact strings after NFC, never trimmed. A reader whose parser does not read one of
+   them MUST hold the data section (10) when it would parse such a source again, rather than
+   parse it another way. Conformance cases: a JSON file with `nodes` under `/graph/people`, read
+   with `pointer: "/graph/people"`; a workbook's second sheet read by its name; a CSV whose cells
+   `N/A` read as unset with `missing: ["N/A"]` and as text without it.
 
 #### 4.1.3 The mapping
 
@@ -358,9 +368,11 @@ and never saved. A fix is saved as what it did: `edit` operations or a `conversi
 Each type entry is closed: `name` (no `:`), `kind` (`"node"` or `"edge"`), `plainName` (display
 only), `rules` and `schema`.
 
-- `rules` is a list of closed objects `{ source, end, column, values }`. `end` (`"source"` or
-  `"target"`, node types only) types the nodes that source's edge rows name at that end; absent,
-  the rule reads the source's node rows. Without `column` every row read has the type; with it,
+- `rules` is a list of closed objects `{ source, part, end, column, values }`. `end` (`"source"`
+  or `"target"`, node types only) types the nodes that source's edge rows name at that end; absent,
+  the rule reads the source's node rows. `part` narrows the rule to the `join.edges` step of that
+  source carrying that `part` (4.1.8 rule 3): its edges, or with `end` the nodes it names at that
+  end; a rule naming a part no step carries types nothing and is kept. Without `column` every row read has the type; with it,
   `values` lists the cell values meaning this type, compared as exact strings after NFC, cells
   turned to text as keys are (11).
 - A node has every type whose rules match a row that supplies or names it; an edge takes the first
@@ -385,26 +397,122 @@ written, `name` the working column name when the issue has a column. `issues.kep
 
 #### 4.1.8 The join history
 
-`joins` lists the steps that built the graph, in order: `{ "op", "source", ...choices }`, naming
-sources by id. The shapes are `join.add` (a plain load), `join.merge`, `join.node-values`,
-`join.edge-values` (with a REQUIRED `edges` member naming the source whose edge keys the rows
-match) and `join.edges`; the choices are graphty-element's `JoinChoices` names `clash`,
-`repeated`, `via`, `lookup`, `mapping`, `aggregate`, `unmatchedFrom`, `unmatchedRows`, `compare`,
-`membership` and `names`. Where no choice decides, precedence is join step order, then row order.
+`joins` lists the steps that build the graph, in order: `{ "op", "source", ...choices }`, naming
+sources by id. The build folds the steps in list order over an empty graph; a step sees every
+element the earlier steps built and nothing after it. Then the conversions run, then the reader
+operations. One source may be named by several steps, so one table can be read several ways: a
+flat file's edges once, and each entity it names again. A source has at most one `join.add`.
 
-1. A source no step names is not built, and is reported; a one-source file writes one `join.add`.
-2. A join step that makes elements from no row (a link step), connect's "a node per row" form, and
-   the choices `keys` onto a graph column, `columns`, `ignoreCase` and `ignoreSpaces` have no
-   version 2 spelling: saving one refuses that part and reports it.
-3. A clashing column kept twice is named `<column> (<source id>)`: when a step's source gives a
-   node a value for a column the node already holds from an earlier source, and the two differ,
-   the later value is kept under that name. When that name is taken too (one source giving two
-   values of one name), ` 2`, ` 3`, ... is appended until it is free (`<column> (<source id>) 2`).
-   The names `id` (and on edges `source` and `target`) are held by an element record's own
-   fields, so a column added to a copy beside the source's own columns that would take one of them
-   is named `<column> (<source id>)` instead; a source's own key and end columns keep their names.
-4. The recipe's join steps (4.3) share this spelling. Opening a file rebuilds the data from its own
-   history; the recipe's steps apply to new data only when the caller asks.
+| `op`               | Reads                                                                                     | Does                                                                                                                                                                                                                                                                                                              | Choices                                                                                                                                                                       |
+| ------------------ | ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `join.add`         | every table of the source, through its mapping                                            | a node per distinct key, an edge per edge row keyed `{ load: <source id>, key }`; an end naming no node follows `settings.unmatched`                                                                                                                                                                              | `clash`, `columns`, `duplicateIds`                                                                                                                                            |
+| `join.merge`       | the source's node rows, which an earlier step of the same source built                    | each node 2 folds into the node 1 its field names: node 1 keeps its space, key, type and position and takes node 2's edges, supplying sources and values (by `clash`); node 2's key becomes an alias of node 1; a node 2 naming nothing follows `unmatchedFrom` (`keep`, the default, or `drop` it and its edges) | `read`, `via`, `lookup`, `mapping`, `clash`, `repeated`, `aggregate`, `unmatchedFrom`, `rows`, `except`, `ignoreCase`, `ignoreSpaces`                                         |
+| `join.node-values` | one table's rows; builds no node from a row                                               | writes a row's `columns` onto the node its key names; a row naming no node follows `unmatchedRows` (`leave-out`, the default, or `add` a node)                                                                                                                                                                    | `read`, `via`, `lookup`, `mapping`, `clash`, `repeated`, `aggregate`, `names`, `unmatchedRows`, `columns`, `rows`, `except`, `ignoreCase`, `ignoreSpaces`                     |
+| `join.edge-values` | as above; `read.edgeId` matched against the keys of the edges `edges` names the source of | writes values onto existing edges and never makes one; a row matching nothing is left out and counted                                                                                                                                                                                                             | as above, plus `edges` (REQUIRED); no `unmatchedRows`                                                                                                                         |
+| `join.edges`       | one table's rows, each row one edge                                                       | an edge from the row's `source` cell (in `sourceSpace`) to its `target` cell (in `targetSpace`), keyed under the step's `part`; an end naming no node follows `unmatchedRows` (`add` or `leave-out`; absent, the source's `settings.unmatched`)                                                                   | `read`, `part` (REQUIRED), `via`, `lookup`, `mapping`, `viaEnd`, `repeated`, `aggregate`, `names`, `unmatchedRows`, `columns`, `rows`, `except`, `ignoreCase`, `ignoreSpaces` |
+
+Every step may also carry `off` (rule 8). Where no choice decides, precedence is join step order,
+then row order.
+
+1. **A source no step builds is kept.** A source no step names, or whose only steps are `off`, is
+   not built: it supplies nothing, it is no build input (a change to it mints no `build`), and it
+   is not in any `bindsTo.sources`. A writer MUST write it back with its copy (or its reference)
+   and its `off` steps, as read; a reader MUST NOT refuse it, report it as left out or read its
+   referenced rows again. Such a source is staged: the spaces its mapping names are only the
+   proposal it reopens with, which a later step may change. A one-source file writes one
+   `join.add`. Conformance case: a source staged beside a built one; save, reopen, save, and the
+   staged record is still there, byte for byte, and the build stamp is unchanged.
+2. **The rows a step reads (`read`).** `join.add` reads every table through the source's mapping
+   and never carries `read`. Every other step reads one table, `read.table`, else `nodes` for
+   `join.merge` and `join.node-values` and `edges` for `join.edge-values` and `join.edges`.
+   `read` is closed: `table`, `key`, `space`, `edgeId`, `source`, `sourceSpace`, `target`,
+   `targetSpace`, and on `join.edges` only `weight`, `weightMeaning`, `time` and `timeUnit`. Each
+   role is a working column name, spelled as a mapping spells it (4.1.3), and holds for this step
+   only; a space is written exactly when its column is. An absent `weight` or `time` means the
+   source's role; `null` means none.
+3. **A step's name (`part`).** Every `join.edges` step carries `part`, a positive integer
+   graphty-element mints when it writes the step: unique among the steps of its source, never
+   reused after a step is deleted, and never derived from a column name. The file keeps no
+   counter, so a writer mints one above every `part` that a step of the source, a type rule, or a
+   saved reference to its edges names. No other step carries `part`. A `join.add` keys its edges
+   by their plain keys and a `join.edges` step keys them `<part>/<key>`, so adding, editing or
+   deleting another step never re-keys an existing edge. Conformance cases: two `join.edges` steps
+   (parts 1 and 2); delete the first, add another: part 3; save, reopen, and part 2's edge keys
+   are unchanged.
+4. **Which columns and which rows.** `columns` lists the working columns a step brings besides its
+   role columns; absent means every column, and on `join.add` every column no other step of the
+   same source moves onto nodes, so moving a column never rewrites the add. `[]` brings none (an
+   edge that only connects). `rows: { column, values }` reads only the rows whose cell is listed;
+   `except: { column, values }` reads every row but those. Values compare as exact strings after
+   NFC, cells turned to text as keys are (11). A row no step reads is no element.
+5. **Which end a mapping table translates (`viaEnd`).** On `join.edges` with `via` or `lookup`,
+   `viaEnd` (`"target"` default, or `"source"`) names the end whose cell is translated.
+6. **Repeated keys.** For `join.add`, its own `duplicateIds` (`first`, `merge`, `refuse`) decides,
+   else the source's `settings.duplicateIds`. For every other step, `repeated` (`first` or
+   `last`; `both` on `join.edges` only) or `aggregate` decides; `first` is the default on
+   `join.merge` and `join.node-values`. On `join.edges` an absent `repeated` leaves repeated end
+   pairs to the graph's `repeatedEdges`, whatever that value reaches. `join.merge` folds every
+   node 2 whose field names a node 1; `repeated` and `aggregate` decide only which values the
+   merged node takes. A key another source supplied is a meeting, never a repeat.
+7. **Loose matching.** `ignoreCase` and `ignoreSpaces` (both `false` by default) are choices of
+   every step but `join.add`: keys match whatever their letter case (both sides lower-cased), and
+   with every white space character removed. A `join.add` meets keys in a space exactly (6.1).
+8. **Off (`off: true`).** Written only by graphty-element, when a refresh or replace leaves a step
+   without a column it reads and the reader chooses Off: the step is kept, listed and written
+   back, and is not built until it is turned on again (the member removed). `off` is never
+   `false`.
+9. **`join.merge` folds.** It no longer adds node 2's rows as nodes of their own: rows that should
+   become new nodes are a `join.node-values` with `unmatchedRows: "add"`. With `unmatchedFrom:
+"keep"` and the field being node 1's key, a kept node 2 moves into node 1's space, keyed by its
+   field value, and its former space and key become its alias.
+10. **Refused.** A step that makes elements from no row (a link step, `join.link`), connect's "a
+    node per row" form, and the choice `keys` onto a graph column have no version 2 spelling:
+    saving one refuses that part and reports it, and a reader meeting one holds the section.
+11. A clashing column kept twice is named `<column> (<source id>)`: when a step's source gives a
+    node a value for a column the node already holds from an earlier source, and the two differ,
+    the later value is kept under that name. When that name is taken too (one source giving two
+    values of one name), ` 2`, ` 3`, ... is appended until it is free (`<column> (<source id>) 2`).
+    The names `id` (and on edges `source` and `target`) are held by an element record's own
+    fields, so a column added to a copy beside the source's own columns that would take one of
+    them is named `<column> (<source id>)` instead; a source's own key and end columns keep their
+    names.
+12. The recipe's join steps (4.3) share this spelling. Opening a file rebuilds the data from its
+    own history; the recipe's steps apply to new data only when the caller asks.
+
+Two sources split by their steps. `T`, a flat transactions file, is read as edges from
+`account_id` (space `account`) to `merchant_id` (space `merchant`), and each name column is moved
+onto the node it describes. `P`, a payments file whose rows are nodes and whose `counterparty_id`
+holds merchants and devices, makes one edge per row to its counterparty, a part per id system;
+the device part is off.
+
+```json
+"joins": [
+  { "op": "join.add", "source": "src_01JZ00000000000000000000T0" },
+  { "op": "join.node-values", "source": "src_01JZ00000000000000000000T0",
+    "read": { "table": "edges", "key": "account_id", "space": "account" },
+    "columns": ["account_name"] },
+  { "op": "join.node-values", "source": "src_01JZ00000000000000000000T0",
+    "read": { "table": "edges", "key": "merchant_id", "space": "merchant" },
+    "columns": ["merchant_name", "category"] },
+  { "op": "join.add", "source": "src_01JZ00000000000000000000P0" },
+  { "op": "join.edges", "source": "src_01JZ00000000000000000000P0", "part": 1,
+    "read": { "table": "nodes", "source": "payment_id", "sourceSpace": "payment",
+              "target": "counterparty_id", "targetSpace": "merchant", "weight": null },
+    "rows": { "column": "counterparty_kind", "values": ["merchant"] },
+    "columns": [], "repeated": "first" },
+  { "op": "join.edges", "source": "src_01JZ00000000000000000000P0", "part": 2,
+    "read": { "table": "nodes", "source": "payment_id", "sourceSpace": "payment",
+              "target": "counterparty_id", "targetSpace": "device", "weight": null },
+    "rows": { "column": "counterparty_kind", "values": ["device"] },
+    "columns": [], "repeated": "first", "off": true }
+]
+```
+
+A payment row whose kind is neither is read by no `join.edges` step and makes no edge.
+
+graphty-element today builds only `join.add`, with its own `duplicateIds`. It holds the data
+section (4.1.10) for any other step that is not `off`, for a `join.add` carrying `columns`, and
+for a second `join.add` of one source, so such a file is written back exactly as read (8.4).
 
 #### 4.1.9 The merged graph
 
@@ -953,7 +1061,8 @@ by ignoring a member it does not know.
 
 Closed objects:
 
-- In data: a source's `mapping` and `settings`, a type entry and its rules, a join step, a reader
+- In data: a source's `mapping` and `settings`, a type entry and its rules, a join step and its
+  `read`, `rows` and `except`, a reader
   operation, the reader source itself, and a key in a source's `options` its parser does not read.
   An unknown member holds the whole data section (4.1.10): ignoring one would build another graph
   under the same build stamp.

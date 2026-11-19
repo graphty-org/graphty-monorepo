@@ -705,7 +705,7 @@ function checkJoins(joins: readonly unknown[], sources: ReadonlyMap<string, Read
         const pointer = `/joins/${String(at)}`;
         checkStep(step, pointer, sources);
         if (step.op === "join.edges") {
-            // A part names a step among its source's steps (spec 4.1.8 rule 3).
+            // A part names a step among its source's steps (spec 4.1.8 rule 11).
             const part = JSON.stringify([step.source, step.part]);
             need(!parts.has(part), `${pointer}/part`);
             parts.add(part);
@@ -921,7 +921,7 @@ function repeatsKey(table: Table | undefined, column: string | undefined): boole
 
 /**
  * Give a node a row's columns, its key column included (spec 4.1.9). A value an earlier source gave
- * differently is kept beside it as `<column> (<source id>)` (spec 4.1.8 rule 3).
+ * differently is kept beside it as `<column> (<source id>)` (spec 4.1.8 rule 11).
  * @param node - The node.
  * @param values - The row.
  * @param source - The row's source id.

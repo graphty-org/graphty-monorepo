@@ -741,25 +741,22 @@ export class NodeMesh {
         }
 
         const flat = isFlatShape(shape.type);
-        const instance = cache.get(
-            `node-border-${options.styleId}-${options.is2D ? "2d" : "3d"}${this.outlineKey(flat, fill)}`,
-            () => {
-                const extents = this.fillExtents(sized, inset);
-                const outline = flat ? this.flatOutline(shape, extents) : this.solidOutline(fill);
-                const depth = flat ? (extents.z ?? extents.across) : THIN_DEPTH_RATIO * extents.across;
-                const wave = NodeMesh.waveOf(border, this.extentPerSize(shape));
-                const mesh = ringSlab(
-                    "node-border",
-                    borderRing(outline, width, border?.style ?? "solid", wave),
-                    depth,
-                    scene,
-                );
-                placeByZIndex(mesh, shape, options.is2D);
-                mesh.material = this.createBorderMaterial(border?.color ?? "#000000", opacity, scene);
+        const instance = cache.get(this.ringKey("border", options, flat, fill), () => {
+            const extents = this.fillExtents(sized, inset);
+            const outline = flat ? this.flatOutline(shape, extents) : this.solidOutline(fill);
+            const depth = flat ? (extents.z ?? extents.across) : THIN_DEPTH_RATIO * extents.across;
+            const wave = NodeMesh.waveOf(border, this.extentPerSize(shape));
+            const mesh = ringSlab(
+                "node-border",
+                borderRing(outline, width, border?.style ?? "solid", wave),
+                depth,
+                scene,
+            );
+            placeByZIndex(mesh, shape, options.is2D);
+            mesh.material = this.createBorderMaterial(border?.color ?? "#000000", opacity, scene);
 
-                return mesh;
-            },
-        );
+            return mesh;
+        });
 
         instance.sourceMesh.isPickable = false;
         instance.isPickable = false;
@@ -804,27 +801,24 @@ export class NodeMesh {
         // out past the border's outer edge, wherever the border is drawn (a border at opacity 0 still takes its room)
         const gap = ring + (outerBorder?.offset ?? 0) * perSize;
         const flat = isFlatShape(shape.type);
-        const instance = cache.get(
-            `node-outer-border-${options.styleId}-${options.is2D ? "2d" : "3d"}${this.outlineKey(flat, fill)}`,
-            () => {
-                const extents = this.fillExtents(sized, inset);
-                const outline = flat ? this.flatOutline(shape, extents) : this.solidOutline(fill);
-                const depth = flat ? (extents.z ?? extents.across) : THIN_DEPTH_RATIO * extents.across;
-                // each further ring (`count`, Graphviz's peripheries) starts the offset beyond the one before
-                const step = width + Math.max(0, (outerBorder?.offset ?? 0) * perSize);
-                const pieces = Array.from({ length: Math.floor(outerBorder?.count ?? 1) }, (_, i) => {
-                    const at = gap + i * step;
-                    // offset as the main ring's edges are, its sharp corners cut square, so it starts on the ring's outer edge
-                    const base = at > 0 ? mitredEdges(outline, [at])[0] : outline;
-                    return borderRing(base, width, outerBorder?.style ?? "solid");
-                }).flat();
-                const mesh = ringSlab("node-outer-border", pieces, depth, scene);
-                placeByZIndex(mesh, shape, options.is2D);
-                mesh.material = this.createBorderMaterial(outerBorder?.color ?? "#000000", opacity, scene);
+        const instance = cache.get(this.ringKey("outer-border", options, flat, fill), () => {
+            const extents = this.fillExtents(sized, inset);
+            const outline = flat ? this.flatOutline(shape, extents) : this.solidOutline(fill);
+            const depth = flat ? (extents.z ?? extents.across) : THIN_DEPTH_RATIO * extents.across;
+            // each further ring (`count`, Graphviz's peripheries) starts the offset beyond the one before
+            const step = width + Math.max(0, (outerBorder?.offset ?? 0) * perSize);
+            const pieces = Array.from({ length: Math.floor(outerBorder?.count ?? 1) }, (_, i) => {
+                const at = gap + i * step;
+                // offset as the main ring's edges are, its sharp corners cut square, so it starts on the ring's outer edge
+                const base = at > 0 ? mitredEdges(outline, [at])[0] : outline;
+                return borderRing(base, width, outerBorder?.style ?? "solid");
+            }).flat();
+            const mesh = ringSlab("node-outer-border", pieces, depth, scene);
+            placeByZIndex(mesh, shape, options.is2D);
+            mesh.material = this.createBorderMaterial(outerBorder?.color ?? "#000000", opacity, scene);
 
-                return mesh;
-            },
-        );
+            return mesh;
+        });
 
         instance.sourceMesh.isPickable = false;
         instance.isPickable = false;
@@ -867,50 +861,47 @@ export class NodeMesh {
         const pad = (halo?.padding ?? 0) * perSize;
         const sized = this.extentsOf(shape, Math.max(shape.size ?? options.size, MIN_NODE_SIZE));
         const flat = isFlatShape(shape.type);
-        const instance = cache.get(
-            `node-${kind}-${options.styleId}-${options.is2D ? "2d" : "3d"}${this.outlineKey(flat, fill)}`,
-            () => {
-                // a solid shape of its own is drawn as its flat silhouette: a halo is a flat slab
-                const own = halo?.shape === undefined ? undefined : flatShapeOf(halo.shape);
-                const corner = halo?.cornerRadius === undefined ? undefined : halo.cornerRadius * perSize;
-                let outline: Point2[];
-                if (own !== undefined) {
-                    outline = flatShapeOutline(
-                        own,
-                        (sized.x ?? sized.across) + 2 * pad,
-                        (sized.y ?? sized.across) + 2 * pad,
-                        corner,
-                    );
-                } else {
-                    const nodeOutline = flat ? this.flatOutline(shape, sized) : this.solidOutline(fill);
-                    outline = offsetOutline(nodeOutline, pad);
-                }
-                fill.computeWorldMatrix(true);
-                const box = fill.getBoundingInfo().boundingBox;
-                const depth = THIN_DEPTH_RATIO * Math.max(sized.across, MIN_NODE_SIZE);
-                // drawn as a ring from the middle out, so it fills the whole shape
-                const mesh = ringSlab(
-                    `node-${kind}`,
-                    [{ inner: outline.map((): Point2 => [0, 0]), outer: outline, closed: true }],
-                    depth,
-                    scene,
+        const instance = cache.get(this.ringKey(kind, options, flat, fill), () => {
+            // a solid shape of its own is drawn as its flat silhouette: a halo is a flat slab
+            const own = halo?.shape === undefined ? undefined : flatShapeOf(halo.shape);
+            const corner = halo?.cornerRadius === undefined ? undefined : halo.cornerRadius * perSize;
+            let outline: Point2[];
+            if (own !== undefined) {
+                outline = flatShapeOutline(
+                    own,
+                    (sized.x ?? sized.across) + 2 * pad,
+                    (sized.y ?? sized.across) + 2 * pad,
+                    corner,
                 );
-                // just behind the node's back, or just before its front (2D looks along +z)
-                const gap = depth * 0.01;
-                const at = kind === "underlay" ? box.maximum.z + gap + depth / 2 : box.minimum.z - gap - depth / 2;
-                const positions = mesh.getVerticesData(VertexBuffer.PositionKind);
-                if (positions !== null) {
-                    for (let z = 2; z < positions.length; z += 3) {
-                        positions[z] += at;
-                    }
-                    mesh.setVerticesData(VertexBuffer.PositionKind, positions);
-                    mesh.refreshBoundingInfo();
+            } else {
+                const nodeOutline = flat ? this.flatOutline(shape, sized) : this.solidOutline(fill);
+                outline = offsetOutline(nodeOutline, pad);
+            }
+            fill.computeWorldMatrix(true);
+            const box = fill.getBoundingInfo().boundingBox;
+            const depth = THIN_DEPTH_RATIO * Math.max(sized.across, MIN_NODE_SIZE);
+            // drawn as a ring from the middle out, so it fills the whole shape
+            const mesh = ringSlab(
+                `node-${kind}`,
+                [{ inner: outline.map((): Point2 => [0, 0]), outer: outline, closed: true }],
+                depth,
+                scene,
+            );
+            // just behind the node's back, or just before its front (2D looks along +z)
+            const gap = depth * 0.01;
+            const at = kind === "underlay" ? box.maximum.z + gap + depth / 2 : box.minimum.z - gap - depth / 2;
+            const positions = mesh.getVerticesData(VertexBuffer.PositionKind);
+            if (positions !== null) {
+                for (let z = 2; z < positions.length; z += 3) {
+                    positions[z] += at;
                 }
-                mesh.material = this.createBorderMaterial(halo?.color ?? "#000000", opacity, scene);
+                mesh.setVerticesData(VertexBuffer.PositionKind, positions);
+                mesh.refreshBoundingInfo();
+            }
+            mesh.material = this.createBorderMaterial(halo?.color ?? "#000000", opacity, scene);
 
-                return mesh;
-            },
-        );
+            return mesh;
+        });
 
         instance.sourceMesh.isPickable = false;
         instance.isPickable = false;
@@ -963,7 +954,7 @@ export class NodeMesh {
         for (let layer = 0; layer < count; layer++) {
             // outermost first; layers at the middles of `count` equal steps across the edge
             const pad = count === 1 ? 0 : Math.max(blur * (1 - (2 * layer + 1) / count), -deepest);
-            const key = `node-shadow-${String(layer)}-${options.styleId}-${options.is2D ? "2d" : "3d"}${this.outlineKey(flat, fill)}`;
+            const key = this.ringKey(`shadow-${String(layer)}`, options, flat, fill);
             const instance = cache.get(key, () => {
                 const nodeOutline = flat ? this.flatOutline(shape, sized) : this.solidOutline(fill);
                 const outline = offsetOutline(nodeOutline, pad).map(([x, y]): Point2 => [x + dx, y + dy]);
@@ -1126,19 +1117,23 @@ export class NodeMesh {
     }
 
     /**
-     * What a ring built from a solid's outline is cached under beside its style key: the solid it follows. A node
-     * drawn as a placeholder while its model loads and as the model afterwards keeps one style key, so without this a
-     * border, ring, halo or shadow built round the placeholder was handed back round the model.
+     * What a ring round a node (its border, outer border, underlay, overlay or a shadow layer) is cached under: the
+     * node's style key, the view, and for a solid the solid it follows. A node drawn as a placeholder while its model
+     * loads and as the model afterwards keeps one style key, so without the solid a ring built round the placeholder
+     * was handed back round the model.
+     * @param kind - Which ring.
+     * @param options - The node's mesh options.
      * @param flat - Whether the node is a flat shape, whose outline its style alone decides.
      * @param fill - The node's own mesh.
-     * @returns The key's suffix: "" for a flat shape.
+     * @returns The cache key.
      */
-    private static outlineKey(flat: boolean, fill: AbstractMesh): string {
+    private static ringKey(kind: string, options: NodeMeshOptions, flat: boolean, fill: AbstractMesh): string {
+        const key = `node-${kind}-${options.styleId}-${options.is2D ? "2d" : "3d"}`;
         if (flat) {
-            return "";
+            return key;
         }
         const source = fill instanceof Mesh ? fill : (fill as InstancedMesh).sourceMesh;
-        return `-of${String(source.uniqueId)}`;
+        return `${key}-of${String(source.uniqueId)}`;
     }
 
     private static solidOutline(fill: AbstractMesh): Point2[] {

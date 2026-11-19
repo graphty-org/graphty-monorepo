@@ -2183,7 +2183,9 @@ function readEndLabelFace(get: Attr, scheme: string | null, put: Put, at: At): v
 /**
  * Reads an edge's colored segments: a color list with a `;fraction` in it (`red;0.3:blue`) draws the line in one piece
  * per color along its length, which is a linear gradient with a hard switch at each band's end. A list with no
- * fraction draws parallel lines, which graphty does not draw (the line is in the first color).
+ * fraction draws parallel lines, which graphty does not draw (the line is in the first color). Graphviz draws the head's
+ * arrow in the last band's color (emit.c `emit_edge_graphics`: `headcolor`), the tail's in the first, which the line
+ * already has.
  * @param list - the edge's `color`
  * @param scheme - its color scheme
  * @param put - receives the values
@@ -2208,6 +2210,7 @@ function readEdgeSegments(list: string | null, scheme: string | null, put: Put, 
     put("gradientKind", "linear");
     put("gradientColors", colors.join(" "));
     put("gradientStops", stops.join(" "));
+    put("targetArrowColor", bands.at(-1)?.color ?? null);
 }
 
 /**

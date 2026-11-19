@@ -1,3 +1,4 @@
+import { Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 import { assert, describe, it } from "vitest";
 
 import { resolveCameraView } from "../../src/camera/resolve";
@@ -15,11 +16,27 @@ const BOUNDS: GraphBounds = {
 
 const FOV = 0.8;
 
-/** Where the reader left the camera after orbiting: off the diagonal, rolled, panned. */
+/** The reader's turn after orbiting: off the diagonal and rolled. */
+const TURN = { x: 0.3, y: -1.1, z: 0.25 };
+const TURN_Q = Quaternion.RotationYawPitchRoll(TURN.y, TURN.x, TURN.z);
+
+/** One of the turned pivot's axes in world space (the camera sits on its -z axis). */
+function pivotAxis(x: number, y: number, z: number): Vec3 {
+    const v = new Vector3(x, y, z).applyRotationQuaternion(TURN_Q);
+    return { x: v.x, y: v.y, z: v.z };
+}
+
+/** Where the reader left the camera after orbiting: turned, rolled and panned, as getCameraState reports it. */
+const ORBITED_TARGET = { x: 5, y: 1, z: -2 };
+const BACK = pivotAxis(0, 0, -1);
 const ORBITED: CameraState = {
-    position: { x: 41, y: -18, z: 13 },
-    target: { x: 5, y: 1, z: -2 },
-    pivotRotation: { x: 0.3, y: -1.1, z: 0.25 },
+    position: {
+        x: ORBITED_TARGET.x + BACK.x * 43.5,
+        y: ORBITED_TARGET.y + BACK.y * 43.5,
+        z: ORBITED_TARGET.z + BACK.z * 43.5,
+    },
+    target: ORBITED_TARGET,
+    pivotRotation: TURN,
     cameraDistance: 43.5,
 };
 
@@ -57,38 +74,47 @@ function anglesOf(state: CameraState): { alpha: number; beta: number } {
 }
 
 describe("fitToGraph keepAngle", () => {
-    it("frames the whole box from the angle the camera is at now", () => {
+    it("frames the whole box from the angle the camera is at now, filling the canvas per axis and centered", () => {
+        const right = pivotAxis(1, 0, 0);
+        const up = pivotAxis(0, 1, 0);
+        const dot = (p: Vec3, q: Vec3): number => p.x * q.x + p.y * q.y + p.z * q.z;
         for (const aspect of [16 / 9, 0.5]) {
             const state = resolveCameraView("fitToGraph", context({ keepAngle: true }, aspect));
             const before = anglesOf(ORBITED);
             const after = anglesOf(state);
 
-            assert.closeTo(after.alpha, before.alpha, 1e-12);
-            assert.closeTo(after.beta, before.beta, 1e-12);
-            assert.deepEqual(state.target, BOUNDS.center);
+            assert.closeTo(after.alpha, before.alpha, 1e-9);
+            assert.closeTo(after.beta, before.beta, 1e-9);
             assert.deepEqual(state.pivotRotation, ORBITED.pivotRotation, "the roll the reader gave is kept");
 
-            // Every corner of the box, and so every node, sits inside the narrower field of view.
+            // Every corner, projected onto the rolled screen, inside the frame padded 5 percent; the
+            // limiting axis touches the padded frame, and each axis's extent is centered.
             assert.exists(state.position);
             const { position } = state;
-            const forward = unit(sub(BOUNDS.center, position));
-            const halfFov = Math.min(FOV / 2, Math.atan(Math.tan(FOV / 2) * aspect));
+            const forward = unit(sub(state.target ?? BOUNDS.center, position));
+            const tanY = Math.tan(FOV / 2);
+            const tanX = tanY * aspect;
+            const extent = { left: 0, right: 0, down: 0, top: 0 };
             for (const x of [BOUNDS.min.x, BOUNDS.max.x]) {
                 for (const y of [BOUNDS.min.y, BOUNDS.max.y]) {
                     for (const z of [BOUNDS.min.z, BOUNDS.max.z]) {
                         const v = sub({ x, y, z }, position);
-                        const depth = v.x * forward.x + v.y * forward.y + v.z * forward.z;
-                        const off = Math.hypot(
-                            v.x - depth * forward.x,
-                            v.y - depth * forward.y,
-                            v.z - depth * forward.z,
-                        );
+                        const depth = dot(v, forward);
                         assert.isAbove(depth, 0);
-                        assert.isBelow(Math.atan(off / depth), halfFov, `corner ${x},${y},${z} at aspect ${aspect}`);
+                        const sx = dot(v, right) / (depth * tanX);
+                        const sy = dot(v, up) / (depth * tanY);
+                        extent.left = Math.min(extent.left, sx);
+                        extent.right = Math.max(extent.right, sx);
+                        extent.down = Math.min(extent.down, sy);
+                        extent.top = Math.max(extent.top, sy);
                     }
                 }
             }
-            assert.closeTo(length(sub(position, BOUNDS.center)), state.cameraDistance ?? 0, 1e-9);
+            const fill = Math.max(extent.right, extent.top) * 1.05;
+            assert.closeTo(fill, 1, 1e-6, `aspect ${String(aspect)}: the limiting axis fills the padded frame`);
+            assert.closeTo(extent.right, -extent.left, 1e-6, "centered across");
+            assert.closeTo(extent.top, -extent.down, 1e-6, "centered up and down");
+            assert.closeTo(length(sub(position, state.target ?? BOUNDS.center)), state.cameraDistance ?? 0, 1e-9);
         }
     });
 

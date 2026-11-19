@@ -282,7 +282,7 @@ export const registration = defineRegistration({
             keys: ["0"],
             disabled: (ctx) => cameraViewReason(ctx, "fitToGraph"),
             run: async ({ element }) => {
-                await element?.applyCameraView("fitToGraph", { animate: true });
+                await element?.applyCameraView("fitToGraph", { params: { keepAngle: true }, animate: true });
             },
         },
         {

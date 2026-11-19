@@ -10335,6 +10335,9 @@ export class Graph implements GraphContext {
         }
 
         this.#endTour("replaced");
+        // The view's placement wins over `camera.pivotOnSelection`: the pivot stops gliding to the
+        // selection's center until the selection changes, as after a move of the reader's.
+        this.updateManager.holdSelectionFollow();
         return this.#placeCamera(state, options);
     }
 

@@ -259,6 +259,10 @@ camera view's name is refused with `E_PROTECTED`. If a camera view registered la
 view's name, the saved view can no longer be reached by that name until it is renamed;
 `viewProblem(name, { saved: true })` judges the saved view itself and answers `E_PROTECTED`.
 
+**A Fit that never turns the camera.** Pass `params: { keepAngle: true }` to `fitToGraph` (with
+`scope: "selection"` for the selected nodes): it only zooms and pans, keeping the current angle
+and roll, so what is framed fills the canvas.
+
 **The drawing mode.** A camera view lists the drawing modes it works in. A saved state fits the
 mode it was saved in (`getCameraState()` writes `mode`); a state with no `mode` fits a mode when it
 holds at least one member that mode reads:

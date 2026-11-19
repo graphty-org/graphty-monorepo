@@ -40,10 +40,12 @@ export interface DraftState {
     /** The key-overlap questions its adds asked (a draft opened with `askOverlap`), by source. */
     readonly questions?: Readonly<Record<string, AskedOverlap>>;
     /**
-     * The sources it added asking (a draft opened with `askOverlap`, no answer given), whether or
-     * not they met anything: an answer to one may make a later one meet, or stop meeting, nodes.
+     * Every source a draft opened with `askOverlap` added, whether or not it met anything or was
+     * given an answer: an answer to one may make a later one meet, or stop meeting, nodes.
      */
     readonly asking?: ReadonlySet<string>;
+    /** The answers its adds were given (`overlap`), by source: fixed, never asked. */
+    readonly given?: Readonly<Record<string, "merge" | "separate">>;
 }
 
 /** A key-overlap question a draft's add asked, and its answer so far. */
@@ -158,28 +160,32 @@ export function draftAdd(
 ): DraftState {
     const src = state.value.sources[id] as SourceSteps["sources"][string] | undefined;
     const asked =
-        ask && overlap === undefined && src !== undefined && isStaged(state.value, id)
-            ? overlapQuestion(state.value, src, state.copies)
-            : null;
+        ask && src !== undefined && isStaged(state.value, id) ? overlapQuestion(state.value, src, state.copies) : null;
     const next = draftApply(state, {
         kind: "act",
         act: { act: "add-staged", source: id, ...(overlap === undefined ? {} : { overlap }) },
     });
     const asking = new Set(state.asking);
-    if (ask && overlap === undefined && src !== undefined) {
+    const { [id]: _was, ...given }: Record<string, "merge" | "separate"> = { ...state.given };
+    if (ask && src !== undefined) {
+        // Recounted after every answer, a given overlap with it as its fixed answer.
         asking.add(id);
+        if (overlap !== undefined) {
+            given[id] = overlap;
+        }
     } else {
         asking.delete(id);
     }
     if (asked === null || src === undefined) {
-        // An earlier add's question is settled by this one: it asks nothing, or answered at once.
         const { [id]: _settled, ...rest } = next.questions ?? {};
-        return { ...next, questions: rest, asking };
+        return { ...next, questions: rest, asking, given };
     }
+    // Recorded even when answered at once, so a recount can put the keys back in the proposed space.
     const was = src.mapping.edges;
     const now = next.value.sources[id].mapping.edges;
     const ends = (["sourceSpace", "targetSpace"] as const).filter((end) => was?.[end] !== now?.[end]);
-    return { ...next, questions: { ...next.questions, [id]: { ...asked, answer: null, ends } }, asking };
+    const q = { ...asked, answer: overlap ?? null, ends };
+    return { ...next, questions: { ...next.questions, [id]: q }, asking, given };
 }
 
 /**
@@ -195,7 +201,7 @@ export function draftAdd(
 export function draftAnswer(state: DraftState, id: string, answer: "merge" | "separate"): DraftState {
     const q = state.questions?.[id];
     const src = state.value.sources[id] as SourceSteps["sources"][string] | undefined;
-    if (q === undefined || src === undefined || isStaged(state.value, id)) {
+    if (q === undefined || src === undefined || isStaged(state.value, id) || state.given?.[id] !== undefined) {
         throw refused("E_BAD_COMMAND", `The draft asked source ${id} no key-overlap question.`, {
             reason: "no-question",
             source: id,
@@ -203,7 +209,7 @@ export function draftAnswer(state: DraftState, id: string, answer: "merge" | "se
     }
     const questions = { ...state.questions, [id]: { ...q, answer } };
     const asking = new Set([...(state.asking ?? []), ...Object.keys(questions)]);
-    const fresh = refreshed(state.value, questions, asking, state.copies);
+    const fresh = refreshed(state.value, questions, asking, state.given ?? {}, state.copies);
     const next =
         JSON.stringify(fresh.value) === JSON.stringify(state.value)
             ? state
@@ -249,6 +255,7 @@ function moved(
  * @param value - The draft's value.
  * @param questions - The questions asked, with their answers.
  * @param asking - The sources the draft added asking.
+ * @param given - The answers their adds were given, which always win.
  * @param copies - The rows as read.
  * @returns The value with each such source's mapping and issues, and the questions now.
  */
@@ -256,6 +263,7 @@ function refreshed(
     value: SourceSteps,
     questions: Readonly<Record<string, AskedOverlap>>,
     asking: ReadonlySet<string>,
+    given: Readonly<Record<string, "merge" | "separate">>,
     copies: Copies,
 ): { value: SourceSteps; questions: Readonly<Record<string, AskedOverlap>> } {
     const sources = { ...value.sources };
@@ -273,13 +281,14 @@ function refreshed(
         const before = { ...value, sources, steps: value.steps.slice(0, at(id)) };
         const { issues: _old, ...bare } = q === undefined ? src : moved(src, ownSpace(id), q.space, q.ends);
         const now = overlapQuestion(before, bare, copies);
-        const answer = now === null ? "separate" : (q?.answer ?? "separate");
+        const fixed = given[id] ?? q?.answer ?? null;
+        const answer = now === null ? "separate" : (fixed ?? "separate");
         sources[id] = addSource(before, bare, copies, answer).sources[id];
         if (now !== null) {
             const ends = (["sourceSpace", "targetSpace"] as const).filter(
                 (end) => bare.mapping.edges?.[end] === now.space,
             );
-            out[id] = { ...now, answer: q?.answer ?? null, ends };
+            out[id] = { ...now, answer: fixed, ends };
         }
     }
     return { value: { ...value, sources }, questions: out };

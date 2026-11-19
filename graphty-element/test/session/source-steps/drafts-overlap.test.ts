@@ -467,6 +467,88 @@ describe("source-steps drafts: the key-overlap question", () => {
         session.dispose();
     });
 
+    /**
+     * The spaces a session holds, each source's own space named by the bank it is.
+     * @param session - The session.
+     * @param named - Each source and the name to give its own space.
+     * @returns How many nodes each space holds.
+     */
+    function namedSpaces(session: GraphSession, named: Readonly<Record<string, string>>): Record<string, number> {
+        return Object.fromEntries(
+            Object.entries(spaces(session)).map(([space, n]) => {
+                const own = Object.entries(named).find(([id]) => space === `source:${id}`);
+                return [own === undefined ? space : `source:${own[1]}`, n];
+            }),
+        );
+    }
+
+    it("an add given Keep separate stays separate when a later answer brings keys to it, as data.add keeps it", async () => {
+        const seq = await stagedChain();
+        await seq.session.data.add(seq.b, { overlap: "merge" });
+        await seq.session.data.add(seq.c, { overlap: "separate" });
+
+        const { session, b, c } = await stagedChain();
+        const d = session.data.draft({ askOverlap: true });
+        d.add(b);
+        d.add(c, { overlap: "separate" });
+        d.answerOverlap(b, "merge");
+        assert.deepStrictEqual(d.preview().questions, [], "C's answer was given, so nothing is asked");
+        await refused(() => Promise.resolve(d.answerOverlap(c, "merge")), "E_BAD_COMMAND");
+        await d.commit();
+        assert.deepStrictEqual(
+            namedSpaces(session, { [b]: "B", [c]: "C" }),
+            namedSpaces(seq.session, { [seq.b]: "B", [seq.c]: "C" }),
+        );
+        assert.deepStrictEqual(issuesOf(session, c), issuesOf(seq.session, seq.c));
+        assert.deepStrictEqual(issuesOf(session, b), issuesOf(seq.session, seq.b));
+        seq.session.dispose();
+        session.dispose();
+    });
+
+    it("an add given Keep separate takes the proposed space when a later answer takes away what it met", async () => {
+        const seq = await stagedChain();
+        await seq.session.data.add(seq.b, { overlap: "separate" });
+        await seq.session.data.add(seq.c, { overlap: "separate" });
+
+        const { session, b, c } = await stagedChain();
+        const d = session.data.draft({ askOverlap: true });
+        d.add(b);
+        d.answerOverlap(b, "merge");
+        d.add(c, { overlap: "separate" });
+        d.answerOverlap(b, "separate");
+        assert.deepStrictEqual(d.preview().questions, []);
+        await d.commit();
+        assert.deepStrictEqual(
+            namedSpaces(session, { [b]: "B", [c]: "C" }),
+            namedSpaces(seq.session, { [seq.b]: "B", [seq.c]: "C" }),
+        );
+        assert.deepStrictEqual(issuesOf(session, c), issuesOf(seq.session, seq.c));
+        assert.deepStrictEqual(issuesOf(session, b), issuesOf(seq.session, seq.b));
+        seq.session.dispose();
+        session.dispose();
+    });
+
+    it("an add given Merge follows a later answer as data.add would", async () => {
+        const seq = await stagedChain();
+        await seq.session.data.add(seq.b, { overlap: "merge" });
+        await seq.session.data.add(seq.c, { overlap: "merge" });
+
+        const { session, b, c } = await stagedChain();
+        const d = session.data.draft({ askOverlap: true });
+        d.add(b);
+        d.add(c, { overlap: "merge" });
+        d.answerOverlap(b, "merge");
+        assert.deepStrictEqual(d.preview().questions, []);
+        await d.commit();
+        assert.deepStrictEqual(
+            namedSpaces(session, { [b]: "B", [c]: "C" }),
+            namedSpaces(seq.session, { [seq.b]: "B", [seq.c]: "C" }),
+        );
+        assert.deepStrictEqual(issuesOf(session, c), issuesOf(seq.session, seq.c));
+        seq.session.dispose();
+        session.dispose();
+    });
+
     it("a draft's import asks the question as its add does", async () => {
         const { session } = await phase6();
         const d = session.data.draft({ askOverlap: true });

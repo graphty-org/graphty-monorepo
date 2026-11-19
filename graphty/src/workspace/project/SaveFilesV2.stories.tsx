@@ -193,7 +193,11 @@ export const OpenStyleSectionFile: Story = {
             form: "section",
             markSaved: false,
         });
-        void askOpenV2(store, session, new File([text], "Ring.graphty-style.json"));
+        // A fixed date, so the picture does not change from one day to the next.
+        const fixed = JSON.parse(text, (key, value: unknown) =>
+            key === "created" || key === "modified" ? "2026-11-01T12:00:00Z" : value,
+        ) as unknown;
+        void askOpenV2(store, session, new File([JSON.stringify(fixed)], "Ring.graphty-style.json"));
         await within(context.canvasElement.ownerDocument.body).findByRole("dialog", {
             name: "Add Ring.graphty-style.json",
         });

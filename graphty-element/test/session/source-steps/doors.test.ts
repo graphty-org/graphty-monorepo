@@ -117,7 +117,12 @@ describe("source-steps: today's doors", () => {
             compileRecords({ nodes: [{ id: "a" }, { id: "b" }] }, d.state.graph.values, { nodeIdPath: "id" }, false),
         );
         await d.dispatch(
-            compileRecords({ edges: [{ source: "a", target: "b" }] }, d.state.graph.values, { nodeIdPath: "id" }, false),
+            compileRecords(
+                { edges: [{ source: "a", target: "b" }] },
+                d.state.graph.values,
+                { nodeIdPath: "id" },
+                false,
+            ),
         );
         const sources = session.data.sources();
         assert.strictEqual(sources.length, 1, "the second assignment replaces the source's table in place");

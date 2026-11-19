@@ -10,7 +10,13 @@
 
 /** The id of an experiment, as `features="..."` and `createGraphSession({ features })` take it. */
 export type FeatureId =
-    "assistant" | "data-management" | "location-map" | "cosmograph" | "file-styles" | "node-models" | "source-steps"
+    | "assistant"
+    | "data-management"
+    | "location-map"
+    | "cosmograph"
+    | "file-styles"
+    | "node-models"
+    | "source-steps"
     | "save-files-v2";
 
 /** One experiment this build can switch on. */

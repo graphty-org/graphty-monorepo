@@ -2629,7 +2629,10 @@ export class Graphty extends LitElement {
      * @returns The step, or null with the experiment off.
      */
     #derivedRecords(
-        records: { readonly nodes?: readonly Record<string, unknown>[]; readonly edges?: readonly Record<string, unknown>[] },
+        records: {
+            readonly nodes?: readonly Record<string, unknown>[];
+            readonly edges?: readonly Record<string, unknown>[];
+        },
         state: GraphSlice,
         setup: boolean,
     ): BatchCommand | null {

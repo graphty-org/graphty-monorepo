@@ -243,6 +243,7 @@ const XR_BROWSER_TESTS = [
     "test/browser/XRUIManager.test.ts",
     "test/browser/NodeBehavior-xr-compatibility.test.ts",
     "test/interactions/xr/xr-voice.test.ts",
+    "test/interactions/xr/xr-menu.test.ts",
     "test/interactions/xr/xr-thumbstick.test.ts",
     "test/interactions/xr/xr-gestures.test.ts",
     "test/interactions/xr/xr-hand-tracking.test.ts",

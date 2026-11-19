@@ -53,4 +53,35 @@ describe("source-steps off: nothing changes", () => {
         assert.strictEqual(digest, "1d38ec94e541d1374075eefbaafa10cd3fe1a6c61b1587f9d138e0e8528c00b5");
         session.dispose();
     });
+
+    it("refuses the data.steps-set command with E_FEATURE_OFF and leaves the graph and the file as they were", async () => {
+        const session = createGraphSession({ features: [] });
+        const before = (await session.project.save()).text;
+        await session
+            .execute({
+                op: "data.steps-set",
+                edit: {
+                    kind: "add",
+                    source: {
+                        id: "src_x",
+                        origin: { copy: "c" },
+                        mapping: { nodes: { key: "id" } },
+                        kind: "file",
+                        label: "x",
+                        tables: [],
+                    },
+                },
+                copies: { c: { nodes: [{ id: "a" }, { id: "b" }] } },
+            })
+            .then(
+                () => assert.fail("refused"),
+                (error: unknown) => assert.strictEqual((error as { code?: string }).code, "E_FEATURE_OFF"),
+            );
+        assert.strictEqual(session.data.store.getSnapshot().ids.size, 0);
+        assert.strictEqual(
+            (await session.project.save()).text.replaceAll(CLOCK, '"T"'),
+            before.replaceAll(CLOCK, '"T"'),
+        );
+        session.dispose();
+    });
 });

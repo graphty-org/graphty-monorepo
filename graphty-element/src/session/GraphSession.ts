@@ -3108,6 +3108,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     const ceilings = options.ceilings ?? new RenderLimits(true);
     const fileStylesOn = (): boolean =>
         (settledFeatures ?? resolveFeatures(requested())).enabled.includes("file-styles");
+    const sourceStepsOn = (): boolean =>
+        (settledFeatures ?? resolveFeatures(requested())).enabled.includes("source-steps");
     const runsOptions = options.runs ?? {};
     // ONE queue for both, whether the host handed one in or not: a filter pass and an algorithm
     // run both read the whole graph, and two queues would let one start while the other is
@@ -3128,6 +3130,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     const readProject = projectConfigReader(dispatcher, resolveDataConfig(options.config?.data));
     dispatcher.services.config = readProject;
     dispatcher.services.fileStyles = fileStylesOn;
+    dispatcher.services.sourceSteps = sourceStepsOn;
     const readData = (): SessionDataConfig => readProject().data;
     // A controller handed in is the authority on its own policy: the session does not own it, so
     // it cannot make a configuration value true merely by declaring it.
@@ -3229,9 +3232,13 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 const routed = dispatcher.routing;
                 return (command) => {
                     const top = dispatcher.history.stepAt(dispatcher.history.position - 1);
-                    // ponytail: with no step to join, it records its own; a baseline write would avoid even that.
-                    return top === undefined || routed
-                        ? send(command)
+                    // Inside a routed verb it is part of that verb's step. With no step to join it
+                    // is written as setup, which becomes the baseline while nothing is recorded.
+                    if (routed) {
+                        return send(command);
+                    }
+                    return top === undefined
+                        ? send({ op: "batch", steps: [command], setup: true })
                         : dispatcher.transaction("Staged a source", (tx) => tx.dispatch(command), {
                               after: top.id as HistoryStepId,
                           });
@@ -3303,7 +3310,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             timeParsed: (kind, column) => timeline()?.parsedCount(kind, column),
             timeCandidates: () => time.api.candidates(),
             fileStyles: () => fileStylesOn(),
-            sourceSteps: () => (settledFeatures ?? resolveFeatures(requested())).enabled.includes("source-steps"),
+            sourceSteps: sourceStepsOn,
             batched: () => internals.batched?.() === true,
             visibleMasks: () => ({ nodes: visibility.masks.nodes(), edges: visibility.masks.edges() }),
             // And the working graph, built below the visibility.

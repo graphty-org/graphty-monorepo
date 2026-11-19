@@ -472,7 +472,9 @@ function typedKey(el: BuiltNode): string | number {
 }
 
 /**
- * Each node's NodeId: its key when one space holds that key, else `<space>:<key>` (9.1).
+ * Each node's NodeId: its key when one space holds that key, else `<space>:<key>` (9.1). A key
+ * that reads the same as another node's `<space>:<key>` (a key such as `person:x`) is spelled
+ * `<space>:<key>` too, so no two nodes share a NodeId.
  * @param result - The build.
  * @returns The NodeId by internal id.
  */
@@ -481,9 +483,26 @@ export function nodeIdsOf(result: BuildResult): ReadonlyMap<string, NodeId> {
     for (const n of result.nodes.values()) {
         spaces.set(n.key, (spaces.get(n.key) ?? 0) + 1);
     }
+    const spelled = new Set<BuiltNode>();
+    for (const n of result.nodes.values()) {
+        if (spaces.get(n.key) !== 1) {
+            spelled.add(n);
+        }
+    }
+    // Spelling one key can make another bare key collide, so repeat until nothing changes.
+    for (let grew = spelled.size > 0; grew;) {
+        const taken = new Set([...spelled].map((n) => `${n.space}:${n.key}`));
+        grew = false;
+        for (const n of result.nodes.values()) {
+            if (!spelled.has(n) && taken.has(n.key)) {
+                spelled.add(n);
+                grew = true;
+            }
+        }
+    }
     const out = new Map<string, NodeId>();
     for (const n of result.nodes.values()) {
-        out.set(n.id, spaces.get(n.key) === 1 ? typedKey(n) : `${n.space}:${n.key}`);
+        out.set(n.id, spelled.has(n) ? `${n.space}:${n.key}` : typedKey(n));
     }
     return out;
 }

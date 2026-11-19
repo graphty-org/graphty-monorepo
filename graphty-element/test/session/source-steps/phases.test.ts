@@ -103,6 +103,18 @@ describe("source-steps: phases", () => {
         session.dispose();
     });
 
+    it("phase 3: staging first in a fresh session is no undo step and survives undo", async () => {
+        const session = createGraphSession({ features: ["source-steps"] });
+        const a = await session.data.stage(
+            { type: "csv", config: { data: ACCOUNTS }, name: "accounts.csv" },
+            { key: "account_id", type: "account" },
+        );
+        assert.lengthOf(session.history.steps, 0, "staging is not an undo step");
+        await session.undo();
+        assert.strictEqual(session.data.sources().find((s) => s.key === a)?.state, "staged");
+        session.dispose();
+    });
+
     it("data.steps() returns each step's buckets from the committed build (late findings, settled 9.2)", async () => {
         const session = createGraphSession({ features: ["source-steps"] });
         await phase1(session);

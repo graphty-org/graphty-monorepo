@@ -155,6 +155,27 @@ describe("source-steps: the simple path", () => {
         session.dispose();
     });
 
+    it("a key that reads as another space's <space>:<key> keeps its own node", async () => {
+        const session = stepsSession();
+        await session.data.import(csv("people.csv", "id,name\nx,Ann\n"), { key: "id", type: "person" });
+        await session.data.import(csv("pets.csv", "id,name\nx,Rex\n"), { mode: "merge", key: "id", type: "pet" });
+        await session.data.import(csv("terms.csv", "id,name\nperson:x,Term\n"), {
+            mode: "merge",
+            key: "id",
+            type: "term",
+        });
+        const names = session.data
+            .nodes()
+            .map((n) => [String(n.id), String(n.name)])
+            .sort((a, b) => a[0].localeCompare(b[0]));
+        assert.deepStrictEqual(names, [
+            ["person:x", "Ann"],
+            ["pet:x", "Rex"],
+            ["term:person:x", "Term"],
+        ]);
+        session.dispose();
+    });
+
     it("mergeNodes is refused with E_UNSUPPORTED reason later", async () => {
         const session = stepsSession();
         await session.data.import(csv("t.csv", "source,target\na,b\n"));

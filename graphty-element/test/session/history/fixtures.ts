@@ -12,6 +12,7 @@
  */
 
 import type { LayerSpec } from "../../../src/catalog/types";
+import { pageDefaultFeatures, setDefaultFeatures } from "../../../src/features/resolve";
 import type { SessionCommand } from "../../../src/session/planning";
 import type { GraphSession } from "../../../src/session/types";
 
@@ -30,6 +31,26 @@ export interface RoundTripFixture {
      * the state after them.
      */
     readonly before?: (session: GraphSession) => Promise<void>;
+    /** The experiments the command needs switched on; it is refused while they are off. */
+    readonly features?: readonly string[];
+}
+
+/**
+ * Run a fixture's case with the experiments it needs switched on, and put the page default back.
+ * @param fixture - The fixture.
+ * @param run - The case.
+ * @returns What the case returns.
+ */
+export async function withFixtureFeatures<T>(fixture: RoundTripFixture, run: () => Promise<T>): Promise<T> {
+    const before = pageDefaultFeatures();
+    if (fixture.features !== undefined) {
+        setDefaultFeatures([...before, ...fixture.features]);
+    }
+    try {
+        return await run();
+    } finally {
+        setDefaultFeatures(before);
+    }
 }
 
 /** A source of the source-steps experiment, its rows as read kept as copy `fixture-copy`. */
@@ -71,12 +92,14 @@ const STEPS_FIXTURES: readonly RoundTripFixture[] = [
         name: "data.steps-set: a source added with join.add",
         variant: "add",
         tags: ["session", "renderer"],
+        features: ["source-steps"],
         command: STEPS_ADD,
     },
     {
         name: "data.steps-set: the whole value set, a source and its step",
         variant: "set",
         tags: ["session", "renderer"],
+        features: ["source-steps"],
         command: {
             op: "data.steps-set",
             edit: {
@@ -95,6 +118,7 @@ const STEPS_FIXTURES: readonly RoundTripFixture[] = [
         name: "data.steps-set: reader edits add a node and an edge and edit a built node",
         variant: "reader",
         tags: ["session", "renderer"],
+        features: ["source-steps"],
         before: stepsSource,
         command: {
             op: "data.steps-set",
@@ -124,6 +148,7 @@ const STEPS_FIXTURES: readonly RoundTripFixture[] = [
         name: "data.steps-set: a reader edit taken back",
         variant: "remove-edit",
         tags: ["session", "renderer"],
+        features: ["source-steps"],
         before: async (session) => {
             await stepsSource(session);
             await session.execute({
@@ -140,6 +165,7 @@ const STEPS_FIXTURES: readonly RoundTripFixture[] = [
         name: "data.steps-set: a source removed with its step",
         variant: "remove-source",
         tags: ["session", "renderer"],
+        features: ["source-steps"],
         before: stepsSource,
         command: { op: "data.steps-set", edit: { kind: "remove-source", id: STEPS_SOURCE.id } },
     },
@@ -147,6 +173,7 @@ const STEPS_FIXTURES: readonly RoundTripFixture[] = [
         name: "data.steps-set: a type declared",
         variant: "declare-type",
         tags: ["session", "renderer"],
+        features: ["source-steps"],
         before: stepsSource,
         command: {
             op: "data.steps-set",

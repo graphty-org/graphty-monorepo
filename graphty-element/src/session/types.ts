@@ -1495,7 +1495,8 @@ export interface SessionDataApi {
     sources(): readonly LoadedSource[];
     /**
      * Hold a source's rows without building anything from them: a staged source, which no step
-     * reads, is saved and listed with `state: "staged"`. One undoable step.
+     * reads, is saved and listed with `state: "staged"`. It is no undo step of its own: it joins the
+     * step before it, and with no step before it, it is part of the state history starts from.
      * @param source - What `import` takes.
      * @param options - Its key, type, space and edge ends.
      * @returns The new source's id.

@@ -10,6 +10,7 @@
  */
 
 import type { EdgeId } from "../../catalog/types";
+import { featureOff } from "../../features/resolve";
 import type { HistoryCode, LoadedSource } from "../../session/types";
 import type { SessionCommand } from "../planning";
 import type { CommandDefinition, UndoableContext, UndoableDefinition } from "../project/Dispatcher";
@@ -263,6 +264,9 @@ const dataStepsSet: UndoableDefinition<DataStepsSetCommand> = {
     lane: { kind: "queued", category: "data-add" },
     byReference: ["copies"],
     execute: (command, ctx) => {
+        if (ctx.services.sourceSteps?.() === false) {
+            throw featureOff("source-steps", "data");
+        }
         const service = serviceOf(ctx.services.data);
         const prior = valueOf<SourceSteps>(ctx, SOURCE_STEPS_VALUE, EMPTY_STEPS);
         const priorCopies = valueOf<Copies>(ctx, SOURCE_COPIES_VALUE, {});

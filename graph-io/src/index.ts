@@ -241,6 +241,8 @@ export {
     type CysExportOptions,
     cysImporter,
     type CysImportOptions,
+    type CytoscapeStyleFileOptions,
+    readCytoscapeStyleFile,
 } from "./formats/cys/index.js";
 export {
     type BendPoint,

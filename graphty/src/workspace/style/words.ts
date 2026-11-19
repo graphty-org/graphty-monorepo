@@ -455,6 +455,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.labelFitImage": "Fit image pixel size",
     "node.labelFitImagePadding": "Fit image padding",
     "edge.color": "Color",
+    "edge.colorFrom": "Color from node",
     "edge.width": "Width",
     "edge.opacity": "Opacity",
     "edge.bandColor": "Band",

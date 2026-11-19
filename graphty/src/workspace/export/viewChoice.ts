@@ -9,7 +9,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { isFixedCamera, viewProblemWords } from "../toolbar/viewWords";
 
 /** The Camera list's entry for the reader's own camera. */
-export const CURRENT = "current";
+const CURRENT = "current";
 
 /** One entry of the Camera list: a value, its words, and why it cannot be used now. */
 interface ViewEntry {

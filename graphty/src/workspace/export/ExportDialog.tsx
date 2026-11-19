@@ -4,7 +4,6 @@ import { PageList } from "@graphty/compact-mantine";
 import { Modal, Text } from "@mantine/core";
 import React, { lazy, Suspense, useEffect, useRef, useState } from "react";
 
-import { cameraViewsOn } from "../features";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { CameraImageOutput } from "./CameraImageOutput";
 import {
@@ -12,30 +11,22 @@ import {
     type DataChoices,
     DEFAULT_CAMERA_IMAGE,
     DEFAULT_DATA,
-    DEFAULT_IMAGE,
     DEFAULT_REPORT,
     DEFAULT_TOUR_VIDEO,
-    DEFAULT_VIDEO,
-    type ImageChoices,
     type OutputId,
     type RecentExport,
     type ReportChoices,
     type TourVideoChoices,
-    type VideoChoices,
 } from "./choices";
 import { DataOutput } from "./DataOutput";
 import { DocumentOutput } from "./DocumentOutput";
-import { ImageOutput } from "./ImageOutput";
 import { TourVideoOutput } from "./TourVideoOutput";
-import { VideoOutput } from "./VideoOutput";
 
 /** The Report's own chunk: its table and notes words are loaded when Report is chosen, not with the start page. */
 const ReportOutput = lazy(() => import("./ReportOutput").then((module) => ({ default: module.ReportOutput })));
 
-/** The outputs, in the list's order. */
+/** The outputs Export... lists, in the list's order. Image and Video are a camera's and a tour's own Export. */
 const OUTPUTS: readonly { id: OutputId; name: string }[] = [
-    { id: "image", name: "Image" },
-    { id: "video", name: "Video" },
     { id: "data", name: "Data" },
     { id: "report", name: "Report" },
     { id: "styles", name: "Styles" },
@@ -56,8 +47,8 @@ const RECENT_MAX = 5;
  * the tour `exportTour` names, for a tour's Record...), or on Data with CSV and the table the store's
  * `exportOn` names (whenever a table is showing), scoped to the whole graph, or to the source `exportSource`
  * names for a Sources row's Export... (that opening only), and keeps each output's choices while the workspace is mounted.
- * With the camera-views experiment on, Image and Video are not listed: a camera's Export image... (`exportView`)
- * and a tour's Export video... open the dialog on that output alone; off, the dialog is master's.
+ * Image and Video are not listed: a camera's Export image... (`exportView`) and a tour's Export
+ * video... open the dialog on that output alone.
  * @returns The dialog
  */
 export function ExportDialog(): React.JSX.Element {
@@ -69,11 +60,8 @@ export function ExportDialog(): React.JSX.Element {
     const exportView = useWorkspaceState((state) => state.exportView);
     const [recording, setRecording] = useState(false);
     const [output, setOutput] = useState<OutputId>("image");
-    const [image, setImage] = useState<ImageChoices>(DEFAULT_IMAGE);
-    const [video, setVideo] = useState<VideoChoices>(DEFAULT_VIDEO);
     const [cameraImage, setCameraImage] = useState<CameraImageChoices>(DEFAULT_CAMERA_IMAGE);
     const [tourVideo, setTourVideo] = useState<TourVideoChoices>(DEFAULT_TOUR_VIDEO);
-    const cameraViews = cameraViewsOn(session);
     const [data, setData] = useState<DataChoices>(DEFAULT_DATA);
     const [report, setReport] = useState<ReportChoices>(DEFAULT_REPORT);
     const [recent, setRecent] = useState<readonly RecentExport[]>([]);
@@ -138,11 +126,11 @@ export function ExportDialog(): React.JSX.Element {
     // The choices as they are when a file is done, not as they were when its output last drew: a
     // recording names its tour as it starts and ends seconds later.
     const latest = useRef<{ image: RecentExport["choices"]; video: RecentExport["choices"]; data: DataChoices }>({
-        image,
-        video,
+        image: cameraImage,
+        video: tourVideo,
         data,
     });
-    latest.current = cameraViews ? { image: cameraImage, video: tourVideo, data } : { image, video, data };
+    latest.current = { image: cameraImage, video: tourVideo, data };
     const done = (message: string, file?: string): void => {
         if (file !== undefined) {
             const choices = latest.current[output as "image" | "video" | "data"];
@@ -157,29 +145,20 @@ export function ExportDialog(): React.JSX.Element {
         const entry = recent[index];
         setOutput(entry.output);
         if (entry.output === "image") {
-            if (cameraViews) {
-                setCameraImage(entry.choices as CameraImageChoices);
-            } else {
-                setImage(entry.choices as ImageChoices);
-            }
+            setCameraImage(entry.choices as CameraImageChoices);
         } else if (entry.output === "video") {
-            if (cameraViews) {
-                setTourVideo(entry.choices as TourVideoChoices);
-            } else {
-                setVideo(entry.choices as VideoChoices);
-            }
+            setTourVideo(entry.choices as TourVideoChoices);
         } else if (entry.output === "data") {
             setData(entry.choices as DataChoices);
         }
     };
 
-    // With the camera-views experiment on, Image and Video are a camera's and a tour's own Export:
-    // opened on one, the dialog is that output alone; the generic Export lists the rest.
-    const single = cameraViews && (output === "image" || output === "video");
-    const outputs = cameraViews ? OUTPUTS.filter((entry) => entry.id !== "image" && entry.id !== "video") : OUTPUTS;
+    // Image and Video are a camera's and a tour's own Export: opened on one, the dialog is that
+    // output alone; the generic Export lists the rest.
+    const single = output === "image" || output === "video";
     const recentShown = recent
         .map((entry, index) => ({ entry, index }))
-        .filter(({ entry }) => !cameraViews || (entry.output !== "image" && entry.output !== "video"));
+        .filter(({ entry }) => entry.output !== "image" && entry.output !== "video");
     let title = "Export";
     if (single) {
         title = output === "image" ? "Export image" : "Export video";
@@ -188,13 +167,11 @@ export function ExportDialog(): React.JSX.Element {
     const body = (() => {
         switch (output) {
             case "image":
-                return cameraViews ? (
+                return (
                     <CameraImageOutput choices={cameraImage} onChange={setCameraImage} onCancel={close} onDone={done} />
-                ) : (
-                    <ImageOutput choices={image} onChange={setImage} onCancel={close} onDone={done} />
                 );
             case "video":
-                return cameraViews ? (
+                return (
                     <TourVideoOutput
                         choices={tourVideo}
                         onChange={setTourVideo}
@@ -202,8 +179,6 @@ export function ExportDialog(): React.JSX.Element {
                         onDone={done}
                         onRecording={setRecording}
                     />
-                ) : (
-                    <VideoOutput choices={video} onChange={setVideo} onCancel={close} onDone={done} />
                 );
             case "data":
                 return (
@@ -252,7 +227,7 @@ export function ExportDialog(): React.JSX.Element {
             {single ? null : (
                 <div className="ws-export-list">
                     <PageList
-                        items={outputs}
+                        items={OUTPUTS}
                         current={output}
                         label="What to export"
                         onCurrentChange={(id) => {

@@ -1,8 +1,7 @@
 import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import type { GraphSession, SavedView } from "@graphty/graphty-element/session";
 
-import { type Command, type CommandContext, defineRegistration } from "../commands/registry";
-import { cameraViewsOn } from "../features";
+import { type Command, defineRegistration } from "../commands/registry";
 import { undoOrRedo } from "../frame/historyWords";
 import { panelsInView } from "../time/timeActions";
 import { goToSavedView, immersiveMode, nextName, savedViewReason } from "../toolbar/commands";
@@ -15,13 +14,6 @@ import { viewProblemWords } from "../toolbar/viewWords";
  * section 3.4).
  */
 export const CAMERA_KEYS = ["1", "2", "3", "4", "6", "7", "8"] as const;
-
-/** What every command of the Views place carries: it exists only with the camera-views experiment on. */
-const GATE = {
-    experiment: true,
-    feature: "camera-views",
-    shown: ({ session }: CommandContext) => cameraViewsOn(session),
-} as const;
 
 /**
  * Why a camera cannot be applied now, from the element's `viewProblem` judged as a saved view:
@@ -45,7 +37,7 @@ export function cameraReason(element: GraphtyElement | null, name: string, saved
  * @param session - the element's session.
  * @returns the new camera's name, once saved.
  */
-export async function saveCamera(session: GraphSession): Promise<string> {
+async function saveCamera(session: GraphSession): Promise<string> {
     const name = nextName(session.views, "Camera");
     await session.views.save([{ name }]);
     return name;
@@ -76,8 +68,7 @@ function cameraKeyCommand(key: (typeof CAMERA_KEYS)[number]): Command {
         group: "View",
         keys: [key],
         inPalette: false,
-        ...GATE,
-        disabled: (ctx) => {
+                disabled: (ctx) => {
             const name = cameraOnKey(ctx.session, key);
             const active = immersiveMode(ctx.session);
             if (name === undefined) {
@@ -106,8 +97,7 @@ export const registration = defineRegistration({
             label: "Views",
             group: "Go to",
             keywords: ["camera", "tour", "video", "hotkey"],
-            ...GATE,
-            // A door (Quick actions, All cameras...) moves focus into Cameras, unless it asked for
+                        // A door (Quick actions, All cameras...) moves focus into Cameras, unless it asked for
             // another section first (the Export dialog asks for Video tours). The rail clears it.
             run: ({ workspace }) => {
                 const viewsFocus = workspace.get().viewsFocus ?? "cameras";
@@ -121,8 +111,7 @@ export const registration = defineRegistration({
             group: "View",
             keys: ["V"],
             keywords: ["view", "save view"],
-            ...GATE,
-            // The element refuses to save while immersive: the headset's camera is no 2D or 3D state.
+                        // The element refuses to save while immersive: the headset's camera is no 2D or 3D state.
             disabled: ({ session }) => {
                 const active = immersiveMode(session);
                 return nothingDrawn(session) ?? (active === null ? null : `Not in ${active.toUpperCase()}`);

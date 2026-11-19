@@ -1265,7 +1265,7 @@ export type ExportFlattenReason = (typeof EXPORT_FLATTEN_REASONS)[number];
 export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];
 
 // @public
-export type FeatureId = "assistant" | "data-management" | "location-map" | "cosmograph" | "file-styles" | "node-models" | "save-files-v2" | "camera-views";
+export type FeatureId = "assistant" | "data-management" | "location-map" | "cosmograph" | "file-styles" | "node-models" | "save-files-v2";
 
 // @public
 export interface FieldBand {
@@ -7381,9 +7381,9 @@ export interface StyleCounts {
 
 // @public
 export interface StyleDocument {
+    labelLooks?: readonly LabelLookDescriptor[];
     // (undocumented)
     layers: readonly LayerSpec[];
-    // (undocumented)
     palettes?: readonly PaletteDescriptor[];
     problems?: readonly ShaderProblem[];
     shaders?: readonly {

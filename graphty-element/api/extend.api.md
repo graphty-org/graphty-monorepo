@@ -356,7 +356,7 @@ export function assistantReach(commands?: readonly {
 export type AssistantReachCode = "ai.option-unoffered" | "ai.no-description" | "ai.name-reserved" | "ai.no-descriptor";
 
 // @public
-export type AuthoredLayoutDescriptor = Omit<LayoutDescriptor, "honoursWeights" | "scoped">;
+export type AuthoredLayoutDescriptor = Omit<LayoutDescriptor, "honorsWeights" | "honoursWeights" | "scoped">;
 
 // @public
 export interface AutosaveCommitOptions {
@@ -2109,6 +2109,8 @@ export interface LayoutDescriptor {
     engine: string;
     // (undocumented)
     family: string;
+    honorsWeights: boolean;
+    // @deprecated
     honoursWeights: boolean;
     // (undocumented)
     id: LayoutId;
@@ -2163,7 +2165,9 @@ export abstract class LayoutEngine {
     protected hidesRow(index: number): boolean;
     get holdMask(): NodeMask | null;
     protected get holdsAny(): boolean;
-    static honoursWeights: boolean;
+    static honorsWeights: boolean;
+    // @deprecated
+    static readonly honoursWeights?: boolean;
     // (undocumented)
     abstract init(): Promise<void>;
     protected isFollower(index: number): boolean;
@@ -2249,6 +2253,8 @@ export interface LayoutEngineStatics {
     getZodOptionsSchema(): OptionsSchema_2;
     // (undocumented)
     hasZodOptions(): boolean;
+    honorsWeights?: boolean;
+    // @deprecated
     honoursWeights?: boolean;
     maxDimensions: number;
     scoped?: boolean;
@@ -3148,6 +3154,7 @@ export interface SnapshotLayoutProgress {
 export interface SnapshotLayoutRegistration {
     readonly compute: (input: SnapshotLayoutInput) => SnapshotLayoutAnswer;
     readonly descriptor: AuthoredLayoutDescriptor & {
+        readonly honorsWeights?: boolean;
         readonly honoursWeights?: boolean;
         readonly scoped?: boolean;
     };

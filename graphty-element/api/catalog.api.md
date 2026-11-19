@@ -787,7 +787,7 @@ export interface FeatureDescriptor {
 }
 
 // @public
-export type FeatureId = "assistant" | "data-management" | "location-map" | "cosmograph" | "file-styles" | "node-models" | "save-files-v2" | "camera-views";
+export type FeatureId = "assistant" | "data-management" | "location-map" | "cosmograph" | "file-styles" | "node-models" | "save-files-v2";
 
 // @public
 export const FEATURES: readonly FeatureDescriptor[];
@@ -2059,6 +2059,8 @@ export interface LayoutDescriptor {
     engine: string;
     // (undocumented)
     family: string;
+    honorsWeights: boolean;
+    // @deprecated
     honoursWeights: boolean;
     // (undocumented)
     id: LayoutId;
@@ -2099,6 +2101,8 @@ export interface LayoutImplementation {
     descriptionId?: string;
     engine: string;
     fact: CodedFact<LayoutImplementationCode>;
+    honorsWeights: boolean;
+    // @deprecated
     honoursWeights: boolean;
     isDefault: boolean;
     // (undocumented)
@@ -3167,9 +3171,9 @@ export interface StructureValue {
 
 // @public
 export interface StyleDocument {
+    labelLooks?: readonly LabelLookDescriptor[];
     // (undocumented)
     layers: readonly LayerSpec[];
-    // (undocumented)
     palettes?: readonly PaletteDescriptor[];
     problems?: readonly ShaderProblem[];
     shaders?: readonly {

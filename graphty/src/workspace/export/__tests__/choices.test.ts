@@ -4,12 +4,10 @@ import { GraphtyError, type GraphtyErrorCode } from "@graphty/graphty-element/se
 import { assert, describe, it } from "vitest";
 
 import {
-    animationOptions,
     backgroundRefusal,
     cameraScreenshotOptions,
     dataExportOptions,
     DEFAULT_CAMERA_IMAGE,
-    DEFAULT_IMAGE,
     exportScope,
     factWords,
     failureWords,
@@ -20,7 +18,6 @@ import {
     presetOf,
     previewOf,
     refusalWords,
-    screenshotOptions,
     slug,
     tourAnimationOptions,
     writerOptions,
@@ -81,16 +78,16 @@ describe("the Export dialog's choices", () => {
     });
 
     it("names the preset the choices match, and none after an edit", () => {
-        assert.equal(presetOf(DEFAULT_IMAGE)?.id, "web-share");
-        assert.equal(presetOf({ ...DEFAULT_IMAGE, size: "4x" })?.id, "print");
-        assert.isUndefined(presetOf({ ...DEFAULT_IMAGE, format: "webp" }));
+        assert.equal(presetOf(DEFAULT_CAMERA_IMAGE)?.id, "web-share");
+        assert.equal(presetOf({ ...DEFAULT_CAMERA_IMAGE, size: "4x" })?.id, "print");
+        assert.isUndefined(presetOf({ ...DEFAULT_CAMERA_IMAGE, format: "webp" }));
         for (const preset of SCREENSHOT_PRESET_DESCRIPTORS) {
-            assert.equal(presetOf({ ...DEFAULT_IMAGE, ...presetChoices(preset) }), preset);
+            assert.equal(presetOf({ ...DEFAULT_CAMERA_IMAGE, ...presetChoices(preset) }), preset);
         }
     });
 
     it("turns choices into screenshot options", () => {
-        assert.deepEqual(screenshotOptions(DEFAULT_IMAGE, { download: true }, "a_b.png"), {
+        assert.deepEqual(cameraScreenshotOptions(DEFAULT_CAMERA_IMAGE, { download: true }, "a_b.png"), {
             format: "png",
             multiplier: 2,
             transparentBackground: false,
@@ -98,8 +95,8 @@ describe("the Export dialog's choices", () => {
             destination: { download: true },
             downloadFilename: "a_b.png",
         });
-        const thumbnail = screenshotOptions(
-            { format: "jpeg", size: "400x300", background: "canvas", view: "topView" },
+        const thumbnail = cameraScreenshotOptions(
+            { ...DEFAULT_CAMERA_IMAGE, format: "jpeg", size: "400x300", background: "canvas", view: "topView" },
             {},
         );
         assert.equal(thumbnail.width, 400);
@@ -107,17 +104,16 @@ describe("the Export dialog's choices", () => {
         assert.equal(thumbnail.quality, 0.85);
         assert.isUndefined(thumbnail.multiplier);
         assert.deepEqual(thumbnail.camera, { view: "topView" });
-        assert.isUndefined(screenshotOptions(DEFAULT_IMAGE, {}).camera, "the reader's camera");
         assert.deepEqual(
             cameraScreenshotOptions({ ...DEFAULT_CAMERA_IMAGE, view: "Hub cluster" }, {}).camera,
             { view: "Hub cluster" },
         );
         assert.isUndefined(cameraScreenshotOptions(DEFAULT_CAMERA_IMAGE, {}).camera, "the reader's camera");
-        assert.deepEqual(screenshotOptions({ ...DEFAULT_IMAGE, view: "fitToGraph" }, {}).camera, {
+        assert.deepEqual(cameraScreenshotOptions({ ...DEFAULT_CAMERA_IMAGE, view: "fitToGraph" }, {}).camera, {
             view: "fitToGraph",
             params: { keepAngle: true },
         });
-        assert.isTrue(screenshotOptions({ ...DEFAULT_IMAGE, size: "4x" }, {}).enhanceQuality);
+        assert.isTrue(cameraScreenshotOptions({ ...DEFAULT_CAMERA_IMAGE, size: "4x" }, {}).enhanceQuality);
     });
 
     it("refuses a transparent background in a format that cannot keep it", () => {
@@ -189,21 +185,6 @@ describe("the Export dialog's choices", () => {
         const options = dataExportOptions(row, choices, ["name"]);
         assert.equal(options.scope, "shown");
         assert.deepEqual(options.columns, ["name"]);
-    });
-
-    it("records a tour by naming its views, and a still view without a camera path", () => {
-        const tour = animationOptions(
-            { camera: "tour", stops: ["topView", "isometric"], seconds: 3, fps: 30 },
-            "a.webm",
-        );
-        assert.equal(tour.cameraMode, "animated");
-        assert.deepEqual(tour.tour, ["topView", "isometric"]);
-        assert.equal(tour.duration, 3000);
-        assert.deepEqual(tour.destination, { download: true, filename: "a.webm" });
-        const still = animationOptions({ camera: "still", stops: [], seconds: 5, fps: 60 });
-        assert.equal(still.cameraMode, "stationary");
-        assert.isUndefined(still.tour);
-        assert.isUndefined(still.destination);
     });
 
     it("records a saved tour by name for its own length, and a still view for its seconds", () => {

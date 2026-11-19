@@ -273,4 +273,36 @@ describe("Operation Cancellation", () => {
         assert.equal(stats.pending, 0);
         assert.equal(stats.size, 0);
     });
+
+    it("names each cancellation operation-canceled first, then by its deprecated British name", async () => {
+        const named: [string, string, string][] = [];
+        eventManager.onGraphEvent.add((event) => {
+            if (event.type === "operation-canceled" || event.type === "operation-cancelled") {
+                named.push([event.type, event.id, event.code]);
+            }
+        });
+        const started = gate();
+        const one = queueManager.queueOperation("data-remove", async (context) => {
+            started.open();
+            await untilAborted(context);
+        });
+        await started.promise;
+        assert.isTrue(queueManager.cancelOperation(one));
+        await queueManager.waitForCompletion();
+
+        const restarted = gate();
+        const two = queueManager.queueOperation("data-remove", async (context) => {
+            restarted.open();
+            await untilAborted(context);
+        });
+        await restarted.promise;
+        queueManager.clear();
+
+        assert.deepEqual(named, [
+            ["operation-canceled", one, "canceled"],
+            ["operation-cancelled", one, "cancelled"],
+            ["operation-canceled", two, "queue-cleared"],
+            ["operation-cancelled", two, "queue-cleared"],
+        ]);
+    });
 });

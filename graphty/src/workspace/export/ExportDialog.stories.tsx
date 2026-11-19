@@ -5,7 +5,6 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { waitFor, within } from "storybook/test";
 
 import { freshStore, storeOf } from "../../stories/freshStore";
-import { onSiteWith } from "../../test/siteFeatures";
 import type { WorkspaceState } from "../state/store";
 import { Workspace } from "../Workspace";
 
@@ -75,13 +74,9 @@ function exportStory(exportOn: WorkspaceState["exportOn"]): Story {
     };
 }
 
-/** Export > Image: the "To share" preset, the legend callout and the preview the element draws. */
-export const Image: Story = { ...exportStory("image"), beforeEach: onSiteWith([]) };
-
-/** A camera's Export image...: the Image output alone, titled Export image, taken from that camera (the camera-views experiment on). */
+/** A camera's Export image...: the Image output alone, titled Export image, taken from that camera */
 export const ImageSavedView: Story = {
     ...freshStore({ project: { name: "Ring", id: 1 } }),
-    beforeEach: onSiteWith(["camera-views"]),
     play: async (context) => {
         const { canvasElement } = context;
         const store = storeOf(context);
@@ -101,12 +96,11 @@ export const ImageSavedView: Story = {
 };
 
 /** Export > Data, opened on the node table: CSV, what it cannot hold, and the first lines with the Degree columns. */
-export const Data: Story = { ...exportStory("nodes"), beforeEach: onSiteWith([]) };
+export const Data: Story = exportStory("nodes");
 
-/** A tour's Export video...: the Video output alone, titled Export video, on that tour with its length, frame rate and frame count (the camera-views experiment on). */
+/** A tour's Export video...: the Video output alone, titled Export video, on that tour with its length, frame rate and frame count */
 export const VideoTour: Story = {
     ...freshStore({ project: { name: "Ring", id: 1 } }),
-    beforeEach: onSiteWith(["camera-views"]),
     play: async (context) => {
         const { canvasElement } = context;
         const store = storeOf(context);
@@ -130,6 +124,3 @@ export const VideoTour: Story = {
         await within(dialog).findByText(/^\d+ frames$/);
     },
 };
-
-/** Export... (Mod+E): data files only, opened on the node table, with no Image or Video (the camera-views experiment on). */
-export const DataOnly: Story = { ...exportStory("nodes"), beforeEach: onSiteWith(["camera-views"]) };

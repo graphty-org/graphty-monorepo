@@ -81,6 +81,7 @@ const circular: LayoutDescriptor = {
     structuralInputs: ["ordering"],
     options: [],
     engine: "@graphty/layout",
+    honorsWeights: false,
     honoursWeights: false,
     scoped: false,
 };

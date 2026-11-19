@@ -122,6 +122,7 @@ export interface GraphtyElementJSXProps {
     "onai-agent-start"?: (event: CustomEvent<EventOfType<"ai-agent-start">>) => void;
     "onai-approval-requested"?: (event: CustomEvent<EventOfType<"ai-approval-requested">>) => void;
     "onai-capability-unavailable"?: (event: CustomEvent<EventOfType<"ai-capability-unavailable">>) => void;
+    "onai-command-canceled"?: (event: CustomEvent<EventOfType<"ai-command-canceled">>) => void;
     "onai-command-cancelled"?: (event: CustomEvent<EventOfType<"ai-command-cancelled">>) => void;
     "onai-command-complete"?: (event: CustomEvent<EventOfType<"ai-command-complete">>) => void;
     "onai-command-error"?: (event: CustomEvent<EventOfType<"ai-command-error">>) => void;
@@ -142,6 +143,7 @@ export interface GraphtyElementJSXProps {
     "onai-voice-start"?: (event: CustomEvent<EventOfType<"ai-voice-start">>) => void;
     "onai-voice-support-change"?: (event: CustomEvent<EventOfType<"ai-voice-support-change">>) => void;
     "onai-voice-transcript"?: (event: CustomEvent<EventOfType<"ai-voice-transcript">>) => void;
+    "onanimation-canceled"?: (event: CustomEvent<EventOfType<"animation-canceled">>) => void;
     "onanimation-cancelled"?: (event: CustomEvent<EventOfType<"animation-cancelled">>) => void;
     "onanimation-progress"?: (event: CustomEvent<EventOfType<"animation-progress">>) => void;
     "onbasemap-status"?: (event: CustomEvent<EventOfType<"basemap-status">>) => void;
@@ -230,6 +232,7 @@ export interface GraphtyElementJSXProps {
     "onlimits-warning"?: (event: CustomEvent<EventOfType<"limits-warning">>) => void;
     "onmanager-initialized"?: (event: CustomEvent<EventOfType<"manager-initialized">>) => void;
     "onoperation-batch-complete"?: (event: CustomEvent<EventOfType<"operation-batch-complete">>) => void;
+    "onoperation-canceled"?: (event: CustomEvent<EventOfType<"operation-canceled">>) => void;
     "onoperation-cancelled"?: (event: CustomEvent<EventOfType<"operation-cancelled">>) => void;
     "onoperation-complete"?: (event: CustomEvent<EventOfType<"operation-complete">>) => void;
     "onoperation-obsoleted"?: (event: CustomEvent<EventOfType<"operation-obsoleted">>) => void;

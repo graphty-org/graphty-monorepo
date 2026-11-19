@@ -87,11 +87,6 @@ With it off:
 A layer that writes one of the experiment's channels or values directly is still accepted and
 drawn, and a project saved with the experiment on opens with the styles it was saved with.
 
-### `camera-views`
-
-Gates only the graphty app's Views place, Camera menu and export entry points. graphty-element's
-camera, view and tour code and the project format work the same with it on or off.
-
 ## What `@experimental` promises
 
 API marked `@experimental` in the reference may change or disappear in a minor release of

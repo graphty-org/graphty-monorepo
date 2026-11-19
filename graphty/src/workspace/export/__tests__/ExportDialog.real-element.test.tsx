@@ -1,7 +1,6 @@
 /**
  * Tier 1 task T13, "Save a picture and the numbers", on the REAL graphty-element: in a new
- * project, load a graph, run Degree, then Export > Image saves a picture and Export >
- * Data saves the node table whose result headers are the run's result paths. Every file is
+ * project, load a graph, run Degree, then Export > Data saves the node table whose result headers are the run's result paths. Every file is
  * caught where the page hands it to the browser (the object URL and the anchor's click).
  */
 
@@ -12,7 +11,6 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { afterEach, assert, describe, it, vi } from "vitest";
 import { cdp, page, userEvent } from "vitest/browser";
 
-import { withFeatures, withoutFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { Workspace } from "../../Workspace";
 
@@ -79,8 +77,8 @@ async function openScoredGraph(): Promise<GraphSession> {
     return session;
 }
 
-/** Master's outputs, in the list's order. */
-const OUTPUTS = ["Image", "Video", "Data", "Report", "Styles", "Recipe", "Project"];
+/** The outputs Export... lists, in the list's order. */
+const OUTPUTS = ["Data", "Report", "Styles", "Recipe", "Project"];
 
 /**
  * Mod+E, and checks every output is listed.
@@ -106,11 +104,8 @@ async function pick(dialog: HTMLElement, name: string): Promise<void> {
     await userEvent.click(within(within(dialog).getByRole("grid", { name: "What to export" })).getByText(name));
 }
 
-// Master's Image and Video outputs and Camera menu captures: the camera-views experiment off.
-withoutFeatures(["camera-views"]);
-
 describe("Export: save a picture and the numbers (task T13)", () => {
-    it("saves the drawing as a PNG and the node table with the run's result columns", async () => {
+    it("saves the node table with the run's result columns", async () => {
         const saved = catchDownloads();
         // A new, empty project; the graph goes in through the element's session.
         render(<Workspace initialState={{ project: { name: "Untitled", id: 1 } }} />);
@@ -128,21 +123,10 @@ describe("Export: save a picture and the numbers (task T13)", () => {
         const [root] = session.results.roots;
         assert.isDefined(root, "Degree published a result");
 
-        // Export... (Mod+E) opens the dialog on Image; Export saves the picture.
-        await userEvent.keyboard("{Control>}e{/Control}");
-        const dialog = await screen.findByRole("dialog", { name: "Export" });
-        await within(dialog).findByRole("img", {});
-        await userEvent.click(within(dialog).getByRole("button", { name: "Export" }));
-        await screen.findByText("Exported untitled_current-view.png", TOAST);
-        const picture = saved.find(({ name }) => name === "untitled_current-view.png");
-        assert.isDefined(picture, "the picture was saved");
-        assert.equal(picture?.blob.type, "image/png");
-        assert.isAbove(picture?.blob.size ?? 0, 0);
-
         // Data: the node table, one row per node, every result headed by its result path.
         await userEvent.keyboard("{Control>}e{/Control}");
         const again = await screen.findByRole("dialog", { name: "Export" });
-        await userEvent.click(within(again).getByText("Data"));
+        await pick(again, "Data");
         const header = session.results.path(root.runId, "value");
         // The preview and the saved file both wait on exportGraph, which first waits for the
         // element's whole operation queue to drain: wait on what they show, with no deadline of
@@ -262,57 +246,6 @@ describe("Export: save a picture and the numbers (task T13)", () => {
         assert.isNotNull(screen.queryByRole("dialog", { name: "Export" }), "the dialog stays open");
     });
 
-    it("offers no edge table without edges, and names a tour's views by their plain names", async () => {
-        render(<Workspace initialState={{ project: { name: "Untitled", id: 1 } }} />);
-        let session: GraphSession | undefined;
-        await waitFor(() => {
-            session = document.querySelector("graphty-element")?.session;
-            assert.isDefined(session);
-        });
-        if (session === undefined) {
-            throw new Error("the element never came up");
-        }
-        await session.data.addNodes(NODES);
-
-        let dialog = await openExport();
-        await pick(dialog, "Data");
-        const preview = within(dialog).getByLabelText("Preview of the exported data");
-        await waitFor(() => {
-            assert.notEqual(preview.textContent, "Writing the preview...");
-        });
-        assert.isNull(within(dialog).queryByText("Table"), "no Nodes / Edges toggle without edges");
-        assert.isNull(within(dialog).queryByRole("radio", { name: "Edges" }));
-
-        await userEvent.keyboard("{Escape}");
-        dialog = await openExport();
-        await pick(dialog, "Video");
-        const views = within(dialog).getByRole("textbox", { name: "Views" }).closest(".mantine-MultiSelect-root");
-        assert.isNotNull(views);
-        assert.include(views?.textContent, "From the front");
-        assert.notInclude(views?.textContent, "frontView", "no camera id is shown");
-    });
-
-    it("records a short tour of views, and lists it under Recent (flow 10)", async () => {
-        const saved = catchDownloads();
-        await openScoredGraph();
-
-        // Video: a short tour through three camera views.
-        let dialog = await openExport();
-        await pick(dialog, "Video");
-        await userEvent.click(within(dialog).getByText("3 s"));
-        await userEvent.click(within(dialog).getByRole("button", { name: "Record" }));
-        const notice = await screen.findByText(/^Exported untitled_tour\.(webm|mp4)/, {});
-        const video = saved.find(({ name }) => notice.textContent?.includes(name) ?? false);
-        assert.isDefined(video, "the video was saved");
-        assert.match(video?.blob.type ?? "", /^video\//);
-
-        // Recent lists what was exported in this visit.
-        dialog = await openExport();
-        assert.isNotNull(
-            within(within(dialog).getByRole("grid", { name: "Recent exports" })).getByText(video?.name ?? ""),
-        );
-    });
-
     it("writes a report of the chosen sections with the reader's words, and the data issues as JSON and CSV", async () => {
         const saved = catchDownloads();
         const session = await openScoredGraph();
@@ -403,9 +336,7 @@ describe("Export: save a picture and the numbers (task T13)", () => {
     });
 });
 
-describe("Export with the camera-views experiment on", () => {
-    withFeatures(["camera-views"]);
-
+describe("Export from a camera or a tour", () => {
     /**
      * Opens the Export dialog from a camera's or a tour's row menu in the Views place, and checks it
      * is that output alone, with no list of outputs.
@@ -606,53 +537,5 @@ describe("Export with the camera-views experiment on", () => {
         } finally {
             await send.send("Emulation.setEmulatedMedia", { features: [] });
         }
-    });
-});
-
-describe("the Camera menu's Export image and Record video", () => {
-    it("saves the canvas as an image, and records it until Stop recording, each from its row and its key", async () => {
-        // The design's frame: at the runner's default width the toolbar is clipped.
-        await page.viewport(1366, 768);
-        const saved = catchDownloads();
-        await openScoredGraph();
-        const camera = within(screen.getByRole("toolbar", { name: "Canvas tools" })).getByRole("button", {
-            name: "Camera",
-        });
-        const open = async (): Promise<HTMLElement> => {
-            await waitFor(() => {
-                assert.isFalse(camera.hasAttribute("aria-disabled"));
-            });
-            await userEvent.click(camera);
-            return screen.findByRole("menu", { name: /^Camera/ });
-        };
-
-        // Each row shows its key.
-        let menu = await open();
-        const image = within(menu).getByRole("menuitem", { name: /^Export image/ });
-        assert.equal(image.getAttribute("aria-keyshortcuts"), "Shift+I");
-        assert.equal(
-            within(menu)
-                .getByRole("menuitem", { name: /^Record video/ })
-                .getAttribute("aria-keyshortcuts"),
-            "Shift+R",
-        );
-        await userEvent.click(image);
-        await screen.findByText("Exported untitled_current-view.png", TOAST);
-        assert.match(saved.find(({ name }) => name === "untitled_current-view.png")?.blob.type ?? "", /^image\/png/);
-
-        // Shift+R starts a recording; the row then reads Stop recording, and stopping saves it.
-        await userEvent.keyboard("{Shift>}R{/Shift}");
-        menu = await open();
-        const stop = await within(menu).findByRole("menuitem", { name: /^Stop recording/ });
-        await waitFor(() => {
-            assert.isTrue(document.querySelector("graphty-element")?.isAnimationCapturing());
-        });
-        await userEvent.click(stop);
-        const notice = await screen.findByText(/^Exported untitled_view\.(webm|mp4)/, TOAST);
-        const video = saved.find(({ name }) => notice.textContent?.includes(name) ?? false);
-        assert.isDefined(video, "the video was saved");
-        assert.match(video?.blob.type ?? "", /^video\//);
-        menu = await open();
-        assert.isNotNull(within(menu).getByRole("menuitem", { name: /^Record video/ }));
     });
 });

@@ -307,20 +307,7 @@ export interface WorkspaceCommands {
 }
 
 /**
- * Whether two commands may hold the same key: an experiment's command (it names its `feature`) and a
- * command the experiment hides while on (`experiment: true`, no `feature`), whose `shown` gates
- * keep exactly one of them live (Front's 1 and the camera key 1 of camera-views).
- * @param a - one command.
- * @param b - the other.
- * @returns true when they take turns.
- */
-function takeTurns(a: Command, b: Command): boolean {
-    return a.experiment === true && b.experiment === true && (a.feature === undefined) !== (b.feature === undefined);
-}
-
-/**
- * Adds one command and its keys, refusing a duplicate id or a key another command holds, unless
- * the two take turns with it.
+ * Adds one command and its keys, refusing a duplicate id or a key another command holds.
  * @param byId - the commands so far, by id.
  * @param byKey - the command id holding each key so far.
  * @param command - the command to add.
@@ -334,8 +321,7 @@ function addCommand(byId: Map<string, Command>, byKey: Map<string, string>, comm
     for (const key of command.keys ?? []) {
         assertAppKey(key, command.id);
         const holder = byKey.get(key);
-        const held = holder === undefined ? undefined : byId.get(holder);
-        if (holder !== undefined && (held === undefined || !takeTurns(held, command))) {
+        if (holder !== undefined) {
             throw new Error(`Key "${key}" is bound to both "${holder}" and "${command.id}"`);
         }
         byKey.set(key, command.id);

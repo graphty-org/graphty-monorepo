@@ -3,12 +3,12 @@ import { SCREENSHOT_PRESET_DESCRIPTORS } from "@graphty/graphty-element/catalog"
 import { Alert, Button, Input, Loader, Select, Text } from "@mantine/core";
 import React from "react";
 
-import { CUSTOM, type ImageChoices, type ImageFormat, type ImageSize, PRESET_LABELS, presetChoices } from "./choices";
+import { type CameraImageChoices, CUSTOM, type ImageFormat, type ImageSize, PRESET_LABELS, presetChoices } from "./choices";
 import { type CaptureStatus, SIZES } from "./outputHooks";
 
 /** The controls the Image and Video outputs share, in both the generic Export dialog and a camera's or tour's. */
 
-type ImageBackground = ImageChoices["background"];
+type ImageBackground = CameraImageChoices["background"];
 
 /**
  * The Preset select: the element's screenshot presets, or Custom.

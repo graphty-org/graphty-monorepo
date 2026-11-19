@@ -6,7 +6,6 @@ import { closeAssistant } from "../assistant-door/commands";
 import { GLYPHS } from "../glyphs";
 import { formatKey } from "../keys/keys";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { useShownPlace } from "./shownPlace";
 
 /**
  * The Assistant's glyph, with a neutral dot while a request waits for the reader.
@@ -26,10 +25,10 @@ function AssistantGlyph({ waiting }: Readonly<{ waiting: boolean }>): React.JSX.
 }
 
 /**
- * The rail's Views button, while the element has the camera-views experiment on.
+ * The rail's Views button.
  * @param props - Component props
  * @param props.active - Whether the Views place is showing
- * @returns The button, or nothing with the experiment off
+ * @returns The button
  */
 function ViewsButton({ active }: Readonly<{ active: boolean }>): React.JSX.Element | null {
     const { store } = useWorkspace();
@@ -54,8 +53,7 @@ function ViewsButton({ active }: Readonly<{ active: boolean }>): React.JSX.Eleme
 
 /**
  * The rail (tier1-design.md section 2.2): Graph, Data and Notes, with Settings pinned to its foot
- * as the classic shell's activity rail pins it; Views after Data while the element has the
- * camera-views experiment on, wearing the Camera tool's glyph (design/ui/camera-views-tours-and-capture.md,
+ * as the classic shell's activity rail pins it; Views after Data, wearing the Camera tool's glyph (design/ui/camera-views-tours-and-capture.md,
  * section 3.1); and Assistant after them while the element has the assistant experiment on, with a
  * neutral dot while a request waits for the reader. Icon buttons
  * with the shared tooltip; only Settings and Assistant have a key. Pressing the active Assistant closes it.
@@ -63,7 +61,7 @@ function ViewsButton({ active }: Readonly<{ active: boolean }>): React.JSX.Eleme
  */
 export function Rail(): React.JSX.Element {
     const { run, store } = useWorkspace();
-    const place = useShownPlace(useWorkspaceState((state) => (state.page === "panels" ? state.place : "data")));
+    const place = useWorkspaceState((state) => (state.page === "panels" ? state.place : "data"));
     const settingsOpen = useWorkspaceState((state) => state.dialog?.startsWith("settings") ?? false);
     const settings = useCommand("settings.open");
     const settingsKey = settings?.command.keys?.[0];

@@ -34,19 +34,14 @@ export type ImageSize = "1x" | "2x" | "4x" | "400x300";
 /** What the image is drawn against. */
 type ImageBackground = "canvas" | "transparent";
 
-/** The Image output's choices (master's Image output, the camera-views experiment off). */
-export interface ImageChoices {
+/** What a screenshot preset sets: the image's format, size and background. */
+interface ImageLook {
     readonly format: ImageFormat;
     readonly size: ImageSize;
     readonly background: ImageBackground;
-    /** "current" for the reader's camera, else a camera id from `session.catalog.cameras()`. */
-    readonly view: string;
 }
 
-/** What a screenshot preset sets: the image's format, size and background. */
-type ImageLook = Pick<ImageChoices, "format" | "size" | "background">;
-
-/** The camera Image output's choices (the camera-views experiment on). */
+/** The Image output's choices: a camera's Export image... */
 export interface CameraImageChoices {
     readonly format: ImageFormat;
     readonly size: ImageSize;
@@ -363,11 +358,6 @@ export function presetChoices(preset: ScreenshotPreset): ImageLook {
 /** The label of the preset list's entry after any edit. */
 export const CUSTOM = "Custom";
 
-export const DEFAULT_IMAGE: ImageChoices = {
-    ...presetChoices(SCREENSHOT_PRESET_DESCRIPTORS[0]),
-    view: "current",
-};
-
 export const DEFAULT_CAMERA_IMAGE: CameraImageChoices = {
     ...presetChoices(SCREENSHOT_PRESET_DESCRIPTORS[0]),
     view: null,
@@ -438,22 +428,7 @@ function captureOptions(
 }
 
 /**
- * The options for one capture.
- * @param choices - the image choices.
- * @param destination - where the element sends the image.
- * @param downloadFilename - the file name, for a download.
- * @returns the screenshot options.
- */
-export function screenshotOptions(
-    choices: ImageChoices,
-    destination: NonNullable<ScreenshotOptions["destination"]>,
-    downloadFilename?: string,
-): ScreenshotOptions {
-    return captureOptions(choices, choices.view === "current" ? null : choices.view, destination, downloadFilename);
-}
-
-/**
- * The options for one capture from the camera Image output.
+ * The options for one capture from the Image output.
  * @param choices - the image choices.
  * @param destination - where the element sends the image.
  * @param downloadFilename - the file name, for a download.
@@ -494,36 +469,7 @@ export function fileName(project: string, what: string, extension: string): stri
 /** The extension of each image format. */
 export const IMAGE_EXTENSIONS: Readonly<Record<ImageFormat, string>> = { png: "png", jpeg: "jpg", webp: "webp" };
 
-/** The Video output's choices (master's Video output, the camera-views experiment off). */
-export interface VideoChoices {
-    /** Still: the reader's camera; tour: the camera flies through `stops`. */
-    readonly camera: "still" | "tour";
-    /** The views a tour visits, in order: camera view ids or saved view names. */
-    readonly stops: readonly string[];
-    /** Length in seconds. */
-    readonly seconds: number;
-    readonly fps: 30 | 60;
-}
-
-export const DEFAULT_VIDEO: VideoChoices = { camera: "tour", stops: [], seconds: 5, fps: 30 };
-
-/**
- * The options for one recording.
- * @param choices - the video choices.
- * @param downloadFilename - the file name, for a download; none keeps the video as a blob.
- * @returns the `captureAnimation` options.
- */
-export function animationOptions(choices: VideoChoices, downloadFilename?: string): AnimationOptions {
-    return {
-        duration: choices.seconds * 1000,
-        fps: choices.fps,
-        format: "auto",
-        ...(choices.camera === "tour" ? { cameraMode: "animated", tour: choices.stops } : { cameraMode: "stationary" }),
-        ...(downloadFilename === undefined ? {} : { destination: { download: true, filename: downloadFilename } }),
-    };
-}
-
-/** The tour Video output's choices (the camera-views experiment on). */
+/** The Video output's choices: a tour's Export video... */
 export interface TourVideoChoices {
     /** Still: the camera holds on `view`; tour: the element plays the saved tour `tour`. */
     readonly camera: "still" | "tour";
@@ -598,7 +544,7 @@ export type OutputId = "image" | "video" | "data" | "report" | "styles" | "recip
 export interface RecentExport {
     readonly output: OutputId;
     readonly name: string;
-    readonly choices?: ImageChoices | CameraImageChoices | VideoChoices | TourVideoChoices | DataChoices;
+    readonly choices?: CameraImageChoices | TourVideoChoices | DataChoices;
 }
 
 /** A section the reader can put in the report or leave out. */

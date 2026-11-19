@@ -13,7 +13,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
-import { withFeatures, withoutFeatures } from "../../../test/features";
+import { withFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { HOSTS_CSV } from "../../data-place/fixtures";
 import { createWorkspaceStore, type WorkspaceState } from "../../state/store";
@@ -84,22 +84,7 @@ describe("Export opens on Data where a table is showing (R14)", () => {
     });
 });
 
-describe("Export opens on Image while no table is showing, with the camera-views experiment off", () => {
-    withoutFeatures(["camera-views"]);
-
-    it("opens Ctrl+E on Image while no table is showing", async () => {
-        const session = await open();
-        await session.data.addNodes(NODES);
-
-        await userEvent.keyboard("{Control>}e{/Control}");
-        const dialog = await screen.findByRole("dialog", { name: "Export" });
-        assert.isNotNull(within(dialog).getByRole("heading", { name: "Image" }));
-    });
-});
-
-describe("Export with the camera-views experiment on: a camera exports images and a tour videos", () => {
-    withFeatures(["camera-views"]);
-
+describe("Export: a camera exports images and a tour videos", () => {
     it("opens Ctrl+E on the nodes' Data, and neither the main menu nor Quick actions has Export image or video", async () => {
         await page.viewport(1440, 900);
         const session = await open();

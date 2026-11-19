@@ -232,6 +232,13 @@ export type AdHocData<KeyType extends string | number = string> = Record<KeyType
 };
 
 // @public
+export interface AiCommandCanceledEvent {
+    input: string;
+    reason: "user" | "timeout";
+    type: "ai-command-canceled";
+}
+
+// @public
 export type AiEventType = AiEvent["type"];
 
 // @public
@@ -2707,7 +2714,7 @@ export type ExportScope = RuleTree | "all" | "shown" | "selection" | {
 export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];
 
 // @public
-export type FeatureId = "assistant" | "data-management" | "location-map" | "cosmograph" | "file-styles" | "node-models" | "save-files-v2" | "camera-views";
+export type FeatureId = "assistant" | "data-management" | "location-map" | "cosmograph" | "file-styles" | "node-models" | "save-files-v2";
 
 // @public
 export interface FigureOptions {
@@ -3387,7 +3394,7 @@ export interface GraphErrorEvent {
 }
 
 // @public
-export type GraphEvent = GraphSettledEvent | GraphErrorEvent | GraphDataLoadedEvent | GraphDataAddedEvent | GraphSnapshotReplacedEvent | GraphSnapshotDroppedEvent | GraphDataClearedEvent | GraphLayoutInitializedEvent | CameraStateChangedEvent | OverviewChangedEvent | GraphGenericEvent | DataLoadingProgressEvent | DataLoadingErrorEvent | DataLoadingErrorSummaryEvent | DataLoadingCompleteEvent | ElementsRemovedEvent | StyleChangedEvent | SelectionChangedEvent | GraphStartedEvent | LayoutChangedEvent | LayoutWarningEvent | LimitsWarningEvent | BasemapStatusEvent | RenderLostEvent | RenderRestoredEvent | OperationCancelledEvent | StatsUpdateEvent | InputEnabledChangedEvent | ReducedMotionChangedEvent | AnimationProgressEvent | TourProgressEvent | TourEndedEvent | ViewsChangedEvent | XRSessionStartedEvent | XRSessionEndedEvent | InputPointerEvent | InputWheelEvent | InputTouchEvent | InputTouchEndEvent | InputKeyEvent | InputShortcutEvent;
+export type GraphEvent = GraphSettledEvent | GraphErrorEvent | GraphDataLoadedEvent | GraphDataAddedEvent | GraphSnapshotReplacedEvent | GraphSnapshotDroppedEvent | GraphDataClearedEvent | GraphLayoutInitializedEvent | CameraStateChangedEvent | OverviewChangedEvent | GraphGenericEvent | DataLoadingProgressEvent | DataLoadingErrorEvent | DataLoadingErrorSummaryEvent | DataLoadingCompleteEvent | ElementsRemovedEvent | StyleChangedEvent | SelectionChangedEvent | GraphStartedEvent | LayoutChangedEvent | LayoutWarningEvent | LimitsWarningEvent | BasemapStatusEvent | RenderLostEvent | RenderRestoredEvent | OperationCanceledEvent | OperationCancelledEvent | StatsUpdateEvent | InputEnabledChangedEvent | ReducedMotionChangedEvent | AnimationProgressEvent | TourProgressEvent | TourEndedEvent | ViewsChangedEvent | XRSessionStartedEvent | XRSessionEndedEvent | InputPointerEvent | InputWheelEvent | InputTouchEvent | InputTouchEndEvent | InputKeyEvent | InputShortcutEvent;
 
 // @public
 export type GraphEventType = GraphEvent["type"];
@@ -3396,7 +3403,7 @@ export type GraphEventType = GraphEvent["type"];
 export interface GraphGenericEvent {
     // (undocumented)
     [key: string]: unknown;
-    type: "render-initialized" | "manager-initialized" | "lifecycle-initialized" | "lifecycle-disposed" | "skybox-loaded" | "skybox-failed" | "operation-queue-active" | "operation-queue-idle" | "operation-batch-complete" | "operation-start" | "operation-complete" | "operation-progress" | "layout-progress" | "operation-obsoleted" | "animation-cancelled" | "screenshot-enhancing" | "screenshot-ready" | "zoom-to-fit-complete" | "graph-frame-stable" | "graph-first-frame";
+    type: "render-initialized" | "manager-initialized" | "lifecycle-initialized" | "lifecycle-disposed" | "skybox-loaded" | "skybox-failed" | "operation-queue-active" | "operation-queue-idle" | "operation-batch-complete" | "operation-start" | "operation-complete" | "operation-progress" | "layout-progress" | "operation-obsoleted" | "animation-canceled" | "animation-cancelled" | "screenshot-enhancing" | "screenshot-ready" | "zoom-to-fit-complete" | "graph-frame-stable" | "graph-first-frame";
 }
 
 // @public
@@ -5318,7 +5325,9 @@ export abstract class LayoutEngine {
     protected hidesRow(index: number): boolean;
     get holdMask(): NodeMask | null;
     protected get holdsAny(): boolean;
-    static honoursWeights: boolean;
+    static honorsWeights: boolean;
+    // @deprecated
+    static readonly honoursWeights?: boolean;
     // (undocumented)
     abstract init(): Promise<void>;
     protected isFollower(index: number): boolean;
@@ -7398,9 +7407,13 @@ export interface NoteTargetStatus {
 export const OKABE_ITO_COLORS: readonly ["#E69F00", "#56B4E9", "#009E73", "#0072B2", "#D55E00", "#CC79A7", "#000000", "#F0E442"];
 
 // @public
-export type OperationCanceledEvent = OperationCancelledEvent;
+export interface OperationCanceledEvent {
+    code: "queue-cleared" | "canceled";
+    id: string;
+    type: "operation-canceled";
+}
 
-// @public
+// @public @deprecated
 export interface OperationCancelledEvent {
     code: "queue-cleared" | "cancelled";
     id: string;
@@ -8360,6 +8373,7 @@ export interface SnapshotLayoutProgress {
 export interface SnapshotLayoutRegistration {
     readonly compute: (input: SnapshotLayoutInput) => SnapshotLayoutAnswer;
     readonly descriptor: AuthoredLayoutDescriptor & {
+        readonly honorsWeights?: boolean;
         readonly honoursWeights?: boolean;
         readonly scoped?: boolean;
     };

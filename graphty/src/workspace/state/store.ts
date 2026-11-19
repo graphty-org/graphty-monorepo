@@ -317,17 +317,15 @@ export interface WorkspaceState {
     readonly lighting: Lighting;
     /** Camera > Auto-rotate: whether the 3D view turns on its own. A view preference, never saved. */
     readonly autoRotate: boolean;
-    /** Camera > Record video: whether a recording of the canvas is running, until it is stopped. */
-    readonly recording: boolean;
     /**
      * Camera > Focus selected: the camera glides to the selection and keeps it centered while it
      * moves (graphty-element's `camera.pivotOnSelection`). On by default; a view preference, never saved.
      */
     readonly followSelection: boolean;
     /**
-     * Where the Export dialog opens (section T13): on Image or Video, or on Data with the nodes or the
-     * edges table. Export... (Ctrl+E) and the table dock's Export... set the table that is
-     * showing whenever the dock is open (tier 4, R14).
+     * Where the Export dialog opens (section T13): on Image (a camera's Export image...) or Video (a
+     * tour's Export video...), or on Data with the nodes or the edges table. Export... (Ctrl+E) and
+     * the table dock's Export... set the table that is showing whenever the dock is open (tier 4, R14).
      */
     readonly exportOn: "image" | "video" | "nodes" | "edges";
     /**
@@ -482,7 +480,6 @@ export const ON_RELOAD = {
     sameSizeAtAnyDepth: "kept",
     lighting: "kept",
     autoRotate: "kept",
-    recording: "fresh: a recording ends with the page that ran it",
     followSelection: "kept",
     exportOn: "fresh: set when the Export dialog opens",
     lastView: "fresh: the camera itself is not kept across a reload",
@@ -605,9 +602,8 @@ const INITIAL: WorkspaceState = {
     mapDepthIndependentSize: true,
     lighting: "studio",
     autoRotate: false,
-    recording: false,
     followSelection: true,
-    exportOn: "image",
+    exportOn: "nodes",
     lastView: null,
     tourProgress: null,
     viewsCamerasOpen: true,

@@ -16,8 +16,7 @@ export type FeatureId =
     | "cosmograph"
     | "file-styles"
     | "node-models"
-    | "save-files-v2"
-    | "camera-views";
+    | "save-files-v2";
 
 /** One experiment this build can switch on. */
 export interface FeatureDescriptor {
@@ -48,9 +47,6 @@ export const FEATURES: readonly FeatureDescriptor[] = Object.freeze([
     // version 2 full or section file. Off, `format: 2` is refused and version 2 files are read as
     // before (refused as a newer version); version 1 files are written and read exactly as before.
     { id: "save-files-v2", plainName: "Save files version 2", issue: 8029, since: "2026-11-14" },
-    // Only the graphty app's Views place, Camera menu and export entry points; graphty-element's
-    // camera, view and tour code and the project format are not gated.
-    { id: "camera-views", plainName: "Camera views", issue: 8814, since: "2026-11-18" },
 ]);
 
 /** Ids of experiments that have shipped: accepted silently, and they change nothing. */

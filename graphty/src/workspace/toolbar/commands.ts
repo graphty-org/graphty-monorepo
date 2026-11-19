@@ -2,7 +2,6 @@ import { type GraphSession, isGraphtyError, type NodeId } from "@graphty/graphty
 
 import { type CommandContext, defineRegistration, type PaletteRow } from "../commands/registry";
 import { openFilterDraft, PLUS } from "../data-place/filterCards";
-import { cameraViewsOn } from "../features";
 import { neighborhoodKey } from "../inspector/inspected";
 import { framedWords, neighborhoodWords, selectionWords, xrEntryFailureWords } from "../inspector/words";
 import { noGraph, nothingDrawn } from "./disabledReasons";
@@ -180,7 +179,7 @@ export function savedViewRows(ctx: CommandContext): PaletteRow[] {
  * @param ctx - the command context.
  * @returns the rows.
  */
-export function tourRows(ctx: CommandContext): PaletteRow[] {
+function tourRows(ctx: CommandContext): PaletteRow[] {
     return [...(ctx.session?.tours.keys() ?? [])].map((name) => ({
         id: `tour.play:${name}`,
         label: `Play tour: ${name}`,
@@ -192,24 +191,6 @@ export function tourRows(ctx: CommandContext): PaletteRow[] {
             await element?.playTour(name, { restoreCamera: true });
         },
     }));
-}
-
-/** The element's standard 3D views the Camera menu offers, with their keys (tier1-design.md 2.3). */
-const STANDARD_VIEWS = [
-    { id: "view.front", label: "Front", camera: "frontView", key: "1" },
-    { id: "view.side", label: "Side", camera: "sideView", key: "3" },
-    { id: "view.top", label: "Top", camera: "topView", key: "7" },
-    { id: "view.isometric", label: "Isometric", camera: "isometric" },
-] as const;
-
-/**
- * Master's camera commands that the camera-views experiment replaces (the standard views, Save
- * view): with it on they have no door and their keys pass on to the camera keys.
- * @param ctx - the command context.
- * @returns false while the experiment is on.
- */
-function withoutCameraViews(ctx: CommandContext): boolean {
-    return !cameraViewsOn(ctx.session);
 }
 
 /**
@@ -275,28 +256,9 @@ export const registration = defineRegistration({
             label: "Stop tour",
             group: "View",
             whileShownKeys: ["Escape"],
-            experiment: true,
-            feature: "camera-views",
-            shown: ({ session, workspace }) => cameraViewsOn(session) && workspace.get().tourProgress !== null,
+            shown: ({ workspace }) => workspace.get().tourProgress !== null,
             run: ({ element }) => {
                 element?.cancelCameraAnimation();
-            },
-        },
-        {
-            // Keeps the camera under a name; Camera lists it to go back to. One undoable step.
-            id: "view.save",
-            label: "Save view",
-            group: "View",
-            experiment: true,
-            shown: withoutCameraViews,
-            disabled: ({ session }) => nothingDrawn(session),
-            run: async ({ element, session, workspace }) => {
-                if (element === null || session === null) {
-                    return;
-                }
-                const name = nextName(session.views, "View");
-                await session.views.save([{ name, camera: element.getCameraState() }]);
-                workspace.set({ announcement: `Saved ${name}` });
             },
         },
         {
@@ -343,19 +305,6 @@ export const registration = defineRegistration({
                 }
             },
         },
-        ...STANDARD_VIEWS.map(({ id, label, camera, ...rest }) => ({
-            id,
-            label,
-            group: "View" as const,
-            keys: "key" in rest ? [rest.key] : undefined,
-            experiment: true,
-            shown: withoutCameraViews,
-            disabled: ({ session }: CommandContext) =>
-                nothingDrawn(session) ?? (session?.layout.dimension === "2d" ? "Only in 3D" : null),
-            run: async ({ element }: CommandContext) => {
-                await element?.applyCameraView(camera, { animate: true });
-            },
-        })),
         {
             id: "view.zoom-in",
             label: "Zoom in",
@@ -487,5 +436,5 @@ export const registration = defineRegistration({
             },
         },
     ],
-    paletteRows: (ctx) => (cameraViewsOn(ctx.session) ? [...savedViewRows(ctx), ...tourRows(ctx)] : []),
+    paletteRows: (ctx) => [...savedViewRows(ctx), ...tourRows(ctx)],
 });

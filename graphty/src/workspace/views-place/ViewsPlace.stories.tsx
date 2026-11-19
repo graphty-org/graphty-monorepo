@@ -4,7 +4,6 @@ import "@graphty/graphty-element";
 import type { Meta, StoryObj } from "@storybook/react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
-import { onSiteWith } from "../../test/siteFeatures";
 import { EDGES, NODES } from "../graph-place/twoRings.fixture";
 import { Workspace } from "../Workspace";
 
@@ -52,8 +51,6 @@ const meta: Meta<typeof Workspace> = {
     title: "Workspace/Views place",
     component: Workspace,
     parameters: { layout: "fullscreen" },
-    // The Views place is the camera-views experiment's.
-    beforeEach: onSiteWith(["camera-views"]),
 };
 
 export default meta;

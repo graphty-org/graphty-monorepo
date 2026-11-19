@@ -8328,6 +8328,7 @@ export class Graph implements GraphContext {
         handle.onEnd = (reason) => {
             // A cancel that ends the tour (cancelCameraAnimation) is announced as any other.
             if (reason !== "finished" && capture.fail(reason) && reason === "cancelled") {
+                this.eventManager.emit("animation-canceled", {});
                 this.eventManager.emit("animation-cancelled", {});
             }
         };
@@ -8808,8 +8809,9 @@ export class Graph implements GraphContext {
 
         const cancelled = this.activeCapture.cancel();
 
-        // Emit cancellation event
+        // `animation-cancelled` is the deprecated British name, still sent until the next major.
         if (cancelled) {
+            this.eventManager.emit("animation-canceled", {});
             this.eventManager.emit("animation-cancelled", {});
         }
 

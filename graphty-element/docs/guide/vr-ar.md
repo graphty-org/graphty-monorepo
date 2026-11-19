@@ -124,9 +124,9 @@ the menu floats to the reader's left; pointing a controller at an item and pulli
 pinching) fires `xr-menu-select` with that item's `id`. What an item does is up to you:
 
 ```javascript
-const graph = document.querySelector("graphty-element");
+const element = document.querySelector("graphty-element");
 
-graph.xr = {
+element.xr = {
     enabled: true,
     menu: [
         { id: "circle", label: "Circle layout" },
@@ -135,10 +135,10 @@ graph.xr = {
     ],
 };
 
-graph.addEventListener("xr-menu-select", (event) => {
-    if (event.detail.id === "circle") graph.layout = "circular";
-    if (event.detail.id === "rank") graph.run("degree");
-    if (event.detail.id === "exit") graph.setViewMode("3d");
+element.addEventListener("xr-menu-select", (event) => {
+    if (event.detail.id === "circle") element.layout = "circular";
+    if (event.detail.id === "rank") element.run("degree");
+    if (event.detail.id === "exit") element.setViewMode("3d");
 });
 ```
 

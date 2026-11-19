@@ -4793,6 +4793,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             SESSION_CATALOG_TABLES.algorithms()
                 .find((descriptor) => descriptor.key === algorithm)
                 ?.options.find((descriptor) => descriptor.name === option)?.type,
+        registered: (algorithm) =>
+            SESSION_CATALOG_TABLES.algorithms().some((descriptor) => descriptor.key === algorithm),
         options: () => scope.options,
         hovering: () => (selection?.hovered ?? null) !== null,
         moved: () => {

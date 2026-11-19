@@ -331,7 +331,20 @@ const COLUMN_NAME_TYPES = new Set(["TableMapping", "JoinKey"]);
  * too much: the column a comparing join writes regions to (JoinChoices.membership) and the kind a
  * link join gives the nodes and edges it adds (JoinLink.kind).
  */
-const PLAIN_STRING_MEMBERS = new Set(["JoinChoices.membership", "JoinLink.kind"]);
+const PLAIN_STRING_MEMBERS = new Set([
+    "JoinChoices.membership",
+    "JoinLink.kind",
+    // what a save file's section says of itself, as its author wrote it: the reader's data, shown
+    // as given, never graphty-element's words (spec 3 of graphty-element/spec/README.md)
+    "DocumentSectionAbout.description",
+    "DocumentSectionAbout.created",
+    "DocumentSectionAbout.modified",
+    "DocumentSectionAbout.license",
+    "DocumentSectionAbout.from",
+    "DocumentSectionAbout.uri",
+    // a catalog id: the algorithm or layout a saved run names
+    "ProjectFileRun.algorithm",
+]);
 
 /**
  * Whether a result type may hold a plain string under this property name.

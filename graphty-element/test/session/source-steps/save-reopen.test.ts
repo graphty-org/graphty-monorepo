@@ -417,6 +417,58 @@ describe("source-steps: save and reopen", () => {
         q.dispose();
     });
 
+    it("a network source saved without the experiment resumes and refreshes once opened with it", async () => {
+        resumeNodes = ["a", "b"];
+        const session = createGraphSession();
+        await session.data.import({ source: "save-reopen-resume", config: {} });
+        const { q } = await reopen(session);
+        const [pending] = q.data.pendingSourceLoads().map((p) => p.id);
+        assert.isDefined(pending);
+        resumeNodes = ["a", "b", "c"];
+        await q.data.runPendingSourceLoad(pending);
+        assert.sameMembers(
+            q.data.nodes({ scope: "graph" }).map((n) => n.id),
+            ["a", "b", "c"],
+        );
+        assert.deepStrictEqual(q.data.pendingSourceLoads(), []);
+        resumeNodes = ["a", "b", "c", "d"];
+        await q.data.refresh(q.data.sources()[0]?.key ?? "");
+        assert.sameMembers(
+            q.data.nodes({ scope: "graph" }).map((n) => n.id),
+            ["a", "b", "c", "d"],
+        );
+        q.dispose();
+    });
+
+    it("a network source whose steps were set aside on open still resumes", async () => {
+        resumeNodes = ["a", "b"];
+        const session = createGraphSession({ features: ["source-steps"] });
+        await session.data.import({ source: "save-reopen-resume", config: {} });
+        const doc = JSON.parse((await session.project.save()).text) as { members: Record<string, unknown>[] };
+        session.dispose();
+        const data = doc.members.find((m) => m.kind === "graphty-data") as {
+            graph: { nodes: Record<string, unknown>[] };
+        };
+        const built = data.graph.nodes.find((n) => n.id === "a");
+        assert.isDefined(built);
+        built.note = "edited";
+        const q = createGraphSession({ features: ["source-steps"] });
+        const report = await q.project.open(JSON.stringify(doc));
+        assert.deepStrictEqual(
+            report.problems.map((p) => p.code),
+            ["W_SOURCE_STEPS_IGNORED"],
+        );
+        const [pending] = q.data.pendingSourceLoads().map((p) => p.id);
+        assert.isDefined(pending);
+        resumeNodes = ["a", "b", "c"];
+        await q.data.runPendingSourceLoad(pending);
+        assert.sameMembers(
+            q.data.nodes({ scope: "graph" }).map((n) => n.id),
+            ["a", "b", "c"],
+        );
+        q.dispose();
+    });
+
     it("a renamed source keeps its name after save and reopen", async () => {
         const session = createGraphSession({ features: ["source-steps"] });
         await session.data.import({ type: "csv", config: { data: "source,target\na,b\n" }, name: "one.csv" });

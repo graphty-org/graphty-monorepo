@@ -4393,12 +4393,13 @@ export class SessionData implements SessionDataApi {
      * source's new copy.
      * @param load - The load's key, from `loads()`.
      * @param tables - The rows read, stamped with the load.
-     * @returns What changed.
+     * @returns What changed, or `undefined` when no step reads the load (a file saved without the
+     *   experiment, or one whose steps were set aside on open), so the caller merges it as before.
      */
-    private async refreshStepsSource(load: string, tables: CopyTables): Promise<SourceRefreshReport> {
+    private async refreshStepsSource(load: string, tables: CopyTables): Promise<SourceRefreshReport | undefined> {
         const key = this.sources().find((each) => each.loadKey === load)?.key;
         if (key === undefined || this.stepsValue().sources[key] === undefined) {
-            throw this.unknownSource(load);
+            return undefined;
         }
         const { nodes, edges, issues } = await this.swapStepsCopy(key, tables, {});
         return refreshReport(

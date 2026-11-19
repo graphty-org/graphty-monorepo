@@ -880,8 +880,10 @@ export async function refreshSource(
             ...(held.edges.length > 0 ? { edges: held.edges as readonly Row[] } : {}),
         };
         const stepsReport = await host.refreshSteps(loadKey, tables);
-        settleRefresh(host, record, read, access);
-        return stepsReport;
+        if (stepsReport !== undefined) {
+            settleRefresh(host, record, read, access);
+            return stepsReport;
+        }
     }
 
     const directed = host.directed();
@@ -1119,7 +1121,19 @@ async function readPending(host: SourceHost, id: string, options: SourceLoadOpti
     });
     await host.waitTurn?.();
     requireUnchanged(host, id);
-    if (host.refreshSteps === undefined) {
+    // Under the source-steps experiment a load a step reads already has its source: the rows read
+    // now become its copy, as a refresh's do, rather than a second source beside it. A load no step
+    // reads (a file saved without the experiment) is merged as before.
+    let swapped = false;
+    if (host.refreshSteps !== undefined) {
+        const { held } = importCommand(host, record.key, { source: record.source, config }, read, { mode: "merge" });
+        const report = await host.refreshSteps(record.key, {
+            ...(held.nodes.length > 0 ? { nodes: held.nodes as readonly Row[] } : {}),
+            ...(held.edges.length > 0 ? { edges: held.edges as readonly Row[] } : {}),
+        });
+        swapped = report !== undefined;
+    }
+    if (!swapped) {
         await host.dispatch(
             importCommand(host, record.key, { source: record.source, config }, read, {
                 ...readOnly,
@@ -1128,14 +1142,6 @@ async function readPending(host: SourceHost, id: string, options: SourceLoadOpti
                 ...sameEntry(host, record.key),
             }),
         );
-    } else {
-        // Under the source-steps experiment the opened file already holds the source: the rows read
-        // now become its copy, as a refresh's do, rather than a second source beside it.
-        const { held } = importCommand(host, record.key, { source: record.source, config }, read, { mode: "merge" });
-        await host.refreshSteps(record.key, {
-            ...(held.nodes.length > 0 ? { nodes: held.nodes as readonly Row[] } : {}),
-            ...(held.edges.length > 0 ? { edges: held.edges as readonly Row[] } : {}),
-        });
     }
     host.pending.delete(id);
     host.ledger.refreshLoad(id, {

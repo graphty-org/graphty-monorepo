@@ -121,12 +121,13 @@ export interface SourceHost {
     positionScale(): number;
     /**
      * Under the source-steps experiment: swap a network load's rows in as its source's new copy,
-     * in place of the difference a refresh applies otherwise. Absent with the experiment off.
+     * in place of the difference a refresh applies otherwise. Absent with the experiment off; settles
+     * with `undefined`, changing nothing, when no step reads the load.
      */
     readonly refreshSteps?: (
         load: string,
         tables: { readonly nodes?: readonly Row[]; readonly edges?: readonly Row[] },
-    ) => Promise<SourceRefreshReport>;
+    ) => Promise<SourceRefreshReport | undefined>;
 }
 
 /** An expansion running for some seeds, and the options it was asked with. */

@@ -3635,12 +3635,19 @@ describe("gpu.yml", () => {
         // bare host gets E_NO_WEBGPU at its adapter report (issue #2313: the weekly failed that way every week).
         const dir = new URL("../.github/workflows/", import.meta.url);
         let checked = 0;
+        const images = new Set();
         for (const file of readdirSync(dir).filter((f) => f.endsWith(".yml"))) {
             const code = readFileSync(new URL(file, dir), "utf8").replace(/^\s*#.*$/gm, "");
             for (const body of code.split(/\n(?= {4}[a-z][\w-]*:\n)/)) {
                 if (!/\n {8}runs-on: .*gpu=t4/.test(body)) continue;
                 const where = `${file}: ${body.trim().split("\n")[0]}`;
-                assert.match(body, /\n {8}container:\n {12}image: ubuntu:24\.04\n {12}options: --gpus all\b/, where);
+                assert.match(
+                    body,
+                    /\n {8}container:\n {12}image: ubuntu:24\.04@sha256:[0-9a-f]{64}\n {12}options: --gpus all\b/,
+                    where,
+                );
+                // pinned by digest: a new build changes the cached .deb key, and its first run needs archive.ubuntu.com (#9035)
+                images.add(body.match(/image: (\S+)/)[1]);
                 assert.match(body, /NVIDIA_DRIVER_CAPABILITIES: all\n/, where);
                 // the bootstrap's package list, which the cached .deb set is keyed on and checked against (#6390)
                 const install = body.match(/\n {18}PACKAGES: [^\n]*/)?.[0] ?? "";
@@ -3663,6 +3670,7 @@ describe("gpu.yml", () => {
             }
         }
         assert.ok(checked >= 2, `found the T4 jobs (${checked})`);
+        assert.equal(images.size, 1, `every T4 job pins the same image, so they share one .deb set: ${[...images]}`);
     });
 
     it("builds nx's project graph from graphty-element, where the T4's element step runs nx", () => {

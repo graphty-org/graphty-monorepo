@@ -121,6 +121,8 @@ const PREREQUISITES: Readonly<Partial<Record<string, Record<string, unknown>>>> 
     // A dash length shapes only a dashed line, a gap only a dashed or dotted one.
     "edge.dashLength": { "edge.style": "dash" },
     "edge.dashGap": { "edge.style": "dot" },
+    // A dash array draws only on a dashed, dotted or dash-dot line.
+    "edge.dashArray": { "edge.style": "dash" },
     "node.borderWaveAmplitude": { "node.borderStyle": "zigzag", "node.borderWidth": 0.1 },
     "node.borderWavePeriod": { "node.borderStyle": "zigzag", "node.borderWidth": 0.1, "node.borderWaveAmplitude": 1 },
     // Where runs of different sizes meet changes only a line holding runs of different sizes.
@@ -202,6 +204,10 @@ function probeFor(descriptor: ChannelDescriptor): unknown {
             // A route is text in a grammar of its own: one bend halfway along, half a length off.
             if (descriptor.channel === "edge.bends") {
                 return "0.5,0.5";
+            }
+            // A dash array is widths: a long dash, a gap, a short dash and a gap.
+            if (descriptor.channel === "edge.dashArray") {
+                return "8 2 1 2";
             }
             // So is a port: the middle of the node's top, where an unported line never ends.
             if (descriptor.channel === "edge.sourcePort" || descriptor.channel === "edge.targetPort") {

@@ -905,6 +905,7 @@ export type Channel =
     | "edge.wavePeriod"
     | "edge.dashLength"
     | "edge.dashGap"
+    | "edge.dashArray"
     | "edge.curvature"
     | "edge.bends"
     | "edge.fanSpacing"

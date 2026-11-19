@@ -1744,7 +1744,7 @@ function capOutline(cap: ArrowCap | null, p: Projector): [number, number][] | nu
 function joinedDashes(
     batch: EdgeLineBatch,
     slots: readonly number[],
-    pattern: { kind: string; elementLength?: number } | undefined,
+    pattern: { kind: string; elementLength?: number; dashes?: readonly number[] } | undefined,
     at: Vector3,
     p: Projector,
 ): number[] | null {
@@ -1758,6 +1758,10 @@ function joinedDashes(
         return null;
     }
     const k = p.pxPerWorld(at);
+    // a dash array (`line.dashArray`) is its own dashes and gaps
+    if (pattern.dashes !== undefined) {
+        return pattern.dashes.map((d) => d * k);
+    }
     return [length * k, Math.max(0, spacing - length) * k];
 }
 

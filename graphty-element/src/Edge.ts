@@ -3405,7 +3405,9 @@ export class Edge {
             changed = true;
         }
 
-        const route = `${String(style.line?.route)} ${String(style.line?.arcHeight)}`;
+        // A lift keys no mesh either: a new one only raises the route (`placeLifted`), which an edge whose ends stand
+        // still placed only when they next moved.
+        const route = `${String(style.line?.route)} ${String(style.line?.arcHeight)} ${String(style.line?.lift)}`;
         if (route !== this.drawnRoute) {
             this.drawnRoute = route;
             changed = true;

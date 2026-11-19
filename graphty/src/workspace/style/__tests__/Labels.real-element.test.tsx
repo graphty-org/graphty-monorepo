@@ -442,7 +442,7 @@ describe("label entries on the real element", () => {
         // Drawn, not held: the font beneath is the unset field's placeholder.
         const font = within(settings).getByRole<HTMLInputElement>("combobox", { name: /^Font(,|$)/ });
         assert.equal(font.value, "", "no font is set here");
-        assert.equal(font.placeholder, "Verdana");
+        assert.equal(font.placeholder, "Verdana, sans-serif");
         // The groups are headings one level under the pop-out's title.
         assert.deepEqual(
             [...settings.querySelectorAll("h3")].map((h) => h.textContent),

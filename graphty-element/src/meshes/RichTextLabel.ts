@@ -707,7 +707,7 @@ export class RichTextLabel {
             position: { x: 0, y: 0, z: 0 },
             resolution: 512,
             autoSize: true,
-            font: "Verdana",
+            font: "Verdana, sans-serif",
             fontSize: 48,
             fontWeight: "normal",
             fontStyle: "normal",

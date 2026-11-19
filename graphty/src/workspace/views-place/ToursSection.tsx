@@ -5,7 +5,7 @@
  * worded here. The app keeps only which card is unfolded and the tour playing (`tour-progress`).
  */
 
-import { ActionRow, CardList, type CardListItem, ControlSection } from "@graphty/compact-mantine";
+import { ActionRow, CardList, type CardListItem, ControlSection, PanelField } from "@graphty/compact-mantine";
 import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import type { EasingName, GraphSession, Tour, TourStop } from "@graphty/graphty-element/session";
 import { ActionIcon, Button, Menu, Text, Tooltip } from "@mantine/core";
@@ -14,13 +14,12 @@ import React from "react";
 import { CommandMenuItem } from "../frame/menus";
 import { GLYPHS } from "../glyphs";
 import { orRefusal } from "../graph-place/actions";
-import type { SelectionMenuItem } from "../selection/SelectionMenu";
+import { RowMore, type SelectionMenuItem } from "../selection/SelectionMenu";
 import type { WorkspaceStore } from "../state/store";
-import { useCommand, useWorkspaceState } from "../state/WorkspaceContext";
+import { useWorkspaceState } from "../state/WorkspaceContext";
 import { nextName } from "../toolbar/commands";
 import { nothingDrawn } from "../toolbar/disabledReasons";
 import { lengthWords, tourProblemWords } from "../toolbar/viewWords";
-import { CardMenu } from "./CardMenu";
 import { cameraReason, copyName } from "./commands";
 import { TourStops } from "./TourStops";
 import { useNamedList } from "./useNamedList";
@@ -54,8 +53,8 @@ function cameraStop(stops: readonly TourStop[], view: string): TourStop {
 }
 
 /**
- * The Video tours section: a ControlSection with New tour in its header, one card per tour, and
- * the list-local keys on its cards' headers.
+ * The Video tours section: a ControlSection with New tour in its header and one card per tour, in
+ * project order (tours are not reordered), each action with exactly one control.
  * @param props - Component props
  * @param props.session - the element's session
  * @param props.element - the element
@@ -63,13 +62,9 @@ function cameraStop(stops: readonly TourStop[], view: string): TourStop {
  * @returns The section
  */
 export function ToursSection({ session, element, store }: ToursProps): React.JSX.Element {
-    const save = useCommand("camera.save");
     const opened = useWorkspaceState((state) => state.viewsToursOpen);
     const progress = useWorkspaceState((state) => state.tourProgress);
-    const { names, setOpen, setRenaming, wrapper, moveItems, deleteItems, listProps, cards } = useNamedList(
-        session.tours,
-        store,
-    );
+    const { names, setOpen, setRenaming, wrapper, deleteItems, listProps, cards } = useNamedList(session.tours, store);
     const drawn = nothingDrawn(session);
 
     const writeTour = (what: string, name: string, tour: Tour): void => {
@@ -84,33 +79,12 @@ export function ToursSection({ session, element, store }: ToursProps): React.JSX
             }
         });
     };
-    // Current camera: saves "Camera N" and appends a stop naming it, as one step.
-    const addCurrent = (name: string): void => {
-        let saved = "";
-        void orRefusal(
-            store,
-            `add a stop to ${name}`,
-            session.transaction(`adding a stop to ${name}`, async (tx) => {
-                saved = nextName(tx.views, "Camera");
-                await tx.views.save([{ name: saved }]);
-                const tour: Tour = tx.tours.get(name) ?? { stops: [] };
-                await tx.tours.save([
-                    { name, tour: { ...tour, stops: [...tour.stops, cameraStop(tour.stops, saved)] } },
-                ]);
-            }),
-        ).then(() => {
-            if (session.views.has(saved)) {
-                store.set({ announcement: `Saved ${saved}` });
-            }
-        });
-    };
-
-    const card = (name: string, tour: Tour, at: number): CardListItem => {
+    const card = (name: string, tour: Tour): CardListItem => {
         const plan = element?.planTour(name) ?? null;
         const problem = drawn ?? (plan === null ? null : tourProblemWords(plan, element));
         const playing = progress?.tour === name;
         const length = plan === null ? null : lengthWords(plan.totalMs);
-        const first: SelectionMenuItem[] = [
+        const items: SelectionMenuItem[] = [
             {
                 id: "export",
                 label: "Export video...",
@@ -122,16 +96,6 @@ export function ToursSection({ session, element, store }: ToursProps): React.JSX
                 },
             },
             {
-                id: "rename",
-                label: "Rename",
-                icon: "rename",
-                group: "edit",
-                key: "F2",
-                onRun: () => {
-                    setRenaming(name);
-                },
-            },
-            {
                 id: "duplicate",
                 label: "Duplicate",
                 icon: "duplicate",
@@ -140,9 +104,8 @@ export function ToursSection({ session, element, store }: ToursProps): React.JSX
                     writeTour(`duplicate ${name}`, copyName(session.tours, name), tour);
                 },
             },
+            ...deleteItems(name),
         ];
-        const rest = moveItems(name, at);
-        const removal = deleteItems(name);
         return {
             id: name,
             title: name,
@@ -170,23 +133,7 @@ export function ToursSection({ session, element, store }: ToursProps): React.JSX
                     }}
                 />
             ),
-            menu: (
-                <CardMenu
-                    name={name}
-                    first={first}
-                    choose="Easing"
-                    choices={EASINGS.map(({ id, label }) => ({ value: id, label }))}
-                    chosen={tour.easing ?? "easeInOut"}
-                    onChoose={(value) => {
-                        const easing = EASINGS.find(({ id }) => id === value);
-                        if (easing !== undefined) {
-                            writeTour(`change ${name}`, name, { ...tour, easing: easing.id });
-                        }
-                    }}
-                    rest={rest}
-                    removal={removal}
-                />
-            ),
+            menu: <RowMore name={name} items={items} />,
             children:
                 tour.stops.length === 0 ? undefined : (
                     <TourStops
@@ -200,17 +147,16 @@ export function ToursSection({ session, element, store }: ToursProps): React.JSX
                     />
                 ),
             footer: (
-                <AddStops
-                    session={session}
-                    element={element}
-                    store={store}
-                    name={name}
-                    tour={tour}
-                    saveReason={save === null ? "Not available" : save.disabledReason}
-                    onCurrent={() => {
-                        addCurrent(name);
-                    }}
-                />
+                <div className="vp-tour-foot">
+                    <AddStops session={session} element={element} store={store} name={name} tour={tour} />
+                    <Easing
+                        name={name}
+                        easing={tour.easing ?? "easeInOut"}
+                        onChange={(easing) => {
+                            writeTour(`change ${name}`, name, { ...tour, easing });
+                        }}
+                    />
+                </div>
             ),
         };
     };
@@ -233,18 +179,11 @@ export function ToursSection({ session, element, store }: ToursProps): React.JSX
                 actions={newTourButton}
             >
                 {names.length === 0 ? (
-                    <ActionRow
-                        state="No tours"
-                        actions={
-                            <Button size="compact-xs" variant="subtle" onClick={newTour}>
-                                New tour
-                            </Button>
-                        }
-                    />
+                    <ActionRow state="No tours" />
                 ) : (
                     <CardList
                         label="Saved tours"
-                        items={cards((name) => session.tours.get(name), card)}
+                        items={cards(names, (name) => session.tours.get(name), card)}
                         {...listProps}
                     />
                 )}
@@ -254,15 +193,13 @@ export function ToursSection({ session, element, store }: ToursProps): React.JSX
 }
 
 /**
- * A tour card's foot: + Camera (Current camera, then every saved camera) and + Pause.
+ * A tour card's add row: Add camera (every saved camera) and Add pause.
  * @param props - Component props
  * @param props.session - the element's session
  * @param props.element - the element, which judges each camera
  * @param props.store - the chrome store
  * @param props.name - the tour
  * @param props.tour - the tour
- * @param props.saveReason - why the camera on screen cannot be saved now, or null
- * @param props.onCurrent - saves the camera on screen and appends a stop naming it
  * @returns The row
  */
 function AddStops({
@@ -271,41 +208,35 @@ function AddStops({
     store,
     name,
     tour,
-    saveReason,
-    onCurrent,
 }: Readonly<{
     session: GraphSession;
     element: GraphtyElement | null;
     store: WorkspaceStore;
     name: string;
     tour: Tour;
-    saveReason: string | null;
-    onCurrent: () => void;
 }>): React.JSX.Element {
     const writeTour = (what: string, next: Tour): void => {
         void orRefusal(store, what, session.tours.save([{ name, tour: next }]));
     };
+    const none = session.views.size === 0 ? "No cameras" : null;
     return (
         <div className="vp-add-stops">
-            <Menu position="bottom-start" withinPortal>
+            <Menu position="bottom-start" withinPortal disabled={none !== null}>
                 <Menu.Target>
-                    <Button
-                        size="compact-xs"
-                        variant="subtle"
-                        leftSection={<GLYPHS.add size={12} aria-hidden />}
-                        aria-label={`Add camera to ${name}`}
-                    >
-                        Camera
-                    </Button>
+                    <Tooltip label={none ?? "Add camera"} disabled={none === null}>
+                        <Button
+                            size="compact-xs"
+                            variant="subtle"
+                            leftSection={<GLYPHS.add size={12} aria-hidden />}
+                            aria-label={`Add camera to ${name}`}
+                            aria-disabled={none === null ? undefined : true}
+                            aria-description={none ?? undefined}
+                        >
+                            Add camera
+                        </Button>
+                    </Tooltip>
                 </Menu.Target>
                 <Menu.Dropdown data-portal="">
-                    <CommandMenuItem
-                        label="Current camera"
-                        shortcut={undefined}
-                        reason={saveReason}
-                        onRun={onCurrent}
-                    />
-                    {session.views.size === 0 ? null : <Menu.Divider />}
                     {[...session.views].map(([view, saved]) => (
                         <CommandMenuItem
                             key={view}
@@ -340,8 +271,44 @@ function AddStops({
                     );
                 }}
             >
-                Pause
+                Add pause
             </Button>
+        </div>
+    );
+}
+
+/**
+ * A tour's Easing: one labelled row under the add row, the only way to set it.
+ * @param props - Component props
+ * @param props.name - the tour
+ * @param props.easing - its easing now
+ * @param props.onChange - saves a new easing
+ * @returns The row
+ */
+function Easing({
+    name,
+    easing,
+    onChange,
+}: Readonly<{ name: string; easing: EasingName; onChange: (easing: EasingName) => void }>): React.JSX.Element {
+    return (
+        <div className="vp-field">
+            <Text span size="xs" className="vp-field-label" aria-hidden>
+                Easing
+            </Text>
+            <PanelField
+                kind="select"
+                label="Easing"
+                title={`Easing of ${name}`}
+                width="fill"
+                data={EASINGS.map(({ id, label }) => ({ value: id, label }))}
+                value={easing}
+                onChange={(value) => {
+                    const chosen = EASINGS.find(({ id }) => id === value);
+                    if (chosen !== undefined && chosen.id !== easing) {
+                        onChange(chosen.id);
+                    }
+                }}
+            />
         </div>
     );
 }

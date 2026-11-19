@@ -159,7 +159,7 @@ describe("the owner's tour, made and played in the Views place", () => {
         );
         await screen.findByRole("region", { name: "Views place" });
         await userEvent.click(
-            within(screen.getByRole("region", { name: "Views place" })).getAllByRole("button", { name: "New tour" })[0],
+            within(screen.getByRole("region", { name: "Views place" })).getByRole("button", { name: "New tour" }),
         );
         const name = await screen.findByRole("textbox", { name: "Rename Tour 1" });
         await userEvent.clear(name);

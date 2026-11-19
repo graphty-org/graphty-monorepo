@@ -1,11 +1,9 @@
 import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import type { GraphSession, SavedView } from "@graphty/graphty-element/session";
-import { type RefObject, useEffect, useRef } from "react";
 
 import { type Command, type CommandContext, defineRegistration } from "../commands/registry";
 import { cameraViewsOn } from "../features";
 import { undoOrRedo } from "../frame/historyWords";
-import { matchesKey } from "../keys/keys";
 import { panelsInView } from "../time/timeActions";
 import { goToSavedView, immersiveMode, nextName, savedViewReason } from "../toolbar/commands";
 import { nothingDrawn } from "../toolbar/disabledReasons";
@@ -158,23 +156,6 @@ export const registration = defineRegistration({
 });
 
 /**
- * Moves a camera or tour one place up or down its list.
- * @param list - the list, `session.views` or `session.tours`.
- * @param name - the item.
- * @param by - -1 for up, 1 for down.
- * @returns the write, or undefined at the list's end.
- */
-export function moveBy(
-    list: GraphSession["views"] | GraphSession["tours"],
-    name: string,
-    by: -1 | 1,
-): Promise<void> | undefined {
-    const names = [...list.keys()];
-    const to = names.indexOf(name) + by;
-    return to < 0 || to >= names.length ? undefined : list.move(name, to);
-}
-
-/**
  * A copy's name: "Hub 2", then "Hub 3" and on, the first not saved yet.
  * @param saved - the names saved.
  * @param name - the item copied.
@@ -186,60 +167,4 @@ export function copyName(saved: ReadonlyMap<string, unknown>, name: string): str
         n += 1;
     }
     return `${name} ${String(n)}`;
-}
-
-/** The list-local keys a card header takes (section 3.1): F2, Delete, Mod+] and Mod+[. */
-export type CardKey = "rename" | "delete" | "up" | "down";
-
-/**
- * Which list-local key a press is.
- * @param event - the press.
- * @returns the key, or null for any other press.
- */
-function headerKey(event: KeyboardEvent): CardKey | null {
-    if (event.key === "F2") {
-        return "rename";
-    }
-    if (event.key === "Delete") {
-        return "delete";
-    }
-    if (matchesKey(event, "Mod+]")) {
-        return "up";
-    }
-    return matchesKey(event, "Mod+[") ? "down" : null;
-}
-
-/**
- * Reads the list-local keys as they bubble from a card's header controls (CardList's grip, fold,
- * title and the header slot's buttons) to the list's wrapper; keys from a card's body, its footer,
- * a field or a menu are left alone. A handled key calls `preventDefault`, so F2 is not the
- * project's rename and Mod+[ is not the browser's Back.
- * @param onKey - runs a key on the card it came from, by its id.
- * @returns the ref for the wrapper.
- */
-export function useHeaderKeys(onKey: (id: string, key: CardKey) => void): RefObject<HTMLDivElement | null> {
-    const wrapper = useRef<HTMLDivElement>(null);
-    const latest = useRef(onKey);
-    latest.current = onKey;
-    useEffect(() => {
-        const box = wrapper.current;
-        const listen = (event: KeyboardEvent): void => {
-            const target = event.target as HTMLElement;
-            const id = target.closest<HTMLElement>("[data-card-id]")?.dataset.cardId;
-            if (id === undefined || target.closest(".cm-card-head") === null || target.closest("input") !== null) {
-                return;
-            }
-            const key = headerKey(event);
-            if (key !== null) {
-                event.preventDefault();
-                event.stopPropagation();
-                latest.current(id, key);
-            }
-        };
-        box?.addEventListener("keydown", listen);
-        return () => {
-            box?.removeEventListener("keydown", listen);
-        };
-    }, []);
-    return wrapper;
 }

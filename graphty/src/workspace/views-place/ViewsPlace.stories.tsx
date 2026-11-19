@@ -96,7 +96,7 @@ export const CameraUnfolded: Story = {
     },
 };
 
-/** A tour unfolded: camera stops, a pause and a stop whose camera is gone, Play disabled. */
+/** A tour unfolded: stop cards with Camera, Fly in and Stay, a pause's Wait, a stop whose camera is gone, Play disabled, then the add row and Easing. */
 export const TourUnfolded: Story = {
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
@@ -120,6 +120,7 @@ export const TourUnfolded: Story = {
             "aria-disabled",
             "true",
         );
+        await expect(within(views).getByRole("region", { name: "Stop 3" })).toHaveTextContent("Wait");
     },
 };
 
@@ -146,8 +147,8 @@ export const TourPlaying: Story = {
         await within(views).findByRole("button", { name: "Stop tour" });
         await waitFor(async () => {
             await expect(
-                within(views).getByRole("list", { name: "Stops of Walk" }).querySelector('[aria-current="step"]'),
-            ).toHaveTextContent("2");
+                within(views).getByRole("region", { name: "Stop 2" }).querySelector('[aria-current="step"]'),
+            ).not.toBeNull();
         });
         await element.waitForStableFrame();
     },

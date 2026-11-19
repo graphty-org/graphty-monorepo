@@ -1,21 +1,20 @@
 /**
  * What the Views place's Cameras and Video tours sections share: a list of named items in the
  * element's order (`session.views` or `session.tours`), one card unfolded at a time, renamed from
- * the title or F2, moved with Mod+] and Mod+[, deleted with Delete, each change one undo step.
+ * the title, each change one undo step. Also the drag order cameras and tour stops share.
  */
 
 import type { CardListItem, CardListProps } from "@graphty/compact-mantine";
 import type { GraphSession } from "@graphty/graphty-element/session";
-import { type RefObject, useEffect, useRef, useState } from "react";
+import React, { type RefObject, useEffect, useRef, useState } from "react";
 
 import { orRefusal } from "../graph-place/actions";
 import type { SelectionMenuItem } from "../selection/SelectionMenu";
 import type { WorkspaceStore } from "../state/store";
-import { moveBy, useHeaderKeys } from "./commands";
 
 /** The CardList props a named list sets. */
 type ListProps = Required<
-    Pick<CardListProps, "autoFold" | "folded" | "onFoldedChange" | "onReorder" | "onRenamingChange" | "onRename">
+    Pick<CardListProps, "autoFold" | "folded" | "onFoldedChange" | "onRenamingChange" | "onRename">
 > &
     Pick<CardListProps, "renaming">;
 
@@ -26,16 +25,15 @@ export interface NamedList {
     readonly setOpen: (name: string | null) => void;
     readonly setRenaming: (name: string | null) => void;
     readonly wrapper: RefObject<HTMLDivElement | null>;
-    /** The Move up and Move down rows of a card's menu. */
-    readonly moveItems: (name: string, at: number) => SelectionMenuItem[];
     /** The Delete row of a card's menu. */
     readonly deleteItems: (name: string) => SelectionMenuItem[];
     /** The props for the section's CardList. */
     readonly listProps: ListProps;
-    /** Draws a card for each name that is still saved. */
+    /** Draws a card for each name, in this order, that is still saved. */
     readonly cards: <T>(
+        order: readonly string[],
         get: (name: string) => T | undefined,
-        card: (name: string, item: T, at: number) => CardListItem,
+        card: (name: string, item: T) => CardListItem,
     ) => CardListItem[];
 }
 
@@ -54,28 +52,11 @@ export function useNamedList(
     const [open, setOpen] = useState<string | null>(null);
     const [renaming, setRenaming] = useState<string | null>(null);
     const names = [...list.keys()];
+    const wrapper = useRef<HTMLDivElement>(null);
     // A card's title to focus once the list draws again: after a rename, under its new name (or
     // its old one when the element refused it).
     const focusTitle = useRef<string | null>(null);
 
-    const remove = (name: string): void => {
-        void orRefusal(store, `delete ${name}`, list.remove([name]));
-    };
-    const move = (name: string, by: -1 | 1): void => {
-        const work = moveBy(list, name, by);
-        if (work !== undefined) {
-            void orRefusal(store, `move ${name}`, work);
-        }
-    };
-    const wrapper = useHeaderKeys((name, key) => {
-        if (key === "rename") {
-            setRenaming(name);
-        } else if (key === "delete") {
-            remove(name);
-        } else {
-            move(name, key === "up" ? -1 : 1);
-        }
-    });
     const titleOf = (name: string): HTMLElement | null | undefined =>
         wrapper.current?.querySelector<HTMLElement>(`[data-card-id="${CSS.escape(name)}"] .cm-card-name`);
     useEffect(() => {
@@ -92,48 +73,21 @@ export function useNamedList(
         setOpen,
         setRenaming,
         wrapper,
-        moveItems: (name, at) => [
-            {
-                id: "up",
-                label: "Move up",
-                icon: "moveUp",
-                group: "edit",
-                key: "Mod+]",
-                reason: at === 0 ? "Already at the top" : null,
-                reasonDrawn: false,
-                onRun: () => {
-                    move(name, -1);
-                },
-            },
-            {
-                id: "down",
-                label: "Move down",
-                icon: "moveDown",
-                group: "edit",
-                key: "Mod+[",
-                reason: at === names.length - 1 ? "Already at the bottom" : null,
-                reasonDrawn: false,
-                onRun: () => {
-                    move(name, 1);
-                },
-            },
-        ],
         deleteItems: (name) => [
             {
                 id: "delete",
                 label: "Delete",
                 icon: "delete",
                 group: "remove",
-                key: "Delete",
                 onRun: () => {
-                    remove(name);
+                    void orRefusal(store, `delete ${name}`, list.remove([name]));
                 },
             },
         ],
-        cards: (get, card) =>
-            names.flatMap((name, at) => {
+        cards: (order, get, card) =>
+            order.flatMap((name) => {
                 const item = get(name);
-                return item === undefined ? [] : [card(name, item, at)];
+                return item === undefined ? [] : [card(name, item)];
             }),
         listProps: {
             autoFold: false,
@@ -141,9 +95,6 @@ export function useNamedList(
             onFoldedChange: (folded) => {
                 // One unfolded at a time: the card just unfolded, or none.
                 setOpen(names.find((name) => !folded.has(name) && name !== open) ?? null);
-            },
-            onReorder: (name, to) => {
-                void orRefusal(store, `move ${name}`, list.move(name, to));
             },
             renaming,
             onRenamingChange: setRenaming,
@@ -172,6 +123,65 @@ export function useNamedList(
                     } else {
                         title.focus();
                     }
+                });
+            },
+        },
+    };
+}
+
+/** A drag order: the cards' order to draw, and the props that reorder them. */
+interface DragOrder {
+    /** The ids in the order to draw: the dragged preview while the pointer is down, else the saved one. */
+    readonly order: readonly string[];
+    /** Goes on the element around the CardList: notes that a press on a grip starts a drag. */
+    readonly onPointerDownCapture: (event: React.PointerEvent<HTMLElement>) => void;
+    /** The CardList's reorder props. */
+    readonly listProps: Required<Pick<CardListProps, "onReorder" | "onReorderEnd" | "keyboardReorder">>;
+}
+
+/**
+ * Reorders a CardList by its grip, each move one undo step: while the pointer drags, the cards
+ * follow a local preview and nothing is written; the drop commits once, a cancelled drag commits
+ * nothing. Alt+Up and Alt+Down on the grip commit at once.
+ * @param ids - the card ids in their saved order.
+ * @param commit - writes one card's move to its new index; `byKey` is true for a key move.
+ * @returns the order and props.
+ */
+export function useDragOrder(
+    ids: readonly string[],
+    commit: (id: string, to: number, byKey: boolean) => Promise<unknown>,
+): DragOrder {
+    const [preview, setPreview] = useState<string[] | null>(null);
+    const dragging = useRef(false);
+    const moved = (id: string, to: number): string[] => {
+        const rest = ids.filter((each) => each !== id);
+        return [...rest.slice(0, to), id, ...rest.slice(to)];
+    };
+    return {
+        order: preview ?? ids,
+        onPointerDownCapture: (event) => {
+            if (event.button === 0 && (event.target as Element).closest("[data-card-grip]") !== null) {
+                dragging.current = true;
+            }
+        },
+        listProps: {
+            keyboardReorder: true,
+            onReorder: (id, to) => {
+                if (dragging.current) {
+                    setPreview(moved(id, to));
+                } else {
+                    void commit(id, to, true);
+                }
+            },
+            onReorderEnd: (id, to) => {
+                dragging.current = false;
+                if (to === null || to === ids.indexOf(id)) {
+                    setPreview(null);
+                    return;
+                }
+                // The preview stays until the write is drawn, so the cards do not jump back meanwhile.
+                void commit(id, to, false).finally(() => {
+                    setPreview(null);
                 });
             },
         },

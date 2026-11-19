@@ -15,15 +15,14 @@ import React, { useEffect } from "react";
 import { GLYPHS } from "../glyphs";
 import { orRefusal } from "../graph-place/actions";
 import { ariaKey, formatKey } from "../keys/keys";
-import type { SelectionMenuItem } from "../selection/SelectionMenu";
+import { RowMore, type SelectionMenuItem } from "../selection/SelectionMenu";
 import type { WorkspaceStore } from "../state/store";
 import { type CommandDoor, useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { goToSavedView } from "../toolbar/commands";
 import { nothingDrawn } from "../toolbar/disabledReasons";
 import { cameraViewPhrase, modeListWords } from "../toolbar/viewWords";
-import { CardMenu } from "./CardMenu";
 import { CAMERA_KEYS, cameraReason, copyName } from "./commands";
-import { useNamedList } from "./useNamedList";
+import { useDragOrder, useNamedList } from "./useNamedList";
 
 /** Props for CamerasSection. */
 interface CamerasProps {
@@ -159,8 +158,8 @@ function keyChoices(session: GraphSession, name: string): { value: string; label
 }
 
 /**
- * The Cameras section: a ControlSection with Save camera in its header, one card per camera, and
- * the list-local keys on its cards' headers.
+ * The Cameras section: a ControlSection with Save camera in its header and one card per camera,
+ * each action on a card with exactly one control.
  * @param props - Component props
  * @param props.session - the element's session
  * @param props.element - the element
@@ -173,7 +172,7 @@ export function CamerasSection({ session, element, store }: CamerasProps): React
     const opened = useWorkspaceState((state) => state.viewsCamerasOpen);
     const lastView = useWorkspaceState((state) => state.lastView);
     const asked = useWorkspaceState((state) => state.viewsRename);
-    const { names, setOpen, setRenaming, wrapper, moveItems, deleteItems, listProps, cards } = useNamedList(
+    const { names, setOpen, setRenaming, wrapper, deleteItems, listProps, cards } = useNamedList(
         session.views,
         store,
         // The camera last gone to keeps its mark under its new name.
@@ -181,6 +180,8 @@ export function CamerasSection({ session, element, store }: CamerasProps): React
             store.set((state) => (state.lastView === from ? { lastView: to } : {}));
         },
     );
+    // Reordered by the grip alone: a drag is one move, Alt+Up and Alt+Down one move each.
+    const drag = useDragOrder(names, (name, to) => orRefusal(store, `move ${name}`, session.views.move(name, to)));
     // Save camera (V, or the section's +) asks for its new card unfolded with its name open.
     useEffect(() => {
         if (asked !== null && session.views.has(asked)) {
@@ -221,45 +222,21 @@ export function CamerasSection({ session, element, store }: CamerasProps): React
         );
     };
 
-    const card = (name: string, saved: SavedView, at: number): CardListItem => {
+    const card = (name: string, saved: SavedView): CardListItem => {
         const reason = cameraReason(element, name, saved);
         const goReason = nothingDrawn(session) ?? reason;
         const { key } = saved;
-        const first: SelectionMenuItem[] = [
+        const items: SelectionMenuItem[] = [
             {
-                id: "go",
-                label: "Go to",
-                icon: "go",
+                id: "export",
+                label: "Export image...",
+                icon: "picture",
                 group: "edit",
                 reason: goReason,
-                reasonDrawn: false,
                 onRun: () => {
-                    go(name);
+                    store.set({ dialog: "export", exportOn: "image", exportSource: null });
                 },
             },
-            {
-                id: "update",
-                label: "Update to current camera",
-                icon: "camera",
-                group: "edit",
-                reason: save?.disabledReason ?? null,
-                reasonDrawn: false,
-                onRun: () => {
-                    update(name);
-                },
-            },
-            {
-                id: "rename",
-                label: "Rename",
-                icon: "rename",
-                group: "edit",
-                key: "F2",
-                onRun: () => {
-                    setRenaming(name);
-                },
-            },
-        ];
-        const rest: SelectionMenuItem[] = [
             {
                 id: "duplicate",
                 label: "Duplicate",
@@ -269,9 +246,8 @@ export function CamerasSection({ session, element, store }: CamerasProps): React
                     duplicate(name, saved);
                 },
             },
-            ...moveItems(name, at),
+            ...deleteItems(name),
         ];
-        const removal = deleteItems(name);
         const choices = keyChoices(session, name);
         const badKey = key !== undefined && !(CAMERA_KEYS as readonly string[]).includes(key);
         const goTip = goReason ?? (key === undefined ? `Go to ${name}` : `Go to ${name} (${key})`);
@@ -305,20 +281,7 @@ export function CamerasSection({ session, element, store }: CamerasProps): React
                     </ActionIcon>
                 </Tooltip>
             ),
-            menu: (
-                <CardMenu
-                    name={name}
-                    first={first}
-                    choose="Key"
-                    choices={choices}
-                    chosen={key ?? ""}
-                    onChoose={(value) => {
-                        setKey(name, value === "" ? null : value);
-                    }}
-                    rest={rest}
-                    removal={removal}
-                />
-            ),
+            menu: <RowMore name={name} items={items} />,
             children: (
                 <div className="vp-inspect">
                     {inspectRows(session, element, name, saved)}
@@ -370,28 +333,16 @@ export function CamerasSection({ session, element, store }: CamerasProps): React
                 actions={save === null ? null : <SaveCameraButton save={save} />}
             >
                 {names.length === 0 ? (
-                    <ActionRow
-                        state="No cameras"
-                        actions={
-                            save === null ? null : (
-                                <Button
-                                    size="compact-xs"
-                                    variant="subtle"
-                                    aria-disabled={save.disabledReason === null ? undefined : true}
-                                    aria-description={save.disabledReason ?? undefined}
-                                    onClick={save.disabledReason === null ? save.run : undefined}
-                                >
-                                    {save.command.label}
-                                </Button>
-                            )
-                        }
-                    />
+                    <ActionRow state="No cameras" />
                 ) : (
-                    <CardList
-                        label="Saved cameras"
-                        items={cards((name) => session.views.get(name), card)}
-                        {...listProps}
-                    />
+                    <div onPointerDownCapture={drag.onPointerDownCapture}>
+                        <CardList
+                            label="Saved cameras"
+                            items={cards(drag.order, (name) => session.views.get(name), card)}
+                            {...listProps}
+                            {...drag.listProps}
+                        />
+                    </div>
                 )}
             </ControlSection>
         </div>

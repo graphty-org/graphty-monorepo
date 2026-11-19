@@ -17,8 +17,8 @@ const FOCUS = {
 } as const;
 
 /**
- * The Views place (design/ui/camera-views-tours-and-capture.md, section 3.1): the graph's name,
- * then Cameras and Video tours, each a section the reader opens and closes, kept in the workspace
+ * The Views place (design/ui/camera-views-tours-and-capture.md, section 3.1): no heading, just
+ * Cameras then Video tours, each a section the reader opens and closes, kept in the workspace
  * store. Every camera and tour is graphty-element's (`session.views`, `session.tours`); this only
  * arranges and words them. A door (Quick actions, the Export dialog) asks for focus on a section.
  * @returns The Views place
@@ -29,7 +29,6 @@ export function ViewsPlace(): React.JSX.Element {
     useViewsChanged(element);
     // And whenever the graph gains or loses what is drawn.
     useSessionEvents(session, VIEWS_PLACE_EVENTS);
-    const graphName = useWorkspaceState((state) => state.project?.name ?? "");
     const focus = useWorkspaceState((state) => state.viewsFocus);
     const root = useRef<HTMLElement>(null);
     useEffect(() => {
@@ -46,7 +45,6 @@ export function ViewsPlace(): React.JSX.Element {
 
     return (
         <section className="vp" aria-label="Views place" ref={root}>
-            <h2 className="vp-title">{graphName}</h2>
             {session === null ? null : (
                 <>
                     <CamerasSection session={session} element={element} store={store} />

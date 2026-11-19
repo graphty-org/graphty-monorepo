@@ -1,9 +1,9 @@
 /**
  * The Views place on the REAL graphty-element (design/ui/camera-views-tours-and-capture.md,
  * sections 3.1, 3.3 and 7): the rail item, the Cameras and Video tours sections, the five starting
- * cameras as ordinary cards, rename, reorder, keys, duplicate, delete with undo, inspect, Save
- * camera on V, the 2D reasons, a tour built from cameras and a pause and played, and opening saved
- * files. Every change is real input; every assertion reads what is drawn or what the element reports.
+ * cameras as ordinary cards, one control per action, rename, reorder by drag and by the grip's keys,
+ * keys, duplicate, delete with undo, inspect, Save camera on V, the 2D reasons, a tour built from
+ * cameras and a pause, its stops dragged and played, and opening saved files. Every change is real input; every assertion reads what is drawn or what the element reports.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -14,6 +14,7 @@ import { assert, describe, it } from "vitest";
 import { cdp, page, userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
+import { dragTo, touchDragCancelled } from "../../../test/real-pointer";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -173,6 +174,68 @@ function stopsOf(session: GraphSession, name: string): string[] {
     return session.tours.get(name)?.stops.map((stop) => ("view" in stop ? stop.view : "pause")) ?? [];
 }
 
+/**
+ * The accessible names of a card's own header buttons, in order (not those of a nested card).
+ * @param card - the card.
+ * @returns the names.
+ */
+function headerButtons(card: HTMLElement): string[] {
+    return [...card.querySelectorAll<HTMLElement>(":scope > .cm-card-head button")].map(
+        (button) => button.getAttribute("aria-label") ?? button.textContent ?? "",
+    );
+}
+
+/**
+ * Opens a card's row menu and reads its items, then closes it.
+ * @param name - the card.
+ * @returns the items' words.
+ */
+async function menuItems(name: string): Promise<string[]> {
+    await userEvent.click(within(place()).getByRole("button", { name: `More for ${name}` }));
+    await screen.findByRole("menu");
+    const items = screen.getAllByRole("menuitem").map((item) => item.textContent?.trim() ?? "");
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => {
+        assert.isNull(screen.queryByRole("menu"));
+    });
+    return items;
+}
+
+/**
+ * A stop's card.
+ * @param n - its number, from 1.
+ * @returns the card.
+ */
+function stopCard(n: number): HTMLElement {
+    return within(place()).getByRole("region", { name: `Stop ${String(n)}` });
+}
+
+/**
+ * Builds the tour "Walk" through the place: New tour, then Add camera Top and Isometric, Add pause
+ * and Add camera Side.
+ * @param session - the session.
+ */
+async function buildWalk(session: GraphSession): Promise<void> {
+    await userEvent.click(within(place()).getByRole("button", { name: "New tour" }));
+    const rename = await within(place()).findByRole("textbox", { name: "Rename Tour 1" });
+    await userEvent.clear(rename);
+    await userEvent.type(rename, "Walk{Enter}");
+    await waitFor(() => {
+        assert.isTrue(session.tours.has("Walk"));
+    });
+    const add = async (camera: string): Promise<void> => {
+        await userEvent.click(within(place()).getByRole("button", { name: "Add camera to Walk" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: camera }));
+    };
+    await add("Top");
+    await add("Isometric");
+    await userEvent.click(within(place()).getByRole("button", { name: "Add pause to Walk" }));
+    await add("Side");
+    await waitFor(() => {
+        assert.deepEqual(stopsOf(session, "Walk"), ["Top", "Isometric", "pause", "Side"]);
+    });
+}
+
 describe("the Views place", () => {
     it("sits on the rail between Data and Notes, with Cameras and Video tours that collapse and stay so", async () => {
         const { store } = await openRing();
@@ -189,6 +252,7 @@ describe("the Views place", () => {
             screen.queryByRole("group", { name: "Views" }),
             "the Graph place no longer holds a Views section",
         );
+        assert.isNull(place().querySelector("h1, h2, h3"), "the place has no heading with the graph's name");
 
         // A new project: the five starting cameras with their keys, no undo step, nothing unsaved.
         assert.deepEqual(listedCameras(), STARTING);
@@ -236,7 +300,7 @@ describe("the Views place", () => {
         assert.strictEqual(document.activeElement, views, "a rail click keeps focus on the rail");
     });
 
-    it("goes to a camera with its Go button, renames with a title click or F2, and moves with Mod+[", async () => {
+    it("goes to a camera with its Go button, renames only from its title, and leaves F2 to the project", async () => {
         const { element, session } = await openRing();
         await userEvent.click(within(cameraCard("Side")).getByRole("button", { name: "Go to Side" }));
         await waitFor(() => {
@@ -266,23 +330,78 @@ describe("the Views place", () => {
         });
         assert.isTrue(session.views.has("Bottom"));
 
-        // F2 on a Go button opens rename, not the project's.
+        // F2 on a card is the project's rename; Delete and Mod+[ do nothing there.
+        within(cameraCard("Front")).getByRole("button", { name: "Go to Front" }).focus();
+        await userEvent.keyboard("{Delete}{Control>}[[{/Control}");
+        assert.deepEqual(listedCameras(), ["Overhead", "Bottom", "Front", "Side", "Isometric"]);
         within(cameraCard("Front")).getByRole("button", { name: "Go to Front" }).focus();
         await userEvent.keyboard("{F2}");
-        assert.isNotNull(await within(place()).findByRole("textbox", { name: "Rename Front" }));
-        assert.isNull(screen.queryByRole("textbox", { name: /project/i }));
-        await userEvent.keyboard("{Escape}");
+        assert.isNotNull(await screen.findByRole("textbox", { name: "Project name" }));
+        assert.isNull(within(place()).queryByRole("textbox", { name: "Rename Front" }));
+    });
 
-        // Mod+[ moves a card down the list, from its Go button.
-        within(cameraCard("Overhead")).getByRole("button", { name: "Go to Overhead" }).focus();
-        await userEvent.keyboard("{Control>}[[{/Control}");
+    it("gives each action on a camera, tour and stop exactly one control", async () => {
+        const { session } = await openRing();
+        assert.deepEqual(headerButtons(cameraCard("Top")), [
+            "Move Top",
+            "Expand Top",
+            "Rename Top",
+            "Go to Top",
+            "More for Top",
+        ]);
+        assert.deepEqual(await menuItems("Top"), ["Export image...", "Duplicate", "Delete"]);
+        await userEvent.click(within(cameraCard("Top")).getByRole("button", { name: "Expand Top" }));
+        const top = cameraCard("Top");
+        assert.lengthOf(within(top).getAllByRole("combobox", { name: "Key" }), 1);
+        assert.lengthOf(within(top).getAllByRole("button", { name: "Update to current camera" }), 1);
+        assert.lengthOf(within(place()).getAllByRole("button", { name: "Save camera" }), 1);
+
+        await buildWalk(session);
+        const walk = within(place()).getByRole("region", { name: "Walk" });
+        assert.deepEqual(headerButtons(walk), ["Collapse Walk", "Rename Walk", "Play Walk", "More for Walk"]);
+        assert.deepEqual(await menuItems("Walk"), ["Export video...", "Duplicate", "Delete"]);
+        assert.lengthOf(within(place()).getAllByRole("button", { name: "New tour" }), 1);
+        assert.lengthOf(within(walk).getAllByRole("button", { name: "Add camera to Walk" }), 1);
+        assert.lengthOf(within(walk).getAllByRole("button", { name: "Add pause to Walk" }), 1);
+        assert.lengthOf(within(walk).getAllByLabelText("Easing"), 1);
+
+        assert.deepEqual(headerButtons(stopCard(1)), ["Move Stop 1", "Collapse Stop 1", "Delete Stop 1"]);
+        assert.lengthOf(within(stopCard(1)).getAllByRole("combobox", { name: "Camera" }), 1);
+        assert.lengthOf(within(stopCard(1)).getAllByLabelText("Fly in"), 1);
+        assert.lengthOf(within(stopCard(1)).getAllByLabelText("Stay"), 1);
+        assert.deepEqual(headerButtons(stopCard(3)), ["Move Stop 3", "Collapse Stop 3", "Delete Stop 3"]);
+        assert.lengthOf(within(stopCard(3)).getAllByLabelText("Wait"), 1);
+        assert.isNull(within(stopCard(3)).queryByLabelText("Fly in"));
+
+        // A stop's x is the only way to delete it.
+        await userEvent.click(within(stopCard(3)).getByRole("button", { name: "Delete Stop 3" }));
         await waitFor(() => {
-            assert.deepEqual(listedCameras(), ["Bottom", "Overhead", "Front", "Side", "Isometric"]);
+            assert.deepEqual(stopsOf(session, "Walk"), ["Top", "Isometric", "Side"]);
         });
-        assert.equal(
-            document.activeElement,
-            within(cameraCard("Overhead")).getByRole("button", { name: "Go to Overhead" }),
-        );
+    });
+
+    it("reorders cameras by dragging the grip, one undo step, and by Alt+Down on the focused grip", async () => {
+        await openRing();
+        const top = cameraCard("Top").getBoundingClientRect();
+        await dragTo(within(cameraCard("Isometric")).getByRole("button", { name: "Move Isometric" }), {
+            x: top.left + top.width / 2,
+            y: top.top + 2,
+        });
+        await waitFor(() => {
+            assert.deepEqual(listedCameras(), ["Isometric", "Top", "Bottom", "Front", "Side"]);
+        });
+        await undo();
+        await waitFor(() => {
+            assert.deepEqual(listedCameras(), STARTING);
+        });
+
+        const grip = within(cameraCard("Top")).getByRole("button", { name: "Move Top" });
+        grip.focus();
+        await userEvent.keyboard("{Alt>}{ArrowDown}{/Alt}");
+        await waitFor(() => {
+            assert.deepEqual(listedCameras(), ["Bottom", "Top", "Front", "Side", "Isometric"]);
+        });
+        assert.equal(document.activeElement, within(cameraCard("Top")).getByRole("button", { name: "Move Top" }));
     });
 
     it("refuses a rename onto a taken name in the notice, keeping the old name", async () => {
@@ -298,7 +417,7 @@ describe("the Views place", () => {
         assert.equal(document.activeElement, within(cameraCard("Side")).getByRole("button", { name: "Rename Side" }));
     });
 
-    it("moves a key with the Key list and the Key submenu, and undo gives it back", async () => {
+    it("moves a key with the Key list, and undo gives it back", async () => {
         const { session } = await openRing();
         await userEvent.click(within(cameraCard("Isometric")).getByRole("button", { name: /^Expand Isometric/ }));
         await userEvent.click(within(cameraCard("Isometric")).getByRole("combobox", { name: "Key" }));
@@ -316,13 +435,6 @@ describe("the Views place", () => {
             assert.equal(session.views.get("Top")?.key, "7");
             assert.isUndefined(session.views.get("Isometric")?.key);
         });
-
-        await userEvent.click(within(cameraCard("Side")).getByRole("button", { name: "More for Side" }));
-        await userEvent.hover(await screen.findByRole("menuitem", { name: "Key" }));
-        await userEvent.click(await screen.findByRole("menuitemradio", { name: "2" }));
-        await waitFor(() => {
-            assert.equal(session.views.get("Side")?.key, "2");
-        });
     });
 
     it("duplicates and deletes a camera, and undo puts it back in its place with its key", async () => {
@@ -334,8 +446,8 @@ describe("the Views place", () => {
         });
         assert.deepEqual(session.views.get("Front 2"), { follows: "frontView" }, "same camera view, no key");
 
-        within(cameraCard("Front")).getByRole("button", { name: "Go to Front" }).focus();
-        await userEvent.keyboard("{Delete}");
+        await userEvent.click(within(cameraCard("Front")).getByRole("button", { name: "More for Front" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: /^Delete/ }));
         await waitFor(() => {
             assert.deepEqual(listedCameras(), ["Top", "Bottom", "Side", "Isometric", "Front 2"]);
         });
@@ -388,7 +500,7 @@ describe("the Views place", () => {
         );
 
         // A tour's + Camera lists them the same way, so no stop is added that the tour cannot fly.
-        await userEvent.click(within(place()).getAllByRole("button", { name: "New tour" })[0]);
+        await userEvent.click(within(place()).getByRole("button", { name: "New tour" }));
         const rename = await within(place()).findByRole("textbox", { name: "Rename Tour 1" });
         await userEvent.type(rename, "{Enter}");
         await userEvent.click(within(place()).getByRole("button", { name: "Add camera to Tour 1" }));
@@ -404,36 +516,66 @@ describe("the Views place", () => {
         assert.deepEqual(stopsOf(session, "Tour 1"), [], "a disabled camera adds no stop");
     });
 
-    it("makes a tour of cameras and a pause, edits a hold, plays it and puts the camera back", async () => {
+    it("makes a tour of cameras and a pause, drags its stops, edits a stay, plays it and puts the camera back", async () => {
         const { element, session } = await openRing();
-        // The section's +, beside the empty state's own New tour.
-        await userEvent.click(within(place()).getAllByRole("button", { name: "New tour" })[0]);
-        const rename = await within(place()).findByRole("textbox", { name: "Rename Tour 1" });
-        await userEvent.clear(rename);
-        await userEvent.type(rename, "Walk{Enter}");
-        await waitFor(() => {
-            assert.isTrue(session.tours.has("Walk"));
+        await buildWalk(session);
+        assert.deepEqual(session.tours.get("Walk")?.stops[0], { view: "Top", duration: 0, hold: 2000 });
+        assert.deepEqual(session.tours.get("Walk")?.stops[2], { pause: 2000 });
+        const first = within(stopCard(1)).getByLabelText("Fly in").getAttribute("aria-description") ?? "";
+        assert.match(first, /when Play is pressed/);
+        assert.equal(
+            within(stopCard(3)).getByLabelText("Wait").getAttribute("aria-description"),
+            "Seconds the camera stays still",
+        );
+
+        // Stop 4 dragged above stop 1 by its grip: the stops reorder, keeping their times, as one step.
+        const steps = session.history.steps.length;
+        const top = stopCard(1).getBoundingClientRect();
+        await dragTo(within(stopCard(4)).getByRole("button", { name: "Move Stop 4" }), {
+            x: top.left + top.width / 2,
+            y: top.top + 2,
         });
-        const add = async (camera: string): Promise<void> => {
-            await userEvent.click(within(place()).getByRole("button", { name: "Add camera to Walk" }));
-            await userEvent.click(await screen.findByRole("menuitem", { name: camera }));
-        };
-        await add("Top");
-        await add("Isometric");
-        await userEvent.click(within(place()).getByRole("button", { name: "Add pause to Walk" }));
-        await add("Side");
+        await waitFor(() => {
+            assert.deepEqual(stopsOf(session, "Walk"), ["Side", "Top", "Isometric", "pause"]);
+        });
+        assert.equal(session.history.steps.length, steps + 1, "one undo step");
+        assert.deepEqual(session.tours.get("Walk")?.stops[0], { view: "Side", duration: 2000, hold: 2000 });
+        await waitFor(() => {
+            assert.equal(within(stopCard(1)).getByLabelText("Fly in").getAttribute("aria-description"), first);
+        });
+        assert.equal(
+            within(stopCard(2)).getByLabelText("Fly in").getAttribute("aria-description"),
+            "Seconds to fly here from the previous stop",
+        );
+        await undo();
         await waitFor(() => {
             assert.deepEqual(stopsOf(session, "Walk"), ["Top", "Isometric", "pause", "Side"]);
         });
-        assert.deepEqual(session.tours.get("Walk")?.stops[0], { view: "Top", duration: 0, hold: 2000 });
-        assert.deepEqual(session.tours.get("Walk")?.stops[2], { pause: 2000 });
 
+        // A drag the browser cancels changes nothing and adds no step.
+        const before = session.history.steps.length;
+        await touchDragCancelled(within(stopCard(2)).getByRole("button", { name: "Move Stop 2" }), 120);
+        await waitFor(() => {
+            assert.isNull(stopCard(2).closest("[data-dragging]"));
+            assert.isNull(place().querySelector("[data-dragging]"));
+        });
+        assert.deepEqual(stopsOf(session, "Walk"), ["Top", "Isometric", "pause", "Side"]);
+        assert.equal(session.history.steps.length, before);
+
+        // Alt+Up on a stop's grip moves it, and its grip keeps focus.
+        within(stopCard(2)).getByRole("button", { name: "Move Stop 2" }).focus();
+        await userEvent.keyboard("{Alt>}{ArrowUp}{/Alt}");
+        await waitFor(() => {
+            assert.deepEqual(stopsOf(session, "Walk"), ["Isometric", "Top", "pause", "Side"]);
+            assert.equal(document.activeElement, within(stopCard(1)).getByRole("button", { name: "Move Stop 1" }));
+        });
+
+        // Stay changes the tour's length.
         const length = (): string => within(place()).getByLabelText(/^Length /).textContent ?? "";
         assert.equal(length(), "0:12");
-        const stops = within(place()).getByRole("list", { name: "Stops of Walk" });
-        const hold = within(stops).getAllByLabelText("Hold")[1];
-        await userEvent.clear(hold);
-        await userEvent.type(hold, "0.5{Enter}");
+        const stay = within(stopCard(2)).getByLabelText("Stay");
+        await userEvent.clear(stay);
+        await userEvent.type(stay, "0.5{Enter}");
         await waitFor(() => {
             assert.deepInclude(session.tours.get("Walk")?.stops[1], { hold: 500 });
             assert.equal(length(), "0:11");
@@ -460,14 +602,14 @@ describe("the Views place", () => {
         await userEvent.click(within(place()).getByRole("button", { name: "Play Walk" }));
         await waitFor(() => {
             assert.isNotNull(
-                within(place()).getByRole("list", { name: "Stops of Walk" }).querySelector('[aria-current="step"]'),
+                within(place()).getByRole("group", { name: "Stops of Walk" }).querySelector('[aria-current="step"]'),
             );
         });
         await waitFor(() => {
             assert.deepEqual(ended, ["finished"]);
         });
         assert.isNull(
-            within(place()).getByRole("list", { name: "Stops of Walk" }).querySelector('[aria-current="step"]'),
+            within(place()).getByRole("group", { name: "Stops of Walk" }).querySelector('[aria-current="step"]'),
         );
         await element.waitForSettled();
         assertAt(element, start);
@@ -483,9 +625,12 @@ describe("the Views place", () => {
             ended.push(event.detail.reason);
         });
         await userEvent.click(within(place()).getByRole("button", { name: "Play Long" }));
+        // Play turns into Stop on the card, and the Camera tool is Stop while it plays.
         await within(place()).findByRole("button", { name: "Stop tour" });
+        assert.isNull(within(place()).queryByRole("button", { name: "Play Long" }));
+        assert.isNotNull(document.querySelector('[data-command="tour.stop"]'));
 
-        await userEvent.click(within(place()).getByRole("combobox", { name: "Stop 1 camera" }));
+        await userEvent.click(within(stopCard(1)).getByRole("combobox", { name: "Camera" }));
         await screen.findByRole("listbox");
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
@@ -500,19 +645,13 @@ describe("the Views place", () => {
         assert.isNotNull(within(place()).getByRole("button", { name: "Play Long" }));
     });
 
-    it("moves a stop with Mod+[ from its menu button, and a broken stop says why", async () => {
+    it("says why a broken stop cannot be flown, on its Camera and on Play", async () => {
         const { session } = await openRing();
         await session.tours.save([
             { name: "Walk", tour: { stops: [{ view: "Top" }, { view: "Side" }, { view: "Gone" }] } },
         ]);
         await userEvent.click(within(place()).getByRole("button", { name: /^Expand Walk/ }));
-        within(place()).getByRole("button", { name: "More for Stop 1" }).focus();
-        await userEvent.keyboard("{Control>}[[{/Control}");
-        await waitFor(() => {
-            assert.deepEqual(stopsOf(session, "Walk"), ["Side", "Top", "Gone"]);
-        });
-        assert.equal(document.activeElement, within(place()).getByRole("button", { name: "More for Stop 2" }));
-        const broken = within(place()).getByRole("combobox", { name: "Stop 3 camera" });
+        const broken = within(stopCard(3)).getByRole("combobox", { name: "Camera" });
         assert.equal(broken.getAttribute("aria-description"), "Camera not found");
         const play = within(place()).getByRole("button", { name: "Play Walk" });
         assert.equal(play.getAttribute("aria-disabled"), "true");

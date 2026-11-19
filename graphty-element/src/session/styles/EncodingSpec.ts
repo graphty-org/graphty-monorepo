@@ -1,7 +1,7 @@
 /**
  * @file `encode()`: the one path an analysis layer takes, and the layer it writes.
  *
- * A consumer that has just run an algorithm wants one thing -- "colour the graph by this" -- and
+ * A consumer that has just run an algorithm wants one thing -- "color the graph by this" -- and
  * everything else in a style layer is detail it can get wrong. So `encode()` takes the run, the
  * channel and the taste (a palette, a scale, a clamp), and `planEncoding` writes the rest:
  * the path, the selector, the layer's kind, its name and where it came from.

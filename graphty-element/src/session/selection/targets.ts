@@ -2,7 +2,7 @@
  * @file Turning a selection target into the two sets of elements it names.
  *
  * A target is the WHAT of a selection; the set operation beside it is the HOW. Keeping them apart
- * is what makes "shift-click adds the neighbours" and "alt-click removes the top twenty" the same
+ * is what makes "shift-click adds the neighbors" and "alt-click removes the top twenty" the same
  * two lines of code as "click replaces this node": every target resolves to a pair of masks, and
  * every operation is set algebra between that pair and the pair the session already holds.
  *

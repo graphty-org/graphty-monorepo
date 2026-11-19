@@ -24,7 +24,7 @@ import type { StandardMaterial } from "@babylonjs/core/Materials/standardMateria
  * WHY IT HAS TO BE THE SHADER. The cap is a consequence of the multiply landing after the clamp,
  * so nothing set on the material can undo it: turning the diffuse down, dropping the emissive
  * floor or lifting the light's ground color all move where the gradient starts and none of them
- * raise its ceiling, because `clamp(x) * colour` is at most `colour` whatever x is. The only place
+ * raise its ceiling, because `clamp(x) * color` is at most `color` whatever x is. The only place
  * the ceiling exists is the expression itself, and the smallest honest correction is to multiply
  * the instance color into the light term BEFORE the clamp, which is what this plugin does:
  *
@@ -32,7 +32,7 @@ import type { StandardMaterial } from "@babylonjs/core/Materials/standardMateria
  *
  * WHAT IT DOES NOT CHANGE. On a material whose instances carry no color, `baseColor.rgb` is 1 and
  * moving the multiply is arithmetically nothing. The shadowed end does not move either: a pixel at
- * the brightness floor was `0.55 * colour` before and is `0.55 * colour` after -- the floor still
+ * the brightness floor was `0.55 * color` before and is `0.55 * color` after -- the floor still
  * lifts each node in proportion to its own color. Only the saturated cap changes, which is the
  * whole of what was lost. The specular highlight is added after `finalDiffuse` and is not touched.
  */

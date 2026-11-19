@@ -6505,8 +6505,10 @@ export class Graph implements GraphContext {
      * @since 3.58.0
      */
     setColorScheme(scheme: ColorScheme): void {
-        if (scheme !== "light" && scheme !== "dark" && scheme !== "auto") {
-            throw new TypeError(`colorScheme must be "light", "dark" or "auto", not ${JSON.stringify(scheme)}`);
+        // A JavaScript caller can pass anything.
+        const given: string = scheme;
+        if (given !== "light" && given !== "dark" && given !== "auto") {
+            throw new TypeError(`colorScheme must be "light", "dark" or "auto", not ${JSON.stringify(given)}`);
         }
 
         this.#colorScheme = scheme;

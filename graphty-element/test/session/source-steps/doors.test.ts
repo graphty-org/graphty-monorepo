@@ -172,16 +172,10 @@ describe("source-steps: today's doors", () => {
         opened.dispose();
     });
 
-    it("refuses a join, replace, reload, remap and refresh until they compile to steps", async () => {
+    it("refuses replace, reload, remap and refresh until they compile to steps", async () => {
         const session = stepsSession();
         await session.data.import(csv("one.csv", "source,target\na,b\n"));
         const [{ key }] = session.data.sources();
-        const draft = await session.data.prepare(csv("values.csv", "id,score\na,1\n"), { onto: "graph" });
-        assert.deepStrictEqual(await codeOf(draft.load({ join: { keys: [{ file: "id", graph: "id" }] } })), [
-            "E_UNSUPPORTED",
-            "later",
-        ]);
-        draft.dispose();
         assert.deepStrictEqual(await codeOf(session.data.replaceSource(key, csv("one.csv", "source,target\na,c\n"))), [
             "E_UNSUPPORTED",
             "later",

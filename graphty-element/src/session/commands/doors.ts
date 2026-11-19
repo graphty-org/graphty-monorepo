@@ -2820,6 +2820,18 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             stage: SOURCE_STEPS_WRITE,
             declareType: SOURCE_STEPS_WRITE,
             removeEdit: SOURCE_STEPS_WRITE,
+            merge: SOURCE_STEPS_WRITE,
+            connect: SOURCE_STEPS_WRITE,
+            extract: SOURCE_STEPS_WRITE,
+            moveColumns: SOURCE_STEPS_WRITE,
+            pick: SOURCE_STEPS_WRITE,
+            use: SOURCE_STEPS_WRITE,
+            removeStep: SOURCE_STEPS_WRITE,
+            add: SOURCE_STEPS_WRITE,
+            lineage: READ,
+            values: READ,
+            cell: READ,
+            conflicts: READ,
             issues: READ,
             hiddenColumns: READ,
             derivedColumns: READ,
@@ -4470,7 +4482,9 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
 export const GESTURE_DOORS: Readonly<Record<string, string>> = {
     "data.steps-set":
         "Every data door that changes the graph (import, generate, loadDataset, loadExample, importColumns, a " +
-        "draft's load, addNodes and the other direct edits, stage, declareType, removeEdit) while the source-steps " +
+        "draft's load and join, editJoin, addNodes and the other direct edits, stage, declareType, removeEdit, merge, " +
+        "connect, extract, moveColumns, a renameColumn naming a source, pick, use, removeStep, add) while the " +
+        "source-steps " +
         "experiment is on; the door rows here run with it off. Checked by test/session/source-steps/*.test.ts.",
     "data.expand":
         "Double-clicking a node when the layout behaviour supplies fetchNodes and fetchEdges (src/NodeBehavior.ts); " +

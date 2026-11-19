@@ -78,4 +78,53 @@ describe("source-steps: counted work of the diff apply", () => {
             { sizes: [500, 2_000], counter: "bytes the staging step retains" },
         );
     });
+
+    it("a merge, Make an edge, pick, Use and Add of ten rows retain the same bytes however large the graph", async () => {
+        await assertScalesLinearly(
+            async (size) => {
+                const session = await loaded(size);
+                const [edges] = session.data.sources();
+                const rows = Array.from({ length: 10 }, (_, i) => `n${String(i)},v${String(i)}`).join("\n");
+                const stage = (): Promise<string> =>
+                    session.data.stage(
+                        { type: "csv", config: { data: `id,v\n${rows}` }, name: "s.csv" },
+                        { key: "id" },
+                    );
+                let bytes = 0;
+                await session.data.merge({ from: { source: await stage(), field: "id" }, into: { source: edges.key } });
+                bytes += stepBytes(session);
+                const linked = await stage();
+                await session.data.connect({ from: { source: linked, field: "id" }, into: { source: edges.key } });
+                bytes += stepBytes(session);
+                await session.data.pick({ space: `source:${linked}`, key: "n1" }, "v", linked);
+                bytes += stepBytes(session);
+                await session.data.use({ space: `source:${linked}`, key: "n2" }, "v", linked);
+                bytes += stepBytes(session);
+                await session.data.add(await stage());
+                bytes += stepBytes(session);
+                session.dispose();
+                return bytes;
+            },
+            { sizes: [500, 2_000], growth: "constant", counter: "bytes the five steps retain" },
+        );
+    });
+
+    it("Extract, Move columns and deleting a step retain bytes in step with the rows they touch", async () => {
+        await assertScalesLinearly(
+            async (size) => {
+                const session = await loaded(size);
+                const [edges] = session.data.sources();
+                let bytes = 0;
+                await session.data.extract(edges.key, { column: "target", space: "other" });
+                bytes += stepBytes(session);
+                await session.data.moveColumns(edges.key, { columns: ["target"], to: "source" });
+                bytes += stepBytes(session);
+                await session.data.removeStep(1);
+                bytes += stepBytes(session);
+                session.dispose();
+                return bytes;
+            },
+            { sizes: [500, 2_000], counter: "bytes the three steps retain" },
+        );
+    });
 });

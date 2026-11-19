@@ -16,6 +16,7 @@ import type { SessionCommand } from "../planning";
 import type { CommandDefinition, UndoableContext, UndoableDefinition } from "../project/Dispatcher";
 import type { CodedFact } from "../shared";
 import { type Provenance, PROVENANCE_VALUE } from "../sources/provenance";
+import type { StepsAct } from "../sources/steps/acts";
 import {
     applyEdit,
     buildOf,
@@ -34,6 +35,7 @@ import {
     sourceState,
     type SourceSteps,
     type StepsEdit,
+    type StepsSource,
 } from "../sources/steps/project";
 import { READER_SOURCE } from "../sources/steps/types";
 import { type DataMutation, serviceOf, SOURCE_VALUE, SOURCES_VALUE } from "./data";
@@ -69,8 +71,42 @@ function sourceOfEdit(edit: StepsEdit): string | null {
     if (edit.kind === "add") {
         return edit.source.id;
     }
+    if (edit.kind === "act") {
+        return actSource(edit.act);
+    }
     return edit.kind === "remove-source" ? edit.id : null;
 }
+
+/**
+ * The source an act reads.
+ * @param act - The act.
+ * @returns Its source, or null for deleting a step.
+ */
+function actSource(act: StepsAct): string | null {
+    switch (act.act) {
+        case "merge":
+        case "connect":
+            return act.options.from.source;
+        case "rename":
+            return act.rename.source;
+        case "remove-step":
+            return null;
+        default:
+            return act.source;
+    }
+}
+
+/** Each act's step label. */
+const ACT_LABELS: Readonly<Record<StepsAct["act"], string>> = {
+    merge: "Merged a source",
+    connect: "Made edges from a source",
+    extract: "Extracted nodes from a column",
+    "move-columns": "Moved columns onto nodes",
+    rename: "Renamed a column",
+    pick: "Picked a value",
+    "remove-step": "Deleted a step",
+    "add-staged": "Added a staged source",
+};
 
 /**
  * The step's fact.
@@ -85,7 +121,7 @@ function factOf(command: DataStepsSetCommand): CodedFact<HistoryCode> {
     return {
         code: "data.steps-set",
         params: {
-            kind: edit.kind,
+            kind: edit.kind === "act" ? edit.act.act : edit.kind,
             source: sourceOfEdit(edit),
             name: edit.kind === "add" ? edit.source.label : null,
         },
@@ -113,9 +149,24 @@ function labelOf(command: DataStepsSetCommand): string {
             return "Removed a source";
         case "declare-type":
             return `Declared the type ${edit.entry.name}`;
+        case "act":
+            return ACT_LABELS[edit.act.act];
         default:
             return "Set the sources";
     }
+}
+
+/**
+ * The kind `data.sources()` lists a source as.
+ * @param src - The source.
+ * @returns A joined table's `join`; the derived source an element's nodeData / edgeData pair owns
+ * is a file until the public kinds name it.
+ */
+function listedKind(src: StepsSource): LoadedSource["kind"] {
+    if (src.join !== undefined) {
+        return "join";
+    }
+    return src.kind === "derived" ? "file" : src.kind;
 }
 
 /**
@@ -141,9 +192,7 @@ function listed(
         });
         return Object.freeze({
             key: src.id,
-            // The derived source an element's nodeData / edgeData pair owns is listed as a file
-            // until the public kinds name it.
-            kind: src.kind === "derived" ? "file" : src.kind,
+            kind: listedKind(src),
             ...(src.type === undefined ? {} : { type: src.type }),
             ...(src.label === null ? {} : { name: src.label }),
             ...(src.config === undefined ? {} : { config: src.config }),
@@ -156,6 +205,9 @@ function listed(
             named: own?.named ?? 0,
             rowsLeftOut: Object.freeze({ ...own?.leftOut }),
             ...(src.issues === undefined ? {} : { issues: src.issues }),
+            ...(src.join === undefined
+                ? {}
+                : { join: src.join, ...(src.join.onto === null ? {} : { joinedOnto: src.join.onto }) }),
         });
     });
     const reader = facts.get(READER_SOURCE);
@@ -259,7 +311,22 @@ const dataStepsSet: UndoableDefinition<DataStepsSetCommand> = {
     // A replacing load begins a new dataset, whose step keeps the arrangement it replaced.
     movesWhen: (command) => command.edit.kind === "add" && command.edit.replace === true,
     draws: true,
-    variants: ["set", "add", "reader", "remove-edit", "remove-source", "declare-type"],
+    variants: [
+        "set",
+        "add",
+        "reader",
+        "remove-edit",
+        "remove-source",
+        "declare-type",
+        "merge",
+        "connect",
+        "extract",
+        "move-columns",
+        "rename",
+        "pick",
+        "remove-step",
+        "add-staged",
+    ],
     keys: () => ["graph"],
     lane: { kind: "queued", category: "data-add" },
     byReference: ["copies"],

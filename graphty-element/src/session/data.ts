@@ -182,15 +182,21 @@ import {
 } from "./sources/member";
 import { pendingSourceLoads, targetOf } from "./sources/pending";
 import { type Provenance, PROVENANCE_VALUE, provenanceIndex, withoutSource, withSupplied } from "./sources/provenance";
+import type { StepsAct } from "./sources/steps/acts";
 import { resolveNode } from "./sources/steps/build";
-import { compileCommand, compileImport, readerOps } from "./sources/steps/compile";
+import { compileCommand, compileImport, compileJoin, readerOps, withoutJoin } from "./sources/steps/compile";
 import {
     buildOf,
     checkSpace,
     type Copies,
+    diffGraph,
     editRows,
     EMPTY_STEPS,
+    mintCopyId,
+    mintEditId,
+    mintSourceId,
     nodeIdsOf,
+    projectBuild,
     refOf,
     SOURCE_COPIES_VALUE,
     SOURCE_EDGE_IDS_VALUE,
@@ -200,6 +206,12 @@ import {
     stepRows,
     type StepsEdit,
 } from "./sources/steps/project";
+import {
+    cell as stepsCell,
+    conflicts as stepsConflicts,
+    lineage as stepsLineage,
+    values as stepsValues,
+} from "./sources/steps/provenance";
 import type {
     CollapseResult,
     ExpandOptions,
@@ -283,6 +295,17 @@ import type {
     SessionEventMap,
     SessionGraphStore,
     SessionRecordSource,
+    SourceCellState,
+    SourceCellValue,
+    SourceCellValues,
+    SourceConflict,
+    SourceConflictQuery,
+    SourceConnectOptions,
+    SourceElementRef,
+    SourceExtractOptions,
+    SourceLineage,
+    SourceMergeOptions,
+    SourceMoveColumnsOptions,
     SourceNodeRef,
     SourceSpaceRow,
     SourceStepRow,
@@ -3269,6 +3292,141 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
+     * Dispatch one act on the sources and steps, as one undoable step.
+     * @param verb - The door, for a refusal.
+     * @param act - The act.
+     * @returns Settles once the graph is rebuilt.
+     */
+    private async stepsAct(verb: string, act: StepsAct): Promise<void> {
+        this.requireSteps(verb);
+        await this.stepsEdit(() => ({ kind: "act", act }));
+    }
+
+    /**
+     * Merge: fold each node of a source into the node its field names, as one undoable step.
+     * @param options - The source and field, the nodes they fold into, and the choices.
+     * @returns Settles once the graph is rebuilt.
+     */
+    async merge(options: SourceMergeOptions): Promise<void> {
+        await this.stepsAct("merge", { act: "merge", options });
+    }
+
+    /**
+     * Make an edge: each node row of a source an edge to the node its field names.
+     * @param options - The source and field, the nodes they name, the direction and edge type.
+     * @returns The part the new edges are keyed by.
+     */
+    async connect(options: SourceConnectOptions): Promise<number> {
+        await this.stepsAct("connect", { act: "connect", options });
+        return this.stepsValue().parts?.[options.from.source] ?? 0;
+    }
+
+    /**
+     * Extract: one column of an edge source becomes nodes, joined to one end by new edges.
+     * @param source - The edge source.
+     * @param options - The column, its space and types, and columns to move.
+     * @returns The part the new edges are keyed by.
+     */
+    async extract(source: SourceKey, options: SourceExtractOptions): Promise<number> {
+        await this.stepsAct("extract", { act: "extract", source, options });
+        return this.stepsValue().parts?.[source] ?? 0;
+    }
+
+    /**
+     * Move columns of an edge source onto the nodes at one end.
+     * @param source - The edge source.
+     * @param options - The columns and where they go.
+     * @returns Settles once the graph is rebuilt.
+     */
+    async moveColumns(source: SourceKey, options: SourceMoveColumnsOptions): Promise<void> {
+        await this.stepsAct("moveColumns", { act: "move-columns", source, options });
+    }
+
+    /**
+     * Take one source's value for a cell, as a reader edit naming the source.
+     * @param ref - The element.
+     * @param column - The column.
+     * @param source - The source whose value to take.
+     * @returns Settles once the graph is rebuilt.
+     */
+    async pick(ref: SourceElementRef, column: string, source: SourceKey): Promise<void> {
+        await this.stepsAct("pick", { act: "pick", id: mintEditId(), ref, column, source });
+    }
+
+    /**
+     * Use one source's value for a cell: the same reader edit as `pick`.
+     * @param ref - The element.
+     * @param column - The column.
+     * @param source - The source whose value to use.
+     * @returns Settles once the graph is rebuilt.
+     */
+    async use(ref: SourceElementRef, column: string, source: SourceKey): Promise<void> {
+        await this.stepsAct("use", { act: "pick", id: mintEditId(), ref, column, source });
+    }
+
+    /**
+     * Add a staged source with its own `join.add`.
+     * @param source - The staged source.
+     * @param options - What a key overlap does.
+     * @param options.overlap - `"separate"` (default) or `"merge"`.
+     * @returns Settles once the graph is rebuilt.
+     */
+    async add(source: SourceKey, options: { readonly overlap?: "separate" | "merge" } = {}): Promise<void> {
+        await this.stepsAct("add", { act: "add-staged", source, ...options });
+    }
+
+    /**
+     * Delete one step.
+     * @param index - The step's place.
+     * @returns Settles once the graph is rebuilt.
+     */
+    async removeStep(index: number): Promise<void> {
+        await this.stepsAct("removeStep", { act: "remove-step", index });
+    }
+
+    /**
+     * Where one node or edge came from.
+     * @param ref - The element.
+     * @returns Its lineage, or null.
+     */
+    lineage(ref: SourceElementRef): SourceLineage | null {
+        this.requireLive("lineage");
+        return stepsLineage(this.stepsBuild().result, ref);
+    }
+
+    /**
+     * Every source's value for one cell.
+     * @param ref - The element.
+     * @param column - The column.
+     * @returns The values, or null.
+     */
+    values(ref: SourceElementRef, column: string): SourceCellValues | null {
+        this.requireLive("values");
+        return stepsValues(this.stepsBuild().result, ref, column);
+    }
+
+    /**
+     * What one cell holds.
+     * @param ref - The element.
+     * @param column - The column.
+     * @returns Its state, or null.
+     */
+    cell(ref: SourceElementRef, column: string): SourceCellState | null {
+        this.requireLive("cell");
+        return stepsCell(this.stepsBuild().result, ref, column);
+    }
+
+    /**
+     * The cells where supplying sources hold different values.
+     * @param query - Which cells.
+     * @returns The conflicts.
+     */
+    conflicts(query: SourceConflictQuery = {}): readonly SourceConflict[] {
+        this.requireLive("conflicts");
+        return stepsConflicts(this.stepsBuild().result, query);
+    }
+
+    /**
      * The loads that supplied one node or edge.
      * @param id - the node id, or the edge id with `kind: "edge"`
      * @param options - which kind of element the id names
@@ -4431,7 +4589,7 @@ export class SessionData implements SessionDataApi {
     editJoinReport(source: SourceKey, choices: JoinChoices): JoinReport {
         this.requireLive("editJoinReport");
         const previous = this.joinedSource(source);
-        const { restored, gone } = this.unjoin(previous);
+        const { restored, gone } = this.stepsOn() ? this.stepsUnjoin(previous.key) : this.unjoin(previous);
         const { table, shape } = previous.join;
         return joinReport(table, this.joinGraph(restored, gone), choices, choices.shape ?? shape);
     }
@@ -4668,8 +4826,10 @@ export class SessionData implements SessionDataApi {
         shape: JoinShape,
         previous?: LoadedSource,
     ): Promise<void> {
-        // Joins compile to steps in a later slice; the old join over a steps-built graph is wrong.
-        this.refuseUnderSteps("join");
+        if (this.stepsOn()) {
+            await this.joinAsSteps(send, table, choices, shape, previous);
+            return;
+        }
         const undo = previous === undefined ? undefined : this.unjoin(previous);
         const graph = this.joinGraph(undo?.restored, undo?.gone);
         const planned = planJoin(table, graph, choices, shape);
@@ -4727,6 +4887,118 @@ export class SessionData implements SessionDataApi {
                 params: { key, name: table.name, shape: planned.shape, matched: planned.matched },
             },
             steps,
+        });
+    }
+
+    /**
+     * The graph a join's records read with one joined table taken back, under the source-steps
+     * experiment: the build without its source, as values put back and elements gone.
+     * @param key - The joined table's source.
+     * @returns The records put back and the elements gone, keyed `<kind>:<id>`.
+     */
+    private stepsUnjoin(key: SourceKey): {
+        restored: Map<string, Readonly<Record<string, unknown>>>;
+        gone: Set<string>;
+    } {
+        const value = this.stepsValue();
+        const copies = this.stepsCopies();
+        const idPath = this.readConfig().knownFields.nodeIdPath;
+        const without = withoutJoin(value, key);
+        const diff = diffGraph(
+            projectBuild(buildOf(value, copies), value, idPath),
+            projectBuild(buildOf(without, copies), without, idPath),
+            this.stepsEdgeIds(),
+        );
+        const kept = new Set(Object.values(diff.kept));
+        const gone = new Set([
+            ...diff.removeNodes.map((id) => `node:${String(id)}`),
+            ...Object.values(this.stepsEdgeIds())
+                .filter((id) => !kept.has(id))
+                .map((id) => `edge:${id}`),
+        ]);
+        const restored = new Map([
+            ...diff.updateNodes.map((u) => [`node:${String(u.id)}`, u.values] as const),
+            ...diff.updateEdges.map((u) => [`edge:${u.id}`, u.values] as const),
+        ]);
+        return { restored, gone };
+    }
+
+    /**
+     * A join under the source-steps experiment: the table becomes a source and the steps its shape
+     * names (a values join, a merge, or edges), as one undoable step with the join's label and
+     * fact; editing a join replaces its steps and keeps its source id.
+     * @param send - The dispatch.
+     * @param table - The table and its source.
+     * @param choices - The join.
+     * @param shape - The shape when the choices give none.
+     * @param previous - The joined table's load, when the join is being edited.
+     */
+    private async joinAsSteps(
+        send: (command: SessionCommand) => Promise<unknown>,
+        table: JoinedTable,
+        choices: JoinChoices,
+        shape: JoinShape,
+        previous?: LoadedSource,
+    ): Promise<void> {
+        const unjoined = previous === undefined ? undefined : this.stepsUnjoin(previous.key);
+        const graph = this.joinGraph(unjoined?.restored, unjoined?.gone);
+        const planned = planJoin(table, graph, choices, shape);
+        const { plan } = planned;
+        if (plan.kind === "rows") {
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: `Rows read as ${planned.shape} are a load, not a join: load the draft with a mode instead.`,
+                source: "data",
+                details: { reason: "not-a-join", shape: planned.shape },
+            });
+        }
+        if (previous === undefined) {
+            refuseJoinedAlready(this.storedSources(), table);
+        }
+        const id = previous?.key ?? mintSourceId();
+        const copy = mintCopyId();
+        const record: JoinRecord = frozen({
+            source: id,
+            onto: previous === undefined ? this.ontoOf(plan, graph) : (previous.join?.onto ?? null),
+            shape: planned.shape,
+            choices: { ...choices, shape: planned.shape },
+            rows: table.rows.length,
+            matched: planned.matched,
+            columns: plan.columns,
+            table: {
+                name: table.name,
+                columns: [...table.columns],
+                rows: [...table.rows],
+                ...(table.unreadRows ? { unreadRows: table.unreadRows } : {}),
+            },
+        });
+        const rows = table.rows as readonly Readonly<Record<string, SourceCellValue>>[];
+        const tables = { [planned.shape === "edges" ? "edges" : "nodes"]: rows };
+        const copies = { [copy]: tables };
+        const base = previous === undefined ? this.stepsValue() : withoutJoin(this.stepsValue(), previous.key);
+        const value = compileJoin(
+            base,
+            { ...this.stepsCopies(), ...copies },
+            {
+                id,
+                copy,
+                rows,
+                choices,
+                shape: planned.shape,
+                record,
+            },
+        );
+        await send({
+            op: "data.steps-set",
+            edit: { kind: "set", value },
+            copies,
+            as: {
+                label: `${previous === undefined ? "Joined" : "Joined again"} ${table.name}`,
+                fact: {
+                    code: previous === undefined ? "data.join" : "data.edit-join",
+                    params: { key: id, name: table.name, shape: planned.shape, matched: planned.matched },
+                },
+            },
         });
     }
 
@@ -5668,10 +5940,21 @@ export class SessionData implements SessionDataApi {
      * Give a column a new name, and what reads it with it, as one undoable step.
      * @param column - the column
      * @param name - its new name
+     * @param options - with the source-steps experiment, the one source to rename it in
+     * @param options.source - the source
      * @returns settles once the step is recorded
      */
-    async renameColumn(column: ColumnRef, name: string): Promise<void> {
+    async renameColumn(column: ColumnRef, name: string, options: { readonly source?: SourceKey } = {}): Promise<void> {
         this.requireLive("renameColumn");
+        if (options.source !== undefined) {
+            const rename = {
+                source: options.source,
+                table: column.kind === "node" ? ("nodes" as const) : ("edges" as const),
+                from: column.name,
+                to: name,
+            };
+            return this.stepsAct("renameColumn", { act: "rename", rename });
+        }
         return this.afterLoads(
             () => this.renameColumnNow(column, name),
             () => undefined,

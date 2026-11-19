@@ -3,5 +3,17 @@ import type { CountedWork } from "../../cost-coverage/counted-work";
 
 export default {
     file: "test/session/source-steps/counted-work.test.ts",
-    methods: ["SessionDataApi.stage", "SessionDataApi.declareType", "SessionDataApi.removeEdit"],
+    methods: [
+        "SessionDataApi.stage",
+        "SessionDataApi.declareType",
+        "SessionDataApi.removeEdit",
+        "SessionDataApi.merge",
+        "SessionDataApi.connect",
+        "SessionDataApi.extract",
+        "SessionDataApi.moveColumns",
+        "SessionDataApi.pick",
+        "SessionDataApi.use",
+        "SessionDataApi.removeStep",
+        "SessionDataApi.add",
+    ],
 } satisfies CountedWork;

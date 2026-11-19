@@ -86,8 +86,96 @@ async function stepsSource(session: GraphSession): Promise<void> {
     await session.execute(STEPS_ADD);
 }
 
-/** The `data.steps-set` fixtures: one per edit kind. */
+/** A second source, staged: node rows meeting {@link STEPS_SOURCE}'s keys. */
+const STAGED_SOURCE = {
+    id: "src_b",
+    origin: { copy: "fixture-copy-b" },
+    mapping: { nodes: { key: "id" } },
+    kind: "file",
+    label: "b.csv",
+    tables: [],
+} as const;
+
+/**
+ * Add {@link STEPS_SOURCE} and stage {@link STAGED_SOURCE} before a fixture.
+ * @param session - The session.
+ */
+async function stepsAndStaged(session: GraphSession): Promise<void> {
+    await stepsSource(session);
+    await session.execute({
+        op: "data.steps-set",
+        edit: { kind: "add", source: STAGED_SOURCE, staged: true },
+        copies: { "fixture-copy-b": { nodes: [{ id: "s1", name: "uno" }] } },
+    });
+}
+
+/**
+ * One act's fixture.
+ * @param variant - The act.
+ * @param act - The act's command payload.
+ * @param before - What runs first.
+ * @returns The fixture.
+ */
+function actFixture(
+    variant: string,
+    act: Extract<SessionCommand, { op: "data.steps-set" }>["edit"],
+    before: (session: GraphSession) => Promise<void> = stepsSource,
+): RoundTripFixture {
+    return {
+        name: `data.steps-set: the ${variant} act`,
+        variant,
+        tags: ["session", "renderer"],
+        features: ["source-steps"],
+        before,
+        command: { op: "data.steps-set", edit: act },
+    };
+}
+
+/** The `data.steps-set` fixtures: one per edit kind and act. */
 const STEPS_FIXTURES: readonly RoundTripFixture[] = [
+    actFixture(
+        "merge",
+        {
+            kind: "act",
+            act: { act: "merge", options: { from: { source: "src_b", field: "id" }, into: { source: "src_fixture" } } },
+        },
+        stepsAndStaged,
+    ),
+    actFixture(
+        "connect",
+        {
+            kind: "act",
+            act: {
+                act: "connect",
+                options: { from: { source: "src_b", field: "id" }, into: { source: "src_fixture" } },
+            },
+        },
+        stepsAndStaged,
+    ),
+    actFixture("extract", {
+        kind: "act",
+        act: { act: "extract", source: "src_fixture", options: { column: "target", space: "other" } },
+    }),
+    actFixture("move-columns", {
+        kind: "act",
+        act: { act: "move-columns", source: "src_fixture", options: { columns: ["target"], to: "source" } },
+    }),
+    actFixture("rename", {
+        kind: "act",
+        act: { act: "rename", rename: { source: "src_fixture", table: "nodes", from: "name", to: "label" } },
+    }),
+    actFixture("pick", {
+        kind: "act",
+        act: {
+            act: "pick",
+            id: "edit_p",
+            ref: { space: "source:src_fixture", key: "s1" },
+            column: "name",
+            source: "src_fixture",
+        },
+    }),
+    actFixture("remove-step", { kind: "act", act: { act: "remove-step", index: 0 } }),
+    actFixture("add-staged", { kind: "act", act: { act: "add-staged", source: "src_b" } }, stepsAndStaged),
     {
         name: "data.steps-set: a source added with join.add",
         variant: "add",

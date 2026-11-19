@@ -2505,7 +2505,24 @@ export type GraphtyErrorCode =
 * key, `details.spaces` the spaces holding it. The caller names the space, or the
 * `<space>:<key>` NodeId. Experimental: the source-steps experiment.
 */
-| "E_AMBIGUOUS_ID" | "E_INTERNAL";
+| "E_AMBIGUOUS_ID"
+/**
+* Make an edge would add a staged source in the id space of the nodes it connects to, so its
+* nodes would meet them instead of being joined by edges. `details.source` and `details.space`
+* name them. The caller stages the source in another space. Experimental: the source-steps
+* experiment.
+*/
+| "E_JOIN_SPACE_SAME"
+/**
+* A merge or Make an edge reads node rows the source does not hold. `details.source` is the
+* source. Experimental: the source-steps experiment.
+*/
+| "E_STEP_NEEDS_NODES"
+/**
+* An edit, pick or rename names a column a key, an end, a role, a type rule or a step reads.
+* `details.column` is the column. Experimental: the source-steps experiment.
+*/
+| "E_EDIT_ROLE_COLUMN" | "E_INTERNAL";
 
 // @public
 export type GraphtyErrorDetails<C extends GraphtyErrorCode = GraphtyErrorCode> = Readonly<Record<string, unknown>> & (C extends keyof GraphtyErrorDetailsMap ? GraphtyErrorDetailsMap[C] : unknown);
@@ -6215,12 +6232,18 @@ export interface SessionConfig extends ProjectConfig {
 
 // @public
 export interface SessionDataApi {
+    add(source: SourceKey, options?: {
+        readonly overlap?: "separate" | "merge";
+    }): Promise<void>;
     addEdges(records: readonly EdgeRecordInput[]): Promise<void>;
     addNodes(records: readonly NodeRecordInput[]): Promise<void>;
     attributes(): readonly AttributeDescriptor[];
+    cell(ref: SourceElementRef, column: string): SourceCellState | null;
     checkSource(load: string, options?: SourceLoadOptions): Promise<SourceCheck>;
     clear(): Promise<void>;
     collapse(id: NodeId_2): Promise<CollapseResult>;
+    conflicts(query?: SourceConflictQuery): readonly SourceConflict[];
+    connect(options: SourceConnectOptions): Promise<number>;
     count(options?: {
         readonly scope?: "graph" | "visible";
     }): {
@@ -6251,6 +6274,7 @@ export interface SessionDataApi {
     editJoinReport(source: SourceKey, choices: JoinChoices): JoinReport;
     edits(): readonly ReaderEditRow[];
     expand(ids: readonly NodeId_2[], options?: ExpandOptions): Promise<SourceExpandResult>;
+    extract(source: SourceKey, options: SourceExtractOptions): Promise<number>;
     fingerprint(): string;
     fix(issue: IssueId | Pick<DataIssue, "id">, fix: FixCode): Promise<FixResult>;
     generate(name: string, params?: GeneratorParams, options?: ImportOptions): Promise<void>;
@@ -6270,14 +6294,17 @@ export interface SessionDataApi {
     }): readonly DataIssue[];
     joins(): readonly JoinRecord[];
     lastImport(): LoadReport | null;
+    lineage(ref: SourceElementRef): SourceLineage | null;
     listSource(source: SourceInput, query?: Omit<SourceListQuery<Record<string, unknown>>, "params">, options?: SourceLoadOptions): Promise<SourceListing>;
     loadDataset(name: string, options?: DatasetLoadOptions): Promise<void>;
     loadedWeight(): LoadedWeight | null;
     loadExample(source: string, example: string, options?: LoadChoices & SourceLoadOptions): Promise<void>;
     loads(): readonly SourceLoadRecord[];
     matchesSource(source: DataSourceInput): Promise<SourceKey | null>;
+    merge(options: SourceMergeOptions): Promise<void>;
     mergeNodes(ids: readonly NodeId_2[], options?: MergeNodesOptions): Promise<void>;
     more(options?: SourceMoreOptions): Promise<void>;
+    moveColumns(source: SourceKey, options: SourceMoveColumnsOptions): Promise<void>;
     name(id: NodeId_2): string | undefined;
     neighbors(id: NodeId_2, options?: NeighborOptions): NeighborPage;
     node(id: NodeId_2, options?: {
@@ -6296,6 +6323,7 @@ export interface SessionDataApi {
     nodeSource(id: NodeId_2): NodeSource | null;
     overRepresented(groupBy: Path, options?: OverRepresentedOptions): OverRepresentedValues;
     pendingSourceLoads(): readonly PendingSourceLoad[];
+    pick(ref: SourceElementRef, column: string, source: SourceKey): Promise<void>;
     prepare(source: DataSourceInput, options?: {
         readonly signal?: AbortSignal;
         readonly onto?: "graph";
@@ -6315,7 +6343,10 @@ export interface SessionDataApi {
     removeEdit(id: string): Promise<void>;
     removeNodes(ids: readonly NodeId_2[]): Promise<void>;
     removeSource(key: SourceKey): Promise<RemoveSourceResult>;
-    renameColumn(column: ColumnRef, name: string): Promise<void>;
+    removeStep(index: number): Promise<void>;
+    renameColumn(column: ColumnRef, name: string, options?: {
+        readonly source?: SourceKey;
+    }): Promise<void>;
     renameSource(name: string, key?: SourceKey): Promise<void>;
     replaceSource(key: SourceKey, source: DataSourceInput, choices?: LoadChoices & SourceLoadOptions): Promise<ReplaceReport>;
     resultColumns(kind: "node" | "edge"): readonly ResultColumnDescriptor[];
@@ -6349,11 +6380,13 @@ export interface SessionDataApi {
     undirected(snapshot?: GraphSnapshot): DerivedGraph;
     updateEdges(rows: readonly RowUpdate<EdgeId>[]): Promise<void>;
     updateNodes(rows: readonly RowUpdate<NodeId_2>[]): Promise<void>;
+    use(ref: SourceElementRef, column: string, source: SourceKey): Promise<void>;
     valueCounts(path: Path, options?: {
         readonly kind?: "node" | "edge";
         readonly scope?: "graph" | "visible";
     }): ValueCounts;
     valueLabels(path: Path): ReadonlyMap<string, string>;
+    values(ref: SourceElementRef, column: string): SourceCellValues | null;
 }
 
 // @public
@@ -6936,11 +6969,70 @@ export interface SourceCatalogEntry extends SourceInfo {
 }
 
 // @public
+export type SourceCellState = {
+    readonly state: "value";
+    readonly value: SourceValue;
+    readonly edited?: true;
+} | {
+    readonly state: "empty";
+} | {
+    readonly state: "not-carried";
+};
+
+// @public
 export type SourceCellValue = string | number | boolean | null;
+
+// @public
+export interface SourceCellValues {
+    readonly disagree: boolean;
+    readonly list: readonly {
+        readonly source: SourceKey;
+        readonly value: SourceValue;
+        readonly step?: number;
+        readonly row?: number;
+        readonly from?: SourceNodeRef["key"];
+    }[];
+    readonly origin: SourceKey | null;
+    readonly shown: SourceValue | null;
+}
 
 // @public
 export interface SourceCheck {
     readonly changed: boolean | null;
+}
+
+// @public
+export type SourceClashRule = "keep" | "overwrite" | "both" | "min" | "max" | "mean" | "vote";
+
+// @public
+export interface SourceConflict {
+    readonly by: SourceClashRule | "reader";
+    readonly column: string;
+    readonly ref: SourceElementRef;
+    readonly rule: SourceClashRule;
+    readonly shown: SourceValue | null;
+    readonly step: number;
+    readonly values: readonly {
+        readonly source: SourceKey;
+        readonly value: SourceValue;
+    }[];
+}
+
+// @public
+export interface SourceConflictQuery {
+    readonly column?: string;
+    readonly only?: "open" | "decided";
+    readonly source?: SourceKey;
+    readonly step?: number;
+}
+
+// @public
+export interface SourceConnectOptions {
+    readonly direction?: "into-from" | "from-into";
+    readonly edgeType?: SourceTypeName;
+    readonly from: SourceField;
+    readonly ignoreCase?: boolean;
+    readonly into: SourceJoinInto;
 }
 
 export { SourceContext }
@@ -6966,6 +7058,15 @@ export { SourceCursor }
 export { SourceDescriptor }
 
 export { SourceEdgeRecord }
+
+// @public
+export interface SourceEdgeRef {
+    readonly key: string;
+    readonly load: SourceKey;
+}
+
+// @public
+export type SourceElementRef = SourceNodeRef | SourceEdgeRef;
 
 // @public
 export interface SourceEndOption {
@@ -7004,6 +7105,16 @@ export interface SourceExpansionRecord {
     readonly validators: SourceValidators;
 }
 
+// @public
+export interface SourceExtractOptions {
+    readonly column: string;
+    readonly columns?: readonly string[];
+    readonly edgeType?: SourceTypeName;
+    readonly from?: "source" | "target";
+    readonly space?: SourceSpaceName;
+    readonly type?: SourceTypeName;
+}
+
 export { SourceFeature }
 
 // @public
@@ -7011,6 +7122,12 @@ export interface SourceFeatures {
     readonly expand: boolean;
     readonly more: boolean;
     readonly refresh: boolean;
+}
+
+// @public
+export interface SourceField {
+    readonly field: string;
+    readonly source: SourceKey;
 }
 
 export { SourceFile }
@@ -7041,6 +7158,17 @@ export { SourceIssueCode }
 export { SourceIssueParams }
 
 // @public
+export type SourceJoinInto = {
+    readonly source: SourceKey;
+    readonly field?: string;
+    readonly space?: SourceSpaceName;
+} | {
+    readonly space: SourceSpaceName;
+    readonly source?: undefined;
+    readonly field?: undefined;
+};
+
+// @public
 export type SourceKey = string;
 
 export { SourceKind }
@@ -7048,6 +7176,21 @@ export { SourceKind }
 export { SourceLimitOptions }
 
 export { SourceLimits }
+
+// @public
+export interface SourceLineage {
+    readonly aliases: readonly SourceElementRef[];
+    readonly named: readonly SourceKey[];
+    readonly otherTypes: readonly (SourceTypeName | null)[];
+    readonly reader: readonly string[];
+    readonly steps: readonly {
+        readonly step: number;
+        readonly source: SourceKey;
+        readonly row: number;
+    }[];
+    readonly supplied: readonly SourceKey[];
+    readonly type: SourceTypeName | null;
+}
 
 export { SourceListing }
 
@@ -7089,8 +7232,29 @@ export interface SourceLoadRecord {
 }
 
 // @public
+export interface SourceMergeOptions {
+    readonly clash?: SourceClashRule | Readonly<Record<string, SourceClashRule>>;
+    readonly except?: SourceRowFilter;
+    readonly from: SourceField;
+    readonly ignoreCase?: boolean;
+    readonly ignoreSpaces?: boolean;
+    readonly into: SourceJoinInto;
+    readonly repeated?: "first" | "last";
+    readonly unmatchedFrom?: "keep" | "drop";
+}
+
+// @public
 export interface SourceMoreOptions extends SourceLoadOptions {
     readonly load?: string;
+}
+
+// @public
+export interface SourceMoveColumnsOptions {
+    readonly columns: readonly string[];
+    readonly to: "source" | "target" | {
+        readonly column: string;
+        readonly space: SourceSpaceName;
+    };
 }
 
 export { SourceNodeRecord }
@@ -7147,6 +7311,12 @@ export interface SourceRefreshReport {
 export { SourceReportInfo }
 
 export { SourceRequestInit }
+
+// @public
+export interface SourceRowFilter {
+    readonly column: string;
+    readonly values: readonly SourceCellValue[];
+}
 
 export { SourceRuntime }
 
@@ -7243,6 +7413,9 @@ export interface SourceTypeRule {
 }
 
 export { SourceValidators }
+
+// @public
+export type SourceValue = SourceCellValue | readonly SourceCellValue[];
 
 // @public
 export interface StaleNote {

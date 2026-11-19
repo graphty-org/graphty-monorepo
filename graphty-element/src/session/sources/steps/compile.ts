@@ -9,12 +9,14 @@
  */
 
 import type { EdgeId, NodeId } from "../../../catalog/types";
+import { GraphtyError } from "../../../errors/GraphtyError";
 import type { BatchCommand } from "../../commands";
 import { type DataImportCommand, type DataMutation, importFact } from "../../commands/data";
 import type { DataStepsSetCommand } from "../../commands/source-steps";
 import type { SessionCommand } from "../../planning";
-import type { ImportOptions } from "../../types";
-import { resolveNode } from "./build";
+import type { ImportOptions, JoinChoices, JoinRecord, JoinShape } from "../../types";
+import { applyAct } from "./acts";
+import { ownSpace, resolveNode } from "./build";
 import {
     buildOf,
     checkSpace,
@@ -23,6 +25,7 @@ import {
     mintCopyId,
     mintEditId,
     mintSourceId,
+    nodeIdsOf,
     nodeOfId,
     refOf,
     SOURCE_COPIES_VALUE,
@@ -421,4 +424,161 @@ export function readerOps(
         default:
             return [];
     }
+}
+
+/** Join choices the steps do not express yet; a join naming one is refused under the experiment. */
+const LATER_CHOICES = [
+    "via",
+    "lookup",
+    "mapping",
+    "endKinds",
+    "kindIds",
+    "compare",
+    "membership",
+    "aggregate",
+    "link",
+    "names",
+] as const;
+
+/** A join, as the draft's join screen and `editJoin` make it, ready to compile to steps. */
+export interface JoinAsSteps {
+    /** The joined table's source id: a new one, or the edited join's. */
+    readonly id: string;
+    /** The copy id its rows are held under. */
+    readonly copy: string;
+    readonly rows: readonly Row[];
+    readonly choices: JoinChoices;
+    readonly shape: JoinShape;
+    readonly record: JoinRecord;
+}
+
+/**
+ * The id space most of a table's key values name a node in: the space a join reads its keys in.
+ * @param value - The value.
+ * @param copies - The rows as read.
+ * @param keys - The key values.
+ * @param id - The joined source's id, whose own space is the answer when no key names a node.
+ * @returns The space.
+ */
+function spaceOfKeys(value: SourceSteps, copies: Copies, keys: readonly unknown[], id: string): string {
+    const built = buildOf(value, copies);
+    const ids = nodeIdsOf(built);
+    const spaceById = new Map<string, string>();
+    for (const n of built.nodes.values()) {
+        spaceById.set(String(ids.get(n.id)), n.space);
+    }
+    const tally = new Map<string, number>();
+    for (const key of keys) {
+        const space = spaceById.get(String(key));
+        if (space !== undefined) {
+            tally.set(space, (tally.get(space) ?? 0) + 1);
+        }
+    }
+    const best = [...tally].sort((a, b) => b[1] - a[1])[0]?.[0];
+    return best ?? spaceById.values().next().value ?? ownSpace(id);
+}
+
+/**
+ * The value without a joined table: its source and every step reading it. Its type rules stay.
+ * @param value - The value.
+ * @param id - The joined source's id.
+ * @returns The value without it.
+ */
+export function withoutJoin(value: SourceSteps, id: string): SourceSteps {
+    return {
+        ...value,
+        sources: Object.fromEntries(Object.entries(value.sources).filter(([each]) => each !== id)),
+        steps: value.steps.filter((step) => step.source !== id),
+    };
+}
+
+/**
+ * A join of today's join screen as a source and its steps (3.6): values onto the nodes the key
+ * names (`join.node-values`), a merge (`join.add` in the table's own space, then `join.merge`), or
+ * edges between the nodes the two keys name (`join.add` of an edge table). The key is read in the
+ * id space most of its values name a node in.
+ * @param value - The value the join is added to.
+ * @param copies - The rows as read, the table's included.
+ * @param join - The join.
+ * @returns The next value.
+ * @throws A `GraphtyError` with `E_UNSUPPORTED` (reason `later`) for a shape or choice the steps
+ * do not express yet.
+ */
+export function compileJoin(value: SourceSteps, copies: Copies, join: JoinAsSteps): SourceSteps {
+    const { choices, shape, id } = join;
+    const later = LATER_CHOICES.filter((k) => choices[k] !== undefined);
+    const edges = shape === "edges";
+    const supported =
+        (shape === "node-values" || shape === "merge" || edges) &&
+        choices.keys.length === (edges ? 2 : 1) &&
+        choices.keys.every((k) => k.graph === "id") &&
+        choices.repeated !== "both";
+    if (!supported || later.length > 0) {
+        throw new GraphtyError({
+            code: "E_UNSUPPORTED",
+            message: "This join is not available under the source-steps experiment yet.",
+            source: "data",
+            details: { reason: "later", shape, choices: later },
+        });
+    }
+    const files = choices.keys.map((k) => k.file);
+    const space = spaceOfKeys(
+        value,
+        copies,
+        join.rows.flatMap((row) => files.map((f) => row[f])),
+        id,
+    );
+    const options = defined({
+        columns: choices.columns,
+        clash: choices.clash,
+        repeated: choices.repeated,
+        ignoreCase: choices.ignoreCase,
+        ignoreSpaces: choices.ignoreSpaces,
+    });
+    const source: StepsSource = {
+        id,
+        origin: { copy: join.copy },
+        kind: "file",
+        label: join.record.table.name,
+        tables: [join.record.table.name],
+        tableRows: [edges ? "edges" : "nodes"],
+        join: join.record,
+        mapping: edges
+            ? { edges: { source: files[0], target: files[1], sourceSpace: space, targetSpace: space } }
+            : { nodes: { key: files[0], space: shape === "merge" ? ownSpace(id) : space } },
+        ...(edges && choices.unknownEnds === "leave-out" ? { settings: { unmatched: "leave-out" as const } } : {}),
+    };
+    const next: SourceSteps = { ...value, sources: { ...value.sources, [id]: source } };
+    if (shape === "merge") {
+        const { columns: _columns, ...merge } = options;
+        return applyAct(
+            next,
+            {
+                act: "merge",
+                options: {
+                    from: { source: id, field: files[0] },
+                    into: { space },
+                    ...merge,
+                    ...(choices.unmatchedFrom === undefined ? {} : { unmatchedFrom: choices.unmatchedFrom }),
+                },
+            },
+            copies,
+        );
+    }
+    if (edges) {
+        return { ...next, steps: [...next.steps, { op: "join.add", source: id, ...options }] };
+    }
+    return {
+        ...next,
+        steps: [
+            ...next.steps,
+            {
+                op: "join.node-values",
+                source: id,
+                read: { table: "nodes", key: files[0], space },
+                ...options,
+                ...(choices.unmatchedRows === undefined ? {} : { unmatchedRows: choices.unmatchedRows }),
+            },
+        ],
+    };
 }

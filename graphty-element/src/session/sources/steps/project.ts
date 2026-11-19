@@ -13,6 +13,8 @@
 
 import type { EdgeId, NodeId } from "../../../catalog/types";
 import { GraphtyError } from "../../../errors/GraphtyError";
+import type { JoinRecord } from "../../types";
+import { applyAct, type StepsAct } from "./acts";
 import { build, isStaged, nodeSpace, ownSpace, resolveNode, stepSources } from "./build";
 import {
     type BuildResult,
@@ -81,6 +83,8 @@ export interface StepsSource extends Source {
     readonly issues?: readonly SpaceOverlap[];
     /** The direction its file declares, and the part of the file that said so. */
     readonly declared?: { readonly directed: boolean; readonly statedBy: string };
+    /** For a table joined through today's join screen: the join as `data.joins()` lists it. */
+    readonly join?: JoinRecord;
 }
 
 /** Sources and steps: what the graph is built from. */
@@ -91,6 +95,8 @@ export interface SourceSteps {
     readonly types: readonly TypeEntry[];
     /** The reader source's operations, in the order made. */
     readonly reader: readonly ReaderOp[];
+    /** The highest `join.edges` part minted per source, so a deleted step's part is never reused (3.3). */
+    readonly parts?: Readonly<Record<string, number>>;
 }
 
 /** The rows as read, by copy id. */
@@ -127,7 +133,9 @@ export type StepsEdit =
     /** Take out one source, every step that reads it and its type rules (section 8, removal). */
     | { readonly kind: "remove-source"; readonly id: string }
     /** A type entry, or more rules for one already declared. */
-    | { readonly kind: "declare-type"; readonly entry: TypeEntry };
+    | { readonly kind: "declare-type"; readonly entry: TypeEntry }
+    /** An act: Merge, Make an edge, Extract, Move columns, Rename, a pick, or deleting a step. */
+    | { readonly kind: "act"; readonly act: StepsAct };
 
 // ---------------------------------------------------------------- ids
 
@@ -248,7 +256,7 @@ function withSourceRules(types: readonly TypeEntry[], src: StepsSource): readonl
  * @param entry - The entry.
  * @returns The new registry.
  */
-function declared(types: readonly TypeEntry[], entry: TypeEntry): readonly TypeEntry[] {
+export function declared(types: readonly TypeEntry[], entry: TypeEntry): readonly TypeEntry[] {
     const at = types.findIndex((t) => t.name === entry.name && t.kind === entry.kind);
     if (at < 0) {
         return [...types, entry];
@@ -291,7 +299,7 @@ function nodeKeys(src: StepsSource, copies: Copies): Set<string> {
  * @param overlap - What a key overlap does.
  * @returns The next value.
  */
-function addSource(
+export function addSource(
     base: SourceSteps,
     src: StepsSource,
     copies: Copies,
@@ -411,6 +419,8 @@ export function applyEdit(prior: SourceSteps, edit: StepsEdit, copies: Copies): 
             return { ...prior, reader: prior.reader.filter((op) => op.id !== edit.id) };
         case "remove-source":
             return withoutSource(prior, edit.id);
+        case "act":
+            return applyAct(prior, edit.act, copies);
         default:
             return { ...prior, types: declared(prior.types, edit.entry) };
     }

@@ -16,6 +16,8 @@ import {
     fromBytes,
     type GraphSnapshot,
     INVALID_INDEX,
+    makeMask,
+    maskSet,
     maskTest,
     type NodeId,
     type U32,
@@ -5774,6 +5776,49 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
+     * Under source-steps, which kinds of element a built source gives a time role (design 3.9): the
+     * timeline reads `graphty.time` there, never a role setting.
+     * @returns Whether node rows and edge rows of a built source carry a time role.
+     */
+    stepsTimed(): { readonly node: boolean; readonly edge: boolean } {
+        let node = false;
+        let edge = false;
+        if (this.stepsOn()) {
+            const value = this.stepsValue();
+            for (const id of Object.keys(value.sources)) {
+                if (sourceState(value, id) === "built") {
+                    node ||= value.sources[id].mapping.nodes?.time !== undefined;
+                    edge ||= value.sources[id].mapping.edges?.time !== undefined;
+                }
+            }
+        }
+        return { node, edge };
+    }
+
+    /**
+     * The weight a run over some edges reads (design 8.6): {@link loadedWeight}, with the one weight
+     * rule judged over those edges alone, so a run on one source's edges is weighted when they share
+     * one meaning, whatever other sources' edges mix.
+     * @param inScope - Whether the run reads an edge; null for every edge.
+     * @returns The weight, or null.
+     */
+    loadedWeightOver(inScope: ((edge: EdgeId) => boolean) | null): LoadedWeight | null {
+        const loaded = this.loadedWeight();
+        if (inScope === null || loaded?.mixed === undefined) {
+            return loaded;
+        }
+        const read: BuiltEdge[] = [];
+        for (const [id, edge] of elementsById(this.stepsBuild().result, this.stepsEdgeIds()).edges) {
+            if (inScope(id)) {
+                read.push(edge);
+            }
+        }
+        const mixed = mixedAmong(read);
+        const unmixed: LoadedWeight = Object.freeze({ attribute: loaded.attribute, meaning: loaded.meaning });
+        return mixed === null ? unmixed : Object.freeze({ ...unmixed, mixed: Object.freeze({ sources: mixed }) });
+    }
+
+    /**
      * What {@link loadedWeight} answers from, as a key: it moves when the weight runs read does, and
      * reads no record to say so, so comparing it around a run costs nothing on a large graph.
      * @returns the key
@@ -5825,33 +5870,56 @@ export class SessionData implements SessionDataApi {
         readonly nodes: number;
         readonly edges: number;
     } {
-        this.requireSteps("count");
-        const { result } = this.stepsBuild();
-        const { nodes, edges } = elementsById(result, this.stepsEdgeIds());
-        const fits = (el: BuiltElementOf | undefined): boolean =>
-            el !== undefined &&
-            (options.source === undefined || el.loads.includes(options.source)) &&
-            (options.type === undefined || el.type === options.type);
         const snapshot = this.current();
-        const space = edgeSpaceOf(snapshot);
-        const counted = (
-            kind: "node" | "edge",
-            total: number,
-            at: (index: number) => BuiltElementOf | undefined,
-        ): number => {
-            const shown = this.shownOf(kind, options.scope);
+        const counted = (kind: "node" | "edge", total: number): number => {
+            const { shown } = this.narrowedTo(kind, this.shownOf(kind, options.scope), options, "count");
             let count = 0;
             for (let index = 0; index < total; index++) {
-                if ((shown === null || maskTest(shown, index)) && fits(at(index))) {
+                if (maskTest(shown, index)) {
                     count++;
                 }
             }
             return count;
         };
-        return {
-            nodes: counted("node", snapshot.nodeCount, (index) => nodes.get(String(snapshot.ids.idOf(index)))),
-            edges: counted("edge", snapshot.edgeCount, (index) => edges.get(space.idOf(index))),
-        };
+        return { nodes: counted("node", snapshot.nodeCount), edges: counted("edge", snapshot.edgeCount) };
+    }
+
+    /**
+     * Under source-steps, the rows of one kind that are shown and that one source supplied or are
+     * of one type, and how a data column reads on them: the source's own value when a source is
+     * named (design 3.8), so another source's value for the same column is not counted.
+     * @param kind - Nodes or edges.
+     * @param shown - The rows shown, or null for every row.
+     * @param filter - The source and the type; absent members do not narrow.
+     * @param verb - The calling verb, for the refusal while the experiment is off.
+     * @returns The rows, and the source's own values when a source is named.
+     * @throws A `GraphtyError` with `E_FEATURE_OFF` while the source-steps experiment is off.
+     */
+    private narrowedTo(
+        kind: "node" | "edge",
+        shown: U32 | null,
+        filter: SourceElementsFilter,
+        verb: string,
+    ): { readonly shown: U32; readonly own: FilterValueSource | undefined } {
+        this.requireSteps(verb);
+        const { result } = this.stepsBuild();
+        const { nodes, edges } = elementsById(result, this.stepsEdgeIds());
+        const snapshot = this.current();
+        const space = edgeSpaceOf(snapshot);
+        const rows = kind === "node" ? snapshot.nodeCount : snapshot.edgeCount;
+        const mask = makeMask(rows);
+        for (let index = 0; index < rows; index++) {
+            const el = kind === "node" ? nodes.get(String(snapshot.ids.idOf(index))) : edges.get(space.idOf(index));
+            if (
+                el !== undefined &&
+                (shown === null || maskTest(shown, index)) &&
+                (filter.source === undefined || el.loads.includes(filter.source)) &&
+                (filter.type === undefined || el.type === filter.type)
+            ) {
+                maskSet(mask, index, true);
+            }
+        }
+        return { shown: mask, own: filter.source === undefined ? undefined : this.ownValues(filter.source) };
     }
 
     /**
@@ -6402,7 +6470,7 @@ export class SessionData implements SessionDataApi {
                 }
             }
 
-            if (Object.keys(patch).length === 0 && !this.listsLocation(kind, name)) {
+            if (Object.keys(patch).length === 0 && !this.listsLocation(kind, name) && target === null) {
                 return;
             }
         } else {
@@ -6442,7 +6510,73 @@ export class SessionData implements SessionDataApi {
         if (options.source !== undefined) {
             this.requireSteps("setRole");
         }
-        return this.stepsOn() && (role === "weight" || role === "time") ? this.roleTarget(column, role, options) : null;
+        if (!this.stepsOn()) {
+            return null;
+        }
+        if (role === "weight" || role === "time") {
+            return this.roleTarget(column, role, options);
+        }
+        // Any other role, or none, takes the column's weight and time roles away (design 3.9).
+        return this.rolesCleared((member, value) => value === column && (member === "weight" || member === "time"));
+    }
+
+    /**
+     * Under source-steps, the role edits a settings write makes (design 3.9): the settings are views
+     * of the roles, so naming a weight or time column gives that role to the one built source that
+     * can take it, and a null weight takes every weight role away.
+     * @param knownFields - The `data.knownFields` the write sets.
+     * @returns The edit, or null when it writes only the setting.
+     * @throws A `GraphtyError` with `E_ROLE_TARGET_AMBIGUOUS` when several sources could take a role.
+     */
+    settingRoles(knownFields: Readonly<Record<string, unknown>> | undefined): StepsEdit | null {
+        if (!this.stepsOn() || knownFields === undefined) {
+            return null;
+        }
+        let edit: StepsEdit | null = null;
+        const base = (): SourceSteps => (edit?.kind === "set" ? edit.value : this.stepsValue());
+        const { edgeWeightPath, edgeTimePath, nodeTimePath } = knownFields;
+        if (edgeWeightPath === null) {
+            edit = this.rolesCleared((member) => member === "weight");
+        } else if (typeof edgeWeightPath === "string") {
+            edit = this.roleTarget(edgeWeightPath, "weight", {}, base()) ?? edit;
+        }
+        for (const path of [edgeTimePath, nodeTimePath]) {
+            if (typeof path === "string") {
+                edit = this.roleTarget(path, "time", {}, base()) ?? edit;
+            }
+        }
+        return edit;
+    }
+
+    /**
+     * Under source-steps, the edit that takes some roles out of every source's mapping.
+     * @param drops - Whether a mapping member, with its value, goes.
+     * @returns The edit, or null when no mapping holds one.
+     */
+    private rolesCleared(drops: (member: string, value: unknown) => boolean): StepsEdit | null {
+        const value = this.stepsValue();
+        let changed = false;
+        const strip = <T extends object>(table: T | undefined): T | undefined => {
+            if (table === undefined) {
+                return undefined;
+            }
+            const kept = Object.entries(table).filter(([member, v]) => !drops(member, v));
+            changed ||= kept.length !== Object.keys(table).length;
+            return Object.fromEntries(kept) as T;
+        };
+        const sources = Object.fromEntries(
+            Object.entries(value.sources).map(([id, source]) => {
+                const nodes = strip(source.mapping.nodes);
+                const edges = strip(source.mapping.edges);
+                const mapping = {
+                    ...source.mapping,
+                    ...(nodes === undefined ? {} : { nodes }),
+                    ...(edges === undefined ? {} : { edges }),
+                };
+                return [id, { ...source, mapping }];
+            }),
+        );
+        return changed ? { kind: "set", value: { ...value, sources } } : null;
     }
 
     /**
@@ -6453,11 +6587,16 @@ export class SessionData implements SessionDataApi {
      * @param column - The column.
      * @param role - The role.
      * @param options - The source the caller named.
+     * @param value - The sources and steps to write it into; the graph's own by default.
      * @returns The edit, or null while no source is built (the setting is kept for the next one).
      * @throws A `GraphtyError` with `E_ROLE_TARGET_AMBIGUOUS` when several sources could take it.
      */
-    private roleTarget(column: string, role: "weight" | "time", options: SourceRoleOptions): StepsEdit | null {
-        const value = this.stepsValue();
+    private roleTarget(
+        column: string,
+        role: "weight" | "time",
+        options: SourceRoleOptions,
+        value: SourceSteps = this.stepsValue(),
+    ): StepsEdit | null {
         const copies = this.stepsCopies();
         const built = Object.keys(value.sources).filter((id) => sourceState(value, id) === "built");
         if (options.source === undefined && built.length === 0) {
@@ -6979,16 +7118,19 @@ export class SessionData implements SessionDataApi {
      * @throws A `GraphtyError` with `E_UNKNOWN_ATTRIBUTE` for a column no record carries, and
      *     `E_OPTION_RANGE` for a bad bin count.
      */
-    histogram(column: ColumnRef, options: HistogramOptions & { readonly scope?: WorkingScope } = {}): ColumnHistogram {
+    histogram(
+        column: ColumnRef,
+        options: HistogramOptions & { readonly scope?: WorkingScope } & SourceElementsFilter = {},
+    ): ColumnHistogram {
         const snapshot = this.current();
         const descriptor = resolveColumn(this.columns(), column);
         const { name } = descriptor;
         const count = descriptor.kind === "node" ? snapshot.nodeCount : snapshot.edgeCount;
-        const shown = this.shownOf(descriptor.kind, options.scope);
-        const read =
-            descriptor.kind === "node"
-                ? (index: number): unknown => this.records?.nodeAttributes(index, snapshot.ids.idOf(index))?.[name]
-                : (index: number): unknown => this.records?.edgeAttributes(index)?.[name];
+        const narrowed = narrows(options)
+            ? this.narrowedTo(descriptor.kind, this.shownOf(descriptor.kind, options.scope), options, "histogram")
+            : null;
+        const shown = narrowed?.shown ?? this.shownOf(descriptor.kind, options.scope);
+        const read = this.cellReader(descriptor.kind, name, narrowed?.own);
         // A hidden element carries nothing here, so it is counted with neither values nor bins.
         const valueAt =
             shown === null ? read : (index: number): unknown => (maskTest(shown, index) ? read(index) : undefined);
@@ -7016,6 +7158,27 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
+     * How one data column's cell is read per row: from the record, or a source's own value.
+     * @param kind - Nodes or edges.
+     * @param name - The column.
+     * @param own - A source's own values, under source-steps; absent reads the record.
+     * @returns The reader.
+     */
+    private cellReader(
+        kind: "node" | "edge",
+        name: string,
+        own: FilterValueSource | undefined,
+    ): (index: number) => unknown {
+        if (own !== undefined) {
+            return kind === "node" ? (index) => own.nodeValue(index, name) : (index) => own.edgeValue(index, name);
+        }
+        const snapshot = this.current();
+        return kind === "node"
+            ? (index) => this.records?.nodeAttributes(index, snapshot.ids.idOf(index))?.[name]
+            : (index) => this.records?.edgeAttributes(index)?.[name];
+    }
+
+    /**
      * How many elements carry each value of a readable path.
      * @param path - the value path, or `"id"`
      * @param options - which kind to count
@@ -7026,15 +7189,23 @@ export class SessionData implements SessionDataApi {
      */
     valueCounts(
         path: Path,
-        options: { readonly kind?: "node" | "edge"; readonly scope?: WorkingScope } = {},
+        options: { readonly kind?: "node" | "edge"; readonly scope?: WorkingScope } & SourceElementsFilter = {},
     ): ValueCounts {
         const snapshot = this.current();
         const kind =
             options.kind ??
             (this.readableValues().find((value) => value.path === path)?.on === "edge" ? "edge" : "node");
         const rows = kind === "node" ? snapshot.nodeCount : snapshot.edgeCount;
-        const shown = this.shownOf(kind, options.scope);
-        const { counts, present, total } = tallyScalars(rows, this.valueReader(kind, path), shown);
+        const narrowed = narrows(options)
+            ? this.narrowedTo(kind, this.shownOf(kind, options.scope), options, "valueCounts")
+            : null;
+        const shown = narrowed?.shown ?? this.shownOf(kind, options.scope);
+        const own = path.startsWith("data.") ? narrowed?.own : undefined;
+        let read = this.valueReader(kind, path);
+        if (own !== undefined) {
+            read = kind === "node" ? (index) => own.nodeValue(index, path) : (index) => own.edgeValue(index, path);
+        }
+        const { counts, present, total } = tallyScalars(rows, read, shown);
         const missing = total - present;
 
         const values = [...counts].sort((a, b) => b[1] - a[1]).map(([value, count]) => Object.freeze({ value, count }));
@@ -7169,7 +7340,10 @@ export class SessionData implements SessionDataApi {
      * @returns the statistics
      * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
      */
-    statistics(options: { readonly scope?: "all" | "visible" } = {}): GraphStatistics {
+    statistics(options: { readonly scope?: "all" | "visible" } & SourceElementsFilter = {}): GraphStatistics {
+        if (narrows(options)) {
+            return this.narrowedStatistics(options);
+        }
         const derived = this.derivedFor(this.current());
         derived.statistics ??= computeStatistics(
             derived.snapshot,
@@ -7214,6 +7388,31 @@ export class SessionData implements SessionDataApi {
         }
 
         return derived.visible.statistics;
+    }
+
+    /**
+     * Under source-steps, the shape of one source's or one type's elements, with the ends of their
+     * edges, as a Source scope on edges holds them (design 8.6).
+     * @param options - The scope, the source and the type.
+     * @returns The statistics.
+     */
+    private narrowedStatistics(
+        options: { readonly scope?: "all" | "visible" } & SourceElementsFilter,
+    ): GraphStatistics {
+        const scope = options.scope === undefined ? undefined : SCOPE_OF_STATISTICS[options.scope];
+        const graph = this.current();
+        const nodes = this.narrowedTo("node", this.shownOf("node", scope), options, "statistics").shown;
+        const edges = this.narrowedTo("edge", this.shownOf("edge", scope), options, "statistics").shown;
+        const { src, dst } = graph.edgeList();
+        for (let edge = 0; edge < graph.edgeCount; edge++) {
+            if (maskTest(edges, edge)) {
+                maskSet(nodes, src[edge], true);
+                maskSet(nodes, dst[edge], true);
+            }
+        }
+        // ponytail: computed on every call; cache by the masks if a panel reads it per frame.
+        const sub = graph.filterEdges(edges).snapshot.inducedSubgraph({ mask: nodes }).snapshot;
+        return computeStatistics(sub, this.readConfig().directed, this.graphStore.directionSettledBy);
     }
 
     /**
@@ -8419,6 +8618,18 @@ function pairName(config: Readonly<Record<string, unknown>>): string | undefined
     return names.length === 0 ? undefined : names.join(" + ");
 }
 
+/** What `statistics` names each scope, in the working graph's words. */
+const SCOPE_OF_STATISTICS = { all: "graph", visible: "visible" } as const satisfies Record<string, WorkingScope>;
+
+/**
+ * Whether a reading names a source or a type.
+ * @param filter - The reading's options.
+ * @returns True when it narrows to one source's or one type's elements.
+ */
+function narrows(filter: SourceElementsFilter): boolean {
+    return filter.source !== undefined || filter.type !== undefined;
+}
+
 /**
  * Settle what an import will read: the format, detected when it was not named, and the name and
  * size the graph keeps beside it. A URL whose name says nothing is fetched once here and its text
@@ -8777,10 +8988,21 @@ function mixedWeight(result: BuildResult): readonly string[] | null {
     if (mixedWeights.has(result)) {
         return mixedWeights.get(result) ?? null;
     }
+    const mixed = mixedAmong(result.edges.values());
+    mixedWeights.set(result, mixed);
+    return mixed;
+}
+
+/**
+ * The one weight rule over some built edges, as {@link mixedWeight} judges a whole build.
+ * @param edges - The edges.
+ * @returns Their sources, or null when they share one meaning or none has a weight.
+ */
+function mixedAmong(edges: Iterable<BuiltEdge>): readonly string[] | null {
     const meanings = new Set<string>();
     const sources = new Set<string>();
     let weighted = false;
-    for (const e of result.edges.values()) {
+    for (const e of edges) {
         for (const load of e.loads) {
             sources.add(load);
         }
@@ -8790,7 +9012,5 @@ function mixedWeight(result: BuildResult): readonly string[] | null {
         weighted ||= e.weight !== null;
         meanings.add(e.weight === null ? "\u0000none" : (e.weightMeaning ?? "\u0000unstated"));
     }
-    const mixed = weighted && (meanings.size > 1 || meanings.has("\u0000none")) ? Object.freeze([...sources]) : null;
-    mixedWeights.set(result, mixed);
-    return mixed;
+    return weighted && (meanings.size > 1 || meanings.has("\u0000none")) ? Object.freeze([...sources]) : null;
 }

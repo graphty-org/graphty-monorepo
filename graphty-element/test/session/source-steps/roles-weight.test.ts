@@ -32,6 +32,27 @@ async function pagerank(session: GraphSession): Promise<{ weighted: boolean; ski
 }
 
 /**
+ * A Source scope on one source's edges, inside the visible graph, as Analyze writes it (design 8.6).
+ * @param source - The source.
+ * @returns The scope.
+ */
+function sourceEdges(source: string) {
+    return {
+        define: {
+            kind: "rule",
+            where: {
+                kind: "all",
+                of: [
+                    { kind: "member", of: "visible" },
+                    { kind: "source", sources: [source], side: "edges" },
+                ],
+            },
+            reading: "listed",
+        },
+    } as const;
+}
+
+/**
  * Every edge's built weight.
  * @param session - The session.
  * @returns The weights, in edge order.
@@ -79,6 +100,46 @@ describe("source-steps: roles", () => {
         session.dispose();
     });
 
+    it("refuses the weight setting naming no source while two edge sources carry the column", async () => {
+        const { session, t, b } = await full();
+        const details = await refused(
+            () => session.config.set({ data: { knownFields: { edgeWeightPath: "amount" } } }),
+            "E_ROLE_TARGET_AMBIGUOUS",
+        );
+        assert.sameMembers(details.sources as string[], [t, b]);
+        assert.isNull(session.data.loadedWeight());
+        session.dispose();
+    });
+
+    it("the weight setting with one edge source gives that source the role, in one step", async () => {
+        const { session } = await phase6();
+        const steps = session.history.steps.length;
+        await session.config.set({ data: { knownFields: { edgeWeightPath: "amount" } } });
+        assert.strictEqual(session.history.steps.length, steps + 1);
+        assert.deepStrictEqual(weights(session), [5, 7, 10, 20]);
+        session.dispose();
+    });
+
+    it("taking the weight role away clears it from the source's mapping, and undo gives it back", async () => {
+        const session = createGraphSession({ features: ["source-steps"] });
+        await session.data.import(
+            { type: "csv", config: { data: "source,target,w\na,b,2\nb,c,3" }, name: "e.csv" },
+            { edges: { from: { column: "source" }, to: { column: "target" } } },
+        );
+        await session.data.setRole({ kind: "edge", name: "w" }, "weight");
+        assert.deepStrictEqual(weights(session), [2, 3]);
+        const steps = session.history.steps.length;
+        await session.data.setRole({ kind: "edge", name: "w" }, null);
+        assert.isNull(session.data.loadedWeight());
+        assert.deepStrictEqual(weights(session), [], "graphty.weight follows the role");
+        assert.strictEqual(session.history.steps.length, steps + 1, "one undo step");
+        await session.undo();
+        assert.deepStrictEqual(weights(session), [2, 3]);
+        await session.config.set({ data: { knownFields: { edgeWeightPath: null } } });
+        assert.deepStrictEqual(weights(session), [], "the Unweighted setting takes the role away too");
+        session.dispose();
+    });
+
     it("refuses a source option while the experiment is off", async () => {
         const session = createGraphSession({ features: [] });
         await session.data.addNodes([{ id: "a", w: 1 }]);
@@ -123,6 +184,26 @@ describe("source-steps: the one weight rule", () => {
         assert.strictEqual((run.skipped as { code: string }).code, "weight.meaning-mixed");
         assert.includeMembers((run.skipped as { params: { sources: string[] } }).params.sources, [t, other]);
         assert.sameMembers([...(session.data.loadedWeight()?.mixed?.sources ?? [])], [t, other]);
+        // Judged over the edges a run reads: T's own edges share one meaning, so a run on them is
+        // weighted (one meaning: weighted), and one on the other file's edge too reads no mix.
+        const onT = await session.plan({ op: "algo.run", algorithm: "pagerank", scope: sourceEdges(t) });
+        assert.strictEqual(onT.caveats.weight?.attribute, "amount");
+        assert.isUndefined(onT.caveats.weightSkipped);
+        const onBoth = await session.plan({
+            op: "algo.run",
+            algorithm: "pagerank",
+            scope: {
+                define: {
+                    kind: "rule",
+                    where: { kind: "source", sources: [t, other], side: "edges" },
+                    reading: "listed",
+                },
+            },
+        });
+        assert.strictEqual(
+            (onBoth.caveats.weightSkipped as { code: string } | undefined)?.code,
+            "weight.meaning-mixed",
+        );
         session.dispose();
     });
 });

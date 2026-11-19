@@ -51,6 +51,7 @@ import type {
     ScopeInput,
     SetDefinition,
     SetDefinitionInput,
+    SourceKey,
     UnionLeaf,
     UnionStep,
 } from "../../catalog/types";
@@ -163,6 +164,11 @@ export interface ScopeSources {
     snapshot(): GraphSnapshot;
     /** The store instance every resolution is tagged with. Absent tags them with null. */
     readonly store?: object;
+    /**
+     * Whether the source-steps experiment is on; while it is off a `{ types }` scope is refused, as
+     * before the experiment. Absent reads on.
+     */
+    readonly sourceSteps?: () => boolean;
     /** What is visible. Absent means nothing hides anything, so `visible` is the whole graph. */
     readonly visibility?: ScopeVisibilitySource;
     /** What is selected. Absent refuses the `selection` scope. */
@@ -296,6 +302,12 @@ export interface ScopeCount {
     readonly missingNodes?: number;
     /** For a kept fixed or path set: the edge members (a path's steps) no edge of the graph matches. */
     readonly missingEdges?: number;
+    /**
+     * Under the source-steps experiment: `W_SCOPE_NO_EDGES { nodes }` when a Source scope on
+     * edges named sources that supplied none, so it holds their nodes instead.
+     * @experimental source-steps
+     */
+    readonly issues?: readonly CodedFact<"W_SCOPE_NO_EDGES">[];
 }
 
 /** What {@link ScopeApi.count} accepts. */
@@ -800,7 +812,8 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
      * What a `state` leaf and a step's focus read: the pointer and the selection, live.
      * @returns The readers the sources supply.
      */
-    const stateReaders = (): Pick<ResolveContext, "focus" | "inState" | "stateRevision"> => ({
+    const stateReaders = (): Pick<ResolveContext, "focus" | "inState" | "stateRevision" | "sourceSteps"> => ({
+        ...(sources.sourceSteps === undefined ? {} : { sourceSteps: sources.sourceSteps }),
         ...(sources.focus === undefined ? {} : { focus: sources.focus }),
         ...(sources.inState === undefined ? {} : { inState: sources.inState }),
         ...(sources.stateRevision === undefined ? {} : { stateRevision: sources.stateRevision }),
@@ -868,7 +881,46 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
      * @returns The scope.
      * @throws `E_BAD_COMMAND` when it is not a scope.
      */
-    const scopeOf = (spec: ScopeInput): Scope => parseScope(stabiliseEdgeRefs(spec, stable));
+    /**
+     * Under source-steps, the `W_SCOPE_NO_EDGES` a scope's `source` leaves on edges report when
+     * their sources supplied no edges (design 8.6).
+     * @param spec - The scope.
+     * @param nodes - How many nodes it holds.
+     * @returns The issues, or undefined when there are none.
+     */
+    const noEdgeIssues = (spec: Scope, nodes: number): readonly CodedFact<"W_SCOPE_NO_EDGES">[] | undefined => {
+        if (sources.sourceSteps?.() !== true || sources.supplied === undefined || typeof spec !== "object") {
+            return undefined;
+        }
+        if (!("define" in spec) || spec.define.kind !== "rule") {
+            return undefined;
+        }
+        const { supplied } = sources;
+        const empty = (node: unknown): boolean => {
+            if (typeof node !== "object" || node === null) {
+                return false;
+            }
+            const leaf = node as { kind?: unknown; side?: unknown; sources?: readonly SourceKey[] };
+            if (leaf.kind === "source" && leaf.side === "edges" && Array.isArray(leaf.sources)) {
+                return supplied(leaf.sources).edges.size === 0;
+            }
+            return Object.values(node).some((each) => empty(each));
+        };
+        return empty(spec.define.where) ? [{ code: "W_SCOPE_NO_EDGES", params: { nodes } }] : undefined;
+    };
+
+    const scopeOf = (spec: ScopeInput): Scope => {
+        if (sources.sourceSteps?.() === false && typeof spec === "object" && "types" in spec) {
+            throw new GraphtyError({
+                code: "E_FEATURE_OFF",
+                message: 'A { types } scope needs the "source-steps" experiment.',
+                source: "run",
+                details: { feature: "source-steps", key: "types" },
+            });
+        }
+
+        return parseScope(stabiliseEdgeRefs(spec, stable));
+    };
 
     /**
      * The nodes one specification covers, and the edge constraint it came with. Uncached: only an
@@ -1338,8 +1390,10 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
             }
 
             const { resolution } = membershipOf(spec);
+            const counted = countOf(resolution, undefined);
+            const issues = noEdgeIssues(spec, counted.nodes);
 
-            return Promise.resolve(countOf(resolution, undefined));
+            return Promise.resolve(issues === undefined ? counted : { ...counted, issues });
         },
 
         save(name: string, spec: Scope): ScopeId {

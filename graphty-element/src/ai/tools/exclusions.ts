@@ -356,6 +356,8 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
                 "conflicts",
             ],
         },
+        { root: "VisibilityApi", members: ["held"] },
+        { root: "SessionVisibilityApi", members: ["held"] },
     ].map((row): Exclusion => ({
         ...row,
         reason: "experimental",

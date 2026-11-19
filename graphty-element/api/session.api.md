@@ -2872,6 +2872,18 @@ export type GraphtyWarningCode =
 */
 | "W_WEIGHT_MEANING_MIXED"
 /**
+* Under the `source-steps` experiment, a Source scope on a source's edges named sources that
+* supplied no edges, so it holds their nodes and the edges between them instead (design 8.6).
+* Reported in `scope.count(...).issues`. `params.nodes` is how many nodes it holds.
+*/
+| "W_SCOPE_NO_EDGES"
+/**
+* Under the `source-steps` experiment, a filter condition reads a column no element carries, so
+* it is held off and judges nothing rather than hiding every node (design 8.4). Reported in
+* `visibility.held`. `params.filter` is the condition's id and `params.column` its column.
+*/
+| "W_FILTER_HELD"
+/**
 * A project save left values whose names mark a credential (`api_key`, `token`, ...) out of
 * the `graphty-sources` member: query parameters of a URL load's address, or of a network
 * load's endpoint, cursor or REST mapping. `params.id` is the load's id and `params.names` the
@@ -5867,6 +5879,7 @@ export interface ScopeApi {
 export interface ScopeCount {
     readonly edges: number;
     readonly exact: boolean;
+    readonly issues?: readonly CodedFact<"W_SCOPE_NO_EDGES">[];
     readonly missingEdges?: number;
     readonly missingNodes?: number;
     readonly nodes: number;
@@ -6350,7 +6363,7 @@ export interface SessionDataApi {
     hiddenColumns(): readonly ColumnRef[];
     histogram(column: ColumnRef, options?: HistogramOptions & {
         readonly scope?: "graph" | "visible";
-    }): ColumnHistogram;
+    } & SourceElementsFilter): ColumnHistogram;
     ignoreIssue(issue: IssueId | Pick<DataIssue, "id">, ignored?: boolean): Promise<void>;
     ignoreIssues(issues: readonly (IssueId | Pick<DataIssue, "id">)[], ignored?: boolean): Promise<void>;
     import(source: DataSourceInput, options?: LoadChoices & SourceLoadOptions): Promise<void>;
@@ -6438,7 +6451,7 @@ export interface SessionDataApi {
     stage(source: DataSourceInput, options?: ImportOptions): Promise<string>;
     statistics(options?: {
         readonly scope?: "all" | "visible";
-    }): GraphStatistics;
+    } & SourceElementsFilter): GraphStatistics;
     steps(): readonly SourceStepRow[];
     readonly store: SessionGraphStore;
     structureValue(id: NodeId_2, path: Path, options?: {
@@ -6454,7 +6467,7 @@ export interface SessionDataApi {
     valueCounts(path: Path, options?: {
         readonly kind?: "node" | "edge";
         readonly scope?: "graph" | "visible";
-    }): ValueCounts;
+    } & SourceElementsFilter): ValueCounts;
     valueLabels(path: Path): ReadonlyMap<string, string>;
     values(ref: SourceElementRef, column: string): SourceCellValues | null;
 }
@@ -8557,6 +8570,7 @@ export interface VisibilityApi {
     edgeMask(): Uint8Array;
     readonly edges: ReadonlySet<EdgeId>;
     readonly filter: RuleTree | null;
+    readonly held: readonly CodedFact<"W_FILTER_HELD">[];
     isVisible(id: NodeId | EdgeId): boolean;
     nodeMask(): Uint8Array;
     readonly nodes: ReadonlySet<NodeId>;

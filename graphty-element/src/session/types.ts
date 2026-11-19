@@ -2243,14 +2243,17 @@ export interface SessionDataApi {
      *     `scope`: `"visible"` counts only what the filter and the time window leave shown,
      *     `"graph"` every element -- default `"graph"`, or the working graph (what the filters
      *     leave shown, the time window aside) while the session's `workingGraph` option is on
-     *     (since 3.40.0)
+     *     (since 3.40.0). Under the `source-steps` experiment, `source` and `type` count only one
+     *     source's or one type's elements (see {@link SourceElementsFilter}); with `source`, each
+     *     reads that source's own value, so another source's value for the same column is not
+     *     counted. Naming either with the experiment off throws `E_FEATURE_OFF`.
      * @returns the distribution
      * @throws A `GraphtyError` with `E_UNKNOWN_ATTRIBUTE` (with `details.candidates`) for a column
      *     no record carries, and `E_OPTION_RANGE` for a bin count outside 1 to 100.
      */
     histogram(
         column: ColumnRef,
-        options?: HistogramOptions & { readonly scope?: "graph" | "visible" },
+        options?: HistogramOptions & { readonly scope?: "graph" | "visible" } & SourceElementsFilter,
     ): ColumnHistogram;
     /**
      * How many elements carry each value of a readable path, for a checklist of values with their
@@ -2270,12 +2273,17 @@ export interface SessionDataApi {
      *     shown (`total` included), `"graph"` every element. Default `"graph"`, or the working graph
      *     (what the filters leave shown, the time window aside) while the session's `workingGraph`
      *     option is on (since 3.40.0).
+     * @param options.source - Under the `source-steps` experiment: count only the elements this
+     *     source supplied, reading a data column as that source's own value. Throws `E_FEATURE_OFF`
+     *     with the experiment off.
+     * @param options.type - Under the `source-steps` experiment: count only the elements of this
+     *     type. Throws `E_FEATURE_OFF` with the experiment off.
      * @returns The counts, most elements first.
      * @since 3.37.0
      */
     valueCounts(
         path: Path,
-        options?: { readonly kind?: "node" | "edge"; readonly scope?: "graph" | "visible" },
+        options?: { readonly kind?: "node" | "edge"; readonly scope?: "graph" | "visible" } & SourceElementsFilter,
     ): ValueCounts;
     /**
      * Per group, the values of the nodes' categorical and list columns that occur in the group
@@ -2320,9 +2328,14 @@ export interface SessionDataApi {
      *     showing (the same as the whole graph while nothing is hidden). Default `"all"`, or the
      *     working graph (what the filters leave shown, the time window aside) while the session's
      *     `workingGraph` option is on.
+     * @param options.source - Under the `source-steps` experiment: measure only the nodes and edges
+     *     this source supplied, with the ends of those edges. Throws `E_FEATURE_OFF`
+     *     with the experiment off.
+     * @param options.type - Under the `source-steps` experiment: measure only the elements of this
+     *     type, as `source` does. Throws `E_FEATURE_OFF` with the experiment off.
      * @returns the statistics
      */
-    statistics(options?: { readonly scope?: "all" | "visible" }): GraphStatistics;
+    statistics(options?: { readonly scope?: "all" | "visible" } & SourceElementsFilter): GraphStatistics;
     /**
      * A stable identity for the graph's topology: equal fingerprints mean the same node ids in
      * the same order with the same arcs between them. Attributes and coordinates are not in it.

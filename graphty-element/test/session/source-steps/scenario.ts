@@ -15,9 +15,12 @@ export const TRANSACTIONS = [
     "T-4,A-3,M-3,7,Cy,Cash,atm,D-2,android",
 ].join("\n");
 
-export const ACCOUNTS = ["account_id,holder,email,opened", "A-1,Ann,a@x,2020", "A-2,Bob,b@x,2021", "A-9,Dee,d@x,2022"].join(
-    "\n",
-);
+export const ACCOUNTS = [
+    "account_id,holder,email,opened",
+    "A-1,Ann,a@x,2020",
+    "A-2,Bob,b@x,2021",
+    "A-9,Dee,d@x,2022",
+].join("\n");
 
 export const MERCHANTS = ["merchant_id,city", "M-1,Oslo", "M-2,Bergen"].join("\n");
 
@@ -156,4 +159,23 @@ export function ends(session: GraphSession): string[] {
         .edges()
         .map((e) => `${String(e.source)}>${String(e.target)}`)
         .sort();
+}
+
+/**
+ * Two people files on one key whose amt clashes, kept both ways: crm.csv's 10 and 20 shown, erp.csv's
+ * 30 and 40 in its clash column.
+ * @returns The session and erp.csv's source.
+ */
+export async function clashing(): Promise<{ session: GraphSession; b: string }> {
+    const session = createGraphSession({ features: ["source-steps"] });
+    await session.data.import(
+        { type: "csv", config: { data: "id,amt\np1,10\np2,20" }, name: "crm.csv" },
+        { key: "id", type: "person" },
+    );
+    const b = await session.data.stage(
+        { type: "csv", config: { data: "id,amt\np1,30\np2,40" }, name: "erp.csv" },
+        { key: "id", type: "person" },
+    );
+    await session.data.merge({ from: { source: b, field: "id" }, into: { space: "person" }, clash: { amt: "both" } });
+    return { session, b };
 }

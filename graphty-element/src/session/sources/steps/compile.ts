@@ -14,7 +14,7 @@ import type { BatchCommand } from "../../commands";
 import { type DataImportCommand, type DataMutation, importFact } from "../../commands/data";
 import type { DataStepsSetCommand } from "../../commands/source-steps";
 import type { SessionCommand } from "../../planning";
-import type { ImportOptions, JoinChoices, JoinRecord, JoinShape } from "../../types";
+import type { ImportOptions, JoinChoices, JoinRecord, JoinShape, LoadChoices, TableMapping } from "../../types";
 import { applyAct } from "./acts";
 import { isStaged, mintPart, nodeSpace, ownSpace, resolveNode } from "./build";
 import {
@@ -41,6 +41,7 @@ import {
     type CellValue,
     type CopyTables,
     type EdgesStep,
+    type EdgeValuesStep,
     type NodeRef,
     READER_SOURCE,
     READER_SPACE,
@@ -98,6 +99,22 @@ function kindOf(command: DataImportCommand): StepsSourceKind {
  */
 function defined<T extends Record<string, unknown>>(members: T): Partial<T> {
     return Object.fromEntries(Object.entries(members).filter(([, v]) => v !== undefined)) as Partial<T>;
+}
+
+/**
+ * The time roles a load's column mapping gives its node rows and its edge rows (design 3.9), so the
+ * built elements carry `graphty.time`.
+ * @param mapping - The load's mapping, one table's or each table's.
+ * @returns The time column of each kind of row, where one is named.
+ */
+function timeRoles(mapping: LoadChoices["mapping"]): { readonly nodes?: string; readonly edges?: string } {
+    if (mapping === undefined) {
+        return {};
+    }
+    const tables: readonly TableMapping[] = "tables" in mapping ? Object.values(mapping.tables) : [mapping];
+    const timeOf = (edges: boolean): string | undefined =>
+        tables.find((t) => (t.rowsAre === "edges") === edges && typeof t.time === "string")?.time ?? undefined;
+    return defined({ nodes: timeOf(false), edges: timeOf(true) });
 }
 
 /**
@@ -197,14 +214,22 @@ export function compileImport(
         ...(nodes.length > 0 ? { nodes } : {}),
         ...(edges.length > 0 ? { edges } : {}),
     };
+    const times = timeRoles((options as LoadChoices).mapping);
     const source: StepsSource = {
         id,
         origin: { copy },
         mapping: {
             ...(nodes.length > 0
-                ? { nodes: { key: options.key ?? held.idPath ?? known.nodeIdPath, ...defined({ space }) } }
+                ? {
+                      nodes: {
+                          key: options.key ?? held.idPath ?? known.nodeIdPath,
+                          ...defined({ space, time: times.nodes }),
+                      },
+                  }
                 : {}),
-            ...(edges.length > 0 ? { edges: edgeMappingOf(edges, held, options, known, space) } : {}),
+            ...(edges.length > 0
+                ? { edges: { ...edgeMappingOf(edges, held, options, known, space), ...defined({ time: times.edges }) } }
+                : {}),
         },
         ...sourceFacts(command, options),
     };
@@ -561,6 +586,9 @@ export function withoutJoin(value: SourceSteps, id: string): SourceSteps {
  * do not express yet.
  */
 export function compileJoin(value: SourceSteps, copies: Copies, join: JoinAsSteps): SourceSteps {
+    if (join.shape === "edge-values") {
+        return compileEdgeValues(value, copies, join);
+    }
     const { choices, shape, id } = join;
     const edges = shape === "edges";
     const files = choices.keys.map((k) => k.file);
@@ -656,13 +684,101 @@ function refuseUnexpressed(choices: JoinChoices, shape: JoinShape, fieldHeld: bo
         (choices.keys.every((k) => k.graph === "id") || fieldHeld) &&
         choices.repeated !== "both";
     if (!supported || later.length > 0) {
-        throw new GraphtyError({
-            code: "E_UNSUPPORTED",
-            message: "This join is not available under the source-steps experiment yet.",
-            source: "data",
-            details: { reason: "later", shape, choices: later },
-        });
+        throw notYet(shape, later);
     }
+}
+
+/**
+ * The refusal of a join the steps do not express yet.
+ * @param shape - Its shape.
+ * @param later - The choices it names from the later list.
+ * @returns The error, with `E_UNSUPPORTED` (reason `later`).
+ */
+function notYet(shape: JoinShape, later: readonly string[]): GraphtyError {
+    return new GraphtyError({
+        code: "E_UNSUPPORTED",
+        message: "This join is not available under the source-steps experiment yet.",
+        source: "data",
+        details: { reason: "later", shape, choices: later },
+    });
+}
+
+/**
+ * An edge-values join as `join.edge-values` (3.4): each row's columns onto the edge whose key it
+ * names. The key is read against the edge keys of the built source most of its values name an edge
+ * of; the table is a source of its own whose rows only that step reads.
+ * @param value - The value the join is added to.
+ * @param copies - The rows as read.
+ * @param join - The join.
+ * @returns The next value.
+ * @throws A `GraphtyError` with `E_UNSUPPORTED` (reason `later`) when no built source keys its
+ * edges by the values, the key names another column, or a choice is one the steps do not express.
+ */
+function compileEdgeValues(value: SourceSteps, copies: Copies, join: JoinAsSteps): SourceSteps {
+    const { choices, shape, id } = join;
+    const later = LATER_CHOICES.filter((k) => choices[k] !== undefined);
+    const [key] = choices.keys;
+    const load =
+        choices.keys.length === 1 && choices.repeated !== "both" && later.length === 0
+            ? edgeLoadOf(
+                  value,
+                  copies,
+                  join.rows.map((row) => row[key.file]),
+              )
+            : null;
+    if (load === null || (key.graph !== "id" && key.graph !== `${DATA_PATH}${load.edgeId}`)) {
+        throw notYet(shape, later);
+    }
+    const step: EdgeValuesStep = {
+        op: "join.edge-values",
+        source: id,
+        edges: load.source,
+        read: { table: "nodes", edgeId: key.file },
+        ...defined({
+            columns: choices.columns,
+            clash: { "*": "both" as const, ...choices.clash },
+            repeated: choices.repeated === "both" ? undefined : choices.repeated,
+            ignoreCase: choices.ignoreCase,
+            ignoreSpaces: choices.ignoreSpaces,
+        }),
+    };
+    return {
+        ...value,
+        sources: { ...value.sources, [id]: joinedSource(join, [key.file], ownSpace(id)) },
+        steps: [...value.steps, step],
+    };
+}
+
+/**
+ * The built source whose edge rows are keyed by most of some values: what an edge-values join's
+ * key names.
+ * @param value - The value.
+ * @param copies - The rows as read.
+ * @param keys - The key values.
+ * @returns The source and its edge key column, or null when no built source's edge keys match one.
+ */
+function edgeLoadOf(
+    value: SourceSteps,
+    copies: Copies,
+    keys: readonly unknown[],
+): { readonly source: string; readonly edgeId: string } | null {
+    const wanted = new Set(keys.map(String));
+    let best: { readonly source: string; readonly edgeId: string } | null = null;
+    let most = 0;
+    for (const src of Object.values(value.sources)) {
+        const edgeId = src.mapping.edges?.edgeId;
+        const rows = copies[src.origin.copy]?.edges;
+        if (edgeId === undefined || rows === undefined || isStaged(value, src.id)) {
+            continue;
+        }
+        // ponytail: reads the key column under its working name; a renamed key column matches nothing.
+        const hits = rows.filter((r) => wanted.has(String(r[edgeId]))).length;
+        if (hits > most) {
+            best = { source: src.id, edgeId };
+            most = hits;
+        }
+    }
+    return best;
 }
 
 /**

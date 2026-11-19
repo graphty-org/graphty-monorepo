@@ -339,7 +339,7 @@ export interface PlanningContext {
     /** What a filter-steps list would leave visible, step by step. */
     readonly previewSteps?: (steps: readonly FilterStep[]) => StepCounts;
     /** The weight the graph was loaded with, for the weight a run would read. */
-    readonly loadedWeight?: () => LoadedWeightFact | null;
+    readonly loadedWeight?: (scope?: Scope) => LoadedWeightFact | null;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -663,7 +663,7 @@ function weighedCaveats(
         const reading = resolveRunWeight(
             descriptor?.weightMeaning ?? null,
             askedWeight(command.params?.weight, descriptor?.options),
-            context.loadedWeight?.() ?? null,
+            context.loadedWeight?.(command.scope ?? context.defaultScope) ?? null,
         );
         return {
             caveats: Object.freeze({

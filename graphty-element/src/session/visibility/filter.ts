@@ -365,6 +365,12 @@ export interface FilterSources {
      */
     readonly own?: (source: SourceKey) => FilterValueSource | undefined;
     /**
+     * Whether the source-steps experiment is on. Under it, a `source` leaf with `side: "edges"`
+     * also keeps the ends of the listed sources' edges, or for sources that supplied no edges,
+     * their nodes and the edges between them (design 8.6). Absent reads off.
+     */
+    readonly sourceSteps?: () => boolean;
+    /**
      * The hovered node, else a lone selected node: what a step's `"hovered-or-selected"` names.
      * Absent refuses that reference.
      * @returns The node, or null when there is none.
@@ -1263,10 +1269,51 @@ function sourceTests(context: CompileContext, keys: readonly SourceKey[], side: 
     const { nodes, edges } = supplied(keys);
     const { graph } = context;
     const space = edgeSpaceOf(graph);
+    if (side === "edges" && context.sources.sourceSteps?.() === true) {
+        return sourceEdgesSide(graph, space, nodes, edges);
+    }
     return {
         node: side === "edges" ? null : (index) => nodes.has(graph.ids.idOf(index)),
         edge: side === "nodes" ? null : (index) => edges.has(space.idOf(index)),
     };
+}
+
+/**
+ * Under source-steps, the Source scope's halves (design 8.6, the model's `scope()`): the listed
+ * edges and their end nodes; for sources that supplied no edges, their nodes and the edges between
+ * them.
+ * @param graph - The snapshot.
+ * @param space - Its edge id space.
+ * @param nodes - The nodes the sources supplied.
+ * @param edges - The edges the sources supplied.
+ * @returns The halves.
+ */
+function sourceEdgesSide(
+    graph: GraphSnapshot,
+    space: ReturnType<typeof edgeSpaceOf>,
+    nodes: ReadonlySet<NodeId>,
+    edges: ReadonlySet<EdgeId>,
+): CompiledHalves {
+    const ends = new Uint8Array(graph.nodeCount);
+    const kept = new Uint8Array(graph.edgeCount);
+    let any = false;
+    for (let edge = 0; edge < graph.edgeCount; edge++) {
+        if (edges.has(space.idOf(edge))) {
+            any = true;
+            kept[edge] = 1;
+            ends[graph.edgeSource(edge)] = 1;
+            ends[graph.edgeTarget(edge)] = 1;
+        }
+    }
+    if (!any) {
+        for (let node = 0; node < graph.nodeCount; node++) {
+            ends[node] = nodes.has(graph.ids.idOf(node)) ? 1 : 0;
+        }
+        for (let edge = 0; edge < graph.edgeCount; edge++) {
+            kept[edge] = ends[graph.edgeSource(edge)] === 1 && ends[graph.edgeTarget(edge)] === 1 ? 1 : 0;
+        }
+    }
+    return { node: (index) => ends[index] === 1, edge: (index) => kept[index] === 1 };
 }
 
 /**
@@ -2216,6 +2263,56 @@ function valuePaths(rule: RuleTree): Path[] {
 }
 
 /**
+ * Under source-steps, the column a rule is held on (design 8.4, `W_FILTER_HELD`): when it reads
+ * values and no element carries any column it reads, it is held off and judges nothing, so it never
+ * hides every node. A source-scoped rule is judged against that source's own values.
+ * @param graph - The snapshot.
+ * @param rule - The rule, as one filter condition compiles to.
+ * @param sources - The compile sources.
+ * @returns The first column it reads when it is held, else null.
+ */
+export function heldColumn(graph: GraphSnapshot, rule: RuleTree, sources: FilterSources): Path | null {
+    if (isSourceScoped(rule)) {
+        const own = rule.withinSources.length === 1 ? sources.own?.(rule.withinSources[0]) : undefined;
+        return own === undefined ? null : heldColumn(graph, rule.of[0], { ...sources, values: own });
+    }
+    const { values } = sources;
+    const paths = valuePaths(rule);
+    if (values === undefined || paths.length === 0) {
+        return null;
+    }
+    for (const path of paths) {
+        const known = values.halvesOf?.(path);
+        if (
+            (known?.node ?? carries(graph.nodeCount, (index) => values.nodeValue(index, path))) ||
+            (known?.edge ?? carries(graph.edgeCount, (index) => values.edgeValue(index, path)))
+        ) {
+            return null;
+        }
+    }
+    return paths[0];
+}
+
+/**
+ * The filter with its held conditions left out (see {@link heldColumn}): each member of a
+ * top-level `all`, or the filter itself.
+ * @param graph - The snapshot.
+ * @param filter - The filter the masks evaluate.
+ * @param sources - The compile sources.
+ * @returns The filter, or null when all of it is held.
+ */
+function withoutHeld(graph: GraphSnapshot, filter: RuleTree, sources: FilterSources): RuleTree | null {
+    if (filter.kind === "all" && !isSourceScoped(filter)) {
+        const judged = filter.of.filter((member) => heldColumn(graph, member, sources) === null);
+        if (judged.length === filter.of.length) {
+            return filter;
+        }
+        return judged.length === 0 ? null : { kind: "all", of: judged };
+    }
+    return heldColumn(graph, filter, sources) === null ? filter : null;
+}
+
+/**
  * A source-scoped rule over that source's own values (source-steps, design 3.8 and 8.4): it reads
  * the source's own value, judges only the elements that carry one for a column it reads, and
  * answers `outside` for every other element. A rule whose columns no element carries is held
@@ -2937,6 +3034,7 @@ export function compileVisibility(
     sources: FilterSources,
 ): CompiledVisibility {
     assertVisibility(filter, window);
+    const judged = filter !== null && sources.sourceSteps?.() === true ? withoutHeld(graph, filter, sources) : filter;
 
     const context: CompileContext = {
         graph,
@@ -2946,7 +3044,7 @@ export function compileVisibility(
     };
 
     const halves: CompiledHalves[] = [];
-    const compiledFilter = filter === null ? null : compileOne(filter, context);
+    const compiledFilter = judged === null ? null : compileOne(judged, context);
     // Only a slide reads the answers again.
     const filtering =
         window === null || compiledFilter === null

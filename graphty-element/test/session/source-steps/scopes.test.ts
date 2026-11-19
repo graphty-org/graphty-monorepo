@@ -7,7 +7,7 @@
 import { assert, describe, it } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../../src/session";
-import { full } from "./scenario";
+import { full, refused } from "./scenario";
 
 /**
  * A Source scope as the Analyze popover writes it: inside the visible graph (design 8.6).
@@ -139,6 +139,21 @@ describe("source-steps: scopes and readable paths", () => {
         const { session, b } = await full();
         const scope = await session.scope.count(sourceScope(b, "edges"));
         assert.strictEqual(scope.edges, 2);
+        // X-1 and X-2's ends: A-1, M-1, B-7 and M-9, and no other node.
+        assert.strictEqual(scope.nodes, 4);
+        assert.isUndefined(scope.issues);
+        const resolved = await session.scope.resolve(sourceScope(b, "edges"));
+        assert.deepStrictEqual([...resolved.nodes].map(String).sort(), ["A-1", "B-7", "M-1", "M-9"]);
+        session.dispose();
+    });
+
+    it("a Source scope on edges of a node-only source falls back to its nodes (W_SCOPE_NO_EDGES)", async () => {
+        const { session, a } = await full();
+        const scope = await session.scope.count(sourceScope(a, "edges"));
+        // accounts.csv supplied A-1, A-2 and A-9, and no edge runs between two of them.
+        assert.strictEqual(scope.nodes, 3);
+        assert.strictEqual(scope.edges, 0);
+        assert.deepStrictEqual(scope.issues, [{ code: "W_SCOPE_NO_EDGES", params: { nodes: 3 } }]);
         session.dispose();
     });
 
@@ -150,11 +165,37 @@ describe("source-steps: scopes and readable paths", () => {
         );
         const [{ key: id }] = session.data.sources();
         assert.strictEqual((await session.scope.count(sourceScope(id, "nodes"))).nodes, 3);
+        const onEdges = await session.scope.count(sourceScope(id, "edges"));
+        assert.strictEqual(onEdges.nodes, 3);
+        assert.strictEqual(onEdges.edges, 2);
         const loads = session.data.valueCounts("graphty.load", { kind: "node" });
         assert.deepStrictEqual(
             loads.values.map((v) => [v.value, v.count]),
             [[id, 3]],
         );
+        session.dispose();
+    });
+});
+
+describe("source-steps off: readable paths read nothing", () => {
+    it("a record's own graphty.type key matches no selector and { types } is refused", async () => {
+        const session = createGraphSession({ features: [] });
+        await session.data.addNodes([{ id: "a", "graphty.type": "x" }, { id: "b" }, { id: "c" }]);
+        const has = await session.styles.add({
+            name: "Has",
+            target: "node",
+            selector: { match: "has", path: "graphty.type" },
+            set: { "node.color": "#ff0000" },
+        });
+        const typed = await session.styles.add({
+            name: "Typed",
+            target: "node",
+            selector: { match: "type", types: ["x"] },
+            set: { "node.color": "#00ff00" },
+        });
+        assert.strictEqual(session.styles.counts(has.id).matched, 0);
+        assert.strictEqual(session.styles.counts(typed.id).matched, 0);
+        await refused(() => session.scope.count({ types: ["x"] }), "E_FEATURE_OFF");
         session.dispose();
     });
 });

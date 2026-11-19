@@ -7,8 +7,8 @@
 
 import { assert, describe, it } from "vitest";
 
-import { createGraphSession, type GraphSession } from "../../../src/session";
-import { full, phase1 } from "./scenario";
+import type { GraphSession } from "../../../src/session";
+import { clashing, full, phase1 } from "./scenario";
 
 /**
  * The ids shown now.
@@ -49,20 +49,7 @@ describe("source-steps: a source's filter", () => {
     });
 
     it("judges B's own value for its clash column (clash-column-in-source-section)", async () => {
-        const session = createGraphSession({ features: ["source-steps"] });
-        await session.data.import(
-            { type: "csv", config: { data: "id,amt\np1,10\np2,20" }, name: "crm.csv" },
-            { key: "id", type: "person" },
-        );
-        const b = await session.data.stage(
-            { type: "csv", config: { data: "id,amt\np1,30\np2,40" }, name: "erp.csv" },
-            { key: "id", type: "person" },
-        );
-        await session.data.merge({
-            from: { source: b, field: "id" },
-            into: { space: "person" },
-            clash: { amt: "both" },
-        });
+        const { session, b } = await clashing();
         const clash = `amt (${b})`;
         assert.include(
             session.data.attributes({ source: b }).map((a) => a.name),
@@ -99,7 +86,7 @@ describe("source-steps: a source's filter", () => {
 
     it("holds a filter whose column no element of the source carries (W_FILTER_HELD)", async () => {
         const { session, t } = await phase1();
-        await session.visibility.addCondition({
+        const { id } = await session.visibility.addCondition({
             effect: "keep",
             source: t,
             rule: { kind: "range", attribute: "data.nothing", min: 1 },
@@ -107,6 +94,50 @@ describe("source-steps: a source's filter", () => {
         const { nodes, edges } = await shown(session);
         assert.strictEqual(nodes.size, session.data.store.getSnapshot().nodeCount);
         assert.strictEqual(edges.size, session.data.store.getSnapshot().edgeCount);
+        assert.deepStrictEqual(session.visibility.held, [
+            { code: "W_FILTER_HELD", params: { filter: id, column: "data.nothing" } },
+        ]);
+        session.dispose();
+    });
+
+    it("holds a graph-wide filter on a column no element carries (W_FILTER_HELD)", async () => {
+        const { session } = await phase1();
+        const { id } = await session.visibility.addCondition({
+            effect: "keep",
+            rule: { kind: "range", attribute: "data.nothing", min: 1 },
+        });
+        const { nodes } = await shown(session);
+        assert.strictEqual(nodes.size, session.data.store.getSnapshot().nodeCount, "it hides nothing");
+        assert.deepStrictEqual(session.visibility.held, [
+            { code: "W_FILTER_HELD", params: { filter: id, column: "data.nothing" } },
+        ]);
+        session.dispose();
+    });
+
+    it("a graph-wide filter on a removed source's column hides nothing", async () => {
+        const { session, m } = await full();
+        const { id } = await session.visibility.addCondition({
+            effect: "keep",
+            rule: { kind: "categories", attribute: "data.city", values: ["Oslo"] },
+        });
+        assert.isFalse((await shown(session)).nodes.has("M-2"), "M-2 is in Bergen");
+        assert.deepStrictEqual(session.visibility.held, []);
+        await session.data.removeSource(m);
+        const { nodes } = await shown(session);
+        assert.strictEqual(nodes.size, session.data.store.getSnapshot().nodeCount, "it hides nothing");
+        assert.deepStrictEqual(session.visibility.held, [
+            { code: "W_FILTER_HELD", params: { filter: id, column: "data.city" } },
+        ]);
+        session.dispose();
+    });
+
+    it("never holds a judged filter on graphty.type (type-filter-is-judged)", async () => {
+        const { session } = await full();
+        await session.visibility.addCondition({
+            effect: "keep",
+            rule: { kind: "categories", attribute: "graphty.type", values: ["account"] },
+        });
+        assert.deepStrictEqual(session.visibility.held, []);
         session.dispose();
     });
 });

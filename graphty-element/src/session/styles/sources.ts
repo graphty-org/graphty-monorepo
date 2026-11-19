@@ -93,6 +93,12 @@ export interface SelectorSourceParts {
      * paths read nothing, as they do on an element no note names.
      */
     readonly notes?: NoteFactsReader;
+    /**
+     * Whether the source-steps experiment is on. While it is off, the readable paths
+     * (`graphty.type`, ...) read nothing, as before the experiment, even on a record that happens
+     * to carry such a key. Absent reads off.
+     */
+    readonly sourceSteps?: () => boolean;
 }
 
 /**
@@ -290,6 +296,9 @@ interface PathEntry {
     readonly field: string;
 }
 
+/** {@link RECORD_PATHS}, for a lookup per read. */
+const RECORD_PATH_SET: ReadonlySet<string> = new Set(RECORD_PATHS);
+
 /** The entry every path that nothing answers shares. */
 const NOTHING: PathEntry = Object.freeze({ kind: "none", key: "", runId: "", field: "" });
 
@@ -328,7 +337,7 @@ function parsePath(path: Path): PathEntry {
     }
 
     // The source-steps experiment writes an element's readable paths (`graphty.type`, ...) on its
-    // record, so they are read as columns; with it off no record holds one and every read is absent.
+    // record, so they are read as columns; with it off `entryFor` never reaches here for them.
     if (RECORD_PATHS.includes(path)) {
         return { kind: "attribute", key: path, runId: "", field: "" };
     }
@@ -550,6 +559,10 @@ export function createSelectorSource(parts: SelectorSourceParts): SessionSelecto
      * @returns Its entry.
      */
     const entryFor = (path: Path): PathEntry => {
+        if (RECORD_PATH_SET.has(path) && parts.sourceSteps?.() !== true) {
+            return parseElementPath(path);
+        }
+
         const held = paths.get(path);
 
         if (held !== undefined) {

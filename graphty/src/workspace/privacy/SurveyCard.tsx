@@ -20,7 +20,7 @@ type Question = MultipleSurveyQuestion | RatingSurveyQuestion;
  * @returns its first question, or undefined.
  */
 function drawable(survey: Survey): Question | undefined {
-    const question = survey.questions[0];
+    const question = survey.questions.at(0);
     return question?.type === "single_choice" || question?.type === "rating" ? question : undefined;
 }
 

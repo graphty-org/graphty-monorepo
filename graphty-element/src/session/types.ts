@@ -4389,7 +4389,10 @@ export interface SessionEventMap {
      * OPEN UNION: kinds may be added in a minor release; handle one you do not know.
      * @since 3.40.0
      */
-    "camera:gesture-end": { readonly kind: CameraGestureKind };
+    "camera:gesture-end": {
+        /** What the gesture did. */
+        readonly kind: CameraGestureKind;
+    };
     /**
      * The project's name or whether it has unsaved changes (`session.project.name`, `.dirty`)
      * changed. Mirrored on the element as `graphty-project-status`.
@@ -4483,7 +4486,18 @@ export interface SourceLoaded {
      * (`generate`) or a network source's example (`loadExample`, whose kind stays `"server"`).
      */
     readonly sample?:
-        { readonly datasetId: string } | { readonly generatorId: string } | { readonly exampleId: string };
+        | {
+              /** The graph-samples dataset's id, as `loadDataset` took it. */
+              readonly datasetId: string;
+          }
+        | {
+              /** The generator's id, as `generate` took it. */
+              readonly generatorId: string;
+          }
+        | {
+              /** The network source's example id, as `loadExample` took it. */
+              readonly exampleId: string;
+          };
     /** The caller's own {@link ImportOptions.callerKey}, echoed unchanged. */
     readonly callerKey?: string;
     /**

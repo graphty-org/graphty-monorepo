@@ -51,7 +51,7 @@ export const SURVEYS_KEY = "graphty.surveys.v1";
 const VISITS_KEY = "graphty.visits.v1";
 
 /** Each own event's allowed property keys (section 4). An unknown name is never sent. */
-const EVENT_KEYS: Readonly<Record<string, readonly string[]>> = {
+const EVENT_KEYS: Readonly<Partial<Record<string, readonly string[]>>> = {
     $pageview: [],
     first_visit: [],
     return_visit: ["days"],
@@ -1017,7 +1017,7 @@ export function writeSurveyState(state: SurveyState): void {
  * @returns them.
  */
 function superProperties(mode: TrackingMode): Record<string, Value> {
-    const params = channel?.params ?? {};
+    const params: Partial<Record<string, string>> = channel?.params ?? {};
     const useCase = mode === "shared" ? readSurveyState().use_case : undefined;
     return {
         tracking: mode,
@@ -1082,7 +1082,7 @@ export function cleanPostHogEvent(event: CaptureResult | null, mode: TrackingMod
         return null;
     }
     const name = event.event;
-    const raw = (event.properties ?? {}) as Record<string, unknown>;
+    const raw = event.properties as Record<string, unknown>;
     const cookieless = raw.$cookieless_mode === true;
     // Each instance sends only what is its own: the shared one never runs cookieless, and an
     // anonymous event proves it was built in cookieless mode.
@@ -1320,7 +1320,8 @@ function initAnonymous(posthog: PostHog, target: { key: string; host: string }):
     if (anonymousClient !== undefined) {
         return;
     }
-    const instance = posthog.init(target.key, anonymousOptions(target.host), "anonymous");
+    // posthog-js types init() as always returning, but it returns undefined when it cannot start.
+    const instance = posthog.init(target.key, anonymousOptions(target.host), "anonymous") as PostHog | undefined;
     if (instance !== undefined) {
         anonymousClient = instance;
         flushBuffer("anonymous");

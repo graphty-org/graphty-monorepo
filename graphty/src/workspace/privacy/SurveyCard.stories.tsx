@@ -27,23 +27,26 @@ async function click(parameters: Record<string, unknown>, control: Element): Pro
 }
 
 /**
- * Waits for the survey card to show and returns it.
+ * Fires a moment until the survey card shows, and returns the card. Storybook can start the play
+ * function before React has run the card's effects, so a single event may fire before the card has
+ * subscribed; it is fired again until the card answers it (once shown, the card ignores the rest).
  * @param canvasElement - the story's root.
+ * @param moment - fires the event the card asks at.
  * @returns the card.
  */
-async function surveyCard(canvasElement: HTMLElement): Promise<HTMLElement> {
+async function surveyCard(canvasElement: HTMLElement, moment: () => void): Promise<HTMLElement> {
     let card: HTMLElement | null = null;
     await waitFor(() => {
         card = canvasElement.ownerDocument.querySelector<HTMLElement>('aside[aria-label="Survey"]');
+        if (card === null) {
+            moment();
+        }
         expect(card).not.toBeNull();
     });
     return card as unknown as HTMLElement;
 }
 
-/**
- * A measure's first result: the moment the use case is asked. Fired after the card has mounted
- * and subscribed, so the picture does not depend on story order.
- */
+/** A measure's first result: the moment the use case is asked. */
 function measured(): void {
     count("algorithm_run", { algorithm: "pagerank", outcome: "succeeded" });
 }
@@ -75,16 +78,14 @@ type Story = StoryObj<typeof meta>;
 /** "What are you trying to do?", asked at a measure's first result. */
 export const UseCase: Story = {
     play: async ({ canvasElement }) => {
-        measured();
-        await surveyCard(canvasElement);
+        await surveyCard(canvasElement, measured);
     },
 };
 
 /** The Other choice picked: its text box, with the warning that what is typed is sent. */
 export const OtherChoice: Story = {
     play: async ({ canvasElement, parameters }) => {
-        measured();
-        const card = await surveyCard(canvasElement);
+        const card = await surveyCard(canvasElement, measured);
         const other = [...card.querySelectorAll("label")].find((label) => label.textContent === "Other");
         if (other === undefined) {
             throw new Error("no Other choice");
@@ -99,8 +100,7 @@ export const OtherChoice: Story = {
 /** Answered by a click and Send: the card goes and the choice id is kept. */
 export const Answered: Story = {
     play: async ({ canvasElement, parameters }) => {
-        measured();
-        const card = await surveyCard(canvasElement);
+        const card = await surveyCard(canvasElement, measured);
         const choice = [...card.querySelectorAll("label")].find(
             (label) => label.textContent === "Teach or learn about graphs",
         );
@@ -123,8 +123,7 @@ export const Answered: Story = {
 /** Dismissed: the card goes and the survey is never asked again. */
 export const Dismissed: Story = {
     play: async ({ canvasElement, parameters }) => {
-        measured();
-        const card = await surveyCard(canvasElement);
+        const card = await surveyCard(canvasElement, measured);
         const close = card.querySelector('[aria-label="Dismiss survey"]');
         if (close === null) {
             throw new Error("no dismiss button");
@@ -140,8 +139,9 @@ export const Dismissed: Story = {
 /** "How easy was it to get this export?", asked at the first export. */
 export const ExportEase: Story = {
     play: async ({ canvasElement }) => {
-        count("export_done", { kind: "graph", format: "json", destination: "download" });
-        const card = await surveyCard(canvasElement);
+        const card = await surveyCard(canvasElement, () => {
+            count("export_done", { kind: "graph", format: "json", destination: "download" });
+        });
         expect(card.textContent).toContain("How easy was it to get this export?");
     },
 };

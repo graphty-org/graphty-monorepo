@@ -308,7 +308,7 @@ export function captureUserFeedback(feedback: FeedbackData): FeedbackResult {
     const integration = replay;
     const wasBuffering = integration?.getRecordingMode() !== undefined;
     if (wasBuffering) {
-        void integration?.stop({ flush: false }).catch(() => undefined);
+        void integration.stop({ flush: false }).catch(() => undefined);
     }
     Sentry.captureFeedback({
         message: feedback.message,
@@ -320,7 +320,7 @@ export function captureUserFeedback(feedback: FeedbackData): FeedbackResult {
             .catch(() => false)
             .then(() => {
                 if (initialized) {
-                    integration?.startBuffering();
+                    integration.startBuffering();
                 }
             });
     }

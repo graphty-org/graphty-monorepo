@@ -274,6 +274,35 @@ await graph.runAlgorithm("graphty", "dijkstra", {
 });
 ```
 
+`shortest-path` also takes four choices. Each is off by default, so a run that sets none of them
+reads every edge either way and finds the same route it always did:
+
+- `direction`: `"out"` follows a directed edge from its source to its target, `"in"` against it,
+  and `"all"` (the default) either way.
+- `weight`: the edge column to read, and what it means. A distance is the cost of crossing the
+  edge. A strength is left unread unless `invertStrength: true`, which crosses each edge at
+  1 / weight, so the route prefers strong connections.
+- `timeOrder`: an edge column holding each edge's time. The route then only takes edges in time
+  order, each at or after the one before it, and never an edge with no time. A number, a date or a
+  date string is a time.
+- The result's `tiedRoutes` says how many routes share the cheapest cost: 1 when the route is the
+  only one, 0 when the target is unreached. It is absent from a time-ordered run.
+
+```typescript
+const route = await element.run("shortest-path", {
+    source: "alice",
+    target: "dave",
+    direction: "out",
+    weight: { attribute: "trust", meaning: "strength" },
+    invertStrength: true,
+    timeOrder: "sentAt",
+});
+console.log(route.graph.cost, route.graph.tiedRoutes);
+for (const id of ["alice", "bob", "carol", "dave"]) {
+    console.log(id, route.node(id)?.onPath, route.node(id)?.order);
+}
+```
+
 `astar` takes the same `source` and `target` as `dijkstra`, and a `heuristic`. The default,
 `"none"`, estimates nothing, so the route is exactly the one `dijkstra` finds. `"layout-distance"`
 steers the search by the straight-line distance between the nodes' current positions. That is

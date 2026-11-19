@@ -52,6 +52,7 @@ export async function searchFollowing<T>(
  * @param scoped - The scope's edges, from `scopeEdges(input)`.
  * @param edgeRemap - Declared edge row to the searched snapshot's edge, or null when they agree.
  * @param routeEdges - The searched snapshot's edges on the route.
+ * @param strength - True when a larger weight is the cheaper edge to cross (an inverted strength).
  * @returns The rows of the element's edges on the route.
  */
 export function routeEdgeRows(
@@ -59,6 +60,7 @@ export function routeEdgeRows(
     scoped: ReturnType<typeof scopeEdges>,
     edgeRemap: U32 | null,
     routeEdges: ReadonlySet<number>,
+    strength = false,
 ): Set<number> {
     const { src, weights } = input.graph.edgeList();
     const taken = new Map<string, { row: number; weight: number }>();
@@ -70,7 +72,7 @@ export function routeEdgeRows(
 
         // A declared undirected edge has no direction to tell apart: one key per merged edge.
         const key = input.graph.directed ? `${String(merged)}>${String(src[edge.row])}` : String(merged);
-        const weight = weights === null ? 1 : weights[edge.row];
+        const weight = (weights === null ? 1 : weights[edge.row]) * (strength ? -1 : 1);
         const best = taken.get(key);
         if (best === undefined || weight < best.weight) {
             taken.set(key, { row: edge.row, weight });

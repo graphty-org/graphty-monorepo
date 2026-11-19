@@ -2,7 +2,16 @@
 // algorithms 3.0.0: every algorithm takes a GraphSnapshot (or an AdjacencyView, for the traversals and paths) first
 // and an options object last, the 2.x `indexed` namespace is a deprecated alias of the same functions, and none of
 // the 2.x legacy names is exported any more.
-import type { AdjacencyView, F32, F64, GraphSnapshot, NodeId, NodeRef, U32 } from "@graphty/graph-format";
+import type {
+    AdjacencyView,
+    F32,
+    F64,
+    GraphSnapshot,
+    NodeId,
+    NodeRef,
+    NumericVector,
+    U32,
+} from "@graphty/graph-format";
 import { expectTypeOf } from "vitest";
 
 import type {
@@ -26,6 +35,7 @@ import type {
     CommonNeighborsOptions,
     CondensationResult,
     CorenessResult,
+    CountShortestPathsOptions,
     DegreeCentralityOptions,
     DfsOptions,
     DfsResult,
@@ -83,6 +93,8 @@ import type {
     SynchronousLabelPropagationOptions,
     TeraHacOptions,
     TeraHacResult,
+    TimeOrderedPathsOptions,
+    TimeOrderedPathsResult,
     TriangleCountResult,
 } from "../../src/index.js";
 import * as algorithms from "../../src/index.js";
@@ -124,6 +136,12 @@ expectTypeOf(algorithms.hasCycle).toEqualTypeOf<(g: AdjacencyView) => boolean>()
 expectTypeOf(algorithms.topologicalSort).toEqualTypeOf<(g: AdjacencyView, options?: ArcOrderOption) => U32 | null>();
 expectTypeOf(algorithms.dijkstra).toEqualTypeOf<
     (g: AdjacencyView, source: NodeRef, options?: SsspOptions) => SsspResult
+>();
+expectTypeOf(algorithms.countShortestPaths).toEqualTypeOf<
+    (g: AdjacencyView, dist: NumericVector, source: NodeRef, options?: CountShortestPathsOptions) => Float64Array
+>();
+expectTypeOf(algorithms.timeOrderedPaths).toEqualTypeOf<
+    (g: AdjacencyView, source: NodeRef, options: TimeOrderedPathsOptions) => TimeOrderedPathsResult
 >();
 expectTypeOf(algorithms.walkPredArcs).toEqualTypeOf<
     (g: AdjacencyView, predArc: U32, source: number, target: NodeRef) => U32
@@ -284,6 +302,7 @@ type Promoted =
     | "commonNeighborsScore"
     | "compareAdamicAdarWithCommonNeighbors"
     | "condensation"
+    | "countShortestPaths"
     | "connectedComponents"
     | "degreeCentrality"
     | "DeltaPageRank"
@@ -332,6 +351,7 @@ type Promoted =
     | "stronglyConnectedComponents"
     | "syncClustering"
     | "teraHAC"
+    | "timeOrderedPaths"
     | "topologicalSort"
     | "triangleCount"
     | "walkPredArcs"

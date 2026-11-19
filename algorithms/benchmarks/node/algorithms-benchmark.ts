@@ -33,6 +33,17 @@ const ENTRIES: readonly Entry[] = [
     { name: "BFS", directed: false, run: (s) => algorithms.breadthFirstSearch(s, 0).visitedCount },
     { name: "DFS", directed: false, run: (s) => algorithms.depthFirstSearch(s, 0).visitedCount },
     { name: "Dijkstra", directed: false, run: (s) => algorithms.dijkstra(s, 0).dist },
+    {
+        name: "Count Shortest Paths",
+        directed: false,
+        run: (s) => algorithms.countShortestPaths(s, algorithms.dijkstra(s, 0).dist, 0),
+    },
+    {
+        name: "Time-Ordered Paths",
+        directed: false,
+        run: (s) =>
+            algorithms.timeOrderedPaths(s, 0, { times: Float64Array.from({ length: s.arcCount }, (_, a) => a) }).dist,
+    },
     { name: "Bellman-Ford", directed: true, run: (s) => algorithms.bellmanFord(s, 0).dist },
     { name: "Floyd-Warshall", directed: false, run: (s) => algorithms.allPairsShortestPath(s).dist },
     { name: "PageRank", directed: true, run: (s) => algorithms.pageRank(s, { tolerance: 1e-4, maxIterations: 50 }) },

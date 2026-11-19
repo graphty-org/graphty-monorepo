@@ -39283,11 +39283,11 @@
             "label.opacity": 1,
             "label.family": 1,
             "label.lines": 1,
-            "label.alongLine": 0.976,
+            "label.alongLine": 1,
             "label.offLine": 1,
             "label.outline": 1,
             "label.background": 1,
-            "label.backgroundBox": 0.5,
+            "label.backgroundBox": 1,
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
@@ -39345,11 +39345,11 @@
             "label.opacity": 1,
             "label.family": 1,
             "label.lines": 1,
-            "label.alongLine": 0.976,
+            "label.alongLine": 1,
             "label.offLine": 1,
             "label.outline": 1,
             "label.background": 1,
-            "label.backgroundBox": 0.5,
+            "label.backgroundBox": 1,
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
@@ -56515,6 +56515,12 @@
                 "to": 0.97,
                 "reason": "comparator (#8189): yEd's head on 19->30 is now read along its own axis where the line stops on its notch, so it reads as yEd's vee; graphty's line hooks 7 px down and right past the head (its edge.route failure), which turns graphty's head off its line and misreads its length and width",
                 "date": "2026-11-17"
+            },
+            "label.alongLine": {
+                "floor": 0.5,
+                "to": 0.375,
+                "reason": "drawing (#8190): yEd edge labels now get yEd's box (2 px padding, line height 1), which drops the words of e2 (a side_slider label) 1.6 px on its diagonal line; its place along the line was already at the edge of tolerance (yEd 0.228, graphty 0.389), as for the other side_slider labels here that yEd slides toward their source",
+                "date": "2026-11-19"
             }
         },
         "gml-synthetic-coverage@matched": {
@@ -56535,6 +56541,12 @@
                 "to": 0.97,
                 "reason": "comparator (#8189): yEd's head on 19->30 is now read along its own axis where the line stops on its notch, so it reads as yEd's vee; graphty's line hooks 7 px down and right past the head (its edge.route failure), which turns graphty's head off its line and misreads its length and width",
                 "date": "2026-11-17"
+            },
+            "label.alongLine": {
+                "floor": 0.5,
+                "to": 0.375,
+                "reason": "drawing (#8190): yEd edge labels now get yEd's box (2 px padding, line height 1), which drops the words of e2 (a side_slider label) 1.6 px on its diagonal line; its place along the line was already at the edge of tolerance (yEd 0.228, graphty 0.389), as for the other side_slider labels here that yEd slides toward their source",
+                "date": "2026-11-19"
             }
         },
         "graphml-yfiles-html-ss13-tree": {

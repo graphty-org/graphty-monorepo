@@ -2200,11 +2200,13 @@ interface SourceChoices {
 
 /**
  * A path read relative to the file the data was opened from, written relative to the file being
- * saved (spec 4.1.2 rule 6). Without both locations it is written as read.
+ * saved (spec 4.1.2 rule 6). Without both locations there is nothing to write it relative to, so
+ * it has no path (spec 8.1 rule 4).
  * @param path - The path as read.
  * @param opened - The URL of the file it was read from.
  * @param location - The URL of the file being saved.
- * @returns The path, or undefined when the file is not in or below the saved file's folder.
+ * @returns The path, or undefined when a location is unknown or the file is not in or below the
+ *     saved file's folder.
  */
 export function rebasedPath(
     path: string,
@@ -2212,7 +2214,7 @@ export function rebasedPath(
     location: string | undefined,
 ): string | undefined {
     if (opened === undefined || location === undefined) {
-        return path;
+        return undefined;
     }
 
     try {
@@ -2237,7 +2239,8 @@ export function rebasedPath(
 
 /**
  * A record written back as read with its `path` rebased (spec 3.11 of the design: a held copy
- * keeps its path), or with none when the file is outside the saved file's folder, reported.
+ * keeps its path), or with none when a location is unknown or the file is outside the saved
+ * file's folder, reported: a copy stays a copy, a reference asks for the file on reopen.
  * @param record - The record.
  * @param choices - The saver's choices.
  * @param problems - Collects `W_SOURCE_NO_PATH`.
@@ -2260,7 +2263,7 @@ export function rebasedRecord(
 
     const { path: _path, ...rest } = origin;
     if (path === undefined) {
-        problems.push({ code: "W_SOURCE_NO_PATH", params: { source: String(record.id) } });
+        problems.push({ code: "W_SOURCE_NO_PATH", params: { source: String(record.id), reason: "file" } });
     }
 
     return { ...record, origin: path === undefined ? rest : { ...rest, path } };
@@ -2346,7 +2349,7 @@ function storageOf(
     }
 
     if (kind === "file" && path === undefined && !handled) {
-        problems.push({ code: "W_SOURCE_NO_PATH", params: { source: source.id } });
+        problems.push({ code: "W_SOURCE_NO_PATH", params: { source: source.id, reason: "file" } });
         return "embedded";
     }
 

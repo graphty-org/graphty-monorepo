@@ -204,10 +204,23 @@ async function rememberBaselines(
     const state = documentStateOf(session);
     state.opened.clear();
     // ponytail: one extra write per section at open; skip the data section's if its write is slow on large graphs.
-    const context = writeContextOf(session, state, new Set(sections.keys()), {}, isDerived, []);
+    // Written as a save to the file it was opened from, the one save that keeps every path as read.
+    const location = refetchOptionsOf(session)?.location;
+    const choices = location === undefined ? {} : { location };
+    const context = writeContextOf(session, state, new Set(sections.keys()), choices, isDerived, []);
     for (const [name, section] of sections) {
         const codec = codecs[name];
         if (codec === undefined || (name === "results" && rerun) || codec.standsAsRead?.(section) === false) {
+            continue;
+        }
+
+        // With no location to write a path read relative to, no save keeps it: none stands as read.
+        const lost: DocumentProblem[] = [];
+        if (name === "data" && location === undefined) {
+            rebasedData(section.body, {}, lost);
+        }
+
+        if (lost.length > 0) {
             continue;
         }
 
@@ -380,7 +393,7 @@ export async function saveDocument2(
         sections,
         now,
     );
-    if (Array.isArray(document.graphs) && choices.location !== undefined) {
+    if (Array.isArray(document.graphs)) {
         const where = whereOf(session, choices.location);
         document.graphs = document.graphs.map((graph: unknown) => rebasedGraph(graph, where, problems));
     }
@@ -390,7 +403,7 @@ export async function saveDocument2(
 
 /**
  * A held section as a save writes it back: as read, but a data section's file paths rebased to the
- * file being saved when the saver gives its location (spec 8.1 rule 4).
+ * file being saved, and dropped when the saver gives no location (spec 8.1 rule 4).
  * @param session - The session.
  * @param name - The section's key.
  * @param value - The section as read.
@@ -405,24 +418,24 @@ function heldWritten(
     location: string | undefined,
     problems: DocumentProblem[],
 ): unknown {
-    return name === "data" && location !== undefined ? rebasedData(value, whereOf(session, location), problems) : value;
+    return name === "data" ? rebasedData(value, whereOf(session, location), problems) : value;
 }
 
-/** The URLs of the file being saved and of the file it was opened from. */
+/** The URLs of the file being saved and of the file it was opened from, each when known. */
 interface SaveWhere {
-    readonly location: string;
+    readonly location?: string;
     readonly opened?: string;
 }
 
 /**
  * Where the save is written and where the project was opened from.
  * @param session - The session.
- * @param location - The URL of the file being saved.
- * @returns Both URLs, the opened one when known.
+ * @param location - The URL of the file being saved, if given.
+ * @returns Both URLs, each when known.
  */
-function whereOf(session: GraphSession, location: string): SaveWhere {
+function whereOf(session: GraphSession, location: string | undefined): SaveWhere {
     const opened = refetchOptionsOf(session)?.location;
-    return opened === undefined ? { location } : { location, opened };
+    return { ...(location === undefined ? {} : { location }), ...(opened === undefined ? {} : { opened }) };
 }
 
 /**
@@ -479,6 +492,11 @@ export interface OpenHooks {
      * clears only the data, and only when the file's data section is held.
      */
     readonly clear?: (tx: TransactionScope) => Promise<void>;
+    /**
+     * Remembers where the open read the file from, when it replaces the project, before the
+     * sections' baselines are written: a path read is written back only relative to it.
+     */
+    readonly opened?: () => void;
 }
 
 /**
@@ -703,6 +721,7 @@ async function applyDocument(
 
     if (replaced) {
         state.dataId = openDataId ?? newDocumentId();
+        hooks.opened?.();
         await rememberBaselines(session, codecs, chosen, choices.rerun ?? true, hooks.isDerived ?? (() => false));
     }
 

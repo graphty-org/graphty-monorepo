@@ -1015,12 +1015,15 @@ of the view section.
 4. **Embed or reference** is chosen per source (4.1.2 rule 4); the default is embed and there is
    no size-based switch. A `file` source the saver asked to reference but whose `path` is not known
    and that has no browser file handle is embedded instead, and the save report names it
-   (`W_SOURCE_NO_PATH`, params `{ source }`). Every `path` written, also one written back as read
-   (a held source's, a later graph's, a data section held whole), is resolved against the file the project was opened from
-   and written relative to the file being saved (graphty-element's `location` save option); a file
-   outside that folder loses its path, reported `W_SOURCE_NO_PATH`: a built source is embedded,
-   and a held source or a later graph's source, which this writer has no rows for, is written with
-   no `path`, so reopening asks for the file.
+   (`W_SOURCE_NO_PATH`, params `{ source, reason }`, `reason` `file`). Every `path` written, also
+   one written back as read (a held source's, a later graph's, a data section held whole), is
+   resolved against the file the project was opened from and written relative to the file being
+   saved (graphty-element's `location` save option). A path is written only when both locations
+   are known: with no `location`, or a file outside that folder, it is lost, reported
+   `W_SOURCE_NO_PATH`: a built source is embedded, a source that is already a copy (a later
+   graph's, a data section held whole) stays a copy with no `path`, and a held reference or a later
+   graph's reference, which this writer has no rows for, is written with no `path`, so reopening
+   asks for the file.
 5. **Re-saving an opened file keeps its choices**: results are written if the file had a results
    section, and each source stays embedded or referenced as its record was. A recipe section
    opened from a file is written back as read unless the reader asks to rewrite it from the
@@ -1274,7 +1277,7 @@ application words them.
 | `W_SECTION_UPGRADED`          | an older version was migrated on read                                        | `section`, `from`, `to`                   |
 | `W_ELEMENT_NAMING_LEFT_OUT`   | a writer left element-naming content out of a reusable section               | `section`, `pointer`, `layer`, `movedTo`  |
 | `W_MEMBER_LEFT_OUT`           | a save, or a version 1 migration, could not carry something over             | `kind` or `section`, `field` or `pointer` |
-| `W_SOURCE_NO_PATH`            | a file source has nothing to name it by: embedded, or written with no `path` | `source`                                  |
+| `W_SOURCE_NO_PATH`            | a file source has nothing to name it by: embedded, or written with no `path` | `source`, `reason`                        |
 | `W_SOURCE_UNAVAILABLE`        | a referenced source is held: not read, or its copy changed (8.3)             | `source`, `reason`, `size`                |
 | `W_SOURCE_EMBEDDED`           | a source asked to be referenced was embedded: its rows are not its bytes     | `source`, `reason`                        |
 | `W_SPACE_OVERLAP`             | a node key would add keys to a space another source already holds            | `source`, `space`, `count`                |

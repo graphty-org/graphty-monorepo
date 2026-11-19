@@ -812,7 +812,9 @@ describe("copy or reference, by path or by browser file handle", () => {
         const saved = await session.project.save({ format: 2, embed: { [key]: "referenced" } });
         const record = loadedRecord(saved.text);
         assert.property(record, "copy");
-        assert.deepEqual(saved.report.leftOut, [{ code: "W_SOURCE_NO_PATH", params: { source: String(record.id) } }]);
+        assert.deepEqual(saved.report.leftOut, [
+            { code: "W_SOURCE_NO_PATH", params: { source: String(record.id), reason: "file" } },
+        ]);
         session.dispose();
     });
 
@@ -835,7 +837,10 @@ describe("copy or reference, by path or by browser file handle", () => {
         const embedded = loadedRecord(away.text);
         assert.property(embedded, "copy");
         assert.notProperty(embedded.origin as JsonObject, "path");
-        assert.deepInclude(away.report.leftOut, { code: "W_SOURCE_NO_PATH", params: { source: String(embedded.id) } });
+        assert.deepInclude(away.report.leftOut, {
+            code: "W_SOURCE_NO_PATH",
+            params: { source: String(embedded.id), reason: "file" },
+        });
 
         // A held source is written back as read, its path rebased.
         const held = createGraphSession(ON);
@@ -844,6 +849,42 @@ describe("copy or reference, by path or by browser file handle", () => {
         const heldRecord = loadedRecord(heldUp.text);
         assert.notProperty(heldRecord, "copy");
         assert.strictEqual((heldRecord.origin as JsonObject).path, "p/data/friends.csv");
+        for (const each of [session, reopened, held]) {
+            each.dispose();
+        }
+    });
+
+    it("keeps a referenced file a copy with no path when the save gives no location, W_SOURCE_NO_PATH", async () => {
+        const session = createGraphSession(ON);
+        await session.data.import({ type: "csv", config: { file: new File([FRIENDS_CSV], "friends.csv") } });
+        const [{ key }] = session.data.sources();
+        const first = await session.project.save({
+            format: 2,
+            embed: { [key]: "referenced" },
+            paths: { [key]: "data/friends.csv" },
+        });
+        vi.stubGlobal("fetch", () => Promise.resolve(new Response(FRIENDS_CSV)));
+        const reopened = createGraphSession(ON);
+        await reopened.project.open(first.text, { fetchSources: true, location: PROJECT_AT });
+        const nowhere = await reopened.project.save({ format: 2 });
+        const embedded = loadedRecord(nowhere.text);
+        assert.property(embedded, "copy");
+        assert.notProperty(embedded.origin as JsonObject, "path");
+        assert.deepInclude(nowhere.report.leftOut, {
+            code: "W_SOURCE_NO_PATH",
+            params: { source: String(embedded.id), reason: "file" },
+        });
+
+        // A held source, which has no rows, is written with no path, so reopening asks for the file.
+        const held = createGraphSession(ON);
+        await held.project.open(first.text, { location: PROJECT_AT });
+        const heldNowhere = await held.project.save({ format: 2 });
+        const heldRecord = loadedRecord(heldNowhere.text);
+        assert.notProperty(heldRecord.origin as JsonObject, "path");
+        assert.deepInclude(heldNowhere.report.leftOut, {
+            code: "W_SOURCE_NO_PATH",
+            params: { source: String(heldRecord.id), reason: "file" },
+        });
         for (const each of [session, reopened, held]) {
             each.dispose();
         }
@@ -892,7 +933,7 @@ describe("a file holding several graphs", () => {
 
     it("opens the first graph from the top level and writes the later ones back as read", async () => {
         const session = createGraphSession(ON);
-        const report = await session.project.open(TWO, { rerun: false });
+        const report = await session.project.open(TWO, { rerun: false, location: PROJECT_AT });
         const kept = report.problems.filter((problem) => problem.code === "W_SECTION_KEPT");
         assert.deepEqual(
             kept.map((problem) => problem.params),
@@ -902,7 +943,7 @@ describe("a file holding several graphs", () => {
             ],
         );
         await session.data.addNodes([{ id: "extra" }]);
-        const saved = JSON.parse((await session.project.save({ format: 2 })).text) as JsonObject;
+        const saved = JSON.parse((await session.project.save({ format: 2, location: PROJECT_AT })).text) as JsonObject;
         const read = JSON.parse(TWO) as JsonObject;
         assert.deepEqual(saved.graphs, read.graphs);
         assert.isDefined(session.data.nodes().find((node) => node.id === "extra"));
@@ -931,6 +972,35 @@ describe("a file holding several graphs", () => {
     });
 });
 
+describe("a later graph's file the save cannot name", () => {
+    const TWO = readText("examples/minimal/minimal-graphs.graphty.json");
+
+    it("stays a copy with no path, outside the saved file's folder or with no location, W_SOURCE_NO_PATH", async () => {
+        const embedded = createGraphSession(ON);
+        await embedded.data.import({ type: "csv", config: { file: new File([FRIENDS_CSV], "friends.csv") } });
+        const { copy } = loadedRecord((await embedded.project.save({ format: 2 })).text);
+        const file = JSON.parse(TWO) as { graphs: { sections?: { data: { sources: JsonObject[] } } }[] };
+        const sources = file.graphs[1].sections?.data.sources ?? [];
+        sources[0] = { ...sources[0], copy };
+        const session = createGraphSession(ON);
+        await session.project.open(JSON.stringify(file), { rerun: false, location: PROJECT_AT });
+        for (const location of ["https://example.test/q/x.graphty.json", undefined]) {
+            const saved = await session.project.save({ format: 2, ...(location === undefined ? {} : { location }) });
+            const { graphs } = JSON.parse(saved.text) as typeof file;
+            const [source] = graphs[1].sections?.data.sources ?? [];
+            assert.deepEqual(source.copy, copy, `a copy, saved to ${String(location)}`);
+            assert.notProperty(source.origin as JsonObject, "path");
+            assert.deepInclude(saved.report.leftOut, {
+                code: "W_SOURCE_NO_PATH",
+                params: { source: String(source.id), reason: "file" },
+            });
+        }
+
+        embedded.dispose();
+        session.dispose();
+    });
+});
+
 describe("a data section held whole", () => {
     it("is written back with its file paths rebased to the file being saved", async () => {
         const file = readJson("examples/minimal/minimal-graphs.graphty.json");
@@ -950,7 +1020,10 @@ describe("a data section held whole", () => {
         const away = await session.project.save({ format: 2, location: "https://example.test/q/x.graphty.json" });
         const [lost] = sectionsOf(away.text).data.sources as JsonObject[];
         assert.notProperty(lost.origin as JsonObject, "path");
-        assert.deepInclude(away.report.leftOut, { code: "W_SOURCE_NO_PATH", params: { source: String(lost.id) } });
+        assert.deepInclude(away.report.leftOut, {
+            code: "W_SOURCE_NO_PATH",
+            params: { source: String(lost.id), reason: "file" },
+        });
         session.dispose();
     });
 });

@@ -51,7 +51,7 @@ describe("project.describe", () => {
         assert.strictEqual(source.kind, "file");
         assert.strictEqual(source.storage, "embedded");
         assert.isFalse(source.referable);
-        assert.deepEqual(source.refused, { code: "W_SOURCE_NO_PATH", params: { source: source.id } });
+        assert.deepEqual(source.refused, { code: "W_SOURCE_NO_PATH", params: { source: source.id, reason: "file" } });
         const saved = await session.project.save({ format: 2, embed: { [source.id]: "referenced" } });
         assert.deepInclude(saved.report.leftOut, source.refused);
 
@@ -199,7 +199,10 @@ describe("project.describe with the save's options", () => {
             embed: { [source.id]: "referenced" },
             paths: { [source.id]: "a.csv" },
         });
-        assert.notDeepInclude(saved.report.leftOut, { code: "W_SOURCE_NO_PATH", params: { source: source.id } });
+        assert.notDeepInclude(saved.report.leftOut, {
+            code: "W_SOURCE_NO_PATH",
+            params: { source: source.id, reason: "file" },
+        });
 
         assert.isTrue((await session.project.describe()).project, "the default save is the project");
         const allButResults = DOCUMENT_SECTIONS.filter((section) => section !== "results");

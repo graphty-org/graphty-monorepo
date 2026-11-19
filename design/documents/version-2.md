@@ -836,8 +836,9 @@ frame later would be a view major version.
   when a reference was asked for, and the save report names it (`W_SOURCE_NO_PATH`). Every path,
   also one written back as read (a held source, a later graph, a data section held whole), is resolved against the file the
   project was opened from and written relative to the file being saved (the `location` save
-  option); a file outside that folder loses its path: a built source is embedded, a held one is
-  written with no path, so reopening asks for the file, and the report names it. A referenced network source gets a new copy id on every open, so its keyless
+  option); with no location, or a file outside that folder, it loses its path: a built source is
+  embedded, a copy stays a copy, a held reference is written with no path, so reopening asks for
+  the file, and the report names it. A referenced network source gets a new copy id on every open, so its keyless
   rows get new keys; when a saved reference or reader operation names one, the save report says it
   will not bind after reopening and suggests embedding the source or mapping an edge id.
 - **Re-saving an opened file keeps its choices.** When a project was opened from a file, the save

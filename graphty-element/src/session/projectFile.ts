@@ -300,8 +300,8 @@ export interface ProjectSaveOptions {
      * Version 2 only: the URL of the file being saved. Every file path an opened project read is
      * written relative to its folder, resolved against the file the project was opened from; a
      * file outside that folder loses its path (`W_SOURCE_NO_PATH`): a built source is embedded, a
-     * held one is written with no path, so reopening lists it as needing a file. Absent, paths are
-     * written as they were read.
+     * copy stays a copy, a held one is written with no path, so reopening lists it as needing a
+     * file. Absent, no path read is written: each loses its path the same way.
      * @since 3.40.0
      * @experimental save-files-v2
      * @beta
@@ -3683,12 +3683,15 @@ export function projectOf(
                 },
                 name: wrapperName ?? nameOfFile(typeof fileName === "string" ? fileName : undefined),
                 clear: (tx) => clearInto(tx, dispatcher.state.visibility.playback),
+                // `data.refresh` reads a held source again from where this open read it, and a
+                // save writes every path read relative to it.
+                opened: () => {
+                    rememberRefetch(session, openedHow(options, limit));
+                },
             },
         );
         fresh = false;
         if (outcome.replaced) {
-            // `data.refresh` reads a held source again from where this open read it.
-            rememberRefetch(session, openedHow(options, limit));
             // Saved at the baseline: anything the reader did while it opened is a change.
             adopt({ ...pointNow(), step: null });
         }

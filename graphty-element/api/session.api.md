@@ -5482,6 +5482,9 @@ export type RuleTree = {
 };
 
 // @public
+export function ruleValuePath(rule: RuleTree): Path | undefined;
+
+// @public
 export interface Run<T = RunResult> extends PromiseLike<T> {
     readonly algorithm: AlgorithmKey;
     cancel(reason?: string): void;

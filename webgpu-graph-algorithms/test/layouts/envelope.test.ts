@@ -11,6 +11,7 @@ import { type GpuContext } from "../../src/context.js";
 import { createForceAtlas2 } from "../../src/layouts/forceatlas2.js";
 import { type LandedEnvelope } from "../../src/types/layout.js";
 import { randomEdges, snapshotOf } from "../helpers/graphs.js";
+import { expectBitwiseEqual } from "../helpers/matchers.js";
 import { storyGraph } from "../helpers/story-graph.js";
 import { acquire, gpuScale, requireGpu } from "../setup/gpu.js";
 
@@ -120,8 +121,9 @@ describe("the envelope measured on the device", () => {
                     Math.abs(envelope.furthestSquared - want.furthestSquared) <= 1e-4 * want.furthestSquared,
                     `furthest: ${envelope.furthestSquared} vs ${want.furthestSquared}`,
                 );
-                const again = (await run(snapshot, dim)).envelope;
-                assert.deepStrictEqual(again, envelope, "two runs");
+                const again = await run(snapshot, dim);
+                expectBitwiseEqual(again.scene, scene, "two runs: the landed rows");
+                assert.deepStrictEqual(again.envelope, envelope, "two runs: the envelope");
             });
         }
     }

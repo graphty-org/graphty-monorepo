@@ -886,7 +886,14 @@ export class RenderManager implements Manager {
      * demand, on a machine whose frame rate it does not control. A frame drawn at once for a
      * resize (`drawNow`) counts as drawn.
      */
-    readonly ticks = { drawn: 0, rested: 0, gpuBehind: 0, smooth: 0, awaitedLanding: 0 };
+    readonly ticks = {
+        drawn: 0,
+        rested: 0,
+        gpuBehind: 0,
+        smooth: 0,
+        /** Ticks that drew nothing because a running GPU layout had landed no new positions since the last frame. */
+        awaitedLanding: 0,
+    };
     /** Whether the tick {@link RenderManager.mayRest} last let rest rests on a final picture. */
     private restsFinal = false;
     /** See `RenderManagerConfig.antialiasAtRest`. */

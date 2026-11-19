@@ -231,9 +231,6 @@ export function attributeRows(
         });
 }
 
-/** Why an attribute's verbs cannot run: it went away under the open menu. */
-export const GONE_WORD = "No longer in the data";
-
 /**
  * A notice for a filter change the element refused, with its reason when the app has words for
  * the element's code.

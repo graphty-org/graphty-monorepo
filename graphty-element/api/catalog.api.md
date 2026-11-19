@@ -346,6 +346,20 @@ export interface AlgorithmDescriptor {
 // @public
 export type AlgorithmKey = KnownAlgorithm | (string & {});
 
+// @public
+export interface ArrowStackPart {
+    // (undocumented)
+    readonly outline?: number;
+    // (undocumented)
+    readonly side?: "left" | "right";
+    // (undocumented)
+    readonly size?: number;
+    // (undocumented)
+    readonly type: string;
+    // (undocumented)
+    readonly width?: number;
+}
+
 export { assetFileExtensions }
 
 export { AssetKind }
@@ -649,6 +663,31 @@ export function channelDescriptor(channel: string): ChannelDescriptor | undefine
 
 // @public
 export type ChannelGroup = "shape" | "color" | "effects" | "text" | "line" | "arrows";
+
+// @public
+export interface ChannelItemTypes {
+    "edge.arrowHeadStack": ArrowStackPart;
+    "edge.arrowTailStack": ArrowStackPart;
+    "edge.bends": ChannelPoint;
+    "edge.labelTable": LabelTableRow;
+    "edge.sourcePort": ChannelPoint;
+    "edge.targetPort": ChannelPoint;
+    "node.labelTable": LabelTableRow;
+    "node.shapeLines": readonly ChannelPoint[];
+    "node.shapeParts": readonly ChannelPoint[];
+    "node.shapePoints": ChannelPoint;
+    "node.shapeTexts": ShapeTextItem;
+}
+
+// @public
+export interface ChannelPoint {
+    // (undocumented)
+    readonly x: number;
+    readonly xLength?: number;
+    // (undocumented)
+    readonly y: number;
+    readonly yLength?: number;
+}
 
 // @public
 export const CHANNELS: readonly Channel[];
@@ -1732,6 +1771,9 @@ export function isOptionType(value: unknown): value is OptionType;
 export function isResultShape(value: unknown): value is ResultShape;
 
 // @public
+export type ItemChannel = keyof ChannelItemTypes;
+
+// @public
 export type ItemKey = {
     readonly field: string;
     readonly value: string | number | boolean;
@@ -1955,6 +1997,95 @@ export interface LabelStyleFieldDescriptor {
     readonly min?: number;
     readonly plainName: string;
     readonly values?: readonly string[];
+}
+
+// @public
+export interface LabelTable {
+    // (undocumented)
+    readonly align?: TableAlign;
+    readonly baseline?: number;
+    // (undocumented)
+    readonly border?: number;
+    // (undocumented)
+    readonly cellBorder?: number;
+    // (undocumented)
+    readonly cellPadding?: number;
+    // (undocumented)
+    readonly cellSpacing?: number;
+    readonly fill?: string;
+    // (undocumented)
+    readonly fixedSize?: boolean;
+    // (undocumented)
+    readonly height?: number;
+    readonly imagePixel?: number;
+    readonly lineHeight?: number | "font";
+    // (undocumented)
+    readonly rows: readonly LabelTableRow[];
+    readonly textPixel?: number;
+    // (undocumented)
+    readonly valign?: TableVAlign;
+    // (undocumented)
+    readonly width?: number;
+}
+
+// @public
+export interface LabelTableCell {
+    // (undocumented)
+    readonly align?: TableAlign | "text";
+    // (undocumented)
+    readonly balign?: TableAlign;
+    // (undocumented)
+    readonly border?: number;
+    // (undocumented)
+    readonly colspan?: number;
+    readonly fill?: string;
+    // (undocumented)
+    readonly fixedSize?: boolean;
+    // (undocumented)
+    readonly height?: number;
+    readonly hidden?: boolean;
+    // (undocumented)
+    readonly image?: LabelTableImage;
+    // (undocumented)
+    readonly lines?: readonly LabelTableLine[];
+    // (undocumented)
+    readonly padding?: number;
+    // (undocumented)
+    readonly rowspan?: number;
+    // (undocumented)
+    readonly rule?: boolean;
+    // (undocumented)
+    readonly table?: LabelTable;
+    // (undocumented)
+    readonly valign?: TableVAlign;
+    // (undocumented)
+    readonly width?: number;
+}
+
+// @public
+export interface LabelTableImage {
+    // (undocumented)
+    readonly pixelSize?: number;
+    // (undocumented)
+    readonly scale?: "true" | "width" | "height" | "both";
+    // (undocumented)
+    readonly src: string;
+}
+
+// @public
+export interface LabelTableLine {
+    // (undocumented)
+    readonly align?: TableAlign;
+    // (undocumented)
+    readonly text: string;
+}
+
+// @public
+export interface LabelTableRow {
+    // (undocumented)
+    readonly cells: readonly LabelTableCell[];
+    // (undocumented)
+    readonly rule?: boolean;
 }
 
 // @public
@@ -2456,6 +2587,9 @@ export interface ReadableValue {
 
 // @public
 export type ReadableValueKind = "number" | "category" | "text" | "yes-no";
+
+// @public
+export function readChannelItems<C extends ItemChannel>(channel: C, value: unknown): readonly ChannelItemTypes[C][];
 
 // @public
 export function readChannelList(channel: Channel, value: unknown): readonly (string | number)[];
@@ -3104,6 +3238,26 @@ export interface ShaderUse {
 export type ShaderWebGpu = "translate" | "native" | "none";
 
 // @public
+export interface ShapeTextItem {
+    // (undocumented)
+    readonly look?: ShapeTextLook;
+    // (undocumented)
+    readonly text: string;
+    // (undocumented)
+    readonly x: number;
+    // (undocumented)
+    readonly y: number;
+}
+
+// @public
+export interface ShapeTextLook {
+    color?: string;
+    font?: string;
+    rotation?: number;
+    size?: number;
+}
+
+// @public
 export interface SourceCatalogEntry extends SourceInfo {
     readonly features: SourceFeatures;
 }
@@ -3214,6 +3368,12 @@ export interface SuggestedName {
     // (undocumented)
     readonly label: string;
 }
+
+// @public
+export type TableAlign = "left" | "right" | "center";
+
+// @public
+export type TableVAlign = "top" | "bottom" | "middle";
 
 // @public
 export type TextMatchMode = "substring" | "exact" | "starts-with" | "ends-with" | "regex";
@@ -3357,6 +3517,9 @@ export interface WithdrawnCapability {
     readonly subject: string;
     readonly withdrawnIn: string;
 }
+
+// @public
+export function writeChannelItems<C extends ItemChannel>(channel: C, items: readonly ChannelItemTypes[C][], from?: unknown): string;
 
 // @public
 export function writeChannelList(channel: Channel, items: readonly (string | number)[]): string;

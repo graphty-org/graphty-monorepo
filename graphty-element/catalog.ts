@@ -246,6 +246,25 @@ export {
 // one reader and writer of a list channel's items (`ChannelDescriptor.listOf`).
 export type { ChannelValueDescriptor } from "./src/catalog/channelValues";
 export { readChannelList, writeChannelList } from "./src/catalog/channelValues";
+// The one reader and writer of a structured text channel's items (a polygon's points, a node's
+// lines and texts, an edge's bends, ports and cap stacks, a label table's rows), by the parsers the
+// renderer draws them with.
+export type {
+    ArrowStackPart,
+    ChannelItemTypes,
+    ChannelPoint,
+    ItemChannel,
+    LabelTable,
+    LabelTableCell,
+    LabelTableImage,
+    LabelTableLine,
+    LabelTableRow,
+    ShapeTextItem,
+    ShapeTextLook,
+    TableAlign,
+    TableVAlign,
+} from "./src/catalog/channelItems";
+export { readChannelItems, writeChannelItems } from "./src/catalog/channelItems";
 // What a shader parameter declared `varies` is bound as, by its encode address: the descriptor an
 // editor's vary picker and `styles.proposeEncoding` read for it.
 export { shaderParamChannel } from "./src/session/styles/encoding";

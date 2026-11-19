@@ -49,6 +49,22 @@ function logPageStart(): void {
         features: new URLSearchParams(location.search).get("features"),
         userAgent: navigator.userAgent,
         navigationType: navigation?.type ?? null,
+        // True when the browser threw this tab away while it was hidden and is loading it again.
+        wasDiscarded: (document as Document & { wasDiscarded?: boolean }).wasDiscarded ?? null,
+    });
+}
+
+/** Logs the dev server's own reasons for reloading or cutting off the page, which no autosave event names. */
+function logDevServerReloads(): void {
+    const log = GraphtyLogger.getLogger(["graphty", "workspace"]);
+    import.meta.hot?.on("vite:beforeFullReload", (payload: { path?: string }) => {
+        log.warn("dev server reload", { path: payload.path ?? null });
+    });
+    import.meta.hot?.on("vite:ws:disconnect", () => {
+        log.warn("dev server disconnected");
+    });
+    globalThis.addEventListener("pageshow", (event) => {
+        log.info("pageshow", { persisted: event.persisted });
     });
 }
 
@@ -76,6 +92,7 @@ if (import.meta.env.VITE_REMOTE_LOG_URL) {
         modules: ["autosave", "workspace", "view", "algorithm", "acceleration", "layout", "data", "style", "command"],
     });
     logUncaught();
+    logDevServerReloads();
     void remoteLogging.then(logPageStart); // eslint-disable-line unicorn/prefer-top-level-await -- a top-level await would hold the first paint for the logger
 }
 

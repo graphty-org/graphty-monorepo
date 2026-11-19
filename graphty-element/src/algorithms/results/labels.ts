@@ -1,7 +1,7 @@
 /**
  * @file What to call a node, as distinct from how to address it.
  *
- * A result card naming the busiest node wants a name a reader recognises, and an id is only
+ * A result card naming the busiest node wants a name a reader recognizes, and an id is only
  * sometimes one -- a GML file keys its nodes by integer while carrying the name beside it. So a
  * result is built with a way to look a label up, and `RunResult` uses it for the rows in a
  * ranking, the entries in a summary and the node the plain-language reading names first.

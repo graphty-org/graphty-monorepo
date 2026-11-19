@@ -12,7 +12,7 @@ import type { PatternedLineMesh } from "../../src/meshes/PatternedLineMesh";
  * @param options - Edge mesh options.
  * @param options.styleId - The appearance's id, which keys its batch.
  * @param options.width - The line width.
- * @param options.color - The line colour.
+ * @param options.color - The line color.
  * @param style - The edge style.
  * @param scene - The scene.
  * @returns The batch's mesh, or the patterned line.
@@ -34,7 +34,7 @@ export function edgeLineFor(
  * @param options - Edge mesh options, as {@link edgeLineFor} takes them.
  * @param options.styleId - The appearance's id, which keys its batch.
  * @param options.width - The line width.
- * @param options.color - The line colour.
+ * @param options.color - The line color.
  * @param style - The edge style.
  * @param scene - The scene.
  * @returns The batch's mesh.

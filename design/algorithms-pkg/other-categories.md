@@ -71,7 +71,7 @@ Critical for deadlock detection and graph validation.
 **Key Algorithms:**
 
 - **Floyd's Cycle Detection** (Tortoise and Hare)
-- **White-Grey-Black Algorithm** - For directed graphs
+- **White-Gray-Black Algorithm** - For directed graphs
 - **Union-Find based Cycle Detection** - For undirected graphs
 - **Johnson's Elementary Cycles Algorithm** - Finding all simple cycles
 

@@ -227,7 +227,7 @@ export interface GraphtyElementJSXProps {
      * A value the schema refuses is REPORTED AND DROPPED rather than thrown, on the same terms
      * as `acceleration`: this setter is reached from `attributeChangedCallback`, and a throw
      * there escapes as an unhandled rejection that reaches nobody, leaving the page with an
-     * element that never rendered. A wrong colour in markup must not take the graph down.
+     * element that never rendered. A wrong color in markup must not take the graph down.
      */
     background?: Graphty["background"];
     /**
@@ -243,7 +243,7 @@ export interface GraphtyElementJSXProps {
      */
     reducedMotion?: Graphty["reducedMotion"];
     /**
-     * Sets which background colour the canvas draws.
+     * Sets which background color the canvas draws.
      */
     colorScheme?: Graphty["colorScheme"];
     /**
@@ -285,7 +285,7 @@ export interface GraphtyElementJSXProps {
     /**
      * Sets the acceleration policy and applies it immediately.
      *
-     * An unrecognised value is reported and then ignored, leaving the previous policy in
+     * An unrecognized value is reported and then ignored, leaving the previous policy in
      * force. It is not thrown. Lit drives this setter from `attributeChangedCallback`, so a
      * throw here would abort attribute processing and leave the element unrendered -- a typo
      * in markup would take the whole graph down. HTML has never behaved that way about an
@@ -303,7 +303,7 @@ export interface GraphtyElementJSXProps {
     /**
      * Sets the renderer the element opens when it is first drawn.
      *
-     * An unrecognised value, or a change once the element is drawing, is reported and ignored
+     * An unrecognized value, or a change once the element is drawing, is reported and ignored
      * rather than thrown, for the reason given on `acceleration`: Lit drives this setter from
      * `attributeChangedCallback`, and a throw there would leave the element unrendered.
      */
@@ -476,7 +476,7 @@ export interface GraphtyElementJSXProps {
      */
     "reduced-motion"?: string;
     /**
-     * Sets which background colour the canvas draws.
+     * Sets which background color the canvas draws.
      */
     "color-scheme"?: string;
     /**
@@ -541,7 +541,7 @@ export interface GraphtyElementJSXProps {
      */
     "onai-capability-unavailable"?: (event: CustomEvent<EventOfType<"ai-capability-unavailable">>) => void;
     /**
-     * Emitted when an AI command is cancelled
+     * Emitted when an AI command is canceled
      */
     "onai-command-cancelled"?: (event: CustomEvent<EventOfType<"ai-command-cancelled">>) => void;
     /**
@@ -569,7 +569,7 @@ export interface GraphtyElementJSXProps {
      */
     "onai-hosted-tool-result"?: (event: CustomEvent<EventOfType<"ai-hosted-tool-result">>) => void;
     /**
-     * Something the assistant waited on the reader for ended: an approval was answered, superseded by a new message or a new conversation (`AI_APPROVAL_STALE` with `reason: "superseded"`), cancelled (`AI_CANCELLED`) or undone (`AI_UNDONE`). Remove what was drawn for it.
+     * Something the assistant waited on the reader for ended: an approval was answered, superseded by a new message or a new conversation (`AI_APPROVAL_STALE` with `reason: "superseded"`), canceled (`AI_CANCELLED`) or undone (`AI_UNDONE`). Remove what was drawn for it.
      */
     "onai-pending-resolved"?: (event: CustomEvent<EventOfType<"ai-pending-resolved">>) => void;
     /**

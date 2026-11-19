@@ -4,11 +4,11 @@
  * are registered on a page with a `<graphty-element>` holding a small real graph, run with
  * `element.run`, and judged by what a reader would see -- the values under `results.<as>.value`
  * or `results.<as>.group`, the layer the element derived from the run and which nodes and edges
- * it paints, the options form the catalogue offers, and the error a beginner reads first.
+ * it paints, the options form the catalog offers, and the error a beginner reads first.
  *
  * The last block holds a simple registration against one written by hand in the advanced tier:
  * a simple extension IS an advanced one once defined (design/extensions/simple-tier.md section 3),
- * so its catalogue entry, its options and its id look exactly like the advanced one's.
+ * so its catalog entry, its options and its id look exactly like the advanced one's.
  */
 
 import "../../../src/graphty-element";

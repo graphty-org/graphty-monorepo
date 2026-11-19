@@ -2,16 +2,16 @@
  * @file An algorithm that measures elements suggests a picture from a REAL run, not from a table.
  *
  * WHAT THIS EXISTS TO CATCH. `test/algorithms/derived-styles.test.ts` feeds the derivation a run
- * made up out of the catalogue's own descriptor, so it proves the catalogue is self-consistent and
+ * made up out of the catalog's own descriptor, so it proves the catalog is self-consistent and
  * nothing more. It went on passing while the all-pairs sweep suggested nothing at all: the run
- * took its shape from the catalogue entry it was folded into, that entry said "path", the result
+ * took its shape from the catalog entry it was folded into, that entry said "path", the result
  * carried no `onPath` to highlight, and `applySuggestedStyles` answered false. The picture was the
  * element's defaults and no test anywhere was reading a real run's shape.
  *
  * So this starts each algorithm for real, on a real graph, and asks the element the question a
  * consumer asks: is there anything to draw from what this just measured. An algorithm that
  * publishes a per-element field and cannot be painted is the defect, whichever half is lying about
- * the result -- the algorithm, the catalogue, or the run that reconciles them.
+ * the result -- the algorithm, the catalog, or the run that reconciles them.
  */
 
 import "../../src/algorithms";
@@ -42,7 +42,7 @@ const EDGES = [
  * The parameters an algorithm cannot run without.
  *
  * Only the ones that name an element: a source to walk from, a sink to push flow to. Everything
- * not listed runs on its own defaults, so a catalogue entry added tomorrow is asserted about
+ * not listed runs on its own defaults, so a catalog entry added tomorrow is asserted about
  * without anyone remembering to add it here.
  */
 const PARAMS: Readonly<Record<string, Readonly<Record<string, unknown>>>> = {
@@ -55,7 +55,7 @@ const PARAMS: Readonly<Record<string, Readonly<Record<string, unknown>>>> = {
     "max-flow": { source: "A", sink: "F" },
 };
 
-/** Every catalogue algorithm whose result shape has a picture in it. */
+/** Every catalog algorithm whose result shape has a picture in it. */
 const PAINTABLE = BUILT_IN_ALGORITHMS.filter((descriptor) => resultShapeContract(descriptor.shape).layer !== "none");
 
 describe("an algorithm that measures elements has a picture to suggest", () => {
@@ -95,7 +95,7 @@ describe("an algorithm that measures elements has a picture to suggest", () => {
 
             assert.strictEqual(run.status, "succeeded", `${descriptor.key} finished`);
 
-            // The run's OWN shape, not the catalogue's, is what the derivation reads. They are the
+            // The run's OWN shape, not the catalog's, is what the derivation reads. They are the
             // same entry today and this is what keeps them that way.
             assert.strictEqual(
                 run.shape,
@@ -135,7 +135,7 @@ describe("an algorithm that measures elements has a picture to suggest", () => {
     /**
      * THE 1.10 ADDRESS REACHES THE SAME PICTURE.
      *
-     * This is the half that was broken and the half a walk of the catalogue cannot see. An old
+     * This is the half that was broken and the half a walk of the catalog cannot see. An old
      * address is not always a rename: `graphty:scc` is `components` at `{ strength: "strong" }`,
      * and `graphty:floyd-warshall` used to be `shortest-path` with an `allPairs` switch -- which
      * is how an all-pairs measurement came to be running under a key whose declared shape was a

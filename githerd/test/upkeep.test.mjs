@@ -636,7 +636,7 @@ describe("updateDequeued", () => {
         expect(await updateDequeued(ctx, { prs: recs(), done, tip })).toEqual([
             { pr: 7, result: { path: "update-branch", result: "updated" } },
         ]);
-        // Its new head goes green while still labelled: the same dequeue, so nothing more.
+        // Its new head goes green while still labeled: the same dequeue, so nothing more.
         const later = recs();
         later[7].headSha = "f".repeat(40);
         expect(await updateDequeued(ctx, { prs: later, done, tip })).toEqual([]);

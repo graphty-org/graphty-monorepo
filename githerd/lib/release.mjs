@@ -207,7 +207,7 @@ export function releaseHold(byNumber) {
 
 /**
  * A failed release's summary: its hold issue and the newest failed run githerd saw, never a
- * skipped or cancelled one.
+ * skipped or canceled one.
  * @param {{number: number, title: string} | null} hold the open hold issue
  * @param {{runId: number, sha: string, failedJobs?: string[] | null} | null} red the lane's failed run
  * @returns {string} the summary

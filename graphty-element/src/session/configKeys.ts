@@ -2,7 +2,7 @@
  * @file The keys of the project settings `config.set` writes, one per leaf, named by its dotted
  * path, each with its group and its schema: every leaf of the zod `DataConfig` schema under
  * `data.`, whether the on-load algorithms run, the background, the selection style, the pinned style, the starting rows, the run placement, three
- * layout-behaviour keys, the layout transition, the view rotation, the framing, the minimum mark size, the author stamped on notes, and the project's name. Kept apart from the
+ * layout-behavior keys, the layout transition, the view rotation, the framing, the minimum mark size, the author stamped on notes, and the project's name. Kept apart from the
  * command so a reader of the settings (the assistant's `project` tool) loads the schemas alone.
  */
 

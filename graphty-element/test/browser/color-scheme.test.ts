@@ -29,7 +29,7 @@ afterEach(async () => {
 });
 
 /**
- * A real `Graph`, not yet initialised.
+ * A real `Graph`, not yet initialized.
  * @returns The graph.
  */
 function newGraph(): Graph {
@@ -46,7 +46,7 @@ function newGraph(): Graph {
 }
 
 /**
- * The colour the scene clears to.
+ * The color the scene clears to.
  * @param graph - The graph.
  * @returns Hex, upper case.
  */

@@ -19,7 +19,7 @@ PageRank). Tool commit `acf3894e2c56`, no uncommitted changes.
 
 - **Marked ties (right).** `04.png`: 13 blue bands on the full drawing; the table's 13 rows match
   the key row for row, smallest 10, largest 31.
-- **Nothing taken off the drawing (right).** All characters and grey ties still drawn; the
+- **Nothing taken off the drawing (right).** All characters and gray ties still drawn; the
   PageRank row still reads 77; `work.json` shows no filter step and nothing removed. The setup's
   PageRank layer is intact (start and end `layers` lists are the same).
 - **Count (right).** "13", read from the line under the box and the table.
@@ -60,7 +60,7 @@ PageRank). Tool commit `acf3894e2c56`, no uncommitted changes.
 | 1   | 2        | discoverability | A plain number in the find box lists only exact matches ("shared_chapters: 10") and says nothing about "10 or more" or that a comparison can be typed. Dana got to the comparison by guessing spreadsheet syntax. | `02.png`; transcript debrief: "nothing on screen said I could" |
 | 2   | 2        | legibility      | The "Values" suggestion under the "10" results -- the only row that offers to select by value -- is cut off at "Select where shared_chapters is 1...", so what it would do cannot be read. | `02.png`; transcript step 1 and debrief |
 | 3   | 1        | wording         | The rule syntax: the 10 shown in backticks ("=shared_chapters >= `10`") and "Start with = to select by a value" read as a formula language she was never taught. It did not stop her: the marked option worked on the first click. | `03.png`; transcript step 2 and debrief |
-| 4   | 1        | legibility      | The "Selected edges" table, the part she would take to a meeting, is small grey text on a dark panel, and she found no way to take it to a spreadsheet. | `04.png`; transcript debrief |
+| 4   | 1        | legibility      | The "Selected edges" table, the part she would take to a meeting, is small gray text on a dark panel, and she found no way to take it to a spreadsheet. | `04.png`; transcript debrief |
 | 5   | 0        | feedback        | After the click the box is rewritten to the rule ("=shared_chapters >= `10`"); she accepted it but would not have typed it. Cosmetic. | `04.png`; transcript debrief |
 
 No severity 3 or 4: the count and the marked ties were right, nothing was removed, and every

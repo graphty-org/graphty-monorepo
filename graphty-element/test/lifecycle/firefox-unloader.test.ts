@@ -58,7 +58,7 @@ describe("Firefox low-memory tab unloader", () => {
         try {
             await ff.send("WebDriver:Navigate", { url: fx.url({ key, tab }) });
             await ff.contentAsync("fixture.ready().then(arguments[0])");
-            // Firefox honors a cancelled beforeunload only on a page the reader has interacted with.
+            // Firefox honors a canceled beforeunload only on a page the reader has interacted with.
             const element = await ff.send<Record<string, string>>("WebDriver:FindElement", {
                 using: "css selector",
                 value: "graphty-element",

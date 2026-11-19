@@ -3,7 +3,7 @@
  *
  * Each batch of tool calls the model returns runs in its own short transaction, committed before
  * the model is asked again, so the person's own edits go through meanwhile. The batches still make
- * one undo step, and cancelling the message, or undoing it while it is going, takes back what it
+ * one undo step, and canceling the message, or undoing it while it is going, takes back what it
  * did. The model here answers each ask from a script, and an ask can wait on a gate the test opens.
  */
 
@@ -46,7 +46,7 @@ function gate(): Gate {
 
 /**
  * A model that answers its asks from a script, waiting on each turn's gate, and stops waiting
- * when the message is cancelled.
+ * when the message is canceled.
  * @param turns - The answers, in order; past the end it answers in text.
  * @returns The provider, and `asked(n)`, which settles once the nth ask has begun.
  */

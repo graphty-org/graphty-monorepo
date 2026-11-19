@@ -41,7 +41,7 @@ The floor did not move. The run's fastest sample is 0.169 ms against a baseline 
 
 ## Why the minimum
 
-Interference -- another process on the card, a driver hiccup, a clock drop, a noisy neighbour on a
+Interference -- another process on the card, a driver hiccup, a clock drop, a noisy neighbor on a
 rented on-demand host -- can only make a sample SLOWER. It can never make one faster. The fastest
 of the runs is therefore the one estimator of the true cost that interference cannot inflate: if
 the floor has not moved, the code's cost has not moved.

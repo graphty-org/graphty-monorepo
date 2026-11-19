@@ -1731,7 +1731,7 @@ function capOutline(cap: ArrowCap | null, p: Projector): [number, number][] | nu
 
 /**
  * A joined line's dashes or dots on screen: each element is `elementLength` long along the line and the elements sit
- * `spacing` apart centre to centre (the slot's spacing, `EdgeLineBatch`), so each gap is the spacing less the length.
+ * `spacing` apart center to center (the slot's spacing, `EdgeLineBatch`), so each gap is the spacing less the length.
  * @param batch - the line's batch
  * @param slots - the edge's slots in it
  * @param pattern - the batch's pattern, or undefined for a solid line
@@ -1925,7 +1925,7 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
         ({ opacity } = fields);
         dashPx = elementDashes(pm.elements, p);
     } else if (internal.pulled?.run === null) {
-        // a straight line pulled from the row table (`PulledLineBatch`) runs between its two node centres, stopped at
+        // a straight line pulled from the row table (`PulledLineBatch`) runs between its two node centers, stopped at
         // a translucent end's outline as its shader stops it (`PULLED_TRIM_GLSL`, the object line's bare ends), in the
         // color, opacity and width its piece carries (`PulledLineBatch.setLook`): the batched path's plain lines
         const [src, dst] = [edge.srcNode.drawnPosition, edge.dstNode.drawnPosition];

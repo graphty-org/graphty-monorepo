@@ -1,5 +1,5 @@
 /**
- * The simple tier of every graphty-element extension point. NORMATIVE for shapes; behaviour in
+ * The simple tier of every graphty-element extension point. NORMATIVE for shapes; behavior in
  * design/extensions/simple-tier.md. Entry point: @graphty/graphty-element/extend.
  *
  * PROPOSED: nothing here is built in graphty-element 2.6.1. Having a simple tier is decided; the
@@ -88,7 +88,7 @@ export interface DefinitionBase<O extends OptionsShorthand> {
     readonly id: string;
     /** What pickers show. Default: the id in sentence case ("acme-hop-reach" reads "Acme hop reach"). */
     readonly name?: string;
-    /** One sentence for pickers and the catalogue. Default: "". */
+    /** One sentence for pickers and the catalog. Default: "". */
     readonly description?: string;
     readonly options?: O;
     /** The extension's own semver version, recorded as provenance. */
@@ -207,7 +207,7 @@ export interface EdgeView {
 /**
  * The order every graph view iterates in: numbers ascending, then strings in code-unit order.
  * Published for the advanced tier, so an order-dependent method (label propagation, a greedy
- * colouring) that graduates can sort its rows the same way and give the same result
+ * coloring) that graduates can sort its rows the same way and give the same result
  * (simple-tier.md section 5).
  */
 export declare function compareNodeIds(a: NodeId, b: NodeId): number;
@@ -219,12 +219,12 @@ export declare function compareNodeIds(a: NodeId, b: NodeId): number;
 export interface AlgorithmContext<V> {
     readonly options: V;
     readonly graph: GraphView;
-    /** Aborted when the run is cancelled. Only a whole-graph function needs it. */
+    /** Aborted when the run is canceled. Only a whole-graph function needs it. */
     readonly signal: AbortSignal;
     /**
      * Only a whole-graph function needs it: the share of the work done, 0 to 1. AWAIT it inside a
      * loop: the promise lets the page draw a frame when the frame's time is spent, and rejects with
-     * the abort reason when the run was cancelled, so `await progress(i / n)` once per pass is the
+     * the abort reason when the run was canceled, so `await progress(i / n)` once per pass is the
      * whole of keeping the page responsive.
      */
     progress(fraction: number): Promise<void>;
@@ -457,7 +457,7 @@ export interface LoadContext<V> {
      * only after the reader confirms it, or when the embedder allowed its origin
      * (DataSourceControls.allowSourceHosts); with no reader to ask it is refused. The fetch also
      * attaches the credential, retries with backoff, applies a 30-second timeout per request, sends
-     * one request at a time and waits out an HTTP 429's Retry-After, honours the signal, and turns a failed response into E_FETCH_FAILED. It refuses the same URL
+     * one request at a time and waits out an HTTP 429's Retry-After, honors the signal, and turns a failed response into E_FETCH_FAILED. It refuses the same URL
      * twice in one load and more than `maxRequests` requests (E_FETCH_FAILED, details.reason
      * "repeated" or "limit"), so a pager whose API repeats its `next` link stops.
      *
@@ -528,12 +528,12 @@ export interface PaletteDefinition {
     readonly id: string;
     readonly kind: PaletteDescriptor["kind"];
     /**
-     * Any colour CSS can parse EXCEPT var(), which definePalette refuses (E_BAD_COMMAND) with the
+     * Any color CSS can parse EXCEPT var(), which definePalette refuses (E_BAD_COMMAND) with the
      * fix in the message: read the token first with
      * getComputedStyle(document.documentElement).getPropertyValue("--brand-navy").trim(), after
-     * its stylesheet has loaded. An empty string is refused the same way. Normalised to six-digit
-     * hex. A categorical palette has one colour per group; the element never wraps, so
-     * groups past the last colour are left in the base colour and reported (E_CAP_EXCEEDED).
+     * its stylesheet has loaded. An empty string is refused the same way. Normalized to six-digit
+     * hex. A categorical palette has one color per group; the element never wraps, so
+     * groups past the last color are left in the base color and reported (E_CAP_EXCEEDED).
      */
     readonly colors: readonly string[];
     readonly name?: string;
@@ -542,11 +542,11 @@ export interface PaletteDefinition {
     readonly colorblindSafe?: readonly ColorVisionDeficiency[];
 }
 
-/** Register a palette from a kind and a list of colours. Calls registerPalette. */
+/** Register a palette from a kind and a list of colors. Calls registerPalette. */
 export declare function definePalette(definition: PaletteDefinition, options?: RegisterOptions): void;
 
 /**
- * Added to the element and to session.styles (a consumer API). The palette a colour binding uses
+ * Added to the element and to session.styles (a consumer API). The palette a color binding uses
  * when it names none, one per kind. Resolved when a layer is written, so a saved document always
  * names a concrete palette.
  */
@@ -586,10 +586,10 @@ export interface ViewFrame {
     /**
      * The camera on a sphere of `fitDistance` round `center`, at `azimuth` radians round the up
      * axis and `elevation` radians above the horizontal (default: the current elevation), looking
-     * at the centre. So `orbit(frame.azimuth + angle)` turns from wherever the camera is now.
+     * at the center. So `orbit(frame.azimuth + angle)` turns from wherever the camera is now.
      */
     orbit(azimuth: number, elevation?: number): CameraState;
-    /** The centre of the box being framed. */
+    /** The center of the box being framed. */
     readonly center: Vec3;
     readonly size: Vec3;
     /** Half the box's largest dimension. */
@@ -672,7 +672,7 @@ export interface PlainLogRecord {
     readonly message: string;
     /** Removed by the element's redaction unless the embedder turned it off (logging.md 7). */
     readonly data?: Readonly<Record<string, unknown>>;
-    /** The failure as plain data, so JSON.stringify(record) keeps it (an Error would become {}). `time` serialises as an ISO string. */
+    /** The failure as plain data, so JSON.stringify(record) keeps it (an Error would become {}). `time` serializes as an ISO string. */
     readonly error?: { readonly name: string; readonly message: string; readonly stack?: string };
 }
 

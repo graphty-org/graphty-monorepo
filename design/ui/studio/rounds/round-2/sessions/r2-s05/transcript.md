@@ -65,7 +65,7 @@ Start: `node tool/real.mjs --start rounds/round-2/sessions/r2-s05 empty` -> 01.p
   Output:
   at 1381,264: button "Size by attribute"
   /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/rounds/round-2/sessions/r2-s05/10.png
-  Saw (10.png): A popup "Size by attribute": Influence, Influence rank, Influence percentile; greyed out id, name ("Cannot be used: Holds groups, not amounts"). Nadia: "Plain 'Influence', same as the color."
+  Saw (10.png): A popup "Size by attribute": Influence, Influence rank, Influence percentile; grayed out id, name ("Cannot be used: Holds groups, not amounts"). Nadia: "Plain 'Influence', same as the color."
 
 - Note: Choose Influence for size.
   Command: `node tool/real.mjs --step rounds/round-2/sessions/r2-s05 "--click-at" "1193,372"`

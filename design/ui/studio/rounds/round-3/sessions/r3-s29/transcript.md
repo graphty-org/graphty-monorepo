@@ -22,13 +22,13 @@ answers my first question before I asked it.
 Thinking (Tom): "I'm not sharing usage data. No thanks. Then the Florentine families one -- that's
 what they told me to use."
 Command: `--step $S --click "No thanks" --click "Florentine families"`
-Saw (02.png): 15 blue dots joined by grey lines, no names on any of them, all the same color and
+Saw (02.png): 15 blue dots joined by gray lines, no names on any of them, all the same color and
 roughly the same size (the top ones look bigger, probably just closer -- there's a "3D" button).
 Right panel: Nodes 15, Edges 20, Density 0.1905, Components 1, "Edges per n..." cut off. Left
-panel: a find box, "Selection", "Everything", and at the bottom in small grey text "Analyze [flask]
+panel: a find box, "Selection", "Everything", and at the bottom in small gray text "Analyze [flask]
 in the toolbar (Shift+A) to add results here". A small toolbar at the bottom middle: flask, a
 chart-ish icon, "3D", magnifier.
-Tom: "No names. I can't tell who is who. Fine, the job is sizes. Nothing says 'size'. The grey line
+Tom: "No names. I can't tell who is who. Fine, the job is sizes. Nothing says 'size'. The gray line
 at the bottom says Analyze is the flask in the toolbar. That bottom bar is the only thing that
 looks like buttons, so I'll press the flask."
 
@@ -37,7 +37,7 @@ looks like buttons, so I'll press the flask."
 Command: `--step $S --click-at 680,864` (the flask in the bottom toolbar)
 Saw (03.png): a list popped up over the drawing: "Filter analyses", heading "Rank nodes and
 edges", then Degree, Betweenness, Edge betweenness, Closeness, PageRank (with a blue "Start here"
-tag), Eigenvector, Katz, HITS, All-pairs distance, a greyed "Depth-first order -- Select a node
+tag), Eigenvector, Katz, HITS, All-pairs distance, a grayed "Depth-first order -- Select a node
 first", "Most flow", and more below.
 Tom (hesitating): "Algorithm names. I don't know what Katz or HITS is and I'm not learning it at
 4 pm. Nothing here says 'depends on'. Betweenness -- 'which nodes sit on the shortest paths between
@@ -84,7 +84,7 @@ Tom: "There it is. Size. Good guess."
 
 Command: `--step $S --click "Size"`
 Saw (08.png): a box "Size by attribute": a find box, "Fixed size", a heading "PageRank" with three
-choices -- PageRank, PageRank rank, PageRank percentile -- then greyed "Cannot be used: Holds
+choices -- PageRank, PageRank rank, PageRank percentile -- then grayed "Cannot be used: Holds
 groups, not amounts" with id and name.
 Tom (brief hesitation): "Three PageRanks. Rank, percentile... I don't know which one she'd pick.
 The color says plain 'PageRank', so I'll pick the same one, then size and color say the same

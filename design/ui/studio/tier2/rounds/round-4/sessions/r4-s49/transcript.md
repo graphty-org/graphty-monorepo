@@ -14,7 +14,7 @@ Okay, the start screen, same as September. Open project or file, New from data, 
 
 ## Step 3 -- New from data
 `--step $S --click "New from data..."` -> 03.png
-Oh, a whole page: "Open as a new graph", a "Tables" list on the left with a plus, and "Drop a file here, or choose a file...". "Tables", plural -- so maybe I can put both spreadsheets in. Direction "As the file says" at the bottom, Load is greyed out. I'll choose people.csv first.
+Oh, a whole page: "Open as a new graph", a "Tables" list on the left with a plus, and "Drop a file here, or choose a file...". "Tables", plural -- so maybe I can put both spreadsheets in. Direction "As the file says" at the bottom, Load is grayed out. I'll choose people.csv first.
 
 ## Step 4 -- choose people.csv
 `--step $S --click "choose a file..." --upload people.csv` -> 04.png

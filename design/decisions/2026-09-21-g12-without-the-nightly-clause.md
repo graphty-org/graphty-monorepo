@@ -16,7 +16,7 @@ middle clause.
 
 G12's middle clause is now: the GPU lane green on the master commits of the phase that claims G12.
 Concretely, `gpu.yml` runs on every push to master, on `workflow_dispatch` and on a same-repo pull
-request labelled `gpu`, and `release.yml`'s `gate` job waits for its run on the released commit and
+request labeled `gpu`, and `release.yml`'s `gate` job waits for its run on the released commit and
 refuses to publish unless it succeeded. A phase claiming G12 records the run id of the lane on its
 own merge commit, the way the G0-G3 records name their runs.
 
@@ -30,7 +30,7 @@ still needs BOTH the median and the minimum above threshold
 There is no nightly GPU lane. `2026-09-19-no-nightly-gpu-lane.md` removed the `schedule` trigger,
 the `changed` job and `gpu-nightly-report`; `.github/workflows/gpu.yml` says so in its own header
 ("there is NO nightly cron") and the root `CLAUDE.md` workflow table reads "Push to master,
-dispatch, labelled same-repo PRs (no nightly)". A gate clause that names a workflow which does not
+dispatch, labeled same-repo PRs (no nightly)". A gate clause that names a workflow which does not
 exist cannot be satisfied, cannot be falsified, and would be quietly dropped by whoever tried -- the
 worst of the three outcomes, because the drop leaves no record.
 

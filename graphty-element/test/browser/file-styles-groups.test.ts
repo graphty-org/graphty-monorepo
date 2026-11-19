@@ -73,7 +73,7 @@ describe("a file's groups in 2D", () => {
     });
 });
 
-/** A group with no position of its own around two members set far apart, every node bordered and labelled. */
+/** A group with no position of its own around two members set far apart, every node bordered and labeled. */
 const STRETCHED = JSON.stringify({
     elements: [
         { data: { id: "g" } },

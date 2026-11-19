@@ -30,7 +30,7 @@ export interface Vec3 {
 export type DrawingMode = "2d" | "3d";
 
 /**
- * What each node counts as in the box a camera view frames: `"centers"` its centre alone,
+ * What each node counts as in the box a camera view frames: `"centers"` its center alone,
  * `"drawn"` the box it is drawn in, so a big node at the edge of the frame is not cut off. A camera
  * view framing the whole graph defaults to `"drawn"`; one framing a subset defaults to `"centers"`.
  */
@@ -166,7 +166,7 @@ export interface CameraViewInput {
 }
 
 /**
- * A camera view as it is registered: what the catalogue publishes about it, and the one pure
+ * A camera view as it is registered: what the catalog publishes about it, and the one pure
  * function that decides where the viewer stands.
  *
  * `compute` is synchronous and total. The element calls it inside an operation it may animate,

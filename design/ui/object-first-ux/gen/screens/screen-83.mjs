@@ -1,7 +1,7 @@
 // Screen 83: the Dataset's Layout tab, with the Layout select open
 // (round-3/visualization-export.md, "Choosing and controlling the layout").
 // Karate Club in the state of screen 3 with nothing selected, the simulation
-// still settling. The select's list is the element's layout catalogue
+// still settling. The select's list is the element's layout catalog
 // (`catalog.layouts()`), plain names, with the recommendation first and the
 // layouts that need an input saying which.
 //

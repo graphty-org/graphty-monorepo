@@ -19,8 +19,8 @@ export interface GpuTriangleResult {
     readonly total: number;
     /**
      * The local clustering coefficient of every node, `2 T(v) / (d(v) (d(v) - 1))` with `d` the node's number of
-     * distinct neighbours. It is 0 -- a defined value, not a missing one -- for a node with fewer than two
-     * neighbours, so a star graph returns all zeros.
+     * distinct neighbors. It is 0 -- a defined value, not a missing one -- for a node with fewer than two
+     * neighbors, so a star graph returns all zeros.
      */
     readonly coefficient: F32;
     /** The graph's transitivity, `3 x triangles / connected triples`; 0 when the graph has no connected triple. */

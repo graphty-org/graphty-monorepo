@@ -1,6 +1,6 @@
 /**
  * The one streaming CSV record reader of the package (design sections 8.2 and 8.4: hand-written
- * tokenisers per format; CSV and Neo4j CSV are line-oriented over a byte stream): RFC 4180 records
+ * tokenizers per format; CSV and Neo4j CSV are line-oriented over a byte stream): RFC 4180 records
  * with a configurable single-character delimiter and quote, a doubled quote inside a quoted field,
  * quoted fields spanning lines, LF / CRLF / lone-CR terminators, read from the common text reader
  * one chunk at a time as a character state machine. Only the open field is ever held, so a field
@@ -8,7 +8,7 @@
  *
  * `RecordReader` (used by the Neo4j importer) keeps one reusable cell array and one reusable
  * "was quoted" array: a quoted empty field (`""`) is an empty string while an unquoted empty field
- * means "not set", and only the tokeniser can tell the two apart. `CsvRecordReader` (the CSV
+ * means "not set", and only the tokenizer can tell the two apart. `CsvRecordReader` (the CSV
  * importer) wraps it with delimiter sniffing over a bounded preview and yields a fresh cell array
  * per row. A malformed quoted field is fatal for both: an unterminated quote swallows the rest of
  * the file, and text after a closing quote makes every later cell boundary unreliable.
@@ -52,15 +52,15 @@ const SPACE = 32;
 /** An Excel delimiter directive: a first line `sep=;` names the delimiter and is not a record. */
 const SEP_DIRECTIVE = /^sep=([^\r\n])(?:\r\n|\n|\r|$)/i;
 
-/** Tokeniser state: at the start of a field. */
+/** Tokenizer state: at the start of a field. */
 const START = 0;
-/** Tokeniser state: inside an unquoted field. */
+/** Tokenizer state: inside an unquoted field. */
 const UNQUOTED = 1;
-/** Tokeniser state: inside a quoted field. */
+/** Tokenizer state: inside a quoted field. */
 const QUOTED = 2;
-/** Tokeniser state: just after a quote inside a quoted field (a second quote is a literal, anything else ends the field). */
+/** Tokenizer state: just after a quote inside a quoted field (a second quote is a literal, anything else ends the field). */
 const CLOSING = 3;
-/** Tokeniser state: after a closed quoted field, before the delimiter (text here is malformed). */
+/** Tokenizer state: after a closed quoted field, before the delimiter (text here is malformed). */
 const AFTER_QUOTED = 4;
 /** Inside a leading comment line (skipped up to its line break). */
 const COMMENT = 5;

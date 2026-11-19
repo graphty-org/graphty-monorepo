@@ -41,11 +41,11 @@ Screenshot 09.png. Options: "By value" and "By position". By position sounds lik
 
 ## Step 9
 Command: --step <folder> --click "By position"
-Screenshot 10.png. Now there's an empty box with a cursor and tiny grey text "of all nodes" next to it. No hint what goes in it -- a number? "top 5"? Is it a list? I'll click on it to see if it offers choices.
+Screenshot 10.png. Now there's an empty box with a cursor and tiny gray text "of all nodes" next to it. No hint what goes in it -- a number? "top 5"? Is it a list? I'll click on it to see if it offers choices.
 
 ## Step 10
 Command: --step <folder> --click-at 985,218  (input "PageRank: how many")
-Screenshot 11.png. It is a plain box; the tool says it's "how many" but the screen does not say that -- just a blank box and "of all nodes" in tiny grey. Nothing says top or bottom either. I'll type 5 and see which five it picks.
+Screenshot 11.png. It is a plain box; the tool says it's "how many" but the screen does not say that -- just a blank box and "of all nodes" in tiny gray. Nothing says top or bottom either. I'll type 5 and see which five it picks.
 
 ## Step 11
 Command: --step <folder> --type "5"
@@ -88,12 +88,12 @@ What worked: sorting the table by PageRank was two clicks and gave me the list s
 What confused me / complaints:
 - The color job is a bit pointless on this picture: everyone was already orange-to-brown from the PageRank coloring, so my five "orange" people only look a shade lighter. On a 14-inch laptop in a meeting I doubt anyone would spot them. I followed the instruction, but I'd have picked a color that stands out.
 - "By position" is not a phrase I'd connect with "top 5"; I only tried it because "By value" was the other choice.
-- After "By position" I got a blank box with no label and tiny grey "of all nodes" text. Nothing said "how many" and nothing said top or bottom. I typed 5 and it did nothing until I pressed Enter -- no hint that Enter was needed.
+- After "By position" I got a blank box with no label and tiny gray "of all nodes" text. Nothing said "how many" and nothing said top or bottom. I typed 5 and it did nothing until I pressed Enter -- no hint that Enter was needed.
 - The color box is a bare text field. No swatches appeared when I clicked it; I only got orange because I guessed I could type the word.
-- Lots of small grey text (layer subtitles, "of all nodes", "Edges: not styled") -- hard to read without my glasses.
+- Lots of small gray text (layer subtitles, "of all nodes", "Edges: not styled") -- hard to read without my glasses.
 
 ## Follow-up
 
 Q: On a scale from 1 (calm: you knew what to do next) to 7 (overwhelming: you wanted to walk away), how did the program feel while you did this? Say the number. Then name the moment you were least sure where to look or what to do next, and what was on the screen.
 
-A: 3. Mostly calm -- the table sort and the "Top 5" layer went the way I expected. The moment I was least sure was right after I picked "By position" (screenshots 10 to 12). The panel on the right showed "PageRank: Influence", the "By position" box, and then just an empty text box with a cursor and tiny grey "of all nodes" next to it. Nothing told me it wanted a number, nothing said top or bottom, and when I typed 5 the header still said "24 of 24" and the table still listed everybody. I sat there wondering whether I had it wrong until I pressed Enter on a hunch and it jumped to "5 of 24". A smaller wobble was the color box: I clicked it expecting swatches and got only a text cursor, so I guessed and typed "orange".
+A: 3. Mostly calm -- the table sort and the "Top 5" layer went the way I expected. The moment I was least sure was right after I picked "By position" (screenshots 10 to 12). The panel on the right showed "PageRank: Influence", the "By position" box, and then just an empty text box with a cursor and tiny gray "of all nodes" next to it. Nothing told me it wanted a number, nothing said top or bottom, and when I typed 5 the header still said "24 of 24" and the table still listed everybody. I sat there wondering whether I had it wrong until I pressed Enter on a hunch and it jumped to "5 of 24". A smaller wobble was the color box: I clicked it expecting swatches and got only a text cursor, so I guessed and typed "orange".

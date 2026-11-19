@@ -14,7 +14,7 @@
  * - a pinned node stays where the reader pinned it, and `context.fixed(id)` says where that is;
  * - a malformed definition and a plugin's own mistakes are refused with an error a beginner can
  *   act on;
- * - a simple layout shows up exactly as an advanced one does: same catalogue entry shape, same
+ * - a simple layout shows up exactly as an advanced one does: same catalog entry shape, same
  *   option checks, same registry.
  */
 
@@ -138,7 +138,7 @@ describe("defineLayout on a rendered graph", () => {
     }
 
     /**
-     * The layout the session's catalogue offers under an id -- what a picker reads.
+     * The layout the session's catalog offers under an id -- what a picker reads.
      * @param id - The layout's id.
      * @returns Its descriptor.
      */

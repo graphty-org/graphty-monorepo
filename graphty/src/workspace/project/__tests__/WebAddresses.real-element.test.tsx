@@ -356,6 +356,35 @@ describe("web addresses in the Style tab, with node models", () => {
         assert.isDefined(entry?.files, "embedded, as the second question was answered");
     });
 
+    it("Save local copy... asks too: Cancel downloads nothing, and the answer downloads the project", async () => {
+        const { session, tab } = await openShapes();
+        await pasteModel(session, tab);
+        const downloads: string[] = [];
+        vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
+            downloads.push(this.download);
+        });
+        const saveCopy = async (): Promise<HTMLElement> => {
+            await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
+            await userEvent.click(await screen.findByRole("menuitem", { name: "Save local copy..." }));
+            return screen.findByRole("dialog", { name: "Save files from the web" });
+        };
+
+        await userEvent.click(within(await saveCopy()).getByRole("button", { name: "Cancel" }));
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("dialog"));
+        });
+        assert.deepEqual(downloads, []);
+
+        const keep = await saveCopy();
+        await userEvent.click(within(keep).getByText("Use URL"));
+        await userEvent.click(within(keep).getByRole("button", { name: "Save" }));
+        await waitFor(() => {
+            assert.deepEqual(downloads, ["Models.graphty.json"]);
+        });
+        assert.isTrue(session.project.dirty, "a copy leaves the project unsaved");
+        assert.lengthOf(await browserProjects.list(), 0);
+    });
+
     it("asks again for a project opened in the session's place", async () => {
         await clearRecent();
         const { session, tab } = await openShapes();

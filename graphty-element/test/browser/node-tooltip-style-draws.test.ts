@@ -11,7 +11,7 @@
  * `node.tooltipStyle` is that door, and it takes the same `LabelStyle` value `node.labelStyle`
  * takes.
  *
- * WHY THIS FILE EXISTS RATHER THAN `test/browser/channel-paints.test.ts`. That gate writes each
+ * WHY THIS FILE EXISTS RATHER THAN `test/browser/channel-paints-node.test.ts and -edge`. That gate writes each
  * channel into a RESTING scene and requires the frame to change, and a resting scene is the one
  * moment a tooltip must not be on screen -- so it cannot see this channel at all, and the
  * `node.tooltipStyle` waiver in `UNPAINTED_CHANNELS` names this file as the place it is proved

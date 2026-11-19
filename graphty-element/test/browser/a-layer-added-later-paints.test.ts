@@ -1,7 +1,7 @@
 /**
  * @file A layer added to a graph that is already on screen has to change the picture.
  *
- * WHY THIS IS A SEPARATE FILE FROM `channel-paints.test.ts`. That file is the gate over the whole
+ * WHY THIS IS A SEPARATE FILE FROM `channel-paints-node.test.ts`. That file is the gate over the whole
  * channel table and it asks a deliberately generous question: it counts a channel as painted when
  * the scene graph changed OR when the frame changed. The scene-graph half is what lets it see an
  * effect whose colour lives in a Babylon layer's private map. It is also a way to pass without
@@ -55,7 +55,7 @@ const BUCKETS = 16 * 16 * 16;
 /**
  * How many pixels must move before the picture counts as changed.
  *
- * The same figure `channel-paints.test.ts` uses, and for the same reason: two renderings of an
+ * The same figure `channel-paints-node.test.ts` uses, and for the same reason: two renderings of an
  * unchanged scene in headless Chromium agree exactly, so the margin is insurance against a driver
  * that dithers rather than a tolerance for a small change.
  */

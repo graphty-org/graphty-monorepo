@@ -198,7 +198,7 @@ describe("a waiver that records a defect", () => {
                 `hold open are red until a person acts on each one. Today is ${today()}.${report(expired)}` +
                 `\n\nTwo ways to make this green, and only two. FIX the defect the reason ` +
                 `describes and delete the waiver in the same change: the gate it was holding ` +
-                `open -- test/browser/channel-paints.test.ts for a channel, ` +
+                `open -- test/browser/channel-paints-node.test.ts (and -edge) for a channel, ` +
                 `test/contracts/config-reachability.test.ts for a style field -- then proves the ` +
                 `fix, and fails if the waiver outlives it. Or DECIDE it still has to wait: read ` +
                 `the reason, put a person's name in the owner, and set the expiry to the day you ` +

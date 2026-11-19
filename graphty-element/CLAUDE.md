@@ -135,7 +135,7 @@ The history behind each rule is in the reference file.
   the top of its report.
 - **When a contract test goes red, write the answer down; never loosen the test.**
   `test/contracts/story-roster.test.ts`, `test/contracts/config-reachability.test.ts` and
-  `test/browser/channel-paints.test.ts` each go green only when the reason exists in a file in the repository.
+  `test/browser/channel-paints-node.test.ts` and `channel-paints-edge.test.ts` each go green only when the reason exists in a file in the repository.
 - **A story named after a style channel paints that channel** (`test/contracts/story-demonstrates-its-subject.test.ts`).
   The honest fixes are to put the missing layers back, or rename the story and edit the roster in the same change.
 - **A waiver that records a defect expires.** Entries in `src/catalog/unreachable.ts` are `by-design` (permanent) or

@@ -1167,6 +1167,8 @@ export class Edge {
     get srcNode(): Node_2;
     set srcNode(node: Node_2);
     // @internal
+    startLabelAnimations(): void;
+    // @internal
     supportEdge(centerOf?: (node: Node_2) => Readonly<Vector3>): SupportEdge | null;
     // @internal
     togglesOwnMeshes(): boolean;
@@ -5756,6 +5758,8 @@ class Node_2 implements ModelUser {
     get sizeSpace(): NodeSizeSpace | undefined;
     // @internal
     spacingRadius(flat: boolean): number;
+    // @internal
+    startLabelAnimations(): void;
     // @internal
     get surfaceIsBox(): boolean;
     // @internal

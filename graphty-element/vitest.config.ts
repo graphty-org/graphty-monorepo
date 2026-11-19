@@ -892,7 +892,8 @@ const config = defineConfig({
                         // test/session/styles/channels.test.ts cannot: that one asserts the table
                         // said what it said, and is how two tooltip channels came to be published
                         // as drawable and sold in the styling guide while nothing drew them.
-                        "test/browser/channel-paints.test.ts",
+                        "test/browser/channel-paints-node.test.ts",
+                        "test/browser/channel-paints-edge.test.ts",
                         // Reads the shading on a node's surface, which nothing else in the
                         // package can see: the style model, the instance buffer and the mesh all
                         // report the right colour while the lit half of the node is drawn flat.

@@ -47,7 +47,7 @@ const BUCKETS = 16 * 16 * 16;
 /**
  * How many pixels must move before the picture counts as changed.
  *
- * The figure `channel-paints.test.ts` and `a-layer-added-later-paints.test.ts` both use: two
+ * The figure `channel-paints-node.test.ts` and `a-layer-added-later-paints.test.ts` both use: two
  * renderings of an unchanged scene in headless Chromium agree exactly, so this is insurance
  * against a driver that dithers rather than room for a small change to hide in.
  */

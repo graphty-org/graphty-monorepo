@@ -2472,7 +2472,7 @@ export class Node implements ModelUser {
      * So this method is everything the `instance` role promises, and `paintFrom` calls it on BOTH
      * of its branches -- once when it has just rebuilt the mesh, because every one of these lives
      * ON an instance and the instance is new, and once when it has not, because that is the whole
-     * of what the role means. `test/browser/channel-paints.test.ts` is the gate: it edits a live
+     * of what the role means. `test/browser/channel-paints-node.test.ts` is the gate: it edits a live
      * session and requires the picture to move.
      * @param style - The resolved style the effects are read from.
      * @param color - The per-instance colour, or null when no layer painted one.

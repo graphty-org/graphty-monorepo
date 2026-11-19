@@ -353,7 +353,7 @@ const GROUP_SIZING_CHANNELS: readonly Channel[] = [
 ];
 
 /**
- * Every channel published as renderable that `test/browser/channel-paints.test.ts` could not see
+ * Every channel published as renderable that `test/browser/channel-paints-node.test.ts` and `channel-paints-edge.test.ts` could not see
  * change the picture.
  *
  * Measured, not assumed: that test mounts a graph, writes each channel a value far from its
@@ -445,16 +445,6 @@ export const UNPAINTED_CHANNELS: readonly UnpaintedChannel[] = [
                 "to P6); once one ships, this gate can write it and this waiver goes.",
         ),
     })),
-    {
-        channel: "edge.lift",
-        kind: "by-design",
-        reason:
-            "A LIFT RISES OUT OF A FLAT LAYOUT'S PLANE, so it draws only for a flat layout in the 3D " +
-            "view, and this gate's scene is a 3D layout. Anywhere else the edge is drawn flat and " +
-            "`styles.counts(id).undrawn` reports `edge.lift-needs-flat-layout`. " +
-            "`test/browser/shaders/edge-drawing.test.ts` draws and picks a lifted edge on a flat " +
-            "layout in 3D.",
-    },
 ];
 
 /**

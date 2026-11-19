@@ -370,7 +370,7 @@ rather than inferred because every agent involved in it complied with every inst
 - **When one of the five contract tests goes red, the fix is to write the answer down, not to
   loosen the test.** `test/contracts/story-roster.test.ts` wants the story's id and the reason it
   went; `test/contracts/config-reachability.test.ts` wants the schema field and why no channel
-  writes it; `test/browser/channel-paints.test.ts` wants the channel and what it fails to draw.
+  writes it; `test/browser/channel-paints-node.test.ts` and `channel-paints-edge.test.ts` wants the channel and what it fails to draw.
   Each of them is green only when a sentence exists in a file in the repository, which is the
   one place a truncated report, a partial read and a commit splitter cannot lose it.
 

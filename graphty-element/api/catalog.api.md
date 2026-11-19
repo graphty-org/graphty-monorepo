@@ -674,6 +674,7 @@ export interface ChannelDescriptor {
         readonly params: Readonly<Record<string, never>>;
     };
     readonly values?: readonly string[];
+    readonly valueViews?: Readonly<Record<string, readonly ("2d" | "3d")[]>>;
 }
 
 // @public

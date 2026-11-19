@@ -1032,6 +1032,13 @@ export interface ChannelDescriptor {
      */
     readonly drawnWhen?: readonly ChannelCondition[];
     /**
+     * The views an enum value draws in, for a value narrower than its channel: `node.sizeSpace` "pivot" draws a node
+     * at the depth the camera turns about, and only a 3D view has depths, so it draws only in 3D. A value not listed
+     * draws wherever the channel does.
+     * @since 3.62.0
+     */
+    readonly valueViews?: Readonly<Record<string, readonly ("2d" | "3d")[]>>;
+    /**
      * Other channels a layer must also write for this one to draw, each with the value to write:
      * a border color needs a border width above 0, a shadow color an opacity and an offset, a
      * wireframe a low mesh detail. Write a partner only where what lies beneath draws nothing for
@@ -2661,6 +2668,8 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         accepts: "enum",
         values: NODE_SIZE_SPACE_VALUES,
         stylePath: "shape.sizeSpace",
+        // drawn at the camera's pivot depth: only a 3D perspective view has depths to differ
+        valueViews: { pivot: ["3d"] },
         renderable: true,
     },
     "node.shape": {
@@ -2948,9 +2957,8 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         stylePath: "shape.planar",
         renderable: true,
         caveat:
-            "A planar node is drawn thin along z, as a flat shape facing a 2D camera, even in a 3D " +
-            "view. The flat shapes (rectangle, ellipse, diamond and the rest) are always drawn thin, " +
-            "in 2D and 3D views alike; this makes a solid shape thin too.",
+            "A planar node is drawn thin along z, as a flat shape facing a 2D camera. The flat shapes " +
+            "(rectangle, ellipse, diamond and the rest) are always drawn thin; this makes a solid shape thin too.",
     },
     "node.zIndex": {
         channel: "node.zIndex",
@@ -5648,8 +5656,6 @@ const DRAWN_WHEN: ReadonlyMap<string, readonly ChannelCondition[]> = new Map<Cha
     // "In 2D every node is drawn unlit already, so it changes nothing there."
     ["node.unlit", [ONLY_3D]],
     ["node.flat", [ONLY_3D]],
-    // A 2D view draws every node thin already.
-    ["node.planar", [ONLY_3D]],
     // "Drawn only for a flat layout in the 3D view."
     ["edge.lift", [ONLY_3D]],
     // "An edge animates only where it is a straight solid line."

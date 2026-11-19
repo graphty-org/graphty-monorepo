@@ -50,7 +50,7 @@ const HELD_FRAMES = 10;
 
 /**
  * How many pixels may change colour bucket before two frames count as different pictures.
- * The same margin `channel-paints.test.ts` uses: two renderings of one scene agree exactly.
+ * The same margin `channel-paints-node.test.ts` uses: two renderings of one scene agree exactly.
  */
 const PIXEL_CHANGE = 32;
 

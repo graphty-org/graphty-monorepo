@@ -718,9 +718,6 @@ export interface AttributeHistogramBin {
 export const captureScreenshot: GraphCommand;
 
 // @public
-export const captureVideo: GraphCommand;
-
-// @public
 export const clearStyles: GraphCommand;
 
 // @public

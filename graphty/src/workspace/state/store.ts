@@ -40,7 +40,7 @@ export type Opener =
     | { readonly kind: "network"; readonly name: string; readonly source: string; readonly example: string };
 
 /** A left-panel place on the rail (tier1-design.md section 2.2). */
-type Place = "graph" | "data" | "assistant" | "notes";
+type Place = "graph" | "data" | "views" | "assistant" | "notes";
 
 /** What takes the area right of the rail: the panels, or the Data page (section 2.10). */
 type Page = "panels" | "data-page";
@@ -317,19 +317,36 @@ export interface WorkspaceState {
     readonly lighting: Lighting;
     /** Camera > Auto-rotate: whether the 3D view turns on its own. A view preference, never saved. */
     readonly autoRotate: boolean;
-    /** Camera > Record video: whether a recording of the canvas is running, until it is stopped. */
-    readonly recording: boolean;
     /**
-     * Camera > Follow selection: the camera glides to the selection and keeps it centered while it
+     * Camera > Focus selected: the camera glides to the selection and keeps it centered while it
      * moves (graphty-element's `camera.pivotOnSelection`). On by default; a view preference, never saved.
      */
     readonly followSelection: boolean;
     /**
-     * Where the Export dialog opens (section T13): on Image, or on Data with the nodes or the
-     * edges table. Export... (Ctrl+E) and the table dock's Export... set the table that is
-     * showing whenever the dock is open (tier 4, R14).
+     * Where the Export dialog opens (section T13): on Image (a camera's Export image...) or Video (a
+     * tour's Export video...), or on Data with the nodes or the edges table. Export... (Ctrl+E) and
+     * the table dock's Export... set the table that is showing whenever the dock is open (tier 4, R14).
      */
-    readonly exportOn: "image" | "nodes" | "edges";
+    readonly exportOn: "image" | "video" | "nodes" | "edges";
+    /**
+     * The saved camera last gone to (a Camera menu row, a Go button or a camera key), by name: the
+     * Views place marks its card. Null until one has been applied.
+     */
+    readonly lastView: string | null;
+    /** The tour playing now, from graphty-element's `tour-progress`; null once `tour-ended` fires. */
+    readonly tourProgress: { readonly tour: string | null; readonly stop: number; readonly stops: number } | null;
+    /** Whether the Views place's Cameras section is open. Open by default. */
+    readonly viewsCamerasOpen: boolean;
+    /** Whether the Views place's Video tours section is open. Open by default. */
+    readonly viewsToursOpen: boolean;
+    /** A door asked the Views place to put focus on one of its sections; the place clears it. */
+    readonly viewsFocus: "cameras" | "tours" | null;
+    /** A camera just saved by Save camera, which the Views place unfolds and opens to rename; it clears it. */
+    readonly viewsRename: string | null;
+    /** The saved tour the Export dialog's Video opens on (a tour's Record...), else null. */
+    readonly exportTour: string | null;
+    /** The saved camera the Export dialog's Image opens on (a camera's Export image...), else null. */
+    readonly exportView: string | null;
     /** The algorithm Analyze opens on (a Quick actions row picked it, by key), else null. */
     readonly analyzeOn: string | null;
     /** The settings Analyze opens that algorithm with (a result's Run again with changes...), else null. */
@@ -463,9 +480,16 @@ export const ON_RELOAD = {
     sameSizeAtAnyDepth: "kept",
     lighting: "kept",
     autoRotate: "kept",
-    recording: "fresh: a recording ends with the page that ran it",
     followSelection: "kept",
     exportOn: "fresh: set when the Export dialog opens",
+    lastView: "fresh: the camera itself is not kept across a reload",
+    tourProgress: "fresh: a tour ends when the page reloads",
+    viewsCamerasOpen: "kept",
+    viewsToursOpen: "kept",
+    viewsFocus: "fresh: a one-time request the Views place clears",
+    viewsRename: "fresh: a one-time request the Views place clears",
+    exportTour: "fresh: set when the Export dialog opens",
+    exportView: "fresh: set when the Export dialog opens",
     exportSource: "fresh: set when the Export dialog opens",
     serverKind: "fresh: set when the server form opens",
     analyzeOn: "fresh: set when a Quick actions row opens Analyze",
@@ -578,9 +602,16 @@ const INITIAL: WorkspaceState = {
     mapDepthIndependentSize: true,
     lighting: "studio",
     autoRotate: false,
-    recording: false,
     followSelection: true,
-    exportOn: "image",
+    exportOn: "nodes",
+    lastView: null,
+    tourProgress: null,
+    viewsCamerasOpen: true,
+    viewsToursOpen: true,
+    viewsFocus: null,
+    viewsRename: null,
+    exportTour: null,
+    exportView: null,
     exportSource: null,
     serverKind: null,
     analyzeOn: null,

@@ -19,7 +19,6 @@
  * patch beside them (`./arrangement.ts`); the history, not the draft, restores them.
  */
 
-import type { CameraState } from "../../camera/types";
 import type { MeasurementDeclaration, RunId, SetId } from "../../catalog/types";
 import { isPlainObject } from "../../utils/isPlainObject";
 import type { ModelDefaults } from "../assets/AssetsApi";
@@ -28,10 +27,19 @@ import { recordBytes } from "../sets/prepare";
 import type { ElementSet } from "../sets/types";
 import type { CompiledLayer } from "../styles/Layer";
 import { ownRows } from "../styles/tree";
+import type { SavedView } from "../types";
 import { mergeRowPatches, type RowPatch, rowPatchBytes } from "./arrangement";
 import type { TouchedIds } from "./graphOps";
 import type { Counted } from "./History";
-import type { LayoutChoice, NoteEntry, ProjectShaderEntry, ProjectState, RunEntry, VisibilityState } from "./state";
+import type {
+    LayoutChoice,
+    NoteEntry,
+    ProjectShaderEntry,
+    ProjectState,
+    RunEntry,
+    SavedTour,
+    VisibilityState,
+} from "./state";
 import { strictStateEnabled, strictViolation } from "./strict";
 
 /** Stands for "the key had no value": a map key that was not there. */
@@ -46,6 +54,8 @@ type ValueSlice =
     | "visibility"
     | "sets"
     | "views"
+    | "viewOrder"
+    | "tours"
     | "notes"
     | "attributes"
     | "valueLabels"
@@ -55,7 +65,7 @@ type ValueSlice =
 /** One key a patch wrote: what it held before, and what the patch left in it. */
 interface PatchEntry {
     readonly slice: ValueSlice;
-    /** The key within the slice; "" for the whole-value slices `styles` and `layout`. */
+    /** The key within the slice; "" for the whole-value slices `styles`, `layout`, `viewOrder` and `tours`. */
     readonly key: string;
     readonly prior: unknown;
     readonly next: unknown;
@@ -327,10 +337,14 @@ interface KeyedWriter<K extends string, V> {
 export interface Draft {
     styles: readonly CompiledLayer[];
     layout: LayoutChoice | null;
+    /** The saved views' names in project order, written whole. */
+    viewOrder: readonly string[];
+    /** The saved tours in project order, written whole. */
+    tours: readonly SavedTour[];
     readonly config: KeyedWriter<string, unknown>;
     readonly runs: KeyedWriter<RunId, RunEntry>;
     readonly sets: KeyedWriter<SetId, ElementSet>;
-    readonly views: KeyedWriter<string, CameraState>;
+    readonly views: KeyedWriter<string, SavedView>;
     readonly notes: KeyedWriter<string, NoteEntry>;
     readonly attributes: KeyedWriter<string, MeasurementDeclaration>;
     readonly valueLabels: KeyedWriter<string, string>;
@@ -458,6 +472,10 @@ export function createProjectStore(
                 return state.styles;
             case "layout":
                 return state.layout;
+            case "viewOrder":
+                return state.viewOrder;
+            case "tours":
+                return state.tours;
             case "visibility":
                 return state.visibility[key as keyof VisibilityState];
             default:
@@ -473,6 +491,12 @@ export function createProjectStore(
                 return;
             case "layout":
                 state.layout = value as LayoutChoice | null;
+                return;
+            case "viewOrder":
+                state.viewOrder = value as readonly string[];
+                return;
+            case "tours":
+                state.tours = value as readonly SavedTour[];
                 return;
             case "visibility":
                 state.visibility = Object.freeze({ ...state.visibility, [key]: value });
@@ -599,6 +623,18 @@ export function createProjectStore(
                 },
                 set layout(next) {
                     write(draft, "layout", "", next);
+                },
+                get viewOrder() {
+                    return state.viewOrder;
+                },
+                set viewOrder(next) {
+                    write(draft, "viewOrder", "", Object.freeze([...next]));
+                },
+                get tours() {
+                    return state.tours;
+                },
+                set tours(next) {
+                    write(draft, "tours", "", Object.freeze([...next]));
                 },
                 config: keyed(draft, "config"),
                 runs: keyed(draft, "runs"),

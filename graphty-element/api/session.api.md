@@ -507,7 +507,6 @@ export interface Capabilities {
 export interface CaptureCapability {
     readonly clipboard: boolean;
     readonly jpeg: boolean;
-    readonly pdf: boolean;
     readonly png: boolean;
     readonly svg: boolean;
     readonly video: boolean;
@@ -702,11 +701,19 @@ export interface CommandOutcomeMap {
     "style.encode": Promise<void>;
     "style.patch": Promise<void>;
     "style.template": Promise<void>;
+    "tour.move": Promise<void>;
+    "tour.remove": Promise<void>;
+    "tour.rename": Promise<void>;
+    "tour.save": Promise<void>;
     "view.camera": Promise<void>;
     "view.dimension": Promise<void>;
     "view.immersive": Promise<void>;
+    "view.key": Promise<void>;
+    "view.move": Promise<void>;
     "view.remove": Promise<void>;
+    "view.rename": Promise<void>;
     "view.save": Promise<void>;
+    "view.starting": Promise<void>;
     // @beta
     "visibility.conditions": Promise<void>;
     "visibility.context": Promise<void>;
@@ -1088,6 +1095,9 @@ export interface DrawnValue {
     readonly count: number;
     readonly value: unknown;
 }
+
+// @public
+export type EasingName = "linear" | "easeIn" | "easeOut" | "easeInOut";
 
 // @public
 export function edgeConditions<F extends ConditionField>(selector: Selector_2, fields: readonly F[]): Condition<F>[];
@@ -1722,6 +1732,7 @@ export interface GraphSession {
     readonly styles: StylesApi;
     // @beta
     readonly time: TimeApi;
+    readonly tours: SessionTours;
     transaction<T>(label: string, fn: (tx: TransactionScope, signal: AbortSignal) => T | Promise<T>, options?: TransactionOptions): Promise<T>;
     undo(): Promise<HistoryOutcome>;
     readonly views: SessionViews;
@@ -1776,6 +1787,9 @@ export type GraphtyErrorCode =
 /**
 * A command or a call is malformed: a missing required field, or two fields that may not be
 * set together. `details` name the fields.
+* For saved views, `details` are `{ reason: "empty-name" }` for an empty name,
+* `{ reason: "name-taken", name }` for a rename onto a name in use, and
+* `{ missing, available }` for a rename, move or removal of a name that is not saved.
 * The caller fixes the call; retrying the same call always fails the same way.
 */
 "E_BAD_COMMAND"
@@ -1867,7 +1881,7 @@ export type GraphtyErrorCode =
 | "E_NO_TIME_FIELD"
 /**
 * An algorithm key is not registered. `details.available` lists the registered keys. The
-* caller picks a key from the catalogue or registers a plugin that provides it.
+* caller picks a key from the catalog or registers a plugin that provides it.
 */
 | "E_UNKNOWN_ALGORITHM"
 /**
@@ -1885,7 +1899,7 @@ export type GraphtyErrorCode =
 /**
 * A binding, an `encode` call or a saved document names a palette nothing registered.
 * `details.available` lists the known palette ids and `details.candidates` the nearest few.
-* The caller picks a palette from the catalogue or registers its own first.
+* The caller picks a palette from the catalog or registers its own first.
 */
 | "E_UNKNOWN_PALETTE"
 /**
@@ -1908,17 +1922,19 @@ export type GraphtyErrorCode =
 */
 | "E_UNKNOWN_SHADER_PARAM"
 /**
-* A camera view name is not one the element knows. `details.available` lists the registered
-* view ids. The caller picks one of those or registers its own view first.
+* A camera view name is not one the element knows. `details` are `{ name, available, stop? }`:
+* `available` lists the camera view ids and then the saved view names, and `stop` is the
+* 0-based tour stop that named it. The caller picks one of those or registers or saves its
+* own view first.
 */
 | "E_UNKNOWN_CAMERA"
 /**
-* `data.generate` names a generator the catalogue does not list. `details.available` lists
+* `data.generate` names a generator the catalog does not list. `details.available` lists
 * the generator names. The caller picks one from `catalog.generators()`.
 */
 | "E_UNKNOWN_GENERATOR"
 /**
-* `data.loadDataset` names a dataset the catalogue does not list. `details.available` lists
+* `data.loadDataset` names a dataset the catalog does not list. `details.available` lists
 * the dataset names. The caller picks one from `catalog.datasets()`.
 */
 | "E_UNKNOWN_DATASET"
@@ -1997,7 +2013,7 @@ export type GraphtyErrorCode =
 */
 | "E_AUTOSAVE_STALLED"
 /**
-* A document being serialised refers to a run whose id was derived rather than author
+* A document being serialized refers to a run whose id was derived rather than author
 * assigned, so the reference would resolve differently on reload. The caller re-runs with an
 * explicit `as:` id and saves again.
 */
@@ -2005,7 +2021,7 @@ export type GraphtyErrorCode =
 /**
 * An id that must be unique is already taken -- a node or edge id arriving twice under a
 * plan that does not merge, or a saved scope, layer or run name that already exists.
-* `details.id` names it. The caller chooses another id or asks for merge behaviour.
+* `details.id` names it. The caller chooses another id or asks for merge behavior.
 */
 | "E_DUPLICATE_ID"
 /**
@@ -2016,14 +2032,16 @@ export type GraphtyErrorCode =
 | "E_DUPLICATE_EDGE"
 /**
 * A plugin is registered twice under one kind and name with a different implementation, and
-* the registration asked for strict behaviour. `details` name the kind and the name. The
+* the registration asked for strict behavior. `details` name the kind and the name. The
 * caller removes one registration, or registers into its own `createRegistry()` instance.
 */
 | "E_DUPLICATE_PLUGIN"
 /**
 * The target is owned by the element and may not be removed or edited: the base and
 * selection style layers carry `locked: true` and exist by construction. `details` name the
-* target. The caller adds its own layer above instead of editing the protected one.
+* target. The caller adds its own layer above instead of editing the protected one. Also what
+* saving a view under a camera view's id refuses with, and a saved view that a camera view's
+* id shadows; `details` are then `{ name }`, and the caller picks another name.
 */
 | "E_PROTECTED"
 /**
@@ -2236,7 +2254,7 @@ export type GraphtyErrorCode =
 */
 | "E_NO_ADAPTER"
 /**
-* An adapter was found but it is a software rasteriser, which is slower than the element's
+* An adapter was found but it is a software rasterizer, which is slower than the element's
 * own CPU path. Acceleration stays off and says why, rather than making the graph slower in
 * silence.
 */
@@ -2315,7 +2333,10 @@ export type GraphtyErrorCode =
 * uses the stated alternative; retrying does not help. Also what `styles.encode({ column })`
 * and `styles.proposeEncoding` refuse a column with when it has no default drawing on that
 * channel (groups on a size, a time column); `details` then carry `kind`, `name`, `channel`
-* and `measurement`, and naming a `scale` draws it anyway.
+* and `measurement`, and naming a `scale` draws it anyway. A camera view, saved view or tour
+* stop that does not fit the drawing mode is refused with
+* `{ reason: "mode", name?, stop?, modes, mode }` (`modes` are the modes it works in, `name` is
+* absent for a raw camera state), and any of them while immersive with `{ reason: "xr", mode }`.
 */
 | "E_UNSUPPORTED"
 /**
@@ -2532,7 +2553,10 @@ export type GraphtyErrorCode =
 * A screenshot, a video or a clipboard copy was started and could not be finished: the
 * renderer, the image encoder, the media recorder or the clipboard write failed, or there was
 * no camera to draw from. `details.media` is `"image"`, `"video"` or `"figure"` (`exportFigure`), `details.destination` is
-* `"clipboard"` for a failed copy, and `cause` carries the original failure. Retrying may work.
+* `"clipboard"` for a failed copy, and `cause` carries the original failure. A recording that
+* stopped for a reason of its own carries `details.reason`: `"hidden"` (the tab went to the
+* background, so no frames were drawn), `"resized"` (the canvas changed size), or how the tour
+* it recorded ended early: `"interrupted"`, `"replaced"` or `"mode-changed"`. Retrying may work.
 * @since 3.40.0
 */
 | "E_CAPTURE_FAILED"
@@ -2542,7 +2566,13 @@ export type GraphtyErrorCode =
 * `timing.settleTimeoutMs`, or captures without waiting (`timing.waitForSettle: false`).
 * @since 3.40.0
 */
-| "E_NOT_SETTLED" | "E_INTERNAL";
+| "E_NOT_SETTLED"
+/**
+* A recording (`captureAnimation`) was canceled: its `signal` aborted, or
+* `cancelAnimationCapture()` or `cancelCameraAnimation()` was called. No file is made. Thrown as
+* an `AnimationCancelledError`, a `GraphtyError` with this code. Added in 3.58.0.
+*/
+| "E_CANCELED" | "E_INTERNAL";
 
 // @public
 export type GraphtyErrorDetails<C extends GraphtyErrorCode = GraphtyErrorCode> = Readonly<Record<string, unknown>> & (C extends keyof GraphtyErrorDetailsMap ? GraphtyErrorDetailsMap[C] : unknown);
@@ -3032,7 +3062,7 @@ export interface HistoryClearOptions {
 }
 
 // @public
-export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.move" | "algo.rename" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.fix-issue" | "data.ignore-issue" | "data.ignore-issues" | "data.issues" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.merge-nodes" | "groups.collapse" | "groups.expand" | "data.import" | "data.import-source" | "data.expand" | "data.source-expand" | "data.collapse" | "data.declare" | "data.set-source" | "data.remove-source" | "data.replace-source" | "data.join" | "data.edit-join" | "data.label" | "data.set-role" | "data.set-type" | "data.rename-column" | "data.hide-columns" | "data.show-columns" | "data.columns" | "data.derive" | "annotations.set" | "annotations.patch" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "style.add-folder" | "style.rename-row" | "style.move-row" | "style.pin-row" | "style.lock-row" | "style.hide-row" | "style.delete-row" | "style.add-default-rows" | "shader.add" | "shader.replace" | "shader.remove" | "asset.defaults" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "visibility.step-add" | "visibility.step-edit" | "visibility.step-on" | "visibility.step-off" | "visibility.step-remove" | "visibility.condition-add" | "visibility.condition-edit" | "visibility.condition-on" | "visibility.condition-off" | "visibility.condition-remove" | "visibility.steps" | "visibility.playback" | "visibility.hide-nodes" | "visibility.show-nodes" | "time.field" | "time.clear-field" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.rerun" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
+export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.move" | "algo.rename" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.fix-issue" | "data.ignore-issue" | "data.ignore-issues" | "data.issues" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.merge-nodes" | "groups.collapse" | "groups.expand" | "data.import" | "data.import-source" | "data.expand" | "data.source-expand" | "data.collapse" | "data.declare" | "data.set-source" | "data.remove-source" | "data.replace-source" | "data.join" | "data.edit-join" | "data.label" | "data.set-role" | "data.set-type" | "data.rename-column" | "data.hide-columns" | "data.show-columns" | "data.columns" | "data.derive" | "annotations.set" | "annotations.patch" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "style.add-folder" | "style.rename-row" | "style.move-row" | "style.pin-row" | "style.lock-row" | "style.hide-row" | "style.delete-row" | "style.add-default-rows" | "shader.add" | "shader.replace" | "shader.remove" | "asset.defaults" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "visibility.step-add" | "visibility.step-edit" | "visibility.step-on" | "visibility.step-off" | "visibility.step-remove" | "visibility.condition-add" | "visibility.condition-edit" | "visibility.condition-on" | "visibility.condition-off" | "visibility.condition-remove" | "visibility.steps" | "visibility.playback" | "visibility.hide-nodes" | "visibility.show-nodes" | "time.field" | "time.clear-field" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.rename" | "view.move" | "view.key" | "view.starting" | "tour.save" | "tour.remove" | "tour.rename" | "tour.move" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.rerun" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
 
 // @public
 export type HistoryOutcome = {
@@ -4602,6 +4632,7 @@ export interface ProjectConfig {
     readonly runAlgorithmsOnLoad: boolean;
     readonly runPlacement: RunPlacement;
     readonly selectionStyle: GraphSelectionStyleConfig;
+    readonly startingCamerasWritten: boolean;
     readonly startingRows: boolean;
     readonly timelineHiddenAdded: boolean;
     readonly timelineHiddenLook: "hidden" | "ghost";
@@ -4627,6 +4658,7 @@ export interface ProjectConfigPatch {
     readonly runAlgorithmsOnLoad?: boolean;
     readonly runPlacement?: RunPlacement;
     readonly selectionStyle?: GraphSelectionStyleInput;
+    readonly startingCamerasWritten?: boolean;
     readonly startingRows?: boolean;
     readonly timelineHiddenAdded?: boolean;
     readonly timelineHiddenLook?: "hidden" | "ghost";
@@ -4722,7 +4754,7 @@ export interface ProjectShader {
 }
 
 // @public
-export type ProjectSlice = "graph" | "config" | "layout" | "pins" | "arrangement" | "runs" | "styles" | "visibility" | "sets" | "views" | "notes" | "attributes" | "valueLabels" | "shaders" | "modelDefaults";
+export type ProjectSlice = "graph" | "config" | "layout" | "pins" | "arrangement" | "runs" | "styles" | "visibility" | "sets" | "views" | "tours" | "notes" | "attributes" | "valueLabels" | "shaders" | "modelDefaults";
 
 // @public
 export type ProjectSource = Blob | Uint8Array | string;
@@ -5755,6 +5787,19 @@ export interface SavedScope {
 }
 
 // @public
+export interface SavedTour {
+    readonly name: string;
+    readonly tour: Tour;
+}
+
+// @public
+export interface SavedView {
+    readonly camera?: CameraState;
+    readonly follows?: string;
+    readonly key?: string;
+}
+
+// @public
 export type Scope = "visible" | "graph" | "selection" | "largest-component" | {
     set: ScopeId;
 } | {
@@ -6199,7 +6244,7 @@ export type SessionCapabilities = Pick<Capabilities, "acceleration" | "xr" | "ca
 export type SessionCatalogApi = Omit<CatalogApi, DeprecatedCatalogMethod>;
 
 // @public
-export type SessionCommand = AlgorithmRunCommand | AlgoLegacyCommand | AlgoRemoveCommand | AlgoMoveCommand | AlgoRenameCommand | DataCommand | DataDeriveCommand | DataIssuesCommand | SourceExpandOpCommand | StyleCommand | ShaderCommand | AssetCommand | VisibilityCommand | SetCommand | NoteCommand | ViewCommand | AnnotationsCommand | ConfigSetCommand | PositionsCommand | LayoutCommand | BatchCommand;
+export type SessionCommand = AlgorithmRunCommand | AlgoLegacyCommand | AlgoRemoveCommand | AlgoMoveCommand | AlgoRenameCommand | DataCommand | DataDeriveCommand | DataIssuesCommand | SourceExpandOpCommand | StyleCommand | ShaderCommand | AssetCommand | VisibilityCommand | SetCommand | NoteCommand | ViewCommand | TourCommand | AnnotationsCommand | ConfigSetCommand | PositionsCommand | LayoutCommand | BatchCommand;
 
 // @public
 export interface SessionConfig extends ProjectConfig {
@@ -6455,6 +6500,9 @@ export interface SessionEventMap {
     };
     // @beta
     "time:step": TimeStepEvent;
+    "views:seeded": {
+        readonly names: readonly string[];
+    };
     "visibility:changed": VisibilityChange;
     // @beta
     "visibility:not-drawn-changed": {
@@ -6602,12 +6650,29 @@ export interface SessionStylesApi extends StylesApi {
 }
 
 // @public
-export interface SessionViews extends ReadonlyMap<string, CameraState> {
+export interface SessionTours extends ReadonlyMap<string, Tour> {
+    move(name: string, index: number): Promise<void>;
     remove(names: readonly string[]): Promise<void>;
+    rename(from: string, to: string): Promise<void>;
+    save(tours: readonly {
+        readonly name: string;
+        readonly tour: Tour;
+    }[]): Promise<void>;
+}
+
+// @public
+export interface SessionViews extends ReadonlyMap<string, SavedView> {
+    move(name: string, index: number): Promise<void>;
+    remove(names: readonly string[]): Promise<void>;
+    rename(from: string, to: string): Promise<void>;
     save(views: readonly {
         readonly name: string;
-        readonly camera: CameraState;
+        readonly camera?: CameraState;
+        readonly follows?: string;
+        readonly key?: string | null;
     }[]): Promise<void>;
+    setKey(name: string, key: string | null): Promise<void>;
+    setStartingCameras(list: readonly StartingCamera[] | null): Promise<void>;
 }
 
 // @public
@@ -7150,6 +7215,13 @@ export interface StaleNote {
 
 // @public
 export type StaleReason = "data-changed" | "scope-changed" | "window-moved";
+
+// @public
+export interface StartingCamera {
+    readonly follows: string;
+    readonly key?: string;
+    readonly name: string;
+}
 
 // @public
 export interface StartOptions extends RunOptions {
@@ -7969,6 +8041,51 @@ export interface TouchingLeaf {
     readonly kind: "touching";
     readonly of?: StepReference;
 }
+
+// @public
+export interface Tour {
+    easing?: EasingName;
+    stops: readonly TourStop[];
+}
+
+// @public
+export type TourCommand = TourSaveCommand | TourRemoveCommand | TourRenameCommand | TourMoveCommand;
+
+// @public
+export interface TourMoveCommand {
+    readonly index: number;
+    readonly name: string;
+    readonly op: "tour.move";
+}
+
+// @public
+export interface TourPause {
+    readonly pause: number;
+}
+
+// @public
+export interface TourRemoveCommand {
+    readonly names: readonly string[];
+    readonly op: "tour.remove";
+}
+
+// @public
+export interface TourRenameCommand {
+    readonly from: string;
+    readonly op: "tour.rename";
+    readonly to: string;
+}
+
+// @public
+export interface TourSaveCommand {
+    readonly op: "tour.save";
+    readonly tours: readonly SavedTour[];
+}
+
+// @public
+export type TourStop = (ViewWaypoint & {
+    view: string;
+}) | TourPause;
 
 // @public
 export interface TransactionOptions {

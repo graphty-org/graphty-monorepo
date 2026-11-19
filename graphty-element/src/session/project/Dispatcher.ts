@@ -270,9 +270,10 @@ export interface UndoableDefinition<C extends CommandLike> extends DefinitionBas
         readonly kind: "undoable";
         /**
          * What the step is called in the history ("Changed colour of Hubs"). `services` reaches
-         * what sits beside the state, such as a removed set's name.
+         * what sits beside the state, such as a removed set's name. Optional: a step without one
+         * is labeled with its fact's code, which an application words.
          */
-        label(command: C, state: ProjectState, services: CommandServices): string;
+        label?(command: C, state: ProjectState, services: CommandServices): string;
         /** What the step did, as a code and its values, for an application to word. */
         fact(command: C, state: ProjectState, services: CommandServices): CodedFact<HistoryCode>;
         /** Steps with equal keys recorded close together become one step. */
@@ -280,6 +281,23 @@ export interface UndoableDefinition<C extends CommandLike> extends DefinitionBas
     };
     /** Compute first, write last. */
     execute(command: C, ctx: UndoableContext): unknown;
+}
+
+/**
+ * What an undoable step is called: its definition's label, or else its fact's code.
+ * @param undo - The definition's undo half.
+ * @param command - The command.
+ * @param state - Project state.
+ * @param services - What sits beside the state.
+ * @returns The label.
+ */
+function stepLabel<C extends CommandLike>(
+    undo: UndoableDefinition<C>["undo"],
+    command: C,
+    state: ProjectState,
+    services: CommandServices,
+): string {
+    return undo.label?.(command, state, services) ?? undo.fact(command, state, services).code;
 }
 
 /** A command that changes nothing a project file saves, and why. */
@@ -747,7 +765,8 @@ function opLogKeys(keys: readonly SliceKey[]): SliceKey[] {
 function slicesOf(patch: Patch): readonly Slice[] {
     return [
         ...new Set<Slice>([
-            ...patch.entries.map((entry) => entry.slice),
+            // The view order is part of the `views` slice to every reader.
+            ...patch.entries.map((entry) => (entry.slice === "viewOrder" ? "views" : entry.slice)),
             ...patch.log.map((entry) => entry.slice),
             ...(patch.rows === null ? [] : ["arrangement" as const]),
         ]),
@@ -947,7 +966,8 @@ export class Dispatcher {
         }
 
         this.store = createProjectStore(options.state ?? createProjectState(), (slice, key) => {
-            this.lane.touch(slice, key);
+            // The view order is derived and reported with the `views` slice.
+            this.lane.touch(slice === "viewOrder" ? "views" : slice, key);
         });
         this.lane = new DerivationLane(this.store.state);
         const state = this.store.state as { graph: ProjectState["graph"] };
@@ -1272,12 +1292,20 @@ export class Dispatcher {
     }
 
     /**
+     * Whether `seed` can write the baseline now: nothing is recorded and nothing is pending.
+     * @returns True when it can.
+     */
+    get seedable(): boolean {
+        return this.history.length === 0 && this.open.size === 0;
+    }
+
+    /**
      * Write the baseline: what `write` sets is the state history starts from, recorded as no step
      * and published as no change. Only before anything has been recorded or is pending.
      * @param write - Writes through a draft of its own.
      */
     seed(write: (draft: Draft) => void): void {
-        if (this.history.length > 0 || this.open.size > 0) {
+        if (!this.seedable) {
             throw new GraphtyError({
                 code: "E_INTERNAL",
                 message: "The baseline can only be written before anything is recorded or pending.",
@@ -2044,7 +2072,7 @@ export class Dispatcher {
     ): Group {
         return this.group(
             {
-                label: undoable.undo.label(concrete, state, this.services),
+                label: stepLabel(undoable.undo, concrete, state, this.services),
                 fact: undoable.undo.fact(concrete, state, this.services),
             },
             origin === null ? (undoable.undo.coalesce?.(concrete) ?? null) : null,
@@ -2080,7 +2108,7 @@ export class Dispatcher {
             job.slot = this.scheduler.enqueue(
                 lane.categoryOf?.(concrete) ?? lane.category,
                 (context) => this.turn(job, context),
-                job.definition.undo.label(concrete, state, this.services),
+                stepLabel(job.definition.undo, concrete, state, this.services),
             );
             job.status = "queued";
             group.jobs.add(job);
@@ -2192,7 +2220,7 @@ export class Dispatcher {
             // Its own writes, reverted when it fails; the job that dispatched it goes on.
             job.revert = group.draft.checkpoint();
         } else if (group.tx === null && group.after === null && group.named === undefined) {
-            group.label = definition.undo.label(command, state, this.services);
+            group.label = stepLabel(definition.undo, command, state, this.services);
             group.fact = definition.undo.fact(command, state, this.services);
             group.key = definition.undo.coalesce?.(command) ?? null;
             if (this.open.has(group)) {
@@ -2396,7 +2424,7 @@ export class Dispatcher {
                 recorded === null
                     ? { label: group.label, fact: group.fact }
                     : {
-                          label: job.definition.undo.label(job.command, this.store.state, this.services),
+                          label: stepLabel(job.definition.undo, job.command, this.store.state, this.services),
                           fact: job.definition.undo.fact(job.command, this.store.state, this.services),
                       },
                 null,

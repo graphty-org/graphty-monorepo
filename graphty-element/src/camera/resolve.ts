@@ -23,13 +23,16 @@
  * view and the render size, and passes numbers.
  */
 
-import { registeredCameraById, registeredCameraDescriptors } from "../catalog/cameraRegistry";
+import { registeredCameraById } from "../catalog/cameraRegistry";
 import { CAMERA_DESCRIPTORS } from "../catalog/cameras";
 import { resolveOptionValues } from "../catalog/options";
 import type { CameraDescriptor } from "../catalog/types";
 import { GraphtyError } from "../errors";
 import { builtInCameraView } from "./builtins";
+import { cameraViewIds } from "./names";
 import type { CameraState, CameraViewInput, DrawingMode, GraphBounds, ViewInsets } from "./types";
+
+export { cameraViewIds, isCameraViewName } from "./names";
 
 /** Everything the element measures before it can ask a view where the viewer stands. */
 export interface CameraViewContext {
@@ -54,29 +57,6 @@ export interface CameraViewContext {
 }
 
 /**
- * Every camera view that can be named right now: the element's own, then the registered ones.
- * @returns The names, the element's own first.
- */
-export function cameraViewIds(): readonly string[] {
-    return [
-        ...CAMERA_DESCRIPTORS.map((descriptor) => descriptor.id),
-        ...registeredCameraDescriptors().map((descriptor) => descriptor.id),
-    ];
-}
-
-/**
- * Whether a name already belongs to a camera view, the element's own or a registered one.
- *
- * What `saveCameraPreset` asks before it stores a snapshot: a snapshot that shadowed a view would
- * turn a rule that recomputes itself for whatever is on screen into a fixed position, silently.
- * @param name - The name being claimed.
- * @returns True when a view already holds it.
- */
-export function isCameraViewName(name: string): boolean {
-    return CAMERA_DESCRIPTORS.some((descriptor) => descriptor.id === name) || registeredCameraById(name) !== undefined;
-}
-
-/**
  * The descriptor and the arithmetic behind one name, wherever it came from.
  * @param id - The view name.
  * @returns Both halves, or undefined when nothing answers to the name.
@@ -93,6 +73,15 @@ function lookup(
     const registered = registeredCameraById(id);
 
     return registered === undefined ? undefined : { descriptor: registered.descriptor, compute: registered.compute };
+}
+
+/**
+ * The drawing modes a camera view declares it works in.
+ * @param id - The view name.
+ * @returns The modes, or undefined when no camera view answers to the name.
+ */
+export function cameraViewModes(id: string): readonly DrawingMode[] | undefined {
+    return lookup(id)?.descriptor.modes;
 }
 
 /**
@@ -127,12 +116,7 @@ export function resolveCameraView(id: string, context: CameraViewContext): Camer
                 `the camera view "${id}" cannot be computed while the element is drawing in ` +
                 `${context.mode}: it declares ${descriptor.modes.join(" and ")}`,
             source: "view",
-            details: {
-                name: id,
-                reason: `the "${id}" view is not available in ${context.mode}`,
-                mode: context.mode,
-                modes: [...descriptor.modes],
-            },
+            details: { reason: "mode", name: id, modes: [...descriptor.modes], mode: context.mode },
         });
     }
 
@@ -150,5 +134,31 @@ export function resolveCameraView(id: string, context: CameraViewContext): Camer
         options,
     };
 
-    return compute(input);
+    return withDistanceAndFov(compute(input), context);
+}
+
+/**
+ * A 3D pose with its `cameraDistance` and `fov` filled in when the view left them out, so every
+ * resolved pose reports both; applying it is unchanged (the distance is the one its `position` and
+ * `target` give, and `fov` is the camera's own).
+ * @param state - The pose the view computed.
+ * @param context - What the view was resolved against.
+ * @returns The pose, with the two filled in where they apply.
+ */
+function withDistanceAndFov(state: CameraState, context: CameraViewContext): CameraState {
+    if (context.mode !== "3d") {
+        return state;
+    }
+    const { position, target } = state;
+    const distance =
+        state.cameraDistance ??
+        (position === undefined || target === undefined
+            ? undefined
+            : Math.hypot(position.x - target.x, position.y - target.y, position.z - target.z));
+    const fov = state.fov ?? context.fov;
+    return {
+        ...state,
+        ...(distance === undefined ? {} : { cameraDistance: distance }),
+        ...(fov === undefined ? {} : { fov }),
+    };
 }

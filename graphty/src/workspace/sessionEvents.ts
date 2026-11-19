@@ -34,6 +34,12 @@ export const TOOLBAR_EVENTS = [
     "time:field",
 ] as const;
 
+/**
+ * The element's events after which the Views place reads the session again, beside its
+ * `views-changed`: whether anything is drawn, which enables Go and Play.
+ */
+export const VIEWS_PLACE_EVENTS = ["project:changed", "visibility:changed"] as const;
+
 /** The element's events that change what the table reads: records, runs and the selection. */
 export const TABLE_EVENTS = ["project:changed", "run:changed", "selection:changed"] as const;
 

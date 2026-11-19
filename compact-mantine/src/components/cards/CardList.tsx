@@ -1,7 +1,8 @@
+import { VisuallyHidden } from "@mantine/core";
 import { useUncontrolled } from "@mantine/hooks";
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 
-import { useLabels } from "../../i18n";
+import { useLabels, useNumberFormatter } from "../../i18n";
 import { UiGlyph } from "../../icons";
 import { useCompactStyles } from "../../theme/useCompactStyles";
 import { TargetTooltip } from "../overlays";
@@ -52,10 +53,21 @@ export interface CardListProps {
     /** Called by a card's x. Focus then moves to the next card, else the previous one. */
     onRemove?: (id: string) => void;
     /**
-     * Called while a card's grip is dragged, with its new index. The grip takes no keys: keys that
-     * move a card are the caller's, shown beside a menu item that runs them.
+     * Called while a card's grip is dragged, with its new index, and on each keyboard move when
+     * `keyboardReorder` is set. Without `keyboardReorder` the grip takes no keys.
      */
     onReorder?: (id: string, toIndex: number) => void;
+    /**
+     * Let the focused grip move its card with Alt+ArrowUp and Alt+ArrowDown: one `onReorder` per
+     * key, focus kept on the moved card's grip, the new position announced, and the keys named in
+     * the grip's tooltip. Default false.
+     */
+    keyboardReorder?: boolean;
+    /**
+     * Called once when a pointer drag of a grip ends: with the card's final index on release, or
+     * with null when the browser cancels the drag. Keyboard moves do not call it.
+     */
+    onReorderEnd?: (id: string, toIndex: number | null) => void;
     /** The folded cards (controlled). */
     folded?: ReadonlySet<string>;
     /** The folded cards at first (uncontrolled). */
@@ -119,6 +131,8 @@ function dropIndex(list: HTMLElement, id: string, y: number): number {
  * @param props.onRenamingChange - See CardListProps.onRenamingChange
  * @param props.onRemove - See CardListProps.onRemove
  * @param props.onReorder - See CardListProps.onReorder
+ * @param props.keyboardReorder - See CardListProps.keyboardReorder
+ * @param props.onReorderEnd - See CardListProps.onReorderEnd
  * @param props.folded - See CardListProps.folded
  * @param props.defaultFolded - See CardListProps.defaultFolded
  * @param props.onFoldedChange - See CardListProps.onFoldedChange
@@ -137,6 +151,8 @@ export function CardList({
     onRenamingChange,
     onRemove,
     onReorder,
+    keyboardReorder = false,
+    onReorderEnd,
     folded: foldedProp,
     defaultFolded,
     onFoldedChange,
@@ -148,6 +164,7 @@ export function CardList({
 }: Readonly<CardListProps>): React.JSX.Element {
     useCompactStyles();
     const labels = useLabels();
+    const numbers = useNumberFormatter();
     const list = useRef<HTMLDivElement>(null);
     const [folded, setFolded] = useUncontrolled<ReadonlySet<string>>({
         value: foldedProp,
@@ -163,8 +180,11 @@ export function CardList({
     const [dragging, setDragging] = useState<string | null>(null);
     const reorder = useRef(onReorder);
     reorder.current = onReorder;
+    const reorderEnd = useRef(onReorderEnd);
+    reorderEnd.current = onReorderEnd;
+    const [announcement, setAnnouncement] = useState("");
     /** What gets focus once the items change: a grip by id, or the card at an index. */
-    const focusNext = useRef<{ at: number } | null>(null);
+    const focusNext = useRef<{ at: number } | { grip: string } | null>(null);
 
     // A card appended at the end folds the others and comes into view.
     const seen = useRef(items.map((item) => item.id));
@@ -188,6 +208,13 @@ export function CardList({
             return;
         }
         focusNext.current = null;
+        if ("grip" in next) {
+            // Only this list's own cards: a nested list may reuse the same ids.
+            box.querySelector<HTMLElement>(
+                `:scope > [data-card-id="${CSS.escape(next.grip)}"] > .cm-card-head [data-card-grip]`,
+            )?.focus();
+            return;
+        }
         const cards = [...box.querySelectorAll<HTMLElement>(":scope > [data-card-id]")];
         const card = cards[Math.min(next.at, cards.length - 1)];
         (card ?? box.querySelector<HTMLElement>(":scope > .cm-card-add button, :scope > .cm-card-add"))?.focus();
@@ -200,22 +227,45 @@ export function CardList({
         }
         event.preventDefault();
         setDragging(id);
+        let last = items.findIndex((item) => item.id === id);
         const move = (moved: PointerEvent): void => {
             const at = items.findIndex((item) => item.id === id);
             const to = dropIndex(box, id, moved.clientY);
+            last = to;
             if (to !== at) {
                 reorder.current?.(id, to);
             }
         };
-        const drop = (): void => {
+        const end = (to: number | null): void => {
             globalThis.removeEventListener("pointermove", move);
-            globalThis.removeEventListener("pointerup", drop);
-            globalThis.removeEventListener("pointercancel", drop);
+            globalThis.removeEventListener("pointerup", up);
+            globalThis.removeEventListener("pointercancel", cancel);
             setDragging(null);
+            reorderEnd.current?.(id, to);
+        };
+        const up = (): void => {
+            end(last);
+        };
+        const cancel = (): void => {
+            end(null);
         };
         globalThis.addEventListener("pointermove", move);
-        globalThis.addEventListener("pointerup", drop);
-        globalThis.addEventListener("pointercancel", drop);
+        globalThis.addEventListener("pointerup", up);
+        globalThis.addEventListener("pointercancel", cancel);
+    };
+    const step = (event: React.KeyboardEvent<HTMLElement>, id: string, at: number): void => {
+        const by = { ArrowUp: -1, ArrowDown: 1 }[event.key];
+        if (!keyboardReorder || !event.altKey || by === undefined) {
+            return;
+        }
+        event.preventDefault();
+        const to = Math.min(Math.max(at + by, 0), items.length - 1);
+        if (to === at) {
+            return;
+        }
+        focusNext.current = { grip: id };
+        reorder.current?.(id, to);
+        setAnnouncement(labels.cardMoved(numbers.format(to + 1), numbers.format(items.length)));
     };
     const fold = (id: string, on: boolean): void => {
         const next = new Set(folded);
@@ -267,7 +317,7 @@ export function CardList({
             >
                 <header className="cm-card-head">
                     {onReorder !== undefined && (
-                        <TargetTooltip label={labels.reorderCard}>
+                        <TargetTooltip label={keyboardReorder ? labels.reorderCardKeys : labels.reorderCard}>
                             <button
                                 type="button"
                                 className="cm-card-icon cm-card-grip"
@@ -275,6 +325,9 @@ export function CardList({
                                 aria-label={labels.moveCard(item.title)}
                                 onPointerDown={(event) => {
                                     grab(event, item.id);
+                                }}
+                                onKeyDown={(event) => {
+                                    step(event, item.id, at);
                                 }}
                             >
                                 <GripGlyph />
@@ -345,6 +398,11 @@ export function CardList({
             {items.length === 0 ? empty : items.map((item, at) => card(item, at))}
             {add !== undefined && <div className="cm-card-add">{add}</div>}
             {footer}
+            {keyboardReorder && (
+                <VisuallyHidden component="output" aria-live="polite">
+                    {announcement}
+                </VisuallyHidden>
+            )}
         </div>
     );
 }

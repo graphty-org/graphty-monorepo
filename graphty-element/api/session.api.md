@@ -2650,6 +2650,12 @@ export type GraphtyWarningCode =
 * `params.now`, and `params.picked` for a pick). Experimental: the source-steps experiment.
 */
 | "W_EDIT_SOURCE_CHANGED"
+/**
+* A note, a pin or a reader edit names an element a rebuild left out (`params.ref`): the
+* reference is kept and binds again when Undo brings the element back. Experimental: the
+* source-steps experiment.
+*/
+| "W_REFERENCE_UNBOUND"
 /** A run was still computing when the project was saved, so the file does not hold it. */
 | "W_RUN_PENDING"
 /**
@@ -7364,6 +7370,11 @@ export type SourceRefreshIssue = {
         readonly was: SourceValue | null;
         readonly now: SourceValue | null;
         readonly picked?: SourceKey;
+    };
+} | {
+    readonly code: "W_REFERENCE_UNBOUND";
+    readonly params: {
+        readonly ref: SourceElementRef;
     };
 };
 

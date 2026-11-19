@@ -255,6 +255,8 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "data.ref()": "names its target",
     "data.removeEdit()": "writes",
     "data.removeStep()": "writes",
+    "data.resolveStep()": "writes",
+    "data.settleEdit()": "writes",
     "data.spaces()": "not the graph",
     "data.stage()": "writes",
     "data.steps()": "not the graph",

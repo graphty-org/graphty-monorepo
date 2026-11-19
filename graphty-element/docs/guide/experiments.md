@@ -119,7 +119,10 @@ Removing a source gives back the graph without it, and lists the steps that went
 reading a column the new rows lack is held (`E_COLUMN_MISSING`, or `E_READ_ROLE_MISSING` for a
 weight, time or location role) until `data.resolveStep` names a column for it or the column comes
 back. A reader edit whose value moved underneath reads `state: "source-changed"` in `data.edits()`
-(`W_EDIT_SOURCE_CHANGED`), and `data.settleEdit(id, "follow" | "keep" | "drop")` settles it:
+(`W_EDIT_SOURCE_CHANGED`), and `data.settleEdit(id, "follow" | "keep" | "drop")` settles it. A
+note, pin or reader edit on an element a removal, replace or refresh left out is kept and listed
+as `W_REFERENCE_UNBOUND` with the element's `ref`; Undo binds it again. A replace's `unbound`
+lists the style layers, filter and joins that read a column no node or edge carries any more:
 
 ```ts
 const report = await session.data.replaceSource(key, { type: "csv", config: { data: newer } });

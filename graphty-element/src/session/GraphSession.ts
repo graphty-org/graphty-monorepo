@@ -3283,6 +3283,20 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 runs: dispatcher.state.runs,
                 visibility: dispatcher.state.visibility,
             }),
+            references: () => {
+                const nodes: NodeId[] = [...dispatcher.state.pins];
+                const members: EdgeMember[] = [];
+                for (const { note } of dispatcher.state.notes.values()) {
+                    for (const target of note.targets) {
+                        if ("node" in target) {
+                            nodes.push(target.node);
+                        } else if ("edge" in target) {
+                            members.push(target.edge);
+                        }
+                    }
+                }
+                return { nodes, edges: dispatcher.services.edgeIdentity?.idsOf(members) ?? [] };
+            },
         },
         {
             revision: () => inputs.tick.value,

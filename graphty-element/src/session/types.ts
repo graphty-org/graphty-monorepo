@@ -4346,6 +4346,8 @@ export interface SourceConflictQuery {
  * - `W_STEP_REMOVED`: the step at `step` went with removed `source`.
  * - `W_EDIT_SOURCE_CHANGED`: the value under reader edit `edit` moved from `was` to `now` (for a
  *   pick, `picked` names the source it took from); `data.settleEdit` follows, keeps or drops it.
+ * - `W_REFERENCE_UNBOUND`: a note, a pin or a reader edit names `ref`, which the rebuilt graph no
+ *   longer holds. The reference is kept, and binds again when Undo brings the element back.
  *
  * OPEN UNION: codes may be added.
  * @experimental source-steps
@@ -4384,22 +4386,15 @@ export type SourceRefreshIssue =
               readonly now: SourceValue | null;
               readonly picked?: SourceKey;
           };
-      };
+      }
+    | { readonly code: "W_REFERENCE_UNBOUND"; readonly params: { readonly ref: SourceElementRef } };
 
 /**
  * A weight, time or location role a step reads from a column. OPEN UNION: roles may be added.
  * @experimental source-steps
  */
 export type SourceRoleName =
-    | "weight"
-    | "time"
-    | "timeEnd"
-    | "latitude"
-    | "longitude"
-    | "coordinates"
-    | "country"
-    | "region"
-    | "city";
+    "weight" | "time" | "timeEnd" | "latitude" | "longitude" | "coordinates" | "country" | "region" | "city";
 
 /**
  * How the reader settles an edit whose source moved under it: `"follow"` takes the picked

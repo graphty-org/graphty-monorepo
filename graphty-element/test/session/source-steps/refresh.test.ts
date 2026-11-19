@@ -134,7 +134,11 @@ describe("source-steps: removal as a rebuild", () => {
     it("a note on a node only the removed source supplied goes missing, and only Undo binds it again (3.2)", async () => {
         const { session, a } = await phase6();
         const id = session.notes.add({ text: "check", targets: [{ node: "A-9" }] });
-        await session.data.removeSource(a);
+        const result = await session.data.removeSource(a);
+        assert.deepStrictEqual(
+            (result.issues ?? []).filter((i) => i.code === "W_REFERENCE_UNBOUND").map((i) => i.params),
+            [{ ref: { space: "account", key: "A-9" } }],
+        );
         assert.strictEqual(session.notes.status(id).targets[0].state, "missing");
         await session.undo();
         assert.strictEqual(session.notes.status(id).targets[0].state, "present");
@@ -143,9 +147,32 @@ describe("source-steps: removal as a rebuild", () => {
 });
 
 describe("source-steps: replace and refresh keep the source id and swap the copy", () => {
-    it("refresh T: unchanged rows keep their edges; a removed row loses its edit; a moved cell is reported", async () => {
+    it("a replace that drops a column a style layer reads reports the layer as unbound", async () => {
+        const { session, t } = await phase2();
+        const layer = await session.styles.add({
+            name: "Big",
+            target: "edge",
+            selector: { match: "expression", where: "data.amount > `5`" },
+            set: { "edge.color": "#0000ff" },
+        });
+        const [head, ...rows] = TRANSACTIONS.split("\n");
+        const drop = (line: string): string =>
+            line
+                .split(",")
+                .filter((_, at) => at !== 3)
+                .join(",");
+        const report = await session.data.replaceSource(t, csv([head, ...rows].map(drop).join("\n")));
+        assert.deepStrictEqual(report.unbound, [
+            { code: "style-layer", params: { layer: layer.id, kind: "edge", column: "amount" } },
+        ]);
+        session.dispose();
+    });
+
+    it("refresh T: unchanged rows keep their references; removed rows unbind; edits report their states", async () => {
         const { session, t } = await phase2();
         const t3 = edgeOf(session, "T-3");
+        const kept = session.notes.add({ text: "re-sorted", targets: [{ edge: t3 }] });
+        const gone = session.notes.add({ text: "removed", targets: [{ edge: edgeOf(session, "T-2") }] });
         await session.data.updateEdges([{ id: edgeOf(session, "T-2"), values: { flag: "review" } }]);
         await session.data.updateNodes([{ id: "A-3", values: { [HOLDER]: "Edited Name" } }]);
         const [head, ...rows] = TRANSACTIONS.split("\n");
@@ -155,6 +182,17 @@ describe("source-steps: replace and refresh keep the source id and swap the copy
             .reverse();
         const report = await session.data.replaceSource(t, csv([head, ...changed].join("\n")));
         assert.strictEqual(report.edges.removed, 1, "T-2");
+        assert.deepStrictEqual(
+            (report.issues ?? []).filter((i) => i.code === "W_REFERENCE_UNBOUND").map((i) => i.params.ref),
+            [{ load: t, key: "T-2" }],
+            "the note and the edit on the removed row unbind, reported once for the row",
+        );
+        assert.strictEqual(
+            session.notes.status(gone).targets[0].state,
+            "missing",
+            "an unbound note is kept and listed",
+        );
+        assert.strictEqual(session.notes.status(kept).targets[0].state, "present", "the re-sorted row still binds");
         const moved = report.issues?.find((i) => i.code === "W_EDIT_SOURCE_CHANGED");
         assert.deepStrictEqual(moved?.params, { edit: session.data.edits()[1].id, was: "Cy", now: "Cyd" });
         assert.deepStrictEqual(
@@ -172,10 +210,13 @@ describe("source-steps: replace and refresh keep the source id and swap the copy
         const history = session.history.steps.length;
         const same = await session.data.replaceSource(t, csv(TRANSACTIONS));
         assert.lengthOf(session.history.steps, history, "identical rows mint no build");
-        assert.deepStrictEqual([same.nodes, same.edges], [
-            { added: 0, removed: 0, changed: 0 },
-            { added: 0, removed: 0, changed: 0 },
-        ]);
+        assert.deepStrictEqual(
+            [same.nodes, same.edges],
+            [
+                { added: 0, removed: 0, changed: 0 },
+                { added: 0, removed: 0, changed: 0 },
+            ],
+        );
 
         const report = await session.data.replaceSource(t, csv(TRANSACTIONS.replace("merchant_name", "shop_name")));
         const missing = report.issues?.filter((i) => i.code === "E_COLUMN_MISSING") ?? [];
@@ -258,10 +299,10 @@ describe("source-steps: replace and refresh keep the source id and swap the copy
         assert.include(session.data.steps()[0].reads, "amount");
         const report = await session.data.replaceSource(t, csv(TRANSACTIONS.replace("amount", "total")));
         const role = report.issues?.find((i) => i.code === "E_READ_ROLE_MISSING");
-        assert.deepStrictEqual([role?.params.column, role?.code === "E_READ_ROLE_MISSING" && role.params.role], [
-            "amount",
-            "weight",
-        ]);
+        assert.deepStrictEqual(
+            [role?.params.column, role?.code === "E_READ_ROLE_MISSING" && role.params.role],
+            ["amount", "weight"],
+        );
         assert.lengthOf(session.data.edges(), 0, "the held join.add builds nothing");
         await session.data.resolveStep(0, { none: true });
         assert.lengthOf(session.data.edges(), 4);
@@ -400,7 +441,11 @@ describe("source-steps: runs bind to the build they read (8.6)", () => {
         await session.data.replaceSource(t, csv(TRANSACTIONS.replace("T-4,A-3,M-3", "T-4,A-3,M-9")));
         assert.strictEqual(session.runs.get(run.id)?.stale?.reason, "data-changed");
         await session.data.replaceSource(t, csv(TRANSACTIONS));
-        assert.strictEqual(session.runs.get(run.id)?.stale?.reason, "data-changed", "a later build, not the one it read");
+        assert.strictEqual(
+            session.runs.get(run.id)?.stale?.reason,
+            "data-changed",
+            "a later build, not the one it read",
+        );
         await session.undo();
         await session.undo();
         assert.isNull(session.runs.get(run.id)?.stale, "undo gives back the build it read");

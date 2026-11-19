@@ -382,6 +382,11 @@ interface DataWrites {
         readonly runs: ReadonlyMap<RunId, RunEntry>;
         readonly visibility: VisibilityState;
     };
+    /**
+     * The nodes pins and notes name, and the edges notes name (undefined for one the graph does
+     * not hold): what a rebuild under the source-steps experiment may leave unbound.
+     */
+    references?(): { readonly nodes: readonly NodeId[]; readonly edges: readonly (EdgeId | undefined)[] };
 }
 
 /** What a page of records reads beside the snapshot. */
@@ -3926,8 +3931,10 @@ export class SessionData implements SessionDataApi {
         const issues = removedSteps(value, key);
         const supplied = this.provenance()?.[key] ?? { nodes: [], edges: [] };
         const before = this.current();
+        const bound = this.boundNow();
         await this.sender("remove a load")({ op: "data.steps-set", edit: { kind: "remove-source", id: key } });
         const after = this.current();
+        issues.push(...this.unboundSince(bound).issues);
         const space = edgeSpaceOf(after);
         return Object.freeze({
             removed: Object.freeze({
@@ -3998,7 +4005,8 @@ export class SessionData implements SessionDataApi {
         if (source.source !== undefined) {
             throw new GraphtyError({
                 code: "E_UNSUPPORTED",
-                message: "Replacing a load with a network source is not available under the source-steps experiment yet.",
+                message:
+                    "Replacing a load with a network source is not available under the source-steps experiment yet.",
                 source: "data",
                 details: { reason: "later", key },
             });
@@ -4016,10 +4024,19 @@ export class SessionData implements SessionDataApi {
             const raw = await readWithProgress(source, undefined, () => undefined);
             const rows = raw.tables.flatMap((held) => held.rows) as readonly Row[];
             const tables: CopyTables = src.mapping.edges === undefined ? { nodes: rows } : { edges: rows };
-            const counts = await this.swapStepsCopy(key, tables, { label: source.name ?? src.label, input: this.keep(source) });
-            return Object.freeze({ nodes: counts.nodes, edges: counts.edges, unbound: Object.freeze([]), issues: counts.issues });
+            const counts = await this.swapStepsCopy(key, tables, {
+                label: source.name ?? src.label,
+                input: this.keep(source),
+            });
+            return Object.freeze({
+                nodes: counts.nodes,
+                edges: counts.edges,
+                unbound: counts.unbound,
+                issues: counts.issues,
+            });
         }
-        const compiled = captured === undefined ? null : compileImport(captured, options, this.readConfig().knownFields);
+        const compiled =
+            captured === undefined ? null : compileImport(captured, options, this.readConfig().knownFields);
         const tables = compiled?.copies?.[compiled.edit.source.origin.copy];
         if (compiled === null || tables === undefined) {
             throw new GraphtyError({
@@ -4034,7 +4051,12 @@ export class SessionData implements SessionDataApi {
             input: this.keep(source),
             tables: compiled.edit.source.tables,
         });
-        return Object.freeze({ nodes: counts.nodes, edges: counts.edges, unbound: Object.freeze([]), issues: counts.issues });
+        return Object.freeze({
+            nodes: counts.nodes,
+            edges: counts.edges,
+            unbound: counts.unbound,
+            issues: counts.issues,
+        });
     }
 
     /**
@@ -4048,11 +4070,14 @@ export class SessionData implements SessionDataApi {
         const draft = read === undefined ? await this.prepare(source) : await this.draftOf(source, read);
         let captured: DataImportCommand | undefined;
         try {
-            await draft.loadVia((command) => {
-                const steps = command.op === "batch" ? command.steps : [command];
-                captured = steps.find((step): step is DataImportCommand => step.op === "data.import");
-                return Promise.resolve();
-            }, withStepsMapping({ ...options, mode: "merge" }));
+            await draft.loadVia(
+                (command) => {
+                    const steps = command.op === "batch" ? command.steps : [command];
+                    captured = steps.find((step): step is DataImportCommand => step.op === "data.import");
+                    return Promise.resolve();
+                },
+                withStepsMapping({ ...options, mode: "merge" }),
+            );
         } finally {
             draft.dispose();
         }
@@ -4074,13 +4099,19 @@ export class SessionData implements SessionDataApi {
         key: SourceKey,
         tables: CopyTables,
         about: { readonly label?: string | null; readonly input?: string; readonly tables?: readonly string[] },
-    ): Promise<ChangeCounts & { readonly issues: readonly SourceRefreshIssue[] }> {
+    ): Promise<
+        ChangeCounts & {
+            readonly issues: readonly SourceRefreshIssue[];
+            readonly unbound: readonly CodedFact<ReplaceUnboundCode>[];
+        }
+    > {
         const value = this.stepsValue();
         const copies = this.stepsCopies();
         const src = value.sources[key];
         if (sameRows(tables, copies[src.origin.copy])) {
             const zero = Object.freeze({ added: 0, removed: 0, changed: 0 });
-            return { nodes: zero, edges: zero, issues: Object.freeze(refreshIssues(value, value, copies, key)) };
+            const issues = Object.freeze(refreshIssues(value, value, copies, key));
+            return { nodes: zero, edges: zero, issues, unbound: Object.freeze([]) };
         }
         const copy = mintCopyId();
         const edit: StepsEdit = { kind: "replace-copy", id: key, copy, ...about };
@@ -4090,8 +4121,80 @@ export class SessionData implements SessionDataApi {
         const next = applyEdit(value, edit, all);
         const counts = changeCounts(buildOf(value, copies), buildOf(next, all));
         const issues = refreshIssues(value, next, all, key);
+        const bound = this.boundNow();
         await this.sender("replace a load")({ op: "data.steps-set", edit, copies: { [copy]: tables } });
-        return { ...counts, issues: Object.freeze(issues) };
+        const lost = this.unboundSince(bound);
+        return { ...counts, issues: Object.freeze([...issues, ...lost.issues]), unbound: lost.unbound };
+    }
+
+    /**
+     * What a rebuild may leave unbound, read before it runs: each pin, note target and reader edit
+     * that binds now, by what holds it, with its reference as the build names it; and the columns
+     * the nodes and edges carry.
+     * @returns The references and the columns.
+     */
+    private boundNow(): {
+        readonly refs: ReadonlyMap<string, SourceElementRef>;
+        readonly columns: { readonly node: ReadonlySet<string>; readonly edge: ReadonlySet<string> };
+    } {
+        const { value, result } = this.stepsBuild();
+        const refs = new Map<string, SourceElementRef>();
+        const applied = new Set(result.readerResults.filter((each) => each.applied).map((each) => each.id));
+        for (const op of value.reader) {
+            if (op.op === "edit" && applied.has(op.id)) {
+                refs.set(`edit:${op.id}`, op.node ?? op.edge);
+            }
+        }
+        const nodes = new Map([...nodeIdsOf(result)].map(([internal, id]) => [id, result.nodes.get(internal)]));
+        const edges = new Map(Object.entries(this.stepsEdgeIds()).map(([built, id]) => [id, result.edges.get(built)]));
+        const held = this.writes.references?.() ?? { nodes: [], edges: [] };
+        for (const id of held.nodes) {
+            const n = nodes.get(id);
+            if (n !== undefined) {
+                refs.set(`node:${String(id)}`, { space: n.space, key: n.key });
+            }
+        }
+        for (const id of held.edges) {
+            const e = id === undefined ? undefined : edges.get(id);
+            if (e !== undefined) {
+                refs.set(`edge:${String(id)}`, { load: e.load, key: e.key });
+            }
+        }
+        const keysOf = (rows: readonly Readonly<Record<string, unknown>>[]): Set<string> =>
+            new Set(rows.flatMap((row) => Object.keys(row)));
+        const columns = { node: keysOf(this.nodes({ scope: "graph" })), edge: keysOf(this.edges({ scope: "graph" })) };
+        return { refs, columns };
+    }
+
+    /**
+     * What a rebuild left unbound: each reference {@link boundNow} found that no longer binds, as
+     * `W_REFERENCE_UNBOUND` (one per element), and the style layers, the filter and joins that read
+     * a column no node or edge carries any more.
+     * @param before - What bound before the rebuild.
+     * @returns The issues and the facts.
+     */
+    private unboundSince(before: ReturnType<SessionData["boundNow"]>): {
+        readonly issues: readonly SourceRefreshIssue[];
+        readonly unbound: readonly CodedFact<ReplaceUnboundCode>[];
+    } {
+        const now = this.boundNow();
+        const lost = new Map<string, SourceElementRef>();
+        for (const [holder, ref] of before.refs) {
+            if (!now.refs.has(holder)) {
+                lost.set("space" in ref ? `n:${ref.space}:${ref.key}` : `e:${ref.load}:${ref.key}`, ref);
+            }
+        }
+        const issues = [...lost.values()].map((ref) => ({ code: "W_REFERENCE_UNBOUND" as const, params: { ref } }));
+        const facts: CodedFact<ReplaceUnboundCode>[] = [];
+        const { styles, visibility } = this.writes.readers();
+        for (const kind of ["node", "edge"] as const) {
+            for (const name of before.columns[kind]) {
+                if (!now.columns[kind].has(name)) {
+                    unboundFactsOf(kind, name, { styles, visibility, joins: this.joins() }, facts);
+                }
+            }
+        }
+        return { issues: Object.freeze(issues), unbound: Object.freeze(facts) };
     }
 
     /**

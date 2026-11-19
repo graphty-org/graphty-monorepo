@@ -10,6 +10,7 @@
  */
 
 import type { EdgeId } from "../../catalog/types";
+import type { LoadReport } from "../../data/report";
 import { featureOff } from "../../features/resolve";
 import type { HistoryCode, JoinChoices, JoinRecord, LoadedSource } from "../../session/types";
 import type { SessionCommand } from "../planning";
@@ -325,6 +326,65 @@ function removeStrays(ctx: UndoableContext, before: ProjectedGraph, edgeIds: Rea
 }
 
 /**
+ * The source descriptor `data.source()` reads for a source, as an add writes it.
+ * @param src - The source.
+ * @returns Its type, name and options.
+ */
+function describedBy(src: StepsSource): Readonly<Record<string, unknown>> {
+    return Object.freeze({
+        ...(src.type === undefined ? {} : { type: src.type }),
+        ...(src.label === null ? {} : { name: src.label }),
+        ...(src.config === undefined ? {} : { config: src.config }),
+    });
+}
+
+/**
+ * The source the graph is said to come from once one is removed: the newest source left that was
+ * loaded rather than merged into another, which is the one a session that never had the removed
+ * source names.
+ * @param value - The value without the removed source.
+ * @returns The source, or undefined when none is left.
+ */
+function newestLoaded(value: SourceSteps): StepsSource | undefined {
+    // ponytail: "merged" is read off the steps (a join.merge reads it), since a source does not
+    // record whether it was staged; a source brought in by a connect act still counts as loaded.
+    const merged = new Set(value.steps.flatMap((step) => (step.op === "join.merge" ? [step.source] : [])));
+    const left = Object.values(value.sources);
+    return [...left].reverse().find((src) => !merged.has(src.id)) ?? left.at(-1);
+}
+
+/**
+ * The import report with its ends as a fresh build of the graph would leave them: the ends of the
+ * last group of edges such a build adds. A record read hides the columns those ends name, so the
+ * same steps read the same however they were reached (a removal, an undo, an add).
+ * @param report - The report the graph holds, or undefined.
+ * @param graph - The build.
+ * @returns The report to write, or null when it already says so or there is nothing to say.
+ */
+function reportOfBuild(report: LoadReport | undefined, graph: ProjectedGraph): LoadReport | null {
+    // addEdges groups the new edges by ends and weight, in the order each group first appears.
+    const first = new Map<string, ProjectedEdge["ends"]>();
+    for (const { ends, weight } of graph.edges.values()) {
+        const k = JSON.stringify([ends.source, ends.target, weight ?? null]);
+        if (!first.has(k)) {
+            first.set(k, ends);
+        }
+    }
+    const last = [...first.values()].at(-1);
+    if (report === undefined || last === undefined) {
+        return null;
+    }
+    const { endpoints } = report;
+    if (endpoints.source === last.source && endpoints.target === last.target) {
+        return null;
+    }
+    return Object.freeze({
+        ...report,
+        endpoints: Object.freeze({ source: last.source, target: last.target, resolvedFrom: "declared" as const }),
+    });
+}
+
+/**
  * The removals and in-place patches of a diff, in that order.
  * @param diff - The diff.
  * @param apply - Applies one mutation.
@@ -403,7 +463,8 @@ const dataStepsSet: UndoableDefinition<DataStepsSetCommand> = {
         const copies = copiesOf(edited, all);
         const idPath = ctx.services.config?.().data.knownFields.nodeIdPath ?? "id";
         const before = projectBuild(buildOf(prior, priorCopies), prior, idPath);
-        const diff = diffGraph(before, projectBuild(buildOf(edited, copies), edited, idPath), edgeIds);
+        const after = projectBuild(buildOf(edited, copies), edited, idPath);
+        const diff = diffGraph(before, after, edgeIds);
         // A build that changes the graph is counted, so a run made over an earlier one reads stale (8.6).
         const next = changesGraph(diff) ? counted(edited, copies, (prior.build ?? 0) + 1) : edited;
         const apply = (mutation: Parameters<typeof service.apply>[0]): void => {
@@ -426,6 +487,9 @@ const dataStepsSet: UndoableDefinition<DataStepsSetCommand> = {
         const ids = Object.freeze({ ...diff.kept, ...addEdges(diff.addEdges, ctx) });
         const { sources, provenance } = listed(next, copies, ids);
         const added = adds?.source ?? null;
+        // A removal names the source left, as the off path does; an add names the one it adds.
+        const named = edit.kind === "remove-source" ? newestLoaded(next) : added;
+        const report = reportOfBuild(ctx.state.graph.values.get("importReport") as LoadReport | undefined, after);
         service.values?.(
             {
                 [SOURCE_STEPS_VALUE]: next,
@@ -433,15 +497,8 @@ const dataStepsSet: UndoableDefinition<DataStepsSetCommand> = {
                 [SOURCE_EDGE_IDS_VALUE]: ids,
                 [SOURCES_VALUE]: sources,
                 [PROVENANCE_VALUE]: provenance,
-                ...(added === null
-                    ? {}
-                    : {
-                          [SOURCE_VALUE]: Object.freeze({
-                              ...(added.type === undefined ? {} : { type: added.type }),
-                              ...(added.label === null ? {} : { name: added.label }),
-                              ...(added.config === undefined ? {} : { config: added.config }),
-                          }),
-                      }),
+                ...(named === null || named === undefined ? {} : { [SOURCE_VALUE]: describedBy(named) }),
+                ...(report === null ? {} : { importReport: report }),
             },
             ctx.draft,
         );

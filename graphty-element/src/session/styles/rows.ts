@@ -285,9 +285,11 @@ export const STARTING_GHOST_LOOK = {
 } as const;
 
 /**
- * The ring width that reaches as far out as a halo drawn at a scale would: a halo's ring is the
- * node's radius times (scale - 1) wide, and a ring's width (`node.outerBorderWidth`, in the units
- * of `node.borderWidth`) is in the units of the node's size, twice its radius.
+ * The ring width for a halo scale: (scale - 1) / 2. A halo's ring is the node's drawn radius times
+ * (scale - 1) wide, and a ring width (`node.outerBorderWidth`) is drawn at the node extent per unit
+ * of size, so the ring reaches as far out as the halo only on a shape that extent across (the
+ * default shape, 1.5 across); on a sphere or box 1 across the ring is half again as wide as the
+ * halo's.
  * @param scale - The halo's size, as a multiple of the node's drawn radius.
  * @returns The ring width, never below 0, to a thousandth.
  */
@@ -301,8 +303,8 @@ function ringWidthOfScale(scale: number): number {
  * `outsideWindow`), and nothing keeps it in step with a setting afterwards.
  * @param look - What the rows are written with.
  * @param look.selection - The selection settings' node halo and edge band. Selected draws the
- *   halo as a ring outside the node's border (`node.outerBorder*`) of the same color, as far out as
- *   the halo would reach, so a border a lower row gives the node stays in view and edges still stop
+ *   halo as a ring outside the node's border (`node.outerBorder*`) of the same color, (scale - 1) / 2
+ *   wide (see {@link ringWidthOfScale}), so a border a lower row gives the node stays in view and edges still stop
  *   where they did (the halo itself is drawn only by the selection settings).
  * @param look.selection.color - The halo's color.
  * @param look.selection.scale - The halo's size, as a multiple of the node's drawn radius.

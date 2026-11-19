@@ -8,12 +8,14 @@
  *   node's own outline); the halo's ring is wider. Halo is not a kind of its own.
  * - Outline differs only on the box and the star, where it stays a circle. That goes to the owner;
  *   until he answers it is treated as not distinct.
- * So Border is the one kept kind. The Selected and Pinned starting rows draw a border instead of a
- * halo (src/session/styles/rows.ts). The halo stays in graphty-element because the selection
- * settings and `selection.peek` draw it.
+ * So Border is the one kept kind. The Selected and Pinned starting rows draw the outer ring
+ * (`node.outerBorder*`, the ring outside the node's own border) instead of a halo
+ * (src/session/styles/rows.ts). The halo stays in graphty-element because the selection settings
+ * and `selection.peek` draw it.
  *
  * With one kept kind there is no pair to guard yet; this test keeps every cell drawing and, run
- * with VITE_BORDER_KINDS_SHEET=1, writes the sheet's pictures and numbers to tmp/border-kinds/.
+ * with VITE_BORDER_KINDS_SHEET=1, writes the sheet's cells and numbers to tmp/border-kinds/ (under
+ * graphty-element); the sheet built from them is tmp/style-panel-design/v6/border-kinds/sheet.png.
  */
 
 import "../../src/graphty-element";

@@ -186,6 +186,30 @@ describe("the starting rows", () => {
         session.dispose();
     });
 
+    it("the Selected ring stands in for an imported outer ring while the node is selected", async () => {
+        const session = await lesMis();
+        await session.config.set({ startingRows: true });
+        // graph-io writes a Cytoscape outline-* ring to node.outerBorder*, the slot Selected draws in.
+        await session.styles.add({
+            name: "Imported ring",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.outerBorderColor": "#E00000", "node.outerBorderWidth": 0.1 },
+        });
+        await session.selection.apply({ ids: ["Valjean"] });
+        await session.styles.settled();
+        let { merged } = session.styles.explain({ node: "Valjean" });
+        assert.strictEqual(merged["node.outerBorderColor"]?.hex.toUpperCase(), "#0077BB", "Selected wins");
+        assert.strictEqual(merged["node.outerBorderWidth"], 0.225);
+
+        session.selection.clear();
+        await session.styles.settled();
+        ({ merged } = session.styles.explain({ node: "Valjean" }));
+        assert.strictEqual(merged["node.outerBorderColor"]?.hex.toUpperCase(), "#E00000", "the import's ring is back");
+        assert.strictEqual(merged["node.outerBorderWidth"], 0.1);
+        session.dispose();
+    });
+
     it("Hovered follows the node under the pointer", async () => {
         const session = await lesMis();
         await session.config.set({ startingRows: true });

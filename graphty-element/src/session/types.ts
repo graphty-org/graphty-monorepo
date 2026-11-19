@@ -3551,8 +3551,9 @@ export interface ProjectConfig {
     /**
      * What a selected node's highlight looks like. While {@link ProjectConfig.startingRows} is off,
      * these settings draw it themselves, as a halo. With it on, the starting Selected row draws it
-     * as a ring outside the node's border (`node.outerBorder*`) as far out as the halo would reach,
-     * and these settings draw nothing.
+     * as a ring outside the node's border (`node.outerBorder*`), `(scale - 1) / 2` wide (as far
+     * out as the halo on the default shape, a little further on a shape 1 across), and these settings
+     * draw nothing.
      */
     readonly selectionStyle: GraphSelectionStyleConfig;
     /**
@@ -3560,8 +3561,8 @@ export interface ProjectConfig {
      * (only `color`, `scale` and `opacity` are read). Absent by default. Set when
      * {@link ProjectConfig.startingRows} turns on (in the same `config.set` or before), the default
      * rows gain a Pinned row (nodes in the state `"pinned"`, pinned to the top directly below
-     * Selected, drawing this look as a ring outside the node's border, `node.outerBorder*`, as far
-     * out as a halo at `scale` would reach). The row is ordinary data from then on: changing or clearing
+     * Selected, drawing this look as a ring outside the node's border, `node.outerBorder*`, `(scale - 1) / 2`
+     * wide). The row is ordinary data from then on: changing or clearing
      * this setting later leaves it as it is. The look is the consumer's choice, so nothing is drawn
      * for a pinned node until it is set.
      *
@@ -3573,8 +3574,8 @@ export interface ProjectConfig {
     readonly pinnedStyle?: GraphSelectionStyleConfig;
     /**
      * Whether the project draws with its default rows: Everything (pinned to the bottom, writing
-     * nothing), Selected (pinned to the top, drawing a solid node ring (`node.outerBorder*`, as far out
-     * as the selection settings' halo would reach) and edge band in the selection settings' colors
+     * nothing), Selected (pinned to the top, drawing a solid node ring (`node.outerBorder*`, `(scale - 1) / 2`
+     * wide for the selection settings' `scale`) and edge band in the selection settings' colors
      * and sizes, a blue ring and band by default) and Hovered (pinned to the
      * top, writing nothing). False by default. Turning it on writes the rows once, in the same step,
      * and the selection settings ({@link ProjectConfig.selectionStyle}) draw nothing themselves.

@@ -3,7 +3,8 @@
  * the camera's direction and pivot rotation are unchanged, and the framed nodes fill the canvas on
  * their limiting axis, centered. Framing the selection does the same with `camera.pivotOnSelection`
  * on, so the view's placement wins over the glide to the selection's center. In 2D a turned view
- * keeps its turn. Read through the public API: `getCameraState` and `nodeScreenPosition`.
+ * keeps its turn and still fills the canvas, for the graph and for the selection. Read through the
+ * public API: `getCameraState` and `nodeScreenPosition`.
  */
 
 import "../../src/graphty-element";
@@ -163,5 +164,27 @@ describe("fitToGraph with keepAngle", () => {
         await element.waitForStableFrame();
 
         assert.closeTo(element.graph.getCameraState().rotation ?? 0, 0.5, 1e-3);
+        assertFills(
+            element,
+            NODES.map((node) => node.id),
+        );
+    });
+
+    it("in 2D a turned view frames the selection to fill the canvas, keeping its turn", async () => {
+        const element = await mounted("2d");
+        await element.setCameraState({ rotation: 1.2 }, { animate: false });
+        const selected = ["a", "c", "d", "g"];
+        await element.session.selection.apply({ nodes: selected });
+        await element.waitForStableFrame();
+
+        await element.applyCameraView("fitToGraph", {
+            scope: "selection",
+            params: { keepAngle: true },
+            animate: false,
+        });
+        await element.waitForStableFrame();
+
+        assert.closeTo(element.graph.getCameraState().rotation ?? 0, 1.2, 1e-3);
+        assertFills(element, selected);
     });
 });

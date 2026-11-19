@@ -301,17 +301,30 @@ function fitToGraph(input: CameraViewInput): CameraState {
         // of that side the insets leave free. The zoom is the half-width at zoom 1 over half of
         // that. NOT pixels per unit: the camera never reads a zoom that way, and on a graph tens
         // of units wide that number put a single edge across the whole screen.
-        // A turned view (`rotation`, counterclockwise) shows the box's extent along its own axes.
+        // A turned view (`rotation`, counterclockwise) is measured along the screen's turned axes,
+        // over the points themselves: the turned box's extent over-sizes any graph that does not
+        // fill its box's corners, and drew it well short of the canvas.
         const turn = input.current.rotation ?? 0;
         const cos = Math.cos(turn);
         const sin = Math.sin(turn);
-        const sizeX = Math.abs(cos) * bounds.size.x + Math.abs(sin) * bounds.size.y;
-        const sizeY = Math.abs(sin) * bounds.size.x + Math.abs(cos) * bounds.size.y;
+        let [minX, maxX, minY, maxY] = [Infinity, -Infinity, Infinity, -Infinity];
+        const measured = bounds.points !== undefined && bounds.points.length > 0 ? bounds.points : boxCorners(bounds);
+        for (const point of measured) {
+            const dx = point.x - center.x;
+            const dy = point.y - center.y;
+            const sx = dx * cos - dy * sin;
+            const sy = dx * sin + dy * cos;
+            [minX, maxX, minY, maxY] = [Math.min(minX, sx), Math.max(maxX, sx), Math.min(minY, sy), Math.max(maxY, sy)];
+        }
+
+        const [sizeX, sizeY] = [maxX - minX, maxY - minY];
+        // Where the points' middle sits from the box's center, along the screen's axes.
+        const [midX, midY] = [(minX + maxX) / 2, (minY + maxY) / 2];
         const extent = Math.max(sizeX / free.width, (sizeY * input.aspect) / free.height);
         const halfWidth = (extent * FLAT_PADDING) / 2;
         const halfHeight = input.aspect > 0 ? halfWidth / input.aspect : halfWidth;
         // Centered on the free area, not on the canvas: its offset is along the screen's axes.
-        const [offsetX, offsetY] = [free.x * halfWidth, free.y * halfHeight];
+        const [offsetX, offsetY] = [free.x * halfWidth - midX, free.y * halfHeight - midY];
 
         return {
             type: "orthographic",

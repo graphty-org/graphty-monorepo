@@ -17,7 +17,7 @@ import type { JoinRecord } from "../../types";
 import { applyAct, type StepsAct } from "./acts";
 import { build, isStaged, nodeSpace, ownSpace, resolveNode, stepSources } from "./build";
 import { RECORD_PATHS } from "./paths";
-import { readableRecord } from "./provenance";
+import { conflictReport, readableRecord, type StepsOutcome } from "./provenance";
 import { applyRefreshEdit, editStates, missingColumns, type RefreshEdit, type RefreshIssue } from "./refresh";
 import {
     type BuildResult,
@@ -51,7 +51,7 @@ export const SOURCE_EDGE_IDS_VALUE = "sourceEdgeIds";
 export type StepsSourceKind = "file" | "url" | "server" | "sample" | "derived";
 
 /** A key overlap a source met when it was added (5.5, 9.1). */
-export interface SpaceOverlap {
+interface SpaceOverlap {
     readonly code: "W_SPACE_OVERLAP";
     readonly params: {
         readonly space: string;
@@ -926,6 +926,8 @@ export interface StepRow {
     readonly missing: readonly RefreshIssue[];
     /** Its counts in the committed build; null when it was not built. */
     readonly buckets: StepStats | null;
+    /** One `W_VALUES_DIFFER` per column whose values from different sources differ at this step. */
+    readonly valuesDiffer: readonly Extract<StepsOutcome, { code: "W_VALUES_DIFFER" }>[];
 }
 
 /**
@@ -962,6 +964,7 @@ function readsOf(step: Step, src: Source | undefined): string[] {
  * @returns One row per step, in order.
  */
 export function stepRows(value: SourceSteps, result: BuildResult, copies: Copies): readonly StepRow[] {
+    const report = conflictReport(result).filter((each) => each.code === "W_VALUES_DIFFER");
     return value.steps.map((step, index) => {
         const src = value.sources[step.source] as StepsSource | undefined;
         const spaces = new Set<string>();
@@ -1004,6 +1007,7 @@ export function stepRows(value: SourceSteps, result: BuildResult, copies: Copies
             held: stepSources(step, value).some((id) => value.sources[id]?.held === true),
             missing: Object.freeze(missingColumns(value, copies, index)),
             buckets: result.stats.find((s) => s.step === index) ?? null,
+            valuesDiffer: Object.freeze(report.filter((each) => each.params.step === index)),
         });
     });
 }

@@ -10,11 +10,11 @@ import type { GraphtyErrorCode } from "../../../errors/codes";
 import { GraphtyError } from "../../../errors/GraphtyError";
 import { isStaged, mintPart, nodeSpace, ownSpace } from "./build";
 import { addSource, buildOf, type Copies, declared, type SourceSteps, type StepsSource } from "./project";
-import { isOutcome, pickEdit, type Rename, renameColumn } from "./provenance";
+import { checkClashRule, conflicts, isOutcome, pickEdit, type Rename, renameColumn } from "./provenance";
 import type { ClashRule, EdgesStep, ElementRef, MergeStep, NodeValuesStep, RowFilter, Step, TableName } from "./types";
 
 /** A column of one source. */
-export interface FieldRef {
+interface FieldRef {
     readonly source: string;
     readonly field: string;
 }
@@ -23,12 +23,12 @@ export interface FieldRef {
  * The node 1 side of Merge or Make an edge: a source's key (or another field of it, translated
  * through the source's rows), or every node of an id space.
  */
-export type JoinInto =
+type JoinInto =
     | { readonly source: string; readonly field?: string; readonly space?: string }
     | { readonly space: string; readonly source?: undefined; readonly field?: undefined };
 
 /** Merge 2 into 1 (3.6). */
-export interface MergeAct {
+interface MergeAct {
     readonly from: FieldRef;
     readonly into: JoinInto;
     readonly unmatchedFrom?: "keep" | "drop";
@@ -42,7 +42,7 @@ export interface MergeAct {
 }
 
 /** Make an edge (3.6): each row of the source becomes an edge between its node and node 1. */
-export interface ConnectAct {
+interface ConnectAct {
     readonly from: FieldRef;
     readonly into: JoinInto;
     /** `"into-from"` (default) runs each edge from node 1 to the source's node. */
@@ -52,7 +52,7 @@ export interface ConnectAct {
 }
 
 /** Extract (4.3): one column of an edge source becomes nodes, joined to one end by new edges. */
-export interface ExtractAct {
+interface ExtractAct {
     readonly column: string;
     readonly space?: string;
     readonly type?: string;
@@ -64,7 +64,7 @@ export interface ExtractAct {
 }
 
 /** Move columns (4.3): an edge source's columns onto the nodes at one end, or the nodes a column names. */
-export interface MoveColumnsAct {
+interface MoveColumnsAct {
     readonly columns: readonly string[];
     readonly to: "source" | "target" | { readonly column: string; readonly space: string };
 }
@@ -335,7 +335,37 @@ function merge(value: SourceSteps, copies: Copies, o: MergeAct): SourceSteps {
             ? {}
             : { via: o.into.source, mapping: { columns: [o.into.field ?? "", n1.keyCol], space: n1.space } }),
     };
-    return { ...next, steps: [...next.steps, step] };
+    const out = { ...next, steps: [...next.steps, step] };
+    if (o.clash !== undefined) {
+        checkClash(out, copies, out.steps.length - 1, o.clash);
+    }
+    return out;
+}
+
+/**
+ * Refuse a merge whose clash rule orders values that cannot be ordered (3.10): `min`, `max` or
+ * `mean` on a column whose meeting values are not all numbers (or, for `min` and `max`, all dates).
+ * @param value - The value with the merge step added.
+ * @param copies - The rows as read.
+ * @param index - The merge step's place.
+ * @param clash - The step's rule, one for every column or one per column with `"*"` for the rest.
+ * @throws A `GraphtyError` with `E_CLASH_RULE_TYPE { step, column, rule }`.
+ */
+function checkClash(value: SourceSteps, copies: Copies, index: number, clash: NonNullable<MergeStep["clash"]>): void {
+    const result = buildOf(value, copies);
+    const rules: Readonly<Record<string, ClashRule>> = typeof clash === "string" ? { "*": clash } : clash;
+    const columns = new Set(conflicts(result, { step: index }).map((c) => c.column));
+    for (const column of columns) {
+        const rule = rules[column] ?? rules["*"] ?? "keep";
+        const out = checkClashRule(result, index, column, rule);
+        if (out !== null) {
+            throw refused(
+                out.code as GraphtyErrorCode,
+                `Rule ${rule} cannot order the values in ${column}.`,
+                out.params,
+            );
+        }
+    }
 }
 
 /**

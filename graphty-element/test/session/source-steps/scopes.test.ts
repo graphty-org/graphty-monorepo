@@ -244,6 +244,16 @@ describe("{ types } outside session.scope", () => {
         session.dispose();
     });
 
+    it("off: sets.status and sets.createFrom refuse { types }, and no set is saved", async () => {
+        const session = createGraphSession({ features: [] });
+        await session.data.addNodes([{ id: "a", "graphty.type": "x" }, { id: "b" }]);
+        const setsBefore = session.sets.list().length;
+        await refused(async () => await Promise.resolve(session.sets.status({ types: ["x"] })), "E_FEATURE_OFF");
+        await refused(async () => await session.sets.createFrom({ types: ["x"] }), "E_FEATURE_OFF");
+        assert.strictEqual(session.sets.list().length, setsBefore, "the refused set is not saved");
+        session.dispose();
+    });
+
     it("on: a run, a filter's member leaf and a member selector read { types } as the nodes of those types", async () => {
         const { session } = await phase6(undefined, sessionWithRuns(["source-steps"]));
         const accounts = (await session.scope.count({ types: ["account"] })).nodes;

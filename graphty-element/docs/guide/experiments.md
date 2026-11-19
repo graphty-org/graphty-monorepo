@@ -133,9 +133,32 @@ for (const issue of report.issues ?? []) {
 }
 ```
 
-`expand`, `more` and `collapse` work only while the network source is the only source. Saving the
-sources and steps is not wired yet. With it off, loads, joins, removal, refresh and saved files
-are as before.
+To bring a second source in on purpose, stage it (`data.stage` reads it but builds nothing yet),
+then `data.merge` it into the nodes it names or `data.connect` it to them as edges. Where both
+sources hold a value for the same cell, the first one held is kept unless the merge's `clash`
+names another rule per column (`overwrite`, `both`, `min`, `max`, `mean`, `vote`); `min`, `max`
+and `mean` on a column whose values are not numbers (or dates, for `min` and `max`) are refused
+with `E_CLASH_RULE_TYPE`. `data.conflicts()` lists each cell that differs, each `data.steps()` row
+counts them per column (`W_VALUES_DIFFER` in `valuesDiffer`), and `data.pick` settles one cell as
+a reader edit naming the source:
+
+```ts
+await session.data.import({ type: "csv", config: { data: crm }, name: "crm.csv" }, { key: "id", type: "person" });
+const erp = await session.data.stage({ type: "csv", config: { data: more }, name: "erp.csv" }, { key: "id" });
+await session.data.merge({
+    from: { source: erp, field: "id" },
+    into: { space: "person" },
+    clash: { amount: "max" },
+});
+for (const conflict of session.data.conflicts({ only: "open" })) {
+    await session.data.pick(conflict.ref, conflict.column, erp);
+}
+```
+
+`expand`, `more` and `collapse` work only while the network source is the only source. Saving
+keeps the sources (their rows, or where a referenced one is read from) and the steps in the
+project file's `graphty-sources` member, and opening the file rebuilds the same graph. With it
+off, loads, joins, removal, refresh and saved files are as before.
 
 ## What `@experimental` promises
 

@@ -4125,11 +4125,19 @@ export class SessionData implements SessionDataApi {
         const after = this.current();
         issues.push(...this.unboundSince(bound).issues);
         const space = edgeSpaceOf(after);
+        const beforeSpace = edgeSpaceOf(before);
+        // Counted from the ids that went, never from the totals: removing a source can bring nodes back
+        // (a merge it took part in is undone), and those must not cancel the ones that went.
+        let nodesGone = 0;
+        for (let i = 0; i < before.nodeCount; i++) {
+            nodesGone += after.ids.has(before.ids.idOf(i)) ? 0 : 1;
+        }
+        let edgesGone = 0;
+        for (let i = 0; i < before.edgeCount; i++) {
+            edgesGone += space.indexOf(beforeSpace.idOf(i)) === INVALID_INDEX ? 1 : 0;
+        }
         return Object.freeze({
-            removed: Object.freeze({
-                nodes: before.nodeCount - after.nodeCount,
-                edges: before.edgeCount - after.edgeCount,
-            }),
+            removed: Object.freeze({ nodes: nodesGone, edges: edgesGone }),
             // What the source supplied that the graph without it still holds: another source supplied it too.
             kept: Object.freeze({
                 nodes: supplied.nodes.filter((id) => after.ids.has(id)).length,

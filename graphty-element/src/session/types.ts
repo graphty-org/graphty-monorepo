@@ -4038,6 +4038,28 @@ export interface SourceStepRow {
     readonly missing: readonly SourceRefreshIssue[];
     /** Its counts in the committed build; null when it was not built. */
     readonly buckets: SourceStepCounts | null;
+    /** One `W_VALUES_DIFFER` per column whose values from different sources differ at this step. */
+    readonly valuesDiffer: readonly SourceValuesDiffer[];
+}
+
+/**
+ * `W_VALUES_DIFFER`: values from different sources differ in one column of one step.
+ * @experimental source-steps
+ */
+export interface SourceValuesDiffer {
+    readonly code: "W_VALUES_DIFFER";
+    readonly params: {
+        /** The step's place. */
+        readonly step: number;
+        /** The column. */
+        readonly column: string;
+        /** How many cells differ. */
+        readonly count: number;
+        /** The step's rule for the column. */
+        readonly rule: SourceClashRule;
+        /** How many of those cells a reader decision (a pick or an edit) settles. */
+        readonly decided: number;
+    };
 }
 
 /**

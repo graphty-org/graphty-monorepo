@@ -245,6 +245,7 @@ export type {
     SourceTypeName,
     SourceTypeRule,
     SourceValue,
+    SourceValuesDiffer,
     StyleProblem,
     TableMapping,
     TableMappingRead,

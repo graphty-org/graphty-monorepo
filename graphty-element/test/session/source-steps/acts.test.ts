@@ -10,7 +10,7 @@
 
 import { assert, describe, it } from "vitest";
 
-import { createGraphSession } from "../../../src/session";
+import { createGraphSession, type GraphSession } from "../../../src/session";
 import {
     ACCOUNT,
     ACCOUNTS,
@@ -26,6 +26,26 @@ import {
     spaces,
     TRANSACTIONS,
 } from "./scenario";
+
+/**
+ * The ids of the nodes a session holds.
+ * @param session - The session.
+ * @returns The ids, as strings.
+ */
+function nodeIds(session: GraphSession): Set<string> {
+    return new Set(session.data.nodes().map((n) => String(n.id)));
+}
+
+/**
+ * How many of the ids held before a session no longer holds.
+ * @param was - The ids before.
+ * @param session - The session after.
+ * @returns The count.
+ */
+function gone(was: ReadonlySet<string>, session: GraphSession): number {
+    const now = nodeIds(session);
+    return [...was].filter((id) => !now.has(id)).length;
+}
 
 describe("source-steps: the acts", () => {
     it("phase 2: split one file into accounts, merchants and devices", async () => {
@@ -133,7 +153,9 @@ describe("source-steps: the acts", () => {
         const { session, m } = await full();
         const withM = spaces(session);
         assert.strictEqual(session.data.values({ space: "merchant", key: "M-1" }, "city")?.shown, "Oslo");
-        await session.data.removeSource(m);
+        const was = nodeIds(session);
+        const report = await session.data.removeSource(m);
+        assert.strictEqual(report.removed.nodes, gone(was, session), "removed counts the nodes that went");
         const without = await phase6();
         await edgeFile(without.session, BANK_B, "bankB.csv", "merge");
         assert.deepStrictEqual(spaces(session), spaces(without.session));
@@ -143,6 +165,29 @@ describe("source-steps: the acts", () => {
         assert.deepStrictEqual(spaces(session), withM);
         session.dispose();
         without.session.dispose();
+    });
+
+    it("removing a source that undoes a merge counts the nodes that went, not the net change", async () => {
+        // A drop merge kept only A-1 and A-2 from accounts.csv; without T, A-9 comes back.
+        const { session, t } = await phase6("drop");
+        const was = nodeIds(session);
+        const report = await session.data.removeSource(t);
+        assert.strictEqual(gone(was, session), 6);
+        assert.strictEqual(report.removed.nodes, 6, "the 6 nodes that went, not 6 minus A-9");
+        assert.isTrue(nodeIds(session).has("A-9"));
+        session.dispose();
+    });
+
+    it("removing a source another merged through never reports a negative count", async () => {
+        const { session, a } = await phase6();
+        const kyc = ["alert_id,email,score", "K-0,a@x,5", "K-1,zz@x,3"].join("\n");
+        const k = await session.data.stage({ type: "csv", config: { data: kyc }, name: "kyc.csv" }, { key: "email" });
+        await session.data.merge({ from: { source: k, field: "email" }, into: { source: a, field: "email" } });
+        const was = nodeIds(session);
+        const report = await session.data.removeSource(a);
+        assert.isAtLeast(report.removed.nodes, 1, "A-9 went");
+        assert.strictEqual(report.removed.nodes, gone(was, session));
+        session.dispose();
     });
 
     it("phase 12: deleting bank B's add step gives the graph without bank B", async () => {

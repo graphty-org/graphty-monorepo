@@ -4611,6 +4611,13 @@ export type GraphtyErrorCode =
 */
 | "E_EDIT_ROLE_COLUMN"
 /**
+* A merge's clash rule orders values (`min`, `max`, `mean`) but the values that meet in a column
+* are not all numbers (or, for `min` and `max`, all dates). `details.step`, `details.column` and
+* `details.rule` name the step, the column and the rule. Experimental: the source-steps
+* experiment.
+*/
+| "E_CLASH_RULE_TYPE"
+/**
 * A role setter that names no source could mean several built sources: each carries the
 * column and can carry the role. `details.sources` lists them; the caller names one with the
 * setter's `source` option. Experimental: the source-steps experiment.
@@ -4762,6 +4769,12 @@ export type GraphtyWarningCode =
 * `params.source`). Experimental: the source-steps experiment.
 */
 | "W_STEP_REMOVED"
+/**
+* Values from different sources differ in one column of one step (`params.step`,
+* `params.column`, `params.count` cells, `params.rule` the step's rule for the column,
+* `params.decided` cells a reader decision settles). Experimental: the source-steps experiment.
+*/
+| "W_VALUES_DIFFER"
 /**
 * A refresh or replace brought a column the source's old rows did not hold (`params.source`,
 * `params.column`). Experimental: the source-steps experiment.

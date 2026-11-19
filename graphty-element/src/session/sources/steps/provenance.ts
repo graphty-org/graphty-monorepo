@@ -55,7 +55,7 @@ const refOf = (el: BuiltNode | BuiltEdge): ElementRef =>
 
 // ---------------------------------------------------------------- readable paths (3.9)
 
-export { READABLE_PATHS, RECORD_PATHS } from "./paths";
+export { READABLE_PATHS } from "./paths";
 
 /**
  * One value of a built element: a readable path, else its shown value for a column.

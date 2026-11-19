@@ -1,5 +1,5 @@
 /**
- * The behaviour pins of layout/test/forceatlas2-layout.test.ts re-expressed on the GPU (spec 11.4; note 01 section
+ * The behavior pins of layout/test/forceatlas2-layout.test.ts re-expressed on the GPU (spec 11.4; note 01 section
  * 2.1.8; contract 5.5 fa2-behaviour.test.ts): the empty graph (load + step resolve, no GPU work), a single node,
  * disconnected components separated by > 0.03 after 100 iterations, maxIter respected, completeGraph(6) spread > 0.3
  * in width and height, the same seed -> the same layout BITWISE on the same device, different seeds differ, and

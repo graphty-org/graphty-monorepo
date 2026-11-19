@@ -84,7 +84,7 @@ describe("the frame guard", () => {
 
     it("steps down on slow frames the loop spent waiting for its tick, with every fence signalled", () => {
         // Chromium runs the next animation frame only once the GPU caught up, so a slow GPU shows
-        // as the wait between the loop's ticks, and the fence has signalled by then.
+        // as the wait between the loop's ticks, and the fence has signaled by then.
         const { guard, changes } = guarded();
         for (let i = 0; i < 13; i++) {
             guard.frame({ intervalMs: 80, waitMs: 75, gpuBehind: false });

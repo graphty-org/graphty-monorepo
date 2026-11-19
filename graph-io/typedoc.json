@@ -13,6 +13,7 @@
         "./src/formats/cx2/index.ts",
         "./src/formats/cx/index.ts",
         "./src/formats/obo/index.ts",
+        "./src/formats/sif/index.ts",
         "./src/formats/cys/index.ts",
         "./src/sources/index.ts",
         "./src/sources/ndex/index.ts",

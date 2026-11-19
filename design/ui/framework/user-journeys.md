@@ -186,7 +186,7 @@ journey drawn now.
 
 Interviews per rhythm, sized in the table below and planned in `research/study-schedule.md`.
 Interviews alone are weak exactly where journeys matter: people recall work spread over days
-unreliably and tidy it in the telling. So the weekly return and the travelling starting point
+unreliably and tidy it in the telling. So the weekly return and the traveling starting point
 also get a **four-week diary study**, one short entry per return or per recipe received ("what did
 you open, what had changed, what did you redo"), four weeks because a weekly rhythm needs several
 returns to show a pattern; and each weekly-return interview is held over the participant's own
@@ -200,7 +200,7 @@ trust questions against practice. A stage nobody recognizes is deleted, not defe
 | Does the weekly return swap data under a kept analysis, or rebuild it? | 5 to 8 analysts with a recurring export: "walk me through last Monday" | keep it if most swap the data under a kept analysis; if most rebuild, it folds into journey 1 repeated |
 | Is the alert investigation its own journey, and is triage its main line? | 5 to 8 investigators: "walk me through the first ten minutes of your last alert, and how it ended" | keep it if 5 of 8 start from an entity; keep triage as the main line if most alerts end within the sitting |
 | Does the rule-first hunt share this journey? | 3 to 5 threat hunters: "walk me through your last hunt" | keep it as a variant entry if the seed, triage and saved rule map onto their steps; otherwise it becomes a fifth journey |
-| Is the travelling starting point its own journey? | 3 to 5 community or lab leads, and people who received their recipes | fold it back into journeys 1 (variant entry) and 2 (closing stage) if leads share only on request or recipients apply weeks later |
+| Is the traveling starting point its own journey? | 3 to 5 community or lab leads, and people who received their recipes | fold it back into journeys 1 (variant entry) and 2 (closing stage) if leads share only on request or recipients apply weeks later |
 
 How long passes between receiving a recipe and applying it is unknown; the binding step's "left
 unbound, switched off" state must survive whatever gap the interviews find.

@@ -234,11 +234,11 @@ export class Kernel {
     }
 
     /**
-     * Creates (or reuses, keyed by every buffer identity + offset + size) the bind groups, each labelled
+     * Creates (or reuses, keyed by every buffer identity + offset + size) the bind groups, each labeled
      * `<spec.id>/<group>`; a missing or extra name is E_INVALID_ARGUMENT; two bindings of one call whose ranges
      * intersect on one buffer while either slot is `storage` (read_write) is E_INVALID_ARGUMENT
      * { argument: "aliasing" } (the host-side mirror of WebGPU's writable buffer-binding-aliasing rule, so
-     * the failure is synchronous and labelled). Because bind() is synchronous, a createBindGroup
+     * the failure is synchronous and labeled). Because bind() is synchronous, a createBindGroup
      * validation error (a wrong-size uniform binding, a usage mismatch) is NOT thrown here -- it reaches the
      * pending-error slot as E_VALIDATION { label: "<spec.id>/<group>" } and is thrown by the batch's readback
      * (Dawn-node) or the next assertReady() (browser). An empty bind group is created for every empty

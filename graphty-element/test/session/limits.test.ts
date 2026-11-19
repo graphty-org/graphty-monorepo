@@ -72,7 +72,9 @@ describe("the limits the element ships with", () => {
     it("says in each name what it measures", () => {
         // A node count and a duration are the two that used to collide, so they are the two worth
         // pinning: each is reachable under a name that states which it is.
-        assert.isAbove(DEFAULT_LIMITS.approximateAboveNodes, 0);
+        assert.isAbove(DEFAULT_LIMITS.graphMemoryBudgetBytes, 0);
+        // The node count that said when to approximate is gone (#302): the gate decides by seconds.
+        assert.notProperty(DEFAULT_LIMITS, "approximateAboveNodes");
         assert.isAbove(DEFAULT_COST_GATE_LIMITS.exactComputationSeconds, 0);
         assert.isAbove(DEFAULT_COST_GATE_LIMITS.runColumnBudgetBytes, 0);
     });

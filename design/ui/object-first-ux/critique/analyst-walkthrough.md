@@ -13,16 +13,16 @@ The model's words, restated so this file stands alone. A term is defined once, h
 it first appears.
 
 - **Tree**: the left panel's list of objects (screen 3). Its order is the paint order: a row
-  nearer the top paints over a row below it, per visual channel (colour, size, outline...).
+  nearer the top paints over a row below it, per visual channel (color, size, outline...).
 - **Object**: a row in the tree. A **Set** (a list of nodes and edges: a filter, a path, a
-  neighbourhood, a promoted selection), a **Measure** (one number per node: a centrality, a
+  neighborhood, a promoted selection), a **Measure** (one number per node: a centrality, a
   numeric column), a **Grouping** (one label per node: communities, components) with one
   **Group** row per label, and the **Dataset** at the root.
 - **Inspector**: the right panel. It shows the selected object's sections (Definition, Members
   or Values, Fill, Made by, Export, Notes) or, with nothing selected, the Dataset.
 - **Fill**: an object's appearance, stored as a style layer on that object. A Set's Fill is one
-  colour; a Measure's Fill is a colour ramp or a size scale.
-- **Tool**: a toolbar verb that creates an object: Filter (F), Neighbours (E), Path (P),
+  color; a Measure's Fill is a color ramp or a size scale.
+- **Tool**: a toolbar verb that creates an object: Filter (F), Neighbors (E), Path (P),
   Groups (G), Rank (R). A tool's **flyout** is the dark menu behind its chevron listing its
   variants; its **popover** is the small light panel with fields (screen 7); the **secondary
   bar** is the one-line dark prompt above the toolbar while the tool waits for a canvas click
@@ -58,11 +58,11 @@ operations. His workflows include First Exploration (W01), Iterative Analysis (W
 Community Analysis (W04), Path Investigation (W05), Anomaly Detection (W12), Findings
 Communication (W15), Hub Investigation (W17), Data Import (W18) and Network Evolution (W19).
 
-This week's question: "Which people in the sales organisation bridge otherwise separate
-teams, and did that change after the reorganisation?" His data: `contacts.csv`, an export
+This week's question: "Which people in the sales organization bridge otherwise separate
+teams, and did that change after the reorganization?" His data: `contacts.csv`, an export
 from a messaging tool, 2,300 people and 41,000 message pairs, with the columns
 `from_person, to_person, msgs, dept_from, dept_to`. Next week he will get the same export
-again for the post-reorganisation period.
+again for the post-reorganization period.
 
 Seven tasks, in the order he would do them:
 
@@ -71,7 +71,7 @@ Seven tasks, in the order he would do them:
 3. Combine a filter with a group: heavy senders inside one community.
 4. Compare two runs: Louvain at two resolutions.
 5. Restyle by a measure, and by an imported column.
-6. Handle a re-run on changed data: add the post-reorganisation edges.
+6. Handle a re-run on changed data: add the post-reorganization edges.
 7. Save and share.
 
 Each section: what Alex does in the model, where it stalls, what Gephi or Tableau would have
@@ -92,7 +92,7 @@ Per feature-fit 1 row 23, on a first load the dialog stays open with the sentenc
 zone.
 
 Now the mapping rows appear ("shown only when detection is unsure"). Alex must fill Edge
-Start Field and Edge End Field. In the element's catalogue these are `OptionDescriptor`s of
+Start Field and Edge End Field. In the element's catalog these are `OptionDescriptor`s of
 type `string` (`graphty-element/src/catalog/formats.ts`, `endpointOptions`), so the dialog
 draws them as text fields. Alex types `from_person` and `to_person`. He also wants `msgs` as
 the edge weight: the known-field mapping row "weight" is another text field. He types
@@ -142,11 +142,11 @@ model is slower by three typed fields and catastrophically worse on a late-notic
 Alex presses G. The Groups tool's face is its last-used variant; on a fresh install that is
 Communities (Louvain). The row "Communities (Louvain)" appears at the top of the tree in the
 computing state, finishes in a few seconds on 2,300 nodes, expands to 14 Group rows with
-colour chips, and the canvas is coloured. He presses R; the Rank face is Connections
+color chips, and the canvas is colored. He presses R; the Rank face is Connections
 (Degree), which is not what he wants, so he opens the chevron and picks Bridges
 (Betweenness). The flyout row reads "about 40 s" from the estimate: under the gate, so the
 row is created computing with a progress ring. It completes; its default Fill is Size,
-because Colour is already written by Communities (screen 3's rule).
+because Color is already written by Communities (screen 3's rule).
 
 He opens the Bridges row: Values shows Min, Max, Mean, Median, a histogram, and the top 10
 by rank. Made by (collapsed) records "Betweenness, 2,300 nodes, 38 s, exact" and, once
@@ -156,14 +156,14 @@ by rank. Made by (collapsed) records "Betweenness, 2,300 nodes, 38 s, exact" and
 
 - **Whether the weight was used is invisible until #313.** W23's reproducibility criterion
   is "weight attribute, direction and parameters for each run recorded". Today betweenness
-  has no weight or direction option in the catalogue (feature-fit 3, row Bridges, gap #313),
+  has no weight or direction option in the catalog (feature-fit 3, row Bridges, gap #313),
   so the Definition has no Weights switch to show and Made by cannot say what it used. On
   this dataset, which has a weight column, the number Alex exports may be computed on an
   unweighted graph with nothing on screen saying so. This is an element gap, but it lands on
   the analyst's first result. (F11)
 - **Every Measure paints.** Alex wanted a number, not a picture; Bridges resized every node.
   On the second and third rankings (Task 4's follow-up, and W23's "compute several
-  rankings") the picture becomes Colour from one, Size from another, Outline from a third
+  rankings") the picture becomes Color from one, Size from another, Outline from a third
   (feature-fit 5 note A4), and the fourth gets a "no fill" chip. In Gephi a statistic adds a
   column and paints nothing; painting is a separate deliberate act in Appearance. The model's
   answer, click the eye on each row, is one click per Measure plus the visual noise until he
@@ -220,7 +220,7 @@ shows Combine; press Intersect. A linked Set appears "immediately above its firs
   row among the Group children of Communities. The model's own rule is that nesting means
   exactly one thing, computed within the parent (section 6.1); a linked Combination sitting
   between Group 3 and Group 4 reads as a fifteenth group of Communities, and a re-run of
-  Communities would presumably not touch it while every neighbour row is re-matched. The
+  Communities would presumably not touch it while every neighbor row is re-matched. The
   placement rule and the nesting rule collide whenever a Group is an input, and Groups are
   the most common input. Proposed: a linked object whose first input is a Group is placed
   above the Grouping, never inside it. (F8)
@@ -244,7 +244,7 @@ Alex suspects resolution 1.0 merged two teams. He wants Louvain at 1.5 beside 1.
 "Options come after creation" (section 3): pressing G runs Louvain with defaults. To get a
 second run he selects the first row, overflow > Duplicate, edits Resolution [1.5] in the
 duplicate's Definition, Enter; it re-runs at once (cheap). Now two rows both named
-"Communities (Louvain)", the new one on top and covering the old one's colour on all 2,300
+"Communities (Louvain)", the new one on top and covering the old one's color on all 2,300
 nodes ("Covered by Communities (Louvain) on 2,300 of 2,300" under the lower row's Fill).
 
 To compare the pictures he clicks the top row's eye off, looks, on, looks: a blink
@@ -257,7 +257,7 @@ select Group 4 (run A) and Group 7 (run B) and press Combine > Intersect, per pa
 - **No side by side.** W03 lists comparison-view; the persona "compares algorithm results to
   validate findings". The model's only comparison surface is a View's "Compare with [View]"
   (section 4.7), which opens a second canvas on the same tree with its own camera and mask.
-  Both canvases see the same eyes, so they show the same colouring. Views deliberately do
+  Both canvases see the same eyes, so they show the same coloring. Views deliberately do
   not store eye states (feature-fit 2, 4.4). So two Groupings, or a Grouping and a Measure,
   cannot be shown at once anywhere in the model. Gephi cannot either; Cytoscape (a second
   network view) and Tableau (two sheets) can. For the persona's validation habit this is the
@@ -284,38 +284,38 @@ select Group 4 (run A) and Group 7 (run B) and press Combine > Intersect, per pa
 
 Gephi: Modularity, resolution 1.5, Run: a new column `modularity_class` overwrites the old
 one unless renamed first, and there is no side by side either. Tableau: two sheets, one
-dashboard, two colour legends, in a minute. The model is at Gephi's level, not Tableau's,
+dashboard, two color legends, in a minute. The model is at Gephi's level, not Tableau's,
 and the persona's habit is Tableau's.
 
 ## 6. Task 5: restyle by a measure, and by a column
 
 ### By a measure
 
-Alex wants colour by Bridges (his headline) and communities as outline. Select the Bridges
-row; Fill > Channel [Size v] > Colour: the ramp appears, Communities is now covered on
-colour (its Fill says so, its legend block disappears, its chip dims). Select Communities;
-Fill > Channel [Colour v] > Outline. Four clicks. Faster than Gephi's Appearance panel
+Alex wants color by Bridges (his headline) and communities as outline. Select the Bridges
+row; Fill > Channel [Size v] > Color: the ramp appears, Communities is now covered on
+color (its Fill says so, its legend block disappears, its chip dims). Select Communities;
+Fill > Channel [Color v] > Outline. Four clicks. Faster than Gephi's Appearance panel
 (choose Nodes, Color, Ranking, attribute, Apply: five) and about Tableau's shelf drop. Good.
 
-One catch: the Channel select on Bridges changes the existing paint row from Size to Colour,
+One catch: the Channel select on Bridges changes the existing paint row from Size to Color,
 so the size encoding is gone; to keep both he must press "+" and add Size back. Screen 6
 shows the two-channel state, but getting there from a one-channel Measure is Channel then
 "+" then Channel, and the first change silently drops the size he had. Minor. (F13)
 
 ### By an imported column
 
-He wants colour by `dept_from`. The path: click empty canvas (the inspector shows the
+He wants color by `dept_from`. The path: click empty canvas (the inspector shows the
 Dataset), scroll past Summary, Arrangement, Showing and Canvas to Attributes (collapsed by
 default, at the bottom, screen 2), expand it, hover the `dept_from` row, click its "...",
 Group by. Six actions, the first four of them navigation, for the single most common thing
 an analyst does with a column. A "Grouping: dept_from" row appears at the top of the tree.
-Tableau: one drag to the Colour shelf. Gephi: Appearance, Partition, attribute, Apply: four.
+Tableau: one drag to the Color shelf. Gephi: Appearance, Partition, attribute, Apply: four.
 
 The model does offer two shortcuts, both undrawn: the Table dock's column header "..." has
 the same verbs (feature-fit 2, 2.6), and the palette can carry "Colour by dept_from" once
 the palette indexes attributes. Neither is in the mocks. Proposed: move Attributes above
 Canvas in the Dataset inspector and open it by default when the file has fewer than ten
-columns; and put "Colour by..." / "Group by..." in the Filter flyout's neighbour, or in
+columns; and put "Colour by..." / "Group by..." in the Filter flyout's neighbor, or in
 Ctrl+K, so an analyst never has to find the section. (F10)
 
 ## 7. Task 6: handle a re-run on changed data
@@ -333,9 +333,9 @@ if under a second, else turn stale; Bridges (40 s) turns stale, and with it the 
 
 ### Where it stalls
 
-- **A hybrid picture.** Communities re-ran: new groups, re-matched by overlap, new colours on
+- **A hybrid picture.** Communities re-ran: new groups, re-matched by overlap, new colors on
   the new nodes. Bridges did not: the sizes on screen are last week's, and the 400 new
-  nodes have no size at all (Missing colour). The only signals are a dimmed name and an
+  nodes have no size at all (Missing color). The only signals are a dimmed name and an
   amber dot on two tree rows, and "Stale: ran on 2,300 nodes, now 2,700" in the inspector if
   he happens to select Bridges. Nothing on the canvas or in the status bar says the picture
   mixes two states. Gephi recomputes nothing and paints nothing new, so the reader knows
@@ -347,10 +347,10 @@ if under a second, else turn stale; Bridges (40 s) turns stale, and with it the 
   the gate creates waiting rows instead of asking; section 3 says a Re-run button carries
   the estimate. Undefined for the batch. It should follow the same rule as creation: rows
   over the gate go to waiting and the chip says "2 re-run, 1 waiting". (F9)
-- **Group identity across the change.** Group 4's override colour and any notes follow the
+- **Group identity across the change.** Group 4's override color and any notes follow the
   group by overlap matching, which is element work that does not exist (#191). Until then
   "groups are matched by label", and Louvain's labels are not stable across runs, so the
-  orange override lands on whichever group is now labelled 4. Alex's annotation of "the
+  orange override lands on whichever group is now labeled 4. Alex's annotation of "the
   sales-ops team" moves to a different team silently. This is the honest consequence of a
   gap, but the model should show the fallback state (a "matched by label" caveat in Made by
   and a warning glyph on overridden Groups) rather than pretend. (F9)
@@ -378,7 +378,7 @@ API and the project file format (#301, "the one true one-way door"). Until then 
 survives a reload: not the tree, not the Fills, not the 40-second Bridges result. Then
 Share: Export image (legend in the picture needs #292), Export data (every format descriptor
 is `canExport: false`), Ranked list CSV on the Bridges row (needs a result exporter, #178),
-Copy methods text (needs serialisers, #177), Export report (#187).
+Copy methods text (needs serializers, #177), Export report (#187).
 
 ### Where it stalls
 
@@ -410,16 +410,16 @@ result the reader cannot see; **minor** means friction.
 | F1 | blocker | A field-role mistake (weight, label) noticed after the first run can only be fixed by a re-import, and a re-import deletes the tree. Gephi fixes it in place. Add "Set as weight" and "Set as label" to the Attributes row menu, applying the stale rule; reserve re-import for identity changes (endpoint columns, id coercion) | `feature-fit/1-data.md` note B and rows 10, 11, 17; `object-model.md` 4.1 (Dataset overflow "Import options...", Attributes row verbs) |
 | F2 | blocker | Two objects cannot be shown side by side: Compare opens two canvases on one tree with the same eyes, and Views do not store eyes. Two Groupings, or a Grouping beside a Measure, can only be blink-compared. No per-node "changed group" or agreement number between two independent runs | `object-model.md` 4.7 (Compare with), section 5 (re-match only on re-run); `feature-fit/2-selection.md` 4.4; `feature-fit/6-camera.md` 2.5 |
 | F3 | major | The weekly workflow (same objects, new file) is Export recipe, Replace, Run recipe across three menus, and every step waits on #145, #337 and the objects API; Save project waits on #301. The "Keep the objects and re-run" checkbox in the Replace dialog must not be cut, and the objects API must come first in the build order for this persona | `feature-fit/1-data.md` note C and note K; `object-model.md` section 11 ordering |
-| F4 | major | The Import dialog's mapping rows are typed text fields (the catalogue's endpoint options are `type: "string"`) and there is no row preview. Gephi and Tableau both show the file's columns as dropdowns and the first rows. The element must return the header row and a sample so the dialog can draw selects and a preview | `object-model.md` section 9 "Import"; `graphty-element/src/catalog/formats.ts` `endpointOptions`; W18 phase 4 |
+| F4 | major | The Import dialog's mapping rows are typed text fields (the catalog's endpoint options are `type: "string"`) and there is no row preview. Gephi and Tableau both show the file's columns as dropdowns and the first rows. The element must return the header row and a sample so the dialog can draw selects and a preview | `object-model.md` section 9 "Import"; `graphty-element/src/catalog/formats.ts` `endpointOptions`; W18 phase 4 |
 | F5 | major | "Options come after creation" wastes a run when the analyst knows the parameter, and the only pre-run parameter surface is the waiting state above the cost gate. Gephi asks first. Offer a way to create a row waiting regardless of cost (a flyout row's chevron-right or Alt+click) so parameters can be set before the first run | `object-model.md` section 3 ("Options come after creation"), section 5 (waiting state) |
-| F6 | major | Every Measure paints by default, so a several-rankings comparison (W23) produces Colour, Size, Outline and then "no fill" chips, one eye click per row to quiet. Gephi statistics paint nothing. Rank > Several... should create members after the first with the eye off (already proposed); a single Rank should still paint | `object-model.md` 6.2 (default Fill avoids taken channels); `feature-fit/5-styling.md` notes A3, A4; `feature-fit/3-algorithms.md` note 3 |
+| F6 | major | Every Measure paints by default, so a several-rankings comparison (W23) produces Color, Size, Outline and then "no fill" chips, one eye click per row to quiet. Gephi statistics paint nothing. Rank > Several... should create members after the first with the eye off (already proposed); a single Rank should still paint | `object-model.md` 6.2 (default Fill avoids taken channels); `feature-fit/5-styling.md` notes A3, A4; `feature-fit/3-algorithms.md` note 3 |
 | F7 | major | A threshold on a result ("betweenness > 0.05") lives only in the Measure's Values "+" (Top N set, Above threshold set); the Filter tool's By range lists attributes and cannot see Measures. Two doors for one intent, and the analyst looks in Filter. The By range attribute select should include every Measure in the tree | `object-model.md` 4.3 Values header "+", section 3 Filter flyout; `feature-fit/2-selection.md` 2.3 row "Filter by a centrality threshold" |
 | F8 | major | Combining a Group with a filter: (a) the Focus route computes a per-node number (degree) within the mask, so "connections > 200 inside Group 4" silently means the induced subgraph, and neither the popover nor the Definition says whether a filter reads global or induced values; (b) the Combine route places the linked Set "immediately above its first input", which for a Group is a row among the Grouping's children, where nesting is supposed to mean "computed within". The fast path (By rule) is blocked on #149 | `object-model.md` section 3 ("Scope is what is showing"), section 2.4 (linked placement), section 6.1 (nesting means one thing); `feature-fit/2-selection.md` 2.3, 2.4 |
 | F9 | major | After Add data the stale rule re-runs cheap objects and leaves expensive ones stale, so the canvas mixes new communities with last week's sizes and new nodes with no value; the only signals are dimmed names in the tree. Add a status-bar stale chip ("3 stale [Re-run all]") and a canvas-level caveat. Also undefined: whether "Re-run all stale" starts runs over the cost gate; and until #191 group overrides and notes follow labels, not groups, which should be shown as a caveat rather than hidden | `object-model.md` section 5 (stale rule, propagation, "Re-run all stale"); `feature-fit/1-data.md` row 13; `feature-fit/3-algorithms.md` "Stale note" |
-| F10 | major | Colour or group by an imported column takes six actions through the Attributes section, collapsed by default at the bottom of the Dataset inspector; Tableau is one drag, Gephi four clicks. Move Attributes above Canvas, open it by default for small schemas, and put the column verbs in Ctrl+K and the table column menu (both already planned, neither drawn) | `object-model.md` 4.1 (section order, Attributes collapsed); `mocks/screens.md` screen 2 and 7; `feature-fit/2-selection.md` 2.6 |
+| F10 | major | Color or group by an imported column takes six actions through the Attributes section, collapsed by default at the bottom of the Dataset inspector; Tableau is one drag, Gephi four clicks. Move Attributes above Canvas, open it by default for small schemas, and put the column verbs in Ctrl+K and the table column menu (both already planned, neither drawn) | `object-model.md` 4.1 (section order, Attributes collapsed); `mocks/screens.md` screen 2 and 7; `feature-fit/2-selection.md` 2.6 |
 | F11 | major | On weighted, directed data the first betweenness result cannot say whether it used the weights or the direction until #313 lands; W23's reproducibility criterion fails on the analyst's first export. Element gap, but it lands on the walkthrough's first result | `feature-fit/3-algorithms.md` rows Bridges, Reach; gap #313 |
 | F12 | minor | A tool that needs nothing from the canvas (Rank, Groups) runs on the click, so the secondary bar's scope line ("Rank what is showing (34 nodes)") is never read before the run, and the tool's face (last-used variant) makes the first R run whatever was last chosen | `object-model.md` section 3 table rows Groups, Rank |
-| F13 | minor | Changing a Measure's Channel from Size to Colour replaces the paint row, dropping the size; keeping both is Channel, "+", Channel. A "Colour and size" preset in the "+" list would make the two-channel state one click | `object-model.md` 4.3 Fill; `mocks/screens.md` screen 6 |
+| F13 | minor | Changing a Measure's Channel from Size to Color replaces the paint row, dropping the size; keeping both is Channel, "+", Channel. A "Colour and size" preset in the "+" list would make the two-channel state one click | `object-model.md` 4.3 Fill; `mocks/screens.md` screen 6 |
 | F14 | minor | The Measure inspector puts six parameter rows (Definition) above Values, so the analyst scrolls past parameters to reach the top 10 every time (screen 6 is shown scrolled for this reason). Put Values first on a Measure, or collapse Definition while the state is current | `object-model.md` 4.3 section order; `mocks/screens.md` screen 6 |
 | F15 | minor | The mocks draw Export rows with no exporter behind them (Data [GraphML] Export, Ranked list [CSV] Export); the model's own rule for keys ("a binding that does not exist is not listed") should apply. "Share" for a menu of exports is flagged elsewhere; noted because it is the one filled button | `mocks/screens.md` screens 2 and 6; `feature-fit/7-.md` section 5 last row; `feature-fit/6-camera.md` 2.9 |
 | F16 | minor | The top-10 intersection across three methods (W23) is three "Top N set" cuts plus one Combine: six new rows for one answer, each cut placed above its Measure so the tree interleaves. Acceptable; a "Top N across several..." on the multi-row inspector would make it one row | `object-model.md` 4.3 Values "+", 4.6 Combine, 2.4 placement |
@@ -429,9 +429,9 @@ result the reader cannot see; **minor** means friction.
 
 ## 10. What the walkthrough says about the model as a whole
 
-Where the model beats Gephi and Tableau: two clicks from data to a coloured picture; the
+Where the model beats Gephi and Tableau: two clicks from data to a colored picture; the
 cost gate that never starts a four-minute job unasked; every result a row with its record;
-the three-click recolour; the table dock with a column per result; recipes once they exist.
+the three-click recolor; the table dock with a column per result; recipes once they exist.
 Alex's "too many clicks for common tasks" is answered for the picture.
 
 Where it is slower or riskier, in order of how much it would hurt Alex:

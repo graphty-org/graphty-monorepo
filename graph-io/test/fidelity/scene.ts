@@ -93,7 +93,7 @@ export interface SceneNode {
     z: number;
     /**
      * Reference side only: the program paints a gradient over the node's whole face (Cytoscape desktop's gradient
-     * custom graphics), so `fill`, the colour under it, is not what it draws and is not judged (`fillOpacity` is the
+     * custom graphics), so `fill`, the color under it, is not what it draws and is not judged (`fillOpacity` is the
      * gradient's too, and is).
      * The oracle scorecard, which reads the program's own drawing, judges the gradient.
      */

@@ -40,6 +40,7 @@ import { STYLE_ISSUE } from "../../styles/codes.js";
 import { type ValueColumns, valueColumns } from "../../styles/columns.js";
 import { JAVA_MONO, JAVA_SANS, JAVA_SERIF, javaFamily } from "../../styles/cytoscape/lexicon.js";
 import { StyleApproximations } from "../../styles/io/approximations.js";
+import { STYLE_BLOCK_NAME } from "../../styles/io/block.js";
 import { elementValues, takeFromBlock } from "../../styles/io/round-trip.js";
 import type { ExporterStyleInput } from "../../styles/io/writer.js";
 import { StyleNotes } from "../../styles/notes.js";
@@ -1558,17 +1559,33 @@ function readFill(real: Realizer, put: PutValue, at: SiteOf): void {
  * @returns the `#rrggbb` color, or null when the table does not set it
  */
 function tableColor(real: Realizer, name: string, at: SiteOf): string | null {
+    const value = tableProperty(real, name);
+    return value === undefined ? null : (canonColor(value, "yed", at("stripeColors"))?.color ?? null);
+}
+
+/**
+ * A `y:TableNode`'s `yed.table.*` style property.
+ * @param real - the table realizer
+ * @param name - the property's name
+ * @returns its value, or undefined when the table does not set it
+ */
+function tableProperty(real: Realizer, name: string): string | undefined {
     const props = treeChildren(treeChild(real.r, "StyleProperties"), "Property");
-    const prop = props.find((p) => treeAttr(p, "name") === name);
-    return prop === undefined ? null : (canonColor(treeAttr(prop, "value"), "yed", at("stripeColors"))?.color ?? null);
+    return treeAttr(
+        props.find((p) => treeAttr(p, "name") === name),
+        "value",
+    );
 }
 
 /**
  * Reads a `y:TableNode` (a yEd table or BPMN pool) as bands over the node: its header (the table's top inset, or
- * its left one for columns side by side) in `yed.table.header.color.main`, then its rows top to bottom (or its
- * columns left to right) in `yed.table.lane.color.main` and `.alternating` by turns, then the opposite inset. A
+ * its left one for columns side by side) in the node's fill, then its rows top to bottom (or its columns left to
+ * right) in `yed.table.lane.color.main`, then the opposite inset. yEd 3.25.1 paints the table's own header in its
+ * fill and every lane in the main lane color however `yed.table.header.color.main` and
+ * `yed.table.lane.color.alternating` are set when the table names no `yed.table.lane.style`
+ * (`yed-graphml-specimen-groups`); with a lane style, its lanes take the main and alternating colors by turns. A
  * color the table does not set is the node's fill. The lines between the lanes and the row and column headers
- * (`yed.table.header.color.alternating`) are not drawn.
+ * (where `yed.table.header.color.*` is painted) are not drawn.
  * @param real - the realizer
  * @param put - receives the values
  * @param at - the sites
@@ -1590,16 +1607,17 @@ function readTable(real: Realizer, put: PutValue, at: SiteOf): void {
     const fill =
         canonColor(treeAttr(treeChild(real.r, "Fill"), "color"), "yed", at("stripeColors"))?.color ?? "#ffffff";
     const main = tableColor(real, "yed.table.lane.color.main", at) ?? fill;
-    const alternating = tableColor(real, "yed.table.lane.color.alternating", at) ?? main;
-    const header = tableColor(real, "yed.table.header.color.main", at) ?? fill;
+    // ponytail: no specimen sets a lane style and an alternating color together, so the alternation is unmeasured
+    const styled = tableProperty(real, "yed.table.lane.style") !== undefined;
+    const alternating = (styled ? tableColor(real, "yed.table.lane.color.alternating", at) : null) ?? main;
     const bands = (
-        [[head, header], ...lanes.map((size, i) => [size, i % 2 === 0 ? main : alternating]), [tail, fill]] as [
+        [[head, fill], ...lanes.map((size, i) => [size, i % 2 === 0 ? main : alternating]), [tail, fill]] as [
             number,
             string,
         ][]
     )
         .filter(([size]) => size > 0)
-        // yEd paints neighbouring lanes of one color as one band
+        // yEd paints neighboring lanes of one color as one band
         .reduce<[number, string][]>((merged, [size, color]) => {
             const last = merged.at(-1);
             if (last?.[1] === color) {
@@ -2199,7 +2217,7 @@ function readShadow(real: Realizer, put: PutValue, at: SiteOf): void {
 }
 
 /**
- * The fill an outline darkens, and the raised and bevelled borders it draws round it.
+ * The fill an outline darkens, and the raised and beveled borders it draws round it.
  * @param r - the node realizer element
  * @param outline - the node's outline, or null for a plain shape
  * @param border - its y:BorderStyle
@@ -2227,6 +2245,38 @@ function readOutlineFaces(
         putBevel(outline, face, outline.bevelInset, hasLine(border), put);
     }
     return color;
+}
+
+/**
+ * Repaints a `y:GenericGroupNode` by its configuration, as yEd 3.25.1 draws it (`yed-graphml-specimen-groups`): a
+ * `PanelNode` in a ramp from white down into its fill, its line running from 0.8 of its color into it (drawn flat at
+ * 0.8, as yFiles' PanelNodeStyle is); a `DemoGroup` as a frame in its fill round an unpainted inside, with no line,
+ * whatever its `y:BorderStyle` and `headerBackground` say. yEd's frame is 1 wide on three sides and runs down under the
+ * header band; it is drawn as a line of 1.
+ * @param real - the realizer
+ * @param fill - its fill color, or null
+ * @param line - its border color as read, if any
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readGroupConfiguration(real: Realizer, fill: string | null, line: unknown, put: PutValue, at: SiteOf): void {
+    if (real.type !== "GenericGroupNode" || fill === null) {
+        return;
+    }
+    const conf = (treeAttr(real.r, "configuration") ?? "").slice(0, MAX_STYLE_VALUE_LENGTH).toLowerCase();
+    if (conf === "panelnode") {
+        put("fill", "#ffffff");
+        put("fillGradient", fill);
+        put("fillGradientAngle", 90);
+        if (typeof line === "string" && HEX_COLOR.test(line)) {
+            put("borderColor", hexOf(hexChannels(line).map((c) => Math.round(c * 0.8))));
+        }
+    } else if (conf === "demogroup") {
+        put("fillOpacity", 0);
+        put("borderColor", fill);
+        put("borderWidth", 1);
+        put("borderStyle", canonEnum("borderStyle", "line", "yed", at("borderStyle")));
+    }
 }
 
 /**
@@ -2279,6 +2329,7 @@ function readNode(
         putOutline(outline, width, height, put);
     }
     const color = readOutlineFaces(r, outline, border, put, at);
+    readGroupConfiguration(real, color, painted.get("borderColor"), put, at);
     if (width !== null && height !== null && real.type === "GenericNode") {
         readMarks(real, outline, { width, height }, put, at);
     }
@@ -2675,6 +2726,13 @@ const YED_EDGE_SPOTS: ReadonlyMap<string, EdgeSpot> = new Map([
 const YED_EDGE_LABEL_END = 10;
 
 /**
+ * How far a SmartEdgeLabelModel label's box stays clear of its segment's ends: its ratio slides the box's middle from
+ * this far plus half its width past the start to as far short of the end (yed-graphml-specimen-edge-labels
+ * `model-smart-ratio-0-2`: an 18.7 px box at ratio 0.2 of a 66 px line is drawn with its middle 21.8 px along it).
+ */
+const YED_SMART_EDGE_LABEL_END = 5;
+
+/**
  * Where a line from a point in a box leaves the box, or the line's end for one that stays inside.
  * @param box - the box's center x and y, width and height
  * @param from - the point
@@ -2727,6 +2785,8 @@ interface YedEdgeLabel {
     stored: readonly number[] | null;
     /** Whether a stored box is in the file's coordinates (yEd's GML), not from where the line starts (its GraphML). */
     storedOnPage?: boolean;
+    /** A SmartEdgeLabelModel label on its line: the segment it is on (from the target where below zero) and its ratio. */
+    smart?: readonly [number, number];
     /** How far it stays clear of the line. */
     distance: number;
     width: number;
@@ -2746,6 +2806,9 @@ function edgeLabelCenter(label: YedEdgeLabel, line: readonly BendPoint[]): BendP
         const [ox, oy] = label.storedOnPage === true ? [0, 0] : line[0];
         return [ox + x + w / 2, oy + y + h / 2];
     }
+    if (label.smart !== undefined) {
+        return smartEdgeLabelCenter(label.smart, label.width, line);
+    }
     const spot =
         YED_EDGE_SPOTS.get(label.spot) ?? YED_EDGE_SPOTS.get(`${label.spot.slice(0, label.spot.indexOf("/"))}/center`);
     if (spot === undefined) {
@@ -2758,6 +2821,25 @@ function edgeLabelCenter(label: YedEdgeLabel, line: readonly BendPoint[]): BendP
     const { at, dir } = pointAlong(line, reach[along]);
     const clear = label.distance + (label.lines * YED_LABEL_LINE * label.fontSize + YED_LABEL_BOX_PADDING) / 2;
     return [at[0] - side * dir[1] * clear, at[1] + side * dir[0] * clear];
+}
+
+/**
+ * The middle of a SmartEdgeLabelModel label centered on its line: `ratio` of the way along its segment, kept its
+ * half width and `YED_SMART_EDGE_LABEL_END` clear of the segment's ends.
+ * @param smart - the segment (from the target where below zero) and the ratio
+ * @param width - the label's width
+ * @param line - the line drawn between the nodes' sides
+ * @returns the point
+ */
+function smartEdgeLabelCenter(smart: readonly [number, number], width: number, line: readonly BendPoint[]): BendPoint {
+    const [segment, ratio] = smart;
+    const last = line.length - 2;
+    const k = Math.min(last, Math.max(0, segment < 0 ? last + 1 + segment : segment));
+    const [a, b] = [line[k], line[k + 1]];
+    const length = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    const end = Math.min(length / 2, YED_SMART_EDGE_LABEL_END + width / 2);
+    const t = length > 0 ? (end + ratio * (length - 2 * end)) / length : 0.5;
+    return [a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])];
 }
 
 /**
@@ -2808,31 +2890,47 @@ export function putYedEdgeLabel(
 }
 
 /**
- * Reads where yEd draws an edge's label, from the model the file names; a free label and a SmartEdgeLabelModel off the
- * line's middle by the box the file stores. A curved line, a self-loop or a label naming no model (as graphty writes
- * one, its place in the styles block) keeps graphty's place.
+ * Reads where yEd draws an edge's label, from the model the file names; a SmartEdgeLabelModel label centered on its
+ * line by its segment and ratio, and a free label and a SmartEdgeLabelModel label off the line by the box the file
+ * stores. A label naming no model is drawn by yEd's default one, six_pos at tail:
+ * on the middle of the line, clear of it on its right (yed-graphml-specimen-edge-labels `default`), unless graphty
+ * wrote the file, which keeps the label's place in its styles block. A curved line or a self-loop keeps graphty's place.
  * @param real - the edge realizer
  * @param nodes - each node's center x and y, width and height
- * @param source - the source node's index
- * @param target - the target node's index
+ * @param ends - the source's and the target's node indexes
+ * @param graphtyBlock - whether the file holds graphty's styles block
  * @param put - receives the values
  */
-function readEdgeLabelPlace(real: Realizer, nodes: Float64Array, source: number, target: number, put: PutValue): void {
+function readEdgeLabelPlace(
+    real: Realizer,
+    nodes: Float64Array,
+    ends: readonly [number, number],
+    graphtyBlock: boolean,
+    put: PutValue,
+): void {
+    const [source, target] = ends;
     const label = treeChildren(real.r, "EdgeLabel").find(labelShown);
     const path = treeChild(real.r, "Path");
     const points = treeChildren(path, "Point").map((p): BendPoint => [
         Number(treeAttr(p, "x")),
         Number(treeAttr(p, "y")),
     ]);
-    const model = treeAttr(label, "modelName");
-    if (model === undefined || source === target || (real.type !== "PolyLineEdge" && points.length > 0)) {
+    const model = treeAttr(label, "modelName") ?? (graphtyBlock ? undefined : "six_pos");
+    if (
+        label === undefined ||
+        model === undefined ||
+        source === target ||
+        (real.type !== "PolyLineEdge" && points.length > 0)
+    ) {
         return;
     }
     const box = (k: number): number[] => [...nodes.subarray(4 * k, 4 * k + 4)];
     const [s, t] = [box(source), box(target)];
     const offset = (key: string): number => Number(treeAttr(path, key) ?? 0) || 0;
     const smart = treeChild(treeChild(label, "ModelParameter"), "SmartEdgeLabelModelParameter");
-    const smartMiddle = treeAttr(smart, "position") === "center" && Number(treeAttr(smart, "ratio")) === 0.5;
+    // a label centered on its line is drawn where its ratio puts it, whatever box the file stores
+    const ratio = Number(treeAttr(smart, "ratio") ?? Number.NaN);
+    const smartMiddle = treeAttr(smart, "position") === "center" && ratio >= 0 && ratio <= 1;
     const stored = model === "free" || (model === "custom" && smart !== undefined && !smartMiddle);
     const position = smartMiddle ? "center" : (treeAttr(label, "modelPosition") ?? "tail");
     const placed = smartMiddle ? "centered" : model;
@@ -2842,6 +2940,7 @@ function readEdgeLabelPlace(real: Realizer, nodes: Float64Array, source: number,
         {
             spot: model === "custom" && smart === undefined ? unplacedSmartSpot(label, s, t) : `${placed}/${position}`,
             stored: stored ? ["x", "y", "width", "height"].map((k) => Number(treeAttr(label, k))) : null,
+            smart: smartMiddle ? [Number(treeAttr(smart, "segment") ?? 0) || 0, ratio] : undefined,
             distance: Number(treeAttr(label, "distance") ?? 2) || 0,
             width: Number(treeAttr(label, "width")) || 0,
             fontSize: Number(treeAttr(label, "fontSize") ?? 12) || 12,
@@ -3057,6 +3156,7 @@ export function readYedStyles(snapshot: GraphSnapshot, notes: StyleNotes, budget
     const icons = yedIconSizes(snapshot, resources);
     // each node's center, width and height, read with the node, for its edges' routes; NaN without yEd graphics
     const boxes = new Float64Array(4 * snapshot.nodeCount).fill(Number.NaN);
+    const graphtyBlock = snapshot.graph.has(STYLE_BLOCK_NAME);
     const groups = graphmlGroupBounds(snapshot);
     const folded = closedFolderMembers(snapshot);
     // the nodes whose outline is their box, where an edge from a port inside leaves the box
@@ -3083,7 +3183,7 @@ export function readYedStyles(snapshot: GraphSnapshot, notes: StyleNotes, budget
     const readEdgeRow = (i: number, real: Realizer, put: PutValue, at: SiteOf): void => {
         readEdge(real, put, at);
         readEdgeRoute(real, boxes, snapshot.edgeSource(i), snapshot.edgeTarget(i), put, boxOutlined);
-        readEdgeLabelPlace(real, boxes, snapshot.edgeSource(i), snapshot.edgeTarget(i), put);
+        readEdgeLabelPlace(real, boxes, [snapshot.edgeSource(i), snapshot.edgeTarget(i)], graphtyBlock, put);
     };
     const read = (target: StyleTarget): ValueColumns => {
         const table = target === "node" ? snapshot.nodes : snapshot.edges;

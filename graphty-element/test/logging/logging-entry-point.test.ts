@@ -271,7 +271,7 @@ describe("the ./logging entry point", () => {
         // registers a destination under a name -- `registerLogSink`, `LogSinkDescriptor`,
         // `LogSinkId`, `KNOWN_LOG_SINK_IDS`, `registeredLogSinkDescriptors` -- and all of those
         // live in `src/catalog/`, not in `src/logging/`. So the rule is a clean one: the
-        // registration surface may reach the catalogue, and the vocabulary a destination is
+        // registration surface may reach the catalog, and the vocabulary a destination is
         // written against is published here and nowhere else.
         assert.deepEqual(
             reExportedModulesOf("extend.ts").filter((specifier) => specifier.startsWith("./src/logging/")),

@@ -26,7 +26,7 @@
 
 import type { NodeId } from "../../catalog/types";
 import { POSITION_COMPONENTS } from "../../data/positions";
-import type { CodedFact } from "../shared";
+import type { CodedFact, CodedFactParam } from "../shared";
 import type { HistoryCode } from "../types";
 import { type ArrangementOp, captureBytes, coordsIn, mergeRowPatches, type RowPatch } from "./arrangement";
 import type { ArrangementCapture } from "./state";
@@ -43,7 +43,7 @@ const DEFAULT_COALESCE_MS = 1000;
  * merge without end and one undo would take back a minute of deliberate work.
  */
 const COALESCE_SPAN_MS = 5000;
-/** Eviction runs down to this share of both limits, so its work is amortised over many records. */
+/** Eviction runs down to this share of both limits, so its work is amortized over many records. */
 const EVICT_TO = 0.9;
 
 /** What a charge pass has counted: something counted once is counted where it is first seen. */
@@ -1241,7 +1241,14 @@ function factOf(input: RecordInput<unknown>): CodedFact<HistoryCode> {
 function mergedFact(older: CodedFact<HistoryCode>, newer: CodedFact<HistoryCode>): CodedFact<HistoryCode> {
     const before = older.params.channels;
     const after = newer.params.channels;
-    if (older.code !== newer.code || !Array.isArray(before) || !Array.isArray(after)) {
+    // A param that is an object is its list (CodedFactParam); Array.isArray would narrow it to any[].
+    if (
+        older.code !== newer.code ||
+        typeof before !== "object" ||
+        before === null ||
+        typeof after !== "object" ||
+        after === null
+    ) {
         return newer;
     }
 
@@ -1259,9 +1266,9 @@ export function frozenFact(fact: CodedFact<HistoryCode>): CodedFact<HistoryCode>
     }
 
     const params = Object.fromEntries(
-        Object.entries(fact.params).map(([name, value]) => [
+        Object.entries(fact.params).map(([name, value]): [string, CodedFactParam] => [
             name,
-            Array.isArray(value) ? Object.freeze([...value]) : value,
+            typeof value === "object" && value !== null ? Object.freeze([...value]) : value,
         ]),
     );
     return Object.freeze({ code: fact.code, params: Object.freeze(params) });

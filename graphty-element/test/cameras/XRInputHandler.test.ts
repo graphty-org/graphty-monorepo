@@ -127,7 +127,7 @@ describe("XRInputHandler", () => {
                         mockXRExperience.input.onControllerAddedObservable.handlers.push(handler);
                         return handler;
                     }),
-                    remove: vi.fn((handler) => {
+                    remove: vi.fn((handler: (item: MockInputSource) => void) => {
                         const { handlers } = mockXRExperience.input.onControllerAddedObservable;
                         const index = handlers.indexOf(handler);
                         if (index >= 0) {
@@ -141,7 +141,7 @@ describe("XRInputHandler", () => {
                         mockXRExperience.input.onControllerRemovedObservable.handlers.push(handler);
                         return handler;
                     }),
-                    remove: vi.fn((handler) => {
+                    remove: vi.fn((handler: (item: MockInputSource) => void) => {
                         const { handlers } = mockXRExperience.input.onControllerRemovedObservable;
                         const index = handlers.indexOf(handler);
                         if (index >= 0) {

@@ -140,6 +140,7 @@ describe("a rule bound to a whole label style", () => {
                         "node.labelLineHeight",
                         "node.labelLineBox",
                         "node.labelBorderAlign",
+                        "node.labelBorderStyle",
                         "node.labelBackgroundShape",
                         "node.labelOffsetX",
                         "node.labelOffsetY",

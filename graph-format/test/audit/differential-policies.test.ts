@@ -111,7 +111,7 @@ function feedBuilder(builder: GraphBuilder, log: readonly Log[]): void {
     }
 }
 
-/** Node order, distinct neighbour sets, hasEdge and (optionally) the weight the legacy getEdge holds. */
+/** Node order, distinct neighbor sets, hasEdge and (optionally) the weight the legacy getEdge holds. */
 function compare(legacy: LegacyGraph, s: GraphSnapshot, weightArc: "first" | "last" | null): void {
     assertInvariants(s);
     expect(s.nodeCount).toBe(legacy.nodeCount);

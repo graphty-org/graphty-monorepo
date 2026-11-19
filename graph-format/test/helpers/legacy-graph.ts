@@ -7,9 +7,9 @@
  * Semantics are kept exactly, including the legacy quirks the differential tests document:
  *
  * - `allowParallelEdges: true` does not store parallels: the adjacency Map is keyed by the
- *   neighbour id, so a second `addEdge(u, v)` overwrites the stored Edge (last write wins) while
+ *   neighbor id, so a second `addEdge(u, v)` overwrites the stored Edge (last write wins) while
  *   `totalEdgeCount` is still incremented. `neighbors()` and `degree()` therefore count DISTINCT
- *   neighbours, and `getEdge(u, v)` returns the LAST parallel added.
+ *   neighbors, and `getEdge(u, v)` returns the LAST parallel added.
  * - an undirected self-loop is stored once (no reverse entry), so `degree()` counts it once.
  * - `edges()` on an undirected graph skips the entry whose `source > edge.target` using the JS
  *   relational operator, which coerces mixed string / number ids (design section 3.3 calls this the

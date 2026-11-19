@@ -396,14 +396,21 @@ function bump(counts: Record<string, number>, name: string): void {
 
 /**
  * The values a list holds more than once.
- * @param values - The values.
- * @returns Each distinct repeated value.
+ * @param values - The values, each with what it was read from.
+ * @returns Each distinct repeated value, with the first of its units that names an element, else its first.
  */
-function repeats(values: Iterable<string>): Set<string> {
-    const seen = new Set<string>();
-    const twice = new Set<string>();
-    for (const v of values) {
-        (seen.has(v) ? twice : seen).add(v);
+function repeats(values: Iterable<readonly [string, DrillUnit]>): Map<string, DrillUnit> {
+    const seen = new Map<string, DrillUnit>();
+    const twice = new Map<string, DrillUnit>();
+    for (const [v, unit] of values) {
+        const first = seen.get(v);
+        if (first === undefined) {
+            seen.set(v, unit);
+        } else {
+            // the first of the key's rows that reached an element, so its drill row can name it
+            const held = twice.get(v) ?? first;
+            twice.set(v, held.element === undefined && unit.element !== undefined ? unit : held);
+        }
     }
     return twice;
 }
@@ -413,14 +420,17 @@ function repeats(values: Iterable<string>): Set<string> {
  * leaves the row out or its key is empty.
  * @param s - The merge.
  * @param node2s - Its node 2s.
- * @returns The keys, one per node 2.
+ * @returns The keys, one per node 2, each with the node 2 and its row.
  */
-function mergeKeys(s: MergeStep, node2s: readonly BuiltNode[]): string[] {
+function mergeKeys(s: MergeStep, node2s: readonly BuiltNode[]): (readonly [string, DrillUnit])[] {
     return node2s.flatMap((n2) => {
-        const r = n2.touch.find((t) => t.source === s.source && t.table === "nodes")?.cells;
+        const t = n2.touch.find((t) => t.source === s.source && t.table === "nodes");
+        const r = t?.cells;
         const v = r?.[s.read.key];
         const out = r === undefined || isEmpty(v) || (s.except !== undefined && listed(s.except, r));
-        return out || (s.rows !== undefined && !listed(s.rows, r)) ? [] : [text(v)];
+        return out || t === undefined || (s.rows !== undefined && !listed(s.rows, r))
+            ? []
+            : [[text(v), { table: "nodes", row: t.row, element: n2.id }] as const];
     });
 }
 
@@ -586,10 +596,10 @@ class Builder {
         }
     }
 
-    // A count of distinct keys: its size, each key noted.
-    keys(st: StepStats, count: "repeated1" | "repeated2", keys: ReadonlySet<string>): number {
-        for (const key of keys) {
-            this.mark(st, count, { key });
+    // A count of distinct keys: its size, each key noted with a row of it and the element it reached.
+    keys(st: StepStats, count: "repeated1" | "repeated2", keys: ReadonlyMap<string, DrillUnit>): number {
+        for (const [key, unit] of keys) {
+            this.mark(st, count, { ...unit, key });
         }
         return keys.size;
     }
@@ -1108,7 +1118,15 @@ class Builder {
             st.repeated2 = this.keys(
                 st,
                 "repeated2",
-                repeats(nodeRows.filter((r) => !isEmpty(r[key])).map((r) => text(r[key]))),
+                repeats(
+                    nodeRows.flatMap((r, i) => {
+                        if (isEmpty(r[key])) {
+                            return [];
+                        }
+                        const unit = { table: "nodes", row: i, element: nodeId(nodeSpace(src), text(r[key])) } as const;
+                        return [[text(r[key]), unit] as const];
+                    }),
+                ),
             );
         }
         this.addEdges(s, si, st, src, empties);
@@ -1241,23 +1259,26 @@ class Builder {
             }
         }
         let empty = 0;
-        const keys: string[] = [];
-        const fanned = new Set<string>();
+        const keys: (readonly [string, DrillUnit])[] = [];
+        const fanned = new Map<string, DrillUnit>();
         for (const [r, i] of rows) {
             if (isEmpty(r[s.read.key])) {
                 empty++;
                 this.mark(st, "emptyKey", { table, row: i });
                 continue;
             }
-            keys.push(text(r[s.read.key]));
+            const k = text(r[s.read.key]);
+            const unit: { table: TableName; row: number; element?: string } = { table, row: i };
+            keys.push([k, unit]);
             const fans = st.fanOut;
             const n = this.nodeValuesTarget(s, st, look, r, i);
             if (st.fanOut > fans) {
-                fanned.add(text(r[s.read.key]));
+                fanned.set(k, fanned.get(k) ?? { table, row: i });
             }
             if (!n) {
                 continue;
             }
+            unit.element = n.id;
             st.matched++;
             this.mark(st, "matched", { table, row: i, element: n.id });
             this.touch(n, s, si, table, r, i);
@@ -1427,7 +1448,17 @@ class Builder {
         st.repeated2 = this.keys(
             st,
             "repeated2",
-            repeats(rows.filter(([r]) => !isEmpty(r[s.read.edgeId])).map(([r]) => text(r[s.read.edgeId]))),
+            repeats(
+                rows
+                    .filter(([r]) => !isEmpty(r[s.read.edgeId]))
+                    .map(([r, i]) => {
+                        const id = edgeId(s.edges, text(r[s.read.edgeId]));
+                        return [
+                            text(r[s.read.edgeId]),
+                            { table, row: i, ...(this.edges.has(id) ? { element: id } : {}) },
+                        ];
+                    }),
+            ),
         );
         for (const [r, i] of rows) {
             const e = this.edges.get(edgeId(s.edges, text(r[s.read.edgeId])));
@@ -1547,7 +1578,7 @@ class Builder {
         const kept = new Map<string, BuiltNode[]>();
         const reached = new Set<string>();
         const before = [...this.nodes.values()].filter((n) => n.space === space).map((n) => n.id);
-        const fanned = new Set<string>();
+        const fanned = new Map<string, DrillUnit>();
         for (const n2 of node2s) {
             const own = n2.touch.filter((t) => t.source === s.source && t.table === "nodes");
             const rows = own.map((t) => t.cells);
@@ -1561,7 +1592,7 @@ class Builder {
             if (ids.length > 1) {
                 st.fanOut++;
                 this.mark(st, "fanOut", unit);
-                fanned.add(text(v));
+                fanned.set(text(v), fanned.get(text(v)) ?? unit);
             } else if (n1) {
                 this.fold(n1, n2, { src: s.source, si, row: 0, step: s, st }, rows);
                 reached.add(n1.id);

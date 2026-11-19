@@ -14,7 +14,7 @@ import {
     type SourceDraftBucket,
     type SourceDraftPreviewStep,
 } from "../../../src/session";
-import { ACCOUNTS, phase2, refused } from "./scenario";
+import { ACCOUNTS, phase1, phase2, refused } from "./scenario";
 
 /**
  * A CSV source.
@@ -424,6 +424,42 @@ describe("source-steps drafts: every count's rows add up to it", () => {
             assert.notStrictEqual(r.effect, "left-out", `${String(r.key)} met a person`);
             assert.deepInclude(r.element, { space: "person" });
         }
+        session.dispose();
+    });
+});
+
+describe("source-steps drafts: a repeated key's row names its element", () => {
+    it("Repeated in 2 on a values step and on an add names the node the key's rows reached", async () => {
+        const { session, t } = await phase1();
+        const d = session.data.draft();
+        d.moveColumns(t, { columns: ["holder_name"], to: "source" });
+        const pv = d.preview();
+        const st = pv.steps.find((s) => s.op === "join.node-values");
+        assert.isDefined(st);
+        const A1 = { space: "account", key: "A-1" };
+        const r2 = pv.rows({ step: st.index, bucket: "repeated2" });
+        assert.strictEqual(r2.total, 1);
+        assert.deepStrictEqual(
+            r2.rows.map((r) => [r.key, r.effect, r.element]),
+            [["A-1", "changed", A1]],
+            "both A-1 rows write holder_name onto account A-1",
+        );
+        assert.isNotNull(r2.rows[0]?.incoming);
+        assert.deepStrictEqual(pv.elements({ step: st.index, bucket: "repeated2" }), [A1]);
+        const more = await d.stage(csv("people.csv", "badge,name\nB1,Ann\nB2,Bo\nB2,Bob"), {
+            key: "badge",
+            type: "person",
+        });
+        d.add(more);
+        const pv2 = d.preview();
+        const add = pv2.steps.find((s) => s.op === "join.add" && s.source === more);
+        assert.isDefined(add);
+        const B2 = { space: "person", key: "B2" };
+        assert.deepStrictEqual(
+            pv2.rows({ step: add.index, bucket: "repeated2" }).rows.map((r) => [r.key, r.effect, r.element]),
+            [["B2", "added", B2]],
+        );
+        assert.deepStrictEqual(pv2.elements({ step: add.index, bucket: "repeated2" }), [B2]);
         session.dispose();
     });
 });

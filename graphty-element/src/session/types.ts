@@ -4918,7 +4918,9 @@ export interface SourceDraft {
      * What committing the draft would do: totals before and after, each step's buckets counted
      * over every row and their change from the committed counts, each source's counts, reader
      * edits' states and the outcomes. Builds nothing it has not built for the draft's current
-     * acts, and returns the same object until the draft changes.
+     * acts, and returns the same object until the draft changes or a filter, note, pin or reader
+     * edit changes what the commit would hold or unbind. Those writes fire no
+     * `data:draft-changed`: read the preview again after making one.
      * @returns The preview.
      */
     preview(): SourceDraftPreview;

@@ -251,6 +251,8 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "data.edits()": "not the graph",
     "data.extract()": "writes",
     "data.lineage()": "names its target",
+    "data.matchCounts()": "not the graph",
+    "data.matchValues()": "not the graph",
     "data.merge()": "writes",
     "data.moveColumns()": "writes",
     "data.pick()": "writes",

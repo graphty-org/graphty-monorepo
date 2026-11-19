@@ -391,6 +391,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
                 "dispose",
                 "matchCounts",
                 "matchValues",
+                "preview",
             ],
         },
         { root: "VisibilityApi", members: ["held"] },

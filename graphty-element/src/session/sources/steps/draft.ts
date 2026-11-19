@@ -28,6 +28,11 @@ export interface DraftState {
     readonly copies: Copies;
     /** The sources the draft staged, added or acted on: the ones `setMapping` may change. */
     readonly owned: ReadonlySet<string>;
+    /**
+     * Each step's place in the committed value, or null for a step the draft made; absent, every
+     * step is at its own committed place.
+     */
+    readonly origins?: readonly (number | null)[];
 }
 
 /** What `editStep` may change on one step. A `null` or `false` takes the choice off. */
@@ -113,7 +118,48 @@ function touched(edit: StepsEdit): readonly string[] {
 export function draftApply(state: DraftState, edit: StepsEdit, more?: Copies): DraftState {
     const copies = more === undefined ? state.copies : Object.freeze({ ...state.copies, ...more });
     const value = applyEdit(state.value, edit, copies);
-    return { value, copies, owned: new Set([...state.owned, ...touched(edit)]) };
+    const origins = carried(state.value.steps, value.steps, state.origins);
+    return { value, copies, owned: new Set([...state.owned, ...touched(edit)]), origins };
+}
+
+/**
+ * Each step's committed place after an edit. An edit keeps the steps it leaves alone as the same
+ * objects, so those keep their place; a step it rewrites (an edited choice, a renamed column) takes
+ * the place of the step it replaced, the unclaimed earlier step of the same op, source and part, in
+ * order. Every other step is new.
+ * @param before - The steps before the edit.
+ * @param after - The steps after it.
+ * @param origins - The committed places before it; absent, each step's own place.
+ * @returns The committed places after it.
+ */
+export function carried(
+    before: readonly Step[],
+    after: readonly Step[],
+    origins: readonly (number | null)[] | undefined,
+): (number | null)[] {
+    const was = (i: number): number | null => (origins === undefined ? i : (origins[i] ?? null));
+    const at = new Map(before.map((s, i) => [s, i]));
+    const claimed = new Set<number>();
+    const out = after.map((s) => {
+        const i = at.get(s);
+        if (i === undefined || claimed.has(i)) {
+            return undefined;
+        }
+        claimed.add(i);
+        return i;
+    });
+    const key = (s: Step): string => `${s.op}\u0001${s.source}\u0001${s.op === "join.edges" ? String(s.part) : ""}`;
+    return out.map((i, n) => {
+        if (i === undefined) {
+            const k = key(after[n]);
+            i = before.findIndex((s, j) => !claimed.has(j) && key(s) === k);
+            if (i < 0) {
+                return null;
+            }
+            claimed.add(i);
+        }
+        return was(i);
+    });
 }
 
 /**

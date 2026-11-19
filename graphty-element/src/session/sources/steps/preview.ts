@@ -17,7 +17,7 @@ import {
 } from "./project";
 import { element } from "./provenance";
 import { type ChangeCounts, changeCounts, editStates } from "./refresh";
-import type { BuildIssue, BuildResult, ElementRef, Step, StepStats } from "./types";
+import type { BuildIssue, BuildResult, ElementRef, StepStats } from "./types";
 
 /** The counts of a step that are numbers, besides its place and part. */
 const NUMBERS = [
@@ -131,6 +131,8 @@ export interface PreviewContext {
     readonly refs: ReadonlyMap<string, ElementRef>;
     /** The filter conditions that are on and hide or show. */
     readonly filters: readonly FilterRead[];
+    /** The computed columns, by name, and whether nodes or edges carry them: a commit works them out again. */
+    readonly computed?: ReadonlyMap<string, "node" | "edge">;
 }
 
 /**
@@ -154,24 +156,6 @@ function totals(result: BuildResult): Totals {
         nodeTypes: by(result.nodes.values()),
         edgeTypes: by(result.edges.values()),
     };
-}
-
-/**
- * A key for each step that stays with it across edits: its op, source and part, and its place
- * among the steps sharing them.
- * @param steps - The steps.
- * @returns One key per step.
- */
-function stepKeys(steps: readonly Step[]): string[] {
-    // ponytail: two steps of one op and source without a part are told apart by order only, so
-    // taking out the first of them reads as an edit of it; a step id in the save format would fix it.
-    const seen = new Map<string, number>();
-    return steps.map((s) => {
-        const k = `${s.op}\u0001${s.source}\u0001${s.op === "join.edges" ? String(s.part) : ""}`;
-        const n = seen.get(k) ?? 0;
-        seen.set(k, n + 1);
-        return `${k}\u0001${String(n)}`;
-    });
 }
 
 /**
@@ -225,6 +209,17 @@ function sourceCounts(
 }
 
 /**
+ * How much one by-name count moved; a name the change leaves out did not move.
+ * @param change - The step's change, or null for a new step.
+ * @param count - The count.
+ * @param name - The column or space.
+ * @returns The difference, or undefined for a new step.
+ */
+function byName(change: StatsChange | null, count: "rowsDifferIn" | "endsMissing", name: string): number | undefined {
+    return change === null ? undefined : (change[count][name] ?? 0);
+}
+
+/**
  * The outcomes a step's counts report when the draft makes them: on a new or edited step every
  * count, on a kept one only the counts that moved.
  * @param row - The step.
@@ -255,7 +250,7 @@ function stepIssues(row: PreviewStep): PreviewIssue[] {
         out.push({ code: "W_SELF_LOOPS", params: { step, count: st.selfLoops } });
     }
     for (const [column, keys] of Object.entries(st.rowsDifferIn)) {
-        if (made(keys, c?.rowsDifferIn[column])) {
+        if (made(keys, byName(c, "rowsDifferIn", column))) {
             out.push({ code: "W_ROWS_DIFFER", params: { step, column, keys } });
         }
     }
@@ -263,7 +258,7 @@ function stepIssues(row: PreviewStep): PreviewIssue[] {
         out.push({ code: "W_NODE_NAMED_ONLY", params: { step, source: row.source, nodes: st.namedOnly } });
     }
     for (const [space, ends] of Object.entries(st.endsMissing)) {
-        if (made(ends, c?.endsMissing[space])) {
+        if (made(ends, byName(c, "endsMissing", space))) {
             out.push({ code: "W_EDGE_END_MISSING", params: { step, space, ends } });
         }
     }
@@ -310,14 +305,20 @@ function removedSteps(
  * @param result - The build.
  * @param filters - The conditions.
  * @param removed - The sources the draft takes out, whose conditions its commit takes out too.
+ * @param computed - The computed columns, which the commit works out again.
  * @returns The outcomes.
  */
 function heldFilters(
     result: BuildResult,
     filters: readonly FilterRead[],
     removed: ReadonlySet<string>,
+    computed: ReadonlyMap<string, "node" | "edge"> = new Map(),
 ): PreviewIssue[] {
     const els = [...result.nodes.values(), ...result.edges.values()];
+    // ponytail: a computed column counts as carried whenever its kind has elements, as the commit
+    // works it out again; one whose expression reads nothing the draft keeps would still be held.
+    const computes = (col: string): boolean =>
+        computed.get(col) === "node" ? result.nodes.size > 0 : computed.get(col) === "edge" && result.edges.size > 0;
     const out: PreviewIssue[] = [];
     for (const f of filters) {
         if (f.source !== undefined && removed.has(f.source)) {
@@ -327,17 +328,37 @@ function heldFilters(
         if (columns.length === 0 || columns.length < f.paths.length) {
             continue;
         }
-        const carried = columns.some((col) =>
-            els.some((el) => {
-                const v = f.source === undefined ? el.values[col] : el.own[f.source]?.[col]?.v;
-                return v !== undefined && v !== null && v !== "";
-            }),
+        const carried = columns.some(
+            (col) =>
+                (f.source === undefined && computes(col)) ||
+                els.some((el) => {
+                    const v = f.source === undefined ? el.values[col] : el.own[f.source]?.[col]?.v;
+                    return v !== undefined && v !== null && v !== "";
+                }),
         );
         if (!carried) {
             out.push({ code: "W_FILTER_HELD", params: { filter: f.filter, column: f.paths[0] } });
         }
     }
     return out;
+}
+
+/**
+ * The outcomes of a preview that read the session as well as the draft: the references the draft
+ * unbinds and the filters it holds. They change when a filter, note, pin or reader edit does.
+ * @param base - The committed value and copies.
+ * @param state - The draft.
+ * @param context - The references and filters the session holds.
+ * @returns `W_REFERENCE_UNBOUND`, then `W_FILTER_HELD`.
+ */
+export function contextIssues(
+    base: Omit<DraftState, "owned">,
+    state: DraftState,
+    context: PreviewContext,
+): PreviewIssue[] {
+    const b1 = buildOf(state.value, state.copies);
+    const removed = new Set(Object.keys(base.value.sources).filter((id) => state.value.sources[id] === undefined));
+    return [...unboundRefs(b1, context.refs.values()), ...heldFilters(b1, context.filters, removed, context.computed)];
 }
 
 /**
@@ -352,11 +373,10 @@ export function previewOf(base: Omit<DraftState, "owned">, state: DraftState, co
     const b1 = buildOf(state.value, state.copies);
     const { value } = state;
     const before = stepRows(base.value, b0, base.copies);
-    const keys0 = new Map(stepKeys(base.value.steps).map((k, i) => [k, i]));
     const matched = new Set<number>();
     const steps = stepRows(value, b1, state.copies).map((row, i): PreviewStep => {
-        const was = keys0.get(stepKeys(value.steps)[i]);
-        if (was === undefined) {
+        const was = state.origins === undefined ? i : state.origins[i];
+        if (was === null || was === undefined) {
             return { ...row, state: "new", committed: null, change: null };
         }
         matched.add(was);
@@ -384,8 +404,6 @@ export function previewOf(base: Omit<DraftState, "owned">, state: DraftState, co
             },
         };
     });
-    const removed = new Set([...ids].filter((id) => value.sources[id] === undefined));
-    const unbound = unboundRefs(b1, context.refs.values());
     const movedBefore = new Set(
         editStates(base.value, base.copies)
             .filter((s) => s.state === "source-changed")
@@ -405,8 +423,7 @@ export function previewOf(base: Omit<DraftState, "owned">, state: DraftState, co
         }));
     const issues: PreviewIssue[] = [
         ...removedSteps(base.value, value, steps, matched),
-        ...unbound,
-        ...heldFilters(b1, context.filters, removed),
+        ...contextIssues(base, state, context),
         ...moved,
         ...steps.flatMap((row) => stepIssues(row)),
         ...b1.issues.filter(

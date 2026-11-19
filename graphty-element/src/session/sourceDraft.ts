@@ -14,7 +14,7 @@ import type { ColumnRef } from "./shared";
 import type { StepsAct } from "./sources/steps/acts";
 import { built, draftApply, type DraftState, mappingEdit, stepEdit } from "./sources/steps/draft";
 import { matchCounts, matchValues } from "./sources/steps/match";
-import { type PreviewContext, previewOf } from "./sources/steps/preview";
+import { contextIssues, type PreviewContext, previewOf } from "./sources/steps/preview";
 import {
     buildOf,
     type Copies,
@@ -85,8 +85,13 @@ export class SourceDraftHandle implements SourceDraft {
     private readonly base: DraftState;
     private readonly history: DraftState[] = [];
     private closed = false;
-    // the preview of the current state, kept until an act or an undo changes it
-    private previewed: { readonly state: DraftState; readonly preview: SourceDraftPreview } | null = null;
+    // the preview of the current state, kept until an act, an undo or the session's references and
+    // filters (the outcomes `context` spells) change it
+    private previewed: {
+        readonly state: DraftState;
+        readonly context: string;
+        readonly preview: SourceDraftPreview;
+    } | null = null;
 
     /**
      * Open a draft over the committed sources and steps.
@@ -324,11 +329,13 @@ export class SourceDraftHandle implements SourceDraft {
     /** @inheritdoc */
     preview(): SourceDraftPreview {
         this.live("preview");
-        if (this.previewed?.state !== this.state) {
-            const data = previewOf(this.base, this.state, this.host.previewContext());
+        const context = this.host.previewContext();
+        const read = JSON.stringify(contextIssues(this.base, this.state, context));
+        if (this.previewed?.state !== this.state || this.previewed.context !== read) {
+            const data = previewOf(this.base, this.state, context);
             // The internal counts are the public ones; the public types name their spellings.
             const preview = { draft: this.id, ...data } as unknown as SourceDraftPreview;
-            this.previewed = { state: this.state, preview };
+            this.previewed = { state: this.state, context: read, preview };
         }
         return this.previewed.preview;
     }

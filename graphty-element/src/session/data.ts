@@ -3464,6 +3464,7 @@ export class SessionData implements SessionDataApi {
                             paths: valuePaths(each.rule),
                             ...(each.source === undefined ? {} : { source: each.source }),
                         })),
+                    computed: new Map(this.derivedColumns().map((c) => [c.name, c.kind])),
                 }),
                 release: () => {
                     // A draft discarded while its commit was landing never releases one opened since.

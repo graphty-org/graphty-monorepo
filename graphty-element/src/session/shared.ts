@@ -68,8 +68,11 @@ export type CodedFactParam = string | number | boolean | null | readonly (string
 export interface CodedFact<Code extends string = string> {
     /** What kind of fact this is. Stable: a code is renamed or removed only in a major release. */
     readonly code: Code;
-    /** The values the fact is about, by name. Each code documents its own names. */
-    readonly params: Readonly<Record<string, CodedFactParam>>;
+    /**
+     * The values the fact is about, by name. Each code documents its own names; a name a code
+     * marks optional is absent when it does not apply, so read it as possibly `undefined`.
+     */
+    readonly params: Readonly<Partial<Record<string, CodedFactParam>>>;
 }
 
 /**

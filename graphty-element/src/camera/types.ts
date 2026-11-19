@@ -112,10 +112,7 @@ export interface CameraState {
     beta?: number;
     /** Distance from `target` for an orbit state given as `alpha` and `beta`. */
     radius?: number;
-    /**
-     * The vertical field of view in radians, as read from the camera. Applying a state does not
-     * change the field of view.
-     */
+    /** The 3D camera's vertical field of view, in radians. */
     fov?: number;
 
     // 2D Camera Properties
@@ -139,13 +136,13 @@ export interface CameraState {
     rotation?: number;
 
     // Orthographic frustum (advanced)
-    /** The left edge of a 2D view's frustum, in world units. Not applied: a 2D view is placed by `zoom` and `pan`. */
+    /** The left edge of a 2D view, in world units from `pan`. Wins over the edge `zoom` sets. */
     orthoLeft?: number;
-    /** The right edge of a 2D view's frustum, in world units. Not applied: a 2D view is placed by `zoom` and `pan`. */
+    /** The right edge of a 2D view, in world units from `pan`. Wins over the edge `zoom` sets. */
     orthoRight?: number;
-    /** The top edge of a 2D view's frustum, in world units. Not applied: a 2D view is placed by `zoom` and `pan`. */
+    /** The top edge of a 2D view, in world units from `pan`. Wins over the edge `zoom` sets. */
     orthoTop?: number;
-    /** The bottom edge of a 2D view's frustum, in world units. Not applied: a 2D view is placed by `zoom` and `pan`. */
+    /** The bottom edge of a 2D view, in world units from `pan`. Wins over the edge `zoom` sets. */
     orthoBottom?: number;
 
     // OrbitCameraController-specific fields

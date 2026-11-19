@@ -94,6 +94,17 @@ describe("Cytoscape.js label boxes", () => {
         }
     });
 
+    it("reads a double line as two lines a quarter of the width, half the width apart", () => {
+        const line = (style: string): unknown[] => {
+            const { values } = evaluateCytoscapeJs(
+                doc({ "text-border-width": 8, "text-border-opacity": 1, "text-border-style": style }),
+            ).node;
+            return [values.labelBorderWidth?.[0], values.labelBorderStyle?.[0] ?? null];
+        };
+        expect(line("double")).toEqual([2, "double"]);
+        expect(line("solid")).toEqual([8, null]);
+    });
+
     it("reads text-metrics glyph as a box its letters' ink tall", () => {
         const { values } = evaluateCytoscapeJs(doc({ "text-background-opacity": 1, "text-metrics": "glyph" })).node;
         expect(values.labelLineBox?.[0]).toBe("glyphs");
@@ -473,13 +484,13 @@ describe("Cytoscape.js label opacity, margins and borders", () => {
         expect([v.labelBorderWidth?.[1], v.labelBorderOpacity?.[1], v.labelPadding?.[1]]).toEqual([0.5, 0.3, 4]);
     });
 
-    it("notes a double label border as approximated: drawText strokes two lines, graphty one", () => {
+    it("reads a double label border as drawn, with no note: two lines, as drawText strokes them", () => {
         const notes = new StyleNotes();
         evaluateCytoscapeJs({
             ...doc({ "text-border-width": 4, "text-border-opacity": 1, "text-border-style": "double" }),
             notes,
         });
-        expect(notes.covers(STYLE_ISSUE.APPROXIMATED, "node", "labelBorderColor", 0)).toBe(true);
+        expect(notes.covers(STYLE_ISSUE.APPROXIMATED, "node", "labelBorderColor", 0)).toBe(false);
     });
 });
 

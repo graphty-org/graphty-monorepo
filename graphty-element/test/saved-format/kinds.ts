@@ -14,6 +14,7 @@ import { readFile } from "node:fs/promises";
 import { vi } from "vitest";
 
 import type { ShaderDescriptor } from "../../src/catalog/shaders";
+import * as graphStyle from "../../src/config/GraphStyle";
 import type { GraphSession } from "../../src/session";
 
 /** What a row's `useEvery` did. */
@@ -36,6 +37,10 @@ export interface SelfContainedKind {
     readonly builtInModules: Readonly<Record<string, Record<string, unknown>>>;
     /** What a project save holds of the kind, which B's save must hold as A's did. */
     readonly saved?: (text: string) => unknown;
+    /** False for a kind with no catalog behind it (a default value), which the census leaves out. */
+    readonly catalog?: false;
+    /** What the kind leaves in a session, which the session that opens the save must hold too. */
+    readonly state?: (session: GraphSession) => unknown;
 }
 
 /** The fixture's nodes. Their data avoids built-in names, so a hit in a save is a saved reference. */
@@ -128,6 +133,18 @@ async function useEveryShader(session: GraphSession): Promise<UsedEvery> {
     return { used, listed: presets.length, saves };
 }
 
+/** The settings a save once left out when they held their default. */
+const DEFAULTED_SETTINGS = ["edgeWeightMeaning", "edgeColor", "edgeScale", "edgeOpacity"];
+
+/**
+ * Leave every setting at its default, which a save must write all the same: one it left out would
+ * read back as the reading build's default, and this row's build has other defaults.
+ * @returns What was used.
+ */
+function useEveryDefault(): Promise<UsedEvery> {
+    return Promise.resolve({ used: DEFAULTED_SETTINGS, listed: DEFAULTED_SETTINGS.length, saves: [] });
+}
+
 /**
  * Use every sample model: one node layer naming each, read from the package (Node's fetch cannot
  * read the `file:` URLs the samples have in a test, so it is served from disk here).
@@ -208,6 +225,26 @@ export const SELF_CONTAINED_KINDS: readonly SelfContainedKind[] = [
             "../../src/catalog/models.ts": { MODEL_DESCRIPTORS: [] },
             "../../src/session/assets/samples.ts": { SAMPLE_MODEL_URLS: {} },
         },
+    },
+    {
+        kind: "default-settings",
+        catalog: false,
+        useEvery: useEveryDefault,
+        builtInModules: {
+            "../../src/config/GraphStyle.ts": {
+                ...graphStyle,
+                DEFAULT_SELECTION_STYLE: {
+                    ...graphStyle.DEFAULT_SELECTION_STYLE,
+                    edgeColor: "#123456",
+                    edgeScale: 7,
+                    edgeOpacity: 0.25,
+                },
+            },
+        },
+        state: (session) => ({
+            selectionStyle: session.config.selectionStyle,
+            knownFields: session.config.data.knownFields,
+        }),
     },
     {
         kind: "defaultPalettes",

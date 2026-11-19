@@ -464,7 +464,6 @@ export interface SelectionApi {
     previewHover(on: boolean): void;
     /**
      * The elements a {@link SelectionApi.peek} is showing now, or null.
-     * @experimental assistant
      */
     readonly peeked: { readonly nodes: number; readonly edges: number } | null;
     /**
@@ -475,13 +474,14 @@ export interface SelectionApi {
      *
      * ```ts
      * await session.selection.peek({ where: "data.group == `3`" });
+     * await session.selection.peek({ layer: layerId }); // what a style layer paints, while a pointer rests on its row
      * await session.selection.peek(null);
      * ```
+     * Available with or without the `assistant` experiment since 3.62.0: a style editor points at
+     * what a row paints with `{ layer }`.
      * @param target - What to point at, read as `apply` reads it; null for nothing.
      * @returns How many nodes and edges it names.
-     * @throws A `GraphtyError` coded `E_FEATURE_OFF` while the `assistant` experiment is off, or the
-     *   same error as `apply` for a target it refuses.
-     * @experimental assistant
+     * @throws The same error as `apply` for a target it refuses.
      */
     peek(target: SelectionTarget | null): Promise<{ readonly nodes: number; readonly edges: number }>;
     /**
@@ -686,8 +686,6 @@ export interface SelectionSources {
         dirty: { readonly node: readonly number[]; readonly edge: readonly number[] },
         peeked: { readonly nodes: readonly NodeId[]; readonly edges: readonly EdgeId[] } | null,
     ) => void;
-    /** Whether peeking is on: the `assistant` experiment. Absent, it is off. */
-    readonly canPeek?: () => boolean;
     /**
      * Called when the hover preview turns on or off, with the nodes whose hovered state it moved.
      * @param nodes - The selected nodes.
@@ -1305,17 +1303,6 @@ class Selection implements SelectionOwner {
     }
 
     peek(target: SelectionTarget | null): Promise<{ readonly nodes: number; readonly edges: number }> {
-        if (this.#sources.canPeek?.() !== true) {
-            return Promise.reject(
-                new GraphtyError({
-                    code: "E_FEATURE_OFF",
-                    message: `Peeking needs the "assistant" experiment.`,
-                    source: "run",
-                    details: { feature: "assistant", key: "selection.peek" },
-                }),
-            );
-        }
-
         try {
             this.#sync();
             const members = target === null ? null : resolveTarget(target, this.#context());

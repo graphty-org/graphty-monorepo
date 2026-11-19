@@ -1,7 +1,7 @@
 /**
  * @file `fitToGraph` with `keepAngle` only zooms and pans: after the reader orbits by a real drag,
  * the camera's direction and pivot rotation are unchanged, and the framed nodes fill the canvas on
- * their limiting axis, centered. Framing the selection does the same with `camera.pivotOnSelection`
+ * their limiting axis, centered, every framed node whole (its edges inside, not only its center). Framing the selection does the same with `camera.pivotOnSelection`
  * on, so the view's placement wins over the glide to the selection's center. In 2D a turned view
  * keeps its turn and still fills the canvas, for the graph and for the selection. Read through the
  * public API: `getCameraState` and `nodeScreenPosition`.
@@ -18,7 +18,12 @@ import { drag } from "../helpers/real-input";
 const WIDTH = 640;
 const HEIGHT = 400;
 
-/** Spread unevenly in all three axes, so a centered 3D box is not a centered picture. */
+/**
+ * Spread unevenly in all three axes, so a centered 3D box is not a centered picture, and close
+ * enough that a node's own size is a real share of the picture: framing the centers alone cuts
+ * the outer nodes in half at the canvas edges.
+ */
+const SPREAD = 0.1;
 const NODES = [
     { id: "a", position: { x: -40, y: 10, z: 5 } },
     { id: "b", position: { x: 35, y: -20, z: -30 } },
@@ -28,7 +33,10 @@ const NODES = [
     { id: "f", position: { x: -5, y: 0, z: -45 } },
     { id: "g", position: { x: 20, y: 20, z: -10 } },
     { id: "h", position: { x: -30, y: 25, z: -20 } },
-];
+].map(({ id, position }) => ({
+    id,
+    position: { x: position.x * SPREAD, y: position.y * SPREAD, z: position.z * SPREAD },
+}));
 
 const cleanups: (() => void)[] = [];
 
@@ -77,22 +85,29 @@ function direction(element: Graphty): number[] {
     return d.map((v) => v / length);
 }
 
-/** Assert the nodes' screen box reaches at least 0.9 of the canvas on its limiting axis, centered within 5 percent. */
+/**
+ * Assert the nodes' drawn edges (each center plus or minus its projected radius) lie inside the
+ * canvas and reach at least 0.85 of it on the limiting axis, centered within 5 percent.
+ */
 function assertFills(element: Graphty, ids: readonly string[]): void {
     let [left, top, right, bottom] = [Infinity, Infinity, -Infinity, -Infinity];
     for (const id of ids) {
         const at = element.graph.nodeScreenPosition(id);
         assert.exists(at, `node ${id} is drawn`);
-        left = Math.min(left, at.x);
-        right = Math.max(right, at.x);
-        top = Math.min(top, at.y);
-        bottom = Math.max(bottom, at.y);
+        assert.isAbove(at.radius, 0, `node ${id} has a size on screen`);
+        left = Math.min(left, at.x - at.radius);
+        right = Math.max(right, at.x + at.radius);
+        top = Math.min(top, at.y - at.radius);
+        bottom = Math.max(bottom, at.y + at.radius);
     }
 
     const where = `box ${left.toFixed(1)}..${right.toFixed(1)} x ${top.toFixed(1)}..${bottom.toFixed(1)}`;
     const fill = Math.max((right - left) / WIDTH, (bottom - top) / HEIGHT);
-    assert.isAtLeast(fill, 0.9, `fills the canvas: ${where}`);
-    assert.isAtMost(fill, 1.001, `stays inside the canvas: ${where}`);
+    assert.isAtLeast(fill, 0.85, `fills the canvas: ${where}`);
+    assert.isAtLeast(left, 0, `no node cut off at the left: ${where}`);
+    assert.isAtLeast(top, 0, `no node cut off at the top: ${where}`);
+    assert.isAtMost(right, WIDTH, `no node cut off at the right: ${where}`);
+    assert.isAtMost(bottom, HEIGHT, `no node cut off at the bottom: ${where}`);
     assert.isAtMost(Math.abs((left + right) / 2 - WIDTH / 2) / WIDTH, 0.05, `centered across: ${where}`);
     assert.isAtMost(Math.abs((top + bottom) / 2 - HEIGHT / 2) / HEIGHT, 0.05, `centered up and down: ${where}`);
 }

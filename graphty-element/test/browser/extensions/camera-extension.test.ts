@@ -265,19 +265,21 @@ describe("a third party's camera view", () => {
     }
 
     /**
-     * Where the element has the named nodes, which is the box a scoped call frames.
+     * The box the named nodes are drawn in, which is the box a scoped call frames by default.
      * @param ids - The nodes to measure over.
      * @returns The center of that subset and its longest side.
      */
     function subsetBox(ids: readonly string[]): { center: Coords; maxDimension: number } {
         return boxAround(
-            ids.map((id) => {
+            ids.flatMap((id) => {
                 const node = graph.getNode(id);
                 if (!node) {
                     throw new Error(`the graph has no node "${id}"`);
                 }
 
-                return placedPosition(node);
+                placedPosition(node);
+                const { min, max } = node.framingBounds();
+                return [min, max];
             }),
         );
     }

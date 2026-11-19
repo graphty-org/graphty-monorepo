@@ -662,6 +662,40 @@ describe("the Views place", () => {
         });
     });
 
+    it("keeps a folded stop folded when its move is undone and redone with the keys", async () => {
+        const { session } = await openRing();
+        await buildWalk(session);
+        await userEvent.click(within(stopCard(2)).getByRole("button", { name: /^Collapse Stop 2/ }));
+        await waitFor(() => {
+            assert.isNotNull(stopCard(2).getAttribute("data-folded"));
+        });
+        /**
+         * The camera names of the folded stops, in order.
+         * @returns the names.
+         */
+        const folded = (): string[] =>
+            stopsOf(session, "Walk").filter((_, at) => stopCard(at + 1).getAttribute("data-folded") !== null);
+
+        within(stopCard(2)).getByRole("button", { name: "Move Stop 2" }).focus();
+        await userEvent.keyboard("{Alt>}{ArrowDown}{/Alt}");
+        await waitFor(() => {
+            assert.deepEqual(stopsOf(session, "Walk"), ["Top", "pause", "Isometric", "Side"]);
+            assert.deepEqual(folded(), ["Isometric"]);
+        });
+
+        await userEvent.keyboard("{Control>}z{/Control}");
+        await waitFor(() => {
+            assert.deepEqual(stopsOf(session, "Walk"), ["Top", "Isometric", "pause", "Side"]);
+            assert.deepEqual(folded(), ["Isometric"], "the undone move keeps Isometric the folded stop");
+        });
+
+        await userEvent.keyboard("{Control>}{Shift>}Z{/Shift}{/Control}");
+        await waitFor(() => {
+            assert.deepEqual(stopsOf(session, "Walk"), ["Top", "pause", "Isometric", "Side"]);
+            assert.deepEqual(folded(), ["Isometric"], "the redone move keeps Isometric the folded stop");
+        });
+    });
+
     it("keeps playing when Escape closes a stop's list, and ends where a drag leaves the camera", async () => {
         const { element, session } = await openRing();
         // A hold far longer than the test, so only the drag ends it.

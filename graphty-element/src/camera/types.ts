@@ -34,8 +34,8 @@ export type DrawingMode = "2d" | "3d";
 
 /**
  * What each node counts as in the box a camera view frames: `"centers"` its center alone,
- * `"drawn"` the box it is drawn in, so a big node at the edge of the frame is not cut off. A camera
- * view framing the whole graph defaults to `"drawn"`; one framing a subset defaults to `"centers"`.
+ * `"drawn"` the box it is drawn in, so a big node at the edge of the frame is not cut off. The default is
+ * `"drawn"`, for the whole graph and for a subset alike.
  */
 export type CameraViewExtent = "centers" | "drawn";
 

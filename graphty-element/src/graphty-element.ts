@@ -5003,8 +5003,8 @@ export class Graphty extends LitElement {
      * node the camera does not move. The camera is view state, so this is not an undoable step.
      * @param nodeIds - One node id, or several.
      * @param options - Optional animation configuration, and the `extent` each node is measured by.
-     * @param options.extent - `"centers"` (the default) measures each node by its centre;
-     *   `"drawn"` by the box it is drawn in, so a big node is framed whole.
+     * @param options.extent - `"drawn"` (the default) measures each node by the box it is drawn
+     *   in, so every framed node is whole; `"centers"` by its centre alone.
      * @returns Promise that resolves when the camera has moved.
      * @since 3.3.0
      * @example
@@ -6169,8 +6169,7 @@ export class Graphty extends LitElement {
      * @param options.nodes - The nodes to measure the box over. Absent frames the whole graph.
      * @param options.params - The view's own options, filled in from its declared defaults.
      * @param options.extent - What each node counts as in the box: `"centers"` its centre,
-     *   `"drawn"` the box it is drawn in. The default is `"drawn"` for the whole graph and
-     *   `"centers"` when `nodes` names a subset.
+     *   `"drawn"` the box it is drawn in. The default is `"drawn"`.
      * @returns The resolved camera state.
      * @since 1.5.0
      * @example
@@ -6201,8 +6200,7 @@ export class Graphty extends LitElement {
      *   selected nodes and both ends of every selected edge.
      * @param options.params - The view's own options, filled in from its declared defaults.
      * @param options.extent - What each node counts as in the box the view is handed: `"centers"`
-     *   its centre, `"drawn"` the box it is drawn in. The default is `"drawn"` for the whole graph
-     *   and `"centers"` when `scope` names a subset.
+     *   its centre, `"drawn"` the box it is drawn in. The default is `"drawn"`.
      * @returns A promise that resolves once the camera has arrived.
      * @since 1.5.0
      * @example

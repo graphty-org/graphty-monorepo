@@ -385,7 +385,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         };
 
         let menu = await open();
-        for (const name of [/^Fit/, /^Fit selection/, /^Front/, /^Side/, /^Top/, /^Isometric/]) {
+        for (const name of [/^Fit(?! selection)/, /^Fit selection/, /^Front/, /^Side/, /^Top/, /^Isometric/]) {
             assert.isNotNull(within(menu).getByRole("menuitem", { name }));
         }
         // Each standard view shows its key on its row.

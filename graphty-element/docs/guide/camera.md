@@ -146,14 +146,14 @@ names a node the camera stays where it is:
 await graph.zoomToNodes(["alice", "bob"], { animate: true });
 ```
 
-By default each node counts as its center, so a big node at the edge of the frame can be cut off,
-and one node is framed in a fixed-size box around its center. Pass `extent: "drawn"` to measure each
-node by the box it is drawn in instead, so every framed node is whole on screen:
+By default each node counts as the box it is drawn in, so every framed node is whole on screen.
+Pass `extent: "centers"` to measure each node by its center alone, so a big node at the edge of the
+frame can be cut off, and one node is framed in a fixed-size box around its center:
 
 ```typescript
-await graph.zoomToNodes("hub", { extent: "drawn" });
-await graph.applyCameraView("isometric", { scope: "selection", extent: "drawn" });
-const state = graph.resolveCameraPreset("topView", { extent: "drawn" });
+await graph.zoomToNodes("hub", { extent: "centers" });
+await graph.applyCameraView("isometric", { scope: "selection", extent: "centers" });
+const state = graph.resolveCameraPreset("topView", { extent: "centers" });
 ```
 
 `extent` works the same for a camera view a third party registered: the box handed to its

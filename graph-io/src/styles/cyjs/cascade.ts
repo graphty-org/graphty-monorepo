@@ -1352,6 +1352,7 @@ function evaluateTarget(
         taperTriangles(curves, drawn);
         if (input.toolDefaults !== false) {
             noArrowsOnHaystacks(curves, drawn);
+            noHaystackLoops(graph, read.order, curves, drawn);
             if (env.nodes !== null) {
                 edgeRoutes(graph, read, curves, env.nodes, drawn);
             }
@@ -3168,6 +3169,30 @@ function noArrowsOnHaystacks(
             if ((curves[i] ?? "haystack") === "haystack" && col[i] !== null) {
                 col[i] = "none";
             }
+        }
+    }
+}
+
+/**
+ * A `haystack` loop is drawn between two points `haystack-radius` of the way from its node's center to its outline
+ * (cytoscape.js 3.34.3 `findHaystackPoints`), so its line stays inside the node it is drawn under: at the default
+ * radius of 0, a line of no length at the center. graphty would draw it as a loop outside the node, so its line is
+ * drawn at opacity 0.
+ * @param graph - the core's elements
+ * @param order - each output edge's core index, -1 for none
+ * @param curves - each edge's curve style, in output order, null where no rule sets it
+ * @param values - the values; changed in place
+ */
+function noHaystackLoops(
+    graph: CyjsGraph,
+    order: ArrayLike<number>,
+    curves: readonly (StyleValue | null | undefined)[],
+    values: Partial<Record<string, (StyleValue | null)[]>>,
+): void {
+    for (let k = 0; k < order.length; k++) {
+        const e = order[k];
+        if (e >= 0 && graph.source[e] === graph.target[e] && (curves[k] ?? "haystack") === "haystack") {
+            columnOf(values, "opacity", order.length)[k] = 0;
         }
     }
 }

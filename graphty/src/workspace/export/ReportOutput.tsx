@@ -1,11 +1,13 @@
 import { ModalFooter } from "@graphty/compact-mantine";
 import type { DataIssue } from "@graphty/graphty-element/session";
-import { Button, Checkbox, Menu, NumberInput, Text, Textarea, TextInput } from "@mantine/core";
+import { ActionIcon, Button, Checkbox, Menu, NumberInput, Text, Textarea, TextInput, Tooltip } from "@mantine/core";
 import React, { useState } from "react";
 
+import { GLYPHS } from "../glyphs";
+import { runName } from "../runWords";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { fileName, REPORT_SECTIONS, type ReportChoices, type ReportSection, saveBlob } from "./choices";
-import { cleaningSteps, issuesCsv, reportMarkdown, sectionCounts, validationIssues } from "./report";
+import { cleaningSteps, issuesCsv, pinnedRuns, reportMarkdown, sectionCounts, validationIssues } from "./report";
 
 /** Props for ReportOutput. */
 interface ReportOutputProps {
@@ -27,8 +29,9 @@ const ISSUE_FILES: readonly {
 ];
 
 /**
- * The Report output: Title, Row cap, the sections checklist with what each holds, the reader's
- * summary and findings, then Export (the report as Markdown) and Save issues (the validation report
+ * The Report output: Title, Row cap, the sections checklist with what each holds, the pinned
+ * results in the order pinned (each with the reader's note and an Unpin), the reader's summary and
+ * findings, then Export (the report as Markdown) and Save issues (the validation report
  * or the data changes alone, as JSON or CSV).
  * @param props - Component props
  * @param props.choices - The report's choices
@@ -38,9 +41,21 @@ const ISSUE_FILES: readonly {
  * @returns The output's body and footer
  */
 export function ReportOutput({ choices, onChange, onCancel, onDone }: Readonly<ReportOutputProps>): React.JSX.Element {
-    const { session } = useWorkspace();
+    const { session, store } = useWorkspace();
     const project = useWorkspaceState((state) => state.project?.name ?? "untitled");
+    const pins = useWorkspaceState((state) => state.reportPins);
     const [counts] = useState(() => (session === null ? null : sectionCounts(session)));
+    const pinned = session === null ? [] : pinnedRuns(session, pins);
+    const countOf = (id: ReportSection): number | undefined => (id === "pinned" ? pinned.length : counts?.[id]);
+    const setNote = (run: string, note: string): void => {
+        store.set((state) => ({
+            reportPins: state.reportPins.map((pin) => (pin.run === run ? { ...pin, note } : pin)),
+        }));
+    };
+    const unpin = (run: string): void => {
+        store.set((state) => ({ reportPins: state.reportPins.filter((pin) => pin.run !== run) }));
+    };
+    const Unpin = GLYPHS.unpin;
     const set = (patch: Partial<ReportChoices>): void => {
         onChange({ ...choices, ...patch });
     };
@@ -57,7 +72,7 @@ export function ReportOutput({ choices, onChange, onCancel, onDone }: Readonly<R
             return;
         }
         const name = fileName(project, "report", "md");
-        saveBlob(new Blob([reportMarkdown(session, choices, project)], { type: "text/markdown" }), name);
+        saveBlob(new Blob([reportMarkdown(session, choices, project, pins)], { type: "text/markdown" }), name);
         onDone(`Exported ${name}`, name);
     };
 
@@ -100,7 +115,11 @@ export function ReportOutput({ choices, onChange, onCancel, onDone }: Readonly<R
                     {REPORT_SECTIONS.map((each) => (
                         <Checkbox
                             key={each.id}
-                            label={counts === null ? each.name : `${each.name} (${String(counts[each.id])})`}
+                            label={
+                                countOf(each.id) === undefined
+                                    ? each.name
+                                    : `${each.name} (${String(countOf(each.id))})`
+                            }
                             checked={choices.sections.includes(each.id)}
                             onChange={(event) => {
                                 toggle(each.id, event.currentTarget.checked);
@@ -108,6 +127,41 @@ export function ReportOutput({ choices, onChange, onCancel, onDone }: Readonly<R
                         />
                     ))}
                 </fieldset>
+                {session !== null && pinned.length > 0 ? (
+                    <fieldset className="ws-export-sections" aria-label="Pinned items">
+                        <Text component="legend" size="xs" fw={500}>
+                            Pinned items
+                        </Text>
+                        {pinned.map(({ pin, run }) => {
+                            const name = runName(session, run);
+                            return (
+                                <TextInput
+                                    key={pin.run}
+                                    label={name}
+                                    placeholder="Note"
+                                    value={pin.note}
+                                    onChange={(event) => {
+                                        setNote(pin.run, event.currentTarget.value);
+                                    }}
+                                    rightSection={
+                                        <Tooltip label="Unpin from report">
+                                            <ActionIcon
+                                                variant="subtle"
+                                                color="gray"
+                                                aria-label={`Unpin ${name}`}
+                                                onClick={() => {
+                                                    unpin(pin.run);
+                                                }}
+                                            >
+                                                <Unpin size={14} aria-hidden />
+                                            </ActionIcon>
+                                        </Tooltip>
+                                    }
+                                />
+                            );
+                        })}
+                    </fieldset>
+                ) : null}
                 <Textarea
                     label="Summary"
                     autosize

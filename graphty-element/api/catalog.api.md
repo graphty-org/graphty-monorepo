@@ -676,7 +676,7 @@ export function checkApiKeyShape(id: AiProviderId, key: string): AiKeyShapeCheck
 // @public
 export interface CodedFact<Code extends string = string> {
     readonly code: Code;
-    readonly params: Readonly<Record<string, CodedFactParam>>;
+    readonly params: Readonly<Partial<Record<string, CodedFactParam>>>;
 }
 
 // @public
@@ -2909,9 +2909,7 @@ export interface ShaderDescriptor {
 
 // @public
 export interface ShaderGlyph {
-    // (undocumented)
     readonly outline?: boolean;
-    // (undocumented)
     readonly path: string;
 }
 
@@ -3046,7 +3044,6 @@ export type ShaderText = string;
 export interface ShaderTextDraft {
     // (undocumented)
     readonly [key: string]: unknown;
-    // (undocumented)
     readonly params?: readonly ShaderParamDraft[];
 }
 

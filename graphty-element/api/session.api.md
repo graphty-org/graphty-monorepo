@@ -421,18 +421,13 @@ export interface BranchesView {
 
 // @beta
 export interface BranchReading {
-    // (undocumented)
     readonly color: string;
     readonly count: number;
     readonly drawn: number;
-    // (undocumented)
     readonly id: string;
-    // (undocumented)
     readonly members: Scope;
     readonly reason: CodedFact<StepReasonCode> | null;
-    // (undocumented)
     readonly state: BranchState;
-    // (undocumented)
     readonly steps: readonly StepReading[];
 }
 
@@ -575,7 +570,7 @@ export interface ChannelShare {
 // @public
 export interface CodedFact<Code extends string = string> {
     readonly code: Code;
-    readonly params: Readonly<Record<string, CodedFactParam>>;
+    readonly params: Readonly<Partial<Record<string, CodedFactParam>>>;
 }
 
 // @public
@@ -4855,16 +4850,11 @@ export interface ReadonlyElementPositions {
 
 // @public
 export interface RecipeColumn {
-    // (undocumented)
     readonly hidden?: true;
-    // (undocumented)
     readonly kind: "node" | "edge";
     readonly measurement?: Measurement;
-    // (undocumented)
     readonly name: string;
-    // (undocumented)
     readonly roles?: readonly AttributeRole[];
-    // (undocumented)
     readonly type: AttributeType;
 }
 
@@ -4878,34 +4868,25 @@ export interface RecipeDocument {
     };
     readonly ignoredIssues: readonly RecipeIgnoredIssue[];
     readonly joins: readonly RecipeJoin[];
-    // (undocumented)
     readonly kind: "graphty-recipe";
     readonly leftOut: readonly CodedFact<RecipeLeftOutCode>[];
     readonly sources: readonly RecipeSource[];
     readonly styles: StyleFileDocument;
-    // (undocumented)
     readonly version: 1;
 }
 
 // @public
 export interface RecipeIgnoredIssue {
-    // (undocumented)
     readonly code: IssueCode;
-    // (undocumented)
     readonly column?: ColumnRef;
-    // (undocumented)
     readonly source?: SourceKey;
 }
 
 // @public
 export interface RecipeJoin {
-    // (undocumented)
     readonly choices: JoinChoices;
-    // (undocumented)
     readonly onto: SourceKey | null;
-    // (undocumented)
     readonly shape: JoinShape;
-    // (undocumented)
     readonly source: SourceKey;
 }
 
@@ -4917,7 +4898,6 @@ export interface RecipeSource {
     readonly format?: FormatId;
     readonly joinedOnto?: SourceKey;
     readonly key: SourceKey;
-    // (undocumented)
     readonly kind: LoadedSourceKind;
     readonly name?: string;
     readonly tableRows?: readonly ("nodes" | "edges")[];
@@ -6760,17 +6740,25 @@ export interface SetStatus {
 }
 
 // @public
-export type SetStatusReason = {
+export type SetStatusReason =
+/** A run the set reads has inputs that changed. */
+    {
     readonly kind: "run-out-of-date";
     readonly run: RunId;
-} | {
+}
+/** A run the set reads is gone. */
+| {
     readonly kind: "missing-run";
     readonly run: RunId;
-} | {
+}
+/** A set this one reads is gone. */
+| {
     readonly kind: "missing-set";
     readonly id: SetId;
     readonly name: string;
-} | {
+}
+/** The definition reads itself, through other sets. */
+| {
     readonly kind: "cycle";
     readonly through: readonly string[];
 }
@@ -6788,7 +6776,9 @@ export type SetStatusReason = {
 | {
     readonly kind: "ambiguous-parallel-edge";
     readonly count: number;
-} | {
+}
+/** The definition cannot be read. */
+| {
     readonly kind: "invalid";
     readonly message: string;
 }
@@ -7170,9 +7160,7 @@ export type StaticStyle = Partial<Record<Channel, ChannelValue>>;
 // @beta
 export interface StepCheckOptions {
     readonly host: "selector" | "filter";
-    // (undocumented)
     readonly side: UnionLeaf["side"];
-    // (undocumented)
     readonly within: UnionLeaf["within"];
 }
 
@@ -7190,15 +7178,12 @@ export interface StepCounts {
 export interface StepReading {
     readonly count: number;
     readonly frozen: boolean;
-    // (undocumented)
     readonly id: string;
     readonly input: Scope;
     readonly members: Scope;
     readonly orderMatters: boolean;
-    // (undocumented)
     readonly reason: CodedFact<StepReasonCode> | null;
     readonly run: RunId | null;
-    // (undocumented)
     readonly state: StepState;
     readonly values: ValueHistogram | null;
     readonly waiting: boolean;
@@ -7212,7 +7197,6 @@ export type StepReference = Scope | "hovered-or-selected" | "so-far";
 
 // @beta
 export interface StepsReading {
-    // (undocumented)
     readonly branches: readonly BranchReading[];
     readonly branchesLeft: number;
     branchOf(id: NodeId | EdgeId): string | null;
@@ -7231,7 +7215,6 @@ export type StepState = "applied" | "inert" | "pending" | "off";
 
 // @beta
 export interface StepsWatch {
-    // (undocumented)
     readonly current: StepsReading;
     end(): void;
 }

@@ -23,8 +23,10 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 const gate = join(dirname(fileURLToPath(import.meta.url)), "with-browser.sh");
-// run under tools/low-priority.sh, every waiter here would be in the low lane
-delete process.env.BROWSER_SLOT_PRIORITY;
+// A caller's slot settings must not reach the gates these tests start: run under tools/low-priority.sh
+// every waiter would be in the low lane (BROWSER_SLOT_PRIORITY), and run inside another gate an inherited
+// BROWSER_SLOTS of 4 kept a GPU command off slots 5 to 8, so it waited 600 s behind the four held slots.
+for (const name of Object.keys(process.env)) if (name.startsWith("BROWSER_")) delete process.env[name];
 // the gate logs each wait to the machine's tmp/waits.jsonl; a planted pool's waits are not the machine's
 process.env.PIPELINE_WAIT_LOG = "off";
 const until = async (cond) => {

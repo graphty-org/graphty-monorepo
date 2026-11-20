@@ -151,7 +151,10 @@ export type PartAnswer =
      * moved to the part's name.
      */
     | { readonly name: string; readonly use: string }
-    /** Draw without this part. Pictures and `.mtl` files only; never a `.bin` or other geometry. */
+    /**
+     * Draw without this part, missing or ambiguous. Pictures and `.mtl` files only; never a `.bin`
+     * or other geometry.
+     */
     | { readonly name: string; readonly skip: true }
     /** Which file of the set is the model (`E_MODEL_AMBIGUOUS`). */
     | { readonly main: string };
@@ -459,7 +462,7 @@ export interface AssetsApi {
     supply(ref: string, answer: PartAnswer, options?: { readonly signal?: AbortSignal }): Promise<AssetRecord>;
     /**
      * Accept a model waiting for parts without the ones it can be drawn without: every missing
-     * picture and `.mtl` is skipped at once, as `supply`'s `skip` would skip it one at a time, and
+     * or ambiguous picture and `.mtl` is skipped at once, as `supply`'s `skip` would skip it one at a time, and
      * the record lists them in `skipped`. For an "add it anyway" button beside a model whose
      * pictures did not come.
      * @param ref - What a layer named, or the record's id.
@@ -1085,7 +1088,9 @@ function skipStep(missing: readonly CodedFact[], name: string): Step {
         throw supplyError("E_MODEL_PART_REQUIRED", { name: cutParam(name), role });
     }
 
-    return part?.code === "E_MODEL_MISSING_FILE" ? { skip: String(part.params.name) } : { unused: name };
+    return part?.code === "E_MODEL_MISSING_FILE" || part?.code === "E_MODEL_PART_AMBIGUOUS"
+        ? { skip: String(part.params.name) }
+        : { unused: name };
 }
 
 /**
@@ -2553,7 +2558,10 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
             }
 
             let current = await api.ready(ref);
-            const missing = (current.parts ?? []).filter((part) => part.state === "missing");
+            // A part several files match is left out as a missing one is.
+            const missing = (current.parts ?? []).filter(
+                (part) => part.state === "missing" || part.state === "ambiguous",
+            );
             const geometry = missing.find((part) => part.role === "geometry" || part.role === "model");
             if (geometry !== undefined) {
                 throw supplyError("E_MODEL_PART_REQUIRED", { id: current.id, name: geometry.name });

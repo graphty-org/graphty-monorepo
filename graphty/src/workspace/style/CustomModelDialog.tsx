@@ -860,18 +860,17 @@ function addBlock(
     if (many && taking.length === 0) {
         return CUSTOM_MODEL.noneChosen;
     }
-    // A model waiting only for files that are missing is added without them (`assets.accept`), so a
-    // model can be styled without its textures; one waiting for an answer (which file is which) is not.
+    // A model waiting for parts, missing or several files matching, is added without them
+    // (`assets.accept`), so a model can be styled without its textures; one waiting to be told
+    // which file of the set is the model is not.
     const notReady = taking.find(
-        (m) =>
-            m.held.record.state !== "accepted" &&
-            m.held.record.problems.some((p) => PART_CODES.has(p.code) && p.code !== "E_MODEL_MISSING_FILE"),
+        (m) => m.held.record.state !== "accepted" && m.held.record.problems.some((p) => p.code === "E_MODEL_AMBIGUOUS"),
     );
-    if (members.length === 0 || notReady !== undefined) {
-        const firstMissing = notReady?.held.record.problems.find((p) => PART_CODES.has(p.code))?.params.name;
-        return typeof firstMissing === "string"
-            ? CUSTOM_MODEL.missing(firstMissing.split("/").pop() ?? firstMissing)
-            : CUSTOM_MODEL.addFirst;
+    if (members.length === 0) {
+        return CUSTOM_MODEL.addFirst;
+    }
+    if (notReady !== undefined) {
+        return CUSTOM_MODEL.whichModel;
     }
     return drawBlock(taking, current, failure);
 }

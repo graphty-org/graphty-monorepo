@@ -192,7 +192,7 @@ describe("graphty/sites/nightly.json", () => {
             sentryEnvironment: "nightly",
             analytics: {
                 posthogKey: "phc_x9GDNQ6fTHuntvM6CKzYpsrJMToDxRR7Y2YKQuL7PZbx",
-                posthogHost: "https://eu.i.posthog.com",
+                posthogHost: "https://us.i.posthog.com",
             },
         });
     });

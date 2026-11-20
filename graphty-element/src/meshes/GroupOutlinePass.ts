@@ -56,6 +56,7 @@ import {
 import type { ShaderRuntime } from "../shaders/runtime/ShaderRuntime";
 import { uniformValueOf } from "../shaders/runtime/wrap";
 import { BACKGROUND_LAYER, type BackgroundTint } from "./BackgroundPass";
+import { FLAT_BACKDROP_LAYER } from "./FlatBackdrop";
 import { type SceneEffect, sceneEffect, sceneTarget, setParams, targetBytes } from "./sceneShaderEffect";
 
 /** The outline's name. */
@@ -1050,12 +1051,12 @@ export class GroupOutlinePass {
 }
 
 /**
- * Keep the scene's background layers in order: the background shader first, the outlines next,
- * every other layer after them.
+ * Keep the scene's background layers in order: a flat skybox and the background shader first, the
+ * outlines next, every other layer after them.
  * @param scene - The scene.
  */
 export function orderLayers(scene: Scene): void {
-    const order = [BACKGROUND_LAYER, OUTLINE_LAYER];
+    const order = [FLAT_BACKDROP_LAYER, BACKGROUND_LAYER, OUTLINE_LAYER];
     const rank = (name: string): number => (order.includes(name) ? order.indexOf(name) : order.length);
     scene.layers.sort((a, b) => rank(a.name) - rank(b.name));
 }

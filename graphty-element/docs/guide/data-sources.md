@@ -514,6 +514,44 @@ GML or Pajek turns y downward again (and puts Pajek's 0.5 back on a 3D drawing's
 see [Reading stored positions](https://graphty.app/docs/graph-io/guide/positions) in the
 graph-io guide.
 
+## Groups: Nodes Inside Other Nodes
+
+A file can nest nodes inside another node: a Cytoscape.js compound node (`parent`), a Graphviz
+cluster (`subgraph cluster_*`), a yEd group (a GraphML node holding a nested graph) or a GEXF
+hierarchy (`pid`). The element draws such a group as a box around the nodes it holds, padded and
+behind them, with its label; the box follows its members as they move, and a group inside a group
+is drawn inside it. A layout does not place the group as a node of its own: it pulls no edges and
+pushes no node, and only its members are laid out.
+
+```typescript
+const doc = {
+    elements: [
+        { data: { id: "team", label: "Team" } },
+        { data: { id: "ana", parent: "team" } },
+        { data: { id: "bo", parent: "team" } },
+        { data: { id: "cy", parent: "team" } },
+        { data: { id: "dee" } },
+        { data: { id: "e1", source: "ana", target: "bo" } },
+        { data: { id: "e2", source: "cy", target: "dee" } },
+    ],
+};
+await element.session.data.import({ type: "json", config: { data: JSON.stringify(doc) } });
+```
+
+`team` is drawn as a box around `ana`, `bo` and `cy`; `dee` is outside it.
+
+A group the file stores a position for (a yEd group's geometry, a Graphviz cluster's `bb`) keeps
+it when the file is drawn where it was saved (`layout: "recommended"`, see
+[Drawing a file where it was saved](#drawing-a-file-where-it-was-saved)). With
+[the file's own styles](#a-files-own-styles) a group takes the fill, border and label the file
+gives it.
+
+To draw groups as ordinary nodes instead, laid out like any other:
+
+```typescript
+element.layoutBehavior = { layout: { groupsFollowMembers: false } };
+```
+
 ## Directed or Undirected
 
 Most graph formats state whether their edges point, and the importer reports what the file said.

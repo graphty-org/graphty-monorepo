@@ -100,7 +100,17 @@ export const CONFIG_KEYS: ReadonlyMap<string, ConfigKey> = new Map<string, Confi
         {
             group: "framing",
             schema: z
-                .strictObject({ extent: z.enum(["drawn", "centers"]), padding: z.number().min(0).optional() })
+                .strictObject({
+                    extent: z.enum(["drawn", "centers"]),
+                    padding: z.number().min(0).optional(),
+                    box: z
+                        .strictObject({
+                            min: z.tuple([z.number(), z.number()]).readonly(),
+                            max: z.tuple([z.number(), z.number()]).readonly(),
+                        })
+                        .refine((b) => b.min[0] < b.max[0] && b.min[1] < b.max[1], "box.min must be below box.max")
+                        .optional(),
+                })
                 .optional(),
         },
     ],

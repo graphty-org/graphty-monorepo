@@ -163,9 +163,16 @@ ones in force. The rules that are easy to get wrong:
   not the project's); `startingRows` and `editableBase` (they act when a project is created, and
   the rows they write are saved as plain style rows); `name` (the wrapper's `name`). No `data.*`
   config key is written to the settings section. Each has its data-section home: `directed`, a
-  mapping role, `repeatedEdges`, or the key rule (data-store-options.md 4.3). A key with no home
-  (`idCoercion` other than canonical, `positionScale`, the time end, spells and parse-zone paths)
-  is refused on save and reported, by the refusal rule (Saving).
+  mapping role, `repeatedEdges`, or the key rule (data-store-options.md 4.3). The weight, time and
+  location settings are views of each source's roles: the writer writes each as the role of every
+  source whose rows carry its column, and the reader sets it from the built sources' roles when
+  they agree, else null (`W_ROLES_DIFFER { table, role, sources }` when they differ). A source the
+  file named keeps its own roles as read while their setting is what the open set, and keeps its
+  own when it does not carry a column chosen since, so a source that never named a role never
+  gains one. The session itself still holds one setting per role, so a graph whose sources differ
+  opens with that setting null. A key with no home (`idCoercion` other than canonical,
+  `positionScale`, a whole-location column read as `auto`, a narrowing location column or
+  country, a removed location) is refused on save and reported, by the refusal rule (Saving).
 - **Column settings.** Renames belong to each source's `mapping`, so a refresh applies them again.
   Type conversions are the data section's `conversions`. Hidden columns are a table-view choice and
   go in view.
@@ -315,10 +322,21 @@ reader can say what is missing instead of failing.
 The wrapper takes the header's optional fields (`$schema`, `id` naming the project, `name`,
 `description`, `created`, `modified`, `authors`, `license`, `keywords`, `language`) plus
 `sections` and `extensions`. Its `version` covers only this envelope: all content is versioned per
-section, so the wrapper is expected never to bump again. The top-level member `graphs` is
-reserved for a later file that holds several graphs: a one-graph file never writes it, and a
-version 2 reader that finds it holds the file's graph sections (data, results, notes, view)
-unchanged, writes them back, and reports `W_SECTION_KEPT` with the reason `graphs`.
+section, so the wrapper is expected never to bump again.
+
+**Several graphs.** A file holding two or more graphs writes the top-level member `graphs`, an
+ordered list of `{ "id", "name", "sections" }`; a one-graph file never writes it. The first graph
+stays where a one-graph file puts it, in the top-level `sections`, so a reader that knows nothing
+of several graphs still opens it; its entry carries no `sections` and only names it. Each later
+entry's `sections` holds that graph's own data, view, notes and results, each exactly as the
+top-level section of that key; style, recipe and settings belong to the whole file. A graph id is
+`graph_` plus a ULID, unique in the file, and its name is the reader's words; a one-graph project
+has no graph name of its own. Every graph saves its own sources by its own embed or reference
+choice, so no graph depends on another's. graphty-element opens the first graph and writes the
+later ones back exactly as read, but for their file paths (see Saving), and reports each of their
+sections `W_SECTION_KEPT` with the reason `graphs` and the graph's id; switching between graphs is
+not built yet. A `graphs` member that is not such a list holds every graph section, the top-level
+ones included, and is written back.
 
 Version 1's `requires` goes away: any subset of sections is a valid file. A section a reader must
 not misapply by ignoring it uses a new section major version, or lists the extension it needs in
@@ -338,6 +356,7 @@ The full rules are in design/data/data-store-options.md, section 5; in short:
     { "load": "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y", "key": "pay-889" }     // an edge
     { "load": "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y",
       "key": "01JCBQ2F5H7K9M1P3R5T7W9Y2A#3" }                          // a keyless edge row
+    { "load": "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y", "key": "2/acct-7|m\\|3" } // part 2's edge from acct-7 to m|3
     ```
 
 - **Keys.** `key` is always a JSON string. An edge's key is its `edgeId` value; repeated ids within
@@ -345,11 +364,18 @@ The full rules are in design/data/data-store-options.md, section 5; in short:
   standing and a later row filling only what it left unset, as for nodes. Otherwise, when the session
   holds two edges with one edge id in one source, the writer leaves the later row's edge-id cell out
   and reports it, so that row is keyless and both edges reopen. A keyless row's key, node or edge,
-  is `"<copy id>#<row from 0>"`; a row whose node-key or edge-id cell is null or empty is keyless,
-  so the form applies per row, and a node whose id is empty is written that way.
-  `load` names the source that made the edge; `key` is the record key, never NetworkX's multigraph
-  key. An edge built from several rows, including an edge two sources both supply, takes the key
-  of the first row read, in join step order. The member is `load`, not `source`, because every
+  is `"<copy id>#<row from 0>"`: every node row of a source whose mapping names no key column, and
+  an edge row whose edge-id cell is null or empty. A row whose node-key or edge-end cell is null
+  or empty names no node: it is left out and counted (`W_KEY_EMPTY { source, column, rows }`),
+  exactly as a load from any other file format leaves it out, so an empty key never becomes a node.
+  A `join.edges` step keys its edges under its `part`: `<part>/<key>` from the edge-id cell,
+  `<part>/<from key>|<to key>` when the step reduces its rows to one edge per end pair (each key
+  with `\` written `\\` and `|` written `\|`, so removing or re-sorting rows never re-keys it),
+  else `<part>/<copy id>#<row>`. `load` names the source that made the edge; `key` is the record
+  key, never NetworkX's multigraph key. An edge reduced from several rows, including an edge two
+  sources both supply, takes the key of the first row read, in join step order, and every
+  contributing row's `{ load, key }` stays an alias of it, so a note on any of them still binds.
+  The member is `load`, not `source`, because every
   other edge object uses `source` for the node the edge leaves (graphty-element's stored edge
   member, node-link links, a mapping's `edges.source`).
 - **Spaces.** A space is an opaque string, always written for the node key, `sourceSpace` and
@@ -422,7 +448,11 @@ header:
   node-link graph's `directed` is written from it and never read. A source file's own direction
   goes in that source's `metadata`; a source that disagrees is read under `directed` and reported.
 - **`repeatedEdges`**: one value for the whole graph, graphty-element's name, governing repeated
-  edges within a source and between sources alike.
+  edges within a source and between sources alike: `keep` (default), `first`, `last`, `sum`, `min`,
+  `max` or `error`. Edges of two types are never reduced into one, and edges whose sources' weight
+  meanings differ (distance beside strength) are reduced only by `first` or `last`, keeping that
+  row's weight and meaning, never by a rule that adds or compares weights across meanings. A
+  reduced edge's `_source.loads` lists every source it came from.
 - **`sources`**: one record per source, with exactly the fields of data-store-options.md 4.5:
   `id` (`src_` plus a ULID; see "Identity"), `label`, `kind` (`file`, `url`, `network`, `sample`,
   `derived`, `reader`), `format` and `options` (the parser and its parse options only), `origin`,
@@ -450,10 +480,12 @@ header:
       renames. A column's source name appears only in `mapping.<table>.renamed` and in its
       `ColumnDecl.origin.title`.
     - `mapping` is, per table, graphty-element's `TableMapping` names, one value per table:
-      `nodes: { key, space, weight, weightMeaning, time, timeUnit, latitude, longitude, coordinates,
-country, region, city, renamed }` (the location roles are graphty-element's `LocationKind`
-      names, one column each) and `edges: { edgeId, source, sourceSpace, target, targetSpace,
-weight, weightMeaning, time, timeUnit, renamed }`. With `key` absent, every node row is
+      `nodes: { key, space, weight, weightMeaning, time, timeUnit, timeEnd, timeSpells,
+timeParseZone, latitude, longitude, coordinates, country, region, city, renamed }` (the location
+      roles are graphty-element's `LocationKind` names, one column each) and `edges: { edgeId,
+source, sourceSpace, target, targetSpace, weight, weightMeaning, time, timeUnit, timeEnd,
+timeSpells, timeParseZone, renamed }`. `timeEnd` and `timeSpells` are columns; `timeParseZone`
+      is an IANA zone name, the zone time text without an offset reads in (absent, UTC). With `key` absent, every node row is
       keyless, always in the space `source:<source id>`, and `nodes.space` is written exactly when
       `nodes.key` is; `sourceSpace` and `targetSpace` are always written. Nothing is read from a
       column the mapping does not name. A `label` role is saved as the version 1 migration saves it,
@@ -473,17 +505,21 @@ weight, weightMeaning, time, timeUnit, renamed }`. With `key` absent, every node
   input only, never read for meaning.
 - **`path`**: a `file` source's `origin` may carry a POSIX path relative to the saved file's own
   folder, never absolute (absolute paths leak user names) and never above that folder, written
-  when the writer knows both locations (Node, or a File System Access directory handle).
+  when the writer knows both locations (Node, or a File System Access directory handle). A file
+  may instead be referenced by a browser file handle, which cannot be written into a file: the
+  writer keeps it in the browser's storage by source id and copy id and writes the source with no
+  `path`, and the browser that saved it reads the file back through it.
 - **The reader source** holds the reader's own changes as one source of kind `reader`, at most one
   per data section. It has `id` (`reader`), `label`, `kind`, `origin` (`copy` alone), `copy` and
   `loaded`; any other field holds the data section. Its copy is `{ "operations": [...] }`, in the
   order made, applied in order after the join steps and the conversions:
-    - `{ "op": "merge", "into", "from" }`: node references; `into` is kept;
     - `{ "op": "remove", "node" | "edge" }`: a node takes its edges with it, whatever `unmatched`
       says;
     - `{ "op": "add", "node": { "space", "key" } | "edge": { "load": "reader", "key" }, "from",
 "to", "columns" }`: its key a minted ULID, since the reader copy id changes on every edit;
-    - `{ "op": "edit", "node" | "edge", "column", "value", "was" }`.
+    - `{ "op": "edit", "node" | "edge", "column", "value", "was", "picked" }`: `picked`, written
+      only for a pick or Use, is the source whose value it took; a typed value has none, and a
+      pick of a source later removed stays as the reader's own value, without `picked`.
 
     An operation naming an absent element applies to nothing and is reported. Operations are written
     as recorded. An edit to a column a type rule, or a key, end or edge-id role, reads is refused and
@@ -491,11 +527,17 @@ weight, weightMeaning, time, timeUnit, renamed }`. With `key` absent, every node
 
 - **`types`**: the type registry. Each entry is a closed object: `name` (its id in the file),
   `kind` (`"node"` or `"edge"`, as graphty-element's `ColumnRef` spells it), `plainName`, `rules`
-  and `schema`. `rules` is a list of closed objects `{ source, end, column, values }`. `end`
+  and `schema`. `rules` is a list of closed objects `{ source, part, end, column, values }`. `end`
   (`"source"` or `"target"`, node types only) types the nodes an edge source names at that end;
-  absent, the rule reads the source's node rows. Without `column` every row read has the type; with
+  absent, the rule reads the source's node rows. `part` narrows the rule to one `join.edges` step
+  of the source (see "recipe"). Without `column` every row read has the type; with
   it, `values` lists the cell values meaning this type, so "Person" and "people" become one type. A
-  node may match several types; an edge takes the first in registry order. A row matching no rule
+  node and every edge holds exactly one type, for now: one type keeps colors, filters and grouping
+  to one value. Among the types matching one row of one source, a rule with `column` and `values`
+  beats the source's whole-source or whole-end rule (which acts as "others"), then the first in
+  registry order wins; when two steps would give a node different types, the first step in build
+  order sets it. The saved graph keeps the plural `"graphty.types"` with at most one item, so
+  several types per element can come later without breaking a file. A row matching no rule
   has the default type, which has no name and no entry: its node or edge writes
   `"graphty.types": []`, and no selector or scope names it. `schema` is a JSON Schema (draft
   2020-12) of the working record the type carries, with graphty's two keywords `unit` and
@@ -512,8 +554,15 @@ weight, weightMeaning, time, timeUnit, renamed }`. With `key` absent, every node
   `name` the working column name, written when the issue has a column; this round-trips every
   issue id the element mints. `kept` is a list of `{ from, to }` node references, the pairs whose
   repeated edges the reader kept.
-- **`joins`**: the join history, the join steps (see "recipe") naming sources by id. A source no
-  step names is not built, and is reported; a one-source file writes one `join.add`. When a step's
+- **`joins`**: the join history, the join steps (see "recipe") naming sources by id, folded in
+  order over an empty graph. One source may be named by several steps, so one table can be read
+  several ways (a flat file's edges once, then each entity it names); a source has at most one
+  `join.add`. A source no step names, or whose only steps are `off`, is staged: it is not built,
+  is no build input and is in no `bindsTo.sources`, but it is kept, and written back with its copy
+  and its off steps exactly as read, never reported as left out (stage, save, reopen, save, and it
+  is still there). `off: true`, written only by graphty-element when a refresh leaves a step
+  without a column it reads, keeps a step listed and saved but not built. A one-source file
+  writes one `join.add`. When a step's
   source gives a node a value for a column the node already holds from an earlier source, and the
   two differ, the later value is kept as the column `<column> (<source id>)`; when that name is
   taken too (one source giving two values of one name), ` 2`, ` 3`, ... is appended until it is
@@ -525,17 +574,20 @@ weight, weightMeaning, time, timeUnit, renamed }`. With `key` absent, every node
   (graph-level attributes, `{}` when none). `multigraph` is true exactly when two edges share both
   ends, never a reader choice: NetworkX assumes `true` when it is missing and silently merges
   parallel edges when it is `false`. Each node carries `"graphty.space"`, `"graphty.key"`,
-  `"graphty.types"` and `_source.loads`; each edge carries `"graphty.load"`, `"graphty.key"`,
+  `"graphty.types"` (at most one item) and `_source.loads`; each edge carries `"graphty.load"`, `"graphty.key"`,
   `"graphty.types"` (at most one item) and `_source.loads`. Beside them every node and edge
   carries each of its working columns as an attribute, key, end, edge-id and type-rule columns
   included, even one that repeats `"graphty.key"`; a column named after a node-link handle (`id`,
   `source`, `target` or `key`) is written as `<name> (column)`. graphty never writes a node-link
   `key`. The node-link `id`, `source` and `target` are handles unique within the file only, since
   a key repeats across spaces (account 12 and merchant 12).
-- **`_source.loads`** lists the sources that supplied the row. A node only named by an edge writes
-  `[]`, and keeps its key when the file is saved again: it is not a reader addition. `reader` is
-  listed only on an element the reader added; an edit does not add it, and a merge keeps the union
-  of both nodes' lists. Only the nodes and edges the reader added are written as reader `add`
+- **`_source.loads`** lists the sources that supplied the element, in step order. A node no
+  source's rows supply (only edges name it) is supplied by the sources whose edges reach it and
+  lists them, so "only <source>" and the source sections find it; it is no row of their copies,
+  keeps its key when the file is saved again, and is not a reader addition. This is decided after
+  the build, so load order never changes it. A node the reader added lists `["reader"]` (in the
+  space `source:reader`), and nothing else lists `reader`: an edit to another element never adds
+  it, and a merge keeps the union of both nodes' lists. Only the nodes and edges the reader added are written as reader `add`
   operations. An `add` declares the graph-format dtype of each column it gives (`dtypes`), and its
   cells are written and read as a copy's are, so a non-finite number reopens as a number.
 
@@ -568,6 +620,19 @@ style.md's layers, selectors, encodings and palettes, with these changes:
   one special behavior.
 - `valueLabels` is a list of `{ path, value, label }`, `path` a value path (`data.<column>`,
   `results.<as>.<field>`), as graphty-element keys value labels.
+- A binding with a `map` may carry `"unmapped": "skip"`: an element whose value the map has no
+  entry for keeps what the layers beneath paint, so a style by type names only the types it knows
+  and a type declared later is left alone.
+- **Readable paths.** Besides `data.<column>` and `results.<as>.<field>`, a style, a filter, a
+  time window or a run may read values graphty-element computes for every element, by their bare
+  names: `graphty.type` (its one type), `graphty.load` (its first supplying source),
+  `_source.loads` (every supplying source, in step order), `graphty.space` and `graphty.key` (its
+  record key), `graphty.time` (its resolved time), `graphty.weight` (an edge's own weight, never
+  rescaled) and `graphty.draft` (`new`, `changed`, `merged`, `removed` or `unchanged` while a
+  draft is displayed, never saved). A saved run parameter naming a node is `{ space, key }`.
+  `graphty.types`, the saved graph's plural, is never a path. graphty-element does not compute
+  these per element yet, so a layer, a view filter or window, or a run reading one is kept as read
+  and written back, and reported.
 
 ### recipe
 
@@ -577,14 +642,39 @@ recipe.md's `commands` (`graph.filter`, `algo.run` with `params`, `layout.set` w
 - the join steps `join.add`, `join.merge`, `join.node-values`, `join.edge-values` and
   `join.edges`, each `{ op, source, ...choices }` with graphty-element's `JoinShape` and
   `JoinChoices` names, naming sources by role (data-store-options.md 4.1). `join.add` is version
-  2's own name for a plain load and for the element's `rows` shape. The element's `endKinds` is
+  2's own name for a plain load and for the element's `rows` shape. `join.merge` folds nodes an
+  earlier step of the same source built into the nodes its field names: node 1 keeps its type,
+  node 2's key becomes an alias, and a kept unmatched node 2 moves into node 1's space; rows that
+  should become new nodes are `join.node-values` with `unmatchedRows: "add"`. Every step but
+  `join.add` may carry `read`, its own roles for one table (`table`, `key`, `space`, `edgeId`,
+  `source`, `sourceSpace`, `target`, `targetSpace`, and on `join.edges` only `weight`,
+  `weightMeaning`, `time` and `timeUnit`; an absent `weight` or `time` means the source's role,
+  `null` none). Each `join.edges` step carries `part`, a positive integer graphty-element mints,
+  unique among its source's steps, never reused and never derived from a column name, and its
+  edges are keyed under it; a type rule may name a `part`. The choices `columns` (absent: every
+  column), `rows` and `except` (`{ column, values }`), `viaEnd` on `join.edges` (default
+  `"target"`), `repeated` (`first`, `last`, and `both` on `join.edges`; absent on `join.edges`,
+  the graph's `repeatedEdges` decides), `unmatchedRows` on `join.node-values` and `join.edges`,
+  `ignoreCase` and `ignoreSpaces` (default `false`, every step but `join.add`) and `duplicateIds`
+  (on `join.add` only; absent, the source's setting) complete the set. The element's `endKinds` is
   saved as `end` type rules on the step's source, and `kindIds: "scoped"` as that source's written
   `sourceSpace` and `targetSpace`; `ignore` only silences report warnings, is not saved, and the
-  save reports that. A join step that makes elements from no row (a link step), connect's "a node
-  per row" form, and the choices `keys` onto a graph column, `columns`, `ignoreCase` and
-  `ignoreSpaces` have no version 2 spelling: saving one refuses that part and reports it. A
-  clashing column kept twice is named `<column> (<source id>)`. A reader merge stays in the data
-  section's reader source;
+  save reports that. A join step that makes elements from no row (a link step, `join.link`),
+  connect's "a node per row" form, and the choice `keys` onto a graph column have no version 2
+  spelling: saving one refuses that part and reports it. graphty-element today builds only
+  `join.add` (with its own `duplicateIds`); a file holding any other step that is not off, or a
+  `join.add` with `columns`, opens with its data section held and is written back as read. Every
+  step may carry `clash`: one rule, or rules keyed by working column name with `"*"` for the rest,
+  each `keep` (the default, absent too), `overwrite`, `both`, `min`, `max`, `mean` or `vote`; the
+  computing rules read every supplying source's own value of the cell, and a cell a number rule
+  cannot read keeps the held value (`W_CLASH_RULE_TYPE { step, column, rule, cells }`). Under
+  `both` the incoming value is kept in the clash column `<column> (<source id>)`, which exists
+  whenever the held cell is filled, never for the source's own key column, and is made again on
+  every open rather than saved. Whatever a rule shows, a save writes every source's own value
+  back into its copy, so a reopen computes the same. graphty-element's own joins take the same rules and the same
+  `keep` default (`JoinChoices.clash`; a number rule named for a column of other values is refused
+  with `E_CLASH_RULE_TYPE`). The reader's own merge of two nodes is folded into the copies the
+  data section embeds; the reader operation `merge` is reserved;
 - `set.define`, for rule sets whose rule names no element, carrying the set's bare `id`, `name`,
   rule and edge reading;
 - `dimension` (2 or 3) on `layout.set`.
@@ -732,8 +822,8 @@ frame later would be a view major version.
 - **The refusal rule.** A save that cannot express something refuses that part and reports it.
   Nothing is ever silently simplified. A save that refuses any part of the data section writes a
   newly minted `build` in that file, so every saved run reads as stale (Partial) on reopen. This
-  holds for a part refused when the file was opened, too (a source no join step names, a
-  `repeatedEdges` value built as `keep`): a re-save never keeps the stamp it read when what it
+  holds for a part refused when the file was opened, too (a saved edge id it could not
+  use): a re-save never keeps the stamp it read when what it
   writes differs from what it read.
 - **Results are optional.** Default: not saved, so opening reruns the behaviors (the 2026-11-13
   rule). A record or archive save includes them.
@@ -741,9 +831,14 @@ frame later would be a view major version.
   the user: embed files or store references"), per source, whatever its size. Embedded: the rows
   are in the data section. Referenced: the source and how it was joined, without the rows, plus its
   copy id so a refetch that returns different data is reported. Default: embedded, so a file stands
-  alone. There is no size-based automatic switch. A file source with no known `path` cannot be
-  referenced: it is saved embedded even when a reference was asked for, and the save report names
-  it (`W_SOURCE_NO_PATH`). A referenced network source gets a new copy id on every open, so its keyless
+  alone. There is no size-based automatic switch. A file is referenced by its `path` or by a
+  browser file handle; a file source with neither cannot be referenced: it is saved embedded even
+  when a reference was asked for, and the save report names it (`W_SOURCE_NO_PATH`). Every path,
+  also one written back as read (a held source, a later graph, a data section held whole), is resolved against the file the
+  project was opened from and written relative to the file being saved (the `location` save
+  option); with no location, or a file outside that folder, it loses its path: a built source is
+  embedded, a copy stays a copy, a held reference is written with no path, so reopening asks for
+  the file, and the report names it. A referenced network source gets a new copy id on every open, so its keyless
   rows get new keys; when a saved reference or reader operation names one, the save report says it
   will not bind after reopening and suggests embedding the source or mapping an edge id.
 - **Re-saving an opened file keeps its choices.** When a project was opened from a file, the save
@@ -820,8 +915,10 @@ frame later would be a view major version.
   unbound, which is reported. The rest of the file loads.
 - **Referenced sources.** Opening fetches each again, through the usual network consent. A file
   source's `path`, and a relative `url`, resolve against the location of the file being opened,
-  when the caller gives one. Otherwise the load plan lists the source as needing a file, with its
-  saved name, so the app can ask the reader to pick it; a picked file whose copy id differs is
+  when the caller gives one. A file source saved with no `path` is read through the browser file
+  handle the opening browser keeps for it; opening only checks its permission and never prompts,
+  so one that needs permission is held (`needs-permission`) until a refresh asks during the
+  reader's click. Otherwise the load plan lists the source as needing a file, with its saved name, so the app can ask the reader to pick it; a picked file whose copy id differs is
   treated as a refresh. Only a source still not found reports `{ code: "W_SOURCE_UNAVAILABLE",
 params: { source } }`, supplies no elements and leaves references to them unbound.
 
@@ -893,9 +990,21 @@ vocabulary that shapes the build, or an unknown member of one of the data sectio
 objects, makes the reader skip the whole data section and hold it unchanged, reported with
 `W_SECTION_KEPT`. It is never built in part, so nothing binds to, or saves, a partial graph. The
 data section's closed objects are a source's `mapping` and `settings`, a type entry and its rules,
-a join step, a reader operation, and a key in `options` that its parser does not read. Ignoring any
+a join step and its `read`, `rows` and `except`, a reader operation, and a key in `options` that
+its parser does not read. Three `options` keys are spelled as parser conformance cases: `pointer`
+(a JSON Pointer to the collection a JSON source reads), `sheet` (a workbook sheet by name) and
+`missing` (cell texts read as unset); graphty-element's parsers read none of them yet, so a
+source it would parse again with one holds the section. Ignoring any
 of these would build a different graph -- an unknown `settings.directionColumn` would give edges
 the wrong direction -- under the same build stamp, so saved results would still count as a match.
+
+**Reserved names** have no shape yet, so a later version can give them one without breaking a
+saved file, and a reader refuses each today: space names beginning `graph:` (for combining
+graphs); `graphty.types` as a style, filter or scope path; the members `match` and `named` on a
+type scope and a `source` leaf (for matching "only" a source, or nodes it only named); the join
+step members `action` (turning steps off by hand, reordering), `membership` and `compare`
+(comparing graphs); the `read` members for location, time and renames on one step; a step
+mapping's `many` (fan-out edges); and the reader operation `merge` (merging two selected nodes).
 
 The other closed objects are those of container.md, "Unknown object members" (a recipe command
 and its `scope`, a style's selectors, bindings and carried palettes, a run's `style` parts), plus
@@ -1051,8 +1160,8 @@ space overlap, which file to pick for a missing source) and words the reports.
   self-contained-save-files.md): with built-in changes handled by versions and migrations, some of
   those issues (carrying a named palette instead of naming it) may no longer be needed. Each is to
   be re-checked against Versions rule 5 before it is worked.
-- **Several graphs in one file** (#828) and **version history** (#825): not in version 2. A later
-  version adds them as new `sections` keys without breaking it; `sections.data` stays the primary
-  graph older readers open, and every bound section already names its data through `bindsTo.data`.
+- **Switching between several graphs** (#828): the file spells them (The wrapper, "Several
+  graphs"), but graphty-element opens only the first and writes the rest back. **Version history**
+  (#825) is not in version 2; a later version adds it as a new `sections` key.
 - **A preview image** for file browsers: additive later, as an optional wrapper field naming an
   asset, when a surface shows one.

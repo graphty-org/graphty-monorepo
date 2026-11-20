@@ -10,7 +10,7 @@ import { loadSiteConfig, resetSiteConfig } from "../siteConfig";
 const SITES = import.meta.glob<Record<string, unknown>>("../../sites/*.json", { eager: true, import: "default" });
 
 const KEY = "phc_abc123XYZ";
-const EU = "https://eu.i.posthog.com";
+const US = "https://us.i.posthog.com";
 
 /**
  * A site.json served as a data: address.
@@ -31,16 +31,16 @@ describe("site.json analytics", () => {
     });
 
     it("accepts a valid block", async () => {
-        const analytics = { posthogKey: KEY, posthogHost: EU };
+        const analytics = { posthogKey: KEY, posthogHost: US };
         const config = await loadSiteConfig(siteFile({ site: "production", features: [], analytics }));
         assert.deepEqual(config.analytics, analytics);
     });
 
     for (const [why, analytics] of [
-        ["a numeric posthogKey", { posthogKey: 12, posthogHost: EU }],
+        ["a numeric posthogKey", { posthogKey: 12, posthogHost: US }],
         ["a host not on the list", { posthogKey: KEY, posthogHost: "https://evil.example" }],
-        // The privacy page names the EU region; the US host would make it false.
-        ["PostHog's US host", { posthogKey: KEY, posthogHost: "https://us.i.posthog.com" }],
+        // The privacy page names the US region; the EU host would make it false.
+        ["PostHog's EU host", { posthogKey: KEY, posthogHost: "https://eu.i.posthog.com" }],
         ["a key with no host", { posthogKey: KEY }],
         ["a block that is no object", "on"],
     ] as const) {
@@ -59,9 +59,9 @@ describe("site.json analytics", () => {
 
     it("ignores a leftover key and keeps the rest of the block", async () => {
         const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
-        const analytics = { oldVendorId: "8f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b", posthogKey: KEY, posthogHost: EU };
+        const analytics = { oldVendorId: "8f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b", posthogKey: KEY, posthogHost: US };
         const config = await loadSiteConfig(siteFile({ site: "production", features: [], analytics }));
-        assert.deepEqual(config.analytics, { posthogKey: KEY, posthogHost: EU });
+        assert.deepEqual(config.analytics, { posthogKey: KEY, posthogHost: US });
         assert.equal(warn.mock.calls.length, 0);
     });
 

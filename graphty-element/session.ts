@@ -69,6 +69,7 @@ export { CAMERA_GESTURE_KINDS } from "./src/cameras/gestureEnd";
 export type { FeatureId } from "./src/features/registry";
 export type { EnabledFeatures } from "./src/features/resolve";
 export type {
+    ByTableMapping,
     ColumnHistogram,
     ColumnRole,
     CommandOutcome,
@@ -123,6 +124,7 @@ export type {
     ImportColumnsInput,
     ImportOptions,
     JoinChoices,
+    JoinClashRule,
     JoinKey,
     JoinLink,
     JoinLookup,
@@ -139,6 +141,7 @@ export type {
     LeftOutEdge,
     LoadChoices,
     LoadDraft,
+    LoadedChoices,
     LoadedSource,
     LoadedSourceKind,
     LoadedWeight,
@@ -391,6 +394,8 @@ export type {
     RunStatus,
     RunStyle,
     RunWindow,
+    StabilityOptions,
+    StabilityResult,
     StaleNote,
     StaleReason,
     StartOptions,
@@ -540,23 +545,43 @@ export type { BrowserProjects, BrowserProjectSaveOptions, StoredProject } from "
 export type { BackgroundImageProblem, PrepareBackgroundImageOptions, PreparedBackgroundImage } from "./src/session";
 export { browserProjects } from "./src/session";
 export { DEFAULT_BACKGROUND_IMAGE_SIZE, prepareBackgroundImage } from "./src/session";
+export type { FileKind, FilesApi } from "./src/session/files/kindOf";
 export type {
     AssetStorage,
+    DocumentBindFacts,
     DocumentCode,
+    DocumentHeldFacts,
+    DocumentHeldReason,
     DocumentSection,
+    DocumentSectionAbout,
+    DocumentSectionFacts,
+    DocumentSectionNeed,
     ProjectApi,
     ProjectAssetChoice,
+    ProjectFileFacts,
+    ProjectFileHandle,
+    ProjectFileRun,
+    ProjectFileSection,
+    ProjectFileSource,
     ProjectOpenOptions,
     ProjectOpenReport,
     ProjectProblem,
+    ProjectSaveFacts,
     ProjectSaveOptions,
     ProjectSaveReport,
+    ProjectSaveSection,
     ProjectSource,
+    ProjectSourceChoice,
+    ProjectSourceKind,
     ProjectStatus,
     SavedProject,
+    SectionBinding,
+    SourceEmbeddedReason,
     SourceStorage,
+    SourceUnavailableReason,
 } from "./src/session/projectFile";
-export { PROJECT_FILE, projectFileName } from "./src/session/projectFile";
+export { DOCUMENT_SECTIONS, PROJECT_FILE, projectFileName } from "./src/session/projectFile";
+export type { RecipesApi } from "./src/session/recipes/RecipesApi";
 // Autosaved work read and deleted without an element (a start screen that offers it first).
 export type { AutosaveLookupOptions } from "./src/autosave/elementAutosave";
 export { listAutosaves, removeAutosave } from "./src/autosave/elementAutosave";

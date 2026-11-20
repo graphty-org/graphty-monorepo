@@ -5,6 +5,7 @@
  * and a file whose styles write a glyph (a vis-network icon node, through graph-io) opens as one Label row of
  * kind Glyph showing its character, drawn on the graph. A vis-network file stands in for the plan's Cytoscape.js
  * one: graph-io's Cytoscape.js styles write no node.glyph (Cytoscape.js has no glyph), vis-network's icons do.
+ * Every line of the Label's pop-over, of either kind, shows its name or a tooltip (E269).
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -83,6 +84,34 @@ describe("a node's Label is Text or Glyph", () => {
         assert.include(items, "Label");
         assert.notInclude(items, "Glyph");
         await userEvent.keyboard("{Escape}");
+    });
+
+    it("every line of the Label's pop-over, Text and Glyph, shows its name or a tooltip (E269, E106)", async () => {
+        const { session, nodes } = await openGraph();
+        await session.styles.update(nodes, { set: { "node.label": "Hi" } });
+        await session.styles.settled();
+        const tab = await openStyle("Key people");
+        for (const kind of ["Text", "Glyph"]) {
+            if ((await kindOf(await labelRow(tab))) !== kind) {
+                await switchTo(await labelRow(tab), kind);
+            }
+            await userEvent.click(within(await labelRow(tab)).getByRole("button", { name: /^Node label settings/ }));
+            const pop = await screen.findByRole("dialog");
+            const lines = [...pop.querySelectorAll<HTMLElement>(".ws-row[data-line]")].filter((line) =>
+                line.checkVisibility(),
+            );
+            assert.isNotEmpty(lines, `${kind}'s pop-over has lines`);
+            // A typed value is no name: an input's value is not in its line's visible words.
+            assert.deepEqual(
+                lines.filter((line) => line.innerText.trim() === "" && line.title === "").map((l) => l.dataset.line),
+                [],
+                `${kind}: every line is named or has a tooltip`,
+            );
+            await userEvent.keyboard("{Escape}");
+            await waitFor(() => {
+                assert.isNull(screen.queryByRole("dialog"));
+            });
+        }
     });
 
     it("switching a Label to Glyph and typing a character draws it, with the text's color; Undo brings the text back", async () => {

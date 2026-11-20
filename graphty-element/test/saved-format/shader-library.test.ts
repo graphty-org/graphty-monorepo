@@ -6,6 +6,12 @@
  * used it. This test fails on such a removal or change: that needs a `graphty-shader 2` format,
  * with format 1 still readable (design/architecture/self-contained-save-files.md, section 1.10).
  * Adding a helper, an icon or a field is free; record it in `shader-library.json`.
+ *
+ * One recorded break, with no format 2 (owner, 2026-11-10: breaking changes need no approval while nothing
+ * outside consumes the packages): removing group outlines (owner ledger E420, E422) took out `GroupInput` and
+ * `BackgroundInput.groupTint`. A format-1 file that used a group outline shader, soap-bubble, metaball-hull or
+ * nebula's tint by group opens without those uses, each reported as a `shader.unknown` problem
+ * (src/session/projectFile.ts); the rest of the file opens as saved.
  */
 
 import { assert, describe, it } from "vitest";

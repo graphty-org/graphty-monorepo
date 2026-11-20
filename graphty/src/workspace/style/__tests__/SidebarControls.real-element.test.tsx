@@ -19,97 +19,9 @@ import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { findTreeRow } from "../../graph-place/rows";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
-import approved from "../approved-controls.json";
+import { outsideTheList } from "./approvedControls";
 import { showKind } from "./kindTab";
 import { openShapes } from "./modelHarness";
-
-/** Every approved control's root: what is inside one is the control's. */
-const CONTROLS = approved.controls.map((entry) => entry.dom).join(", ");
-/** The library internals not drawn by the app: inside these nothing is checked. */
-const INTERNALS = approved.controls
-    .filter((entry) => !entry.from.startsWith("@mantine/"))
-    .map((entry) => entry.dom)
-    .join(", ");
-/** Where words may sit: in a control, or in a container's own words (a section's header, a tab). */
-const WORDS = [CONTROLS, ...approved.containers.flatMap((entry) => ("words" in entry ? [entry.words] : []))].join(", ");
-/** The Mantine components the sidebar may draw. */
-const MANTINE = new Set(
-    [...approved.controls, ...approved.containers]
-        .filter((entry) => entry.from.startsWith("@mantine/"))
-        .map((entry) => entry.name),
-);
-/** What is information however it is drawn, even inside a button. */
-const INFORMATION = new Set(["Badge", "Pill", "Chip", "Alert", "Text", "Notification", "Loader", "Code", "Mark"]);
-/** An app's own class naming a pill, chip, badge, caption or note. */
-const INFORMATION_CLASS = /(?:^|-)(?:chip|chips|pill|badge|caption|note|hint|covered|state-line)(?:-|$)/;
-
-/**
- * Whether an element is drawn so a reader can see it: shown, and not shrunk or clipped to a point as a
- * screen-reader-only element is.
- * @param element - the element.
- * @param root - where to stop looking up.
- * @returns whether it is seen.
- */
-function seen(element: Element, root: Element): boolean {
-    if (!element.checkVisibility({ opacityProperty: true, visibilityProperty: true })) {
-        return false;
-    }
-    for (let at: Element | null = element; at !== null && at !== root; at = at.parentElement) {
-        const box = at.getBoundingClientRect();
-        const style = getComputedStyle(at);
-        if (box.width <= 1 || box.height <= 1 || style.clip !== "auto" || style.clipPath.startsWith("inset(50%")) {
-            return false;
-        }
-    }
-    return true;
-}
-
-/**
- * A short description of an element, for a failure message.
- * @param element - the element.
- * @returns its tag, classes and words.
- */
-function described(element: Element): string {
-    const classes = [...element.classList].filter((name) => !name.startsWith("m_")).join(".");
-    return `<${element.tagName.toLowerCase()}${classes === "" ? "" : `.${classes}`}> "${(element.textContent ?? "").trim().slice(0, 40)}"`;
-}
-
-/**
- * Everything the sidebar draws that the approved list does not allow.
- * @param tab - the Style tab.
- * @returns each offending element, described.
- */
-function outsideTheList(tab: HTMLElement): string[] {
-    const found: string[] = [];
-    for (const element of tab.querySelectorAll("*")) {
-        if (element.parentElement?.closest(INTERNALS) || !seen(element, tab)) {
-            continue;
-        }
-        const inControl = element.closest(CONTROLS) !== null;
-        const ownControl = element.matches(CONTROLS);
-        for (const name of element.classList) {
-            const mantine = /^mantine-(\w+)-root$/.exec(name)?.[1];
-            const refused =
-                mantine === undefined
-                    ? INFORMATION_CLASS.test(name)
-                    : !ownControl && (INFORMATION.has(mantine) || (!inControl && !MANTINE.has(mantine)));
-            if (refused) {
-                found.push(`${name}: ${described(element)}`);
-            }
-        }
-    }
-    const walker = document.createTreeWalker(tab, NodeFilter.SHOW_TEXT);
-    for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
-        const holder = node.parentElement;
-        if (holder === null || (node.textContent ?? "").trim() === "" || !seen(holder, tab)) {
-            continue;
-        }
-        if (holder.closest(WORDS) === null) {
-            found.push(`words outside a control: ${described(holder)}`);
-        }
-    }
-    return [...new Set(found)];
-}
 
 /**
  * Checks the open Style tab, on each kind's tab when it has two.

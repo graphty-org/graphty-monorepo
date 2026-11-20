@@ -16,9 +16,10 @@ import { userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
+import { outsideTheList } from "./approvedControls";
 import { showKind } from "./kindTab";
-import { OWNER_FORBIDDEN } from "./owner-forbidden";
-import { openGraph, openStyle, picture, pixelsApart } from "./v2Harness";
+import { type Forbidden, OWNER_FORBIDDEN } from "./owner-forbidden";
+import { onlyPlusAdds, openGraph, openStyle, picture, pixelsApart } from "./v2Harness";
 
 /** What a walk saw. */
 interface Seen {
@@ -36,6 +37,21 @@ interface Seen {
     readonly settingsNotLast?: Set<string>;
     /** How many rows with a settings "..." the walk saw. */
     settingsRows?: number;
+    /** Everything the sidebar drew that is not an approved control (E174). */
+    readonly unapproved?: Set<string>;
+}
+
+/**
+ * The owner's removal a real-input check stands for.
+ * @param check - the check.
+ * @returns the removal.
+ */
+function forbiddenBy(check: NonNullable<Forbidden["check"]>): Forbidden {
+    const found = OWNER_FORBIDDEN.find((each) => each.check === check);
+    if (found === undefined) {
+        throw new Error(`no owner removal for ${check}`);
+    }
+    return found;
 }
 
 /** The v2 panel shown now. */
@@ -83,6 +99,15 @@ function look(seen: Seen, root: HTMLElement): void {
         const line = input.closest(".ws-row, [data-line]") ?? input.parentElement;
         if (line?.querySelector("[data-scrub]") === null || line === null) {
             seen.unscrubbed?.add(line?.getAttribute("data-line") ?? input.getAttribute("aria-label") ?? "?");
+        }
+    }
+    // A color's opacity is Figma's paint row (design/ui/figma/components.md section 28): no letter slot, its "%"
+    // is the scrub handle.
+    for (const opacity of root.querySelectorAll<HTMLElement>(".cm-paint-opacity")) {
+        seen.numbers = (seen.numbers ?? 0) + 1;
+        const handle = opacity.querySelector(".cm-paint-suffix");
+        if (handle === null || getComputedStyle(handle).cursor !== "ew-resize") {
+            seen.unscrubbed?.add(opacity.closest("[data-line]")?.getAttribute("data-line") ?? "an opacity");
         }
     }
 }
@@ -188,16 +213,27 @@ async function walkPopovers(seen: Seen): Promise<void> {
 }
 
 /**
- * Walks one kind's tab: menus, then (when adding) every item, then the rows and their pop-overs.
+ * Walks one kind's tab: (when adding, on the fresh layer) each section's title, bar and "+" with real clicks, then
+ * its menus and every item, then the rows and their pop-overs, checking the sidebar draws only approved controls.
  * @param seen - the record.
  * @param kind - nodes or edges.
  * @param adding - whether to add what the menus offer.
+ * @param session - the session, to tell whether a click added anything; none skips the "+" sections' check.
  */
-async function walkKind(seen: Seen, kind: "node" | "edge", adding: boolean): Promise<void> {
+async function walkKind(seen: Seen, kind: "node" | "edge", adding: boolean, session?: GraphSession): Promise<void> {
     await openStyle(kind === "node" ? "Key people" : "Links");
     await showKind(kind);
+    if (adding && session !== undefined) {
+        const why = forbiddenBy("only-plus-adds");
+        for (const section of panel().querySelectorAll<HTMLElement>('[data-plus-list="section"]')) {
+            await onlyPlusAdds(session, section, `${kind} ${section.textContent} (${why.ledger})`);
+        }
+    }
     await walkMenus(seen, adding);
     look(seen, panel());
+    for (const each of outsideTheList(panel())) {
+        seen.unapproved?.add(`${kind}: ${each}`);
+    }
     await walkPopovers(seen);
 }
 
@@ -241,10 +277,11 @@ describe("nothing the owner ordered out of the Style panel comes back", () => {
             selectors: new Set(),
             unscrubbed: new Set(),
             settingsNotLast: new Set(),
+            unapproved: new Set(),
         };
         await switchView("3D");
-        await walkKind(seen, "node", true);
-        await walkKind(seen, "edge", true);
+        await walkKind(seen, "node", true, session);
+        await walkKind(seen, "edge", true, session);
         await switchView("2D");
         await walkKind(seen, "node", false);
         await walkKind(seen, "edge", false);
@@ -257,6 +294,8 @@ describe("nothing the owner ordered out of the Style panel comes back", () => {
             [],
             'every row\'s settings "..." is its last control (E550)',
         );
+        const information = forbiddenBy("approved-controls");
+        assert.deepEqual([...(seen.unapproved ?? [])], [], `${information.what} (${information.ledger})`);
         const written = writtenChannels(session);
         for (const forbidden of OWNER_FORBIDDEN) {
             const why = `${forbidden.what} (${forbidden.ledger})`;
@@ -423,6 +462,10 @@ describe("nothing the owner ordered out of the Style panel comes back", () => {
         }
         await userEvent.keyboard("{Escape}");
     });
+});
+
+describe("pointing at a Style row, with the assistant experiment on so a peek could draw", () => {
+    withFeatures(["file-styles", "style-panel-v2", "assistant"]);
 
     it("pointing at every Node and Edge row, a shader row included, peeks nothing and leaves the graph as it was (E181)", async () => {
         const { session, element, nodes } = await openGraph();
@@ -441,6 +484,14 @@ describe("nothing the owner ordered out of the Style panel comes back", () => {
             },
         });
         await session.styles.settled();
+        // With the assistant experiment on a peek is allowed and draws: the control below proves a restored row
+        // peek would show in the pictures, so their staying equal means no row peeks.
+        const still = await picture(element);
+        await session.selection.peek({ nodes: ["a"] });
+        assert.isNotNull(session.selection.peeked, "a peek is allowed with the assistant on");
+        assert.isAbove(pixelsApart(still, await picture(element)), 0, "a peek draws");
+        await session.selection.peek(null);
+        assert.isNull(session.selection.peeked);
         let rows = 0;
         let shaderRows = 0;
         for (const kind of ["node", "edge"] as const) {
@@ -453,9 +504,13 @@ describe("nothing the owner ordered out of the Style panel comes back", () => {
                 await userEvent.hover(row);
                 rows++;
                 assert.isNull(session.selection.peeked, "nothing is peeked");
+                // Taken while the row is still pointed at: a peek that clears on leaving would show here.
+                assert.equal(
+                    pixelsApart(before, await picture(element)),
+                    0,
+                    `pointing at ${kind} row ${row.getAttribute("data-thing") ?? row.getAttribute("data-shader") ?? ""} leaves the graph as it was`,
+                );
             }
-            await userEvent.hover(screen.getByRole("searchbox", { name: /Find a setting/ }));
-            assert.equal(pixelsApart(before, await picture(element)), 0, `the ${kind} rows leave the graph as it was`);
         }
         assert.isAbove(rows, 3);
         assert.isAbove(shaderRows, 0, "a shader row was pointed at");

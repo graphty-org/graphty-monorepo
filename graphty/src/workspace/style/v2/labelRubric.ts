@@ -123,11 +123,11 @@ const XY = ["X", "Y"] as const;
 export const LABEL_RUBRIC: LabelRubric = {
     common: [
         { field: "size", name: "Size", units: ["sizePx", "letterSize"] },
-        { field: "color", name: null },
+        { field: "color", name: "Color" },
     ],
     main: [
         { field: "enabled", name: "Show" },
-        { field: "look", name: "Switch to", rule: "R9" },
+        { field: "look", name: "Look", rule: "R9" },
         { field: "font", name: "Font", rule: "R13" },
         { field: "weight", name: "Weight", rule: "R5b", toggle: "italic", toggleGlyph: "italic" },
         { field: "textAlign", name: "Align", rule: "R8" },

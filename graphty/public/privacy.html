@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>graphty privacy</title>
+        <meta name="description" content="What usage data graphty sends, where it goes, and how to turn it off." />
+        <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+        <style>
+            :root {
+                --bg: #ffffff;
+                --text: #1f2328;
+                --dim: #59636e;
+                --rule: #d1d9e0;
+                --code-bg: #f6f8fa;
+                --link: #0969da;
+                color-scheme: light dark;
+            }
+            @media (prefers-color-scheme: dark) {
+                :root {
+                    --bg: #0d1117;
+                    --text: #e6edf3;
+                    --dim: #9198a1;
+                    --rule: #3d444d;
+                    --code-bg: #151b23;
+                    --link: #4493f8;
+                }
+            }
+            body {
+                margin: 0;
+                background: var(--bg);
+                color: var(--text);
+                font:
+                    15px/1.55 system-ui,
+                    -apple-system,
+                    "Segoe UI",
+                    Roboto,
+                    sans-serif;
+            }
+            main {
+                max-width: 760px;
+                margin: 0 auto;
+                padding: 32px 16px 64px;
+            }
+            h1 {
+                font-size: 28px;
+                margin: 0 0 8px;
+            }
+            h2 {
+                font-size: 19px;
+                margin: 36px 0 8px;
+                padding-top: 16px;
+                border-top: 1px solid var(--rule);
+            }
+            h3 {
+                font-size: 15px;
+                margin: 20px 0 6px;
+            }
+            p,
+            li {
+                margin: 6px 0;
+            }
+            a {
+                color: var(--link);
+            }
+            code {
+                font:
+                    13px/1.4 ui-monospace,
+                    SFMono-Regular,
+                    Menlo,
+                    Consolas,
+                    monospace;
+                background: var(--code-bg);
+                padding: 1px 4px;
+                border-radius: 4px;
+                overflow-wrap: anywhere;
+            }
+            .lead {
+                color: var(--dim);
+            }
+            .table {
+                overflow-x: auto;
+            }
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 14px;
+            }
+            th,
+            td {
+                text-align: left;
+                vertical-align: top;
+                padding: 6px 8px;
+                border-bottom: 1px solid var(--rule);
+            }
+            th {
+                font-weight: 600;
+            }
+        </style>
+    </head>
+    <body>
+        <main>
+            <h1>Privacy</h1>
+            <p class="lead">
+                graphty reads your files on your computer. They are never uploaded. This page lists every piece of usage
+                data the app sends, who receives it, and how to turn it off.
+            </p>
+            <p>
+                The PostHog counts, recordings and surveys below are sent only where the site has switched them on.
+                Where it has not, nothing goes to PostHog, and Share usage data turns on error reports alone (see Sent
+                only with Share usage data).
+            </p>
+            <p>
+                There are two levels. Until you choose <b>Share usage data</b>, or after No thanks, a few anonymous
+                counts are sent. Everything else is sent only after you choose Share usage data, and stops when you turn
+                it off; while it is on, the same counts are sent with your shared usage data instead, under its id.
+            </p>
+
+            <h2 id="always">Anonymous counts, while Share usage data is off</h2>
+            <p>
+                These counts go to PostHog (EU region), in its cookieless mode. PostHog stores nothing in your browser
+                for them (when it starts, its library writes one test value and removes it at once, to check that
+                storage works), and no id is sent from your browser; the app's own visit record is described under
+                Visits. Each event below is sent at most once per page load.
+            </p>
+            <div class="table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Event</th>
+                            <th>What it carries</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Page view</td>
+                            <td>
+                                The page path, with only the channel that sent you: the <code>ref</code>,
+                                <code>utm_source</code>, <code>utm_medium</code> and <code>utm_campaign</code> values
+                                when they are on a short fixed list (such as <code>hn</code>, <code>reddit</code>,
+                                <code>github</code>, <code>newsletter</code>); any other value is sent as
+                                <code>other</code>, and every other part of the address is dropped. The referring site's
+                                origin only (for example <code>https://news.ycombinator.com</code>). Your language and
+                                screen size are not sent.
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><code>first_visit</code></td>
+                            <td>Nothing else.</td>
+                        </tr>
+                        <tr>
+                            <td><code>return_visit</code></td>
+                            <td>
+                                <code>days</code>: how long ago your first visit was, as one of <code>1</code>,
+                                <code>2-7</code>, <code>8-30</code> or <code>30+</code>. Sent at most once a day.
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><code>usage_data_shared</code></td>
+                            <td>Nothing else. Sent when you choose Share usage data. Nothing is sent for No thanks.</td>
+                        </tr>
+                        <tr>
+                            <td><code>sample_loaded</code></td>
+                            <td><code>sample</code>: the id of a built-in sample, or <code>other</code>.</td>
+                        </tr>
+                        <tr>
+                            <td><code>own_file_opened</code></td>
+                            <td>
+                                <code>format</code>: the file format's id (such as <code>graphml</code> or
+                                <code>csv</code>, <code>graphty</code> for a project file), or <code>other</code>.
+                                <code>via</code>: <code>file</code>, <code>url</code>, <code>server</code> or
+                                <code>join</code>. Never the file's name, its address or its contents.
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><code>layout_changed</code></td>
+                            <td>
+                                <code>layout</code>: the layout's id, or <code>other</code>. <code>outcome</code>:
+                                <code>applied</code> or <code>failed</code>.
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><code>algorithm_run</code></td>
+                            <td>
+                                <code>algorithm</code>: the measure's id, or <code>other</code>. <code>outcome</code>:
+                                <code>succeeded</code>, <code>failed</code> or <code>canceled</code>. <code>code</code>:
+                                the error code, when it failed.
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><code>export_done</code></td>
+                            <td>
+                                <code>kind</code>: <code>graph</code>, <code>project</code>, <code>styles</code>,
+                                <code>recipe</code>, <code>image</code> or <code>video</code>. <code>format</code>: the
+                                format chosen, for a graph, image or video. <code>destination</code>:
+                                <code>download</code>, or <code>clipboard</code> for an image copied.
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <p>
+                Each count also carries: that it is an anonymous count, the site's name, the channel and the days bucket
+                above, whether it is the first of its kind on this page, the page's path (never its query string), the
+                version of PostHog's library, and your browser, your operating system, your device type (desktop, mobile
+                or tablet) and your time zone.
+            </p>
+            <h3>Visits</h3>
+            <p>
+                To tell a first visit from a return, the app keeps two dates in this browser
+                (<code>graphty.visits.v1</code>): the day of your first visit and of your latest one. Only the
+                <code>days</code> bucket above leaves your computer, never the dates. A record older than about 13
+                months starts again. If your browser sends Do Not Track or Global Privacy Control, the app keeps no
+                visit record (it removes one kept from before) and sends no <code>first_visit</code>,
+                <code>return_visit</code> or <code>usage_data_shared</code>; the page view and the other counts are
+                still sent.
+            </p>
+            <h3>What PostHog receives with each anonymous count</h3>
+            <p>
+                Like any web request, each count reaches PostHog with your IP address and your browser's User-Agent.
+                PostHog combines them with this site's host name and a random value it replaces every day into an id
+                that groups one day's counts from one browser. It replaces the random value every day and deletes each
+                one within about four days (the day itself plus a buffer for late counts); after that the id can no
+                longer be traced back to your browser, and because each day has a new value, the id cannot be linked to
+                another day's. It removes your IP address and User-Agent before it stores the count, and looks up no
+                location from them.
+            </p>
+
+            <h2 id="share">Sent only with Share usage data</h2>
+            <p>
+                When you choose Share usage data, PostHog switches from anonymous counts to the following, and the app
+                also sends errors to Sentry. Before either starts recording, the app removes everything after the path
+                from the address bar, so a replay never records it.
+            </p>
+            <h3>PostHog</h3>
+            <ul>
+                <li>
+                    Everything in the table above, every time it happens rather than once per page load, plus your
+                    channel, the <code>days</code> bucket and, once you have answered the survey, your answer to "What
+                    are you trying to do?".
+                </li>
+                <li>
+                    <b>A replay of some sessions.</b> All text, typing and labels are hidden, every attribute that could
+                    hold a name is masked, and the graph area, images, video and file pickers are recorded as blank
+                    boxes. Console messages, network headers and request bodies are not recorded.
+                </li>
+                <li>
+                    <b>Clicks and control changes</b>, with all text and every value masked: where on the page you
+                    click, repeated or ineffective clicks, that you changed a control (a menu, checkbox, slider or text
+                    box) or submitted a form, never what you chose or typed, and, for controls that run a command, the
+                    command's id (such as <code>history.undo</code>). Clicks on the graph itself are not recorded as
+                    clicks, but where you click on the graph area goes into the click heatmap, as a position only.
+                </li>
+                <li>
+                    <b>What you do, by id only:</b> <code>command_run</code> and <code>command_failed</code> (the
+                    command's id and, when it failed, the error code); <code>graph_action</code> (the kind of change,
+                    such as a style, a filter or a note, never its contents or the note's text);
+                    <code>canvas_selected</code> (node, edge, both or none; how many, as <code>1</code>,
+                    <code>2-10</code> or <code>11+</code>; and whether by click, box or keys);
+                    <code>camera_used</code> (orbit, pan or zoom); <code>nodes_dragged</code>;
+                    <code>source_expanded</code> (expanded or failed); <code>panel_opened</code> (the panel's id);
+                    <code>project_reopened</code>; <code>load_failed</code> (the error code and whether it failed
+                    reading or preparing).
+                </li>
+                <li><b>Page speed</b> (Web Vitals timings), and when you leave the page.</li>
+                <li>
+                    With each event, your browser, operating system, device type, screen and window size, language and
+                    time zone.
+                </li>
+                <li>
+                    <b>Survey answers</b>, if you answer a short survey, including any text you type in its Other box.
+                    Do not paste data from your graph there: what you type is sent.
+                </li>
+                <li>
+                    PostHog keeps a random id in this browser while sharing is on, so it can tell your later visits
+                    apart from other people's, and a note of each survey you answered or closed. The app never links
+                    them to a name or email. Turning sharing off deletes them, in every open tab.
+                </li>
+                <li>
+                    The app keeps your survey answer and which surveys you have seen in this browser
+                    (<code>graphty.surveys.v1</code>). Turning sharing off deletes the answer.
+                </li>
+            </ul>
+            <h3>Sentry</h3>
+            <ul>
+                <li>
+                    <b>Error reports:</b> the kind of error and where in the code it happened; for graphty's own errors
+                    their code, never their message; for any other error its message up to the first quote mark, with
+                    everything from there on removed. Also your browser and operating system, your browser's language
+                    and time zone, and the clicks and network requests just before the error, with any address on
+                    graphty's own site cut to the page path and any other address sent only as the word
+                    <code>external</code>.
+                </li>
+                <li>
+                    <b>A replay of the moments before an error</b>, masked the same way: text, typing, names and media
+                    hidden. Only the moments before each error are sent: sessions are not recorded by Sentry.
+                </li>
+            </ul>
+            <p>
+                Every address sent to PostHog or Sentry is cut the same way as the page view on graphty's own site, to
+                the path and the channel. An address anywhere else, a file's or a server's, is sent only as the word
+                <code>external</code>.
+            </p>
+
+            <h2 id="report">Problem reports</h2>
+            <p>
+                <b>Help &gt; Report a problem</b> sends to Sentry your message, an optional name and email, and any
+                attachments you add. No replay is sent with it. Today it works only while Share usage data is on.
+            </p>
+
+            <h2 id="never">Never sent</h2>
+            <ul>
+                <li>The contents of your files.</li>
+                <li>File names, and the addresses of files or servers you open.</li>
+                <li>Node and edge labels, attribute values and column names.</li>
+                <li>Project names and note text.</li>
+                <li>
+                    A PostHog id stored in your browser, anything to PostHog beyond the anonymous counts, or anything at
+                    all to Sentry, before you choose Share usage data.
+                </li>
+                <li>
+                    A location: PostHog's IP location lookup is off for every event, and for anonymous counts PostHog
+                    removes your IP address before any lookup could run; Sentry is told never to record your IP address.
+                    PostHog's settings requests (when sharing starts, and every few minutes while it is on) do reach it
+                    with your IP address and time zone, like any web request.
+                </li>
+            </ul>
+            <p>
+                If you turn on the assistant and add a key from an AI provider, what the assistant reads from your graph
+                goes to that provider. That is separate from usage data and is shown in Settings &gt; Privacy.
+            </p>
+
+            <h2 id="where">Where it goes</h2>
+            <ul>
+                <li>
+                    <b>PostHog, EU region</b> (<code>eu.i.posthog.com</code>): the anonymous counts while Share usage
+                    data is off and, only with Share usage data, everything listed under it, plus
+                    <code>eu-assets.i.posthog.com</code>
+                    for its settings. Every visitor's browser downloads PostHog's code after the page has loaded; until
+                    you choose Share it sends only the anonymous counts.
+                </li>
+                <li><b>Sentry</b> (<code>sentry.io</code>): only with Share usage data.</li>
+            </ul>
+            <p>The data is used only by graphty's author, and his Claude Code sessions, to improve the app.</p>
+
+            <h2 id="off">How to turn it off</h2>
+            <ul>
+                <li>
+                    Answer <b>No thanks</b> to the usage data question, or turn off <b>Share usage data</b> in
+                    <b>Settings &gt; Privacy</b> (the privacy chip in the status bar opens it). PostHog goes back to
+                    anonymous counts and Sentry stops, at once, in every open tab, and PostHog's id and survey notes are
+                    deleted. PostHog keeps one entry in this browser that says sharing is off and holds nothing else.
+                    Nothing beyond the anonymous counts is sent after that; PostHog may still send what it recorded in
+                    the last few seconds before you turned it off, including the click that turned it off.
+                </li>
+                <li>
+                    The anonymous counts have no switch in the app. Do Not Track or Global Privacy Control stops the
+                    visit record; a content blocker that blocks <code>eu.i.posthog.com</code> stops the counts, and
+                    Share usage data with them.
+                </li>
+            </ul>
+        </main>
+    </body>
+</html>

@@ -1806,6 +1806,9 @@ function readEdgeGeometry(
         points = (flattenCubic(controls) ?? controls).slice(1, -1);
         put("curved", false);
     }
+    if (loop && points.length === 0 && st?.tag === "PolylineEdgeStyle") {
+        points = cornerLoop(s);
+    }
     const arc = !loop && st?.tag === "ArcEdgeStyle" ? arcEdgeControl(st.e, line) : null;
     if (arc !== null) {
         points = [arc];
@@ -1820,6 +1823,27 @@ function readEdgeGeometry(
     if (bends !== null && st?.tag === "PolylineEdgeStyle" && Number(smoothing) > 0) {
         put("curved", true);
     }
+}
+
+/** How far out past its node's sides yFiles runs a self-loop it was given no bends for (`cornerLoop`). */
+const CORNER_LOOP_REACH = 20;
+
+/**
+ * The bends yFiles draws a self-loop with when the file gives it none: up from the top side's middle, round the node's
+ * top left corner `CORNER_LOOP_REACH` out, and in to the left side's middle (graphml-yfiles-html-ss13-tree
+ * n0::n150's loop, as yEd Live 8.5 draws it; graphty-element drew its own teardrop on the right).
+ * ponytail: the ends are at the sides' middles, as for ports at the center; a loop between other ports keeps them.
+ * @param box - the node's center x, y, width and height
+ * @returns the three bends
+ */
+function cornerLoop(box: Float64Array): BendPoint[] {
+    const [x, y, w, h] = box;
+    const [left, top] = [x - w / 2 - CORNER_LOOP_REACH, y - h / 2 - CORNER_LOOP_REACH];
+    return [
+        [x, top],
+        [left, top],
+        [left, y],
+    ];
 }
 
 /** yFiles' label positions (2.6 compass names and yFiles 3 side names, lowercase without `_`) as neutral sides. */

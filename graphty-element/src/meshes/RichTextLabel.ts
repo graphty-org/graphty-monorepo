@@ -36,6 +36,7 @@ import { type LabelTable, layoutLabelTable, readLabelTable, type TableDrawing } 
 import { LabelTexture } from "./LabelTexture";
 import { fitTexturesToScreen } from "./labelTextureFit";
 import { labelBoxOf } from "./NodeShapeGeometry";
+import { drawablePicture } from "./pictureSize";
 import { type ContentArea as PointerContentArea, type PointerDirection, PointerRenderer } from "./PointerRenderer";
 import { RichTextAnimator } from "./RichTextAnimator";
 import { hasWords, measureLine, RichTextParser, wrapLines } from "./RichTextParser";
@@ -256,6 +257,11 @@ type ResolvedRichTextLabelOptions = RequiredExceptOptional<
     | "borderAlign"
     | "borderStyle"
     | "backgroundShape"
+    | "image"
+    | "imageWidth"
+    | "imageHeight"
+    | "imageOffsetX"
+    | "imageOffsetY"
     | "minScreenSize"
     | "minNodeScreenSize"
     | "declutter"
@@ -481,6 +487,10 @@ export const labelInternals = {} as {
         options: RichTextLabel["options"];
         /** The room round the panel on every side, for its shadow and the words' outline. */
         shadowMargin: number;
+        /** The further room on each side, across and down, for its picture (`image`). */
+        imageRoom: Readonly<{ x: number; y: number }>;
+        /** Where its picture is drawn, in canvas units from the top left; null while none is drawn. */
+        imageBox: { x: number; y: number; width: number; height: number } | null;
     };
 };
 
@@ -495,6 +505,8 @@ export class RichTextLabel {
             textSize: label.textSize,
             options: label.options,
             shadowMargin: label.shadowMargin,
+            imageRoom: label.imageRoom,
+            imageBox: label.imagePicture() === null ? null : label.imageBox(),
         });
     }
 
@@ -529,6 +541,8 @@ export class RichTextLabel {
     private spanWidth = 0;
     /** The room around the panel, on every side, its drop shadow and the outline past its padding are drawn in. */
     private shadowMargin = 0;
+    /** The further room on each side, across and down, its picture (`image`) is drawn in where it reaches past. */
+    private imageRoom = { x: 0, y: 0 };
     private pointerInfo: PointerInfo | null = null;
     private _progressValue = 0;
     private readonly id: string;
@@ -1216,6 +1230,59 @@ export class RichTextLabel {
             this.contentArea.y += this.shadowMargin;
             this.heightInLines *= this.actualDimensions.height / panelHeight;
         }
+        this.addImageRoom();
+    }
+
+    /**
+     * Where the label's picture (`image`) is drawn, in canvas units from the top left: its size, its middle the words'
+     * box's middle moved by its offsets.
+     * @returns The box.
+     */
+    private imageBox(): { x: number; y: number; width: number; height: number } {
+        const o = this.options;
+        const width = o.imageWidth ?? o.fontSize;
+        const height = o.imageHeight ?? o.fontSize;
+        const area = this.contentArea;
+        return {
+            x: area.x + area.width / 2 + (o.imageOffsetX ?? 0) - width / 2,
+            y: area.y + area.height / 2 + (o.imageOffsetY ?? 0) - height / 2,
+            width,
+            height,
+        };
+    }
+
+    /** Grow the canvas evenly across, and evenly down, as far as the picture reaches past it, so the words stay put. */
+    private addImageRoom(): void {
+        this.imageRoom = { x: 0, y: 0 };
+        if (this.options.image === undefined) {
+            return;
+        }
+        const box = this.imageBox();
+        const { width, height } = this.actualDimensions;
+        const x = Math.max(0, -box.x, box.x + box.width - width);
+        const y = Math.max(0, -box.y, box.y + box.height - height);
+        this.imageRoom = { x, y };
+        this.actualDimensions.width += x * 2;
+        this.actualDimensions.height += y * 2;
+        this.contentArea.x += x;
+        this.contentArea.y += y;
+        this.heightInLines *= this.actualDimensions.height / height;
+    }
+
+    /**
+     * The label's picture, once loaded; the first ask loads it and paints the label again when it lands.
+     * @returns The picture, or null for none, while it loads and when it cannot be.
+     */
+    private imagePicture(): HTMLImageElement | null {
+        const src = this.options.image;
+        if (src === undefined || src === "") {
+            return null;
+        }
+        return drawablePicture(this.scene, src, () => {
+            if (this.mesh !== null && !this.mesh.isDisposed()) {
+                this._drawContent();
+            }
+        });
     }
 
     /**
@@ -1525,6 +1592,7 @@ export class RichTextLabel {
             o.pointer ||
             o._badgeType !== undefined ||
             o._progressBar ||
+            o.image !== undefined ||
             this.tableDrawing !== null
         ) {
             return null;
@@ -1610,6 +1678,12 @@ export class RichTextLabel {
                 width: this.contentArea.width,
                 height: this.contentArea.height - progressBarHeight - this.options.marginBottom / 2,
             };
+        }
+
+        const picture = RichTextLabel.measuring ? null : this.imagePicture();
+        if (picture !== null) {
+            const box = this.imageBox();
+            ctx.drawImage(picture, box.x, box.y, box.width, box.height);
         }
 
         if (this.tableDrawing === null) {

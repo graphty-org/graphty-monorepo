@@ -50,6 +50,29 @@ export interface JournalEntry {
     readonly runId?: RunId;
     /** The versions of the packages that ran it. */
     readonly engine: EngineVersions;
+    /**
+     * Why the session ran this command, when it was not a direct call; absent for a direct call.
+     * `"suggestion"`: an algorithm's suggested styles, applied as an entry of their own (a batch's
+     * held paint released, or `applySuggestedStyles`). `"project"`: one of the commands that
+     * opening a project, or a graphty document that is not one, ran. `"load"`: one of the commands a load ran -- the import and the
+     * configuration the load settled beside it, such as the label path a graph file names its
+     * nodes by -- for `data.import` (a network source's too), `data.loadExample`,
+     * `data.loadDataset`, `data.generate`, a draft's `load`, `data.replaceSource`,
+     * `data.reloadSource`, and the graph's own loads (`addDataFromSource`, `loadFromFile`,
+     * `loadFromUrl`, the `data-source` attribute).
+     *
+     * OPEN UNION: triggers may be added in a minor release; handle one you do not know.
+     * @since 3.40.0
+     */
+    readonly trigger?: "suggestion" | "project" | "load";
+    /**
+     * The caller's own key for the work this command belongs to, echoed unchanged: the
+     * `callerKey` a load was given (`ImportOptions.callerKey`) or a transaction was opened
+     * with (`TransactionOptions.callerKey`). Absent when the caller gave none. Lets a
+     * caller tell the commands its own setup ran from the ones a reader asked for.
+     * @since 3.40.0
+     */
+    readonly callerKey?: string;
 }
 
 /** The record of the commands a session ran: `session.journal`. */
@@ -221,7 +244,7 @@ export function createJournal(options: {
             view = null;
             byId.clear();
         },
-        append({ command, value, coalesceKey, durationMs }) {
+        append({ command, value, coalesceKey, durationMs, trigger, callerKey }) {
             const op = command.op as SessionCommand["op"];
             const entry: JournalEntry = Object.freeze({
                 id: `journal_${String(next++)}`,
@@ -233,6 +256,8 @@ export function createJournal(options: {
                 // `algo.run` resolves with the id of the run it finished.
                 ...(op === "algo.run" && typeof value === "string" ? { runId: value } : {}),
                 engine: options.engine,
+                ...(trigger === undefined ? {} : { trigger }),
+                ...(callerKey === undefined ? {} : { callerKey }),
             });
             if (coalesceKey !== null && list.at(-1)?.coalesceKey === coalesceKey) {
                 byId.delete((list.pop() as JournalEntry).id);

@@ -3,7 +3,7 @@
  * `session.scope.setOptions`, `allowRun` and `cancelRun`, and ending a `watchSteps` watch, each run
  * on a path graph of n and of 4n nodes. The elements they visit (Map, Set and Array iterator steps
  * and array scans, see `visitsDuring`) may grow no faster than their reach: the options and the end
- * of a watch are bookkeeping, about the same at any size; a run allowed or cancelled re-reads the
+ * of a watch are bookkeeping, about the same at any size; a run allowed or canceled re-reads the
  * step, which reaches every node at most once. Counted, never timed (issue #1643).
  */
 

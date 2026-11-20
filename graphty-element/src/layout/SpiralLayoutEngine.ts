@@ -3,7 +3,7 @@ import { spiral } from "@graphty/layout";
 import { z } from "zod";
 
 import { defineOptions, type OptionsSchema } from "../config";
-import { layoutDim, SimpleLayoutConfig } from "./LayoutEngine";
+import { centeredLayoutConfigShape, layoutDim } from "./LayoutEngine";
 import { sceneUnits, SnapshotLayoutEngine, type SnapshotLayoutInput } from "./SnapshotLayoutEngine";
 
 /**
@@ -27,10 +27,10 @@ const spiralLayoutOptionsSchema = defineOptions({
         },
     },
     dim: {
-        schema: z.number().int().min(2).max(2).default(2),
+        schema: z.number().int().min(2).max(3).default(2),
         meta: {
             label: "Dimensions",
-            description: "Layout dimensionality (2D only for spiral)",
+            description: "Layout dimensionality: 2D, or 3D for a spiral rising into a cone",
         },
     },
     resolution: {
@@ -50,16 +50,22 @@ const spiralLayoutOptionsSchema = defineOptions({
             advanced: true,
         },
     },
+    height: {
+        schema: z.number().default(1),
+        meta: {
+            label: "Height",
+            description: "In 3D, how far the spiral rises per unit of radius; 0 lies flat",
+            step: 0.1,
+            advanced: true,
+        },
+    },
 });
 
 const SpiralLayoutConfig = z.strictObject({
-    ...SimpleLayoutConfig.shape,
-    scalingFactor: z.number().default(80),
-    scale: z.number().positive().default(1),
-    center: z.array(z.number()).length(2).or(z.null()).default(null),
-    dim: z.number().default(2),
+    ...centeredLayoutConfigShape,
     resolution: z.number().positive().default(0.35),
     equidistant: z.boolean().default(false),
+    height: z.number().default(1),
 });
 type SpiralLayoutConfigType = z.infer<typeof SpiralLayoutConfig>;
 type SpiralLayoutOpts = Partial<SpiralLayoutConfigType>;
@@ -69,7 +75,7 @@ type SpiralLayoutOpts = Partial<SpiralLayoutConfigType>;
  */
 export class SpiralLayout extends SnapshotLayoutEngine {
     static readonly type: string = "spiral";
-    static readonly maxDimensions: number = 2;
+    static readonly maxDimensions: number = 3;
     static readonly zodOptionsSchema: OptionsSchema = spiralLayoutOptionsSchema;
     protected readonly dimensions: 2 | 3;
     config: SpiralLayoutConfigType;
@@ -82,20 +88,6 @@ export class SpiralLayout extends SnapshotLayoutEngine {
         super(opts);
         this.config = SpiralLayoutConfig.parse(opts);
         this.dimensions = layoutDim(this.config.dim);
-    }
-
-    /**
-     * Get dimension-specific options for spiral layout
-     * @param dimension - The desired dimension (2 or 3)
-     * @returns Options object with dim parameter or null for 3D (unsupported)
-     */
-    static getOptionsForDimension(dimension: 2 | 3): object | null {
-        // Spiral layout only supports 2D
-        if (dimension > this.maxDimensions) {
-            return null;
-        }
-
-        return { dim: dimension };
     }
 
     /**
@@ -119,6 +111,7 @@ export class SpiralLayout extends SnapshotLayoutEngine {
                 dim: layoutDim(this.config.dim),
                 resolution: this.config.resolution,
                 equidistant: this.config.equidistant,
+                height: this.config.height,
             }),
             this.config.scalingFactor,
         );

@@ -326,6 +326,8 @@ type EdgeSupportScaleValue = NonNullable<NonNullable<EdgeStyleConfig["line"]>["s
 /** The force law an edge's support point settles under (`edge.supportModel`). */
 type EdgeSupportModelValue = NonNullable<NonNullable<EdgeStyleConfig["line"]>["supportModel"]>;
 
+/** Which end node's painted color an edge's line is drawn in (`edge.colorFrom`). */
+type EdgeColorFromValue = NonNullable<NonNullable<EdgeStyleConfig["line"]>["colorFrom"]>;
 /** A value of `edge.route`: the path a line takes between its nodes. */
 type EdgeRouteValue = NonNullable<NonNullable<EdgeStyleConfig["line"]>["route"]>;
 type EdgeGradientKindValue = NonNullable<NonNullable<NonNullable<EdgeStyleConfig["line"]>["gradient"]>["kind"]>;
@@ -413,6 +415,11 @@ export interface ChannelValues {
     "node.labelBorderAlign": LabelBorderAlignValue;
     "node.labelBorderStyle": LabelBorderStyleValue;
     "node.labelBackgroundShape": LabelBackgroundShapeValue;
+    "node.labelImage": string;
+    "node.labelImageWidth": number;
+    "node.labelImageHeight": number;
+    "node.labelImageOffsetX": number;
+    "node.labelImageOffsetY": number;
     "node.labelOffsetX": number;
     "node.labelOffsetY": number;
     "node.labelShiftX": number;
@@ -577,6 +584,7 @@ export interface ChannelValues {
     "node.groupMinHeightBiasTop": number;
     "node.groupIncludeLabels": boolean;
     "edge.color": ColorValue;
+    "edge.colorFrom": EdgeColorFromValue;
     "edge.width": number;
     "edge.minScreenWidth": number;
     "edge.fadeStart": number;
@@ -746,6 +754,11 @@ export interface ChannelValues {
     "edge.labelBorderAlign": LabelBorderAlignValue;
     "edge.labelBorderStyle": LabelBorderStyleValue;
     "edge.labelBackgroundShape": LabelBackgroundShapeValue;
+    "edge.labelImage": string;
+    "edge.labelImageWidth": number;
+    "edge.labelImageHeight": number;
+    "edge.labelImageOffsetX": number;
+    "edge.labelImageOffsetY": number;
     "edge.labelOffsetX": number;
     "edge.labelOffsetY": number;
     "edge.labelShiftX": number;
@@ -1116,6 +1129,7 @@ const EDGE_SUPPORT_MODEL_VALUES: readonly EdgeSupportModelValue[] = ["barnesHut"
 const EDGE_SUPPORT_SCALE_VALUES: readonly EdgeSupportScaleValue[] = ["unit", "drawing"];
 const SUPPORT_CAVEAT = " Only an edge with an `edge.supportModel` has a support point; any other ignores it.";
 const EDGE_ROUTE_VALUES: readonly EdgeRouteValue[] = ["straight", "arc", "great-circle"];
+const EDGE_COLOR_FROM_VALUES: readonly EdgeColorFromValue[] = ["source", "target"];
 
 const EDGE_OUTLINE_CAVEAT =
     "A band drawn under the edge's line along its whole length, `edge.outlineWidth` wider than the " +
@@ -1583,7 +1597,7 @@ function arrowMidChannels<End extends "MiddleHead" | "MiddleTail">(
 
 /** The label channels that write one field of a label style. */
 type LabelFieldChannel<Target extends "node" | "edge"> =
-    `${Target}.label${"Color" | "Size" | "LetterSize" | "Font" | "Weight" | "Italic" | "WrapWidth" | "WrapTrailingSpace" | "WrapSkipEndSpace" | "WrapEllipsis" | "WrapAnywhere" | "WrapSpaceCount" | "MaxLines" | "MaxLinesEllipsis" | "RunAlign" | "MinScreenSize" | "OnTop" | "Rotation" | "Background" | "Outline" | "OutlineWidth" | "Border" | "BorderWidth" | "Opacity" | "BackgroundOpacity" | "OutlineOpacity" | "BorderOpacity" | "Padding" | "CornerRadius" | "LineHeight" | "LineBox" | "BorderAlign" | "BorderStyle" | "BackgroundShape" | "OffsetX" | "OffsetY" | "ShiftX" | "ShiftY" | "ShiftOf" | "GapOf" | "Box"}`;
+    `${Target}.label${"Color" | "Size" | "LetterSize" | "Font" | "Weight" | "Italic" | "WrapWidth" | "WrapTrailingSpace" | "WrapSkipEndSpace" | "WrapEllipsis" | "WrapAnywhere" | "WrapSpaceCount" | "MaxLines" | "MaxLinesEllipsis" | "RunAlign" | "MinScreenSize" | "OnTop" | "Rotation" | "Background" | "Outline" | "OutlineWidth" | "Border" | "BorderWidth" | "Opacity" | "BackgroundOpacity" | "OutlineOpacity" | "BorderOpacity" | "Padding" | "CornerRadius" | "LineHeight" | "LineBox" | "BorderAlign" | "BorderStyle" | "BackgroundShape" | "Image" | "ImageWidth" | "ImageHeight" | "ImageOffsetX" | "ImageOffsetY" | "OffsetX" | "OffsetY" | "ShiftX" | "ShiftY" | "ShiftOf" | "GapOf" | "Box"}`;
 
 /** The field of a label style each label field channel writes, by the channel's suffix. */
 const LABEL_FIELD_OF_SUFFIX = {
@@ -1621,6 +1635,11 @@ const LABEL_FIELD_OF_SUFFIX = {
     BorderAlign: "borderAlign",
     BorderStyle: "borderStyle",
     BackgroundShape: "backgroundShape",
+    Image: "image",
+    ImageWidth: "imageWidth",
+    ImageHeight: "imageHeight",
+    ImageOffsetX: "imageOffsetX",
+    ImageOffsetY: "imageOffsetY",
     OffsetX: "offsetX",
     OffsetY: "offsetY",
     ShiftX: "shiftX",
@@ -1924,6 +1943,30 @@ function labelFieldChannels<Target extends "node" | "edge">(
                 'Radius), or "circle", a disc as wide as the panel is tall, or as tall as it is wide, whichever is ' +
                 'less, centered on it. Unset, "rectangle".',
         }),
+        row("Image", "Image", {
+            accepts: "text",
+            caveat:
+                "The URL of a picture drawn in the label beside or behind its words (yEd's label icon), centered on " +
+                "the words' middle unless Image Offset X and Y move it. Unset, none.",
+        }),
+        row("ImageWidth", "Image Width", {
+            accepts: "number",
+            min: 0,
+            caveat: "How wide the label's picture is drawn, in the label's units (its font size's). Unset, its font size.",
+        }),
+        row("ImageHeight", "Image Height", {
+            accepts: "number",
+            min: 0,
+            caveat: "How tall the label's picture is drawn, in the label's units. Unset, its font size.",
+        }),
+        row("ImageOffsetX", "Image Offset X", {
+            accepts: "number",
+            caveat: "How far right of the words' middle the label's picture's middle is, in the label's units.",
+        }),
+        row("ImageOffsetY", "Image Offset Y", {
+            accepts: "number",
+            caveat: "How far below the words' middle the label's picture's middle is, in the label's units.",
+        }),
         row("OffsetX", "Offset X", {
             accepts: "number",
             caveat: "How far the label is moved to the right of where its location puts it, in the scene's units.",
@@ -2068,7 +2111,7 @@ export function labelFieldOf(channel: Channel): { readonly into: Channel; readon
     }
 
     const match =
-        /^(node|edge)\.label(Color|Size|LetterSize|Font|Weight|Italic|WrapWidth|WrapTrailingSpace|WrapSkipEndSpace|WrapEllipsis|WrapAnywhere|WrapSpaceCount|MaxLines|MaxLinesEllipsis|RunAlign|MinScreenSize|OnTop|Rotation|Background|Outline|OutlineWidth|Border|BorderWidth|Opacity|BackgroundOpacity|OutlineOpacity|BorderOpacity|Padding|CornerRadius|LineHeight|LineBox|BorderAlign|BorderStyle|BackgroundShape|OffsetX|OffsetY|ShiftX|ShiftY|ShiftOf|GapOf|Box)$/.exec(
+        /^(node|edge)\.label(Color|Size|LetterSize|Font|Weight|Italic|WrapWidth|WrapTrailingSpace|WrapSkipEndSpace|WrapEllipsis|WrapAnywhere|WrapSpaceCount|MaxLines|MaxLinesEllipsis|RunAlign|MinScreenSize|OnTop|Rotation|Background|Outline|OutlineWidth|Border|BorderWidth|Opacity|BackgroundOpacity|OutlineOpacity|BorderOpacity|Padding|CornerRadius|LineHeight|LineBox|BorderAlign|BorderStyle|BackgroundShape|Image|ImageWidth|ImageHeight|ImageOffsetX|ImageOffsetY|OffsetX|OffsetY|ShiftX|ShiftY|ShiftOf|GapOf|Box)$/.exec(
             channel,
         );
 
@@ -4427,6 +4470,21 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         accepts: "color",
         stylePath: "line.color",
         renderable: true,
+    },
+    "edge.colorFrom": {
+        channel: "edge.colorFrom",
+        target: "edge",
+        plainName: "Edge Color From Node",
+        shortName: "Color from",
+        group: "line",
+        accepts: "enum",
+        values: EDGE_COLOR_FROM_VALUES,
+        stylePath: "line.colorFrom",
+        renderable: true,
+        caveat:
+            'Draws the line in the color the layers painted one of its nodes, in place of `edge.color`: "source" ' +
+            "its source node's, \"target\" its target node's. It follows the node: a later layer that recolors the " +
+            "node recolors the line. An end node no layer colored leaves the line its own `edge.color`.",
     },
     "edge.width": {
         channel: "edge.width",

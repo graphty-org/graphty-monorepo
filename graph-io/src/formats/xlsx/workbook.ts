@@ -31,7 +31,7 @@ const DAY_MS = 86_400_000;
 const MAX_SERIAL = 2_958_465;
 
 /** One sheet of the workbook, in tab order. */
-export interface SheetEntry {
+interface SheetEntry {
     /** The sheet's name as the workbook spells it. */
     readonly name: string;
     /** The zip entry name of its part, or null when the workbook names a part the archive lacks. */
@@ -51,7 +51,7 @@ export interface Workbook {
 }
 
 /** A cell as the table reader takes it. */
-export interface Cell {
+interface Cell {
     /** The 0-based column. */
     readonly column: number;
     /** The cell text. */

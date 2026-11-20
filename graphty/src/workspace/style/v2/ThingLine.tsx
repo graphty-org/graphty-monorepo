@@ -1,7 +1,8 @@
 /**
  * Style panel v2's one row shape (design/ui/style-panel-v2/design.md, section 2.4): `[<> name] [main] [...]
  * [-]`. A family thing's row starts with its Switch to glyph (`MemberMenu`); "..." opens the row's own
- * settings; the minus takes the whole thing off. Every thing, label and shader row is drawn through these.
+ * settings; the minus takes the whole thing off. Every thing row is drawn through these; label and shader
+ * rows share only `RowSettings`, the one "..." of a row.
  */
 
 import React from "react";

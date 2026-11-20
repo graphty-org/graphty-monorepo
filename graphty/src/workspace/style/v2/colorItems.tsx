@@ -1,9 +1,9 @@
 /**
  * Style panel v2's parallel color lists (design/ui/style-panel-v2/design.md, section 6, R15 and R15r),
  * drawn by `ItemListEditor`: a list thing's items (a pie's slices, stripes, a chart's values) as lines
- * under a legend whose "+" adds one, each line its color chip and its numbers, a "-" taking it out;. The items are graphty-element's parallel
- * space-separated list channels (`listOf`), read and written with the catalog's one reader and
- * writer, every list of one edit in one undo step.
+ * under a legend whose "+" adds one, each line its color chip and its numbers, a "-" taking it out. The
+ * items are graphty-element's parallel space-separated list channels (`listOf`), read and written with the
+ * catalog's one reader and writer, every list of one edit in one undo step.
  */
 
 import { CompactColorInput } from "@graphty/compact-mantine";

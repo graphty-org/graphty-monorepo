@@ -19,6 +19,7 @@ export type ScreenshotWarningCode = "W_LARGE_CAPTURE" | "W_HIGH_MEMORY";
  * a code with its values, never a sentence: the application words it.
  */
 export interface CapabilityCheck {
+    /** Whether the capture can be made. */
     supported: boolean;
     /**
      * Why the capture cannot be made, when it cannot: the `GraphtyError` code `captureScreenshot`
@@ -31,6 +32,7 @@ export interface CapabilityCheck {
     reason?: CodedFact<GraphtyErrorCode>;
     /** What may go wrong with a capture that can be made; absent when nothing may. */
     warnings?: CodedFact<ScreenshotWarningCode>[];
+    /** The memory the image's pixels would take, in megabytes (four bytes a pixel); 0 when the size is not possible. */
     estimatedMemoryMB: number;
     /**
      * The width of the image the capture would produce, in pixels: the canvas's device pixels

@@ -46,12 +46,12 @@ interface Covered {
 
 const INVENTORY: Record<string, Covered> = {
     "src/Graph.ts": {
-        count: 11,
+        count: 12,
         kind: "load",
         reason:
             "format detection runs inside a load that holds a place in the load line (a URL's download goes " +
             "through source-bytes' fetchBytes); " +
-            "the rest (screenshot capability, video capture and estimation, AI, the XR camera) draw nothing " +
+            "the rest (screenshot capability, video capture and estimation, AI, the XR camera and menu) draw nothing " +
             "of the graph's picture, or run during an immersive session, when the picture is never final",
     },
     "src/graphty-element.ts": {
@@ -67,6 +67,18 @@ const INVENTORY: Record<string, Covered> = {
             "test, list, preview, read and check read a source and draw nothing",
     },
     "src/data/DataSource.ts": { count: 2, kind: "load", reason: "a data source's download, inside a load" },
+    "src/session/projectFile.ts": {
+        count: 5,
+        kind: "load",
+        reason:
+            "a version 2 open's modules, loaded after the open took its place in the load line; " +
+            "save, describe and inspect read the session or a file and draw nothing",
+    },
+    "src/session/GraphSession.ts": {
+        count: 1,
+        kind: "load",
+        reason: "data.refresh of a source a version 2 open held reads its module, as a network refresh does in data.ts",
+    },
     "src/data/source-bytes.ts": {
         count: 1,
         kind: "load",
@@ -96,9 +108,11 @@ const INVENTORY: Record<string, Covered> = {
     },
     "src/models/TextureCache.ts": { count: 1, kind: "picture", reason: "a node's picture decoded into a texture" },
     "src/meshes/pictureSize.ts": {
-        count: 2,
+        count: 4,
         kind: "picture",
-        reason: "a picture read for its own size, which a node or a table cell is sized by, until the node is refitted",
+        reason:
+            "a picture read for its own size, which a node or a table cell is sized by, until the node is refitted; " +
+            "and a picture a label draws, until it has loaded and the label is painted again",
     },
     "src/meshes/AnnotationMeshes.ts": {
         count: 3,

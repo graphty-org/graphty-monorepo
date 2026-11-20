@@ -41,6 +41,13 @@ describe("edge route geometry", () => {
         assert.deepEqual(routeOutside(arc, outside(0), outside(5)), { first: 1, last: 1 });
         // a straight route: the only point clear of the source is the target's center
         assert.isNull(routeOutside([0, 0, 0, 0.5, 0, 0, 5, 0, 0], outside(0), outside(5)));
+        // a curve between nodes nearer than a piece is long: no point clears both, the piece between the inner two does;
+        // bends inside the nodes are no curve
+        const close = [0, 0, 0, 0.8, 0.1, 0, 2.2, 0.1, 0, 3, 0, 0];
+        assert.deepEqual(routeOutside(close, outside(0), outside(3), true), { first: 2, last: 1 });
+        assert.isNull(routeOutside(close, outside(0), outside(3)));
+        // nodes that overlap there: that piece clears neither
+        assert.isNull(routeOutside(close, outside(0), (x, y) => Math.hypot(x - 3, y) > 2.5, true));
     });
 
     it("spaces a bundle two radii apart, narrowed between close nodes, unless the style sets the spacing", () => {

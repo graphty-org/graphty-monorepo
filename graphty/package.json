@@ -17,7 +17,7 @@
     },
     "scripts": {
         "dev": "vite --port ${PORT:?start it through servherd, which sets PORT} --strictPort",
-        "build": "tsc && NODE_OPTIONS=--max-old-space-size=8192 vite build && node scripts/check-assistant-chunks.mjs",
+        "build": "tsc && NODE_OPTIONS=--max-old-space-size=8192 vite build && node scripts/check-assistant-chunks.mjs && node scripts/check-posthog-chunks.mjs",
         "size": "node scripts/check-size.mjs",
         "preview": "vite preview --port ${PORT:?start it through servherd, which sets PORT} --strictPort",
         "test": "vitest",
@@ -78,6 +78,7 @@
         "globals": "^15.15.0",
         "lit": "^3.3.3",
         "lucide-react": "^0.525.0",
+        "posthog-js": "1.445.1",
         "react": "^19.3.1",
         "react-dom": "^19.3.1",
         "storybook": "^9.1.21",

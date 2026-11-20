@@ -507,7 +507,7 @@ export interface CameraViewRegistration {
 }
 
 // @public
-export type CaveatCode = "weights.unread" | "route.found" | "route.none" | "iteration.stop-rule" | "iteration.cap-reached" | "partition.unscored" | "community.resolution" | "groups.split" | "groups.merged" | "paths.counted-exactly" | "paths.hop-lengths" | "tree.edge-count" | "scope.whole-graph" | "scope.induced-subgraph" | "scope.subgraph" | "parallel-edges.merged" | "direction.mixed" | "input.empty" | "defined.nothing-measured" | "defined.long-task" | "defined.inputs-read" | "sampled.instead-of-exact" | "sampled.exact-past-cap" | "sampled.still-past-cap" | "astar.straight-line" | "betweenness.sampled" | "betweenness.halved" | "edge-betweenness.sampled" | "bfs.origin" | "bfs.target-reached" | "bfs.target-unreached" | "bfs.depth-bounded" | "dfs.walk" | "closeness.sampled" | "closeness.exact" | "closeness.hop-distances" | "closeness.reciprocal" | "clustering-coefficient.local" | "clustering-coefficient.simple" | "components.weak" | "components.strong" | "components.undirected-strong" | "degree.as-declared" | "eigenvector.converged" | "eigenvector.scored-by" | "floyd-warshall.eccentricity" | "flow.ends" | "flow.ends-chosen" | "flow.no-path" | "girvan-newman.no-cut" | "girvan-newman.best-of" | "hierarchical.hop-distances" | "hierarchical.fewer-clusters" | "hits.published-score" | "hits.unit-length" | "hits.max-scaled" | "k-core.undirected" | "k-core.loops-and-parallels" | "katz.attenuation" | "katz.direction" | "link-prediction.candidates" | "matching.not-bipartite" | "matching.partnered" | "min-cut.karger" | "min-cut.sides" | "min-cut.end-chosen" | "negative-cycle.no-distance" | "negative-cycle.no-route" | "pagerank.damping" | "pagerank.sums-to-one" | "pagerank.undirected" | "pagerank.personalized" | "pagerank.personalization-unmatched" | "pagerank.personalization-outside";
+export type CaveatCode = "weights.unread" | "route.found" | "route.none" | "iteration.stop-rule" | "iteration.cap-reached" | "partition.unscored" | "community.resolution" | "groups.split" | "groups.merged" | "paths.counted-exactly" | "paths.hop-lengths" | "tree.edge-count" | "scope.whole-graph" | "scope.induced-subgraph" | "scope.subgraph" | "parallel-edges.merged" | "direction.mixed" | "input.empty" | "defined.nothing-measured" | "defined.long-task" | "defined.inputs-read" | "sampled.instead-of-exact" | "sampled.exact-past-cap" | "sampled.still-past-cap" | "all-paths.length-bounded" | "all-paths.capped" | "astar.straight-line" | "betweenness.sampled" | "betweenness.halved" | "edge-betweenness.sampled" | "bfs.origin" | "bfs.target-reached" | "bfs.target-unreached" | "bfs.depth-bounded" | "dfs.walk" | "closeness.sampled" | "closeness.exact" | "closeness.hop-distances" | "closeness.reciprocal" | "clustering-coefficient.local" | "clustering-coefficient.simple" | "components.weak" | "components.strong" | "components.undirected-strong" | "degree.as-declared" | "eigenvector.converged" | "eigenvector.scored-by" | "floyd-warshall.eccentricity" | "flow.ends" | "flow.ends-chosen" | "flow.no-path" | "girvan-newman.no-cut" | "girvan-newman.best-of" | "hierarchical.hop-distances" | "hierarchical.fewer-clusters" | "hits.published-score" | "hits.unit-length" | "hits.max-scaled" | "k-core.undirected" | "k-core.loops-and-parallels" | "katz.attenuation" | "katz.direction" | "link-prediction.candidates" | "matching.not-bipartite" | "matching.partnered" | "min-cut.karger" | "min-cut.sides" | "min-cut.end-chosen" | "negative-cycle.no-distance" | "negative-cycle.no-route" | "pagerank.damping" | "pagerank.sums-to-one" | "pagerank.undirected" | "pagerank.personalized" | "pagerank.personalization-unmatched" | "pagerank.personalization-outside";
 
 // @public
 export interface Caveats {
@@ -885,6 +885,10 @@ export interface EdgePosition {
     dst: Position;
     headLabelAt?: readonly [along: number, across: number];
     labelAt?: readonly [along: number, across: number];
+    laidCurve?: {
+        readonly points: readonly number[];
+        readonly params: readonly number[];
+    };
     leftOut?: readonly ("label" | "xlabel" | "headLabel" | "tailLabel")[];
     lineEnds?: {
         readonly source: readonly [along: number, across: number];
@@ -962,6 +966,7 @@ export type ExportGraphOptions = Readonly<Record<string, unknown>> & CommonExpor
     readonly scope?: ExportScope;
     readonly columns?: readonly string[];
     readonly groupTable?: ExportGroupTable;
+    readonly onProgress?: (fact: PendingWorkProgress) => void;
 };
 
 // @public
@@ -1378,6 +1383,12 @@ export type GraphtyErrorCode =
 * `details.id` names it. The caller chooses another id or asks for merge behavior.
 */
 | "E_DUPLICATE_ID"
+/**
+* A join names a clash rule that reads numbers (`min`, `max`, `mean`) for a column whose
+* incoming values are not all numbers (or, for `min` and `max`, ISO 8601 dates).
+* `details.column` and `details.rule` name them. The caller picks another rule for that column.
+*/
+| "E_CLASH_RULE_TYPE"
 /**
 * Two edges run between the same ordered pair of nodes and `data.knownFields.repeatedEdges`
 * is `"error"`. `details` name both endpoints and the index of the edge already present. The
@@ -1933,6 +1944,10 @@ export type GraphtyErrorDetails<C extends GraphtyErrorCode = GraphtyErrorCode> =
 
 // @public
 export interface GraphtyErrorDetailsMap {
+    E_CLASH_RULE_TYPE: {
+        readonly column: string;
+        readonly rule: string;
+    };
     E_DUPLICATE_ID: {
         readonly id?: string | number;
     };
@@ -2571,18 +2586,19 @@ export interface OptionBound {
 
 // @public
 export interface OptionChoice {
-    // (undocumented)
     label: string;
     refusal?: OptionChoiceRefusal;
+    runField?: {
+        readonly runId: RunId;
+        readonly field: string;
+    };
     // (undocumented)
     value: string;
 }
 
 // @public
 export interface OptionContext {
-    // (undocumented)
     readonly id: string;
-    // (undocumented)
     readonly kind: "algorithm" | "camera" | "format" | "layout" | "sink" | "transition";
 }
 

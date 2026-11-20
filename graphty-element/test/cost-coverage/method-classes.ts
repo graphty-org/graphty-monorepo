@@ -1116,6 +1116,10 @@ export const READ_ONLY: readonly string[] = [
     "ProjectApi.inspect",
     "ProjectApi.markSaved",
     "ProjectApi.save",
+    // A host-supplied file handle: a version 2 open reads its file and its read permission.
+    "ProjectFileHandle.getFile",
+    "ProjectFileHandle.queryPermission",
+    "ProjectFileHandle.requestPermission",
     "QueueableManager.queueOperation",
     "ReadonlyElementPositions.isPinned",
     "ReadonlyElementPositions.isPlaced",

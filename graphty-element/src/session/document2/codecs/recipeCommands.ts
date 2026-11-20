@@ -241,7 +241,7 @@ export function dataColumnsIn(text: string, into: Set<string>): void {
  * The readable paths of version 2 (spec 4.2 rule 4): values graphty-element computes for every node
  * or edge, read by their bare names.
  */
-export const READABLE_PATHS: readonly string[] = Object.freeze([
+const READABLE_PATHS: readonly string[] = Object.freeze([
     "graphty.type",
     "graphty.load",
     "_source.loads",

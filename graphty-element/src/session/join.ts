@@ -986,7 +986,7 @@ const NUMBER_RULES: ReadonlySet<JoinClashRule> = new Set(["min", "max", "mean"])
  * @param column - The incoming column.
  * @returns The rule.
  */
-export function clashRule(choices: JoinChoices, column: string): JoinClashRule {
+function clashRule(choices: JoinChoices, column: string): JoinClashRule {
     // Comparing two graphs sets their values side by side, so it keeps both unless told otherwise.
     return choices.clash?.[column] ?? choices.clash?.["*"] ?? (choices.compare === true ? "both" : "keep");
 }

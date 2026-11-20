@@ -279,7 +279,7 @@ interface DataMemory {
 }
 
 /** A reader `edit` an open applied: written back as read while its cell holds the value it set. */
-export interface ReadEdit {
+interface ReadEdit {
     readonly operation: JsonObject;
     readonly kind: "node" | "edge";
     readonly id: NodeId | EdgeId;
@@ -289,7 +289,7 @@ export interface ReadEdit {
 }
 
 /** A node several sources supply: its columns before the reader's edits, and each source's own row. */
-export interface SharedNode {
+interface SharedNode {
     readonly baseline: JsonObject;
     readonly rows: ReadonlyMap<string, JsonObject>;
 }
@@ -348,7 +348,7 @@ function stableId(
 }
 
 /** One row an edge was reduced from, as its source's copy holds it. */
-export interface ReducedRow {
+interface ReducedRow {
     readonly load: string;
     /** Its row in its source's edge table. */
     readonly row: number;
@@ -358,7 +358,7 @@ export interface ReducedRow {
 }
 
 /** An edge reduced from several rows: its columns as reduced, and its rows, its own first. */
-export interface ReducedEdge {
+interface ReducedEdge {
     readonly baseline: JsonObject;
     readonly rows: readonly ReducedRow[];
 }

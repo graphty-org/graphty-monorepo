@@ -221,7 +221,7 @@ export function recordType(record: Readonly<Record<string | number, unknown>> | 
 }
 
 /** The repeat policies that combine weights, and so reduce only repeats of one weight meaning. */
-export const COMBINING_POLICIES: ReadonlySet<DuplicatePolicy> = new Set(["sum", "min", "max"]);
+const COMBINING_POLICIES: ReadonlySet<DuplicatePolicy> = new Set(["sum", "min", "max"]);
 
 /** What decides whether a repeat reduces into an edge between the same pair: its type and weight meaning. */
 export interface RepeatGroup {

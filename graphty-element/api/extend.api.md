@@ -1382,7 +1382,6 @@ export type GraphtyErrorCode =
 * A join names a clash rule that reads numbers (`min`, `max`, `mean`) for a column whose
 * incoming values are not all numbers (or, for `min` and `max`, ISO 8601 dates).
 * `details.column` and `details.rule` name them. The caller picks another rule for that column.
-* @since 3.40.0
 */
 | "E_CLASH_RULE_TYPE"
 /**

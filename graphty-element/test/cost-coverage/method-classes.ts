@@ -193,6 +193,7 @@ export const MUTATING: readonly string[] = [
     "NotesApi.update",
     "ProjectApi.open",
     "ProjectApi.rename",
+    "RecipesApi.apply",
     "RenderManager.dispose",
     "RenderManager.init",
     "Run.rerun",
@@ -1122,6 +1123,8 @@ export const READ_ONLY: readonly string[] = [
     "ProjectApi.inspect",
     "ProjectApi.markSaved",
     "ProjectApi.save",
+    "RecipesApi.export",
+    "FilesApi.kindOf",
     // A host-supplied file handle: a version 2 open reads its file and its read permission.
     "ProjectFileHandle.getFile",
     "ProjectFileHandle.queryPermission",

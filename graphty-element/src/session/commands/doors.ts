@@ -1023,6 +1023,8 @@ const SESSION: Readonly<Record<string, Door>> = {
     canRedo: READ,
     history: READ,
     project: READ,
+    recipes: READ,
+    files: READ,
     transaction: HISTORY,
     estimate: READ,
     // Measures this machine for cost estimates; changes nothing a project file saves.
@@ -3776,6 +3778,24 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                     "which have rows of their own.",
             ),
         },
+    },
+    {
+        name: "RecipesApi",
+        file: "src/session/recipes/RecipesApi.ts",
+        half: "session",
+        doors: {
+            export: exempt("Writes the session's recipe and style out as text; it changes nothing a project saves."),
+            apply: exempt(
+                "Opens the recipe through project.open, one transaction whose writes go through the " +
+                    "session's own doors, which have rows of their own.",
+            ),
+        },
+    },
+    {
+        name: "FilesApi",
+        file: "src/session/files/kindOf.ts",
+        half: "session",
+        doors: { kindOf: READ },
     },
     {
         name: "NotesApi",

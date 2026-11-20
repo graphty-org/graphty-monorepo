@@ -63,12 +63,12 @@
       panel, so the edge that faces its opener is its left one. The markup is copied from 14.2 verbatim, borders
       included -- rotate(45deg) in CSS maps the square's bottom and left borders onto the two outer edges of a
       left-pointing triangle, so border-left plus border-bottom is right.
-      The caret should sit at the vertical centre of the opener's row, y 92. Its box would then start at y 86,
-      which is 10 px below the pop-out's top corner, and B3 clamps it to 12. So it is drawn at y 88..100, centre
-      94, two pixels below the row centre. That two-pixel surrender is the clamp doing its job on a first-row
+      The caret should sit at the vertical center of the opener's row, y 92. Its box would then start at y 86,
+      which is 10 px below the pop-out's top corner, and B3 clamps it to 12. So it is drawn at y 88..100, center
+      94, two pixels below the row center. That two-pixel surrender is the clamp doing its job on a first-row
       opener and is recorded rather than hidden; every later row in this panel clears it.
     - Nothing is surrendered: the gap axis is horizontal and keeps its 8, the shared edge line is exact, no width
-      rung is dropped and the centred fallback does not fire.
+      rung is dropped and the centered fallback does not fire.
     - The pop-out covers 280 x 240 of canvas at screen x 336..616, y 76..316. Canvas is what a panel pop-out is
       allowed to cover; the legend (floor item 5) is at the far corner and untouched, the toolbar spans canvas
       x 293..539 with the legend beginning at 564 and the minimap ending at 172, and all three keep the
@@ -122,7 +122,7 @@
     - The SVG element-count warning does not render: the format is PNG. Rule 7c deletes content the data cannot
       support rather than dimming it. Nor does the "about 0.02 px per node" warning, which fires above 50,000
       nodes and this graph has 20.
-    - No pin glyph. E2 closes the pin set at four comparative surfaces -- the colour and gradient picker,
+    - No pin glyph. E2 closes the pin set at four comparative surfaces -- the color and gradient picker,
       Selection statistics with a pin active, the group profile and the AI console. A pop-out whose content is
       the parameters of the row that opened it has nothing to hold still. The header is title plus Close (Esc).
     - No return strip. B3 grows one only when the opener has scrolled out of its region; this panel is 335 px in
@@ -1791,7 +1791,7 @@
                                     overflow: hidden;
                                 "
                             >
-                                <!-- graph drawing. Colour is the Louvain partition of FIXTURES 1.5 -- Group 1 blue 7, Group 2 cyan 6,
+                                <!-- graph drawing. Color is the Louvain partition of FIXTURES 1.5 -- Group 1 blue 7, Group 2 cyan 6,
                Group 3 amber 4, Group 4 green 3 -- and radius is the degree, 8.5 / 10.3 / 12.0 for 2 / 3 / 4
                links. The legend's two blocks are these two encodings and nothing else, which is what makes the
                frame hint's "legend: 2 channels" a count and not a claim. -->
@@ -1924,7 +1924,7 @@
                                     >
                                 </div>
 
-                                <!-- CANVAS TOOLBAR (5.6, TB-1, TB-2, TB-4): 246 by 36, centred on the live canvas rect, bottom 12
+                                <!-- CANVAS TOOLBAR (5.6, TB-1, TB-2, TB-4): 246 by 36, centered on the live canvas rect, bottom 12
                because this board draws neither the time slider nor the Data table drawer. The bar spans canvas
                x 293..539; the minimap ends at 172 and the legend begins at 564, so both keep the bottom-12
                baseline and TB-3's two-line rule does not fire. The toolbar is canvas chrome and never appears in
@@ -2885,7 +2885,7 @@
                                     </div>
 
                                     <!-- SECTION Schema, a live collapsed SECTION (SECTIONS-1.9 D1, 5.8). It was a permanent door; 1.9
-                 strikes the permanently-closed chevron form, and 5.8 settles the board divergence in favour of
+                 strikes the permanently-closed chevron form, and 5.8 settles the board divergence in favor of
                  the five boards that already drew this as an ordinary collapsed section. D4 keeps it CLOSED, so
                  the row is unchanged and "3 node types, 7 edge types" is exactly the closed mark 5.8 specifies.
                  Open it draws the node types with their counts (cat 17, human 2, dog 1) and the edge types with
@@ -3154,7 +3154,7 @@
 
                 <!-- ================= THE CARET (VOCAB 14.2), drawn as a sibling of the pop-out rather than a child, because
        the pop-out clips its own overflow to keep its corner radius. Root coordinates: x 330..336, y 88..100, so
-       its tip touches the pop-out's left edge at 336 and its centre sits at y 94 -- the opener row's centre is
+       its tip touches the pop-out's left edge at 336 and its center sits at y 94 -- the opener row's center is
        92 and B3's 12 px corner clamp buys the other two. It is dropped, not moved, if the opener ever scrolls
        out of the region; then the header grows the 20 px return strip instead. ================= -->
                 <div

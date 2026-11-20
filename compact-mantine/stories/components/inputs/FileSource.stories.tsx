@@ -37,6 +37,9 @@ import { FileSource, type FileSourceProps } from "../../../src";
  *   progress bar named "Loading" (`fileLoading`), with `status` and `onCancel` a line above it with the
  *   load's stage, how far it has come and Cancel (`fileCancel`); with `onDiscard`, Escape takes a typed
  *   address back.
+ * - With `barUnderField`, the bar is drawn directly under the URL field, 4px tall, and the status line
+ *   below it. With `submitOnBlur`, leaving the URL field (Tab, a click elsewhere) submits a changed
+ *   address as Enter does.
  *
  * ## Measurements
  *
@@ -144,6 +147,25 @@ export const Loading: Story = {
     render: () => (
         <div style={{ width: 320 }}>
             <Reporting variant="drop" url progress={0.4} disabled />
+        </div>
+    ),
+};
+
+/** `barUnderField`: a URL load under way, its bar directly under the field and its stage below. */
+export const LoadingUnderField: Story = {
+    render: () => (
+        <div style={{ width: 240 }}>
+            <Reporting
+                variant="row"
+                url
+                barUnderField
+                submitOnBlur
+                defaultValue="https://example.com/model.glb"
+                progress={0.4}
+                status={{ label: "Downloading", detail: "1.2 of 3 MB" }}
+                onCancel={() => undefined}
+                disabled
+            />
         </div>
     ),
 };

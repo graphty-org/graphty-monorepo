@@ -147,7 +147,7 @@ describe("tearing many elements down at once", () => {
     let baselineObservers = 0;
 
     /**
-     * Open a graph of `nodes` labelled nodes and half as many edges, with the render loop stopped.
+     * Open a graph of `nodes` labeled nodes and half as many edges, with the render loop stopped.
      * @param nodes - How many nodes.
      */
     async function open(nodes: number): Promise<void> {

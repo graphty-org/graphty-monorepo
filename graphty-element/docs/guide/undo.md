@@ -36,7 +36,7 @@ A change is undoable when it changes something a project saves, and only then:
 | Sets and saved camera views      | Creating, renaming, redefining, adding and removing members, removing and restoring a set; saving and removing a view |
 | The layout                       | Choosing a layout and what it runs over, switching between 2D and 3D, placing nodes, pinning and unpinning them       |
 | Where nodes came to rest         | The coordinates a layout settles on, recorded with the step that set it moving                                        |
-| Project settings                 | `session.config.set(...)`: the data settings, background, selection style, the three saved layout-behaviour settings  |
+| Project settings                 | `session.config.set(...)`: the data settings, background, selection style, the three saved layout-behavior settings   |
 
 Not undoable, because a project does not save them:
 
@@ -73,7 +73,7 @@ returns to the baseline, not to an empty element.
 It also cancels whatever is still pending. To keep that work -- a run a reader started while a
 graph was loading -- pass `{ pending: "keep" }`: each pending item that has changed nothing yet
 finishes and records its step over the new baseline. Work that has already changed something, such
-as a transaction halfway through, is cancelled either way, because undoing its step would go back
+as a transaction halfway through, is canceled either way, because undoing its step would go back
 past the baseline.
 
 ```typescript
@@ -175,7 +175,7 @@ A parameter that came from the data (a node id, a set's name) is the data's own 
 before putting it into HTML.
 
 **Coalescing.** Edits of the same thing within a second of each other merge into the step on top:
-dragging a colour picker, typing into a filter, moving the time window, placing nodes one at a
+dragging a color picker, typing into a filter, moving the time window, placing nodes one at a
 time in a loop. The whole drag is one step. Work queued in between -- a run, an import -- ends the
 merge: the next edit starts a step of its own, so undo takes back that edit before it cancels the
 queued work.
@@ -186,7 +186,7 @@ To make several changes one step, make them inside `session.transaction` through
 hands you:
 
 ```typescript
-await session.transaction("Load and colour", async (tx) => {
+await session.transaction("Load and color", async (tx) => {
     await tx.data.import({ type: "csv", config: { url: "/flights.csv" } });
     await tx.layout.set("circular");
     await tx.styles.add({
@@ -300,7 +300,7 @@ they were without running the layout again. `session.positions.set(...)`, `pin(.
 `session.styles.add`, `update`, `remove`, `move`, `encode`, `applyTemplate` and the visibility
 verbs return a `Run`. The edit itself happens at once; the handle settles when the repaint that
 draws it has finished. A signal that is already aborted when the verb is called stops the edit.
-Cancelling the handle afterwards does **not** take the edit back -- it has been recorded, and may
+Canceling the handle afterwards does **not** take the edit back -- it has been recorded, and may
 have merged into a larger step. Call `session.undo()` to take it back.
 
 ## Selection
@@ -443,7 +443,7 @@ command registered with `registerCommand` joins that step only through `ctx.tx`:
 ```typescript
 // After enableAiControl(...)
 element.getAiManager()?.registerCommand({
-    name: "colourHubs",
+    name: "colorHubs",
     // ...description and parameters...
     async execute(graph, params, ctx) {
         await ctx.tx.styles.add({
@@ -452,13 +452,13 @@ element.getAiManager()?.registerCommand({
             selector: { match: "everything" },
             set: { "node.color": "#e4572e" },
         });
-        return { success: true, message: "Coloured the hubs" };
+        return { success: true, message: "Colored the hubs" };
     },
 });
 ```
 
 A change made through `graph` instead is a step of its own and is not rolled back when the message
-fails. Stop when `ctx.abortSignal` fires: that is the message being cancelled, or undone while it
+fails. Stop when `ctx.abortSignal` fires: that is the message being canceled, or undone while it
 is still going.
 
 Each batch of tool calls the model returns runs in its own short transaction, which is recorded
@@ -472,7 +472,7 @@ What happens when the reader edits during a message:
 - **An edit between two batches splits the message.** The batches after it record as their own
   step on top of the reader's, with `provenance.after` naming the message's earlier step, because
   undo takes steps back in the order they happened.
-- **Cancelling the message, a tool that throws, or a failed model call** takes back every step the
+- **Canceling the message, a tool that throws, or a failed model call** takes back every step the
   message recorded, newest first, for as long as each is the next thing undo would undo. It stops
   at the reader's own step, or at pending work of theirs: the message's steps under it stay, and
   undo takes them back in order. The reader's edit is never reverted to clear the way.
@@ -486,7 +486,7 @@ What happens when the reader edits during a message:
 
 ## Plugin algorithms without a descriptor
 
-An algorithm registered the 1.x way, by `namespace` and `type` with no catalogue descriptor, is
+An algorithm registered the 1.x way, by `namespace` and `type` with no catalog descriptor, is
 still one step. While it runs, the `Graph` it is handed records everything it writes -- node and
 edge values, graph-level results, doors it calls such as `addNodes` or `styles` -- into that one
 step, and undo takes all of it back. Such a plugin needs no change. An algorithm with a descriptor

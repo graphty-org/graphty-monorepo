@@ -9,7 +9,7 @@
 import type { Point2 } from "../meshes/shapeOutlines";
 import { toColorValue } from "../session/styles/channels";
 import { LEGEND_METRICS } from "./drawLegend";
-import type { FigureDrawing, FigureMark, FigureText } from "./figure";
+import type { FigureDrawing, FigureMark, FigureShape, FigureText } from "./figure";
 
 /** How far a cubic Bezier's handles sit from a quarter circle's ends, per unit of radius. */
 const KAPPA = 0.5523;
@@ -315,7 +315,27 @@ function drawMark(page: Page, mark: FigureMark): void {
 }
 
 /**
- * The PDF file for a drawing: background, edges, nodes, labels, then the key on top.
+ * A filled shape: a mesh's triangles are filled as one path, nonzero, so no seam shows between them.
+ * @param page - The page.
+ * @param shape - The shape.
+ */
+function drawShape(page: Page, shape: FigureShape): void {
+    page.ops.push("q");
+    page.paint(shape.fill, false, shape.opacity);
+    if ("circle" in shape) {
+        page.circle(shape.circle.x, shape.circle.y, shape.circle.r);
+    } else if ("points" in shape) {
+        page.polygon(shape.points);
+    } else {
+        for (const t of shape.triangles) {
+            page.polygon(t);
+        }
+    }
+    page.ops.push("f", "Q");
+}
+
+/**
+ * The PDF file for a drawing: background, edges, nodes, arrow caps, labels, then the key on top.
  * @param drawing - What to draw.
  * @param key - The key's marks.
  * @returns The file's bytes.
@@ -331,15 +351,8 @@ export function figurePdf(drawing: FigureDrawing, key: readonly FigureMark[]): U
         page.paint(e.color, true, e.opacity);
         page.ops.push(`${page.at(e.x1, e.y1)} m ${page.at(e.x2, e.y2)} l S`, "Q");
     }
-    for (const n of drawing.nodes) {
-        page.ops.push("q");
-        page.paint(n.fill, false, n.opacity);
-        if ("circle" in n) {
-            page.circle(n.circle.x, n.circle.y, n.circle.r);
-        } else {
-            page.polygon(n.points);
-        }
-        page.ops.push("f", "Q");
+    for (const shape of [...drawing.nodes, ...drawing.caps]) {
+        drawShape(page, shape);
     }
     for (const t of drawing.texts) {
         drawText(page, t);

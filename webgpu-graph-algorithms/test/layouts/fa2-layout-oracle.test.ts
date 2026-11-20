@@ -28,7 +28,7 @@
  *
  * The metric is stageError(true, ...) of test/helpers/fa2-parity.ts, the ONE implementation of spec 11.4's floored
  * per-node position error (its FLOOR_FRACTION is module-private; never re-derive it). Every case runs at scale 1
- * with a zero centre (BASE_OPTIONS) so the owner's scene array IS the layout state on both sides -- asserted, not
+ * with a zero center (BASE_OPTIONS) so the owner's scene array IS the layout state on both sides -- asserted, not
  * assumed, by assertUnitStart below (fa2-parity.ts's own assertUnitStart is module-private and cannot be imported).
  * The start MUST be the seeded array (startPositions(..., false)): layout's load() never seeds NaN rows
  * (forceatlas2.ts:26 "`seed` (the caller seeds the array with seedPositions) ... accepted and unused"), while the
@@ -106,7 +106,7 @@ function compatOf(tuning: GpuLayoutTuning): "paper" | "networkx" {
 }
 
 /**
- * The unit-identity precondition both trajectories rest on: scale 1 and a zero centre, so the owner's scene array
+ * The unit-identity precondition both trajectories rest on: scale 1 and a zero center, so the owner's scene array
  * IS the layout state. fa2-parity.ts has the same check at :878 but does not export it.
  * @param options - the case options
  */

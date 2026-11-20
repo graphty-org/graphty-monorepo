@@ -2,13 +2,13 @@
  * @file The file writers a third party registered.
  *
  * A writer is a graph-io exporter (`GraphExporter`: `check`, `export`, `exportToString`) wrapped
- * with the element's catalogue entry for the format. Registering one puts the format in
+ * with the element's catalog entry for the format. Registering one puts the format in
  * `session.catalog.formats()` with `canExport: true`, reserves the element's own format ids,
  * validates the writer's options and makes `exportGraph(format)` reach it. Nothing here imports a
  * reader, a renderer or the DOM, so `./extend` stays usable from Node.
  *
  * A writer and a reader for the same id are two registrations of one format: they must agree on
- * what the format is called and what its files look like, and the catalogue publishes ONE entry
+ * what the format is called and what its files look like, and the catalog publishes ONE entry
  * with both `canImport` and `canExport` true. A writer with no reader never takes part in
  * detection, so it can never make a dropped file fail with "no reader".
  */
@@ -23,7 +23,7 @@ import { type FormatDescriptor, type FormatStyles, KNOWN_FORMAT_IDS, type Option
 /** What `registerFormatWriter` accepts. */
 export interface FormatWriterRegistration {
     /**
-     * The format's catalogue entry, with `canExport: true`. When a reader for the same id is
+     * The format's catalog entry, with `canExport: true`. When a reader for the same id is
      * registered, the two must agree on `plainName`, `extensions` and `mimeTypes`.
      */
     readonly descriptor: FormatDescriptor;
@@ -269,7 +269,7 @@ let merged: {
 } | null = null;
 
 /**
- * Every registered format as the catalogue lists it: the readers, each marked `canExport: true`
+ * Every registered format as the catalog lists it: the readers, each marked `canExport: true`
  * when a writer for it is registered, then the formats that only have a writer.
  *
  * The same array until a registration changes it, which is the identity promise

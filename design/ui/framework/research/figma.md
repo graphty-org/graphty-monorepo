@@ -12,7 +12,7 @@ because graphs are different, and the difference is stated with its reason.
 
 The document has five parts:
 
-1. Figma's design principles, from its own writing and from the product's measured behaviour
+1. Figma's design principles, from its own writing and from the product's measured behavior
 2. Figma's ontology: every object type, its relationships and lifecycle, and how Figma keeps
    secondary objects out of the layers tree
 3. Figma's vocabulary conventions
@@ -28,7 +28,7 @@ Every claim cites where it came from. Two kinds of source are used:
   documents are `README.md`, `flows.md` and `components.md`; area folders such as
   `left-sidebar/README.md` hold the detail.
 
-Where a principle below is inferred from behaviour rather than stated by Figma, it says so.
+Where a principle below is inferred from behavior rather than stated by Figma, it says so.
 
 ---
 
@@ -36,7 +36,7 @@ Where a principle below is inferred from behaviour rather than stated by Figma, 
 
 ### 1.1 What Figma says about itself
 
-**Work is the centre of the screen, not the UI.** The UI3 write-up names the first goal as
+**Work is the center of the screen, not the UI.** The UI3 write-up names the first goal as
 "Center your ideas, not Figma's UI" and to "focus the canvas less on our UI and more on your
 work" ([Inside the redesigned Figma](https://www.figma.com/blog/behind-our-redesign-ui3/)).
 The companion post restates it as the north star: "keep designers in the flow by minimizing
@@ -89,7 +89,7 @@ object's inspector, not a new place in the app.
 
 **Undo must never surprise.** The guiding rule for undo: "if you undo a lot, copy something,
 and redo back to the present (a common operation), the document should not change" (same
-source). Undo is the product's safety net, so its behaviour is designed as carefully as any
+source). Undo is the product's safety net, so its behavior is designed as carefully as any
 feature.
 
 **A published principle set.** A set of nine principles attributed to Figma is reproduced at
@@ -103,7 +103,7 @@ research and testing"). Caveat: that page names a Figma Community file as its so
 file (figma.com/community/file/817913152610525667) could not be retrieved, so treat this set as
 attributed rather than confirmed.
 
-### 1.2 Principles the product enforces (inferred from measured behaviour)
+### 1.2 Principles the product enforces (inferred from measured behavior)
 
 These are not written down by Figma; they are what the editor consistently does, measured in
 `design/ui/figma/`. Each is stated as a rule with its evidence.
@@ -120,13 +120,13 @@ These are not written down by Figma; they are what the editor consistently does,
 | **Edits commit on Enter, Tab or blur, never while typing**, and bad input silently reverts | `flows.md` section 1 rule 6 and section 6 |
 | **Keyboard focus lives on the canvas.** Almost every commit or Escape returns focus to a hidden canvas focus target that announces "N items selected" | `flows.md` section 1 rule 5 and section 8 |
 | **Blue means selected; one filled primary button.** At rest the only filled accent button is Share; elsewhere the accent marks selection, focus and open state | `tmp/ux-review/graphty-vs-figma-ux.md` "Visual hierarchy"; `header-and-modes/README.md` section 1 |
-| **Kind is shown by colour, consistently.** Components and instances are purple everywhere (canvas outline, handles, size badge, layer row text); Dev Mode is green (Share button, selected tool, mode icon) | `canvas-selection/README.md` section 10; `left-sidebar/README.md` section 4 "Row states"; `bottom-toolbar/README.md` section 10 |
+| **Kind is shown by color, consistently.** Components and instances are purple everywhere (canvas outline, handles, size badge, layer row text); Dev Mode is green (Share button, selected tool, mode icon) | `canvas-selection/README.md` section 10; `left-sidebar/README.md` section 4 "Row states"; `bottom-toolbar/README.md` section 10 |
 | **Hover is instant, help is slow.** Hover fills change in one frame; tooltips wait 1000 ms (rail 500 ms) and carry the name plus the shortcut | `flows.md` sections 1 and 10; `left-sidebar/README.md` section 1 |
 | **The canvas and the tree are one thing seen twice.** Hovering a layer row outlines the object on the canvas and the reverse; selecting on the canvas expands and scrolls the tree to the row | `canvas-selection/README.md` section 14; `flows.md` section 2 |
 | **Words on screen are the user's content.** At rest the right panel holds about 25 words; most visible words are layer names and values, not the app explaining itself | `tmp/ux-review/graphty-vs-figma-ux.md` "What the words are" |
 | **One home per capability; other entries are shortcuts to it.** Each function has one place in the panels; the context menu, the main menu and Actions (Ctrl+K) are routes to the same commands, not second implementations | `tmp/ux-review/graphty-vs-figma-ux.md` "How many homes a feature has"; `popovers-and-menus/README.md` section 2 "Menu inventory" |
 | **Creation is the only task-first place, and it is tiny.** Tools create; once the object exists the tool snaps back to Move and everything else is done by selecting and editing | `tmp/ux-review/graphty-vs-figma-ux.md` "Follow-up: how Figma handles tasks"; `bottom-toolbar/README.md` section 9 ("Selecting objects does not change the toolbar at all") |
-| **Panels hold their width; the canvas gives way.** At narrow windows both side panels stay 241 px, only the canvas shrinks; the toolbar stays centred on the window and overlaps panels rather than reflowing | `header-and-modes/README.md` section 2 |
+| **Panels hold their width; the canvas gives way.** At narrow windows both side panels stay 241 px, only the canvas shrinks; the toolbar stays centered on the window and overlaps panels rather than reflowing | `header-and-modes/README.md` section 2 |
 | **The app never acts unasked.** Opening a file shows the file; nothing is computed, suggested or switched on the reader's behalf. The exception is promotional cards, which are marketing, not design | `tmp/ux-review/graphty-vs-figma-ux.md` "Right after opening a file"; promo cards in `header-and-modes/README.md` sections 5 and 6 |
 
 ### 1.3 Where Figma falls short of its own principles
@@ -148,7 +148,7 @@ copy them:
 - Some words carry two meanings: "Layout" is a section and "Layout guide" another; "Actions" is
   both the Ctrl+K palette and a prototype interaction's "Action" field
   (`right-sidebar-selection/README.md` section 24; `header-and-modes/README.md` section 6).
-- Dev Mode is a persona-specific mode (for developers), with its own panel width, colour and
+- Dev Mode is a persona-specific mode (for developers), with its own panel width, color and
   tools (`header-and-modes/README.md` section 7).
 
 ---
@@ -191,11 +191,11 @@ anything inside a page ([Plugin API: node types](https://developers.figma.com/do
 | Component set and variants | variants of one component held in one container, chosen by variant properties | tree; inspector "Properties" | same; `right-sidebar-selection/README.md` section 4 |
 | Component property | variant, text, boolean, instance swap, slot | inspector of the main component and of each instance | `right-sidebar-selection/README.md` "Components and states the first pass did not reach" section 4 |
 | Library | a published file whose components, styles and variables other files use | Assets panel; Manage libraries dialog | `left-sidebar/README.md` sections 6 and 5 of the follow-up |
-| Style (colour, text, effect, layout guide) | a named bundle of values; "Styles are built to hold a combination of values, where all values get expressed all at once" | NOT in the tree. Listed in the inspector's Styles section when nothing is selected; applied from a property row, which then shows the style name instead of raw values | [The difference between variables and styles](https://help.figma.com/hc/en-us/articles/15871097384471-The-difference-between-variables-and-styles); `header-and-modes/README.md` section 5; `right-sidebar-selection/README.md` section 15 |
+| Style (color, text, effect, layout guide) | a named bundle of values; "Styles are built to hold a combination of values, where all values get expressed all at once" | NOT in the tree. Listed in the inspector's Styles section when nothing is selected; applied from a property row, which then shows the style name instead of raw values | [The difference between variables and styles](https://help.figma.com/hc/en-us/articles/15871097384471-The-difference-between-variables-and-styles); `header-and-modes/README.md` section 5; `right-sidebar-selection/README.md` section 15 |
 | Variable | "a single design token that defines values for each of the modes in its VariableCollection"; bound to node properties; not part of the node tree | NOT in the tree. A full-screen Variables view from the rail; bound from a property row's "Apply variable" icon | [Plugin API: Variable](https://developers.figma.com/docs/plugins/api/Variable/); `left-sidebar/README.md` section 7 and follow-up section 6 |
 | Collection and mode | a collection is a set of variables; a mode is one column of values ("light", "dark"); a variable expresses one mode at a time | Variables view; "Apply variable mode" on the page or a frame | [Guide to variables](https://help.figma.com/hc/en-us/articles/15339657135383-Guide-to-variables-in-Figma); `header-and-modes/README.md` section 5 |
 
-**Behaviour objects**
+**Behavior objects**
 
 | Object | Rule | Where it appears | Source |
 |---|---|---|---|
@@ -232,14 +232,14 @@ Figma uses only a handful of relationship kinds, and each has one visual form:
 | Relationship | Meaning | How it is shown |
 |---|---|---|
 | Contains (parent, child) | a single-parent tree; tree order is paint order | indentation in the tree; Enter selects children, Shift+Enter the parent (`flows.md` section 3) |
-| Instance of | an instance follows its main component | purple colour; "Go to main component" row; the component name as the inspector title (`right-sidebar-selection/README.md` section 4) |
+| Instance of | an instance follows its main component | purple color; "Go to main component" row; the component name as the inspector title (`right-sidebar-selection/README.md` section 4) |
 | Bound to (a style or variable) | a property takes its value from a shared definition | the property row shows the definition's name instead of a raw value; "detach" returns it to a value (`right-sidebar-selection/README.md` section 15; follow-up section 5) |
 | Reacts to (an interaction) | a layer navigates to a frame | a connector on the canvas, only in the Prototype tab |
 | Pinned to (a comment) | a comment moves with its top-level frame, or stays at a canvas position | a pin, only while comments are shown; section 2.7 covers what happens when the frame goes away |
 | Member of (a collection or library) | a variable belongs to a collection; an asset to a library | the Variables view's left list; the Assets panel's breadcrumb |
 
 Only containment is drawn in the tree. Every other relationship is drawn as a property row in
-the inspector, as a colour, or as a canvas overlay that appears in one mode. Every row above is
+the inspector, as a color, or as a canvas overlay that appears in one mode. Every row above is
 drawn from the user's side (the instance names its component, the property names its style).
 The reverse direction, from a definition to everything that uses it, is covered in section 2.6.
 
@@ -276,7 +276,7 @@ Figma keeps the secondary objects out of the tree with six consistent rules:
    are listed in the inspector when nothing is selected and applied from the Fill or Text row;
    variables have a full-screen view and are applied from the "Apply variable" icon on any
    bindable row; library components are in the Assets panel and inserted onto the canvas.
-3. **Behaviour is a property of the object, shown in a second inspector tab.** Interactions are
+3. **Behavior is a property of the object, shown in a second inspector tab.** Interactions are
    stored on the node (the `reactions` property) and edited in the Prototype tab of the same
    selection; their canvas connectors appear only in that tab.
 4. **Commentary is a mode with its own panel.** Comments have their own tool (C), their own
@@ -302,12 +302,12 @@ primary object they belong to.
 | Assets panel (rail button, left panel) | libraries as cards ("72 components"), then components as a tile grid; its search covers all libraries | no. In the measured editor the Assets panel is components only | `left-sidebar/README.md` section 6 |
 | Inspector, nothing selected, Design tab | the Page section, then a "Styles" section listing the file's local styles, then Export | yes, local styles, as rows with a "+" (Create style: Text, Color, Effect, Layout guide) | [right sidebar help](https://help.figma.com/hc/en-us/articles/360039832014-Design-prototype-and-explore-layer-properties-in-the-right-sidebar) ("styles and variables that are local to the file" when nothing is selected); `header-and-modes/README.md` section 5 |
 | Inspector, nothing selected, Prototype tab | the file's flows, each row with hover actions (select frame, copy flow link, preview) | no; flows are the Prototype tab's named starting points | `header-and-modes/README.md` section 6 |
-| Variables view (rail button, full screen, can minimise to a floating window) | collections on the left, a table of variables by mode | yes, variables, and only here | `left-sidebar/README.md` section 7 |
+| Variables view (rail button, full screen, can minimize to a floating window) | collections on the left, a table of variables by mode | yes, variables, and only here | `left-sidebar/README.md` section 7 |
 | Style and variable pickers (popovers from a property row) | styles and variables that can be bound to that row | yes, as choices, not as a managed list | `right-sidebar-selection/README.md` follow-up sections 5 and 6 |
 | Manage libraries dialog | libraries, and at the foot the missing libraries with counts of missing assets | as counts per library | [Swap libraries](https://help.figma.com/hc/en-us/articles/4404856784663-Swap-style-and-component-libraries); `left-sidebar/README.md` section 6 |
 
 So Figma gives reusable definitions a rail button and a left-panel list in three cases:
-things you **insert onto the canvas** (components, in Assets), a **large catalogue of things you
+things you **insert onto the canvas** (components, in Assets), a **large catalog of things you
 run** (plugins, widgets and AI tools, in the Tools panel, section 4.10), and a collection whose
 shape is a **table too wide for a panel** (variables, full screen). Styles, which are applied rather than
 inserted, have no rail button and no left-panel list: they are rows in the nothing-selected
@@ -342,7 +342,7 @@ as a named row on the user of the definition. The reverse direction appears in f
 | **Go to main component** | navigates from an instance to its definition (selects the main component; for a library component, "Go to main component in library" opens the library file). Shortcut Ctrl+Alt+Shift+K | a 224 x 24 secondary-text row directly under the instance's type row in the inspector; the context menu; the context menu of an Assets tile | [Make changes to components and instances](https://help.figma.com/hc/en-us/articles/360038665934); `right-sidebar-selection/README.md` section 4; `left-sidebar/README.md` section 6 |
 | **Select matching layers** | a selection of layers identical to the selected one, across frames (not within one frame). Ctrl+Alt+A | a 24 px icon on the inspector's type row | [Select layers and objects](https://help.figma.com/hc/en-us/articles/360040449873-Select-layers-and-objects); `right-sidebar-selection/README.md` section 4 |
 | **Edit > Select all with same** (properties, fill, stroke, effect, text properties, font, instance) | a selection of every layer in the file sharing that attribute with the current selection | the Edit menu only | same help article |
-| **Selection colors** | lists each distinct colour in a mixed selection once, grouped as variables, styles and plain fills; each row can be edited (changing every layer using it) and has a target icon that selects all layers using that colour | an inspector section, present only when the selection has mixed fills; collapsed it shows three swatches and "+N" | [View and adjust colors in a mixed selection](https://help.figma.com/hc/en-us/articles/360042553434-View-and-adjust-colors-in-a-mixed-selection); `right-sidebar-selection/README.md` section 22; `interaction-flows/README.md` section 6 |
+| **Selection colors** | lists each distinct color in a mixed selection once, grouped as variables, styles and plain fills; each row can be edited (changing every layer using it) and has a target icon that selects all layers using that color | an inspector section, present only when the selection has mixed fills; collapsed it shows three swatches and "+N" | [View and adjust colors in a mixed selection](https://help.figma.com/hc/en-us/articles/360042553434-View-and-adjust-colors-in-a-mixed-selection); `right-sidebar-selection/README.md` section 22; `interaction-flows/README.md` section 6 |
 | **Usage counts** | instances, inserts and detaches per component, style and variable over 30 days; teams and files using it | NOT in the editor. Library analytics, opened from the file menu of a library file or from the file browser; Organization and Enterprise plans only | [View and explore library analytics](https://help.figma.com/hc/en-us/articles/360039238353-View-and-explore-library-analytics) |
 
 Three observations settle the pattern:
@@ -473,7 +473,7 @@ listed as entities.** Section 5.5 turns this into graphty's override layer.
 
 ### 2.10 How Figma evolves its document format and its API
 
-- **One schema-based binary format, read forward.** Figma's documents are serialised with Kiwi,
+- **One schema-based binary format, read forward.** Figma's documents are serialized with Kiwi,
   written by Evan Wallace: "It uses the kiwi binary serialization format, which I developed
   while implementing Figma's multiplayer syncing", and "Figma uses the same
   serialization format for both multiplayer syncing and snapshot storage"
@@ -534,20 +534,20 @@ Measurements are from `header-and-modes/README.md` section 2 (1600 x 1000 window
 
 | Surface | Holds | Placement rule |
 |---|---|---|
-| **Navigation rail** (far left, 57 px) | Main menu, then File, Agents, Assets, Tools, then Variables; Library updates at the foot. Labelled 56 px buttons; the active one has a tinted pill | Chooses what the left panel lists. Each button is a *collection of things in or available to the file* (the file's contents, reusable assets, plugins, variables), not an activity. Order is by frequency; a separator splits panels from a full-screen view (`left-sidebar/README.md` section 1; [left sidebar help](https://help.figma.com/hc/en-us/articles/360039831974-View-layers-and-pages-in-the-left-sidebar)) |
+| **Navigation rail** (far left, 57 px) | Main menu, then File, Agents, Assets, Tools, then Variables; Library updates at the foot. Labeled 56 px buttons; the active one has a tinted pill | Chooses what the left panel lists. Each button is a *collection of things in or available to the file* (the file's contents, reusable assets, plugins, variables), not an activity. Order is by frequency; a separator splits panels from a full-screen view (`left-sidebar/README.md` section 1; [left sidebar help](https://help.figma.com/hc/en-us/articles/360039831974-View-layers-and-pages-in-the-left-sidebar)) |
 | **Left panel** (240 px) | File header (name, file menu, Minimize UI); Pages; Layers tree. Find (Ctrl+F) temporarily replaces Pages and Layers | Answers "what exists?" It lists nouns: the user's own content. Search replaces the list rather than adding a second one (`left-sidebar/README.md` sections 2-5) |
 | **Canvas** | the work; selection boxes, hover outlines, size badges, measurements, frame labels, comment pins, other people's cursors | Nothing floats on it at rest except the toolbar and the Help button; overlays belong to the selection or to an explicit mode (`canvas-selection/README.md`) |
 | **Right header, row 1** | avatars, Present, Share (the single primary button) | Collaboration and output of the whole file: things you do with the file, not to an object (`header-and-modes/README.md` section 3) |
 | **Right header, row 2** | mode tabs (Design / Prototype, or the mode's own tabs) and the zoom / view menu | Lenses on the same selection; the view menu holds display toggles (rulers, outlines, pixel grid, comments, multiplayer cursors, property labels) so they never clutter the canvas (`header-and-modes/README.md` section 4) |
 | **Right panel, the inspector** (240 px) | the selection's properties in fixed order; or the page's when nothing is selected | Answers "what is this and how do I change it?" Its identity is decided by the selection, never by what was touched last (`right-sidebar-selection/README.md`) |
-| **Popovers** (240 px, opening to the LEFT of the inspector, top-aligned with the row) | detail editors for one property: colour picker, effect settings, export settings, interaction details | Depth for one row without leaving the inspector; one at a time (`flows.md` section 5; `right-sidebar-selection/README.md` section 24) |
-| **Bottom toolbar** (floating, centred on the window, 48 px high, 529 px wide in Design) | creation tool groups with flyouts (Move, Frame, Shape, Pen, Text, Comment), Actions, and the mode switch | Creation verbs and mode. Small by design; it does not change with the selection (`bottom-toolbar/README.md` sections 1, 9, 10) |
+| **Popovers** (240 px, opening to the LEFT of the inspector, top-aligned with the row) | detail editors for one property: color picker, effect settings, export settings, interaction details | Depth for one row without leaving the inspector; one at a time (`flows.md` section 5; `right-sidebar-selection/README.md` section 24) |
+| **Bottom toolbar** (floating, centered on the window, 48 px high, 529 px wide in Design) | creation tool groups with flyouts (Move, Frame, Shape, Pen, Text, Comment), Actions, and the mode switch | Creation verbs and mode. Small by design; it does not change with the selection (`bottom-toolbar/README.md` sections 1, 9, 10) |
 | **Secondary bar** (stacks 8 px above the toolbar) | the options of an armed tool or an edit mode (vector edit, image crop, draw tools) | Appears only while a tool or edit mode needs options; gone otherwise (`bottom-toolbar/README.md` section 9) |
 | **Actions** (Ctrl+K, docked above the toolbar) | a searchable list of every command, asset and plugin, with recents | A route to everything, suggesting by selection; never a home of its own ([Making the move to UI3](https://www.figma.com/blog/making-the-move-to-ui3-a-guide-to-figmas-next-chapter/); `bottom-toolbar/README.md` section 8) |
 | **Context menu** (right-click) | the commands that apply to what was clicked; the empty-canvas menu has only view-level items | Actions on the thing under the pointer (`canvas-selection/README.md` section 15) |
-| **Main menu** | the full command inventory: File, Edit, View, Object, Text, Arrange, Vector, Plugins, Widgets, Preferences, Libraries, Help | The complete, organised list; the place a feature is documented to live (`popovers-and-menus/README.md` section 2) |
+| **Main menu** | the full command inventory: File, Edit, View, Object, Text, Arrange, Vector, Plugins, Widgets, Preferences, Libraries, Help | The complete, organized list; the place a feature is documented to live (`popovers-and-menus/README.md` section 2) |
 | **File menu** (chevron beside the file name) | version history, publish library, export, duplicate, rename, move, delete | Operations on the file as a whole, including its history (`left-sidebar/README.md` section 2) |
-| **Full-screen views** | the Variables table (can minimise to a floating window); Present in a new tab | Work whose shape is a table or a playback, too big for a 240 px panel (`flows.md` section 11; `left-sidebar/README.md` section 7) |
+| **Full-screen views** | the Variables table (can minimize to a floating window); Present in a new tab | Work whose shape is a table or a playback, too big for a 240 px panel (`flows.md` section 11; `left-sidebar/README.md` section 7) |
 | **Bottom dock** | the keyboard shortcuts panel; the Motion timeline | Wide, short tools that need the canvas visible above them (`flows.md` section 11; `header-and-modes/README.md` section 8) |
 | **Modal dialog** | rare: Manage libraries, delete-thread confirmation, create-style dialogs | Only for decisions that leave the canvas or cannot be undone (`popovers-and-menus/README.md` section 11) |
 | **Toast** | short feedback ("visual bell"), sometimes with an action | Confirms something that happened elsewhere; replaces the previous toast (`flows.md` section 10) |
@@ -574,7 +574,7 @@ Measurements are from `header-and-modes/README.md` section 2 (1600 x 1000 window
    inspector and toolbar show for the same selected object; the tree and the selection stay
    (`tmp/ux-review/graphty-vs-figma-ux.md` follow-up).
 7. **Whole-work readings live with "nothing selected".** When nothing is selected, the inspector
-   is about the page: its colour, its styles, its export.
+   is about the page: its color, its styles, its export.
 
 ### 4.3 Find produces a selection, not a saved result
 
@@ -607,7 +607,7 @@ Figma has two comparison surfaces, and neither is part of normal editing:
 
 | Surface | Compares | Placement and layout | Source |
 |---|---|---|---|
-| **Branch review** | a branch against the main file, before a merge | its own window (a modal). A left sidebar summarises the branch and lists changed components, instances and layers, grouped by page and collapsible. The main area shows one change **side by side** (before on the left, after on the right) or as an **overlay** with an opacity slider; details list the properties that changed; arrows step through changes. All or nothing: changes cannot be approved one by one | [Review branch changes](https://help.figma.com/hc/en-us/articles/5693123873687-Review-branch-changes) |
+| **Branch review** | a branch against the main file, before a merge | its own window (a modal). A left sidebar summarizes the branch and lists changed components, instances and layers, grouped by page and collapsible. The main area shows one change **side by side** (before on the left, after on the right) or as an **overlay** with an opacity slider; details list the properties that changed; arrows step through changes. All or nothing: changes cannot be approved one by one | [Review branch changes](https://help.figma.com/hc/en-us/articles/5693123873687-Review-branch-changes) |
 | **Compare changes (Dev Mode)** | one frame or component against an earlier version of itself, or two selected components against each other (Shift+click both) | opened from the Inspect tab of the right sidebar for the selection, or "Compare to latest version" on a version in focus view. Side by side, overlay, a layers list marking each layer edited, added or deleted, a properties list with previous and current values, and a code diff | [Compare changes in Dev Mode](https://help.figma.com/hc/en-us/articles/15023193382935-Compare-changes-in-Dev-Mode) |
 
 Version history in the Design mode does not compare: it shows one version at a time as a
@@ -627,14 +627,14 @@ switches what is shown for the same selection (`header-and-modes/README.md` sect
   selected, then a top-level frame, then a nested layer, and the tab stayed on Prototype
   throughout (`header-and-modes/README.md` section 6). Whether the choice survives closing and
   reopening a file is not documented and was not measured.
-- **Tabs do hide capabilities.** Interactions, flow starting points, scroll behaviour and the
+- **Tabs do hide capabilities.** Interactions, flow starting points, scroll behavior and the
   prototype device settings exist only in the Prototype tab, and so do the canvas connectors;
   dragging a connection between objects is exclusive to it
   ([right sidebar help](https://help.figma.com/hc/en-us/articles/360039832014-Design-prototype-and-explore-layer-properties-in-the-right-sidebar)).
   Compare changes and code exist only in Dev Mode's Inspect tab (section 4.4).
 - **But each tab is a whole domain, never a split of one domain.** Prototype holds everything
-  about behaviour and nothing about appearance; Design holds everything about appearance and
-  nothing about behaviour. No property has a home in two tabs, and no tab is a bucket for
+  about behavior and nothing about appearance; Design holds everything about appearance and
+  nothing about behavior. No property has a home in two tabs, and no tab is a bucket for
   "more detail" about the other tab's properties. The tab switch is always visible at the top
   of the inspector, so a hidden capability is one click from anywhere.
 
@@ -645,7 +645,7 @@ Figma has exactly one selection, and a container is a thing you can select as it
 - **Clicking a group or frame row in the layers tree (or the group on the canvas) selects the
   container.** The canvas draws one selection box with four handles and a size badge around the
   container's bounds; the children get no outline and no handles of their own (the capture shows
-  only a faint marker at each child's centre). The inspector title is the container's kind
+  only a faint marker at each child's center). The inspector title is the container's kind
   ("Group", "Frame"). Hovering a child while the group is selected draws that child's hover
   outline; it does not select it (`canvas-selection/README.md` sections 11 and 14; captures
   `65-group-selected`, `66-group-child-hover-while-group-selected`).
@@ -657,7 +657,7 @@ Figma has exactly one selection, and a container is a thing you can select as it
   outline, there is no union box, and the inspector title reads "Mixed". Tab then steps to the
   first child alone. On a shape that is not a container, Enter opens vector edit instead; on
   text, text edit; on an image, crop (`canvas-selection/README.md` section 5 and "Keyboard
-  behaviour"; `flows.md` section 3).
+  behavior"; `flows.md` section 3).
 - **Shift+Enter replaces the selection with the parent.** From a child it selects the
   containing group or frame; from a group it selects the group's parent frame
   (`canvas-selection/README.md` section 11 and "Keyboard behaviour").
@@ -689,10 +689,10 @@ selections of several frames, several texts and several shapes
   guide appears when one member of three is a frame was not measured, so "at least one" is
   established only for Typography.
 - **Differing values**: numeric fields read "Mixed"; differing paint lists collapse to "Click +
-  to replace mixed content"; a value that every member shares (here one stroke colour) is shown
+  to replace mixed content"; a value that every member shares (here one stroke color) is shown
   as a normal row.
-- **Selection colors** appears whenever the members use more than one colour, listing each shared
-  colour or style once with "Select N items using this style" on its row.
+- **Selection colors** appears whenever the members use more than one color, listing each shared
+  color or style once with "Select N items using this style" on its row.
 - **Export** offers "Export N layers" for the selection.
 - The exact case of a frame, a text layer and an instance together was not measured. What the
   measured cases imply: the instance's component row ("Go to main component", component
@@ -705,8 +705,8 @@ Measured in a file with no local styles (`header-and-modes/README.md` sections 5
 
 | Tab | Sections, top to bottom | Rows at rest |
 |---|---|---|
-| Design | **Page** (header with "Apply variable mode"; a colour row; a "Show in exports" checkbox), **Styles** (header with "+" Create style; then one row per local style), **Export** (header with "+"; one row per export setting; an "Export <file name>" button; a Preview disclosure), then a dismissible promotional card | 3 section headers and about 5 fixed rows; only the Styles and Export lists grow |
-| Prototype | a promotional card, **Prototype settings** (device select; background colour row), **Flows** (one row per flow, with hover actions select frame, copy link, preview) | 2 section headers and 2 fixed rows; only Flows grows |
+| Design | **Page** (header with "Apply variable mode"; a color row; a "Show in exports" checkbox), **Styles** (header with "+" Create style; then one row per local style), **Export** (header with "+"; one row per export setting; an "Export <file name>" button; a Preview disclosure), then a dismissible promotional card | 3 section headers and about 5 fixed rows; only the Styles and Export lists grow |
+| Prototype | a promotional card, **Prototype settings** (device select; background color row), **Flows** (one row per flow, with hover actions select frame, copy link, preview) | 2 section headers and 2 fixed rows; only Flows grows |
 
 - **Three sections is the ceiling in either tab**, and at most two fixed rows under any header.
   Everything else is a list of the file's own definitions (styles, export settings, flows).
@@ -721,7 +721,7 @@ Measured in a file with no local styles (`header-and-modes/README.md` sections 5
   collapses its section: an empty section is a single header row with "+", and a section with
   content is open (`right-sidebar-selection/README.md` follow-up section 8). Two disclosures
   exist INSIDE sections, and section 4.15 covers them: Selection colors opens as a summary
-  line (up to three swatches and "+N") that expands to one row per colour, and Export ends in
+  line (up to three swatches and "+N") that expands to one row per color, and Export ends in
   a collapsible "Preview" row (`right-sidebar-selection/README.md` section 22). Dev Mode's
   Inspect tab goes further, with a collapsible section and "N more" expanders
   (`header-and-modes/README.md` section 7).
@@ -750,9 +750,9 @@ Measured in a file with no local styles (`header-and-modes/README.md` sections 5
 
 Figma can use a single global toast because it has at most one long operation at a time and
 never a queue. Its states for a long operation are therefore only running, done (a confirmation
-or an action toast) and cancelled.
+or an action toast) and canceled.
 
-### 4.10 Large catalogues: Assets, Tools and Actions
+### 4.10 Large catalogs: Assets, Tools and Actions
 
 | Surface | Presents | Search | Insert or run |
 |---|---|---|---|
@@ -765,13 +765,13 @@ Sources: `left-sidebar/README.md` sections 6 and 7; `bottom-toolbar/README.md` s
 [Create and insert component instances](https://help.figma.com/hc/en-us/articles/360039150173-Create-and-insert-component-instances);
 [Use the actions menu in Figma Design](https://help.figma.com/hc/en-us/articles/23570416033943-Use-the-actions-menu-in-Figma-Design).
 
-- **Every large insertable or runnable catalogue has both a browsable rail panel and a palette
+- **Every large insertable or runnable catalog has both a browsable rail panel and a palette
   route.** Components are in Assets and in Actions; plugins are in Tools and in Actions. Nothing
   insertable or runnable was found that is offered only through the palette.
 - **What is palette-only is commands**: view and navigation verbs ("Toggle keyframe timeline",
   "Zoom to next frame") and AI actions have no panel; they are also in the main menu, which is
   the complete inventory (section 4.1).
-- **The inspector never hosts a catalogue.** The nearest thing, a property row's picker (styles
+- **The inspector never hosts a catalog.** The nearest thing, a property row's picker (styles
   and variables for one row), lists only definitions that fit that row.
 
 ### 4.11 Comments: reading, adding and anchoring
@@ -849,7 +849,7 @@ a library component in Assets.
 | Row | Click | Canvas selection | Hover | Source |
 |---|---|---|---|---|
 | Local style (nothing-selected inspector) | hovering reveals an adjust icon; clicking it opens the Edit style panel (a popover). Right-click offers Edit style, Go to style definition (for a library style), duplicate, copy, and "Add new folder" for a multi-row selection | there is none to lose: the Styles list exists only while nothing is selected, and the style never becomes the selection. The inspector keeps the "Page" identity | reveals the adjust icon; nothing documented or measured on the canvas | [Manage and share styles](https://help.figma.com/hc/en-us/articles/360039820134); `header-and-modes/README.md` section 5 |
-| Variable (Variables view) | clicking the name selects the ROW inside the table (every cell tinted #e5f4ff); the "Edit variable" icon on hover opens a floating edit panel (Details and Scope tabs) that Escape or X closes | the canvas is hidden in the full view; in the minimised floating form "the canvas, rail and right panel stay usable behind it". The help says nothing about the row selection reaching the canvas | no row tint; reveals the opacity field and the Edit variable icon | `left-sidebar/README.md` follow-up section 6.4 to 6.8; [Create and manage variables](https://help.figma.com/hc/en-us/articles/15145852043927-Create-and-manage-variables) |
+| Variable (Variables view) | clicking the name selects the ROW inside the table (every cell tinted #e5f4ff); the "Edit variable" icon on hover opens a floating edit panel (Details and Scope tabs) that Escape or X closes | the canvas is hidden in the full view; in the minimized floating form "the canvas, rail and right panel stay usable behind it". The help says nothing about the row selection reaching the canvas | no row tint; reveals the opacity field and the Edit variable icon | `left-sidebar/README.md` follow-up section 6.4 to 6.8; [Create and manage variables](https://help.figma.com/hc/en-us/articles/15145852043927-Create-and-manage-variables) |
 | Component tile (Assets) | "select it to open the component details modal"; dragging inserts an instance; Enter or Space inserts | unchanged by a click. The tile's context menu offers "Go to main component", which navigates to the main component and selects it | a #f5f5f5 tile fill and a tooltip with the full name | [Create and insert component instances](https://help.figma.com/hc/en-us/articles/360039150173-Create-and-insert-component-instances); `left-sidebar/README.md` section 6 |
 
 Three rules follow:
@@ -871,13 +871,13 @@ Three rules follow:
 
 | List | Typical length | Where it lives | How it copes with length | Source |
 |---|---|---|---|---|
-| Local styles | tens to hundreds in a library file | the nothing-selected inspector | grouped by type (text, colour, effect, layout guide), list or grid view, folders made by naming ("Once created, the styles in the folder will be renamed according to their new hierarchy"); the panel scrolls. Whether folders collapse is not documented | [Manage and share styles](https://help.figma.com/hc/en-us/articles/360039820134); section 4.8 |
-| Variables | "up to 5,000 variables" per collection | a full-window view from the rail, minimisable to a resizable floating window ("Click and drag the corner or sides of the modal") | collections, then nested groups in a sidebar that filter the table; search "by variable name, variable value, or group name"; a type filter. Collections sort A to Z; the table has no column sort | [Create and manage variables](https://help.figma.com/hc/en-us/articles/15145852043927-Create-and-manage-variables); `left-sidebar/README.md` follow-up section 6 |
+| Local styles | tens to hundreds in a library file | the nothing-selected inspector | grouped by type (text, color, effect, layout guide), list or grid view, folders made by naming ("Once created, the styles in the folder will be renamed according to their new hierarchy"); the panel scrolls. Whether folders collapse is not documented | [Manage and share styles](https://help.figma.com/hc/en-us/articles/360039820134); section 4.8 |
+| Variables | "up to 5,000 variables" per collection | a full-window view from the rail, minimizable to a resizable floating window ("Click and drag the corner or sides of the modal") | collections, then nested groups in a sidebar that filter the table; search "by variable name, variable value, or group name"; a type filter. Collections sort A to Z; the table has no column sort | [Create and manage variables](https://help.figma.com/hc/en-us/articles/15145852043927-Create-and-manage-variables); `left-sidebar/README.md` follow-up section 6 |
 | Components in a library | hundreds | Assets panel (left) | library cards, sub-folders, a two-column tile grid or a list, search across libraries | section 4.10 |
 | Export settings of one layer | a handful | the layer's inspector | none needed | section 4.8 |
 | Children of a layer | any number | the layers tree | expand and collapse per parent; the tree scrolls | `left-sidebar/README.md` section 4 |
 | Usage of library assets | hundreds of rows, sortable | library analytics, a modal outside the editor | sortable columns ("Click the name of each column to sort"), a duration filter; clicking a row opens a detail view of teams and files | [View and explore library analytics](https://help.figma.com/hc/en-us/articles/360039238353-View-and-explore-library-analytics) |
-| Many items inside a Dev Mode inspector section | tens | Inspect tab | three or four items shown, then an "N more" expander ("27 more" colours after four; "33 more" icons after three) | `header-and-modes/README.md` section 7; capture `devmode-inspect-frame-*` |
+| Many items inside a Dev Mode inspector section | tens | Inspect tab | three or four items shown, then an "N more" expander ("27 more" colors after four; "33 more" icons after three) | `header-and-modes/README.md` section 7; capture `devmode-inspect-frame-*` |
 
 The rules:
 
@@ -914,13 +914,13 @@ moves anything tabular to a second tab or a separate surface.
 |---|---|---|---|
 | Zoom level | the percentage ("2%"), which is also the zoom / view menu button | the right header's second row, beside the inspector tabs, above the inspector; independent of the selection | [Adjust your zoom and view options](https://help.figma.com/hc/en-us/articles/360041065034-Adjust-your-zoom-and-view-options) ("in the top-right corner of the right sidebar"); `header-and-modes/README.md` section 4 |
 | Dev Mode | green accent on Share, the selected tool and the mode icon; a wider right panel | the whole chrome | `header-and-modes/README.md` section 7 |
-| Following a collaborator | a 5 px border in their colour round the window and a banner hanging from the top centre with Stop | the window edge and the top of the canvas | `canvas-selection/README.md` (follow-mode border and banner) |
+| Following a collaborator | a 5 px border in their color round the window and a banner hanging from the top center with Stop | the window edge and the top of the canvas | `canvas-selection/README.md` (follow-mode border and banner) |
 | An old version is open | the version list replaces the inspector; the canvas is read-only; "Edit current version" returns | the right sidebar | [View a file's version history](https://help.figma.com/hc/en-us/articles/360038006754-View-a-file-s-version-history) |
 | Unsaved changes while offline | a notification at the bottom of the screen that the file has unsaved changes; the edits are kept in the browser's storage and synced on reconnect; the file browser marks such files with an unsynced-changes icon. The article describes no indicator beside the file name in the header | the bottom of the window | [What can I do offline in Figma?](https://help.figma.com/hc/en-us/articles/360040328553-What-can-I-do-offline-in-Figma), read 2026-09-27 |
 | Hidden comments or annotations | only the check mark in the view menu | inside the zoom / view menu | `header-and-modes/README.md` section 4 |
 
 So: **a state that changes what the reader sees of the whole canvas is shown outside the
-inspector**, in the header row above it (zoom), in the chrome's colour (a mode), or on the
+inspector**, in the header row above it (zoom), in the chrome's color (a mode), or on the
 window edge with its own exit (follow). None of them lives in the nothing-selected inspector,
 which would hide it the moment something is selected. Figma's weakness is the last row: a
 display toggle that hides content is visible only by opening the menu.
@@ -959,7 +959,7 @@ facts (algorithm results) that need provenance
 
 | Figma principle | Verdict | Reason and what it becomes |
 |---|---|---|
-| The work is the centre of the screen | Transfers unchanged | The graph is the work. Nothing floats on the canvas at rest except the toolbar and Help; no suggestion cards, no automatic minimap |
+| The work is the center of the screen | Transfers unchanged | The graph is the work. Nothing floats on the canvas at rest except the toolbar and Help; no suggestion cards, no automatic minimap |
 | Simplify without shrinking capability; optional labels for learners | Transfers unchanged | This is the owner's rule for novices: undo, defaults, (i) info icons, tooltips, the command palette. Figma's optional property labels are the same idea as an (i) icon: help that is present on request and absent otherwise |
 | Speed is a feature | Transfers unchanged | Instant overlays and no chrome animation. It also argues against extra confirmation steps before cheap, undoable analyses |
 | Usability over decoration | Transfers unchanged | Controls look like controls; one row shape, one accent meaning |
@@ -968,9 +968,9 @@ facts (algorithm results) that need provenance
 | Everything is an object with properties; a feature is a new property | Transfers with adaptation | The same shape suits graphty-element's session: every capability should appear as properties of an object the element owns. Adaptation: some properties are computed (algorithm values) and have provenance and a staleness state that a Figma property never has |
 | Undo must never surprise; undo is the safety net | Transfers unchanged | It is already the owner's rule that safe exploration comes from undo. Since graphty-element owns the analysis tree, it owns the undo history too |
 | One overlay at a time; commit on Enter; nothing animates | Transfers unchanged, for chrome | Does not apply to the graph itself: a force layout moves by nature |
-| Selection drives the inspector; "nothing selected" is the whole | Transfers with adaptation | In Figma, "nothing selected" is about the page's colour and export. In graphty it is about the whole graph, which the owner calls a key task: node and edge counts, degree distribution, density, components |
+| Selection drives the inspector; "nothing selected" is the whole | Transfers with adaptation | In Figma, "nothing selected" is about the page's color and export. In graphty it is about the whole graph, which the owner calls a key task: node and edge counts, degree distribution, density, components |
 | Add first, configure after; no confirmations; undo reverses | Transfers unchanged | Running an algorithm, adding a style or a note happens at once with defaults; settings are edited afterwards on the object |
-| Kind is shown by colour, consistently | Transfers with adaptation | graphty's canvas is full of data colour (community colours, gradients). Any UI colour that means "selected" or marks a kind must be kept out of the data palettes, or it will collide with them |
+| Kind is shown by color, consistently | Transfers with adaptation | graphty's canvas is full of data color (community colors, gradients). Any UI color that means "selected" or marks a kind must be kept out of the data palettes, or it will collide with them |
 | The app never acts unasked | Transfers unchanged | No automatic degree runs, suggestion cards or panel switching after a load (these are the gaps named in `tmp/ux-review/graphty-vs-figma-ux.md`) |
 | Persona modes (Dev Mode) | Does not transfer | The owner's rule is no persona-specific features. Figma's "mode re-skins the same selection" mechanism is still useful, but not for a persona |
 
@@ -979,15 +979,15 @@ facts (algorithm results) that need provenance
 | Figma pattern | Verdict | Reason and what it becomes |
 |---|---|---|
 | A small set of primary objects that have a body on the canvas, each with a tree row, a selection box and an inspector | Transfers with adaptation | The primary objects are graph objects: node, edge, and the named graph objects built from them (a group of nodes, a path, a subgraph). The test "can you draw a selection box around it on the canvas?" separates them from secondary objects |
-| The tree is a single-parent containment hierarchy that is also the paint order | Transfers with adaptation | Graph membership is many-to-many: a node can be in a community, on a path and in a filtered set at once. A tree of named graph objects can still work, but a node row cannot appear under a single parent, and nodes (thousands) need a virtualised list or a table rather than tree rows. What "order" means in the tree (style precedence, as the style-layer stack) is for graphty's own ontology to decide |
+| The tree is a single-parent containment hierarchy that is also the paint order | Transfers with adaptation | Graph membership is many-to-many: a node can be in a community, on a path and in a filtered set at once. A tree of named graph objects can still work, but a node row cannot appear under a single parent, and nodes (thousands) need a virtualized list or a table rather than tree rows. What "order" means in the tree (style precedence, as the style-layer stack) is for graphty's own ontology to decide |
 | Frame (explicit bounds) versus group (bounds derived from its children) | Transfers with adaptation, as an analogy | graphty has the same split in its sets: a set picked by hand (explicit, like a frame) and a set defined by a rule or produced by an algorithm, whose membership follows the data (derived, like a group whose bounds follow its children). The distinction deserves a name in graphty's vocabulary |
-| Sections as top-level organisers that cannot be nested inside frames | Does not transfer as such | Graphs have no 2D regions to organise; the nearest analogue, grouping named objects in the tree, is a folder-like organiser, and should be added only if the tree grows long enough to need it |
+| Sections as top-level organizers that cannot be nested inside frames | Does not transfer as such | Graphs have no 2D regions to organize; the nearest analog, grouping named objects in the tree, is a folder-like organizer, and should be added only if the tree grows long enough to need it |
 | Pages, each with its own canvas | Does not transfer as such | A graphty project holds one graph. Several canvases of the same graph are views or comparisons, which are not containers of objects. Whether a project holds several datasets is for graphty's ontology to decide |
 | Components and instances (reusable drawn objects with overrides) | Does not transfer | graphty does not re-use drawn objects; nodes come from data. The nearest need, reusing a look across projects, is a style template, which is a secondary definition object |
-| Styles and variables live outside the tree and are applied from a property row, which then shows the definition's name | Transfers with adaptation | graphty's appearance is stored as style layers owned by graphty-element (the owner's rule: never by editing a node or mesh). The Figma pattern supplies the interaction: the user changes appearance from the selected object's Fill or Colour row; the change is recorded as a style layer; the row shows that layer. Adaptation: graphty's style layers are rules with selectors, closer to CSS rules than to Figma's named value bundles |
+| Styles and variables live outside the tree and are applied from a property row, which then shows the definition's name | Transfers with adaptation | graphty's appearance is stored as style layers owned by graphty-element (the owner's rule: never by editing a node or mesh). The Figma pattern supplies the interaction: the user changes appearance from the selected object's Fill or Color row; the change is recorded as a style layer; the row shows that layer. Adaptation: graphty's style layers are rules with selectors, closer to CSS rules than to Figma's named value bundles |
 | A list of fills that stack, each with an eye, the newest on top | Transfers with adaptation | This is the Figma precedent for the owner's decision that highlights stack as edge style layers rather than replacing each other. Several paints on one object, each toggleable, top one wins, maps directly onto stacked style layers |
 | Variable modes (one value per mode, switched per page or frame) | Does not transfer | No graphty requirement has named value sets switched by context. Theme switching (light and dark) is an app preference, not a graph object |
-| Behaviour stored as properties of the object and edited in a second inspector tab (Prototype); its canvas overlay drawn only in that tab | Transfers with adaptation, as a mechanism, under the conditions in section 5.5 | A second tab is valid only for a whole domain with its own verbs and canvas overlay, and it must stick across selections; a tab that holds "secondary detail" of the first tab's objects does not follow Figma. Prototyping itself does not transfer: the owner has said export and present are the same thing |
+| Behavior stored as properties of the object and edited in a second inspector tab (Prototype); its canvas overlay drawn only in that tab | Transfers with adaptation, as a mechanism, under the conditions in section 5.5 | A second tab is valid only for a whole domain with its own verbs and canvas overlay, and it must stick across selections; a tab that holds "secondary detail" of the first tab's objects does not follow Figma. Prototyping itself does not transfer: the owner has said export and present are the same thing |
 | Comments are secondary: pinned to a top-level object and moving with it, shown as canvas pins, managed in their own panel and mode, hideable, never tree rows | Transfers with adaptation | This is the model for graphty's notes, which the owner wants to be a common task. Adaptation: a graphty note attaches to a graph object (a node, an edge, a group, a path) rather than to a top-level frame, and a single-user tool needs no threads, mentions or resolve. Figma's Dev Mode annotations (a note stored on a node, drawn beside it) are the closer precedent for attaching to a specific object |
 | Annotations as a property of the node | Transfers with adaptation | Same as above: a note is data about an object, so it can travel in the project file with that object |
 | Versions and branches off the working screen, in the file menu; undo with no visible list | Transfers with adaptation | Versions belong with the project file (owned by graphty-element). Undo transfers unchanged. A visible history list is optional; Figma shows none |
@@ -1018,11 +1018,11 @@ facts (algorithm results) that need provenance
 | Right inspector answers "what is this?"; "nothing selected" means the page | Transfers with adaptation | The owner has decided on a right inspector. With nothing selected it shows the whole graph (counts, degree distribution, density, components), which is richer than Figma's page section |
 | Mode tabs above the inspector as lenses on one selection | Transfers with adaptation | Useful for a small number of lenses on the same selection. Not for personas, and not for activities |
 | Zoom / view menu holding display toggles | Transfers unchanged | Graph display toggles (labels, arrows, the legend, the minimap) live there, not on the canvas |
-| Floating bottom-centre toolbar: creation verbs, Actions, mode switch; does not change with the selection | Transfers with adaptation | The owner has decided on a small floating toolbar. graphty's "creation" is analysis (running an algorithm or a filter produces an object), so the toolbar holds the verbs that make graph objects, plus the single 2D / 3D / VR / AR button the owner has decided on. It must stay small: Figma's has six tool groups |
+| Floating bottom-center toolbar: creation verbs, Actions, mode switch; does not change with the selection | Transfers with adaptation | The owner has decided on a small floating toolbar. graphty's "creation" is analysis (running an algorithm or a filter produces an object), so the toolbar holds the verbs that make graph objects, plus the single 2D / 3D / VR / AR button the owner has decided on. It must stay small: Figma's has six tool groups |
 | Secondary bar above the toolbar while a tool is armed | Transfers unchanged | The home for an armed tool's options (for example picking the two ends of a path), gone when the tool finishes |
 | Actions / command palette (Ctrl+K) as a route to everything | Transfers unchanged | The owner has decided on a command palette; it is a route, never a home |
 | Context menu with only what applies to the clicked thing | Transfers unchanged | Plus a keyboard route, which Figma lacks |
-| Popovers opening to the left of the inspector for one property's detail | Transfers unchanged | Colour pickers, algorithm parameters, export settings |
+| Popovers opening to the left of the inspector for one property's detail | Transfers unchanged | Color pickers, algorithm parameters, export settings |
 | Header row with the one primary button (Share) and Present | Transfers with adaptation | The owner has said export and present are one thing, so Export (or Share, if sharing exists) is the one filled primary button; there is no Present |
 | Full-screen or floating table view (Variables) | Transfers with adaptation | The Figma precedent for graphty's data table: a table too wide for a side panel, able to float or dock. Adaptation: the table must stay linked to the canvas selection (Figma's Variables view has no canvas link) |
 | Bottom dock (shortcuts panel, Motion timeline) | Transfers with adaptation. *The table's placement here is an input to the information architecture, which checks it against the rank of the tasks it serves (`principles.md` 0, Decides)* | The Motion timeline is the precedent for a time slider that pushes the canvas up. The owner has said watching a graph over time is key for them but not for the average user, so the dock appears only when the data has time and the reader opens it. The node and edge table also lives in the bottom dock, because it must keep the canvas visible and linked. By Figma's rules (section 4.16) it gets no toolbar slot (the toolbar holds creation verbs) and no rail button (the rail chooses what the left panel lists; Figma's one exception, Variables, is listed in section 1.3 as a weakness). It opens from a view-menu toggle, a shortcut, the palette, and from any "N more" or "Show in table" row in an inspector, which opens the dock scoped to that object. Figma records no remembered height; graphty remembers the dock's height per reader as a preference, which is cheap to change later |
@@ -1030,36 +1030,36 @@ facts (algorithm results) that need provenance
 | File menu for file-level operations and version history | Transfers unchanged | Save, open, versions, export of the whole project |
 | Help button bottom right | Transfers unchanged | Help, shortcuts, samples and docs, the owner's novice aids |
 | Minimize UI | Transfers unchanged | The canvas gets the whole window; also the natural state for VR and AR |
-| Panels hold width, canvas shrinks; toolbar centred on the window | Transfers unchanged | The same measured behaviour; graphty's panels should be 240 px like Figma's |
+| Panels hold width, canvas shrinks; toolbar centered on the window | Transfers unchanged | The same measured behavior; graphty's panels should be 240 px like Figma's |
 | Modal dialogs only for decisions that leave the canvas | *Superseded by the load-step row of the departures table in `principles.md` and by `information-architecture.md` 6: transfers with adaptation, the load step being a dialog before commit. The "Now" text below is superseded too.* Earlier: *superseded by `conceptual-model.md` 2.2: transfers unchanged.* Original verdict: transfers with adaptation | Original: import is the one place a guided dialog earns its keep, because loading data involves decisions (which column is the source, target, id) that Figma never faces. Now: loading commits at once with detected defaults, the import report is read in its Version history entry, reached from the graph's Statistics (a Last import row and the import-count mark rows) and the load toast's Details, and every correction is one undo step, which is Figma's add-first, configure-after rule; no departures row is needed because graphty follows Figma here |
 
 ### 5.5 Verdicts on use-sites, find, definition lists, comparison, tabs, broken references and undo
 
 | Figma finding | Verdict | What it becomes in graphty |
 |---|---|---|
-| Forward relationships are a named row on the user, with a go-to action ("Go to main component") (section 2.6) | Transfers with adaptation | A node's inspector has a "belongs to" section with one row per set the node is a member of. Adaptation: membership is many-to-many, so it is a list of rows, not one row, and the list takes the shape of Selection colors: one row per shared thing, a swatch where the set has a colour, the set's name, and a hover icon that selects the set's members. Clicking the row's name selects the set itself (Figma's go-to) |
+| Forward relationships are a named row on the user, with a go-to action ("Go to main component") (section 2.6) | Transfers with adaptation | A node's inspector has a "belongs to" section with one row per set the node is a member of. Adaptation: membership is many-to-many, so it is a list of rows, not one row, and the list takes the shape of Selection colors: one row per shared thing, a swatch where the set has a color, the set's name, and a hover icon that selects the set's members. Clicking the row's name selects the set itself (Figma's go-to) |
 | Reverse relationships produce a selection, never a list of users (section 2.6) | Transfers unchanged | A set's "Select members" command replaces the selection with the members, so the tree, canvas and inspector all show them and every command acts on them. The set's inspector does not grow a member list of its own; the tree and the data table already list a selection |
 | Counts of users exist only in library analytics, outside the editor (section 2.6) | Does not transfer | In graphty the member count is analysis data, not an administrator's metric: a set's size and a node's number of memberships are read in the inspector ("412 members"). Figma's plain count style ("72 components") is kept |
 | A style has no reverse route of its own (section 2.6) | Does not transfer; Figma's gap, not a rule. *Confirmed by `research/archive/information-architecture-long-form.md` 4: a set's Select members, a style layer's Select painted, the Overrides row's Select overridden; a result reaches its elements through its automatic layer's Select painted and its item rows* | Every graphty definition (a set, a style layer, a run's result) gets "Select members" or its equivalent directly on its row, because graphty's users ask "which nodes does this touch?" constantly. Figma's own users request exactly this |
 | Find is transient and its output is the ordinary selection; making something lasting is a separate command (section 4.3) | Transfers unchanged. *Vocabulary superseded by `glossary.md` 9: the command is Create set* | A query in Find returns a selection. "Save as set" (verb plus object) is a separate command on the selection, as Group selection and Create component are in Figma. Adaptation: because a query is worth keeping, the saved set may keep its query and re-evaluate when the data changes (a derived set, the frame-versus-group analogy in section 5.2); Figma has no equivalent. This agrees with `graph-analysis.md`, which classes a search query as transient with a selection as its result |
-| Reusable definitions get a rail button only if they are inserted (Assets), a large runnable catalogue (Tools) or table-shaped (Variables); applied definitions (styles) are rows in the nothing-selected inspector; flows are rows in the nothing-selected Prototype inspector; comments are a mode (section 2.5) | Transfers unchanged, as the rule for secondary collections. *Placements superseded: where notes, views and the result tree appear is the information architecture's decision (`principles.md`, "Decided elsewhere"). Catalogue placement superseded by `information-architecture.md` 9: the catalogue is the lower part of the Results panel and follows Figma's Tools panel (search, category, source), because running an algorithm fills the file's own list above it; layouts are methods of the Layout row, not catalogue rows* | Notes: a mode with its own panel and canvas markers, no rail button, plus a Notes section in each target's inspector. The algorithm and layout catalogue: a rail button, by the runnable-catalogue test. Saved views: rows in the nothing-selected inspector, as flows are. Style layers: rows in the nothing-selected inspector, as local styles are. Analysis history: borrows the right sidebar on request, as version history does, unless graphty's own ontology makes runs primary objects, in which case they are tree rows. A secondary collection earns a rail button only by meeting one of Figma's three tests |
+| Reusable definitions get a rail button only if they are inserted (Assets), a large runnable catalog (Tools) or table-shaped (Variables); applied definitions (styles) are rows in the nothing-selected inspector; flows are rows in the nothing-selected Prototype inspector; comments are a mode (section 2.5) | Transfers unchanged, as the rule for secondary collections. *Placements superseded: where notes, views and the result tree appear is the information architecture's decision (`principles.md`, "Decided elsewhere"). Catalog placement superseded by `information-architecture.md` 9: the catalog is the lower part of the Results panel and follows Figma's Tools panel (search, category, source), because running an algorithm fills the file's own list above it; layouts are methods of the Layout row, not catalog rows* | Notes: a mode with its own panel and canvas markers, no rail button, plus a Notes section in each target's inspector. The algorithm and layout catalog: a rail button, by the runnable-catalog test. Saved views: rows in the nothing-selected inspector, as flows are. Style layers: rows in the nothing-selected inspector, as local styles are. Analysis history: borrows the right sidebar on request, as version history does, unless graphty's own ontology makes runs primary objects, in which case they are tree rows. A secondary collection earns a rail button only by meeting one of Figma's three tests |
 | No Figma surface draws an ordered list of rules across many objects (section 2.5) | Does not transfer; documented departure | graphty's global style-layer stack is its own. It borrows Figma's fill-list row shape (top wins, eye per row, drag to reorder, newest added at the top) and the local-styles home (the nothing-selected inspector). Reason for the departure: graphty's appearance is rules with selectors that overlap on the same nodes, so precedence exists and must be visible; Figma's styles never overlap, so Figma never needed to draw it |
 | Comparison is a focused view of its own for two whole states, and a selection-level action for two selected things; both offer side by side and overlay (section 4.4) | Transfers with adaptation. *Superseded in part by `conceptual-model.md` 7.5 and `principles.md` (worked conflict on the result editor): results are never selected, so two runs are compared with "Compare with..." from one result's editor* | "Compare two graphs" (or two datasets) follows branch review: a focused view with a list of differences (nodes and edges added, removed, changed) beside the two states, side by side or overlaid. "Compare two runs" follows Dev Mode's compare: select two results, compare from their inspector, with a properties table of previous and current values. Adaptation: graphty's overlay needs aligned node positions to mean anything, which is a layout decision Figma never faces |
 | Inspector tabs stick across selections and each is a whole domain; they do hide capabilities (section 4.5) | Transfers with conditions | A data-versus-appearance lens tab is valid only if (a) the default tab alone covers the common path, (b) no property has a home in both tabs, (c) the tab sticks across selections, and (d) the tab switch is always visible. A tab used to hold "more detail" about the first tab's properties breaks the one-home rule and does not follow Figma; that detail belongs in a popover from its row |
-| A reference outlives its target. A value definition (style, variable) leaves its users with the value and no link, silently; an object definition (main component) leaves its instances linked, says so on their inspector and offers Restore Component (section 2.7) | Transfers with adaptation: the component policy, not the style policy. *Confirmed: `glossary.md` 10 gives Detached the verb Restore run. Restore report confirmed by `interface-specification.md`: it is the Open entry in Version history. Re-pointing by hand superseded: each reported row selects the item, whose Detached mark offers Restore* | Deleting a run never deletes the style layers, sets, notes or views made from it. Each dependent keeps painting or holding its last values (frozen) and is marked disconnected on its own row, naming what it lost ("Source run deleted"), with Restore run as its first action, the way an instance offers Restore Component. Restore reinstates the run from the journal's cached result, so nothing is recomputed. Reason for choosing the component policy: a style layer made by a run is an object with a name, a position in the layer stack and a legend, like an instance; silently turning it into an anonymous fixed rule, as Figma does to a detached style, would leave the reader unable to tell a measure's encoding from a hand-set colour. Opening a project file produces a restore report listing what could not be reconnected, grouped by what it lost, with counts (Figma's missing-libraries list); each item can be selected from the report and re-pointed by hand, not only by name matching, which fixes Figma's weakest point |
+| A reference outlives its target. A value definition (style, variable) leaves its users with the value and no link, silently; an object definition (main component) leaves its instances linked, says so on their inspector and offers Restore Component (section 2.7) | Transfers with adaptation: the component policy, not the style policy. *Confirmed: `glossary.md` 10 gives Detached the verb Restore run. Restore report confirmed by `interface-specification.md`: it is the Open entry in Version history. Re-pointing by hand superseded: each reported row selects the item, whose Detached mark offers Restore* | Deleting a run never deletes the style layers, sets, notes or views made from it. Each dependent keeps painting or holding its last values (frozen) and is marked disconnected on its own row, naming what it lost ("Source run deleted"), with Restore run as its first action, the way an instance offers Restore Component. Restore reinstates the run from the journal's cached result, so nothing is recomputed. Reason for choosing the component policy: a style layer made by a run is an object with a name, a position in the layer stack and a legend, like an instance; silently turning it into an anonymous fixed rule, as Figma does to a detached style, would leave the reader unable to tell a measure's encoding from a hand-set color. Opening a project file produces a restore report listing what could not be reconnected, grouped by what it lost, with counts (Figma's missing-libraries list); each item can be selected from the report and re-pointed by hand, not only by name matching, which fixes Figma's weakest point |
 | Comments anchor to a top-level object or to a canvas point; they move with the object; they are orphaned but kept when the object goes (sections 2.7 and 4.11) | Transfers with adaptation | A note targets one or more graph objects (node, edge, set, run) and stores no canvas position. Reason: Figma's positions are authored and stay meaningful, while graphty's positions are computed by a layout and mean nothing after the next re-layout, so a stored point would pin the note to empty space. The note instead keeps its own copy of what it was about (the ids and a label of each target at the time of writing). When a target is deleted the note is kept, marked unattached, listed with that copy, and can be re-anchored (Figma cannot). Any object can take a note, not only top-level ones, because graphty has no nesting |
-| A bound property row is a named button, not a value: clicking it reopens the picker, "Edit style" changes the definition for every user, and "Detach" writes a local value to this layer only; the two routes are separate and named (section 2.7) | Transfers with adaptation. *Click superseded by `research/archive/information-architecture-long-form.md` 4 (Appearance), now `interaction-patterns.md`: clicking the row reopens the picker over the whole stack, as Figma's does; the picker's Edit opens the layer's editor, Override writes to the Overrides row, and Reset returns the channel* | A node's Colour (or Size) row whose value comes from an encoding style layer shows that layer's name and swatch, not a raw value, so no edit can silently mean "everyone" or "just this node". Clicking the row opens the encoding layer's own editor (the rule: palette, mapping, range), which changes every node it paints. A hover action on the row, "Override" (the detach equivalent), records the selected nodes' new value in the graph's single override layer, above the encoding layer; the row then shows the override's value and the encoding layer stays intact beneath it. The row's reset returns that property to the encoding. Adaptation: Figma's detach rewrites the layer's own property; graphty may never write to a node or a mesh (the style-layer rule in the project's CLAUDE.md), so the "local value" lives in a style layer. How overrides are collected into that one layer is the next row |
+| A bound property row is a named button, not a value: clicking it reopens the picker, "Edit style" changes the definition for every user, and "Detach" writes a local value to this layer only; the two routes are separate and named (section 2.7) | Transfers with adaptation. *Click superseded by `research/archive/information-architecture-long-form.md` 4 (Appearance), now `interaction-patterns.md`: clicking the row reopens the picker over the whole stack, as Figma's does; the picker's Edit opens the layer's editor, Override writes to the Overrides row, and Reset returns the channel* | A node's Color (or Size) row whose value comes from an encoding style layer shows that layer's name and swatch, not a raw value, so no edit can silently mean "everyone" or "just this node". Clicking the row opens the encoding layer's own editor (the rule: palette, mapping, range), which changes every node it paints. A hover action on the row, "Override" (the detach equivalent), records the selected nodes' new value in the graph's single override layer, above the encoding layer; the row then shows the override's value and the encoding layer stays intact beneath it. The row's reset returns that property to the encoding. Adaptation: Figma's detach rewrites the layer's own property; graphty may never write to a node or a mesh (the style-layer rule in the project's CLAUDE.md), so the "local value" lives in a style layer. How overrides are collected into that one layer is the next row |
 | Overrides are a field list stored on the instance, keyed by the inner layer, reset per property or all at once from the instance; no surface lists them across instances; the override wins over what the definition supplies (section 2.9) | Transfers with adaptation. *Confirmed by `research/archive/information-architecture-long-form.md` 4, now `interaction-patterns.md`: Reset on an overridden Appearance row, Reset all changes in the type row's overflow, Select overridden and Clear all on the Overrides row* | **One collected override layer, not a layer per override.** graphty-element keeps a single override layer per graph: a map from element id to the channels overridden and their values, which is exactly Figma's `{ id, overriddenFields }[]` moved from the instance to the one place graphty allows appearance to live. It is one row in the style-layer stack, with a count ("Overrides 14"), created at the top of the stack because an override is the most specific value (Figma's rule) and movable like any row. Each element's inspector shows its overridden rows marked, with "Reset" per property and "Reset all changes" for the element, Figma's two grains. Adaptation, and a documented departure: the override layer's row also offers "Select overridden" and "Clear all", which Figma lacks. Reason: Cytoscape's per-element bypass, visible only through the selection, is the known cause of "my mapping does not work" (`graph-tools.md` section 20.4), and a graph has thousands of targets where Figma has a handful of instances. Storage consequence for `StyleDocument` and the project file: overrides are one layer entry whose selector is the id list and whose bindings are per id, not N layers; this is a published format and so a one-way door, and it is additive to the present `StyleDocument` version 1 if written as a new optional layer kind (section 2.10) |
-| One selection. Selecting a container selects it as an object; its children get no outline or handles and only a faint tint in the tree; Enter replaces the selection with the children, Shift+Enter with the parent; every command targets whatever is selected (section 4.6) | Transfers with adaptation. *Commands superseded: "hide" and "Keep" are not commands on a set; the eye applies only to what a row draws (`principles.md`, departures table) and Keep is Create set (`glossary.md` 9)* | graphty has one selection. Clicking a set row (a kept set, a community, a path) selects the set as an object: the inspector shows the set; its members are drawn with a faint member outline, not as selected, and are not the target of commands. Enter replaces the selection with the members ("Select members"); Shift+Enter from a member returns to the set it was entered from, and does nothing when the member was not reached from a set, because membership is many-to-many and there is no single parent. Commands on the set (colour, hide, export, run a measure scoped to it, Keep) take the set itself as their target, so a set larger than the selection cap is never truncated; only Enter, which really produces a selection, is subject to the cap and says so when it truncates |
+| One selection. Selecting a container selects it as an object; its children get no outline or handles and only a faint tint in the tree; Enter replaces the selection with the children, Shift+Enter with the parent; every command targets whatever is selected (section 4.6) | Transfers with adaptation. *Commands superseded: "hide" and "Keep" are not commands on a set; the eye applies only to what a row draws (`principles.md`, departures table) and Keep is Create set (`glossary.md` 9)* | graphty has one selection. Clicking a set row (a kept set, a community, a path) selects the set as an object: the inspector shows the set; its members are drawn with a faint member outline, not as selected, and are not the target of commands. Enter replaces the selection with the members ("Select members"); Shift+Enter from a member returns to the set it was entered from, and does nothing when the member was not reached from a set, because membership is many-to-many and there is no single parent. Commands on the set (color, hide, export, run a measure scoped to it, Keep) take the set itself as their target, so a set larger than the selection cap is never truncated; only Enter, which really produces a selection, is subject to the cap and says so when it truncates |
 | A mixed selection is titled "N selected"; the type row shows only commands valid for every member; sections keep the fixed order; a kind-specific section appears when at least one member has it; differing values read "Mixed" (section 4.7) | Transfers with adaptation. *Commands superseded: the type row carries Create set, Filter to, Filter out, Delete and Export; Keep and Hide are not graphty commands (`glossary.md` 9, 13)* | For nodes, edges and sets selected together: title "N selected" (kinds not spelled out in the title, as in Figma); the type row carries only commands valid for all members (Keep, Hide, Delete, Export). Sections follow the fixed order and a section appears when at least one member has it, as Typography does; an edit in a kind-specific section (Node shape, Edge arrow) applies to the members of that kind only. Adaptation: because a graph selection is often thousands of nodes and a few edges, each kind-specific section header carries the count it applies to ("Nodes 412", "Edges 3"), which Figma never needs with a handful of layers |
-| With nothing selected Figma shows at most three sections, at most two fixed rows under any header, lists only of the file's own definitions, no commands except "+" on its own lists; the panel scrolls and never collapses (section 4.8) | Transfers unchanged, as a ceiling graphty must meet. *Superseded by `principles.md` 5 and the departures table: at most four sections at rest, one of them Statistics as a recorded departure; which three others is the information architecture's decision* | graphty's nothing-selected inspector must be split to fit: **Graph** (node and edge counts, density, components, the degree histogram, and the weight and direction declarations as property rows, the equivalent of Figma's Page section), **Style layers** (the ordered stack, the equivalent of local styles), **Views** (saved views, the equivalent of Flows, but in the one tab), **Export**. Four sections, one more than Figma, justified by the style stack and views both being lists of the reader's own definitions. Measure commands are not rows here: they are verbs, so they go where Figma puts verbs (the catalogue panel, the palette and "+" on a list header), and the Graph section offers each unrun whole-graph reading as a single "+"-style action on its own row, not as a command list |
-| Long operations report through one global toast with a Cancel control; there is no status bar and no progress on an object; only one runs at a time (section 4.9) | Superseded by `principles.md` principle 2, which keeps Figma's toast with Cancel and puts only a run's state (such as Queued) on its row. Original verdict: does not transfer as the home for progress; transfers for completion | graphty runs can queue and run side by side while the reader keeps working, which Figma never allows, so a single toast cannot carry their state. Progress lives on the result's own row (in the tree and in its inspector): queued, running with a determinate bar or an indeterminate one, done, failed with its reason, cancelled; Cancel is on the running row. The toast keeps Figma's job: one line on completion or failure of a run the reader is no longer looking at, with one action ("Show result"), replacing any earlier toast. This also follows the rule elsewhere in these notes that status is shown on the object wherever it is read, never only in a distant indicator |
-| Every large catalogue of insertable or runnable things has a browsable rail panel with search and category filters, and the palette as a second route; nothing insertable or runnable is palette-only; commands can be palette-only (section 4.10) | Transfers unchanged as the rule that nothing runnable is palette-only. *Placement superseded by `information-architecture.md` 9: the catalogue is the lower part of the Results panel and follows Figma's Tools panel, each row's description in its (i) and a cost word only for 10 s or more; layouts are chosen in the Layout row's popover, a browsable list* | The algorithm and layout catalogue (over 100 entries) earns a rail panel on Figma's Tools precedent: search, category filters, one row per algorithm with a one-line description and a cost hint, run (or drag onto a set) from the row. The palette (Ctrl+K) lists the same entries as a second route, and "+" on an inspector list header offers the few entries relevant to that object as a third. The inspector never hosts the full catalogue, as Figma's never does |
+| With nothing selected Figma shows at most three sections, at most two fixed rows under any header, lists only of the file's own definitions, no commands except "+" on its own lists; the panel scrolls and never collapses (section 4.8) | Transfers unchanged, as a ceiling graphty must meet. *Superseded by `principles.md` 5 and the departures table: at most four sections at rest, one of them Statistics as a recorded departure; which three others is the information architecture's decision* | graphty's nothing-selected inspector must be split to fit: **Graph** (node and edge counts, density, components, the degree histogram, and the weight and direction declarations as property rows, the equivalent of Figma's Page section), **Style layers** (the ordered stack, the equivalent of local styles), **Views** (saved views, the equivalent of Flows, but in the one tab), **Export**. Four sections, one more than Figma, justified by the style stack and views both being lists of the reader's own definitions. Measure commands are not rows here: they are verbs, so they go where Figma puts verbs (the catalog panel, the palette and "+" on a list header), and the Graph section offers each unrun whole-graph reading as a single "+"-style action on its own row, not as a command list |
+| Long operations report through one global toast with a Cancel control; there is no status bar and no progress on an object; only one runs at a time (section 4.9) | Superseded by `principles.md` principle 2, which keeps Figma's toast with Cancel and puts only a run's state (such as Queued) on its row. Original verdict: does not transfer as the home for progress; transfers for completion | graphty runs can queue and run side by side while the reader keeps working, which Figma never allows, so a single toast cannot carry their state. Progress lives on the result's own row (in the tree and in its inspector): queued, running with a determinate bar or an indeterminate one, done, failed with its reason, canceled; Cancel is on the running row. The toast keeps Figma's job: one line on completion or failure of a run the reader is no longer looking at, with one action ("Show result"), replacing any earlier toast. This also follows the rule elsewhere in these notes that status is shown on the object wherever it is read, never only in a distant indicator |
+| Every large catalog of insertable or runnable things has a browsable rail panel with search and category filters, and the palette as a second route; nothing insertable or runnable is palette-only; commands can be palette-only (section 4.10) | Transfers unchanged as the rule that nothing runnable is palette-only. *Placement superseded by `information-architecture.md` 9: the catalog is the lower part of the Results panel and follows Figma's Tools panel, each row's description in its (i) and a cost word only for 10 s or more; layouts are chosen in the Layout row's popover, a browsable list* | The algorithm and layout catalog (over 100 entries) earns a rail panel on Figma's Tools precedent: search, category filters, one row per algorithm with a one-line description and a cost hint, run (or drag onto a set) from the row. The palette (Ctrl+K) lists the same entries as a second route, and "+" on an inspector list header offers the few entries relevant to that object as a third. The inspector never hosts the full catalog, as Figma's never does |
 | Comment pins are visible in Design mode; the full list is a mode that replaces the inspector; commenting is by canvas position (C, click, type), never on the selection; the object-attached note is the annotation, stored on the node (section 4.11) | Transfers with adaptation. *Confirmed by `conceptual-model.md` 6.2: note markers are drawn by default, as Figma draws comment pins, and Shift+C hides them* | Notes follow the annotation model for storage (on their targets, in the project file) and the comment model for reading (a marker on the canvas beside each target, visible by default, hidden from the view menu). Adding a note to the selection is a depth-zero action in the selected object's inspector: a Notes section, empty as one header row with "+", listing that object's notes. The list of all notes keeps Figma's comment mode: a note tool (C, Figma's comment key) whose panel replaces the inspector with search and filters, entered only to review or tidy notes. Because a note is read from its marker and written from its target's inspector, the everyday path never enters the mode, so the mode hiding the inspector costs nothing. The Notes section is a **documented departure**: no Figma inspector lists commentary for an object, and annotations, though stored on the node and possibly several per node, are read only on the canvas (section 4.11). Reason for the Notes section: graphty notes are the analyst's findings about particular objects, read beside those objects' values, whereas Figma's comments are a conversation about a region of a design, which is why Figma can leave the selection out of its route |
 | A lasting command earns a depth-zero type-row control when it makes the selection a new kind of object (Create component, Boolean, Mask); wrapping commands (group, frame, section) live in the context menu and shortcuts; nothing Figma makes stores a rule, and no search result persists (sections 4.3 and 4.12) | Transfers with adaptation. *Vocabulary superseded by `glossary.md` 9: the command is Create set, and "Keep" is not a verb* | Keep is graphty's Create component: a depth-zero icon on the type row of any selection, of a result group (a community, a path) and of a query. Adaptation, and a documented departure: Figma only ever keeps the layers selected at that moment; graphty's Keep on a query or a result group stores the rule (the query, or the run and its group), so the kept set follows the data and is built from the rule, never by first selecting its members, and so is never cut to the selection cap. Keep on a hand-made selection stores the members by id |
 | Undo covers the document, carries the selection with it, treats a long operation as one step; zoom is per tab and not documented as undoable (section 2.8) | Transfers with adaptation | graphty-element's journal records document state: data edits, style layers, runs and their removal, visibility, pinning, and layout positions once kept. Each step restores the selection it was taken with, but a selection change alone is not a step (the change Figma's users asked for). Camera, zoom, panels, tabs and modes are not in the journal. A run is one step; undoing it removes its result without recomputing, and redoing it reinstates the cached result without running again, so an expensive run is never paid for twice |
 | A definition row opens an editor and never becomes the selection; only a definition with a body on the canvas is selectable, through "Go to"; hovering a definition row outlines nothing (section 4.13) | Transfers with adaptation, sorted by the body test. *Confirmed by `principles.md` (worked conflict on the result editor): a result's row opens its editor in a popover and a result is never selected. Select painted confirmed by `information-architecture.md` 4* | graphty's rows split by section 2.4's test, "can you draw a selection box around it?". **A set, a community or a path has a body** (its members on the canvas), so it is a primary object: clicking its row selects it, the inspector shows it, Escape clears it, and hovering the row outlines its members, which is Figma's layer-row hover applied to an object whose body is its members (on the paved path). **A measure and a style layer have no body**: clicking the row opens its editor in a popover to the left of the inspector, the canvas selection stays, and Escape closes the popover only (Figma's style row). They get no inspector identity of their own. Hovering a style-layer or measure row outlines the elements it paints or covers: a **documented departure**, because Figma's styles never overlap while graphty's selectors do, so "which nodes does this touch?" is a constant question (section 2.6); the explicit route is the row's "Select painted" icon, which produces an ordinary selection |
-| A single-column list of the file's definitions stays in the inspector and scrolls; multi-column and sortable tables leave the side panels; an object's inspector cuts a list to three or four items and "N more" (section 4.14) | Transfers with adaptation | **The style-layer stack stays in the nothing-selected inspector**, as local styles do: one column, tens of rows, scrolling, with folders only if real files need them. **A partition's community table, a path family's path list and a set's member list do not live in the inspector**: they have several value columns, sort and a select action, so by Figma's rule they belong outside the side panels, which in graphty is the table dock (the canvas-linked analogue of the floating Variables window). The object's inspector shows its count and the first three or four rows (largest communities, shortest paths) and an "N more" row that opens the table dock scoped to that object. Adaptation: Figma's "N more" expands inline; graphty's lists run to hundreds, so "N more" hands off to the dock instead |
+| A single-column list of the file's definitions stays in the inspector and scrolls; multi-column and sortable tables leave the side panels; an object's inspector cuts a list to three or four items and "N more" (section 4.14) | Transfers with adaptation | **The style-layer stack stays in the nothing-selected inspector**, as local styles do: one column, tens of rows, scrolling, with folders only if real files need them. **A partition's community table, a path family's path list and a set's member list do not live in the inspector**: they have several value columns, sort and a select action, so by Figma's rule they belong outside the side panels, which in graphty is the table dock (the canvas-linked analog of the floating Variables window). The object's inspector shows its count and the first three or four rows (largest communities, shortest paths) and an "N more" row that opens the table dock scoped to that object. Adaptation: Figma's "N more" expands inline; graphty's lists run to hundreds, so "N more" hands off to the dock instead |
 | Dense status sits under a selection, leads with five or six totals, packs related numbers into one figure and cuts lists to "N more"; state that changes the whole canvas is shown outside the inspector (section 4.15) | Transfers with adaptation. *Superseded in part by `principles.md` 1 and 5: the six headline readings are nodes, edges, density, weakly and strongly connected components and the degree distribution (direction folds into the edges row's name and the weight into its "weight: unknown" mark row); only edges carry "of", because the filter chip states the node count* | **The whole-graph summary keeps the nothing-selected ceiling by packing, not by adding sections.** The Graph section leads with six headline readings in a compact two-column figure (nodes, edges, density, components, direction, weight), each loaded-versus-visible pair written as one value ("412 of 5,000"), as Dev Mode's box model packs a dozen numbers into one figure; the degree histogram follows; further readings sit behind one "N more" row. Adaptation: Figma shows dense status only under a selection; graphty's whole-graph reading is a top task, so the density moves to the nothing-selected state and is contained by Figma's own disclosure devices. **Filter status is not in the inspector at all**: it is a persistent chip in the header's second row beside the zoom control ("Filtered: 412 of 5,000 nodes"), visible whatever is selected, opening the filter on click, as Figma's zoom percentage is. This avoids Figma's weakness of a content-hiding toggle visible only inside a menu |
 | Figma evolves its format additively (optional fields, new code reads old documents), versions its plugin API by a declared number it never upgrades silently, and restores a version by appending, never by branching (section 2.10) | Transfers unchanged | The project file and `StyleDocument` carry a version number (as `StyleDocument` version 1 already does, `graphty-today.md`) and a reader that tolerates and preserves unknown optional fields. With that in place, a later field is an additive change: keeping a run's values, adding fields to a note, adding a time key. Those become two-way doors once the tolerant reader ships, so the owner decides now only (a) the tolerant-reader rule itself and (b) anything whose meaning an old reader would get wrong by ignoring it, which must bump the version. Restoring an earlier saved version of the project appends a new version; a branch arises only from an explicit act, as Figma's Create branch is an explicit command (see section 5.6 on the analysis tree) |
 
@@ -1120,7 +1120,7 @@ facts (algorithm results) that need provenance
     `popovers-and-menus/README.md` section 10 says "Escape or the X closes it";
     `flows.md` section 9 and `accessibility/README.md` section 6.5 record that Escape did not.
     The accessibility pass walked the keyboard explicitly, so its reading is taken as Figma's
-    behaviour, and section 1.3 already lists it as a weakness. graphty's dock closes on Escape
+    behavior, and section 1.3 already lists it as a weakness. graphty's dock closes on Escape
     when focus is inside it, and Escape on the canvas keeps its selection meaning.
 11. **A linear version history against a branching analysis tree.** Figma restores a version by
     appending, never by branching (section 2.10), while `design-method.md` section 3.5 models
@@ -1163,7 +1163,7 @@ facts (algorithm results) that need provenance
   how many-to-many membership is shown in a tree built for single parents
 - derived objects: algorithm results that have provenance, parameters, staleness and cost
   (progress, cancel, CPU or GPU), and measures that are a value on every node rather than a set
-- appearance as a mapping from data (colour by community, size by PageRank) stored as stacked,
+- appearance as a mapping from data (color by community, size by PageRank) stored as stacked,
   rule-based style layers
 - whole-graph reading as the "nothing selected" state (counts, degree distribution, density,
   components)
@@ -1274,9 +1274,9 @@ selection.** The evidence, pattern by pattern:
 | Pattern | What it reads | Where it lives | Anchored on | Source |
 |---|---|---|---|---|
 | **Dev Mode** | the whole mode exists to read a finished design: the tool set shrinks to Move, Copy colors, Measurement, Annotation and Comment (no drawing tools), the right panel widens to 321 px and its tabs become Inspect and Plugins | the mode switch at the right end of the bottom toolbar, Shift+D; the chrome turns green | the file | `design/ui/figma/header-and-modes/README.md` section 7; [Guide to Dev Mode](https://help.figma.com/hc/en-us/articles/15023124644247-Guide-to-Dev-Mode): "The inspect panel displays design specs and relevant component information needed to understand a design" |
-| **Inspect panel** | ten dense read-only sections for the selection: a box-model figure, layout and style code, modes, colours, selection colours, assets, export; lists cut to three or four rows plus "N more"; every value copies on click | the right panel in Dev Mode | the selection | `header-and-modes/README.md` section 7; section 4.15 above |
+| **Inspect panel** | ten dense read-only sections for the selection: a box-model figure, layout and style code, modes, colors, selection colors, assets, export; lists cut to three or four rows plus "N more"; every value copies on click | the right panel in Dev Mode | the selection | `header-and-modes/README.md` section 7; section 4.15 above |
 | **Inspect with nothing selected** | almost nothing: a page header and Code settings (language, unit) | the right panel in Dev Mode | nothing | `header-and-modes/README.md` section 7 |
-| **Design inspector with nothing selected** | the file's own definition lists (page colour, local styles, export settings; in Prototype, flows); three sections at most, no status | the right panel in Design mode | the page | section 4.8 above |
+| **Design inspector with nothing selected** | the file's own definition lists (page color, local styles, export settings; in Prototype, flows); three sections at most, no status | the right panel in Design mode | the page | section 4.8 above |
 | **Ready for dev view** | a filtered list of every design in the file marked ready; "You can filter and see all your designs that are marked ready for dev" | Dev Mode's left panel | a status on frames | [Guide to Dev Mode](https://help.figma.com/hc/en-us/articles/15023124644247-Guide-to-Dev-Mode); `header-and-modes/README.md` section 7 |
 | **Focus view** | "only one design that's ready for dev at a time", with its layers and an annotated version history | opened from Ready for dev | one frame | same help article |
 | **Measurement between two objects** | the distance from the selection to the hovered object, drawn as red redlines; Alt in Design mode, always on in Dev Mode | the canvas | a selection plus a hover | `design/ui/figma/flows.md` section 1; `header-and-modes/README.md` section 7 |
@@ -1287,7 +1287,7 @@ selection.** The evidence, pattern by pattern:
 What a Figma practitioner takes from this, stated as rules:
 
 1. **Reading has its own posture, not its own panel.** Dev Mode keeps the same canvas, tree and
-   right panel and changes what they emphasise: fewer tools, denser read-only values, click to
+   right panel and changes what they emphasize: fewer tools, denser read-only values, click to
    copy. graphty's analysts are in this posture most of the time, so the reading posture should
    be graphty's default, not a mode to switch into. Figma needs a mode only because its main
    users make things.
@@ -1304,7 +1304,7 @@ What a Figma practitioner takes from this, stated as rules:
    question about existing nodes.
 4. **A relation between two existing objects is read from one selection and one pointer.**
    Measurement answers "how far is this from that" with select plus hover and no dialog. The
-   nearest graphty analogue is a path from the selected node to the hovered or second-selected
+   nearest graphty analog is a path from the selected node to the hovered or second-selected
    node, reached from the node rather than from a separate path tool.
 5. **The only browse-by-status list is small and purpose-built.** Ready for dev lists frames by
    one status flag. Figma has no general query language and no saved queries; a practitioner
@@ -1331,7 +1331,7 @@ computed from the content.**
 | Variable modes | a variable's value depends on the mode of the layer's container: "Objects with variables have their modes set to Auto by default. This means they take on the mode of their parent container. If their parent container is also set to Auto, objects continue up their layer hierarchy until they reach a container with a specified mode. If no parent containers have a mode specified, then the objects fallback to the collection's default mode." | the mode is set with "Apply variable mode" on the page or a frame; the resolved value appears in the property row | https://help.figma.com/hc/en-us/articles/15343816063383-Modes-for-variables; `design/ui/figma/header-and-modes/README.md` section 5 |
 | Variable details in Dev Mode | the value a layer actually receives, with where it came from: the details list "The name of the variable", "The name of the variable collection", "The variable's mode", "The variable's value and, if relevant, the chain of aliases to a raw value", "The scope of the variable (where it can be used)" | the Inspect panel for the selection, opening a Variable details view | https://help.figma.com/hc/en-us/articles/27882809912471-Variables-in-Dev-Mode; https://help.figma.com/hc/en-us/articles/15023124644247-Guide-to-Dev-Mode ("View styles and variables applied to the selected layer. Additionally, you can view details about variables") |
 | Component properties and overrides | an instance's value is the main component's unless overridden; Dev Mode shows "variant information, and component properties" for a selected component | the Inspect panel | Guide to Dev Mode (above); https://help.figma.com/hc/en-us/articles/360039150733-Apply-overrides-to-instances |
-| Mixed selection | a value derived over a set: many selected objects with differing values show "Mixed"; Selection colors lists the colours used across the selection | the Design inspector | `design/ui/figma/right-sidebar-selection/README.md` sections 6 and 18 |
+| Mixed selection | a value derived over a set: many selected objects with differing values show "Mixed"; Selection colors lists the colors used across the selection | the Design inspector | `design/ui/figma/right-sidebar-selection/README.md` sections 6 and 18 |
 
 **The pattern these share, and what transfers.**
 1. **A value is shown with its name and its resolution context.** Dev Mode never shows a bare
@@ -1342,7 +1342,7 @@ computed from the content.**
    cascade down the layer tree with a fallback default. This is the closest Figma precedent for
    "which graph was this number computed over": the scope is a property of the context, stated
    once, inherited, and visible on inspection.
-3. **A set is summarised in place.** "Mixed" and Selection colors are Figma's only aggregates over
+3. **A set is summarized in place.** "Mixed" and Selection colors are Figma's only aggregates over
    a selection, and they are reads of stored values, not statistics.
 
 **Where the paved path stops.** Every Figma value is authored: a variable's mode values, a
@@ -1354,7 +1354,7 @@ live computed property of a layer. Figma therefore has no precedent for:
 - a value computed from the content itself (a centrality depends on the other nodes and edges,
   not on a definition);
 - a value that goes stale when the content changes and needs recomputing;
-- a parameterised computation whose inputs (algorithm, weight, resolution, seed) are part of the
+- a parameterized computation whose inputs (algorithm, weight, resolution, seed) are part of the
   value's identity;
 - a statistic over a set beyond "Mixed".
 The inspection pattern (name, context, chain to the source) transfers; freshness, parameters and
@@ -1371,7 +1371,7 @@ measurement rather than a guess between 25 and 40.
 `<target>-panel.png` files, Design tab) were read and every visible word of app text below the
 tabs was counted by hand. Counted: section headings, field labels, the single-letter field
 prefixes (X, Y, W, H, each one word), checkbox labels and hint text. Not counted: the layer name,
-numbers, colours, style and font names, the current value of a dropdown ("Inside", "Hug",
+numbers, colors, style and font names, the current value of a dropdown ("Inside", "Hug",
 "Mixed", "Drop shadow"), user-defined component property names, and the header chrome above the
 panel (Share, Design, Prototype, zoom). Screen-reader-only labels (1 x 1 px boxes in the
 `.styles.json` files) are not visible and not counted.
@@ -1530,7 +1530,7 @@ Counted by the same method as the selected-object count above, from the captures
 **Readings.**
 - The right panel with nothing selected carries 8 to 11 words of app text, about a third of the
   median for a selected object (32). Counting every visible token instead -- tabs, the zoom value,
-  the colour, percentage and export values -- the Design tab of
+  the color, percentage and export values -- the Design tab of
   `right-panel-nothing-selected.png` shows 23. That is where "about 25 words" at rest comes from
   (`tmp/ux-review/graphty-vs-figma-ux.md`, "What the words are"): it counts everything on the
   panel, not app text alone.
@@ -1556,7 +1556,7 @@ Read from `design/ui/figma/right-sidebar-selection/dump-nothing-selected.txt`,
 and 6:
 
 - **Design tab.** Three sections. **Page**: an "Apply variable mode" icon in the header, the page
-  colour row with its eye, and a "Show in exports" checkbox. **Styles**: in a file with no local
+  color row with its eye, and a "Show in exports" checkbox. **Styles**: in a file with no local
   styles, a single header with "+" (Create style, a small menu of Text, Color, Effect, Layout
   guide); with local styles, one row per style, grouped by type and optionally foldered
   ([Manage and share styles](https://help.figma.com/hc/en-us/articles/360039820134)).
@@ -1597,7 +1597,7 @@ screen.
 
 - **Width.** Figma's popovers are 240 wide with 16 px side padding, so 208 px of content; rows
   are 32 px apart with 24 px controls; the label column runs from x+16 to x+96
-  (`popovers-and-menus/README.md` lines 229 to 240). The colour picker already puts a 208 x 208
+  (`popovers-and-menus/README.md` lines 229 to 240). The color picker already puts a 208 x 208
   saturation field and 180 x 24 sliders in the same 240 px shell and stands 537 px tall
   (`flows.md` section 5; `header-and-modes/README.md` section 5). A 208 x 64 histogram is well
   inside that precedent. Five top-value rows fit as a label (about 120 px, roughly 20 characters
@@ -1611,7 +1611,7 @@ screen.
   about **29**. All under 30.
 - **Height.** About 40 (header) + 10 rows x 32 (the editor's own rows) + 80 (histogram and its
   gap) + 5 x 24 (top values) + 24 ("N more") = about 590 px. Figma pushes a tall popover up to
-  fit and the colour picker is 537 px, so it fits a 1000 px panel; at the study's 800 px viewport
+  fit and the color picker is 537 px, so it fits a 1000 px panel; at the study's 800 px viewport
   capture it would not fit without scrolling (whether Figma scrolls a popover was not measured).
 
 So the budget does not force the run to open the table. Opening the table on its own after every
@@ -1728,7 +1728,7 @@ analyst layer adds 2.
 Figma's light popover: 240 wide, 40 px header, body rows 32 px apart, about 12 px body padding top
 and bottom, "Height fits content", placed beside the row that opened it and "moved up to stay on
 screen" (`design/ui/figma/popovers-and-menus/README.md` section 5). It is fixed-position and
-clamped to the viewport, not the panel (the colour picker for a Fill row at y=575 opened at y=447
+clamped to the viewport, not the panel (the color picker for a Fill row at y=575 opened at y=447
 because it is 537 px tall). Menus that are too tall clamp to the viewport minus 6 px and scroll
 with 24 px chevrons (`design/ui/figma/flows.md` section 4); whether a light popover scrolls was
 not captured. Space at 800 px: about 788 px.
@@ -1758,7 +1758,7 @@ The order in which parts give way, from the evidence:
    same information in full.
 2. **The histogram folds to a one-row toggle** (-48 px). It is a reading, not a mark, and the value
    range row above it states the extent.
-3. **The body scrolls under a fixed header**, Figma's menu behaviour. Never collapsed: the name,
+3. **The body scrolls under a fixed header**, Figma's menu behavior. Never collapsed: the name,
    the state line and every principle-1 mark, since those are what the popover exists to say.
 
 ### Words in a view's editor popover

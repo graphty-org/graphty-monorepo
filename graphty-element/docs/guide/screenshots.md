@@ -32,13 +32,14 @@ const dataUrl = await graph.captureScreenshot({
 | `transparentBackground` | `boolean`                   | `false`       | Transparent background (PNG and WebP)             |
 | `backgroundColor`       | `string`                    | canvas color  | A solid background in any CSS color, every format |
 | `signal`                | `AbortSignal`               | none          | Cancels a capture that is still waiting           |
+| `camera`                | `CameraState \| { view }`   | current       | Where to capture from; the camera is put back     |
 
 Before capturing, a screenshot waits for queued operations and for a moving layout to come to
 rest. `timing` changes that: `{ waitForOperations: false }` or `{ waitForSettle: false }` skips a
 wait, and `{ settleTimeoutMs: 5000 }` sets how long to wait for the layout (default 30,000 ms)
 before the capture fails with the `E_NOT_SETTLED` error code.
 
-A capture that is waiting can be cancelled, or told to stop waiting and take the frame on screen:
+A capture that is waiting can be canceled, or told to stop waiting and take the frame on screen:
 
 ```typescript
 const cancel = new AbortController();
@@ -80,15 +81,15 @@ const white = await graph.captureScreenshot({
 
 ### A legend in the image
 
-`legend` draws a key into the image, at the capture's resolution, so a colour-encoded picture
-still says what its colours mean once it leaves the page. It is drawn from the element's legend
+`legend` draws a key into the image, at the capture's resolution, so a color-encoded picture
+still says what its colors mean once it leaves the page. It is drawn from the element's legend
 model (`session.styles.legend()`), not copied from the page.
 
 ```typescript
 // The element's own legend, in the bottom-right corner
 await graph.captureScreenshot({ legend: true });
 
-// Only when a layer binds a value (a colour by degree, a size by betweenness)
+// Only when a layer binds a value (a color by degree, a size by betweenness)
 await graph.captureScreenshot({ legend: "auto" });
 
 // Another corner, and a heading in your own words
@@ -104,7 +105,7 @@ await graph.captureScreenshot({ legend: { position: "top-left", title: "Degree" 
 | an array of sections    | Exactly the sections you pass, top left, every word yours            |
 
 The element's legend writes no words of its own: each section is headed by the field's name, and
-lists the data's values (or the names readers gave them) beside their colours, or a ramp between
+lists the data's values (or the names readers gave them) beside their colors, or a ramp between
 the lowest and highest value. To word the key yourself, build the sections from
 `session.styles.legend()` and pass the array:
 
@@ -158,9 +159,21 @@ A PDF needs no extra package: its text is set in the fonts every PDF reader has 
 or Courier, whichever is nearest each label's font), so characters outside Western European
 alphabets print as `?`; use SVG for those.
 
-A figure draws each node's flat color, without the canvas's lighting, draws edges straight, without
-arrowheads, and draws a label's solid background as a box behind its text; curved edges,
-arrowheads, node borders and gradient label backgrounds are not in it yet.
+A figure draws each node's flat color, without the canvas's lighting, with its border; draws edges
+straight, with their arrowheads in the shape, size and color the canvas draws them; and draws a
+label's solid background as a box behind its text. Curved edges, picture arrowheads and gradient
+label backgrounds are not in it yet.
+
+### From a saved view
+
+`camera: { view }` takes the picture from a named view -- a camera view such as `"topView"`, or
+a view saved in `session.views` -- and puts the camera back afterwards. A view that does not fit
+the drawing mode (a view saved in 3D, captured in 2D) is refused with `E_UNSUPPORTED`; see
+[Camera](./camera.md#saved-views-and-tours).
+
+```typescript
+const { blob } = await graph.captureScreenshot({ camera: { view: "hub" }, format: "png" });
+```
 
 ## Checking Capabilities
 
@@ -196,7 +209,14 @@ and read its `details`:
 | `E_UNSUPPORTED`    | The browser cannot do it                                                                                                            | `reason`: `"format"` (with `format`), `"clipboard"`, `"clipboard-insecure-context"` or `"clipboard-permission"` |
 | `E_OUT_OF_MEMORY`  | The browser would not give a canvas for the image                                                                                   | `of: "canvas"`                                                                                                  |
 | `E_NOT_SETTLED`    | The layout was still moving when the wait for it ran out                                                                            | `timeoutMs`                                                                                                     |
-| `E_CAPTURE_FAILED` | Rendering, encoding, recording or the clipboard write failed                                                                        | `media` (`"image"` or `"video"`), `destination` for a copy; `cause`                                             |
+| `E_CAPTURE_FAILED` | Rendering, encoding, recording or the clipboard write failed                                                                        | `media` (`"image"` or `"video"`), `destination` for a copy; `cause`; for a video, `reason` (below)              |
+| `E_CANCELED`       | A video recording was canceled (`signal` or `cancelAnimationCapture()`)                                                             | none                                                                                                            |
+
+A video fails with `E_CAPTURE_FAILED` and a `reason` when the tab is hidden (`"hidden"`: the page
+stops drawing frames), the canvas changes size (`"resized"`), or its tour ends early: the reader
+moved the camera (`"interrupted"`), something else moved it (`"replaced"`) or the drawing mode
+switched (`"mode-changed"`). No file is made then. A screenshot that is canceled rejects with an
+`AbortError` instead, the signal's own reason.
 
 ## Downloading Screenshots
 
@@ -259,16 +279,20 @@ time, so a busy machine shows up as a drop rate above 0.
 
 ## Video Options
 
-| Option         | Type                                | Default        | Description                                                                                  |
-| -------------- | ----------------------------------- | -------------- | -------------------------------------------------------------------------------------------- |
-| `duration`     | `number`                            | required       | Recording duration (ms)                                                                      |
-| `cameraMode`   | `'stationary' \| 'animated'`        | required       | Hold the camera, or fly it along `cameraPath` or `tour`                                      |
-| `fps`          | `number`                            | `30`           | Frames per second                                                                            |
-| `format`       | `'webm' \| 'mp4' \| 'auto'`         | `'auto'`       | Video format; `'auto'` picks WebM where the browser records it, else MP4                     |
-| `videoBitrate` | `number`                            | `5000000`      | Bits per second                                                                              |
-| `width`        | `number`                            | canvas width   | Output width; alone, the height follows the canvas's aspect                                  |
-| `height`       | `number`                            | canvas height  | Output height; with `width`, the picture is fitted inside both, centered, with black margins |
-| `camera`       | `CameraState \| { preset: string }` | current camera | Stationary mode: where the camera stands while recording; it is put back afterwards          |
+| Option         | Type                              | Default         | Description                                                                                  |
+| -------------- | --------------------------------- | --------------- | -------------------------------------------------------------------------------------------- |
+| `duration`     | `number`                          | the tour's      | The whole video's length (ms); required for a still recording                                |
+| `tour`         | a tour's name, a tour, or stops   | none            | The tour to fly while recording; see [Recording a tour](#recording-a-tour)                   |
+| `cameraMode`   | `'stationary' \| 'animated'`      | from `tour`     | Optional: a `tour` means `'animated'`, none means `'stationary'`                             |
+| `motion`       | `'follow-view' \| 'authored'`     | `'follow-view'` | What a tour recording shows of each flight under reduced motion                              |
+| `fps`          | `number`                          | `30`            | Frames per second                                                                            |
+| `format`       | `'webm' \| 'mp4' \| 'auto'`       | `'auto'`        | Video format; `'auto'` picks WebM where the browser records it, else MP4                     |
+| `videoBitrate` | `number`                          | `5000000`       | Bits per second                                                                              |
+| `width`        | `number`                          | canvas width    | Output width; alone, the height follows the canvas's aspect                                  |
+| `height`       | `number`                          | canvas height   | Output height; with `width`, the picture is fitted inside both, centered, with black margins |
+| `camera`       | `CameraState \| { view: string }` | current camera  | Still recording: where the camera stands while recording; it is put back afterwards          |
+| `destination`  | `{ download?, filename? }`        | none            | `download: true` also saves the video as a file                                              |
+| `signal`       | `AbortSignal`                     | none            | Cancels the recording: it rejects with `E_CANCELED` and no file is made                      |
 
 ## Animation Capture Controls
 
@@ -316,23 +340,52 @@ async function recordAndDownload() {
 }
 ```
 
-## Creating Tours
+## Recording a tour
 
-Name the views to visit, in order, and the camera flies between them while it records. A view is
-a camera view (`session.catalog.cameras()`, such as `"topView"` or `"isometric"`) or a view saved
-in `session.views`; the duration is split evenly between them:
+Give `tour` and the video follows it: it opens on the first stop, lasts as long as the tour, and
+puts the camera back afterwards. Save the tour once (see
+[Camera](./camera.md#saved-views-and-tours)) and record it by name, or pass the stops you
+previewed with `playTour`, unchanged:
 
 ```typescript
-const result = await graph.captureAnimation({
-    duration: 6000,
-    cameraMode: "animated",
-    tour: ["frontView", "isometric", "topView"],
-    download: true,
-});
+// A saved tour, as long as the tour, saved as a file
+await graph.captureAnimation({ tour: "intro", destination: { download: true } });
+
+// Stops given inline: 0.5 s at the first, a 1.5 s flight to the second, 2 s there -- 4 s of video
+const stops = [
+    { view: "fitToGraph", hold: 500 },
+    { view: "topView", duration: 1500, hold: 2000 },
+];
+await graph.playTour(stops); // preview
+const { blob, metadata } = await graph.captureAnimation({ tour: stops });
 ```
 
-A tour needs views with a camera position and target, so a 2D view is refused with
-`E_UNSUPPORTED`, and a name nothing answers to with `E_UNKNOWN_CAMERA`.
+**Two meanings of `duration`.** In a stop, `duration` is the flight to that stop. In the
+recording's options, it is the whole video's length: leave it out and the video is as long as the
+tour; give it and a shorter video cuts the tour off, a longer one holds the last stop.
+
+**Pauses.** A `{ pause }` stop records as a hold where the camera already is, for its length.
+
+**`["a", "b"]` is not a list of stops.** An array of view names is an older form that splits
+`duration` (then required) evenly between the views. It is deprecated; give stops instead,
+`[{ view: "a" }, { view: "b", duration: 1000 }]`.
+
+**Motion.** By default (`motion: "follow-view"`) the video shows what the view shows, so for a
+reader with reduced motion on each flight is a cut held for its time. `motion: "authored"` records
+every flight as the tour gives it whatever the reduced-motion setting; the canvas on screen moves
+with it, so an application that wants the reader's screen still covers the canvas while recording.
+
+A recording fails, and makes no file, when its tour ends before the last stop, the tab is hidden
+or the canvas is resized (see [Errors](#errors)). `estimateAnimationCapture({ tour: "intro" })`
+says how many frames to expect and whether the machine is likely to drop some.
+
+**How each call ends.**
+
+| Call                                | When canceled                                     | The camera afterwards                                                                                |
+| ----------------------------------- | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `playTour`                          | Resolves `{ reason: "cancelled" }`                | Stays where the tour left it; with `restoreCamera: true` (default false) put back when it finishes   |
+| `captureAnimation` with a `tour`    | Rejects with a `GraphtyError`, code `E_CANCELED`  | Always put back, except after the reader's own move, an outside camera move or a drawing mode switch |
+| `captureScreenshot` with a `camera` | Rejects with the signal's reason, an `AbortError` | Always put back                                                                                      |
 
 You can also drive the camera yourself while recording:
 
@@ -438,7 +491,7 @@ Add a screenshot button to your UI:
             downloadBlob(blob, `recording.${metadata.format}`);
         } catch (error) {
             // Stop cancels the recording: a cancelled recording keeps no video
-            if (error.name !== "AnimationCancelledError") {
+            if (error.code !== "E_CANCELED") {
                 throw error;
             }
         } finally {

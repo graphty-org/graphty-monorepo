@@ -6,7 +6,7 @@
  * is called, how far it has got, whether it can be stopped, what qualifies the numbers it will
  * produce, and -- once it finishes -- the result itself. A call that returns nothing forces
  * every consumer to go looking for its own answer somewhere else, and an analysis that cannot be
- * watched or stopped is unusable on a graph big enough to be worth analysing.
+ * watched or stopped is unusable on a graph big enough to be worth analyzing.
  *
  * Nothing here reaches Babylon.js, Lit or the DOM: a run is plain data plus a promise, published
  * from the Node-safe `./session` entry point.
@@ -20,10 +20,13 @@ import type {
     AlgorithmKey,
     EdgeReading,
     FieldDescriptor,
+    FilterCondition,
     LayerId,
+    NodeId,
     OptionDescriptor,
     PaletteId,
     ResultShape,
+    RuleTree,
     RunId,
     Scope,
     ScopeInput,
@@ -36,6 +39,7 @@ import type { ResultSummary, RunResult } from "../results/types";
 import type { ResolvedScope } from "../scope/ScopeApi";
 import type { CodedFact, CodedFactParam } from "../shared";
 import type { StyleSuggestion } from "../styles/derive";
+import type { TimeWindow } from "../visibility/filter";
 import type { CaveatCode, PartialCode } from "./caveatFacts";
 
 // ---------------------------------------------------------------------------------------------
@@ -108,7 +112,7 @@ export function isTerminalRunStatus(status: RunStatus): boolean {
  * The moments a watcher is told about: the four of a run's own life, and the two of history.
  *
  * Coarser than {@link RunStatus} on purpose: a status bar draws the same thing for a run that
- * failed and one that was cancelled -- it stops showing progress and reads the record -- so the
+ * failed and one that was canceled -- it stops showing progress and reads the record -- so the
  * distinction belongs in the record the notification carries rather than in the notification's
  * own name. "removed" and "restored" are an undo, a redo or a restore taking a finished run out
  * of the project and putting it back; nothing was computed for either.
@@ -279,7 +283,7 @@ export interface Caveats {
     readonly exact: boolean;
     /** How many elements the approximation sampled. Present only when `exact` is false. */
     readonly sampleSize?: number;
-    /** The seed a sampled or randomised run used, so it can be reproduced. */
+    /** The seed a sampled or randomized run used, so it can be reproduced. */
     readonly seed?: number | null;
     /** Whether an iterative algorithm reached its convergence threshold. */
     readonly converged?: boolean;
@@ -312,7 +316,11 @@ export interface Caveats {
     readonly weightSkipped?: WeightSkip;
     /** The arithmetic that produced these numbers. */
     readonly precision: Precision;
-    /** Which method computed them, such as "dijkstra" or "brandes-sampled". */
+    /**
+     * Which method computed them, as an identifier: the algorithm's key unless the algorithm names
+     * a method of its own, such as "dijkstra" or "stoer-wagner". Never reader-facing text; an
+     * application names it.
+     */
     readonly method: string;
     /**
      * Why a run stopped before it finished, when it did, as a code and its values. Present when
@@ -375,10 +383,31 @@ export interface RunScopeRecord {
      * @beta
      */
     readonly window?: RunWindow | null;
+    /**
+     * What the live keywords in the scope stood for when it resolved, so the same scope can be
+     * resolved again later (a project open computes a saved run again under it). Absent for a
+     * scope that names neither `"visible"` nor `"selection"`.
+     */
+    readonly live?: {
+        /** For `"visible"`: the filter, its conditions and the time window in force. */
+        readonly visible?: {
+            /** The filter rule tree in force, or null when there was none. */
+            readonly filter: RuleTree | null;
+            /** The filter conditions in force, in order; empty when there were none. */
+            readonly conditions: readonly FilterCondition[];
+            /** The time window in force, or null when there was none. */
+            readonly window: TimeWindow | null;
+        };
+        /** For `"selection"`: the selected node ids, sorted. */
+        readonly selection?: readonly NodeId[];
+    };
 }
 
+/** What a scope's live keywords stood for when a run resolved it. */
+export type RunLiveScope = NonNullable<RunScopeRecord["live"]>;
+
 /** What a run records about the set its scope named, beside the resolution. */
-export type RunScopeFacts = Pick<RunScopeRecord, "set" | "reading" | "dataDigest" | "window">;
+export type RunScopeFacts = Pick<RunScopeRecord, "set" | "reading" | "dataDigest" | "window" | "live">;
 
 /** Which versions of which packages produced a result. */
 export interface EngineVersions {
@@ -389,7 +418,7 @@ export interface EngineVersions {
     /** The layout package version. */
     readonly layout: string;
     /**
-     * The versions of any registered extensions that produced these numbers, by catalogue key.
+     * The versions of any registered extensions that produced these numbers, by catalog key.
      *
      * WHY IT IS HERE. The three fixed fields above name the element and its two sibling packages,
      * which is everything when the element's own algorithm did the work. A run of a THIRD PARTY's
@@ -423,7 +452,7 @@ export type QueuePolicy = (typeof QUEUE_POLICIES)[number];
  * type the command executor takes when that lands; there is one of it, not two.
  */
 export interface RunOptions {
-    /** A signal that cancels the work. Cancelling rejects with an AbortError. */
+    /** A signal that cancels the work. Canceling rejects with an AbortError. */
     readonly signal?: AbortSignal;
     /** Called as the work advances, with the run's current progress. */
     readonly onProgress?: (progress: Progress) => void;
@@ -448,7 +477,7 @@ export interface StartOptions extends RunOptions {
      * edges by session edge id; the run records their stable form.
      */
     readonly scope?: ScopeInput;
-    /** The seed for a randomised or sampled method, so a run can be reproduced. */
+    /** The seed for a randomized or sampled method, so a run can be reproduced. */
     readonly seed?: number;
     /**
      * Stop after this many milliseconds and publish what was computed.
@@ -504,16 +533,16 @@ export interface RunLayers {
 /**
  * What a run paints when it first completes.
  *
- * - `true`, or left off: the colour suggestion its result shape calls for.
+ * - `true`, or left off: the color suggestion its result shape calls for.
  * - `false`: nothing. The numbers are published and no layer is added.
- * - `{ size }`: the colour suggestion, plus a size encoding of the same field. For a run whose
+ * - `{ size }`: the color suggestion, plus a size encoding of the same field. For a run whose
  *   result is a node measurement (shape `"node-metric"`: PageRank, degree, betweenness and the
  *   rest) that is a node size: `size: true` sizes nodes from 1 (the default node size, so the
  *   least important node looks unchanged) to 3. For a run whose result is an edge measurement
  *   (shape `"edge-metric"`: max flow, edge betweenness) it is an edge width: `size: true` draws
  *   edges from the default edge width to twice it. `size: [min, max]` uses that range, in the
  *   channel's own units. `size: false` or left off adds no size. For any other result shape the
- *   size is ignored, without an error, exactly as the colour suggestion itself depends on the
+ *   size is ignored, without an error, exactly as the color suggestion itself depends on the
  *   shape.
  * - `{ name }`: what to call the layers it adds, in place of the run's label. An application that
  *   names algorithms in its own words passes the name its reader picked the algorithm by. Combines
@@ -530,7 +559,7 @@ export type RunStyle =
           /**
            * `"layers"`: a run that partitions the nodes (shape `"community"`: Louvain, Leiden, label
            * propagation, connected components) paints each group as a layer of its own instead of one
-           * layer colouring every group: a folder named for the run (`name`, else the run's label)
+           * layer coloring every group: a folder named for the run (`name`, else the run's label)
            * holding one node layer per group, largest on top, each selecting
            * `<group path> == <value>` and setting the color the one layer would have painted that group. A re-run
            * keeps each layer on the group sharing most of its members and adds a layer at the bottom
@@ -583,7 +612,7 @@ export interface RunSpec {
     readonly params?: Readonly<Record<string, unknown>>;
     /** What it may look at, as {@link StartOptions.scope}. */
     readonly scope?: ScopeInput;
-    /** The seed for a randomised or sampled method. */
+    /** The seed for a randomized or sampled method. */
     readonly seed?: number;
     /** The id to give the run. */
     readonly as?: RunId;
@@ -622,7 +651,7 @@ export interface BatchStepFailure {
 /**
  * What a batch produced.
  *
- * A cancelled batch KEEPS the members that already completed: they are results somebody paid
+ * A canceled batch KEEPS the members that already completed: they are results somebody paid
  * for, and throwing them away because a later member was stopped would be the element deciding
  * on the consumer's behalf that partial work is worthless.
  */
@@ -738,7 +767,7 @@ export interface RunRecord {
 
     /** Which algorithm ran. */
     readonly algorithm: AlgorithmKey;
-    /** The parameters it ran with, canonicalised. */
+    /** The parameters it ran with, canonicalized. */
     readonly params: Readonly<Record<string, unknown>>;
     /** The seed it used, or null when it needed none. */
     readonly seed: number | null;
@@ -809,7 +838,7 @@ export interface Run<T = RunResult> extends PromiseLike<T> {
 
     /** Which algorithm is running. */
     readonly algorithm: AlgorithmKey;
-    /** The parameters it is running with, canonicalised. */
+    /** The parameters it is running with, canonicalized. */
     readonly params: Readonly<Record<string, unknown>>;
     /** What it is allowed to look at, resolved against the graph as it stood when it started. */
     readonly scope: ResolvedScope;
@@ -883,8 +912,8 @@ export interface Run<T = RunResult> extends PromiseLike<T> {
      * What this run suggests be drawn from it.
      *
      * Derived from the run's own shape and the fields it published, never from a block of styling
-     * written per algorithm: a measurement suggests a colour over the elements it measured, a
-     * grouping suggests a categorical colour, a route or a chosen set suggests a mark, and a
+     * written per algorithm: a measurement suggests a color over the elements it measured, a
+     * grouping suggests a categorical color, a route or a chosen set suggests a mark, and a
      * table of pairs, a time series or a bare fact suggests nothing at all.
      *
      * The element applies these itself on a run's first completion unless `{ style: false }` was
@@ -1004,7 +1033,7 @@ export interface RunPainting {
      * - `"decided"`: `suggestions` is the decision; empty when the run had nothing to draw.
      * - `"pending"`: the run has not finished, or it is a batch member and the batch has not.
      * - `"opted-out"`: started with `style: false`.
-     * - `"not-succeeded"`: it failed or was cancelled.
+     * - `"not-succeeded"`: it failed or was canceled.
      * - `"no-styles"`: this session has no style stack.
      * - `"unknown"`: the run was recorded without a decision, so none is known.
      */
@@ -1069,7 +1098,7 @@ export interface RunsApi {
      * Run one algorithm once per value of one of its options (a parameter sweep), as one batch
      * with one progress stream and one cancel, and resolve to one row per value: what each run
      * found, ready for a comparison table or a chart. Each value is its own listed run, and one
-     * undo takes them all away. A cancelled sweep keeps the values that finished.
+     * undo takes them all away. A canceled sweep keeps the values that finished.
      * @example
      * ```ts
      * const sweep = await session.runs.sweep("louvain", "resolution", [0.5, 1, 2], { seed: 1 });

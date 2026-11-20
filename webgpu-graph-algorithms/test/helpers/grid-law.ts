@@ -16,7 +16,7 @@
  * `|grid - reference| / |reference|` over the sample under the rms cap -- so a far-field mutation is measured
  * against the far field's own scale, and the reference carries the law and not the monopole approximation the
  * whole comparison already bounds. Per node the far
- * field of a uniform cloud is its mean field, which cancels near the centre (a per-node relative error puts 15 %
+ * field of a uniform cloud is its mean field, which cancels near the center (a per-node relative error puts 15 %
  * on the interior nodes of the pristine kernel, measured 2026-09-20), so the far comparison is whole-field; and it
  * runs on random20k alone, because on the one-cell placement the anchor's 170-unit springs put the attraction six
  * decades above the far field and the f32 subtraction leaves nothing of it. Two fixtures: the plan's random20k
@@ -107,11 +107,11 @@ function oneCellStart(n: number): F32 {
 
 /**
  * The fixture's positions made point-symmetric: the second half of the nodes takes the negated positions of the
- * first half (an odd last node sits at the origin), so the centroid is exactly the bounding box's centre and K1's
+ * first half (an odd last node sits at the origin), so the centroid is exactly the bounding box's center and K1's
  * frame (`gridMin = centroid - extent / 2`, `extent = 1.01 x the widest axis`) leaves no node outside. Without
  * this a uniform start at n = 400 or 2,000 puts ten-odd edge nodes outside the grid (the 1 % margin is under the
- * centroid's offset from the box centre at that n), and their pseudo-cell centroid, which then lies INSIDE the
- * grid next to some node, hands that node a many-mass neighbour under the 1 / d^2 law (measured 2026-09-20: a
+ * centroid's offset from the box center at that n), and their pseudo-cell centroid, which then lies INSIDE the
+ * grid next to some node, hands that node a many-mass neighbor under the 1 / d^2 law (measured 2026-09-20: a
  * 30x far field on the worst node at n = 2,000; a G4 finding on design 7.7's pseudo-cell term, not on the law).
  * @param positions - stride-3 positions
  * @returns the symmetric copy
@@ -182,7 +182,7 @@ function minus(a: ArrayLike<number>, b: ArrayLike<number>): F64 {
 /**
  * The repulsion fields of one model on one tier, read from one loaded simulation (debugRunStages records one
  * truncated first iteration per call from the same positions, so every read sees the same attraction). Scale 1,
- * zero centre: layout units = scene units. The FR budget is 1,000,000 so the iteration runs at the start
+ * zero center: layout units = scene units. The FR budget is 1,000,000 so the iteration runs at the start
  * temperature.
  * @param ctx - the context
  * @param model - the model

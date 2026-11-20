@@ -24,7 +24,7 @@ import { KNOWN_LOG_SINK_IDS, type LogSinkDescriptor, type LogSinkId } from "./ty
 
 /** One log destination a third party registered: what a settings panel reads, and how to build it. */
 export interface LogSinkRegistration {
-    /** What the catalogue publishes about it, including the options its factory accepts. */
+    /** What the catalog publishes about it, including the options its factory accepts. */
     readonly descriptor: LogSinkDescriptor;
     /**
      * Builds the destination.

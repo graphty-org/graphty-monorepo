@@ -3574,6 +3574,14 @@ export class SessionData implements SessionDataApi {
             ...(delimiter === undefined ? {} : { delimiter: { ...delimiter } }),
         };
         let read: { source: StepsSource; copies: Copies } | null = null;
+        const choices = withStepsMapping({ ...options, mode: "merge" as const });
+        // One table the guess reads as edges without finding their ends stages as node rows: nothing
+        // names its ends yet, and the staged section's Rows are changes it (5.1).
+        const endless =
+            options.key === undefined &&
+            options.edges === undefined &&
+            draft.tables.length === 1 &&
+            Object.values(draft.missing()).some((roles) => roles.length > 0);
         try {
             await draft.loadVia(
                 (command) => {
@@ -3587,7 +3595,7 @@ export class SessionData implements SessionDataApi {
                     }
                     return Promise.resolve();
                 },
-                withStepsMapping({ ...options, mode: "merge" }),
+                endless ? { ...choices, mapping: { rowsAre: "nodes" } } : choices,
             );
         } finally {
             draft.dispose();

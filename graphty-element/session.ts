@@ -275,6 +275,7 @@ export type {
     SourceStepRow,
     SourceTable,
     SourceTableFacts,
+    SourceTableMapping,
     SourceTablePart,
     SourceTypeEntry,
     SourceTypeName,

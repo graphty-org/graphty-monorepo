@@ -785,6 +785,23 @@ function patchedMapping(src: StepsSource, patch: MappingPatch): Mapping {
 }
 
 /**
+ * A mapping whose node space follows a type picked while no space was: unpicked, the node space is
+ * the type's proposal, as staging with a type makes it (5.1, 5.5); no type, the source's own.
+ * @param src - The source.
+ * @param patch - The change.
+ * @param mapping - The mapping with the patch laid over it.
+ * @returns The mapping.
+ */
+function proposedSpace(src: StepsSource, patch: MappingPatch, mapping: Mapping): Mapping {
+    const proposes = patch.type !== undefined && patch.space === undefined && src.spacePicked !== true;
+    if (!proposes || mapping.nodes === undefined) {
+        return mapping;
+    }
+    const { space: _was, ...nodes } = mapping.nodes;
+    return { ...mapping, nodes: patch.type === null ? nodes : { ...nodes, space: patch.type } };
+}
+
+/**
  * A source's mapping, space or type changed (5.1, 5.6), or what its rows are. A type writes the
  * source's whole-source and end rules again at once (9.1).
  * @param value - The value.
@@ -800,7 +817,8 @@ function patchedMapping(src: StepsSource, patch: MappingPatch): Mapping {
 export function mapped(value: SourceSteps, id: string, patch: MappingPatch, copies: Copies): SourceSteps {
     const src = sourceOf(value, id);
     checkSpace(patch.space);
-    const mapping = patchedMapping(src, patch);
+    checkSpace(patch.type ?? undefined);
+    const mapping = proposedSpace(src, patch, patchedMapping(src, patch));
     const wantNodes = mapping.nodes !== undefined;
     const wantEdges = mapping.edges !== undefined;
     const { endTypes: _held, ...rest } = src;

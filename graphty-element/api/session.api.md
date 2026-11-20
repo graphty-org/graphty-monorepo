@@ -8266,9 +8266,29 @@ export interface SourceTableFacts {
     readonly delimiter?: DraftTable["delimiter"];
     readonly format?: string;
     readonly loadedAt?: string;
+    readonly mapping: SourceTableMapping;
     readonly origin: string;
     readonly size?: number;
     readonly tables: readonly SourceTablePart[];
+}
+
+// @public
+export interface SourceTableMapping {
+    readonly edges?: {
+        readonly source: string;
+        readonly target: string;
+        readonly sourceSpace?: SourceSpaceName;
+        readonly targetSpace?: SourceSpaceName;
+        readonly edgeId?: string;
+    };
+    readonly endTypes?: {
+        readonly source?: SourceTypeName;
+        readonly target?: SourceTypeName;
+    };
+    readonly key?: string;
+    readonly rows: "nodes" | "edges" | "both";
+    readonly space?: SourceSpaceName;
+    readonly type?: SourceTypeName;
 }
 
 // @public

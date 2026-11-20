@@ -134,6 +134,55 @@ describe("source-steps: a source's tables and profiles", () => {
     });
 });
 
+describe("source-steps: what a staged source's rows are for, as its summary reads it", () => {
+    it("reads rows are, key, picked space, type and edge ends, and the type proposes the space Add asks about", async () => {
+        const { session } = await withPeople();
+        const visitors = await session.data.stage(VISITORS);
+        const guessed = session.data.sourceTable(visitors).summary().mapping;
+        assert.strictEqual(guessed.rows, "nodes");
+        assert.isUndefined(guessed.space, "a space nobody picked reads unset");
+        assert.isUndefined(guessed.type);
+
+        await session.data.setMapping(visitors, { nodes: { key: "badge" }, type: "person" });
+        assert.deepStrictEqual(session.data.sourceTable(visitors).summary().mapping, {
+            rows: "nodes",
+            key: "badge",
+            type: "person",
+        });
+        // The type proposes the space, so Add asks whether B1 is the same person.
+        const draft = session.data.draft({ askOverlap: true });
+        draft.add(visitors);
+        assert.deepStrictEqual(
+            draft.preview().questions.map((q) => [q.params.space, q.params.count, q.params.of]),
+            [["person", 1, 2]],
+        );
+        draft.dispose();
+
+        await session.data.setMapping(visitors, { space: "guest" });
+        assert.strictEqual(session.data.sourceTable(visitors).summary().mapping.space, "guest", "a picked space");
+        await session.data.setMapping(visitors, { type: "visitor" });
+        assert.strictEqual(
+            session.data.sourceTable(visitors).summary().mapping.space,
+            "guest",
+            "a type never moves a picked space",
+        );
+
+        const visits = await session.data.stage(csv("visits.csv", "from,to,id", "B1,D1,v1", "B2,D2,v2"), {
+            edges: { from: { column: "from" }, to: { column: "to" } },
+        });
+        await session.data.setMapping(visits, {
+            edges: { sourceSpace: "person", edgeId: "id" },
+            endTypes: { source: "person", target: "door" },
+        });
+        assert.deepStrictEqual(session.data.sourceTable(visits).summary().mapping, {
+            rows: "edges",
+            edges: { source: "from", target: "to", sourceSpace: "person", edgeId: "id" },
+            endTypes: { source: "person", target: "door" },
+        });
+        session.dispose();
+    });
+});
+
 describe("source-steps: a staged source's mapping outside a draft", () => {
     it("changes the key the live match counts read, writes the type rule at once, and records no step", async () => {
         const { session, people } = await withPeople();

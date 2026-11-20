@@ -5140,6 +5140,35 @@ export interface SourceTableFacts {
     readonly loadedAt?: string;
     /** A CSV file's separator, as `DraftTable.delimiter` says it; absent after a reopen. */
     readonly delimiter?: DraftTable["delimiter"];
+    /** What its rows are for now: what a staged section shows and `setMapping` changes. */
+    readonly mapping: SourceTableMapping;
+}
+
+/**
+ * What a source's rows are for, from `sourceTable(id).summary().mapping`: the values a staged
+ * section's Rows are, Key, Space, Type and edge end pickers show. A space reads only once one was
+ * named (at staging or with `setMapping`); unset, Add proposes the source's type, else its own space.
+ * @experimental source-steps
+ */
+export interface SourceTableMapping {
+    /** Whether its rows are nodes, edges, or both. */
+    readonly rows: "nodes" | "edges" | "both";
+    /** The node key column; absent keys each row by its place. */
+    readonly key?: string;
+    /** The node id space, once one was named. */
+    readonly space?: SourceSpaceName;
+    /** The node type it was staged or set with. */
+    readonly type?: SourceTypeName;
+    /** Its edge rows' ends and their spaces, each space only once one was named. */
+    readonly edges?: {
+        readonly source: string;
+        readonly target: string;
+        readonly sourceSpace?: SourceSpaceName;
+        readonly targetSpace?: SourceSpaceName;
+        readonly edgeId?: string;
+    };
+    /** The node types of its edge ends. */
+    readonly endTypes?: { readonly source?: SourceTypeName; readonly target?: SourceTypeName };
 }
 
 /**

@@ -7,7 +7,7 @@
 
 import { GraphtyError } from "../../../errors/GraphtyError";
 import { sourceOf } from "./acts";
-import { isDate, isEmpty, isNumber, normalize, tableRows } from "./build";
+import { isDate, isEmpty, isNumber, normalize, ownSpace, tableRows } from "./build";
 import { buildOf, type Copies, copyMap, type SourceSteps, type StepsSource } from "./project";
 import type { CellValue, Row, TableName } from "./types";
 
@@ -52,6 +52,62 @@ export interface SourceSummary {
     readonly size?: number;
     readonly loadedAt?: string;
     readonly delimiter?: { readonly value: string; readonly detected: boolean };
+    readonly mapping: MappingSummary;
+}
+
+/** What a source's rows are for: rows are, key, the spaces named, the types. */
+export interface MappingSummary {
+    readonly rows: "nodes" | "edges" | "both";
+    readonly key?: string;
+    readonly space?: string;
+    readonly type?: string;
+    readonly edges?: {
+        readonly source: string;
+        readonly target: string;
+        readonly sourceSpace?: string;
+        readonly targetSpace?: string;
+        readonly edgeId?: string;
+    };
+    readonly endTypes?: { readonly source?: string; readonly target?: string };
+}
+
+/**
+ * What a source's rows are for. A node space reads only once it was named, since unset Add proposes
+ * the type; an end's space reads unless it is the source's own.
+ * @param src - The source.
+ * @returns The mapping.
+ */
+function mappingSummary(src: StepsSource): MappingSummary {
+    const { nodes, edges } = src.mapping;
+    const own = ownSpace(src.id);
+    const named = (space: string | undefined): string | undefined => (space === own ? undefined : space);
+    const defined = <T extends object>(o: T): Partial<T> =>
+        Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined && v !== null)) as Partial<T>;
+    let rows: MappingSummary["rows"] = "nodes";
+    if (edges !== undefined) {
+        rows = nodes === undefined ? "edges" : "both";
+    }
+    return {
+        rows,
+        ...defined({
+            key: nodes?.key,
+            space: src.spacePicked === true ? nodes?.space : undefined,
+            type: src.stagedType ?? undefined,
+            edges:
+                edges === undefined
+                    ? undefined
+                    : {
+                          source: edges.source,
+                          target: edges.target,
+                          ...defined({
+                              sourceSpace: named(edges.sourceSpace),
+                              targetSpace: named(edges.targetSpace),
+                              edgeId: edges.edgeId,
+                          }),
+                      },
+            endTypes: src.endTypes === undefined || Object.keys(src.endTypes).length === 0 ? undefined : src.endTypes,
+        }),
+    };
 }
 
 /**
@@ -219,6 +275,7 @@ export function sourceSummary(value: SourceSteps, copies: Copies, source: string
         ...(src.read?.size === undefined ? {} : { size: src.read.size }),
         ...(src.read?.at === undefined ? {} : { loadedAt: src.read.at }),
         ...(src.read?.delimiter === undefined ? {} : { delimiter: src.read.delimiter }),
+        mapping: mappingSummary(src),
     };
 }
 

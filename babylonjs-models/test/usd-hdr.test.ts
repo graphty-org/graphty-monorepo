@@ -11,9 +11,10 @@ import { fileURLToPath } from "node:url";
 
 import { assert, describe, it } from "vitest";
 
+import { exrAsBmp, hdrAsBmp } from "../src/decoders/floatPictures.js";
 import { readCrate, renameCrateTokens } from "../src/files/readers/usdc.js";
 import { WHITE_PNG } from "../src/files/textFormats.js";
-import { exrAsBmp, hdrAsBmp, withFloatPicturesAsBmp } from "../src/load/usdHdr.js";
+import { withFloatPicturesAsBmp } from "../src/load/usdHdr.js";
 
 const VARIANTS = join(dirname(fileURLToPath(import.meta.url)), "fixtures/variants");
 

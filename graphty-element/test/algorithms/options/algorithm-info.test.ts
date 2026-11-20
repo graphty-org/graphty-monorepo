@@ -52,15 +52,19 @@ describe("Algorithm Info Utilities", () => {
 
         it("returns empty schema for algorithms without options", () => {
             const info = getAllAlgorithmInfo();
-            const degreeInfo = info.find((i) => i.key === "graphty:degree");
+            const componentsInfo = info.find((i) => i.key === "graphty:connected-components");
 
             // Use explicit assertion that narrows the type
-            if (!degreeInfo) {
-                assert.fail("Degree algorithm should be found");
+            if (!componentsInfo) {
+                assert.fail("Connected components algorithm should be found");
             }
 
-            assert.isFalse(degreeInfo.hasOptions, "Degree should not have options");
-            assert.deepStrictEqual(degreeInfo.zodOptionsSchema, {}, "Degree should have empty zodOptionsSchema");
+            assert.isFalse(componentsInfo.hasOptions, "Connected components should not have options");
+            assert.deepStrictEqual(
+                componentsInfo.zodOptionsSchema,
+                {},
+                "Connected components should have empty zodOptionsSchema",
+            );
         });
     });
 
@@ -91,9 +95,9 @@ describe("Algorithm Info Utilities", () => {
         it("returns empty schema for algorithms without Zod options", () => {
             const schemas = getAllAlgorithmSchemas();
 
-            const degreeSchema = schemas.get("graphty:degree");
-            assert.isDefined(degreeSchema);
-            assert.deepStrictEqual(degreeSchema, {});
+            const componentsSchema = schemas.get("graphty:connected-components");
+            assert.isDefined(componentsSchema);
+            assert.deepStrictEqual(componentsSchema, {});
         });
     });
 
@@ -110,11 +114,11 @@ describe("Algorithm Info Utilities", () => {
         });
 
         it("getZodOptionsSchema returns empty object for algorithms without zodOptionsSchema", () => {
-            const DegreeClass = Algorithm.getClass("graphty", "degree");
-            assert.isDefined(DegreeClass);
+            const ComponentsClass = Algorithm.getClass("graphty", "connected-components");
+            assert.isDefined(ComponentsClass);
 
-            if (DegreeClass) {
-                const schema = DegreeClass.getZodOptionsSchema();
+            if (ComponentsClass) {
+                const schema = ComponentsClass.getZodOptionsSchema();
                 assert.deepStrictEqual(schema, {});
             }
         });
@@ -128,10 +132,10 @@ describe("Algorithm Info Utilities", () => {
         });
 
         it("hasZodOptions returns false for algorithms without zodOptionsSchema", () => {
-            const DegreeClass = Algorithm.getClass("graphty", "degree");
-            assert.isDefined(DegreeClass);
-            if (DegreeClass) {
-                assert.isFalse(DegreeClass.hasZodOptions());
+            const ComponentsClass = Algorithm.getClass("graphty", "connected-components");
+            assert.isDefined(ComponentsClass);
+            if (ComponentsClass) {
+                assert.isFalse(ComponentsClass.hasZodOptions());
             }
         });
     });

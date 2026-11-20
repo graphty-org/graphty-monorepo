@@ -676,8 +676,8 @@ describe.skipIf(!GPU_LANE)("graphty-element on a real WebGPU device: a 3D force 
 });
 
 describe.skipIf(!GPU_LANE)("graphty-element on a real WebGPU device: what the policy accepts", () => {
-    /** SwiftShader is the only software adapter a lane launches; every other flag set is hardware. */
-    const SOFTWARE = ADAPTER === "swiftshader";
+    /** SwiftShader, frame-limited or not, is the only software adapter a lane launches; the rest are hardware. */
+    const SOFTWARE = ADAPTER.startsWith("swiftshader");
 
     it(
         SOFTWARE ? "refuses the software adapter under auto, saying why" : "attaches the hardware adapter under auto",

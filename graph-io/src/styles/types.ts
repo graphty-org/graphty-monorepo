@@ -627,6 +627,19 @@ export interface NodeStyleValues {
      */
     readonly labelBackgroundShape: string;
     /**
+     * The URI of a picture drawn in the label beside or behind its words (yEd's label icon), its middle the words'
+     * middle moved by `labelImageOffsetX` and `labelImageOffsetY`. Unset, none.
+     */
+    readonly labelImage: string;
+    /** How wide `labelImage` is drawn, in the units of `labelSize`. Unset, the label's font size. */
+    readonly labelImageWidth: number;
+    /** How tall `labelImage` is drawn, in the units of `labelSize`. Unset, the label's font size. */
+    readonly labelImageHeight: number;
+    /** How far right of the words' middle `labelImage`'s middle is, in the units of `labelSize`. */
+    readonly labelImageOffsetX: number;
+    /** How far below the words' middle `labelImage`'s middle is, in the units of `labelSize`. */
+    readonly labelImageOffsetY: number;
+    /**
      * What the label's box is sized to: `words`, a label inside the node too large for it being centered on it;
      * `words-at-side`, a label inside the node staying against the side `labelPosition` names however large it is;
      * `target-width`, as `words-at-side` and at least as wide as the node, a band across it (yEd's group header),
@@ -904,6 +917,15 @@ export interface EdgeStyleValues {
      * middle, or `none` for a line in its `color` (Cytoscape.js `line-fill`).
      */
     readonly gradientKind: string;
+    /**
+     * The colors of the parallel strands the line is drawn as, side by side, `#rrggbb` separated by spaces: the first
+     * on the right of the line's direction from its source to its target, the last on its left, each over the one
+     * before (Graphviz's color list with no fractions, `color="red:green:blue"`). Fewer than two draw the line in its
+     * `color`.
+     */
+    readonly strandColors: string;
+    /** How far apart the strands' middles are, as a multiple of `width`; absent, 1 (strands that touch). */
+    readonly strandSpacing: number;
     /** The line width. */
     readonly width: number;
     /**

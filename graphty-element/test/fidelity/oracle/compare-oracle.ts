@@ -2018,6 +2018,16 @@ function withEdges(box: PBox, edges: readonly PEdge[], nodes: ReadonlySet<string
     return out;
 }
 
+/**
+ * Whether a font size in px is legible: at least {@link ORACLE_TOLERANCES}' `legibleFontPx`, less the share the fitted
+ * scale is good to (`labelRuleShare`). Pajek's 1 px label, drawn 1 px by graphty on the same canvas, reads 0.999999 px
+ * once divided by a fitted scale of 1.000001 (pajek-lin-rel4 v226, issue #8193).
+ * @param px - the size
+ * @returns true for a legible size
+ */
+export const legiblePx = (px: number): boolean =>
+    px >= ORACLE_TOLERANCES.legibleFontPx * (1 - ORACLE_TOLERANCES.labelRuleShare);
+
 /** The share of a canvas a box fills along its tighter axis: 1 when it fits the canvas exactly one way. */
 const fillOf = (b: PBox, width: number, height: number): number =>
     Math.max(boxW(b) / Math.max(width, 1e-9), boxH(b) / Math.max(height, 1e-9));
@@ -2852,14 +2862,13 @@ export function compareOracle(
             j.add("edge.wiggle", "edge", id, Math.max(0, Math.abs(rg - ro) - allowed), ro, rg);
         }
         if (o.stroke !== null && g.stroke !== null) {
-            j.add(
-                "edge.color",
-                "edge",
-                id,
-                Math.max(0, deltaE(o.stroke.color, g.stroke.color) - T.colorDeltaE),
-                o.stroke.color,
-                g.stroke.color,
-            );
+            // a line drawn as parallel strands is its strands' colors, strand by strand; a count that differs misses
+            const [os, gs] = [o.stroke.strands ?? [o.stroke.color], g.stroke.strands ?? [g.stroke.color]];
+            const colorMiss =
+                os.length === gs.length
+                    ? Math.max(...os.map((c, i) => deltaE(c, gs[i])))
+                    : Math.max(100, ...os.map((c) => deltaE(c, g.stroke?.color ?? c)));
+            j.add("edge.color", "edge", id, Math.max(0, colorMiss - T.colorDeltaE), os.join(" "), gs.join(" "));
             // a pattern drawn as a fill of its own (slashes, arrows, a double line) has no width to read; a width in
             // screen pixels (a line at its screen floor, sigma's minEdgeThickness) is the same whatever the frame's scale
             if (Number.isFinite(o.stroke.width)) {
@@ -3242,7 +3251,7 @@ export function compareOracle(
         // (extract-scene.ts), so an oracle's that small is left out too (dot-real-depcruise's 9 pt cluster names at
         // about 1 px, issue #5756)
         const legible = (t: PText | null, scale: number): string | null =>
-            t !== null && (t.sizePx === 0 || t.sizePx / scale >= T.legibleFontPx) ? t.content : null;
+            t !== null && (t.sizePx === 0 || legiblePx(t.sizePx / scale)) ? t.content : null;
         const oWords = legible(o.label, lengthScale);
         const gWords = legible(g.label, 1);
         if (oWords !== null || gWords !== null) {
@@ -3287,7 +3296,7 @@ export function compareOracle(
     // a text under one render pixel is no text to a reader, as judgeLabel and extract-scene.ts drop graphty's: the
     // further lines of a wrapped node label Cytoscape draws at 0.15 px (cx-ddram, node 6907), which the association
     // leaves as free text when it drops the first line with its node
-    const legibleText = (t: PText): boolean => t.sizePx === 0 || t.sizePx / lengthScale >= T.legibleFontPx;
+    const legibleText = (t: PText): boolean => t.sizePx === 0 || legiblePx(t.sizePx / lengthScale);
     // Words a program drew as glyph outlines (Cytoscape desktop's labels on cx-polygenic-sle, each a white halo and
     // the black glyphs over it) say no words: one stray per place, drawn where graphty draws any text over it
     const glyphs = new Map<string, PBox>();
@@ -3935,15 +3944,12 @@ function judgeLabel(
     // A label that paints nothing (words, outline and box all clear) is no label to a reader either, on both sides:
     // at text-opacity 0 Cytoscape.js draws no text (json-cyjs-synth-nodes n67), Cytoscape desktop writes one at
     // opacity 0, and graphty draws its plane clear.
-    const legible =
-        oracle !== null && (oracle.sizePx === 0 || oracle.sizePx / scale >= T.legibleFontPx) && paints(oracle);
+    const legible = oracle !== null && (oracle.sizePx === 0 || legiblePx(oracle.sizePx / scale)) && paints(oracle);
     const o = legible ? oracle : null;
     // and graphty's by the same measure, for a text the scene keeps however small: a node's further texts
     // (`shape.texts`, Cytoscape's chart item labels at their default 1 px, xgmml-specimen-images-charts-p5)
     const g =
-        graphty !== null && (graphty.sizePx === 0 || graphty.sizePx >= T.legibleFontPx) && paints(graphty)
-            ? graphty
-            : null;
+        graphty !== null && (graphty.sizePx === 0 || legiblePx(graphty.sizePx)) && paints(graphty) ? graphty : null;
     // the oracle hid it by its own choice (overlap avoidance on an unrelated layout): nothing to judge
     if (oracle === null && oracleMayHide) {
         return;

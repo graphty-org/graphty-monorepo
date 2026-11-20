@@ -84,8 +84,20 @@ await element.session.config.set({ framing: { extent: "centers", padding: 30 } }
 await element.session.config.set({ framing: undefined }); // back to framing every node whole
 ```
 
+`box` frames a fixed area instead of the nodes, given by its smallest and largest x and y in the
+units node positions are drawn in: the canvas shows that area whatever the nodes' extent. It frames
+stored positions, so it applies only while the `"fixed"` layout draws them; under any other layout
+the nodes are framed. A replacing load that does not set it from its file drops it.
+
+```typescript
+await element.session.config.set({
+    framing: { extent: "centers", padding: 0, box: { min: [0, -500], max: [500, 0] } },
+});
+```
+
 A file load can set it to how the file's own program frames it, with the file style option
-`framing: "file"`: a sigma.js (graphology) file is then framed as sigma.js draws it.
+`framing: "file"`: a sigma.js (graphology) file is then framed as sigma.js draws it, and a Pajek
+file shows the whole 0..1 square Pajek fits to its Draw window.
 
 ```typescript
 await element.session.data.import(source, { styles: "file", styleOptions: { framing: "file" } });

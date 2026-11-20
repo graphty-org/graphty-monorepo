@@ -106,9 +106,10 @@ const SIMULATION_OPTION_SCHEMAS: Readonly<Record<SimulationType, OptionsSchema>>
  * The scene-unit radius a simulation's arrangement is published at when its layout publishes no
  * control for it.
  *
- * ForceAtlas2 and Spring both declare `scalingFactor` with this default and spring-electrical
- * declares none, so all three land in the same envelope as the element's fourteen one-shot
- * layouts, which publish a unit ball times their own `scalingFactor` of 100.
+ * ForceAtlas2 and Spring both declare `scalingFactor` with this default, so both land in the
+ * same envelope as the element's fourteen one-shot layouts, which publish a unit ball times their
+ * own `scalingFactor` of 100. Spring-electrical declares none and is not refitted at all: see
+ * {@link resolveSimulationOptions}.
  */
 const DEFAULT_SCALING_FACTOR = 100;
 
@@ -271,8 +272,8 @@ function simulationModel(
  *
  * THE PRODUCT OF EVERY MULTIPLIER THE LAYOUT PUBLISHES, because the bridge's refit fits the
  * arrangement to exactly this radius and nothing else a reader sets can change the size after
- * that. Spring and spring-electrical both publish a `scale` -- "Scale factor for the layout",
- * with a slider behind it -- which reaches the simulation and sizes the arrangement it computes
+ * that. Spring publishes a `scale` -- "Scale factor for the layout", with a slider behind it --
+ * which reaches the simulation and sizes the arrangement it computes
  * in its own units; left out here, the refit would divide that size straight back out and the
  * control would move nothing on screen. Multiplied in, it means what it says, and it means the
  * same thing it meant when these layouts were one-shot engines: `scale` sized the arrangement
@@ -317,7 +318,11 @@ export function resolveSimulationOptions(
 
     return {
         model: simulationModel(type, declared),
-        scalingFactor: publishedRadius(declared),
+        // SPRING-ELECTRICAL IS PUBLISHED AT ITS OWN SIZE, as ngraph is: it is the accelerated
+        // driver of the same `force` arrangement (FORCE_ACCELERATED_ENGINE), and fitted to a
+        // fixed radius it drew that arrangement at a different size from ngraph's -- twice as
+        // wide on a 150-node graph in 3D (issue #9174). Its `scale` still sizes it, in the simulation.
+        scalingFactor: type === "spring-electrical" ? null : publishedRadius(declared),
         clusterBy: declared.clusterBy,
         clusterStrength: declared.clusterStrength,
         nodeGap: declared.nodeGap ?? null,

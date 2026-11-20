@@ -6,7 +6,7 @@
 import { assert, describe, it } from "vitest";
 
 import { GraphtyError } from "../../src/errors/GraphtyError";
-import { curveShape, ROUTE_SPLIT } from "../../src/meshes/pulledCurve";
+import { CURVE_STRIDE, curveShape, MAX_PIECES, ROUTE_SPLIT } from "../../src/meshes/pulledCurve";
 import { tableShape } from "../../src/meshes/PulledLineBatch";
 
 /**
@@ -56,10 +56,11 @@ describe("tableShape", () => {
         );
     });
 
-    it("holds a million curves, an entry of four texels each, on the smallest WebGL2 card", () => {
-        const { width, texels } = tableShape(1_000_000 * 4, 2048, 1_000_000);
-        assert.isAtMost(texels / width, 2048);
-        assert.isAtMost(width, 2048);
+    it("holds a million curves of a curve's most pieces, an entry of four texels for every 16, on a 4096 card", () => {
+        const entries = 1_000_000 * Math.ceil(MAX_PIECES / CURVE_STRIDE);
+        const { width, texels } = tableShape(entries * 4, 4096, entries);
+        assert.isAtMost(texels / width, 4096);
+        assert.isAtMost(width, 4096);
     });
 
     it("holds a million 65-point routes on an 8192 card, past what a float names", () => {

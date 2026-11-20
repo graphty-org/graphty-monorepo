@@ -40,6 +40,13 @@ const DENSITY = 8;
 /** The most and fewest pieces a curve is sampled with (`EDGE_CONSTANTS.BEZIER_MAX_SEGMENTS`, and `createBezierLine`'s 10). */
 export const MAX_PIECES = 64;
 
+/**
+ * Pieces one entry of a curve batch draws (`PulledLineBatch`): a curve of more takes a run of entries, so a short
+ * curve draws fewer than this many spare slots whatever its neighbors ask for, and a million curves of
+ * {@link MAX_PIECES} take 16 million texels, inside a 4096 x 4096 table.
+ */
+export const CURVE_STRIDE = 16;
+
 /** A route block's first texel is written as (texel % ROUTE_SPLIT, texel / ROUTE_SPLIT): see {@link curveShape}. */
 export const ROUTE_SPLIT = 65_536;
 const MIN_PIECES = 10;

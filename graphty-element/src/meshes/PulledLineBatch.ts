@@ -16,7 +16,7 @@ import {
 import { markEdgeLineBatchMesh } from "./EdgeLineBatch";
 import { batchUploadFrames } from "./FrameRoster";
 import { takePoolReserve } from "./poolReserve";
-import { curveShape, type CurveSpan, MAX_PIECES } from "./pulledCurve";
+import { CURVE_STRIDE, curveShape, type CurveSpan } from "./pulledCurve";
 
 /**
  * @file Straight edges drawn from the row table: a piece is two row numbers, not twenty floats.
@@ -34,12 +34,12 @@ import { curveShape, type CurveSpan, MAX_PIECES } from "./pulledCurve";
  * share one batch and one draw (stage 19): a thousand colors are one draw, not a thousand.
  *
  * A CURVE batch (stage 21, `EDGE_PULLED_CURVE`) draws curves (`line.bezier`), lone or fanned out of a
- * bundle: an edge takes ONE entry, its rows, its look and its span, two texels more than a straight piece's:
- * (samples, first, pieces, startAt), then (endAt and the shape, `curveShape`). The draw gives every entry
- * {@link PulledLineBatch.stride} pieces, the most any of its curves has asked for, and the shader works out
- * piece j's place along the cut path from the two rows' places and the span (`meshes/pulledCurve.ts`); a piece
- * past its own curve's draws nothing. An entry per edge, not per piece, keeps a million long curves (64 pieces
- * each) to 64 MB and a 2048 x 2048 table, inside every WebGL2 card (#9160).
+ * bundle: an edge takes a run of entries, each its rows, its look, its part of the run and its span, two texels more
+ * than a straight piece's: (samples, first, pieces, startAt), then (endAt and the shape, `curveShape`). The draw gives
+ * every entry `CURVE_STRIDE` (16) pieces, and the shader works out piece j's place along the cut path from the two
+ * rows' places and the span (`meshes/pulledCurve.ts`); a piece past its own curve's draws nothing. An entry per 16
+ * pieces, not per piece, keeps a million long curves (64 pieces each) to a 4096 x 4096 table (#9160), and a short
+ * curve's spare slots are its own, fewer than 16, whatever else the batch holds.
  *
  * A curve batch also keeps a ROUTE TABLE (`edgeRoutes`) for lines through bends (`line.bends`): an edge's
  * cut path, its ends and the bends between, one (x, y, z) to a texel, in a block of its own that its span names
@@ -313,14 +313,8 @@ export class PulledLineBatch {
     /** Floats a piece takes in the table. */
     private readonly pieceFloats: number;
 
-    /** Whether this is a curve batch, whose entries each draw {@link PulledLineBatch.stride} pieces. */
-    private readonly curve: boolean;
-
-    /**
-     * Pieces the draw gives each entry of a curve batch: the most any span written to it has asked for, never fewer
-     * than 1. It only grows, as an edge's run of pieces used to.
-     */
-    private piecesEach = 1;
+    /** Pieces the draw gives each entry: `CURVE_STRIDE` in a curve batch, 1 in a straight one. */
+    private readonly piecesEach: number;
 
     /**
      * Whether a write past what the card can hold has been reported (`Edge.refuseTooLarge`): once a batch is enough.
@@ -360,7 +354,7 @@ export class PulledLineBatch {
         this.mesh = mesh;
         const texels = curve ? TEXELS_PER_CURVE_PIECE : TEXELS_PER_PIECE;
         this.pieceFloats = texels * TEXEL_FLOATS;
-        this.curve = curve;
+        this.piecesEach = curve ? CURVE_STRIDE : 1;
         markEdgeLineBatchMesh(mesh);
         mesh.isPickable = false;
         mesh.doNotSyncBoundingInfo = true;
@@ -432,7 +426,7 @@ export class PulledLineBatch {
     }
 
     /**
-     * Pieces the draw gives each entry: the most a curve's span has asked for, 1 in a straight batch.
+     * Pieces the draw gives each entry: `CURVE_STRIDE` in a curve batch, 1 in a straight batch.
      * @returns The count.
      */
     get stride(): number {
@@ -554,26 +548,16 @@ export class PulledLineBatch {
     }
 
     /**
-     * Give a curve batch's entry its edge's span: written when the edge is placed, which its nodes moving does. The
-     * draw gives every entry as many pieces as the longest span asks for ({@link PulledLineBatch.stride}).
+     * Give a curve batch's entry its edge's span: written when the edge is placed, which its nodes moving does. An
+     * entry draws {@link PulledLineBatch.stride} pieces of the path, so a curve of more takes a run of entries.
      * @param piece - The entry.
+     * @param part - Which of its edge's run it is: it draws pieces from `part * stride` on.
      * @param span - The span (`curveSpan`), or null to draw nothing.
      * @param route - For a routed path, its block in the route table ({@link PulledLineBatch.writeRoute}).
      */
-    setCurve(piece: number, span: CurveSpan | null, route = 0): void {
+    setCurve(piece: number, part: number, span: CurveSpan | null, route = 0): void {
         const at = piece * this.pieceFloats;
-        const pieces = span?.pieces ?? 0;
-        if (pieces > this.piecesEach) {
-            // a line through many bends may ask for more than a curve's most: only while one draw still reaches it
-            const corners = this.template.indices.length;
-            if (this.highWater > Math.floor(MOST_VERTICES / (corners * pieces))) {
-                throw tooLargeError(this.rows.length / TEXEL_FLOATS, this.mostTexture(), this.highWater, MOST_ENTRIES);
-            }
-
-            this.piecesEach = pieces;
-            this.setCount();
-        }
-
+        this.rows[at + 7] = part;
         this.rows[at + 8] = span?.samples ?? 0;
         this.rows[at + 9] = span?.first ?? 0;
         this.rows[at + 10] = span?.pieces ?? 0;
@@ -901,7 +885,7 @@ export class PulledLineBatch {
         // the most entries the card's largest texture holds, the draw order names and one draw reaches: past them, a
         // table of the most, and E_TOO_LARGE once full
         const corners = Math.max(this.template.indices.length, LEAN_TEMPLATE.indices.length);
-        const reach = Math.floor(MOST_VERTICES / (corners * (this.curve ? Math.max(MAX_PIECES, this.piecesEach) : 1)));
+        const reach = Math.floor(MOST_VERTICES / (corners * this.piecesEach));
         const most = Math.min(Math.floor(this.mostTexture() ** 2 / texels), MOST_ENTRIES, reach);
         if (this.highWater >= most) {
             throw tooLargeError(this.highWater * texels, this.mostTexture(), this.highWater + 1, most);
@@ -1015,9 +999,6 @@ export class PulledLineBatch {
         subMesh.verticesStart = 0;
         const corners = this.lean ? LEAN_TEMPLATE.indices.length : this.template.indices.length;
         subMesh.verticesCount = this.highWater * this.piecesEach * corners;
-        if (this.curve) {
-            (this.mesh.material as ShaderMaterial | null)?.setFloat("edgeStride", this.piecesEach);
-        }
         subMesh.setBoundingInfo(this.mesh.getBoundingInfo());
     }
 }

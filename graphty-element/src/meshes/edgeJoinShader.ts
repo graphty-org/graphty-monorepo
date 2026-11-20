@@ -67,7 +67,7 @@
  */
 
 import { EDGE_TRIM_GLSL, ROW_EXTENT_ELLIPSE, ROW_EXTENT_ROUND, ROW_EXTENT_SEEN_THROUGH } from "./edgeTrim";
-import { PULLED_CURVE_GLSL } from "./pulledCurve";
+import { CURVE_STRIDE, PULLED_CURVE_GLSL } from "./pulledCurve";
 
 /** The longest miter drawn, as a multiple of half the line's width (SVG's and Canvas's limit). */
 export const EDGE_MITER_LIMIT = 4;
@@ -203,9 +203,9 @@ const LEAN_CORNERS = LEAN_TEMPLATE_INDICES.map((i) => LEAN_TEMPLATE_OF[i] ?? 0);
  * pixel the line covers, a smoothstep of its distance from the center line: the smooth edge with no
  * multisampling and no discard. Its ends stay square at the node centers, under the nodes.
  *
- * A CURVE's entry (`EDGE_PULLED_CURVE`) takes four texels, one per edge: the third and fourth hold the
- * edge's span (`meshes/pulledCurve.ts`). The draw gives each entry `edgeStride` slots in a row, and slot j of
- * them draws the path's piece j. Its six points are points of that path, picked as `EdgeLineBatch.writeFlat`
+ * A CURVE's entry (`EDGE_PULLED_CURVE`) takes four texels: the second's alpha is its part of its edge's run of
+ * entries, and the third and fourth hold the edge's span (`meshes/pulledCurve.ts`). The draw gives each entry
+ * `CURVE_STRIDE` slots in a row, and slot j of part k draws the path's piece k * CURVE_STRIDE + j. Its six points are points of that path, picked as `EdgeLineBatch.writeFlat`
  * picks a run's neighbors (they stop at the run's ends), and its run is zero: a solid line that does not taper
  * never reads it (its `perTotal` is 0 and the pattern branch is off). A piece at or past the span's last point
  * draws nothing.
@@ -333,8 +333,8 @@ const int CORNER_OF[PIECE_CORNERS] = int[PIECE_CORNERS](${JOIN_TEMPLATE_INDICES.
 #ifdef EDGE_PULLED_CURVE
 ${PULLED_CURVE_GLSL}
 
-// pieces the draw gives each curve: the most any of the batch's spans asks for (PulledLineBatch.stride)
-uniform float edgeStride;
+// pieces the draw gives each entry (PulledLineBatch's CURVE_STRIDE); a longer curve takes a run of entries
+const int CURVE_STRIDE = ${String(CURVE_STRIDE)};
 // set by pullEdge for a slot past its own curve's pieces: the vertex is put outside the clip volume
 bool pulledSkip = false;
 const int PIECE_TEXELS = 4;
@@ -347,16 +347,17 @@ void pullEdge() {
     int slot = gl_VertexID / PIECE_CORNERS;
     position = JOIN_TEMPLATE[CORNER_OF[gl_VertexID - slot * PIECE_CORNERS]];
 #ifdef EDGE_PULLED_CURVE
-    // a curve's entry draws edgeStride pieces in a row: slot j of them is its piece j
-    int stride = max(int(edgeStride + 0.5), 1);
-    int j = slot % stride;
-    slot /= stride;
+    // a curve's entry draws CURVE_STRIDE pieces in a row, and is part tint.a of its edge's run of entries
+    int j = slot % CURVE_STRIDE;
+    slot /= CURVE_STRIDE;
 #endif
     int piece = pulledPiece(slot);
     int texel = piece * PIECE_TEXELS;
+    vec4 tint = pulledRowsTexel(texel + 1);
 #ifdef EDGE_PULLED_CURVE
-    // a slot past its own curve's pieces draws nothing, read from one texel: a short curve beside a long one costs
-    // its spare slots this much
+    // a slot past its own curve's pieces draws nothing, read from two texels: a curve's spare slots are fewer than
+    // CURVE_STRIDE, whatever the other curves in the batch ask for
+    j += int(tint.a + 0.5) * CURVE_STRIDE;
     vec4 span = pulledRowsTexel(texel + 2);
     int pieces = int(span.z + 0.5);
     if (j >= pieces) {
@@ -365,7 +366,6 @@ void pullEdge() {
     }
 #endif
     vec4 head = pulledRowsTexel(texel);
-    vec4 tint = pulledRowsTexel(texel + 1);
     vec4 hiddenFlags = pulledHiddenTexel(piece >> 2);
     // a hidden piece reads as a free one: its flag is the byte (piece & 3) of its texel
     vec2 rows = dot(hiddenFlags, vec4(equal(ivec4(0, 1, 2, 3), ivec4(piece & 3)))) > 0.5 ? vec2(-1.0) : head.xy;

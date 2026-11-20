@@ -69,7 +69,15 @@ import { batchUploadFrames } from "./meshes/FrameRoster";
 import type { ColumnRow } from "./meshes/NodeBatch";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { movingTexel } from "./meshes/pulledAnimatedLine";
-import { curvePathPoint, type CurveSpan, curveSpan, loopShape, routed, viaShare } from "./meshes/pulledCurve";
+import {
+    CURVE_STRIDE,
+    curvePathPoint,
+    type CurveSpan,
+    curveSpan,
+    loopShape,
+    routed,
+    viaShare,
+} from "./meshes/pulledCurve";
 import { pulledEdgesDefault, type PulledLineBatch } from "./meshes/PulledLineBatch";
 import { readColor } from "./meshes/readColor";
 import { type AttachPosition, RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
@@ -985,6 +993,11 @@ export class Edge {
         visibility: number;
         /** Whether `piece` is a curve batch's entry, whose span each placement writes ({@link Edge.pullCurve}). */
         curve: boolean;
+        /**
+         * A curve's further entries, after `piece`: one for every `CURVE_STRIDE` pieces of its longest cut so far past
+         * the first ({@link Edge.pullSpan}).
+         */
+        run: number[];
         /** The look its pieces are given, for the pieces a curve takes later. */
         look: { color: Color3; opacity: number; width: number };
         /** A curve's last span and the centers it was cut between, null while it draws nothing ({@link Edge.drawnCurve}). */
@@ -3064,7 +3077,7 @@ export class Edge {
         const curve = this.pullsCurve(style);
         if (curve) {
             // nothing drawn until the first placement writes the span
-            batch.setCurve(piece, null);
+            batch.setCurve(piece, 0, null);
         }
 
         pulledLines.version++;
@@ -3077,6 +3090,7 @@ export class Edge {
             name: `edge-style-${options.styleId}-pulled`,
             visibility: Math.min(opacity, 1),
             curve,
+            run: [],
             look,
         };
         this.pullRows();
@@ -3185,7 +3199,9 @@ export class Edge {
             batch.releaseRoute(pulled.route?.at ?? -1);
             pulled.route = null;
             pulled.path = null;
-            batch.setCurve(pulled.piece, null);
+            for (const piece of [pulled.piece, ...pulled.run]) {
+                batch.setCurve(piece, 0, null);
+            }
         }
     }
 
@@ -3216,7 +3232,18 @@ export class Edge {
             pulled.route = { at: batch.writeRoute(kept?.at ?? -1, points), points };
         }
         const at = pulled.route?.at ?? 0;
-        batch.setCurve(pulled.piece, span, at);
+        // an entry a CURVE_STRIDE pieces, taken as the cut grows and kept while the edge is pulled
+        const { look, run } = pulled;
+        while (run.length + 1 < Math.ceil((span?.pieces ?? 0) / CURVE_STRIDE)) {
+            const piece = batch.acquire(look.width);
+            batch.setLook(piece, look.color, look.opacity, look.width);
+            batch.setRows(piece, pulled.source, pulled.target);
+            run.push(piece);
+        }
+        batch.setCurve(pulled.piece, 0, span, at);
+        run.forEach((piece, i) => {
+            batch.setCurve(piece, i + 1, span, at);
+        });
     }
 
     /**
@@ -3254,7 +3281,9 @@ export class Edge {
         const source = pulled.drawn ? this.endRow("source") : -1;
         const target = pulled.drawn ? this.endRow("target") : -1;
         if (source !== pulled.source || target !== pulled.target) {
-            pulled.batch.setRows(pulled.piece, source, target);
+            for (const piece of [pulled.piece, ...pulled.run]) {
+                pulled.batch.setRows(piece, source, target);
+            }
 
             pulled.source = source;
             pulled.target = target;
@@ -3353,7 +3382,9 @@ export class Edge {
      */
     private releaseLine(): void {
         if (this.pulled) {
-            this.pulled.batch.release(this.pulled.piece);
+            for (const piece of [this.pulled.piece, ...this.pulled.run]) {
+                this.pulled.batch.release(piece);
+            }
 
             this.pulled.batch.releaseRoute(this.pulled.route?.at ?? -1);
 

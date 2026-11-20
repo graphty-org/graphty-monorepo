@@ -10,8 +10,9 @@
  * the median of ten frames drawn after it, the GL errors, and the pixels inked, so a run before and
  * after a change shows both what it costs and whether it draws. Each frame ends with a one-pixel read, so its time
  * includes the GPU's work, not only its submission. The "mixed" row joins each node to its four nearest neighbors
- * (short curves, 10 pieces) and one long chord (64): the batched path draws every curve with the most pieces any
- * asks for, so this is where that costs most. Each row also gives the vertices the curve batch draws.
+ * (short curves, 10 pieces) and one long chord (64): the batched path draws a curve in entries of 16 pieces, so a
+ * short curve draws 6 spare slots, whatever the long chords beside it ask for. Each row also gives the vertices the
+ * curve batch draws.
  */
 
 import "../../src/graphty-element";

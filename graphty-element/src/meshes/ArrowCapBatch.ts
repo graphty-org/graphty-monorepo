@@ -1172,6 +1172,17 @@ export class ArrowCap {
 }
 
 /**
+ * The meshes every live cap batch of a scene draws with.
+ * @param scene - The scene.
+ * @returns The meshes.
+ */
+export function arrowCapMeshes(scene: Scene): Mesh[] {
+    return [...(batchesByScene.get(scene)?.values() ?? [])]
+        .filter((batch) => !batch.disposed)
+        .map((batch) => batch.mesh);
+}
+
+/**
  * The batch that draws every cap of one appearance in one scene, built on first use.
  * @param scene - The scene the cap is drawn in.
  * @param key - What the caps in this batch have in common: the shape, and whatever else lives on

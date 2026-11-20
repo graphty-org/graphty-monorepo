@@ -408,7 +408,8 @@ class FirstValueBuilder extends GraphBuilder {
 function rowOf(snapshot: GraphSnapshot, table: "nodes" | "edges", row: number): ImportedRecord {
     const record: ImportedRecord = {};
     for (const column of snapshot[table]) {
-        if (column.meta.name !== WEIGHT_COLUMN_NAME && column.isSet(row)) {
+        // the position is written once, as `position: { x, y, z }`, by importRecords
+        if (column.meta.name !== WEIGHT_COLUMN_NAME && column.meta.role !== "position" && column.isSet(row)) {
             record[column.meta.name] = column.value(row);
         }
     }
@@ -501,7 +502,15 @@ export async function importRecords<O>(
         throw error;
     }
 
-    return { ...recordsOf(builder.freeze()), report, aborted: false };
+    const snapshot = builder.freeze();
+    const records = recordsOf(snapshot);
+    // A node the file placed carries `position: { x, y, z }`, as toRecords writes it; nodes are in row order.
+    placeRecords(
+        records.nodes.map((node) => node.data),
+        filePositionsOf({ importer, snapshot, report }),
+        (_record, row) => row,
+    );
+    return { ...records, report, aborted: false };
 }
 
 /**
@@ -734,6 +743,56 @@ export function readerImport(reader: object): Promise<ReaderImport> | null {
     return READER_IMPORTS.get(reader)?.() ?? null;
 }
 
+/** What the file each reader last read recorded under `meta.extra`, when it recorded anything. */
+const READER_META_EXTRA = new WeakMap<object, Readonly<Record<string, unknown>>>();
+
+/**
+ * Remember what an imported file recorded under `meta.extra` (DOT's `strict` and HTML labels,
+ * GEXF's header, ...), so the element keeps it with the graph and an export writes it again.
+ * @param reader - the data source
+ * @param snapshot - the imported graph
+ */
+export function rememberMetaExtra(reader: object, snapshot: GraphSnapshot): void {
+    const { extra } = snapshot.meta;
+    if (Object.keys(extra).length === 0) {
+        READER_META_EXTRA.delete(reader);
+    } else {
+        READER_META_EXTRA.set(reader, extra);
+    }
+}
+
+/**
+ * What the file a reader last read recorded under `meta.extra`.
+ * @param reader - the data source
+ * @returns the values by namespace, or null when it recorded none or the reader read no graph-io import
+ */
+export function readerMetaExtra(reader: object): Readonly<Record<string, unknown>> | null {
+    return READER_META_EXTRA.get(reader) ?? null;
+}
+
+/** What the file of each load recorded under `meta.extra`, by the load's `source` descriptor. */
+const SOURCE_META_EXTRA = new WeakMap<object, Readonly<Record<string, unknown>>>();
+
+/**
+ * Keep what a load's file recorded under `meta.extra` beside the load's `source` descriptor, so an
+ * export writes it again (issue #7600). It is session state, never a graph value or saved: its
+ * keys name the file's format, and undo and redo bring the descriptor, so its extra, back.
+ * @param source - the `source` graph value the load wrote
+ * @param extra - what the file recorded, by namespace
+ */
+export function keepSourceMetaExtra(source: object, extra: Readonly<Record<string, unknown>>): void {
+    SOURCE_META_EXTRA.set(source, extra);
+}
+
+/**
+ * What the file of a load recorded under `meta.extra`.
+ * @param source - the `source` graph value, or undefined when nothing was loaded
+ * @returns the values by namespace, or undefined when the file recorded none
+ */
+export function sourceMetaExtra(source: unknown): Readonly<Record<string, unknown>> | undefined {
+    return typeof source === "object" && source !== null ? SOURCE_META_EXTRA.get(source) : undefined;
+}
+
 /**
  * Pair an import with a mapping's column paths.
  * @param imported - the import
@@ -792,6 +851,20 @@ export function copyColumns(table: AttributeTable, row: number, record: Record<s
 }
 
 /**
+ * Remember, for a reader, what its file recorded under `meta.extra` and the import its records came from.
+ * @param reader - the data source
+ * @param imported - the import
+ * @param mapping - the format's mapping from rows to record keys
+ */
+function rememberReader(reader: object, imported: SourceGraph, mapping: RecordMapping): void {
+    rememberMetaExtra(reader, imported.snapshot);
+    const { importer } = imported;
+    if (importer !== undefined) {
+        rememberImport(reader, () => readerImportOf({ ...imported, importer }, mapping.path ?? copiedPath));
+    }
+}
+
+/**
  * Rebuild the element's node and edge records from an imported graph.
  *
  * Only declared nodes become records, in declaration order. Each logical edge of the file becomes one record: when the importer expanded an edge into
@@ -814,8 +887,8 @@ export function toRecords(
 ): { nodes: AdHocData[]; edges: AdHocData[] } {
     const mapping = styles === "file" ? withoutStyleSlots(imported.snapshot, readerMapping) : readerMapping;
     const { importer } = imported;
-    if (reader !== undefined && importer !== undefined) {
-        rememberImport(reader, () => readerImportOf({ ...imported, importer }, mapping.path ?? copiedPath));
+    if (reader !== undefined) {
+        rememberReader(reader, imported, mapping);
     }
 
     const { snapshot, declared } = imported;

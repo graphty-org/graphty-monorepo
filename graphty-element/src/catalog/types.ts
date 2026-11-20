@@ -184,6 +184,8 @@ export const KNOWN_ALGORITHMS = [
     "all-paths",
     "edge-betweenness",
     "removal-impact",
+    "articulation-points",
+    "bridges",
 ] as const;
 
 /** One of the built-in algorithms. */

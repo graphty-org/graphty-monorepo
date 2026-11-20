@@ -76,16 +76,17 @@ describe("positions.set under a static layout", () => {
                     await element.waitForStableFrame();
                     const again = performance.now() - t1;
 
+                    // Printed before the assertions, so the unfixed code still reports its times.
+                    console.log(
+                        `[early-positions] ${path} ${layout} ${String(n)}: first frame ${first.toFixed(0)} ms, set again ${again.toFixed(0)} ms`,
+                    );
+
                     const last = late[n - 1];
                     const stored = session.positions.get(last.id);
                     assert.deepEqual(stored && { x: stored.x, y: stored.y }, { x: last.x, y: last.y });
                     if (path === "batched") {
                         assert.strictEqual(built(), 0, "placing builds no Node");
                     }
-
-                    console.log(
-                        `[early-positions] ${path} ${layout} ${String(n)}: first frame ${first.toFixed(0)} ms, set again ${again.toFixed(0)} ms`,
-                    );
                 });
             }
         }

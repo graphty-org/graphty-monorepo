@@ -16,6 +16,7 @@ import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import {
+    graphSizeBucket,
     onUsageEvent,
     resetAnalyticsForTests,
     setAnalyticsCallsForTests,
@@ -284,10 +285,13 @@ describe("usage counts when a project opens", () => {
         await screen.findByRole("button", { name: "New project" });
         const own = next("own_file_opened");
         drop(new File([JSON.stringify(doc)], "SECRET_DOC.graphty.json"));
-        assert.deepEqual({ ...(await own) }, { format: "graphty", via: "file" });
+        const ownProps = { ...(await own) };
         // Not vacuous: the document's graph is in (it is counted once the element's open returned).
-        assert.isAbove(openedSession().data.statistics().nodeCount, 0);
-        assert.deepEqual(sent("own_file_opened").counted, [{ format: "graphty", via: "file" }]);
+        const { nodeCount } = openedSession().data.statistics({ scope: "all" });
+        assert.isAbove(nodeCount, 0);
+        const expected = { format: "graphty", via: "file", size: graphSizeBucket(nodeCount) };
+        assert.deepEqual(ownProps, expected);
+        assert.deepEqual(sent("own_file_opened").counted, [expected]);
         assert.lengthOf(sent("own_file_opened").posthog, 1);
         assert.isEmpty(sent("sample_loaded").posthog);
         assert.isEmpty(sent("graph_action").posthog, "the document's own entries are not the reader's");

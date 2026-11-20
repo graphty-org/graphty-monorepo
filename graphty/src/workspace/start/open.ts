@@ -64,6 +64,7 @@ export function openProject(
         }),
         ends: null,
         sourceCard: null,
+        stagedEnds: null,
         pickedSource: null,
         dataTab: "loaded",
     }));

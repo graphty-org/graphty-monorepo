@@ -125,7 +125,7 @@ describe("a second source arrives staged (source-steps)", () => {
         await userEvent.keyboard("person{Enter}");
         await waitFor(() => {
             assert.strictEqual(
-                session.data.sourceTable(session.data.sources()[1]?.key ?? "").summary().mapping.type,
+                session.data.sourceTable(session.data.staged()[0]?.key ?? "").summary().mapping.type,
                 "person",
             );
         });
@@ -172,7 +172,7 @@ describe("a second source arrives staged (source-steps)", () => {
             assert.isNull(within(section).queryByRole("form", { name: "Add" }));
         });
         assert.isNull(session.data.currentDraft(), "the draft is discarded");
-        assert.strictEqual(session.data.sources()[1]?.state, "staged");
+        assert.strictEqual(session.data.staged()[0]?.name, "visitors.csv");
         assert.strictEqual(session.data.nodes().length, 3);
     });
 
@@ -197,5 +197,74 @@ describe("a second source arrives staged (source-steps)", () => {
         const section = await screen.findByRole("region", { name: "buildings.csv" });
         assert.strictEqual(session.data.nodes().length, 3);
         assert.isNotNull(within(section).getByRole("button", { name: /^Add/ }));
+    });
+
+    it("lists a staged source nowhere outside its section: the inspector's graph header names one file", async () => {
+        await withPeopleDropped();
+        await stage("buildings.csv", BUILDINGS);
+        const inspector = within(screen.getByRole("complementary", { name: "Inspector" }));
+        await waitFor(() => {
+            assert.isNotNull(inspector.getByRole("button", { name: "From people.csv" }));
+        });
+    });
+
+    it("Rows are Edges with no ends picked holds Add: the button is disabled and Shift+D adds nothing", async () => {
+        const { session, store } = await emptyProject();
+        await session.data.import(
+            { type: "csv", config: { data: PEOPLE }, name: "people.csv" },
+            { key: "badge", type: "person" },
+        );
+        const section = await stage("visitors.csv", VISITORS);
+        // The radio itself is visually hidden: a reader clicks its label.
+        const rows = within(section).getByRole("radiogroup", { name: "Rows are" });
+        await userEvent.click(within(rows).getByText("Edges"));
+        await within(section).findByRole("combobox", { name: "From" });
+        const add = within(section).getByRole("button", { name: /^Add/ });
+        assert.isTrue(add.hasAttribute("disabled"), "Add waits for both ends");
+
+        (document.activeElement as HTMLElement | null)?.blur();
+        await userEvent.keyboard("{Shift>}D{/Shift}");
+        assert.isNull(store.get().sourceCard, "no Add card opened");
+        assert.isNull(session.data.currentDraft(), "no draft opened");
+        assert.strictEqual(session.data.staged()[0]?.name, "visitors.csv", "still staged");
+        assert.strictEqual(session.data.nodes().length, 3);
+        assert.strictEqual(session.data.edges().length, 0);
+
+        await choose(section, "From", "badge");
+        await choose(section, "To", "name");
+        await waitFor(() => {
+            assert.strictEqual(
+                session.data.sourceTable(session.data.staged()[0]?.key ?? "").summary().mapping.rows,
+                "edges",
+            );
+        });
+        assert.isFalse(within(section).getByRole("button", { name: /^Add/ }).hasAttribute("disabled"));
+    });
+
+    it("names a source's own space by the source, never by its id", async () => {
+        await withPeopleDropped();
+        const section = await stage("buildings.csv", BUILDINGS);
+        const space = within(section).getByRole("combobox", { name: "Space" });
+        await userEvent.click(space);
+        await userEvent.keyboard("{Control>}{ArrowDown}{/Control}");
+        const names = (await screen.findAllByRole("option")).map((option) => option.textContent ?? "");
+        assert.include(names, "people.csv");
+        assert.isFalse(
+            names.some((name) => name.startsWith("source:")),
+            `no internal id: ${names.join(", ")}`,
+        );
+    });
+
+    it("fits Rows are's three choices inside the staged section at the default panel width", async () => {
+        await withPeopleDropped();
+        const section = await stage("buildings.csv", BUILDINGS);
+        const { right } = section.getBoundingClientRect();
+        const group = within(section).getByRole("radiogroup", { name: "Rows are" });
+        assert.isAtMost(group.getBoundingClientRect().right, right, "the control ends inside the section");
+        for (const name of ["Nodes", "Edges", "Nodes + edges"]) {
+            const label = within(group).getByText(name);
+            assert.isAtMost(label.scrollWidth, label.clientWidth, `${name} is not cut`);
+            assert.isAtMost(label.getBoundingClientRect().right, right, `${name} ends inside the section`);
+        }
     });
 });

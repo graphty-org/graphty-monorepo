@@ -35,10 +35,7 @@ export function DataPlace(): React.JSX.Element {
     useNumberFormats();
     const graphName = useWorkspaceState((state) => state.project?.name ?? "");
     const picked = useWorkspaceState((state) => state.pickedSource);
-    const all = session?.data.sources() ?? [];
-    // A staged source (the source-steps experiment) is no part of the graph yet: Sources shows it in
-    // its own section, and nothing else lists it.
-    const sources = all.filter((each) => each.state !== "staged");
+    const sources = session?.data.sources() ?? [];
     const selected = sources.find((each) => each.key === picked) ?? sources.at(-1);
     // A press picks the load for Fields and opens it in the inspector: what it added and what it
     // left out, with Edit source and Replace in its "...".
@@ -47,7 +44,7 @@ export function DataPlace(): React.JSX.Element {
     };
 
     const tab = useWorkspaceState((state) => state.dataTab);
-    const sourcesSection = <Sources sources={all} selected={selected?.key} onSelect={select} />;
+    const sourcesSection = <Sources sources={sources} selected={selected?.key} onSelect={select} />;
     return (
         <section className="dp" data-tabs="" aria-label="Data place">
             <h2 className="dp-title">{graphName}</h2>

@@ -6,7 +6,7 @@ import type {
     SourceTableMapping,
 } from "@graphty/graphty-element/session";
 import { ActionIcon, Button, Group, Kbd, Menu, Select, Text } from "@mantine/core";
-import React, { useId, useState } from "react";
+import React, { useId } from "react";
 
 import { sourceName } from "../data-place/words";
 import { GLYPHS } from "../glyphs";
@@ -103,11 +103,41 @@ function ColumnSelect({
     );
 }
 
+/** A name offered by a picker: what the element calls it, and what the reader reads. */
+interface Choice {
+    readonly value: string;
+    readonly label: string;
+}
+
 /**
- * A name picker that also takes a new name typed in: a Type or a Space.
+ * Names as choices that read as themselves: the types.
+ * @param names - the names.
+ * @returns the choices.
+ */
+function plain(names: readonly string[]): readonly Choice[] {
+    return names.map((each) => ({ value: each, label: each }));
+}
+
+/**
+ * The spaces as choices: a named space reads as its name, a source's own space as that source's
+ * name (`ownedBy` on the element's space row).
+ * @param session - the element's session.
+ * @returns the choices.
+ */
+function spaceChoices(session: GraphSession): readonly Choice[] {
+    const all = session.data.sources({ staged: true });
+    return session.data.spaces().map((row) => {
+        const owner = row.ownedBy === undefined ? undefined : all.find((each) => each.key === row.ownedBy);
+        return { value: row.space, label: owner === undefined ? row.space : sourceName(owner) };
+    });
+}
+
+/**
+ * A name picker that also takes a new name typed in: a Type or a Space. It shows each choice's
+ * label and writes its value; text that is no choice's label is a new name.
  * @param props - Component props
  * @param props.name - its accessible name
- * @param props.names - the names offered
+ * @param props.choices - the names offered
  * @param props.value - the name now, or undefined while unset
  * @param props.placeholder - what an unset one reads
  * @param props.onPick - takes a name, or null when emptied
@@ -115,29 +145,30 @@ function ColumnSelect({
  */
 function NamePicker({
     name,
-    names,
+    choices,
     value,
     placeholder,
     onPick,
 }: Readonly<{
     name: string;
-    names: readonly string[];
+    choices: readonly Choice[];
     value: string | undefined;
     placeholder: string;
     onPick: (next: string | null) => void;
 }>): React.JSX.Element {
+    const shown = choices.find((each) => each.value === value)?.label ?? value ?? "";
     return (
         <ComboInput
             label={name}
             width="100%"
             variant="outlined"
             placeholder={placeholder}
-            options={names.map((each) => ({ value: each }))}
-            value={value ?? ""}
+            options={choices.map((each) => ({ value: each.label }))}
+            value={shown}
             onChange={(next) => {
                 const text = String(next).trim();
-                if (text !== (value ?? "")) {
-                    onPick(text === "" ? null : text);
+                if (text !== shown) {
+                    onPick(text === "" ? null : (choices.find((each) => each.label === text)?.value ?? text));
                 }
             }}
         />
@@ -187,7 +218,7 @@ function EndRows({
         .types()
         .filter((type) => type.kind === "node")
         .map((type) => type.name);
-    const spaces = session.data.spaces().map((row) => row.space);
+    const spaces = spaceChoices(session);
     return (
         <>
             <LabeledRow label={label}>
@@ -198,7 +229,7 @@ function EndRows({
                     <FieldRow>
                         <NamePicker
                             name={`${label} ${STAGED_WORDS.type.toLowerCase()}`}
-                            names={types}
+                            choices={plain(types)}
                             value={mapping.endTypes?.[end]}
                             placeholder={STAGED_WORDS.type}
                             onPick={(next) => {
@@ -207,7 +238,7 @@ function EndRows({
                         />
                         <NamePicker
                             name={`${label} ${STAGED_WORDS.space.toLowerCase()}`}
-                            names={spaces}
+                            choices={spaces}
                             value={space}
                             placeholder={STAGED_WORDS.unset}
                             onPick={(next) => {
@@ -278,7 +309,7 @@ function NodeRows({
                 <Text size="xs">{STAGED_WORDS.space}</Text>
                 <NamePicker
                     name={STAGED_WORDS.space}
-                    names={session.data.spaces().map((row) => row.space)}
+                    choices={spaceChoices(session)}
                     value={mapping.space}
                     placeholder={STAGED_WORDS.unset}
                     onPick={(next) => {
@@ -298,7 +329,7 @@ function NodeRows({
                 <Text size="xs">{STAGED_WORDS.type}</Text>
                 <NamePicker
                     name={STAGED_WORDS.type}
-                    names={types}
+                    choices={plain(types)}
                     value={mapping.type}
                     placeholder={STAGED_WORDS.type}
                     onPick={(next) => {
@@ -324,12 +355,14 @@ function NodeRows({
 export function StagedSection({ source }: Readonly<{ source: LoadedSource }>): React.JSX.Element | null {
     const { session, store } = useWorkspace();
     const card = useWorkspaceState((state) => state.sourceCard);
-    // Edges picked in Rows are before both ends are: held here until they are, then written.
-    const [wanted, setWanted] = useState<{
-        rows: "edges" | "both";
-        source: string | null;
-        target: string | null;
-    } | null>(null);
+    // Edges picked in Rows are before both ends are: held in the store until they are, then written.
+    // Add waits for them, since the element still holds the old rows.
+    const rowsLabel = useId();
+    const pending = useWorkspaceState((state) => state.stagedEnds);
+    const wanted = pending?.source === source.key ? pending : null;
+    const setWanted = (next: { rows: "edges" | "both"; from: string | null; to: string | null } | null): void => {
+        store.set({ stagedEnds: next === null ? null : { source: source.key, ...next } });
+    };
     if (session === null) {
         return null;
     }
@@ -352,17 +385,22 @@ export function StagedSection({ source }: Readonly<{ source: LoadedSource }>): R
             change({ rows: next as SourceTableMapping["rows"] });
             return;
         }
-        setWanted({ rows: next === "both" ? "both" : "edges", source: null, target: null });
+        setWanted({ rows: next === "both" ? "both" : "edges", from: null, to: null });
     };
     const pickEnd = (end: End, column: string): void => {
         if (wanted === null) {
             change({ edges: { [end]: column } });
             return;
         }
-        const next = { ...wanted, [end]: column };
-        if (next.source !== null && next.target !== null) {
+        const next = {
+            rows: wanted.rows,
+            from: wanted.from,
+            to: wanted.to,
+            [end === "source" ? "from" : "to"]: column,
+        };
+        if (next.from !== null && next.to !== null) {
             setWanted(null);
-            change({ rows: next.rows, edges: { source: next.source, target: next.target } });
+            change({ rows: next.rows, edges: { source: next.from, target: next.to } });
         } else {
             setWanted(next);
         }
@@ -397,17 +435,20 @@ export function StagedSection({ source }: Readonly<{ source: LoadedSource }>): R
                 </Menu>
             </div>
             <FactRow label={STAGED_WORDS.file} value={fileWords(facts.size, rows)} />
-            <FieldRow>
-                <Text size="xs">{STAGED_WORDS.rowsAre}</Text>
-                <SegmentedControl
-                    size="xs"
-                    fullWidth
-                    aria-label={STAGED_WORDS.rowsAre}
-                    value={shownRows}
-                    data={ROWS_ARE.map((each) => ({ value: each.value, label: each.label }))}
-                    onChange={pickRows}
-                />
-            </FieldRow>
+            <Text size="xs" id={rowsLabel}>
+                {STAGED_WORDS.rowsAre}
+            </Text>
+            {/* The label above, and each choice as wide as its words plus an even share of the rest
+                (Mantine splits the width evenly), so "Nodes + edges" fits the 240px panel. */}
+            <SegmentedControl
+                size="xs"
+                fullWidth
+                styles={{ control: { flex: "1 1 auto" } }}
+                aria-labelledby={rowsLabel}
+                value={shownRows}
+                data={ROWS_ARE.map((each) => ({ value: each.value, label: each.label }))}
+                onChange={pickRows}
+            />
             {shownRows === "edges" ? null : (
                 <NodeRows session={session} source={source} columns={nodeColumns} mapping={mapping} onChange={change} />
             )}
@@ -419,7 +460,11 @@ export function StagedSection({ source }: Readonly<{ source: LoadedSource }>): R
                           source={source}
                           end={end}
                           columns={edgeColumns}
-                          column={wanted === null ? (mapping.edges?.[end] ?? null) : wanted[end]}
+                          column={
+                              wanted === null
+                                  ? (mapping.edges?.[end] ?? null)
+                                  : wanted[end === "source" ? "from" : "to"]
+                          }
                           mapping={wanted === null ? mapping : { rows: wanted.rows }}
                           onColumn={(column) => {
                               pickEnd(end, column);
@@ -437,7 +482,7 @@ export function StagedSection({ source }: Readonly<{ source: LoadedSource }>): R
                         variant="default"
                         rightSection={<Kbd size="xs">{formatKey(ADD_KEY)}</Kbd>}
                         aria-keyshortcuts={ariaKey(ADD_KEY)}
-                        disabled={card !== null}
+                        disabled={card !== null || wanted !== null}
                         onClick={() => {
                             void startAdd(store, session, source.key);
                         }}

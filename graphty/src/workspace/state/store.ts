@@ -255,6 +255,17 @@ export interface WorkspaceState {
      * key-overlap question. Its draft is the element's (`data.currentDraft()`).
      */
     readonly sourceCard: { readonly kind: "add"; readonly source: SourceKey } | null;
+    /**
+     * Edges picked in a staged source's Rows are before both ends are (the source-steps
+     * experiment): held here until both are, then written to the element. While it is set, that
+     * source cannot be added, since the element still holds its old rows.
+     */
+    readonly stagedEnds: {
+        readonly source: SourceKey;
+        readonly rows: "edges" | "both";
+        readonly from: string | null;
+        readonly to: string | null;
+    } | null;
     /** The Sources row the reader picked, kept while they visit another place; null: the newest load. */
     readonly pickedSource: SourceKey | null;
     /** The Data place's tab: what was loaded or what was calculated; kept per project, Loaded first. */
@@ -471,6 +482,7 @@ export const ON_RELOAD = {
     editingJoin: "fresh: an edit in progress on the join screen",
     ends: "fresh: a half-made choice of edge ends",
     sourceCard: "fresh: its draft lives in the element, which a reload replaced",
+    stagedEnds: "fresh: a half-made choice of edge ends",
     pickedSource: "kept",
     dataTab: "kept",
     timelineOpen: "kept",
@@ -593,6 +605,7 @@ const INITIAL: WorkspaceState = {
     editingJoin: null,
     ends: null,
     sourceCard: null,
+    stagedEnds: null,
     pickedSource: null,
     dataTab: "loaded",
     timelineOpen: false,

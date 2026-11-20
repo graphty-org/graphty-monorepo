@@ -15,11 +15,12 @@ import { STAGED_WORDS } from "./words";
  * @returns them.
  */
 export function stagedSources(session: GraphSession): readonly LoadedSource[] {
-    return session.data.sources().filter((source) => source.state === "staged");
+    return session.data.staged();
 }
 
 /**
- * Add (Shift+D): adds a staged source with no join, in one draft. A source whose keys meet nodes
+ * Add (Shift+D): adds a staged source with no join, in one draft. Nothing happens while its Rows
+ * are holds edges whose ends are not both picked. A source whose keys meet nodes
  * already in the graph opens the Add card on the key-overlap question instead, and commits from
  * there; any other commits at once, as one undo step.
  * @param workspace - the workspace store.
@@ -28,7 +29,8 @@ export function stagedSources(session: GraphSession): readonly LoadedSource[] {
  * @returns settles once it is added or the card is open.
  */
 export async function startAdd(workspace: WorkspaceStore, session: GraphSession, source: SourceKey): Promise<void> {
-    if (session.data.currentDraft() !== null) {
+    // Edges picked without both ends are not the element's yet: adding now would add the old rows.
+    if (session.data.currentDraft() !== null || workspace.get().stagedEnds?.source === source) {
         return;
     }
     const draft = session.data.draft({ askOverlap: true });

@@ -2,6 +2,7 @@ import { ControlSection } from "@graphty/compact-mantine";
 import type { LoadedSource, SourceKey } from "@graphty/graphty-element/session";
 import React, { useEffect, useRef } from "react";
 
+import { sourceStepsOn } from "../features";
 import { StagedSection } from "../source-steps/StagedSection";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { StyleNotes } from "../styles/StyleNotes";
@@ -31,9 +32,9 @@ export function Sources({
 }>): React.JSX.Element {
     const { session } = useWorkspace();
     const list = useRef<HTMLDivElement>(null);
-    // Only the source-steps experiment stages a source; off, every source is committed.
-    const committed = sources.filter((source) => source.state !== "staged");
-    const staged = sources.filter((source) => source.state === "staged");
+    // Only the source-steps experiment stages a source: off, the list is empty and a staged source
+    // a saved project holds is one of `sources`.
+    const staged = session === null || !sourceStepsOn(session) ? [] : session.data.staged();
     const known = useRef<ReadonlySet<SourceKey> | null>(null);
     useEffect(() => {
         const before = known.current;
@@ -47,15 +48,19 @@ export function Sources({
         list.current?.querySelector<HTMLElement>(`[data-source="${CSS.escape(added.key)}"] .dp-source-main`)?.focus();
     }, [sources]);
     return (
-        <ControlSection label="Data sources" actions={<AddSourceMenu />} empty={sources.length === 0}>
-            {committed.length === 0 ? null : (
+        <ControlSection
+            label="Data sources"
+            actions={<AddSourceMenu />}
+            empty={sources.length === 0 && staged.length === 0}
+        >
+            {sources.length === 0 ? null : (
                 <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- a <ul>/<li> would bring list styling and spacing the compact rows do not use; the role gives the same semantics
                     ref={list}
                     role="list"
                     aria-label="Data sources"
                     className="dp-sources"
                 >
-                    {committed.map((source) => (
+                    {sources.map((source) => (
                         <SourceRow
                             key={source.key}
                             source={source}

@@ -229,6 +229,7 @@ import {
 import { bootstrapEdgePaint, bootstrapNodePaint } from "./managers/StylePainter";
 import { columnCenter, type ColumnFraming } from "./managers/UpdateManager";
 import { AnnotationMeshes } from "./meshes/AnnotationMeshes";
+import { arrowCapMeshes } from "./meshes/ArrowCapBatch";
 import { EdgeRowLines } from "./meshes/EdgeRowLines";
 import { payLabelAnimations } from "./meshes/labelAnimationDebt";
 import { closeRectOnScreen, hasCloseLabels, inRect, isCloseLabel } from "./meshes/labelClose";
@@ -6430,6 +6431,12 @@ export class Graph implements GraphContext {
             if (material !== null && material.disableDepthWrite !== mapped) {
                 material.disableDepthWrite = mapped;
             }
+        }
+
+        // A cap is part of its edge: drawn among the nodes in material order, a cap and a node
+        // meeting at one depth drew a different pixel on each render path (#9179).
+        for (const mesh of arrowCapMeshes(this.scene)) {
+            this.#edgeMeshes.add(mesh);
         }
 
         if (mapped === this.#overMap) {

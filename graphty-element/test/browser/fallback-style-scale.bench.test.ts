@@ -36,7 +36,7 @@ const CHOSEN = (env.VITE_BENCH_STYLES ?? Object.keys(STYLES).join(",")).split(",
 const PATHS = ["objects", "batched"] as const;
 
 /**
- * `size` nodes on a square grid, each linked to its right and lower neighbours.
+ * `size` nodes on a square grid, each linked to its right and lower neighbors.
  * @param size - How many.
  * @returns The records.
  */

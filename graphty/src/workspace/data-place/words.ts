@@ -20,7 +20,6 @@ import {
     type LocationUsing,
     pathParts,
     type Run,
-    type TableMapping,
     type TableMappingRead,
 } from "@graphty/graphty-element/session";
 
@@ -732,24 +731,6 @@ export function kindChoices(roles: TableMappingRead | undefined, current: string
 export function fileKindChoices(source: LoadedSource | undefined, current: string | null): string[] {
     const file = source === undefined ? null : sourceName(source).replace(/\.[^.]*$/, "");
     return [...new Set([file, current].filter((name) => name !== null && name !== ""))] as string[];
-}
-
-/**
- * A load-time mapping that changes one role, in the shape the load's table is named by: a bare
- * mapping for a load of one table, the table by id otherwise.
- * @param source - the load.
- * @param side - which table.
- * @param roles - the roles to change.
- * @returns the mapping.
- */
-export function remap(
-    source: LoadedSource,
-    side: FieldSide,
-    roles: TableMapping,
-): TableMapping | { tables: Record<string, TableMapping> } {
-    const tables = Object.entries(source.mapping?.tables ?? {});
-    const id = tables.find(([, table]) => table.rowsAre === side)?.[0];
-    return tables.length <= 1 || id === undefined ? roles : { tables: { [id]: roles } };
 }
 
 /**

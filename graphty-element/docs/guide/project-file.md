@@ -306,6 +306,40 @@ with no `graphty-session` member. Then `report.opened` is `"document"` (rather t
 and the file's styles and notes are added to the session as one undoable step, without replacing
 anything and without asking about unsaved changes. That step sets `dirty`, like any other change.
 
+## What kind of file is this?
+
+`session.files.kindOf(file)` reads a file's contents -- never its name -- and says what it is:
+`"project"`, `"recipe"`, `"style"`, `"document"` (another graphty document, such as notes) or
+`"graph"` (graph data, or anything else). Use it to choose a verb before opening.
+
+## Recipes
+
+A recipe is what you did to the data -- its filters, sets, algorithm runs and layout -- and how it
+is drawn, written as one file that names columns and never a node or an edge, so it can be applied
+to other data with the same columns. Recipes need the `save-files-v2` experiment.
+
+```html
+<graphty-element id="first" features="save-files-v2"></graphty-element>
+<graphty-element id="second" features="save-files-v2"></graphty-element>
+```
+
+```typescript
+const first = document.querySelector("#first").session;
+await first.data.import({ type: "csv", config: { data: "source,target\na,b\nb,c\n" } });
+await first.runs.start("degree");
+const { text } = await first.recipes.export();
+
+const second = document.querySelector("#second").session;
+await second.data.import({ type: "csv", config: { data: "source,target\nx,y\ny,z\n" } });
+if ((await second.files.kindOf(text)) === "recipe") {
+    const report = await second.recipes.apply(text); // runs degree on the new data, adds the layers
+    for (const problem of report.problems) console.warn(problem.code, problem.params);
+}
+```
+
+`apply` runs the recipe's steps in order, then adds its style layers, as one undoable step; it never
+replaces the data. What the recipe could not do on this data is listed in `report.problems`.
+
 ## What is not saved
 
 - **The live camera.** Save a named view with `session.views.save` to keep a camera position.

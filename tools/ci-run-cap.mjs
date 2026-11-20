@@ -13,7 +13,9 @@
 //
 // It also waits while a release.yml run waits for a GitHub-hosted runner and holds fewer than RELEASE_SHARE of
 // them (the full run goes first up to its share; ci.yml's max-parallel keeps the full run's matrices within
-// that share, so past it pull requests take the rest).
+// that share, so past it pull requests take the rest), and while a ci.yml build of a push to master waits for one
+// and holds fewer than MASTER_SHARE (#9153: with no job priority, master's build queued behind every pull request
+// job and no master build finished for nearly three hours, so canary and the full run's restart stalled).
 // A release run is judged by its jobs, never by its run status: GitHub reports a whole run as "queued" while
 // its own max-parallel holds back one matrix leg, and the jobs API shows that leg as "queued" too, the same as
 // a leg waiting for a runner. So a queued hosted job counts as waiting for a runner only when its matrix
@@ -26,13 +28,15 @@
 // It never fails the pull request: an API error lets the run proceed, and so does a GITHUB_TOKEN with under
 // MIN_RATE_LEFT requests left this hour (the token's 1,000 an hour are shared by every workflow). Waiting its
 // turn is long (giving up early let the slowest runs join the backlog exactly when it was longest), but it ends
-// at MAX_WAIT_MINUTES, before the job's timeout in ci.yml: a job that reaches its timeout is canceled, which
+// at MAX_WAIT_MINUTES, before the job's timeout in ci.yml (twice the job's budget in ci-budgets.json): a job that
+// reaches its timeout is canceled, which
 // continue-on-error does not cover, so Build and every job after it were skipped and the pull request went red
 // (#8219: a 2-hour backlog on 2026-11-14 failed #7878 that way). Past the limit the run proceeds. A run k
 // places from its turn checks every k x POLL_SECONDS (at most 5 minutes), so a long queue costs few calls. The wait goes in the job summary.
 //
 // BUDGET is the repository variable CI_PR_JOB_BUDGET (default DEFAULT_BUDGET, the ~180 jobs GitHub runs at once
-// less the full run's RELEASE_SHARE: 180 - 30 = 150 since the full run went to 24 Test jobs, #7849), and CAP is CI_PR_RUN_CAP (default 2), both read in ci.yml's "Run cap" job:
+// less the full run's RELEASE_SHARE and master's MASTER_SHARE: 180 - 30 - 30 = 120), and CAP is CI_PR_RUN_CAP
+// (default 2), both read in ci.yml's "Run cap" job:
 //   gh variable set CI_PR_JOB_BUDGET --repo graphty-org/graphty-monorepo --body 120   (fewer pull request jobs)
 //   gh variable set CI_PR_RUN_CAP --repo graphty-org/graphty-monorepo --body off      (no run count limit)
 // Either "off" removes that limit; both off waits for nothing.
@@ -58,9 +62,12 @@ export const RUN_JOBS_ESTIMATE = 40;
 export const FULL_RUN_MAX_PARALLEL = { Test: 24, "Story tests": 6 };
 // the full run's share of runners: its matrices' max-parallel together
 export const RELEASE_SHARE = Object.values(FULL_RUN_MAX_PARALLEL).reduce((a, b) => a + b);
+// the runners kept free for a master push: its ci.yml build (13 jobs, 2026-11-20) and the other workflows a push
+// to master starts (about 15 more), and the slack a newly admitted pull request run fans out into
+export const MASTER_SHARE = 30;
 // the hosted jobs GitHub ran at once for this repository, never more, measured 2026-11-13 (176-184)
 const RUNNER_CEILING = 180;
-export const DEFAULT_BUDGET = RUNNER_CEILING - RELEASE_SHARE;
+export const DEFAULT_BUDGET = RUNNER_CEILING - RELEASE_SHARE - MASTER_SHARE;
 
 /**
  * The parsed cap.
@@ -126,17 +133,18 @@ export async function jobsHeld(runs, api) {
 }
 
 /**
- * Whether a release run is waiting for a GitHub-hosted runner while it holds fewer than RELEASE_SHARE of them.
- * @param runs workflow_runs of a release.yml runs listing
+ * Whether a run is waiting for a GitHub-hosted runner while it holds fewer than share of them.
+ * @param runs workflow_runs of a release.yml or master ci.yml runs listing
  * @param jobsOf run id -> jobs of that run
- * @returns the id of the waiting release run, or null
+ * @param share the runners the run may hold before its queued jobs stop counting
+ * @returns the id of the waiting run, or null
  */
-export async function releaseWaiting(runs, jobsOf) {
-    for (const r of runs) {
+export async function runWaiting(runs, jobsOf, share) {
+    for (const r of runs.filter((x) => ACTIVE.has(x.status))) {
         const jobs = await jobsOf(r.id);
         const hosted = jobs.filter((j) => (j.labels ?? []).some((l) => HOSTED.test(l)));
         const running = hosted.filter((j) => j.status === "in_progress");
-        if (running.length >= RELEASE_SHARE) continue;
+        if (running.length >= share) continue;
         const matrix = (j) => /([^/]+?) \(/.exec(j.name ?? "")?.[1].trim();
         const legs = (m) => running.filter((j) => matrix(j) === m).length;
         const heldBack = (j) => legs(matrix(j)) >= (FULL_RUN_MAX_PARALLEL[matrix(j)] ?? Infinity);
@@ -168,16 +176,19 @@ export async function check({ me, cap, budget, api }) {
             return { why: `${ahead.length} earlier pull request runs hold ${held} jobs (budget ${budget})`, places };
         }
     }
-    const rel = await api("actions/workflows/release.yml/runs?per_page=10");
-    const active = rel.workflow_runs.filter((r) => ACTIVE.has(r.status));
-    const waiting = await releaseWaiting(active, async (id) => {
+    const jobsOf = async (id) => {
         const jobs = [];
         for (let page = 1; ; page++) {
             const r = await api(`actions/runs/${id}/jobs?per_page=100&filter=latest&page=${page}`);
             jobs.push(...r.jobs);
             if (r.jobs.length < 100 || jobs.length >= r.total_count) return jobs;
         }
-    });
+    };
+    const master = await api("actions/workflows/ci.yml/runs?event=push&branch=master&per_page=5");
+    const build = await runWaiting(master.workflow_runs, jobsOf, MASTER_SHARE);
+    if (build) return { why: `master build ${build} is waiting for runners`, places: 1 };
+    const rel = await api("actions/workflows/release.yml/runs?per_page=10");
+    const waiting = await runWaiting(rel.workflow_runs, jobsOf, RELEASE_SHARE);
     return waiting ? { why: `release run ${waiting} is waiting for runners`, places: 1 } : null;
 }
 

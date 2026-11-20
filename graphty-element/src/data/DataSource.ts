@@ -34,6 +34,7 @@ import {
     emptyLoad,
     importWhole,
     readerImport,
+    rememberMetaExtra,
     sourceGraph,
     toRecords,
 } from "./graph-io-import.js";
@@ -979,6 +980,7 @@ export abstract class DataSource {
         const positions = filePositionsOf(imported);
         const pxPerUnit = positions?.pxPerUnit;
         const padding = positions?.viewerFit?.padding;
+        const frame = positions?.viewerFrame;
         const annotations = imported.importer.annotations?.(imported.snapshot) ?? [];
         return {
             extracted,
@@ -988,6 +990,7 @@ export abstract class DataSource {
             ...(pxPerUnit === undefined ? {} : { positionPxPerUnit: pxPerUnit }),
             positionsStored: positions?.usable === true,
             ...(padding === undefined ? {} : { framingPadding: padding }),
+            ...(frame === undefined ? {} : { framingBox: frame }),
         };
     }
 
@@ -1287,6 +1290,7 @@ export abstract class DataSource {
                 const { snapshot } = loaded;
                 // ponytail: the whole load is held, then chunked; hand each page to the ingest as it
                 // arrives once a paged source is big enough for that to matter
+                rememberMetaExtra(this, snapshot);
                 const { nodes, edges } = toRecords(sourceGraph(loaded), columnsMapping(snapshot));
                 yield* this.chunkData(nodes, edges);
             }

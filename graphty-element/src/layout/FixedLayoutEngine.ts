@@ -1,4 +1,4 @@
-import type { F32 } from "@graphty/graph-format";
+import { type F32, maskTest } from "@graphty/graph-format";
 import { z } from "zod";
 
 import { defineOptions, type OptionsSchema } from "../config";
@@ -29,6 +29,15 @@ const fixedLayoutOptionsSchema = defineOptions({
             advanced: true,
         },
     },
+    spacing: {
+        schema: z.number().min(0).default(3),
+        meta: {
+            label: "Spacing",
+            description:
+                "How far apart neighbors are drawn at least, in scene units (a default node is one across): data positions closer than that are spread out, keeping their proportions; 0 draws them as given",
+            advanced: true,
+        },
+    },
     edgeRoutes: {
         schema: z.enum(["element", "graphviz"]).default("element"),
         meta: {
@@ -51,6 +60,7 @@ const FixedLayoutConfig = z.strictObject({
     ...SimpleLayoutConfig.shape,
     dim: z.number().default(3),
     scale: z.number().positive().default(1),
+    spacing: z.number().min(0).default(3),
     edgeRoutes: z.enum(["element", "graphviz"]).default("element"),
     graphvizAttributes: z.record(z.string(), z.string()).default({}),
 });
@@ -69,6 +79,12 @@ type FixedLayoutOpts = Partial<FixedLayoutConfigType>;
  * `layout-warning` event with code `W_NO_POSITION`, so a misspelled position is never silent.
  * `scale` (1 by default) multiplies every data position on top of `positionScale`: a load that
  * draws a file's styles sets it so the stored drawing is in the same unit as the file's node sizes.
+ * `spacing` (3 scene units by default, three default node widths) spreads data drawn too close
+ * together: when the median edge is shorter than that, every position is multiplied by the one
+ * factor that makes it that long, so a file written on unit spacing draws separate nodes. It reads
+ * no style, so the same data spreads the same way on every render path. It reads only the first run,
+ * never shrinks a drawing, and is off when `scale` or the element's `positionScale` is set, which
+ * a reader sets to keep the size they chose. An export divides the factor back out.
  * `edgeRoutes: "graphviz"` has Graphviz route the edges between the placed nodes (`neato -n2`, how
  * Graphviz draws a file whose nodes carry their place and whose edges do not), reading each data
  * length as a point (`scale` scene units); a route the edge's style stores still wins. When
@@ -82,6 +98,11 @@ export class FixedLayout extends SnapshotLayoutEngine {
     config: FixedLayoutConfigType;
     /** The route Graphviz laid each edge along, when `edgeRoutes` is `"graphviz"`. */
     private routes = new Map<Edge, LaidRoute>();
+    /**
+     * What the first run multiplied the data positions by to keep neighbors `spacing` apart; 1
+     * when it spread nothing. An export divides it out to write the data's own coordinates.
+     */
+    spread = 1;
     /** Always three: a node's data carries a z, and a 2D view draws it flat. */
     protected readonly dimensions = 3;
 
@@ -109,7 +130,7 @@ export class FixedLayout extends SnapshotLayoutEngine {
         const position = (n.data as Record<string, unknown>).position as
             { x?: number; y?: number; z?: number } | undefined;
         if (position) {
-            const { scale } = this.config;
+            const scale = this.config.scale * this.spread;
             n.setMeshPosition((position.x ?? 0) * scale, (position.y ?? 0) * scale, (position.z ?? 0) * scale);
         }
     }
@@ -191,12 +212,7 @@ export class FixedLayout extends SnapshotLayoutEngine {
      * @returns the coordinates
      */
     private place(input: SnapshotLayoutInput): F32 {
-        const seeds = input.firstRun ? input.dataPositions() : null;
-        if (seeds !== null && this.config.scale !== 1) {
-            for (let i = 0; i < seeds.length; i++) {
-                seeds[i] *= this.config.scale;
-            }
-        }
+        const seeds = input.firstRun ? this.seeds(input) : null;
 
         const { initial } = input;
         const positions = new Float32Array(initial.length);
@@ -220,6 +236,97 @@ export class FixedLayout extends SnapshotLayoutEngine {
             input.warn({ code: "W_NO_POSITION", params: { missing, total: positions.length / 3 } });
         }
 
+        if (seeds === null) {
+            this.placeNewcomers(input, positions);
+        }
+
         return positions;
     }
+
+    /**
+     * The data positions as this layout draws them: times `scale` and the spread.
+     * @param input - the graph and its data positions
+     * @returns the coordinates, NaN where the data gives none
+     */
+    private seeds(input: SnapshotLayoutInput): F32 {
+        const seeds = input.dataPositions();
+        this.spread = this.spreadFor(input, seeds);
+        const factor = this.config.scale * this.spread;
+        if (factor !== 1) {
+            for (let i = 0; i < seeds.length; i++) {
+                seeds[i] *= factor;
+            }
+        }
+
+        return seeds;
+    }
+
+    /**
+     * Put each node added since the first run at its data position times `scale` and the spread,
+     * as the first run drew the others: the element seeds a newcomer at its data position times
+     * `positionScale` only.
+     * @param input - the graph, its data positions and the rows added
+     * @param positions - the coordinates, written in place
+     */
+    private placeNewcomers(input: SnapshotLayoutInput, positions: F32): void {
+        const factor = this.config.scale * this.spread;
+        const { added } = input;
+        if (factor === 1 || added === null) {
+            return;
+        }
+
+        const data = input.dataPositions();
+        for (let row = 0; 3 * row < positions.length; row++) {
+            if (maskTest(added, row) && !Number.isNaN(data[3 * row])) {
+                for (let k = 3 * row; k < 3 * row + 3; k++) {
+                    positions[k] = data[k] * factor;
+                }
+            }
+        }
+    }
+
+    /**
+     * The factor that draws the median edge `spacing` long, or 1 when it is that long already,
+     * when `spacing` is 0, or when the reader chose a scale.
+     * @param input - the graph
+     * @param seeds - the data positions, in scene units
+     * @returns the factor, at least 1
+     */
+    private spreadFor(input: SnapshotLayoutInput, seeds: F32): number {
+        if (this.config.spacing === 0 || this.config.scale !== 1 || this.positionScale() !== 1) {
+            return 1;
+        }
+
+        // The stored edges, in the same rows: reading `graph` would build the undirected graph,
+        // which this layout never needs. ponytail: edges only; a graph with no edge between placed
+        // nodes is drawn as given.
+        const { src, dst } = input.stored.edgeList();
+        const lengths: number[] = [];
+        for (let e = 0; e < src.length; e++) {
+            const a = 3 * src[e];
+            const b = 3 * dst[e];
+            const length = Math.hypot(seeds[a] - seeds[b], seeds[a + 1] - seeds[b + 1], seeds[a + 2] - seeds[b + 2]);
+            if (length > 0) {
+                lengths.push(length);
+            }
+        }
+
+        const edge = median(lengths);
+        const want = this.config.spacing;
+        return edge === undefined || edge >= want ? 1 : want / edge;
+    }
+}
+
+/**
+ * The median of some numbers.
+ * @param values - the numbers; NaN is never among them
+ * @returns the median, or undefined for none
+ */
+function median(values: number[]): number | undefined {
+    if (values.length === 0) {
+        return undefined;
+    }
+
+    values.sort((a, b) => a - b);
+    return values[values.length >> 1];
 }

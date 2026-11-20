@@ -5,7 +5,7 @@
  * columns and add the same records; each dispatches it where its own change goes.
  */
 
-import type { FetchEdgesFn, FetchNodesFn } from "../config";
+import type { FetchEdgesFn, FetchNeighborEdgesFn, FetchNodesFn } from "../config";
 import type { Graph } from "../Graph";
 import type { Node as GraphNode, NodeIdType } from "../Node";
 import type { SessionCommand } from "../session/planning";
@@ -15,6 +15,7 @@ import { readEndpoint, resolveEndpoints } from "./endpoints";
 interface Fetchers {
     readonly fetchNodes?: FetchNodesFn;
     readonly fetchEdges?: FetchEdgesFn;
+    readonly fetchNeighborEdges?: FetchNeighborEdgesFn;
 }
 
 /** The `data.expand` command for one node. */
@@ -39,17 +40,17 @@ export function canExpand(graph: Fetchers): boolean {
  * @returns The command, or undefined when the graph supplies no fetchers.
  */
 export function expansionOf(graph: Graph & Fetchers, node: GraphNode): ExpandCommand | undefined {
-    const { fetchNodes, fetchEdges } = graph;
+    const { fetchNodes, fetchEdges, fetchNeighborEdges } = graph;
     if (fetchNodes === undefined || fetchEdges === undefined) {
         return undefined;
     }
 
-    const edges = Array.from(fetchEdges(node, graph));
-    const endpoints = resolveEndpoints(edges, { source: null, target: null });
+    const own = Array.from(fetchEdges(node, graph));
+    const ownEnds = resolveEndpoints(own, { source: null, target: null });
     const nodeIds = new Set<NodeIdType>();
-    for (const edge of edges) {
+    for (const edge of own) {
         // The spelling is decided per batch, so a record that lacks it reads null: it names no node.
-        for (const id of [readEndpoint(edge, endpoints.source), readEndpoint(edge, endpoints.target)]) {
+        for (const id of [readEndpoint(edge, ownEnds.source), readEndpoint(edge, ownEnds.target)]) {
             if (id !== null && id !== undefined) {
                 nodeIds.add(id as NodeIdType);
             }
@@ -57,13 +58,39 @@ export function expansionOf(graph: Graph & Fetchers, node: GraphNode): ExpandCom
     }
 
     nodeIds.delete(node.id);
+    const nodes = [...fetchNodes(nodeIds, graph)];
+    const among = fetchNeighborEdges === undefined || nodeIds.size === 0 ? [] : neighborEdges(graph, nodeIds, node);
+    // One spelling for both halves, so the command reads every edge with the same columns.
+    const edges = [...own, ...among];
+    const endpoints = among.length === 0 ? ownEnds : resolveEndpoints(edges, { source: null, target: null });
     // The records ride in the command, so a redo puts them back without asking the consumer again.
     return {
         op: "data.expand",
         seed: node.id,
-        nodes: [...fetchNodes(nodeIds, graph)],
+        nodes,
         edges,
         source: endpoints.source,
         target: endpoints.target,
     };
+}
+
+/**
+ * The edges `fetchNeighborEdges` hands back for the fetched nodes, keeping only those whose ends
+ * are both in the graph or just fetched: an edge to a node nothing brought would add that node
+ * with no record.
+ * @param graph - The graph, whose `fetchNeighborEdges` is set.
+ * @param nodeIds - The ids the expansion fetched.
+ * @param seed - The node being expanded.
+ * @returns The edges to add with the expansion.
+ */
+function neighborEdges(graph: Graph & Fetchers, nodeIds: Set<NodeIdType>, seed: GraphNode): Record<string, unknown>[] {
+    const fetched = Array.from(graph.fetchNeighborEdges?.(new Set(nodeIds), graph) ?? []);
+    if (fetched.length === 0) {
+        return [];
+    }
+
+    const ends = resolveEndpoints(fetched, { source: null, target: null });
+    const known = (id: unknown): boolean =>
+        id === seed.id || nodeIds.has(id as NodeIdType) || graph.getNode(id as NodeIdType) !== undefined;
+    return fetched.filter((edge) => known(readEndpoint(edge, ends.source)) && known(readEndpoint(edge, ends.target)));
 }

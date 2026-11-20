@@ -114,6 +114,7 @@ const CODES_FROM_THE_DESIGN = [
     "E_AUTOSAVE_STALLED",
     "E_UNSTABLE_RUN_ID",
     "E_DUPLICATE_ID",
+    "E_CLASH_RULE_TYPE",
     "E_DUPLICATE_EDGE",
     "E_DUPLICATE_PLUGIN",
     "E_PROTECTED",
@@ -179,6 +180,7 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_SELECTOR_EMPTY":
         case "E_UNSCOPED_RUN_ENCODING":
         case "E_OPTION_RANGE":
+        case "E_CLASH_RULE_TYPE":
         case "E_BAD_DOCUMENT":
         case "E_UNSUPPORTED_VERSION":
             return "malformed";

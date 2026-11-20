@@ -52,19 +52,12 @@ import { COLUMNS_VALUE, type ColumnSettings } from "./commands/data";
 import { shaderIdsIn } from "./commands/shaderCopies";
 import { type CameraService, startingCamerasOf } from "./commands/view";
 import type { SessionData } from "./data";
-import { refetchSources } from "./document2/codecs/dataFetch";
-import { openDocument2, saveDocument2 } from "./document2/document";
-import { assertIJson, isJsonObject, isVersion2, newDocumentId, parseDocument } from "./document2/framing";
-import { migrateDocument1 } from "./document2/migration";
-import { DTYPES } from "./document2/migrationParts";
-import { SECTION_CODECS } from "./document2/registry";
-import {
-    DOCUMENT_SECTIONS,
-    type DocumentCode,
-    type DocumentProblem,
-    type DocumentSection,
-    type SourceStorage,
-} from "./document2/types";
+// The rest of document2/ (the save-files-v2 experiment) is imported on demand from
+// document2/onDemand.ts where a version 2 file is saved or opened, so it stays out of the main entry.
+import { DTYPES, newDocumentId } from "./document2/basics";
+import type { ProjectFileHandle } from "./document2/codecs/fileHandles";
+import type { ProjectFileFacts, ProjectSaveFacts } from "./document2/facts";
+import type { DocumentCode, DocumentProblem, DocumentSection, SourceStorage } from "./document2/types";
 import { expandedGraph, type SavedCollapse } from "./groups";
 import { ISSUES_VALUE, type IssueState } from "./issues";
 import { loadLineOf } from "./loadLine";
@@ -173,7 +166,31 @@ export type ProjectProblem = CodedFact<
 >;
 
 export type { AssetStorage, ProjectAssetChoice } from "./assets/projectMember";
-export type { DocumentCode, DocumentSection, SourceStorage } from "./document2/types";
+export type { ProjectFileHandle } from "./document2/codecs/fileHandles";
+export type { SectionBinding } from "./document2/document";
+export type {
+    DocumentBindFacts,
+    DocumentHeldFacts,
+    DocumentHeldReason,
+    DocumentSectionAbout,
+    DocumentSectionFacts,
+    DocumentSectionNeed,
+    ProjectFileFacts,
+    ProjectFileRun,
+    ProjectFileSection,
+    ProjectFileSource,
+    ProjectSaveFacts,
+    ProjectSaveSection,
+    ProjectSourceChoice,
+    ProjectSourceKind,
+} from "./document2/facts";
+export type {
+    DocumentCode,
+    DocumentSection,
+    SourceEmbeddedReason,
+    SourceStorage,
+    SourceUnavailableReason,
+} from "./document2/types";
 
 /** How `project.save` writes the file. */
 export interface ProjectSaveOptions {
@@ -263,6 +280,45 @@ export interface ProjectSaveOptions {
      * @beta
      */
     readonly paths?: Readonly<Record<string, string>>;
+    /**
+     * Version 2 only: per file source, by load key or record id, a browser file handle (File System
+     * Access) to reference it by when it has no path. A handle cannot be written into a file, so
+     * graphty-element keeps it in this browser, keyed by the source and its copy, and writes the
+     * source with no `path`; reopening in this browser reads the file through it, checking its
+     * permission without prompting (`W_SOURCE_UNAVAILABLE` reason `needs-permission` until
+     * `data.refresh` asks), and elsewhere lists the source as needing a file. A re-save keeps the
+     * handle it was opened with. A key that names no source is refused with `E_OPTION_RANGE`.
+     *
+     * ```ts
+     * const [handle] = await window.showOpenFilePicker();
+     * await session.data.import({ type: "csv", config: { file: await handle.getFile() } });
+     * const [source] = session.data.sources();
+     * await session.project.save({ format: 2, embed: { [source.key]: "referenced" }, handles: { [source.key]: handle } });
+     * ```
+     * @since 3.40.0
+     * @experimental save-files-v2
+     * @beta
+     */
+    readonly handles?: Readonly<Record<string, ProjectFileHandle>>;
+    /**
+     * Version 2 only: the URL of the file being saved. Every file path an opened project read is
+     * written relative to its folder, resolved against the file the project was opened from; a
+     * file outside that folder loses its path (`W_SOURCE_NO_PATH`): a built source is embedded, a
+     * copy stays a copy, a held one is written with no path, so reopening lists it as needing a
+     * file. Absent, no path read is written: each loses its path the same way.
+     * @since 3.40.0
+     * @experimental save-files-v2
+     * @beta
+     */
+    readonly location?: string;
+    /**
+     * Version 2 only: write the recipe from the session's state even when the session holds a
+     * recipe opened from a file, which is otherwise written back as read. Default false.
+     * @since 3.40.0
+     * @experimental save-files-v2
+     * @beta
+     */
+    readonly rewriteRecipe?: boolean;
 }
 
 /** What the session lends the project file for the loads. */
@@ -382,6 +438,15 @@ export interface ProjectOpenOptions {
      */
     readonly rerun?: boolean;
     /**
+     * Version 2 only: per run id, and `"layout"` for the layout, whether it reruns on open (true)
+     * or its saved results are restored (false), over `rerun`. A run its file marks not replayable
+     * never reruns. `project.inspect` lists the runs. EXPERIMENTAL.
+     * @since 3.40.0
+     * @experimental save-files-v2
+     * @beta
+     */
+    readonly runs?: Readonly<Record<string, boolean>>;
+    /**
      * Version 2 only: whether a data section replaces the open data (`"replace"`, the default,
      * opening a project) or is added as another source (`"add"`). EXPERIMENTAL.
      * @since 3.40.0
@@ -399,6 +464,23 @@ export interface ProjectOpenOptions {
      */
     readonly bindOtherData?: boolean;
     /**
+     * Version 2 only: the open data's column for each column a style section names, by table --
+     * the column mapping step's answer, such as `{ node: { amount: "amount_usd" } }`. Every column
+     * the section's layers read under a listed name reads the mapped one; a column it does not
+     * list is read as written. `inspect` takes it too, so each column need's `found` is for its
+     * mapped column. A name mapped to anything but non-empty text is refused with
+     * `E_OPTION_RANGE` (`details.option` `"columns"`). EXPERIMENTAL.
+     * @since 3.40.0
+     * @experimental save-files-v2
+     * @beta
+     */
+    readonly columns?: {
+        /** Node columns: each name a style section reads, mapped to the open data's column. */
+        readonly node?: Readonly<Record<string, string>>;
+        /** Edge columns: each name a style section reads, mapped to the open data's column. */
+        readonly edge?: Readonly<Record<string, string>>;
+    };
+    /**
      * With the `save-files-v2` experiment on: open a version 1 file through its migration to
      * version 2. Default false: a version 1 file is read as before. EXPERIMENTAL.
      * @since 3.40.0
@@ -406,6 +488,15 @@ export interface ProjectOpenOptions {
      * @beta
      */
     readonly migrate?: boolean;
+    /**
+     * Version 2 only: apply a recipe the file holds to the data open now -- its filters, sets,
+     * runs and layout, in order -- instead of only keeping it for the next save. Default false.
+     * `session.recipes.apply` opens a recipe this way.
+     * @since 3.40.0
+     * @experimental save-files-v2
+     * @beta
+     */
+    readonly applyRecipe?: boolean;
     /**
      * Version 2 only: the URL of the file being opened, which a referenced source's relative
      * `url` or `path` is resolved against. Without it, a referenced source with a relative
@@ -420,9 +511,10 @@ export interface ProjectOpenOptions {
      * Version 2 only: let the open fetch the referenced sources the file names by URL (resolved
      * against `location`). A file cannot approve its own fetches, so the default is `ownWork`:
      * without it, a source that would be fetched supplies nothing and is reported
-     * `W_SOURCE_UNAVAILABLE` (`reason: "consent"`). Nothing is fetched for a data section the
-     * open does not build. Each source is read no further than `limits.fileBytes`
-     * (`reason: "too-large"`). EXPERIMENTAL.
+     * `W_SOURCE_UNAVAILABLE` (`reason: "needs-permission"`) and is held until `data.refresh`
+     * fetches it. Nothing is fetched for a data section the open does not build. Each source is
+     * read no further than `limits.fileBytes` (`reason: "too-large"`). A source whose bytes changed
+     * since the save is held too (`reason: "copy-changed"`), never rebuilt on open. EXPERIMENTAL.
      * @since 3.40.0
      * @experimental save-files-v2
      * @beta
@@ -568,6 +660,85 @@ export interface ProjectApi {
      *     `E_UNSUPPORTED` for one that requires a member kind this element does not read.
      */
     open(source: ProjectSource, options?: ProjectOpenOptions): Promise<ProjectOpenReport>;
+    /**
+     * What a version 2 save of the session would write, asked before saving (the `save-files-v2`
+     * experiment): each section with what it holds, whether a save writes it by default, whether
+     * it is held, and each source with how a save keeps it and whether it can be referenced; and
+     * whether a save with the `sections` and `form` given is the project or a copy. Changes nothing.
+     * @param options - The save's `sections` and `form` (for `project`) and the `paths` the host
+     *     supplies (for each source's `referable` and `refused`), as `save` takes them.
+     * @returns The facts.
+     * @throws A `GraphtyError` (as a rejection) with `E_FEATURE_OFF` without the experiment.
+     * @example
+     * ```typescript
+     * const { sections, sources } = await session.project.describe();
+     * const embed = Object.fromEntries(sources.filter((s) => s.referable).map((s) => [s.id, "referenced" as const]));
+     * await session.project.save({ format: 2, sections: sections.filter((s) => s.saved).map((s) => s.section), embed });
+     * ```
+     * @since 3.40.0
+     * @experimental save-files-v2
+     * @beta
+     */
+    describe(
+        options?: Pick<ProjectSaveOptions, "sections" | "form" | "paths" | "handles" | "location">,
+    ): Promise<ProjectSaveFacts>;
+    /**
+     * Read a version 2 file without opening it (the `save-files-v2` experiment): its sections,
+     * held ones and what each bound one binds to, the runs an open would start, and the sources it
+     * names. What to ask the reader before `open`.
+     * @param source - The file, its bytes, or its text.
+     * @param options - `migrate` to read a version 1 file through its migration, and `limits`; the
+     *     open's `sections` and `dataMode`, for each bound section's `binding`.
+     * @returns The facts, or undefined for a file that is not a version 2 document (a version 1
+     *     file without `migrate`, a data file).
+     * @throws A `GraphtyError` (as a rejection) with `E_FEATURE_OFF` without the experiment, and
+     *     what `open` throws for a file too large or malformed.
+     * @since 3.40.0
+     * @experimental save-files-v2
+     * @beta
+     */
+    inspect(
+        source: ProjectSource,
+        options?: Pick<ProjectOpenOptions, "migrate" | "limits" | "sections" | "dataMode" | "columns">,
+    ): Promise<ProjectFileFacts | undefined>;
+}
+
+/**
+ * Where an open read its referenced sources from, the files the caller picked and how far, for a
+ * later `data.refresh`.
+ * @param options - The open's options.
+ * @param limit - The most bytes one source may hold.
+ * @returns The location, files and limit.
+ */
+function openedHow(
+    options: ProjectOpenOptions,
+    limit: number,
+): { location?: string; files?: Readonly<Record<string, Blob>>; limit: number } {
+    return {
+        ...(options.location === undefined ? {} : { location: options.location }),
+        ...(options.files === undefined ? {} : { files: options.files }),
+        limit,
+    };
+}
+
+/**
+ * Refuse a `columns` open option that maps a name to anything but non-empty text.
+ * @param columns - The option.
+ * @throws A `GraphtyError` with `E_OPTION_RANGE` (`details.option`, `details.value`).
+ */
+function checkColumns(columns: ProjectOpenOptions["columns"]): void {
+    for (const [table, renames] of Object.entries(columns ?? {})) {
+        const bad = Object.entries(renames ?? {}).find(([, to]) => typeof to !== "string" || to === "");
+        if (!["node", "edge"].includes(table) || bad !== undefined) {
+            const value = bad === undefined ? table : [table, bad[0]].join(".");
+            throw new GraphtyError({
+                code: "E_OPTION_RANGE",
+                message: `The open option columns maps ${value} to no column.`,
+                source: "data",
+                details: { option: "columns", value },
+            });
+        }
+    }
 }
 
 /**
@@ -1650,13 +1821,14 @@ function leftOutOfVersion2(
  * @returns The document and what its migration reported; or, to read the file as before, the
  *     file parsed (so it is not parsed twice), or undefined when it is not JSON.
  */
-function version2Of(
+async function version2Of(
     text: string,
     migrate: boolean,
-):
+): Promise<
     | { readonly value: Record<string, unknown>; readonly problems: DocumentProblem[] }
     | { readonly parsed: { readonly value: unknown } }
-    | undefined {
+    | undefined
+> {
     let value: unknown;
     try {
         value = JSON.parse(text);
@@ -1665,6 +1837,7 @@ function version2Of(
     }
 
     checkTree(value, 1);
+    const { assertIJson, isJsonObject, isVersion2, migrateDocument1 } = await import("./document2/onDemand");
     if (isVersion2(value)) {
         // A version 2 file is I-JSON (spec 1): JSON.parse keeps the last of a duplicate member,
         // so the text itself is checked.
@@ -3191,15 +3364,25 @@ interface SavedRun {
 }
 
 export { PROJECT_FILE } from "../catalog/types";
+export { DOCUMENT_SECTIONS } from "./document2/types";
 
 /**
  * The file name the element gives a project: `<name>.graphty.json`, or `project.graphty.json`
  * for a project with no name. Opening a file with that name gives a named project its name back.
+ * A version 2 section file (`save({ format: 2, form: "section" })`) is `<name>.graphty-<section>.json`.
  * @param name - The project's name, such as `session.project.name`; blank or null for none.
+ * @param options - `section`: the one section of a version 2 section file (`save-files-v2`).
+ * @param options.section - The section.
  * @returns The file name.
  */
-export function projectFileName(name: string | null | undefined): string {
-    return `${name === null || name === undefined || name.trim() === "" ? "project" : name}${PROJECT_FILE.extension}`;
+export function projectFileName(
+    name: string | null | undefined,
+    options: { readonly section?: DocumentSection } = {},
+): string {
+    const stem = name === null || name === undefined || name.trim() === "" ? "project" : name;
+    return options.section === undefined
+        ? `${stem}${PROJECT_FILE.extension}`
+        : stem + PROJECT_FILE.extension.replace(/\.json$/, `-${options.section}.json`);
 }
 
 /**
@@ -3607,6 +3790,7 @@ export function projectOf(
      */
     const saveVersion2 = async (options: ProjectSaveOptions): Promise<SavedProject> => {
         const extensions = checkedExtensions(options.extensions ?? {});
+        const { isWholeSave, saveDocument2, SECTION_CODECS } = await import("./document2/onDemand");
         const { document, written, problems } = await saveDocument2(
             session,
             SECTION_CODECS,
@@ -3616,14 +3800,15 @@ export function projectOf(
                 ...(options.results === undefined ? {} : { results: options.results }),
                 ...(options.embed === undefined ? {} : { embed: options.embed }),
                 ...(options.paths === undefined ? {} : { paths: options.paths }),
+                ...(options.rewriteRecipe === undefined ? {} : { rewriteRecipe: options.rewriteRecipe }),
+                ...(options.handles === undefined ? {} : { handles: options.handles }),
+                ...(options.location === undefined ? {} : { location: options.location }),
                 extensions,
             },
             isDerived,
         );
         // Only a full file of every default section, the data included, is the project.
-        const whole =
-            options.form !== "section" &&
-            DOCUMENT_SECTIONS.every((name) => name === "results" || written.includes(name));
+        const whole = isWholeSave(written, options.form);
         return finishSave(
             document,
             written,
@@ -3651,13 +3836,17 @@ export function projectOf(
         // Fetched before the section is built, which builds it synchronously; an abort rejects
         // here, before anything is applied. A file cannot approve its own fetches, and never makes
         // one for a data section the open would not build.
+        checkColumns(options.columns);
         const fetches = options.fetchSources ?? options.ownWork === true;
+        const { isJsonObject, openDocument2, parseDocument, refetchSources, rememberRefetch, SECTION_CODECS } =
+            await import("./document2/onDemand");
+        const limit = options.limits?.fileBytes ?? DEFAULT_FILE_BYTES;
         await refetchSources(value, {
             ...(options.location === undefined ? {} : { location: options.location }),
             ...(options.files === undefined ? {} : { files: options.files }),
             ...(options.signal === undefined ? {} : { signal: options.signal }),
             fetch: fetches,
-            limit: options.limits?.fileBytes ?? DEFAULT_FILE_BYTES,
+            limit,
             builds: () =>
                 !fetches ||
                 ((options.sections?.includes("data") ?? true) &&
@@ -3674,8 +3863,11 @@ export function projectOf(
             {
                 ...(options.sections === undefined ? {} : { sections: options.sections }),
                 ...(options.rerun === undefined ? {} : { rerun: options.rerun }),
+                ...(options.runs === undefined ? {} : { runs: options.runs }),
                 ...(options.dataMode === undefined ? {} : { dataMode: options.dataMode }),
                 ...(options.bindOtherData === undefined ? {} : { bindOtherData: options.bindOtherData }),
+                ...(options.applyRecipe === undefined ? {} : { applyRecipe: options.applyRecipe }),
+                ...(options.columns === undefined ? {} : { columns: options.columns }),
             },
             {
                 canned,
@@ -3689,6 +3881,12 @@ export function projectOf(
                     projectChanged?.();
                 },
                 name: wrapperName ?? nameOfFile(typeof fileName === "string" ? fileName : undefined),
+                clear: (tx) => clearInto(tx, dispatcher.state.visibility.playback),
+                // `data.refresh` reads a held source again from where this open read it, and a
+                // save writes every path read relative to it.
+                opened: () => {
+                    rememberRefetch(session, openedHow(options, limit));
+                },
             },
         );
         fresh = false;
@@ -3723,10 +3921,44 @@ export function projectOf(
         assetChoices() {
             return assetChoices(session);
         },
+        async describe(options = {}) {
+            if (!session.features.has("save-files-v2")) {
+                throw featureOff("save-files-v2", "project.describe");
+            }
+
+            const { describeSave, SECTION_CODECS } = await import("./document2/onDemand");
+            return describeSave(session, SECTION_CODECS, isDerived, {
+                ...(options.sections === undefined ? {} : { sections: options.sections }),
+                ...(options.form === undefined ? {} : { form: options.form }),
+                ...(options.paths === undefined ? {} : { paths: options.paths }),
+                ...(options.handles === undefined ? {} : { handles: options.handles }),
+                ...(options.location === undefined ? {} : { location: options.location }),
+            });
+        },
+        async inspect(source, options = {}) {
+            if (!session.features.has("save-files-v2")) {
+                throw featureOff("save-files-v2", "project.inspect");
+            }
+
+            checkColumns(options.columns);
+            const text = await textOf(source, options.limits?.fileBytes ?? DEFAULT_FILE_BYTES);
+            const read = await version2Of(text, options.migrate === true);
+            if (read === undefined || !("value" in read)) {
+                return undefined;
+            }
+
+            const { describeFile, parseDocument, SECTION_CODECS } = await import("./document2/onDemand");
+            const parsed = parseDocument(read.value, SECTION_CODECS);
+            return describeFile(session, SECTION_CODECS, parsed, [...read.problems, ...parsed.problems], {
+                ...(options.sections === undefined ? {} : { sections: options.sections }),
+                ...(options.dataMode === undefined ? {} : { dataMode: options.dataMode }),
+                ...(options.columns === undefined ? {} : { columns: options.columns }),
+            });
+        },
         save(options = {}) {
-            const versionTwoOnly = (["sections", "form", "results", "embed", "paths"] as const).find(
-                (key) => options[key] !== undefined,
-            );
+            const versionTwoOnly = (
+                ["sections", "form", "results", "embed", "paths", "handles", "location", "rewriteRecipe"] as const
+            ).find((key) => options[key] !== undefined);
             if (options.format !== 2 && versionTwoOnly !== undefined) {
                 // Never ignored: a version 1 file cannot hold what the option asks for.
                 return Promise.reject(
@@ -3779,7 +4011,7 @@ export function projectOf(
                 // With the experiment on, a version 2 file (or, asked to, a migrated version 1
                 // file) opens through the version 2 codecs; every other file reads as before.
                 const read = session.features.has("save-files-v2")
-                    ? version2Of(text, options.migrate === true)
+                    ? await version2Of(text, options.migrate === true)
                     : undefined;
                 version2 = read !== undefined && "value" in read ? read : undefined;
                 const parsed = read !== undefined && "parsed" in read ? read.parsed : undefined;

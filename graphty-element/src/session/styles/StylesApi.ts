@@ -1406,6 +1406,17 @@ export interface StylesApi {
      */
     deleteRow(id: StyleRowId, options?: RunOptions): Run<readonly LayerId[]>;
     /**
+     * Copy a layer row whole, just above itself in the same folder, as one undo step: every part
+     * (both parts of a row that paints nodes and edges), with its selector, values, bindings,
+     * source and `userData`, and the row's pin, lock and eye. The copy gets new ids.
+     * @param id - The layer row; a folder is refused.
+     * @param name - The copy's name; the source's when absent.
+     * @param options - A signal to cancel with, and a progress handler.
+     * @returns A run that resolves with the copy, and rejects with `E_UNKNOWN_LAYER` for a row the
+     *     tree does not hold and `E_BAD_COMMAND` for a folder.
+     */
+    duplicateRow(id: StyleRowId, name?: string, options?: RunOptions): Run<RowParts>;
+    /**
      * The stack as a style file: {@link StylesApi.toDocument} marked `kind: "graphty-style"`, the
      * same member a project file holds. It carries the layers (and the palettes they name) and
      * nothing else -- no data, no ids, no runs -- so it styles another dataset that has the same
@@ -4608,6 +4619,106 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             stack.find((entry) => entry.layer.id === key)?.layer.name ?? key;
 
     /**
+     * A layer row's parts, and the ids their copies get, minted in stack order.
+     * @param id - The layer row.
+     * @param name - The copy's name, when it has a new one.
+     * @returns The source row, its parts and each part's new id.
+     */
+    const copyIds = (
+        id: StyleRowId,
+        name: string | undefined,
+    ): {
+        readonly row: RowNode;
+        readonly parts: readonly CompiledLayer[];
+        readonly ids: ReadonlyMap<LayerId, LayerId>;
+    } => {
+        const row = requireRow(id);
+        if (row.kind === "folder") {
+            throw badCommand("Only a layer row can be duplicated.", { id });
+        }
+
+        const parts = current().filter((entry) => !entry.layer.locked && rowKeyOf(entry) === id);
+        const fresh = minter();
+        const ids = new Map(parts.map((entry) => [entry.layer.id, fresh(name ?? entry.layer.name)]));
+        return { row, parts, ids };
+    };
+
+    /**
+     * The plan for a copy of a layer row, just above it in its folder.
+     * @param id - The layer row.
+     * @param name - The copy's name; the source's when absent.
+     * @returns The plan.
+     */
+    const planDuplicateRow = (id: StyleRowId, name: string | undefined): EditPlan<RowParts> => {
+        const { row, parts, ids } = copyIds(id, name);
+        const copyKey = ids.get(id) ?? id;
+        const added = parts.map((entry) => {
+            const spec: LayerSpec = {
+                ...specOf(entry.layer),
+                ...(name === undefined ? {} : { name }),
+                ...(entry.layer.row === undefined ? {} : { row: copyKey }),
+            };
+            const checked = check(spec, ids.get(entry.layer.id) ?? entry.layer.id, true, true);
+            if (checked.layer === null) {
+                throw refused(spec.name, checked.result);
+            }
+
+            return checked.layer;
+        });
+
+        const stack = [...current()];
+        const above = Math.max(...parts.map((entry) => stack.indexOf(entry))) + 1;
+        stack.splice(above, 0, ...added);
+
+        const rows = rowsOf(current());
+        const found = findRow(rows, id);
+        const parent = found?.ancestors.at(-1)?.id ?? null;
+        const copy: RowNode = Object.freeze({ ...row, id: copyKey });
+
+        return {
+            stack,
+            rows: normalize(insertRow(rows, parent, (found?.index ?? rows.length) + 1, copy)),
+            result: rowOf(added) as RowParts,
+            layers: added.map((entry) => entry.layer.id),
+            unresolvedPaths: NO_PATHS,
+            reason: "add",
+        };
+    };
+
+    /**
+     * The id a command that adds a layer or a folder will give it, minted as its plan mints it.
+     * @param command - The command.
+     * @returns The id, or undefined for a command that adds none or that its plan will refuse.
+     */
+    const mintedId = (command: StylePatchCommand): string | undefined => {
+        try {
+            switch (command.action) {
+                case "add":
+                    return mint(command.spec.name);
+                case "addRow": {
+                    // A row of two parts is known by its node part's id, minted second.
+                    const fresh = minter();
+                    const first = fresh(command.spec.name);
+                    return command.spec.target === "both" ? fresh(command.spec.name) : first;
+                }
+                case "mark": {
+                    const runs = requireRuns("mark");
+                    const run = requireRun(command.spec.run, runs);
+                    return mint(command.spec.name ?? runs.defaultLayerName(run.id) ?? run.algorithm);
+                }
+                case "addFolder":
+                    return folderMinter(rowsOf(current()))(command.name);
+                case "duplicateRow":
+                    return copyIds(command.id, command.name).ids.get(command.id);
+                default:
+                    return undefined;
+            }
+        } catch {
+            return undefined;
+        }
+    };
+
+    /**
      * The plan for a change to the tree alone, which leaves every layer as it is.
      * @param rows - The tree it leaves.
      * @param id - The row it changed, which the run resolves with.
@@ -4875,6 +4986,8 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 return planUpdate(command.id, command.patch, current(), command.keepEmpty === true);
             case "addRow":
                 return planAddRow(command.spec, command.at);
+            case "duplicateRow":
+                return planDuplicateRow(command.id, command.name);
             case "addDefaultRows":
                 return planDefaultRows(command.timelineHidden === true);
             case "addFolder":
@@ -5024,6 +5137,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             return { result: planned.result, painted } satisfies EditOutcome<unknown>;
         },
         validate: (spec) => check(spec, mint(spec.name)).result,
+        mintedId,
     };
 
     // What one pass told, closed by a single `onBatch`.
@@ -5352,6 +5466,15 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 "remove",
                 `Delete row ${id}`,
                 { op: "style.patch", action: "deleteRow", id },
+                options,
+            );
+        },
+
+        duplicateRow(id: StyleRowId, name?: string, options: RunOptions = {}): Run<RowParts> {
+            return edit<RowParts>(
+                "add",
+                `Duplicate row ${id}`,
+                { op: "style.patch", action: "duplicateRow", id, ...(name === undefined ? {} : { name }) },
                 options,
             );
         },

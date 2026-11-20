@@ -32,6 +32,10 @@ interface Seen {
     readonly unscrubbed?: Set<string>;
     /** How many number fields the walk saw. */
     numbers?: number;
+    /** Every row whose settings "..." is not its last control (E550: always at the far right). */
+    readonly settingsNotLast?: Set<string>;
+    /** How many rows with a settings "..." the walk saw. */
+    settingsRows?: number;
 }
 
 /** The v2 panel shown now. */
@@ -61,6 +65,17 @@ function look(seen: Seen, root: HTMLElement): void {
     for (const forbidden of OWNER_FORBIDDEN) {
         if (forbidden.selector !== undefined && root.querySelector(forbidden.selector) !== null) {
             seen.selectors.add(forbidden.selector);
+        }
+    }
+    for (const more of root.querySelectorAll<HTMLElement>("button[aria-label$=' settings']")) {
+        const row = more.closest(".ws-row");
+        if (row === null) {
+            continue;
+        }
+        seen.settingsRows = (seen.settingsRows ?? 0) + 1;
+        const controls = [...row.querySelectorAll("button, input, [role='button'], [role='combobox']")];
+        if (controls.at(-1) !== more) {
+            seen.settingsNotLast?.add(row.getAttribute("data-line") ?? more.getAttribute("aria-label") ?? "?");
         }
     }
     for (const input of root.querySelectorAll('input[role="spinbutton"]')) {
@@ -220,7 +235,13 @@ describe("nothing the owner ordered out of the Style panel comes back", () => {
 
     it("the Node and Edge tabs, every '+' menu, row and pop-over, in 2D and 3D, show none of them", async () => {
         const { session } = await openGraph();
-        const seen: Seen = { words: new Set(), lines: new Set(), selectors: new Set(), unscrubbed: new Set() };
+        const seen: Seen = {
+            words: new Set(),
+            lines: new Set(),
+            selectors: new Set(),
+            unscrubbed: new Set(),
+            settingsNotLast: new Set(),
+        };
         await switchView("3D");
         await walkKind(seen, "node", true);
         await walkKind(seen, "edge", true);
@@ -230,6 +251,12 @@ describe("nothing the owner ordered out of the Style panel comes back", () => {
         assert.isAbove(seen.lines.size, 10, "the walk reached the rows' lines");
         assert.isAbove(seen.numbers ?? 0, 10, "the walk reached number fields");
         assert.deepEqual([...(seen.unscrubbed ?? [])], [], "every number field has a scrub slot (E181, E330)");
+        assert.isAbove(seen.settingsRows ?? 0, 5, "the walk reached rows with a settings button");
+        assert.deepEqual(
+            [...(seen.settingsNotLast ?? [])],
+            [],
+            'every row\'s settings "..." is its last control (E550)',
+        );
         const written = writtenChannels(session);
         for (const forbidden of OWNER_FORBIDDEN) {
             const why = `${forbidden.what} (${forbidden.ledger})`;

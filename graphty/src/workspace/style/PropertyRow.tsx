@@ -1490,8 +1490,18 @@ export function Field({
                 <div className="ws-field-control" data-notes={notes.length === 0 ? undefined : notes.join(" ")}>
                     {control}
                 </div>
-                <span className="ws-slot ws-vary">{thing?.slot ?? shownVary}</span>
-                <span className="ws-slot">{minus}</span>
+                {thing?.slot === undefined ? (
+                    <>
+                        <span className="ws-slot ws-vary">{shownVary}</span>
+                        <span className="ws-slot">{minus}</span>
+                    </>
+                ) : (
+                    // A Style panel v2 row: `[-] [...]`, its settings "..." at the far right (E550).
+                    <>
+                        <span className="ws-slot">{minus}</span>
+                        <span className="ws-slot ws-vary">{thing.slot}</span>
+                    </>
+                )}
             </FieldLine>
             {asset?.extras}
             {pendingVary === null ? null : (

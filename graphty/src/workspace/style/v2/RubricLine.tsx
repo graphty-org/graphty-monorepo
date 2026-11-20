@@ -899,10 +899,11 @@ export function LineFrame({
         >
             <FieldLine name={name} settings={null}>
                 <div className="ws-field-control">{control}</div>
-                <span className="ws-slot ws-vary">{modifier}</span>
+                {/* `[-] [...]`: the settings "..." is always at the far right of a row (E550). */}
                 <span className="ws-slot">
                     {removeName === undefined ? null : <RemoveButton label={removeName} onClick={onRemove} />}
                 </span>
+                <span className="ws-slot ws-vary">{modifier}</span>
             </FieldLine>
         </div>
     );

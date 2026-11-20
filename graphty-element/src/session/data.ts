@@ -242,6 +242,7 @@ import {
     mintEditId,
     mintSourceId,
     nodeIdsOf,
+    nodeOfId,
     projectBuild,
     type ProjectedGraph,
     refOf,
@@ -4130,8 +4131,8 @@ export class SessionData implements SessionDataApi {
      */
     nodeRef(id: NodeId): SourceNodeRef | null {
         this.requireSteps("nodeRef");
-        const node = this.stepsBuild().result.nodes.get(String(id));
-        return node === undefined ? null : { space: node.space, key: node.key };
+        const node = nodeOfId(this.stepsBuild().result, id);
+        return node === null ? null : Object.freeze({ space: node.space, key: node.key });
     }
 
     /**

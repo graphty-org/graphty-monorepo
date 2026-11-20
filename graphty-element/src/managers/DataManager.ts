@@ -2323,10 +2323,11 @@ export class DataManager implements Manager {
             const v = builder.indexOf(targetId);
             if (u !== INVALID_INDEX && v !== INVALID_INDEX) {
                 for (const e of builder.findEdges(u, v)) {
-                    const known = this.existingAt(e);
-                    const source = known?.edge?.srcId ?? this.unbuiltEdges.sourceAt(e);
-                    if (known?.pending === null && source !== undefined && builder.indexOf(source) === u) {
-                        found.push(known);
+                    // A row with neither is pending, and is found below by its pair.
+                    const edge = this.edgeRows[e] ?? null;
+                    const source = edge?.srcId ?? this.unbuiltEdges.sourceAt(e);
+                    if (source !== undefined && builder.indexOf(source) === u) {
+                        found.push({ edgeIndex: e, edge, pending: null });
                     }
                 }
             }

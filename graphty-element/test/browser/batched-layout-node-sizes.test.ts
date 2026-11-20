@@ -43,13 +43,13 @@ async function routedSizes(path: "objects" | "batched"): Promise<Map<string, num
     // The DOT text each Graphviz request carries.
     const sent: string[] = [];
     const original = Worker.prototype.postMessage;
-    Worker.prototype.postMessage = function (this: Worker, message: unknown, ...rest: [StructuredSerializeOptions]) {
-        const { dot } = message as { dot?: unknown };
+    Worker.prototype.postMessage = function (this: Worker, ...args: unknown[]) {
+        const { dot } = (args[0] ?? {}) as { dot?: unknown };
         if (typeof dot === "string") {
             sent.push(dot);
         }
 
-        original.call(this, message, ...rest);
+        Reflect.apply(original, this, args);
     };
 
     try {

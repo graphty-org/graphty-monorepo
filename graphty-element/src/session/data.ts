@@ -225,6 +225,7 @@ import {
     diffGraph,
     editRows,
     EMPTY_STEPS,
+    type GraphDiff,
     mintCopyId,
     mintEditId,
     mintSourceId,
@@ -442,6 +443,15 @@ interface DataWrites {
      * not hold): what a rebuild under the source-steps experiment may leave unbound.
      */
     references?(): { readonly nodes: readonly NodeId[]; readonly edges: readonly (EdgeId | undefined)[] };
+    /** A drawn source draft's After on the graph: taken off and put back around what must not see it. */
+    readonly drawing?: {
+        /** Settles once the graph draws what the open draft shows now. */
+        drawn(): Promise<void>;
+        /** Take After off the graph now, synchronously. */
+        stop(): void;
+        /** Draw what the open draft shows again. */
+        resume(): void;
+    };
 }
 
 /** What a page of records reads beside the snapshot. */
@@ -999,6 +1009,11 @@ export class SessionData implements SessionDataApi {
     private heldDraft: Draft | null = null;
     /** The draft of the sources and steps open now, under the source-steps experiment. */
     private sourceDraft: SourceDraftHandle | null = null;
+    /**
+     * While a drawn draft's After is on the graph: the session id of every edge its build makes, by
+     * built id, the ones only the draft makes included. Null otherwise.
+     */
+    private afterEdgeIds: Readonly<Record<string, EdgeId>> | null = null;
     /** The drawn draft's edge marks by session id, kept for the marks and edge ids they came from. */
     private shownMarks: {
         readonly marks: DraftMarks;
@@ -3483,6 +3498,8 @@ export class SessionData implements SessionDataApi {
                     }
                 },
                 emit: (change) => this.writes.emit?.("data:draft-changed", change),
+                drawn: () => this.writes.drawing?.drawn() ?? Promise.resolve(),
+                redraw: () => this.writes.drawing?.resume(),
             },
             { value: this.stepsValue(), copies: this.stepsCopies() },
             { ...(options.askOverlap === undefined ? {} : { askOverlap: options.askOverlap }) },
@@ -3502,6 +3519,8 @@ export class SessionData implements SessionDataApi {
      */
     private draftCommit(edit: StepsEdit, copies: Copies, removed: readonly string[]): Promise<unknown> {
         const send = this.writes.importer();
+        // The commit writes over the committed graph, so a drawn After comes off it first.
+        this.writes.drawing?.stop();
         return this.loadLine.edit(() => {
             const step = { op: "data.steps-set", edit, copies } as const;
             const { conditions } = this.writes.readers().visibility;
@@ -3517,6 +3536,36 @@ export class SessionData implements SessionDataApi {
                       },
             );
         }, undefined);
+    }
+
+    /**
+     * Run a read of the project (a save) on the committed graph: a drawn draft's After is taken off
+     * the graph while it runs, until a promise it returns settles, and drawn again after, so the
+     * read never holds what the draft adds.
+     * @param read - The read.
+     * @returns What it returned.
+     */
+    withoutDrawnDraft<T>(read: () => T): T {
+        const { drawing } = this.writes;
+        if (drawing === undefined) {
+            return read();
+        }
+        drawing.stop();
+        let result: T;
+        try {
+            result = read();
+        } catch (error) {
+            drawing.resume();
+            throw error;
+        }
+        if (result instanceof Promise) {
+            // An asynchronous read keeps the committed graph until it settles.
+            return result.finally(() => {
+                drawing.resume();
+            }) as T;
+        }
+        drawing.resume();
+        return result;
     }
 
     /**
@@ -3603,7 +3652,8 @@ export class SessionData implements SessionDataApi {
 
     /**
      * The draft drawn now (`draft.display(true)`): what its commit does to each element, by session
-     * id, and the side it draws. Never written anywhere, so a save, the history and runs read none of it.
+     * id, and the side it draws. The marks are never written anywhere, so a save and the history
+     * read none of them.
      * @returns The marks and the side, or null while no draft is drawn or the experiment is off.
      */
     shownDraft(): {
@@ -3616,13 +3666,41 @@ export class SessionData implements SessionDataApi {
         if (draft === null || marks === null) {
             return null;
         }
-        const ids = this.stepsEdgeIds();
+        const ids = (draft.side === "after" ? this.afterEdgeIds : null) ?? this.stepsEdgeIds();
         if (this.shownMarks?.marks !== marks || this.shownMarks.ids !== ids) {
-            // A drawn edge goes by its session id; one only the draft builds keeps its built id.
+            // A drawn edge goes by its session id; one not drawn on this side keeps its built id.
             const edges = new Map([...marks.edges].map(([built, mark]) => [ids[built] ?? built, mark]));
             this.shownMarks = { marks, ids, edges };
         }
         return { nodes: marks.nodes, edges: this.shownMarks.edges, side: draft.side };
+    }
+
+    /**
+     * The writes that turn the committed graph into the drawn draft's After: what the commit would
+     * remove, patch and add, as `data.steps-set` would write them, but none of the sources and steps.
+     * @returns The writes and the node id path, or null while no draft is drawn.
+     */
+    draftAfterDiff(): { readonly diff: GraphDiff; readonly idPath: string } | null {
+        const drawn = this.stepsOn() ? (this.sourceDraft?.drawnValue() ?? null) : null;
+        if (drawn === null) {
+            return null;
+        }
+        const value = this.stepsValue();
+        const idPath = this.readConfig().knownFields.nodeIdPath;
+        const diff = diffGraph(
+            projectBuild(buildOf(value, this.stepsCopies()), value, idPath),
+            projectBuild(buildOf(drawn.value, drawn.copies), drawn.value, idPath),
+            this.stepsEdgeIds(),
+        );
+        return { diff, idPath };
+    }
+
+    /**
+     * Say which session id each of the draft's edges has while its After is drawn, or that it is not.
+     * @param ids - The ids by built id, or null once After is taken off the graph.
+     */
+    drawnAfter(ids: Readonly<Record<string, EdgeId>> | null): void {
+        this.afterEdgeIds = ids;
     }
 
     /** Discard the open draft, if any: a project opened or the graph cleared replaces what it drafted. */

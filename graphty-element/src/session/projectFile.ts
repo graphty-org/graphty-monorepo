@@ -3494,6 +3494,17 @@ export function projectOf(
     };
 
     /**
+     * Run a save's read on the committed project: a source draft's After drawn on the graph is not
+     * part of it.
+     * @param read - The read.
+     * @returns What it returned.
+     */
+    const committedOnly = <T>(read: () => T): T => {
+        const data = session.data as Partial<Pick<SessionData, "withoutDrawnDraft">>;
+        return data.withoutDrawnDraft === undefined ? read() : data.withoutDrawnDraft(read);
+    };
+
+    /**
      * Save the session as a version 2 document (the `save-files-v2` experiment).
      * @param options - The save's options.
      * @returns The file and its report.
@@ -3637,10 +3648,10 @@ export function projectOf(
                     return Promise.reject(featureOff("save-files-v2", "project.save"));
                 }
 
-                return saveVersion2(options);
+                return committedOnly(() => saveVersion2(options));
             }
 
-            const { document, leftOut } = write({ session, dispatcher, isDerived }, options);
+            const { document, leftOut } = committedOnly(() => write({ session, dispatcher, isDerived }, options));
             return Promise.resolve(
                 finishSave(
                     document,

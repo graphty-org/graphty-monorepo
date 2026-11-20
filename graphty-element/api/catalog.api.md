@@ -2031,7 +2031,7 @@ export type LayerKind = "base" | "encoding" | "highlight" | "custom";
 // @public
 export type LayerSource = {
     by: "element";
-    reason: "default" | "selection" | "hover" | "notes" | "draft";
+    reason: "default" | "selection" | "hover" | "notes";
 } | {
     by: "run";
     runId: RunId;

@@ -90,6 +90,10 @@ export interface SourceDraftHost {
     previewContext(): PreviewContext;
     /** The draft stops holding the data: called once it is committed or discarded. */
     release(): void;
+    /** Settles once the graph draws what the draft shows now. */
+    drawn(): Promise<void>;
+    /** Draw what the draft shows again: a commit that failed reopens it. */
+    redraw(): void;
     /**
      * Publish `data:draft-changed`.
      * @param change - The change.
@@ -150,16 +154,17 @@ export class SourceDraftHandle implements SourceDraft {
     }
 
     /** @inheritdoc */
-    display(on: boolean): void {
+    display(on: boolean): Promise<void> {
         this.live("display");
         if (this.shown.on !== on) {
             this.shown = { ...this.shown, on };
             this.host.emit({ draft: this.id, reason: "displayed" });
         }
+        return this.host.drawn();
     }
 
     /** @inheritdoc */
-    show(side: "before" | "after"): void {
+    show(side: "before" | "after"): Promise<void> {
         this.live("show");
         if (side !== "before" && side !== "after") {
             throw new GraphtyError({
@@ -173,6 +178,15 @@ export class SourceDraftHandle implements SourceDraft {
             this.shown = { ...this.shown, side };
             this.host.emit({ draft: this.id, reason: "displayed" });
         }
+        return this.host.drawn();
+    }
+
+    /**
+     * The sources and steps a displayed draft's After draws, while it draws them.
+     * @returns The draft's value and copies, or null while it is closed, not drawn or showing Before.
+     */
+    drawnValue(): Pick<DraftState, "value" | "copies"> | null {
+        return this.closed || !this.shown.on || this.shown.side !== "after" ? null : this.state;
     }
 
     /**
@@ -511,8 +525,9 @@ export class SourceDraftHandle implements SourceDraft {
                     removed,
                 );
             } catch (error) {
-                // Nothing was applied: the draft stays open with everything it did.
+                // Nothing was applied: the draft stays open with everything it did, drawn as it was.
                 this.closed = false;
+                this.host.redraw();
                 throw error;
             }
         }

@@ -66,9 +66,10 @@ import { dataRevisionOf, type InputCounters, inputCountersOf } from "./attribute
 import { createSessionCatalog, SESSION_CATALOG_TABLES } from "./catalog";
 import { DEFINITIONS } from "./commands";
 import { readProjectConfig } from "./commands/config";
-import { declarationKey, REQUESTED_LAYOUT_VALUE, type RequestedLayoutValue } from "./commands/data";
+import { type DataMutation, declarationKey, REQUESTED_LAYOUT_VALUE, type RequestedLayoutValue } from "./commands/data";
 import { DEFAULT_LAYOUT } from "./commands/layout";
 import { loadNamedShaders } from "./commands/shaderCopies";
+import { edgeAddsOf, freshEdgeIds, removeAndPatch } from "./commands/source-steps";
 import {
     calibrateOnce,
     type CostEstimate,
@@ -2649,53 +2650,6 @@ function peekLayersOf(peeked: {
 }
 
 /**
- * The layers a drawn draft's After draws with: what its commit would remove, not drawn. Base
- * layers, so a key never lists them, as a peek's.
- * @param shown - The drawn draft's marks.
- * @param shown.nodes - Each node's mark, by its NodeId spelled as text.
- * @param shown.edges - Each edge's mark, by its EdgeId.
- * @param graph - The committed graph, whose node ids the marks spell.
- * @returns The layers.
- */
-function draftHideLayersOf(
-    shown: { readonly nodes: ReadonlyMap<string, string>; readonly edges: ReadonlyMap<string, string> },
-    graph: GraphSnapshot,
-): ElementLayerSpec[] {
-    const nodes: NodeId[] = [];
-    for (let index = 0; index < graph.nodeCount; index++) {
-        const id = graph.ids.idOf(index);
-        if (shown.nodes.get(String(id)) === "removed") {
-            nodes.push(id);
-        }
-    }
-    const edges = [...shown.edges].filter(([, mark]) => mark === "removed").map(([id]) => id);
-    const made: ElementLayerSpec[] = [];
-    if (nodes.length > 0) {
-        made.push({
-            name: "Draft removed nodes",
-            kind: "base",
-            source: { by: "element", reason: "draft" },
-            target: "node",
-            selector: { match: "ids", nodes },
-            set: { "node.visible": false },
-        });
-    }
-
-    if (edges.length > 0) {
-        made.push({
-            name: "Draft removed edges",
-            kind: "base",
-            source: { by: "element", reason: "draft" },
-            target: "edge",
-            selector: { match: "ids", edges },
-            set: { "edge.visible": false },
-        });
-    }
-
-    return made;
-}
-
-/**
  * Every path this session can answer for one kind of element.
  * @param data - The session's data surface, which lists the attributes.
  * @param runs - The runs, which publish the rest.
@@ -3272,6 +3226,12 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     let repaintPeek = (_dirty: ElementIndices): void => undefined;
     // Set once the style stack exists: draws a source draft again after it changed or was shown otherwise.
     let redrawDraft = (): void => undefined;
+    // Set once the style stack exists: takes a drawn draft's After off the graph now.
+    let stopAfter = (): void => undefined;
+    // Settles once the graph draws what the open source draft shows.
+    let draftDrawn = (): Promise<void> => Promise.resolve();
+    // True while a drawn draft's After dispatches its own writes, which the open draft lets through.
+    let drawingAfter = false;
     // Moves whenever the selection, the filter, or an element's state a `{match:"state"}` layer reads, moves:
     // the style stack keeps its readings until it does.
     let stateRevision = 0;
@@ -3386,6 +3346,15 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 runs: dispatcher.state.runs,
                 visibility: dispatcher.state.visibility,
             }),
+            drawing: {
+                drawn: () => draftDrawn(),
+                stop: () => {
+                    stopAfter();
+                },
+                resume: () => {
+                    redrawDraft();
+                },
+            },
             references: () => {
                 const nodes: NodeId[] = [...dispatcher.state.pins];
                 const members: EdgeMember[] = [];
@@ -3451,6 +3420,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     dispatcher.services.refuse = (command) => {
         if (command === "history") {
             return data.draftRefusal();
+        }
+        if (drawingAfter) {
+            return null;
         }
         return command.op.startsWith("data.") && command.op !== "data.derive" ? data.draftRefusal(command) : null;
     };
@@ -4113,23 +4085,6 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // Settled on first asking, as the session's `features` is.
     let peekable: boolean | undefined;
     let peekLayers: readonly ElementLayerSpec[] = NO_LAYERS;
-    // The layers a drawn source draft's After hides what its commit removes with; none otherwise.
-    let draftLayers: readonly ElementLayerSpec[] = NO_LAYERS;
-    // Both, as one array that stays the same object until either changes, so it compiles once.
-    let transientHeld: {
-        readonly peek: readonly ElementLayerSpec[];
-        readonly draft: readonly ElementLayerSpec[];
-        readonly both: readonly ElementLayerSpec[];
-    } | null = null;
-    const transientLayersNow = (): readonly ElementLayerSpec[] => {
-        if (draftLayers.length === 0) {
-            return peekLayers;
-        }
-        if (transientHeld?.peek !== peekLayers || transientHeld.draft !== draftLayers) {
-            transientHeld = { peek: peekLayers, draft: draftLayers, both: [...peekLayers, ...draftLayers] };
-        }
-        return transientHeld.both;
-    };
     selection = createSelectionApi({
         snapshot,
         scope,
@@ -4328,18 +4283,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             .repaintElements(stack.compiled(), dirty, { signal: teardown.signal, report: () => undefined })
             .catch(repaintFailed("peek"));
     };
-    // A drawn source draft: every element reads `graphty.draft` afresh, and After hides what the
-    // commit would remove. Nothing is written, so the history, the digest and a save never see it.
+    // A drawn source draft: every element reads `graphty.draft` afresh.
     // ponytail: repaints every element per draft act while one is drawn; repaint only the marks
     // that moved if a large graph's drafting feels it.
-    let draftDrawn = false;
-    redrawDraft = (): void => {
-        const shown = data.shownDraft();
-        if (!draftDrawn && shown === null) {
-            return;
-        }
-        draftDrawn = shown !== null;
-        draftLayers = shown?.side === "after" ? draftHideLayersOf(shown, snapshot()) : NO_LAYERS;
+    const repaintDraft = (): void => {
         // Every element's `graphty.draft` moved, as a write to that field would move it: what a rule,
         // a set or a count read of it is stale now.
         const { field } = dependencyOf(DRAFT_PATH) as { readonly field: string };
@@ -4362,6 +4309,119 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 { signal: teardown.signal, report: () => undefined },
             )
             .catch(repaintFailed("draft"));
+    };
+    // A drawn draft's After (design 5.3): the graph its commit would leave, drawn by writing what the
+    // commit would remove, patch and add -- the graph's rows only, never the sources and steps --
+    // inside a transaction that is never recorded. Taking After off aborts it, which puts every row
+    // and the arrangement back, so the history never holds it, and a save takes it off while it
+    // writes. While it is on, everything that reads the graph (statistics, the legend, a count)
+    // reads the draft's. `marks` is what it was drawn for.
+    let after: { readonly marks: object; readonly abort: () => void; readonly landed: Promise<void> } | null = null;
+    /**
+     * Dispatch one of After's writes through its transaction, past the open draft's refusal.
+     * @param tx - The transaction.
+     * @param mutation - The write.
+     * @returns Settles once it is written.
+     */
+    const writeAfter = (tx: DispatchScope, mutation: DataMutation): Promise<unknown> => {
+        drawingAfter = true;
+        try {
+            // Beside the queue: drawing After is no operation of the reader's to wait in line.
+            return tx.dispatch({ op: "data.apply", mutation }, { beside: true });
+        } finally {
+            drawingAfter = false;
+        }
+    };
+    const drawAfter = (marks: object): void => {
+        const drawn = data.draftAfterDiff();
+        if (drawn === null) {
+            return;
+        }
+        const { diff, idPath } = drawn;
+        let abort = (): void => undefined;
+        let land = (): void => undefined;
+        const landed = new Promise<void>((resolve) => {
+            land = resolve;
+        });
+        const held = dispatcher.transaction(
+            "Drew a draft",
+            async (tx, signal) => {
+                abort = (): void => {
+                    dispatcher.abort(tx);
+                };
+                const writes: DataMutation[] = [];
+                removeAndPatch(diff, (mutation) => writes.push(mutation));
+                if (diff.addNodes.length > 0) {
+                    writes.push({ kind: "add-nodes", records: diff.addNodes, idPath });
+                }
+                for (const mutation of writes) {
+                    await writeAfter(tx, mutation);
+                }
+                const ids: Record<string, EdgeId> = { ...diff.kept };
+                for (const { mutation, built } of edgeAddsOf(diff.addEdges)) {
+                    const before = new Set(dispatcher.state.graph.edges.keys());
+                    await writeAfter(tx, mutation);
+                    freshEdgeIds(before, dispatcher.state.graph.edges.keys(), built, ids);
+                }
+                // Taken off while the last write landed: what it drew is gone again.
+                if (signal.aborted) {
+                    return;
+                }
+                data.drawnAfter(ids);
+                repaintDraft();
+                await dispatcher.lane.settled();
+                land();
+                // Held open until After comes off the graph.
+                await new Promise((_resolve, reject) => {
+                    signal.addEventListener(
+                        "abort",
+                        () => {
+                            reject(signal.reason as Error);
+                        },
+                        { once: true },
+                    );
+                });
+            },
+            { moves: true },
+        );
+        // Aborting it is how it ends; a waiter on the drawing is never left waiting.
+        held.catch(() => undefined).finally(land);
+        after = {
+            marks,
+            abort: () => {
+                abort();
+            },
+            landed,
+        };
+    };
+    stopAfter = (): void => {
+        if (after === null) {
+            return;
+        }
+        const { abort } = after;
+        after = null;
+        data.drawnAfter(null);
+        abort();
+        // The abort queues the arrangement it began from for the next pass; a save made now reads it.
+        dispatcher.arrangement.flush();
+    };
+    draftDrawn = (): Promise<void> => after?.landed ?? Promise.resolve();
+    let draftShown = false;
+    redrawDraft = (): void => {
+        const shown = data.shownDraft();
+        // The marks stand for the draft's state: a new state is drawn afresh.
+        const wanted = shown?.side === "after" ? shown.nodes : null;
+        if (after !== null && after.marks !== wanted) {
+            stopAfter();
+        }
+        if (wanted !== null && after === null) {
+            drawAfter(wanted);
+        }
+        if (!draftShown && shown === null) {
+            return;
+        }
+        draftShown = shown !== null;
+        repaintDraft();
     };
     // A pin or a release moves nodes in or out of a `{ match: "state", state: "pinned" }` layer.
     dispatcher.lane.register("pins", (_rendered, _target, dirty) => {
@@ -4597,7 +4657,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         admitScope: (spec: unknown) => scope.admit(spec),
         admitRule: (rule: unknown) => scope.canonicalUnions(rule),
         base: elementBaseLayers(),
-        transient: () => transientLayersNow(),
+        transient: () => peekLayers,
         // Any edge directed: a file can mix directed and undirected edges (graph-format's role
         // "directed" column), and a head no layer chose is drawn on each directed one.
         directed: () => directedness(snapshot()) !== "undirected",

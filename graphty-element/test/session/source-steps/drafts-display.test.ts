@@ -1,19 +1,55 @@
 /**
- * @file Drawing a source draft (design 5.6, 10 row 12): `draft.display(on)` makes every element
- * read `graphty.draft` as what the commit would do to it, so an ordinary style layer can show it;
- * `draft.show("before" | "after")` picks the side; the Draft starting row rings what the commit
- * merges; and none of it reaches the history, the digest or a saved file. Ports the reference
- * model's phase 5 `display()` assertion (merged count equals the matched keys).
+ * @file Drawing a source draft (design 5.3, 5.6, 10 row 12): `draft.display(on)` makes every
+ * element read `graphty.draft` as what the commit would do to it, so an ordinary style layer can
+ * show it; `draft.show("before" | "after")` picks the side, After drawing the graph the commit would
+ * leave (what it adds drawn and counted, what it removes gone) and Before the graph as it is; the
+ * Draft starting row rings what the commit merges and dashes the edges it adds; and none of it
+ * reaches the history or a saved file, and the digest is the same once it comes off. Ports the
+ * reference model's phase 5 `display()` assertion (merged count equals the matched keys).
  */
 
 import { assert, describe, it } from "vitest";
 
-import { createGraphSession, type GraphSession, type SourceDraftChange } from "../../../src/session";
+import { createGraphSession, type GraphSession, type SourceDraft, type SourceDraftChange } from "../../../src/session";
 import { dispatcherOf } from "../../../src/session/dispatchers";
 import { stateDigest } from "../../../src/session/project/digest";
 import { ACCOUNTS, full, phase2 } from "./scenario";
 
 const ACCOUNTS_CSV = { type: "csv", config: { data: ACCOUNTS }, name: "accounts.csv" } as const;
+
+/**
+ * A CSV source.
+ * @param name - Its name.
+ * @param data - Its text.
+ * @returns What `import` and `stage` take.
+ */
+function csv(name: string, data: string): { type: string; config: { data: string }; name: string } {
+    return { type: "csv", config: { data }, name };
+}
+
+/** Door entries for the founding example: B9 badges no person, D3 is no building's door. */
+const ENTRIES = ["entry,badge,door", "E1,B1,D1", "E2,B1,D2", "E3,B2,D1", "E4,B9,D1", "E5,B2,D3", "E6,B2,D1"].join("\n");
+
+/**
+ * The founding example: people loaded, buildings added, and a draft that stages the door entries
+ * and makes edges from them to people by badge and to buildings by door.
+ * @returns The session, the draft and the entries' source.
+ */
+async function foundingDraft(): Promise<{ session: GraphSession; d: SourceDraft; entries: string }> {
+    const session = createGraphSession({ features: ["source-steps"] });
+    await session.data.import(csv("people.csv", "badge,name\nB1,Ann\nB2,Bo\nB3,Cy"), { key: "badge", type: "person" });
+    const people = session.data.sources()[0]?.key ?? "";
+    const buildings = await session.data.stage(csv("buildings.csv", "door,building\nD1,North\nD2,South"), {
+        key: "door",
+        type: "building",
+    });
+    await session.data.add(buildings);
+    const d = session.data.draft();
+    const entries = await d.stage(csv("entries.csv", ENTRIES), { key: "entry", type: "entry" });
+    d.connect({ from: { source: entries, field: "badge" }, into: { source: people }, edgeType: "by" });
+    d.connect({ from: { source: entries, field: "door" }, into: { source: buildings }, edgeType: "at" });
+    return { session, d, entries };
+}
 
 /** Every value `graphty.draft` reads. */
 const MARKS = ["merged", "new", "changed", "removed", "unchanged"] as const;
@@ -91,71 +127,177 @@ describe("source-steps drafts: drawing a draft", () => {
         assert.isFalse(d.displayed);
         assert.strictEqual(d.side, "after");
 
-        d.display(true);
+        await d.display(true);
+        await session.styles.settled();
+        const pv = d.preview();
         const shown = counts();
         assert.strictEqual(shown.merged, matched, "a merged node per matched key (A-1 and A-2)");
-        assert.strictEqual(shown.merged, d.preview().steps.find((s) => s.op === "join.merge")?.buckets?.merged);
+        assert.strictEqual(shown.merged, pv.steps.find((s) => s.op === "join.merge")?.buckets?.merged);
         assert.strictEqual(shown.removed, 0, "the merge removes nothing");
-        assert.strictEqual(shown.new, 0, "a new account is not in the committed graph, so no drawn node reads new");
+        assert.isAbove(pv.nodes.added, 0, "A-9 is an account no transaction names");
+        assert.strictEqual(shown.new, pv.nodes.added, "After draws the account the merge adds, reading new");
         assert.strictEqual(
             MARKS.reduce((sum, mark) => sum + shown[mark], 0),
-            nodes,
+            nodes + pv.nodes.added,
             "every drawn node reads exactly one mark",
         );
+        assert.strictEqual(session.data.statistics().nodeCount, pv.after.nodes, "statistics count the draft");
 
-        d.display(false);
+        await d.show("before");
+        await session.styles.settled();
+        assert.strictEqual(counts().new, 0, "Before draws the graph as it is: no new account");
+        assert.strictEqual(session.data.statistics().nodeCount, nodes, "statistics count the committed graph");
+
+        await d.display(false);
+        await session.styles.settled();
         assert.deepStrictEqual(Object.values(counts()), [0, 0, 0, 0, 0], "hidden again, it reads nothing");
+        assert.strictEqual(session.data.store.getSnapshot().nodeCount, nodes);
         d.dispose();
         session.dispose();
     });
 
     it("an act on a displayed draft moves the marks; undo moves them back", async () => {
         const { session, a } = await renamedAndStaged();
+        const nodes = session.data.store.getSnapshot().nodeCount;
         const counts = await markLayers(session, "node");
         const d = session.data.draft();
-        d.display(true);
+        await d.display(true);
         assert.strictEqual(counts().merged, 0);
-        assert.strictEqual(counts().unchanged, session.data.store.getSnapshot().nodeCount);
+        assert.strictEqual(counts().unchanged, nodes);
         d.merge({ from: { source: a, field: "account_id" }, into: { space: "account" } });
+        await d.display(true);
+        await session.styles.settled();
         assert.strictEqual(counts().merged, 2);
+        assert.strictEqual(counts().new, 1, "A-9 drawn");
         d.undo();
+        await d.display(true);
+        await session.styles.settled();
         assert.strictEqual(counts().merged, 0);
+        assert.strictEqual(counts().new, 0);
+        assert.strictEqual(session.data.store.getSnapshot().nodeCount, nodes, "undone, A-9 is gone again");
         d.dispose();
         session.dispose();
     });
 
-    it("removing a source in a draft marks its nodes and edges removed, as many as the preview removes", async () => {
+    it("removing a source in a draft: Before marks its nodes and edges removed, After draws without them", async () => {
         const { session, b } = await full();
+        const committed = session.data.store.getSnapshot();
+        const all = { nodes: committed.nodeCount, edges: committed.edgeCount };
         const nodeCounts = await markLayers(session, "node");
         const edgeCounts = await markLayers(session, "edge");
         const d = session.data.draft();
         d.removeSource(b);
-        d.display(true);
         const pv = d.preview();
         assert.isAbove(pv.edges.removed, 0, "bank B's edges go");
+
+        await d.display(true);
+        await d.show("before");
+        await session.styles.settled();
         assert.strictEqual(edgeCounts().removed, pv.edges.removed);
         assert.strictEqual(nodeCounts().removed, pv.nodes.removed);
-        assert.strictEqual(
-            edgeCounts().unchanged + edgeCounts().changed + edgeCounts().removed,
-            session.data.store.getSnapshot().edgeCount,
+        assert.strictEqual(edgeCounts().unchanged + edgeCounts().changed + edgeCounts().removed, all.edges);
+
+        await d.show("after");
+        await session.styles.settled();
+        const after = session.data.store.getSnapshot();
+        assert.deepStrictEqual(
+            { nodes: after.nodeCount, edges: after.edgeCount },
+            { nodes: all.nodes - pv.nodes.removed, edges: all.edges - pv.edges.removed },
+            "After draws the graph without bank B's own nodes and edges",
         );
+        assert.strictEqual(edgeCounts().removed, 0, "nothing removed is drawn in After");
         d.dispose();
+        await session.styles.settled();
+        const back = session.data.store.getSnapshot();
+        assert.deepStrictEqual({ nodes: back.nodeCount, edges: back.edgeCount }, all, "a discarded draft puts it back");
         session.dispose();
     });
 
-    it("display and show write nothing: the digest, the history and the saved file stay as they were", async () => {
+    it("the founding example: After draws and counts what the joins add, Before does not", async () => {
+        const { session, d, entries } = await foundingDraft();
+        const committed = session.data.store.getSnapshot();
+        const all = { nodes: committed.nodeCount, edges: committed.edgeCount };
+        const nodeCounts = await markLayers(session, "node");
+        const edgeCounts = await markLayers(session, "edge");
+        const before = await held(session);
+        const steps = session.history.steps.length;
+        const pv = d.preview();
+        assert.isAbove(pv.edges.added, 0, "the joins add edges");
+
+        await d.display(true);
+        await session.styles.settled();
+        const after = session.data.store.getSnapshot();
+        assert.deepStrictEqual(
+            { nodes: after.nodeCount, edges: after.edgeCount },
+            { nodes: pv.after.nodes, edges: pv.after.edges },
+            "After draws the preview's graph",
+        );
+        assert.strictEqual(edgeCounts().new, pv.edges.added, "every edge the joins add reads new");
+        assert.strictEqual(nodeCounts().new, pv.nodes.added);
+        assert.deepStrictEqual(
+            { nodes: session.data.statistics().nodeCount, edges: session.data.statistics().edgeCount },
+            { nodes: pv.after.nodes, edges: pv.after.edges },
+            "statistics count the draft",
+        );
+        assert.isUndefined(
+            session.data.sources().find((s) => s.key === entries),
+            "the sources list is the committed one",
+        );
+        const saved = (await session.project.save()).text.replaceAll(CLOCK, '"T"');
+        assert.strictEqual(saved, before.saved, "a save while After shows writes the committed project");
+        assert.strictEqual(session.history.steps.length, steps, "nothing recorded");
+        assert.deepStrictEqual(
+            session.history.pending.map((each) => each.fact.code),
+            ["transaction"],
+            "After is pending, never recorded",
+        );
+
+        await d.show("before");
+        await session.styles.settled();
+        const shown = session.data.store.getSnapshot();
+        assert.deepStrictEqual(
+            { nodes: shown.nodeCount, edges: shown.edgeCount },
+            all,
+            "Before draws the graph as it is",
+        );
+        assert.strictEqual(edgeCounts().new, 0);
+        assert.strictEqual(session.data.statistics().edgeCount, all.edges);
+
+        await d.show("after");
+        const pvAgain = d.preview();
+        await d.commit();
+        await session.styles.settled();
+        const done = session.data.store.getSnapshot();
+        assert.deepStrictEqual(
+            { nodes: done.nodeCount, edges: done.edgeCount },
+            { nodes: pvAgain.after.nodes, edges: pvAgain.after.edges },
+            "a commit made while After shows lands the preview's graph",
+        );
+        assert.strictEqual(session.history.steps.length, steps + 1, "one step for the commit");
+        await session.undo();
+        const undone = session.data.store.getSnapshot();
+        assert.deepStrictEqual({ nodes: undone.nodeCount, edges: undone.edgeCount }, all);
+        session.dispose();
+    });
+
+    it("display and show record and save nothing, and the digest is the same once After comes off", async () => {
         const { session, b } = await full();
         const d = session.data.draft();
         d.removeSource(b);
         const before = await held(session);
         const reasons: SourceDraftChange["reason"][] = [];
         session.on("data:draft-changed", (change) => reasons.push(change.reason));
-        d.display(true);
-        d.show("before");
-        d.show("after");
-        d.show("after");
-        assert.deepStrictEqual(await held(session), before);
-        d.display(false);
+        await d.display(true);
+        const whileAfter = await held(session);
+        assert.strictEqual(whileAfter.history, before.history, "nothing recorded while After shows");
+        assert.strictEqual(whileAfter.saved, before.saved, "a save while After shows writes the committed project");
+        await d.show("before");
+        await session.styles.settled();
+        assert.deepStrictEqual(await held(session), before, "Before is the committed graph, digest and all");
+        await d.show("after");
+        await d.show("after");
+        await d.display(false);
+        await session.styles.settled();
         assert.deepStrictEqual(await held(session), before);
         assert.deepStrictEqual(reasons, ["displayed", "displayed", "displayed", "displayed"], "a repeat says nothing");
         d.dispose();
@@ -167,15 +309,15 @@ describe("source-steps drafts: drawing a draft", () => {
         const d = session.data.draft();
         d.merge({ from: { source: a, field: "account_id" }, into: { space: "account" } });
         assert.throws(() => {
-            d.show("sideways" as "before");
+            void d.show("sideways" as "before");
         }, /before.*after/u);
-        d.display(true);
+        await d.display(true);
         await d.commit();
         assert.throws(() => {
-            d.display(false);
+            void d.display(false);
         }, /closed/u);
         assert.throws(() => {
-            d.show("before");
+            void d.show("before");
         }, /closed/u);
         session.dispose();
     });
@@ -185,13 +327,13 @@ describe("source-steps drafts: drawing a draft", () => {
         const counts = await markLayers(session, "node");
         const d = session.data.draft();
         d.merge({ from: { source: a, field: "account_id" }, into: { space: "account" } });
-        d.display(true);
+        await d.display(true);
         assert.strictEqual(counts().merged, 2);
         await d.commit();
         await session.styles.settled();
         assert.deepStrictEqual(Object.values(counts()), [0, 0, 0, 0, 0]);
         const again = session.data.draft();
-        again.display(true);
+        await again.display(true);
         assert.isAbove(counts().unchanged, 0);
         again.dispose();
         assert.deepStrictEqual(Object.values(counts()), [0, 0, 0, 0, 0]);
@@ -217,8 +359,31 @@ describe("source-steps drafts: drawing a draft", () => {
         assert.strictEqual(session.styles.counts(node?.id ?? "").matched, 0, "matches nothing until a draft is drawn");
         const d = session.data.draft();
         d.merge({ from: { source: a, field: "account_id" }, into: { space: "account" } });
-        d.display(true);
-        assert.strictEqual(session.styles.counts(node?.id ?? "").matched, 2, "the two merged accounts");
+        await d.display(true);
+        await session.styles.settled();
+        assert.strictEqual(
+            session.styles.counts(node?.id ?? "").matched,
+            3,
+            "After rings the two merged accounts and the new one",
+        );
+        await d.show("before");
+        await session.styles.settled();
+        assert.strictEqual(session.styles.counts(node?.id ?? "").matched, 2, "Before has no new account to ring");
+        d.dispose();
+        session.dispose();
+    });
+
+    it("the Draft starting row dashes the edges the founding example's joins add", async () => {
+        const { session, d } = await foundingDraft();
+        await session.config.set({ startingRows: true });
+        await session.styles.settled();
+        const edge = session.styles.list().find((each) => each.name === "Draft" && each.target === "edge");
+        await d.display(true);
+        await session.styles.settled();
+        assert.strictEqual(session.styles.counts(edge?.id ?? "").matched, d.preview().edges.added);
+        await d.show("before");
+        await session.styles.settled();
+        assert.strictEqual(session.styles.counts(edge?.id ?? "").matched, 0);
         d.dispose();
         session.dispose();
     });

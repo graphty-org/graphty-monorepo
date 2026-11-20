@@ -265,26 +265,24 @@ function listed(
 }
 
 /**
- * Add the new edges, grouped by the columns their ends and weight are read from, and give back
- * the session edge id of each by its built id.
+ * The writes that add a diff's new edges: one `add-edges` per set of columns their ends and weight
+ * are read from, each with the built ids of its records in order.
  * @param edges - The edges to add, by built id, in build order.
- * @param ctx - The command's context.
- * @returns The ids.
+ * @returns The writes.
  */
-function addEdges(edges: readonly (readonly [string, ProjectedEdge])[], ctx: UndoableContext): Record<string, EdgeId> {
-    const out: Record<string, EdgeId> = {};
-    const service = serviceOf(ctx.services.data);
+export function edgeAddsOf(
+    edges: readonly (readonly [string, ProjectedEdge])[],
+): { readonly mutation: DataMutation; readonly built: readonly string[] }[] {
     const groups = new Map<string, (readonly [string, ProjectedEdge])[]>();
     for (const each of edges) {
         const { ends, weight } = each[1];
         const k = JSON.stringify([ends.source, ends.target, weight ?? null]);
         groups.set(k, [...(groups.get(k) ?? []), each]);
     }
-    for (const group of groups.values()) {
+    return [...groups.values()].map((group) => {
         const { ends, weight } = group[0][1];
-        const before = new Set(ctx.state.graph.edges.keys());
-        service.apply(
-            {
+        return {
+            mutation: {
                 kind: "add-edges",
                 records: group.map(([, e]) => e.record),
                 source: ends.source,
@@ -292,18 +290,46 @@ function addEdges(edges: readonly (readonly [string, ProjectedEdge])[], ctx: Und
                 repeated: "keep",
                 ...(weight === undefined ? {} : { weight }),
             },
-            ctx.draft,
-            ctx.after,
-        );
-        // Fresh ids are counters handed out in record order.
-        const fresh = [...ctx.state.graph.edges.keys()]
-            .filter((id) => !before.has(id))
-            .sort((a, b) => Number(a) - Number(b));
-        group.forEach(([key], at) => {
-            if (fresh[at] !== undefined) {
-                out[key] = fresh[at];
-            }
-        });
+            built: group.map(([key]) => key),
+        };
+    });
+}
+
+/**
+ * The session edge id one `add-edges` gave each of its records: fresh ids are counters handed out
+ * in record order.
+ * @param before - The edge ids the graph held before the write.
+ * @param after - The edge ids it holds after.
+ * @param built - The built id of each record, in order.
+ * @param out - Where each built id's session id is written.
+ */
+export function freshEdgeIds(
+    before: ReadonlySet<EdgeId>,
+    after: Iterable<EdgeId>,
+    built: readonly string[],
+    out: Record<string, EdgeId>,
+): void {
+    const fresh = [...after].filter((id) => !before.has(id)).sort((a, b) => Number(a) - Number(b));
+    built.forEach((key, at) => {
+        if (fresh[at] !== undefined) {
+            out[key] = fresh[at];
+        }
+    });
+}
+
+/**
+ * Add the new edges and give back the session edge id of each by its built id.
+ * @param edges - The edges to add, by built id, in build order.
+ * @param ctx - The command's context.
+ * @returns The ids.
+ */
+function addEdges(edges: readonly (readonly [string, ProjectedEdge])[], ctx: UndoableContext): Record<string, EdgeId> {
+    const out: Record<string, EdgeId> = {};
+    const service = serviceOf(ctx.services.data);
+    for (const { mutation, built } of edgeAddsOf(edges)) {
+        const before = new Set(ctx.state.graph.edges.keys());
+        service.apply(mutation, ctx.draft, ctx.after);
+        freshEdgeIds(before, ctx.state.graph.edges.keys(), built, out);
     }
     return out;
 }
@@ -392,7 +418,7 @@ function reportOfBuild(report: LoadReport | undefined, graph: ProjectedGraph): L
  * @param diff - The diff.
  * @param apply - Applies one mutation.
  */
-function removeAndPatch(diff: GraphDiff, apply: (mutation: DataMutation) => void): void {
+export function removeAndPatch(diff: GraphDiff, apply: (mutation: DataMutation) => void): void {
     if (diff.removeEdges.length > 0) {
         apply({ kind: "remove-edges", ids: diff.removeEdges });
     }

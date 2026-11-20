@@ -5198,37 +5198,41 @@ export interface SourceDraft {
      * Draw the draft on the graph, or stop. While it is drawn, every element reads the path
      * `graphty.draft` as what the commit would do to it -- `"merged"` (a node the commit folds
      * more keys into), `"new"`, `"changed"` (other values), `"removed"` or `"unchanged"` -- so a
-     * style layer or a rule can show it; while it is not, the path reads nothing. Nothing is
-     * written: the history, the saved file and every run stay as they were.
+     * style layer or a rule can show it; while it is not, the path reads nothing. It draws the
+     * side {@link SourceDraft.show} picks, `"after"` at first. Nothing is recorded or saved.
      * @example
      * ```ts
      * const draft = session.data.draft();
      * draft.merge({ from: { source: "people", field: "badge" }, into: { space: "person" } });
-     * draft.display(true);
      * await session.styles.add({
-     *     name: "Merged",
+     *     name: "New",
      *     target: "node",
-     *     selector: { match: "expression", where: "graphty.draft == 'merged'" },
+     *     selector: { match: "expression", where: "graphty.draft == 'new'" },
      *     set: { "node.haloColor": "#7048e8", "node.haloScale": 1.4, "node.haloOpacity": 1 },
      * });
-     * draft.show("before"); // the graph as it is now
-     * draft.show("after"); // the graph as the commit would leave it
+     * await draft.display(true); // the graph as the commit would leave it, its new nodes ringed
+     * await draft.show("before"); // the graph as it is now
      * ```
      * @param on - True to draw it.
+     * @returns Settles once the graph draws it.
      * @throws A `GraphtyError` with `E_BAD_COMMAND` (reason `draft-closed`) once the draft is closed.
      */
-    display(on: boolean): void;
+    display(on: boolean): Promise<void>;
     /**
-     * Choose which side of the commit a displayed draft draws: `"before"` draws the graph as it
-     * is; `"after"` also hides what the commit would remove. Nodes and edges the commit would add
-     * are not drawn on either side until it is committed; the preview counts them. View only:
-     * nothing is recorded or saved, and runs, statistics and the legend read the committed graph
-     * either way.
+     * Choose which side of the commit a displayed draft draws. `"before"` draws the graph as it is,
+     * where `graphty.draft` reads `"removed"` on what the commit would remove. `"after"` draws the
+     * graph the commit would leave: what it removes is gone, what it adds is drawn and reads
+     * `"new"`, and changed elements show their new values. While After is drawn, everything that
+     * reads the graph -- `statistics()`, `legendOf`, style counts, runs started then -- reads the
+     * draft's graph; after an act on the draft it is drawn afresh (await `display(true)` again to
+     * wait for it). View only: nothing is recorded, the history does not move, and a save writes
+     * the committed project. A drawn After is listed in `session.history.pending` until it comes off.
      * @param side - The side.
+     * @returns Settles once the graph draws it.
      * @throws A `GraphtyError` with `E_BAD_COMMAND`, reason `side` for any other value, or reason
      *   `draft-closed` once the draft is closed.
      */
-    show(side: "before" | "after"): void;
+    show(side: "before" | "after"): Promise<void>;
 }
 
 /**

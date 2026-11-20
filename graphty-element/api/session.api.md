@@ -3574,7 +3574,7 @@ export interface LayerReach {
 // @public
 export type LayerSource = {
     by: "element";
-    reason: "default" | "selection" | "hover" | "notes" | "draft";
+    reason: "default" | "selection" | "hover" | "notes";
 } | {
     by: "run";
     runId: RunId;
@@ -7292,7 +7292,7 @@ export interface SourceDraft {
     commit(): Promise<void>;
     connect(options: SourceConnectOptions): number;
     declareType(entry: SourceTypeEntry): void;
-    display(on: boolean): void;
+    display(on: boolean): Promise<void>;
     readonly displayed: boolean;
     dispose(): void;
     edits(): readonly ReaderEditRow[];
@@ -7321,7 +7321,7 @@ export interface SourceDraft {
         readonly source: SourceKey;
     }): void;
     setMapping(source: SourceKey, patch: SourceMappingPatch): void;
-    show(side: "before" | "after"): void;
+    show(side: "before" | "after"): Promise<void>;
     readonly side: "before" | "after";
     stage(source: DataSourceInput, options?: ImportOptions): Promise<string>;
     steps(): readonly SourceStepRow[];

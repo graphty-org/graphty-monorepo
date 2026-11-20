@@ -18195,7 +18195,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.989,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -18257,7 +18257,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.989,
+            "edge.route": 1,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -44232,8 +44232,8 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.98,
-            "raster.edge": 0.95,
-            "raster.label": 0.89,
+            "raster.edge": 0.96,
+            "raster.label": 0.9,
             "raster.nodeBody": 0.97,
             "raster.nodeOutline": 0.96,
             "edge.wiggle": 1
@@ -44294,7 +44294,7 @@
             "edge.dash": 1,
             "edge.gradient": 1,
             "edge.arrow": 1,
-            "stray.extra": 0.667,
+            "stray.extra": 0.833,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -44304,7 +44304,8 @@
             "raster.label": 0.95,
             "raster.nodeBody": 0.99,
             "raster.nodeOutline": 0.99,
-            "edge.wiggle": 1
+            "edge.wiggle": 1,
+            "stray.present": 1
         },
         "json-graphology-synth@matched": {
             "node.present": 1,
@@ -44331,12 +44332,13 @@
             "edge.dash": 1,
             "edge.gradient": 1,
             "edge.arrow": 1,
-            "stray.extra": 0.667,
+            "stray.extra": 0.833,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "edge.wiggle": 1
+            "edge.wiggle": 1,
+            "stray.present": 1
         },
         "json-sigma-lesmis": {
             "node.present": 1,
@@ -56391,22 +56393,6 @@
                 "to": 0.6,
                 "reason": "yFiles for HTML markup labels now read (h3, strong): the labels pair with yEd Live's, which shows faults hidden while they did not -- edge label rotation not kept upright (graphty 125.7, yEd Live -54.3) and the h3 group label's anchor and offset; stray.present 5/8 -> 3/5 is three texts becoming paired labels, no new unmatched stray",
                 "date": "2026-11-07"
-            }
-        },
-        "json-graphology-synth": {
-            "stray.extra": {
-                "floor": 0.667,
-                "to": 0.286,
-                "reason": "comparator, issue #5367: framed at sigma's own zoom, the big nodes put graphty's labels of nodes 13, 27 and 53 further from their node's center than the comparator counts as near; sigma's record gives each label a zero-size box at its node's center though sigma draws it to the node's right, so the words are not found near it",
-                "date": "2026-11-01"
-            }
-        },
-        "json-graphology-synth@matched": {
-            "stray.extra": {
-                "floor": 0.667,
-                "to": 0.286,
-                "reason": "comparator, issue #5367: framed at sigma's own zoom, the big nodes put graphty's labels of nodes 13, 27 and 53 further from their node's center than the comparator counts as near; sigma's record gives each label a zero-size box at its node's center though sigma draws it to the node's right, so the words are not found near it",
-                "date": "2026-11-01"
             }
         },
         "json-vis-siblings": {

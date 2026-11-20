@@ -661,7 +661,7 @@ export function curveSpan(
         flat.push(p.x, p.y, p.z);
     }
 
-    const span = routeOutside(flat, outsideSrc, outsideDst);
+    const span = routeOutside(flat, outsideSrc, outsideDst, (path.bends ?? null) === null);
     if (span === null) {
         // a route no point of which clears both nodes is drawn as the lone curve between its bare ends, uncut
         // (`Edge.placeCurve`), a fanned arc's too; a straight line's as the straight line between them

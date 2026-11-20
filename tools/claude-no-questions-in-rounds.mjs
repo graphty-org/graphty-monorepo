@@ -3,7 +3,7 @@
 // question to the owner from a session that runs issue-round or pipeline-round. A question blocks
 // the session until he answers, and while it waits no round runs: on the night of 2026-11-15 one
 // question about a single line of wording stopped the issue loop for hours. A round session
-// recognises itself by its id in tmp/issue-round/last-round or tmp/pipeline-round/last-round,
+// recognizes itself by its id in tmp/issue-round/last-round or tmp/pipeline-round/last-round,
 // written less than 75 minutes ago (the same window the skills use to tell a loop is running).
 // Any failure exits 0 silently (allow).
 //

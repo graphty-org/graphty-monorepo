@@ -406,7 +406,8 @@ function readItem(env: AutosaveEnvironment, name: string): string | null {
 /**
  * The prefix of the tab's `window.name` while it holds this tab's record: the ids of the entries
  * its pages wrote, newest last. Only random entry ids, never a key or data, since a page of another
- * site this tab goes to may read the name; a page that leaves for good clears it.
+ * site this tab goes to may read the name. It is kept when a page leaves, so a later load of the tab
+ * that lost its session storage still finds its own entry.
  */
 const TAB_RECORD = "graphty-autosave:";
 
@@ -415,6 +416,36 @@ const TAB_RECORD = "graphty-autosave:";
  * so a page writing more than this many entries can push an older key's entry out of it.
  */
 const TAB_RECORD_MAX = 16;
+
+/**
+ * Set in session storage by every page load that looks up a key. A load that finds it missing lost
+ * its session storage (or is a new tab): only such a load looks for its lost note.
+ */
+const TAB_ITEM = "graphty-autosave:tab";
+
+/** Whether each page load found its session storage lost, as it was when the load first asked. */
+const sessionLostBy = new WeakMap<AutosaveEnvironment, boolean>();
+
+/**
+ * Whether this page load's session storage was lost: true when it held no {@link TAB_ITEM}. The
+ * first call of a load sets the item, so every lookup calls it, noted or not.
+ * @param env - The page.
+ * @returns True when lost.
+ */
+function sessionLost(env: AutosaveEnvironment): boolean {
+    let lost = sessionLostBy.get(env);
+    if (lost === undefined) {
+        lost = readItem(env, TAB_ITEM) === null;
+        sessionLostBy.set(env, lost);
+        try {
+            env.sessionStorage()?.setItem(TAB_ITEM, "1");
+        } catch {
+            // No session storage here: every load counts as lost, as before the item.
+        }
+    }
+
+    return lost;
+}
 
 /** The keys whose lost note each page load has looked for (once each: a later mount never adopts). */
 const lostLookedBy = new WeakMap<AutosaveEnvironment, Set<string>>();
@@ -508,7 +539,7 @@ async function adoptLostOwn(
     leaving: string | null,
 ): Promise<{ id: string; by: LostOwnRule } | null> {
     const looked = lostLooked(env);
-    if (looked.has(key)) {
+    if (looked.has(key) || !sessionLost(env)) {
         return null;
     }
 
@@ -528,8 +559,9 @@ async function adoptLostOwn(
         // Known misses, each forking or offering work rather than losing it: it can take work a closed
         // tab left when this tab had written none; work of a tab in the back/forward cache, which holds
         // no lock there (that tab writes a copy when shown again); and when several tabs of the key come
-        // back at once, the first to load can take another's newest work. A stricter rule (only one
-        // open entry) would miss the usual case, a store holding many closed tabs' work.
+        // back at once, the first to load can take another's newest work; and when another live tab's
+        // entry is the newest, this tab takes nothing and its own older entry is offered. A stricter
+        // rule (only one open entry) would miss the usual case, a store holding many closed tabs' work.
         by = "newest-unheld";
         found = open.reduce<AutosaveEntryMeta | undefined>(
             (newest, meta) => (newest === undefined || textOf(meta.savedAt) > textOf(newest.savedAt) ? meta : newest),
@@ -874,6 +906,7 @@ export class ElementAutosave {
 
         // This tab's own entry: an element of this tab that just left (a remount), else what
         // session storage kept across a reload or a discard.
+        sessionLost(this.#env);
         const before = readOwnBefore(this.#env, key);
         const own = this.#readOwn(key) ?? (before === null ? await this.#adoptLost(store, key) : null);
         await this.#waitForOwns(key, [own, before]);
@@ -1209,6 +1242,12 @@ export class ElementAutosave {
         }
 
         writeTabRecord(this.#env, entry);
+        // The entry named before stays newest in the record while it is kept, as ownAmong prefers it.
+        const kept = readOwnBefore(this.#env, key);
+        if (kept !== null && kept !== entry) {
+            writeTabRecord(this.#env, kept);
+        }
+
         if (noted !== entry) {
             writeOwnNote(this.#env, key, entry);
         }
@@ -1254,6 +1293,7 @@ export class ElementAutosave {
      */
     #forgetOwn(key: string): void {
         writeTabRecord(this.#env, null, readOwnItem(this.#env, key));
+        writeTabRecord(this.#env, null, readOwnBefore(this.#env, key));
         ownEntries.delete(key);
         this.#keepBefore(key, null);
         try {
@@ -1299,12 +1339,6 @@ export class ElementAutosave {
                     this.#env.sessionStorage()?.setItem(LEAVING_ITEM + saver.key, saver.entryId);
                 } catch {
                     // No session storage here: a reload cannot wait for this page's lock.
-                }
-
-                // Session storage serves a reload from here on. The next site sees an empty record, and a
-                // later load of this tab still knows it had one, so it takes nothing by guessing.
-                if (this.#env.tab !== undefined && tabRecord(this.#env) !== null) {
-                    this.#env.tab.name = TAB_RECORD;
                 }
             }
 
@@ -1528,6 +1562,7 @@ export function listAutosavesIn(
                 return [];
             }
 
+            sessionLost(env);
             const noted = readOwnItem(env, key);
             const before = readOwnBefore(env, key);
             const leaving = takeLeaving(env, key);

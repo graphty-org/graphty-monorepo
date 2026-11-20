@@ -89,13 +89,14 @@ describe("listAutosaves after the tab lost its session storage", () => {
      * A page with empty session storage.
      * @param navigationType - How the load came about.
      * @param name - The tab's window name.
+     * @param items - The tab's session storage, empty unless a test keeps one across loads.
      * @returns The page, its locks and its window.
      */
     const lostPage = (
         navigationType: string,
         name = "",
+        items = new Map<string, string>(),
     ): { env: AutosaveEnvironment; locks: FakeLocks; tab: { name: string } } => {
-        const items = new Map<string, string>();
         const locks = new FakeLocks();
         const tab = { name };
         const env: AutosaveEnvironment = {
@@ -191,6 +192,15 @@ describe("listAutosaves after the tab lost its session storage", () => {
         const { env } = lostPage("reload", "checkout");
         // The first lookup, while the key holds nothing yet, finds nothing to adopt.
         assert.deepEqual(await listAutosavesIn(env, key, { store: memoryAutosaveStore() }), []);
+        assert.deepEqual(ownIds(await listAutosavesIn(env, key, { store })), []);
+    });
+
+    it("a reload that kept session storage adopts nothing, though the key's note is gone", async () => {
+        const { store, key } = await kept();
+        const items = new Map<string, string>();
+        // A page that set its own window name (or a named iframe): the tab has no record.
+        await listAutosavesIn(lostPage("navigate", "checkout", items).env, key, { store: memoryAutosaveStore() });
+        const { env } = lostPage("reload", "checkout", items);
         assert.deepEqual(ownIds(await listAutosavesIn(env, key, { store })), []);
     });
 

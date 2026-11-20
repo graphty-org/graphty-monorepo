@@ -95,17 +95,15 @@ describe.each(ENGINES)("%s", (engine) => {
     });
 
     /**
-     * Makes the page's next end look like a Safari kill to the next load: the tab's record in
-     * window.name is what it was before the element's pagehide emptied it, and session storage (with
-     * the leaving mark) is gone. The element's listeners still run, so the leaving page lets its lock
-     * go as a killed one does.
+     * Makes the page's next end look like a Safari kill to the next load: session storage (with the
+     * leaving mark and the per-load item) is gone, and window.name is what the element's own pagehide
+     * left. That Safari keeps window.name when it ends a tab in the background is an assumption, not
+     * observed: where it does not, the newest-unheld case below is the one that applies. The element's
+     * listeners still run, so the leaving page lets its lock go as a killed one does.
      * @param page - The page.
      */
     const killedOnLeave = (page: Page): Promise<unknown> =>
-        page.evaluate(
-            `addEventListener("pagehide", () => { window.keptName = window.name; }, true);
-            addEventListener("pagehide", () => { window.name = window.keptName; sessionStorage.clear(); });`,
-        );
+        page.evaluate(`addEventListener("pagehide", () => { sessionStorage.clear(); });`);
 
     /**
      * A newer entry of the key that no tab holds, written by another page that then left: the guess

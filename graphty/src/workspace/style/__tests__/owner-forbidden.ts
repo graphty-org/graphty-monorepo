@@ -125,4 +125,9 @@ export const OWNER_FORBIDDEN: readonly Forbidden[] = [
         ledger: "E674, E183",
         selector: ".cm-scrub-slot[data-scrub] svg",
     },
+    {
+        what: "a toggle icon beside a label's Weight (the 'I'): Italic is a line of its own",
+        ledger: "E674",
+        selector: '.ws-row[data-line$="labelStyle.weight"] [data-testid="toggle-icon-button"]',
+    },
 ];

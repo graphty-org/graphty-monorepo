@@ -112,6 +112,26 @@ describe("Style panel v2 dims what draws nothing in this view", () => {
         });
     });
 
+    it("Underlay and Overlay draw only in 2D: in 3D their '+' items are dimmed '2D only', in 2D not (E669)", async () => {
+        await openGraph();
+        const tab = await openStyle("Key people");
+        await showKind("node");
+        const effects = sectionOf(tab, "node-effects");
+        const items = async (): Promise<Record<string, string | null>> => {
+            await userEvent.click(within(effects).getByRole("button", { name: /^Add to node effects/ }));
+            const found: Record<string, string | null> = {};
+            for (const name of ["Underlay", "Overlay"]) {
+                found[name] = dimmed(await screen.findByRole("menuitem", { name }));
+            }
+            await userEvent.keyboard("{Escape}");
+            return found;
+        };
+        await switchView("3D");
+        assert.deepEqual(await items(), { Underlay: "2D only", Overlay: "2D only" }, "dimmed in 3D");
+        await switchView("2D");
+        assert.deepEqual(await items(), { Underlay: null, Overlay: null }, "not dimmed in 2D");
+    });
+
     it("a custom shader declaring 3D only is dimmed in 2D in the Shaders gallery, as a built-in one is", async () => {
         const { session } = await openGraph();
         const added = await session.shaders.add(`/* graphty-shader 1

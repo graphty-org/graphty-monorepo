@@ -127,7 +127,9 @@ export const LABEL_RUBRIC: LabelRubric = {
         { field: "enabled", name: "Show" },
         { field: "look", name: "Look", rule: "R9" },
         { field: "font", name: "Font", rule: "R13" },
-        { field: "weight", name: "Weight", rule: "R5b", toggle: "italic", toggleGlyph: "italic" },
+        { field: "weight", name: "Weight", rule: "R5b" },
+        // Italic is a line of its own, as every other switch is: no glyph beside Weight (E674).
+        { field: "italic", name: "Italic" },
         { field: "textAlign", name: "Align", rule: "R8" },
         { field: "size", name: null, rule: "R8f", unit: SIZE_UNIT },
         { field: "location", name: "Location", rule: "R2" },

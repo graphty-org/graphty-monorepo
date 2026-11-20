@@ -62,7 +62,7 @@ describe("custom and built-in shaders are one list", () => {
     withFeatures(["file-styles", "style-panel-v2"]);
 
     it("a custom shader at every place the code dialog offers is in its target's one list, beside the built-ins", async () => {
-        const { session } = await openGraph();
+        const { session, element } = await openGraph();
         const ids: Record<"node" | "edge", { id: string; place: string }[]> = { node: [], edge: [] };
         for (const kind of ["node", "edge"] as const) {
             for (const place of DIALOG_PLACES[kind]) {
@@ -145,6 +145,8 @@ describe("custom and built-in shaders are one list", () => {
         });
         const options = await found("Test node replace");
         assert.include(options, "Test node replace");
+        await session.styles.settled();
+        const plain = await picture(element);
         // Picked from the Shape menu, the custom shader draws in the node's place, as a built-in one does.
         await userEvent.click(within(menu).getByRole("option", { name: /^Test node replace/ }));
         await waitFor(() => {
@@ -156,6 +158,15 @@ describe("custom and built-in shaders are one list", () => {
                 "the replace shader is the layer's",
             );
         });
+        await session.styles.settled();
+        assert.isAbove(pixelsApart(plain, await picture(element)), 0, "the replace shader draws");
+        // The pick went to the shader list, never into node.shape as the menu's value.
+        const layer = session.styles.list().find((each) => each.name === "Key people" && each.target === "node");
+        const shapeValue = session.styles.get(layer?.id ?? "")?.set?.["node.shape"];
+        assert.isFalse(
+            typeof shapeValue === "string" && shapeValue.includes(replacing?.id ?? "-"),
+            "node.shape holds no shader pick",
+        );
     });
 
     it("the Shape menu has a Shaders section, New shader... first, whose New shader... opens the code dialog", async () => {
@@ -229,5 +240,38 @@ describe("custom and built-in shaders are one list", () => {
         });
         await session.styles.settled();
         assert.isAbove(pixelsApart(plain, await picture(element)), 0, "it draws around the node");
+    });
+});
+
+describe("the Shape menu's Models section", () => {
+    withFeatures(["file-styles", "style-panel-v2", "node-models"]);
+
+    it("holds Custom model... and sits beside the Shaders section", async () => {
+        await openGraph();
+        const tab = await openStyle("Key people");
+        await showKind("node");
+        const shape = sectionOf(tab, "node-shape");
+        await userEvent.click(within(shape).getByRole("button", { name: "Add to node shape" }));
+        const picker = await waitFor(() => {
+            const found = shape.querySelector<HTMLElement>('[data-value-listbox="node.shape"]');
+            assert.isNotNull(found);
+            return found;
+        });
+        await userEvent.click(picker);
+        const sections = await screen.findByRole("combobox", { name: "Node shape section" });
+        await userEvent.click(sections);
+        const offered = (await screen.findAllByRole("option")).map((option) => option.textContent);
+        assert.include(offered, "Models");
+        assert.include(offered, "Shaders");
+        await userEvent.click(await screen.findByRole("option", { name: "Models" }));
+        const list = await screen.findByRole("group", { name: /values$/ });
+        await waitFor(() => {
+            const shown = within(list)
+                .queryAllByRole("option")
+                .map((option) => option.textContent);
+            assert.include(shown, "Custom model...", "Custom model... is under Models");
+            assert.notInclude(shown, "New shader...", "the shaders are another section's");
+        });
+        await userEvent.keyboard("{Escape}");
     });
 });

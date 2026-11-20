@@ -1036,6 +1036,37 @@ export class NodeBatches {
     }
 
     /**
+     * Whether a row with no `Node` keeps the source it draws from under a new paint (see
+     * {@link NodeBatches.lookOf}): a `Node` built from that source keeps its mesh under the paint,
+     * and one built from a source the paint does not keep is rebuilt as soon as it is painted.
+     * @param index - The row.
+     * @param paint - The paint the row is about to take.
+     * @returns True when it keeps it; false when it does not, or no batch draws the row.
+     */
+    keepsLook(index: number, paint: NodePaint): boolean {
+        const row = this.columnRows.get(index);
+        return row !== undefined && this.keeps({ paint: row.paint, source: row.paintedSourceMesh }, paint);
+    }
+
+    /**
+     * Whether a paint keeps the source a row draws from now, as `Node.keepsMeshFor` keeps a
+     * `Node`'s mesh: the same key, or a deep-equal style and color on the same shader path.
+     * @param drawn - What the row is drawn as now, if anything.
+     * @param paint - The new paint.
+     * @returns True when it keeps it.
+     */
+    private keeps(drawn: Pick<RowLook, "paint" | "source"> | null, paint: NodePaint): boolean {
+        return (
+            drawn !== null &&
+            !drawn.source.isDisposed() &&
+            (drawn.paint.meshKey === paint.meshKey ||
+                (shaderPartOf(drawn.paint.meshKey) === shaderPartOf(paint.meshKey) &&
+                    isEqual(drawn.paint.style, paint.style) &&
+                    isEqual(drawn.paint.color, paint.color)))
+        );
+    }
+
+    /**
      * The source a paint draws from: the one the row has while the paint keeps it, as
      * `Node.keepsMeshFor` keeps a `Node`'s mesh (the same key, or a deep-equal style and color on
      * the same shader path), or else the paint's own.
@@ -1044,14 +1075,9 @@ export class NodeBatches {
      * @returns The source and the paint it was made for.
      */
     private sourceFor(drawn: RowLook | null, paint: NodePaint): { source: Mesh; sourcePaint: NodePaint } {
-        const keeps =
-            drawn !== null &&
-            !drawn.source.isDisposed() &&
-            (drawn.paint.meshKey === paint.meshKey ||
-                (shaderPartOf(drawn.paint.meshKey) === shaderPartOf(paint.meshKey) &&
-                    isEqual(drawn.paint.style, paint.style) &&
-                    isEqual(drawn.paint.color, paint.color)));
-        return keeps ? drawn : { source: this.host.sourceOf(paint), sourcePaint: paint };
+        return drawn !== null && this.keeps(drawn, paint)
+            ? drawn
+            : { source: this.host.sourceOf(paint), sourcePaint: paint };
     }
 
     /**

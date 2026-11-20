@@ -356,6 +356,33 @@ export function nodeRebuildsFor(node: Node, paint: NodePaint): boolean {
     return rebuildsFor(node, paint);
 }
 
+/** Tells a node its geometry changed; see {@link nodeResizedFrom}. */
+let resizeNode: (node: Node) => void;
+
+/**
+ * Tell the layout and a node's edges that it is drawn at another size or shape than its row was
+ * drawn at before the node was built. A row a batch drew is built straight from the paint it is
+ * about to take when that paint does not keep the batch's source (a restyle that borders it), so
+ * painting the new `Node` changes nothing and {@link Node.applySessionPaint} sees no resize; this
+ * tells them what that paint would have.
+ * @param node - The new node.
+ * @param before - The style the batch drew its row with.
+ * @param after - The style it is built with.
+ */
+export function nodeResizedFrom(node: Node, before: NodeStyleConfig, after: NodeStyleConfig): void {
+    const fitsLabel =
+        after.shape?.labelFit !== undefined ||
+        after.shape?.labelTable !== undefined ||
+        after.shape?.imageAspect === true;
+    if (
+        !isEqual(before.shape, after.shape) ||
+        !isEqual(before.border, after.border) ||
+        (fitsLabel && !isEqual(before.label, after.label))
+    ) {
+        resizeNode(node);
+    }
+}
+
 /**
  * Dispose what a node's rebuild replaces -- its mesh and the label parented to it -- ahead of the
  * rebuild. The drag handler is kept: it lives as long as the node, reads `node.mesh` whenever it
@@ -518,6 +545,9 @@ export class Node implements ModelUser {
             node.shaderDrawing?.dataChanged(node);
         };
         ownAnchor = (node) => node.#anchor;
+        resizeNode = (node) => {
+            node.geometryChanged();
+        };
         nodeInternals.drawn = (node) => ({
             border: node.border,
             outerBorder: node.outerBorder,

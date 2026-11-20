@@ -29,7 +29,15 @@ import { disposeLabelsTogether } from "../meshes/LabelBatch";
 import { MeshCache } from "../meshes/MeshCache";
 import { armPoolReserve, clearPoolReserve } from "../meshes/poolReserve";
 import { SupportPoints } from "../meshes/supportPoints";
-import { adoptNodeRecord, Node, NodeIdType, nodeRebuildsFor, placeNodeRow, releaseNodeMesh } from "../Node";
+import {
+    adoptNodeRecord,
+    Node,
+    NodeIdType,
+    nodeRebuildsFor,
+    nodeResizedFrom,
+    placeNodeRow,
+    releaseNodeMesh,
+} from "../Node";
 import { inputCountersOf } from "../session/attributes";
 import { legacyScopeOf } from "../session/commands/algo";
 import {
@@ -2709,18 +2717,20 @@ export class DataManager implements Manager {
      * @param node - the raw record
      * @param index - the row the store gave it; INVALID_INDEX for an id graph-format will not
      *     take, and the node renders anyway. See the class comment.
-     * @param announce - emit `node-add-before` and hold the draw for the pass that paints the row;
-     *     false for a row stored earlier, which already did both
-     * @param look - What a batch drew the row as: the `Node` is built from the same source and takes
-     *     the paint it had, as the row's `Node` would have had them built at store time.
+     * @param late - For a row stored earlier, which already emitted `node-add-before` and held the
+     *     draw: `look` is what a batch drew it as, for the `Node` to be built from the same source and
+     *     take the paint it had, as the row's `Node` would have had them built at store time, and
+     *     `paint` is the paint it is about to take. Null for a new row, which announces itself and
+     *     holds the draw for the pass that paints it.
+     * @param late.look - What a batch drew the row as, or null.
+     * @param late.paint - The row's paint, or null with no session painter.
      * @returns the `Node`
      */
     private buildNode(
         nodeId: NodeIdType,
         node: Record<string | number, unknown>,
         index: number,
-        announce = true,
-        look: { sourcePaint: NodePaint; paint: NodePaint } | null = null,
+        late: { look: { sourcePaint: NodePaint; paint: NodePaint } | null; paint: NodePaint | null } | null = null,
     ): Node {
         if (!this.graphContext) {
             throw new Error("GraphContext not set. Call setGraphContext before adding nodes.");
@@ -2731,6 +2741,7 @@ export class DataManager implements Manager {
         // and no frame is drawn before then. A row stored earlier with no Node keeps its key
         // among the unpainted until a pass paints it; once painted, no pass will come for it,
         // so its paint is queued and only the next frame's update is waited for.
+        const announce = late === null;
         if (announce) {
             this.builtUnpainted(`n:${JSON.stringify(nodeId)}`, "node", index);
         } else {
@@ -2741,7 +2752,8 @@ export class DataManager implements Manager {
         // A row stored earlier is built from the paint it is about to take, so that paint keeps the
         // mesh: built from the defaults, a fallback style (a border, a glow) rebuilt it at once, and
         // a mesh rebuilt outside a bulk teardown costs a pass over every scene list.
-        const rowPaint = announce ? null : (this.graphContext.getStylePainter?.()?.nodePaint(index) ?? null);
+        const rowPaint = late?.paint ?? null;
+        const look = late?.look ?? null;
         const n = new Node(
             this.graphContext,
             nodeId,
@@ -2887,10 +2899,22 @@ export class DataManager implements Manager {
         this.unbuilt.delete(index);
         this.unbuiltIds.delete(id);
         const batches = this.graphContext?.getNodeBatches?.();
-        const look = batches?.lookOf(index) ?? null;
+        // The `Node` is built from the source the batch drew the row from only while the row's
+        // paint keeps that source; under a paint that does not (a restyle that borders it) it is
+        // built from that paint, which keeps the mesh: built from the old source, the paint would
+        // rebuild it at once, and each such rebuild is a pass over every scene list.
+        const rowPaint = this.graphContext?.getStylePainter?.()?.nodePaint(index) ?? null;
+        const drawn = batches?.lookOf(index) ?? null;
+        const look = rowPaint !== null && batches?.keepsLook(index, rowPaint) === false ? null : drawn;
         batches?.unpaintRow(index);
         const before = this.nodeVersion;
-        const node = this.buildNode(id, this.recordOf(id, row.record), index, false, look);
+        const node = this.buildNode(id, this.recordOf(id, row.record), index, { look, paint: rowPaint });
+        // Built at its new size, its paint sees no resize, and the batch it left no longer draws it to
+        // see one: what that paint would have told the layout and the node's edges is told here.
+        if (drawn !== null && look === null && rowPaint !== null) {
+            nodeResizedFrom(node, drawn.paint.style, rowPaint.style);
+        }
+
         this.lateNodeVersions += this.nodeVersion - before;
         this.graphContext?.getUpdateManager?.().adoptBuiltNode(node);
         return node;

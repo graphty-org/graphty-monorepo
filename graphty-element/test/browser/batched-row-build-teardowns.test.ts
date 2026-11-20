@@ -13,7 +13,8 @@
  * rows built together are painted together: a paint batch makes at most one teardown, as on the
  * objects path, and a repaint is never split into more than `REPAINT_FRAMES` batches, so the count is
  * bounded whatever the graph's size. That holds too for a caller that walks `getNodes()` before the
- * paint, which builds the rows one element at a time.
+ * paint, which builds the rows one element at a time, and for one that walks it after a restyle: a
+ * row the batch drew is built from the batch's source only while the new paint keeps that source.
  *
  * A teardown is counted by what it does to the scene's mesh list: it empties it (`splice(0)`) to set
  * the survivors aside, and empties it again to put them back.
@@ -111,6 +112,7 @@ describe("batched rows a style sends to the object path", () => {
         assert.equal(graph.rowCounts.objectNodes, COUNT, "every bordered row is drawn by its own Node");
         assert.isAtMost(teardowns, REPAINT_FRAMES, `one teardown per paint batch, not per row (${String(COUNT)} rows)`);
     });
+
     it("are not torn down one by one when getNodes() is walked before the paint", async () => {
         await graph.getSession().styles.add(BORDER);
         await graph.waitForStableFrame();
@@ -118,6 +120,27 @@ describe("batched rows a style sends to the object path", () => {
         const teardowns = await teardownsDuring(graph, async () => {
             await graph.addNodes(NODES);
             // each element read builds its row's Node on its own, outside any batch
+            let walked = 0;
+            for (const node of graph.getNodes()) {
+                walked += node.id === undefined ? 0 : 1;
+            }
+
+            assert.equal(walked, COUNT);
+            await graph.waitForPainted();
+        });
+
+        assert.equal(graph.rowCounts.objectNodes, COUNT, "every bordered row is drawn by its own Node");
+        assert.isAtMost(teardowns, REPAINT_FRAMES, `not one teardown per row (${String(COUNT)} rows)`);
+    });
+
+    it("are not torn down one by one when getNodes() is walked after a restyle, before its paint", async () => {
+        await graph.addNodes(NODES);
+        await graph.waitForStableFrame();
+        assert.equal(graph.rowCounts.objectNodes, 0, "every row starts on the batch");
+
+        const teardowns = await teardownsDuring(graph, async () => {
+            await graph.getSession().styles.add(BORDER);
+            // each element read builds its row's Node from what the batch drew, under the new paint
             let walked = 0;
             for (const node of graph.getNodes()) {
                 walked += node.id === undefined ? 0 : 1;

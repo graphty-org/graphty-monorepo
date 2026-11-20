@@ -8,11 +8,9 @@
 
 import { type Channel, type ChannelDescriptor } from "@graphty/graphty-element/catalog";
 import type { LabelStyle } from "@graphty/graphty-element/schema";
-import { Button } from "@mantine/core";
 import React, { useState } from "react";
 
 import { GLYPHS } from "../../glyphs";
-import { SettingsPopout } from "../../options/SettingsPopout";
 import { useWorkspace } from "../../state/WorkspaceContext";
 import { cardSummary } from "../cardLines";
 import { SourcePicker } from "../LabelSection";
@@ -26,7 +24,9 @@ import { LabelPopover } from "./LabelPopover";
 import { flatOf, LABEL_COVERED, LABEL_RUBRIC, labelLineFields, type TextThing } from "./labelRubric";
 import { unsetIn } from "./lineWrites";
 import { LineFrame } from "./RubricLine";
+import { RowSettings } from "./ThingLine";
 import { setOn } from "./things";
+import { ValueButton } from "./ValueButton";
 
 /**
  * A layer's label style as written, or an empty one.
@@ -100,7 +100,6 @@ function TextSource({
             />
         );
     }
-    const name = shown === "" ? `${title} source` : `${title} source, ${shown}`;
     return (
         <SourcePicker
             target={ctx.side}
@@ -125,20 +124,14 @@ function TextSource({
                 }
             }}
         >
-            <Button
-                size="compact-xs"
-                variant="default"
-                fullWidth
-                justify="space-between"
-                leftSection={bound ? <GLYPHS.link size={12} aria-hidden /> : undefined}
-                rightSection={<GLYPHS.expand size={12} aria-hidden />}
-                aria-label={name}
-                aria-haspopup="dialog"
-                aria-expanded={open}
-                styles={{ label: { overflow: "hidden", textOverflow: "ellipsis" } }}
-            >
-                {shown}
-            </Button>
+            <ValueButton
+                label={`${title} source`}
+                words={shown}
+                opens="dialog"
+                expanded={open}
+                left={bound ? <GLYPHS.link size={12} aria-hidden /> : undefined}
+                right={<GLYPHS.expand size={12} aria-hidden />}
+            />
         </SourcePicker>
     );
 }
@@ -251,14 +244,9 @@ export function LabelRow({
         Object.keys(style).some((field) => !common.has(field as keyof LabelStyle)) ||
         [...flats].some((flat) => !commonFlats.has(flat) && setOn(ctx, flat));
     const settings = (
-        <SettingsPopout
-            label={`${title} settings`}
-            title={title}
-            changed={changed}
-            icon={<GLYPHS.sliders size={14} aria-hidden />}
-        >
+        <RowSettings label={`${title} settings`} title={title} changed={changed}>
             <LabelPopover label={label} others={others} />
-        </SettingsPopout>
+        </RowSettings>
     );
     return (
         <>

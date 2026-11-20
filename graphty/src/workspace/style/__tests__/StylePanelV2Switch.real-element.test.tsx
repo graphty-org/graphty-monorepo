@@ -1,10 +1,11 @@
 /**
  * Style panel v2's Switch to on the REAL graphty-element, driven by real clicks
- * (design/ui/style-panel-v2/design.md, section 5 and acceptance check 1): a star with rounded
- * corners and a size switched to Sticker keeps its row, its name and its Size line, and switched
- * back brings the star and its corners back; every member's pop-over has the same Switch to; after
- * another row was selected, one Undo brings the star back; Fill switches Solid -> Gradient by its
- * words in one step.
+ * (design/ui/style-panel-v2/design.md, section 5 and acceptance check 1): the glyph before a family row's
+ * name opens a menu of its members, the current one checked. A star with rounded corners and a size
+ * switched to Sticker keeps its row, its name, its size, its color and its Size line, and switched back
+ * brings the star and its corners back; every member's row has the same menu; after another row was
+ * selected, one Undo brings the star back; Fill switches Solid -> Gradient -> Solid in one step each. No
+ * row, pop-over or Graph settings line uses the sliders glyph.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -35,29 +36,52 @@ async function rowOf(section: HTMLElement, thing: string): Promise<HTMLElement> 
 }
 
 /**
- * Opens a row's settings pop-over and waits for its Switch to line.
+ * Opens a row's settings pop-over.
  * @param row - the thing's row.
  * @param name - the settings button's name.
- * @returns the Switch to line.
+ * @returns the pop-over.
  */
-async function openSwitch(row: HTMLElement, name: string): Promise<HTMLElement> {
+async function openSettings(row: HTMLElement, name: string): Promise<HTMLElement> {
     // Its name ends in "has configured values" while the pop-over holds a set line.
     await userEvent.click(within(row).getByRole("button", { name: new RegExp(`^${name}`) }));
     return waitFor(() => {
-        const found = document.querySelector<HTMLElement>("[data-thing-popover] [data-switch-to]");
+        const found = document.querySelector<HTMLElement>("[data-thing-popover]");
         assert.isNotNull(found);
         return found;
     });
 }
 
 /**
- * Picks a member from the Shape's Switch to select.
- * @param line - the Switch to line.
+ * Picks a member from the row's Switch to menu.
+ * @param row - the thing's row.
+ * @param title - the row's name with its kind ("Node shape").
  * @param member - the member's name.
  */
-async function pickMember(line: HTMLElement, member: string): Promise<void> {
-    await userEvent.click(within(line).getByRole("combobox", { name: "Switch to" }));
-    await userEvent.click(await screen.findByRole("option", { name: member }));
+async function pickMember(row: HTMLElement, title: string, member: string): Promise<void> {
+    await userEvent.click(within(row).getByRole("button", { name: `Switch ${title.toLowerCase()} to` }));
+    const menu = await screen.findByRole("menu");
+    await userEvent.click(within(menu).getByRole("menuitem", { name: member }));
+}
+
+/**
+ * The member the row's Switch to menu checks.
+ * @param row - the thing's row.
+ * @param title - the row's name with its kind.
+ * @returns the checked member's name.
+ */
+async function checkedMember(row: HTMLElement, title: string): Promise<string> {
+    await userEvent.click(within(row).getByRole("button", { name: `Switch ${title.toLowerCase()} to` }));
+    const menu = await screen.findByRole("menu");
+    const checked = within(menu)
+        .getAllByRole("menuitem")
+        .filter((item) => item.getAttribute("aria-current") === "true")
+        .map((item) => item.textContent ?? "");
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => {
+        assert.isNull(screen.queryByRole("menu"));
+    });
+    assert.lengthOf(checked, 1, "one member is checked");
+    return checked[0];
 }
 
 /**
@@ -105,8 +129,9 @@ describe("Style panel v2's Switch to", () => {
         const shape = sectionOf(tab, "node-shape");
         const row = await rowOf(shape, "shape");
         assert.isNotNull(row.querySelector('[data-line="node.size"]'), "Size is the row's common line");
+        assert.equal(await checkedMember(row, "Node shape"), "Basic shape");
 
-        await pickMember(await openSwitch(row, "Node shape settings"), "Sticker");
+        await pickMember(row, "Node shape", "Sticker");
         // The row keeps its basic shape until a sticker is picked.
         await screen.findByRole("dialog", { name: "Sticker" });
         assert.equal(written(session, id, "node.shape"), "star", "nothing switches before the pick");
@@ -117,19 +142,21 @@ describe("Style panel v2's Switch to", () => {
             assert.isUndefined(written(session, id, "node.cornerRadius"), "and its corners");
         });
         assert.equal(written(session, id, "node.size"), 2, "the size stays");
+        assert.equal(written(session, id, "node.color"), "#E8590C", "and the color");
         const after = await rowOf(shape, "shape");
         assert.isNotNull(after.querySelector('[data-line="node.size"]'), "the Size line stays");
         assert.lengthOf(shape.querySelectorAll("[data-thing]"), 1, "still one row, in the same section");
-        await userEvent.keyboard("{Escape}");
 
-        // The Sticker's pop-over has the same Switch to.
-        await pickMember(await openSwitch(after, "Node shape settings"), "Basic shape");
+        // The Sticker's row has the same Switch to.
+        assert.equal(await checkedMember(after, "Node shape"), "Sticker");
+        await pickMember(after, "Node shape", "Basic shape");
         await waitFor(() => {
             assert.equal(written(session, id, "node.shape"), "star", "the star comes back");
             assert.equal(written(session, id, "node.cornerRadius"), 0.2, "with its corners");
             assert.deepEqual(replacing(session, id), [], "the sticker goes");
         });
-        assert.equal(written(session, id, "node.size"), 2);
+        assert.equal(written(session, id, "node.size"), 2, "the size stays");
+        assert.equal(written(session, id, "node.color"), "#E8590C", "and the color");
     });
 
     it("after another row was selected, one Undo brings the star back", async () => {
@@ -142,12 +169,11 @@ describe("Style panel v2's Switch to", () => {
         });
         const tab = await openStyle("Key people");
         const row = await rowOf(sectionOf(tab, "node-shape"), "shape");
-        await pickMember(await openSwitch(row, "Node shape settings"), "Sticker");
+        await pickMember(row, "Node shape", "Sticker");
         await pickSticker();
         await waitFor(() => {
             assert.isUndefined(written(session, id, "node.shape"));
         });
-        await userEvent.keyboard("{Escape}");
 
         await openStyle("Others");
         await userEvent.click(screen.getByRole("button", { name: /^Undo( |$)/ }));
@@ -158,27 +184,43 @@ describe("Style panel v2's Switch to", () => {
         });
     });
 
-    it("Fill switches Solid -> Gradient by its words, starting from the color it had, in one Undo", async () => {
+    it("Fill switches Solid -> Gradient -> Solid from its row, starting from the color it had, one Undo each", async () => {
         const { session, id } = await openProject();
         const tab = await openStyle("Key people");
-        const row = await rowOf(sectionOf(tab, "node-fill"), "fill");
-        const line = await openSwitch(row, "Node fill settings");
-        const radio = within(line).getByRole("radio", { name: "Gradient" });
-        const label = document.querySelector<HTMLElement>(`label[for="${radio.id}"]`);
-        assert.isNotNull(label);
-        await userEvent.click(label);
+        const fill = sectionOf(tab, "node-fill");
+        await pickMember(await rowOf(fill, "fill"), "Node fill", "Gradient");
         await waitFor(() => {
             const colors = written(session, id, "node.gradientColors");
             assert.isString(colors);
             assert.match(String(colors), /^#E8590C\b/i, "the gradient starts from the color it had");
             assert.isUndefined(written(session, id, "node.color"), "the solid color is taken off");
         });
-        await userEvent.keyboard("{Escape}");
+        assert.lengthOf(fill.querySelectorAll("[data-thing]"), 1, "still one row");
         await userEvent.click(screen.getByRole("button", { name: /^Undo( |$)/ }));
         await waitFor(() => {
             assert.equal(written(session, id, "node.color"), "#E8590C");
             assert.isUndefined(written(session, id, "node.gradientColors"));
         });
+
+        await pickMember(await rowOf(fill, "fill"), "Node fill", "Gradient");
+        await waitFor(() => {
+            assert.isString(written(session, id, "node.gradientColors"));
+        });
+        await pickMember(await rowOf(fill, "fill"), "Node fill", "Solid");
+        await waitFor(() => {
+            assert.match(String(written(session, id, "node.color")), /^#E8590C$/i, "Solid brings the color back");
+            assert.isUndefined(written(session, id, "node.gradientColors"));
+        });
+    });
+
+    it("no row, pop-over or Graph settings line uses the sliders glyph", async () => {
+        await openStar();
+        const tab = await openStyle("Key people");
+        const row = await rowOf(sectionOf(tab, "node-shape"), "shape");
+        assert.isNull(tab.querySelector(".lucide-sliders-horizontal"), "the panel");
+        await openSettings(row, "Node shape settings");
+        assert.isNull(document.querySelector(".lucide-sliders-horizontal"), "a pop-over");
+        await userEvent.keyboard("{Escape}");
     });
 });
 
@@ -189,11 +231,7 @@ describe("Style panel v2's Switch to a member that needs a pick", () => {
         const { session, id } = await openProject();
         const tab = await openStyle("Key people");
         const row = await rowOf(sectionOf(tab, "node-fill"), "fill");
-        const line = await openSwitch(row, "Node fill settings");
-        const radio = within(line).getByRole("radio", { name: "Picture" });
-        const label = document.querySelector<HTMLElement>(`label[for="${radio.id}"]`);
-        assert.isNotNull(label);
-        await userEvent.click(label);
+        await pickMember(row, "Node fill", "Picture");
         const picture = await screen.findByRole("dialog", { name: "Picture" });
         assert.equal(written(session, id, "node.color"), "#E8590C", "the row keeps Solid until a pick");
         const file = new File([await (await fetch(colormapUrl)).arrayBuffer()], "colormap.png");
@@ -202,7 +240,6 @@ describe("Style panel v2's Switch to a member that needs a pick", () => {
             assert.match(String(written(session, id, "node.texture")), /^asset:/);
             assert.isUndefined(written(session, id, "node.color"), "the solid color is taken off");
         });
-        await userEvent.keyboard("{Escape}");
         await userEvent.keyboard("{Escape}");
         await userEvent.click(screen.getByRole("button", { name: /^Undo( |$)/ }));
         await waitFor(() => {
@@ -229,9 +266,7 @@ describe("Style panel v2's keys inside a thing's pop-over", () => {
         await session.styles.settled();
         const tab = await openStyle("Key people");
         const row = await rowOf(sectionOf(tab, "node-shape"), "shape");
-        const line = await openSwitch(row, "Node shape settings");
-        const popover = line.closest<HTMLElement>("[data-thing-popover]");
-        assert.isNotNull(popover);
+        const popover = await openSettings(row, "Node shape settings");
 
         const width = [...screen.queryAllByRole("textbox"), ...screen.queryAllByRole("spinbutton")].find(
             (each) => popover.contains(each) && /width/i.test(each.getAttribute("aria-label") ?? ""),
@@ -246,10 +281,14 @@ describe("Style panel v2's keys inside a thing's pop-over", () => {
         assert.equal(written(session, id, "node.cornerRadius"), 0.2, "its corners stay");
         assert.equal(written(session, id, "node.size"), 2, "its size stays");
 
-        // Opened and closed again with Escape, the select keeps focus.
-        const select = within(line).getByRole("combobox", { name: "Switch to" });
-        await userEvent.click(select);
+        // Opened and closed again with Escape, the Switch to menu's button keeps focus.
         await userEvent.keyboard("{Escape}");
+        await userEvent.click(within(row).getByRole("button", { name: "Switch node shape to" }));
+        await screen.findByRole("menu");
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("menu"));
+        });
         await userEvent.keyboard("{Backspace}");
         assert.equal(written(session, id, "node.shape"), "star", "Backspace on Switch to leaves the shape");
         assert.equal(written(session, id, "node.size"), 2);

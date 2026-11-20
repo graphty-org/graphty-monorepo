@@ -77,9 +77,9 @@ async function clickSegment(name: string): Promise<void> {
  */
 async function addBorder(tab: HTMLElement): Promise<HTMLElement> {
     const border = sectionOf(tab, "node-border");
-    const title = border.querySelector<HTMLElement>('[data-testid="control-section-lead"]');
-    assert.isNotNull(title);
-    await userEvent.click(title);
+    const plus = border.querySelector<HTMLElement>("[data-plus]");
+    assert.isNotNull(plus, 'the section\'s "+"');
+    await userEvent.click(plus);
     await userEvent.click(await screen.findByRole("menuitem", { name: "Border" }));
     return rowOf(border, "border");
 }
@@ -138,7 +138,7 @@ describe("Style panel v2's node things", () => {
         const { session, id } = await openProject();
         const tab = await openStyle("Key people");
         const shape = sectionOf(tab, "node-shape");
-        await userEvent.click(within(shape).getByRole("button", { name: "Add Shape" }));
+        await userEvent.click(within(shape).getByRole("button", { name: "Add to node shape" }));
         const row = await rowOf(shape, "shape");
         assert.isNotNull(await lineOf(row, "node.size"), "Size is Shape's common line");
 
@@ -169,7 +169,7 @@ describe("Style panel v2's node things", () => {
         await openProject();
         const tab = await openStyle("Key people");
         const shape = sectionOf(tab, "node-shape");
-        await userEvent.click(within(shape).getByRole("button", { name: "Add Shape" }));
+        await userEvent.click(within(shape).getByRole("button", { name: "Add to node shape" }));
         const row = await rowOf(shape, "shape");
         const picker = await waitFor(() => {
             const found = row.querySelector<HTMLElement>('[data-value-listbox="node.shape"]');

@@ -112,7 +112,7 @@ export function itemsOf(ctx: RowContext, channel: Channel): string[] {
 }
 
 /** How v2 edits each structured text channel, and what its first item is when it is added (design 5.1). */
-export type ItemKind = "points" | "polylines" | "texts" | "caps" | "table";
+type ItemKind = "points" | "polylines" | "texts" | "caps" | "table";
 
 /** A structured channel's list. */
 export interface ItemList {

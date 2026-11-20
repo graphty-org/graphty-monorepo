@@ -83,6 +83,17 @@ export const STYLE_EMPTY_SECTIONS = {
 } as const;
 
 /**
+ * Whether one Style panel v2 section is collapsed, by kind and section id: the reader's own, kept in this browser
+ * and never in a project, so it holds across layers and reloads.
+ * @param kind - nodes or edges.
+ * @param id - the section's id.
+ * @returns the preference.
+ */
+export function styleSectionCollapsed(kind: string, id: string): Preference<"open" | "collapsed"> {
+    return { key: `graphty.styleSectionCollapsed.v1:${kind}:${id}`, values: ["open", "collapsed"], fallback: "open" };
+}
+
+/**
  * Your name (Settings > General): written on each project's author setting, which graphty-element
  * stamps on every note added and never saves in a project file. Free text, so it is not a `Preference`.
  */

@@ -338,7 +338,7 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
         ],
     },
     pie: {
-        // The slices' colors, shares and opacities are the list editor's (R15, `ListGroup.tsx`).
+        // The slices' colors, shares and opacities are the list editor's (R15, `colorItems.tsx`).
         rowOwns: ["node.pieSizes", "node.pieOpacities"],
         main: [],
         groups: [

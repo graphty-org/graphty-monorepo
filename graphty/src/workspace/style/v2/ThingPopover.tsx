@@ -6,8 +6,7 @@
  * thing's pop-over (a label's too).
  */
 
-import { ControlGroup } from "@graphty/compact-mantine";
-import type { ChannelDescriptor, StyleFamilyDescriptor } from "@graphty/graphty-element/catalog";
+import type { ChannelDescriptor } from "@graphty/graphty-element/catalog";
 import React, { useEffect, useRef, useState } from "react";
 
 import { useWorkspace } from "../../state/WorkspaceContext";
@@ -16,9 +15,9 @@ import { lineIn, writeIn } from "../row";
 import { AddButton } from "../Section";
 import { COMBINE_WORDS, failureWords, takesBinding } from "../words";
 import { groupSet, unsetIn } from "./lineWrites";
+import { PlusList } from "./PlusList";
 import { lineChannels, type ThingRubric } from "./rubric";
 import { LineFrame, RemoveButton, RubricLine, SegmentsLine } from "./RubricLine";
-import { SwitchTo } from "./SwitchTo";
 
 /** The By data line's name. */
 const BY_DATA = "By data";
@@ -114,20 +113,22 @@ export function PopoverShell<G extends { readonly name: string }>({
             {first}
             {/* An empty Main with nothing to add draws no legend (Solid fill). */}
             {mainEmpty && plus === undefined ? null : (
-                <ControlGroup label="Main" actions={plus}>
+                <PlusList level="group" title="Main" add={plus}>
                     {main}
                     {others.map((descriptor) => (
                         <Field key={descriptor.channel} ctx={ctx} descriptor={descriptor} />
                     ))}
                     {extra}
-                </ControlGroup>
+                </PlusList>
             )}
             {after}
             {shown.map((group) => (
-                <ControlGroup
+                <PlusList
                     key={group.name}
-                    label={group.name}
-                    actions={
+                    level="group"
+                    title={group.name}
+                    add={undefined}
+                    remove={
                         <RemoveButton
                             label={`Remove ${group.name.toLowerCase()}`}
                             onClick={() => {
@@ -138,7 +139,7 @@ export function PopoverShell<G extends { readonly name: string }>({
                     }
                 >
                     {linesOf(group)}
-                </ControlGroup>
+                </PlusList>
             ))}
         </div>
     );
@@ -203,24 +204,15 @@ export function ThingPopover({
 }
 
 /**
- * A pop-over's lines above Main (design 2.6): the family's Switch to; By data for the main value,
+ * A pop-over's lines above Main (design 2.6): By data for the main value,
  * while it holds no binding (a bound value is the row's own field, which opens its binding); and
  * Combine, on a number the layer sets.
  * @param props - Component props
  * @param props.ctx - the row
  * @param props.main - the row's main value
- * @param props.family - the thing's family, if it is one
  * @returns The lines
  */
-export function FirstLines({
-    ctx,
-    main,
-    family,
-}: Readonly<{
-    ctx: RowContext;
-    main: ChannelDescriptor;
-    family?: StyleFamilyDescriptor;
-}>): React.JSX.Element {
+export function FirstLines({ ctx, main }: Readonly<{ ctx: RowContext; main: ChannelDescriptor }>): React.JSX.Element {
     const { store } = useWorkspace();
     const own = lineIn(ctx, main.channel);
     const bound = own?.binding !== undefined || own?.template !== undefined;
@@ -229,7 +221,6 @@ export function FirstLines({
     const number = main.accepts === "number" && typeof own?.value === "number" ? own.value : undefined;
     return (
         <>
-            {family === undefined ? null : <SwitchTo ctx={ctx} family={family} />}
             {bound || !bindable ? null : (
                 <LineFrame
                     line={`by-data:${main.channel}`}

@@ -30,14 +30,13 @@ import React, { useEffect, useReducer, useRef, useState } from "react";
 
 import { APP_HIGHLIGHT_COLOR } from "../../constants/highlight";
 import { useSizeBound } from "../frame/useSizeBound";
-import { GLYPHS } from "../glyphs";
-import { SettingsPopout } from "../options/SettingsPopout";
 import { BackgroundShader, ShaderSection } from "../settings/ShaderSettings";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { PickerNamesOnly } from "../style/pickerNames";
 import { AddButton } from "../style/Section";
 import { V2_LABELS } from "../style/v2/rubric";
 import { LineFrame, SegmentsLine } from "../style/v2/RubricLine";
+import { RowSettings } from "../style/v2/ThingLine";
 import { failureWords } from "../style/words";
 import { LIGHTING_WORDS, useNotInEffect } from "./graphSettingReads";
 import { BackgroundImage } from "./GraphSettings";
@@ -219,12 +218,11 @@ function BackgroundRow({ session }: Readonly<{ session: GraphSession }>): React.
                     rule={member === "color" ? "R1" : "R16"}
                     control={control}
                     modifier={
-                        <SettingsPopout
+                        <RowSettings
                             label="Background settings"
                             title="Background"
                             opened={settings}
                             onOpenChange={setSettings}
-                            icon={<GLYPHS.sliders size={14} aria-hidden />}
                         >
                             <LineFrame
                                 line="switch:graph.background"
@@ -243,7 +241,7 @@ function BackgroundRow({ session }: Readonly<{ session: GraphSession }>): React.
                                 removeName={undefined}
                                 onRemove={() => undefined}
                             />
-                        </SettingsPopout>
+                        </RowSettings>
                     }
                     removeName={set ? "Remove background" : undefined}
                     onRemove={() => {

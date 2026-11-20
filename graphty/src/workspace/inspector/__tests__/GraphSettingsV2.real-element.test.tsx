@@ -132,6 +132,7 @@ describe("Graph settings v2", () => {
         });
         // Switch to is the first line of the row's settings, as every family's is (design 5). Sky
         // opens its picture picker and waits for a pick: Escape changes nothing.
+        assert.isNull(panel.querySelector(".lucide-sliders-horizontal"), "a row's settings open from its '...'");
         await userEvent.click(within(panel).getByRole("button", { name: "Background settings" }));
         const settings = await screen.findByRole("dialog", { name: "Background" });
         await clickSegment(settings, "Sky");

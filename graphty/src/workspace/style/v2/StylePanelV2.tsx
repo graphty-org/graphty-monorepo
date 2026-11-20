@@ -1,12 +1,12 @@
 /**
  * Style panel v2's body for one kind (design/ui/style-panel-v2/design.md; the style-panel-v2
- * experiment): Find a setting, then every section in the design's order, each a `ControlSection`
- * with its rule below it and a "+" on its header. An empty section is the section's empty state,
- * whose title and "+" open the same menu (a section of one thing adds it directly). A section
+ * experiment): Find a setting, then every section in the design's order, each a `PlusList` section
+ * with its rule below it and a "+" on its header, the only button the header has: its "+" opens the
+ * section's menu (a section of one thing adds it directly), and its title adds nothing. A section
  * lists one row per thing the layer sets or the reader just added.
  */
 
-import { ControlSection, LabelsProvider } from "@graphty/compact-mantine";
+import { LabelsProvider } from "@graphty/compact-mantine";
 import { type Channel, writeChannelList } from "@graphty/graphty-element/catalog";
 import React, { useRef, useState } from "react";
 
@@ -25,6 +25,7 @@ import { focusLineNext } from "../useFocusLine";
 import { channelWord, experimentChannelsOff, failureWords } from "../words";
 import { groupOutlineShaders, isGroupOutline, replaceUse } from "./families";
 import { ITEM_LISTS, LISTS, nextColor } from "./lists";
+import { PlusList } from "./PlusList";
 import { FIT_TO_LABEL, lineFor, V2_LABELS } from "./rubric";
 import { RubricLine } from "./RubricLine";
 import { ShaderUseRow } from "./ShaderUseRow";
@@ -249,40 +250,26 @@ function ThingSection({
             });
     };
     const empty = shown.length === 0 && outlines.length === 0;
-    const [only] = options;
     // Only a section of one thing adds it straight from "+" (design 2.3); any other shows its menu,
     // so the reader sees what "+" adds, and a "+" with nothing left to add is not drawn.
     const single = section.groups.flat().length + (takesOutlines ? 1 : 0) === 1;
     return (
         <div data-section={`${ctx.side}-${part.id}`} className="ws-section">
-            <ControlSection
-                label={part.title}
-                headingLevel={3}
-                collapsible={false}
-                hasConfiguredValues={false}
+            <PlusList
+                level="section"
+                title={part.title}
                 empty={empty}
-                onAdd={
-                    empty
-                        ? () => {
-                              if (single && options.length === 1) {
-                                  add(only.key);
-                              } else {
-                                  setMenu(true);
-                              }
-                          }
-                        : undefined
-                }
-                actions={
-                    options.length === 0 || (empty && single) ? undefined : (
+                collapseKey={`${ctx.side}:${part.id}`}
+                add={
+                    options.length === 0 ? undefined : (
                         <AddButton
                             kind={ctx.side}
                             title={part.title}
                             groups={groups}
                             onAdd={add}
-                            alwaysMenu
-                            anchorOnly={empty}
-                            opened={empty ? menu : undefined}
-                            onOpenChange={empty ? setMenu : undefined}
+                            alwaysMenu={!single}
+                            opened={single ? undefined : menu}
+                            onOpenChange={single ? undefined : setMenu}
                         />
                     )
                 }
@@ -306,7 +293,7 @@ function ThingSection({
                 {outlines.map((entry) => (
                     <ShaderUseRow key={entry.key} ctx={ctx} entry={entry} outline />
                 ))}
-            </ControlSection>
+            </PlusList>
         </div>
     );
 }
@@ -340,14 +327,23 @@ export function StylePanelV2({ ctx: row }: Readonly<{ ctx: RowContext }>): React
     const addSection =
         hidden.length === 0 ? null : (
             <div className="ws-add-section" data-add-section="">
-                <AddButton
-                    kind={ctx.side}
+                <PlusList
+                    level="section"
                     title={ADD_SECTION}
-                    words={ADD_SECTION}
-                    groups={[hidden.map(({ part }) => ({ key: part.id, label: part.title }))]}
-                    onAdd={(id) => {
-                        setRevealed((now) => [...now, id]);
-                    }}
+                    empty
+                    heading={false}
+                    add={
+                        <AddButton
+                            kind={ctx.side}
+                            title={ADD_SECTION}
+                            name={ADD_SECTION}
+                            alwaysMenu
+                            groups={[hidden.map(({ part }) => ({ key: part.id, label: part.title }))]}
+                            onAdd={(id) => {
+                                setRevealed((now) => [...now, id]);
+                            }}
+                        />
+                    }
                 />
             </div>
         );

@@ -9,11 +9,8 @@
 
 import { PanelField } from "@graphty/compact-mantine";
 import { type ShaderPlace, STYLE_FAMILIES } from "@graphty/graphty-element/catalog";
-import { Button } from "@mantine/core";
 import React, { useRef, useState } from "react";
 
-import { GLYPHS } from "../../glyphs";
-import { SettingsPopout } from "../../options/SettingsPopout";
 import { useWorkspace } from "../../state/WorkspaceContext";
 import type { RowContext } from "../PropertyRow";
 import { type Fail, GroupByPopout } from "../ShaderRow";
@@ -27,11 +24,13 @@ import {
     writePlace,
 } from "../shaderSlots";
 import { dialogPlaceWords, failureWords } from "../words";
+import { ReplaceGallery } from "./MemberMenu";
 import { LINE_WIDTHS, segmentsWidth } from "./rubric";
 import { LineFrame, SegmentsLine } from "./RubricLine";
-import { ReplaceGallery } from "./SwitchTo";
+import { RowSettings } from "./ThingLine";
 import { PopoverShell } from "./ThingPopover";
 import { UseParams } from "./ThingRow";
+import { ValueButton } from "./ValueButton";
 
 /** graphty-element's Group outline family: its members (Bubble, Hull) and the use fields they share. */
 const GROUP_OUTLINE = STYLE_FAMILIES.find((family) => family.id === "node.groupOutline");
@@ -107,20 +106,7 @@ function PickerField({
     words,
     onClick,
 }: Readonly<{ label: string; words: string; onClick?: () => void }>): React.JSX.Element {
-    return (
-        <Button
-            variant="default"
-            size="compact-xs"
-            fullWidth
-            justify="flex-start"
-            aria-label={words === "" ? label : `${label}, ${words}`}
-            aria-haspopup="dialog"
-            className="ws-value-listbox"
-            onClick={onClick}
-        >
-            {words}
-        </Button>
-    );
+    return <ValueButton label={label} words={words} opens="dialog" onClick={onClick} />;
 }
 
 /**
@@ -231,13 +217,12 @@ export function ShaderUseRow({
     const paramRows = descriptor === undefined ? null : <UseParams key="params" ctx={ctx} entry={entry} />;
     const settings =
         descriptor === undefined || use.off === true ? null : (
-            <SettingsPopout
+            <RowSettings
                 label={`${title} settings`}
                 title={title}
                 changed={Object.keys(params).length > 0 || use.place !== undefined}
                 opened={open}
                 onOpenChange={setOpen}
-                icon={<GLYPHS.sliders size={14} aria-hidden />}
             >
                 <PopoverShell
                     ctx={ctx}
@@ -250,7 +235,7 @@ export function ShaderUseRow({
                     linesOf={() => null}
                     first={switchTo}
                 />
-            </SettingsPopout>
+            </RowSettings>
         );
 
     const control = mainControl({

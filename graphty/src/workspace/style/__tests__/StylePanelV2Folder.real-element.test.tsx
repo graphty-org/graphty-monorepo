@@ -128,7 +128,7 @@ describe("Style panel v2 on several layers", () => {
         await showKind("node");
         const tab = await screen.findByTestId("style-tab");
         const shape = await waitFor(() => sectionOf(tab, "node-shape"));
-        await userEvent.click(within(shape).getByRole("button", { name: "Add Shape" }));
+        await userEvent.click(within(shape).getByRole("button", { name: "Add to node shape" }));
         await waitFor(() => {
             const shapes = [id, other].map((each) => valueOf(session, each, "node.shape"));
             assert.isString(shapes[0]);

@@ -803,3 +803,30 @@
 [data-style-panel-v2] > .ws-find-setting {
     padding-inline: 16px;
 }
+
+/* Style panel v2: a "+" list's "+" sits in its header's actions as if unwrapped (v2/PlusList.tsx). */
+.ws-plus-slot {
+    display: contents;
+}
+
+/* Style panel v2: a family row's Switch to glyph before its line (v2/ThingLine.tsx, v2/MemberMenu.tsx). */
+.ws-thing-line {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.ws-thing-line > .ws-member {
+    flex: none;
+    display: inline-flex;
+}
+
+.ws-thing-line-main {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.ws-member-blank {
+    display: inline-block;
+    width: 14px;
+}

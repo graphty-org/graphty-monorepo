@@ -1,16 +1,17 @@
 /**
- * The Switch to line (design/ui/style-panel-v2/design.md, section 5): the first line of a family
- * thing's settings pop-over, the same in every member. Every member is listed; one an experiment
- * has off is disabled, never hidden. Words when they fit the pop-over's full line, else a select
- * named "Switch to". A member that needs a pick (a model, a picture, a shader in the shapes' place)
- * opens its picker beside the pop-over and switches on the pick; Escape changes nothing. Others
- * switch at once, in one undo step.
+ * A family thing's Switch to (design/ui/style-panel-v2/design.md, section 5): a glyph before the row's name
+ * opening a menu of every member, the current one checked (and `aria-current`). A member an experiment has off is listed,
+ * disabled, never hidden. A member that needs a pick (a model, a picture, a shader in the shapes' place)
+ * opens its picker beside the row and switches on the pick; Escape changes nothing. Others switch at once,
+ * in one undo step.
  */
 
-import { PanelField, Popout } from "@graphty/compact-mantine";
+import { Popout } from "@graphty/compact-mantine";
 import type { ShaderPlace, StyleFamilyDescriptor } from "@graphty/graphty-element/catalog";
+import { ActionIcon, Menu, Tooltip } from "@mantine/core";
 import React, { useRef, useState } from "react";
 
+import { GLYPHS } from "../../glyphs";
 import { useWorkspace } from "../../state/WorkspaceContext";
 import { ModelsPopover } from "../ModelsPopover";
 import { PicturePopover } from "../PicturePopover";
@@ -18,18 +19,12 @@ import type { RowContext } from "../PropertyRow";
 import { ShaderGallery } from "../ShaderGallery";
 import { failureWords } from "../words";
 import { currentMember, isHeld, type MemberChoice, type MemberPick, membersOf, switchMember } from "./families";
-import { LINE_WIDTHS, segmentsWidth } from "./rubric";
-import { LineFrame, SegmentsLine } from "./RubricLine";
-
-/** The line's name, on the select it becomes when the members' words do not fit. */
-const SWITCH_TO = "Switch to";
 
 /** The places a shader for the shapes' place is picked from. */
 const REPLACE_PLACES: readonly ShaderPlace[] = ["replace"];
 
 /**
- * The shader gallery beside a pop-over, listing the shaders that draw in the shapes' place
- * (design 5, rule 1): Sticker, Mandala and their presets.
+ * The shader gallery beside a row, listing the shaders that draw in the shapes' place (design 5, rule 1).
  * @param props - Component props
  * @param props.ctx - the row
  * @param props.anchor - the line it opens beside
@@ -80,18 +75,20 @@ export function ReplaceGallery({
 }
 
 /**
- * The line: see the file header.
+ * The menu: see the file header.
  * @param props - Component props
  * @param props.ctx - the row
  * @param props.family - the thing's family
- * @returns The line
+ * @param props.title - the thing's name with its kind ("Node fill")
+ * @returns The glyph and its menu
  */
-export function SwitchTo({
+export function MemberMenu({
     ctx,
     family,
-}: Readonly<{ ctx: RowContext; family: StyleFamilyDescriptor }>): React.JSX.Element {
+    title,
+}: Readonly<{ ctx: RowContext; family: StyleFamilyDescriptor; title: string }>): React.JSX.Element {
     const { store } = useWorkspace();
-    const box = useRef<HTMLDivElement>(null);
+    const box = useRef<HTMLSpanElement>(null);
     const [picking, setPicking] = useState<{ readonly to: MemberChoice; readonly pick: MemberPick } | null>(null);
     const members = membersOf(ctx, family);
     const now = currentMember(ctx, family, members);
@@ -106,64 +103,56 @@ export function SwitchTo({
                 store.set({ notice: { message: failureWords(family.plainName, "changed", error), error: true } });
             });
     };
-    const choose = (toKey: string): void => {
-        const to = members.find((member) => member.key === toKey);
+    const choose = (to: MemberChoice): void => {
         setPicking(null);
-        if (to === undefined || to.key === now || to.disabled) {
+        if (to.key === now || to.disabled) {
             return;
         }
-        // A member that needs a pick, and holds nothing from before, waits for it; the row keeps
-        // the old member until then.
+        // A member that needs a pick, and holds nothing from before, waits for it; the row keeps the old
+        // member until then.
         if (to.pick !== undefined && !isHeld(ctx, family, to.key)) {
             setPicking({ to, pick: to.pick });
             return;
         }
-        go(toKey);
+        go(to.key);
     };
-    const options = members.map((member) => ({
-        value: member.key,
-        name: member.name,
-        disabled: member.disabled && member.key !== now,
-    }));
-    const fits = segmentsWidth(options) <= LINE_WIDTHS.popoverFull;
-    const control = fits ? (
-        <SegmentsLine label={SWITCH_TO} options={options} value={now} onPick={choose} />
-    ) : (
-        <PanelField
-            label={SWITCH_TO}
-            kind="select"
-            width="fill"
-            data={options.map((option) => ({ value: option.value, label: option.name, disabled: option.disabled }))}
-            value={now}
-            onChange={(next) => {
-                choose(String(next));
-            }}
-        />
-    );
     const close = (): void => {
         setPicking(null);
     };
+    const label = `Switch ${title.toLowerCase()} to`;
+    const current = members.find((member) => member.key === now);
     return (
-        // A segment's click reaches the settings pop-over after the change it made, and a click on
-        // a pop-over closes what was opened from it: kept here, so the picker it opened stays open.
-        // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- only stops a click bubbling; the strip's own radios take the keys
-        <div
-            ref={box}
-            data-switch-to={family.id}
-            onClick={(event) => {
-                event.stopPropagation();
-            }}
-        >
-            <LineFrame
-                line={`switch:${family.id}`}
-                name={fits ? null : SWITCH_TO}
-                set={false}
-                rule={fits ? "R8f" : "R9"}
-                control={control}
-                modifier={null}
-                removeName={undefined}
-                onRemove={close}
-            />
+        <span ref={box} className="ws-member" data-member-menu={family.id}>
+            <Menu position="bottom-start">
+                <Menu.Target>
+                    <Tooltip label={current === undefined ? label : `${label}: ${current.name}`}>
+                        <ActionIcon variant="subtle" size="sm" aria-label={label}>
+                            <GLYPHS.switchTo size={14} aria-hidden />
+                        </ActionIcon>
+                    </Tooltip>
+                </Menu.Target>
+                <Menu.Dropdown>
+                    {members.map((member) => (
+                        <Menu.Item
+                            key={member.key}
+                            aria-current={member.key === now ? "true" : undefined}
+                            disabled={member.disabled && member.key !== now}
+                            leftSection={
+                                member.key === now ? (
+                                    <GLYPHS.check size={14} aria-hidden />
+                                ) : (
+                                    <span className="ws-member-blank" />
+                                )
+                            }
+                            onClick={() => {
+                                choose(member);
+                            }}
+                        >
+                            {member.name}
+                        </Menu.Item>
+                    ))}
+                </Menu.Dropdown>
+            </Menu>
             {picking?.pick === "model" && (
                 <ModelsPopover
                     opened
@@ -198,6 +187,6 @@ export function SwitchTo({
                     onClose={close}
                 />
             )}
-        </div>
+        </span>
     );
 }

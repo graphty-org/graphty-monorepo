@@ -1,23 +1,19 @@
 /**
- * Style panel v2's list editor (design/ui/style-panel-v2/design.md, section 6, R15 and R15r): a
- * list thing's items (a pie's slices, stripes, a chart's values) as lines under a legend whose "+"
- * adds one, each line its color chip and its numbers, a "-" taking it out; and the row's swatch
- * strip, which opens the thing's pop-over on the list. The items are graphty-element's parallel
+ * Style panel v2's parallel color lists (design/ui/style-panel-v2/design.md, section 6, R15 and R15r),
+ * drawn by `ItemListEditor`: a list thing's items (a pie's slices, stripes, a chart's values) as lines
+ * under a legend whose "+" adds one, each line its color chip and its numbers, a "-" taking it out;. The items are graphty-element's parallel
  * space-separated list channels (`listOf`), read and written with the catalog's one reader and
  * writer, every list of one edit in one undo step.
  */
 
-import { CompactColorInput, ControlGroup } from "@graphty/compact-mantine";
+import { CompactColorInput } from "@graphty/compact-mantine";
 import type { Channel, ChannelDescriptor } from "@graphty/graphty-element/catalog";
-import { ActionIcon, Button, Group, Tooltip } from "@mantine/core";
+import { Group } from "@mantine/core";
 import React from "react";
 
-import { GLYPHS } from "../../glyphs";
-import { useWorkspace } from "../../state/WorkspaceContext";
 import { shownChannel } from "../offered";
 import type { RowContext } from "../PropertyRow";
 import { writeIn } from "../row";
-import { failureWords } from "../words";
 import { itemsOf, type ListNumber, type ListSpec, nextColor, writeList } from "./lists";
 import { LineFrame, NumberLine } from "./RubricLine";
 
@@ -34,22 +30,26 @@ function itemDescriptor(descriptor: ChannelDescriptor, number: ListNumber): Chan
 }
 
 /**
- * The list's lines: see the file header.
- * @param props - Component props
- * @param props.ctx - the row
- * @param props.list - the list
- * @returns The sub-group
+ * A parallel color list's lines and "+", for `ItemListEditor`: see the file header.
+ * @param args - the list.
+ * @param args.ctx - the row.
+ * @param args.list - the list.
+ * @param args.fail - reports a write that failed.
+ * @returns its lines, and what its "+" adds.
  */
-export function ListGroup({ ctx, list }: Readonly<{ ctx: RowContext; list: ListSpec }>): React.JSX.Element {
-    const { store } = useWorkspace();
+export function colorItems({
+    ctx,
+    list,
+    fail,
+}: Readonly<{ ctx: RowContext; list: ListSpec; fail: (error: unknown) => void }>): {
+    readonly lines: React.ReactNode;
+    readonly add: () => void;
+} {
     const colors = itemsOf(ctx, list.colors);
     const numbers = Object.fromEntries(list.numbers.map(({ channel }) => [channel, itemsOf(ctx, channel)])) as Record<
         Channel,
         string[]
     >;
-    const fail = (error: unknown): void => {
-        store.set({ notice: { message: failureWords(list.name, "changed", error), error: true } });
-    };
     const write = (nextColors: readonly string[], nextNumbers: Partial<Record<Channel, readonly string[]>>): void => {
         writeList(ctx, list, nextColors, { ...numbers, ...nextNumbers }).catch(fail);
     };
@@ -73,110 +73,81 @@ export function ListGroup({ ctx, list }: Readonly<{ ctx: RowContext; list: ListS
         items[at] = String(value ?? fill);
         write(colors, { [channel]: items });
     };
-    return (
-        <ControlGroup
-            label={list.name}
-            actions={
-                <Tooltip label={`Add ${list.item.toLowerCase()}`}>
-                    <ActionIcon variant="subtle" size="sm" aria-label={`Add ${list.item.toLowerCase()}`} onClick={add}>
-                        <GLYPHS.add size={14} aria-hidden />
-                    </ActionIcon>
-                </Tooltip>
-            }
-        >
-            {colors.map((color, at) => {
-                const name = `${list.item} ${String(at + 1)}`;
-                return (
-                    <LineFrame
-                        // eslint-disable-next-line react/no-array-index-key -- an item is its place in the list
-                        key={at}
-                        line={`${list.colors}:${String(at)}`}
-                        name={null}
-                        set
-                        rule="R15"
-                        control={
-                            <Group gap={4} wrap="nowrap">
-                                <CompactColorInput
-                                    variant="chip"
-                                    aria-label={`${name} color`}
-                                    color={color}
-                                    defaultColor={color}
-                                    showOpacity={false}
-                                    showReset={false}
-                                    swatches={ctx.documentColors}
-                                    onChange={(next) => {
-                                        if (next !== undefined) {
-                                            write(
-                                                colors.map((each, index) => (index === at ? next : each)),
-                                                {},
-                                            );
-                                        }
-                                    }}
-                                />
-                                {list.numbers.map((number) => {
-                                    const descriptor = shownChannel(ctx.session, ctx.side, number.channel, true);
-                                    if (descriptor === undefined) {
-                                        return null;
+    return {
+        add,
+        lines: colors.map((color, at) => {
+            const name = `${list.item} ${String(at + 1)}`;
+            return (
+                <LineFrame
+                    // eslint-disable-next-line react/no-array-index-key -- an item is its place in the list
+                    key={at}
+                    line={`${list.colors}:${String(at)}`}
+                    name={null}
+                    set
+                    rule="R15"
+                    control={
+                        <Group gap={4} wrap="nowrap">
+                            <CompactColorInput
+                                variant="chip"
+                                aria-label={`${name} color`}
+                                color={color}
+                                defaultColor={color}
+                                showOpacity={false}
+                                showReset={false}
+                                swatches={ctx.documentColors}
+                                onChange={(next) => {
+                                    if (next !== undefined) {
+                                        write(
+                                            colors.map((each, index) => (index === at ? next : each)),
+                                            {},
+                                        );
                                     }
-                                    const items = numbers[number.channel];
-                                    const fill = number.percent === true ? 1 : 1 / colors.length;
-                                    return (
-                                        <NumberLine
-                                            key={number.channel}
-                                            descriptor={itemDescriptor(descriptor, number)}
-                                            label={`${name} ${number.name.toLowerCase()}`}
-                                            percent={number.percent === true}
-                                            value={at < items.length ? Number(items[at]) : undefined}
-                                            onWrite={(next) => {
-                                                setNumber(number.channel, at, next, fill);
-                                            }}
-                                        />
-                                    );
-                                })}
-                            </Group>
-                        }
-                        modifier={null}
-                        removeName={`Remove ${name.toLowerCase()}`}
-                        onRemove={() => {
-                            remove(at);
-                        }}
-                    />
-                );
-            })}
-        </ControlGroup>
-    );
+                                }}
+                            />
+                            {list.numbers.map((number) => {
+                                const descriptor = shownChannel(ctx.session, ctx.side, number.channel, true);
+                                if (descriptor === undefined) {
+                                    return null;
+                                }
+                                const items = numbers[number.channel];
+                                const fill = number.percent === true ? 1 : 1 / colors.length;
+                                return (
+                                    <NumberLine
+                                        key={number.channel}
+                                        descriptor={itemDescriptor(descriptor, number)}
+                                        label={`${name} ${number.name.toLowerCase()}`}
+                                        percent={number.percent === true}
+                                        value={at < items.length ? Number(items[at]) : undefined}
+                                        onWrite={(next) => {
+                                            setNumber(number.channel, at, next, fill);
+                                        }}
+                                    />
+                                );
+                            })}
+                        </Group>
+                    }
+                    modifier={null}
+                    removeName={`Remove ${name.toLowerCase()}`}
+                    onRemove={() => {
+                        remove(at);
+                    }}
+                />
+            );
+        }),
+    };
 }
 
 /**
- * A list thing's row control (R15r): its colors as a strip of swatches; pressing it opens the
- * thing's pop-over on the list.
- * @param props - Component props
- * @param props.ctx - the row
- * @param props.list - the list
- * @param props.label - the strip's accessible name
- * @param props.onOpen - opens the pop-over
- * @returns The strip
+ * A parallel color list's swatches, as the CSS background its row's value button draws (R15r).
+ * @param ctx - the row.
+ * @param list - the list.
+ * @returns the background, or "" for an empty list.
  */
-export function SwatchStrip({
-    ctx,
-    list,
-    label,
-    onOpen,
-}: Readonly<{ ctx: RowContext; list: ListSpec; label: string; onOpen: () => void }>): React.JSX.Element {
+export function swatchesOf(ctx: RowContext, list: ListSpec): string {
     const colors = itemsOf(ctx, list.colors);
     const stops = colors.flatMap((color, at) => [
         `${color} ${String((at / colors.length) * 100)}%`,
         `${color} ${String(((at + 1) / colors.length) * 100)}%`,
     ]);
-    return (
-        <Button
-            variant="default"
-            size="compact-xs"
-            fullWidth
-            aria-label={label}
-            className="ws-gradient-button"
-            style={colors.length === 0 ? undefined : { background: `linear-gradient(to right, ${stops.join(", ")})` }}
-            onClick={onOpen}
-        />
-    );
+    return colors.length === 0 ? "" : `linear-gradient(to right, ${stops.join(", ")})`;
 }

@@ -187,13 +187,15 @@ describe("the node tab by part of the drawing", () => {
     it("typing a border color paints the node's border", async () => {
         const session = await openProject([everyNode("Key", { "node.shape": "box" })]);
         const tab = await openStyle("Key");
-        await userEvent.click(within(section(tab, "border")).getByRole("button", { name: "Add to node border" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^Border color/ }));
-        await waitFor(() => {
-            const line = section(tab, "border").querySelector('.ws-row[data-line="node.borderColor"]');
+        // Border's "+" has one thing to add, the border itself: it adds it and hands focus to its color.
+        const border = section(tab, "border");
+        await userEvent.click(within(border).getByRole("button", { name: "Add to node border" }));
+        const field = await waitFor(() => {
+            const line = border.querySelector<HTMLElement>('[data-line="node.borderColor"]');
             assert.isTrue(line?.contains(document.activeElement) === true, "focus is in the new line");
+            return document.activeElement as HTMLElement;
         });
-        await userEvent.keyboard("red{Enter}");
+        await userEvent.type(field, "FF0000{Enter}");
         await waitFor(() => {
             const painted = session.styles.explain({ node: "a" }).merged["node.borderColor"] as
                 { hex?: string } | string | undefined;
@@ -340,13 +342,13 @@ describe("the node tab by part of the drawing", () => {
         }
         await session.styles.settled();
         const tab = await openStyle("Both");
+        // Border's "+" has one thing to add, the border itself: it adds it and hands focus to its color.
         await userEvent.click(within(section(tab, "border")).getByRole("button", { name: "Add to node border" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^Border color/ }));
         await waitFor(() => {
-            const line = section(tab, "border").querySelector('.ws-row[data-line="node.borderColor"]');
+            const line = section(tab, "border").querySelector('[data-line="node.borderColor"]');
             assert.isTrue(line?.contains(document.activeElement) === true, "focus is in the new line");
         });
-        await userEvent.keyboard("blue{Enter}");
+        await userEvent.keyboard("0000FF{Enter}");
         await waitFor(() => {
             const colors = session.styles
                 .list()
@@ -391,7 +393,8 @@ describe("the node tab by part of the drawing", () => {
             assert.isNotNull(effects.querySelector('[data-item="shadow"]'));
             assert.isNotNull(effects.querySelector('.ws-row[data-line="node.shadowBlur"]'));
         });
-        within(effects).getByText("Blur");
+        // A drop shadow's settings are its color's sub-settings, each named in full under it.
+        within(effects).getByText("Shadow blur");
     });
 
     it("editing a gradient stop keeps every color's transparency and writes colors and stops together", async () => {

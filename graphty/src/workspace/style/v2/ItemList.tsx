@@ -1,12 +1,11 @@
 /**
- * Style panel v2's list editor for structured text channels (design/ui/style-panel-v2/design.md,
- * section 6, R15): inner lines and shape parts (polylines), polygon points and bends (points), a
- * Record's fields, an end's stack of caps and an edge Record's table rows. Each item is a line
- * with a "-"; "+" on the list's legend adds one. The channel keeps graphty-element's own text form,
+ * Style panel v2's items of structured text channels (design/ui/style-panel-v2/design.md, section 6,
+ * R15), drawn by `ItemListEditor`: inner lines and shape parts (polylines), polygon points and bends
+ * (points), a Record's fields, an end's stack of caps and an edge Record's table rows. Each item is a
+ * line with a "-"; "+" on the list's legend adds one. The channel keeps graphty-element's own text form,
  * read and written by its `readChannelItems` and `writeChannelItems`, one write an edit.
  */
 
-import { ControlGroup } from "@graphty/compact-mantine";
 import {
     type Channel,
     type ChannelDescriptor,
@@ -18,114 +17,16 @@ import {
     type ShapeTextItem,
     writeChannelItems,
 } from "@graphty/graphty-element/catalog";
-import { ActionIcon, Group, TextInput, Tooltip } from "@mantine/core";
 import React from "react";
 
-import { GLYPHS } from "../../glyphs";
-import { useWorkspace } from "../../state/WorkspaceContext";
 import { shownChannel } from "../offered";
 import { ValueListbox } from "../parts/ValueListbox";
 import type { RowContext } from "../PropertyRow";
-import { lineIn, writeIn } from "../row";
-import { failureWords } from "../words";
-import { unsetIn } from "./lineWrites";
+import { AddButton } from "../Section";
+import { PointPair, WordsField } from "./ItemFields";
 import { coordinateDescriptor, type ItemList } from "./lists";
-import { LineFrame, NumberLine } from "./RubricLine";
+import { LineFrame } from "./RubricLine";
 import { sectionsOf } from "./valueSections";
-
-/**
- * A "+" with its tooltip.
- * @param props - Component props
- * @param props.label - its name ("Add line")
- * @param props.onClick - what it adds
- * @returns The button
- */
-export function AddItemButton({ label, onClick }: Readonly<{ label: string; onClick: () => void }>): React.JSX.Element {
-    return (
-        <Tooltip label={label}>
-            <ActionIcon variant="subtle" size="sm" aria-label={label} onClick={onClick}>
-                <GLYPHS.add size={14} aria-hidden />
-            </ActionIcon>
-        </Tooltip>
-    );
-}
-
-/**
- * Words typed into a field, written on Enter or blur (R14).
- * @param props - Component props
- * @param props.label - its accessible name
- * @param props.value - its words
- * @param props.onWrite - writes new words
- * @returns The field
- */
-function WordsField({
-    label,
-    value,
-    onWrite,
-}: Readonly<{ label: string; value: string; onWrite: (words: string) => void }>): React.JSX.Element {
-    return (
-        <TextInput
-            key={value}
-            size="xs"
-            aria-label={label}
-            defaultValue={value}
-            onBlur={(event) => {
-                if (event.currentTarget.value !== value) {
-                    onWrite(event.currentTarget.value);
-                }
-            }}
-            onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                    event.currentTarget.blur();
-                }
-            }}
-        />
-    );
-}
-
-/**
- * A point as an X | Y pair (design 2.2).
- * @param props - Component props
- * @param props.descriptor - a number descriptor for its coordinates
- * @param props.label - its name ("Line 1 point 2")
- * @param props.point - its coordinates
- * @param props.onWrite - writes new coordinates
- * @returns The pair
- */
-export function PointPair({
-    descriptor,
-    label,
-    point,
-    onWrite,
-}: Readonly<{
-    descriptor: ChannelDescriptor;
-    label: string;
-    point: ChannelPoint | undefined;
-    onWrite: (point: ChannelPoint | undefined) => void;
-}>): React.JSX.Element {
-    const write = (at: "x" | "y", next: number | undefined): void => {
-        // Both emptied takes the point off; one emptied reads as 0. A length after a fraction stays.
-        const other = at === "x" ? point?.y : point?.x;
-        onWrite(next === undefined && other === undefined ? undefined : { ...(point ?? ORIGIN), [at]: next ?? 0 });
-    };
-    return (
-        <Group grow gap={4} wrap="nowrap">
-            {(["X", "Y"] as const).map((letter, at) => (
-                <NumberLine
-                    key={letter}
-                    descriptor={descriptor}
-                    label={`${label} ${letter.toLowerCase()}`}
-                    percent={false}
-                    value={at === 0 ? point?.x : point?.y}
-                    glyph={letter}
-                    onWrite={(next) => {
-                        write(at === 0 ? "x" : "y", next);
-                    }}
-                />
-            ))}
-        </Group>
-    );
-}
 
 /** A point at the middle. */
 const ORIGIN: ChannelPoint = { x: 0, y: 0 };
@@ -243,7 +144,7 @@ function pointsKind(args: KindArgs): { lines: React.ReactNode; add: () => void }
  * @returns The lines, and what "+" adds.
  */
 function polylinesKind(args: KindArgs): { lines: React.ReactNode; add: () => void } {
-    const { list, descriptor } = args;
+    const { ctx, list, descriptor } = args;
     const channel = list.channel as "node.shapeLines" | "node.shapeParts";
     const { items: lines, put } = itemsIn(args, channel);
     const coordinates = coordinateDescriptor(descriptor);
@@ -294,9 +195,13 @@ function polylinesKind(args: KindArgs): { lines: React.ReactNode; add: () => voi
                     />,
                     removeOf(index),
                     index === 0 ? (
-                        <AddItemButton
-                            label={`Add a point to ${name.toLowerCase()}`}
-                            onClick={() => {
+                        <AddButton
+                            kind={ctx.side}
+                            title={list.name}
+                            name={`Add a point to ${name.toLowerCase()}`}
+                            inRow
+                            options={[{ key: "item", label: list.item }]}
+                            onAdd={() => {
                                 put(lines.map((each, i) => (i === at ? [...each, each.at(-1) ?? ORIGIN] : each)));
                             }}
                         />
@@ -413,7 +318,7 @@ function capsKind(args: KindArgs): { lines: React.ReactNode; add: () => void } {
  * @returns The lines, and what "+" adds.
  */
 function tableKind(args: KindArgs): { lines: React.ReactNode; add: () => void } {
-    const { list, descriptor } = args;
+    const { ctx, list, descriptor } = args;
     const { items: rows, put } = itemsIn(args, list.channel as "node.labelTable" | "edge.labelTable");
     return {
         add: () => {
@@ -462,9 +367,13 @@ function tableKind(args: KindArgs): { lines: React.ReactNode; add: () => void } 
                               },
                           },
                     index === 0 ? (
-                        <AddItemButton
-                            label={`Add a cell to ${name.toLowerCase()}`}
-                            onClick={() => {
+                        <AddButton
+                            kind={ctx.side}
+                            title={list.name}
+                            name={`Add a cell to ${name.toLowerCase()}`}
+                            inRow
+                            options={[{ key: "item", label: list.item }]}
+                            onAdd={() => {
                                 putCells([...row.cells, NEW_CELL]);
                             }}
                         />
@@ -476,72 +385,11 @@ function tableKind(args: KindArgs): { lines: React.ReactNode; add: () => void } 
 }
 
 /** Each kind's lines. */
-const KINDS = {
+/** Each structured list's lines and "+", by its kind: what `ItemListEditor` draws. */
+export const ITEM_KINDS = {
     points: pointsKind,
     polylines: polylinesKind,
     texts: textsKind,
     caps: capsKind,
     table: tableKind,
 } as const;
-
-/**
- * A structured channel's list: see the file header.
- * @param props - Component props
- * @param props.ctx - the row
- * @param props.channel - the channel
- * @param props.list - its list
- * @param props.legend - "group": its own sub-group under a legend (a thing's whole Main, Inner
- *     lines' Lines); "line": a named line holding "+", inside the sub-group it belongs to
- * @returns The list
- */
-export function ItemListEditor({
-    ctx,
-    channel,
-    list,
-    legend,
-}: Readonly<{
-    ctx: RowContext;
-    channel: Channel;
-    list: ItemList;
-    legend: "group" | "line";
-}>): React.JSX.Element | null {
-    const { store } = useWorkspace();
-    const descriptor = shownChannel(ctx.session, ctx.side, channel, true);
-    if (descriptor === undefined) {
-        return null;
-    }
-    const value = lineIn(ctx, channel)?.value;
-    const write = (text: string | undefined): void => {
-        const done = text === undefined ? unsetIn(ctx, [channel]) : writeIn(ctx, channel, { value: text });
-        done.catch((error: unknown) => {
-            store.set({ notice: { message: failureWords(list.name, "changed", error), error: true } });
-        });
-    };
-    const { lines, add } = KINDS[list.kind]({ ctx, list, descriptor, value, write });
-    const plus = <AddItemButton label={`Add ${list.item.toLowerCase()}`} onClick={add} />;
-    if (legend === "group") {
-        return (
-            <ControlGroup label={list.name} actions={plus}>
-                {lines}
-            </ControlGroup>
-        );
-    }
-    const set = value !== undefined && value !== "";
-    return (
-        <>
-            <LineFrame
-                line={channel}
-                name={list.name}
-                set={set}
-                rule="R15"
-                control={null}
-                modifier={plus}
-                removeName={set ? `Remove ${list.name.toLowerCase()}` : undefined}
-                onRemove={() => {
-                    write(undefined);
-                }}
-            />
-            {lines}
-        </>
-    );
-}

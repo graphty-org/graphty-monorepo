@@ -100,9 +100,9 @@ async function typeInto(line: HTMLElement, text: string, which = 0): Promise<voi
  */
 async function addFromTitle(tab: HTMLElement, section: string, item: string, thing: string): Promise<HTMLElement> {
     const where = sectionOf(tab, section);
-    const title = where.querySelector<HTMLElement>('[data-testid="control-section-lead"]');
-    assert.isNotNull(title);
-    await userEvent.click(title);
+    const plus = where.querySelector<HTMLElement>("[data-plus]");
+    assert.isNotNull(plus, 'the section\'s "+"');
+    await userEvent.click(plus);
     await userEvent.click(await screen.findByRole("menuitem", { name: item }));
     return found(where, `[data-thing="${thing}"]`);
 }

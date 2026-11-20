@@ -5,11 +5,8 @@
  */
 
 import type { Channel, ChannelDescriptor } from "@graphty/graphty-element/catalog";
-import { Button } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
-import { GLYPHS } from "../../glyphs";
-import { SettingsPopout } from "../../options/SettingsPopout";
 import { useWorkspace } from "../../state/WorkspaceContext";
 import { shownChannel } from "../offered";
 import { GradientButton } from "../parts/GradientRow";
@@ -28,18 +25,20 @@ import {
     writeParam,
 } from "../shaderSlots";
 import { failureWords } from "../words";
+import { swatchesOf } from "./colorItems";
 import { familyOf, pickReplace, replaceUse } from "./families";
-import { ItemListEditor } from "./ItemList";
+import { ItemListEditor } from "./ItemListEditor";
 import { LabelRow } from "./LabelRow";
 import { TEXT_THINGS, type TextThing } from "./labelRubric";
 import { unsetIn } from "./lineWrites";
-import { ListGroup, SwatchStrip } from "./ListGroup";
 import { firstItemWords, ITEM_LISTS, LISTS } from "./lists";
+import { MemberMenu, ReplaceGallery } from "./MemberMenu";
 import { type LineSpec, rubricChannels, rubricOf, SHAPE_REPLACE_RUBRIC } from "./rubric";
 import { LineFrame, type RowSlots, RubricLine } from "./RubricLine";
-import { ReplaceGallery } from "./SwitchTo";
+import { RowSettings, ThingLine } from "./ThingLine";
 import { FirstLines, ThingPopover } from "./ThingPopover";
 import { mainOf, setOn, type ThingSpec } from "./things";
+import { ValueButton } from "./ValueButton";
 
 /**
  * A shader use's parameters in Style panel v2 (design 7.1, R16): no Uses or Cost lines, and a
@@ -90,34 +89,6 @@ function ReplaceParams({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.Elemen
 }
 
 /**
- * A read-only strip of a row's words (R15r): opens the thing's pop-over.
- * @param props - Component props
- * @param props.label - its accessible name
- * @param props.words - what it shows
- * @param props.onOpen - opens the pop-over
- * @returns The strip
- */
-function WordsStrip({
-    label,
-    words,
-    onOpen,
-}: Readonly<{ label: string; words: string; onOpen: () => void }>): React.JSX.Element {
-    return (
-        <Button
-            variant="default"
-            size="compact-xs"
-            fullWidth
-            justify="flex-start"
-            aria-label={words === "" ? label : `${label}, ${words}`}
-            className="ws-value-listbox"
-            onClick={onOpen}
-        >
-            {words}
-        </Button>
-    );
-}
-
-/**
  * The Shape row's control while a shader draws in the shapes' place (design 7.1, "preset R10"):
  * the shader's name, opening the gallery of shaders for that place; a pick draws it instead.
  * @param props - Component props
@@ -133,21 +104,15 @@ function ReplacePreset({ ctx, shader }: Readonly<{ ctx: RowContext; shader: stri
     const family = familyOf(ctx.side, "shape");
     return (
         <div ref={box}>
-            <Button
-                variant="default"
-                size="compact-xs"
-                fullWidth
-                justify="flex-start"
-                aria-label={`Node shape, ${name}`}
-                aria-haspopup="dialog"
-                aria-expanded={open}
-                className="ws-value-listbox"
+            <ValueButton
+                label="Node shape"
+                words={name}
+                opens="dialog"
+                expanded={open}
                 onClick={() => {
                     setOpen(true);
                 }}
-            >
-                {name}
-            </Button>
+            />
             {open && family !== undefined ? (
                 <ReplaceGallery
                     ctx={ctx}
@@ -230,11 +195,10 @@ function MainLine({
     if (main.channel === list?.colors) {
         // A list thing's row (R15r): its swatches, opening its pop-over on the list.
         const strip = (
-            <SwatchStrip
-                ctx={ctx}
-                list={list}
+            <ValueButton
                 label={`Edit ${ctx.side} ${thing.name.toLowerCase()}`}
-                onOpen={slots.onOpen ?? (() => undefined)}
+                swatches={swatchesOf(ctx, list)}
+                onClick={slots.onOpen}
             />
         );
         return frame(main.channel, "R15r", strip);
@@ -243,10 +207,10 @@ function MainLine({
     if (items !== undefined && setOn(ctx, main.channel)) {
         // A list thing's row (R15r): its first item, opening its pop-over on the list.
         const strip = (
-            <WordsStrip
+            <ValueButton
                 label={`Edit ${ctx.side} ${thing.name.toLowerCase()}`}
                 words={firstItemWords(items, lineIn(ctx, main.channel)?.value)}
-                onOpen={slots.onOpen ?? (() => undefined)}
+                onClick={slots.onOpen}
             />
         );
         return frame(main.channel, "R15r", strip);
@@ -338,22 +302,14 @@ export function ThingRow({
         others.length > 0 ||
         [...covered].some((channel) => channel !== main.channel && !commonChannels.has(channel) && setOn(ctx, channel));
     const items = ITEM_LISTS[main.channel];
-    let popoverList: React.ReactNode = undefined;
-    if (list !== undefined) {
-        popoverList = <ListGroup ctx={ctx} list={list} />;
-    } else if (items !== undefined) {
-        popoverList = <ItemListEditor ctx={ctx} channel={main.channel} list={items} legend="group" />;
-    }
+    const listed = list ?? items;
+    const popoverList =
+        listed === undefined ? undefined : (
+            <ItemListEditor ctx={ctx} channel={main.channel} list={listed} legend="group" />
+        );
     // Every thing's pop-over holds at least By data (a shown / hidden row's too, design 7.1).
     const settings = (
-        <SettingsPopout
-            label={`${title} settings`}
-            title={title}
-            changed={changed}
-            opened={open}
-            onOpenChange={setOpen}
-            icon={<GLYPHS.sliders size={14} aria-hidden />}
-        >
+        <RowSettings label={`${title} settings`} title={title} changed={changed} opened={open} onOpenChange={setOpen}>
             {rubric === undefined ? (
                 others.map((descriptor) => <Field key={descriptor.channel} ctx={ctx} descriptor={descriptor} />)
             ) : (
@@ -362,12 +318,12 @@ export function ThingRow({
                     title={title}
                     rubric={rubric}
                     others={others}
-                    first={<FirstLines ctx={ctx} main={main} family={family} />}
+                    first={<FirstLines ctx={ctx} main={main} />}
                     extra={replacing === undefined ? undefined : <ReplaceParams ctx={ctx} />}
                     after={popoverList}
                 />
             )}
-        </SettingsPopout>
+        </RowSettings>
     );
     const remove = (): void => {
         onCancel();
@@ -431,16 +387,20 @@ export function ThingRow({
     return (
         <div ref={box} data-thing={thing.id}>
             {picker}
-            <MainLine
-                ctx={ctx}
-                thing={thing}
-                main={main}
-                row={rubric?.row}
-                replacing={replacing?.shader}
-                pending={pending}
-                onCancel={onCancel}
-                slots={slots}
-            />
+            <ThingLine
+                member={family === undefined ? undefined : <MemberMenu ctx={ctx} family={family} title={title} />}
+            >
+                <MainLine
+                    ctx={ctx}
+                    thing={thing}
+                    main={main}
+                    row={rubric?.row}
+                    replacing={replacing?.shader}
+                    pending={pending}
+                    onCancel={onCancel}
+                    slots={slots}
+                />
+            </ThingLine>
             {common.map((line) => (
                 <RubricLine key={line.channel} ctx={ctx} line={line} />
             ))}

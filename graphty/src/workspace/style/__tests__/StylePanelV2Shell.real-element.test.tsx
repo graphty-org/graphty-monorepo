@@ -2,13 +2,16 @@
  * Style panel v2's shell on the REAL graphty-element, driven by real clicks (design/ui/style-panel-v2/design.md,
  * sections 2.3 and 2.4): with the style-panel-v2 experiment on, the node tab draws its eight sections in the
  * design's order; a section of one thing adds it from its "+", a section of several opens a "+" menu in groups
- * from its title; a thing row's minus takes the whole thing off the layer and one Undo brings it back. With the
- * experiment off, the panel by part of the drawing is drawn as before.
+ * from its "+"; a thing row's minus takes the whole thing off the layer and one Undo brings it back. Every "+"
+ * list's only button is its "+": its title and bar add nothing, and a section collapses from its caret alone,
+ * remembered by the reader, never by the project. With the experiment off, the panel by part of the drawing is
+ * drawn as before.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
+import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
@@ -44,7 +47,7 @@ describe("Style panel v2 on", () => {
         const { session, id } = await openProject();
         const tab = await openStyle("Key people");
         const shape = sectionOf(tab, "node-shape");
-        await userEvent.click(within(shape).getByRole("button", { name: "Add Shape" }));
+        await userEvent.click(within(shape).getByRole("button", { name: "Add to node shape" }));
         await waitFor(() => {
             assert.isString(written(session, id, "node.shape"), "Shape's start is written");
         });
@@ -70,13 +73,13 @@ describe("Style panel v2 on", () => {
         });
     });
 
-    it("an empty section's title opens its '+' menu in groups, and Rings is added from it", async () => {
+    it("an empty section's '+' opens its menu in groups, and Rings is added from it", async () => {
         const { session, id } = await openProject();
         const tab = await openStyle("Key people");
         const border = sectionOf(tab, "node-border");
-        const title = border.querySelector<HTMLElement>('[data-testid="control-section-lead"]');
-        assert.isNotNull(title);
-        await userEvent.click(title);
+        const plus = border.querySelector<HTMLElement>("[data-plus]");
+        assert.isNotNull(plus, 'the section\'s "+"');
+        await userEvent.click(plus);
         const menu = await screen.findByRole("menu");
         assert.deepEqual(
             within(menu)
@@ -105,6 +108,191 @@ describe("Style panel v2 on", () => {
                 .map((item) => item.textContent),
             "Rings",
         );
+    });
+});
+
+/**
+ * What the layers hold, to tell whether a click changed anything.
+ * @param session - the session.
+ * @returns the layers as text.
+ */
+function layersNow(session: GraphSession): string {
+    return JSON.stringify(session.styles.list());
+}
+
+/**
+ * Clicks a "+" list's title and the empty middle of its bar, and checks neither adds nor opens anything; then
+ * clicks its "+" and checks it opens its menu or adds.
+ * @param session - the session.
+ * @param list - the "+" list.
+ * @param what - what it is, for messages.
+ */
+async function onlyPlusAdds(session: GraphSession, list: HTMLElement, what: string): Promise<void> {
+    const before = layersNow(session);
+    const title =
+        list.querySelector<HTMLElement>(
+            '[data-testid="control-section-lead"], [data-testid="control-section-toggle"]',
+        ) ?? list.querySelector<HTMLElement>('[data-testid="control-group-label"]');
+    assert.isNotNull(title, `${what} has a title`);
+    await userEvent.click(title);
+    const bar = list.querySelector<HTMLElement>(
+        '[data-testid="control-section-header"], [data-testid="control-group-header"]',
+    );
+    if (bar !== null) {
+        const box = bar.getBoundingClientRect();
+        await userEvent.click(bar, { position: { x: Math.round(box.width * 0.62), y: Math.round(box.height / 2) } });
+    }
+    assert.isNull(screen.queryByRole("menu"), `${what}: no menu from its title or bar`);
+    assert.equal(layersNow(session), before, `${what}: its title and bar add nothing`);
+    const plus = list.querySelector<HTMLElement>("[data-plus]");
+    assert.isNotNull(plus, `${what} has a "+"`);
+    await userEvent.click(plus);
+    await waitFor(() => {
+        assert.isTrue(screen.queryByRole("menu") !== null || layersNow(session) !== before, `${what}: its "+" adds`);
+    });
+    if (screen.queryByRole("menu") !== null) {
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("menu"));
+        });
+    }
+}
+
+describe("Style panel v2's '+' lists", () => {
+    withFeatures(["file-styles", "style-panel-v2"]);
+
+    it("every '+' sits in a '+' list whose title and bar add nothing; only its '+' adds", async () => {
+        const { session } = await openProject();
+        const tab = await openStyle("Key people");
+        const panel = await waitFor(() => {
+            const found = tab.querySelector<HTMLElement>("[data-style-panel-v2]");
+            assert.isNotNull(found);
+            return found;
+        });
+        for (const plus of panel.querySelectorAll("[data-plus]")) {
+            assert.isNotNull(plus.closest("[data-plus-list]"), `${plus.getAttribute("aria-label") ?? ""} is in a list`);
+        }
+        // Each section, set (Fill) and empty, the Shaders section included.
+        const sections = [...panel.querySelectorAll<HTMLElement>('[data-plus-list="section"]')];
+        assert.isAtLeast(sections.length, 8);
+        for (const section of sections) {
+            await onlyPlusAdds(session, section, section.textContent ?? "a section");
+        }
+
+        // A pop-over's group: the Shape the section loop added has sub-groups to add.
+        const shape = sectionOf(tab, "node-shape");
+        await waitFor(() => {
+            assert.isNotNull(shape.querySelector('[data-thing="shape"]'));
+        });
+        await userEvent.click(within(shape).getByRole("button", { name: /^Node shape settings/ }));
+        const pop = await waitFor(() => {
+            const found = document.querySelector<HTMLElement>("[data-thing-popover]");
+            assert.isNotNull(found);
+            return found;
+        });
+        for (const plus of pop.querySelectorAll("[data-plus]")) {
+            assert.isNotNull(plus.closest('[data-plus-list="group"]'), "a pop-over's '+' is in a group list");
+        }
+        const main = pop.querySelector<HTMLElement>('[data-plus-list="group"]');
+        assert.isNotNull(main);
+        await onlyPlusAdds(session, main, "Shape's Main");
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(document.querySelector("[data-thing-popover]"));
+        });
+
+        // A list's group: Pie opens its pop-over on its slices.
+        const fill = sectionOf(tab, "node-fill");
+        await userEvent.click(within(fill).getByRole("button", { name: "Add to node fill" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Pie" }));
+        const slices = await waitFor(() => {
+            const found = [
+                ...document.querySelectorAll<HTMLElement>('[data-thing-popover] [data-plus-list="group"]'),
+            ].find((each) => each.querySelector('[data-testid="control-group-label"]')?.textContent === "Slices");
+            assert.isDefined(found);
+            return found;
+        });
+        if (slices !== undefined) {
+            await onlyPlusAdds(session, slices, "Pie's slices");
+        }
+    });
+
+    it("Add section is a bar whose only button is its '+'", async () => {
+        const { session } = await openProject({ styleEmptySections: false });
+        const tab = await openStyle("Key people");
+        const bar = await waitFor(() => {
+            const found = tab.querySelector<HTMLElement>("[data-add-section] [data-plus-list]");
+            assert.isNotNull(found);
+            return found;
+        });
+        await onlyPlusAdds(session, bar, "Add section");
+    });
+
+    it("a section collapses from its caret only, and the reader's choice outlives a remount and a layer switch", async () => {
+        const key = "graphty.styleSectionCollapsed.v1:node:fill";
+        try {
+            const { session } = await openProject();
+            const tab = await openStyle("Key people");
+            const fill = sectionOf(tab, "node-fill");
+            const toggle = await waitFor(() => {
+                const found = fill.querySelector<HTMLElement>('[data-testid="control-section-toggle"]');
+                assert.isNotNull(found);
+                return found;
+            });
+            const rows = (): HTMLElement | null =>
+                fill.querySelector<HTMLElement>('[data-testid="control-section-content"]');
+            const before = layersNow(session);
+            await userEvent.click(within(toggle).getByText("Fill"));
+            assert.isFalse(rows()?.hidden, "clicking the title does not collapse");
+            const caret = toggle.querySelector<HTMLElement>('[data-testid="control-section-chevron-slot"]');
+            assert.isNotNull(caret);
+            await userEvent.click(caret);
+            await waitFor(() => {
+                assert.isTrue(rows()?.hidden, "the caret collapses");
+            });
+            assert.equal(layersNow(session), before, "collapsing writes nothing to the project");
+            assert.equal(localStorage.getItem(key), "collapsed", "kept as the reader's own");
+
+            // Another layer: still collapsed.
+            await session.styles.add({
+                name: "Others",
+                target: "node",
+                selector: { match: "everything" },
+                set: { "node.color": "#228BE6" },
+            });
+            const others = await openStyle("Others");
+            await waitFor(() => {
+                const content = sectionOf(others, "node-fill").querySelector<HTMLElement>(
+                    '[data-testid="control-section-content"]',
+                );
+                assert.isTrue(content?.hidden, "still collapsed on another layer");
+            });
+        } finally {
+            localStorage.removeItem(key);
+        }
+    });
+
+    it("a collapsed section stays collapsed when the workspace mounts again, and its '+' opens it", async () => {
+        const key = "graphty.styleSectionCollapsed.v1:node:fill";
+        localStorage.setItem(key, "collapsed");
+        try {
+            await openProject();
+            const tab = await openStyle("Key people");
+            const fill = sectionOf(tab, "node-fill");
+            const content = await waitFor(() => {
+                const found = fill.querySelector<HTMLElement>('[data-testid="control-section-content"]');
+                assert.isNotNull(found);
+                return found;
+            });
+            assert.isTrue(content.hidden, "collapsed after a remount");
+            await userEvent.click(within(fill).getByRole("button", { name: "Add to node fill" }));
+            await waitFor(() => {
+                assert.isFalse(content.hidden, "its '+' opens it");
+            });
+            await userEvent.keyboard("{Escape}");
+        } finally {
+            localStorage.removeItem(key);
+        }
     });
 });
 

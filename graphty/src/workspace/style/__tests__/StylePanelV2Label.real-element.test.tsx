@@ -64,9 +64,9 @@ async function typeInto(line: HTMLElement, text: string): Promise<void> {
  */
 async function addLabel(tab: HTMLElement): Promise<HTMLElement> {
     const text = sectionOf(tab, "node-text");
-    const title = text.querySelector<HTMLElement>('[data-testid="control-section-lead"]');
-    assert.isNotNull(title);
-    await userEvent.click(title);
+    const plus = text.querySelector<HTMLElement>("[data-plus]");
+    assert.isNotNull(plus, 'the section\'s "+"');
+    await userEvent.click(plus);
     await userEvent.click(await screen.findByRole("menuitem", { name: "Label" }));
     const list = await screen.findByRole("group", { name: "Node label" });
     await userEvent.click(await within(list).findByRole("option", { name: /^Node id(,|$)/ }));
@@ -196,9 +196,9 @@ describe("Style panel v2's Text section", () => {
         assert.isDefined(hubs);
         // A Label row with no source restyles the labels the node already has (design 7.4).
         const text = sectionOf(hubsTab, "node-text");
-        const title = text.querySelector<HTMLElement>('[data-testid="control-section-lead"]');
-        assert.isNotNull(title);
-        await userEvent.click(title);
+        const plus = text.querySelector<HTMLElement>("[data-plus]");
+        assert.isNotNull(plus, 'the section\'s "+"');
+        await userEvent.click(plus);
         await userEvent.click(await screen.findByRole("menuitem", { name: "Label" }));
         await screen.findByRole("group", { name: "Node label" });
         await userEvent.keyboard("{Escape}");

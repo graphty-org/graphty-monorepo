@@ -14,6 +14,7 @@ import {
     ArrowDownToLine,
     ArrowDownUp,
     ArrowLeft,
+    ArrowLeftRight,
     ArrowLeftToLine,
     ArrowRight,
     ArrowRightToLine,
@@ -301,6 +302,8 @@ export const GLYPHS = {
     drag: GripVertical,
     menu: Menu,
     more: MoreHorizontal,
+    // Switch a row to another member of its family (a solid fill to a gradient).
+    switchTo: ArrowLeftRight,
     rename: Pencil,
     duplicate: Copy,
     // Copy text to the clipboard.

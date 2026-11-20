@@ -1,7 +1,7 @@
 import { ControlSection, PanelField, Popout, TargetTooltip } from "@graphty/compact-mantine";
 import { type ChannelDescriptor, channelsFor, type ShaderPlace } from "@graphty/graphty-element/catalog";
 import type { Channel } from "@graphty/graphty-element/schema";
-import { ActionIcon, Button, Menu, Tooltip } from "@mantine/core";
+import { ActionIcon, Menu, Tooltip } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
 import { nodeModelsOn } from "../features";
@@ -17,6 +17,7 @@ import { type OptionTile, ShaderGallery } from "./ShaderGallery";
 import { ShaderRow } from "./ShaderRow";
 import { addShader, moveShader, pickedShader, placeOf, shaderEntries, writeWireframe } from "./shaderSlots";
 import { focusLineNext, headerBottom } from "./useFocusLine";
+import { PlusList } from "./v2/PlusList";
 import {
     channelWord,
     failureWords,
@@ -572,6 +573,51 @@ function ShadersSection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
         await addShader(ctx, await pickedShader(ctx.session, id));
         store.set({ announcement: `${name} added` });
     };
+    const add =
+        spec.shapeOwnsReplace === true ? (
+            // Style panel v2 (design 4.1, 4.2): the places first, then the gallery of that place.
+            <AddButton
+                kind={ctx.side}
+                title={spec.title}
+                groups={V2_SHADER_ADDS[tab].map((group) => [{ key: group.key, label: group.label }])}
+                alwaysMenu
+                expanded={gallery}
+                onAdd={(key) => {
+                    if (key === CUSTOM_SHADER) {
+                        setCode({});
+                        return;
+                    }
+                    setPlaces(V2_SHADER_ADDS[tab].find((group) => group.key === key)?.places);
+                    setGallery(true);
+                }}
+            />
+        ) : (
+            <AddButton
+                kind={ctx.side}
+                title={spec.title}
+                options={[{ key: "shader:gallery", label: `${spec.title}...` }]}
+                expanded={gallery}
+                onAdd={() => {
+                    setGallery(true);
+                }}
+            />
+        );
+    const rows = entries.map((entry) =>
+        spec.renderRow === undefined ? (
+            <ShaderRow
+                key={entry.key}
+                ctx={ctx}
+                entry={entry}
+                count={entries.length}
+                onMove={(from, to) => {
+                    moveShader(ctx, from, to).catch(fail("changed"));
+                }}
+                onCode={setCode}
+            />
+        ) : (
+            <React.Fragment key={entry.key}>{spec.renderRow(entry)}</React.Fragment>
+        ),
+    );
     return (
         <div // eslint-disable-line jsx-a11y/no-static-element-interactions -- only catches the paste shortcut bubbling from the section's own controls
             ref={sectionBox}
@@ -581,59 +627,28 @@ function ShadersSection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
                 pasteKey(event, setCode);
             }}
         >
-            <ControlSection
-                label={spec.title}
-                headingLevel={3}
-                empty={entries.length === 0}
-                collapsible={false}
-                actions={
-                    spec.shapeOwnsReplace === true ? (
-                        // Style panel v2 (design 4.1, 4.2): the places first, then the gallery of that place.
-                        <AddButton
-                            kind={ctx.side}
-                            title={spec.title}
-                            groups={V2_SHADER_ADDS[tab].map((group) => [{ key: group.key, label: group.label }])}
-                            alwaysMenu
-                            expanded={gallery}
-                            onAdd={(key) => {
-                                if (key === CUSTOM_SHADER) {
-                                    setCode({});
-                                    return;
-                                }
-                                setPlaces(V2_SHADER_ADDS[tab].find((group) => group.key === key)?.places);
-                                setGallery(true);
-                            }}
-                        />
-                    ) : (
-                        <AddButton
-                            kind={ctx.side}
-                            title={spec.title}
-                            options={[{ key: "shader:gallery", label: `${spec.title}...` }]}
-                            expanded={gallery}
-                            onAdd={() => {
-                                setGallery(true);
-                            }}
-                        />
-                    )
-                }
-            >
-                {entries.map((entry) =>
-                    spec.renderRow === undefined ? (
-                        <ShaderRow
-                            key={entry.key}
-                            ctx={ctx}
-                            entry={entry}
-                            count={entries.length}
-                            onMove={(from, to) => {
-                                moveShader(ctx, from, to).catch(fail("changed"));
-                            }}
-                            onCode={setCode}
-                        />
-                    ) : (
-                        <React.Fragment key={entry.key}>{spec.renderRow(entry)}</React.Fragment>
-                    ),
-                )}
-            </ControlSection>
+            {spec.shapeOwnsReplace === true ? (
+                // Style panel v2: the one "+" list (v2/PlusList.tsx).
+                <PlusList
+                    level="section"
+                    title={spec.title}
+                    empty={entries.length === 0}
+                    collapseKey={`${ctx.side}:${spec.id}`}
+                    add={add}
+                >
+                    {rows}
+                </PlusList>
+            ) : (
+                <ControlSection
+                    label={spec.title}
+                    headingLevel={3}
+                    empty={entries.length === 0}
+                    collapsible={false}
+                    actions={add}
+                >
+                    {rows}
+                </ControlSection>
+            )}
             <Popout
                 opened={gallery}
                 onOpenChange={(open) => {
@@ -801,11 +816,9 @@ function addName(kind: string, title: string): string {
  * @param props.groups - what it can add in groups, a divider between each two; in place of `options`
  * @param props.opened - whether its menu is open, when the caller drives it
  * @param props.onOpenChange - called when its menu opens or closes
- * @param props.anchorOnly - draws no "+" of its own: the menu opens at the header's end, from the
- *   "+" an empty section carries (Style panel v2)
- * @param props.words - draws the "+" with these words beside it, always as a menu ("Add section",
- *   Style panel v2)
  * @param props.alwaysMenu - opens its menu even for one item (Style panel v2)
+ * @param props.name - its accessible name and tooltip, in place of "Add to <kind> <title>" (a list's
+ *   "Add slice", Style panel v2)
  * @returns The button and its menu
  */
 export function AddButton({
@@ -819,9 +832,8 @@ export function AddButton({
     groups,
     opened,
     onOpenChange,
-    anchorOnly = false,
-    words,
     alwaysMenu = false,
+    name: named,
 }: Readonly<{
     kind: "node" | "edge" | "background";
     title: string;
@@ -834,32 +846,13 @@ export function AddButton({
     groups?: readonly (readonly AddOption[])[];
     opened?: boolean;
     onOpenChange?: (opened: boolean) => void;
-    anchorOnly?: boolean;
-    words?: string;
     /** Opens its menu even for one item, so the reader sees what it adds (Style panel v2). */
     alwaysMenu?: boolean;
+    name?: string;
 }>): React.JSX.Element | null {
     const shown = menuGroups(groups, flat);
-    if (anchorOnly) {
-        return <AddMenu groups={shown} onAdd={onAdd} opened={opened} onOpenChange={onOpenChange} />;
-    }
-    if (words !== undefined) {
-        return (
-            <AddMenu
-                groups={shown}
-                onAdd={onAdd}
-                opened={opened}
-                onOpenChange={onOpenChange}
-                target={
-                    <Button variant="subtle" size="xs" leftSection={<GLYPHS.add size={14} aria-hidden />} data-plus="">
-                        {words}
-                    </Button>
-                }
-            />
-        );
-    }
     const options = shown.flat();
-    const name = addName(kind, title);
+    const name = named ?? addName(kind, title);
     const full = options.every((option) => option.disabled === true) || disabledReason !== undefined;
     const reason = disabledReason ?? `Everything in ${kind} ${title.toLowerCase()} is set`;
     const button = (

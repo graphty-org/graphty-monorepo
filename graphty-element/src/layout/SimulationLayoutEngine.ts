@@ -1,3 +1,4 @@
+/// <reference types="@webgpu/types" />
 /**
  * @file The layout bridge: one `LayoutEngine` driving `@graphty/layout`'s `LayoutSimulation`,
  * on the CPU or on whatever the element's acceleration controller has attached.
@@ -859,6 +860,16 @@ export class SimulationLayoutEngine extends LayoutEngine {
      */
     get landedBatchesPublished(): number {
         return this.#landedPublished;
+    }
+
+    /**
+     * Whether a batch can still land and publish new positions: a simulation is loaded, no batch
+     * of it has failed, and it is being stepped or has a batch in flight. A failed batch leaves
+     * the layout running with nothing to land, so a frame waiting for a landing would wait for good.
+     * @returns True while a landing can still come.
+     */
+    get canLand(): boolean {
+        return this.#simulation !== null && !this.#failed && !(this.#paused && this.#inFlight === 0);
     }
 
     /**
@@ -2104,12 +2115,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * submitted, so the device is idle until the layout resumes.
      */
     #syncWork(): void {
-        const working =
-            this.#accelerated &&
-            this.#simulation !== null &&
-            !this.#failed &&
-            !this.isSettled &&
-            !(this.#paused && this.#inFlight === 0);
+        const working = this.#accelerated && this.canLand && !this.isSettled;
 
         if (working === (this.#endWork !== null)) {
             return;

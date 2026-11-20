@@ -312,6 +312,7 @@ export const FILE_STYLE_CHANNELS: ReadonlySet<string> = new Set([
     "node.xlabelOffsetX",
     "node.xlabelOffsetY",
     "node.xlabelStyle",
+    "node.xlabelTextAlign",
     "node.zIndex",
 ]);
 

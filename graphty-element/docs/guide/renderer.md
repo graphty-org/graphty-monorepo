@@ -153,7 +153,9 @@ While a layout runs on the GPU, the batched path draws a frame only when a new b
 lands or something else changes the picture (the camera, hover, a style), even with
 `render-on-demand` off: a frame in between would show the same positions again and take GPU time
 from the layout. Once the layout settles it draws every frame again, unless `render-on-demand` is
-on.
+on. A property your own code sets on something already in the Babylon.js scene (through
+`graph.scene`) during the layout is drawn at its next landing; use `"objects"` if it must show at
+once.
 
 ### Loading past the size caps
 

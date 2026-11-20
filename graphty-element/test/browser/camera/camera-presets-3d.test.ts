@@ -78,6 +78,28 @@ describe("Camera Presets - 3D", () => {
         assert.approximately(presetState.position.z, presetState.target.z, 0.1);
     });
 
+    test("bottomView looks straight up from below in 3D mode, and is refused as a saved view's name", async () => {
+        await graph.addNode({ id: "n1", position: { x: 0, y: 0, z: 0 } });
+        await graph.addNode({ id: "n2", position: { x: 100, y: 100, z: 100 } });
+        await graph.waitForSettled();
+
+        const presetState = graph.resolveCameraPreset("bottomView");
+        assert.ok(presetState.position);
+        assert.ok(presetState.target);
+        assert.ok(presetState.position.y < presetState.target.y);
+        assert.approximately(presetState.position.x, presetState.target.x, 0.1);
+        assert.approximately(presetState.position.z, presetState.target.z, 0.1);
+
+        const refused = await graph
+            .getSession()
+            .views.save([{ name: "bottomView", camera: { zoom: 1 } }])
+            .then(
+                () => null,
+                (error: unknown) => (error as { code?: string }).code,
+            );
+        assert.strictEqual(refused, "E_PROTECTED");
+    });
+
     test("sideView preset positions camera to the side", async () => {
         // Add some nodes to establish bounds
         await graph.addNode({ id: "n1", position: { x: 0, y: 0, z: 0 } });

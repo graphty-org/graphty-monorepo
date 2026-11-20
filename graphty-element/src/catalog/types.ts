@@ -311,7 +311,7 @@ export const KNOWN_PALETTE_IDS = [
 export type PaletteId = (typeof KNOWN_PALETTE_IDS)[number] | (string & {});
 
 /** The built-in camera views. */
-export const KNOWN_CAMERA_IDS = ["fitToGraph", "topView", "sideView", "frontView", "isometric"] as const;
+export const KNOWN_CAMERA_IDS = ["fitToGraph", "topView", "sideView", "frontView", "isometric", "bottomView"] as const;
 
 /** A camera view id: a built-in name, or a plugin's. */
 export type CameraId = (typeof KNOWN_CAMERA_IDS)[number] | (string & {});
@@ -550,7 +550,14 @@ export type OptionType = (typeof OPTION_TYPES)[number];
 /** One choice offered by an option whose type is "enum", or a column `catalog.optionsFor` lists. */
 export interface OptionChoice {
     value: string;
+    /** What to show for it. For a run's field, built from `runField`; an app may write its own words. */
     label: string;
+    /**
+     * The run field this choice names, for a "partition" choice `catalog.optionsFor` lists from a
+     * finished run: the run's id and the field's name. Absent for any other choice.
+     * @since 3.40.0
+     */
+    runField?: { readonly runId: RunId; readonly field: string };
     /**
      * Why this choice does not fit the option, when it does not: a column whose values the
      * option cannot read. A form lists such a choice after the fitting ones, disabled, and writes
@@ -1059,6 +1066,7 @@ export type Channel =
     | "node.xlabelLocation"
     | "node.xlabelOffsetX"
     | "node.xlabelOffsetY"
+    | "node.xlabelTextAlign"
     | "edge.xlabel"
     | "edge.xlabelStyle"
     | "edge.xlabelLocation"

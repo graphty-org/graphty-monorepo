@@ -1,0 +1,12 @@
+#usda 1.0
+(
+    defaultPrim = "Root"
+    upAxis = "Y"
+)
+
+def Xform "Root" (
+    prepend references = @./inner.usdz@
+)
+{
+}
+

@@ -76,32 +76,43 @@ async function heavyLayout(graph: Graph): Promise<void> {
 
 /**
  * Starts something that changes the picture, and waits for the first tick that draws after it.
+ *
+ * The tick watchers are added, and a tick that skipped its frame between two landings is waited
+ * for, BEFORE acting: a newly added frame observer is itself a reason to draw, so watchers added
+ * with the act would count their own frame as the act's.
  * @param graph - The graph.
  * @param act - What changes the picture; not awaited before ticks are watched.
  * @returns How many ticks it took, and whether a layout landing was published in the tick that drew.
  */
-async function firstDrawAfter(
-    graph: Graph,
-    act: () => PromiseLike<unknown>,
-): Promise<{ ticks: number; landedInIt: boolean }> {
+async function firstDrawAfter(graph: Graph, act: () => unknown): Promise<{ ticks: number; landedInIt: boolean }> {
     const engine = layoutOf(graph);
+    const { ticks: counts } = renderManagerOf(graph);
     let ticks = 0;
     let drewThisTick = false;
     let landedBefore = engine.landedBatchesPublished;
     let first: { ticks: number; landedInIt: boolean } | null = null;
+    let acted = false;
     const drew = graph.scene.onAfterRenderObservable.add(() => {
         drewThisTick = true;
     });
     const ended = graph.engine.onEndFrameObservable.add(() => {
-        ticks++;
         const landedNow = engine.landedBatchesPublished;
-        if (drewThisTick && first === null) {
-            first = { ticks, landedInIt: landedNow !== landedBefore };
+        if (acted) {
+            ticks++;
+            if (drewThisTick && first === null) {
+                first = { ticks, landedInIt: landedNow !== landedBefore };
+            }
         }
 
         landedBefore = landedNow;
         drewThisTick = false;
     });
+    const rested = counts.awaitedLanding;
+    while (counts.awaitedLanding === rested) {
+        await nextFrame();
+    }
+
+    acted = true;
     const acting = act();
     while (first === null) {
         await nextFrame();
@@ -111,6 +122,16 @@ async function firstDrawAfter(
     graph.scene.onAfterRenderObservable.remove(drew);
     graph.engine.onEndFrameObservable.remove(ended);
     return first;
+}
+
+/**
+ * Changes a property of something already in the scene, which announces nothing to the element.
+ * @param graph - The graph.
+ */
+function dimTheLight(graph: Graph): void {
+    const light = graph.scene.getLightByName("light");
+    assert.isNotNull(light);
+    light.intensity *= 0.5;
 }
 
 describe("skipping the frames between two landings of a GPU layout", () => {
@@ -148,12 +169,12 @@ describe("skipping the frames between two landings of a GPU layout", () => {
         });
     }
 
-    it("draws a camera move, a hover and a restyle at once under batched with drawing on demand off", async () => {
+    it("draws a camera move, a hover, a restyle and a selection at once under batched with drawing on demand off", async () => {
         const graph = await running("batched", undefined, "webgl");
         graph.setLayoutBehavior({ rendering: { onDemand: false } });
         await heavyLayout(graph);
         const center = { x: 240, y: 180 };
-        const changes: Record<string, () => PromiseLike<unknown>> = {
+        const changes: Record<string, () => unknown> = {
             "a camera move": () => wheel(graph.canvas, center, 120),
             "a hover": () => hover(graph.canvas, nodePoint(graph, "n0")),
             "a restyle": () =>
@@ -163,6 +184,7 @@ describe("skipping the frames between two landings of a GPU layout", () => {
                     selector: { match: "everything" },
                     set: { "node.color": "#0000ff" },
                 }),
+            "a selection": () => graph.selectNode("n1"),
         };
         for (const [change, act] of Object.entries(changes)) {
             const first = await firstDrawAfter(graph, act);
@@ -187,22 +209,42 @@ describe("skipping the frames between two landings of a GPU layout", () => {
         assert.strictEqual(ticks.rested, rested, "a tick rested");
     });
 
-    it("keeps drawing what changes once the layout can land nothing more", async () => {
-        const graph = await running("batched", undefined, "webgl");
-        graph.setLayoutBehavior({ rendering: { onDemand: true } });
-        const engine = layoutOf(graph);
-        const errors: unknown[] = [];
-        graph.on("error", (event) => {
-            errors.push(event.error);
-        });
-        // A batch that fails without the device being lost: reported, and the layout is left running.
-        const simulation = engine.simulation as unknown as { step: () => Promise<void> };
-        simulation.step = () => Promise.reject(new Error("a batch failed"));
-        while (errors.length === 0) {
-            await nextFrame();
-        }
+    for (const onDemand of [true, false]) {
+        it(`keeps drawing what changes once the layout can land nothing more (batched, on demand ${onDemand ? "on" : "off"})`, async () => {
+            const graph = await running("batched", undefined, "webgl");
+            graph.setLayoutBehavior({ rendering: { onDemand } });
+            const engine = layoutOf(graph);
+            const errors: unknown[] = [];
+            graph.on("error", (event) => {
+                errors.push(event.error);
+            });
+            // A batch that fails without the device being lost: reported, and the layout is left running.
+            const simulation = engine.simulation as unknown as { step: () => Promise<void> };
+            simulation.step = () => Promise.reject(new Error("a batch failed"));
+            while (errors.length === 0) {
+                await nextFrame();
+            }
 
-        const last = await repaintInBatches(graph);
-        assert.isTrue(last.drew, "the tick that applied the last paint batch drew nothing");
-    });
+            const last = await repaintInBatches(graph);
+            assert.isTrue(last.drew, "the tick that applied the last paint batch drew nothing");
+            if (onDemand) {
+                return;
+            }
+
+            // With drawing on demand off every tick draws again, so even a change that announces
+            // nothing is shown: no tick waits for a landing that cannot come.
+            const { ticks } = renderManagerOf(graph);
+            const awaited = ticks.awaitedLanding;
+            let ended = 0;
+            const count = graph.engine.onEndFrameObservable.add(() => {
+                ended++;
+            });
+            dimTheLight(graph);
+            while (ended < 30) {
+                await nextFrame();
+            }
+            graph.engine.onEndFrameObservable.remove(count);
+            assert.strictEqual(ticks.awaitedLanding - awaited, 0, "ticks waited for a landing after the layout failed");
+        });
+    }
 });

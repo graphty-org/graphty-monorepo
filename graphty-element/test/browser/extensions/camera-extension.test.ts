@@ -265,19 +265,21 @@ describe("a third party's camera view", () => {
     }
 
     /**
-     * Where the element has the named nodes, which is the box a scoped call frames.
+     * The box the named nodes are drawn in, which is the box a scoped call frames by default.
      * @param ids - The nodes to measure over.
      * @returns The center of that subset and its longest side.
      */
     function subsetBox(ids: readonly string[]): { center: Coords; maxDimension: number } {
         return boxAround(
-            ids.map((id) => {
+            ids.flatMap((id) => {
                 const node = graph.getNode(id);
                 if (!node) {
                     throw new Error(`the graph has no node "${id}"`);
                 }
 
-                return placedPosition(node);
+                placedPosition(node);
+                const { min, max } = node.framingBounds();
+                return [min, max];
             }),
         );
     }
@@ -723,9 +725,9 @@ describe("a third party's camera view", () => {
             assert.closeTo(after.position?.z ?? 0, before.position?.z ?? 0, PLACE_TOLERANCE);
         });
 
-        it("cannot have its name taken by a saved snapshot of wherever the camera happens to be", () => {
+        it("cannot have its name taken by a saved snapshot of wherever the camera happens to be", async () => {
             try {
-                graph.saveCameraPreset("acme-corner");
+                await graph.saveCameraPreset("acme-corner");
                 assert.fail("saving over a registered view should have been refused");
             } catch (error) {
                 // A snapshot is a fixed position; a view is a rule that recomputes itself for the
@@ -744,7 +746,7 @@ describe("a third party's camera view", () => {
                is reserved from process start and can never be shadowed this way, so a registered
                view has to be reached first too. */
             await graph.setCameraPosition({ x: 7, y: 7, z: 7 });
-            graph.saveCameraPreset("acme-latecomer");
+            await graph.saveCameraPreset("acme-latecomer");
 
             registerCameraView({
                 descriptor: {

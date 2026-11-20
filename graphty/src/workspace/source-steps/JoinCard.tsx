@@ -235,18 +235,20 @@ function Counts({ session, card }: Readonly<{ session: GraphSession; card: JoinC
     ] as const;
     return (
         <Stack gap={4}>
-            <div className="ss-counts">
+            {/* A term and its number, so a screen reader says which count each number is; drawn
+                number first. */}
+            <dl className="ss-counts">
                 {COUNT_WORDS.map(({ id, label }) => (
                     <div key={id} className="ss-count">
-                        <Text size="xs" fw={600} aria-label={label}>
-                            {formatNumber(counts[id])}
-                        </Text>
-                        <Text size="xs" c="dimmed" aria-hidden>
+                        <Text component="dt" size="xs" c="dimmed">
                             {label}
+                        </Text>
+                        <Text component="dd" size="xs" fw={600}>
+                            {formatNumber(counts[id])}
                         </Text>
                     </div>
                 ))}
-            </div>
+            </dl>
             {toggles.map((toggle) => {
                 const more = moreWords(toggle.more);
                 return (

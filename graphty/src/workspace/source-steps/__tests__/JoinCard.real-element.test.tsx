@@ -18,6 +18,7 @@ import { page, userEvent } from "vitest/browser";
 import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
 import type { WorkspaceStore } from "../../state/store";
+import { joinCardOf } from "../join";
 import { choose, drop, emptyProject } from "./sourceSteps";
 
 withFeatures(["source-steps"]);
@@ -46,13 +47,20 @@ async function foundingProject(): Promise<{ store: WorkspaceStore; session: Grap
 }
 
 /**
- * What the card shows for one count.
+ * What the card shows for one count: the definition paired with the count's words as its term, as
+ * a screen reader reads it.
  * @param card - the card.
  * @param label - the count's words.
  * @returns its text.
  */
 function shown(card: HTMLElement, label: string): string {
-    return within(card).getByLabelText(label).textContent ?? "";
+    const term = within(card)
+        .getAllByRole("term")
+        .find((each) => each.textContent === label);
+    assert.isDefined(term, `a term reads ${label}`);
+    const pair = term?.parentElement;
+    assert.strictEqual(pair?.parentElement?.tagName, "DL", "the term sits in a description list");
+    return pair === null || pair === undefined ? "" : (within(pair).getByRole("definition").textContent ?? "");
 }
 
 /**
@@ -96,7 +104,10 @@ describe("the Join card (source-steps)", () => {
         assert.strictEqual(shown(card, "repeat in 1"), String(counts.repeated1));
         assert.strictEqual(shown(card, "repeat in 2"), String(counts.repeated2));
         assert.strictEqual(shown(card, "text vs number"), String(counts.textVersusNumber));
-        assert.strictEqual(shown(card, "Ignore case more"), `+${String(counts.moreWithIgnoreCase)}`);
+        assert.strictEqual(
+            within(card).getByLabelText("Ignore case more").textContent,
+            `+${String(counts.moreWithIgnoreCase)}`,
+        );
 
         await userEvent.click(within(card).getByRole("switch", { name: "Ignore case" }));
         await waitFor(() => {
@@ -178,5 +189,60 @@ describe("the Join card (source-steps)", () => {
             true,
             "the person keys' profile",
         );
+    });
+
+    it("Esc cancels the card once a click left focus outside it: its 2->1, then the Fields tab's filter", async () => {
+        const { store, session } = await foundingProject();
+        const undoSteps = session.history.steps.length;
+        (document.activeElement as HTMLElement | null)?.blur();
+        await userEvent.keyboard("j");
+        let card = await screen.findByRole("form", { name: "Join" });
+        await choose(card, "Field 1 type", "person");
+        await choose(card, "Field 1 field", "Key");
+        await choose(card, "Field 2 field", "badge");
+        await userEvent.click(within(card).getByRole("radio", { name: "Make an edge" }));
+        await userEvent.click(within(card).getByText("2->1"));
+        await waitFor(() => {
+            assert.isTrue(joinCardOf(store.get().sourceCard)?.reversed);
+        });
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("form", { name: "Join" }));
+        });
+
+        (document.activeElement as HTMLElement | null)?.blur();
+        await userEvent.keyboard("j");
+        card = await screen.findByRole("form", { name: "Join" });
+        await choose(card, "Field 1 type", "person");
+        await choose(card, "Field 1 field", "Key");
+        await choose(card, "Field 2 field", "badge");
+        await userEvent.click(within(await screen.findByRole("radiogroup", { name: "Values" })).getByText("Matched"));
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("form", { name: "Join" }));
+        });
+        assert.strictEqual(session.history.steps.length, undoSteps, "nothing was written");
+        assert.isNull(session.data.currentDraft(), "no draft was opened");
+    });
+
+    it("the inspector's Join from the Graph place shows the card on the Data place", async () => {
+        const { store, session } = await foundingProject();
+        store.set({ place: "graph" });
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("region", { name: "entries.csv" }));
+        });
+        await session.selection.apply({ nodes: ["B1"] });
+        const inspector = await screen.findByRole("complementary", { name: "Inspector" });
+        await userEvent.click(await within(inspector).findByRole("button", { name: /^Join/ }));
+        const card = await screen.findByRole("form", { name: "Join" });
+        assert.strictEqual(store.get().place, "data");
+        assert.strictEqual(
+            within(card).getByRole<HTMLInputElement>("combobox", { name: "Field 1 type" }).value,
+            "person",
+        );
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("form", { name: "Join" }));
+        });
     });
 });

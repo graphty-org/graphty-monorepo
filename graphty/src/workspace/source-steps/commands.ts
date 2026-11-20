@@ -1,6 +1,6 @@
 import { defineRegistration } from "../commands/registry";
 import { sourceStepsOn } from "../features";
-import { stagedSources, startAdd } from "./actions";
+import { cancelCard, stagedSources, startAdd } from "./actions";
 import { nodeField1, openJoin } from "./join";
 import { ADD_KEY, JOIN_KEY } from "./keys";
 import { JOIN_WORDS, STAGED_WORDS } from "./words";
@@ -9,6 +9,7 @@ import { JOIN_WORDS, STAGED_WORDS } from "./words";
  * The staged sources' window keys (the source-steps experiment): Add (Shift+D) adds the staged
  * source whose section holds focus, else the newest one. Join (J) opens the Join card with that
  * source as Field 2, or, with focus in the inspector of a node, with that node's type as Field 1.
+ * Cancel (Esc) closes the open card wherever focus is, once an inner control had its Esc.
  */
 export const registration = defineRegistration({
     owner: "source-steps",
@@ -63,6 +64,24 @@ export const registration = defineRegistration({
                     ...(field1 === null ? {} : { field1 }),
                     ...(staged === undefined ? {} : { field2: staged }),
                 });
+            },
+        },
+        {
+            // Escape while a card is open, taken from Clear selection: the card's form takes it
+            // first, this catches it once focus left the form (the dock, a segmented control).
+            id: "source.cancel-card",
+            label: STAGED_WORDS.cancel,
+            group: "Data",
+            whileShownKeys: ["Escape"],
+            inPalette: false,
+            experiment: true,
+            feature: "source-steps",
+            shown: ({ session, workspace }) =>
+                sourceStepsOn(session) && session !== null && workspace.get().sourceCard !== null,
+            run: ({ session, workspace }) => {
+                if (session !== null) {
+                    cancelCard(workspace, session);
+                }
             },
         },
     ],

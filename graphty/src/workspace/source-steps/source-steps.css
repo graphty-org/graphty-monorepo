@@ -3,12 +3,17 @@
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 4px;
+    margin: 0;
 }
 
 .ss-count {
     display: flex;
-    flex-direction: column;
+    flex-direction: column-reverse;
     min-width: 0;
+}
+
+.ss-count dd {
+    margin: 0;
 }
 
 /* The dock's Fields tab: the two profiles side by side, then the value list. */

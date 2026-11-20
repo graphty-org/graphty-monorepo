@@ -18,12 +18,15 @@ import type {
 
 import { sourceName } from "../data-place/words";
 import type { JoinCardState, JoinField1, JoinField2, WorkspaceState, WorkspaceStore } from "../state/store";
+import { panelsInView } from "../time/timeActions";
 
 /** The dock tab the Join card opens on. */
 export const FIELDS_TAB = "fields";
 
 /**
- * Opens the Join card, unless a card or a draft is open already. It opens the dock on its Fields tab.
+ * Opens the Join card, unless a card or a draft is open already. It moves to the Data place's Sources
+ * tab, where the card is drawn, from wherever the reader opened it (the inspector shows at every
+ * place), and opens the dock on its Fields tab.
  * @param workspace - the workspace store.
  * @param session - the element's session.
  * @param start - Field 1 or Field 2 to start from; Field 2 defaults to the newest staged source.
@@ -52,6 +55,10 @@ export function openJoin(
             ignoreSpaces: false,
             dockWas: { open: now.dockOpen, tab: now.dockTab },
         },
+        page: "panels",
+        place: "data",
+        dataTab: "loaded",
+        ...panelsInView(),
         dockOpen: true,
         dockTab: FIELDS_TAB,
     });

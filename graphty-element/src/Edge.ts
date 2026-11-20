@@ -3153,16 +3153,14 @@ export class Edge {
         // is drawn as it would be without them (`bundleRoute`) when raised off the map, else as the lone curve between its
         // bare ends, as `transformEdgeMesh` draws a line with a route (`lineIsCurve`)
         const { route } = this;
+        const outSrc = Edge.outside(this.endMeasure("source"), src, this.gapAt("source"));
+        const outDst = Edge.outside(this.endMeasure("target"), dst, this.gapAt("target"));
         const bends = this.lineRoute?.bends ?? null;
         if (bends !== null) {
-            const bent = curveSpan(
-                src,
-                dst,
-                Edge.outside(this.endMeasure("source"), src, this.gapAt("source")),
-                Edge.outside(this.endMeasure("target"), dst, this.gapAt("target")),
-                { bends },
-                () => [this.bareEnd("source", src, dst), this.bareEnd("target", dst, src)],
-            );
+            const bent = curveSpan(src, dst, outSrc, outDst, { bends }, () => [
+                this.bareEnd("source", src, dst),
+                this.bareEnd("target", dst, src),
+            ]);
             if (route === "straight" || (bent?.bends ?? null) !== null) {
                 this.pullSpan(bent, src, dst);
                 return;
@@ -3186,8 +3184,8 @@ export class Edge {
         const span = curveSpan(
             src,
             dst,
-            Edge.outside(this.endMeasure("source"), src, this.gapAt("source")),
-            Edge.outside(this.endMeasure("target"), dst, this.gapAt("target")),
+            outSrc,
+            outDst,
             // a straight line raised off the map that clears neither node is drawn straight (`placeLine`)
             {
                 bow,

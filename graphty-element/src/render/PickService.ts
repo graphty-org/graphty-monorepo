@@ -1126,22 +1126,11 @@ export function hoverEdgeAt(
  * ponytail: a press the target cannot answer now (on WebGPU at a point no read covers or while rows move, in a
  * layout transition, before the target is ready, or with no target) is one typed walk over every row line, with
  * no object per line, the same order of work as the node press's walk over every row that runs before it.
- * @param scene - The scene.
- * @param edges - The graph's edges, for the full walk.
- * @param x - X in CSS pixels.
- * @param y - Y in CSS pixels.
- * @param toScreen - A world point's place on screen, in render pixels.
- * @param lines - The edges drawn with no `Edge`, or null when there are none.
+ * @param args - {@link hoverEdgeAt}'s: the scene, the graph's edges, x and y, toScreen and the row lines.
  * @returns The edge's id, or `undefined`.
  */
-export function pressEdgeAt(
-    scene: Scene,
-    edges: () => Iterable<Edge>,
-    x: number,
-    y: number,
-    toScreen: (point: Vector3) => { x: number; y: number },
-    lines: RowLinePicks | null = null,
-): EdgeId | undefined {
+export function pressEdgeAt(...args: Parameters<typeof hoverEdgeAt>): EdgeId | undefined {
+    const [scene, edges, x, y, toScreen, lines = null] = args;
     const near = scene.getEngine().isWebGPU ? heldNear(scene, x, y) : edgesNear(scene, x, y);
     if (near === null || near instanceof Promise) {
         return pickEdgeId(scene, edges(), x, y, toScreen, lines);

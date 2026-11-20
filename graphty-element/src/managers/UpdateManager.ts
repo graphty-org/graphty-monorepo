@@ -2354,6 +2354,11 @@ export class UpdateManager implements Manager {
                 this.nodeBatchSize(deadline - start, this.dataManager.nodes.size),
             );
             const painted = this.paintNodes(batch);
+            if (painter.nodesFromBuildsOnly) {
+                for (const [node] of batch) {
+                    this.builtNodesPainted.add(node);
+                }
+            }
             const spent = performance.now() - start;
             // Under "batched" a row the batches drew comes back with no `Node`, and counting only the
             // Nodes left the speed at 0, so every batch was the floor (a REPAINT_FRAMES-th of the graph).
@@ -2385,9 +2390,19 @@ export class UpdateManager implements Manager {
 
         if (!painter.hasPendingNodes) {
             const rowsOnly = painter.takeNodesRowsOnly();
+            const buildsOnly = painter.takeNodesBuildsOnly();
             const few = this.paintedRows;
             this.paintedRows = [];
+            const built = new Set(this.builtNodesPainted);
+            this.builtNodesPainted.clear();
             if (rowsOnly) {
+                return;
+            }
+
+            if (buildsOnly) {
+                // Nodes built from their rows (a hover under "batched") are drawn as their rows were: their own edges
+                // are placed again, not every edge of the graph, a whole walk per node hovered (issue #9166).
+                this.remeasureEdgesOf(built);
                 return;
             }
 
@@ -2401,6 +2416,9 @@ export class UpdateManager implements Manager {
             this.paintIndex = { rows: null, incident: null };
         }
     }
+
+    /** The Nodes a repaint of only Nodes built from their rows has painted so far ({@link syncNodeStyles}). */
+    private readonly builtNodesPainted = new Set<Node>();
 
     /**
      * The node rows the repaint under way has painted, or null once they are too many to place their
@@ -4138,6 +4156,9 @@ export class UpdateManager implements Manager {
     /** The row table's `moves` at the last walk of the node positions, or -1. */
     private lastRowMoves = -1;
 
+    /** The row table's `unplacedMoves` at the last walk of the node positions, or -1. */
+    private lastUnplacedMoves = -1;
+
     /** Set by anything in this frame that changed what is drawn. See `settleActiveMeshFreeze`. */
     private sceneChanged = true;
     /** Whether the node paint running now showed, hid or rebuilt a node's own meshes. */
@@ -4358,6 +4379,17 @@ export class UpdateManager implements Manager {
         return edges;
     }
 
+    /**
+     * Whether the session's selection holds a row, as the `Node` built for it would be told
+     * ({@link adoptBuiltNode}): an edge asks this of an end drawn with no `Node`, so none is built to answer.
+     * @param row - The row.
+     * @returns True when it is selected.
+     * @internal
+     */
+    nodeRowSelected(row: number): boolean {
+        return this.viewMasks?.selection?.nodes()?.has(row) === true;
+    }
+
     /** Edges a move left with an end on its node's bounding radius, see {@link endsByRadius}. */
     private byRadius = new Set<Edge>();
 
@@ -4560,7 +4592,9 @@ export class UpdateManager implements Manager {
         this.lastWalkedEdgeVersion = edgeVersion;
         // The table's moves too: left behind, the next frame took every row as moved and compared each batched row
         // again, on a frame at rest.
-        this.lastRowMoves = this.graphContext.getRowTable?.()?.moves ?? -1;
+        const table = this.graphContext.getRowTable?.();
+        this.lastRowMoves = table?.moves ?? -1;
+        this.lastUnplacedMoves = table?.unplacedMoves ?? -1;
         let highest = -1;
         for (const { index } of this.layoutManager.nodes) {
             highest = Math.max(highest, index === INVALID_INDEX ? -1 : index);
@@ -4575,7 +4609,7 @@ export class UpdateManager implements Manager {
      * The positions are kept in one typed array rather than a vector per node, so the scan is a
      * linear read of three floats against three floats and allocates nothing. A node whose index
      * is past the end of the array has never been seen, which grows the array.
-     * @returns The nodes that moved; true when one was never seen, or so many moved that walking
+     * @returns The nodes that moved, a Node built since the last walk among them; true when one has no index, or so many moved that walking
      *     every edge is cheaper than finding theirs; false when none did.
      */
     private nodesMoved(): boolean | readonly Node[] {
@@ -4642,7 +4676,8 @@ export class UpdateManager implements Manager {
      * while the table moved no row, no batched row moved: under `"batched"` only the roster is
      * walked then (`NodeBatches.roster`).
      * @returns The nodes; whether the table moved no row; and the graph's node count when the walk
-     *     is not every node, else undefined; and whether the table moved a row since the last walk.
+     *     is not every node, else undefined; and whether the table moved a row since the last walk other than by
+     *     a `Node`'s own mesh (`RowTable.place`), which the walk of the built Nodes sees.
      */
     private movedWalk(): {
         walked: Iterable<Node>;
@@ -4650,10 +4685,15 @@ export class UpdateManager implements Manager {
         total: number | undefined;
         rowsMoved: boolean;
     } {
-        const moves = this.graphContext.getRowTable?.()?.moves ?? -1;
+        const table = this.graphContext.getRowTable?.();
+        const moves = table?.moves ?? -1;
         const rowsStill = moves !== -1 && moves === this.lastRowMoves;
-        const rowsMoved = moves !== -1 && !rowsStill;
         this.lastRowMoves = moves;
+        // A drag places its Node's row alone: a row with no Node moved only by a write of the table's other kinds, so
+        // a drag on a graph of rows with no Node visits the dragged node's edges, not every placed edge (issue #9166).
+        const unplaced = table?.unplacedMoves ?? -1;
+        const rowsMoved = unplaced !== -1 && unplaced !== this.lastUnplacedMoves;
+        this.lastUnplacedMoves = unplaced;
         const roster = rowsStill ? this.roster() : null;
         return roster === null
             ? { walked: this.layoutManager.nodes, rowsStill, total: undefined, rowsMoved }

@@ -283,6 +283,11 @@ export class RowTable {
      * clear. Unchanged, no row is drawn anywhere new, so a walk of the drawn positions skips the rows.
      */
     moves = 0;
+    /**
+     * {@link moves} less the writes of {@link place}, which moves only the row of a node with a mesh: unchanged, no
+     * row was moved but by its own `Node`, so a row with no `Node` is where it was.
+     */
+    unplacedMoves = 0;
     /** Calls that sent the `rowPosition` texture to the card. */
     positionUploads = 0;
     /** Landings sent to the `rowPosition` texture as the layout's readback brought them, with no row written. */
@@ -494,6 +499,7 @@ export class RowTable {
         this.copiedAt = this.lane().changes;
         // The rows are drawn somewhere new, whether or not the lane follows them this frame.
         this.moves++;
+        this.unplacedMoves++;
         this.copies++;
         return true;
     }
@@ -515,6 +521,7 @@ export class RowTable {
         this.positions.clean();
         this.copiedAt = this.lane().changes;
         this.moves++;
+        this.unplacedMoves++;
         this.landedUploads++;
         this.uploads++;
         this.uploadedBytes += bytes;
@@ -778,6 +785,7 @@ export class RowTable {
         const kept = lane.changes === this.laneChanges && this.twoD === (this.scene.metadata?.twoD === true);
         if (!kept) {
             this.moves++;
+            this.unplacedMoves++;
         }
 
         this.keptChanges = kept ? lane.changes : -1;
@@ -818,6 +826,7 @@ export class RowTable {
     /** Forget every row: the dataset was cleared. */
     cleared(): void {
         this.moves++;
+        this.unplacedMoves++;
         this.ownRowWrites++;
         this.flags.fill(0);
         this.hiddenCount = 0;
@@ -846,7 +855,11 @@ export class RowTable {
                 this.moves++;
             }
 
-            this.repack(lane.view(Math.min(this.rows, lane.count)), this.copiedAt !== lane.changes);
+            // a lane change that left every repacked row where it was (a drag's own row, written by place) moves none
+            if (this.repack(lane.view(Math.min(this.rows, lane.count)), this.copiedAt !== lane.changes) && !kept) {
+                this.unplacedMoves++;
+            }
+
             this.copiedAt = -1;
         }
 
@@ -882,28 +895,33 @@ export class RowTable {
      * One typed pass from the lane over every row nothing else holds.
      * @param lane - The lane's live rows.
      * @param send - False when a landing already put these rows on the card.
+     * @returns True when a row was drawn somewhere new.
      */
-    private repack(lane: Float32Array, send: boolean): void {
+    private repack(lane: Float32Array, send: boolean): boolean {
         const { flags } = this;
         const rows = lane.length / 3;
         this.repackedRows += rows;
+        let moved = false;
         for (let row = 0; row < rows; row++) {
             if (((flags[row] ?? 0) & (HELD | SHRUNK)) === 0) {
-                this.repackRow(row, lane);
+                moved = this.repackRow(row, lane) || moved;
             }
         }
 
         if (rows > 0 && send) {
             this.positions.touch(0, rows - 1);
         }
+
+        return moved;
     }
 
     /**
      * Copy one row from the lane: flat in 2D, and collapsed when it is unplaced or hidden.
      * @param row - The row.
      * @param lane - The lane's live rows.
+     * @returns True when the row is drawn somewhere new.
      */
-    private repackRow(row: number, lane: Float32Array): void {
+    private repackRow(row: number, lane: Float32Array): boolean {
         const from = row * 3;
         const to = row * POSITION_FLOATS;
         const { floats } = this.positions;
@@ -911,10 +929,14 @@ export class RowTable {
         const x = lane[from] ?? Number.NaN;
         const placed = Number.isFinite(x);
         const w = placed && ((this.flags[row] ?? 0) & HIDDEN) === 0 ? 1 : 0;
-        floats[to] = bounds[to] = placed ? x : 0;
-        floats[to + 1] = bounds[to + 1] = placed ? (lane[from + 1] ?? 0) : 0;
-        floats[to + 2] = bounds[to + 2] = placed && !this.twoD ? (lane[from + 2] ?? 0) : 0;
+        const nx = placed ? x : 0;
+        const ny = placed ? (lane[from + 1] ?? 0) : 0;
+        const nz = placed && !this.twoD ? (lane[from + 2] ?? 0) : 0;
         const shownBefore = floats[to + 3];
+        const moved = floats[to] !== nx || floats[to + 1] !== ny || floats[to + 2] !== nz || shownBefore !== w;
+        floats[to] = bounds[to] = nx;
+        floats[to + 1] = bounds[to + 1] = ny;
+        floats[to + 2] = bounds[to + 2] = nz;
         floats[to + 3] = w;
         bounds[to + 3] = (this.extents.floats[row * EXTENT_FLOATS + EXTENT_BOUNDING_RADIUS] ?? 0) * w;
         // The layout's ring keeps the w it was given, so a row the lane first places (or unplaces)
@@ -923,6 +945,8 @@ export class RowTable {
             this.positions.touch(row);
             this.mirror(row);
         }
+
+        return moved;
     }
 
     private writeW(row: number, w: number): void {

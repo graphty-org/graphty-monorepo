@@ -55,3 +55,48 @@ export async function choose(where: HTMLElement, name: string, option: string): 
     await userEvent.click(within(where).getByRole("combobox", { name }));
     await userEvent.click(await screen.findByRole("option", { name: option }));
 }
+
+/**
+ * The table's body row with a cell that reads a text.
+ * @param grid - the table.
+ * @param text - the text.
+ * @returns the row.
+ */
+export function rowWith(grid: HTMLElement, text: string): HTMLElement {
+    const row = within(grid)
+        .getAllByRole("row")
+        .find((each) =>
+            [...within(each).queryAllByRole("rowheader"), ...within(each).queryAllByRole("gridcell")].some(
+                (cell) => cell.textContent === text,
+            ),
+        );
+    assert.isDefined(row, `a row for ${text}`);
+    if (row === undefined) {
+        throw new Error(`no row for ${text}`);
+    }
+    return row;
+}
+
+/**
+ * Clicks a row's first cell, as a reader selects it.
+ * @param row - the row.
+ */
+export async function select(row: HTMLElement): Promise<void> {
+    await userEvent.click(within(row).getByRole("rowheader"));
+}
+
+/**
+ * What a count of the preview reads, by its words.
+ * @param preview - the preview section.
+ * @param label - the count's words.
+ * @returns its number as shown.
+ */
+export function count(preview: HTMLElement, label: string): string {
+    const term = within(preview)
+        .getAllByRole("term")
+        .find((each) => each.textContent === label);
+    assert.isDefined(term, `a count reads ${label}`);
+    return term?.parentElement === null || term?.parentElement === undefined
+        ? ""
+        : (within(term.parentElement).getByRole("definition").textContent ?? "");
+}

@@ -18,7 +18,7 @@ import { page, userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
-import { choose, drop, emptyProject } from "./sourceSteps";
+import { choose, drop, emptyProject, rowWith, select } from "./sourceSteps";
 
 withFeatures(["source-steps"]);
 
@@ -89,35 +89,6 @@ function draftOf(session: GraphSession): SourceDraft {
         throw new Error("no draft");
     }
     return draft;
-}
-
-/**
- * The table's body row with a cell that reads a text.
- * @param grid - the table.
- * @param text - the text.
- * @returns the row.
- */
-function rowWith(grid: HTMLElement, text: string): HTMLElement {
-    const row = within(grid)
-        .getAllByRole("row")
-        .find((each) =>
-            [...within(each).queryAllByRole("rowheader"), ...within(each).queryAllByRole("gridcell")].some(
-                (cell) => cell.textContent === text,
-            ),
-        );
-    assert.isDefined(row, `a row for ${text}`);
-    if (row === undefined) {
-        throw new Error(`no row for ${text}`);
-    }
-    return row;
-}
-
-/**
- * Clicks a row's first cell, as a reader selects it.
- * @param row - the row.
- */
-async function select(row: HTMLElement): Promise<void> {
-    await userEvent.click(within(row).getByRole("rowheader"));
 }
 
 describe("the dock's Preview tab (source-steps)", () => {

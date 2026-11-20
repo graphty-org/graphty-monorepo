@@ -21,7 +21,7 @@ import { page, userEvent } from "vitest/browser";
 import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
 import type { WorkspaceStore } from "../../state/store";
-import { choose, drop, emptyProject } from "./sourceSteps";
+import { choose, count, drop, emptyProject } from "./sourceSteps";
 
 withFeatures(["source-steps"]);
 
@@ -85,22 +85,6 @@ function draftOf(session: GraphSession): SourceDraft {
         throw new Error("no draft");
     }
     return draft;
-}
-
-/**
- * What a count of the preview reads, by its words.
- * @param preview - the preview section.
- * @param label - the count's words.
- * @returns its number as shown.
- */
-function count(preview: HTMLElement, label: string): string {
-    const term = within(preview)
-        .getAllByRole("term")
-        .find((each) => each.textContent === label);
-    assert.isDefined(term, `a count reads ${label}`);
-    return term?.parentElement === null || term?.parentElement === undefined
-        ? ""
-        : (within(term.parentElement).getByRole("definition").textContent ?? "");
 }
 
 /**

@@ -26,7 +26,7 @@ import type {
 } from "./types";
 
 /** The counts of a step the drill-down lists, each named as its step's counts name it. */
-export const DRILL_COUNTS = [
+const DRILL_COUNTS = [
     "newNodes",
     "newEdges",
     "matched",
@@ -53,7 +53,7 @@ export const DRILL_COUNTS = [
 ] as const;
 
 /** One count of a step. */
-export type DrillCount = (typeof DRILL_COUNTS)[number];
+type DrillCount = (typeof DRILL_COUNTS)[number];
 
 /** The outcome each count is reported under, for the counts a preview reports. */
 const CODES: Partial<Record<DrillCount, DrillCode>> = {
@@ -140,7 +140,7 @@ function badCommand(message: string, details: Record<string, unknown>): GraphtyE
  * @param ref - The reference.
  * @returns Its key.
  */
-export function refKey(ref: ElementRef): string {
+function refKey(ref: ElementRef): string {
     return "space" in ref ? `n\u0001${ref.space}\u0001${ref.key}` : `e\u0001${ref.load}\u0001${ref.key}`;
 }
 
@@ -150,7 +150,7 @@ export function refKey(ref: ElementRef): string {
  * @param step - The step.
  * @returns The column, or null for a `join.add`, which leaves no row out.
  */
-export function exceptColumn(step: Step): string | null {
+function exceptColumn(step: Step): string | null {
     if (step.except !== undefined) {
         return step.except.column;
     }

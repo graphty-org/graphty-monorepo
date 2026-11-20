@@ -577,17 +577,7 @@ export class CSVDataSource extends DataSource {
      * @yields the rows as edge records, and no nodes
      */
     private async *passThroughRows(content: string): AsyncGenerator<DataSourceChunk, void, unknown> {
-        const rows = typeCells(
-            await importRecords(csvImporter, content, {
-                table: "nodes",
-                header: true,
-                nodeIdFrom: "index",
-                weightFrom: null,
-                errorLimit: this.config.errorLimit,
-                ...(this.config.delimiter === undefined ? {} : { delimiter: this.config.delimiter }),
-                ...this.missingOption(),
-            }),
-        );
+        const rows = typeCells(await importRecords(csvImporter, content, this.rowTableOptions()));
         aggregateErrors(rows.report, this.errorAggregator, CSVDataSource.type);
         yield* this.chunkData([], rows.nodes.map(({ data }) => data) as AdHocData[]);
     }
@@ -701,22 +691,9 @@ export class CSVDataSource extends DataSource {
 
         // Read as a node table numbered by row, so no column is taken as an id and every one is kept.
         const read = typeCells(
-            await importRecords(
-                csvImporter,
-                slices(),
-                {
-                    table: "nodes",
-                    header: true,
-                    nodeIdFrom: "index",
-                    weightFrom: null,
-                    errorLimit: this.config.errorLimit,
-                    ...(this.config.delimiter === undefined ? {} : { delimiter: this.config.delimiter }),
-                    ...this.missingOption(),
-                },
-                (rows) => {
-                    progress(rows, done);
-                },
-            ),
+            await importRecords(csvImporter, slices(), this.rowTableOptions(), (rows) => {
+                progress(rows, done);
+            }),
         );
         aggregateErrors(read.report, this.errorAggregator, CSVDataSource.type);
         const { header, lines, delimiter } = csvRecordLines(content, given);
@@ -829,6 +806,23 @@ export class CSVDataSource extends DataSource {
             nodes.map(({ id, data }) => ({ ...data, id })),
             edgeRecords as AdHocData[],
         );
+    }
+
+    /**
+     * The options that read a file as a node table numbered by row, so no column is taken as an id
+     * and every column of every row is kept.
+     * @returns the csv importer options
+     */
+    private rowTableOptions(): CsvImportOptions {
+        return {
+            table: "nodes",
+            header: true,
+            nodeIdFrom: "index",
+            weightFrom: null,
+            errorLimit: this.config.errorLimit,
+            ...(this.config.delimiter === undefined ? {} : { delimiter: this.config.delimiter }),
+            ...this.missingOption(),
+        };
     }
 
     /**

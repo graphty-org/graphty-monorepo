@@ -40,22 +40,23 @@ file they name is there.
 
 <!-- generated:begin matrix -->
 
-| Format                  | Subpath                     | Extensions                            | Reads | Writes | Several graphs per file |
-| ----------------------- | --------------------------- | ------------------------------------- | ----- | ------ | ----------------------- |
-| [json](./json.md)       | `@graphty/graph-io/json`    | `.json`                               | yes   | yes    | yes                     |
-| [graphml](./graphml.md) | `@graphty/graph-io/graphml` | `.graphml`, `.xml`                    | yes   | yes    | no                      |
-| [gexf](./gexf.md)       | `@graphty/graph-io/gexf`    | `.gexf`                               | yes   | yes    | no                      |
-| [csv](./csv.md)         | `@graphty/graph-io/csv`     | `.csv`, `.tsv`, `.edges`, `.edgelist` | yes   | yes    | no                      |
-| [gml](./gml.md)         | `@graphty/graph-io/gml`     | `.gml`                                | yes   | yes    | yes                     |
-| [dot](./dot.md)         | `@graphty/graph-io/dot`     | `.dot`, `.gv`                         | yes   | yes    | yes                     |
-| [pajek](./pajek.md)     | `@graphty/graph-io/pajek`   | `.net`, `.paj`                        | yes   | yes    | yes                     |
-| [neo4j](./neo4j.md)     | `@graphty/graph-io/neo4j`   | `.csv`, `.tsv`                        | yes   | yes    | no                      |
-| [xgmml](./xgmml.md)     | `@graphty/graph-io/xgmml`   | `.xgmml`, `.xml`                      | yes   | yes    | yes                     |
-| [cx2](./cx2.md)         | `@graphty/graph-io/cx2`     | `.cx2`                                | yes   | yes    | no                      |
-| [cx](./cx.md)           | `@graphty/graph-io/cx`      | `.cx`                                 | yes   | yes    | yes                     |
-| [obo](./obo.md)         | `@graphty/graph-io/obo`     | `.obo`                                | yes   | yes    | no                      |
-| [cys](./cys.md)         | `@graphty/graph-io/cys`     | `.cys`                                | yes   | yes    | yes                     |
-| [sif](./sif.md)         | `@graphty/graph-io/sif`     | `.sif`                                | yes   | yes    | no                      |
+| Format                  | Subpath                     | Extensions                            | Reads | Writes         | Several graphs per file |
+| ----------------------- | --------------------------- | ------------------------------------- | ----- | -------------- | ----------------------- |
+| [json](./json.md)       | `@graphty/graph-io/json`    | `.json`                               | yes   | yes            | yes                     |
+| [graphml](./graphml.md) | `@graphty/graph-io/graphml` | `.graphml`, `.xml`                    | yes   | yes            | no                      |
+| [gexf](./gexf.md)       | `@graphty/graph-io/gexf`    | `.gexf`                               | yes   | yes            | no                      |
+| [csv](./csv.md)         | `@graphty/graph-io/csv`     | `.csv`, `.tsv`, `.edges`, `.edgelist` | yes   | yes            | no                      |
+| [gml](./gml.md)         | `@graphty/graph-io/gml`     | `.gml`                                | yes   | yes            | yes                     |
+| [dot](./dot.md)         | `@graphty/graph-io/dot`     | `.dot`, `.gv`                         | yes   | yes            | yes                     |
+| [pajek](./pajek.md)     | `@graphty/graph-io/pajek`   | `.net`, `.paj`                        | yes   | yes            | yes                     |
+| [neo4j](./neo4j.md)     | `@graphty/graph-io/neo4j`   | `.csv`, `.tsv`                        | yes   | yes            | no                      |
+| [xgmml](./xgmml.md)     | `@graphty/graph-io/xgmml`   | `.xgmml`, `.xml`                      | yes   | yes            | yes                     |
+| [cx2](./cx2.md)         | `@graphty/graph-io/cx2`     | `.cx2`                                | yes   | yes            | no                      |
+| [cx](./cx.md)           | `@graphty/graph-io/cx`      | `.cx`                                 | yes   | yes            | yes                     |
+| [obo](./obo.md)         | `@graphty/graph-io/obo`     | `.obo`                                | yes   | yes            | no                      |
+| [cys](./cys.md)         | `@graphty/graph-io/cys`     | `.cys`                                | yes   | yes            | yes                     |
+| [sif](./sif.md)         | `@graphty/graph-io/sif`     | `.sif`                                | yes   | yes            | no                      |
+| [xlsx](./xlsx.md)       | `@graphty/graph-io/xlsx`    | `.xlsx`, `.xlsm`                      | yes   | no (read only) | no                      |
 
 ### What each writer keeps
 

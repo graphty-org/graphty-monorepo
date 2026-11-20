@@ -58,17 +58,20 @@ describe("Camera Presets - 2D", () => {
         assert.ok(presetState.zoom > 0);
     });
 
-    test("topView preset provides standard 2D view", async () => {
+    test("topView in 2D frames the whole graph, upright", async () => {
         // Add some nodes to establish bounds
         await graph.addNode({ id: "n1", position: { x: 0, y: 0, z: 0 } });
         await graph.addNode({ id: "n2", position: { x: 100, y: 100, z: 0 } });
         await graph.waitForSettled();
 
         const presetState = graph.resolveCameraPreset("topView");
+        const fit = graph.resolveCameraPreset("fitToGraph");
 
         assert.equal(presetState.type, "orthographic");
-        assert.equal(presetState.zoom, 1.0); // Default 2D zoom
-        assert.ok(presetState.pan);
+        // Not the neutral zoom 1, a 10-unit window that showed an empty canvas: the fitted zoom.
+        assert.closeTo(presetState.zoom ?? Number.NaN, fit.zoom ?? Number.NaN, 1e-9);
+        assert.isBelow(presetState.zoom ?? 1, 1);
+        assert.strictEqual(presetState.rotation, 0);
     });
 
     test("3D-only presets throw error when used with 2D camera - sideView", () => {

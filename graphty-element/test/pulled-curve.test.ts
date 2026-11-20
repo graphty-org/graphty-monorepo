@@ -53,7 +53,7 @@ function bareEnd(centre: Vector3, toward: Vector3, radius: number, gap: number):
 /**
  * The object path's cut curve, as `Edge.placeRoute` lays it; the lone curve between the line's bare ends
  * (the centers, without a gap), uncut, that `Edge.placeCurve` draws in its place when no point of the route
- * is outside both nodes (for a straight line, `straight`, the straight line between them that
+ * (nor the piece between two of its points) is outside both nodes (for a straight line, `straight`, the straight line between them that
  * `Edge.transformEdgeMesh` draws); or null when a center is outside its own node, or the bare ends meet and
  * `createBezierLine` draws a self-loop there, which the object path draws another way.
  */
@@ -66,10 +66,11 @@ function objectPath(
     gSrc = 0,
     gDst = 0,
     straight = false,
+    curve = true,
 ): Xyz[] | null {
     const outSrc = outsideOf(src, rSrc + gSrc);
     const outDst = outsideOf(dst, rDst + gDst);
-    const span = routeOutside(route, outSrc, outDst);
+    const span = routeOutside(route, outSrc, outDst, curve);
     if (span === null) {
         const from = bareEnd(src, dst, rSrc, gSrc);
         const to = bareEnd(dst, src, rDst, gDst);
@@ -505,7 +506,7 @@ describe("a pulled curve's path", () => {
             const gSrc = i % 3 === 0 ? random() * length * 0.6 : 0;
             const gDst = i % 3 === 0 ? random() * length * 0.6 : 0;
             const route = [src.x, src.y, src.z, ...bendPoints(src, dst, bends), dst.x, dst.y, dst.z];
-            const want = objectPath(src, dst, rSrc, rDst, route, gSrc, gDst);
+            const want = objectPath(src, dst, rSrc, rDst, route, gSrc, gDst, false, false);
             const span = curveSpan(
                 src,
                 dst,

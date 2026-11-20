@@ -230,6 +230,11 @@ export const FILE_STYLE_CHANNELS: ReadonlySet<string> = new Set([
     "node.labelBorderAlign",
     "node.labelBorderStyle",
     "node.labelBackgroundShape",
+    "node.labelImage",
+    "node.labelImageWidth",
+    "node.labelImageHeight",
+    "node.labelImageOffsetX",
+    "node.labelImageOffsetY",
     "node.labelLocation",
     "node.labelMinNodeScreenSize",
     "node.labelMinScreenSize",
@@ -312,6 +317,7 @@ export const FILE_STYLE_CHANNELS: ReadonlySet<string> = new Set([
     "node.xlabelOffsetX",
     "node.xlabelOffsetY",
     "node.xlabelStyle",
+    "node.xlabelTextAlign",
     "node.zIndex",
 ]);
 

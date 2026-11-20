@@ -12,6 +12,7 @@ import { fileURLToPath } from "node:url";
 
 import { assert, describe, it } from "vitest";
 
+import { AllPathsAlgorithm } from "../../src/algorithms/AllPathsAlgorithm";
 import { AStarAlgorithm } from "../../src/algorithms/AStarAlgorithm";
 import { BellmanFordAlgorithm } from "../../src/algorithms/BellmanFordAlgorithm";
 import { BetweennessCentralityAlgorithm } from "../../src/algorithms/BetweennessCentralityAlgorithm";
@@ -72,6 +73,7 @@ import { SpringLayout } from "../../src/layout/SpringLayoutEngine";
 const FACTS_FILE = fileURLToPath(new URL("../../src/catalog/engine-facts.json", import.meta.url));
 
 const ALGORITHMS = [
+    AllPathsAlgorithm,
     AStarAlgorithm,
     BellmanFordAlgorithm,
     BetweennessCentralityAlgorithm,

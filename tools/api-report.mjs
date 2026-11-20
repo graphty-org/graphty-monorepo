@@ -147,6 +147,8 @@ export const PLAIN_STRING_ALLOWLIST = new Set([
     // only by the consumer, never words graphty-element shows
     "mode",
     "key",
+    // the camera view id a saved view follows (SavedView.follows)
+    "follows",
     "nodeId",
     "edgeId",
     "runId",
@@ -331,8 +333,18 @@ const COLUMN_NAME_TYPES = new Set(["TableMapping", "JoinKey"]);
  * too much: the column a comparing join writes regions to (JoinChoices.membership) and the kind a
  * link join gives the nodes and edges it adds (JoinLink.kind).
  */
-// SourceHubValue.value: a key value of the consumer's own rows.
-const PLAIN_STRING_MEMBERS = new Set(["JoinChoices.membership", "JoinLink.kind", "SourceHubValue.value"]);
+// SourceHubValue.value: a key value of the consumer's own rows. TourStop.view: the name of the view
+// a tour stop flies to, a camera view's id or the consumer's saved view name, never words the
+// element shows. TourRenameCommand.from and .to: the consumer's own names for a saved tour, before
+// and after.
+const PLAIN_STRING_MEMBERS = new Set([
+    "JoinChoices.membership",
+    "JoinLink.kind",
+    "SourceHubValue.value",
+    "TourStop.view",
+    "TourRenameCommand.from",
+    "TourRenameCommand.to",
+]);
 
 /**
  * Whether a result type may hold a plain string under this property name.

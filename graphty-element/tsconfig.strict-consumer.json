@@ -8,7 +8,9 @@
     // installed @webgpu/types would get exactly that error from their own build.
     //
     // skipLibCheck is off for the same reason: it is the declarations themselves that are under
-    // test, and skipping their check is skipping the whole check.
+    // test. Compile it with scripts/typecheck-strict-consumer.mjs, which fails on every error but
+    // those inside Babylon.js's own declarations (Babylon 9's do not compile with skipLibCheck off;
+    // the script says why).
     "extends": "./tsconfig.json",
     "compilerOptions": {
         "composite": false,

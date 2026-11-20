@@ -42,6 +42,8 @@ import type {
     FindNamedRow,
     FindResult,
     FindValueRow,
+    RecordMatch,
+    RecordMatchRank,
 } from "./types";
 
 /** Everything the engine reads. */
@@ -165,6 +167,23 @@ export interface QueryEngine {
         only?: readonly Path[],
     ): (index: number) => boolean;
     /**
+     * Which field of one element a text search matches best, by dense index: {@link textTest}, also
+     * saying where and how well. Every field is read, and the best rank wins; among equals, the id
+     * first, then the paths in order.
+     * @param text - What was typed, its mode prefix already read.
+     * @param mode - How to match it.
+     * @param target - Nodes or edges.
+     * @param only - The value paths to look in besides the ids, as {@link textTest} reads them.
+     * @returns The best match of each element, or undefined for one that does not match.
+     * @throws A `GraphtyError` coded `E_BAD_COMMAND` for a regular expression that does not parse.
+     */
+    textMatch(
+        text: string,
+        mode: SelectionTextMode,
+        target: SelectorTarget,
+        only?: readonly Path[],
+    ): (index: number) => RecordMatch | undefined;
+    /**
      * What a find box lists: nodes and edges whose id or values contain the text, ranked, and the
      * matched values with their counts. Reads only; selects nothing.
      * @param text - What was typed.
@@ -250,12 +269,13 @@ export function createQueryEngine(parts: QueryEngineParts): QueryEngine {
         return Object.freeze([...new Set(paths)].filter((path) => !answers(path, "node") && !answers(path, "edge")));
     };
 
-    const textTest = (
+    const textMatch = (
         text: string,
         mode: SelectionTextMode,
         target: SelectorTarget,
-        only?: readonly Path[],
-    ): ((index: number) => boolean) => {
+        only: readonly Path[] | undefined,
+        best: boolean,
+    ): ((index: number) => RecordMatch | undefined) => {
         const graph = parts.snapshot();
         // A label path is a bare column name ("label") or a value path ("data.label").
         const answers = (path: Path): boolean =>
@@ -266,6 +286,8 @@ export function createQueryEngine(parts: QueryEngineParts): QueryEngine {
         let accepts: (value: string) => boolean;
         let paths: readonly Path[] = searched;
         let readsId = true;
+        let needle = text;
+        let fold: ((value: string) => string) | null = null;
 
         const attribute = mode === "attribute" ? attributeOf(text, searched) : null;
         const lower = (value: string): string => value.toLowerCase();
@@ -274,14 +296,32 @@ export function createQueryEngine(parts: QueryEngineParts): QueryEngine {
             accepts = textMatcher(attribute.value, "exact", lower);
             readsId = attribute.path === "id";
             paths = readsId ? [] : [attribute.path];
+            needle = attribute.value;
+            fold = lower;
         } else if (mode === "exact" || mode === "regex") {
             accepts = textMatcher(text, mode, null);
         } else {
             // Substring, starts and ends with, and an attribute search whose prefix names no
             // attribute: that text is just text, so a pasted URL still finds the node that carries it.
             accepts = textMatcher(text, mode === "attribute" ? "substring" : mode, lower);
+            fold = lower;
         }
 
+        const same = fold ?? ((value: string): string => value);
+        const wanted = same(needle);
+        // A regular expression is a pattern, not a text a value could equal or start with.
+        const rankOf = (value: string): RecordMatchRank => {
+            if (mode === "regex") {
+                return "contains";
+            }
+            const folded = same(value);
+            if (folded === wanted) {
+                return "exact";
+            }
+            return folded.startsWith(wanted) ? "starts-with" : "contains";
+        };
+        const order: Record<RecordMatchRank, number> = { exact: 0, "starts-with": 1, contains: 2 };
+        const idFields = target === "node" ? ["id"] : ["id", "source", "target"];
         const ids =
             target === "node"
                 ? (index: number): readonly unknown[] => [elements.nodeIdOf(index)]
@@ -293,15 +333,44 @@ export function createQueryEngine(parts: QueryEngineParts): QueryEngine {
         const valueAt = target === "node" ? elements.nodeValue : elements.edgeValue;
 
         return (index) => {
-            let found = readsId && ids(index).some((id) => accepts(String(id)));
+            let found: RecordMatch | undefined;
+            const consider = (field: Path, value: string): boolean => {
+                if (!accepts(value)) {
+                    return false;
+                }
+                const rank = rankOf(value);
+                if (found === undefined || order[rank] < order[found.rank]) {
+                    found = { field, rank };
+                }
+                // Stop at the first hit, or, ranking, at the best rank there is.
+                return !best || rank === "exact";
+            };
+            const idValues = readsId ? ids(index) : [];
+            for (let at = 0; at < idValues.length; at++) {
+                if (consider(idFields[at] ?? "id", String(idValues[at]))) {
+                    return found;
+                }
+            }
 
-            for (let at = 0; !found && at < paths.length; at++) {
-                const value = valueAt(index, paths[at]);
-                found = (typeof value === "string" || typeof value === "number") && accepts(String(value));
+            for (const path of paths) {
+                const value = valueAt(index, path);
+                if ((typeof value === "string" || typeof value === "number") && consider(path, String(value))) {
+                    return found;
+                }
             }
 
             return found;
         };
+    };
+
+    const textTest = (
+        text: string,
+        mode: SelectionTextMode,
+        target: SelectorTarget,
+        only?: readonly Path[],
+    ): ((index: number) => boolean) => {
+        const match = textMatch(text, mode, target, only, false);
+        return (index) => match(index) !== undefined;
     };
 
     const find = (text: string, mode: SelectionTextMode): SelectionSearchHit[] => {
@@ -359,6 +428,7 @@ export function createQueryEngine(parts: QueryEngineParts): QueryEngine {
         pathsOf: (where) => compile(where, "node").paths,
         find,
         textTest,
+        textMatch: (text, mode, target, only) => textMatch(text, mode, target, only, true),
         search: (text, request) =>
             search(
                 parts,

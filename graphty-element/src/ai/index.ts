@@ -61,9 +61,8 @@ export { AiManager, createAiManager } from "./AiManager";
 
 // Commands
 export {
-    // Capture commands (Phase 7)
+    // Capture commands
     captureScreenshot,
-    captureVideo,
     // Style commands
     clearStyles,
     CommandRegistry,

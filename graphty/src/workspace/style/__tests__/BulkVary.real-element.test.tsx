@@ -69,6 +69,19 @@ async function line(channel: string): Promise<HTMLElement> {
     });
 }
 
+/**
+ * Opens Fill's popover on the selected folder and picks the run's group as its source.
+ * @returns The binding popover held for the folder's layers.
+ */
+async function colorByGroup(): Promise<HTMLElement> {
+    const fill = await line("node.color");
+    await userEvent.click(within(fill).getByRole("button", { name: /^Node color: from each layer, / }));
+    const byLayer = await screen.findByRole("dialog", { name: "Color from each layer" });
+    await userEvent.click(within(byLayer).getByRole("button", { name: "Change source" }));
+    await userEvent.click((await screen.findAllByRole("option", { name: /group|community|louvain/i }))[0]);
+    return screen.findByRole("dialog", { name: /^Color by / });
+}
+
 describe("vary by data on several layers", () => {
     it("copies Fill by the run's group into each group layer as it is picked, one Undo; Shape the same", async () => {
         const { session, groups } = await openScene();
@@ -76,15 +89,8 @@ describe("vary by data on several layers", () => {
         await clickRow("Louvain");
 
         // Each group layer holds its own color: the pill opens by Layer, and Change source picks the group.
-        const fill = await line("node.color");
-        await userEvent.click(within(fill).getByRole("button", { name: /^Node color: from each layer, / }));
-        const byLayer = await screen.findByRole("dialog", { name: "Color from each layer" });
-        await userEvent.click(within(byLayer).getByRole("button", { name: "Change source" }));
-        const options = await screen.findAllByRole("option", { name: /group|community|louvain/i });
-        await userEvent.click(options[0]);
-
         // The binding popover a single layer gets, holding the binding until it closes.
-        const popover = await screen.findByRole("dialog", { name: /^Color by / });
+        const popover = await colorByGroup();
         await within(popover).findByRole("group", { name: "Color binding" });
         // The source picked is written at once, so the drawing shows it while the popover is open.
         await waitFor(() => {
@@ -138,6 +144,53 @@ describe("vary by data on several layers", () => {
             for (const id of groups) {
                 const binding = session.styles.get(id)?.encode?.["node.shape"];
                 assert.isTrue(binding !== undefined && "by" in binding, "each layer holds its own shape rule");
+            }
+        });
+    });
+
+    it("hides, renames and selects a group of the binding it holds for several layers", async () => {
+        const { session, groups } = await openScene();
+        await clickRow("Louvain");
+        const popover = await colorByGroup();
+        const grid = await within(popover).findByRole("grid", { name: /groups$/ });
+        const firstRow = (): HTMLElement =>
+            within(grid)
+                .getAllByRole("row")
+                .filter((row) => row.querySelector("[role=gridcell]") !== null)[0];
+        const key = firstRow().querySelector("[data-group-row]")?.getAttribute("data-group-row") ?? "";
+        const name = firstRow().querySelector("[data-group-name]")?.firstChild?.textContent ?? "";
+        const path = (): string | undefined => {
+            const binding = session.styles.get(groups[0])?.encode?.["node.color"];
+            return binding !== undefined && "by" in binding ? binding.by : undefined;
+        };
+
+        // F2 renames the group: its value's label, read by every layer.
+        firstRow().querySelector<HTMLElement>("[role=gridcell]")?.focus();
+        await userEvent.keyboard("{F2}");
+        const box = await within(popover).findByRole("textbox", { name: new RegExp(`^Name of .*${name}$`) });
+        await userEvent.clear(box);
+        await userEvent.type(box, "Barricade{Enter}");
+        await waitFor(() => {
+            assert.strictEqual(session.data.valueLabels(path() ?? "").get(key), "Barricade");
+        });
+
+        // The eye hides the group in the binding held; closing writes it into each layer.
+        await userEvent.click(within(firstRow()).getByRole("button", { name: /^Hide / }));
+
+        // Select these: the group's nodes, from the row's menu.
+        await userEvent.click(within(firstRow()).getByRole("button", { name: / actions$/ }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: /^Select these / }));
+        await waitFor(() => {
+            assert.isAbove(session.selection.nodes.length, 0, "the group's nodes are selected");
+        });
+        if (popover.isConnected) {
+            await userEvent.keyboard("{Escape}");
+        }
+        await waitFor(() => {
+            for (const id of groups) {
+                const binding = session.styles.get(id)?.encode?.["node.color"];
+                const hidden = binding !== undefined && "by" in binding ? (binding.hidden ?? []) : [];
+                assert.include(hidden.map(String), key, "each layer hides the group");
             }
         });
     });

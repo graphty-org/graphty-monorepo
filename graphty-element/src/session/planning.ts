@@ -44,6 +44,7 @@ import {
 } from "../layout/locationMap/source";
 import type { AlgoLegacyCommand, AlgoMoveCommand, AlgoRemoveCommand, AlgoRenameCommand } from "./commands/algo";
 import type { AnnotationsCommand } from "./commands/annotations";
+import type { AssetCommand } from "./commands/assets";
 import type { ConfigSetCommand } from "./commands/config";
 import type { DataCommand } from "./commands/data";
 import type { DataDeriveCommand } from "./commands/derive";
@@ -56,6 +57,7 @@ import type { ShaderCommand } from "./commands/shaders";
 import type { SourceExpandOpCommand } from "./commands/source-expand";
 import type { DataStepsSetCommand } from "./commands/source-steps";
 import type { StyleCommand } from "./commands/style";
+import type { TourCommand } from "./commands/tour";
 import type { ViewCommand } from "./commands/view";
 import type { VisibilityCommand } from "./commands/visibility";
 import {
@@ -140,10 +142,12 @@ export type SessionCommand =
     | DataStepsSetCommand
     | StyleCommand
     | ShaderCommand
+    | AssetCommand
     | VisibilityCommand
     | SetCommand
     | NoteCommand
     | ViewCommand
+    | TourCommand
     | AnnotationsCommand
     | ConfigSetCommand
     | PositionsCommand

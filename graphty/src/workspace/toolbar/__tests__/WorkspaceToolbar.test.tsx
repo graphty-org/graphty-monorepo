@@ -195,8 +195,6 @@ describe("the canvas toolbar", () => {
             "view.open",
             "view.camera",
             "view.auto-rotate",
-            "view.export-image",
-            "view.record-video",
             "view.legend",
             "view.fit",
             "view.frame-selection",

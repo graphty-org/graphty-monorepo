@@ -18,10 +18,10 @@ import {
     type ProjectSaveReport,
 } from "@graphty/graphty-element/session";
 
+import { count, detail } from "../../lib/analytics";
 import { forgetKeptWork } from "../autosave/autosave";
 import type { CommandContext } from "../commands/registry";
 import { openDataPage } from "../data-page/request";
-import { nodeModelsOn } from "../features";
 import { focusOpenedGraphLater } from "../frame/focus";
 import { runHeld, withHeldShaders } from "../settings/heldShaders";
 import { addSource, incomingFiles } from "../start/open";
@@ -81,8 +81,8 @@ export function assetQuestion(store: WorkspaceStore): AssetQuestion | undefined 
 /**
  * Asks how to keep each model or picture the layers name by web address (embed it, or keep only
  * its address), before a save. graphty-element lists what to ask about
- * (`project.assetChoices()`) and takes the answer (`save({ assets })`). Only the node models
- * experiment asks, and only about addresses not answered before in this session; an answered one
+ * (`project.assetChoices()`) and takes the answer (`save({ assets })`). It asks only about
+ * addresses not answered before in this session; an answered one
  * is kept as the element reports it was last kept.
  * @param store - the workspace store.
  * @param session - the project's session.
@@ -90,9 +90,6 @@ export function assetQuestion(store: WorkspaceStore): AssetQuestion | undefined 
  *     canceled.
  */
 export function askAssetChoices(store: WorkspaceStore, session: GraphSession): Promise<AssetChoices | null> {
-    if (!nodeModelsOn(session)) {
-        return Promise.resolve({});
-    }
     const choices = session.project.assetChoices();
     const known = answeredFor(session);
     const kept: AssetChoices = Object.fromEntries(
@@ -125,15 +122,11 @@ export function askAssetChoices(store: WorkspaceStore, session: GraphSession): P
 
 /**
  * The saved notice, with what of the models the save could not keep as asked.
- * @param session - the project's session.
  * @param message - the notice's sentence.
  * @param report - what the save reported, when it reported.
  * @returns the notice's words.
  */
-function withModelsLeftOut(session: GraphSession, message: string, report: ProjectSaveReport | undefined): string {
-    if (!nodeModelsOn(session)) {
-        return message;
-    }
+function withModelsLeftOut(message: string, report: ProjectSaveReport | undefined): string {
     const lines = (report?.leftOut ?? []).filter((fact) => /^[EW]_MODEL_/.test(fact.code)).map(chipLine);
     return [message, ...lines].join(" ");
 }
@@ -167,10 +160,11 @@ export interface FileSource {
     /**
      * Loads the file when `project.open` reads it as data (`opened: "graph"`) rather than a
      * project: the draft it was read into (read onto the graph when the graph holds data), or, for
-     * a file the element could not read as data, none, so the caller reads it and says why;
-     * `fresh` when it opens a new project from the start screen.
+     * a file the element could not read as data, the element's refusal (`refused`), for the caller
+     * to say why without reading the file again; `fresh` when it opens a new project from the
+     * start screen.
      */
-    onData?: (ctx: CommandContext, fresh: boolean, draft?: LoadDraft) => Promise<void>;
+    onData?: (ctx: CommandContext, fresh: boolean, draft?: LoadDraft, refused?: unknown) => Promise<void>;
 }
 
 /** A file waiting to open, and whether it opens a new project from the start screen. */
@@ -328,7 +322,7 @@ async function writeProject(
     });
     fileState(workspace).target = saved.id;
     await refreshStored();
-    workspace.set({ notice: { message: withModelsLeftOut(session, `Saved ${name} in this browser.`, saved.report) } });
+    workspace.set({ notice: { message: withModelsLeftOut(`Saved ${name} in this browser.`, saved.report) } });
     return true;
 }
 
@@ -394,6 +388,7 @@ export async function saveLocalCopy({ workspace, element, session }: CommandCont
         } else {
             await element.downloadProject({ assets, fileName, markSaved: false });
         }
+        count("export_done", { kind: "project", destination: "download" });
     } catch {
         workspace.set({ notice: { message: `A copy of ${name} could not be saved.`, error: true } });
     }
@@ -520,6 +515,8 @@ function openedData(
         }
         return;
     }
+    // A graphty document that is not a project (styles, notes, a graph) is the reader's own file too.
+    count("own_file_opened", { format: "graphty", via: "file" });
     // Opened as a new graph, it started its history (`history: "start"`).
     focusLater(fresh);
     if (!fresh) {
@@ -555,6 +552,12 @@ async function openedProject(
             resolve();
         });
     });
+    // A file the reader picked or dropped counts as their own file; a Recent or browser-kept project is a reopen.
+    if (pending.storedId === undefined && pending.recentId === undefined) {
+        count("own_file_opened", { format: "graphty", via: "file" });
+    } else {
+        detail("project_reopened");
+    }
     const state = fileState(workspace);
     state.target = pending.storedId ?? null;
     state.recentId = pending.recentId ?? null;
@@ -661,8 +664,9 @@ async function openInSession(
     } catch (error) {
         focusLater(false);
         if (onData !== undefined && isGraphtyError(error) && DATA_REFUSALS.has(error.code)) {
-            // A data file the element could not read: the data import says why, in its own words.
-            await onData(ctx, fresh);
+            // A data file the element could not read: the data import says why, in its own words,
+            // from this refusal. Read once: a second read would fail, and count, a second time.
+            await onData(ctx, fresh, undefined, error);
             return true;
         }
         return openFailed(ctx, session, pending, error);

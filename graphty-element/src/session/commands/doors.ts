@@ -452,6 +452,7 @@ const REPLACE_SOURCE_STEPS: readonly SessionCommand[] = [
         source: DOOR_REPLACE_SOURCE,
         tables: ["door-ships-2.csv"],
         tableRows: ["edges"],
+        delimiter: { value: ",", detected: true },
         mode: "merge",
         held: {
             // An edge table's ends get node rows of their own, so the nodes they make are drawn.
@@ -494,6 +495,7 @@ const RELOAD_SOURCE_STEPS: readonly SessionCommand[] = [
         source: DOOR_SHIPS_SOURCE,
         tables: ["door-ships.csv"],
         tableRows: ["edges"],
+        delimiter: { value: ",", detected: true },
         mode: "merge",
         held: {
             nodes: [{ id: "r1" }, { id: "r2" }, { id: "r3" }],
@@ -761,6 +763,19 @@ const LIFECYCLE = exempt("Lifecycle of the element or a part of it; the history 
 const PROFILING = exempt("Profiling measures the renderer; it changes nothing a project file saves.");
 const MACHINE = exempt("A preference about this machine's hardware, not about the graph.");
 const CAPTURE = exempt("A capture reads the picture; it changes nothing.");
+
+/** What adding, removing or naming a model file is about undo. */
+const ASSET_FILES = exempt(
+    "Model files are kept beside the project, not in it: they are not commands, so adding or removing one is no step and no recipe entry, and limits and hosts are the page's own settings.",
+);
+
+/** The model the doors test gives settings to. */
+const DOOR_MODEL = "asset:door-model";
+
+/** One triangle as an ASCII STL: the smallest model `session.assets` accepts. */
+const DOOR_STL = new TextEncoder().encode(
+    "solid door\nfacet normal 0 0 1\nouter loop\nvertex 0 0 0\nvertex 1 0 0\nvertex 0 1 0\nendloop\nendfacet\nendsolid door\n",
+);
 const PREVIEW = exempt(
     "A model preview draws in a canvas and scene of its own; it changes nothing a project file saves.",
 );
@@ -773,6 +788,22 @@ export const RENDER = exempt(
 const HISTORY = exempt("Moves through the history or groups commands into a step; it is not a step itself.");
 const INPUT = exempt("Input handling and input preferences; the gestures it drives are doors of their own.");
 const IN_FLIGHT = exempt("Stops or pauses work in flight; work in flight is not saved.");
+
+/** The picture, model-check and animation-capture members the element and its graph both expose. */
+const CAPTURE_DOORS: Readonly<Record<string, Door>> = {
+    nodeThumbnail: CAPTURE,
+    modelThumbnail: CAPTURE,
+    modelPreview: CAPTURE,
+    checkModel: READ,
+    canCaptureScreenshot: READ,
+    captureAnimation: CAPTURE,
+    cancelAnimationCapture: CAPTURE,
+    stopAnimationCapture: CAPTURE,
+    cancelCameraAnimation: IN_FLIGHT,
+    playTour: CAMERA,
+    isAnimationCapturing: READ,
+    estimateAnimationCapture: READ,
+};
 const VIEW_SETTING = exempt("A rendering preference of this view, not saved in a project file.");
 const WORKING_GRAPH = exempt(
     "Which part of the graph readers read when they name none; a session setting, not saved in a project file.",
@@ -968,6 +999,8 @@ const SESSION: Readonly<Record<string, Door>> = {
     styles: READ,
     shaders: READ,
     views: READ,
+    tours: READ,
+    graphs: READ,
     annotations: READ,
     layout: READ,
     positions: READ,
@@ -1064,12 +1097,18 @@ const SELECTION_API: Readonly<Record<string, Door>> = {
 };
 
 /**
- * A door that changes the one condition `c1` (keep degree at least 1), which it adds first.
+ * A door that changes the conditions it adds first: by default the one condition `c1` (keep
+ * degree at least 1).
  * @param args - The arguments.
  * @param conditions - The conditions the call must leave.
+ * @param setup - The conditions added first.
  * @returns The door.
  */
-function conditionDoor(args: readonly unknown[], conditions: readonly unknown[]): Door {
+function conditionDoor(
+    args: readonly unknown[],
+    conditions: readonly unknown[],
+    setup: readonly unknown[] = [{ id: "c1", effect: "keep", rule: { kind: "degree", min: 1 } }],
+): Door {
     return {
         kind: "dispatches",
         op: "visibility.conditions",
@@ -1078,7 +1117,7 @@ function conditionDoor(args: readonly unknown[], conditions: readonly unknown[])
             args,
             around: async (target) => {
                 const visibility = target as { setConditions(list: unknown[]): Promise<unknown> };
-                await visibility.setConditions([{ id: "c1", effect: "keep", rule: { kind: "degree", min: 1 } }]);
+                await visibility.setConditions([...setup]);
                 return async () => visibility.setConditions([]);
             },
         },
@@ -1135,6 +1174,18 @@ const VISIBILITY_API: Readonly<Record<string, Door>> = {
     ),
     removeCondition: conditionDoor(["c1"], []),
     conditionCounts: READ,
+    moveStep: conditionDoor(
+        ["c2", 0],
+        [
+            { id: "c2", on: true, effect: "exclude", rule: { kind: "degree", min: 3 } },
+            { id: "c1", on: true, effect: "keep", rule: { kind: "degree", min: 1 } },
+        ],
+        [
+            { id: "c1", effect: "keep", rule: { kind: "degree", min: 1 } },
+            { id: "c2", effect: "exclude", rule: { kind: "degree", min: 3 } },
+        ],
+    ),
+    stepCounts: READ,
     // Opening a draft writes nothing; its commit is `addCondition` or `updateCondition`.
     draft: READ,
 };
@@ -1612,17 +1663,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             xr: XR,
             captureScreenshot: CAPTURE,
             exportFigure: CAPTURE,
-            nodeThumbnail: CAPTURE,
-            modelThumbnail: CAPTURE,
-            modelPreview: CAPTURE,
-            canCaptureScreenshot: READ,
-            captureAnimation: CAPTURE,
-            cancelAnimationCapture: CAPTURE,
-            stopAnimationCapture: CAPTURE,
-            cancelCameraAnimation: IN_FLIGHT,
-            playTour: CAMERA,
-            isAnimationCapturing: READ,
-            estimateAnimationCapture: READ,
+            ...CAPTURE_DOORS,
+            planTour: READ,
             getViewMode: READ,
             setViewMode: calls(["2d"], [DIMENSION_2D]),
             isVRSupported: READ,
@@ -1709,6 +1751,9 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             getXRConfig: READ,
             exitXR: XR,
             resolveCameraPreset: READ,
+            viewProblem: READ,
+            getCanvasSize: READ,
+            isMotionReduced: READ,
             applyCameraView: CAMERA,
             setInputEnabled: INPUT,
             shutdown: LIFECYCLE,
@@ -2004,17 +2049,10 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             waitForStableFrame: READ,
             waitForPainted: READ,
             captureScreenshot: CAPTURE,
-            nodeThumbnail: CAPTURE,
-            modelThumbnail: CAPTURE,
-            modelPreview: CAPTURE,
-            canCaptureScreenshot: READ,
-            captureAnimation: CAPTURE,
-            cancelAnimationCapture: CAPTURE,
-            stopAnimationCapture: CAPTURE,
-            cancelCameraAnimation: IN_FLIGHT,
-            playTour: CAMERA,
-            isAnimationCapturing: READ,
-            estimateAnimationCapture: READ,
+            ...CAPTURE_DOORS,
+            planTour: READ,
+            replaceTour: CAMERA,
+            applyCaptureCamera: CAMERA,
             getCameraState: READ,
             setCameraState: CAMERA,
             setCameraPosition: CAMERA,
@@ -2028,6 +2066,9 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             zoomToSelection: CAMERA,
             zoomToNodes: CAMERA,
             resolveCameraPreset: READ,
+            viewProblem: READ,
+            getCanvasSize: READ,
+            isMotionReduced: READ,
             applyCameraView: CAMERA,
             saveCameraPreset: calls(
                 ["door view", { zoom: 2 }],
@@ -2279,6 +2320,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             publishModelChange: EVENTS,
             emptyClick: EVENTS,
             elementClick: EVENTS,
+            cameraGestureEnd: EVENTS,
             groupOutlineClick: EVENTS,
             layoutMotion: EVENTS,
         },
@@ -2807,6 +2849,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             // Deep-frozen records, read a window at a time.
             nodePage: READ,
             edgePage: READ,
+            // Computes and caches a page's order; changes nothing a project holds.
+            preparePage: READ,
             resultColumns: READ,
             neighbors: READ,
             lastImport: READ,
@@ -3830,9 +3874,46 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         name: "AssetsApi",
         file: "src/session/assets/AssetsApi.ts",
         half: "session",
-        whole: exempt(
-            "Model files are kept beside the project, not in it: they are not commands, so adding or removing one is no step and no recipe entry, and limits and hosts are the page's own settings.",
-        ),
+        doors: {
+            ...Object.fromEntries(
+                [
+                    "accept",
+                    "add",
+                    "addEach",
+                    "copy",
+                    "dropPart",
+                    "allowHosts",
+                    "files",
+                    "offer",
+                    "ready",
+                    "remove",
+                    "rename",
+                    "setLimits",
+                    "supply",
+                ].map((name) => [name, ASSET_FILES]),
+            ),
+            find: READ,
+            get: READ,
+            inspect: READ,
+            list: READ,
+            states: READ,
+            usedBy: READ,
+            waiting: READ,
+            setDefaults: {
+                kind: "dispatches",
+                op: "asset.defaults",
+                call: {
+                    kind: "call",
+                    args: [DOOR_MODEL, { style: { "node.modelTurn": 90 } }],
+                    around: async (target) => {
+                        const assets = target as { add(source: unknown, options: unknown): Promise<unknown> };
+                        await assets.add({ files: new Map([["door.stl", DOOR_STL]]) }, { name: DOOR_MODEL });
+                        return () => Promise.resolve();
+                    },
+                },
+                expect: [{ op: "asset.defaults", id: DOOR_MODEL, patch: { style: { "node.modelTurn": 90 } } }],
+            },
+        },
     },
     {
         name: "NetworkApi",
@@ -3883,6 +3964,51 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 [{ op: "view.save", views: [{ name: "door view", camera: { zoom: 2 } }] }],
             ),
             remove: calls([["door view"]], [{ op: "view.remove", names: ["door view"] }]),
+            rename: calls(
+                ["door view", "door renamed"],
+                [{ op: "view.rename", from: "door view", to: "door renamed" }],
+            ),
+            move: calls(["door view", 0], [{ op: "view.move", name: "door view", index: 0 }]),
+            setKey: calls(["door view", "7"], [{ op: "view.key", name: "door view", key: "7" }]),
+            // On a project nobody has changed it writes the baseline instead (no step); the door
+            // harness reaches the views after a change, so it dispatches.
+            setStartingCameras: calls(
+                [[{ name: "door start", follows: "topView" }]],
+                [{ op: "view.starting", views: [{ name: "door start", follows: "topView" }] }],
+            ),
+        },
+    },
+    {
+        name: "SessionTours",
+        file: "src/session/types.ts",
+        half: "session",
+        doors: {
+            save: calls(
+                [[{ name: "door tour", tour: { stops: [{ view: "fitToGraph" }] } }]],
+                [{ op: "tour.save", tours: [{ name: "door tour", tour: { stops: [{ view: "fitToGraph" }] } }] }],
+            ),
+            remove: calls([["door tour"]], [{ op: "tour.remove", names: ["door tour"] }]),
+            rename: calls(
+                ["door tour", "door renamed"],
+                [{ op: "tour.rename", from: "door tour", to: "door renamed" }],
+            ),
+            move: calls(["door tour", 0], [{ op: "tour.move", name: "door tour", index: 0 }]),
+        },
+    },
+    {
+        name: "SessionGraphs",
+        file: "src/session/graphs/GraphsApi.ts",
+        half: "session",
+        doors: {
+            currentId: READ,
+            list: READ,
+            create: exempt(
+                "Saves the graph shown and opens its copy through project.save and project.open, whose rows " +
+                    "cover them; trimming the copy to its scope is data.removeNodes, then the copy's history starts.",
+            ),
+            switch: exempt(
+                "Saves the graph shown and opens another through project.save and project.open, whose rows cover them.",
+            ),
         },
     },
     {
@@ -3962,6 +4088,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             editableBase: READ,
             timelineHiddenLook: READ,
             timelineHiddenAdded: READ,
+            startingCamerasWritten: READ,
             runPlacement: READ,
             layoutBehavior: READ,
             layoutTransition: READ,
@@ -4050,6 +4177,9 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             edgeRemovalChangesNothing: READ,
             endPeek: exempt("The session's end clears a peek, which is view state."),
             hoverAt: exempt("The pointer resting on a node is view state, not a step, like the selection."),
+            byInput: exempt(
+                "It only labels the changes its callback makes with the input; they are steps of their own.",
+            ),
             nodeMembers: READ,
             edgeMembers: READ,
             remapNodes: SELECTION,

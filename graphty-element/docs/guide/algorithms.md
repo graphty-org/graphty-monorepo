@@ -266,6 +266,7 @@ Find optimal paths between nodes:
 | `dijkstra`       | Shortest path (weighted)                  |
 | `bellman-ford`   | Handles negative weights                  |
 | `astar`          | A route, optionally steered by the layout |
+| `all-paths`      | Every route that visits no node twice     |
 | `floyd-warshall` | Distance between every pair               |
 
 ```typescript
@@ -311,6 +312,21 @@ distance it spans; the result says so with `caveats.exact: false`.
 
 ```typescript
 await element.run("astar", { source: "node1", target: "node5", heuristic: "layout-distance" });
+```
+
+`all-paths` finds every route from `source` to `target` that visits no node twice. On a directed
+graph `direction` says which way a route may cross an edge, as for `dijkstra`: `"all"` (either
+way, the default), `"out"` or `"in"`. The number of routes grows exponentially with the graph, so
+two options bound it: `maxLength`, the longest route in edges (any length when unset), and
+`maxPaths`, the most routes to find (1,000 by default). Every node and edge on a route carries
+`in: true`, which the suggested highlight paints, and `pathCount`, how many of the routes run
+through it. The graph facts are `found`, `complete` (false when `maxPaths` or the search's own
+budget of 1,000,000 steps left routes unfound), `shortest` and `longest` (in edges) and `paths`,
+one row per route in the order found, with its `nodes` and its `length`:
+
+```typescript
+const result = await element.session.runs.start("all-paths", { source: "node1", target: "node5", maxLength: 4 });
+const { found, complete, paths } = result.graph;
 ```
 
 `floyd-warshall` measures every pair of nodes, so it holds a matrix of n x n distances. It refuses
@@ -462,6 +478,8 @@ for every built-in algorithm.
 | `sampled.instead-of-exact`           | the run sampled rather than computed exactly: `{ method, name, sampleSize, nodes }`, the approximate method's id and catalog name, the sample, and the nodes it was drawn from.                 |
 | `sampled.exact-past-cap`             | an exact run was estimated past the cost cap, so the approximate method ran: `{ seconds, cap }`.                                                                                                |
 | `sampled.still-past-cap`             | the sampled run is itself estimated past the cap: `{ seconds, cap }`.                                                                                                                           |
+| `all-paths.length-bounded`           | only paths of at most `maxLength` edges were looked for: `{ maxLength }`.                                                                                                                       |
+| `all-paths.capped`                   | the search stopped at its path cap, or at its own step budget, before it had found every path: `{ maxPaths, found }`.                                                                           |
 | `astar.straight-line`                | A* was steered by straight-line distance, so its route is the cheapest only when every edge weighs at least the distance it spans.                                                              |
 | `betweenness.sampled`                | betweenness was estimated from sampled sources, unscaled: `{ sources, nodes }`.                                                                                                                 |
 | `betweenness.halved`                 | the raw counts were halved, because an undirected shortest path is reached from both ends.                                                                                                      |

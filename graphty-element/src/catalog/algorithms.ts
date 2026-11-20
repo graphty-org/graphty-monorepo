@@ -819,6 +819,65 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         legacyKeys: [{ key: "astar" }],
     },
     {
+        key: "all-paths",
+        plainName: "Every route",
+        technicalName: "All simple paths",
+        description:
+            "Finds every route from one node to another that visits no node twice, up to a longest route and a number of routes, and how many of the routes run through each node and edge.",
+        category: "path",
+        keywords: ["all routes", "every path", "simple paths", "alternatives", "redundancy"],
+        shape: "node-set",
+        fields: [
+            ...setFields("node", "On a route", {
+                name: "found",
+                plainName: "Routes found",
+                technicalName: "found",
+                type: "integer",
+            }),
+            field({
+                name: "pathCount",
+                plainName: "Routes through it",
+                technicalName: "pathCount",
+                kind: "node",
+                type: "integer",
+            }),
+            field({ name: "in", plainName: "On a route", technicalName: "in", kind: "edge", type: "boolean" }),
+            field({
+                name: "pathCount",
+                plainName: "Routes through it",
+                technicalName: "pathCount",
+                kind: "edge",
+                type: "integer",
+            }),
+            field({
+                name: "complete",
+                plainName: "Every route found",
+                technicalName: "complete",
+                kind: "graph",
+                type: "boolean",
+            }),
+            field({
+                name: "shortest",
+                plainName: "Edges on the shortest route",
+                technicalName: "shortest",
+                kind: "graph",
+                type: "integer",
+            }),
+            field({
+                name: "longest",
+                plainName: "Edges on the longest route",
+                technicalName: "longest",
+                kind: "graph",
+                type: "integer",
+            }),
+            field({ name: "paths", plainName: "Routes", technicalName: "paths", kind: "graph", type: "table" }),
+        ],
+        options: optionsOf("all-paths"),
+        costClass: "instant",
+        complexity: "O(min(paths * length, 1,000,000 steps))",
+        legacyKeys: [{ key: "all-paths" }],
+    },
+    {
         /* ONE KEY, ONE RESULT SHAPE. The all-pairs sweep used to be a PARAMETER on shortest-path
            -- `allPairs: true`, engine floyd-warshall -- which made one catalog key claim two
            different result shapes: a route for the single-source engines, and a measurement of
@@ -1195,7 +1254,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
 /**
  * Every algorithm this package registers, as a plain-JSON descriptor.
  *
- * Thirty descriptors for thirty-two registered algorithms: the two single-source
+ * Thirty-one descriptors for thirty-three registered algorithms: the two single-source
  * shortest-path engines are one key with a `method` parameter, and the two component algorithms
  * are one key with a `strength` parameter. Each descriptor's `legacyKeys` names the 1.10 keys it
  * replaces and the parameters that reproduce them.

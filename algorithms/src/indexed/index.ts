@@ -119,6 +119,13 @@ export {
     type TimeOrderedPathsOptions,
     type TimeOrderedPathsResult,
 } from "./shortest-routes.js";
+export {
+    allSimplePaths,
+    SIMPLE_PATHS_DEFAULT_MAX_PATHS,
+    SIMPLE_PATHS_DEFAULT_MAX_STEPS,
+    type SimplePathsOptions,
+    type SimplePathsResult,
+} from "./simple-paths.js";
 export { type LaplacianType, spectralClustering, type SpectralOptions, type SpectralResult } from "./spectral.js";
 export { arcSourceIn, IndexedMinHeap, IntUnionFind } from "./structures/index.js";
 export { syncClustering, type SyncClusteringOptions, type SyncClusteringResult } from "./sync.js";

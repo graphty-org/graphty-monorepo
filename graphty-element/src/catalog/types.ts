@@ -181,6 +181,7 @@ export const KNOWN_ALGORITHMS = [
     "spectral-clustering",
     "hierarchical-clustering",
     "astar",
+    "all-paths",
     "edge-betweenness",
     "removal-impact",
 ] as const;
@@ -884,6 +885,7 @@ export type Channel =
     | "node.groupMinHeightBiasTop"
     | "node.groupIncludeLabels"
     | "edge.color"
+    | "edge.colorFrom"
     | "edge.width"
     | "edge.minScreenWidth"
     | "edge.fadeStart"
@@ -1167,6 +1169,12 @@ export interface BindingNumberFormat {
     maximumSignificantDigits?: number;
     /** A BCP 47 locale such as `"en-US"`, which chooses the decimal and grouping marks. */
     locale?: string;
+    /**
+     * Whether thousands are grouped, as `Intl.NumberFormat` groups them: `false` writes 12345 as
+     * 12345 rather than 12,345. Absent, they are grouped.
+     * @since 3.40.0
+     */
+    useGrouping?: boolean;
 }
 
 /**
@@ -1220,7 +1228,15 @@ export type Binding =
           /** How the value meets what lies beneath. See {@link CombineMode}. @since 3.26.0 */
           combine?: CombineMode;
       }
-    | { template: readonly string[] }
+    | {
+          template: readonly string[];
+          /**
+           * How a number a `{path}` placeholder reads is written. See {@link BindingNumberFormat}.
+           * Text, counts and ranks are written as before.
+           * @since 3.40.0
+           */
+          format?: BindingNumberFormat;
+      }
     | {
           by: Path;
           /** How the value meets what lies beneath. See {@link CombineMode}. @since 3.26.0 */
@@ -2516,6 +2532,11 @@ export interface UnionBranch {
     readonly id?: string;
     /** Its name, the consumer's. */
     readonly name?: string;
+    /**
+     * Whether `name` was given automatically by the consumer (a letter, say) rather than typed by a
+     * reader, so the consumer may clear or replace it. The element only stores it. Default false.
+     */
+    readonly autoName?: boolean;
     /** Its color, filled from the branch palette on write (`session.scope.options.branchPalette`). */
     readonly color?: string;
     /** Whether it counts. Default true. */

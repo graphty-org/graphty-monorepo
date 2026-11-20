@@ -37,9 +37,13 @@ export interface QueueableManager extends Manager {
  * Context provided to all managers for shared resources
  */
 export interface ManagerContext {
+    /** The Babylon.js scene the graph is drawn in. */
     scene: Scene;
+    /** The Babylon.js engine drawing the scene. */
     engine: Engine | WebGPUEngine;
+    /** The canvas the engine draws on. */
     canvas: HTMLCanvasElement;
+    /** The event manager every manager sends its events through. */
     eventManager: EventManager;
 }
 

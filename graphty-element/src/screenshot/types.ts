@@ -1,6 +1,7 @@
 import type { EasingName } from "../camera/tour.js";
 import type { CameraState } from "../camera/types.js";
 import type { GraphtyError } from "../errors/index.js";
+import type { PendingWorkProgress } from "../managers/OperationQueueManager.js";
 
 /**
  * What happened to a capture's clipboard copy. `"not-requested"` when the clipboard was not one of
@@ -87,6 +88,12 @@ export interface ScreenshotOptions {
      * copies nothing. Aborted once the picture has been read, it changes nothing.
      */
     signal?: AbortSignal;
+    /**
+     * Told how much queued work -- loads, layouts, algorithm runs, earlier captures, this one
+     * among them -- the capture is waiting behind, now and on every change, until it is taken.
+     * Not called when `timing.waitForOperations` is false.
+     */
+    onProgress?: (fact: PendingWorkProgress) => void;
     /**
      * Enable quality enhancement for the screenshot.
      * Can be a boolean (true = default settings) or an object with specific settings.

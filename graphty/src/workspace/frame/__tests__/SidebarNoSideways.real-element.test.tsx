@@ -1,9 +1,9 @@
 /**
  * The side panels never scroll sideways, on the REAL graphty-element, driven by a real touchpad-like wheel
  * (deltaX and deltaY together, through the DevTools protocol, so the browser's own input pipeline scrolls):
- * the left panel on Graph, Data and Notes, the inspector's Style tab with every "+" thing added and a label
- * pop-over open, its Values tab and Graph settings, at a wide and a narrow window with the inspector at its
- * minimum width. Each wheel may move a panel up and down; nothing moves sideways, the page does not scroll,
+ * the left panel on Graph, Data and Notes, the inspector's Style tab (Node and Edge) with every "+" thing added
+ * and a label pop-over open, its Values tab and Graph settings, at a wide and a narrow window, and with the
+ * inspector dragged from wide to its minimum width by its resize handle. Each wheel may move a panel up and down; nothing moves sideways, the page does not scroll,
  * and html and body stop the trackpad's sideways swipe from going back a page.
  */
 
@@ -17,6 +17,7 @@ import { cdp, page, userEvent } from "vitest/browser";
 import { withFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceState } from "../../state/store";
+import { showKind } from "../../style/__tests__/kindTab";
 import { openStyle } from "../../style/__tests__/v2Harness";
 import { Workspace } from "../../Workspace";
 
@@ -25,6 +26,14 @@ const SIZES = [
     [1440, 900],
     [768, 900],
 ] as const;
+
+/**
+ * Fields (by their line) whose text a swipe slides sideways: Chrome scrolls an input's overflowing text under a
+ * sideways wheel, and CSS cannot stop it (overflow and text-overflow leave it scrolling). compact-mantine's
+ * Select shows its value in an input; a value wider than its field slides (issue #9145). A known-gaps list:
+ * it may only shrink.
+ */
+const KNOWN_SIDEWAYS_FIELDS: readonly string[] = ["edge.supportModel"];
 
 /**
  * Where a swipe over an element lands, in the test page.
@@ -37,12 +46,13 @@ function pointOf(element: Element): [number, number] {
 }
 
 /**
- * Turns a touchpad-like wheel over the middle of an element, through the DevTools protocol.
- * @param element - the element.
+ * Maps a point in the test page to the top page the DevTools protocol's input lands in: the test page is an
+ * iframe of the runner's page, possibly scaled.
+ * @param x - x in the test page.
+ * @param y - y in the test page.
+ * @returns x and y in the top page.
  */
-async function swipeOver(element: Element): Promise<void> {
-    let [x, y] = pointOf(element);
-    // The test page is an iframe of the runner's page, possibly scaled: map into the top page.
+function topPoint(x: number, y: number): [number, number] {
     for (
         let frame = window.frameElement;
         frame !== null;
@@ -53,10 +63,47 @@ async function swipeOver(element: Element): Promise<void> {
         x = outer.left + x * scale;
         y = outer.top + y * scale;
     }
+    return [x, y];
+}
+
+/**
+ * Sends one mouse event through the DevTools protocol, so the browser's own input pipeline handles it.
+ * @param params - the event's parameters, in top-page coordinates.
+ */
+async function mouse(params: object): Promise<void> {
     await (cdp() as unknown as { send: (method: string, params: object) => Promise<unknown> }).send(
         "Input.dispatchMouseEvent",
-        { type: "mouseWheel", x, y, deltaX: 40, deltaY: 30 },
+        params,
     );
+}
+
+/**
+ * Turns a touchpad-like wheel over the middle of an element, through the DevTools protocol.
+ * @param element - the element.
+ */
+async function swipeOver(element: Element): Promise<void> {
+    const [x, y] = topPoint(...pointOf(element));
+    await mouse({ type: "mouseWheel", x, y, deltaX: 40, deltaY: 30 });
+}
+
+/**
+ * Drags the inspector's resize handle with the mouse until the inspector is at its minimum width.
+ */
+async function dragInspectorToMinimum(): Promise<void> {
+    const handle = screen.getByRole("separator", { name: "Resize inspector" });
+    const box = handle.getBoundingClientRect();
+    const [x, y] = topPoint(box.left + box.width / 2, box.top + box.height / 2);
+    // The handle sits on the inspector's left edge: moving it right narrows the inspector.
+    await mouse({ type: "mouseMoved", x, y });
+    await mouse({ type: "mousePressed", x, y, button: "left", buttons: 1, clickCount: 1 });
+    for (let step = 1; step <= 10; step++) {
+        await mouse({ type: "mouseMoved", x: x + step * 40, y, button: "left", buttons: 1 });
+    }
+    await mouse({ type: "mouseReleased", x: x + 400, y, button: "left", buttons: 0, clickCount: 1 });
+    await waitFor(() => {
+        assert.strictEqual(handle.getAttribute("aria-valuenow"), handle.getAttribute("aria-valuemin"));
+        assert.strictEqual(inspector().getBoundingClientRect().width, Number(handle.getAttribute("aria-valuemin")));
+    });
 }
 
 /**
@@ -90,7 +137,7 @@ async function swipeAndCheck(region: HTMLElement, where: string): Promise<void> 
     // The wheel scrolls the innermost scroller under the pointer that has room to move down.
     const under = document.elementFromPoint(...pointOf(region));
     const target = scrolling
-        .filter((each) => each.contains(under) && each.scrollHeight > each.clientHeight + 30)
+        .filter((each) => each.contains(under) && each.scrollHeight - each.clientHeight - each.scrollTop > 30)
         .at(-1);
     if (target !== undefined) {
         const at = scrolling.indexOf(target);
@@ -98,19 +145,18 @@ async function swipeAndCheck(region: HTMLElement, where: string): Promise<void> 
             assert.isAbove(target.scrollTop, before[at], `${where}: the panel moved down`);
         });
     }
-    for (const each of scrolling) {
-        const { overflowX } = getComputedStyle(each);
-        assert.include(
-            ["hidden", "clip"],
-            overflowX,
-            `${where}: a scroller ${each.className} does not scroll sideways`,
-        );
-    }
-    const sideways = [region, ...region.querySelectorAll("*")].filter((each) => each.scrollLeft !== 0);
+    const moved = [region, ...region.querySelectorAll("*")].filter((each) => each.scrollLeft !== 0);
+    const isField = (each: Element): boolean => each instanceof HTMLInputElement || each instanceof HTMLTextAreaElement;
     assert.deepEqual(
-        sideways.map((each) => `${each.tagName}.${each.className}`),
+        moved.filter((each) => !isField(each)).map((each) => `${each.tagName}.${each.className}`),
         [],
         `${where}: nothing scrolled sideways`,
+    );
+    const fields = moved.filter(isField).map((each) => each.closest<HTMLElement>("[data-line]")?.dataset.line ?? "?");
+    assert.deepEqual(
+        fields.filter((line) => !KNOWN_SIDEWAYS_FIELDS.includes(line)),
+        [],
+        `${where}: no field's text slid sideways but the known ones`,
     );
     assert.deepEqual([window.scrollX, window.scrollY], [0, 0], `${where}: the page did not scroll`);
     assert.deepEqual(
@@ -123,6 +169,15 @@ async function swipeAndCheck(region: HTMLElement, where: string): Promise<void> 
     const body = region.closest(".ws-panel-body") ?? region.querySelector(".ws-panel-body");
     if (body !== null) {
         assert.equal(getComputedStyle(body).overscrollBehaviorY, "contain", `${where}: the panel keeps its swipe`);
+    }
+    // What a reader sees is checked first; the CSS that keeps it so, after.
+    for (const each of scrolling) {
+        const { overflowX } = getComputedStyle(each);
+        assert.include(
+            ["hidden", "clip"],
+            overflowX,
+            `${where}: a scroller ${each.className} does not scroll sideways`,
+        );
     }
     for (const root of [document.documentElement, document.body]) {
         assert.equal(getComputedStyle(root).overscrollBehaviorX, "none", `${where}: ${root.tagName} stops the swipe`);
@@ -164,6 +219,12 @@ async function openWorkspace(
         selector: { match: "everything" },
         set: { "node.color": "#E8590C" },
     });
+    await session.styles.add({
+        name: "Links",
+        target: "edge",
+        selector: { match: "everything" },
+        set: { "edge.color": "#1971C2" },
+    });
     await session.styles.settled();
     return session;
 }
@@ -177,13 +238,35 @@ function inspector(): HTMLElement {
 }
 
 /**
- * Adds every thing each node section's "+" offers, picking each menu item once.
- * @param tab - the Style tab.
+ * How many editors (pop-overs and dialogs) are open.
+ * @returns the count.
  */
-async function addEverything(tab: HTMLElement): Promise<void> {
-    const sections = [...tab.querySelectorAll<HTMLElement>('[data-section^="node-"]')].filter(
-        (each) => each.dataset.section !== "node-shaders",
+function openEditors(): number {
+    return document.querySelectorAll("[data-thing-popover], [role=dialog]").length;
+}
+
+/**
+ * Closes every open editor with Escape, waiting for each to close before the next Escape.
+ */
+async function closeOpenEditors(): Promise<void> {
+    for (let open = openEditors(); open > 0; open = openEditors()) {
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isBelow(openEditors(), open, "an Escape closes one editor");
+        });
+    }
+}
+
+/**
+ * Adds every thing each section's "+" of one kind offers, picking each menu item once.
+ * @param tab - the Style tab.
+ * @param side - the kind whose sections to fill.
+ */
+async function addEverything(tab: HTMLElement, side: "node" | "edge"): Promise<void> {
+    const sections = [...tab.querySelectorAll<HTMLElement>(`[data-section^="${side}-"]`)].filter(
+        (each) => each.dataset.section !== `${side}-shaders`,
     );
+    assert.isNotEmpty(sections, `the ${side} tab shows its sections`);
     for (const section of sections) {
         const picked = new Set<string>();
         // Each round adds one thing; a section offers fewer than this many.
@@ -195,6 +278,9 @@ async function addEverything(tab: HTMLElement): Promise<void> {
                 break;
             }
             const rows = section.querySelectorAll("[data-thing]").length;
+            // The test page is a scaled iframe: bring the "+" into the panel's view first, as a reader
+            // scrolls to it.
+            plus.scrollIntoView({ block: "center" });
             await userEvent.click(plus);
             const menu = await waitFor(() => {
                 const found = screen.queryByRole("menu");
@@ -222,12 +308,37 @@ async function addEverything(tab: HTMLElement): Promise<void> {
             await waitFor(() => {
                 assert.isNull(screen.queryByRole("menu"));
             });
-            // A list or a picture opens its editor at once: close it.
-            if (document.querySelector("[data-thing-popover], [role=dialog]") !== null) {
-                await userEvent.keyboard("{Escape}");
-            }
+            // A list or a picture opens its editor at once, a Record its pop-over and its field's editor: close
+            // each, one Escape at a time.
+            await closeOpenEditors();
         }
     }
+    // Adding scrolled the panel down to each "+": start the swipes from the top, so a swipe has room to move it.
+    tab.closest(".ws-panel-body")?.scrollTo({ top: 0 });
+}
+
+/**
+ * Fills the node Style tab, opens a label pop-over, then shows Values, swiping over each.
+ * @param at - the case's name, for messages.
+ */
+async function nodeStyleChecks(at: string): Promise<void> {
+    const tab = await openStyle("Key people");
+    await addEverything(tab, "node");
+    await swipeAndCheck(inspector(), `${at} Style`);
+
+    const text = tab.querySelector<HTMLElement>('[data-section="node-text"] [data-thing="label"]');
+    assert.isNotNull(text, `${at}: the text section holds a label after every "+" thing was added`);
+    await userEvent.click(within(text).getByRole("button", { name: "Node label settings" }));
+    const pop = await waitFor(() => {
+        const found = document.querySelector<HTMLElement>("[data-thing-popover]");
+        assert.isNotNull(found);
+        return found;
+    });
+    await swipeAndCheck(pop, `${at} label pop-over`);
+    await userEvent.keyboard("{Escape}");
+
+    await userEvent.click(within(inspector()).getByRole("tab", { name: "Values" }));
+    await swipeAndCheck(inspector(), `${at} Values`);
 }
 
 describe("the side panels never scroll sideways", () => {
@@ -250,24 +361,15 @@ describe("the side panels never scroll sideways", () => {
 
         it(`${at}: the Style tab with every "+" thing added and a label pop-over open, then Values`, async () => {
             await openWorkspace(size);
-            const tab = await openStyle("Key people");
-            await addEverything(tab);
-            await swipeAndCheck(inspector(), `${at} Style`);
+            await nodeStyleChecks(at);
+        });
 
-            const text = tab.querySelector<HTMLElement>('[data-section="node-text"] [data-thing="label"]');
-            if (text !== null) {
-                await userEvent.click(within(text).getByRole("button", { name: "Node label settings" }));
-                const pop = await waitFor(() => {
-                    const found = document.querySelector<HTMLElement>("[data-thing-popover]");
-                    assert.isNotNull(found);
-                    return found;
-                });
-                await swipeAndCheck(pop, `${at} label pop-over`);
-                await userEvent.keyboard("{Escape}");
-            }
-
-            await userEvent.click(within(inspector()).getByRole("tab", { name: "Values" }));
-            await swipeAndCheck(inspector(), `${at} Values`);
+        it(`${at}: the edge Style tab with every "+" thing added`, async () => {
+            await openWorkspace(size);
+            const tab = await openStyle("Links");
+            await showKind("edge");
+            await addEverything(tab, "edge");
+            await swipeAndCheck(inspector(), `${at} edge Style`);
         });
 
         it(`${at}: Graph settings`, async () => {
@@ -276,4 +378,11 @@ describe("the side panels never scroll sideways", () => {
             await swipeAndCheck(inspector(), `${at} Graph settings`);
         });
     }
+
+    it("the inspector dragged from wide to its minimum width, on the filled Style tab", async () => {
+        await openWorkspace(SIZES[0], { rightWidth: 400 });
+        assert.strictEqual(inspector().getBoundingClientRect().width, 400);
+        await dragInspectorToMinimum();
+        await nodeStyleChecks("dragged to minimum");
+    });
 });

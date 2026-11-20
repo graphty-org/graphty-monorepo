@@ -209,6 +209,8 @@ export interface GraphtyElementJSXProps {
     // (undocumented)
     "ongraphty-source-expanded"?: (event: GraphtyElementEventMap["graphty-source-expanded"]) => void;
     // (undocumented)
+    "ongraphty-source-loaded"?: (event: GraphtyElementEventMap["graphty-source-loaded"]) => void;
+    // (undocumented)
     "ongraphty-visibility-change"?: (event: GraphtyElementEventMap["graphty-visibility-change"]) => void;
     // (undocumented)
     "ongraphty-warning"?: (event: GraphtyElementEventMap["graphty-warning"]) => void;
@@ -257,6 +259,7 @@ export interface GraphtyElementJSXProps {
     "ontour-ended"?: (event: CustomEvent<EventOfType<"tour-ended">>) => void;
     "ontour-progress"?: (event: CustomEvent<EventOfType<"tour-progress">>) => void;
     "onviews-changed"?: (event: CustomEvent<EventOfType<"views-changed">>) => void;
+    "onxr-menu-select"?: (event: CustomEvent<EventOfType<"xr-menu-select">>) => void;
     "onxr-session-ended"?: (event: CustomEvent<EventOfType<"xr-session-ended">>) => void;
     "onxr-session-started"?: (event: CustomEvent<EventOfType<"xr-session-started">>) => void;
     "onzoom-to-fit-complete"?: (event: CustomEvent<EventOfType<"zoom-to-fit-complete">>) => void;

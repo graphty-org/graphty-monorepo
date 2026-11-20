@@ -6,6 +6,8 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import { flushSync } from "react-dom";
 
 import { bootSignal } from "../bootSignal";
+import { appFeatureOn } from "../features";
+import { APP_CALLER_KEY } from "../lib/analytics";
 import { findKept, reopenOwn } from "./autosave/autosave";
 import { createRegistry, type WorkspaceRegistration } from "./commands/registry";
 import { ScoreDialog } from "./data-place/ScoreDialog";
@@ -16,7 +18,10 @@ import { NoticeSlot } from "./frame/NoticeSlot";
 import { loadedFrame, loadFrame } from "./frameLoader";
 import { useCommandKeys } from "./keys/useCommandKeys";
 import { ReportDialog } from "./privacy/ReportDialog";
+import { SurveyCard } from "./privacy/SurveyCard";
+import { useAnalyticsSends } from "./privacy/usageData";
 import { UsageDataCard } from "./privacy/UsageDataCard";
+import { useUsageEvents } from "./privacy/useUsageEvents";
 import { openingFile } from "./project/actions";
 import { ProjectDialogs } from "./project/ProjectDialogs";
 import { notReadWords } from "./project/words";
@@ -111,6 +116,10 @@ export function Workspace({
         [store, registry, element],
     );
     useCommandKeys(value);
+    // Anonymous usage counts from the project's element and the panels (lib/analytics.ts).
+    useUsageEvents(element.session, store);
+    // The survey corner only where the page sends PostHog: the surveys come from it.
+    const usageAnalytics = useAnalyticsSends();
     // The project the workspace started with (a story's, a test's) is left as its maker set it.
     const [startProjectId] = useState(() => store.get().project?.id);
     // Set while a just-opened project's sample is read, so focus waits for it.
@@ -166,8 +175,16 @@ export function Workspace({
                   }),
             ...(author === "" || session.config.author === author ? {} : { author }),
         };
+        // With usage analytics on, the starting choices are one step marked as the app's own, so
+        // they are not counted as the reader's; off, they are written as before.
+        const writeDefaults = (): Promise<unknown> =>
+            appFeatureOn("usage-analytics")
+                ? session.transaction("Starting settings", (tx) => tx.config.set(patch), {
+                      callerKey: APP_CALLER_KEY,
+                  })
+                : session.config.set(patch);
         const defaults = starting.then(() =>
-            project?.id === startProjectId || Object.keys(patch).length === 0 ? undefined : session.config.set(patch),
+            project?.id === startProjectId || Object.keys(patch).length === 0 ? undefined : writeDefaults(),
         );
         if (opening === null) {
             // Nothing waits on the app's starting choices here; a refusal is logged, not shown.
@@ -448,8 +465,17 @@ export function Workspace({
             <CustomModelHost />
             <SettingsDialog />
             <ReportDialog />
-            {/* The usage data question, on whatever page a first visit lands, until it is answered. */}
-            <UsageDataCard returnFocus={projectOpen ? undefined : firstDoor} />
+            {/* One corner for the usage data question (on whatever page a first visit lands, until it
+                is answered) and a short survey, only while usage data is shared (usage-analytics.md
+                section 4.4): stacked, so neither covers or hides the other. Where the page sends PostHog
+                nothing (the usage-analytics experiment off, or a site with no PostHog ids), the
+                question alone, with no survey, in a plain wrapper that draws nothing: the card keeps
+                its place in the tree when site.json switches PostHog on, so it is not remounted and
+                keeps its answer line and focus. */}
+            <div className={usageAnalytics ? "ws-usage-corner" : undefined}>
+                <UsageDataCard returnFocus={projectOpen ? undefined : firstDoor} />
+                {usageAnalytics ? <SurveyCard /> : null}
+            </div>
             <ProjectDialogs />
             {/* The one status line, outside the start screen, the frame and every surface the Data
                 page hides, so it is on the page, empty, before anything is written to it and a

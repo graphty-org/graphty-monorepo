@@ -117,6 +117,17 @@ describe("data.reloadSource", () => {
         });
     });
 
+    it("lays a mapping named by side over the table read as that side (#9078)", async () => {
+        const session = await loaded();
+        const [{ key }] = session.data.sources();
+        await session.data.reloadSource(key, { mapping: { edges: { source: "ip" } } });
+        assert.include(ids(session), "10.0.0.1");
+        assert.notInclude(ids(session), "alice");
+        assert.deepEqual(session.data.sources()[0].choices?.mapping, {
+            tables: { rows: { rowsAre: "edges", source: "ip", target: "host" } },
+        });
+    });
+
     it("moves the source role to another column", async () => {
         const session = await loaded();
         const [{ key }] = session.data.sources();

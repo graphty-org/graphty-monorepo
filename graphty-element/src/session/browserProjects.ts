@@ -45,6 +45,29 @@ export interface BrowserProjectSaveOptions {
      * Default: as the project last kept it, else embedded.
      */
     readonly assets?: ProjectSaveOptions["assets"];
+    /**
+     * The file format, as `project.save` takes it: `2` (with the `save-files-v2` experiment)
+     * stores a version 2 file. Default 1.
+     * @since 3.40.0
+     * @experimental save-files-v2
+     * @beta
+     */
+    readonly format?: ProjectSaveOptions["format"];
+    /**
+     * Version 2 only: the sections to store, as `project.save` takes them. A save without every
+     * section `project.describe()` marks `required` is a copy: stored, but `dirty` stays.
+     * @since 3.40.0
+     * @experimental save-files-v2
+     * @beta
+     */
+    readonly sections?: ProjectSaveOptions["sections"];
+    /**
+     * Version 2 only: embed or reference each source, as `project.save` takes it.
+     * @since 3.40.0
+     * @experimental save-files-v2
+     * @beta
+     */
+    readonly embed?: ProjectSaveOptions["embed"];
 }
 
 /** The record IndexedDB holds: the facts plus the project file. */
@@ -238,9 +261,12 @@ export const browserProjects: BrowserProjects = Object.freeze({
         const { nodes, edges } = session.status.counts;
         const saved = await session.project.save({
             markSaved: false,
-            // Version 1, with the `save-files-v2` experiment on too: version 2 does not carry
-            // everything version 1 keeps yet, and its draft format may still change.
+            // Version 1 unless asked: version 2 does not carry everything version 1 keeps yet, and
+            // its draft format may still change.
             ...(options.assets === undefined ? {} : { assets: options.assets }),
+            ...(options.format === undefined ? {} : { format: options.format }),
+            ...(options.sections === undefined ? {} : { sections: options.sections }),
+            ...(options.embed === undefined ? {} : { embed: options.embed }),
         });
         const record: ProjectRecord = {
             id: options.id ?? crypto.randomUUID(),

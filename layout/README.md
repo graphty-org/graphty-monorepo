@@ -311,7 +311,9 @@ import { spiral } from "@graphty/layout";
 
 const s = fromEdgeArrays(cycleGraph({ n: 50 }));
 const result = spiral(s, { resolution: 0.35, equidistant: true });
-console.log(result.n); // 50
+// in 3D the spiral rises into a cone, `height` per unit of radius, so node order reads as height
+const cone = spiral(s, { dim: 3, height: 1 });
+console.log(result.n, cone.dim); // 50 3
 ```
 
 ### Grid and radial

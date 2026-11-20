@@ -84,29 +84,15 @@
                                         },
                                         "allOf": [
                                             {
-                                                "if": {
+                                                "not": {
                                                     "properties": {
                                                         "op": {
                                                             "const": "merge"
-                                                        }
-                                                    }
-                                                },
-                                                "then": {
-                                                    "type": "object",
-                                                    "properties": {
-                                                        "op": {
-                                                            "const": "merge"
-                                                        },
-                                                        "into": {
-                                                            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/nodeRef"
-                                                        },
-                                                        "from": {
-                                                            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/nodeRef"
                                                         }
                                                     },
-                                                    "required": ["op", "into", "from"],
-                                                    "unevaluatedProperties": false
-                                                }
+                                                    "required": ["op"]
+                                                },
+                                                "description": "A reader merge is reserved and refused: a session's merges are folded into the copies it embeds."
                                             },
                                             {
                                                 "if": {
@@ -260,7 +246,12 @@
                                                             "minLength": 1
                                                         },
                                                         "value": true,
-                                                        "was": true
+                                                        "was": true,
+                                                        "picked": {
+                                                            "type": "string",
+                                                            "pattern": "^src_[0-9A-HJKMNP-TV-Z]{26}$",
+                                                            "description": "The source whose value a pick or Use took; absent for a typed value."
+                                                        }
                                                     },
                                                     "required": ["op", "column", "value", "was"],
                                                     "oneOf": [
@@ -416,6 +407,21 @@
                                             "type": "string",
                                             "minLength": 1
                                         },
+                                        "timeEnd": {
+                                            "type": "string",
+                                            "minLength": 1,
+                                            "description": "The column saying where each row's time ends."
+                                        },
+                                        "timeSpells": {
+                                            "type": "string",
+                                            "minLength": 1,
+                                            "description": "The column holding each row's list of time spells."
+                                        },
+                                        "timeParseZone": {
+                                            "type": "string",
+                                            "minLength": 1,
+                                            "description": "The IANA zone the time column's text reads in when it carries no offset; absent, UTC."
+                                        },
                                         "latitude": {
                                             "type": "string",
                                             "minLength": 1
@@ -492,6 +498,21 @@
                                         "timeUnit": {
                                             "type": "string",
                                             "minLength": 1
+                                        },
+                                        "timeEnd": {
+                                            "type": "string",
+                                            "minLength": 1,
+                                            "description": "The column saying where each row's time ends."
+                                        },
+                                        "timeSpells": {
+                                            "type": "string",
+                                            "minLength": 1,
+                                            "description": "The column holding each row's list of time spells."
+                                        },
+                                        "timeParseZone": {
+                                            "type": "string",
+                                            "minLength": 1,
+                                            "description": "The IANA zone the time column's text reads in when it carries no offset; absent, UTC."
                                         },
                                         "renamed": {
                                             "type": "object",
@@ -667,6 +688,11 @@
                             "properties": {
                                 "source": {
                                     "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/sourceId"
+                                },
+                                "part": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "description": "Types only what the join.edges step of this part made: its edges, or with end the nodes it names at that end."
                                 },
                                 "end": {
                                     "enum": ["source", "target"]
@@ -845,7 +871,8 @@
                                 "type": "array",
                                 "items": {
                                     "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/typeName"
-                                }
+                                },
+                                "maxItems": 1
                             },
                             "_source.loads": {
                                 "type": "array",

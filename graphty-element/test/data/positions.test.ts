@@ -479,6 +479,26 @@ describe("ElementPositions", () => {
     });
 });
 
+describe("ElementPositions.relocations", () => {
+    it("counts a placed row drawn somewhere else, and not a seed, a rewrite or a renumbering (issue #9164)", () => {
+        const p = new ElementPositions(8);
+        p.grow(3);
+        p.write(0, 1, 2, 3);
+        assert.strictEqual(p.relocations, 0, "placing an unplaced row moves nothing that was drawn");
+
+        p.fillUnplaced(1, 4, 5, 6);
+        p.write(0, 1, 2, 3);
+        p.remap(Uint32Array.from([1, 0, 2]), 3);
+        assert.strictEqual(p.relocations, 0, "a seed, the same coordinates again and a renumbering");
+
+        p.write(0, 7, 8, 9);
+        assert.strictEqual(p.relocations, 1, "a placed row written elsewhere");
+
+        p.moved(4, 2);
+        assert.strictEqual(p.relocations, 3, "a batch written into the lent array counts its changed rows");
+    });
+});
+
 describe("ElementPositions against graph-format 1.0.0", () => {
     it("attaches by reference, so a write through the class is visible on the column", () => {
         const builder = new GraphBuilder({ directed: true, addMissingNodes: true });

@@ -871,6 +871,8 @@ export class DataManager implements Manager {
         loading(active: boolean): void;
         removing(nodes: readonly NodeIdType[], edges: readonly EdgeId[]): void;
     }): void;
+    // @internal
+    builtEdgesJoining(a: NodeIdType, b: NodeIdType): Edge[];
     clear(): void;
     get directed(): boolean;
     get directionSettledBy(): DirectionProvenance;
@@ -882,6 +884,8 @@ export class DataManager implements Manager {
     edgeDirected(row: number): boolean;
     get edges(): ReadonlyMap<string, Edge>;
     get edgesByIndex(): readonly (Edge | undefined)[];
+    // @internal
+    edgeSetChangesSince(version: number): readonly (readonly [NodeIdType, NodeIdType])[] | null;
     edgeVersion: number;
     getEdge(edgeId: string): Edge | undefined;
     getEdgesBetween(srcNodeId: NodeIdType, dstNodeId: NodeIdType): readonly Edge[];
@@ -8913,6 +8917,8 @@ export class UpdateManager implements Manager {
     markViewSized(node: Node_2, on: boolean): void;
     meshesAdded(): void;
     meshesShownOrHidden(): void;
+    // @internal
+    nodeRowsMoved(remap: ArrayLike<number>): void;
     nothingIsOwed(): boolean;
     onceNothingIsOwed(callback: () => void): () => void;
     operationsPending: (() => boolean) | null;

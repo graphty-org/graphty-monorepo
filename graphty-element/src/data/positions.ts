@@ -125,6 +125,8 @@ export class ElementPositions {
 
     private moves = 0;
     private changeCount = 0;
+    /** See {@link ElementPositions.relocations}. */
+    private relocationCount = 0;
     /** A publish a layout owes the rows: see {@link ElementPositions.owe}. */
     private owed: (() => void) | null = null;
 
@@ -175,6 +177,18 @@ export class ElementPositions {
     }
 
     /**
+     * Moves when a row that was already placed is drawn somewhere else: a write that changes a
+     * placed row's coordinates, a batch written into the lent array, a publish owed. Seeding an
+     * unplaced row and renumbering rows leave it alone, so a reader that has to find every row
+     * that moved -- the edges at rows drawn with no `Node` -- knows an add or a removal moved none.
+     * @returns the count
+     * @internal
+     */
+    get relocations(): number {
+        return this.relocationCount;
+    }
+
+    /**
      * Say that coordinates were written straight into the lent array.
      * @param written - how many rows were written
      * @param changed - how many of them now hold something else
@@ -182,6 +196,7 @@ export class ElementPositions {
     moved(written = 1, changed = written): void {
         this.moves += written;
         this.changeCount += changed;
+        this.relocationCount += changed;
     }
 
     /**
@@ -198,6 +213,7 @@ export class ElementPositions {
         this.owed = publish;
         if (publish !== null) {
             this.moves++;
+            this.relocationCount++;
         }
     }
 
@@ -542,6 +558,7 @@ export class ElementPositions {
             array[base + 2] !== Math.fround(z)
         ) {
             this.changeCount++;
+            this.relocationCount += this.hasStorableX(base) ? 1 : 0;
         }
 
         array[base] = x;

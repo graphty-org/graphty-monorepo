@@ -2342,10 +2342,19 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
             still: () => boolean,
         ): Promise<RepaintReport> {
             return exclusively(async () => {
+                // A pass that paints every element is not one whose rows are all that changed.
+                const whole: RepaintContext = {
+                    signal: context.signal,
+                    report: (progress) => {
+                        context.report(progress);
+                    },
+                };
                 if (!still()) {
                     appliedTo = new WeakMap<CompiledLayer, Uint8Array>();
-                    return runPass(stack, context, markEverything, null);
+                    return runPass(stack, whole, markEverything, null);
                 }
+
+                let everything = false;
 
                 const holes = {
                     node: follow(stores.node, moved.node, kept.node, sources.nodeCount()),
@@ -2354,9 +2363,18 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
                 followApplied(stack, moved);
                 return runPass(
                     stack,
-                    context,
+                    {
+                        signal: context.signal,
+                        report: (progress) => {
+                            context.report(progress);
+                        },
+                        get rowsOnly() {
+                            return context.rowsOnly === true && !everything;
+                        },
+                    },
                     () => {
                         if (stack.some(settledDifferently)) {
+                            everything = true;
                             markEverything();
                             return;
                         }

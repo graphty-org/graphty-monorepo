@@ -1182,6 +1182,27 @@ export class PendingRows {
     }
 
     /**
+     * Follow a freeze that renumbered the rows: each waiting row takes its new number, in the same
+     * order, and a row the freeze dropped leaves the queue.
+     * @param remap - Old row to new; a value past the new row count, or a row past the remap, drops it.
+     * @param count - The new row count.
+     */
+    remap(remap: ArrayLike<number>, count: number): void {
+        if (this.size === 0) {
+            return;
+        }
+
+        const rows = Array.from(this.order.subarray(this.head, this.tail));
+        this.clear();
+        for (const row of rows) {
+            const moved = row < remap.length ? remap[row] : count;
+            if (moved < count) {
+                this.add(moved);
+            }
+        }
+    }
+
+    /**
      * How many bytes the queue holds, waiting or not.
      * @returns The bytes of its two arrays.
      */
@@ -1445,6 +1466,31 @@ export class StylePainter {
     private stopListening: (() => void) | null = null;
 
     /**
+     * Follow a freeze that renumbered the rows: the rows whose paint the renderer has not applied
+     * yet take their new numbers. A pass that paints only the rows an edit changed leaves these
+     * waiting, so read at their old numbers they would draw another element's paint.
+     * @param nodeRemap - The freeze's node remap, or null when nodes kept their rows.
+     * @param edgeRemap - The freeze's edge remap, or null when edges kept their rows.
+     * @param counts - The new row counts.
+     * @param counts.nodes - Nodes.
+     * @param counts.edges - Edges.
+     * @internal
+     */
+    rowsMoved(
+        nodeRemap: ArrayLike<number> | null,
+        edgeRemap: ArrayLike<number> | null,
+        counts: { readonly nodes: number; readonly edges: number },
+    ): void {
+        if (nodeRemap !== null) {
+            this.pendingNodes.remap(nodeRemap, counts.nodes);
+        }
+
+        if (edgeRemap !== null) {
+            this.pendingEdges.remap(edgeRemap, counts.edges);
+        }
+    }
+
+    /**
      * Say where the renderer reads its paint from.
      *
      * SUBSCRIBING IS PART OF BINDING, and it is what makes the dirty set reliable. A pass's dirty
@@ -1572,12 +1618,19 @@ export class StylePainter {
      * drawn, which would otherwise keep the look it was built with until the next pass over it.
      * @param target - Nodes or edges.
      * @param index - Its dense index.
+     * @param added - True for an element an edit just added, whose own row is all that changed: with
+     *     nothing else waiting, the renderer places it and walks nothing else (issue #9164).
      */
-    queue(target: SelectorTarget, index: number): void {
+    queue(target: SelectorTarget, index: number, added = false): void {
         if (index >= 0) {
-            (target === "node" ? this.pendingNodes : this.pendingEdges).add(index);
-            this.nodesRowsOnly &&= target !== "node";
-            this.edgesRowsOnly &&= target !== "edge";
+            const pending = target === "node" ? this.pendingNodes : this.pendingEdges;
+            const alone = added && pending.size === 0;
+            pending.add(index);
+            if (target === "node") {
+                this.nodesRowsOnly = alone || (this.nodesRowsOnly && added);
+            } else {
+                this.edgesRowsOnly = alone || (this.edgesRowsOnly && added);
+            }
         }
     }
 

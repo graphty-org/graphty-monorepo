@@ -1312,9 +1312,10 @@ export class Ingest<K extends KnownEdge> {
         // the renderer cannot hold is refused whole, not half-applied.
         // A node an earlier edge created is in the builder, and so in `heldCounts`, without a
         // render object yet: its row is not fresh, or the ceiling counts it twice.
-        const { builder } = this.host.store();
+        // Read without bringing a let-go builder back: a batch refused here writes nothing.
+        const { reads } = this.host.store();
         const ids = nodes.map((node) => this.keyedId(searchRecord(node, query) as NodeIdType));
-        const fresh = new Set(ids.filter((id) => !this.hasNode(id) && !(isStorableId(id) && builder.hasNode(id))));
+        const fresh = new Set(ids.filter((id) => !this.hasNode(id) && !(isStorableId(id) && reads.hasNode(id))));
         this.refuseAboveCeiling("nodes", this.heldCounts().nodes, fresh.size, this.ceilings().renderCeiling);
 
         for (const [i, node] of nodes.entries()) {

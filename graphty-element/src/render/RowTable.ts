@@ -317,6 +317,8 @@ export class RowTable {
     private outlineSides = 0;
     private flags: Uint8Array<ArrayBuffer>;
     private laneChanges = -1;
+    /** The lane's `changes` at a freeze that moved no row ({@link RowTable.replaced}), or -1. */
+    private keptChanges = -1;
     /** How many of the first {@link RowTable.rows} rows are hidden. */
     private hiddenCount = 0;
     /** The widest half extent {@link RowTable.measure} has written since the last clear. */
@@ -770,7 +772,15 @@ export class RowTable {
      */
     replaced(remap: U32 | null, nodes: Iterable<Node>): void {
         const lane = this.lane();
-        this.moves++;
+        // A freeze that only renumbered or appended rows, with no coordinate written since the last
+        // pack, draws every row where it was: the rows follow the remap and an appended row is new,
+        // not moved. Counted as a move, it made the next frame place every edge again (issue #9164).
+        const kept = lane.changes === this.laneChanges && this.twoD === (this.scene.metadata?.twoD === true);
+        if (!kept) {
+            this.moves++;
+        }
+
+        this.keptChanges = kept ? lane.changes : -1;
         this.ownRowWrites++;
         this.positions.follow(remap, lane.capacity);
         this.extents.follow(remap, lane.capacity);
@@ -827,9 +837,15 @@ export class RowTable {
 
         const twoD = this.scene.metadata?.twoD === true;
         if (lane.changes !== this.laneChanges || twoD !== this.twoD) {
+            // The repack a freeze asked for moves no row when no coordinate was written since.
+            const kept = this.keptChanges === lane.changes && twoD === this.twoD;
+            this.keptChanges = -1;
             this.twoD = twoD;
             this.laneChanges = lane.changes;
-            this.moves++;
+            if (!kept) {
+                this.moves++;
+            }
+
             this.repack(lane.view(Math.min(this.rows, lane.count)), this.copiedAt !== lane.changes);
             this.copiedAt = -1;
         }

@@ -540,6 +540,45 @@ describe("session.data.prepare", () => {
         session.dispose();
     });
 
+    it("keeps the separator a CSV load was read with on its data.sources() entry (#9078)", async () => {
+        const session = createGraphSession();
+        await session.data.import({ type: "csv", config: { data: "id;name\na;A\n" } });
+        assert.deepEqual(session.data.sources()[0].delimiter, { value: ";", detected: true });
+
+        await session.data.import({ type: "graphml", config: { data: GRAPHML } }, { mode: "merge" });
+        assert.isUndefined(session.data.sources()[1].delimiter);
+
+        await session.data.import(
+            { type: "csv", config: { data: "id\tname\na\tA\n", delimiter: "\t" } },
+            { mode: "merge", mapping: { key: "id" } },
+        );
+        assert.deepEqual(session.data.sources()[2].delimiter, { value: "\t", detected: false });
+        session.dispose();
+    });
+
+    it("takes a mapping named by side, for one table or a pair (#9078)", async () => {
+        const session = createGraphSession();
+        const one = await session.data.prepare({ type: "csv", config: { data: PEOPLE } });
+        assert.deepInclude(one.resolve({ mapping: { edges: { source: "id", target: "team" } } }).tables.rows, {
+            rowsAre: "edges",
+            source: { column: "id" },
+            target: { column: "team" },
+        });
+        const both = await refusal(one.report({ mapping: { nodes: {}, edges: {} } }));
+        assert.strictEqual(both?.code, "E_BAD_COMMAND");
+        one.dispose();
+
+        const draft = await pair(session);
+        const resolved = draft.resolve({ mapping: { edges: { weight: null } } });
+        assert.isNull(resolved.tables.edges.weight);
+        assert.deepEqual(resolved.tables.nodes, draft.mapping.tables.nodes);
+        await draft.load({ mapping: { edges: { weight: null } } });
+        assert.deepEqual(session.data.sources()[0].choices?.mapping, {
+            tables: { edges: { rowsAre: "edges", weight: null } },
+        });
+        session.dispose();
+    });
+
     it("names a graph file's label column, and the load labels the nodes with it (#911)", async () => {
         const session = createGraphSession();
         const gml = 'graph [ node [ id 1 label "Ann" ] node [ id 2 label "Bo" ] edge [ source 1 target 2 ] ]';

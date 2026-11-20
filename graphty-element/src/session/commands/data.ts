@@ -53,6 +53,7 @@ import type { Selector } from "../styles/selector";
 import { columnsOf, layersAReloadReplaces } from "../styles/staleLayers";
 import { designateDeclaredTime } from "../time/declared";
 import type {
+    DraftTable,
     HistoryCode,
     JoinRecord,
     LoadChoices,
@@ -318,6 +319,8 @@ export interface DataImportCommand {
     readonly tables?: readonly string[];
     /** What each of `tables` held, in the same order, kept with the load in `data.sources()`. */
     readonly tableRows?: readonly ("nodes" | "edges")[];
+    /** How a CSV load's file was split into columns, kept with the load in `data.sources()`. */
+    readonly delimiter?: DraftTable["delimiter"];
     /**
      * `"file"` draws the file's own styles as layers, in the same step; `"none"` leaves them out.
      * Absent, the source's `styles` option decides, and without one the file's styles are left out.

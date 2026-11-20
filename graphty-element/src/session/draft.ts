@@ -51,6 +51,7 @@ import type {
     RowReason,
     RowReasonCode,
     SessionDataConfig,
+    SideMapping,
     TableMapping,
     TableMappingRead,
     TimeFound,
@@ -67,9 +68,10 @@ interface DraftHost {
     graph(): NonNullable<DataImportCommand["measure"]>;
     /**
      * Runs a load in the session's load line: `run` gets the dispatch, taken synchronously, which
-     * sends its command once every load asked for earlier has dispatched (issue #3382).
+     * sends its command once every load asked for earlier has dispatched (issue #3382). `choices`
+     * are the load's own, for the `source:loaded` it publishes.
      */
-    inLine(run: (send: DraftSend) => Promise<void>): Promise<void>;
+    inLine(run: (send: DraftSend) => Promise<void>, choices?: LoadChoices): Promise<void>;
     /** Runs an import in a scratch session with this configuration and returns its report. */
     measure(command: DataImportCommand, config: SessionDataConfig): Promise<LoadReport>;
     /** The draft has been disposed. */
@@ -80,7 +82,7 @@ interface DraftHost {
      * For a draft prepared `onto: "graph"`: taken synchronously, as `importer` is; joins a table
      * onto the graph as one step.
      */
-    joiner?(): (table: JoinedTable, choices: JoinChoices, shape: JoinShape) => Promise<void>;
+    joiner?(): (table: JoinedTable, choices: JoinChoices, shape: JoinShape, callerKey?: string) => Promise<void>;
 }
 
 /** A table to join, with the source it was read from. */
@@ -185,6 +187,52 @@ const ROW_ID = "id";
  */
 function badCommand(message: string, details: Record<string, unknown>): GraphtyError {
     return new GraphtyError({ code: "E_BAD_COMMAND", source: "data", message, details });
+}
+
+/** A load mapping that is bare or names its tables by id, as the element reads one. */
+export type ByTableMapping = TableMapping | { readonly tables: Readonly<Record<string, TableMapping>> };
+
+/**
+ * Whether a mapping names its tables by side.
+ * @param mapping - The mapping.
+ * @returns True for `{ nodes, edges }`.
+ */
+function isSideMapping(mapping: LoadMapping): mapping is SideMapping {
+    return "nodes" in mapping || "edges" in mapping;
+}
+
+/**
+ * A mapping as a bare mapping or by table id: one named by side (`{ nodes, edges }`) names the
+ * table each side's rows are read as, or a source's one table.
+ * @param given - The mapping.
+ * @param reading - What each table's rows are read as.
+ * @returns The mapping, never by side.
+ */
+export function byTableId(given: LoadMapping, reading: LoadMappingRead | undefined): ByTableMapping {
+    if (!isSideMapping(given)) {
+        return given;
+    }
+
+    const ids = Object.keys(reading?.tables ?? {});
+    const tables: Record<string, TableMapping> = {};
+    for (const side of ["nodes", "edges"] as const) {
+        const roles = given[side];
+        if (roles === undefined) {
+            continue;
+        }
+
+        const id = ids.length === 1 ? ids[0] : ids.find((each) => reading?.tables[each].rowsAre === side);
+        if (id === undefined || id in tables) {
+            throw badCommand(`The mapping names ${side}, but no table of its own is read as ${side}.`, {
+                side,
+                tables: ids,
+            });
+        }
+
+        tables[id] = { ...roles, rowsAre: side };
+    }
+
+    return { tables };
 }
 
 /**
@@ -411,6 +459,16 @@ function readByOf(edgeRoles: TableMappingRead | undefined, key: string | null): 
 function errorsOf(reader: DataSource): Pick<ReadSource, "errors" | "errorLimit"> {
     const aggregator = reader.getErrorAggregator();
     return { errors: aggregator.getErrors(), errorLimit: aggregator.getErrorLimit() };
+}
+
+/**
+ * How a load's CSV file was split into columns: its first table's separator (a pair's node file).
+ * @param read - The rows.
+ * @returns The separator, when a table has one.
+ */
+function delimiterOf(read: ReadSource): { delimiter?: DraftTable["delimiter"] } {
+    const delimiter = read.tables.find((held) => held.table.delimiter !== undefined)?.table.delimiter;
+    return delimiter === undefined ? {} : { delimiter };
 }
 
 /**
@@ -1079,12 +1137,12 @@ export class Draft implements LoadDraft {
             // Taken before the first await, as the importer is.
             const join = this.joinHost("load").joiner?.();
             const { table, shape } = this.joinTable("load", choices.join);
-            await join?.(table, choices.join, shape);
+            await join?.(table, choices.join, shape, choices.callerKey);
             this.dispose();
             return;
         }
 
-        await this.host.inLine((send) => this.loadVia(send, choices));
+        await this.host.inLine((send) => this.loadVia(send, choices), choices);
     }
 
     /**
@@ -1160,11 +1218,14 @@ export class Draft implements LoadDraft {
     /**
      * Load through a dispatch taken earlier, as `import` takes it before its first await.
      * @param send - The dispatch.
-     * @param choices - The column roles and the rest.
+     * @param given - The column roles and the rest.
      * @returns Settles once the rows are in the graph.
      */
-    async loadVia(send: DraftSend, choices: LoadChoices = {}): Promise<void> {
+    async loadVia(send: DraftSend, given: LoadChoices = {}): Promise<void> {
         const read = this.live("load");
+        // Kept with the load by table id, so `data.sources()` never hands back a mapping by side.
+        const choices =
+            given.mapping === undefined ? given : { ...given, mapping: byTableId(given.mapping, this.mapping) };
         const plan = this.plan(read, choices);
         // One entry per table name, the first table of a name giving what it held.
         const named = new Map<string, "nodes" | "edges">();
@@ -1180,6 +1241,7 @@ export class Draft implements LoadDraft {
             tables: [...named.keys()],
             // A graph file's one name holds both kinds, so it says nothing of what it held.
             ...(read.tables.every((held) => held.table.fixed) ? {} : { tableRows: [...named.values()] }),
+            ...delimiterOf(read),
             ...keptChoices(choices),
             // A graph file's tables are the format's own, so only a table's roles are worth keeping.
             ...(read.tables.every((held) => held.table.fixed) ? {} : { mapping: plan.mapping }),
@@ -1252,11 +1314,12 @@ export class Draft implements LoadDraft {
             return this.mapping;
         }
 
+        const named = byTableId(mapping, this.mapping);
         let given: Readonly<Record<string, TableMapping>>;
-        if ("tables" in mapping) {
-            given = mapping.tables;
+        if ("tables" in named) {
+            given = named.tables;
         } else if (read.tables.length === 1) {
-            given = { [read.tables[0].table.id]: mapping };
+            given = { [read.tables[0].table.id]: named };
         } else {
             throw badCommand("A mapping for a source with several tables names each table by id.", {
                 tables: read.tables.map((each) => each.table.id),
@@ -1821,8 +1884,9 @@ function knownFieldsOf(
         return {};
     }
 
+    const named = byTableId(given, mapping);
     const tables: Readonly<Record<string, TableMapping>> =
-        "tables" in given ? given.tables : { [read.tables[0].table.id]: given };
+        "tables" in named ? named.tables : { [read.tables[0].table.id]: named };
     const out: Record<string, string | null> = {};
     for (const [id, choice] of Object.entries(tables)) {
         Object.assign(out, tableFields(mapping.tables[id].rowsAre === "nodes", choice));

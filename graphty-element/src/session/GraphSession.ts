@@ -25,6 +25,7 @@ import { sessionColumns } from "../algorithms/input/columns";
 import { shareInputs } from "../algorithms/input/ScopedInput";
 import type { Tour } from "../camera/tour";
 import type { CameraState } from "../camera/types";
+import type { CameraGestureKind } from "../cameras/gestureEnd";
 import { arrangedDimension, LAYOUT_CATALOG, LAYOUT_DESCRIPTORS } from "../catalog/layouts";
 import { readingOfScope } from "../catalog/sets/parse";
 import type {
@@ -62,6 +63,7 @@ import { type EnabledFeatures, pageDefaultFeatures, resolveFeatures } from "../f
 import { graphvizAvailability } from "../layout/graphviz/availability";
 import { GRAPHVIZ_PACKAGE } from "../layout/graphviz/engines";
 import { GraphtyLogger } from "../logging/GraphtyLogger";
+import { eachAdjacentArc } from "./adjacency";
 import { type AssetsApiInternal, createAssetsApi } from "./assets/AssetsApi";
 import { dataRevisionOf, type InputCounters, inputCountersOf } from "./attributes";
 import { createSessionCatalog, SESSION_CATALOG_TABLES } from "./catalog";
@@ -79,7 +81,7 @@ import {
     type MachineCalibration,
 } from "./cost";
 import { headlessDataService, SessionData, sliceRecords } from "./data";
-import { dispatcherOf, registerDispatcher, registerSessionRuns } from "./dispatchers";
+import { dispatcherOf, registerDispatcher, registerSessionData, registerSessionRuns } from "./dispatchers";
 import { createGroupsApi, type GroupsApi } from "./groups";
 import { createJournal, type JournalApi } from "./journal";
 import { type LayoutRecommendation, recommendLayout } from "./layout";
@@ -102,13 +104,15 @@ import {
     type PlanningContext,
     type SessionCommand,
 } from "./planning";
-export { dispatcherOf, sessionRunsOf } from "./dispatchers";
+export { dispatcherOf, sessionDataOf, sessionRunsOf } from "./dispatchers";
 import { ANNOTATIONS_VALUE, type DrawnAnnotation, type DrawnAnnotations, drawnAnnotationsOf } from "./annotations";
+import { graphsOf, type SessionGraphs } from "./graphs/GraphsApi";
 import { boundaryOf, projectBoundary } from "./project/boundary";
 import { dataDigest } from "./project/digest";
 import {
     Dispatcher,
     type DispatchFunction,
+    type JournalTrigger,
     runQueueScheduler,
     type Scheduler,
     type TransactionOptions as DispatchOptions,
@@ -206,6 +210,7 @@ import {
     type ElementPaint,
     type ElementRemaps,
     type RepaintEngine,
+    type ResolvedStyle,
 } from "./styles/repaint";
 import { createScaleRegistry } from "./styles/scales";
 import { selectorScope } from "./styles/selector";
@@ -598,6 +603,7 @@ class Session implements ElementSession {
     readonly shaders: SessionShaders;
     readonly views: SessionViews;
     readonly tours: SessionTours;
+    readonly graphs: SessionGraphs;
     readonly annotations: SessionAnnotations;
     readonly layout: SessionLayout;
     readonly paint: ElementPaint;
@@ -814,11 +820,13 @@ class Session implements ElementSession {
         registerDispatcher(this, this.dispatcher);
         LANES.set(this, this.store);
         registerSessionRuns(this, this.sessionRuns);
+        registerSessionData(this, parts.data);
         this.history = historyOf(this.dispatcher, () => version);
         this.views = viewsOf(this.dispatcher, (names) => {
             publish(this.watchers, "views:seeded", { names });
         });
         this.tours = toursOf(this.dispatcher);
+        this.graphs = graphsOf(this);
         this.annotations = annotationsOf(this.dispatcher);
         this.runner = new LayoutRunner({
             // The working graph, never the store: a hidden node is not laid out.
@@ -1095,17 +1103,24 @@ class Session implements ElementSession {
      */
     private scopeOf(scope: DispatchScope): TransactionScope {
         const via: DispatchFunction = (each, options) => scope.dispatch(each, options);
+        // A run started through it carries the transaction's trigger, as its journal entry does.
+        const trigger = this.dispatcher.triggerOf(scope);
         // Every verb of a part runs with its dispatches routed into the transaction, so
         // `tx.styles.add` and `tx.data.addNodes` join it exactly as `tx.execute` does.
-        const parts = Object.fromEntries(TX_PARTS.map((name) => [name, { value: this.routedPart(this[name], via) }]));
+        const parts = Object.fromEntries(
+            TX_PARTS.map((name) => [name, { value: this.routedPart(this[name], via, trigger) }]),
+        );
         const tx: TransactionScope = Object.create(this, {
             ...parts,
             execute: {
                 value: <C extends SessionCommand>(command: C) =>
-                    this.executeThrough(command, via, (_label, body) => body(via)),
+                    this.dispatcher.triggered(trigger, () =>
+                        this.executeThrough(command, via, (_label, body) => body(via)),
+                    ),
             },
             run: {
-                value: (command: AlgorithmRunCommand, options?: RunOptions) => this.startCommand(via, command, options),
+                value: (command: AlgorithmRunCommand, options?: RunOptions) =>
+                    this.dispatcher.triggered(trigger, () => this.startCommand(via, command, options)),
             },
             // Its layout verbs join the transaction too.
             layout: {
@@ -1132,15 +1147,18 @@ class Session implements ElementSession {
      * read from it are handed back as they are.
      * @param part - The part.
      * @param via - Where its dispatches go.
+     * @param trigger - Why the session runs what its verbs start, when it is not a direct call.
      * @returns The routed part.
      */
-    private routedPart<P extends object>(part: P, via: DispatchFunction): P {
+    private routedPart<P extends object>(part: P, via: DispatchFunction, trigger?: JournalTrigger): P {
         return new Proxy(Object.create(null) as P, {
             get: (_target, key) => {
                 const value: unknown = Reflect.get(part, key, part);
                 return typeof value === "function"
                     ? (...args: unknown[]): unknown =>
-                          this.dispatcher.routed(via, (): unknown => Reflect.apply(value, part, args))
+                          this.dispatcher.routed(via, (): unknown =>
+                              this.dispatcher.triggered(trigger, (): unknown => Reflect.apply(value, part, args)),
+                          )
                     : value;
             },
             // A setter (`tx.visibility.showContext = true`) dispatches too: without this trap the
@@ -1469,6 +1487,14 @@ class Session implements ElementSession {
             "canvas:element-click",
             "node" in target ? { node: target.node } : { edge: target.edge },
         );
+    }
+
+    /**
+     * Publishes `camera:gesture-end`.
+     * @param kind - What the gesture did.
+     */
+    cameraGestureEnd(kind: CameraGestureKind): void {
+        publish(this.watchers, "camera:gesture-end", { kind });
     }
 
     /**
@@ -3092,6 +3118,65 @@ function edgeIndexOf(readSnapshot: () => GraphSnapshot): (id: EdgeId) => number 
 }
 
 /**
+ * The renderer's reads of edges, with `edge.colorFrom` resolved: an edge that takes its color from
+ * an end node is handed that node's painted `node.color` as its `edge.color`, and a pass that
+ * repaints a node repaints the edges that follow it, so the line keeps up with the node.
+ * @param engine - The repaint engine.
+ * @param indexedBy - The snapshot whose rows the engine's indices are, or null before the first pass.
+ * @returns The edge style and the edges the last pass painted.
+ */
+function edgeColorsFromNodes(
+    engine: RepaintEngine,
+    indexedBy: () => GraphSnapshot | null,
+): { styleOf: (index: number) => ResolvedStyle; lastPainted: () => ArrayLike<number> } {
+    // Set once any edge has been read with `edge.colorFrom`, so a graph that never uses it pays nothing per node pass.
+    // ponytail: never cleared, so a removed colorFrom layer keeps the O(degree) walk below; clear it when that shows.
+    let followed = false;
+
+    const styleOf = (index: number): ResolvedStyle => {
+        const style = engine.styleOf("edge", index);
+        const from = style["edge.colorFrom"];
+        const graph = indexedBy();
+        if (from === undefined || graph === null || index >= graph.edgeCount) {
+            return style;
+        }
+
+        followed = true;
+        const { src, dst } = graph.edgeList();
+        const node = from === "source" ? src[index] : dst[index];
+        const color = engine.styleOf("node", node)["node.color"];
+
+        return color === undefined ? style : { ...style, "edge.color": color };
+    };
+
+    const lastPainted = (): ArrayLike<number> => {
+        const edges = engine.lastPainted("edge");
+        const nodes = engine.lastPainted("node");
+        const graph = indexedBy();
+        if (!followed || nodes.length === 0 || graph === null) {
+            return edges;
+        }
+
+        const all = new Set<number>(Array.from(edges));
+        const { src, dst } = graph.edgeList();
+        for (let at = 0; at < nodes.length; at++) {
+            const node = nodes[at];
+            eachAdjacentArc(graph, node, "all", (_other, edge) => {
+                const from = engine.styleOf("edge", edge)["edge.colorFrom"];
+                const end = from === "source" ? src[edge] : dst[edge];
+                if (from !== undefined && end === node) {
+                    all.add(edge);
+                }
+            });
+        }
+
+        return all.size === edges.length ? edges : Array.from(all);
+    };
+
+    return { styleOf, lastPainted };
+}
+
+/**
  * Wrap the repaint so that a pass over data that has moved prepares its bindings again.
  *
  * A prepared binding's domain, its percentile clamp and its category list are properties of the
@@ -3142,6 +3227,8 @@ function repaintAgainstCurrentData(
         }
     };
 
+    const edgeColors = edgeColorsFromNodes(engine, () => indexedBy);
+
     return {
         // The renderer's half: reads, plus the first draw. It carries neither `repaint` nor
         // `invalidate`, so a renderer cannot paint behind the stack's back.
@@ -3151,12 +3238,12 @@ function repaintAgainstCurrentData(
 
                 return engine.repaintAll(stack, context);
             },
-            styleOf: (target, index) => engine.styleOf(target, index),
+            styleOf: (target, index) => (target === "edge" ? edgeColors.styleOf(index) : engine.styleOf(target, index)),
             plainText: (target, index, channel) => engine.plainText(target, index, channel),
             meshKeyOf: (target, index) => engine.meshKeyOf(target, index),
             meshStyleOf: (target, key) => engine.meshStyleOf(target, key),
             meshCount: (target) => engine.meshCount(target),
-            lastPainted: (target) => engine.lastPainted(target),
+            lastPainted: (target) => (target === "edge" ? edgeColors.lastPainted() : engine.lastPainted(target)),
             lastPaintRowsOnly: () => engine.lastPaintRowsOnly(),
             onPainted: (listener) => engine.onPainted(listener),
             painting: () => engine.painting(),
@@ -3414,7 +3501,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 const send = dispatcher.capturedDispatch();
                 return (mutation) => send({ op: "data.apply", mutation });
             },
-            importer: (signal) => dispatcher.capturedDispatch(signal === undefined ? {} : { signal }),
+            importer: (options) => dispatcher.capturedDispatch(options),
             loadLine: loadLineOf(dispatcher),
             edgeMeaning: (counter) => dispatcher.services.data?.edgeMeaning?.(counter),
             ceilings,
@@ -3446,7 +3533,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             progress: (change) => {
                 publish(watchers, "progress:changed", change);
             },
-            send: (command) => dispatcher.dispatch(command),
+            send: (command, stamp) => dispatcher.dispatch(command, stamp),
             emit: (event, detail) => {
                 publish(watchers, event, detail);
             },

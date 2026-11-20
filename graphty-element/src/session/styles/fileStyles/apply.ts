@@ -201,6 +201,17 @@ export async function applyFileStyles(
     const { styles, options } = choiceOf(command);
     const loaded = outcome !== null && command.measure === undefined;
     const replacing = loaded && command.mode !== "merge";
+    // A fixed box frames the stored positions of the file that set it: a replacing load that does not frame as its
+    // file does drops it, so the new graph is not framed by the last file's box.
+    const framing = ctx.services.config?.().framing;
+    if (replacing && framing?.box !== undefined && (styles !== "file" || options.framing !== "file")) {
+        const { extent, padding } = framing;
+        await ctx.inline({
+            op: "config.set",
+            values: { framing: { extent, ...(padding === undefined ? {} : { padding }) } },
+        });
+    }
+
     if (!loaded || styles !== "file") {
         return null;
     }

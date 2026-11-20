@@ -85,7 +85,9 @@ await element.session.config.set({ framing: undefined }); // back to framing eve
 ```
 
 `box` frames a fixed area instead of the nodes, given by its smallest and largest x and y in the
-units node positions are drawn in: the canvas shows that area whatever the nodes' extent.
+units node positions are drawn in: the canvas shows that area whatever the nodes' extent. It frames
+stored positions, so it applies only while the `"fixed"` layout draws them; under any other layout
+the nodes are framed. A replacing load that does not set it from its file drops it.
 
 ```typescript
 await element.session.config.set({

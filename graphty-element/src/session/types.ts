@@ -3925,7 +3925,8 @@ export interface GraphFraming {
     /**
      * A fixed box to frame in place of the nodes, in the units node positions are drawn in (`min` its smallest x and
      * y, `max` its largest): the canvas shows this box whatever the nodes' extent, so a node outside it runs past the
-     * edge and `extent` is not read. Absent, the nodes are framed. A Pajek file's 0..1 square is framed so on import
+     * edge and `extent` is not read. Read only while the `"fixed"` layout draws stored positions; under any other
+     * layout, or absent, the nodes are framed. A replacing load that does not set it from its file drops it. A Pajek file's 0..1 square is framed so on import
      * with file style option `framing: "file"`, as Pajek fits it to its Draw window.
      * @since 3.40.0
      */

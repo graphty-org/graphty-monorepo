@@ -3632,12 +3632,14 @@ export class UpdateManager implements Manager {
     }
 
     /**
-     * The box the project setting `framing.box` fixes, in world space: framed whatever the nodes' extent.
-     * @returns The box, or undefined when the setting fixes none.
+     * The box the project setting `framing.box` fixes, in world space: framed whatever the nodes' extent, while the
+     * fixed layout draws the stored positions it frames.
+     * @returns The box, or undefined when the setting fixes none or another layout runs.
      */
     private fixedFraming(): FramingBox | undefined {
         const fixed = this.framing?.box;
-        if (fixed === undefined) {
+        // The box is the file's frame for its own stored positions: any other layout draws the nodes elsewhere.
+        if (fixed === undefined || this.layoutManager.layoutType !== "fixed") {
             return undefined;
         }
 

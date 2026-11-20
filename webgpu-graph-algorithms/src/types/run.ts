@@ -9,5 +9,6 @@ export interface GpuRunOptions {
     readonly dest?: Float32Array | Uint32Array | undefined;
     /** Checked between batches; E_ABORTED. */
     readonly signal?: AbortSignal | undefined;
+    /** Called after every batch with the work done and the total: `maxIterations` for an iterative algorithm, twice that for `hits`, 1 for `connectedComponents`. */
     readonly onProgress?: ((done: number, total: number) => void) | undefined;
 }

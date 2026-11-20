@@ -802,7 +802,7 @@ function chooseRoute(n: number, noAllPairs: boolean, weighted: boolean, tuning: 
  * @internal
  * @param ctx - the context whose device runs the kernels
  * @param s - the snapshot (uploaded through ctx.residency, or found there)
- * @param options - `weighted`, `harmonic` and a sampled run's `sources` honoured, the placeholder `maxIterations` / `tolerance` refused when defined, plus dest / signal / onProgress
+ * @param options - `weighted`, `harmonic` and a sampled run's `sources` honored, the placeholder `maxIterations` / `tolerance` refused when defined, plus dest / signal / onProgress
  * @param tuning - the knobs
  * @returns the scores, the batches run, `converged: true`, `precision: "f32"` and `sourcesUsed`
  */

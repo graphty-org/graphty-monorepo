@@ -1,0 +1,13 @@
+{
+    "$schema": "https://graphty.app/schema/documents/graphty-results/v2.json",
+    "kind": "graphty-results",
+    "version": 2,
+    "generator": {
+        "name": "graphty-element",
+        "version": "3.40.0"
+    },
+    "bindsTo": {
+        "data": "minimal-data"
+    },
+    "runs": {}
+}

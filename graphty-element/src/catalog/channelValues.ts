@@ -65,6 +65,14 @@ const VALUE_NAMES: Readonly<Record<string, string>> = {
     "repeat-y": "Repeat down",
     min: "Smaller",
     max: "Larger",
+    // The CSS numeric font weights `labelWeight` takes, by their common names.
+    "100": "Thin",
+    "200": "Extra light",
+    "300": "Light",
+    "500": "Medium",
+    "600": "Semi bold",
+    "800": "Extra bold",
+    "900": "Black",
 };
 
 /**

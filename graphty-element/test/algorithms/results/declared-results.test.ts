@@ -1,10 +1,10 @@
 /**
- * @file Every community, path and set algorithm publishes what its shape and the catalogue say
+ * @file Every community, path and set algorithm publishes what its shape and the catalog say
  * it does.
  *
  * Three things are checked here and they fail for three different reasons. The shape contract
  * fails when an algorithm skips a field its shape promised, which is what makes
- * `results.<run>.group` readable without opening the catalogue. The catalogue agreement fails
+ * `results.<run>.group` readable without opening the catalog. The catalog agreement fails
  * when a run publishes a field the descriptor never declared, or declares one at a type the
  * descriptor spells differently -- the two halves of the same fact, held against each other. And
  * the run context checks fail when an algorithm cannot be watched or stopped, which is the whole
@@ -13,6 +13,7 @@
 
 import { assert, describe, it } from "vitest";
 
+import { AllPathsAlgorithm } from "../../../src/algorithms/AllPathsAlgorithm";
 import { AStarAlgorithm } from "../../../src/algorithms/AStarAlgorithm";
 import { BellmanFordAlgorithm } from "../../../src/algorithms/BellmanFordAlgorithm";
 import { BFSAlgorithm } from "../../../src/algorithms/BFSAlgorithm";
@@ -72,13 +73,13 @@ const FIXTURE = {
     ],
 };
 
-/** One algorithm under test, with the catalogue key its result has to agree with. */
+/** One algorithm under test, with the catalog key its result has to agree with. */
 interface Case {
     /** What to call it in a test name. */
     readonly name: string;
-    /** The catalogue key whose descriptor declares this algorithm's fields. */
+    /** The catalog key whose descriptor declares this algorithm's fields. */
     readonly key: string;
-    /** The shape this run publishes at, which is the catalogue's except where noted. */
+    /** The shape this run publishes at, which is the catalog's except where noted. */
     readonly shape: ResultShape;
     /** The method the caveats must name. */
     readonly method: string;
@@ -138,7 +139,7 @@ const CASES: readonly Case[] = [
     {
         // Asked for every pair, shortest-path stops being one route: there is no `onPath` to
         // publish. What it measures instead is every node's eccentricity, so it is a node metric
-        // under a key of its own -- the catalogue and the run agree on the shape, which is what
+        // under a key of its own -- the catalog and the run agree on the shape, which is what
         // lets the element derive a picture from it.
         name: "floyd-warshall",
         key: "all-pairs-distance",
@@ -206,6 +207,13 @@ const CASES: readonly Case[] = [
         make: (g) => new AStarAlgorithm(g, { source: "A", target: "F" }),
     },
     {
+        name: "all paths",
+        key: "all-paths",
+        shape: "node-set",
+        method: "all-paths",
+        make: (g) => new AllPathsAlgorithm(g, { source: "A", target: "F" }),
+    },
+    {
         name: "edge betweenness",
         key: "edge-betweenness",
         shape: "edge-metric",
@@ -237,7 +245,7 @@ interface RecordingContext extends AlgorithmRunContext {
 }
 
 /**
- * A run context that records progress and can be cancelled.
+ * A run context that records progress and can be canceled.
  * @param signal - The signal to hand the run.
  * @returns The context.
  */

@@ -210,8 +210,8 @@ export function sourceOf(property: string, id: string, baseline: Baseline | unde
 }
 
 /**
- * Whether a property is measured in a judgement, and which of a list of elements it judged.
- * @param run - the judgement
+ * Whether a property is measured in a judgment, and which of a list of elements it judged.
+ * @param run - the judgment
  * @param property - the property
  * @param ids - the elements asked about
  * @returns the elements it judged
@@ -230,7 +230,7 @@ function measured(run: Judgement, property: string, ids: readonly string[]): str
  * either side's id; and every one of a property the run judges only on the drawing as a whole (an own-layout sample's
  * `edge.curve`, judged as the share of lines bent since comparator round 5), however drawn. A run that names no judged
  * elements at all (a sample that drew nothing) says nothing is gone.
- * @param run - the judgement
+ * @param run - the judgment
  * @param notMeasurable - the known failures not judged now, by property
  * @returns those whose element is gone, by property
  */
@@ -265,7 +265,7 @@ function goneFromBoth(run: Judgement, notMeasurable: Record<string, string[]>): 
  * @param known - the elements known to fail each property of this key
  * @param recorded - the recorded pass rates of this key
  * @param options - the rest
- * @param options.baseline - the baseline drawing's judgements, when the run judged one
+ * @param options.baseline - the baseline drawing's judgments, when the run judged one
  * @param options.section - where the key's recorded pass rates are kept (default: with the real programs)
  * @param options.gpu - the GPU path it was drawn on (`GRAPHTY_BROWSER_GPU`, "none" when unset)
  * @param options.gateFloors - fail an element-judged rate below its floor (the oracle scorecard)
@@ -570,6 +570,64 @@ export function ratchetKnown(
     }
     const reasons = added > 0 ? [...records.reasons, record] : records.reasons;
     return { records: { about: records.about, known: sortedByKey(known), reasons }, removed, added, unlisted };
+}
+
+/**
+ * Moves listed known failures to a new reason, so they cite the issue that tracks them now (an accepted difference, or a
+ * defect split off into its own issue): each named element comes off every reason that listed it and onto one new
+ * reason. A reason left listing nothing is dropped. The elements stay on the known failures. Needs no run; when none
+ * of the named elements is listed, the records come back unchanged.
+ * @param records - the known failures as committed
+ * @param recite - what to move and why
+ * @param recite.reason - the new reason, naming the issue tracking these elements (`#1234`)
+ * @param recite.date - `YYYY-MM-DD`
+ * @param recite.keys - the keys
+ * @param recite.ids - the element ids
+ * @param recite.properties - only these properties (all when omitted)
+ * @returns the new records and how many elements moved
+ */
+export function reciteKnown(
+    records: KnownRecords,
+    recite: {
+        reason: string;
+        date: string;
+        keys: readonly string[];
+        ids: readonly string[];
+        properties?: readonly string[];
+    },
+): { records: KnownRecords; moved: number } {
+    checkReason(recite.reason, "re-citing known failures");
+    const added: KnownReason["added"] = {};
+    let moved = 0;
+    for (const key of recite.keys) {
+        for (const [property, ids] of Object.entries(records.known[key] ?? {})) {
+            const hit = named(recite, property) ? ids.filter((id) => recite.ids.includes(id)) : [];
+            if (hit.length > 0) {
+                (added[key] ??= {})[property] = hit;
+                moved += hit.length;
+            }
+        }
+    }
+    if (moved === 0) {
+        return { records, moved };
+    }
+    const isMoved = (key: string, property: string, id: string): boolean => (added[key]?.[property] ?? []).includes(id);
+    const reasons = records.reasons
+        .map((r) => {
+            const left: KnownReason["added"] = {};
+            for (const [key, props] of Object.entries(r.added)) {
+                for (const [property, ids] of Object.entries(props)) {
+                    const kept = ids.filter((id) => !isMoved(key, property, id));
+                    if (kept.length > 0) {
+                        (left[key] ??= {})[property] = kept;
+                    }
+                }
+            }
+            return { ...r, added: left };
+        })
+        .filter((r) => Object.keys(r.added).length > 0);
+    reasons.push({ date: recite.date, reason: recite.reason, added, sources: { unclassified: moved } });
+    return { records: { ...records, reasons }, moved };
 }
 
 /**

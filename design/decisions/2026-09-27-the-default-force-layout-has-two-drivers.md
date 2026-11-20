@@ -2,7 +2,7 @@
 
 Date: 2026-09-27
 Decided by: this change, from the measurement below; issue #439 asked for it
-Changes: nothing in the design is contradicted. It completes what the layout catalogue's own file
+Changes: nothing in the design is contradicted. It completes what the layout catalog's own file
 comment anticipated -- "More than one engine can draw one arrangement. `force` is drawn by ngraph
 today and could be" -- and gives `design/decisions/2026-09-21-spring-electrical-fails-loudly-on-set.md`
 the case it did not have: an accelerated force layout a consumer never has to ask for by name.
@@ -51,7 +51,7 @@ load it happened to be carrying. Minimum and median over 8 to 50 steps, millisec
 | 20,000  | 272               | 315    | 226                | 281    |
 | 100,000 | 1,816             | 2,025  | 2,423              | 4,725  |
 
-Two things follow, and the first corrects a claim the catalogue was making. ngraph does **not**
+Two things follow, and the first corrects a claim the catalog was making. ngraph does **not**
 "stay interactive on graphs of a hundred thousand nodes": one step there costs about two seconds,
 which is half a frame per second. And the curve leaves the frame budget between one and two
 thousand nodes -- 2.6 to 3.8 ms at a thousand, 12 to 13 ms at two thousand, where a 60 Hz frame has
@@ -89,7 +89,7 @@ direction happens when an accelerator is detached or lost, or when a graph shrin
 
 ## Live additions
 
-The catalogue advertises ngraph as accepting nodes and edges added while it is running, and the
+The catalog advertises ngraph as accepting nodes and edges added while it is running, and the
 accelerated driver keeps that promise by a different route: a data load freezes a new snapshot, the
 element hands it to the running simulation (`SimulationLayoutEngine.reload`), and the arrangement is
 carried over in the simulation's own units. That path was already in place for `forceatlas2` and

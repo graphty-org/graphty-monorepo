@@ -29,7 +29,7 @@ on screen (Data > Sources: "41 rows, 41 edges").
   path is 3; the answer was on screen at her 3rd action (04.png). The rest was looking for a list of
   the 20 people.
 - **Wrong turns:** 1. Step 6 (07.png): clicked "Node table" expecting the list of names; it opened
-  "Add to friends", an empty import form, and she cancelled. Reaching Sources through the "From
+  "Add to friends", an empty import form, and she canceled. Reaching Sources through the "From
   friends.csv" link instead of the Data rail button is a different route to the same screen, not a
   wrong turn.
 - **False "done":** none. "20 and 41", "41 rows, 41 edges", "Nothing seems dropped" and "Ava ...

@@ -203,7 +203,7 @@ An advanced layout is one of two kinds:
   settled. Force-directed arrangements are this. Extend `LayoutEngine` and register the class with
   `LayoutEngine.register(MyLayout)`.
 
-Either way, from the moment it is registered the layout is in the catalogue a picker reads and is
+Either way, from the moment it is registered the layout is in the catalog a picker reads and is
 chosen by its name.
 
 ### One key, not two
@@ -312,7 +312,7 @@ removed or rewired in the same change, the whole graph is arranged again.
 **A long arrangement should watch `signal`.** When the reader switches layout or the graph changes
 before you answer, the signal aborts and whatever you return afterwards is ignored.
 
-**Say whether you read edge weights** with `descriptor.honoursWeights: true`, and whether you can
+**Say whether you read edge weights** with `descriptor.honorsWeights: true`, and whether you can
 lay out a set while holding the rest with `descriptor.scoped: true`. Both default to false.
 
 A failure is reported on the element's `error` event with `context: "layout"`; throw a
@@ -321,7 +321,7 @@ A failure is reported on the element's `error` event with `context: "layout"`; t
 #### Layouts written on `SimpleLayoutEngine`
 
 `SimpleLayoutEngine` -- a class with a `doLayout()` that fills `this.positions` or assigns
-`this.result` -- is deprecated in favour of `registerSnapshotLayout` and keeps working through
+`this.result` -- is deprecated in favor of `registerSnapshotLayout` and keeps working through
 graphty-element 3.x, registered with `LayoutEngine.register` as before. Moving one over is
 mechanical: the body of `doLayout` becomes `compute`, `this.graph` becomes `input.graph`,
 `this.sourceGraph` becomes `input.stored`, `this.startPositions(dim)` becomes `input.initial` when
@@ -505,7 +505,7 @@ re-freeze or an accelerator read the array.
 
 A reader who drags a node pins it, and a pin now survives a layout change, a 2D/3D toggle and a
 template apply. The refusal lives in the element, on the write your coordinates pass through, so
-an engine that has never heard of pinning honours pins anyway: your arrangement is computed over
+an engine that has never heard of pinning honors pins anyway: your arrangement is computed over
 every node, and the write onto a pinned row is dropped.
 
 The one thing you must not do is write positions by some other route. Everything you place goes
@@ -523,13 +523,13 @@ does.
 ```ts
 class RingWalk extends LayoutEngine {
     static type = "acme-ring";
-    static honoursWeights = true;
+    static honorsWeights = true;
 }
 ```
 
-`honoursWeights` defaults to `false`, and false is right for most layouts: of the element's own
+`honorsWeights` defaults to `false`, and false is right for most layouts: of the element's own
 sixteen only Kamada-Kawai and ForceAtlas2 have a weight channel at all. Declaring it `true` puts
-`honoursWeights: true` on your descriptor in `session.catalog.layouts()`, which is how a settings
+`honorsWeights: true` on your descriptor in `session.catalog.layouts()`, which is how a settings
 panel decides whether to offer a "use edge weights" control for your layout. Declaring it on a
 layout that ignores weights advertises a control that changes nothing.
 
@@ -621,7 +621,7 @@ constructor(opts: { radius?: number } = {}) {
 
 **A layout cannot add an engine to an existing arrangement.** A third force-directed
 implementation cannot register under `force`: the arrangement table is the element's editorial
-judgement about which of its own engines to prefer, which is not a judgement a third party can
+judgment about which of its own engines to prefer, which is not a judgment a third party can
 make on the element's behalf. Register your own key.
 
 **A live simulation has no progress and no cancellation**, for a built-in or a plugin. A

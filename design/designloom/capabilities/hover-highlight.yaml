@@ -3,7 +3,8 @@ name: Hover Highlighting
 category: interaction
 description: Highlight nodes and their connections when the cursor hovers over them. Show related elements (neighbors,
     edges) prominently while dimming unrelated elements. Enable exploration without commitment.
-status: planned
+status: implemented
+notes: "Ships: the hovered calculated value (graphty-element/src/NodeBehavior.ts) and its Hovered style layer."
 algorithms: []
 used_by_workflows:
     - W02

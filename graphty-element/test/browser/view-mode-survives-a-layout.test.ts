@@ -15,7 +15,7 @@
  * element.layout = "circular";
  * ```
  *
- * queued the switch and then cancelled it. Nothing threw, nothing was reported, and the element's
+ * queued the switch and then canceled it. Nothing threw, nothing was reported, and the element's
  * own `viewMode` getter went on answering `"2d"` because it answers from a field of its own --
  * while `graph.getViewMode()` said `"3d"` and the scene was drawn through a perspective camera.
  * Reversing the two lines worked. Setting the mode a second time, a moment later, worked. Twelve

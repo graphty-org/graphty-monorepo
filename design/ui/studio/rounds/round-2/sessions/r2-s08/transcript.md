@@ -56,7 +56,7 @@ Command: `--step $S --click-at 680,864` -> 05.png (tool: button "Analyze")
 
 Saw: a list popped up over the picture, "Filter analyses", heading "Rank nodes and edges", then
 Degree, Betweenness, Edge betweenness, Closeness, PageRank (with a blue "Start here" tag),
-Eigenvector, Katz, HITS, All-pairs distance, Depth-first order, Most flow... each with a grey
+Eigenvector, Katz, HITS, All-pairs distance, Depth-first order, Most flow... each with a gray
 one-liner.
 
 Elena (hesitates): "Ugh, betweenness, eigenvector, Katz... I don't know any of these. 'Rank nodes'
@@ -123,7 +123,7 @@ next to the 1 -- maybe that links it to something. Trying the chain."
 Command: `--step $S --click-at 1381,264` -> 11.png (tool: button "Size by attribute")
 
 Saw: a pop-up "Size by attribute", "Find an attribute", under "Influence": Influence, Influence rank,
-Influence percentile. Below, greyed: "Cannot be used: Holds groups, not amounts -- id".
+Influence percentile. Below, grayed: "Cannot be used: Holds groups, not amounts -- id".
 
 Elena: "Size by... yes, Influence. Plain 'Influence', same as the color."
 
@@ -191,7 +191,7 @@ Command: `--step $S --click "Export"` -> 17.png (tool: ambiguous with the dialog
 button; a file was saved: downloads/friends_current-view.png, 1806 x 1720)
 
 Saw (opening the file): my drawing with all the names, and a white box top-left: "Size: Influence"
-with a grey wedge 0.04382 to 0.06608, and "Color: Influence" with the orange-to-dark-brown bar,
+with a gray wedge 0.04382 to 0.06608, and "Color: Influence" with the orange-to-dark-brown bar,
 same numbers. Ava is still drawn with a big yellow ring and her dot is an olive/khaki color, not
 orange like everyone else. At the bottom "Chloe" is printed right on top of Farah's big dot and is
 hard to read; "Eli" and "Dev" are squashed together.

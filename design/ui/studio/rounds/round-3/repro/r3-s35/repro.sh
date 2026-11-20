@@ -2,7 +2,7 @@
 # Repro of round 3 session r3-s35 (T11, Les Miserables, untangle the drawing).
 # Checks two things the session met:
 #  1. In the Force layout form, typing a new Gravity value leaves the button reading "Applied"
-#     (greyed) until Enter is pressed in the field; there is no "Apply" to click. Seen in 13.png.
+#     (grayed) until Enter is pressed in the field; there is no "Apply" to click. Seen in 13.png.
 #  2. After Force is applied with Shape 2D the toolbar chip still reads "3D". Seen in 11.png, 15.png.
 #     The chip is opened at the end to show what it offers.
 # Writes PNGs and run.log into ./run/ beside this script.

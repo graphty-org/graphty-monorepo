@@ -153,7 +153,7 @@ export class EdgeIdTarget {
         this.target.onAfterRenderObservable.add(() => {
             // On WebGPU the draw in the frame that replaced the lines' vertex buffer comes out
             // empty (measured on SwiftShader), so only a later frame's draw counts.
-            if (this.material.isReady(this.mesh) && !(engine.isWebGPU && this.builtIn === scene.getFrameId())) {
+            if (this.materialReady() && !(engine.isWebGPU && this.builtIn === scene.getFrameId())) {
                 this.drawnIn = scene.getFrameId();
                 this.drawnRequested = false;
                 this.counts.draws++;
@@ -181,7 +181,7 @@ export class EdgeIdTarget {
         }
 
         const fresh = this.drawnIn === this.scene.getFrameId() && this.fits();
-        if (!fresh && !(this.target.isReadyForRendering() && this.material.isReady(this.mesh))) {
+        if (!fresh && !(this.target.isReadyForRendering() && this.materialReady())) {
             return null;
         }
 
@@ -203,6 +203,16 @@ export class EdgeIdTarget {
             this.drawnRequested = true;
             this.host.requestFrame();
         }).then(() => this.window(x, y, radius, false));
+    }
+
+    /**
+     * Whether the lines' material is ready to draw them.
+     * @returns True once its effect has compiled.
+     */
+    private materialReady(): boolean {
+        // Babylon.js 9 reads the mesh's first submesh here, and a mesh given no lines yet has
+        // none; with no geometry there is nothing mesh-specific to ask about anyway.
+        return this.material.isReady(this.mesh.getTotalVertices() > 0 ? this.mesh : undefined);
     }
 
     /** Stop drawing the target. */

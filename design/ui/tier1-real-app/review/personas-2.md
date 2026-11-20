@@ -60,7 +60,7 @@ precedence rule.
 
 Task: on a bipartite user-item graph, color by a k-means embedding cluster (integers 0 to 63) and
 size by a predicted score in [0, 1]. Clusters: 64 distinct integers among 1M nodes -- the
-inference threshold is unstated, so he must declare. Then 56 of 64 clusters are one grey (overflow
+inference threshold is unstated, so he must declare. Then 56 of 64 clusters are one gray (overflow
 "other" at 8, EncodingSpec.ts:87-92), and `maxCategories` on the legend does not change that.
 Score: "linear or log by its spread" is unspecified; log is wrong for a probability and any zero
 becomes "not plottable" (encoding.ts:125-127). He needs the rule to predict the picture.

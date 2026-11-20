@@ -69,6 +69,10 @@ import type { CodedFact, CodedFactParam } from "../shared";
  *
  * One algorithm's own:
  *
+ * - `all-paths.length-bounded` -- only paths of at most `maxLength` edges were looked for:
+ *   `{ maxLength }`.
+ * - `all-paths.capped` -- the search stopped at its path cap, or at its own step budget, before it
+ *   had found every path: `{ maxPaths, found }`.
  * - `astar.straight-line` -- A* was steered by straight-line distance, so its route is the
  *   cheapest only when every edge weighs at least the distance it spans.
  * - `betweenness.sampled` -- betweenness was estimated from sampled sources, unscaled:
@@ -81,6 +85,8 @@ import type { CodedFact, CodedFactParam } from "../shared";
  * - `bfs.target-reached` -- the walk stopped at its target: `{ target }`.
  * - `bfs.target-unreached` -- the walk never reached its target, so it covered everything
  *   reachable: `{ target }`.
+ * - `bfs.depth-bounded` -- the walk stopped this many steps from its source, so a node further
+ *   away carries nothing, as if unreachable: `{ maxDepth }`.
  * - `dfs.walk` -- the walk's start and when it recorded a node: `{ source, order }`, `order`
  *   `"pre"` (as reached) or `"post"` (as left).
  * - `closeness.sampled` -- closeness was estimated from sampled sources, unscaled:
@@ -165,6 +171,8 @@ export type CaveatCode =
     | "sampled.instead-of-exact"
     | "sampled.exact-past-cap"
     | "sampled.still-past-cap"
+    | "all-paths.length-bounded"
+    | "all-paths.capped"
     | "astar.straight-line"
     | "betweenness.sampled"
     | "betweenness.halved"
@@ -172,6 +180,7 @@ export type CaveatCode =
     | "bfs.origin"
     | "bfs.target-reached"
     | "bfs.target-unreached"
+    | "bfs.depth-bounded"
     | "dfs.walk"
     | "closeness.sampled"
     | "closeness.exact"

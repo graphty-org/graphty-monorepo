@@ -13,6 +13,7 @@ import { GraphBuilder, type GraphSnapshot } from "@graphty/graph-format";
 import { assert, describe, it } from "vitest";
 
 import { type Edge, type NodeIdType, SimpleLayoutEngine } from "../../extend";
+import { fakeEdge } from "../helpers/layout-fakes";
 
 /** A plugin engine that reports what the helper told it. */
 class WeightReadingLayout extends SimpleLayoutEngine {
@@ -53,12 +54,12 @@ function edgesOf(list: readonly (readonly [string, string, number])[]): Edge[] {
     const stored = snapshot.edgeList();
     const edges: Edge[] = [];
     for (let index = 0; index < snapshot.edgeCount; index++) {
-        edges.push({
-            srcId: String(snapshot.ids.idOf(stored.src[index])),
-            dstId: String(snapshot.ids.idOf(stored.dst[index])),
-            index,
-            parentGraph,
-        } as unknown as Edge);
+        edges.push(
+            fakeEdge(String(snapshot.ids.idOf(stored.src[index])), String(snapshot.ids.idOf(stored.dst[index])), {
+                index,
+                parentGraph,
+            }),
+        );
     }
 
     return edges;
@@ -90,7 +91,7 @@ describe("the deprecated pairWeights helper of a SimpleLayoutEngine subclass", (
 
     it("answers null for edges that reach no graph store", () => {
         const engine = new WeightReadingLayout({});
-        const edges = [{ srcId: "a", dstId: "b", index: 0 } as unknown as Edge];
+        const edges = [fakeEdge("a", "b", { index: 0 })];
 
         assert.isNull(engine.weightOf(edges, "a", "b"));
         assert.isNull(engine.weightOf([], "a", "b"));

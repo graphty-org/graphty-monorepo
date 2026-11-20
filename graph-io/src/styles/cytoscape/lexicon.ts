@@ -972,6 +972,53 @@ const IDENTIFIERS: Readonly<Record<StyleTarget, ReadonlyMap<string, string>>> = 
     ]),
 };
 
+/**
+ * The 2.x style identifiers DVisualLexicon maps beside the graphics attributes above (cytoscape-impl ding-impl
+ * DVisualLexicon `addIdentifierMapping`), read only from 2.x style files: the graphics attributes never use them.
+ */
+const STYLE_IDENTIFIERS: Readonly<Record<StyleTarget | "network", ReadonlyMap<string, string>>> = {
+    network: new Map([
+        ["backgroundcolor", "NETWORK_BACKGROUND_PAINT"],
+        ["color", "NETWORK_BACKGROUND_PAINT"],
+    ]),
+    node: new Map([
+        ["nodeselectioncolor", "NODE_SELECTED_PAINT"],
+        ["nodeborderopacity", "NODE_BORDER_TRANSPARENCY"],
+        ["nodelabelopacity", "NODE_LABEL_TRANSPARENCY"],
+        ["nodelabelwidth", "NODE_LABEL_WIDTH"],
+        ["nodeshownestednetwork", "NODE_NESTED_NETWORK_IMAGE_VISIBLE"],
+        ["nodelabelbackgroundshape", "NODE_LABEL_BACKGROUND_SHAPE"],
+        ["nodelabelbackgroundcolor", "NODE_LABEL_BACKGROUND_COLOR"],
+        ["nodelabelbackgroundtransparency", "NODE_LABEL_BACKGROUND_TRANSPARENCY"],
+        ...Array.from({ length: 9 }, (_, i): [string, string] => [
+            `nodecustomgraphics${i + 1}`,
+            `NODE_CUSTOMGRAPHICS_${i + 1}`,
+        ]),
+        ...Array.from({ length: 9 }, (_, i): [string, string] => [
+            `nodecustomgraphicsposition${i + 1}`,
+            `NODE_CUSTOMGRAPHICS_POSITION_${i + 1}`,
+        ]),
+    ]),
+    edge: new Map([
+        ["edgeselectioncolor", "EDGE_STROKE_SELECTED_PAINT"],
+        ["edgelabelopacity", "EDGE_LABEL_TRANSPARENCY"],
+        ["edgelabelwidth", "EDGE_LABEL_WIDTH"],
+        ["edgelabelposition", "EDGE_LABEL_POSITION"],
+    ]),
+};
+
+/**
+ * The visual property a Cytoscape 2.x style identifier (`nodeFillColor`, `edgeLineWidth`) names, as Cytoscape 3
+ * looks it up when it converts a 2.x style.
+ * @param target - the style section
+ * @param id - the identifier, in any case
+ * @returns the visual property's name, or undefined for an identifier Cytoscape does not map
+ */
+export function legacyVisualProperty(target: StyleTarget | "network", id: string): string | undefined {
+    const lower = id.toLowerCase();
+    return STYLE_IDENTIFIERS[target].get(lower) ?? (target === "network" ? undefined : IDENTIFIERS[target].get(lower));
+}
+
 /** Objects nested deeper than this inside one element's graphics are not read. */
 const MAX_VP_DEPTH = 8;
 const VP_NAME = /^[A-Z][A-Z_0-9]+$/;

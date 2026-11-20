@@ -13,8 +13,7 @@ import { InstancedMesh } from "@babylonjs/core/Meshes/instancedMesh.js";
 import type { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 
 import type { EdgeStyleConfig } from "../config/EdgeStyle";
-import type { Edge, EdgeCapEnd } from "../Edge";
-import { drawnLineInWorld } from "../edgeWorldCurve";
+import { type Edge, type EdgeCapEnd, edgeInternals } from "../Edge";
 import type { DrawnNodeSpot, Graph, NodeScreenPosition } from "../Graph";
 import { dataManagerInternals } from "../managers/DataManager";
 import type { ArrowCap } from "../meshes/ArrowCapBatch";
@@ -612,7 +611,7 @@ function edgeLines(
         }
         // Where the canvas draws the line: along its curve, bends or bundle, or straight and stopped at
         // its arrowheads; a line drawn with no slot of its own runs between its nodes' centers.
-        const path = edge === undefined ? null : drawnLineInWorld(edge);
+        const path = edge === undefined ? null : edgeInternals.lineInWorld(edge);
         const points =
             path?.map((p): Point2 => {
                 const at = graph.worldToScreen(p);

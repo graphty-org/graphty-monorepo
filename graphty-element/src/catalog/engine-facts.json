@@ -1,5 +1,70 @@
 {
     "algorithms": {
+        "all-paths": {
+            "options": [
+                {
+                    "name": "source",
+                    "plainName": "Source Node",
+                    "technicalName": "source",
+                    "type": "node-id",
+                    "description": "Node every path starts at (uses first node if not set)",
+                    "default": null
+                },
+                {
+                    "name": "target",
+                    "plainName": "Target Node",
+                    "technicalName": "target",
+                    "type": "node-id",
+                    "description": "Node every path ends at (uses last node if not set)",
+                    "default": null
+                },
+                {
+                    "name": "maxLength",
+                    "plainName": "Max Length",
+                    "technicalName": "maxLength",
+                    "type": "integer",
+                    "description": "The longest path to find, in edges (optional - any length if not set)",
+                    "default": null,
+                    "min": 1
+                },
+                {
+                    "name": "maxPaths",
+                    "plainName": "Max Paths",
+                    "technicalName": "maxPaths",
+                    "type": "integer",
+                    "description": "The most paths to find; the search stops once it has this many",
+                    "default": 1000,
+                    "min": 1,
+                    "advanced": true
+                },
+                {
+                    "name": "direction",
+                    "plainName": "Follow Edges",
+                    "technicalName": "direction",
+                    "type": "enum",
+                    "description": "On a directed graph, which way a path may cross an edge: out (source to target), in (target to source) or all (either way). An undirected graph is always read either way",
+                    "default": "all",
+                    "values": [
+                        {
+                            "value": "out",
+                            "label": "Out"
+                        },
+                        {
+                            "value": "in",
+                            "label": "In"
+                        },
+                        {
+                            "value": "all",
+                            "label": "All"
+                        }
+                    ],
+                    "advanced": true
+                }
+            ],
+            "scopeInput": "subgraph",
+            "weightMeaning": null,
+            "loadedWeightByDefault": true
+        },
         "astar": {
             "options": [
                 {

@@ -39,7 +39,7 @@ const EDGE_FACTOR = 10; // E = 10 n, the ladder density of T-4 / T-6 (spec 10.4)
 const WARM_FRAMES = 5;
 const TIMED_FRAMES = 50;
 const WARM_ROUNDTRIPS = 10;
-// Chromium quantises performance.now() to 100 us outside a cross-origin-isolated page, which is the size of the
+// Chromium quantizes performance.now() to 100 us outside a cross-origin-isolated page, which is the size of the
 // round trip itself; each sample therefore times a batch and records the mean round trip of the batch.
 const ROUNDTRIPS_PER_SAMPLE = 20;
 const ROUNDTRIP_SAMPLES = 30;

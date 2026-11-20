@@ -96,7 +96,7 @@ Earnest, chatty, slightly nervous. Narrates in the tutorial's words: "okay, now 
 layout", "where are the statistics?". Says "wait" a lot. Asks out loud whether he is doing it
 right. Proud when the picture looks like the slides: "oh nice, that's it".
 
-## Behaviour rules for playing Dev in a session
+## Behavior rules for playing Dev in a session
 
 - **Follows the tutorial order** above, and looks for each step by its tutorial word (layout,
   statistics, ranking, labels, export). When the program uses another word, he says which word he
@@ -173,7 +173,7 @@ the wrong way round without noticing.
   than a slower one he can.
 - **Jargon.** As in his first file, he reads plain descriptions under a control before its name.
 
-## Behaviour rules for playing Dev, returning
+## Behavior rules for playing Dev, returning
 
 - **Reads the screen for proof.** After a calculation he looks for where the program says what it
   used, and says aloud whether that matches what he meant.

@@ -387,7 +387,7 @@ edges beyond the first; the import policy reads "Parallel edges: Allow / Merge i
 | **not-drawn line** | Docs | graphty-element's line in the legend saying what is counted but not drawn, in every embed. Not saved is the element's autosave state, drawn beside the project name. | "status bar", "status line" |
 | **Last import**, **Overview**, **Edges**, **Types** | Screen | Rows of the graph's Statistics: the latest load, the overview in force ("Overview: General"), direction and weight role, and counts per declared type. | "Import report" as a row name, "Overview recipe" as a row name |
 | **Appearance**, **Attributes**, **Connections**, **Members**, **Rule**, **Parameters**, **Endpoints**, **Position**, **Look**, **Background**, **Layout**, **Selector**, **Encodings** | Screen | Inspector and editor sections: channels painting the selection, its values, a node's neighbor and edge counts, a set's members, its rule, an algorithm's or layout's parameters, an edge's ends, a node's place, the graph inspector's rows, and a style layer's selector and bound channels. | "Style", "Contents", "Options" (the published schema's word, Docs only), "Summary" |
-| **Additional labels**, **Labels on canvas**, **Legend**, **Show arrows**, **Minimap**, **Note markers**, **Follow selection**, **Minimize UI** | Screen | View-menu toggles; Labels on canvas, Show arrows and Legend are captured by a saved view, the rest are reader help. | "Show labels", "Navigator" |
+| **Additional labels**, **Labels on canvas**, **Legend**, **Show arrows**, **Minimap**, **Note markers**, **Focus selected**, **Minimize UI** | Screen | View-menu toggles; Labels on canvas, Show arrows and Legend are captured by a saved view, the rest are reader help. | "Show labels", "Navigator" |
 | **Select**, **Lasso**, **Hand**, **Path**, **Note** | Screen | The toolbar's tools. | "Box select", "Move" |
 | **editor popover** | Docs | The one popover for editing a definition or taking a command's inputs. | "dialog" |
 | **Export...**, **Export dialog**, **Export table**, **Copy as PNG** | Screen | The header's whole-project export, a table tab's CSV, and a figure to the clipboard. | "Present", "Share", "Download CSV" |
@@ -481,7 +481,7 @@ projection (Bipartite projection...); compose (Combine graphs...); community gra
 graph...); annotation, comment (Add note); metanode (Collapse); difference, XOR (Subtract, Exclude);
 diff (Compare with...); brokers, bridging, influence and every retired catalog plain name (the
 algorithm it named); template, load style, load recipe (Apply recipe); theme, dark mode (a Look, and
-the reader's theme in Preferences); ordered set, sequence (path); neighbour, colour, catalogue
+the reader's theme in Preferences); ordered set, sequence (path); neighbor, color, catalog
 (American spellings); command palette, palette (Quick actions). Typing "search" ranks Find first and Search full graph second.
 
 ## Sources

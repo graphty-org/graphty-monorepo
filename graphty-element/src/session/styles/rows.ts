@@ -26,7 +26,7 @@ import type {
 import { GraphtyError } from "../../errors";
 import { channelDescriptor } from "./channels";
 import type { CompiledLayer, PathDirectory } from "./Layer";
-import type { SelectorTarget } from "./predicate";
+import { ruleValuePath, type SelectorTarget } from "./predicate";
 import { selectorRule } from "./selector";
 
 /** What a row paints: nodes, edges, or both. */
@@ -274,7 +274,7 @@ export const LEGACY_GHOST_ROW_ID = "graphty:timeline-ghost";
 export type TimelineHiddenLook = "hidden" | "ghost";
 
 /**
- * The ghost look: grey at low opacity, so the elements outside the time window stay on screen as
+ * The ghost look: gray at low opacity, so the elements outside the time window stay on screen as
  * context without reading as part of it.
  */
 export const STARTING_GHOST_LOOK = {
@@ -302,7 +302,7 @@ export const STARTING_GHOST_LOOK = {
  * @returns The rows, in the order they are added: Everything (pinned to the bottom), then Pinned,
  *   Selected and Hovered, each pinned to the top above the one before. Given `timelineHidden`
  *   instead, the timeline's one row, Timeline Hidden, pinned to the top: `"hidden"` sets
- *   `visible: false`; `"ghost"` draws what lies outside the time window grey and faint.
+ *   `visible: false`; `"ghost"` draws what lies outside the time window gray and faint.
  */
 export function startingRows(
     look:
@@ -418,25 +418,6 @@ function source(templateId: StartingRowId): RowSpec["source"] {
 const NODE_LEAVES: ReadonlySet<string> = new Set(["degree", "component", "neighborhood", "isolated"]);
 
 /**
- * The value a leaf reads, when it reads one: the id is no kind's value.
- * @param leaf - The leaf.
- * @returns The path, or undefined.
- */
-function leafPath(leaf: RuleTree): Path | undefined {
-    switch (leaf.kind) {
-        case "range":
-        case "categories":
-            return leaf.attribute;
-        case "text":
-            return leaf.reads === "id" ? undefined : leaf.reads;
-        case "threshold":
-            return leaf.path;
-        default:
-            return undefined;
-    }
-}
-
-/**
  * A rule with every leaf passed through a change.
  * @param rule - The rule.
  * @param change - The change to one leaf.
@@ -483,7 +464,7 @@ export function retargetSelector(
 
     if (to === "edge") {
         mapLeaves(rule.where, (leaf) => {
-            changed ||= NODE_LEAVES.has(leaf.kind) || onlyOn(leafPath(leaf), "node");
+            changed ||= NODE_LEAVES.has(leaf.kind) || onlyOn(ruleValuePath(leaf), "node");
             return leaf;
         });
         return changed ? { ...rule, edges: "incident" } : selector;
@@ -493,7 +474,7 @@ export function retargetSelector(
     const where = mapLeaves(rule.where, (leaf) => {
         const ends =
             (leaf.kind === "range" || leaf.kind === "categories" || leaf.kind === "text") &&
-            onlyOn(leafPath(leaf), "edge");
+            onlyOn(ruleValuePath(leaf), "edge");
         changed ||= ends;
         return ends ? { ...leaf, nodes: "ends" } : leaf;
     });

@@ -269,7 +269,10 @@ describe("data section version 2", () => {
         assert.deepStrictEqual(await dataBindingOf(session), {
             build: first.build,
             sources: Object.fromEntries(
-                (first.sources as JsonObject[]).map((source) => [source.id, (source.origin as JsonObject).copy]),
+                (first.sources as JsonObject[]).map((source): [string, unknown] => [
+                    String(source.id),
+                    (source.origin as JsonObject).copy,
+                ]),
             ),
         });
 

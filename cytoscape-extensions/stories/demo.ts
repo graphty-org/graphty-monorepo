@@ -97,7 +97,7 @@ export const GENERATE: Record<Network, (n: number, seed: number) => SampleGraph>
     "planted-partition": (n, seed) => {
         const groups = Math.max(4, Math.round(Math.sqrt(n) / 5));
         const groupSize = Math.round(n / groups);
-        // about 6 neighbours inside the group and 0.5 outside, whatever the size
+        // about 6 neighbors inside the group and 0.5 outside, whatever the size
         return plantedPartitionGraph({ groups, groupSize, pIn: 6 / groupSize, pOut: 0.5 / n, seed });
     },
     "erdos-renyi": (n, seed) => erdosRenyiGnmGraph({ n, m: 2 * n, seed }),

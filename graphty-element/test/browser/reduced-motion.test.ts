@@ -2,7 +2,7 @@
  * @file `reducedMotion`: camera moves jump to their end and a running layout is drawn once it has
  * settled; `"auto"` follows `prefers-reduced-motion`; the default changes nothing (issue #812).
  */
-import { afterEach, assert, describe, it } from "vitest";
+import { afterEach, assert, describe, it, vi } from "vitest";
 import { commands } from "vitest/browser";
 
 import type { Graph } from "../../src/Graph.js";
@@ -144,5 +144,34 @@ describe("reducedMotion", () => {
         graph.setReducedMotion("auto");
         const position = await positionOneFrameAfterFlyTo(graph);
         assert.notDeepEqual(position, END.position);
+    });
+
+    it("answers isMotionReduced, and tells reduced-motion-changed each time the answer changes", async () => {
+        graph = await createTestGraph();
+        const told: boolean[] = [];
+        graph.addListener("reduced-motion-changed", (event) => {
+            told.push((event as { reduced: boolean }).reduced);
+        });
+        assert.isFalse(graph.isMotionReduced());
+
+        graph.setReducedMotion("auto");
+        assert.isFalse(graph.isMotionReduced(), "auto with no platform preference");
+        assert.deepEqual(told, [], "the answer did not change");
+
+        await commands.emulateReducedMotion(true);
+        await vi.waitFor(() => {
+            assert.deepEqual(told, [true]);
+        });
+        assert.isTrue(graph.isMotionReduced());
+
+        await commands.emulateReducedMotion(false);
+        await vi.waitFor(() => {
+            assert.deepEqual(told, [true, false]);
+        });
+        assert.isFalse(graph.isMotionReduced());
+
+        graph.setReducedMotion(true);
+        assert.isTrue(graph.isMotionReduced());
+        assert.deepEqual(told, [true, false, true]);
     });
 });

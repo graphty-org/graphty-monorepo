@@ -24,8 +24,12 @@
  *     npm run fidelity:ratchet -- --add "why these elements fail now (#1234)" [--keys <key>,<key>] [--properties <p>,<p>]
  *         [--suite oracle|drawn]
  *     npm run fidelity:ratchet -- --prune [--keys <key>,<key>]
+ *     npm run fidelity:ratchet -- --recite "why, naming the issue tracking them now (#1234)" --keys <key>,<key>
+ *         --ids <id>,<id> [--properties <p>,<p>] [--suite oracle|drawn]
  *
- * `--keys` limits `--prune` to those keys too.
+ * `--keys` limits `--prune` to those keys too. `--recite` reads no run: it moves listed known failures (the named ids
+ * under the named keys) off the reasons that added them onto one new reason, so they cite the issue tracking them now
+ * (an accepted difference with its own issue).
  */
 import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { parseArgs } from "node:util";
@@ -42,6 +46,7 @@ import {
     raiseFloors,
     ratchetDrops,
     ratchetKnown,
+    reciteKnown,
 } from "../test/fidelity/oracle/floors";
 
 const { values } = parseArgs({
@@ -49,7 +54,9 @@ const { values } = parseArgs({
         add: { type: "string" },
         keys: { type: "string" },
         properties: { type: "string" },
+        ids: { type: "string" },
         prune: { type: "boolean" },
+        recite: { type: "string" },
         suite: { type: "string" },
     },
 });
@@ -109,7 +116,37 @@ function report(name: string, out: { removed: number; added: number; unlisted: n
 
 const suite = values.suite ?? "all";
 
-if (suite === "all" || suite === "oracle") {
+if (values.recite !== undefined) {
+    if (keys === undefined || values.ids === undefined) {
+        throw new Error("--recite needs --keys and --ids");
+    }
+    const recite = {
+        reason: values.recite,
+        date: today,
+        keys,
+        ids: values.ids.split(","),
+        properties: values.properties?.split(","),
+    };
+    const files = [
+        ...(suite === "drawn" ? [] : ["test/fidelity/oracle-known-failures.json"]),
+        ...(suite === "oracle" ? [] : ["test/fidelity/baseline-scores.json"]),
+    ];
+    let moved = 0;
+    for (const path of files) {
+        const file = JSON.parse(readFileSync(path, "utf8")) as KnownRecords & { floors?: Floors };
+        const out = reciteKnown({ about: file.about, known: file.known, reasons: file.reasons }, recite);
+        if (out.moved > 0) {
+            writeFileSync(path, knownText(out.records, file.floors));
+        }
+        console.log(`${path}: ${String(out.moved)} known failures re-cited`);
+        moved += out.moved;
+    }
+    if (moved === 0) {
+        throw new Error("--recite: none of the named elements is listed");
+    }
+}
+
+if (values.recite === undefined && (suite === "all" || suite === "oracle")) {
     const gate = readGate("tmp/oracle-report/gate.json");
     if (gate !== null) {
         const knownPath = "test/fidelity/oracle-known-failures.json";
@@ -166,7 +203,7 @@ if (suite === "all" || suite === "oracle") {
     }
 }
 
-if (suite === "all" || suite === "drawn") {
+if (values.recite === undefined && (suite === "all" || suite === "drawn")) {
     const gate = readGate("test/fidelity/out/gate.json");
     if (gate !== null) {
         const path = "test/fidelity/baseline-scores.json";

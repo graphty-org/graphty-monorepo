@@ -8,7 +8,7 @@
  * backs a rendered view backs a Node test with no GPU, and two views of one dataset are one of
  * these and two renderers.
  *
- * The rule that decides whether a thing belongs here or on the view: if two synchronised views
+ * The rule that decides whether a thing belongs here or on the view: if two synchronized views
  * of one dataset would DISAGREE about it, it belongs to the view. A camera disagrees. Node
  * count, coordinates and statistics do not.
  */
@@ -25,11 +25,12 @@ import type {
     Capabilities,
     GraphAccelerator,
 } from "../acceleration";
-// EdgeId comes from the ELEMENT's catalogue rather than from graph-format, which is the one line
+// EdgeId comes from the ELEMENT's catalog rather than from graph-format, which is the one line
 // that makes `const id: EdgeId = record.id` type-check. This entry point used to publish two
-// different EdgeId types -- graph-format's `string | number` on EdgeRecord and the catalogue's
+// different EdgeId types -- graph-format's `string | number` on EdgeRecord and the catalog's
 // `string` everywhere else -- so assigning one to the other was an error on the element's own
 // published surface.
+import type { Tour } from "../camera/tour";
 import type { CameraState } from "../camera/types";
 import type {
     AlgorithmKey,
@@ -148,7 +149,7 @@ export type SessionCapabilities = Pick<Capabilities, "acceleration" | "xr" | "ca
  * The element's data configuration, parsed: the id and weight paths, the position scale, the
  * direction policy and the id coercion rule.
  *
- * It is the configuration the session's own behaviour reads, which is why it is the part of the
+ * It is the configuration the session's own behavior reads, which is why it is the part of the
  * configuration a session carries. The style layers, the camera defaults and the XR settings are
  * the view's, and they are not here.
  */
@@ -344,6 +345,19 @@ export interface RecordPageOptions {
          * @beta
          */
         readonly names?: boolean;
+        /**
+         * Rank the matches: the records whose matched value is the text come first, then those
+         * whose value starts with it, then those that hold it elsewhere; within each rank, `sort`
+         * (or the graph's order) as without it. The page then carries {@link RecordPage.matches}:
+         * for each record, the field it matched and how. `total` counts every match. Default
+         * false, which leaves the page as it was.
+         *
+         * ```ts
+         * const page = session.data.nodePage({ matching: { text: "jav", rank: true }, limit: 10 });
+         * page.matches?.[0]; // { field: "data.name", rank: "starts-with" }
+         * ```
+         */
+        readonly rank?: boolean;
     };
     /**
      * Only the records an expression matches, read the way a style layer's selector reads it: a
@@ -377,6 +391,24 @@ export interface RecordPageOptions {
      * @since 3.37.0
      */
     readonly markIssues?: boolean;
+}
+
+/**
+ * How well a record's value matched a page's text: equal to it (`"exact"`, ignoring case unless
+ * the mode reads case), starting with it, or holding it elsewhere. A regular expression's match
+ * is always `"contains"`. An open set: later releases may add ranks.
+ */
+export type RecordMatchRank = "exact" | "starts-with" | "contains";
+
+/** Where and how a page's text matched one record: its best-ranked field. */
+export interface RecordMatch {
+    /**
+     * The field that matched: `"id"`, for an edge also `"source"` or `"target"` (an endpoint's id),
+     * or the value path read (`"data.name"`).
+     */
+    readonly field: Path;
+    /** How well it matched. */
+    readonly rank: RecordMatchRank;
 }
 
 /** Which edges a page holds: {@link RecordPageOptions}, plus the edges at one node. */
@@ -416,6 +448,11 @@ export interface RecordPage<TRecord> {
      * @since 3.37.0
      */
     readonly issues?: readonly (readonly IssueId[])[];
+    /**
+     * Where the page's text matched each record, aligned with `records`. Present exactly when the
+     * page was asked with `matching.rank`.
+     */
+    readonly matches?: readonly RecordMatch[];
 }
 
 /** What {@link GraphSession.find} lists. An open set: later releases add kinds. */
@@ -800,7 +837,7 @@ export interface ComponentStatistics {
  *
  * WHY THE SOURCE IS PUBLISHED AND NOT ONLY THE ANSWER. "This graph is directed" and "this file
  * said it is directed" are different claims, and a reader deciding whether to trust the first one
- * needs the second. A properties panel that prints "Directed" on a CSV nobody labelled is stating
+ * needs the second. A properties panel that prints "Directed" on a CSV nobody labeled is stating
  * the element's own default as though it were a fact about the data; the same word on a GEXF file
  * whose header says so is reporting what the author wrote. Without this, a consumer cannot tell
  * those apart, and the only alternative is to re-parse the file they already handed over.
@@ -863,7 +900,7 @@ export interface GraphStatistics {
     /** The smallest and the largest total degree in the graph; `[0, 0]` when there are no nodes. */
     readonly degreeRange: readonly [number, number];
     /**
-     * The mean total degree, over the same measure {@link GraphStatistics.degreeRange} summarises:
+     * The mean total degree, over the same measure {@link GraphStatistics.degreeRange} summarizes:
      * both ends of every edge counted, so a self-loop contributes two. Zero for an empty graph.
      *
      * It is published because the alternative is every consumer deriving it from the edge count,
@@ -874,7 +911,7 @@ export interface GraphStatistics {
     readonly meanDegree: number;
     /**
      * How the total degree is distributed: the same measure {@link GraphStatistics.degreeRange}
-     * summarises, binned the way `RunResult.histogram` bins a count. One bar per degree when there
+     * summarizes, binned the way `RunResult.histogram` bins a count. One bar per degree when there
      * are few distinct degrees, whole-number bands otherwise; the bars' counts add up to
      * {@link GraphStatistics.nodeCount}.
      *
@@ -2197,7 +2234,7 @@ export interface SessionDataApi {
      *
      * Without a `type`, the format is detected the way `loadFromUrl` and `loadFromFile` detect
      * it: from the file name or the URL's extension, then from the first bytes, fetching the URL
-     * once when its name says nothing. A format nothing recognises rejects with
+     * once when its name says nothing. A format nothing recognizes rejects with
      * `E_UNKNOWN_FORMAT`, naming the formats this element reads.
      * @param source - The data source's name, or none to detect it, and its options: inline
      *     `data`, a `url` or a `file`.
@@ -2382,11 +2419,19 @@ export interface SessionDataApi {
      *     edge's ends (`bait` and `prey`), else a single file's nearly unique text column is its
      *     nodes' key (`account`). Pass the draft's `mapping` to `load` to keep the guess when the
      *     load is read again.
+     * @param options.onProgress - Called with each change of the read, as `progress:changed`
+     *     publishes it (`task: "prepare"`): the rows read so far and, when the size is known, the
+     *     share read (`fraction`). @since 3.40.0
      * @returns The draft.
      */
     prepare(
         source: DataSourceInput,
-        options?: { readonly signal?: AbortSignal; readonly onto?: "graph"; readonly guess?: "names" | "values" },
+        options?: {
+            readonly signal?: AbortSignal;
+            readonly onto?: "graph";
+            readonly guess?: "names" | "values";
+            readonly onProgress?: (change: ProgressChange) => void;
+        },
     ): Promise<LoadDraft>;
     /**
      * Every table joined onto the graph and still loaded, oldest first: the join each was made
@@ -2421,14 +2466,14 @@ export interface SessionDataApi {
     editJoinReport(source: SourceKey, choices: JoinChoices): JoinReport;
     /**
      * Load a generated graph, as one undoable step: one of `catalog.generators()` by name, run
-     * with its parameters (each one left out takes its catalogue default). The same name and
+     * with its parameters (each one left out takes its catalog default). The same name and
      * parameters give the same graph on every platform. A random generator's `seed` picks which
      * graph.
      * @param name - The generator's name, e.g. `"barabasi-albert"`.
      * @param params - Its parameters by name, e.g. `{ n: 500, m: 3 }`.
      * @param options - Whether to replace the graph (the default) or add to it.
      * @returns Settles once the graph is loaded. Rejects with `E_UNKNOWN_GENERATOR` for a name the
-     *     catalogue does not list, `E_UNKNOWN_OPTION` for a parameter the generator does not take,
+     *     catalog does not list, `E_UNKNOWN_OPTION` for a parameter the generator does not take,
      *     and `E_OPTION_RANGE` for a value it refuses; nothing is recorded then.
      */
     generate(name: string, params?: GeneratorParams, options?: ImportOptions): Promise<void>;
@@ -3604,7 +3649,7 @@ export interface ImportOptions {
     /**
      * `"step"` (the default) records the load as one undoable step. `"start"` makes the loaded
      * graph where the history starts, as opening a new project does: the load is never undone or
-     * cancelled by `undo()` (while it is pending `canUndo` is false unless later work is), the
+     * canceled by `undo()` (while it is pending `canUndo` is false unless later work is), the
      * steps recorded before it was called are dropped once it is in, and work dispatched while it
      * was pending is kept as its own steps.
      */
@@ -3655,7 +3700,7 @@ export interface RowUpdate<Id> {
 }
 
 /**
- * The part of the catalogue a session can answer today: the seven capability tables, which are
+ * The part of the catalog a session can answer today: the seven capability tables, which are
  * plain data and need no graph, plus `metrics()`, which needs one.
  *
  * Six of the seven -- algorithms, cameras, formats, layouts, log destinations and palettes --
@@ -3664,7 +3709,7 @@ export interface RowUpdate<Id> {
  * extension. `scales` is the element's own table alone.
  *
  * `metrics()` is the graph-dependent half's first member, and it is here because everything it
- * reads now exists: the catalogue declares what each algorithm requires of a graph, the cost model
+ * reads now exists: the catalog declares what each algorithm requires of a graph, the cost model
  * answers what one would take over the scope a run would cover and reports a requirement the graph
  * does not meet as an unavailability rather than a throw, and the runs API holds what has already
  * been run. A consumer wanting only the metrics that CAN run filters on `available`; both lists
@@ -3691,7 +3736,7 @@ export interface ProjectConfig {
     readonly data: SessionDataConfig;
     /** Whether the algorithms in `data.algorithms` run once data has loaded. */
     readonly runAlgorithmsOnLoad: boolean;
-    /** What the graph is drawn against: a colour or a skybox, and a shader over either. */
+    /** What the graph is drawn against: a color or a skybox, and a shader over either. */
     readonly background: GraphBackgroundConfig;
     /** What a selected node's halo looks like. */
     readonly selectionStyle: GraphSelectionStyleConfig;
@@ -3739,7 +3784,7 @@ export interface ProjectConfig {
     readonly editableBase: boolean;
     /**
      * How the Timeline Hidden starting row starts: `"hidden"` (the default) sets `visible: false`,
-     * so what lies outside the time window is not drawn at all; `"ghost"` draws it grey at low
+     * so what lies outside the time window is not drawn at all; `"ghost"` draws it gray at low
      * opacity. Read only when the row is written: the first time a project with
      * {@link ProjectConfig.startingRows} on has a time field. Changing it never rewrites a row
      * already there.
@@ -3764,6 +3809,14 @@ export interface ProjectConfig {
      */
     readonly timelineHiddenAdded: boolean;
     /**
+     * Whether this project has had the session's starting cameras
+     * (`session.views.setStartingCameras`) written into it. False by default and saved with the
+     * project; the element sets it when it writes them. Setting it true stops them being written
+     * into this project; setting it false lets the next writing point write them again.
+     * @since 3.58.0
+     */
+    readonly startingCamerasWritten: boolean;
+    /**
      * Where the layer a finished run paints lands: `"beneath"` (the default), under the lowest
      * layer somebody wrote that drives the same property, and not at all when such a layer covers
      * every element; or `"top"`, on top of the unpinned rows, never held back by a layer somebody
@@ -3772,7 +3825,7 @@ export interface ProjectConfig {
      */
     readonly runPlacement: RunPlacement;
     /**
-     * The layout-behaviour settings a project file saves. The rest of the element's
+     * The layout-behavior settings a project file saves. The rest of the element's
      * `layoutBehavior` (label declutter, pin on drag, throughput tuning) is a preference of the
      * view and not a project setting.
      */
@@ -3886,6 +3939,8 @@ export interface ProjectConfigPatch {
     readonly timelineHiddenLook?: "hidden" | "ghost";
     /** See {@link ProjectConfig.timelineHiddenAdded}. */
     readonly timelineHiddenAdded?: boolean;
+    /** See {@link ProjectConfig.startingCamerasWritten}. */
+    readonly startingCamerasWritten?: boolean;
     /** See {@link ProjectConfig.runPlacement}. */
     readonly runPlacement?: RunPlacement;
     /** See {@link ProjectConfig.layoutBehavior}; merged key by key. */
@@ -3919,8 +3974,9 @@ export interface SessionConfig extends ProjectConfig {
     set(values: ProjectConfigPatch): Promise<void>;
     /**
      * The color the element draws the background in, beneath any image or shader, as hex: the
-     * background's own `color`, else `DEFAULT_BACKGROUND_COLOR`. A settings panel shows it when
-     * the background sets no color of its own.
+     * background's own `color`, else `DEFAULT_BACKGROUND_COLOR`; under a dark color scheme
+     * (`colorScheme` on the element) its `darkColor`, else `DEFAULT_DARK_BACKGROUND_COLOR`. A
+     * settings panel shows it when the background sets no color of its own.
      * @since 3.36.0
      */
     readonly backgroundColor: string;
@@ -4284,6 +4340,15 @@ export interface SessionEventMap {
         readonly cause: HistoryCause;
     };
     /**
+     * `session.views.setStartingCameras` wrote its views into the project's starting state: no
+     * step and no `project:changed`, so a list of saved views re-reads `session.views` on this.
+     * @since 3.58.0
+     */
+    "views:seeded": {
+        /** The names of the views written. */
+        readonly names: readonly string[];
+    };
+    /**
      * The picture has caught up with every project change made so far: published once nothing is
      * left to derive or repaint -- after the per-domain events, and after any repaint the element
      * put off or started on its own -- with every slice changed or derived since the last one
@@ -4455,10 +4520,12 @@ export type ProjectSlice =
     | "visibility"
     | "sets"
     | "views"
+    | "tours"
     | "notes"
     | "attributes"
     | "valueLabels"
-    | "shaders";
+    | "shaders"
+    | "modelDefaults";
 
 /** What moved project state: a command, a history move, or a failed command being reverted. */
 export type HistoryCause = "command" | "undo" | "redo" | "restore" | "rollback";
@@ -4578,6 +4645,8 @@ export type PendingId = string & {
  * | `note.add`, `note.update`, `note.remove` | none |
  * | `note.merge` | `source`: the merged document's name, or null |
  * | `view.save`, `view.remove` | `names`: the views |
+ * | `view.rename` | `from`: the view's name before; `to`: its new name |
+ * | `view.move` | `name`: the view moved; `index`: its new 0-based place |
  * | `annotations.set` | `count`: how many annotations are kept |
  * | `annotations.patch` | `action`: `"add"`, `"update"` or `"remove"`; `id`: the annotation's id, or null |
  * | `view.dimension` | `dimension`: `"2d"` or `"3d"` |
@@ -4662,6 +4731,7 @@ export type HistoryCode =
     | "shader.add"
     | "shader.replace"
     | "shader.remove"
+    | "asset.defaults"
     | "visibility.filter"
     | "visibility.clear-filter"
     | "visibility.window"
@@ -4696,6 +4766,14 @@ export type HistoryCode =
     | "note.merge"
     | "view.save"
     | "view.remove"
+    | "view.rename"
+    | "view.move"
+    | "view.key"
+    | "view.starting"
+    | "tour.save"
+    | "tour.remove"
+    | "tour.rename"
+    | "tour.move"
     | "view.dimension"
     | "view.immersive"
     | "config.set"
@@ -4818,14 +4896,14 @@ export interface SessionHistory {
     /**
      * Cancel a pending item, and every later-dispatched item that depends on what it writes.
      * @param pending - The item.
-     * @returns Every item cancelled; empty when the id is not pending.
+     * @returns Every item canceled; empty when the id is not pending.
      */
     cancel(pending: PendingId): readonly PendingStep[];
     /**
      * Drop every step: the current state becomes the baseline. Pending work that has already
-     * changed something (an open transaction that wrote, a layout moving nodes) is cancelled,
+     * changed something (an open transaction that wrote, a layout moving nodes) is canceled,
      * since its step would undo to a state older than the baseline. By default the rest of the
-     * pending work is cancelled too; pass `{ pending: "keep" }` to let it finish and record its
+     * pending work is canceled too; pass `{ pending: "keep" }` to let it finish and record its
      * steps over the new baseline, so a run started just before (one a reader began while a graph
      * was loading) is not lost.
      * @param options - What happens to pending work that has changed nothing yet.
@@ -4838,7 +4916,7 @@ export interface HistoryRestoreOptions {
     /**
      * `"keep"` (the default) leaves the steps after the one restored to as redo steps, as a run of
      * undos does; `"drop"` discards them, as a new edit would, so taking back work the reader
-     * abandoned (a cancelled edit) leaves nothing to redo.
+     * abandoned (a canceled edit) leaves nothing to redo.
      */
     readonly redo?: "keep" | "drop";
 }
@@ -4899,7 +4977,7 @@ export interface CommandOutcomeMap {
     "data.import": Promise<void>;
     /** Settles once the rows a network source load read are recorded and drawn. Experimental. */
     "data.import-source": Promise<void>;
-    /** Settles once the neighbourhood is recorded and the pass that draws it has run. */
+    /** Settles once the neighborhood is recorded and the pass that draws it has run. */
     "data.expand": Promise<void>;
     /** Settles once the expansion is recorded and drawn. Experimental. */
     "data.source-expand": Promise<void>;
@@ -4923,6 +5001,8 @@ export interface CommandOutcomeMap {
     "style.template": Promise<void>;
     /** Settles once the shader's text is recorded. */
     "shader.set": Promise<void>;
+    /** Settles once the model's settings are recorded and the pass that repaints its nodes has run. */
+    "asset.defaults": Promise<void>;
     /** Settles once the filter is recorded and the pass that evaluates the masks has run. */
     "visibility.set": Promise<void>;
     /** Settles once the window is recorded and the pass that evaluates the masks has run. */
@@ -4969,6 +5049,22 @@ export interface CommandOutcomeMap {
     "annotations.patch": Promise<void>;
     /** Settles once the removal is recorded. */
     "view.remove": Promise<void>;
+    /** Settles once the rename is recorded. */
+    "view.rename": Promise<void>;
+    /** Settles once the new order is recorded. */
+    "view.move": Promise<void>;
+    /** Settles once the key is recorded. */
+    "view.key": Promise<void>;
+    /** Settles once the starting cameras are recorded. */
+    "view.starting": Promise<void>;
+    /** Settles once the tours are recorded. */
+    "tour.save": Promise<void>;
+    /** Settles once the removal is recorded. */
+    "tour.remove": Promise<void>;
+    /** Settles once the rename is recorded. */
+    "tour.rename": Promise<void>;
+    /** Settles once the new order is recorded. */
+    "tour.move": Promise<void>;
     /** Settles once the camera has arrived. */
     "view.camera": Promise<void>;
     /** Settles once the settings are recorded and the picture has caught up. */
@@ -5179,11 +5275,11 @@ export interface SessionHidden {
  * Which layout draws the graph, and in how many dimensions: the project's `layout` slice.
  *
  * Choosing a layout and switching between 2D and 3D are undoable steps, and undo puts back the
- * engine that was chosen with its own options, not the catalogue's default. Until one is chosen
+ * engine that was chosen with its own options, not the catalog's default. Until one is chosen
  * it reads the element's default, the `force` layout drawn by `ngraph` in 3D.
  */
 export interface SessionLayout {
-    /** The catalogue id, such as `"force"`. */
+    /** The catalog id, such as `"force"`. */
     readonly id: LayoutId;
     /** The engine that draws it, such as `"d3"`. */
     readonly engine: string;
@@ -5200,8 +5296,8 @@ export interface SessionLayout {
     readonly arrangedDimension: "2d" | "3d";
     /**
      * Choose the layout. One step.
-     * @param id - The catalogue id; a registered engine name is read as the id it serves.
-     * @param options - The engine, when not the catalogue's default for `id`, and its options.
+     * @param id - The catalog id; a registered engine name is read as the id it serves.
+     * @param options - The engine, when not the catalog's default for `id`, and its options.
      * @param options.engine - The engine that draws it, such as `"d3"`.
      * @param options.options - The engine's options.
      * @returns Settles once the step is recorded and the layout has taken its pre-steps.
@@ -5307,7 +5403,7 @@ export interface SessionLayout {
      * `mapDimension` is `setting.notIn2d`, because the 2D view always draws its 2D map; then
      * `params.drawn` is the value the view draws instead (`"2d"`). A form shows an option not in
      * effect disabled, or offering only that value, with words for the code.
-     * @param id - The layout's catalogue id.
+     * @param id - The layout's catalog id.
      * @param option - The option's name.
      * @param dimension - The view the layout would be drawn in; the view's dimension now when absent.
      * @returns The answer; every other option is `setting.inEffect`.
@@ -5439,20 +5535,113 @@ export interface SessionAnnotations {
 }
 
 /**
- * The saved camera views, read as a map from name to camera state.
- *
- * A saved view is a fixed position, not a rule: it does not recompute itself for a different
- * graph the way a camera view does, which is why a name a camera view answers to is refused.
+ * One saved view: a fixed camera, or a camera view it follows, and the key a consumer binds to it.
+ * @since 3.58.0
  */
-export interface SessionViews extends ReadonlyMap<string, CameraState> {
+export interface SavedView {
+    /** A fixed camera. Absent for a following view. */
+    readonly camera?: CameraState;
     /**
-     * Keep camera states under names, replacing any view already saved under one. One step.
-     * @param views - The names and the camera states.
-     * @returns Settles once the step is recorded.
-     * @throws A `GraphtyError` (as a rejection) with `E_PROTECTED` when a camera view answers to
-     *     a name, or `E_BAD_COMMAND` for an empty name; nothing is saved then.
+     * A camera view id (`catalog.cameras()`) this view is recomputed from each time it is applied,
+     * for whatever is drawn then. Absent for a fixed view.
      */
-    save(views: readonly { readonly name: string; readonly camera: CameraState }[]): Promise<void>;
+    readonly follows?: string;
+    /**
+     * An opaque key chord the consumer binds; unique among the saved views. The element stores it
+     * and never listens for it.
+     */
+    readonly key?: string;
+}
+
+/**
+ * One view `session.views.setStartingCameras` writes into a project that never had them.
+ * @since 3.58.0
+ */
+export interface StartingCamera {
+    /** The saved view's name. */
+    readonly name: string;
+    /** The camera view id it follows. */
+    readonly follows: string;
+    /** The key chord it carries, dropped when another saved view holds it. */
+    readonly key?: string;
+}
+
+/**
+ * The saved camera views, read as a map from name to saved view, iterated in project order.
+ *
+ * A saved view is either a fixed position or a camera view it follows (`follows`), recomputed for
+ * whatever is drawn when it is applied. A name a camera view answers to is refused, so a saved view
+ * never shadows one. A new view goes at the end of the order; `move` changes it.
+ */
+export interface SessionViews extends ReadonlyMap<string, SavedView> {
+    /**
+     * Keep views under names, replacing the camera or the followed view of any view already saved
+     * under one; that view keeps its place, and its key unless `key` is given. One step.
+     * @param views - The names, each with a `camera`, a camera view it `follows`, or neither: then
+     *     it keeps where the camera stands now, read once, so redo puts back the same state. `key`
+     *     sets its key chord, taking it from any other view that holds it; null clears it.
+     * @returns Settles once the step is recorded.
+     * @throws A `GraphtyError` (as a rejection) with `E_PROTECTED` `{ name }` when a camera view
+     *     answers to a name, `E_BAD_COMMAND` `{ reason: "empty-name" }` for an empty name,
+     *     `E_BAD_COMMAND` `{ reason: "conflict", options: ["camera", "follows"] }` for both,
+     *     `E_UNKNOWN_CAMERA` `{ name }` when `follows` names no camera view, `E_BAD_COMMAND`
+     *     `{ reason: "empty-key" }` for an empty key, and, for a view with neither, `E_UNSUPPORTED`
+     *     when the session draws nothing or `{ reason: "xr", mode }` while immersive; nothing is
+     *     saved then.
+     */
+    save(
+        views: readonly {
+            readonly name: string;
+            readonly camera?: CameraState;
+            readonly follows?: string;
+            readonly key?: string | null;
+        }[],
+    ): Promise<void>;
+    /**
+     * Give a saved view a key chord, taking it from any other view that holds it, in one step; null
+     * clears it. The element stores the key and never listens for it.
+     * @param name - The view.
+     * @param key - The key chord, or null.
+     * @returns Settles once the step is recorded.
+     * @throws A `GraphtyError` (as a rejection) with `E_BAD_COMMAND` `{ missing, available }` when
+     *     nothing is saved as `name`, or `E_BAD_COMMAND` `{ reason: "empty-key" }` for an empty key.
+     * @since 3.58.0
+     */
+    setKey(name: string, key: string | null): Promise<void>;
+    /**
+     * The saved views to write once into every project that never had them; null (the default)
+     * writes none. A session option, never saved: it lasts for the session's life. Each project
+     * records that it got them in `config.startingCamerasWritten`, so a project is written once:
+     * the list is appended after the project's own views now (no undo step on a fresh session,
+     * one step after edits) and when a project that never had them is opened. A name already
+     * saved is skipped, a key another view holds is dropped, and a `follows` no longer registered
+     * is skipped.
+     * @param list - The views, or null.
+     * @returns Settles once the current project is written.
+     * @throws A `GraphtyError` (as a rejection) with `E_UNKNOWN_CAMERA` `{ name }` when a `follows`
+     *     names no camera view.
+     * @since 3.58.0
+     */
+    setStartingCameras(list: readonly StartingCamera[] | null): Promise<void>;
+    /**
+     * Give a saved view a new name, keeping its place in the order. One step.
+     * @param from - Its name now.
+     * @param to - The new name.
+     * @returns Settles once the step is recorded.
+     * @throws A `GraphtyError` (as a rejection) with `E_BAD_COMMAND` `{ missing, available }` when
+     *     nothing is saved as `from`, `E_BAD_COMMAND` `{ reason: "name-taken", name }` when `to`
+     *     is saved already, or `E_PROTECTED` `{ name }` when a camera view answers to `to`.
+     */
+    rename(from: string, to: string): Promise<void>;
+    /**
+     * Put a saved view at a place in the order. One step.
+     * @param name - The view.
+     * @param index - Its new 0-based place, clamped to the order.
+     * @returns Settles once the step is recorded.
+     * @throws A `GraphtyError` (as a rejection) with `E_BAD_COMMAND` `{ missing, available }` when
+     *     nothing is saved as `name`.
+     */
+    move(name: string, index: number): Promise<void>;
     /**
      * Forget saved views. One step.
      * @param names - The names.
@@ -5461,6 +5650,60 @@ export interface SessionViews extends ReadonlyMap<string, CameraState> {
      *     nothing is removed then.
      */
     remove(names: readonly string[]): Promise<void>;
+}
+
+/**
+ * The saved camera tours, by name, in project order: each a list of stops that name views (see
+ * `session.views`). Every change is one undoable step and a project file saves them; playing one
+ * (`playTour`) is not a change. An empty tour, and a stop naming a view nothing is saved under,
+ * are allowed, so drafts exist and a view's removal never fails; `planTour` reports them.
+ * @since 3.58.0
+ * @example
+ * ```typescript
+ * await session.tours.save([
+ *     { name: "intro", tour: { stops: [{ view: "overview", hold: 2000 }, { view: "hub", duration: 1500 }] } },
+ * ]);
+ * ```
+ */
+export interface SessionTours extends ReadonlyMap<string, Tour> {
+    /**
+     * Keep tours under names, replacing a tour already saved under one in its place; a new name
+     * goes at the end. One step.
+     * @param tours - The names and tours.
+     * @returns Settles once the step is recorded.
+     * @throws A `GraphtyError` (as a rejection) with `E_BAD_COMMAND` `{ reason: "empty-name" }`
+     *     for an empty name, or `E_OPTION_RANGE` `{ option, stop }` for a negative or non-finite
+     *     flight (`duration`) or `hold`, a stop whose `view` is not a name, or an unknown easing
+     *     (`{ option: "easing" }`); nothing is saved then.
+     */
+    save(tours: readonly { readonly name: string; readonly tour: Tour }[]): Promise<void>;
+    /**
+     * Forget saved tours. One step.
+     * @param names - The names.
+     * @returns Settles once the step is recorded.
+     * @throws A `GraphtyError` (as a rejection) with `E_BAD_COMMAND` `{ missing, available }` when
+     *     a name is not saved; nothing is removed then.
+     */
+    remove(names: readonly string[]): Promise<void>;
+    /**
+     * Give a saved tour a new name, keeping its place. One step.
+     * @param from - Its name now.
+     * @param to - The new name.
+     * @returns Settles once the step is recorded.
+     * @throws A `GraphtyError` (as a rejection) with `E_BAD_COMMAND` `{ missing, available }` when
+     *     nothing is saved as `from`, `{ reason: "name-taken", name }` when `to` is saved already,
+     *     or `{ reason: "empty-name" }` for an empty `to`.
+     */
+    rename(from: string, to: string): Promise<void>;
+    /**
+     * Put a saved tour at a place in the order. One step.
+     * @param name - The tour.
+     * @param index - Its new 0-based place, clamped to the order.
+     * @returns Settles once the step is recorded.
+     * @throws A `GraphtyError` (as a rejection) with `E_BAD_COMMAND` `{ missing, available }` when
+     *     nothing is saved as `name`.
+     */
+    move(name: string, index: number): Promise<void>;
 }
 
 /** What `execute` returns for one command. */
@@ -5483,9 +5726,9 @@ export interface StyleProblem {
  * A graph with no view attached.
  *
  * The session holds the graph data, the coordinates, the runs and their results, the scope,
- * selection and visibility models, the style layers, the status, the catalogue, the configuration
+ * selection and visibility models, the style layers, the status, the catalog, the configuration
  * and the measured capabilities of the machine. A renderer binds to one; a Node test uses one on
- * its own; two synchronised views of one dataset share one.
+ * its own; two synchronized views of one dataset share one.
  *
  * With no renderer it still runs layouts: `layout.play()`, `tick()` and `settle()` move the
  * nodes, and `positions` reads and places them.
@@ -5589,6 +5832,11 @@ export interface GraphSession {
      * choosing. Saving and removing one are undoable steps; moving the camera to one is not.
      */
     readonly views: SessionViews;
+    /**
+     * The saved camera tours, by name, in project order; every change is one undoable step.
+     * @since 3.58.0
+     */
+    readonly tours: SessionTours;
     /** The annotations drawn beside the graph; every change is a step, and a project file saves them. */
     readonly annotations: SessionAnnotations;
     /** Which layout draws the graph, and in how many dimensions; choosing either is a step. */
@@ -5622,7 +5870,7 @@ export interface GraphSession {
     /** Everything the element can offer, as data. */
     readonly catalog: SessionCatalogApi;
     /**
-     * The experiments this session switched on, and the requested ids it did not recognise.
+     * The experiments this session switched on, and the requested ids it did not recognize.
      * Settled when the session is created (for an element's session, when the element first
      * renders) and the same object afterwards.
      */
@@ -5728,7 +5976,7 @@ export interface GraphSession {
     /**
      * Do one thing, as a command.
      *
-     * The same verb `runs.start` offers, reached through the serialisable form -- so a recipe, a
+     * The same verb `runs.start` offers, reached through the serializable form -- so a recipe, a
      * journal entry and an agent's tool call all replay through one door rather than three.
      * @param command - What to do.
      * @param options - The signal, the progress handler and how the call joins the queue.
@@ -5802,7 +6050,7 @@ export interface GraphSession {
      * Which layout suits the graph this session holds: `recommendLayout` over its statistics, the
      * nodes its data placed (`seededNodeCount`), and whether its nodes carry geographic locations
      * the location map layout can read.
-     * @returns The recommendation, or undefined when the catalogue serves none.
+     * @returns The recommendation, or undefined when the catalog serves none.
      * @since 3.37.0
      */
     recommendLayout(): LayoutRecommendation | undefined;
@@ -5836,7 +6084,7 @@ export interface GraphSession {
  * Both extras exist for the same reason and it is a shape disagreement rather than a privilege.
  * A consumer reads the selection as a list of ids and the visible set as a set of ids; the render
  * loop needs the mask OBJECTS, so that it can test one element at a time and key its "have I
- * already drawn this?" bookkeeping on a mask's version without materialising a list of fifty
+ * already drawn this?" bookkeeping on a mask's version without materializing a list of fifty
  * thousand ids every frame. Nothing here decides anything a consumer could not decide -- the
  * verbs are the same verbs -- which is why the renderer is not a privileged consumer, merely a
  * per-element one.
@@ -5854,7 +6102,7 @@ export interface ElementSession extends GraphSession {
      * The third member of the same shape disagreement. A consumer asks what one element looks
      * like through `styles.explain(...)`, which answers in whole sentences about layers; a render
      * loop asks fifty thousand times a second which source mesh an element belongs to and what
-     * colour to write into its instance, and it asks by dense index. Neither the questions nor
+     * color to write into its instance, and it asks by dense index. Neither the questions nor
      * the verbs differ -- the stack is still the one that decides -- only the shape of the answer.
      */
     readonly paint: ElementPaint;

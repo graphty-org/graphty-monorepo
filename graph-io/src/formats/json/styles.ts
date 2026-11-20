@@ -1754,6 +1754,12 @@ function visDashLengths(dashes: unknown, width: number, put: PutRow): void {
         put("dashLength", num6(pair.dash / width));
         put("dashGap", num6(pair.gap / width));
     }
+    // more than one dash and gap (vis.js [12, 3, 3, 3]): each as drawn, in widths, a width longer and shorter with its caps
+    const pairs = lengths.length % 2 === 1 ? [...lengths, ...lengths] : lengths;
+    if (pair !== null && pairs.length > 2) {
+        const drawn = pairs.map((d, i) => (i % 2 === 0 ? Math.max(0, d) + width : Math.max(0, d - width)) / width);
+        put("dashArray", drawn.map((d) => String(num6(d))).join(" "));
+    }
 }
 
 /**
@@ -1786,6 +1792,7 @@ function visDashesAtDrawnWidth(vals: Row, merged: VisLayer, width: number | unde
     }
     delete vals.dashLength;
     delete vals.dashGap;
+    delete vals.dashArray;
     visEdgeLineStyle({ ...merged, width }, (p, v) => {
         vals[p] = v;
     });

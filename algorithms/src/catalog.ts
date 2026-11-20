@@ -16,6 +16,7 @@ import {
     adamicAdarPrediction,
     adamicAdarScore,
     allPairsShortestPath,
+    allSimplePaths,
     astar,
     bellmanFord,
     betweennessCentrality,
@@ -131,7 +132,8 @@ export interface AlgorithmInput {
  * - "hierarchy": a dendrogram or a sequence of partitions.
  * - "traversal": a visit order with per-node `depth` and `parent`.
  * - "shortest-paths": per-node distances (`dist`) and predecessor arcs (`predArc`) from one source.
- * - "all-pairs": an `n * n` distance matrix. "path": one path between two nodes.
+ * - "all-pairs": an `n * n` distance matrix. "path": one path between two nodes. "paths": every simple path between
+ *   two nodes, up to the caps.
  * - "spanning-tree": the tree's edges. "cut": a node side and the edges crossing it. "flow": a flow per edge.
  * - "matching": a partner per node. "order": node indices in order, or null. "bipartition": a yes/no and the
  *   two sides. "isomorphism": a yes/no and a node mapping. "isomorphisms": every node mapping.
@@ -148,6 +150,7 @@ export type AlgorithmResultKind =
     | "shortest-paths"
     | "all-pairs"
     | "path"
+    | "paths"
     | "spanning-tree"
     | "cut"
     | "flow"
@@ -310,6 +313,19 @@ export const ALGORITHMS = {
         inputs: [NODE("source"), NODE("target"), { name: "heuristic", kind: "heuristic" }],
         requiredOptions: [],
         result: "path",
+        values: [],
+        dispatch: null,
+        accelerator: null,
+    },
+    allSimplePaths: {
+        name: "allSimplePaths",
+        fn: allSimplePaths,
+        category: "shortest-path",
+        direction: "any",
+        weights: "never",
+        inputs: [NODE("source"), NODE("target")],
+        requiredOptions: [],
+        result: "paths",
         values: [],
         dispatch: null,
         accelerator: null,

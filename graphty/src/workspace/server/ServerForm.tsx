@@ -671,7 +671,7 @@ function ServerForm({ onClose }: Readonly<{ onClose: () => void }>): React.JSX.E
 function WaitingLoads(): React.JSX.Element | null {
     const { session } = useWorkspace();
     useSessionEvents(session, INSPECTOR_EVENTS);
-    const [failed, setFailed] = useState<Readonly<Record<string, CodedFact>>>({});
+    const [failed, setFailed] = useState<Readonly<Partial<Record<string, CodedFact>>>>({});
     const waiting = session?.data.pendingSourceLoads() ?? [];
     if (session === null || waiting.length === 0) {
         return null;

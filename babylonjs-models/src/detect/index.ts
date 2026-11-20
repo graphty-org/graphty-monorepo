@@ -35,6 +35,7 @@ export type {
     ModelPart,
     ModelPartRole,
     ModelPartState,
+    ModelPicture,
     ModelProgress,
     ModelProgressListener,
     ModelSource,

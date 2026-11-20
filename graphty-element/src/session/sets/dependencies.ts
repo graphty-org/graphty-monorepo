@@ -21,7 +21,7 @@
  * reaches itself through the filter.
  *
  * The walk reads definitions this element could not validate (a loaded record holding an unknown
- * leaf) as far as it can: a reference it recognises inside one still counts, so a stored set naming
+ * leaf) as far as it can: a reference it recognizes inside one still counts, so a stored set naming
  * `"search"` is still caught.
  *
  * Nothing here reaches Babylon.js, Lit or the DOM.

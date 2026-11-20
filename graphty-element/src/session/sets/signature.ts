@@ -21,10 +21,10 @@
  * A definition whose inputs the context cannot enumerate (a query with no path reader, say) has
  * no signature: `null`, and it is never cached.
  *
- * Signatures are memoised per read epoch -- the store, the serial, the session input tick and
+ * Signatures are memoized per read epoch -- the store, the serial, the session input tick and
  * the identity of the saved-scope map and the kept-set list -- so a chain of sets naming one
  * base walks the base once. Without a tick the context cannot tell when an attribute or a token
- * moved, so nothing is memoised.
+ * moved, so nothing is memoized.
  *
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
@@ -58,7 +58,7 @@ export function keptDefinition(id: SetId, context: ResolveContext): SetDefinitio
     );
 }
 
-/** Invocation counts the complexity tests read. `walks`: saved-scope and kept-set parts computed, not memoised. */
+/** Invocation counts the complexity tests read. `walks`: saved-scope and kept-set parts computed, not memoized. */
 export const signatureCounters = { walks: 0 };
 
 const identities = new WeakMap<object, number>();
@@ -601,7 +601,7 @@ function definitionPart(
 ): string | null {
     switch (definition.kind) {
         case "fixed":
-            // `in`, not a read: reading `edges` would materialise a fixed set's compact members.
+            // `in`, not a read: reading `edges` would materialize a fixed set's compact members.
             return "edges" in definition ? `f${seedsPart(context.sets?.seedsOf(id))}` : "f";
         case "path":
             return `p${seedsPart(context.sets?.seedsOf(id))}`;

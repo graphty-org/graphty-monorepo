@@ -1,10 +1,10 @@
 /**
- * @file A node tooltip drawn in the colours and the size a layer asked for.
+ * @file A node tooltip drawn in the colors and the size a layer asked for.
  *
  * WHAT WAS MISSING UNTIL 2.0. A node tooltip appears when the pointer rests on the node, and the
  * only thing a consumer could say about one was what it said: `node.tooltip` carried the words
  * and there was no channel beside it for the look. Everything else about the drawn tooltip -- the
- * typeface, the size, the panel behind it, the colour of the letters -- was the element's own
+ * typeface, the size, the panel behind it, the color of the letters -- was the element's own
  * default, and a consumer who wanted their own had nowhere to write it. The renderer was ready
  * the whole time: `Node.showTooltip` builds the tooltip through the same options builder a label
  * goes through, so the entire rich-text block was already read and only the door was missing.
@@ -20,7 +20,7 @@
  * a mesh, which is exactly how a channel comes to be published, believed and unreachable.
  *
  * SO EVERY READING IS TAKEN OFF THE DRAWN THING. The size comes from the plane's own bounding
- * box, and the panel colour from the pixels of the `DynamicTexture` the tooltip is drawn on. A
+ * box, and the panel color from the pixels of the `DynamicTexture` the tooltip is drawn on. A
  * tooltip configured beautifully and drawn at the default reads exactly like the default here.
  */
 
@@ -58,10 +58,10 @@ const WORDS_ONLY: LayerSpec = {
     set: { "node.tooltip": WORDS },
 };
 
-/** The panel colour the styled tooltip asks for: a green nothing in the element's defaults uses. */
+/** The panel color the styled tooltip asks for: a green nothing in the element's defaults uses. */
 const PANEL = "#10B981";
 
-/** How far one channel may be from the colour asked for and still count as that colour. */
+/** How far one channel may be from the color asked for and still count as that color. */
 const COLOUR_TOLERANCE = 24;
 
 /** The type size the styled tooltip asks for, well above the default so the plane has to grow. */
@@ -182,12 +182,12 @@ describe("the look of a node's tooltip, and the channel that carries it", () => 
     }
 
     /**
-     * The colour of the panel the tooltip's words are drawn on, sampled off its own texture.
+     * The color of the panel the tooltip's words are drawn on, sampled off its own texture.
      *
      * The sample is taken three pixels in from the top-left corner: far enough past the rounding
      * and the antialiased edge to be panel, far enough from the middle to be nowhere near the
      * letters.
-     * @returns The colour as three channels, or null when there is no texture to read.
+     * @returns The color as three channels, or null when there is no texture to read.
      */
     function panelColour(): { r: number; g: number; b: number } | null {
         const mesh = alpha().tooltip?.labelMesh;
@@ -210,7 +210,7 @@ describe("the look of a node's tooltip, and the channel that carries it", () => 
     }
 
     /**
-     * Whether a sampled colour is the one that was asked for.
+     * Whether a sampled color is the one that was asked for.
      * @param seen - What was drawn.
      * @param hex - What the layer asked for, as `#rrggbb`.
      * @returns Whether they match within the tolerance one canvas fill allows.

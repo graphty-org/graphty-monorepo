@@ -35,6 +35,7 @@
         "Algorithms/Flow::MaxFlow",
         "Algorithms/Flow::MinCut",
         "Algorithms/Palette Picker::PalettePicker",
+        "Algorithms/Shortest Path::AllPaths",
         "Algorithms/Shortest Path::BellmanFord",
         "Algorithms/Shortest Path::Dijkstra",
         "Algorithms/Shortest Path::FloydWarshall",

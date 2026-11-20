@@ -14,6 +14,7 @@ import type { Binding, Channel, ChannelValue, CombineMode, LayerId } from "@grap
 import {
     type ColumnRef,
     type GraphSession,
+    type HistoryStepId,
     type Layer,
     OVERFLOW_SHAPES,
     type TransactionScope,
@@ -544,6 +545,7 @@ export function carriedOpacity(ctx: Pick<RowContext, "many" | "layers">, channel
  * @param write - the value or the binding.
  * @param also - values for other channels written with it where the row has none.
  * @param alsoReplaces - write `also` over the values the row has.
+ * @param after - several rows only: merges the writes into this undo step.
  * @returns when it is written.
  */
 export function writeIn(
@@ -552,6 +554,7 @@ export function writeIn(
     write: LiteralWrite | { readonly binding: DataBinding },
     also?: Readonly<Partial<Record<Channel, ChannelValue>>>,
     alsoReplaces = false,
+    after?: HistoryStepId,
 ): Promise<unknown> {
     const { many } = ctx;
     if (many === undefined) {
@@ -566,14 +569,17 @@ export function writeIn(
             alsoReplaces,
         });
     }
-    // ponytail: several rows take the extra values as separate writes, one undo step each.
-    return many.write(channel, write).then(() =>
-        Promise.all(
-            Object.entries(also ?? {})
-                .filter(([c, value]) => value !== undefined && (alsoReplaces || many.line(c as Channel) === undefined))
-                .map(([c, value]) => many.write(c as Channel, { value })),
-        ),
-    );
+    // Several rows: the value and each extra value are written one after another, each merged into
+    // the step before it, so Undo takes them back together.
+    const stepNow = (): HistoryStepId | undefined => ctx.session.history.steps[ctx.session.history.position - 1]?.id;
+    return many.write(channel, write, after).then(async () => {
+        const first = stepNow();
+        for (const [c, value] of Object.entries<ChannelValue | undefined>(also ?? {})) {
+            if (value !== undefined && (alsoReplaces || many.line(c as Channel) === undefined)) {
+                await many.write(c as Channel, { value }, first);
+            }
+        }
+    });
 }
 
 /**
@@ -588,8 +594,11 @@ export async function removeLine(
     layer: Layer,
     ...channels: Channel[]
 ): Promise<void> {
-    const set = without(layer.set, ...channels);
-    const encode = without(layer.encode, ...channels);
+    // The layer as the element holds it now, not the caller's snapshot: two removes in a row would
+    // otherwise each write back the snapshot, and the second would restore what the first took.
+    const now = session.styles.get(layer.id) ?? layer;
+    const set = without(now.set, ...channels);
+    const encode = without(now.encode, ...channels);
     // The layer stays when this was its last value: the panel removes properties one at a time.
     await session.styles.update(layer.id, { set, encode }, { keepEmpty: true });
 }
@@ -1073,7 +1082,7 @@ function startingBinding(session: GraphSession, descriptor: ChannelDescriptor, c
     // The first group palette with a color for every layer, so ten layers never draw three
     // near-identical colors past an eight-color palette's end; the first when none has room.
     const palettes = groupPalettes(session);
-    const palette = isColor ? (palettes.find((p) => p.colors.length >= count) ?? palettes[0])?.id : undefined;
+    const palette = isColor ? (palettes.find((p) => p.colors.length >= count) ?? palettes.at(0))?.id : undefined;
     const { range } = appRange(descriptor.channel);
     return {
         ...(palette === undefined ? {} : { palette }),

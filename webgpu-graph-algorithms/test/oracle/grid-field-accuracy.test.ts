@@ -5,7 +5,7 @@
  * - issue #89: a far-field cell term for ForceAtlas2 (LAW 0) never uses a distance below the 0.01 floor of the exact
  *   tier and the near field. On a fine grid (cellSize < 0.01) a far cell can sit closer than the floor, and the
  *   unfloored term was larger than the exact tier's by the ratio floor^2 / d^2.
- * - issue #90: outside nodes are aggregated per orthant of the grid centre, so two outlier groups on opposite sides
+ * - issue #90: outside nodes are aggregated per orthant of the grid center, so two outlier groups on opposite sides
  *   each push the core from their own side instead of from a merged centroid in the middle of the grid where no node
  *   is. The core's grid force stays within the grid-exact tolerances of the exact force.
  */

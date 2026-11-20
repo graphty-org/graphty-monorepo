@@ -26,7 +26,7 @@ interface TableEdits {
     /** What each row becomes, when the reader changed it. */
     readonly rowsAre?: "nodes" | "edges";
     /** The role the reader gave each column, by column name. */
-    readonly roles: Readonly<Record<string, PageRole>>;
+    readonly roles: Readonly<Partial<Record<string, PageRole>>>;
     /** What the weight means, once the reader chose; unset until then (tier2-design.md section 5). */
     readonly weightMeaning?: NonNullable<TableMapping["weightMeaning"]>;
     /** How a number time column is read, once the reader chose. */
@@ -35,7 +35,7 @@ interface TableEdits {
 
 /** Every choice on the page. */
 export interface PageChoices {
-    readonly tables: Readonly<Record<string, TableEdits>>;
+    readonly tables: Readonly<Partial<Record<string, TableEdits>>>;
     /** An edge naming a node no node row holds: tier1-design.md section 2.10 makes Leave out the default. */
     readonly unmatched: "add" | "leave-out";
     /** Direction: as the file says, or the reader's. */
@@ -73,7 +73,7 @@ export function offersStyles(draft: LoadDraft): boolean {
  * @returns "nodes" or "edges".
  */
 export function rowsAreOf(draft: LoadDraft, table: DraftTable, choices: PageChoices): "nodes" | "edges" {
-    return choices.tables[table.id]?.rowsAre ?? draft.mapping.tables[table.id]?.rowsAre ?? "nodes";
+    return choices.tables[table.id]?.rowsAre ?? draft.mapping.tables[table.id].rowsAre;
 }
 
 /**
@@ -86,7 +86,7 @@ export function rowsAreOf(draft: LoadDraft, table: DraftTable, choices: PageChoi
  */
 export function kindChanged(draft: LoadDraft, table: DraftTable, choices: PageChoices): boolean {
     const chosen = choices.tables[table.id]?.rowsAre;
-    return chosen !== undefined && chosen !== draft.mapping.tables[table.id]?.rowsAre;
+    return chosen !== undefined && chosen !== draft.mapping.tables[table.id].rowsAre;
 }
 
 /**
@@ -158,7 +158,7 @@ export function setRole(
     choices: PageChoices,
 ): PageChoices {
     const edits = choices.tables[table.id] ?? { roles: {} };
-    const roles: Record<string, PageRole> = Object.fromEntries(
+    const roles: Partial<Record<string, PageRole>> = Object.fromEntries(
         Object.entries(edits.roles).filter(([name]) => name !== column),
     );
     if (role !== undefined) {
@@ -232,7 +232,7 @@ export function setRowsAre(
     rowsAre: "nodes" | "edges",
     choices: PageChoices,
 ): PageChoices {
-    const same = rowsAre === draft.mapping.tables[table.id]?.rowsAre;
+    const same = rowsAre === draft.mapping.tables[table.id].rowsAre;
     const edits: TableEdits = same ? { roles: {} } : { rowsAre, roles: {} };
     return { ...choices, tables: { ...choices.tables, [table.id]: edits } };
 }
@@ -349,14 +349,14 @@ function mappedColumn(table: DraftTable, value: unknown): string | undefined {
  * @param mapping - the load's mapping.
  * @returns the mappings.
  */
-function tablesOf(draft: LoadDraft, mapping: LoadChoices["mapping"]): Readonly<Record<string, TableMapping>> {
+function tablesOf(draft: LoadDraft, mapping: LoadChoices["mapping"]): Readonly<Partial<Record<string, TableMapping>>> {
     if (mapping === undefined) {
         return {};
     }
     if ("tables" in mapping) {
         return mapping.tables;
     }
-    const [only] = draft.tables;
+    const only = draft.tables.at(0);
     return only === undefined ? {} : { [only.id]: mapping };
 }
 

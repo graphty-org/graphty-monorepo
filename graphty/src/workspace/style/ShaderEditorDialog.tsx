@@ -987,7 +987,7 @@ export function ShaderEditorDialog({
             const { id } = added.descriptor;
             // The write joins the add's step, so one Undo takes both back.
             const { history } = session;
-            const step = history.steps[history.position - 1]?.id;
+            const step = history.position > 0 ? history.steps.at(history.position - 1)?.id : undefined;
             await session.transaction(
                 `Add the shader ${id}`,
                 (tx) => put(tx, id, {}),

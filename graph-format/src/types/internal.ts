@@ -64,7 +64,7 @@ export interface SnapshotParts {
     /** arcCount f32 weights, or null when unweighted. */
     readonly weights: F32 | null;
     /**
-     * arcCount entries, or null exactly when flags.arcToEdgeIsIdentity (the snapshot materialises the identity on first
+     * arcCount entries, or null exactly when flags.arcToEdgeIsIdentity (the snapshot materializes the identity on first
      * access, outside the arena).
      */
     readonly arcToEdge: U32 | null;
@@ -186,10 +186,10 @@ export interface ViewValues {
 
 /**
  * The per-instance, per-realm cache of lazily computed views (design section 7.2, invariant I17):
- * one writable slot per ViewName, null until first materialisation. Every slot holds the object the
+ * one writable slot per ViewName, null until first materialization. Every slot holds the object the
  * public method returns (SHARED, never copied); dropCaches() nulls every slot; cachedViews() lists
  * the non-null ones. Views are pure functions of the core, so a slot is never invalidated, only
- * dropped. The lazily materialised identity permutations of design section 3.1 are not views and
+ * dropped. The lazily materialized identity permutations of design section 3.1 are not views and
  * are kept by the snapshot separately.
  */
 export type ViewCache = { -readonly [K in ViewName]: ViewValues[K] | null };

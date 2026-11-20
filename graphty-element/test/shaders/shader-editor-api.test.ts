@@ -61,9 +61,7 @@ const EVERY_KEY = {
     thumbnail: "https://example.com/picture.png",
     motion: { loop: { speedParam: "speed" } },
     reach: 2,
-    reachParam: "width",
     blend: "add",
-    form: "sphere",
     bloom: true,
     requires: ["webgl2"],
     reads: ["color"],
@@ -337,7 +335,6 @@ describe("renameShaderParam and removeShaderParam", () => {
         assert.strictEqual(speed.params?.[0].name, "tempo");
         assert.deepEqual(speed.motion, { loop: { speedParam: "tempo" } });
         assert.deepEqual(speed.preview, { params: { tempo: 2 }, time: 1 });
-        assert.strictEqual(renameShaderParam(header(), "width", "girth").reachParam, "girth");
     });
 
     it("writes no display name on a row that had none", () => {
@@ -350,14 +347,13 @@ describe("renameShaderParam and removeShaderParam", () => {
         const { draft } = splitShaderText(text);
         assert.deepEqual(draft?.motion, { loop: {} });
         assert.deepEqual(draft?.preview, { params: {}, time: 1 });
-        assert.notProperty(draft ?? {}, "reachParam");
         assert.isTrue(parseShaderText(text).ok, text);
     });
 
     it("takes the last of two rows with one name, and leaves references to the row still named so", () => {
         const duplicated: ShaderTextDraft = {
             id: "user/a",
-            reachParam: "a",
+            motion: { loop: { speedParam: "a" } },
             params: [
                 { name: "a", type: "number", default: 1 },
                 { name: "a", type: "number", default: 2 },
@@ -371,7 +367,7 @@ describe("renameShaderParam and removeShaderParam", () => {
                 ["b", 2],
             ],
         );
-        assert.strictEqual(renamed.reachParam, "a");
+        assert.deepEqual(renamed.motion, { loop: { speedParam: "a" } });
         assert.deepEqual(
             removeShaderParam(duplicated, "a").params?.map((row) => row.default),
             [1],
@@ -388,7 +384,6 @@ describe("renameShaderParam and removeShaderParam", () => {
 describe("editing rows a reader can see only by place", () => {
     const pair = (): ShaderTextDraft => ({
         id: "user/a",
-        reachParam: "a",
         preview: { params: { a: 1, b: 2 } },
         params: [
             { name: "a", type: "number", default: 1 },
@@ -420,7 +415,6 @@ describe("editing rows a reader can see only by place", () => {
 
     it("a rename onto a name another row has moves no reference, and renaming back loses nothing", () => {
         const onto = renameShaderParam(pair(), "a", "b", 0);
-        assert.strictEqual(onto.reachParam, "a");
         assert.deepEqual(onto.preview, { params: { a: 1, b: 2 } });
         const back = renameShaderParam(onto, "b", "a", 0);
         assert.deepEqual(back, pair());
@@ -429,10 +423,9 @@ describe("editing rows a reader can see only by place", () => {
     it("a type change drops a reference the new type cannot serve", () => {
         const looped: ShaderTextDraft = { ...pair(), motion: { loop: { speedParam: "a" } } };
         const integer = retypeShaderParam(looped, 0, "integer");
-        assert.strictEqual(integer.reachParam, "a", "an integer still serves reachParam");
         assert.deepEqual(splitShaderText(formatShaderDraft(integer, BODY)).draft?.motion, { loop: {} });
         const toggled = retypeShaderParam(looped, 0, "boolean");
-        assert.notProperty(splitShaderText(formatShaderDraft(toggled, BODY)).draft ?? {}, "reachParam");
+        assert.deepEqual(splitShaderText(formatShaderDraft(toggled, BODY)).draft?.motion, { loop: {} });
         assert.strictEqual(toggled.params?.[0]?.default, false);
         assert.strictEqual(retypeShaderParam(looped, 9, "boolean"), looped);
     });

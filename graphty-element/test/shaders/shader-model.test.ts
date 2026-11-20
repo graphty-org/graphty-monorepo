@@ -116,9 +116,9 @@ describe("target and place", () => {
         const parsed = parseShaderText(text({}, EDGE_BODY));
         assert.isTrue(parsed.ok);
         assert.strictEqual(parsed.ok && parsed.registration.descriptor.target, "edge");
+        // Group outlines were removed: an entry on a group draws on nothing and is refused.
         const group = parseShaderText("vec4 shade(GroupInput g) { return vec4(g.field); }");
-        assert.strictEqual(group.ok && group.registration.descriptor.target, "group");
-        assert.strictEqual(group.ok && group.registration.descriptor.place, "group");
+        assert.isFalse(group.ok, "a group entry is refused");
     });
 
     it("takes the place from the options when the text names none, and paint with none", () => {
@@ -139,10 +139,6 @@ describe("target and place", () => {
     });
 
     it("refuses a place the target does not draw at, and a list that moves a fixed place", () => {
-        const group = parseShaderText(text({ place: "around" }, "vec4 shade(GroupInput g) { return vec4(0.0); }"));
-        assert.deepEqual(!group.ok && group.problems, [
-            { code: "shader.place-unsupported", params: { shader: "test/case", place: "around", allowed: ["group"] } },
-        ]);
         const along = parseShaderText(text({ place: "along" }, NODE_BODY));
         assert.strictEqual(!along.ok && along.problems[0].code, "shader.place-unsupported");
         const mixed = parseShaderText(text({ place: "paint", places: ["paint", "over"] }, NODE_BODY));
@@ -199,7 +195,6 @@ describe("shaderTemplate", () => {
         { target: "node", place: "behind" },
         { target: "edge", place: "paint" },
         { target: "edge", place: "along" },
-        { target: "group", place: "group" },
         { target: "background" },
     ] as const;
 

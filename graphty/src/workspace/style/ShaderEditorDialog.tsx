@@ -50,7 +50,6 @@ import {
     pasteProblemWords,
     shaderPlaceWords,
     type ShaderTab,
-    targetOfPlace,
 } from "./words";
 
 /** The switch's choices, in its order. */
@@ -124,21 +123,11 @@ function useCodeEditor(box: React.RefObject<HTMLTextAreaElement | null>): {
  * @returns the template's text.
  */
 function templateOf(tab: ShaderTab, place: ShaderPlace | undefined): string {
-    const target = targetOfPlace(tab, place);
-    return shaderTemplate(target === "background" ? { target } : { target, place });
+    return shaderTemplate(tab === "background" ? { target: tab } : { target: tab, place });
 }
 
-/** What a shader draws on: each keeps its own draft. */
-type Target = ReturnType<typeof targetOfPlace>;
-
-/**
- * The tab a target's draft is on: a group outline's is the Node tab's, at the group place.
- * @param target - the target.
- * @returns the tab.
- */
-function tabOfTarget(target: Target): ShaderTab {
-    return target === "group" ? "node" : target;
-}
+/** What a shader draws on, the tab it is written on: each keeps its own draft. */
+type Target = ShaderTab;
 
 /** What the dialog opens with: text to start from, the place, and the shader it duplicates. */
 export interface PasteInit {
@@ -167,8 +156,6 @@ interface EditorState {
 interface DraftBook {
     readonly drafts: Map<Target, EditorState>;
     last: Target | undefined;
-    /** The Node tab's target (node or group) when the reader last left that tab. */
-    onNode: Target | undefined;
 }
 
 const books = new WeakMap<GraphSession, DraftBook>();
@@ -181,7 +168,7 @@ const books = new WeakMap<GraphSession, DraftBook>();
 function bookOf(session: GraphSession): DraftBook {
     let book = books.get(session);
     if (book === undefined) {
-        book = { drafts: new Map(), last: undefined, onNode: undefined };
+        book = { drafts: new Map(), last: undefined };
         books.set(session, book);
     }
     return book;
@@ -216,12 +203,12 @@ function loadedAs(state: EditorState): EditorState {
  * @returns the state.
  */
 function openingState(book: DraftBook, tab: ShaderTab, init: PasteInit): EditorState {
-    const place = init.place ?? (book.last === "group" && tab === "node" ? "group" : FIRST_PLACE[tab]);
+    const place = init.place ?? FIRST_PLACE[tab];
     const starter = starterState(tab, place);
     if (init.text !== undefined) {
         return loadedAs(stateFromText(init.text, tab, starter));
     }
-    return book.drafts.get(targetOfPlace(tab, place)) ?? starter;
+    return book.drafts.get(tab) ?? starter;
 }
 
 /**
@@ -322,7 +309,7 @@ type ProblemSite =
     | { readonly kind: "plain" };
 
 /** Every target a draft can be for. */
-const TARGETS: readonly Target[] = ["node", "edge", "group", "background"];
+const TARGETS: readonly Target[] = ["node", "edge", "background"];
 
 /** The header keys the form has a field for, besides Place. */
 const FORM_KEYS: ReadonlySet<string> = new Set(["name", "reach", "minSize"]);
@@ -472,7 +459,7 @@ export function ShaderEditorDialog({
     const { store } = useWorkspace();
     const problemsId = useId();
     const book = bookOf(session);
-    const [tab, setTab] = useState<ShaderTab>(() => listTab ?? tabOfTarget(book.last ?? "node"));
+    const [tab, setTab] = useState<ShaderTab>(() => listTab ?? book.last ?? "node");
     const places = DIALOG_PLACES[tab];
     const [state, setState] = useState<EditorState>(() => openingState(book, tab, init));
     // The state as last drawn, for closing from a listener registered by an earlier render.
@@ -500,7 +487,7 @@ export function ShaderEditorDialog({
     const text = full ?? formatShaderDraft(form, body);
     const bodyLine = useMemo(() => splitShaderText(text).bodyLine, [text]);
     const boxValue = full ?? body;
-    const target = targetOfPlace(tab, place);
+    const target = tab;
     const onList = put !== undefined && tab === listTab;
     // With no list to write the values to, a changed default is kept only by joining as new.
     const defaultsChanged =
@@ -509,7 +496,7 @@ export function ShaderEditorDialog({
     const asNew = init.duplicateOf !== undefined || edited || defaultsChanged;
     const options = {
         target,
-        ...(place === undefined || place === "group" ? {} : { place }),
+        ...(place === undefined ? {} : { place }),
         ...(asNew ? { asNew } : {}),
         onTaken: "rename",
     } as const;
@@ -618,10 +605,7 @@ export function ShaderEditorDialog({
      */
     const showDraft = (nextTab: ShaderTab, next: EditorState): void => {
         book.drafts.set(target, state);
-        if (tab === "node" && nextTab !== "node") {
-            book.onNode = target;
-        }
-        book.last = targetOfPlace(nextTab, next.place);
+        book.last = nextTab;
         setTab(nextTab);
         setState(next);
         setDrawn(undefined);
@@ -629,25 +613,15 @@ export function ShaderEditorDialog({
     };
 
     const choosePlace = (next: ShaderPlace): void => {
-        const nextTarget = targetOfPlace(tab, next);
-        if (nextTarget === target) {
-            setState((now) => ({
-                ...movedToPlace(now, tab, next),
-                edited: now.edited || next !== now.place,
-            }));
-            return;
-        }
-        // A group outline's place is its own target, under the same draft rule as the switch.
-        const other = book.drafts.get(nextTarget) ?? starterState(tab, next);
-        showDraft(tab, other.place === next ? other : movedToPlace(other, tab, next));
+        setState((now) => ({
+            ...movedToPlace(now, tab, next),
+            edited: now.edited || next !== now.place,
+        }));
     };
 
     const switchTab = (next: ShaderTab): void => {
         if (next !== tab) {
-            // The Node tab comes back at the target the reader left it on, a group outline included.
-            const nextTarget = next === "node" ? (book.onNode ?? "node") : next;
-            const firstPlace = nextTarget === "group" ? "group" : FIRST_PLACE[next];
-            showDraft(next, book.drafts.get(nextTarget) ?? starterState(next, firstPlace));
+            showDraft(next, book.drafts.get(next) ?? starterState(next, FIRST_PLACE[next]));
         }
     };
 
@@ -656,8 +630,8 @@ export function ShaderEditorDialog({
      * @param found - the target it is written for.
      */
     const moveToTarget = (found: Target): void => {
-        const nextTab = tabOfTarget(found);
-        const start = starterState(nextTab, found === "group" ? "group" : FIRST_PLACE[nextTab]);
+        const nextTab = found;
+        const start = starterState(nextTab, FIRST_PLACE[nextTab]);
         // The moved text replaces that target's draft.
         showDraft(nextTab, loadedAs(stateFromText(text, nextTab, start)));
         book.drafts.delete(target);

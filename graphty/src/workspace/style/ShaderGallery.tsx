@@ -83,16 +83,6 @@ export function PlaceDiagram({
                     </>
                 );
                 break;
-            case "group":
-                body = (
-                    <>
-                        <rect x={1.5} y={2.5} width={13} height={11} rx={5} fill="none" stroke={ink} />
-                        <circle cx={5} cy={6.5} r={1.5} fill={ink} />
-                        <circle cx={10.5} cy={6} r={1.5} fill={ink} />
-                        <circle cx={8} cy={10.5} r={1.5} fill={ink} />
-                    </>
-                );
-                break;
             default:
                 body = <circle cx={8} cy={8} r={5} fill={ink} />;
         }
@@ -141,14 +131,14 @@ function factsOf(descriptor: ShaderDescriptor): { key: string; icon: (typeof GLY
 }
 
 /**
- * The shaders a tab's gallery lists: node and group-outline shaders on the Node tab, edge shaders
- * on the Edge tab, background shaders on the Background.
+ * The shaders a tab's gallery lists: node shaders on the Node tab, edge shaders on the Edge tab,
+ * background shaders on the Background.
  * @param descriptor - the catalog's entry.
  * @param tab - the tab.
  * @returns true when the tab lists it.
  */
 function onTab(descriptor: ShaderDescriptor, tab: ShaderTab): boolean {
-    return tab === "node" ? descriptor.target === "node" || descriptor.target === "group" : descriptor.target === tab;
+    return descriptor.target === tab;
 }
 
 /**

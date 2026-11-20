@@ -50,7 +50,7 @@ describe("the shader guide", () => {
     });
 
     it("lists every field of every input struct", () => {
-        for (const struct of ["NodeInput", "EdgeInput", "GroupInput", "BackgroundInput"]) {
+        for (const struct of ["NodeInput", "EdgeInput", "BackgroundInput"]) {
             const fields = fieldsOf(struct);
             assert.isNotEmpty(fields, struct);
             for (const field of fields) {

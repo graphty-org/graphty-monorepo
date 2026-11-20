@@ -44,11 +44,6 @@ export function registerTestShaders(): void {
         });
     }
 
-    defineShader({
-        id: "acme/hull",
-        params: { outline: 2.5 },
-        glsl: "vec4 shade(GroupInput g) { return g.color * g.field; }",
-    });
     defineShader({ id: "acme/fiber", glsl: "vec4 shade(EdgeInput e) { return e.color; }" });
 }
 

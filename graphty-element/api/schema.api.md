@@ -3852,7 +3852,6 @@ export type ShaderText = string;
 
 // @public
 export interface ShaderUse {
-    readonly groupBy?: string;
     readonly off?: true;
     readonly params?: Readonly<Record<string, ShaderParamValue>>;
     readonly place?: ShaderPlace;

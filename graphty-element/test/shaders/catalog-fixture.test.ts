@@ -64,8 +64,6 @@ const PLANNED_SHADERS = [
     "edge-change",
     // 7.5 scene
     "nebula",
-    "soap-bubble",
-    "metaball-hull",
 ];
 
 /** The 7 transition presets of design section 7.6, by id. */

@@ -68,19 +68,6 @@ export type ElementAtResult =
     { readonly kind: "node"; readonly id: NodeId } | { readonly kind: "edge"; readonly id: EdgeId };
 
 /**
- * What `element.groupOutlineAt(point)` finds under a point: a group outline a style layer draws (a
- * use at the place `group` on its `node.shaders`), by its layer, its shader and its group, the
- * topmost outline first. `group` is the group's `groupBy` value, null for a use drawing one outline.
- * @since 3.36.0
- */
-export interface GroupOutlineAtResult {
-    readonly kind: "group-outline";
-    readonly layer: LayerId;
-    readonly shader: string;
-    readonly group: string | number | boolean | null;
-}
-
-/**
  * What the element's shaders draw now, as `element.drawnShaders()` reads it: for tools, tests and
  * an application that shows whether an effect is playing. Read it again after a frame; it is not
  * a live value.
@@ -92,15 +79,6 @@ export interface DrawnShaders {
      * are playing their entrance (a reticle's snap, a shockwave's ring) at this moment.
      */
     readonly nodes: ReadonlyMap<string, { readonly drawn: number; readonly entering: number }>;
-    /**
-     * The group outlines drawn on the last frame, bottom first: each one's layer, shader and the
-     * `groupBy` value of each group it outlines (null for a use drawing one outline).
-     */
-    readonly groupOutlines: readonly {
-        readonly layer: LayerId;
-        readonly shader: string;
-        readonly groups: readonly (string | number | boolean | null)[];
-    }[];
 }
 
 /** The identity of a run. Stable, selector-safe and author-assignable. */

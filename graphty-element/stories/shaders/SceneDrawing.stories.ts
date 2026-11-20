@@ -4,14 +4,11 @@
  *
  * - **Background**: a background shader, set like a color (`element.background`), drawn behind
  *   every node and label at 30 frames a second or fewer.
- * - **Group outlines**: a use at the place `group` on a style layer's `node.shaders` draws one shape around each group of its nodes;
- *   a community layer and a subgroup layer above it give nested outlines.
- * - **Bubbles**: a group outline of form `"sphere"`, one thin-film sphere around each group.
  * - **Bloom**: a node surface that declares `bloom` glows; the scene allocates one shared bloom
  *   pass while a layer names such a shader.
  *
  * The demonstration shaders are defined in this file with `defineShader`, ported from the shader
- * lab (nebula backdrop, metaball hulls, soap bubble, lantern glow); the element's own presets
+ * lab (nebula backdrop, lantern glow); the element's own presets
  * have stories of their own.
  */
 
@@ -64,73 +61,6 @@ vec4 shade(BackgroundInput b) {
 }`,
 };
 
-/** Metaball hulls: a translucent membrane with an iridescent rim, or a clean outline. */
-const HULL: ShaderDefinition = {
-    id: "demo/hull",
-    reach: 4,
-    motion: { loop: { speedParam: "breathe" } },
-    params: {
-        look: {
-            type: "enum",
-            default: "membrane",
-            values: [
-                { value: "membrane", label: "Membrane" },
-                { value: "outline", label: "Outline" },
-            ],
-            primary: true,
-        },
-        threshold: { type: "number", default: 0.6, min: 0.05, max: 1.5 },
-        fillOpacity: { type: "number", default: 0.35, min: 0, max: 1 },
-        outline: { type: "number", default: 2.5, min: 0, max: 8 },
-        breathe: { type: "number", default: 0, min: 0, max: 1 },
-    },
-    glsl: `vec4 shade(GroupInput g) {
-    float level = threshold * (1.0 + 0.08 * breathe * sin(g.time * 1.3 + g.group * 2.1));
-    float slope = max(length(g.fieldGradient), 1e-5);
-    float sd = (level - g.field) / slope;
-    float inside = clamp(0.5 - sd, 0.0, 1.0);
-    float line = 1.0 - smoothstep(max(outline, 1.0) - 1.0, max(outline, 1.0), abs(sd));
-    vec3 col = g.color.rgb;
-    if (look == 0) {
-        vec3 n = normalize(vec3(-g.fieldGradient * 18.0, 1.0));
-        float rim = 1.0 - smoothstep(0.0, 18.0, -sd);
-        vec3 irid = palette(g.field * 3.0 + n.x * 2.0 + n.y * 1.5, vec3(0.5), vec3(0.5), vec3(1.0), vec3(0.0, 0.33, 0.67));
-        vec3 body = mix(col, irid, 0.25 + 0.35 * rim);
-        float a = inside * (fillOpacity + 0.35 * rim);
-        a = max(a, line * 0.9);
-        vec3 rgb = mix(body, mix(col, irid, 0.5), line);
-        return vec4(rgb * a, a);
-    }
-
-    float a = max(inside * fillOpacity * 0.5, line);
-    return vec4(col * a, a);
-}`,
-};
-
-/** A thin-film soap bubble around each group: clear in the middle, bright swirling bands at the rim. */
-const BUBBLE: ShaderDefinition = {
-    id: "demo/bubble",
-    form: "sphere",
-    reach: 2,
-    motion: { loop: { speedParam: "swirl" } },
-    params: {
-        thickness: { type: "number", default: 520, min: 100, max: 1200, primary: true },
-        swirl: { type: "number", default: 0, min: 0, max: 4 },
-        clarity: { type: "number", default: 0.75, min: 0, max: 1 },
-    },
-    glsl: `vec4 shade(GroupInput g) {
-    vec3 n = g.normal;
-    float facing = clamp(-n.z, 0.0, 1.0);
-    float fres = pow(1.0 - facing, 3.0);
-    float film = thickness * (1.0 + 0.35 * noise(n.xy * 3.0 + vec2(g.time * swirl * 0.1, g.group)));
-    vec3 bands = 0.5 + 0.5 * cos(6.28318 * (film * vec3(1.0 / 650.0, 1.0 / 510.0, 1.0 / 440.0) * 2.0 * facing));
-    float spec = pow(max(dot(n, normalize(vec3(-0.4, 0.5, -0.8))), 0.0), 60.0);
-    float a = clamp((1.0 - clarity) * 0.25 + fres * 0.85 + spec, 0.0, 1.0);
-    vec3 rgb = mix(bands, g.color.rgb, 0.15) + spec;
-    return vec4(rgb * a, a);
-}`,
-};
-
 /** A paper lantern: a warm glowing core lit from inside, which the shared bloom spreads. */
 const LANTERN: ShaderDefinition = {
     id: "demo/lantern",
@@ -149,7 +79,7 @@ const LANTERN: ShaderDefinition = {
  * Define the demonstration shaders, once per page: a story reloaded in place defines them again.
  */
 function defineDemoShaders(): void {
-    for (const definition of [NEBULA, HULL, BUBBLE, LANTERN]) {
+    for (const definition of [NEBULA, LANTERN]) {
         try {
             defineShader(definition);
         } catch (error) {
@@ -265,52 +195,6 @@ export const Background: Story = {
     },
     play: async ({ canvasElement }) => {
         await settled(canvasElement, "Shaders/Scene Background");
-    },
-};
-
-/** Community hulls as membranes, and each community's two subgroups outlined inside them. */
-export const GroupOutlines: Story = {
-    name: "Group outlines",
-    render: () =>
-        communities([
-            {
-                name: "Communities",
-                set: { "node.shaders": [{ shader: "demo/hull", groupBy: "data.community" }] },
-                target: "node",
-                selector: { match: "has", path: "data.community" },
-            },
-            {
-                name: "Subgroups",
-                set: {
-                    "node.shaders": [
-                        { shader: "demo/hull", params: { look: "outline", outline: 2 }, groupBy: "data.sub" },
-                    ],
-                },
-                target: "node",
-                selector: { match: "has", path: "data.sub" },
-            },
-        ]),
-    play: async ({ canvasElement }) => {
-        await settled(canvasElement, "Shaders/Scene GroupOutlines");
-    },
-};
-
-/** One soap bubble around each community. */
-export const Bubbles: Story = {
-    render: () => {
-        const element = communities([
-            {
-                name: "Bubbles",
-                set: { "node.shaders": [{ shader: "demo/bubble", groupBy: "data.community" }] },
-                target: "node",
-                selector: { match: "has", path: "data.community" },
-            },
-        ]);
-        element.background = { backgroundType: "color", color: "#1b2330" };
-        return element;
-    },
-    play: async ({ canvasElement }) => {
-        await settled(canvasElement, "Shaders/Scene Bubbles");
     },
 };
 

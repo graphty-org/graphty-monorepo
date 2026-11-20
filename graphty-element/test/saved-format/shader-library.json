@@ -133,18 +133,7 @@
             "float sinceChanged",
             "float time"
         ],
-        "BackgroundInput": ["vec2 uv", "vec3 viewDir", "vec2 resolution", "float time", "vec4 groupTint"],
-        "GroupInput": [
-            "vec2 uv",
-            "float field",
-            "vec2 fieldGradient",
-            "vec3 normal",
-            "vec3 viewDir",
-            "vec4 color",
-            "float group",
-            "float depth",
-            "float time"
-        ]
+        "BackgroundInput": ["vec2 uv", "vec3 viewDir", "vec2 resolution", "float time"]
     },
     "icons": [
         "float iconSdf(int icon, vec2 p) {",

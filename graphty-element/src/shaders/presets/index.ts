@@ -35,13 +35,11 @@ import { DESCRIPTOR as LIQUID_METAL } from "./liquid-metal/descriptor";
 import { DESCRIPTOR as LOCK_ON_RETICLE } from "./lock-on-reticle/descriptor";
 import { DESCRIPTOR as MANDALA } from "./mandala/descriptor";
 import { DESCRIPTOR as MATCAP_INK } from "./matcap-ink/descriptor";
-import { DESCRIPTOR as METABALL_HULL } from "./metaball-hull/descriptor";
 import { DESCRIPTOR as NEBULA } from "./nebula/descriptor";
 import { NEON_LINE } from "./neon-line/descriptor";
 import { DESCRIPTOR as ORBITING_SATELLITES } from "./orbiting-satellites/descriptor";
 import { DESCRIPTOR as PEARL } from "./pearl/descriptor";
 import { DESCRIPTOR as SHOCKWAVE } from "./shockwave/descriptor";
-import { DESCRIPTOR as SOAP_BUBBLE } from "./soap-bubble/descriptor";
 import { DESCRIPTOR as UNCERTAINTY_AURA } from "./uncertainty-aura/descriptor";
 
 /** Every preset's descriptor, in catalog order (design section 7). */
@@ -75,6 +73,4 @@ export const SHADER_PRESETS: readonly ShaderDescriptor[] = Object.freeze([
     NEON_LINE,
     EDGE_CHANGE,
     NEBULA,
-    SOAP_BUBBLE,
-    METABALL_HULL,
 ]);

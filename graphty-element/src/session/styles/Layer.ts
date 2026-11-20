@@ -1538,8 +1538,8 @@ function checkEncodeKey(
 // ---------------------------------------------------------------------------------------------
 
 /**
- * Check one shader id against the catalog: it must be listed, drawn on the list's target (a node
- * list also takes group outlines), and allowed at the place the use asks for.
+ * Check one shader id against the catalog: it must be listed, drawn on the list's target, and
+ * allowed at the place the use asks for.
  * @param id - The id.
  * @param target - The list's target.
  * @param place - The place the use asks for, or undefined for the shader's own.
@@ -1566,7 +1566,7 @@ function checkShaderRef(
         return null;
     }
 
-    const takes = target === "node" ? ["node", "group"] : ["edge"];
+    const takes: readonly string[] = [target];
     if (!takes.includes(descriptor.target)) {
         report(log, {
             code: "E_SHADER_KIND",
@@ -1731,11 +1731,11 @@ function checkParamSet(shader: ShaderDescriptor | null, params: unknown, path: s
 }
 
 /** The members a shader use may carry. */
-const USE_KEYS: ReadonlySet<string> = new Set(["shader", "place", "params", "groupBy", "off"]);
+const USE_KEYS: ReadonlySet<string> = new Set(["shader", "place", "params", "off"]);
 
 /**
- * Check one use of a shader list: its shape, its shader and place against the catalog, its
- * parameters, and `groupBy` (place `group` only).
+ * Check one use of a shader list: its shape, its shader and place against the catalog, and its
+ * parameters.
  * @param use - The entry.
  * @param target - The list's target.
  * @param path - Where it sits in the specification.
@@ -1746,7 +1746,7 @@ function checkShaderUse(use: unknown, target: "node" | "edge", path: string, cat
     if (!isPlainObject(use) || !isShaderId(use.shader) || Object.keys(use).some((key) => !USE_KEYS.has(key))) {
         report(log, {
             code: "E_BAD_LAYER",
-            message: 'A shader use is { shader: "<id>", place?, params?, groupBy?, off? }.',
+            message: 'A shader use is { shader: "<id>", place?, params?, off? }.',
             path,
         });
 
@@ -1762,21 +1762,6 @@ function checkShaderUse(use: unknown, target: "node" | "edge", path: string, cat
     const shader = catalog ? checkShaderRef(use.shader, target, checkedPlace, `${path}.shader`, log) : null;
     if (use.params !== undefined) {
         checkParamSet(shader, use.params, `${path}.params`, log);
-    }
-
-    if (use.groupBy === undefined) {
-        return;
-    }
-
-    const at = place ?? shader?.place;
-    if (typeof use.groupBy !== "string" || use.groupBy.trim() === "" || (at !== undefined && at !== "group")) {
-        report(log, {
-            code: "E_BAD_LAYER",
-            message: 'groupBy is a path, such as "data.community", on a use at the place "group".',
-            path: `${path}.groupBy`,
-        });
-    } else {
-        readsPath(log, use.groupBy);
     }
 }
 

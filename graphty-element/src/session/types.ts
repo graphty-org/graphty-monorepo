@@ -3828,21 +3828,6 @@ export interface SettingEffect extends CodedFact<SettingEffectCode> {
 }
 
 /**
- * A click on a group outline a style layer draws (a use at the place `group` on its
- * `node.shaders`): its layer, its shader, and the group's `groupBy` value (null for a use drawing
- * one outline).
- * @since 3.36.0
- */
-export interface GroupOutlineClick {
-    /** The layer whose outline was clicked. */
-    readonly layer: LayerId;
-    /** The outline's shader. */
-    readonly shader: string;
-    /** The group's `groupBy` value; null for a use drawing one outline. */
-    readonly group: string | number | boolean | null;
-}
-
-/**
  * Where the hovered node was drawn in the frame the pointer's hover was read from, in CSS pixels
  * from the canvas's top-left corner (the pixels `Graph.worldToScreen` returns and a pointer's
  * `offsetX` / `offsetY` use).
@@ -3927,13 +3912,6 @@ export interface SessionEventMap {
      * @since 3.33.0
      */
     "canvas:element-click": { readonly node: NodeId } | { readonly edge: EdgeId };
-    /**
-     * A click landed on a group outline a style layer draws (a use at the place `group`), and on
-     * no node or edge: the layer, the shader, and the group's `groupBy` value (null for a use
-     * drawing one outline). The topmost outline under the pointer is the one reported.
-     * @since 3.36.0
-     */
-    "canvas:group-outline-click": GroupOutlineClick;
     /**
      * The layout's motion changed: it started or restarted (`running`), was paused part-way
      * (`paused`), or came to rest (`settled`). `layout.motion` is `motion` when it arrives. Only a
@@ -5598,11 +5576,6 @@ export interface ElementSession extends GraphSession {
      * @param target - What the click landed on.
      */
     elementClick(target: { readonly node: NodeId } | { readonly edge: EdgeId }): void;
-    /**
-     * Publishes `canvas:group-outline-click`; the renderer calls it for a click on a group outline.
-     * @param target - The outline's layer, shader and group.
-     */
-    groupOutlineClick(target: GroupOutlineClick): void;
     /**
      * Record the layout's motion and publish `layout:motion-changed` when it changed; the
      * renderer calls it whenever its layout starts, pauses or comes to rest.

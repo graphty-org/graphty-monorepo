@@ -31,8 +31,6 @@ const FACTS = [
     "reach",
     "blend",
     "bloom",
-    "form",
-    "reachParam",
     "categories",
     "preview",
     "thumbnail",

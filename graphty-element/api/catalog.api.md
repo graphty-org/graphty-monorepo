@@ -3146,7 +3146,6 @@ export interface ShaderDescriptor {
     readonly categories?: readonly string[];
     readonly copyOf?: string;
     readonly cost: ShaderCost;
-    readonly form?: "field" | "sphere";
     readonly hash?: string;
     readonly id: string;
     readonly minSize?: number;
@@ -3158,7 +3157,6 @@ export interface ShaderDescriptor {
     readonly plainName: string;
     readonly preview?: ShaderPreview;
     readonly reach?: number;
-    readonly reachParam?: string;
     readonly reads: readonly ShaderInput[];
     readonly requires?: readonly ShaderRequirement[];
     readonly tags?: readonly string[];
@@ -3187,7 +3185,7 @@ export interface ShaderGlyph {
 export function shaderIdForName(name: string): string;
 
 // @public
-export type ShaderInput = "color" | "opacity" | "size" | "shape" | "width" | "selected" | "hovered" | "pinned" | "times" | "members" | "light";
+export type ShaderInput = "color" | "opacity" | "size" | "shape" | "width" | "selected" | "hovered" | "pinned" | "times" | "light";
 
 // @public
 export function shaderMatches(descriptor: Pick<ShaderDescriptor, "id" | "target" | "place" | "places">, filter: ShaderFilter): boolean;
@@ -3268,7 +3266,7 @@ export interface ShaderParamTarget {
 export type ShaderParamValue = number | string | boolean | ShaderClockBinding;
 
 // @public
-export type ShaderPlace = "paint" | "replace" | "over" | "around" | "behind" | "along" | "group";
+export type ShaderPlace = "paint" | "replace" | "over" | "around" | "behind" | "along";
 
 // @public
 export function shaderPlaceUsesReach(place: ShaderPlace): boolean;
@@ -3286,7 +3284,7 @@ export interface ShaderProblem {
 }
 
 // @public
-export type ShaderProblemCode = "shader.header-missing" | "shader.header-json" | "shader.header-key" | "shader.id-invalid" | "shader.id-taken" | "shader.param-invalid" | "shader.too-many-params" | "shader.too-large" | "shader.too-many" | "shader.not-ascii" | "shader.preprocessor" | "shader.reserved" | "shader.loop-unbounded" | "shader.loop-too-long" | "shader.too-costly" | "shader.too-deep" | "shader.texture-unsupported" | "shader.entry-missing" | "shader.entry-signature" | "shader.compile" | "shader.over-budget" | "shader.webgpu-unsupported" | "shader.unknown" | "shader.target-mismatch" | "shader.place-unsupported" | "shader.uses-not-a-list" | "shader.min-size-place" | "shader.held" | "shader.quarantined" | "shader.flashing" | "shader.guard-off" | "shader.still" | "shader.program-cap" | "shader.param-unused" | "shader.stack-cap" | "shader.group-cap" | "shader.apply-target" | "shader.no-data" | "shader.no-canvas" | "shader.not-saved" | "shader.not-loaded" | "shader.not-copyable" | "shader.revoked" | (string & {});
+export type ShaderProblemCode = "shader.header-missing" | "shader.header-json" | "shader.header-key" | "shader.id-invalid" | "shader.id-taken" | "shader.param-invalid" | "shader.too-many-params" | "shader.too-large" | "shader.too-many" | "shader.not-ascii" | "shader.preprocessor" | "shader.reserved" | "shader.loop-unbounded" | "shader.loop-too-long" | "shader.too-costly" | "shader.too-deep" | "shader.texture-unsupported" | "shader.entry-missing" | "shader.entry-signature" | "shader.compile" | "shader.over-budget" | "shader.webgpu-unsupported" | "shader.unknown" | "shader.target-mismatch" | "shader.place-unsupported" | "shader.uses-not-a-list" | "shader.min-size-place" | "shader.held" | "shader.quarantined" | "shader.flashing" | "shader.guard-off" | "shader.still" | "shader.program-cap" | "shader.param-unused" | "shader.stack-cap" | "shader.apply-target" | "shader.no-data" | "shader.no-canvas" | "shader.not-saved" | "shader.not-loaded" | "shader.not-copyable" | "shader.revoked" | (string & {});
 
 // @public
 export interface ShaderRegistration {
@@ -3309,7 +3307,7 @@ export type ShaderRequirement = "webgl2";
 export type ShaderSource = string | (() => Promise<string>);
 
 // @public
-export type ShaderTarget = "node" | "edge" | "group" | "background";
+export type ShaderTarget = "node" | "edge" | "background";
 
 // @public
 export function shaderTemplate(place: ShaderTemplatePlace): ShaderText;
@@ -3364,7 +3362,6 @@ export type ShaderTextResult = {
 
 // @public
 export interface ShaderUse {
-    readonly groupBy?: string;
     readonly off?: true;
     readonly params?: Readonly<Record<string, ShaderParamValue>>;
     readonly place?: ShaderPlace;

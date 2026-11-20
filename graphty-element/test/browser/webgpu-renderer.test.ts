@@ -558,22 +558,6 @@ describe.skipIf(!GPU_LANE)(`work started before WebGPU opens (${ADAPTER})`, () =
         assert.isTrue(renderManagerOf(graph).shaderPasses().background?.shown, "the background shader is not drawn");
     });
 
-    it("draws group outlines asked for while WebGPU opens", async () => {
-        const { graph, finish } = await holdWebGPUOpening();
-        const styled = graph.getSession().styles.add({
-            name: "outlined",
-            target: "node",
-            selector: { match: "has", path: "data.community" },
-            set: { "node.shaders": [{ shader: "metaball-hull", groupBy: "data.community" }] },
-        });
-        await finish();
-        await styled;
-        await graph.addNodes(NODES.map((node, i) => ({ ...node, community: i % 2 })));
-        await graph.waitForStableFrame();
-
-        assert.isNotNull(renderManagerOf(graph).shaderPasses().outline, "the group outlines are not drawn");
-    });
-
     it("keeps the hold on frames that wait for a style", async () => {
         const { graph, finish } = await holdWebGPUOpening();
         await finish();

@@ -6,10 +6,6 @@
  * three colors, darkened by dust lanes, with three layers of hashed stars that drift and twinkle.
  * The sky turns with the camera. Every motion runs at `drift`, so at drift 0 the backdrop is
  * still and the element draws it again only when the camera moves.
- *
- * `tintBy: groups` colors the gas near the largest groups of the graph's group outlines
- * with each group's color (`BackgroundInput.groupTint`); with no group outline it changes
- * nothing.
  */
 
 /** The body: `shade` and its helpers. */
@@ -55,10 +51,6 @@ vec4 shade(BackgroundInput b) {
     float body = smoothstep(0.25, 0.85, f * 0.6 + r.y * 0.6);
     // Dark dust lanes.
     float dust = smoothstep(0.45, 0.75, fbm(p * 2.7 + 3.0 * q));
-    if (tintBy == 1) {
-        gas = mix(gas, b.groupTint.rgb * 1.4, b.groupTint.a * 0.6);
-    }
-
     vec3 c = gas * body * density * (1.0 - 0.7 * dust);
     c += gas * 0.08 * density;
     // Stars: far, middle and near layers drift at different speeds.

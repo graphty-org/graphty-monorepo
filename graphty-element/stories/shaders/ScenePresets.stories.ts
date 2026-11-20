@@ -1,13 +1,11 @@
 /**
- * The scene presets (design/rendering/shader-styles.md section 7.5): the Nebula background, and
- * the Soap bubble and Hull group outlines.
+ * The scene presets (design/rendering/shader-styles.md section 7.5): the Nebula background.
  *
- * Each story sets its shader the way a consumer does: the nebula as the element's background
- * (`element.background`), a group outline as a use at the place `group` on a style layer's `node.shaders`, grouped by a data path. The
- * nodes are three communities, each a hub and two separate subgroups, colored by community from a
- * layer beneath; a group outline takes its group's mean color. The controls are the preset's parameters.
+ * The story sets its shader the way a consumer does: the nebula as the element's background
+ * (`element.background`). The nodes are three communities, each a hub and two separate subgroups,
+ * colored by community from a layer beneath. The controls are the preset's parameters.
  *
- * The nebula drifts and the bubbles swirl; in a visual capture their motion is switched off with
+ * The nebula drifts; in a visual capture their motion is switched off with
  * the reader's own setting (`shaderSettings.motion`), and the frame guard (`shaderSettings.guard`),
  * which steps heavy shaders off on a slow software GPU at no fixed frame, is off too, so the picture
  * is the same on every run.
@@ -15,7 +13,7 @@
 
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
-import type { ShaderDescriptor, ShaderParams } from "../../src/catalog/shaders";
+import type { ShaderDescriptor } from "../../src/catalog/shaders";
 import type { Graphty } from "../../src/graphty-element";
 import { assertGraphLoaded, assertNodesInFromEdges, drawn } from "../assertions";
 import { eventWaitingDecorator, isVisualCapture, waitForGraphSettled } from "../helpers";
@@ -105,14 +103,10 @@ function communities(layers: readonly LayerInput[], background: Graphty["backgro
     element.layout = "fixed";
     element.layoutConfig = { dim: 2 };
     element.viewMode = "2d";
-    // A bubble or hull reaches well past its outermost node, and the camera frames the nodes:
-    // keep room at every edge so the group outlines stay on the canvas.
+    // Room at every edge, so the nebula shows around the graph.
     element.fitInsets = { top: 110, right: 110, bottom: 110, left: 110 };
     return element;
 }
-
-/** A dark canvas for the group outlines, which glow and shimmer best on one. */
-const DARK: Graphty["background"] = { backgroundType: "color", color: "#10141c" };
 
 /**
  * A scene preset's catalog entry.
@@ -146,46 +140,8 @@ async function settled(canvasElement: HTMLElement, story: string): Promise<void>
     await waitForGraphSettled(canvasElement);
     const scene = await drawn(canvasElement, story);
     await assertGraphLoaded(scene, { nodes: NODES.length, edges: EDGES.length });
-    // Room for a community's bubble, which reaches well past its outermost node.
+    // The room the fit insets keep at every edge.
     await assertNodesInFromEdges(scene, 110);
-}
-
-/**
- * A story of a group outline preset over the communities, with a second layer for the subgroups.
- * @param id - The preset.
- * @param name - The story's name.
- * @param overrides - Defaults this story changes.
- * @returns The story.
- */
-function outlineStory(id: string, name: string, overrides: ShaderParams = {}): Story {
-    return {
-        name,
-        ...presetControls(descriptorOf(id), { overrides }),
-        render: (args) => {
-            const shader = presetId(id);
-            const params = presetParams(descriptorOf(id), args);
-            return communities(
-                [
-                    {
-                        name: "Communities",
-                        set: { "node.shaders": [{ shader, params, groupBy: "data.community" }] },
-                        target: "node",
-                        selector: { match: "has", path: "data.community" },
-                    },
-                    {
-                        name: "Subgroups",
-                        set: { "node.shaders": [{ shader, params, groupBy: "data.sub" }] },
-                        target: "node",
-                        selector: { match: "has", path: "data.sub" },
-                    },
-                ],
-                DARK,
-            );
-        },
-        play: async ({ canvasElement }) => {
-            await settled(canvasElement, `Shaders/Scene Presets ${name}`);
-        },
-    };
 }
 
 /** Gas, dust lanes and stars behind the graph, still at drift 0 until the camera moves. */
@@ -200,80 +156,5 @@ export const Nebula: Story = {
         }),
     play: async ({ canvasElement }) => {
         await settled(canvasElement, "Shaders/Scene Presets Nebula");
-    },
-};
-
-/** The nebula tinted by the groups of an outline layer: the gas takes each community's color. */
-export const NebulaTintedByGroups: Story = {
-    name: "Nebula tinted by groups",
-    ...presetControls(descriptorOf("nebula"), { overrides: { tintBy: "groups" } }),
-    render: (args) =>
-        communities(
-            [
-                {
-                    name: "Communities",
-                    set: {
-                        "node.shaders": [
-                            {
-                                shader: presetId("metaball-hull"),
-                                params: { look: "outline", outline: 1.5, fillOpacity: 0 },
-                                groupBy: "data.community",
-                            },
-                        ],
-                    },
-                    target: "node",
-                    selector: { match: "has", path: "data.community" },
-                },
-            ],
-            {
-                backgroundType: "color",
-                color: "#0b0614",
-                shader: { id: presetId("nebula"), params: presetParams(descriptorOf("nebula"), args) },
-            },
-        ),
-    play: async ({ canvasElement }) => {
-        await settled(canvasElement, "Shaders/Scene Presets NebulaTintedByGroups");
-    },
-};
-
-/** A thin-film bubble around each community, and smaller ones around its subgroups inside it. */
-export const SoapBubble = outlineStory("soap-bubble", "Soap bubble");
-
-/** The hull as translucent goo with a bright rim (the default look). */
-export const HullGoo = outlineStory("metaball-hull", "Hull goo");
-
-/** The hull as an iridescent soap-film membrane. */
-export const HullMembrane = outlineStory("metaball-hull", "Hull membrane", { look: "membrane" });
-
-/** The hull as a clean contour, nested like an Euler diagram. */
-export const HullOutline = outlineStory("metaball-hull", "Hull outline", { look: "outline" });
-
-/**
- * One Hull layer per community, as a folder of community layers draws them: sibling layers of one
- * shader share a level, so each outline is drawn at one size around its whole community, as one
- * layer grouping by community would draw it.
- */
-export const HullPerCommunityLayer: Story = {
-    name: "Hull per community layer",
-    ...presetControls(descriptorOf("metaball-hull"), { overrides: { look: "outline" } }),
-    render: (args) =>
-        communities(
-            COLORS.map((_, community) => ({
-                name: `Community ${String(community)}`,
-                set: {
-                    "node.shaders": [
-                        {
-                            shader: presetId("metaball-hull"),
-                            params: presetParams(descriptorOf("metaball-hull"), args),
-                        },
-                    ],
-                },
-                target: "node" as const,
-                selector: { match: "expression" as const, where: `data.community == \`${String(community)}\`` },
-            })),
-            DARK,
-        ),
-    play: async ({ canvasElement }) => {
-        await settled(canvasElement, "Shaders/Scene Presets HullPerCommunityLayer");
     },
 };

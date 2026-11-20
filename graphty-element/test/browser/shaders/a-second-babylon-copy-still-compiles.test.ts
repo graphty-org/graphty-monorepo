@@ -2,7 +2,7 @@
  * @file The shaders that reach Babylon from a lazily loaded module compile even when that module
  * got its own copy of Babylon (issue #5894).
  *
- * Every shader drawing module (edges, nodes, the background, group outlines) and the shader runtime
+ * Every shader drawing module (edges, nodes, the background) and the shader runtime
  * load on first use. A Vite dev server that re-optimizes between the page loading and that first
  * use serves them a new copy of `@babylonjs/core`, and a page can hold two copies by other routes
  * too. The engine came from the first copy and compiles everything, so a program written to the
@@ -65,11 +65,6 @@ const cleanups: (() => void)[] = [];
 beforeAll(() => {
     defineShader({ id: "second/node", glsl: "vec4 shade(NodeInput n) { return vec4(1.0, 0.0, 0.0, 1.0); }" });
     defineShader({ id: "second/sky", glsl: "vec4 shade(BackgroundInput b) { return vec4(0.0, 0.0, 1.0, 1.0); }" });
-    defineShader({
-        id: "second/outline",
-        reach: 5,
-        glsl: "vec4 shade(GroupInput g) { return vec4(1.0, 0.0, 0.0, g.field); }",
-    });
 });
 
 afterEach(() => {
@@ -129,7 +124,7 @@ function compiled(element: Graphty, prefix: string): boolean {
 /**
  * The scene passes of an element.
  * @param element - The element.
- * @returns Its background, outline and bloom passes.
+ * @returns Its background and bloom passes.
  */
 function passesOf(element: Graphty): ReturnType<RenderManager["shaderPasses"]> {
     return renderManagerOf(element.graph).shaderPasses();
@@ -177,17 +172,6 @@ describe("a lazily loaded shader module on a second copy of Babylon", () => {
         const element = await mounted();
         element.background = { backgroundType: "color", shader: { id: "second/sky" } };
         await drawsWithoutFetching(element, () => (passesOf(element).background?.draws ?? 0) > 0);
-    });
-
-    it("draws a group outline without fetching its program", async () => {
-        const element = await mounted();
-        await element.session.styles.add({
-            name: "Outline",
-            target: "node",
-            selector: { match: "has", path: "data.group" },
-            set: { "node.shaders": [{ shader: "second/outline" }] },
-        });
-        await drawsWithoutFetching(element, () => (passesOf(element).outline?.drawn().length ?? 0) === 1);
     });
 
     it("compiles a pasted shader without fetching its program", async () => {

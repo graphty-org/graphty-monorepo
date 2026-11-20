@@ -1,9 +1,7 @@
 /**
  * @file The scene-level shaders drawn on a real graph (design/rendering/shader-styles.md, package
  * E6): a background shader is drawn behind every node and never over a label, and drawn again
- * only when it moves or the camera does; two group outlines draw nested outlines; group outlines
- * follow a running force layout; a real click on an outline reports its layer and group; the
- * shared bloom is allocated once while a layer names a bloom shader, on screen or not.
+ * only when it moves or the camera does; the shared bloom is allocated once while a layer names a bloom shader, on screen or not.
  */
 
 import "../../../src/graphty-element";
@@ -16,12 +14,10 @@ import type { LayerSpec } from "../../../src/catalog/types";
 import { operationQueueOf, renderManagerOf } from "../../../src/Graph";
 import { BACKGROUND_LAYER } from "../../../src/meshes/BackgroundPass";
 import { BLOOM_LAYER } from "../../../src/meshes/BloomPass";
-import { OUTLINE_LAYER } from "../../../src/meshes/GroupOutlinePass";
-import type { GroupOutlineClick } from "../../../src/session/types";
 import { defineShader } from "../../../src/simple/defineShader";
 import { leads, pixelAt } from "../../helpers/canvas-pixels";
 import { drawnFrames } from "../../helpers/drawn-frames";
-import { click, type Point } from "../../helpers/real-input";
+import type { Point } from "../../helpers/real-input";
 
 const WIDTH = 400;
 const HEIGHT = 300;
@@ -38,21 +34,6 @@ beforeAll(() => {
         motion: { loop: { speedParam: "drift" } },
         params: { drift: { type: "number", default: 0, min: 0, max: 2 } },
         glsl: "vec4 shade(BackgroundInput b) { return vec4(0.0, 0.0, 0.5 + 0.5 * sin(b.time * drift), 1.0); }",
-    });
-    // An outline where the field crosses 0.5: red on the lowest group outline, blue above it.
-    defineShader({
-        id: "e6/outline",
-        reach: 5,
-        glsl: `vec4 shade(GroupInput g) {
-            float sd = (0.5 - g.field) / max(length(g.fieldGradient), 1e-4);
-            float a = 1.0 - smoothstep(1.5, 3.0, abs(sd));
-            vec3 c = g.depth < 0.5 ? vec3(1.0, 0.0, 0.0) : vec3(0.0, 0.0, 1.0);
-            return vec4(c * a, a);
-        }`,
-    });
-    defineShader({
-        id: "e6/tinted",
-        glsl: "vec4 shade(BackgroundInput b) { return vec4(b.groupTint.rgb, 1.0); }",
     });
     defineShader({
         id: "e6/lantern",
@@ -121,18 +102,6 @@ async function until(element: Graphty, what: string, holds: () => boolean): Prom
     }
 
     assert.isTrue(holds(), what);
-}
-
-/**
- * A layer's id by its name.
- * @param element - The element.
- * @param name - The layer's name.
- * @returns Its id.
- */
-function idOf(element: Graphty, name: string): string {
-    const layer = element.session.styles.list().find((each) => each.name === name);
-    assert.isDefined(layer, `a layer named ${name}`);
-    return layer?.id ?? "";
 }
 
 /**
@@ -249,183 +218,6 @@ describe("a background shader", () => {
         await element.graph.waitForStableFrame();
         await drawnFrames(scene, 2);
         assert.isAbove(pass?.draws ?? 0, still, "a camera move draws it again");
-    });
-});
-
-describe("group outlines", () => {
-    const nodes = [
-        { id: "a", x: -3, y: 0, group: 1, inner: true },
-        { id: "b", x: 0, y: 0, group: 1 },
-        { id: "c", x: 3, y: 0, group: 1 },
-        // Outside every group outline, so the camera frames the outlines too.
-        { id: "far-left", x: -9, y: 4 },
-        { id: "far-right", x: 9, y: -4 },
-    ];
-    const outer: LayerSpec = {
-        name: "Outer",
-        set: { "node.shaders": [{ shader: "e6/outline" }] },
-        target: "node",
-        selector: { match: "has", path: "data.group" },
-    };
-    const inner: LayerSpec = {
-        name: "Inner",
-        set: { "node.shaders": [{ shader: "e6/outline", groupBy: "data.inner" }] },
-        target: "node",
-        selector: { match: "has", path: "data.inner" },
-    };
-
-    it("draw nested outlines for two group outlines", async () => {
-        const element = await mounted(nodes, [
-            { name: "Small", target: "node", selector: { match: "everything" }, set: { "node.size": 1 } },
-            outer,
-            inner,
-        ]);
-        const renderManager = renderManagerOf(element.graph);
-        await until(
-            element,
-            "both layers draw",
-            () => (renderManager.shaderPasses().outline?.drawn().length ?? 0) === 2,
-        );
-        const drawn = renderManager.shaderPasses().outline?.drawn() ?? [];
-        assert.deepEqual(
-            drawn.map(({ depth, groups }) => ({ depth, groups })),
-            [
-                { depth: 0, groups: [null] },
-                { depth: 1, groups: [true] },
-            ],
-        );
-        assert.strictEqual(element.graph.getScene().layers[0]?.name, OUTLINE_LAYER);
-
-        // Walking left from node a: the inner (blue) outline is met before the outer (red) one.
-        const start = screen(element, -3, 0);
-        let blueAt = -1;
-        let redAt = -1;
-        for (let step = 1; step < start.x - 1 && (blueAt < 0 || redAt < 0); step++) {
-            const pixel = await pixelAt(element, { x: start.x - step, y: start.y });
-            if (blueAt < 0 && leads(pixel, 2)) {
-                blueAt = step;
-            }
-
-            if (redAt < 0 && leads(pixel, 0)) {
-                redAt = step;
-            }
-        }
-
-        assert.isAbove(blueAt, 0, "the inner outline draws");
-        assert.isAbove(redAt, blueAt, "the outer outline rings the inner one");
-    });
-
-    it("tint a background by the outlines laid out after it drew", async () => {
-        const element = await mounted(nodes, []);
-        element.background = { backgroundType: "color", shader: { id: "e6/tinted" } };
-        const renderManager = renderManagerOf(element.graph);
-        await until(element, "the background draws", () => (renderManager.shaderPasses().background?.draws ?? 0) > 0);
-
-        // The outline pass starts after the background's, so it lays the groups out after the
-        // background drew in the same frame; nothing but the background then needs a frame.
-        const untinted = renderManager.shaderPasses().background?.draws ?? 0;
-        await element.session.styles.add(outer);
-        await until(
-            element,
-            "the outline is laid out",
-            () => renderManager.shaderPasses().outline?.tints(4).length === 1,
-        );
-        await element.graph.waitForStableFrame();
-        const { background } = renderManager.shaderPasses();
-        assert.isAbove(background?.draws ?? 0, untinted, "the background is drawn again with the outline's tint");
-        assert.isFalse(background?.owesDraw, "and owes no draw once the frame is stable");
-    });
-
-    it("hold the stable frame until the outline and background shaders are drawn", async () => {
-        // The outline pass and the background load, resolve and compile after the graph is
-        // otherwise drawn; a stable frame before that has no outline and no tint (issue #4243).
-        const element = await mounted(nodes, [outer]);
-        element.background = { backgroundType: "color", shader: { id: "e6/tinted" } };
-        await element.graph.waitForStableFrame();
-        const renderManager = renderManagerOf(element.graph);
-        const { outline, background } = renderManager.shaderPasses();
-        assert.lengthOf(outline?.tints(4) ?? [], 1, "the outline is laid out in the stable frame");
-        assert.isFalse(renderManager.shaderPicturePending(), "no shader picture is on its way once it is stable");
-        assert.isAbove(background?.draws ?? 0, 0, "the background is drawn in the stable frame");
-        assert.isFalse(background?.owesDraw, "and drawn with the outline's tint");
-    });
-
-    it("follow a running force layout", async () => {
-        const element = await mounted(nodes, [outer]);
-        const renderManager = renderManagerOf(element.graph);
-        const scene = element.graph.getScene();
-        await until(
-            element,
-            "the group outline draws",
-            () => (renderManager.shaderPasses().outline?.drawn().length ?? 0) === 1,
-        );
-        const pass = renderManager.shaderPasses().outline;
-        const layer = idOf(element, "Outer");
-        const node = element.graph.getDataManager().nodes.get("a");
-        // Not awaited: the layout's run is what the loop below watches. The layout keeps to the
-        // clock, so a slow frame takes up to 12 rounds of steps (MAX_CATCH_UP_ROUNDS in
-        // UpdateManager): with the default drag these five nodes settle in about 16 steps, which
-        // a loaded machine drew in two frames (#4317). With less drag the run is 60 steps, at
-        // least five drawn frames however slowly they come, and node a moves in every one.
-        const running = element.graph.setLayout("ngraph", { dim: 2, seed: 1, dragCoefficient: 0.1 });
-
-        // While the layout moves the nodes, each frame's group outline is laid out from that frame's places.
-        let moved = 0;
-        let before = node?.getPosition().x;
-        for (let frame = 0; frame < 300 && moved < 3; frame++) {
-            await drawnFrames(scene, 1);
-            const at = node?.getPosition() ?? { x: 0, y: 0 };
-            if (at.x === before) {
-                continue;
-            }
-
-            moved++;
-            before = at.x;
-            const point = screen(element, at.x, at.y);
-            assert.deepEqual(
-                pass?.pick(point.x, point.y),
-                { layer, shader: "e6/outline", group: null },
-                "node a stays inside its group outline",
-            );
-        }
-
-        await running;
-        assert.isAtLeast(moved, 3, "the layout moved the nodes");
-    });
-
-    it("report a real click on an outline as its layer and group", async () => {
-        const element = await mounted(nodes, [outer, inner]);
-        const renderManager = renderManagerOf(element.graph);
-        await until(
-            element,
-            "both layers draw",
-            () => (renderManager.shaderPasses().outline?.drawn().length ?? 0) === 2,
-        );
-        const clicks: GroupOutlineClick[] = [];
-        cleanups.push(element.session.on("canvas:group-outline-click", (detail) => clicks.push(detail)));
-
-        // Between nodes b and c, on no node and no edge: inside the outer group outline only.
-        const between = screen(element, 1.5, 0.8);
-        assert.isNull(element.elementAt(between), "nothing else is there");
-        assert.deepEqual(element.groupOutlineAt(between), {
-            kind: "group-outline",
-            layer: idOf(element, "Outer"),
-            shader: "e6/outline",
-            group: null,
-        });
-        await click(element, between);
-        await until(element, "the click is reported", () => clicks.length > 0);
-        assert.deepEqual(clicks, [{ layer: idOf(element, "Outer"), shader: "e6/outline", group: null }]);
-
-        // Beside node a, inside both: the topmost group outline answers.
-        const beside = screen(element, -3, 1);
-        assert.deepEqual(element.groupOutlineAt(beside), {
-            kind: "group-outline",
-            layer: idOf(element, "Inner"),
-            shader: "e6/outline",
-            group: true,
-        });
-        assert.isNull(element.groupOutlineAt({ x: 4, y: 4 }), "the far corner is outside every group outline");
     });
 });
 

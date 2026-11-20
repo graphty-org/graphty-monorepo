@@ -51,7 +51,6 @@ import type { LayerId, LayerSpec } from "../catalog/types";
 import { GraphtyError, isGraphtyError } from "../errors/GraphtyError";
 import type { Dispatcher } from "./project/Dispatcher";
 import type { ProjectState } from "./project/state";
-import { placeOfUse } from "./styles/channels";
 import { type SessionStylesApi, setShaderTrust } from "./styles/StylesApi";
 import type { SessionEventMap } from "./types";
 
@@ -259,8 +258,7 @@ export interface SessionShaders {
     list(): readonly ProjectShader[];
     /**
      * @param id - Any shader the catalog lists.
-     * @returns Whether it draws now, and if not, why. A background that reads the graph's groups
-     *   while no layer draws a group outline draws, and says so with `shader.no-data`.
+     * @returns Whether it draws now, and if not, why.
      */
     status(id: string): ShaderStatus;
     /**
@@ -280,7 +278,7 @@ export interface SessionShaders {
      * `descriptor.thumbnail` (every preset does, and any registrant may) gets that picture, never
      * drawn again; a project's own text is always drawn. Any other is drawn in this element's engine, framed by what it draws on: a node
      * look fills 80% of the tile, a card is the card, an effect reaches around a small gray node,
-     * an edge is one curved edge between two dots, a group outline goes around five dots, and a
+     * an edge is one curved edge between two dots, and a
      * background fills the tile. The parameters and the time come from `descriptor.preview`, under
      * `params`. The element caches each picture by the shader's text, the values, the size and the
      * canvas color, so asking again draws nothing.
@@ -617,7 +615,7 @@ function applyPatch(spec: LayerSpec, descriptor: ShaderDescriptor, params: Shade
             code: "E_SHADER_KIND",
             message: `"${descriptor.id}" draws on the ${descriptor.target}, which no style layer draws.`,
             source: "style",
-            details: { id: descriptor.id, target: descriptor.target, expected: ["node", "edge", "group"] },
+            details: { id: descriptor.id, target: descriptor.target, expected: ["node", "edge"] },
         });
     }
 
@@ -1116,7 +1114,7 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
         }
 
         if (host === null) {
-            return noDataStatus(shader.descriptor) ?? { state: "not-checked" };
+            return { state: "not-checked" };
         }
 
         if (shader.descriptor.webgpu === "none" && host.renderer === "webgpu") {
@@ -1126,9 +1124,7 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
         // A text the catalog shipped, or the page registered, draws at once as the catalog's own
         // entry does: decided by its content, never by its id, and never compiled per hash first.
         if (catalogContent(shader.hash)) {
-            return (
-                drawnStatusOf(shader.descriptor, shader.hash) ?? noDataStatus(shader.descriptor) ?? { state: "ready" }
-            );
+            return drawnStatusOf(shader.descriptor, shader.hash) ?? { state: "ready" };
         }
 
         const result = compiled.get(shader.hash);
@@ -1140,32 +1136,7 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
             return { state: "failed", problem: result };
         }
 
-        return drawnStatusOf(shader.descriptor, shader.hash) ?? noDataStatus(shader.descriptor) ?? { state: "ready" };
-    };
-
-    /**
-     * A background that reads the graph's groups (`members`) while no layer draws a group outline: it
-     * draws as if there were none, and says so.
-     * @param descriptor - The shader's facts.
-     * @returns The status, or null when it has what it reads.
-     */
-    const noDataStatus = (descriptor: ShaderDescriptor): ShaderStatus | null => {
-        if (descriptor.target !== "background" || !descriptor.reads.includes("members")) {
-            return null;
-        }
-
-        return styles
-            .list()
-            .some((layer) =>
-                ((layer.set?.["node.shaders"] ?? []) as readonly ShaderUse[]).some(
-                    (use) => placeOfUse(use) === "group",
-                ),
-            )
-            ? null
-            : {
-                  state: host === null ? "not-checked" : "ready",
-                  problem: { code: "shader.no-data", params: { input: "members" } },
-              };
+        return drawnStatusOf(shader.descriptor, shader.hash) ?? { state: "ready" };
     };
 
     /**
@@ -1215,7 +1186,7 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
         }
 
         const drawn = host === null ? null : drawnStatusOf(descriptor, "");
-        return drawn ?? noDataStatus(descriptor) ?? { state: host === null ? "not-checked" : "ready" };
+        return drawn ?? { state: host === null ? "not-checked" : "ready" };
     };
 
     /**

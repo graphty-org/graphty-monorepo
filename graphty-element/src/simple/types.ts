@@ -490,7 +490,7 @@ export interface ShaderDefinition {
     /** `"<namespace>/<name>"`: lowercase letters, digits and hyphens, one slash. Saved in documents. */
     readonly id: string;
     /**
-     * The body: `vec4 shade(NodeInput n)` (or `EdgeInput e`, `GroupInput g`, `BackgroundInput b`,
+     * The body: `vec4 shade(NodeInput n)` (or `EdgeInput e`, `BackgroundInput b`,
      * which says what it draws on) and its helpers, or a function that loads it the first time
      * something draws it. Each parameter is a global of its GLSL type: a number a `float`, an
      * integer an `int`, a boolean a `bool`, a color a `vec3`.
@@ -498,7 +498,7 @@ export interface ShaderDefinition {
     readonly glsl: ShaderSource;
     /** What it draws on. Default: read from the body's entry; required when `glsl` is a loader. */
     readonly target?: ShaderTarget;
-    /** Where a use draws when it names no place. Default `"paint"`, or `"group"` for `shade(GroupInput g)`. */
+    /** Where a use draws when it names no place. Default `"paint"`. */
     readonly place?: ShaderPlace;
     /**
      * Advanced: where a user may move it. Default: all of `replace`, `over`, `around` and `behind`
@@ -520,14 +520,10 @@ export interface ShaderDefinition {
     readonly motion?: ShaderMotionInput;
     /** Square-drawn places and `along`: the drawn size is `reach` times the radius, 1 to 6. */
     readonly reach?: number;
-    /** Stacking places and group outlines: how the result combines. Default `"over"`. */
+    /** Stacking places: how the result combines. Default `"over"`. */
     readonly blend?: "over" | "add";
     /** Whether it contributes to the shared bloom pass. */
     readonly bloom?: boolean;
-    /** Group outlines: a splatted field or one sphere per group. Default `"field"`. */
-    readonly form?: "field" | "sphere";
-    /** Field group outlines: the number parameter that sets each member's kernel radius, in member radii. */
-    readonly reachParam?: string;
     /** A cheaper body with the same entry, drawn while nodes are small; in shader text, `shadeFar`. */
     readonly lowDetail?: ShaderSource;
     /** Where a gallery may file it, such as `"Glass"`. */

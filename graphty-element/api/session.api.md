@@ -2891,13 +2891,6 @@ export interface GroupMove {
 }
 
 // @public
-export interface GroupOutlineClick {
-    readonly group: string | number | boolean | null;
-    readonly layer: LayerId;
-    readonly shader: string;
-}
-
-// @public
 export interface GroupOverlap {
     readonly a: string | number;
     readonly b: string | number;
@@ -6341,7 +6334,6 @@ export interface SessionEventMap {
         readonly y: number;
         readonly secondary: boolean;
     };
-    "canvas:group-outline-click": GroupOutlineClick;
     "capabilities:changed": {
         readonly capabilities: SessionCapabilities;
     };
@@ -6867,7 +6859,6 @@ export type ShaderText = string;
 
 // @public
 export interface ShaderUse {
-    readonly groupBy?: string;
     readonly off?: true;
     readonly params?: Readonly<Record<string, ShaderParamValue>>;
     readonly place?: ShaderPlace;

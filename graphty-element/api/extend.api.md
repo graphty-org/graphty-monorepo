@@ -2984,7 +2984,6 @@ export interface ShaderDefinition {
     readonly bloom?: boolean;
     readonly categories?: readonly string[];
     readonly cost?: ShaderCost;
-    readonly form?: "field" | "sphere";
     readonly glsl: ShaderSource;
     readonly id: string;
     readonly lowDetail?: ShaderSource;
@@ -2996,7 +2995,6 @@ export interface ShaderDefinition {
     readonly places?: readonly ShaderPlace[];
     readonly preview?: ShaderPreview;
     readonly reach?: number;
-    readonly reachParam?: string;
     readonly reads?: readonly ShaderInput[];
     readonly requires?: readonly ShaderRequirement[];
     readonly target?: ShaderTarget;
@@ -3011,7 +3009,6 @@ export interface ShaderDescriptor {
     readonly categories?: readonly string[];
     readonly copyOf?: string;
     readonly cost: ShaderCost;
-    readonly form?: "field" | "sphere";
     readonly hash?: string;
     readonly id: string;
     readonly minSize?: number;
@@ -3023,7 +3020,6 @@ export interface ShaderDescriptor {
     readonly plainName: string;
     readonly preview?: ShaderPreview;
     readonly reach?: number;
-    readonly reachParam?: string;
     readonly reads: readonly ShaderInput[];
     readonly requires?: readonly ShaderRequirement[];
     readonly tags?: readonly string[];
@@ -3042,7 +3038,7 @@ export type ShaderParamShorthand = number | boolean | string | ShaderClockBindin
 });
 
 // @public
-export type ShaderPlace = "paint" | "replace" | "over" | "around" | "behind" | "along" | "group";
+export type ShaderPlace = "paint" | "replace" | "over" | "around" | "behind" | "along";
 
 // @public
 export interface ShaderPreview {
@@ -3068,7 +3064,7 @@ export interface ShaderRegistration {
 export type ShaderSource = string | (() => Promise<string>);
 
 // @public
-export type ShaderTarget = "node" | "edge" | "group" | "background";
+export type ShaderTarget = "node" | "edge" | "background";
 
 // @public
 export function shaderTemplate(place: ShaderTemplatePlace): ShaderText;

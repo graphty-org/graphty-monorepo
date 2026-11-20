@@ -13,14 +13,14 @@
 import type { Channel, OptionDescriptor } from "./types";
 
 /**
- * What a shader draws on: a node, an edge, a group of nodes, or the canvas behind the graph. Shader
- * text never names it: it is read from the entry function's input, `shade(NodeInput n)`,
- * `shade(EdgeInput e)`, `shade(GroupInput g)` or `shade(BackgroundInput b)`.
+ * What a shader draws on: a node, an edge, or the canvas behind the graph. Shader text never names
+ * it: it is read from the entry function's input, `shade(NodeInput n)`, `shade(EdgeInput e)` or
+ * `shade(BackgroundInput b)`.
  *
  * OPEN UNION: members may be added in a minor release; handle unknown members.
  * @since 3.36.0
  */
-export type ShaderTarget = "node" | "edge" | "group" | "background";
+export type ShaderTarget = "node" | "edge" | "background";
 
 /**
  * Where a use of a shader draws, as a fact about the use, not a kind of shader:
@@ -31,17 +31,16 @@ export type ShaderTarget = "node" | "edge" | "group" | "background";
  * - `"around"`: outside the node's outline, reaching past it; they stack.
  * - `"behind"`: before the node, which covers its middle; they stack.
  * - `"along"`: a strip that follows an edge over the line; they stack.
- * - `"group"`: one outline around the nodes that carry the use; they stack.
  *
  * `replace`, `over`, `around` and `behind` are one drawing (a square that faces the camera), so a
- * shader written for one may be moved among all four unless it narrows `places`. `paint`, `along`
- * and `group` are separate drawings, so a shader written for one stays there. The background has
+ * shader written for one may be moved among all four unless it narrows `places`. `paint` and
+ * `along` are separate drawings, so a shader written for one stays there. The background has
  * no place.
  *
  * OPEN UNION: members may be added in a minor release; handle unknown members.
  * @since 3.36.0
  */
-export type ShaderPlace = "paint" | "replace" | "over" | "around" | "behind" | "along" | "group";
+export type ShaderPlace = "paint" | "replace" | "over" | "around" | "behind" | "along";
 
 /** The places drawn as a square facing the camera, among which a shader may be moved. */
 export const SQUARE_PLACES: readonly ShaderPlace[] = Object.freeze(["replace", "over", "around", "behind"]);
@@ -79,7 +78,6 @@ export function shaderPlaceUsesReach(place: ShaderPlace): boolean {
 export const PLACES_BY_TARGET: Readonly<Record<ShaderTarget, readonly ShaderPlace[]>> = Object.freeze({
     node: Object.freeze<ShaderPlace[]>(["paint", ...SQUARE_PLACES]),
     edge: Object.freeze<ShaderPlace[]>(["paint", "along"]),
-    group: Object.freeze<ShaderPlace[]>(["group"]),
     background: Object.freeze<ShaderPlace[]>([]),
 });
 
@@ -174,11 +172,10 @@ export interface ShaderPreview {
 /**
  * The drawings the renderer tells apart, keyed by target and place: a node's surface, a node's
  * square in place of its shape (`replace`), a node's square over, around or behind it, an edge's
- * surface, a strip along an edge, a group outline and the background. Internal; nothing public
+ * surface, a strip along an edge and the background. Internal; nothing public
  * names it.
  */
-export type ShaderDrawing =
-    "node-paint" | "node-replace" | "node-square" | "edge-paint" | "edge-along" | "background" | "group";
+export type ShaderDrawing = "node-paint" | "node-replace" | "node-square" | "edge-paint" | "edge-along" | "background";
 
 /**
  * The drawing a shader asks the renderer for at a place.
@@ -191,7 +188,7 @@ export function drawingOf(
     place = descriptor.place,
 ): ShaderDrawing {
     const { target } = descriptor;
-    if (target === "group" || target === "background") {
+    if (target === "background") {
         return target;
     }
 
@@ -218,24 +215,14 @@ export function isExclusivePlace(place: ShaderPlace | undefined): boolean {
 
 /**
  * What a shader takes from the layers beneath, from element state and from the scene. `times` is
- * the clocks (`sinceMatched`, `sinceChanged` and the rest); `members` is a group's members;
+ * the clocks (`sinceMatched`, `sinceChanged` and the rest);
  * `light` is the scene's light (`lightDir`), so a gallery can say it reacts to the light.
  *
  * OPEN UNION: members may be added in a minor release; handle unknown members.
  * @since 3.36.0
  */
 export type ShaderInput =
-    | "color"
-    | "opacity"
-    | "size"
-    | "shape"
-    | "width"
-    | "selected"
-    | "hovered"
-    | "pinned"
-    | "times"
-    | "members"
-    | "light";
+    "color" | "opacity" | "size" | "shape" | "width" | "selected" | "hovered" | "pinned" | "times" | "light";
 
 /**
  * Whether a shader animates on its own. One shape everywhere; the strings `"still"` and `"loop"`
@@ -474,8 +461,8 @@ export interface ShaderDescriptor {
     /** What it draws on, read from the entry function's input. */
     readonly target: ShaderTarget;
     /**
-     * Where a use draws when it names no place. Default `"paint"` on a node or edge, `"group"` for
-     * a group outline; the background has none.
+     * Where a use draws when it names no place. Default `"paint"` on a node or edge; the
+     * background has none.
      */
     readonly place?: ShaderPlace;
     /**
@@ -528,16 +515,8 @@ export interface ShaderDescriptor {
     readonly views?: readonly ("2d" | "3d")[];
     /** Square-drawn places and `along`: the drawn size is `reach` times the radius, 1 to 6. Absent means 1. */
     readonly reach?: number;
-    /** Stacking places and group outlines: how the result combines. Absent means `"over"`. */
+    /** Stacking places: how the result combines. Absent means `"over"`. */
     readonly blend?: "over" | "add";
-    /** Group outlines: a splatted field or one sphere per group. Absent means `"field"`. */
-    readonly form?: "field" | "sphere";
-    /**
-     * Group outlines of form `"field"`: the number parameter whose value is each member's kernel
-     * radius, in member radii, in place of `reach`, so a reader can grow or shrink the blobs.
-     * @since 3.36.0
-     */
-    readonly reachParam?: string;
     /** Project shaders: the content hash of the text (SHA-256 with the header's id left out). */
     readonly hash?: string;
     /**
@@ -601,11 +580,6 @@ export interface ShaderUse {
     readonly place?: ShaderPlace;
     /** Parameter values over its defaults, `minSize` and clock bindings included. */
     readonly params?: Readonly<Record<string, ShaderParamValue>>;
-    /**
-     * At `group` only: a data path; one outline per distinct value among the nodes carrying the
-     * use. Absent: one outline around all of them.
-     */
-    readonly groupBy?: string;
     /** Remove this shader, wherever the layers beneath put it, from the elements this layer matches. */
     readonly off?: true;
 }
@@ -652,7 +626,6 @@ export type ShaderProblemCode =
     | "shader.program-cap"
     | "shader.param-unused"
     | "shader.stack-cap"
-    | "shader.group-cap"
     | "shader.apply-target"
     | "shader.no-data"
     | "shader.no-canvas"
@@ -796,7 +769,7 @@ const CARD_COVERS: readonly Channel[] = [
  * - An edge's `paint` covers `edge.style` and `edge.patternCount`.
  * - `paint` and `replace` that do not read `"color"` also cover the color, and ones that do not
  *   read `"opacity"` the opacity.
- * - Every other place, group and background shaders cover nothing.
+ * - Every other place, and background shaders, cover nothing.
  *
  * `replace` and a shape follow "the topmost layer wins": a `node.shape` on a layer above the
  * shader's draws the shape on those nodes, and the shader is not drawn there.

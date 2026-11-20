@@ -26,8 +26,7 @@ import { OrbitCameraController } from "../cameras/OrbitCameraController";
 import { OrbitInputController } from "../cameras/OrbitInputController";
 import { TwoDCameraController } from "../cameras/TwoDCameraController";
 import { InputController } from "../cameras/TwoDInputController";
-import type { ShaderParams, ShaderUse } from "../catalog/shaders";
-import type { NodeId } from "../catalog/types";
+import type { ShaderParams } from "../catalog/shaders";
 import { backgroundColorOf, DEFAULT_BACKGROUND_COLOR, type GraphBackgroundConfig } from "../config/GraphStyle";
 import { DEFAULT_LIGHTING, type Lighting } from "../config/Lighting";
 import { isGraphtyError } from "../errors/GraphtyError";
@@ -36,15 +35,12 @@ import type { BackgroundPass } from "../meshes/BackgroundPass";
 import type { BloomPass } from "../meshes/BloomPass";
 import { useBundledStandardShaders } from "../meshes/bundledStandardShaders";
 import { batchUploadFrames } from "../meshes/FrameRoster";
-import type { GroupOutlinePass, GroupOutlinePick, OutlineMember } from "../meshes/GroupOutlinePass";
 import { isNodeMaterial, lightNodeMaterial, outlineNodeMesh } from "../meshes/NodeLighting";
 import { drawLinesLean } from "../meshes/PulledLineBatch";
 import { isRowBatch } from "../meshes/RowPullPlugin";
 import { drawOnlyEnabledMeshes } from "../render/enabledMeshCandidates";
 import { reportCaught } from "../session/project/strict";
 import { idsNamedBy, shadersControllerOf } from "../session/shaders";
-import { placeOfUse } from "../session/styles/channels";
-import { groupOutlinesOf } from "../session/styles/StylesApi";
 import type { GraphSession, SessionEventMap } from "../session/types";
 import { type LazyShaderHost, lendSceneShaders } from "../shaders/chunk";
 import type { EventManager } from "./EventManager";
@@ -461,8 +457,6 @@ export const LIGHTS: Record<Lighting, { fill: number; ground: number; key: numbe
 export interface ShaderSceneSources {
     /** The graph's session: its style stack and its shaders. */
     readonly session: GraphSession;
-    /** A drawn node's place, size and color; undefined for one not drawn. */
-    readonly member: (id: NodeId) => OutlineMember | undefined;
 }
 
 /** A background shader the graph asks for, with what it is drawn over. */
@@ -477,8 +471,8 @@ interface ShaderBackground {
     readonly dome: PhotoDome | null;
 }
 
-/** The session events after which the group outlines may draw other groups or members. */
-const OUTLINE_EVENTS = [
+/** The session events after which the style stack may name other scene shaders (a bloom). */
+const SCENE_EVENTS = [
     "style:changed",
     "history:changed",
     "project:changed",
@@ -501,20 +495,17 @@ function rethrowUnlessDisposed(error: unknown): void {
 }
 
 /**
- * The scene-level shader passes of one graph: the background shader, the group outlines and
- * the shared bloom. Each is loaded and allocated only while something asks for it, so a graph
+ * The scene-level shader passes of one graph: the background shader and the shared bloom. Each is loaded and allocated only while something asks for it, so a graph
  * that names no shader loads none of them.
  */
 class ShaderScene {
     private background: BackgroundPass | null = null;
-    private outline: GroupOutlinePass | null = null;
     private bloom: BloomPass | null = null;
     private wanted: ShaderBackground | null = null;
     /** Counts background requests, so a slow resolution never draws over a newer one. */
     private backgroundTicket = 0;
     /** Background loads in flight: the shader, the runtime, the pass module and the compile. */
     private backgroundLoads = 0;
-    private outlineLoading = false;
     private readonly budget: RenderTargetBudget;
     private readonly stops: (() => void)[] = [];
     private disposed = false;
@@ -532,7 +523,7 @@ class ShaderScene {
     ) {
         this.budget = new RenderTargetBudget(() => QUALITY_LEVELS[guard.quality.level].targetBudgetBytes);
         const { session } = sources;
-        for (const event of OUTLINE_EVENTS) {
+        for (const event of SCENE_EVENTS) {
             this.stops.push(
                 session.on(event, () => {
                     this.sync();
@@ -542,7 +533,6 @@ class ShaderScene {
 
         this.stops.push(
             session.on("shader:status", ({ id }) => {
-                this.outline?.forget(id);
                 if (this.wanted?.id === id) {
                     void this.showBackground();
                 }
@@ -552,11 +542,7 @@ class ShaderScene {
         );
         lendSceneShaders(scene, () => {
             const background = this.background?.guardedDrawn();
-            const outline = this.outline?.guardedDrawn();
-            return {
-                heavy: background?.heavy === true || outline?.heavy === true,
-                moving: [...(background?.moving ?? []), ...(outline?.moving ?? [])],
-            };
+            return { heavy: background?.heavy === true, moving: [...(background?.moving ?? [])] };
         });
         this.sync();
     }
@@ -571,43 +557,24 @@ class ShaderScene {
     }
 
     /**
-     * The group outline under a point.
-     * @param x - CSS pixels from the canvas's left edge.
-     * @param y - CSS pixels from the canvas's top edge.
-     * @returns The layer and group, or null.
-     */
-    groupOutlineAt(x: number, y: number): GroupOutlinePick | null {
-        return this.outline?.pick(x, y) ?? null;
-    }
-
-    /**
      * The passes allocated now, for tests and tools.
      * @returns Each pass, or null.
      */
     passes(): {
         readonly background: BackgroundPass | null;
-        readonly outline: GroupOutlinePass | null;
         readonly bloom: BloomPass | null;
     } {
-        return { background: this.background, outline: this.outline, bloom: this.bloom };
+        return { background: this.background, bloom: this.bloom };
     }
 
     /**
      * Whether a scene shader's picture is on its way, so the frame on screen does not show it yet:
-     * the background or the group outline pass still loading, an outline's shader still resolving
-     * or compiling, a background that owes a draw with the outlines laid out since, or a background
-     * whose layer the last frame did not draw (its program still compiling, issue #3536). Each of
+     * the background still loading, or a background whose layer the last frame did not draw (its program still compiling, issue #3536). Each of
      * these ends by asking for a frame (issue #4243).
      * @returns True while one is on its way.
      */
     get picturePending(): boolean {
-        return (
-            this.backgroundLoads > 0 ||
-            this.outlineLoading ||
-            this.outline?.pending === true ||
-            this.background?.owesDraw === true ||
-            this.background?.showPending === true
-        );
+        return this.backgroundLoads > 0 || this.background?.showPending === true;
     }
 
     /** Release every pass and listener. */
@@ -620,8 +587,6 @@ class ShaderScene {
         lendSceneShaders(this.scene, () => ({ heavy: false, moving: [] }));
         this.background?.dispose();
         this.background = null;
-        this.outline?.dispose();
-        this.outline = null;
         this.bloom?.dispose();
         this.bloom = null;
     }
@@ -675,13 +640,7 @@ class ShaderScene {
             return;
         }
 
-        this.background ??= new module.BackgroundPass(
-            this.scene,
-            runtime,
-            this.guard,
-            this.budget,
-            (count) => this.outline?.tints(count) ?? [],
-        );
+        this.background ??= new module.BackgroundPass(this.scene, runtime, this.guard, this.budget);
         const color = Color4.FromHexString(wanted.color);
         const drawn = await this.background.show(
             shader,
@@ -695,25 +654,10 @@ class ShaderScene {
         }
     }
 
-    /** Allocate or release the group outline and bloom passes as the style stack now asks. */
+    /** Allocate or release the bloom pass as the style stack now asks. */
     private sync(): void {
         const { session } = this.sources;
         const layers = session.styles.list().filter((layer) => layer.enabled);
-        const wantsOutlines = layers.some(
-            (layer) =>
-                layer.target === "node" &&
-                ((layer.set?.["node.shaders"] ?? []) as readonly ShaderUse[]).some(
-                    (use) => use.off !== true && placeOfUse(use) === "group",
-                ),
-        );
-        if (wantsOutlines) {
-            this.outline?.invalidate();
-            void this.loadOutlines();
-        } else if (this.outline !== null) {
-            this.outline.dispose();
-            this.outline = null;
-        }
-
         const project = shadersControllerOf(session)?.descriptors() ?? [];
         const bloomy = (id: string): boolean => project.find((descriptor) => descriptor.id === id)?.bloom === true;
         const wantsBloom = layers.some((layer) => [...idsNamedBy(layer, true)].some(bloomy));
@@ -722,47 +666,6 @@ class ShaderScene {
         } else if (this.bloom !== null) {
             this.bloom.dispose();
             this.bloom = null;
-        }
-    }
-
-    /** Load and allocate the group outline pass, once. */
-    private async loadOutlines(): Promise<void> {
-        const controller = shadersControllerOf(this.sources.session);
-        const host = this.host();
-        if (this.outline !== null || this.outlineLoading || controller === undefined || host === null) {
-            return;
-        }
-
-        this.outlineLoading = true;
-        try {
-            const [runtime, module] = await trackOnScene(
-                this.scene,
-                "shader",
-                "the group outline pass is still loading",
-                Promise.all([host.runtime(), import("../meshes/GroupOutlinePass")]),
-            );
-            if (this.disposed || this.outline !== null) {
-                return;
-            }
-
-            const { session, member } = this.sources;
-            this.outline = new module.GroupOutlinePass(
-                this.scene,
-                {
-                    outlines: () => groupOutlinesOf(session.styles),
-                    member,
-                    shader: (id) => controller.drawable(id),
-                },
-                runtime,
-                this.guard,
-                this.budget,
-            );
-            // Asked again now it exists: the stack may have changed while it loaded.
-            this.sync();
-        } catch (error) {
-            rethrowUnlessDisposed(error);
-        } finally {
-            this.outlineLoading = false;
         }
     }
 
@@ -2149,7 +2052,7 @@ export class RenderManager implements Manager {
     }
 
     /**
-     * Give the scene-level shaders (the background shader, group outlines, the shared bloom)
+     * Give the scene-level shaders (the background shader, the shared bloom)
      * their graph. Until it is called none of them draws; a background shader asked for before
      * is drawn then.
      * @param sources - The graph's session and its nodes' places.
@@ -2162,27 +2065,16 @@ export class RenderManager implements Manager {
     }
 
     /**
-     * The group outline under a point, by its layer and group.
-     * @param x - CSS pixels from the canvas's left edge.
-     * @param y - CSS pixels from the canvas's top edge.
-     * @returns The outline, or null.
-     * @internal
-     */
-    pickGroupOutline(x: number, y: number): GroupOutlinePick | null {
-        return this.shaderScene?.groupOutlineAt(x, y) ?? null;
-    }
-
-    /**
      * The scene-level shader passes allocated now, for tests and tools.
      * @returns Each pass, or null.
      * @internal
      */
     shaderPasses(): ReturnType<ShaderScene["passes"]> {
-        return this.shaderScene?.passes() ?? { background: null, outline: null, bloom: null };
+        return this.shaderScene?.passes() ?? { background: null, bloom: null };
     }
 
     /**
-     * Whether a scene shader's picture (the background, a group outline) is still on its way.
+     * Whether a scene shader's picture (the background) is still on its way.
      * @returns True while one is.
      * @internal
      */

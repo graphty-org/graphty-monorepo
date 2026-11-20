@@ -37,11 +37,10 @@ A shader draws on one **target**, read from its entry function:
 | ------------------------------- | ------------ | -------------------------------------------------------------------------- |
 | `vec4 shade(NodeInput n)`       | `node`       | `node.shaders`: `[{ shader: "<id>", place? }]`                             |
 | `vec4 shade(EdgeInput e)`       | `edge`       | `edge.shaders`: `[{ shader: "<id>" }]`                                     |
-| `vec4 shade(GroupInput g)`      | `group`      | `node.shaders`, at the place `group`: `[{ shader: "<id>", groupBy? }]`     |
 | `vec4 shade(BackgroundInput b)` | `background` | `element.background = { backgroundType: "color", shader: { id: "<id>" } }` |
 
-Each shader also has a **place**, where it draws. It is `"paint"` unless the shader gives `place`,
-and `"group"` for a group outline; the background has none.
+Each shader also has a **place**, where it draws. It is `"paint"` unless the shader gives `place`;
+the background has none.
 
 | Place     | On         | What it does                                                 | Per element           |
 | --------- | ---------- | ------------------------------------------------------------ | --------------------- |
@@ -51,14 +50,13 @@ and `"group"` for a group outline; the background has none.
 | `around`  | node       | Drawn outside the node's outline, reaching past it           | they stack            |
 | `behind`  | node       | Drawn before the node, so the node covers its middle         | they stack            |
 | `along`   | edge       | A strip that follows the edge over the line                  | they stack            |
-| `group`   | group      | One outline around a group of nodes                          | they stack            |
 
 `replace`, `over`, `around` and `behind` are one drawing, a square facing the camera, so a shader
 written for one may be used at any of the four. `places` narrows that list, for a shader that looks
 wrong somewhere (an `around` ring with an empty middle declares `places: ["around", "behind"]`).
-`paint`, `along` and `group` stay where they are.
+`paint` and `along` stay where they are.
 
-A layer lists its shaders, each a use `{ shader, place?, params?, groupBy?, off? }`; `place`
+A layer lists its shaders, each a use `{ shader, place?, params?, off? }`; `place`
 defaults to the shader's own. Layers stack bottom to top, and a layer's list keeps its order. At
 `paint` and `replace` the last use wins and covers the other place's beneath it; every other place
 stacks (at most four per element). `{ shader: "acme/ring", off: true }` removes that shader from
@@ -111,23 +109,6 @@ A ring around the node: `place: "around"`, drawn on a square `reach` times the n
 vec4 shade(NodeInput n) {
     float ring = smoothstep(0.15, 0.0, abs(length(n.uv) - 1.5));
     return vec4(tint * ring, ring);
-}
-```
-
-A group outline: a soft fill with a bright rim around each group of nodes, written to a layer as
-`"node.shaders": [{ shader: "acme/hull", groupBy: "data.community" }]`. A node is a member while it
-carries the use; a higher layer's `{ shader: "acme/hull", off: true }` takes the nodes it matches
-out, and the outline is drawn again around the rest.
-
-```glsl
-/* graphty-shader 1
-{ "id": "acme/hull", "params": [{ "name": "tint", "type": "color", "default": "#3388ff" }] }
-*/
-vec4 shade(GroupInput g) {
-    float inside = smoothstep(0.45, 0.55, g.field);
-    float rim = inside - smoothstep(0.55, 0.7, g.field);
-    float a = 0.2 * inside + 0.8 * rim;
-    return vec4(tint, a);
 }
 ```
 
@@ -192,9 +173,7 @@ Open the editor from the Main menu's **Add Shader...**, or from **New shader...*
 that a Shaders section's **+** opens.
 
 **Node, Edge, Background** at the top say what the shader draws on. Each keeps its own draft for as
-long as the page is open, so you can switch to another and come back to what you typed. A shader
-for a whole group is a Node shader: choose the place **Around the group** and the code box changes
-to `shade(GroupInput g)`.
+long as the page is open, so you can switch to another and come back to what you typed.
 
 Each target and place opens on a working starter, so there is always a shader to change. To begin
 from a shader a layer already uses, choose **Duplicate and edit** from its row's menu in a Shaders
@@ -416,29 +395,14 @@ encode: { "node.shaders.acme/heat.hot": { by: "data.score", scale: "linear" } }
 | `sinceChanged`   | `float` | Seconds since the edge's data changed; -1 when it has not.                                   |
 | `time`           | `float` | Seconds on the scene's clock, wrapping every 1024 seconds.                                   |
 
-### GroupInput
-
-| Field           | Type    | Meaning                                                                                                                                                                   |
-| --------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `uv`            | `vec2`  | The pixel's place on the canvas, from 0 to 1 across and up.                                                                                                               |
-| `field`         | `float` | The group's members' summed influence at this pixel: highest near the members, 0 far from them. Pick the level the outline sits at (0.5 is a good start).                 |
-| `fieldGradient` | `vec2`  | The direction and rate `field` changes at this pixel: `(0.5 - field) / length(fieldGradient)` is roughly the signed distance to the level 0.5, for an edge of even width. |
-| `normal`        | `vec3`  | With `form: "sphere"`, the normal of one sphere around the group; else 0.                                                                                                 |
-| `viewDir`       | `vec3`  | Always `(0, 0, 1)`.                                                                                                                                                       |
-| `color`         | `vec4`  | The group's color: its layer's fill.                                                                                                                                      |
-| `group`         | `float` | Which group of the layer this is, as a number.                                                                                                                            |
-| `depth`         | `float` | How deep the layer is among the layers that draw group outlines, counted from the bottom.                                                                                 |
-| `time`          | `float` | Seconds on the scene's clock, wrapping every 1024 seconds.                                                                                                                |
-
 ### BackgroundInput
 
-| Field        | Type    | Meaning                                                                                           |
-| ------------ | ------- | ------------------------------------------------------------------------------------------------- |
-| `uv`         | `vec2`  | The pixel's place on the canvas, from 0 to 1 across and up.                                       |
-| `viewDir`    | `vec3`  | The direction from the camera through the pixel, in world space.                                  |
-| `resolution` | `vec2`  | The canvas's size in drawing-buffer pixels.                                                       |
-| `time`       | `float` | Seconds on the scene's clock, wrapping every 1024 seconds.                                        |
-| `groupTint`  | `vec4`  | The color of the largest group outlines near this pixel; its alpha is how strongly they are near. |
+| Field        | Type    | Meaning                                                          |
+| ------------ | ------- | ---------------------------------------------------------------- |
+| `uv`         | `vec2`  | The pixel's place on the canvas, from 0 to 1 across and up.      |
+| `viewDir`    | `vec3`  | The direction from the camera through the pixel, in world space. |
+| `resolution` | `vec2`  | The canvas's size in drawing-buffer pixels.                      |
+| `time`       | `float` | Seconds on the scene's clock, wrapping every 1024 seconds.       |
 
 ## Globals and helpers
 

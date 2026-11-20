@@ -18,7 +18,7 @@
  * told apart.
  *
  * This module writes the sample program the test frame and the thumbnail draw: a camera-facing
- * square showing the shader on a sample node, edge, background or group. The node and edge
+ * square showing the shader on a sample node, edge or background. The node and edge
  * batches build their own programs from the same pieces.
  *
  * Plain strings; nothing here reaches Babylon.js, Lit or the DOM.
@@ -688,14 +688,10 @@ const SAMPLE_FALLBACK: Readonly<Record<ShaderDrawing, string>> = {
     "edge-paint": "graphty_in.color",
     "edge-along": "vec4(0.0)",
     background: "vec4(0.0, 0.0, 0.0, 1.0)",
-    group: "vec4(0.0)",
 };
 
 /** A gray the sample's stand-in node and dots are drawn in, lit a little from the front. */
 const SAMPLE_GRAY = "vec4(vec3(0.62) * (0.6 + 0.4 * graphty_z), 1.0)";
-
-/** The sample's five group members, in the tile's 0..1 space. */
-const GROUP_MEMBERS = ["0.33, 0.42", "0.5, 0.33", "0.67, 0.44", "0.41, 0.6", "0.6, 0.62"] as const;
 
 /**
  * The statements of the sample `main` that fill the input for a drawing, framed the way its
@@ -705,7 +701,6 @@ const GROUP_MEMBERS = ["0.33, 0.42", "0.5, 0.33", "0.67, 0.44", "0.41, 0.6", "0.
  * - a card: the card, filling the tile;
  * - a node effect: a small gray node, the frame reaching to the effect's reach (at least 1.5 radii);
  * - an edge: one curved edge between two gray dots;
- * - a group: the outline around five gray dots;
  * - a background: the whole tile.
  * @param kind - The drawing.
  * @returns The GLSL.
@@ -779,46 +774,20 @@ function sampleInput(kind: ShaderDrawing): string {
     graphty_in.sinceExited = -1.0;
     graphty_in.sinceChanged = -1.0;
     graphty_in.time = ${time};`;
-        case "background":
+        default:
+            // the background
             return `
     graphty_BackgroundInput graphty_in;
     graphty_in.uv = vUV;
     graphty_in.viewDir = normalize(vec3(vUV * 2.0 - 1.0, 1.0));
     graphty_in.resolution = graphty_sampleSize.xy;
-    graphty_in.time = ${time};
-    graphty_in.groupTint = vec4(0.0);`;
-        default: {
-            const members = GROUP_MEMBERS.map((at, i) => `vec2 graphty_c${String(i)} = vec2(${at});`).join("\n    ");
-            const kernels = GROUP_MEMBERS.map(
-                (_, i) =>
-                    `vec2 graphty_d${String(i)} = vUV - graphty_c${String(i)}; float graphty_k${String(i)} = exp(-dot(graphty_d${String(i)}, graphty_d${String(i)}) * 60.0);`,
-            ).join("\n    ");
-            const sum = GROUP_MEMBERS.map((_, i) => `graphty_k${String(i)}`).join(" + ");
-            const gradient = GROUP_MEMBERS.map((_, i) => `graphty_d${String(i)} * graphty_k${String(i)}`).join(" + ");
-            return `
-    graphty_GroupInput graphty_in;
-    ${members}
-    ${kernels}
-    float graphty_z = 1.0;
-    graphty_in.uv = vUV;
-    graphty_in.field = ${sum};
-    graphty_in.fieldGradient = -120.0 * (${gradient});
-    vec2 graphty_s = (vUV - vec2(0.5)) / 0.35;
-    float graphty_sr = dot(graphty_s, graphty_s);
-    graphty_in.normal = graphty_sr < 1.0 ? vec3(graphty_s, -sqrt(1.0 - graphty_sr)) : vec3(0.0);
-    graphty_in.viewDir = vec3(0.0, 0.0, 1.0);
-    graphty_in.color = graphty_sampleColor;
-    graphty_in.group = 0.0;
-    graphty_in.depth = 0.0;
     graphty_in.time = ${time};`;
-        }
     }
 }
 
 /**
  * The statements after the shader ran that frame its result: the gray node over the middle of a
- * look around or behind it (under a look over it), the dots at an edge's ends, the group's
- * members over its outline.
+ * look around or behind it (under a look over it), the dots at an edge's ends.
  * @param kind - The drawing.
  * @param place - The shader's own place.
  * @returns The GLSL.
@@ -835,13 +804,6 @@ function sampleFinish(kind: ShaderDrawing, place?: string): string {
         case "edge-along":
             return `    if (!graphty_onEdge) { graphty_out = vec4(0.0); }
     if (min(length(vUV - vec2(0.16, 0.42)), length(vUV - vec2(0.84, 0.42))) < 0.06) { graphty_out = ${SAMPLE_GRAY}; }`;
-        case "group": {
-            const near = GROUP_MEMBERS.slice(1).reduce(
-                (a: string, _, i) => `min(${a}, length(graphty_d${String(i + 1)}))`,
-                "length(graphty_d0)",
-            );
-            return `    if (${near} < 0.035) { graphty_out = ${SAMPLE_GRAY}; }`;
-        }
         default:
             return "";
     }

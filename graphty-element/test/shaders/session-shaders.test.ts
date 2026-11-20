@@ -951,13 +951,6 @@ vec4 shade(NodeInput n) {
         assert.strictEqual(await s.shaders.source("user/tint"), TINT);
     });
 
-    it("says a background that tints by groups has nothing to tint by when no layer draws a group outline", async () => {
-        const { session: s, layer } = await session();
-        assert.deepEqual(s.shaders.status("nebula").problem, { code: "shader.no-data", params: { input: "members" } });
-        await s.styles.update(layer, { set: { "node.shaders": [{ shader: "metaball-hull" }] } });
-        assert.isUndefined(s.shaders.status("nebula").problem);
-    });
-
     it("answers the quality the settings ask for with no host", async () => {
         const { session: s } = await session();
         const controller = shadersControllerOf(s);

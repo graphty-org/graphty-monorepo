@@ -17,15 +17,7 @@ import type {
 import type { GraphOverview, OverviewOptions } from "./camera/overview";
 import type { CameraViewExtent, ViewInsets } from "./camera/types";
 import { layoutDescriptor, layoutIdForEngine } from "./catalog/layouts";
-import type {
-    AlgorithmKey,
-    DrawnShaders,
-    ElementAtResult,
-    FormatId,
-    GroupOutlineAtResult,
-    Scope,
-    ScopeInput,
-} from "./catalog/types";
+import type { AlgorithmKey, DrawnShaders, ElementAtResult, FormatId, Scope, ScopeInput } from "./catalog/types";
 import type {
     FitInsets,
     GraphBackgroundConfig,
@@ -6328,29 +6320,9 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * The group outline under a point on the element: the shape a use at the place `group` on a
-     * style layer's `node.shaders` draws around a group of nodes, as a click there would see it.
-     * Only where no node and no edge is (`elementAt` answers those), the topmost outline first.
-     * @param point - The point, in CSS pixels from the element's top-left corner.
-     * @param point.x - X coordinate
-     * @param point.y - Y coordinate
-     * @returns `{ kind: "group-outline", layer, shader, group }`, or `null` when no outline is there.
-     * @since 3.36.0
-     * @example
-     * ```typescript
-     * const hit = element.groupOutlineAt({ x: 200, y: 150 });
-     * if (hit !== null) console.log("community", hit.group, "of layer", hit.layer);
-     * ```
-     */
-    groupOutlineAt(point: { x: number; y: number }): GroupOutlineAtResult | null {
-        return this.#graph.groupOutlineAt(point);
-    }
-
-    /**
      * What the element's shaders draw at this moment: per node shader (a surface, a sprite or an
      * effect), how many nodes draw it and how many play its entrance now (a reticle's snap, a
-     * shockwave's ring); and the group outlines drawn on the last frame, each with its layer, its
-     * shader and the groups it outlines. For tools, tests and an application that shows whether an effect plays;
+     * shockwave's ring). For tools, tests and an application that shows whether an effect plays;
      * read it again after a frame, it is not a live value.
      * @returns The counts.
      * @since 3.36.0

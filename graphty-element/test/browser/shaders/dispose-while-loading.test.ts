@@ -14,19 +14,10 @@ import type { Effect } from "@babylonjs/core";
 import { assert, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../../index.js";
-import type { LayerSpec } from "../../../src/catalog/types";
 import { isGraphtyError } from "../../../src/errors/GraphtyError";
 import { operationQueueOf } from "../../../src/Graph";
 import { shadersControllerOf } from "../../../src/session/shaders";
 import type { LazyShaderHost } from "../../../src/shaders/chunk";
-
-/** A group outline, which loads its pass through the runtime. */
-const OUTLINE: LayerSpec = {
-    name: "Outline",
-    target: "node",
-    selector: { match: "has", path: "data.community" },
-    set: { "node.shaders": [{ shader: "metaball-hull", groupBy: "data.community" }] },
-};
 
 /** A shader to compile, which the runtime does. */
 const TINT = `/* graphty-shader 1
@@ -85,9 +76,8 @@ describe("disposing a graph while the shader runtime loads", () => {
         const element = await mountedElement();
         await element.session.data.addNodes([{ id: "a", community: 1 }]);
 
-        // Nobody awaits the background and outline passes' loads; these two callers await theirs.
+        // Nobody awaits the background pass's load; these two callers await theirs.
         element.background = { backgroundType: "color", color: "#000000", shader: { id: "nebula" } };
-        await element.session.styles.add(OUTLINE);
         const host = shadersControllerOf(element.session)?.host as LazyShaderHost;
         const runtime = host.runtime().then(
             () => null,

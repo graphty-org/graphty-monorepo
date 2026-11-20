@@ -53,11 +53,11 @@ export const OWNER_FORBIDDEN: readonly Forbidden[] = [
         selector: '[data-section="node-order"], [data-thing="order"], [data-thing="group"]',
     },
     {
-        what: "Group outline, as a '+' item, a row or a shader place",
+        what: "Group outline, as a '+' item, a row, a shader place, a Group by line or an outline click",
         ledger: "E420, E422",
         text: /^Group outline$/,
         selector: '[data-thing="groupOutline"]',
-        source: /node\.groupOutline|groupOutlineShaders|isGroupOutline/,
+        source: /node\.groupOutline|groupOutlineShaders|isGroupOutline|GroupOutlinePass|place === "group"|Around the group|GroupByLine|group-outline-click/,
     },
     {
         what: "a panel line for node.zIndex, node.drawOrder or any node.group* channel",

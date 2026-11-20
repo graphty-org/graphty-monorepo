@@ -132,7 +132,6 @@ describe("what a shader covers", () => {
         assert.include(card, "node.shape");
         assert.notInclude(card, "node.size");
         assert.deepEqual(shaderCovers({ target: "node", place: "around", reads: [] }), []);
-        assert.deepEqual(shaderCovers({ target: "group", place: "group", reads: [] }), []);
         assert.deepEqual(shaderCovers({ target: "node", place: "paint", reads: ["color", "opacity"] }), [
             "node.flat",
             "node.unlit",

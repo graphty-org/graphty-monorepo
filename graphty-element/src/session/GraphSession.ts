@@ -229,7 +229,6 @@ import type {
     FindResult,
     GraphSession,
     GraphSettingKey,
-    GroupOutlineClick,
     HistoryClearOptions,
     HistoryOutcome,
     HistoryRestoreOptions,
@@ -1458,18 +1457,6 @@ class Session implements ElementSession {
                           ];
                       }),
         };
-    }
-
-    /**
-     * Publishes `canvas:group-outline-click`.
-     * @param target - The outline's layer, shader and group.
-     */
-    groupOutlineClick(target: GroupOutlineClick): void {
-        publish(this.watchers, "canvas:group-outline-click", {
-            layer: target.layer,
-            shader: target.shader,
-            group: target.group,
-        });
     }
 
     /**

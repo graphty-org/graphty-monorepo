@@ -159,23 +159,6 @@ export const Edge: Story = targetStory("Edge", "EdgeInput");
 /** Switched to Background: no Place. */
 export const Background: Story = targetStory("Background", "BackgroundInput");
 
-/** Place set to Around the group: the code turns to a group's. */
-export const AroundTheGroup: Story = {
-    ...freshStore({ project: { name: "Ring", id: 1 } }),
-    play: async ({ canvasElement }) => {
-        const editor = await openEditor(canvasElement);
-        const { dialog, box } = editor;
-        await drawn(dialog);
-        const before = await preview(dialog);
-        await pick(editor, within(dialog).getByLabelText(/^Place/), "Around the group");
-        await waitFor(() => {
-            expect(box.textContent).toContain("GroupInput");
-        });
-        await drawn(dialog, before);
-        restCaret(dialog);
-    },
-};
-
 /** One row of every type, added with the + and the Type select, with no JSON typed. */
 export const EveryParameterType: Story = {
     ...freshStore({ project: { name: "Ring", id: 1 } }),

@@ -7,7 +7,6 @@ import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { ControlLabel } from "./ControlLabel";
 import type { RowContext } from "./PropertyRow";
-import { type DataChoice, sourceName } from "./row";
 import type { PasteInit } from "./ShaderEditorDialog";
 import { ShaderParams } from "./ShaderParams";
 import {
@@ -22,19 +21,10 @@ import {
     shadersChannel,
     takeFocusNext,
     unbindParam,
-    writeGroupBy,
     writeParam,
 } from "./shaderSlots";
 import { focusSectionNext } from "./useFocusLine";
-import { ValuePicker } from "./ValuePicker";
-import {
-    effectOffWords,
-    failureWords,
-    GROUP_BY_WORDS,
-    placeWords,
-    SHADER_MOVE_WORDS,
-    shaderProblemWords,
-} from "./words";
+import { effectOffWords, failureWords, placeWords, SHADER_MOVE_WORDS, shaderProblemWords } from "./words";
 
 /** The width of a shader row's pop-outs: the settings, as every field's. */
 const POPOUT_WIDTH = 240;
@@ -185,116 +175,6 @@ function SettingsPopout({
 }
 
 /**
- * The data path a picked value reads: a column's, or a run field's.
- * @param ctx - the row.
- * @param choice - the pick.
- * @returns the path, or undefined when the session no longer answers it.
- */
-function pathOf(ctx: RowContext, choice: DataChoice): string | undefined {
-    if (choice.kind === "result") {
-        return ctx.session.results.path(choice.runId, choice.field);
-    }
-    return ctx.session.data
-        .attributes()
-        .find((attribute) => attribute.kind === choice.column.kind && attribute.name === choice.column.name)?.path;
-}
-
-/**
- * A group outline's Group by picker: one outline per value the members share, or one around all
- * of them. The trigger is the caller's.
- * @param props - Component props
- * @param props.ctx - the row
- * @param props.entry - the outline's use
- * @param props.fail - posts a failed write's notice
- * @param props.renderTrigger - the button that opens it, given its words
- * @returns The picker
- */
-export function GroupByPopout({
-    ctx,
-    entry,
-    fail,
-    renderTrigger,
-}: Readonly<{
-    ctx: RowContext;
-    entry: ShaderEntry;
-    fail: Fail;
-    renderTrigger: (word: string | undefined) => React.ReactNode;
-}>): React.JSX.Element {
-    const [open, setOpen] = useState(false);
-    const { groupBy } = entry.use;
-    const word = groupBy === undefined ? undefined : (sourceName(ctx.session, { by: groupBy }) ?? groupBy);
-    const write = (path: string | undefined): void => {
-        setOpen(false);
-        writeGroupBy(ctx, entry, path).catch(fail("changed"));
-    };
-    return (
-        <Popout opened={open} onOpenChange={setOpen}>
-            <Popout.Trigger>{renderTrigger(word)}</Popout.Trigger>
-            <Popout.Panel
-                width={POPOUT_WIDTH}
-                placement="left"
-                alignment="start"
-                header={{ variant: "title", title: GROUP_BY_WORDS.title }}
-                closeLabel={`Close ${GROUP_BY_WORDS.title}`}
-            >
-                <ValuePicker
-                    title={GROUP_BY_WORDS.title}
-                    target="node"
-                    inUse={groupBy === undefined ? [] : [groupBy]}
-                    fixedLabel={GROUP_BY_WORDS.none}
-                    fixedInForce={groupBy === undefined}
-                    onFixed={() => {
-                        write(undefined);
-                    }}
-                    onPick={(choice) => {
-                        write(pathOf(ctx, choice));
-                    }}
-                    onClose={() => {
-                        setOpen(false);
-                    }}
-                />
-            </Popout.Panel>
-        </Popout>
-    );
-}
-
-/**
- * The Group by line under a group outline's row: one outline per value the members share, or one
- * around all of them.
- * @param props - Component props
- * @param props.ctx - the row
- * @param props.entry - the outline's use
- * @param props.fail - posts a failed write's notice
- * @returns The line
- */
-function GroupByLine({
-    ctx,
-    entry,
-    fail,
-}: Readonly<{ ctx: RowContext; entry: ShaderEntry; fail: Fail }>): React.JSX.Element {
-    return (
-        <div className="ws-row" data-line={`${entry.key}.groupBy`} data-set="">
-            <div className="ws-field ws-field-sub">
-                <div className="ws-field-control">
-                    <GroupByPopout
-                        ctx={ctx}
-                        entry={entry}
-                        fail={fail}
-                        renderTrigger={(word) => (
-                            <Button size="compact-xs" variant="default" fullWidth justify="flex-start">
-                                {GROUP_BY_WORDS.line(word ?? GROUP_BY_WORDS.none)}
-                            </Button>
-                        )}
-                    />
-                </div>
-                <span className="ws-slot" />
-                <span className="ws-slot" />
-            </div>
-        </div>
-    );
-}
-
-/**
  * Drags a row by its handle: the pointer is captured on press, and on release the row moves to
  * where the pointer is among the section's rows.
  * @param box - the row.
@@ -346,8 +226,7 @@ function useRowDrag(
  * One row of a tab's Shaders section (decisions-v2, section 2.1): a drag handle, the picture, the
  * name, the place (its words and diagram, never a choice), the
  * settings button and a minus. Rows reorder by dragging the handle, or by Alt+Up and Alt+Down; the
- * order is the draw order inside one place; a move says where the row went. A group outline also
- * has its Group by line. A right-click (or a long press) opens Copy code, Duplicate and edit, Move
+ * order is the draw order inside one place; a move says where the row went. A right-click (or a long press) opens Copy code, Duplicate and edit, Move
  * up, Move down and Remove, so a pointer can reorder without dragging. Every write is one undo step.
  * @param props - Component props
  * @param props.ctx - the row
@@ -466,34 +345,31 @@ export function ShaderRow({ ctx, entry, count, onMove, onCode }: Readonly<Shader
         </div>
     );
     return (
-        <>
-            <ContextMenu target={row}>
-                {descriptor !== undefined && <Menu.Item onClick={copy}>Copy code</Menu.Item>}
-                {duplicate !== undefined && <Menu.Item onClick={duplicate}>Duplicate and edit</Menu.Item>}
-                {count > 1 && (
-                    <Menu.Item
-                        disabled={entry.index === 0}
-                        onClick={() => {
-                            move(entry.index - 1);
-                        }}
-                    >
-                        {SHADER_MOVE_WORDS.up}
-                    </Menu.Item>
-                )}
-                {count > 1 && (
-                    <Menu.Item
-                        disabled={entry.index === count - 1}
-                        onClick={() => {
-                            move(entry.index + 1);
-                        }}
-                    >
-                        {SHADER_MOVE_WORDS.down}
-                    </Menu.Item>
-                )}
-                <Menu.Item onClick={remove}>Remove</Menu.Item>
-            </ContextMenu>
-            {placeOf(entry) === "group" && use.off !== true && <GroupByLine ctx={ctx} entry={entry} fail={fail} />}
-        </>
+        <ContextMenu target={row}>
+            {descriptor !== undefined && <Menu.Item onClick={copy}>Copy code</Menu.Item>}
+            {duplicate !== undefined && <Menu.Item onClick={duplicate}>Duplicate and edit</Menu.Item>}
+            {count > 1 && (
+                <Menu.Item
+                    disabled={entry.index === 0}
+                    onClick={() => {
+                        move(entry.index - 1);
+                    }}
+                >
+                    {SHADER_MOVE_WORDS.up}
+                </Menu.Item>
+            )}
+            {count > 1 && (
+                <Menu.Item
+                    disabled={entry.index === count - 1}
+                    onClick={() => {
+                        move(entry.index + 1);
+                    }}
+                >
+                    {SHADER_MOVE_WORDS.down}
+                </Menu.Item>
+            )}
+            <Menu.Item onClick={remove}>Remove</Menu.Item>
+        </ContextMenu>
     );
 }
 

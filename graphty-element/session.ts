@@ -105,7 +105,6 @@ export type {
     GraphSession,
     GraphSettingKey,
     GraphStatistics,
-    GroupOutlineClick,
     GroupSummary,
     GroupTable,
     GroupTableOptions,

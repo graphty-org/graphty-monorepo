@@ -8,7 +8,7 @@
 import { afterEach, assert, describe, it } from "vitest";
 
 import { clearRegisteredShadersForTesting, shaderDescriptor } from "../../src/catalog/shaderRegistry";
-import { type ShaderPlace, shaderPlaceProblem, type ShaderRegistration } from "../../src/catalog/shaders";
+import { shaderPlaceProblem, type ShaderRegistration } from "../../src/catalog/shaders";
 import { formatShaderText, parseShaderText } from "../../src/catalog/shaderText";
 import { isGraphtyError } from "../../src/errors";
 import { defineShader } from "../../src/simple/defineShader";
@@ -18,8 +18,6 @@ afterEach(() => {
 });
 
 const NODE_BODY = "vec4 shade(NodeInput n) { return n.color; }";
-const GROUP_BODY = "vec4 shade(GroupInput g) { return vec4(g.field); }";
-const EVERY_PLACE: readonly ShaderPlace[] = ["paint", "replace", "over", "around", "behind", "along", "group"];
 
 /**
  * What a definition throws, or fails the test when it throws nothing.
@@ -94,24 +92,6 @@ describe("places", () => {
         });
         assert.isNull(shaderPlaceProblem(descriptor, "behind"));
         assert.isNull(shaderPlaceProblem(descriptor, undefined), "its own place");
-    });
-
-    it("keeps a group shader at group, refusing every other place", () => {
-        defineShader({ id: "acme/hull", glsl: GROUP_BODY });
-        const descriptor = shaderDescriptor("acme/hull");
-        assert.strictEqual(descriptor?.place, "group");
-        if (descriptor === undefined) {
-            return;
-        }
-
-        for (const place of EVERY_PLACE) {
-            const problem = shaderPlaceProblem(descriptor, place);
-            assert.strictEqual(problem === null, place === "group", place);
-        }
-
-        const details = refusal(() => defineShader({ id: "acme/hull-around", place: "around", glsl: GROUP_BODY }));
-        assert.strictEqual(details.code, "shader.place-unsupported");
-        assert.deepEqual(details.params, { shader: "acme/hull-around", place: "around", allowed: ["group"] });
     });
 
     it("refuses a default place outside the shader's own places", () => {

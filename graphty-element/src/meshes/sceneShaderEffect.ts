@@ -1,5 +1,5 @@
 /**
- * @file What the scene passes (the background and the group outlines) share: a program compiled as an
+ * @file What the scene passes (the background) share: a program compiled as an
  * `EffectWrapper` whose two stages go inline to the engine, its parameters as plain uniforms, and a render target sized by the shader quality level and its memory budget.
  *
  * Loaded with the shader runtime, never by a graph that names no shader.

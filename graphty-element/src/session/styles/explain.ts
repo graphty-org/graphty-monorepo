@@ -1357,7 +1357,7 @@ function countFact(
  */
 function checkShaderUse(tally: ShaderFactTally, channel: Channel, use: ShaderUse, weight: number): void {
     const descriptor = projectShaderDescriptor(use.shader);
-    const target = channel === "node.shaders" ? ["node", "group"] : ["edge"];
+    const target = channel === "node.shaders" ? ["node"] : ["edge"];
     if (descriptor === undefined) {
         countFact(tally, "shader.unknown", { channel, shader: use.shader }, weight);
     } else if (!target.includes(descriptor.target)) {

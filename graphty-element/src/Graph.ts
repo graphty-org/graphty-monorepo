@@ -111,7 +111,6 @@ import type {
     EdgeId,
     ElementAtResult,
     FormatId,
-    GroupOutlineAtResult,
     NodeId,
     Scope,
     ScopeInput,
@@ -1700,7 +1699,7 @@ export class Graph implements GraphContext {
             },
         );
         // A picture the frame on screen does not show yet: an image annotation still loading, or a
-        // scene shader's (the background, a group outline) still loading, compiling or owed a draw.
+        // scene shader's (the background) still loading, compiling or owed a draw.
         this.updateManager.fitAnnotations = () => {
             this.#annotations?.refit();
         };
@@ -2938,31 +2937,8 @@ export class Graph implements GraphContext {
 
     /** Give the render manager what it reads from the graph, on the first scene and on the swap. */
     private bindRenderManager(): void {
-        // The background shader, group outlines and bloom read the stack and the nodes' places.
-        this.renderManager.bindShaderScene({
-            session: this.session,
-            member: (id) => {
-                const node = this.dataManager.nodes.get(id);
-                const color = node?.paintedColor;
-                if (
-                    node === undefined ||
-                    color === null ||
-                    color === undefined ||
-                    node.getRenderState() !== "visible"
-                ) {
-                    return undefined;
-                }
-
-                const { x, y, z } = node.getPosition();
-                return {
-                    x,
-                    y,
-                    z,
-                    radius: node.drawnRadius,
-                    color: [color.r / 255, color.g / 255, color.b / 255, color.a],
-                };
-            },
-        });
+        // The background shader and bloom read the stack.
+        this.renderManager.bindShaderScene({ session: this.session });
         // No frame is drawn while an element built from the defaults waits for its style.
         this.renderManager.drawHeld = (): boolean => this.dataManager.drawHeld;
     }
@@ -5946,13 +5922,7 @@ export class Graph implements GraphContext {
         const edgeId = this.pickEdgeId(x, y);
         const secondary = event.button === 2;
         if (edgeId === undefined) {
-            const outline = this.renderManager.pickGroupOutline(x, y);
-            if (outline === null) {
-                this.clickEmptyCanvas(x, y, secondary);
-            } else {
-                this.clearSelectionOnPrimary(secondary);
-                this.session.groupOutlineClick(outline);
-            }
+            this.clickEmptyCanvas(x, y, secondary);
             return;
         }
 
@@ -7340,33 +7310,11 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * The group outline under a point, where no node and no edge is; see
-     * `Graphty.groupOutlineAt`.
-     * @param point - The point, in CSS pixels from the element's top-left corner.
-     * @param point.x - X coordinate
-     * @param point.y - Y coordinate
-     * @returns `{ kind: "group-outline", layer, shader, group }`, or `null` when no outline is there.
-     */
-    groupOutlineAt(point: { x: number; y: number }): GroupOutlineAtResult | null {
-        if (this.elementAt(point) !== null) {
-            return null;
-        }
-
-        const hit = this.renderManager.pickGroupOutline(point.x, point.y);
-        return hit === null ? null : { kind: "group-outline", layer: hit.layer, shader: hit.shader, group: hit.group };
-    }
-
-    /**
      * What the shaders draw now; see `Graphty.drawnShaders`.
-     * @returns Per node shader its counts, and the group outlines drawn last frame.
+     * @returns Per node shader its counts.
      */
     drawnShaders(): DrawnShaders {
-        const nodes = NodeShaderDrawing.peek(this.scene)?.drawnById() ?? new Map();
-        const outlines = this.renderManager.shaderPasses().outline?.drawn() ?? [];
-        return {
-            nodes,
-            groupOutlines: outlines.map(({ layer, shader, groups }) => ({ layer, shader, groups: [...groups] })),
-        };
+        return { nodes: NodeShaderDrawing.peek(this.scene)?.drawnById() ?? new Map() };
     }
 
     /**
@@ -8827,7 +8775,7 @@ export class Graph implements GraphContext {
 
         return new Promise((resolve) => {
             // Moves the camera, so first of the frame's observers: the passes run before the frame
-            // (the group outlines, the label declutter) read the camera, which must already stand
+            // (the label declutter) read the camera, which must already stand
             // where this frame draws it from (issue #5562).
             const observer = this.scene.onBeforeRenderObservable.add(
                 () => {
@@ -9268,7 +9216,7 @@ export class Graph implements GraphContext {
             };
 
             // Moves the camera, so first of the frame's observers: the passes run before the frame
-            // (the group outlines, the label declutter) read the camera, which must already stand
+            // (the label declutter) read the camera, which must already stand
             // where this frame draws it from (issue #5562).
             observer = this.scene.onBeforeRenderObservable.add(
                 () => {

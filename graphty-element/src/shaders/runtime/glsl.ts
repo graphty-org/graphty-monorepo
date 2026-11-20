@@ -63,18 +63,6 @@ struct BackgroundInput {
     vec3 viewDir;
     vec2 resolution;
     float time;
-    vec4 groupTint;
-};
-struct GroupInput {
-    vec2 uv;
-    float field;
-    vec2 fieldGradient;
-    vec3 normal;
-    vec3 viewDir;
-    vec4 color;
-    float group;
-    float depth;
-    float time;
 };
 `;
 

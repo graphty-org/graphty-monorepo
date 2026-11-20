@@ -25,18 +25,8 @@ export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
         Object.freeze({ name: "twinkle", plainName: "Twinkle", type: "number", default: 0.6, min: 0, max: 1 }),
         // How opaque the dark sky between the gas is: at 0 the background color or image shows there.
         Object.freeze({ name: "sky", plainName: "Sky", type: "number", default: 1, min: 0, max: 1 }),
-        Object.freeze({
-            name: "tintBy",
-            plainName: "Tint by",
-            type: "enum",
-            default: "none",
-            values: Object.freeze([
-                Object.freeze({ value: "none", label: "None" }),
-                Object.freeze({ value: "groups", label: "Groups" }),
-            ]),
-        }),
     ]),
-    reads: Object.freeze<ShaderInput[]>(["members"]),
+    reads: Object.freeze<ShaderInput[]>([]),
     motion: Object.freeze({ loop: Object.freeze({ speedParam: "drift" }) }),
     cost: "heavy",
     origin: "element",

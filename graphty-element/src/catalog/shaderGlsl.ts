@@ -32,7 +32,7 @@ const SHADER_NESTING_LIMIT = 64;
 
 /**
  * The cost budget per drawing: operations per pixel, loops and calls multiplied out. A background
- * or a group outline covers the whole canvas once; a node or edge covers many small areas, so its
+ * covers the whole canvas once; a node or edge covers many small areas, so its
  * budget per pixel is the same.
  */
 const COST_BUDGET: Readonly<Record<ShaderDrawing, number>> = {
@@ -42,7 +42,6 @@ const COST_BUDGET: Readonly<Record<ShaderDrawing, number>> = {
     "edge-paint": 60_000,
     "edge-along": 60_000,
     background: 60_000,
-    group: 60_000,
 };
 
 /**
@@ -100,7 +99,6 @@ export const SHADER_HELPERS: readonly string[] = Object.freeze([
 const ENTRY_INPUT: Readonly<Record<ShaderTarget, string>> = {
     node: "NodeInput",
     edge: "EdgeInput",
-    group: "GroupInput",
     background: "BackgroundInput",
 };
 
@@ -108,7 +106,6 @@ const ENTRY_INPUT: Readonly<Record<ShaderTarget, string>> = {
 const TARGET_OF_INPUT: Readonly<Record<string, ShaderTarget>> = {
     NodeInput: "node",
     EdgeInput: "edge",
-    GroupInput: "group",
     BackgroundInput: "background",
 };
 
@@ -118,7 +115,7 @@ const TARGET_OF_INPUT: Readonly<Record<string, ShaderTarget>> = {
  * @returns What it draws on.
  */
 function targetOf(drawing: ShaderDrawing): ShaderTarget {
-    return drawing === "background" || drawing === "group" ? drawing : (drawing.split("-")[0] as ShaderTarget);
+    return drawing === "background" ? drawing : (drawing.split("-")[0] as ShaderTarget);
 }
 
 /** The parameter name the documentation gives each input. */
@@ -126,19 +123,13 @@ const ENTRY_NAME: Readonly<Record<string, string>> = {
     NodeInput: "n",
     EdgeInput: "e",
     BackgroundInput: "b",
-    GroupInput: "g",
 };
 
 /**
  * The input structs: names a parameter may not take. Their fields may: a field is read after `.`
  * (`n.color`), so a parameter named `color` never collides with it.
  */
-export const SHADER_STRUCT_NAMES: readonly string[] = Object.freeze([
-    "NodeInput",
-    "EdgeInput",
-    "BackgroundInput",
-    "GroupInput",
-]);
+export const SHADER_STRUCT_NAMES: readonly string[] = Object.freeze(["NodeInput", "EdgeInput", "BackgroundInput"]);
 
 /** The GLSL ES 3.00 built-in functions a parameter may not be named. */
 export const GLSL_FUNCTIONS: ReadonlySet<string> = new Set(
@@ -1413,7 +1404,6 @@ const READ_FIELDS: readonly [RegExp, ShaderInput][] = [
         /\.since(?:Entered|Exited|Matched|Unmatched|Added|Changed|Selected|Deselected|Hovered|Unhovered|Pinned|Unpinned)\b/,
         "times",
     ],
-    [/\.(?:field|fieldGradient|group|groupTint)\b/, "members"],
     [/(?<![.\w])lightDir\b/, "light"],
 ];
 

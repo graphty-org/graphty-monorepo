@@ -39,8 +39,6 @@ export const SHADER_PRESET_BODIES: Readonly<Record<string, () => Promise<string>
     "neon-line": async () => (await import("./neon-line/body")).BODY,
     "edge-change": async () => (await import("./edge-change/body")).BODY,
     nebula: async () => (await import("./nebula/body")).BODY,
-    "soap-bubble": async () => (await import("./soap-bubble/body")).BODY,
-    "metaball-hull": async () => (await import("./metaball-hull/body")).BODY,
 });
 
 /**

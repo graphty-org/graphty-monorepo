@@ -198,17 +198,9 @@
         "Shaders/Patterns and Sprites::Mandala",
         "Shaders/Patterns and Sprites::Patterns",
         "Shaders/Patterns and Sprites::Sticker",
-        "Shaders/Scene Presets::HullGoo",
-        "Shaders/Scene Presets::HullMembrane",
-        "Shaders/Scene Presets::HullOutline",
-        "Shaders/Scene Presets::HullPerCommunityLayer",
         "Shaders/Scene Presets::Nebula",
-        "Shaders/Scene Presets::NebulaTintedByGroups",
-        "Shaders/Scene Presets::SoapBubble",
         "Shaders/Scene::Background",
         "Shaders/Scene::Bloom",
-        "Shaders/Scene::Bubbles",
-        "Shaders/Scene::GroupOutlines",
         "Shaders/Transitions::ArcMove",
         "Shaders/Transitions::CollapseBloom",
         "Shaders/Transitions::FadeThrough",
@@ -389,6 +381,38 @@
         "Styles/Label::SeveralLabels"
     ],
     "retired": [
+        {
+            "id": "Shaders/Scene Presets::HullGoo",
+            "why": "Group outlines were removed from graphty-element at the owner's word (\"I think we talked about removing group and group outline?\", 2026-11-19): the place \"group\", GroupInput, the hull and soap bubble presets and the background's group tint are gone, so nothing is left for this story to show."
+        },
+        {
+            "id": "Shaders/Scene Presets::HullMembrane",
+            "why": "Group outlines were removed from graphty-element at the owner's word (\"I think we talked about removing group and group outline?\", 2026-11-19): the place \"group\", GroupInput, the hull and soap bubble presets and the background's group tint are gone, so nothing is left for this story to show."
+        },
+        {
+            "id": "Shaders/Scene Presets::HullOutline",
+            "why": "Group outlines were removed from graphty-element at the owner's word (\"I think we talked about removing group and group outline?\", 2026-11-19): the place \"group\", GroupInput, the hull and soap bubble presets and the background's group tint are gone, so nothing is left for this story to show."
+        },
+        {
+            "id": "Shaders/Scene Presets::HullPerCommunityLayer",
+            "why": "Group outlines were removed from graphty-element at the owner's word (\"I think we talked about removing group and group outline?\", 2026-11-19): the place \"group\", GroupInput, the hull and soap bubble presets and the background's group tint are gone, so nothing is left for this story to show."
+        },
+        {
+            "id": "Shaders/Scene Presets::NebulaTintedByGroups",
+            "why": "Group outlines were removed from graphty-element at the owner's word (\"I think we talked about removing group and group outline?\", 2026-11-19): the place \"group\", GroupInput, the hull and soap bubble presets and the background's group tint are gone, so nothing is left for this story to show."
+        },
+        {
+            "id": "Shaders/Scene Presets::SoapBubble",
+            "why": "Group outlines were removed from graphty-element at the owner's word (\"I think we talked about removing group and group outline?\", 2026-11-19): the place \"group\", GroupInput, the hull and soap bubble presets and the background's group tint are gone, so nothing is left for this story to show."
+        },
+        {
+            "id": "Shaders/Scene::Bubbles",
+            "why": "Group outlines were removed from graphty-element at the owner's word (\"I think we talked about removing group and group outline?\", 2026-11-19): the place \"group\", GroupInput, the hull and soap bubble presets and the background's group tint are gone, so nothing is left for this story to show."
+        },
+        {
+            "id": "Shaders/Scene::GroupOutlines",
+            "why": "Group outlines were removed from graphty-element at the owner's word (\"I think we talked about removing group and group outline?\", 2026-11-19): the place \"group\", GroupInput, the hull and soap bubble presets and the background's group tint are gone, so nothing is left for this story to show."
+        },
         {
             "id": "Data/Network sources/Source chooser::Samples",
             "why": "Renamed with the catalog field it lists: a source's public servers are its descriptor's examples, loaded with session.data.loadExample(source, id). graph-samples' datasets are no longer a network source (they load with session.data.loadDataset), so the chooser no longer offers them.",

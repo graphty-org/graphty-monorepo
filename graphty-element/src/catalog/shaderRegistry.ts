@@ -28,7 +28,6 @@ import {
     type ShaderProblem,
     type ShaderRegistration,
     type ShaderSource,
-    type ShaderTarget,
 } from "./shaders";
 import { readShaderDescriptor, settleShaderPlace } from "./shaderText";
 
@@ -293,7 +292,7 @@ function admit(
  *
  * The descriptor and the body are checked as shader text is (design/rendering/shader-styles.md
  * section 4.3); what is left out is filled in: the target from the body's entry function, the place
- * (`"paint"` on a node or edge, `"group"` for a group outline) and the places a use may move it to,
+ * (`"paint"` on a node or edge) and the places a use may move it to,
  * the `minSize` parameter a declared minimum size adds, the cost from the static checker, the
  * inputs from the fields the body reads, the motion (`"loop"` when the body reads its input's
  * `time`), and `webgpu` as `"translate"`.
@@ -582,13 +581,11 @@ export function plannedShaderDescriptor(id: string): ShaderDescriptor | undefine
 }
 
 /**
- * The ids of every shader a layer's shader list of one target can use (a node list takes node and
- * group shaders), for a refusal that lists what would have been right.
+ * The ids of every shader a layer's shader list of one target can use, for a refusal that lists what would have been right.
  * @param target - The list's target.
  * @returns The ids.
  */
 export function shaderIdsFor(target: "node" | "edge"): readonly string[] {
-    const takes: readonly ShaderTarget[] = target === "node" ? ["node", "group"] : ["edge"];
     const pasted = [...pastedSources].flatMap((source) =>
         source.ids().flatMap((id) => {
             const descriptor = source.descriptor(id);
@@ -597,7 +594,7 @@ export function shaderIdsFor(target: "node" | "edge"): readonly string[] {
     );
 
     return [...shaderDescriptors(), ...pasted]
-        .filter((descriptor) => takes.includes(descriptor.target))
+        .filter((descriptor) => descriptor.target === target)
         .map((descriptor) => descriptor.id);
 }
 

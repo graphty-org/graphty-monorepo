@@ -18,7 +18,7 @@ import { SHADER_TEXT_MAGIC } from "./shaderText";
 export interface ShaderTemplatePlace {
     /** What the shader draws on. */
     readonly target: ShaderTarget;
-    /** Where it draws. Default: the target's first place (`"paint"`, or `"group"` for a group). */
+    /** Where it draws. Default: the target's first place (`"paint"`). */
     readonly place?: ShaderPlace;
 }
 
@@ -117,19 +117,6 @@ const EDGE: Readonly<Partial<Record<ShaderPlace, Template>>> = {
     },
 };
 
-const GROUP: Template = {
-    id: "user/my-outline",
-    name: "My outline",
-    extra: {},
-    body: `vec4 shade(GroupInput g) {
-    // g.field is about 1 at a member's center and falls to 0 between groups.
-    float inside = smoothstep(0.45, 0.55, g.field);
-    float rim = inside - smoothstep(0.55, 0.7, g.field);
-    return vec4(tint, 0.2 * inside + 0.8 * rim);
-}
-`,
-};
-
 const BACKGROUND: Template = {
     id: "user/my-background",
     name: "My background",
@@ -152,8 +139,6 @@ function templateOf(target: ShaderTarget, place: ShaderPlace | undefined): Templ
     switch (target) {
         case "background":
             return BACKGROUND;
-        case "group":
-            return GROUP;
         case "edge":
             return place === undefined ? undefined : EDGE[place];
         default:

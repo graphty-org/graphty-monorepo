@@ -69,7 +69,7 @@ function offDefault(descriptor: ShaderDescriptor): Record<string, number> {
 }
 
 /**
- * Use every shader preset: one layer per node, edge and group preset with one parameter off its
+ * Use every shader preset: one layer per node and edge preset with one parameter off its
  * default, an `off: true` use, an encode binding on a `varies` parameter, and one save per
  * background preset.
  * @param session - The session.
@@ -82,10 +82,7 @@ async function useEveryShader(session: GraphSession): Promise<UsedEvery> {
     let encoded = false;
     for (const preset of presets.filter((each) => each.target !== "background")) {
         const target = preset.target === "edge" ? "edge" : "node";
-        const use =
-            preset.target === "group"
-                ? { shader: preset.id, groupBy: "data.grp", params: offDefault(preset) }
-                : { shader: preset.id, params: offDefault(preset) };
+        const use = { shader: preset.id, params: offDefault(preset) };
         const varies: ShaderDescriptor["params"][number] | undefined =
             preset.target === "node" && !encoded ? preset.params.find((p) => p.varies === true) : undefined;
         encoded ||= varies !== undefined;

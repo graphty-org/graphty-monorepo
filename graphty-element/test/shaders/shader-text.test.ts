@@ -65,7 +65,7 @@ describe("the lab bodies the presets come from", () => {
     const files = readdirSync(FIXTURES).filter((file) => file.endsWith(".glsl"));
 
     it("are all here", () => {
-        assert.isAtLeast(files.length, 29);
+        assert.isAtLeast(files.length, 27);
     });
 
     for (const file of files) {

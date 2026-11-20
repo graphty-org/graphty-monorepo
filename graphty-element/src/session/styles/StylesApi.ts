@@ -83,7 +83,7 @@ import { type GraphSnapshot, maskToIndices } from "@graphty/graph-format";
 import { styleFamily, type StyleFamilyDescriptor, type StyleFamilyId } from "../../catalog/families";
 import { type LabelEntry, MAIN_LABEL_ID } from "../../catalog/label-style";
 import { knownPaletteIds, PALETTE_DESCRIPTORS, paletteDescriptor } from "../../catalog/palettes";
-import { isShaderId, type ShaderProblem, type ShaderUse } from "../../catalog/shaders";
+import { isShaderId, type ShaderProblem } from "../../catalog/shaders";
 import type {
     AttributeDescriptor,
     Binding,
@@ -159,9 +159,7 @@ import {
     channelDescriptor,
     isChannel,
     labelStyleFieldChannels,
-    mergeShaderUses,
     parseLabelFieldAddress,
-    placeOfUse,
     readRenamedChannels,
     toColorValue,
 } from "./channels";
@@ -5321,19 +5319,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             ...styleCounts(id, scope === "graph" ? elementsOf(WHOLE_GRAPH) : shown, countSources(), revision, shown),
             visible: amongDrawn(id),
         };
-        // Groups past the outline cap draw nothing; said here, never dropped silently.
-        const left = groupOutlinesOf(api)
-            .filter((each) => each.layer === id)
-            .reduce((sum, each) => sum + each.left, 0);
-        return left === 0
-            ? counts
-            : {
-                  ...counts,
-                  undrawn: Object.freeze([
-                      ...counts.undrawn,
-                      { code: "shader.group-cap" as const, params: { left, limit: GROUP_OUTLINE_CAP } },
-                  ]),
-              };
+        return counts;
     };
 
     const api: SessionStylesApi = {
@@ -6380,164 +6366,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     };
 
     PAINTING.set(api, painting);
-    OUTLINES.set(api, () => groupOutlineSets(painting(current()), sources, (id) => explainSources.nodeIndex(id)));
     return api;
-}
-
-/**
- * The most group outlines one graph draws, across every layer (`shader.group-cap`): the field
- * targets hold as many (eight targets of four groups), so no group drawn from a field is ever left
- * out by them.
- */
-export const GROUP_OUTLINE_CAP = 32;
-
-/** A group's key: its `groupBy` value, or null for a use drawing one outline. */
-export type GroupKey = string | number | boolean | null;
-
-/**
- * One use at the place `group` as it draws: its groups and their members, bottom first. A node is a
- * member when it still carries the use after the stack is resolved.
- */
-export interface GroupOutlineSet {
-    /** The layer the use is on. */
-    readonly layer: LayerId;
-    /** The use. */
-    readonly use: ShaderUse;
-    /** Its groups, in the order their values were first seen. */
-    readonly groups: readonly { readonly key: GroupKey; readonly members: readonly NodeId[] }[];
-    /** How many groups the cap left out. */
-    readonly left: number;
-}
-
-/** Each stack's outline reader, by the API that owns it; see {@link groupOutlinesOf}. */
-const OUTLINES = new WeakMap<SessionStylesApi, () => readonly GroupOutlineSet[]>();
-
-/**
- * The group outlines a stack draws now: one per (layer, use at `group`, `groupBy` value), around
- * the nodes that carry that use once the stack's `node.shaders` lists are resolved. A node without
- * a `groupBy` value is in no group. At most {@link GROUP_OUTLINE_CAP} groups across the whole
- * stack, lowest layers first.
- * @param api - A stack {@link createStylesApi} built (anything else draws none).
- * @returns The outlines, bottom first.
- */
-export function groupOutlinesOf(api: object): readonly GroupOutlineSet[] {
-    return OUTLINES.get(api as SessionStylesApi)?.() ?? [];
-}
-
-/**
- * A group key from a read value: primitives as they are, anything else as text.
- * @param value - The value.
- * @returns The key, or undefined for no value.
- */
-function groupKeyOf(value: unknown): GroupKey | undefined {
-    if (value === undefined || value === null) {
-        return undefined;
-    }
-
-    return typeof value === "string" || typeof value === "number" || typeof value === "boolean"
-        ? value
-        : JSON.stringify(value);
-}
-
-/**
- * The shader uses a node carries once a stack's `node.shaders` lists are merged.
- * @param layers - The stack's enabled node layers that list shaders, bottom first.
- * @param index - The node's index.
- * @returns The merged uses.
- */
-function shaderUsesAt(layers: readonly CompiledLayer[], index: number): readonly ShaderUse[] {
-    let uses: readonly ShaderUse[] = [];
-    for (const { layer, selector } of layers) {
-        if (selector.test === null || selector.test(index)) {
-            uses = mergeShaderUses(uses, layer.set?.["node.shaders"]);
-        }
-    }
-
-    return uses;
-}
-
-/**
- * Adds a node to the group of each of its uses that draws at `group`.
- * @param members - Per use, its members by group.
- * @param uses - The node's shader uses.
- * @param id - The node's id.
- * @param index - The node's index.
- * @param sources - The stack's sources, for the node's values.
- */
-function addToGroups(
-    members: Map<ShaderUse, Map<GroupKey, NodeId[]>>,
-    uses: readonly ShaderUse[],
-    id: NodeId,
-    index: number,
-    sources: StylesSources,
-): void {
-    for (const use of uses) {
-        const groups = members.get(use);
-        const key = use.groupBy === undefined ? null : groupKeyOf(sources.elements.nodeValue(index, use.groupBy));
-        if (groups === undefined || key === undefined) {
-            continue;
-        }
-
-        const list = groups.get(key) ?? [];
-        list.push(id);
-        groups.set(key, list);
-    }
-}
-
-/**
- * The group outlines of a painting stack.
- * @param stack - The stack as it paints, bottom first.
- * @param sources - The stack's sources, for the graph's nodes and their values.
- * @param nodeIndex - A node's index by id.
- * @returns The outlines.
- */
-function groupOutlineSets(
-    stack: readonly CompiledLayer[],
-    sources: StylesSources,
-    nodeIndex: (id: NodeId) => number | undefined,
-): readonly GroupOutlineSet[] {
-    const layers = stack.filter(
-        (entry) =>
-            entry.layer.enabled &&
-            entry.layer.target === "node" &&
-            Array.isArray(entry.layer.set?.["node.shaders"]) &&
-            (entry.layer.set["node.shaders"] as readonly ShaderUse[]).length > 0,
-    );
-    const owner = new Map<ShaderUse, LayerId>();
-    for (const { layer } of layers) {
-        for (const use of layer.set?.["node.shaders"] as readonly ShaderUse[]) {
-            owner.set(use, layer.id);
-        }
-    }
-
-    const grouped = [...owner.keys()].filter((use) => use.off !== true && placeOfUse(use) === "group");
-    if (grouped.length === 0) {
-        return [];
-    }
-
-    // Per use, its members by group, in the order the nodes are met.
-    const members = new Map<ShaderUse, Map<GroupKey, NodeId[]>>(grouped.map((use) => [use, new Map()]));
-    for (const id of sources.resolveScope?.(WHOLE_GRAPH).nodes ?? []) {
-        const index = nodeIndex(id);
-        if (index === undefined) {
-            continue;
-        }
-
-        addToGroups(members, shaderUsesAt(layers, index), id, index, sources);
-    }
-
-    let room = GROUP_OUTLINE_CAP;
-    return grouped.map((use) => {
-        const all = [...(members.get(use) ?? [])];
-        const kept = all.slice(0, room);
-        room -= kept.length;
-        return Object.freeze({
-            layer: owner.get(use) as LayerId,
-            use,
-            groups: Object.freeze(kept.map(([key, list]) => ({ key, members: list }))),
-            left: all.length - kept.length,
-        });
-    });
 }
 
 /** Each stack's {@link paintingOf} view, by the API that owns it. */

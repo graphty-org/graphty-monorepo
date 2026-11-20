@@ -1008,7 +1008,7 @@ export interface ChannelDescriptor {
     readonly modifies?: Channel;
     /**
      * The target whose shaders the channel's uses name, on a shader list channel: what a picker
-     * offers for it (a node list also takes group outlines). Absent on every other channel.
+     * offers for it. Absent on every other channel.
      * @since 3.36.0
      */
     readonly shaderTarget?: "node" | "edge";
@@ -6521,7 +6521,7 @@ export function drawnUses(uses: readonly ShaderUse[] | undefined): {
     const stacked: { use: ShaderUse; place: ShaderPlace }[] = [];
     for (const use of uses ?? []) {
         const place = placeOfUse(use);
-        if (place === undefined || place === "group" || use.off === true) {
+        if (place === undefined || use.off === true) {
             continue;
         }
 

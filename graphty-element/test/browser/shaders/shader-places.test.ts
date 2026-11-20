@@ -4,8 +4,7 @@
  * is covered by the node in its middle, `over` draws nothing outside the outline, `replace` hides
  * the node's mesh and keeps it as the pick proxy, every place returns straight alpha, a minimum
  * size holds the square's width on a small node, two uses of one shader both draw, `off` removes a
- * lower layer's use, a shape above a `replace` draws, and a `group` use outlines the nodes still
- * carrying it. Pixels are read from the canvas; clicks and the wheel are real input
+ * lower layer's use, and a shape above a `replace` draws. Pixels are read from the canvas; clicks and the wheel are real input
  * (test/helpers/real-input.ts).
  */
 
@@ -17,10 +16,8 @@ import { afterAll, afterEach, assert, beforeAll, describe, it } from "vitest";
 import type { Graphty } from "../../../index.js";
 import { clearRegisteredShadersForTesting } from "../../../src/catalog/shaderRegistry";
 import type { LayerSpec } from "../../../src/catalog/types";
-import { operationQueueOf, renderManagerOf } from "../../../src/Graph";
-import type { GroupOutlinePass } from "../../../src/meshes/GroupOutlinePass";
+import { operationQueueOf } from "../../../src/Graph";
 import { NodeShaderDrawing } from "../../../src/meshes/NodeShaderDrawing";
-import { groupOutlinesOf } from "../../../src/session/styles/StylesApi";
 import { defineShader } from "../../../src/simple/defineShader";
 import { pixelsAt, rowAt } from "../../helpers/canvas-pixels";
 import { drawnFrames } from "../../helpers/drawn-frames";
@@ -69,11 +66,6 @@ beforeAll(() => {
             float ring = 1.0 - step(0.12, abs(length(n.uv) - at));
             return vec4(1.0, 0.0, 0.0, ring);
         }`,
-    });
-    // A group outline: red where the members' field is above its middle.
-    defineShader({
-        id: "t/hull",
-        glsl: "vec4 shade(GroupInput g) { return vec4(1.0, 0.0, 0.0, step(0.5, g.field)); }",
     });
 });
 
@@ -396,55 +388,5 @@ describe("a use's minimum size", () => {
         await operationQueueOf(element.graph).waitForCompletion();
         const skipped = await rowAt(element, center.y);
         assert.strictEqual(redWidth(skipped.row, skipped.scale), 0, "under 3 px with no minimum size, nothing draws");
-    });
-});
-
-describe("a group use", () => {
-    /**
-     * The element's group outline pass.
-     * @param element - The element.
-     * @returns The pass, or null.
-     */
-    function passOf(element: Graphty): GroupOutlinePass | null {
-        return renderManagerOf(element.graph).shaderPasses().outline;
-    }
-
-    it("draws one outline around the nodes carrying it, and again around the rest after off", async () => {
-        // Seven close together, and three far to the right that the outline reaches out to.
-        const nodes = Array.from({ length: 10 }, (_, i) =>
-            i < 7
-                ? { id: `n${String(i)}`, x: (i % 4) * 1.5 - 6, y: i < 4 ? 0 : 1.5 }
-                : { id: `n${String(i)}`, x: 2 + (i - 7) * 2, y: 0 },
-        );
-        const element = await mounted(nodes);
-        const outlined = await layer(element, "Hull", { "node.shaders": [{ shader: "t/hull" }] });
-        await until(element, "the outline is drawn", () => (passOf(element)?.drawn().length ?? 0) === 1);
-        const sets = groupOutlinesOf(element.session.styles);
-        assert.lengthOf(sets, 1);
-        assert.lengthOf(sets[0].groups, 1, "one outline");
-        assert.lengthOf(sets[0].groups[0].members, 10, "around all ten");
-        const gone = ["n7", "n8", "n9"];
-        const at = (id: string): Point => along(element, id, []).center;
-        const scaling = element.graph.engine.getHardwareScalingLevel();
-        const picked = (id: string): string | undefined =>
-            passOf(element)?.pick(at(id).x / scaling, at(id).y / scaling)?.layer;
-        await drawnFrames(element.graph.getScene(), 2);
-        for (const id of gone) {
-            assert.strictEqual(picked(id), outlined, `${id} is inside the outline`);
-        }
-
-        await layer(element, "Not these", { "node.shaders": [{ shader: "t/hull", off: true }] }, gone);
-        await until(
-            element,
-            "the outline is drawn around the other seven",
-            () => groupOutlinesOf(element.session.styles)[0]?.groups[0]?.members.length === 7,
-        );
-        await drawnFrames(element.graph.getScene(), 3);
-        assert.lengthOf(passOf(element)?.drawn() ?? [], 1, "still one outline");
-        for (const id of gone) {
-            assert.isUndefined(picked(id), `${id} is outside the outline now`);
-        }
-
-        assert.strictEqual(picked("n0"), outlined, "the rest stay inside");
     });
 });

@@ -101,9 +101,7 @@ const HEADER_KEYS: ReadonlySet<string> = new Set([
     "motion",
     "params",
     "reach",
-    "reachParam",
     "blend",
-    "form",
     "bloom",
     "views",
     "requires",
@@ -138,7 +136,6 @@ const INPUTS: ReadonlySet<string> = new Set([
     "hovered",
     "pinned",
     "times",
-    "members",
     "light",
 ]);
 
@@ -502,7 +499,6 @@ function readMotion(raw: unknown, params: readonly ShaderParamDescriptor[]): Sha
 const OPTIONAL_KEYS: Readonly<Record<string, (value: unknown) => boolean>> = {
     reach: (value) => typeof value === "number" && value >= SHADER_REACH_RANGE.min && value <= SHADER_REACH_RANGE.max,
     blend: (value) => value === "over" || value === "add",
-    form: (value) => value === "field" || value === "sphere",
     bloom: (value) => typeof value === "boolean",
     views: (value) =>
         Array.isArray(value) &&
@@ -527,7 +523,7 @@ const OPTIONAL_KEYS: Readonly<Record<string, (value: unknown) => boolean>> = {
     preview: isPreview,
     cost: (value) => value === "light" || value === "medium" || value === "heavy",
     thumbnail: (value) => typeof value === "string" && value.length <= 4096,
-    target: (value) => value === "node" || value === "edge" || value === "group" || value === "background",
+    target: (value) => value === "node" || value === "edge" || value === "background",
 };
 
 /**
@@ -615,16 +611,6 @@ function finishDescriptor(
         }
 
         extras[key] = raw[key];
-    }
-
-    const { reachParam } = raw;
-    if (reachParam !== undefined) {
-        const named = params.find((param) => param.name === reachParam);
-        if (named === undefined || (named.type !== "number" && named.type !== "integer")) {
-            return [{ code: "shader.header-key", params: { key: "reachParam" } }];
-        }
-
-        extras.reachParam = reachParam;
     }
 
     return {
@@ -774,8 +760,7 @@ export interface ShaderTextOptions {
  *
  * The target is read from the entry function's input; a declared one (registration only) and the
  * options' must agree. The place, in order: a declared `place`; the options' place when the target
- * and `places` allow it; the first of `places`; `"group"` for a group outline, else `"paint"`. The
- * background has no place.
+ * and `places` allow it; the first of `places`; else `"paint"`. The background has no place.
  * @param descriptor - The checked facts.
  * @param body - The body, when it is known.
  * @param options - Where the shader is being added, if anywhere.
@@ -834,7 +819,7 @@ function placeFault(
         return { code: "shader.place-unsupported", params: { shader: id, place: outside, allowed } };
     }
 
-    // `paint`, `along` and `group` are drawings of their own: a shader written for one stays there.
+    // `paint` and `along` are drawings of their own: a shader written for one stays there.
     const mixed = places !== undefined && places.length > 1 && places.some((entry) => !SQUARE_PLACES.includes(entry));
     if (mixed) {
         return { code: "shader.header-key", params: { key: "places" } };
@@ -1061,7 +1046,7 @@ function finishText(
  * The target is read from the entry function's input; text whose entry draws on another target than
  * `options.target` is refused with `shader.target-mismatch` (`{ expected, found }`). The place is
  * the header's `place`; else `options.place` when the target allows it; else the first of the
- * header's `places`; else `"group"` for a group outline and `"paint"` for a node or edge. A place
+ * header's `places`; else `"paint"` for a node or edge. A place
  * the shader cannot draw at is refused with `shader.place-unsupported` (`{ shader, place, allowed }`),
  * and a `minSize` no allowed place can apply with `shader.min-size-place` (`{ shader, places }`).
  * @param text - The text: GLSL with a `graphty-shader 1` header, or a body alone.
@@ -1222,8 +1207,8 @@ export function changeShaderParamType(
 
 /**
  * Change the type of one parameter row of a header, as {@link changeShaderParamType} does, and drop
- * what else in the header names that row when the new type cannot serve it: `reachParam` needs a
- * number or an integer, a loop's `speedParam` a number.
+ * what else in the header names that row when the new type cannot serve it: a loop's `speedParam`
+ * needs a number.
  * @param draft - The header.
  * @param index - The row's place in `params`.
  * @param type - The new type.
@@ -1247,10 +1232,6 @@ export function retypeShaderParam(
         ...draft,
         params: params.map((each, at) => (at === index ? changeShaderParamType(each, type, labels) : each)),
     };
-    if (draft.reachParam === row.name && type !== "number" && type !== "integer") {
-        next.reachParam = undefined;
-    }
-
     const { motion } = draft;
     if (isRecord(motion) && isRecord(motion.loop) && motion.loop.speedParam === row.name && type !== "number") {
         next.motion = { ...motion, loop: { ...motion.loop, speedParam: undefined } };
@@ -1334,9 +1315,6 @@ function carryParamReferences(draft: ShaderTextDraft, from: string, to: string |
     }
 
     const next: Record<string, unknown> = { ...draft };
-    if (draft.reachParam === from) {
-        next.reachParam = to;
-    }
 
     const { motion, preview } = draft;
     if (isRecord(motion) && isRecord(motion.loop) && motion.loop.speedParam === from) {
@@ -1355,8 +1333,8 @@ function carryParamReferences(draft: ShaderTextDraft, from: string, to: string |
 }
 
 /**
- * Rename a parameter of a header, and what else in the header names it (a loop's speed, the reach
- * parameter, the preview's values). The body is not touched. Of two rows with one name, the last,
+ * Rename a parameter of a header, and what else in the header names it (a loop's speed and the
+ * preview's values). The body is not touched. Of two rows with one name, the last,
  * which is the one a duplicate's problem marks, unless `index` names the row. A rename onto a name
  * another row already has moves no reference, so the duplicate is reported and renaming back loses
  * nothing.
@@ -1537,17 +1515,7 @@ export function formatShaderText(registration: ShaderRegistration): ShaderText {
         header.motion = motion;
     }
 
-    for (const key of [
-        "reach",
-        "reachParam",
-        "blend",
-        "form",
-        "bloom",
-        "views",
-        "requires",
-        "reads",
-        "webgpu",
-    ] as const) {
+    for (const key of ["reach", "blend", "bloom", "views", "requires", "reads", "webgpu"] as const) {
         if (descriptor[key] !== undefined) {
             header[key] = descriptor[key];
         }

@@ -377,22 +377,8 @@ export function moveShader(ctx: RowContext, from: number, to: number): Promise<v
 }
 
 /**
- * Groups a group outline's members by a data path, or by nothing, as one step.
- * @param ctx - the row.
- * @param entry - the row.
- * @param path - the path, or undefined for one outline around every member.
- * @returns when it is written.
- */
-export function writeGroupBy(ctx: RowContext, entry: ShaderEntry, path: string | undefined): Promise<void> {
-    return changeUse(ctx, entry, SHADER_STEP_WORDS.add(nameOf(ctx.session, entry.use.shader)), (use) => {
-        const { groupBy: _was, ...rest } = use;
-        return path === undefined ? rest : { ...rest, groupBy: path };
-    });
-}
-
-/**
- * Draws another shader in a row's use, as one step: the use's fields named in `keep` stay (a group
- * outline family's shared `groupBy`), its parameters and everything else go.
+ * Draws another shader in a row's use, as one step: the use's fields named in `keep` stay, its
+ * parameters and everything else go.
  * @param ctx - the row.
  * @param entry - the row.
  * @param id - the project shader to draw.

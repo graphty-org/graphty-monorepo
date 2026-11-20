@@ -79,11 +79,7 @@ async function useChanges(
     } as never);
     const drawsNode = (): boolean =>
         [...(NodeShaderDrawing.peek(scene)?.stats().slots.values() ?? [])].some((count) => count > 0);
-    for (
-        let frame = 0;
-        claims && target === "node" && descriptor.place !== "group" && !drawsNode() && frame < 600;
-        frame++
-    ) {
+    for (let frame = 0; claims && target === "node" && !drawsNode() && frame < 600; frame++) {
         await drawnFrames(scene, 1);
     }
 

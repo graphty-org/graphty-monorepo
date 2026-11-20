@@ -22,7 +22,6 @@ import {
     settingWord,
     shaderPlaceWords,
     shaderProblemWords,
-    targetOfPlace,
     usedByWords,
     valueFact,
 } from "../words";
@@ -114,7 +113,6 @@ describe("shader places", () => {
         assert.strictEqual(placeWords("replace"), "Instead of the node");
         assert.strictEqual(placeWords("behind"), "Behind");
         assert.strictEqual(placeWords("along", "edge"), "Along the line");
-        assert.strictEqual(placeWords("group"), "Around the group");
         assert.strictEqual(placeWords("paint", "edge"), "On the line");
         assert.strictEqual(placeWords(undefined), "On the node");
         assert.strictEqual(placeWords("orbit" as never), "orbit");
@@ -123,13 +121,6 @@ describe("shader places", () => {
     it("gives the dialog's over its own name, so no two choices share one", () => {
         assert.strictEqual(dialogPlaceWords("over", "node"), "On the node, over its paint");
         assert.strictEqual(dialogPlaceWords("paint", "node"), "On the node");
-    });
-
-    it("draws a group outline on the group, and the background tab on the background", () => {
-        assert.strictEqual(targetOfPlace("node", "group"), "group");
-        assert.strictEqual(targetOfPlace("node", "paint"), "node");
-        assert.strictEqual(targetOfPlace("edge", "along"), "edge");
-        assert.strictEqual(targetOfPlace("background", undefined), "background");
     });
 });
 

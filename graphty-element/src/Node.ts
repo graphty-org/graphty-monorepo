@@ -2593,7 +2593,7 @@ export class Node implements ModelUser {
 
     /**
      * The resolved color the node was last painted with (r, g and b 0..255, a 0..1), or null
-     * before its first paint. What a group outline averages over its members.
+     * before its first paint.
      * @returns The color.
      * @internal
      */

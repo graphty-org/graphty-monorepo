@@ -1,6 +1,6 @@
 /**
  * @file The shader lists in the style stack: what `styles.add` refuses, how the uses resolve
- * across layers by place, what a drawn shader covers, a group outline use, the pinned state,
+ * across layers by place, what a drawn shader covers, the pinned state,
  * binding a parameter per element and the `"index"` scale
  * (design/rendering/shader-styles.md sections 2 and 3.2, package E1).
  */
@@ -81,7 +81,7 @@ describe("styles.add refuses a use the catalog does not draw", () => {
         const session = await sessionOf();
         const problem = await refused(session, everything("Marbles", { "node.shaders": [{ shader: "acme/marbel" }] }));
         assert.strictEqual(problem.code, "E_UNKNOWN_SHADER");
-        assert.includeMembers([...(problem.candidates ?? [])], ["acme/marble", "acme/aura", "acme/hull"]);
+        assert.includeMembers([...(problem.candidates ?? [])], ["acme/marble", "acme/aura"]);
         assert.notInclude(problem.candidates ?? [], "acme/fiber", "an edge shader is not a node shader");
         session.dispose();
     });
@@ -140,7 +140,7 @@ describe("styles.add refuses a use the catalog does not draw", () => {
         session.dispose();
     });
 
-    it("refuses a list entry that is not a use, and groupBy away from the place group", async () => {
+    it("refuses a list entry that is not a use, and a groupBy, which no use takes", async () => {
         const session = await sessionOf();
         // A use names a project shader and validate writes nothing: a write copies it in first.
         await session.styles.add(everything("Aura", { "node.shaders": [{ shader: "acme/aura" }] }));
@@ -148,7 +148,7 @@ describe("styles.add refuses a use the catalog does not draw", () => {
             everything("Odd", {
                 "node.shaders": [
                     { shader: "acme/aura", colour: 1 } as never,
-                    { shader: "acme/aura", groupBy: "data.community" },
+                    { shader: "acme/aura", groupBy: "data.community" } as never,
                 ],
             }),
         );
@@ -156,7 +156,7 @@ describe("styles.add refuses a use the catalog does not draw", () => {
             verdict.errors.map((error) => [error.code, error.path]),
             [
                 ["E_BAD_LAYER", "set.node.shaders.0"],
-                ["E_BAD_LAYER", "set.node.shaders.1.groupBy"],
+                ["E_BAD_LAYER", "set.node.shaders.1"],
             ],
         );
         session.dispose();
@@ -413,22 +413,6 @@ describe("what a drawn shader covers", () => {
             layers: [{ layerId: mandalas.id, count: 6 }],
             more: 0,
         });
-        session.dispose();
-    });
-});
-
-describe("a group outline use", () => {
-    it("is accepted on a node layer with groupBy, kept, and saved", async () => {
-        const session = await sessionOf();
-        const layer = await session.styles.add({
-            name: "Communities",
-            set: { "node.shaders": [{ shader: "acme/hull", params: { outline: 3 }, groupBy: "data.community" }] },
-            selector: { match: "everything" },
-        });
-        assert.strictEqual(layer.target, "node");
-        assert.deepEqual(session.styles.toDocument().layers.at(-1)?.set?.["node.shaders"], [
-            { shader: "acme/hull", params: { outline: 3 }, groupBy: "data.community" },
-        ]);
         session.dispose();
     });
 });

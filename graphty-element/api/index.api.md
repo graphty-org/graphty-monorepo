@@ -1070,11 +1070,6 @@ export { defineSource }
 
 // @public
 export interface DrawnShaders {
-    readonly groupOutlines: readonly {
-        readonly layer: LayerId;
-        readonly shader: string;
-        readonly groups: readonly (string | number | boolean | null)[];
-    }[];
     readonly nodes: ReadonlyMap<string, {
         readonly drawn: number;
         readonly entering: number;
@@ -3023,10 +3018,6 @@ export class Graph implements GraphContext {
     getXRConfig(): XRConfig | undefined;
     getXRSessionManager(): XRSessionManager | undefined;
     getZoomToPointer(): boolean;
-    groupOutlineAt(point: {
-        x: number;
-        y: number;
-    }): GroupOutlineAtResult | null;
     importCameraPresets(presets: Record<string, CameraState>): void;
     init(): Promise<void>;
     // (undocumented)
@@ -3604,10 +3595,6 @@ export class Graphty extends LitElement {
     get globeLook(): GlobeLook;
     set globeLook(value: GlobeLook);
     get graph(): Graph;
-    groupOutlineAt(point: {
-        x: number;
-        y: number;
-    }): GroupOutlineAtResult | null;
     get historyKeys(): boolean;
     set historyKeys(value: boolean);
     importCameraPresets(presets: Record<string, CameraState>): void;
@@ -5068,18 +5055,6 @@ export const GREEN_SUCCESS: {
 
 // @public
 export const GREENS_COLORS: readonly ["#f7fcf5", "#e5f5e0", "#c7e9c0", "#a1d99b", "#74c476", "#41ab5d", "#238b45", "#006d2c", "#00441b"];
-
-// @public
-export interface GroupOutlineAtResult {
-    // (undocumented)
-    readonly group: string | number | boolean | null;
-    // (undocumented)
-    readonly kind: "group-outline";
-    // (undocumented)
-    readonly layer: LayerId;
-    // (undocumented)
-    readonly shader: string;
-}
 
 // @public
 export type GroupSummary = "count" | "sum" | "min" | "max" | "mean" | "median";
@@ -7775,8 +7750,6 @@ export class RenderManager implements Manager {
     // @internal
     holdSmooth(): () => void;
     init(): Promise<void>;
-    // @internal
-    pickGroupOutline(x: number, y: number): GroupOutlinePick | null;
     requestFrame(): void;
     // @internal
     resize(): void;

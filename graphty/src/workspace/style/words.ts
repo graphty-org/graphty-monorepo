@@ -1508,8 +1508,6 @@ export function placeWords(place: ShaderPlace | undefined, tab: ShaderTab = "nod
             return "Behind";
         case "along":
             return "Along the line";
-        case "group":
-            return "Around the group";
         case "paint":
         case "over":
         case undefined:
@@ -1529,7 +1527,6 @@ export const FIRST_PLACE: Readonly<Record<ShaderTab, ShaderPlace | undefined>> =
 
 /** The places the code dialog's Place field lists on a tab, in its order. */
 export const DIALOG_PLACES: Readonly<Record<ShaderTab, readonly ShaderPlace[]>> = {
-    // No "group": the owner removed group outlines (E420, E422).
     node: ["paint", "over", "replace", "around", "behind"],
     edge: ["paint", "along"],
     background: [],
@@ -1553,22 +1550,6 @@ export const LISTED_PLACES: Readonly<Record<"node" | "edge", readonly ShaderPlac
  */
 export function dialogPlaceWords(place: ShaderPlace, tab: ShaderTab): string {
     return place === "over" ? "On the node, over its paint" : placeWords(place, tab);
-}
-
-/**
- * The target a tab's shaders draw on: a group outline's on the Node tab is the group.
- * @param tab - the tab.
- * @param place - the place.
- * @returns the target.
- */
-export function targetOfPlace(
-    tab: ShaderTab,
-    place: ShaderPlace | undefined,
-): "node" | "edge" | "group" | "background" {
-    if (tab === "background") {
-        return "background";
-    }
-    return place === "group" ? "group" : tab;
 }
 
 /**
@@ -1738,7 +1719,6 @@ const INPUT_WORDS: Readonly<Record<ShaderInput, string>> = {
     hovered: "hover",
     pinned: "pin",
     times: "changes",
-    members: "group members",
     light: "light",
 };
 
@@ -2009,18 +1989,6 @@ export function heldShadersWords(names: readonly string[]): string {
 export function usedByWords(count: number): string {
     return `Used by ${String(count)}`;
 }
-
-/** A group outline's Group by line: "Group by Louvain", or "Group by None" for one outline around all. */
-export const GROUP_BY_WORDS = {
-    title: "Group by",
-    /**
-     * The line under the outline.
-     * @param value - what it groups by.
-     * @returns the words.
-     */
-    line: (value: string): string => `Group by ${value}`,
-    none: "None",
-} as const;
 
 /** The Shape list's last entry, which opens the Models pop-over (the node-models experiment). */
 export const MODEL_TILE = "Model...";

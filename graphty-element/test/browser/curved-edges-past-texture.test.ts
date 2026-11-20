@@ -145,8 +145,9 @@ describe.each(RENDERERS)("curved edges past the card's largest texture on %s", (
     });
 
     it("report a route table the card cannot hold once, as an error event, and keep drawing", async () => {
-        // 1,089 center arcs of 65 points each: 70,785 route texels, past the 65,536 of a 256 x 256 table
-        const side = 33;
+        // 1,296 center arcs of about 63 points each (their ends are cut at the nodes): over 80,000 route texels, past
+        // the 65,536 of a 256 x 256 table
+        const side = 36;
         const { element, errors } = await loaded(renderer, "batched", side, { "edge.arcRadius": 2 });
         assert.lengthOf(errors, 1, "one error event for the batch");
         const [{ error, context }] = errors as [{ error: unknown; context: string }];
@@ -158,7 +159,7 @@ describe.each(RENDERERS)("curved edges past the card's largest texture on %s", (
 
         // the frames go on: a new node and edge are drawn, and nothing more is reported
         const before = await readCanvas(element.graph);
-        await element.session.data.addNodes([{ id: "late", position: { x: 0, y: 9, z: 0 } }]);
+        await element.session.data.addNodes([{ id: "late", position: { x: 0, y: 0, z: 0 } }]);
         await element.session.data.addEdges([{ src: 0, dst: "late" }]);
         await operationQueueOf(element.graph).waitForCompletion();
         await element.waitForStableFrame();

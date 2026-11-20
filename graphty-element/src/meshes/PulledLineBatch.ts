@@ -566,7 +566,7 @@ export class PulledLineBatch {
         if (pieces > this.piecesEach) {
             // a line through many bends may ask for more than a curve's most: only while one draw still reaches it
             const corners = this.template.indices.length;
-            if (this.rows.length / this.pieceFloats > Math.floor(MOST_VERTICES / (corners * pieces))) {
+            if (this.highWater > Math.floor(MOST_VERTICES / (corners * pieces))) {
                 throw tooLargeError(this.rows.length / TEXEL_FLOATS, this.mostTexture(), this.highWater, MOST_ENTRIES);
             }
 
@@ -901,7 +901,7 @@ export class PulledLineBatch {
         // the most entries the card's largest texture holds, the draw order names and one draw reaches: past them, a
         // table of the most, and E_TOO_LARGE once full
         const corners = Math.max(this.template.indices.length, LEAN_TEMPLATE.indices.length);
-        const reach = Math.floor(MOST_VERTICES / (corners * (this.curve ? MAX_PIECES : 1)));
+        const reach = Math.floor(MOST_VERTICES / (corners * (this.curve ? Math.max(MAX_PIECES, this.piecesEach) : 1)));
         const most = Math.min(Math.floor(this.mostTexture() ** 2 / texels), MOST_ENTRIES, reach);
         if (this.highWater >= most) {
             throw tooLargeError(this.highWater * texels, this.mostTexture(), this.highWater + 1, most);

@@ -927,6 +927,22 @@ class Session implements ElementSession {
                 },
             },
         });
+        this.sessionData.setHeldRefresh(async (load, options) => {
+            // Only a version 2 open holds a source.
+            if (!this.features.has("save-files-v2")) {
+                return undefined;
+            }
+
+            const { refreshHeldSource } = await import("./document2/onDemand");
+            return refreshHeldSource(this, load, {
+                scratch: () =>
+                    createGraphSession({
+                        features: [...this.features.enabled],
+                        config: { acceleration: { policy: "off" } },
+                    }),
+                ...(options.signal === undefined ? {} : { signal: options.signal }),
+            });
+        });
     }
 
     /**
@@ -3487,6 +3503,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             },
             importer: (options) => dispatcher.capturedDispatch(options),
             loadLine: loadLineOf(dispatcher),
+            edgeMeaning: (counter) => dispatcher.services.data?.edgeMeaning?.(counter),
             ceilings,
             slice,
             measure: async (command, config) => {

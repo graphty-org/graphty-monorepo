@@ -12,7 +12,7 @@ import { afterEach, assert, describe, it } from "vitest";
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
 import { dataManagerInternals } from "../../src/managers/DataManager";
-import { click, hover } from "../helpers/real-input";
+import { click, hover, type Point } from "../helpers/real-input";
 
 const cleanups: (() => void)[] = [];
 
@@ -25,8 +25,8 @@ afterEach(() => {
 const COUNT = 10_000;
 const COLUMNS = 100;
 const MIDDLE = 5_050;
-/** At most this many `Node`s per action: the one acted on, plus slack for its direct neighbours. */
-const FEW = 3;
+/** The `Node`s an action on one node may build: that node's. */
+const FEW = 1;
 
 /**
  * A 10,000-node chain on the batched path, drawn with the default arrowheads, on a fixed grid.
@@ -95,17 +95,27 @@ async function drawn(element: Graphty): Promise<void> {
     }
 }
 
-describe("one node acted on in a 10,000-node connected batched graph builds a few Nodes, not its component", () => {
+/**
+ * Move the pointer onto the middle node, with real input, and check that it built that node's `Node` and no other.
+ * @param element - The element.
+ * @returns Where the node is on the page.
+ */
+async function hoverMiddle(element: Graphty): Promise<Point> {
+    const at = element.nodeScreenPosition(`n${String(MIDDLE)}`);
+    assert.isDefined(at);
+    await hover(element, at);
+    await drawn(element);
+    assert.equal(element.session.selection.hovered, `n${String(MIDDLE)}`, "the hover reached the node");
+    assert.isAtMost(built(element), FEW, "the hover");
+    return at;
+}
+
+describe("one node acted on in a 10,000-node connected batched graph builds that node's Node, not its component", () => {
     it.each([true, false])("a real hover, then a click (directed %s)", async (directed) => {
         const element = await mounted(directed);
         assert.equal(built(element), 0, "the load builds no Node");
 
-        const at = element.nodeScreenPosition(`n${String(MIDDLE)}`);
-        assert.isDefined(at);
-        await hover(element, at);
-        await drawn(element);
-        assert.equal(element.session.selection.hovered, `n${String(MIDDLE)}`, "the hover reached the node");
-        assert.isAtMost(built(element), FEW, "the hover");
+        const at = await hoverMiddle(element);
 
         await click(element, at);
         await drawn(element);
@@ -118,12 +128,7 @@ describe("one node acted on in a 10,000-node connected batched graph builds a fe
         const element = await mounted(true, shape);
         assert.equal(built(element), 0, "the load builds no Node");
 
-        const at = element.nodeScreenPosition(`n${String(MIDDLE)}`);
-        assert.isDefined(at);
-        await hover(element, at);
-        await drawn(element);
-        assert.equal(element.session.selection.hovered, `n${String(MIDDLE)}`, "the hover reached the node");
-        assert.isAtMost(built(element), FEW, "the hover");
+        await hoverMiddle(element);
     });
 
     it("a border on one node", async () => {

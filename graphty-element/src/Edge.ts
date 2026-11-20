@@ -861,6 +861,20 @@ export class Edge {
     }
 
     /**
+     * Whether one end is selected. An end with no `Node` reads the session's selection by its row, so none is built.
+     * @param end - Which end.
+     * @returns True while it is.
+     */
+    private endSelected(end: "source" | "target"): boolean {
+        const row = this.columnEnd(end)?.index ?? this.unbuiltEnd(end);
+        if (row !== INVALID_INDEX) {
+            return this.context.getUpdateManager?.().nodeRowSelected(row) ?? false;
+        }
+
+        return (end === "source" ? this.srcNode : this.dstNode).isSelected();
+    }
+
+    /**
      * One end's row when it is stored with no `Node`.
      * @param end - Which end.
      * @returns The row, or INVALID_INDEX when a `Node` draws it.
@@ -2579,8 +2593,8 @@ export class Edge {
         const { rgb, alpha } = readColor(typeof painted === "string" ? painted : undefined, "#a9a9a9");
         const color: [number, number, number, number] = [rgb.r, rgb.g, rgb.b, (style.line?.opacity ?? 1) * alpha];
         let bits = this.selected ? EDGE_STATE_BITS.selected : 0;
-        bits |= this.srcNode.isSelected() ? EDGE_STATE_BITS.sourceSelected : 0;
-        bits |= this.dstNode.isSelected() ? EDGE_STATE_BITS.targetSelected : 0;
+        bits |= this.endSelected("source") ? EDGE_STATE_BITS.sourceSelected : 0;
+        bits |= this.endSelected("target") ? EDGE_STATE_BITS.targetSelected : 0;
         return {
             colorA: color,
             colorB: color,

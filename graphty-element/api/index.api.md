@@ -5671,6 +5671,8 @@ class Node_2 implements ModelUser {
     get borderReach(): number;
     // @internal
     borderReachAlong(dir: Xyz): number;
+    // @internal
+    static closedForm(shape: string | undefined, rotation: number | undefined): boolean;
     get data(): AdHocData<string | number>;
     // @internal
     get decorationPieces(): readonly NodeDecorationPiece[];
@@ -8913,6 +8915,8 @@ export class UpdateManager implements Manager {
     markViewSized(node: Node_2, on: boolean): void;
     meshesAdded(): void;
     meshesShownOrHidden(): void;
+    // @internal
+    nodeRowSelected(row: number): boolean;
     nothingIsOwed(): boolean;
     onceNothingIsOwed(callback: () => void): () => void;
     operationsPending: (() => boolean) | null;

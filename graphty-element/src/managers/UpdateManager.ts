@@ -3963,6 +3963,17 @@ export class UpdateManager implements Manager {
         return edges;
     }
 
+    /**
+     * Whether the session's selection holds a row, as the `Node` built for it would be told
+     * ({@link adoptBuiltNode}): an edge asks this of an end drawn with no `Node`, so none is built to answer.
+     * @param row - The row.
+     * @returns True when it is selected.
+     * @internal
+     */
+    nodeRowSelected(row: number): boolean {
+        return this.viewMasks?.selection?.nodes()?.has(row) === true;
+    }
+
     /** Edges a move left with an end on its node's bounding radius, see {@link endsByRadius}. */
     private byRadius = new Set<Edge>();
 

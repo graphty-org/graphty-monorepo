@@ -1386,6 +1386,12 @@ export type GraphtyErrorCode =
 */
 | "E_DUPLICATE_ID"
 /**
+* A join names a clash rule that reads numbers (`min`, `max`, `mean`) for a column whose
+* incoming values are not all numbers (or, for `min` and `max`, ISO 8601 dates).
+* `details.column` and `details.rule` name them. The caller picks another rule for that column.
+*/
+| "E_CLASH_RULE_TYPE"
+/**
 * Two edges run between the same ordered pair of nodes and `data.knownFields.repeatedEdges`
 * is `"error"`. `details` name both endpoints and the index of the edge already present. The
 * caller sets the policy to `keep`, `first`, `last`, `sum`, `min` or `max`.
@@ -1940,6 +1946,10 @@ export type GraphtyErrorDetails<C extends GraphtyErrorCode = GraphtyErrorCode> =
 
 // @public
 export interface GraphtyErrorDetailsMap {
+    E_CLASH_RULE_TYPE: {
+        readonly column: string;
+        readonly rule: string;
+    };
     E_DUPLICATE_ID: {
         readonly id?: string | number;
     };

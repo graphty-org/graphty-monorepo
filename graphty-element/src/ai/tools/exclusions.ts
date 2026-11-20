@@ -255,7 +255,14 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     ]),
     {
         root: "ElementSession",
-        members: ["publishModelChange", "emptyClick", "elementClick", "groupOutlineClick", "layoutMotion"],
+        members: [
+            "publishModelChange",
+            "emptyClick",
+            "elementClick",
+            "cameraGestureEnd",
+            "groupOutlineClick",
+            "layoutMotion",
+        ],
         reason: "lifecycle",
         kind: BY_DESIGN,
     },
@@ -633,7 +640,12 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     { root: "StepsReading", reason: "panel-state", kind: BY_DESIGN },
     { root: "SetsApi", members: ["pathKind"], reason: "covered-by", by: "sets.get", kind: BY_DESIGN },
     { root: "NotesApi", members: ["toDocument", "mergeDocument"], reason: "whole-document", kind: BY_DESIGN },
-    { root: "ProjectApi", members: ["save", "markSaved", "assetChoices"], reason: "needs-host", kind: BY_DESIGN },
+    {
+        root: "ProjectApi",
+        members: ["save", "markSaved", "assetChoices", "describe", "inspect"],
+        reason: "needs-host",
+        kind: BY_DESIGN,
+    },
     { root: "ProjectApi", members: ["open"], reason: "replaces-project", kind: BY_DESIGN },
     // Showing another graph replaces the session's graph and starts its history afresh, as an open does.
     {
@@ -651,6 +663,13 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     },
     { root: "SessionDataApi", members: ["nodes"], reason: "covered-by", by: "query.nodes", kind: BY_DESIGN },
     { root: "SessionDataApi", members: ["edges"], reason: "covered-by", by: "query.edges", kind: BY_DESIGN },
+    {
+        root: "SessionDataApi",
+        members: ["preparePage"],
+        reason: "covered-by",
+        by: "query.nodes",
+        kind: BY_DESIGN,
+    },
     { root: "SessionDataApi", members: ["count"], reason: "covered-by", by: "query.statistics", kind: BY_DESIGN },
     // A node's name, and an edge's as its two ends' names: `query.node` returns each node's name.
     {
@@ -737,7 +756,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     },
     {
         root: "SelectionOwner",
-        members: ["applyNow", "applyAtNextRead", "nodeMembers", "edgeMembers", "remapNodes", "remapEdges"],
+        members: ["applyNow", "applyAtNextRead", "nodeMembers", "edgeMembers", "remapNodes", "remapEdges", "byInput"],
         reason: "internal-handle",
         kind: BY_DESIGN,
     },

@@ -15,6 +15,7 @@ import type {
     GraphtyHistoryChangeDetail,
     GraphtyNoteChangeDetail,
     GraphtyRunChangeDetail,
+    SourceLoaded,
 } from "@graphty/graphty-element";
 
 /** Each listener reads its detail's fields with no cast. */
@@ -51,6 +52,10 @@ export function listenToEveryPrefixedEvent(log: (...values: unknown[]) => void):
     element.addEventListener("graphty-project-status", (e) => {
         const { name, dirty } = e.detail;
         log(name, dirty);
+    });
+    element.addEventListener("graphty-source-loaded", (e) => {
+        const { source, kind, format, mode, sample, callerKey }: SourceLoaded = e.detail;
+        log(source, kind, format, mode, sample, callerKey);
     });
     element.addEventListener("graphty-capabilities-change", (e) => {
         const { capabilities }: GraphtyCapabilitiesChangeDetail = e.detail;

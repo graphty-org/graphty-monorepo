@@ -598,7 +598,34 @@ export const edgeInternals = {} as {
     bareEnd(edge: Edge, end: "source" | "target", centre: Vector3, toward: Vector3): Vector3;
     /** How far a line from a node's center runs before it leaves the node's box; see `Edge.boxReachOf`. */
     boxReachOf(node: Node, direction: Vector3): number;
+    /**
+     * The world points the edge's line is drawn through: its curve's, or a straight line's two ends where
+     * the canvas ends it -- at an arrowhead's back, or at a node's outline or gap -- or null for a line
+     * drawn with no slot of its own (a pulled straight line, a patterned one), which runs between its
+     * nodes' centers.
+     */
+    lineInWorld(edge: Edge): Vector3[] | null;
 };
+
+/**
+ * Points in graph-root's space, where they are seen.
+ * @param edge - The edge whose line they are on.
+ * @param points - The points.
+ * @returns The points in the world.
+ */
+function inWorld(edge: Edge, points: Vector3[]): Vector3[] {
+    // A patterned line's pieces are slots in batches parented to graph-root, and it has no mesh of its own.
+    const root =
+        edge.mesh instanceof PatternedLineMesh
+            ? edge.srcNode.drawnScene.getTransformNodeByName("graph-root")
+            : edge.mesh;
+    if (root === null) {
+        return points;
+    }
+
+    const world = root.getWorldMatrix();
+    return points.map((point) => Vector3.TransformCoordinates(point, world));
+}
 
 /**
  * How far a line through a node's center runs before it leaves the node's bounding box, in the
@@ -741,6 +768,15 @@ export class Edge {
         edgeInternals.leaveNode = (edge, node, centre, toward) => edge.leaveNode(node, centre, toward);
         edgeInternals.bareEnd = (edge, end, centre, toward) => edge.bareEnd(end, centre, toward);
         edgeInternals.boxReachOf = (node, direction) => Edge.boxReachOf(node, direction);
+        edgeInternals.lineInWorld = (edge) => {
+            const curve = edge.drawnCurve;
+            if (curve !== null) {
+                return inWorld(edge, curve);
+            }
+
+            const slot = edge.lineSlots[0];
+            return edge.lineBatch === null || slot === undefined ? null : inWorld(edge, edge.lineBatch.endsOf(slot));
+        };
         writeRecord = (edge, record) => {
             edge.#record = frozenRecord(record);
             edge.shaderDataChanged();

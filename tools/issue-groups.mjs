@@ -1016,9 +1016,11 @@ const busyIssues = (ledger) => {
  * (`ledger.openPrs`): `fix-red` for each graphty-agent pull request red or conflicting with no head commit for 6 hours,
  * and `open` for each ready branch whose ready commit is not on master and that has had no pull request for 2 hours.
  * Neither is offered while a live claim holds its branch, nor `fix-red` after a fix attempt in the last 6 hours or an
- * `inherited` marker (it waits on master's fix). They are capped at half the free slots.
- * @param options `{ everyMemberReviewed, claims, isAncestor, free }`: the claims sweep's claims (state.json), git
- *   ancestry on origin/master, the free test slots (no cap when left out)
+ * `inherited` marker (it waits on master's fix). Every one is listed and counted as startable: how many start this
+ * round is the round's start rate, never this list (#9136: capping the list at half the free test slots hid 35 of
+ * 36 red pull requests whenever the slots were busy, and idle read the queue as drained).
+ * @param options `{ everyMemberReviewed, claims, isAncestor }`: the claims sweep's claims (state.json), git
+ *   ancestry on origin/master
  * @returns `{ jobs, rescan, stale }`
  */
 export function ledgerJobs(ledger, q, now, options = {}) {
@@ -1113,9 +1115,7 @@ const pipeJobs = (ledger, q, now, options, live) => {
     const prs = ledger.openPrs?.prs;
     if (!prs) return [];
     const out = [...redJobs(ledger, prs, q, now, live), ...openJobs(ledger, prs, now, options, live)];
-    out.sort((a, b) => prank(a.priority) - prank(b.priority));
-    const cap = Number.isFinite(options.free) ? Math.floor(options.free / 2) : Infinity;
-    return out.slice(0, cap);
+    return out.sort((a, b) => prank(a.priority) - prank(b.priority));
 };
 
 const redJobs = (ledger, prs, q, now, live) => {
@@ -2323,8 +2323,7 @@ const idleFacts = (c, sweep) => {
     const session = c.session();
     const machine = c.machine();
     const running = runningJobs(sweep.claims, session, c.now);
-    const free = machine.slots.count === 0 ? undefined : Math.max(0, machine.slots.count - machine.slots.held);
-    const options = { claims: sweep.claims, isAncestor: c.isAncestor, free };
+    const options = { claims: sweep.claims, isAncestor: c.isAncestor };
     const result = ledgerJobs(readLedger(c.ledgerPath), queue(open, c.now).queue, c.now, options);
     const { info, ...sinks } = c.sinks();
     sinks.unopened = (sweep.claims ?? []).filter(
@@ -2548,9 +2547,7 @@ const COMMANDS = {
         const ledger = readLedger(c.ledgerPath);
         const sweep = c.sweep(false);
         if (!ledger.groups.length) return c.fallback(c.o.json ? ["--json"] : []);
-        const { slots } = c.machine();
-        const free = slots.count === 0 ? undefined : Math.max(0, slots.count - slots.held);
-        const options = { claims: sweep.claims, isAncestor: c.isAncestor, free };
+        const options = { claims: sweep.claims, isAncestor: c.isAncestor };
         const result = ledgerJobs(ledger, c.fetchQueue(), c.now, options);
         if (c.o.json) return ok(JSON.stringify(result, null, 2));
         const prs = ledger.openPrs ? [] : ["pull requests unknown: run check --fix (no fix-red or open jobs)"];

@@ -1843,7 +1843,16 @@ export class Node implements ModelUser {
         }
 
         this.followedMoves = table.moves;
-        this.#anchor.position.copyFrom(table.centerOf(this.row));
+        const center = table.centerOf(this.row);
+        // A row renumbered by a removal keeps its place: its world matrix is brought up to date only
+        // if something else left it stale, not forced again for each of a hundred thousand nodes
+        // (issue #9164).
+        if (this.#anchor.position.equals(center)) {
+            this.#anchor.computeWorldMatrix();
+            return;
+        }
+
+        this.#anchor.position.copyFrom(center);
         // Its world place too, which Babylon would otherwise refresh only at the next frame.
         this.#anchor.computeWorldMatrix(true);
     }

@@ -1728,7 +1728,8 @@ interface LoadedGraph {
 interface SnapshotReplacement {
     readonly previous: GraphSnapshot | null;
     readonly next: GraphSnapshot;
-    readonly report: { readonly nodeRemap: Uint32Array | null };
+    // The edge remap is optional: a caller that leaves it out takes the walk over every edge.
+    readonly report: { readonly nodeRemap: Uint32Array | null; readonly edgeRemap?: Uint32Array | null };
 }
 
 /**
@@ -1820,6 +1821,29 @@ function pairCounts(
 }
 
 /**
+ * {@link existingRows} when nothing was renumbered: every row kept its index and the new ones were
+ * appended, so the old edges are the first rows with their ends unchanged. Only an appended edge can
+ * join two old nodes, and only those are looked at -- not every edge of a million-edge graph.
+ * @param previous - The graph before the freeze.
+ * @param next - The graph after it.
+ * @returns One set bit per existing row, or null when an appended edge joins two of them.
+ */
+function appendedOnly(previous: GraphSnapshot, next: GraphSnapshot): NodeMask | null {
+    for (let e = previous.edgeCount; e < next.edgeCount; e++) {
+        if (next.edgeSource(e) < previous.nodeCount && next.edgeTarget(e) < previous.nodeCount) {
+            return null;
+        }
+    }
+
+    const old = makeMask(next.nodeCount);
+    for (let i = 0; i < previous.nodeCount; i++) {
+        maskSet(old, i, true);
+    }
+
+    return old;
+}
+
+/**
  * The rows of `next` that were already nodes of `previous`, when the freeze only ADDED to the graph:
  * no node left, and the edges between two nodes that were already there are exactly the ones that
  * were there before.
@@ -1838,8 +1862,13 @@ function existingRows(change: SnapshotReplacement): NodeMask | null {
         return null;
     }
 
-    const old = makeMask(next.nodeCount);
     const remap = report.nodeRemap;
+    if (remap === null && report.edgeRemap === null && next.edgeCount >= previous.edgeCount) {
+        return appendedOnly(previous, next);
+    }
+
+    const old = makeMask(next.nodeCount);
+
     for (let i = 0; i < previous.nodeCount; i++) {
         const row = remap === null ? i : remap[i];
         if (row === INVALID_INDEX) {

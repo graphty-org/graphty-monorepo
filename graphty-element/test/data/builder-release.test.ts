@@ -3,8 +3,8 @@
  * holds the same rows) and rebuilds it from the snapshot on the next write, so a graph loaded and
  * only looked at holds one copy of its structure, not two. Counts and contents, no timings.
  */
-import type { GraphSnapshot } from "@graphty/graph-format";
-import { assert, describe, it } from "vitest";
+import { GraphBuilder, type GraphSnapshot } from "@graphty/graph-format";
+import { assert, describe, it, vi } from "vitest";
 
 import { GraphStore } from "../../src/data/GraphStore";
 
@@ -107,6 +107,26 @@ describe("letting the builder go after a load", () => {
         assert.deepStrictEqual(graphs[0].contents, graphs[1].contents);
         assert.strictEqual(release(graphs[0].store).revivals, 1);
         assert.strictEqual(release(graphs[1].store).revivals, 0);
+    });
+
+    it("brings the builder back with whole columns, not a write per cell (issue #9164)", () => {
+        const store = storeWith(true);
+        load(store, 40, 400);
+        store.getSnapshot();
+        store.releaseIdle();
+        const nodeCells = vi.spyOn(GraphBuilder.prototype, "setNodeValue");
+        const edgeCells = vi.spyOn(GraphBuilder.prototype, "setEdgeValue");
+        try {
+            assert.isNotNull(store.builder);
+            assert.strictEqual(release(store).revivals, 1);
+            // A column with a cell unset is still copied cell by cell, so this bounds rather than
+            // pins: before, every set cell of every column was a call, 400 per edge column.
+            assert.isBelow(edgeCells.mock.calls.length, 400, "edge columns copied whole");
+            assert.isBelow(nodeCells.mock.calls.length, 40, "node columns copied whole");
+        } finally {
+            nodeCells.mockRestore();
+            edgeCells.mockRestore();
+        }
     });
 
     it("keeps a rebuilt builder: a second edit costs no second rebuild", () => {

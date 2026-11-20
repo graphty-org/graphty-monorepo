@@ -1,6 +1,7 @@
 /**
  * @file What one data edit costs on a large graph, on both render paths (issue #9164): a removed edge,
- * a changed node and edge value, an added node and edge, and a removed node, under the starting rows
+ * a changed node and edge value, an added node and edge, the add undone and redone, and a removed
+ * node, under the starting rows
  * (Everything, Selected and Hovered, the graphty app's project). At 100,000 nodes and a million
  * edges each of these took 76-102 s before the fix: every edit repainted every element and placed
  * every edge again.
@@ -14,6 +15,10 @@
  * promise resolves, the time until the frame that draws it has been updated (once the graph is
  * loaded and at rest the render loop is stopped and `graph.update()` drives the frames, so the
  * canvas's own draw is not counted), and the edges placed and elements repainted.
+ *
+ * The ids of the edges an edit names are read before its clock starts, and strict state (the
+ * test-only check of every drawn element after each pass, test/setup.ts) is off, so a step times
+ * what a consumer's edit costs.
  *
  * WHAT IS ASSERTED IS COUNTED WORK: each edit places at most the edges of its own pairs and
  * repaints at most the elements it changed, at every size.
@@ -31,6 +36,10 @@ import { dispatcherOf } from "../../src/session/GraphSession";
 
 // Below 10,000 nodes or well above: an add or removal that crosses `largeGraphThreshold` (10,000) changes how
 // every node is drawn, and repaints the whole graph by design.
+// Strict state (test/setup.ts) checks every drawn element against the project after each pass:
+// a test-only walk of the whole graph that a consumer never runs, so it is off for the timings.
+(globalThis as { __GRAPHTY_STRICT_STATE__?: boolean }).__GRAPHTY_STRICT_STATE__ = false;
+
 const SIZES = String(import.meta.env.VITE_SINGLE_EDIT_SIZES ?? "1000/10000,9000/90000,99000/990000")
     .split(",")
     .map((size) => size.split("/").map(Number) as [number, number]);
@@ -147,21 +156,26 @@ describe("one data edit on a large graph", () => {
                 // From here the frames are driven by hand, so a step times its own work and not the canvas's draw.
                 element.graph.engine.stopRenderLoop();
                 const { data } = element.session;
-                const edgeAt = (offset: number): string => data.edgePage({ offset, limit: 1 }).records[0].id;
+                // Read before the clock starts: a page of edges is a read of its own, not part of an edit.
+                const [first, second, third] = [1, 5, 9].map(
+                    (offset) => data.edgePage({ offset, limit: 1 }).records[0].id,
+                );
 
                 const steps: Record<string, Step> = {
-                    "remove an edge": await measure(element, () => data.removeEdges([edgeAt(1)])),
-                    "remove another edge": await measure(element, () => data.removeEdges([edgeAt(5)])),
+                    "remove an edge": await measure(element, () => data.removeEdges([first])),
+                    "remove another edge": await measure(element, () => data.removeEdges([second])),
                     "change a node value": await measure(element, () =>
                         data.updateNodes([{ id: 7, values: { group: 99 } }]),
                     ),
                     "change an edge value": await measure(element, () =>
-                        data.updateEdges([{ id: edgeAt(9), values: { w: 7 } }]),
+                        data.updateEdges([{ id: third, values: { w: 7 } }]),
                     ),
                     "add a node": await measure(element, () =>
                         data.addNodes([{ id: "extra", group: 1, position: { x: 1, y: 2, z: 0 } }]),
                     ),
                     "add an edge": await measure(element, () => data.addEdges([{ source: "extra", target: 3 }])),
+                    "undo the added edge": await measure(element, () => element.session.undo()),
+                    "redo it": await measure(element, () => element.session.redo()),
                     "remove a node": await measure(element, () => data.removeNodes([11])),
                 };
 

@@ -5241,13 +5241,16 @@ export class Graph implements GraphContext {
         // so a run of queued adds repaints once, not once per add. Everything else -- undo,
         // redo, a rollback, an edit, a session verb -- is painted here, in its own pass.
         if (paintsWhole) {
-            // A forward add over a picture that is current names what it changed; undo, redo
-            // and a paint an earlier write left owed have no such list.
+            // An edit, an undo or a redo over a picture that is current names what it changed, as
+            // each touches the keys of the rows it moved; a restore, a rollback and a paint an
+            // earlier write left owed have no such list. The hook still paints the whole graph when
+            // the rows moved in a way it cannot follow (issue #9164).
             // Crossing `largeGraphThreshold` changes every node's detail, not only the rows it touched.
             const large = this.dataManager.nodes.size > DEFAULT_LIMITS.largeGraphThreshold;
             const flipped = large !== this.#paintedLarge;
             this.#paintedLarge = large;
-            const changed = cause === "command" && !dispatcher.paintOwed && !flipped ? dirty : null;
+            const listed = cause === "command" || cause === "undo" || cause === "redo";
+            const changed = listed && !dispatcher.paintOwed && !flipped ? dirty : null;
             dispatcher.paintOwed = false;
             this.#passRepainted = true;
             await repaintGraphPass(this.session, changed, () => this.repaintFromSession());

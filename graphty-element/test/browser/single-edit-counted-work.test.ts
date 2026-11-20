@@ -13,6 +13,7 @@
  */
 import "../../src/graphty-element";
 
+import type { GraphSnapshot } from "@graphty/graph-format";
 import { afterEach, assert, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
@@ -75,6 +76,8 @@ interface Counted {
     readonly placed: number;
     /** Nodes and edges repainted. */
     readonly repainted: number;
+    /** Entries written into any `Map`: an index rebuilt over every edge or node writes one per row. */
+    readonly hashed: number;
 }
 
 /**
@@ -88,14 +91,26 @@ async function countedWork(element: Graphty, edit: () => Promise<unknown>): Prom
     const nodes = vi.spyOn(Node.prototype, "applySessionPaint");
     const rows = vi.spyOn(NodeBatches.prototype, "paintRow");
     const edges = vi.spyOn(Edge.prototype, "applySessionPaint");
-    await edit();
-    await settle(element);
+    const { set } = Map.prototype;
+    let hashed = 0;
+    Map.prototype.set = function (this: Map<unknown, unknown>, key: unknown, value: unknown) {
+        hashed++;
+        return set.call(this, key, value);
+    };
+    try {
+        await edit();
+        await settle(element);
+    } finally {
+        Map.prototype.set = set;
+    }
+
     const counted = {
         placed: placed.mock.calls.length,
         repainted:
             nodes.mock.calls.length +
             rows.mock.results.filter(({ value }) => value === true).length +
             edges.mock.calls.length,
+        hashed,
     };
     placed.mockRestore();
     nodes.mockRestore();
@@ -117,6 +132,10 @@ async function editsOn(size: number): Promise<Record<string, Counted>> {
         return record.id;
     };
 
+    // Under "batched" the store let its builder go after the load, and the first edit brings it back
+    // once for the session (test/data/builder-release.test.ts counts that): made here, uncounted.
+    await data.updateNodes([{ id: "n0", values: { group: 1 } }]);
+    await settle(element);
     const work: Record<string, Counted> = {};
     work.removeEdge = await countedWork(element, () => data.removeEdges([firstEdge()]));
     work.updateNode = await countedWork(element, () => data.updateNodes([{ id: "n7", values: { group: 9 } }]));
@@ -125,6 +144,9 @@ async function editsOn(size: number): Promise<Record<string, Counted>> {
         data.addNodes([{ id: "extra", group: 1, position: { x: 1, y: 2, z: 0 } }]),
     );
     work.addEdge = await countedWork(element, () => data.addEdges([{ source: "extra", target: "n3" }]));
+    // Undo takes the added edge out again, and redo puts it back.
+    work.undo = await countedWork(element, () => element.session.undo());
+    work.redo = await countedWork(element, () => element.session.redo());
     work.removeNode = await countedWork(element, () => data.removeNodes(["n11"]));
     document.body.replaceChildren();
     return work;
@@ -139,10 +161,23 @@ describe("one data edit on a large graph", () => {
         const small = await editsOn(100);
         const large = await editsOn(400);
 
-        assert.deepEqual(large, small, "an edit's work does not grow with the graph");
         for (const [edit, counted] of Object.entries(large)) {
+            const before = small[edit];
+            assert.strictEqual(
+                counted.repainted,
+                before.repainted,
+                `${edit} repaints the same at four times the graph`,
+            );
+            assert.strictEqual(counted.placed, before.placed, `${edit} places the same at four times the graph`);
             assert.isAtMost(counted.placed, 2 * SPAN, `${edit} places only the edges of its own pairs`);
             assert.isAtMost(counted.repainted, 2, `${edit} repaints only the elements it changed`);
+            if (edit === "removeNode") {
+                // Taking a node out renumbers the rows after it: the builder's id map, and under "batched"
+                // the rows waiting for a `Node`, hold an entry per node -- never one per edge (1,500 more).
+                assert.isAtMost(counted.hashed - before.hashed, 2 * (400 - 100), `${edit} indexes no edge again`);
+            } else {
+                assert.strictEqual(counted.hashed, before.hashed, `${edit} indexes nothing again`);
+            }
         }
     });
 
@@ -157,6 +192,27 @@ describe("one data edit on a large graph", () => {
         // hundred placements, against 2,000 for one walk of every edge.
         assert.isAtMost(counted.placed, 1000, "placements are bounded by the fan, not the graph");
         assert.isAtMost(counted.repainted, added.length + 2, "the added edges and their ends are repainted");
+    });
+
+    it("sorts no edge again for an edit that changes only values", async () => {
+        const element = await mount(100);
+        const { data } = element.session;
+        // The graph as the element froze it, not the session's copy with its own coordinate columns.
+        const frozen = (): GraphSnapshot => element.graph.getDataManager().getSnapshot();
+        // Under "batched" the first edit brings back the builder the load let go (sorted once there).
+        await data.updateNodes([{ id: "n0", values: { group: 1 } }]);
+        await settle(element);
+        const before = frozen();
+        await data.updateNodes([{ id: "n7", values: { group: 9 } }]);
+        await data.updateEdges([{ id: data.edgePage({ offset: 3, limit: 1 }).records[0].id, values: { w: 2 } }]);
+        await settle(element);
+        const after = frozen();
+        assert.notStrictEqual(after, before, "the values are in a new snapshot");
+        assert.strictEqual(after.colIdx.buffer, before.colIdx.buffer, "whose edge structure is the one already sorted");
+
+        await data.addEdges([{ source: "n1", target: "n50" }]);
+        await settle(element);
+        assert.notStrictEqual(frozen().colIdx.buffer, before.colIdx.buffer, "a new edge is sorted in");
     });
 
     it("keeps the selection's look on the selected node after a removal renumbers the rows", async () => {

@@ -4443,8 +4443,54 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         });
         repaintStates({ node: nodes, edge: [] }, PIN_STATES);
     });
-    // The selection as last repainted, so a change repaints what moved: one byte per element.
-    let paintedSelection: { readonly node: Uint8Array; readonly edge: Uint8Array } | null = null;
+    // The selection as last repainted, by id, so a change repaints the elements that entered or left
+    // it -- however the rows were renumbered since, by an add, a removal or their undo. By row, a
+    // change after any of those found every row moved and repainted the whole graph (issue #9164).
+    // Kept while no layer reads the selection too: a layer added later paints the selection as it
+    // is then, which is the last one remembered here.
+    let paintedSelection: { readonly node: ReadonlySet<NodeId>; readonly edge: ReadonlySet<EdgeId> } = {
+        node: new Set(),
+        edge: new Set(),
+    };
+    const selectedRowOfNode = nodeIndexOf(snapshot);
+    const selectedRowOfEdge = edgeIndexOf(snapshot);
+    const enteredOrLeft = <TId>(
+        before: ReadonlySet<TId>,
+        now: ReadonlySet<TId>,
+        rowOf: (id: TId) => number | undefined,
+    ): number[] => {
+        const rows: number[] = [];
+        for (const [from, to] of [
+            [before, now],
+            [now, before],
+        ] as const) {
+            for (const id of from) {
+                const row = to.has(id) ? undefined : rowOf(id);
+                if (row !== undefined) {
+                    rows.push(row);
+                }
+            }
+        }
+
+        return rows;
+    };
+    repaintSelected = (): void => {
+        const owner = requireSelection(selection);
+        const now = { node: new Set(owner.nodeMembers().ids()), edge: new Set(owner.edgeMembers().ids()) };
+        const before = paintedSelection;
+        paintedSelection = now;
+        if (!readsState(SELECTION_STATES)) {
+            return;
+        }
+
+        repaintStates(
+            {
+                node: enteredOrLeft(before.node, now.node, selectedRowOfNode),
+                edge: enteredOrLeft(before.edge, now.edge, selectedRowOfEdge),
+            },
+            SELECTION_STATES,
+        );
+    };
     const changedBytes = (before: Uint8Array | undefined, after: Uint8Array): number[] => {
         const changed: number[] = [];
         for (let index = 0; index < after.length; index++) {
@@ -4454,23 +4500,6 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         }
 
         return changed;
-    };
-    repaintSelected = (): void => {
-        // No layer reads the selection: nothing to repaint, and nothing remembered, so the first
-        // change after one is added repaints every element once rather than trusting old bytes.
-        if (!readsState(SELECTION_STATES)) {
-            paintedSelection = null;
-            return;
-        }
-
-        const owner = requireSelection(selection);
-        const now = { node: owner.nodeMask(), edge: owner.edgeMask() };
-        const before = paintedSelection;
-        paintedSelection = now;
-        repaintStates(
-            { node: changedBytes(before?.node, now.node), edge: changedBytes(before?.edge, now.edge) },
-            SELECTION_STATES,
-        );
     };
     // The ghosts and what lies outside the time window, as last repainted: a window move, a slide
     // or a held condition repaints the elements that entered or left either state.

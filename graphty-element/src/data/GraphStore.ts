@@ -1,5 +1,6 @@
 import {
     type Column,
+    type ColumnDeclPatch,
     type ColumnHandle,
     type DerivedGraph,
     edgeIsDirected,
@@ -352,6 +353,7 @@ interface BuilderState {
     readonly denseRows: number;
     readonly indexByEdgeId: Map<number, number>;
     readonly denseOffset: number | null;
+    readonly risingRows: number;
     readonly pairsOrdered: boolean | null;
 }
 
@@ -493,6 +495,33 @@ function copyEdgeCells(builder: GraphBuilder, columns: Iterable<Column>, row: nu
 }
 
 /**
+ * The row of an edge id among the first `rows` rows of an array whose ids rise with the row.
+ * @param ids - The ids by row.
+ * @param rows - How many rows rise.
+ * @param edgeId - The id.
+ * @returns The row, or INVALID_INDEX.
+ */
+function risingRowOf(ids: readonly number[], rows: number, edgeId: number): number {
+    let low = 0;
+    let high = rows - 1;
+    while (low <= high) {
+        const middle = (low + high) >>> 1;
+        const id = ids[middle];
+        if (id === edgeId) {
+            return middle;
+        }
+
+        if (id < edgeId) {
+            low = middle + 1;
+        } else {
+            high = middle - 1;
+        }
+    }
+
+    return INVALID_INDEX;
+}
+
+/**
  * Copy a snapshot's rows into an empty builder so each lands on its own row: nodes (ids that are
  * their own rows as anonymous nodes, as a load adds them, so no id map is built), every edge in one
  * call by node index, then the cells a column at a time.
@@ -521,19 +550,63 @@ function copyBaseRows(
     const list = base.edgeList();
     builder.addEdges(list.src, list.dst, list.weights ?? undefined);
     for (const column of nodeColumns) {
-        copyColumnCells(column, (row, value) => {
-            builder.setNodeValue(column.meta.name, row, value);
-        });
+        if (!copyColumnWhole(builder, "node", column)) {
+            copyColumnCells(column, (row, value) => {
+                builder.setNodeValue(column.meta.name, row, value);
+            });
+        }
     }
 
     for (const column of base.edges) {
-        if (column.meta.role !== "weight") {
+        if (column.meta.role !== "weight" && !copyColumnWhole(builder, "edge", column)) {
             const handle = column.meta.name === EDGE_ID_COLUMN ? edgeIdHandle : column.meta.name;
             copyColumnCells(column, (row, value) => {
                 builder.setEdgeValue(handle, row, value);
             });
         }
     }
+}
+
+/**
+ * Copy a numeric column with every row set into a builder in one bulk write, under the metadata it
+ * had: a million-edge column cell by cell was most of the quarter second the first edit after a
+ * load spent bringing the builder back (issue #9164).
+ * @param builder - The builder, holding as many rows as the column.
+ * @param domain - Node or edge.
+ * @param column - The frozen column.
+ * @returns False, writing nothing, when the column is not of that kind.
+ */
+function copyColumnWhole(builder: GraphBuilder, domain: "node" | "edge", column: Column): boolean {
+    const { meta } = column;
+    const numeric = ["f32", "f64", "i32", "u32", "u8"].includes(column.dtype);
+    const rows = domain === "node" ? builder.nodeBound : builder.edgeBound;
+    if (!numeric || column.nullCount !== 0 || meta.refersTo !== null || column.length !== rows) {
+        return false;
+    }
+
+    const data = (column as unknown as { data: Float64Array }).data.slice(0, rows * meta.components);
+    const decl: ColumnDeclPatch = {
+        dtype: meta.dtype,
+        components: meta.components,
+        nullable: meta.nullable,
+        mutable: meta.mutable,
+        role: meta.role ?? undefined,
+        unique: meta.unique,
+        default: meta.default,
+        fill: meta.fill,
+        options: meta.options ?? undefined,
+        origin: meta.origin ?? undefined,
+        dynamic: meta.dynamic,
+        extra: meta.extra,
+        coordinates: meta.coordinates ?? undefined,
+    };
+    if (domain === "node") {
+        builder.setNodeColumn(meta.name, data, decl);
+    } else {
+        builder.setEdgeColumn(meta.name, data, decl);
+    }
+
+    return true;
 }
 
 /**
@@ -782,6 +855,13 @@ export class GraphStore {
      * edge stamped where id - row equals it has no entry in {@link indexByEdgeId}. Null when off.
      */
     private denseOffset: number | null = null;
+    /**
+     * After a compacting freeze, how many rows of {@link GraphStore.edgeIdByIndex} hold ids that
+     * rise with the row (counters stamped in order stay in order through a removal): those rows are
+     * found by binary search and have no entry in {@link GraphStore.indexByEdgeId}, so a removal at a
+     * million edges rebuilds no map. Zero when off.
+     */
+    private risingRows = 0;
     /**
      * The kept graph the builder was last restored from, with the builder and its mutation count
      * once that restore settled. While the count still matches, the builder holds exactly that
@@ -1436,6 +1516,11 @@ export class GraphStore {
         }
 
         this.materializeEdgeIds();
+        if (edgeIndex < this.risingRows) {
+            // A row the binary search covers is written again: index every row by the map again.
+            this.indexRisingRows();
+        }
+
         this.edgeIdByIndex[edgeIndex] = edgeId;
         if (edgeId - edgeIndex !== this.denseOffset) {
             this.indexByEdgeId.set(edgeId, edgeIndex);
@@ -1496,9 +1581,23 @@ export class GraphStore {
             return index;
         }
 
+        const rising = risingRowOf(this.edgeIdByIndex, this.risingRows, edgeId);
+        if (rising !== INVALID_INDEX && this.liveEdgeAt(rising, edgeId)) {
+            return rising;
+        }
+
         // An edge stamped in row order has no map entry; a stale entry falls through to it too.
         const dense = this.denseOffset === null ? -1 : edgeId - this.denseOffset;
         return dense >= 0 && this.liveEdgeAt(dense, edgeId) ? dense : INVALID_INDEX;
+    }
+
+    /** Put the rows the binary search covered into {@link GraphStore.indexByEdgeId}, and stop searching. */
+    private indexRisingRows(): void {
+        for (let row = 0; row < this.risingRows; row++) {
+            this.indexByEdgeId.set(this.edgeIdByIndex[row], row);
+        }
+
+        this.risingRows = 0;
     }
 
     /**
@@ -2240,6 +2339,7 @@ export class GraphStore {
                 denseRows: this.denseRows,
                 indexByEdgeId: this.indexByEdgeId,
                 denseOffset: this.denseOffset,
+                risingRows: this.risingRows,
                 pairsOrdered: this.pairsOrdered,
             },
             count: old.mutationCount,
@@ -2264,7 +2364,8 @@ export class GraphStore {
         this.setAside.delete(kept);
         this.setAsideKey = null;
         const old = this.bounds();
-        const { builder, handles, edgeIdByIndex, denseRows, indexByEdgeId, denseOffset, pairsOrdered } = aside.state;
+        const { builder, handles, edgeIdByIndex, denseRows, indexByEdgeId, denseOffset, risingRows, pairsOrdered } =
+            aside.state;
         this.current = builder;
         [
             this.seedHandle,
@@ -2279,6 +2380,7 @@ export class GraphStore {
         this.denseRows = denseRows;
         this.indexByEdgeId = indexByEdgeId;
         this.denseOffset = denseOffset;
+        this.risingRows = risingRows;
         this.pairsOrdered = pairsOrdered;
         // Recorded again once it has frozen, so a further redo can set it aside once more.
         this.restoring = kept;
@@ -2363,6 +2465,7 @@ export class GraphStore {
         // A new map, not cleared: a builder set aside for an undo keeps the one it had.
         this.indexByEdgeId = new Map();
         this.denseOffset = null;
+        this.risingRows = 0;
         return builder;
     }
 
@@ -2669,19 +2772,34 @@ export class GraphStore {
 
         this.materializeEdgeIds();
         const moved: number[] = [];
+        const ids = this.edgeIdByIndex;
         // Rebuilt from the surviving rows: the entries of removed edges go with their rows.
-        this.indexByEdgeId.clear();
-        for (const [index, edgeId] of this.edgeIdByIndex.entries()) {
+        let rising = true;
+        let rows = 0;
+        for (let index = 0; index < ids.length; index++) {
+            const edgeId = ids[index];
             const next = remap[index] ?? INVALID_INDEX;
             if (edgeId === undefined || next === INVALID_INDEX) {
                 continue;
             }
 
+            // In row order with no row left out, as a removal leaves a load's counters.
+            rising &&= next === rows && (rows === 0 || edgeId > moved[rows - 1]);
             moved[next] = edgeId;
-            this.indexByEdgeId.set(edgeId, next);
+            rows = Math.max(rows, next + 1);
         }
 
         this.edgeIdByIndex = moved;
+        this.indexByEdgeId = new Map();
+        this.risingRows = rising ? rows : 0;
+        if (!rising) {
+            for (const [index, edgeId] of moved.entries()) {
+                if (edgeId !== undefined) {
+                    this.indexByEdgeId.set(edgeId, index);
+                }
+            }
+        }
+
         // Every row moved has its entry now; the offset no longer describes them.
         this.denseOffset = null;
     }

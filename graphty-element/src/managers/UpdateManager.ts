@@ -395,6 +395,12 @@ export interface ViewMasks {
 /** The version a mask that is not there reports, which no real mask can hold. */
 const NO_MASK_VERSION = -1;
 
+/**
+ * Below one waiting node in this many, a paint step looks each waiting row's `Node` up by itself
+ * rather than listing every node by its row first (issue #9164).
+ */
+const FEW_ROWS = 64;
+
 /** The frame a layout step stands for: one step per frame at 60 Hz. See `updateLayout`. */
 const NOMINAL_FRAME_MS = 1000 / 60;
 
@@ -977,20 +983,29 @@ export class UpdateManager implements Manager {
         this.edgesToMask = [];
         // The element always holds a visibility mask; one that shows every edge hides none.
         const hidesSome = edgeVisibility !== null && edgeVisibility.size < this.dataManager.edges.size;
-        if (hidesSome || (edgeSelection?.size ?? 0) > 0) {
+        if (hidesSome) {
             this.appliedEdgeSelection = NO_MASK_VERSION;
             this.appliedEdgeVisibility = NO_MASK_VERSION;
             this.drawnSelectedEdges.clear();
             return;
         }
 
+        // A selection is followed edge by edge: each changed edge takes its mark from the mask, and
+        // is remembered as drawn selected so the next selection change takes it off again.
         for (const edge of edges) {
             if (edge.index === INVALID_INDEX) {
                 continue;
             }
 
+            const selected = edgeSelection?.has(edge.index) === true;
+            if (selected) {
+                this.drawnSelectedEdges.add(edge);
+            } else {
+                this.drawnSelectedEdges.delete(edge);
+            }
+
             const revealed = edge.setRenderVisible(true);
-            if (edge.setSelected(false) || revealed) {
+            if (edge.setSelected(selected) || revealed) {
                 this.edgesToPlace.push(edge);
                 this.sceneChanged = true;
                 if (this.hasSupportPoint(edge)) {
@@ -1475,26 +1490,48 @@ export class UpdateManager implements Manager {
             }
         });
 
-        let changed = false;
+        const changed: Edge[] = [];
         for (const edge of this.drawnSelectedEdges) {
             if (!next.has(edge) && edge.setSelected(false)) {
-                changed = true;
+                changed.push(edge);
             }
         }
 
         for (const edge of next) {
             if (edge.setSelected(true)) {
-                changed = true;
+                changed.push(edge);
             }
         }
 
         this.drawnSelectedEdges = next;
 
-        // Selecting redraws the edge marked, from a band batch of its own, and only the walk places
-        // that band: with nothing moving, the walk is skipped and the band was never drawn.
-        if (changed) {
-            this.forceEdgeWalk();
+        // Selecting redraws the edge marked, from a band batch of its own, which only a placement
+        // draws: with nothing moving no edge is placed, and the band was never drawn. The edges whose
+        // mark changed are placed, not every edge (an undo or redo selects what it touched; issue #9164).
+        this.placeMarkedEdges(changed);
+    }
+
+    /**
+     * Place the edges whose selection mark changed this frame, as the walk of every edge would.
+     * @param changed - The edges.
+     */
+    private placeMarkedEdges(changed: readonly Edge[]): void {
+        if (changed.length === 0) {
+            return;
         }
+
+        for (const edge of changed) {
+            if (this.hasSupportPoint(edge)) {
+                // An edge drawn through a support point is placed by the walk that settles them all.
+                this.forceEdgeWalk();
+                return;
+            }
+
+            edge.invalidatePositionCache();
+            this.edgesToPlace.push(edge);
+        }
+
+        this.sceneChanged = true;
     }
 
     /**
@@ -2059,7 +2096,7 @@ export class UpdateManager implements Manager {
      */
     private takeNodeBatch(
         painter: StylePainter,
-        rows: ReadonlyMap<number, Node>,
+        rows: Pick<ReadonlyMap<number, Node>, "get">,
         size: number,
     ): { painted: [Node, NodePaint][]; taken: number } {
         const painted: [Node, NodePaint][] = [];
@@ -2260,7 +2297,12 @@ export class UpdateManager implements Manager {
         const slide = painter.nodesFromRowsOnly;
         this.sceneChanged ||= !slide;
         this.ownMeshesPainted = false;
-        const rows = this.nodesByRow();
+        // A few rows waiting (an edit's) are looked up one by one: listing every node by its row,
+        // again after each add or removal moved the node version, cost the whole graph per edit.
+        const rows: Pick<ReadonlyMap<number, Node>, "get"> = this.paintIndex.rows?.version !==
+            this.dataManager.nodeVersion && painter.pendingNodeCount * FEW_ROWS < this.dataManager.nodes.size
+            ? { get: (row) => dataManagerInternals.builtNodeAtRow(this.dataManager, row) }
+            : this.nodesByRow();
 
         // ONE BATCH, AND SO ONE TEARDOWN, A FRAME. A batch that rebuilds a mesh pays a pass over
         // every scene list (`disposeReleased`) whatever its size, about 28 ms at 50,000 nodes, so

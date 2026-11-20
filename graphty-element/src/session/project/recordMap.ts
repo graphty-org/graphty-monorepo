@@ -412,6 +412,13 @@ export class RecordMap<K> extends Map<K, GraphRecord> {
         this.dense[at] = undefined;
         if (--this.held === 0) {
             this.dense = null;
+            return true;
+        }
+
+        // The last ids taken off the end of the run, so putting them back (a redo of an add, or the
+        // next add) appends again instead of spilling the whole run into the Map (issue #9164).
+        while (this.dense.length > 0 && this.dense.at(-1) === undefined) {
+            this.dense.pop();
         }
 
         return true;

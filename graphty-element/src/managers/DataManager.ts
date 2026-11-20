@@ -396,6 +396,8 @@ export const dataManagerInternals = {} as {
     builtEdges(manager: DataManager): ReadonlyMap<string, Edge>;
     /** A stored node id's row in the store, read with no `Node`; `INVALID_INDEX` for an id it does not hold. */
     rowOf(manager: DataManager, id: NodeIdType): number;
+    /** The `Node` built for a row, building none; undefined when the row has none. */
+    builtNodeAtRow(manager: DataManager, row: number): Node | undefined;
     /** The `Node`s built so far, walked without building one for a row that has none. */
     builtNodes(manager: DataManager): IterableIterator<Node>;
     /** The rows stored with no `Node` yet (see `LazyView`), by row number. */
@@ -777,6 +779,11 @@ export class DataManager implements Manager {
         dataManagerInternals.builtEdges = (manager) => manager.edgeMap.builtView();
         dataManagerInternals.rowOf = (manager, id) => manager.store.reads.indexOf(id);
         dataManagerInternals.builtNodes = (manager) => manager.nodeMap.built();
+        dataManagerInternals.builtNodeAtRow = (manager, row) => {
+            const id = manager.nodeIdAtRow(row);
+            const node = id === undefined ? undefined : manager.nodeMap.builtOf(id);
+            return node?.index === row ? node : undefined;
+        };
         dataManagerInternals.unbuiltRows = (manager) => [...manager.unbuilt.keys()];
         dataManagerInternals.pairIndexSources = (manager) => manager.ingest.pairIndexSources;
         dataManagerInternals.lateNodeVersions = (manager) => manager.lateNodeVersions;

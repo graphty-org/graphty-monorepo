@@ -6651,7 +6651,7 @@ export interface SessionDataApi {
     }): readonly SourceKey[];
     sourceTable(source: SourceKey): SourceTable;
     spaces(): readonly SourceSpaceRow[];
-    stage(source: DataSourceInput, options?: ImportOptions): Promise<string>;
+    stage(source: DataSourceInput, options?: StageOptions): Promise<string>;
     staged(): readonly LoadedSource[];
     statistics(options?: {
         readonly scope?: "all" | "visible";
@@ -7470,7 +7470,7 @@ export interface SourceDraft {
     show(side: "before" | "after"): Promise<void>;
     readonly side: "before" | "after";
     sourceTable(source: SourceKey): SourceTable;
-    stage(source: DataSourceInput, options?: ImportOptions): Promise<string>;
+    stage(source: DataSourceInput, options?: StageOptions): Promise<string>;
     steps(): readonly SourceStepRow[];
     types(): readonly SourceTypeEntry[];
     undo(): boolean;
@@ -8340,6 +8340,11 @@ export interface SourceValuesDiffer {
         readonly rule: SourceClashRule;
         readonly decided: number;
     };
+}
+
+// @public
+export interface StageOptions extends ImportOptions {
+    readonly guess?: "names" | "values";
 }
 
 // @public

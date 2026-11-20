@@ -282,6 +282,7 @@ export type {
     SourceTypeRule,
     SourceValue,
     SourceValuesDiffer,
+    StageOptions,
     StartingCamera,
     StyleProblem,
     TableMapping,

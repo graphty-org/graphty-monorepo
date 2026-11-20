@@ -357,9 +357,9 @@ async function takeIn(
 ): Promise<void> {
     if (sourceStepsOn(session)) {
         // Sources and steps: it waits staged in its own section of the Data place, drawing nothing,
-        // until the reader adds or joins it there.
+        // until the reader adds or joins it there. Its key is guessed as a first source's is.
         read?.dispose();
-        await session.data.stage(incoming.source);
+        await session.data.stage(incoming.source, { guess: "values" });
         workspace.set({ place: "data", dataTab: "loaded" });
         return;
     }

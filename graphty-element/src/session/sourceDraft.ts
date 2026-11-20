@@ -64,6 +64,7 @@ import type {
     SourceStepRow,
     SourceTable,
     SourceTypeEntry,
+    StageOptions,
 } from "./types";
 
 type DrillQueryArg = Parameters<typeof drillRows>[2];
@@ -77,7 +78,7 @@ export interface SourceDraftHost {
      * @param options - Its key, type, space and edge ends.
      * @returns The source and its rows as read, or null when the read held no rows.
      */
-    read(source: DataSourceInput, options: ImportOptions): Promise<{ source: StepsSource; copies: Copies } | null>;
+    read(source: DataSourceInput, options: StageOptions): Promise<{ source: StepsSource; copies: Copies } | null>;
     /**
      * Dispatch the commit: one `data.steps-set`, with the filters of the sources it removes taken
      * out in the same step, as `removeSource` takes them out (design 7.12).
@@ -266,7 +267,7 @@ export class SourceDraftHandle implements SourceDraft {
     }
 
     /** @inheritdoc */
-    async stage(source: DataSourceInput, options: ImportOptions = {}): Promise<string> {
+    async stage(source: DataSourceInput, options: StageOptions = {}): Promise<string> {
         this.live("stage");
         const read = await this.host.read(source, options);
         if (read === null) {

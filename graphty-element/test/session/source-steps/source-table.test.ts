@@ -181,6 +181,16 @@ describe("source-steps: what a staged source's rows are for, as its summary read
         });
         session.dispose();
     });
+
+    it("guesses a staged source's key from its values when asked, as a first load can", async () => {
+        const { session } = await withPeople();
+        const buildings = csv("buildings.csv", "door,building", "D1,North", "D2,South");
+        const byNames = await session.data.stage(buildings);
+        assert.strictEqual(session.data.sourceTable(byNames).summary().mapping.key, "id", "the names guess by default");
+        const byValues = await session.data.stage(buildings, { guess: "values" });
+        assert.deepStrictEqual(session.data.sourceTable(byValues).summary().mapping, { rows: "nodes", key: "door" });
+        session.dispose();
+    });
 });
 
 describe("source-steps: a staged source's mapping outside a draft", () => {

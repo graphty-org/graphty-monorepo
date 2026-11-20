@@ -102,12 +102,24 @@ describe("a second source arrives staged (source-steps)", () => {
         assert.strictEqual(session.data.nodes().length, 3, "a staged source draws nothing");
         assert.isNull(screen.queryByRole("region", { name: "Join buildings.csv" }), "no join screen");
         assert.include(within(section).getByLabelText("File").textContent, "2 rows");
+        assert.strictEqual(
+            within(section).getByRole<HTMLInputElement>("combobox", { name: "Key" }).value,
+            "door",
+            "keyed by its door column, as a first source would be",
+        );
 
         await userEvent.click(within(section).getByRole("button", { name: /^Add/ }));
         await waitFor(() => {
             assert.isNull(screen.queryByRole("region", { name: "buildings.csv" }));
         });
-        assert.strictEqual(session.data.nodes().length, 5, "three people and two buildings");
+        assert.deepStrictEqual(
+            session.data
+                .nodes()
+                .map((node) => String(node.id))
+                .sort(),
+            ["B1", "B2", "B3", "D1", "D2"],
+            "three people and two buildings, D1 and D2",
+        );
         const list = screen.getByRole("list", { name: "Data sources" });
         assert.isNotNull(within(list).getByRole("listitem", { name: "buildings.csv" }));
     });

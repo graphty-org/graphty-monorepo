@@ -387,6 +387,7 @@ import type {
     SourceStepRow,
     SourceTable,
     SourceTypeEntry,
+    StageOptions,
     TableMapping,
     TypeChangePreview,
     ValueCounts,
@@ -3585,10 +3586,10 @@ export class SessionData implements SessionDataApi {
     /**
      * Hold a source's rows as a staged source: saved and listed, read by no step.
      * @param source - What `import` takes.
-     * @param options - Its key, type, space and edge ends.
+     * @param options - Its key, type, space and edge ends, and how to guess the ones left out.
      * @returns The new source's id.
      */
-    async stage(source: DataSourceInput, options: ImportOptions = {}): Promise<string> {
+    async stage(source: DataSourceInput, options: StageOptions = {}): Promise<string> {
         this.requireSteps("stage");
         const read = await this.readStaged(source, options);
         if (read === null) {
@@ -3603,14 +3604,15 @@ export class SessionData implements SessionDataApi {
      * Read a source as a staged source, dispatching nothing.
      * @param source - What `import` takes.
      * @param options - Its key, type, space and edge ends.
+     * @param options.guess - How the roles it leaves out are guessed.
      * @returns The source and its rows as read, or null when the read held no rows.
      */
     private async readStaged(
         source: DataSourceInput,
-        options: ImportOptions,
+        { guess, ...options }: StageOptions,
     ): Promise<{ source: StepsSource; copies: Copies } | null> {
         checkSpace(options.space);
-        const draft = await this.prepare(source);
+        const draft = await this.prepare(source, guess === undefined ? {} : { guess });
         const { sha256: digest, size } = await copyFacts(source.config);
         const delimiter = draft.tables.find((table) => table.delimiter !== undefined)?.delimiter;
         const facts = {

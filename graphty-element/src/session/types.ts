@@ -1566,12 +1566,14 @@ export interface SessionDataApi {
      * reads, is saved and listed with `state: "staged"`. It is no undo step of its own: it joins the
      * step before it, and with no step before it, it is part of the state history starts from.
      * @param source - What `import` takes.
-     * @param options - Its key, type, space and edge ends.
+     * @param options - Its key, type, space and edge ends, and how to guess the ones left out.
+     * @param options.guess - `"values"` also reads the values when no header names the key or the
+     *   edge ends, as `prepare` does; `"names"` (the default) reads the headers only.
      * @returns The new source's id.
      * @throws A `GraphtyError` with `E_FEATURE_OFF` while the source-steps experiment is off.
      * @experimental source-steps
      */
-    stage(source: DataSourceInput, options?: ImportOptions): Promise<string>;
+    stage(source: DataSourceInput, options?: StageOptions): Promise<string>;
     /**
      * Every step the graph is built from, in order, with its counts in the committed build.
      * @returns The steps; empty while the source-steps experiment is off.
@@ -4123,6 +4125,16 @@ export interface ImportOptions {
 }
 
 /**
+ * How `data.stage` and a draft's `stage` read a source: an import's choices, and how to guess the
+ * key and edge ends they leave out.
+ * @experimental source-steps
+ */
+export interface StageOptions extends ImportOptions {
+    /** `"values"` also reads the values when no header names the roles; `"names"` (the default) reads the headers only. */
+    readonly guess?: "names" | "values";
+}
+
+/**
  * One edge end of a source loaded under the source-steps experiment.
  * @experimental source-steps
  */
@@ -5297,10 +5309,10 @@ export interface SourceDraft {
     /**
      * Read a source and hold it staged in the draft (as `data.stage` does).
      * @param source - What `import` takes.
-     * @param options - Its key, type, space and edge ends.
+     * @param options - Its key, type, space and edge ends, and how to guess the ones left out.
      * @returns The new source's id.
      */
-    stage(source: DataSourceInput, options?: ImportOptions): Promise<string>;
+    stage(source: DataSourceInput, options?: StageOptions): Promise<string>;
     /**
      * Read a source and add it with its own `join.add`, as one act of the draft.
      * @param source - What `import` takes.

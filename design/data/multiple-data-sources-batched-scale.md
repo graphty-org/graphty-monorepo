@@ -37,23 +37,36 @@ second source:
 
 Measured with `graphty-element/test/session/multi-source-scale.bench.test.ts` (headless) at
 100,000 nodes and 1,000,000 edges, merging a second source of 1,000 nodes and 10,000 edges, before
-and after this change on the same machine. Heap is what each step kept after a collection; the times
-were taken on a loaded machine and show the direction only:
+and after this change. Before is master at fb35688a14, after is this branch with that master merged
+in. Each was run three times, alternating, on four reserved performance cores (CPUs 8-15, nothing
+else scheduled on them); the times are the median of the three. Heap is what each step kept after a
+collection, the same in every run:
 
 | Step                      | Heap kept before | Heap kept after | Time before | Time after |
 | ------------------------- | ---------------- | --------------- | ----------- | ---------- |
-| Second source merged      | 256 MB           | 8 MB            | 3.4 s       | 1.5 s      |
-| `sources()` after an edit | 33 MB            | 5 MB            | 2.2 s       | 1.5 s      |
-| `sourcesOf` one edge      | 226 MB           | 56 MB           | 0.8 s       | 0.7 s      |
+| First source (1M edges)   | 371 MB           | 344 MB          | 11.4 s      | 10.9 s     |
+| Second source merged      | 230 MB           | 9 MB            | 1.87 s      | 0.88 s     |
+| `sources()` after an edit | 32 MB            | 4 MB            | 1.36 s      | 0.85 s     |
+| `sourcesOf` one edge      | 227 MB           | 56 MB           | 0.62 s      | 0.48 s     |
+
+Paging costs some time for the memory: 10 pages of 100,000 edges
+(`builder-release-paging.bench.test.ts`, same cores, median of three) take 1.37 s before, with one
+rebuild and the builder kept for good (a second copy of the 1M-edge graph), and 1.67 s after, with
+4 rebuilds and the builder let go again between them.
 
 `graphty-element/test/browser/multi-source-scale.bench.test.ts` makes the same two loads in an
 element (99,000 nodes and 990,000 edges, then 1,000 nodes and 10,000 edges merged in) on both render
-paths. In Chromium with the software renderer, the JavaScript heap the merge added:
+paths. In Chromium on the NVIDIA GPU, on the same reserved cores, two alternating runs each (times
+are the mean of the two; heap is the JavaScript heap the merge added, the same in both runs within
+7 MB):
 
-| Render path | Before  | After   | Builder after the merge   |
-| ----------- | ------- | ------- | ------------------------- |
-| `"batched"` | +287 MB | +133 MB | kept before, let go after |
-| `"objects"` | +157 MB | +43 MB  | never let go (unchanged)  |
+| Render path | Heap before | Heap after | Merge before | Merge after | Builder after the merge   |
+| ----------- | ----------- | ---------- | ------------ | ----------- | ------------------------- |
+| `"batched"` | +400 MB     | +319 MB    | 8.98 s       | 8.55 s      | kept before, let go after |
+| `"objects"` | +155 MB     | +40 MB     | 10.41 s      | 10.11 s     | never let go (unchanged)  |
+
+The merge time is the import (about 4.5 s before, 4.1 s after on `"batched"`) plus the frames that
+draw it (about 4.5 s, unchanged).
 
 What is left of a merge in the element is drawing, not source bookkeeping. A CPU profile of the
 batched merge (software renderer, loaded machine) spent about 57 s of 71 s in native code outside

@@ -3197,6 +3197,7 @@ function repaintAgainstCurrentData(
     repaintElements: RepaintEngine["repaintElements"];
     repaintMoved: RepaintEngine["repaintMoved"];
     encoding: RepaintEngine["encoding"];
+    encodingRevision: RepaintEngine["encodingRevision"];
     idle: RepaintEngine["idle"];
     invalidate: () => void;
 } {
@@ -3278,6 +3279,7 @@ function repaintAgainstCurrentData(
         // domain is settled against the element count the pass last sized its stores to, so
         // preparing here rather than in a pass would invent one.
         encoding: (entry) => engine.encoding(entry),
+        encodingRevision: () => engine.encodingRevision(),
         idle: () => engine.idle(),
         invalidate: (): void => {
             engine.invalidate();
@@ -4720,6 +4722,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         // painted from. Without it both verbs fall back to "nothing is prepared" and report an
         // empty picture on a graph that is plainly painted.
         encoding: painter.encoding,
+        // A pass that first prepares a layer (the first edges arriving) moves what `encoding`
+        // answers and nothing else the kept readings key on (issue #9218).
+        encodingRevision: painter.encodingRevision,
         // THE SAME QUEUE the runs and the filters take their turn in. A style write that ran
         // beside a load would paint half a graph and then be handed the other half.
         queue,

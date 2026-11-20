@@ -95,7 +95,6 @@ const CODES_FROM_THE_DESIGN = [
     "E_JOIN_SPACE_SAME",
     "E_STEP_NEEDS_NODES",
     "E_EDIT_ROLE_COLUMN",
-    "E_CLASH_RULE_TYPE",
     "E_ROLE_TARGET_AMBIGUOUS",
     "E_DRAFT_OPEN",
     "E_DRAFT_STALE",
@@ -257,7 +256,6 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_UNSUPPORTED":
         case "E_STEP_NEEDS_NODES":
         case "E_EDIT_ROLE_COLUMN":
-        case "E_CLASH_RULE_TYPE":
         case "E_ROLE_TARGET_AMBIGUOUS":
         case "E_DRAFT_OPEN":
         case "E_DRAFT_STALE":

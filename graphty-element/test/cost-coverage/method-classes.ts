@@ -1255,13 +1255,9 @@ export const READ_ONLY: readonly string[] = [
     // Live match counts hash two columns and build nothing (match-counted-work.test.ts).
     "SessionDataApi.matchCounts",
     "SessionDataApi.matchValues",
-    "SourceDraft.matchCounts",
-    "SourceDraft.matchValues",
     // A source's rows as read, and one column's profile: one walk of one column, building nothing.
     "SessionDataApi.sourceTable",
     "SessionDataApi.profile",
-    "SourceDraft.sourceTable",
-    "SourceDraft.profile",
     "SourceTable.summary",
     "SourceTable.profile",
     // A preview diffs the committed build and the draft's, which its acts already built.

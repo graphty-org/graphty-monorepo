@@ -233,7 +233,7 @@ import { EdgeRowLines } from "./meshes/EdgeRowLines";
 import { payLabelAnimations } from "./meshes/labelAnimationDebt";
 import { closeRectOnScreen, hasCloseLabels, inRect, isCloseLabel } from "./meshes/labelClose";
 import { labelFontsLoading, watchFontLoads } from "./meshes/labelFonts";
-import { MeshCache } from "./meshes/MeshCache";
+import { MeshCache, painterSortCompare } from "./meshes/MeshCache";
 import {
     LiveModelPreview,
     type ModelCheck,
@@ -6452,14 +6452,15 @@ export class Graph implements GraphContext {
 
             return this.#nodeMeshes.has(mesh) ? 4 : 0;
         };
-        // Everything else in Babylon's own order, then the map, then the edges' bands, their lines,
+        // Everything else in Babylon's own order (a held node's own source where its shared one sorts),
+        // then the map, then the edges' bands, their lines,
         // then the nodes over them (nodes rank with everything else when no map is drawn) -- in the
         // blended pass too over a map, where the edge lines (antialiased) and their outlines are drawn.
         const byRank =
             (then: (a: SubMesh, b: SubMesh) => number) =>
             (a: SubMesh, b: SubMesh): number =>
                 rank(a.getMesh()) - rank(b.getMesh()) || then(a, b);
-        const opaque = byRank((a, b) => RenderingGroup.PainterSortCompare(a, b));
+        const opaque = byRank(painterSortCompare);
         this.scene.setRenderingOrder(
             0,
             opaque,

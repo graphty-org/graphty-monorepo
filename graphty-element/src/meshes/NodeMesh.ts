@@ -50,6 +50,8 @@ interface NodeMeshOptions {
     styleId: string;
     is2D: boolean;
     size: number;
+    /** The style id of the shared source this one stands in for, drawn in its place (a held node's). */
+    inPlaceOf?: string;
 }
 
 interface NodeMeshCreateOptions {
@@ -376,7 +378,11 @@ export class NodeMesh {
         createOptions: NodeMeshCreateOptions,
         scene?: Scene,
     ): AbstractMesh {
-        return cache.get(this.cacheKeyOf(options), () => this.createSource(options, createOptions, scene));
+        return cache.get(
+            this.cacheKeyOf(options),
+            () => this.createSource(options, createOptions, scene),
+            this.inPlaceKeyOf(options),
+        );
     }
 
     /**
@@ -394,7 +400,22 @@ export class NodeMesh {
         createOptions: NodeMeshCreateOptions,
         scene?: Scene,
     ): Mesh {
-        return cache.sourceFor(this.cacheKeyOf(options), () => this.createSource(options, createOptions, scene));
+        return cache.sourceFor(
+            this.cacheKeyOf(options),
+            () => this.createSource(options, createOptions, scene),
+            this.inPlaceKeyOf(options),
+        );
+    }
+
+    /**
+     * The cache key of the shared source a node's source stands in for, if it does.
+     * @param options - Its style id and view.
+     * @returns The key, or undefined.
+     */
+    private static inPlaceKeyOf(options: NodeMeshOptions): string | undefined {
+        return options.inPlaceOf === undefined
+            ? undefined
+            : this.cacheKeyOf({ ...options, styleId: options.inPlaceOf });
     }
 
     /**

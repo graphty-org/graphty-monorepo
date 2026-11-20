@@ -3,7 +3,7 @@
 // See test/packaging/babylon-side-effects.test.ts.
 import "@babylonjs/core/Meshes/instancedMesh.js";
 
-import type { InstancedMesh } from "@babylonjs/core";
+import type { AbstractMesh, InstancedMesh, SubMesh } from "@babylonjs/core";
 import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 import type { TransformNode } from "@babylonjs/core/Meshes/transformNode.js";
 import type { Scene } from "@babylonjs/core/scene.js";
@@ -13,6 +13,31 @@ import { NodeBatch } from "./NodeBatch";
 import type { PulledLineBatch } from "./PulledLineBatch";
 
 type MeshCreatorFn = () => Mesh;
+
+/** Sources drawn in another source's place in the opaque sort: see {@link MeshCache.sourceFor}. */
+const drawnInPlaceOf = new WeakMap<AbstractMesh, number>();
+
+/**
+ * Babylon's `RenderingGroup.PainterSortCompare` (by material creation, else by mesh), but a source
+ * built to stand in for another sorts where that one's material does. A node whose mesh a consumer
+ * read under `"batched"` draws from a source of its own, built after its look's border; sorted by
+ * its own material it drew its fill over the border, and over every overlapping node, where the
+ * shared source draws it under them. Every other mesh sorts exactly as Babylon's own compare does.
+ * @param a - A submesh.
+ * @param b - Another.
+ * @returns Negative when a draws first.
+ */
+export function painterSortCompare(a: SubMesh, b: SubMesh): number {
+    const meshA = a.getMesh();
+    const meshB = b.getMesh();
+    if (meshA.material && meshB.material) {
+        const orderA = drawnInPlaceOf.get(meshA) ?? meshA.material.uniqueId;
+        const orderB = drawnInPlaceOf.get(meshB) ?? meshB.material.uniqueId;
+        return orderA - orderB;
+    }
+
+    return meshA.uniqueId - meshB.uniqueId;
+}
 
 /**
  * Cache for mesh instances to improve rendering performance
@@ -45,6 +70,10 @@ export class MeshCache {
      * a prune from taking them while their rows are drawn.
      */
     readonly batchedSources = new Set<Mesh>();
+
+    /** The material uniqueId each key's newest source was built with, kept through a prune. */
+    // ponytail: one number per key ever built until the next clear(); drop pruned keys if that grows.
+    readonly #drawOrders = new Map<string, number>();
     hits = 0;
     misses = 0;
 
@@ -52,10 +81,11 @@ export class MeshCache {
      * Get or create a cached mesh instance
      * @param name - Cache key for the mesh
      * @param creator - Function to create the mesh if not cached
+     * @param inPlaceOf - As for {@link MeshCache.sourceFor}.
      * @returns Instanced mesh from cache or newly created
      */
-    get(name: string, creator: MeshCreatorFn): InstancedMesh {
-        return this.sourceFor(name, creator).createInstance(name);
+    get(name: string, creator: MeshCreatorFn, inPlaceOf?: string): InstancedMesh {
+        return this.sourceFor(name, creator, inPlaceOf).createInstance(name);
     }
 
     /**
@@ -63,9 +93,12 @@ export class MeshCache {
      * drawn and picked from.
      * @param name - Cache key for the mesh
      * @param creator - Function to create the mesh if not cached
+     * @param inPlaceOf - The key of a source this one draws in place of: the new source is drawn
+     *     where that one's newest build sorts (see {@link painterSortCompare}), not after everything
+     *     built before it.
      * @returns The source mesh
      */
-    sourceFor(name: string, creator: MeshCreatorFn): Mesh {
+    sourceFor(name: string, creator: MeshCreatorFn, inPlaceOf?: string): Mesh {
         let mesh = this.meshCacheMap.get(name);
         if (mesh) {
             this.hits++;
@@ -74,6 +107,14 @@ export class MeshCache {
 
         this.misses++;
         mesh = creator();
+        const order = inPlaceOf === undefined ? undefined : this.#drawOrders.get(inPlaceOf);
+        if (order === undefined) {
+            this.#drawOrders.set(name, mesh.material?.uniqueId ?? mesh.uniqueId);
+        } else {
+            // Just after the source it stands in for, and before anything built after that one.
+            drawnInPlaceOf.set(mesh, order + 0.5);
+        }
+
         // Hide the original mesh - instances will still be visible
         mesh.isVisible = false;
         mesh.position.set(0, -10000, 0);
@@ -174,6 +215,7 @@ export class MeshCache {
             this.disposeSource(mesh);
         }
         this.meshCacheMap.clear();
+        this.#drawOrders.clear();
 
         for (const batch of this.batchCacheMap.values()) {
             batch.dispose();

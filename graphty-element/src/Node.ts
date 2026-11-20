@@ -3073,12 +3073,16 @@ export class Node implements ModelUser {
         o: NodeStyleConfig,
         image: BaseTexture | null,
     ): [Parameters<typeof NodeMesh.source>[1], Parameters<typeof NodeMesh.source>[2]] {
+        // A source mesh with its picture is another source mesh than the one drawn while it loads.
+        const shared = `${meshKey}${image === null ? "" : "|image"}`;
+        const held = this.drawsOwnSource();
         return [
-            // A source mesh with its picture is another source mesh than the one drawn while it loads.
             {
-                styleId: `${meshKey}${image === null ? "" : "|image"}${this.drawsOwnSource() ? "|held" : ""}`,
+                styleId: held ? `${shared}|held` : shared,
                 is2D: this.context.is2D(),
                 size: this.size,
+                // drawn where the shared source is, under its look's border, as on the objects path
+                inPlaceOf: held ? shared : undefined,
             },
             { shape: o.shape, texture: o.texture, effect: o.effect, border: o.border, picture: image },
         ];

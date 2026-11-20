@@ -437,6 +437,56 @@ function labelBehavior(sampled, glyphs) {
     return b;
 }
 
+// The layout engine once the graph has one, or null at the deadline.
+async function layoutEngineOf(graph, deadline) {
+    let eng = graph.getLayoutManager().layoutEngine;
+    while (!eng && now() < deadline) {
+        await raf();
+        eng = graph.getLayoutManager().layoutEngine;
+    }
+    return eng ?? null;
+}
+
+// `count` drawn frames, or as many as `capMs` allows: their interval and the time they spanned.
+async function framesWhile(count, capMs) {
+    stamps.length = 0;
+    const t = now();
+    while (stamps.length < count + 1 && now() - t < capMs) await raf();
+    const st = stamps.slice();
+    return { frame: st.length > 2 ? stats(intervals(st)) : null, wall: (st.at(-1) ?? now()) - (st[0] ?? t) };
+}
+
+// A simulation started at tCall: its first landing (the first batch of positions published, or the first frame on
+// the CPU), then `count` frames while it runs: the frame interval, and the interval between landings.
+async function simulationTiming(graph, tCall, count, capMs) {
+    const eng = await layoutEngineOf(graph, tCall + capMs);
+    const landed = () => eng?.landedBatchesPublished ?? null;
+    const gpu = !!eng?.isAccelerated && landed() !== null;
+    stamps.length = 0;
+    await until(gpu ? () => landed() > 0 : () => stamps.length > 0, tCall + capMs);
+    const firstLandingMs = now() - tCall;
+    const l0 = landed();
+    const { frame, wall } = await framesWhile(count, capMs);
+    const landings = gpu ? landed() - l0 : null;
+    return {
+        engine: eng?.type,
+        accelerated: eng?.isAccelerated ?? false,
+        firstLandingMs: +firstLandingMs.toFixed(1),
+        frame,
+        landings,
+        // On the CPU every drawn frame steps the layout, so a frame is a landing.
+        landingIntervalMs: gpu ? landingInterval(wall, landings) : (frame?.median ?? null),
+        refused: gpu && landings === 0 ? "no layout batch landed" : undefined,
+    };
+}
+
+// Frames until `done` answers true, or the deadline.
+async function until(done, deadline) {
+    while (!done() && now() < deadline) await raf();
+}
+
+const landingInterval = (wall, landings) => (landings > 0 ? +(wall / landings).toFixed(1) : null);
+
 // The simulations among the matrix's layouts: timed while they run, the others to their stable frame.
 const SIMULATIONS = new Set(["ngraph", "d3", "forceatlas2"]);
 
@@ -804,45 +854,16 @@ async function graphtyAdapter({
         // its first landing (the first batch of positions published, or the first frame on the CPU), then
         // `count` frames while it runs: the frame interval, and the interval between landings.
         async layoutRun(name, count, capMs) {
-            const sim = SIMULATIONS.has(name);
             const tCall = now();
             if (name === "circular-glide") {
                 await el.session.config.set({ layoutTransition: { transition: "glide", seconds: 0.8 } });
                 await el.setLayout("circular", { seed: 7 });
             } else await el.setLayout(name, { seed: 7 });
-            if (!sim) {
+            if (!SIMULATIONS.has(name)) {
                 await graph.waitForStableFrame({ timeoutMs: STABLE_MS });
                 return { layout: name, applyMs: +(now() - tCall).toFixed(1), rowCounts: el.rowCounts };
             }
-            let eng = null;
-            while (!(eng = graph.getLayoutManager().layoutEngine) && now() - tCall < capMs) await raf();
-            const landed = () => eng?.landedBatchesPublished ?? null;
-            const gpu = !!eng?.isAccelerated && landed() !== null;
-            stamps.length = 0;
-            while ((gpu ? landed() === 0 : stamps.length === 0) && now() - tCall < capMs) await raf();
-            const firstLandingMs = now() - tCall;
-            const l0 = landed();
-            stamps.length = 0;
-            const t = now();
-            while (stamps.length < count + 1 && now() - t < capMs) await raf();
-            const st = stamps.slice();
-            const wall = (st[st.length - 1] ?? now()) - (st[0] ?? t);
-            const frame = st.length > 2 ? stats(intervals(st)) : null;
-            const landings = gpu ? landed() - l0 : null;
-            // On the CPU every drawn frame steps the layout, so a frame is a landing.
-            let landingIntervalMs = frame?.median ?? null;
-            if (gpu) landingIntervalMs = landings > 0 ? +(wall / landings).toFixed(1) : null;
-            return {
-                layout: name,
-                engine: eng?.type,
-                accelerated: eng?.isAccelerated ?? false,
-                firstLandingMs: +firstLandingMs.toFixed(1),
-                frame,
-                landings,
-                landingIntervalMs,
-                refused: gpu && landings === 0 ? "no layout batch landed" : undefined,
-                rowCounts: el.rowCounts,
-            };
+            return { layout: name, ...(await simulationTiming(graph, tCall, count, capMs)), rowCounts: el.rowCounts };
         },
         async layoutFps(count, capMs) {
             const tCall = now();

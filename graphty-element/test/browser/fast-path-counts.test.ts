@@ -47,7 +47,7 @@ interface Budget {
 interface Case {
     readonly name: string;
     /** What the case does to the loaded graph. */
-    readonly apply: (element: Graphty) => Promise<unknown>;
+    readonly apply: (element: Graphty) => PromiseLike<unknown>;
     /** The most object rows it may leave, measured on master when this file was written. */
     readonly budget: Budget;
 }
@@ -55,15 +55,15 @@ interface Case {
 const everything = { match: "everything" } as const;
 const nodeLayer =
     (set: Record<string, unknown>) =>
-    (element: Graphty): Promise<unknown> =>
+    (element: Graphty): PromiseLike<unknown> =>
         element.session.styles.add({ name: "case", target: "node", selector: everything, set } as never);
 const edgeLayer =
     (set: Record<string, unknown>) =>
-    (element: Graphty): Promise<unknown> =>
+    (element: Graphty): PromiseLike<unknown> =>
         element.session.styles.add({ name: "case", target: "edge", selector: everything, set } as never);
 const layout =
     (name: string, options: Record<string, unknown> = {}) =>
-    (element: Graphty): Promise<unknown> =>
+    (element: Graphty): PromiseLike<unknown> =>
         element.graph.setLayout(name, { seed: 7, ...options });
 
 /** Everything on the fast path. */
@@ -74,7 +74,7 @@ const ALL_NODES: Budget = { objectNodes: N, objectEdges: 0 };
 const ALL_EDGES: Budget = { objectNodes: 0, objectEdges: M };
 
 const STYLE_CASES: readonly Case[] = [
-    { name: "nothing more (plain edges)", apply: () => Promise.resolve(), budget: NONE },
+    { name: "nothing more (plain edges)", apply: async () => {}, budget: NONE },
     { name: "node.color", apply: nodeLayer({ "node.color": "#e15759" }), budget: NONE },
     { name: "node.size", apply: nodeLayer({ "node.size": 2 }), budget: NONE },
     { name: "node.shape", apply: nodeLayer({ "node.shape": "box" }), budget: NONE },
@@ -114,7 +114,7 @@ const ACTION_CASES: readonly Case[] = [
                 selector: { match: "hover", reach: "neighbors", invert: true },
                 set: { "node.opacity": 0.25 },
             } as never);
-            await element.session.selection.hover(5);
+            element.session.selection.hover(5);
         },
         budget: NONE,
     },
@@ -138,7 +138,7 @@ const LAYOUT_CASES: readonly Case[] = [
     {
         name: "circular through the glide transition",
         apply: async (element) => {
-            await element.session.config.set({ layoutTransition: { transition: "glide", seconds: 0.2 } } as never);
+            await element.session.config.set({ layoutTransition: { transition: "glide", seconds: 0.2 } });
             await element.graph.setLayout("circular", { dim: 3 });
         },
         budget: NONE,
@@ -148,7 +148,9 @@ const LAYOUT_CASES: readonly Case[] = [
 const mounted: Graphty[] = [];
 
 afterEach(() => {
-    for (const element of mounted.splice(0)) element.remove();
+    for (const element of mounted.splice(0)) {
+        element.remove();
+    }
 });
 
 /**
@@ -202,12 +204,18 @@ async function check(c: Case): Promise<void> {
 
 describe("rows left on the batched fast path", () => {
     describe("by one style property", () => {
-        for (const c of STYLE_CASES) it(c.name, () => check(c));
+        for (const c of STYLE_CASES) {
+            it(c.name, () => check(c));
+        }
     });
     describe("by a reader action", () => {
-        for (const c of ACTION_CASES) it(c.name, () => check(c));
+        for (const c of ACTION_CASES) {
+            it(c.name, () => check(c));
+        }
     });
     describe("by a layout", () => {
-        for (const c of LAYOUT_CASES) it(c.name, () => check(c));
+        for (const c of LAYOUT_CASES) {
+            it(c.name, () => check(c));
+        }
     });
 });

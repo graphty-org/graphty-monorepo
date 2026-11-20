@@ -17,6 +17,7 @@ import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const MAIN = dirname(
+    // eslint-disable-next-line sonarjs/no-os-command-from-path -- a local measuring tool, run from the owner's PATH
     spawnSync("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], { cwd: HERE })
         .stdout.toString()
         .trim(),
@@ -28,7 +29,10 @@ const BASELINE = join(HERE, "perf-baseline.json");
 const PATHS = ["objects", "batched"];
 
 // ------------------------------------------------------------------ the matrix
-const K = (n) => (n >= 1000000 ? `${n / 1000000}m` : n >= 1000 ? `${n / 1000}k` : String(n));
+function K(n) {
+    if (n >= 1000000) return `${n / 1000000}m`;
+    return n >= 1000 ? `${n / 1000}k` : String(n);
+}
 const SIZES = {
     small: [
         [100, 1000],
@@ -100,41 +104,47 @@ function scenario(id, { mode = "plain", accel = "on", n, m, flags = [], deadline
     };
 }
 
-function matrix() {
-    const out = [];
-    for (const [n, m] of [...SIZES.small, ...SIZES.medium]) {
-        out.push(scenario(`size-plain-${K(n)}`, { n, m }));
-        out.push(scenario(`size-default-${K(n)}`, { mode: "default", n, m }));
-    }
+function sizeScenarios() {
+    const out = [...SIZES.small, ...SIZES.medium].flatMap(([n, m]) => [
+        scenario(`size-plain-${K(n)}`, { n, m }),
+        scenario(`size-default-${K(n)}`, { mode: "default", n, m }),
+    ]);
     // Large: the plain look only. The default look's arrowheads make every edge an object on both paths, which at a
     // million edges does not finish; the audit of the batched path measured that once.
-    for (const [n, m] of SIZES.large) out.push(scenario(`size-plain-${K(n)}`, { n, m }));
-    for (const [n, m] of [SIZES.small[1], SIZES.medium[0]])
-        for (const s of STYLES) out.push(scenario(`style-${s}-${K(n)}`, { n, m, flags: [`style=${s}`] }));
-    for (const s of STYLES_50K) out.push(scenario(`style-${s}-50k`, { n: 50000, m: 500000, flags: [`style=${s}`] }));
-    // Large: one node look and the curve table (the GPU's texture size limit) at 100k, one node look at 1M.
-    for (const s of ["node-color", "edge-curve"])
-        out.push(scenario(`style-${s}-100k`, { n: 100000, m: 1000000, flags: [`style=${s}`] }));
-    out.push(scenario("style-node-color-1m", { n: 1000000, m: 1000000, flags: ["style=node-color"] }));
+    return [...out, ...SIZES.large.map(([n, m]) => scenario(`size-plain-${K(n)}`, { n, m }))];
+}
+
+function styleScenarios() {
+    const style = (s, n, m) => scenario(`style-${s}-${K(n)}`, { n, m, flags: [`style=${s}`] });
+    return [
+        ...[SIZES.small[1], SIZES.medium[0]].flatMap(([n, m]) => STYLES.map((s) => style(s, n, m))),
+        ...STYLES_50K.map((s) => style(s, 50000, 500000)),
+        // Large: one node look and the curve table (the GPU's texture size limit) at 100k, one node look at 1M.
+        style("node-color", 100000, 1000000),
+        style("edge-curve", 100000, 1000000),
+        style("node-color", 1000000, 1000000),
+    ];
+}
+
+function layoutScenarios() {
     const [n, m] = SIZES.medium[0];
-    for (const dim of ["2d", "3d"])
-        for (const l of LAYOUTS) {
+    const out = ["2d", "3d"].flatMap((dim) =>
+        LAYOUTS.map((l) => {
             const cpu = l === "ngraph-cpu";
-            out.push(
-                scenario(`layout-${l}-${dim}-10k`, {
-                    n,
-                    m,
-                    accel: cpu ? "off" : "on",
-                    flags: [`dim=${dim}`, `layout=${cpu ? "ngraph" : l}`],
-                }),
-            );
-        }
-    // Large: the GPU force layout's landings at 100k nodes and 1M edges.
-    out.push(
-        scenario("layout-ngraph-3d-100k", { n: 100000, m: 1000000, flags: ["dim=3d", "layout=ngraph"], deadline: 570 }),
+            return scenario(`layout-${l}-${dim}-10k`, {
+                n,
+                m,
+                accel: cpu ? "off" : "on",
+                flags: [`dim=${dim}`, `layout=${cpu ? "ngraph" : l}`],
+            });
+        }),
     );
+    // Large: the GPU force layout's landings at 100k nodes and 1M edges.
+    out.push(scenario("layout-ngraph-3d-100k", { n: 100000, m: 1000000, flags: ["dim=3d", "layout=ngraph"] }));
     return out;
 }
+
+const matrix = () => [...sizeScenarios(), ...styleScenarios(), ...layoutScenarios()];
 
 // ------------------------------------------------------------------ metrics
 const median = (xs) => {
@@ -181,7 +191,7 @@ function summarize(rows) {
     for (const [key, rs] of by) {
         const e = { runs: rs.length, metrics: {} };
         for (const [name, { read }] of Object.entries(METRICS)) {
-            const v = median(rs.map(read));
+            const v = median(rs.map((r) => read(r)));
             if (v !== undefined) e.metrics[name] = v;
         }
         const failures = rs.map((r) => r.failure).filter(Boolean);
@@ -210,43 +220,69 @@ function run(results) {
     for (const s of selected())
         for (let rep = 0; rep < reps; rep++)
             // Alternate which path goes first, so neither always runs on a warmer machine.
-            for (const path of rep % 2 ? [...paths].reverse() : paths) {
+            for (const path of rep % 2 ? paths.toReversed() : paths) {
                 console.log(`=== ${s.id} ${path} run ${rep + 1}`);
-                // The lock is held while the load is waited out, so no other GPU run starts in between.
-                const r = spawnSync(
-                    "flock",
-                    [
-                        LOCK,
-                        "bash",
-                        "-c",
-                        `while awk '{exit !($1 > ${MAX_LOAD})}' /proc/loadavg; do sleep 5; done; exec "$@"`,
-                        "_",
-                        join(TOOLS, "tools/with-browser.sh"),
-                        "node",
-                        join(HERE, "run.mjs"),
-                        "graphty",
-                        s.mode,
-                        s.accel,
-                        String(s.n),
-                        String(s.m),
-                        "1",
-                        ...s.flags,
-                    ],
-                    {
-                        stdio: ["ignore", "pipe", "inherit"],
-                        env: {
-                            ...process.env,
-                            BENCH_RESULTS: results,
-                            BENCH_RENDER_PATH: path,
-                            BENCH_SCENARIO: s.id,
-                            BENCH_DEADLINE_S: String(s.deadline),
-                        },
-                    },
-                );
-                const keep = /^(load|restyle|still|orbit|hover|edit|layoutRun|memory|failure|crash|pageerror) /;
-                for (const line of r.stdout.toString().split("\n"))
-                    if (keep.test(line)) console.log(line.slice(0, 220));
+                runOne(s, path, results);
             }
+}
+
+/**
+ * One scenario on one path in a fresh browser, its row appended to the results.
+ * @param {object} s - The scenario.
+ * @param {string} path - The render path.
+ * @param {string} results - The results file.
+ */
+function runOne(s, path, results) {
+    // The lock is held while the load is waited out, so no other GPU run starts in between.
+    const wait = `while awk '{exit !($1 > ${MAX_LOAD})}' /proc/loadavg; do sleep 5; done; exec "$@"`;
+    const command = [
+        LOCK,
+        "bash",
+        "-c",
+        wait,
+        "_",
+        join(TOOLS, "tools/with-browser.sh"),
+        "node",
+        join(HERE, "run.mjs"),
+    ];
+    const r = spawnSync(
+        "flock", // eslint-disable-line sonarjs/no-os-command-from-path -- a local measuring tool, run from the owner's PATH
+        [...command, "graphty", s.mode, s.accel, String(s.n), String(s.m), "1", ...s.flags],
+        {
+            stdio: ["ignore", "pipe", "inherit"],
+            env: {
+                ...process.env,
+                BENCH_RESULTS: results,
+                BENCH_RENDER_PATH: path,
+                BENCH_SCENARIO: s.id,
+                BENCH_DEADLINE_S: String(s.deadline),
+            },
+        },
+    );
+    const keep = /^(load|restyle|still|orbit|hover|edit|layoutRun|memory|failure|crash|pageerror) /;
+    for (const line of r.stdout.toString().split("\n")) if (keep.test(line)) console.log(line.slice(0, 220));
+}
+
+/**
+ * Compares one scenario's metrics with its baseline entry.
+ * @param {string} key - The scenario and path.
+ * @param {object} cur - The current entry.
+ * @param {object} b - The baseline entry.
+ * @returns {{ compared: number, worse: string[] }} How many metrics were compared, and the ones that got worse.
+ */
+function compareEntry(key, cur, b) {
+    const worse = cur.failures && !b.failures ? [`${key}: failed: ${cur.failures[0]}`] : [];
+    let compared = 0;
+    for (const [name, was] of Object.entries(b.metrics)) {
+        const metric = METRICS[name];
+        if (!metric) continue;
+        compared++;
+        const is = cur.metrics[name];
+        const limit = metric.counted ? was : was * (1 + MARGIN) + metric.slack;
+        if (is === undefined && !cur.failures) worse.push(`${key} ${name}: missing (was ${was})`);
+        else if (is > limit) worse.push(`${key} ${name}: ${is} > ${+limit.toFixed(2)} (baseline ${was})`);
+    }
+    return { compared, worse };
 }
 
 function gate(results) {
@@ -256,21 +292,10 @@ function gate(results) {
     const worse = [];
     let compared = 0;
     for (const [key, cur] of Object.entries(now)) {
-        const b = base.entries[key];
-        if (!b) continue;
-        if (cur.failures && !b.failures) worse.push(`${key}: failed: ${cur.failures[0]}`);
-        for (const [name, was] of Object.entries(b.metrics)) {
-            const { slack, counted } = METRICS[name] ?? {};
-            if (slack === undefined) continue;
-            const is = cur.metrics[name];
-            compared++;
-            if (is === undefined) {
-                if (!cur.failures) worse.push(`${key} ${name}: missing (was ${was})`);
-                continue;
-            }
-            const limit = counted ? was : was * (1 + MARGIN) + slack;
-            if (is > limit) worse.push(`${key} ${name}: ${is} > ${+limit.toFixed(2)} (baseline ${was})`);
-        }
+        if (!base.entries[key]) continue;
+        const c = compareEntry(key, cur, base.entries[key]);
+        compared += c.compared;
+        worse.push(...c.worse);
     }
     console.log(`${compared} metrics compared with ${file} (margin ${MARGIN * 100}% plus each metric's slack)`);
     if (compared === 0) {

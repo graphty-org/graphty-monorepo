@@ -238,7 +238,7 @@ try {
             throw new Error(`rows left the batched path after ${stage}: ${JSON.stringify(rows)}`);
     };
     await checkBatched("load");
-    if (style) log("restyle", await page.evaluate((name) => B.restyle(name), style));
+    if (style) log("restyle", await page.evaluate((name) => globalThis.B.restyle(name), style));
     // What a labeled run really built: with sampling on, only the cells' winners.
     if (labels && lib === "graphty")
         log(
@@ -264,7 +264,7 @@ try {
         );
         throw new Error("layout-only run, render-on-demand");
     }
-    if (!noStill) log("still", await page.evaluate((f) => B.still(f), FRAMES));
+    if (!noStill) log("still", await page.evaluate((f) => globalThis.B.still(f), FRAMES));
     if (!noStill) log("gpuFrame", await page.evaluate(() => B.gpuFrame(60)));
     await page
         .screenshot({
@@ -288,8 +288,8 @@ try {
     };
     await profile("still", () => B.still(60));
     await profile("orbit", () => B.orbit(60));
-    if (!noMove) log("orbit", await page.evaluate((f) => B.orbit(f), FRAMES));
-    if (!noMove) log("drag", await page.evaluate((f) => B.drag(f), Math.min(60, FRAMES)));
+    if (!noMove) log("orbit", await page.evaluate((f) => globalThis.B.orbit(f), FRAMES));
+    if (!noMove) log("drag", await page.evaluate((f) => globalThis.B.drag(f), Math.min(60, FRAMES)));
     if (!noMove) await checkBatched("drag");
     // The heap as the page holds it, before the forced collection below shrinks it.
     log("memoryNoGc", { ...(await page.evaluate(() => B.mem())), rssMB: rssMB() });
@@ -299,8 +299,9 @@ try {
     // why its 10,000-node hover used to find no target. Both libraries hover the same still scene.
     await hoverStage(page, "hover");
     if (lib === "graphty") log("lasso", await page.evaluate(() => B.lasso(20)));
-    if (edit) log("edit", await page.evaluate(() => B.edit()));
-    if (layout) log("layoutRun", await page.evaluate(([l, f]) => B.layoutRun(l, f, 60000), [layout, FRAMES]));
+    if (edit) log("edit", await page.evaluate(() => globalThis.B.edit()));
+    if (layout)
+        log("layoutRun", await page.evaluate(([l, f]) => globalThis.B.layoutRun(l, f, 60000), [layout, FRAMES]));
     if (!skip) {
         log("layoutFps", await profiled("layout", () => B.layoutFps(200, 30000)));
         // The layout is still running: a hover reads the node under the pointer back from the GPU,

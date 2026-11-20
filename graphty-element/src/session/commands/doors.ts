@@ -2314,6 +2314,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             publishModelChange: EVENTS,
             emptyClick: EVENTS,
             elementClick: EVENTS,
+            cameraGestureEnd: EVENTS,
             groupOutlineClick: EVENTS,
             layoutMotion: EVENTS,
         },
@@ -2842,6 +2843,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             // Deep-frozen records, read a window at a time.
             nodePage: READ,
             edgePage: READ,
+            // Computes and caches a page's order; changes nothing a project holds.
+            preparePage: READ,
             resultColumns: READ,
             neighbors: READ,
             lastImport: READ,
@@ -3762,6 +3765,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 expect: [{ op: "config.set", values: { name: "Fixture project" } }],
             },
             assetChoices: READ,
+            describe: READ,
+            inspect: READ,
             save: exempt("Writes the session out as text and marks it saved; it changes nothing a project saves."),
             markSaved: exempt("Moves the save point that dirty is measured from; it changes nothing a project saves."),
             open: exempt(
@@ -4142,6 +4147,9 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             edgeRemovalChangesNothing: READ,
             endPeek: exempt("The session's end clears a peek, which is view state."),
             hoverAt: exempt("The pointer resting on a node is view state, not a step, like the selection."),
+            byInput: exempt(
+                "It only labels the changes its callback makes with the input; they are steps of their own.",
+            ),
             nodeMembers: READ,
             edgeMembers: READ,
             remapNodes: SELECTION,

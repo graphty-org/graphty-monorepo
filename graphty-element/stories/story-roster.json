@@ -279,6 +279,7 @@
         "Styles/Label::StaticText",
         "Styles/Label::TextAlign",
         "Styles/Label::TextTemplate",
+        "Styles/Label::TextTemplateFormat",
         "Styles/Label::TextColor",
         "Styles/Label::TextOutline",
         "Styles/Label::TextPath",

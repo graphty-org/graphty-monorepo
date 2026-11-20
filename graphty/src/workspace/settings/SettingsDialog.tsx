@@ -1,6 +1,7 @@
 import { ModalFooter, PageList, SegmentedControl } from "@graphty/compact-mantine";
 import type { AccelerationStatus } from "@graphty/graphty-element/session";
 import {
+    Anchor,
     Button,
     Input,
     type MantineColorScheme,
@@ -20,7 +21,7 @@ import { AI_PROVIDER_SECTION, assistantOn } from "../assistant-door/commands";
 import { providerDisclosure } from "../assistant-door/provider";
 import { fileStylesOn } from "../features";
 import { useAccelerationStatus } from "../frame/useAccelerationStatus";
-import { answerUsageData, useUsageAnswer } from "../privacy/usageData";
+import { answerUsageData, useAnalyticsSends, useUsageAnswer } from "../privacy/usageData";
 import { UsageDataText } from "../privacy/UsageDataText";
 import { useAssistantSendsTo } from "../privacy/useAssistantSendsTo";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
@@ -187,7 +188,14 @@ function General(): React.JSX.Element {
 function Privacy(): React.JSX.Element {
     const on = useUsageAnswer() === "share";
     const sendsTo = useAssistantSendsTo();
-    const usageOff = sendsTo === null ? "Usage data: off. Nothing is sent." : "Usage data: off.";
+    const analytics = useAnalyticsSends();
+    let usageOff = sendsTo === null ? "Usage data: off. Nothing is sent." : "Usage data: off.";
+    if (analytics) {
+        usageOff =
+            sendsTo === null
+                ? "Usage data: off. Anonymous counts are still sent: visits, the site that sent you, and which sample, file format, layout, measure and export you use."
+                : "Usage data: off. Anonymous counts are still sent.";
+    }
     return (
         <Stack gap="md">
             <Stack gap={6}>
@@ -214,6 +222,16 @@ function Privacy(): React.JSX.Element {
                 <Text size="xs">
                     {on ? "Usage data: sent with content masked, only while Share usage data is on." : usageOff}
                 </Text>
+                {analytics && !on ? (
+                    <Text size="xs">
+                        Anonymous counts: while Share is off, with no cookies or stored id (PostHog, US).
+                    </Text>
+                ) : null}
+                {analytics ? (
+                    <Anchor href="/privacy.html" target="_blank" rel="noopener noreferrer" size="xs">
+                        Privacy details
+                    </Anchor>
+                ) : null}
             </Stack>
         </Stack>
     );

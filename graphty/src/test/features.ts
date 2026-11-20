@@ -8,7 +8,9 @@ import { FEATURES } from "@graphty/graphty-element/catalog";
 import { setDefaultFeatures } from "@graphty/graphty-element/extend";
 import { afterEach, beforeEach } from "vitest";
 
+import { setAnalyticsCallsForTests } from "../lib/analytics";
 import { loadSiteConfig, resetSiteConfig } from "../siteConfig";
+import { TEST_ANALYTICS } from "./usage-recorders";
 
 /**
  * Runs every test of the calling file with exactly these experiments on.
@@ -50,5 +52,23 @@ export function withoutFeatures(ids: readonly string[]): void {
         resetSiteConfig();
         setDefaultFeatures(rest);
         await loadSiteConfig(`data:application/json,${encodeURIComponent(JSON.stringify({ features: rest }))}`);
+    });
+}
+
+/**
+ * Runs every test of the calling file on a site that sends PostHog: the usage-analytics experiment
+ * on, PostHog ids in site.json and the site's own host, so the app shows the words for it. PostHog's
+ * code never arrives, so nothing is sent. Registered after `withFeatures`, so it wins.
+ */
+export function withPostHogSite(): void {
+    beforeEach(async () => {
+        resetSiteConfig();
+        const site = { site: "production", features: ["usage-analytics"], analytics: TEST_ANALYTICS };
+        await loadSiteConfig(`data:application/json,${encodeURIComponent(JSON.stringify(site))}`);
+        setAnalyticsCallsForTests({ hostname: () => "graphty.app", importPostHog: () => new Promise(() => undefined) });
+    });
+    afterEach(() => {
+        setAnalyticsCallsForTests();
+        resetSiteConfig();
     });
 }

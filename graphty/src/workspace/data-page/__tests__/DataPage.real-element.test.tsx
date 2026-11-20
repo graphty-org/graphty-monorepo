@@ -9,7 +9,7 @@ import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { act } from "react";
-import { assert, describe, it } from "vitest";
+import { afterEach, assert, describe, it, vi } from "vitest";
 import { commands, page, userEvent } from "vitest/browser";
 
 import POSTER from "../../../../../design/ui/studio/tool/files/lesmis-poster.graphty.json?raw";
@@ -183,6 +183,10 @@ function assertInOrder(...elements: HTMLElement[]): void {
         );
     }
 }
+
+afterEach(() => {
+    vi.restoreAllMocks();
+});
 
 describe("the Data page on the real element", () => {
     it("T3: opens a graph file with every check green and focus on Load, and Enter loads it", async () => {
@@ -362,6 +366,83 @@ describe("the Data page on the real element", () => {
         await userEvent.click(loadButton());
         await waitFor(() => {
             assert.equal(session.data.lastImport()?.counts.nodes, 3);
+        });
+    });
+
+    it("reads an address typed on the empty page when the reader tabs away, with a bar under the field", async () => {
+        const url = "https://data.example.com/slow/les-miserables.gml";
+        let finish: (() => void) | undefined;
+        const original = globalThis.fetch.bind(globalThis);
+        vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+            if ((input instanceof Request ? input.url : String(input)) !== url) {
+                return original(input, init);
+            }
+            const stream = new ReadableStream<Uint8Array>({
+                start(controller) {
+                    finish = () => {
+                        controller.enqueue(new TextEncoder().encode(GML));
+                        controller.close();
+                    };
+                },
+            });
+            return Promise.resolve(new Response(stream, { status: 200 }));
+        });
+        await openFromEmptyApp();
+        const field = screen.getByRole("textbox", { name: "URL" });
+        await userEvent.type(field, url);
+        await userEvent.tab();
+
+        const bar = await screen.findByRole("progressbar");
+        const gap = bar.getBoundingClientRect().top - field.getBoundingClientRect().bottom;
+        assert.isTrue(gap >= 0 && gap <= 6, `the bar sits directly under the address (gap ${gap}px)`);
+        assert.isNotNull(screen.getByText(`Reading ${url}`));
+        await waitFor(() => {
+            assert.isDefined(finish);
+        });
+        finish?.();
+        await screen.findByText(/: 3 nodes, 2 edges$/);
+        assert.isNull(screen.queryByRole("progressbar"), "gone once read");
+    });
+
+    it("reads an address from the Tables list's From a URL when the reader tabs away, open with its bar until read", async () => {
+        const url = "https://data.example.com/slow/second.gml";
+        let finish: (() => void) | undefined;
+        const original = globalThis.fetch.bind(globalThis);
+        vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+            if ((input instanceof Request ? input.url : String(input)) !== url) {
+                return original(input, init);
+            }
+            const stream = new ReadableStream<Uint8Array>({
+                start(controller) {
+                    finish = () => {
+                        controller.enqueue(new TextEncoder().encode(GML));
+                        controller.close();
+                    };
+                },
+            });
+            return Promise.resolve(new Response(stream, { status: 200 }));
+        });
+        await openFromEmptyApp();
+        await chooseFiles(new File([GML], "les-miserables.gml"));
+        await screen.findByText("les-miserables: 3 nodes, 2 edges", {});
+        await userEvent.click(screen.getByRole("button", { name: "Add a table" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "From a URL..." }));
+        const close = await screen.findByRole("button", { name: "Close From a URL" });
+        const panel = close.closest<HTMLElement>("[role=dialog], section, div[data-popout]") ?? document.body;
+        const field = within(panel).getByRole("textbox");
+        await userEvent.type(field, url);
+        await userEvent.tab();
+
+        const bar = await within(panel).findByRole("progressbar");
+        const gap = bar.getBoundingClientRect().top - field.getBoundingClientRect().bottom;
+        assert.isTrue(gap >= 0 && gap <= 6, `the bar sits directly under the address (gap ${gap}px)`);
+        assert.isNotNull(screen.getByRole("button", { name: "Close From a URL" }), "kept open while it reads");
+        await waitFor(() => {
+            assert.isDefined(finish);
+        });
+        finish?.();
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("button", { name: "Close From a URL" }), "closed once read");
         });
     });
 
@@ -847,6 +928,30 @@ describe("the Data page on the real element", () => {
         await userEvent.click(screen.getByRole("button", { name: "Choose file" }));
         await screen.findByRole("grid", { name: "Rows of ties.csv" });
         assert.isNull(screen.queryByRole("textbox", { name: "Address" }), "the URL panel closed");
+    });
+
+    it("an address that cannot be fetched leaves focus on Load, where the reader finds the refusal", async () => {
+        await openFromEmptyApp();
+        await userEvent.click(screen.getByRole("button", { name: "Add a table" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "From a URL..." }));
+        const address = await screen.findByRole("textbox", { name: "Address" });
+        // Load takes focus in the task that closes the field, so the workspace's focus guard, which
+        // hands lost focus on a frame later, never finds it lost and sends it to "+" (#9005).
+        const afterClose = new Promise<Element | null>((resolve) => {
+            address.addEventListener(
+                "focusout",
+                () => {
+                    queueMicrotask(() => {
+                        resolve(document.activeElement);
+                    });
+                },
+                { once: true },
+            );
+        });
+        await userEvent.type(address, "https://example.invalid/no-such-file.csv{Enter}");
+        assert.equal(await afterClose, loadButton(), "Load holds focus once the field closes");
+        await screen.findByRole("alert");
+        assert.equal(document.activeElement, loadButton(), "focus stays on Load after the refusal");
     });
 
     it("refuses three files dropped at once and keeps the page empty", async () => {

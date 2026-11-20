@@ -513,6 +513,21 @@ describe("Chrome for Testing, without Playwright's lifecycle flags", () => {
         );
     });
 
+    it("fails a recording when its tab is hidden, with E_CAPTURE_FAILED { reason: hidden }", async () => {
+        const key = "record-hidden";
+        const tab = labels(key);
+        const chrome = await start();
+        const a = await openFixture(chrome, { key, tab: tab("a") });
+        await a.evaluate("fixture.record()");
+        const mark = fx.log.length;
+        // Another tab in front hides this one, as a reader switching tabs does.
+        await openFixture(chrome, { key: `${key}-other`, tab: tab("b") });
+        await report(tab("a"), "visibility", mark, (e) => e.state === "hidden");
+        const recorded = await report(tab("a"), "recorded");
+        assert.strictEqual(recorded.code, "E_CAPTURE_FAILED");
+        assert.strictEqual(recorded.reason, "hidden");
+    });
+
     it.each([1000, ...(FULL ? [100_000] : [])])(
         "keeps the work when V8 memory is purged as by Chrome's out-of-memory intervention, at %i nodes",
         async (n) => {

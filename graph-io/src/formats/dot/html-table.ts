@@ -209,18 +209,35 @@ function readTable(
         cellPadding: whole(attrs, "cellpadding", 0, 255) ?? 2,
         ...sizeFields(attrs),
         ...(alignFields(attrs, false) as Pick<LabelTable, "align" | "valign">),
-        ...fillField(r, attrs),
+        ...(invisible(attrs) ? {} : fillField(r, attrs)),
         rows: [],
     };
     const state: RowState = { row: null, rowRule: false, cellRule: false };
     let at = from;
     for (let tag = nextTag(r.body, at); tag !== null; tag = nextTag(r.body, at)) {
         if (tag.name === "table" && tag.closing) {
-            return { table, next: tag.end };
+            return { table: hiddenIf(table, attrs), next: tag.end };
         }
         at = readRowTag(r, table, state, tag, { fonts, depth });
     }
-    return { table, next: at };
+    return { table: hiddenIf(table, attrs), next: at };
+}
+
+/**
+ * A table whose `STYLE` hides it keeps its room but draws nothing: no fill, and none of its cells (Graphviz 14 draws a
+ * `<TABLE STYLE="invis">` as nothing at all, its cells' words included: dot-specimen-labels-p3 html-table-style-invis).
+ * @param table - the table as read
+ * @param attrs - the table tag's attributes
+ * @returns the table, every cell hidden where it is invisible (its fill is never read: `readTable`)
+ */
+function hiddenIf(table: LabelTable, attrs: ReadonlyMap<string, string>): LabelTable {
+    if (!invisible(attrs)) {
+        return table;
+    }
+    return {
+        ...table,
+        rows: table.rows.map((row) => ({ ...row, cells: row.cells.map((c) => ({ ...c, hidden: true as const })) })),
+    };
 }
 
 /** Where reading a table's rows is: the row being read, and whether a rule comes before the next row or cell. */

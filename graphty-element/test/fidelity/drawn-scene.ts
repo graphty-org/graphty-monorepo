@@ -758,7 +758,10 @@ export interface DrawnNode {
     insetPx: number;
     /** The border ring drawn outside the fill, or null when the node has none. */
     border: DrawnBorder | null;
-    /** Where a table label's background is the node's body, its cells' outline, else null. */
+    /**
+     * The outline of its label's table drawn inside its margin; else, where a table label's background is the node's
+     * body, its cells' outline; else null.
+     */
     tableOutline?: DrawnBorder | null;
     /**
      * Where the node also draws an outer ring (`outer`), its own border ring at the fill, else null: `border` and the
@@ -843,6 +846,30 @@ function readTableOutline(node: Node, p: Projector): DrawnBorder | null {
     return {
         color: css.hex,
         widthPx: width * NodeMesh.extentPerSize(shape) * p.pxPerWorld(at),
+        lineWidthPx: null,
+        style: "solid",
+        screen: false,
+        opacity: css.alpha * (drawnStyle?.border?.opacity ?? 1),
+    };
+}
+
+/**
+ * The outline a node draws round its label's table where the table is smaller than the node (`tableFrame`), in its
+ * border's color, as the program draws the table's border inside the node's margin.
+ * @param node - the node
+ * @param p - the projector
+ * @returns the outline, or null when the node draws none
+ */
+function readTableFrame(node: Node, p: Projector): DrawnBorder | null {
+    const { drawnStyle, tableFrame } = nodeInternals.drawn(node);
+    const color = drawnStyle?.border?.color;
+    if (tableFrame === null || typeof color !== "string") {
+        return null;
+    }
+    const css = cssColor(color);
+    return {
+        color: css.hex,
+        widthPx: tableFrame * NodeMesh.extentPerSize(drawnStyle?.shape) * p.pxPerWorld(node.mesh.getAbsolutePosition()),
         lineWidthPx: null,
         style: "solid",
         screen: false,
@@ -1478,7 +1505,8 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
         }),
     );
     // its outline is the table's cells' outlines (`shape.lines`), drawn in its border's color, as the program's is
-    const tableOutline = tableBody.length > 0 ? readTableOutline(node, p) : null;
+    // a table drawn inside a larger node (a margin round it) has its own outline drawn where it is: the node's
+    const tableOutline = readTableFrame(node, p) ?? (tableBody.length > 0 ? readTableOutline(node, p) : null);
     const tableFill =
         tableBody[0]?.fill === undefined
             ? null
@@ -1744,7 +1772,7 @@ function capOutline(cap: ArrowCap | null, p: Projector): [number, number][] | nu
 function joinedDashes(
     batch: EdgeLineBatch,
     slots: readonly number[],
-    pattern: { kind: string; elementLength?: number } | undefined,
+    pattern: { kind: string; elementLength?: number; dashes?: readonly number[] } | undefined,
     at: Vector3,
     p: Projector,
 ): number[] | null {
@@ -1758,6 +1786,10 @@ function joinedDashes(
         return null;
     }
     const k = p.pxPerWorld(at);
+    // a dash array (`line.dashArray`) is its own dashes and gaps
+    if (pattern.dashes !== undefined) {
+        return pattern.dashes.map((d) => d * k);
+    }
     return [length * k, Math.max(0, spacing - length) * k];
 }
 

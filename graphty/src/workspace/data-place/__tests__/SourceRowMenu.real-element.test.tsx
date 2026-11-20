@@ -1,6 +1,7 @@
 /**
  * A Sources row's menu on the REAL graphty-element, driven by real clicks: Select nodes selects the
- * nodes that load supplies, and Remove takes the load away, naming a joined table that went with it.
+ * nodes that load supplies, and Remove takes the load away, naming a joined table that went with it;
+ * and the source's own "..." in the inspector replaces it with a file the reader picks.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -8,7 +9,7 @@ import "@graphty/graphty-element";
 
 import type { GraphSession, LoadedSource } from "@graphty/graphty-element/session";
 import { assert, beforeAll, describe, it } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { commands, page, userEvent } from "vitest/browser";
 
 import football from "../../../../public/samples/football.gml?raw";
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
@@ -98,5 +99,24 @@ describe("a Sources row's menu", () => {
         await rowVerb(people, "Remove");
         await screen.findByText("Also removed what was joined to it: ages.csv");
         assert.lengthOf(session.data.sources(), 0);
+    });
+
+    it("the inspector's Replace with file... opens the Data page to replace the source with the picked file", async () => {
+        const session = await openWorkspace();
+        await session.data.import({
+            config: { file: new File(["source,target\nAna,Bo\nBo,Cy\n"], "ties.csv") },
+            name: "ties.csv",
+        });
+        const place = await screen.findByRole("region", { name: "Data place" });
+        const row = await within(within(place).getByRole("list", { name: "Data sources" })).findByRole("listitem", {
+            name: "ties.csv",
+        });
+        // The row's name opens the source in the inspector, whose "..." holds the same verbs.
+        await userEvent.click(within(row).getAllByRole("button")[0]);
+        await commands.chooseNextFile("ties-v2.csv", "text/csv", "source,target\nAna,Bo\nBo,Dee\n");
+        await userEvent.click(await screen.findByRole("button", { name: "Source actions" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Replace with file..." }));
+        await screen.findByRole("heading", { name: "Replace: ties-v2.csv" });
+        assert.lengthOf(session.data.sources(), 1, "nothing is replaced until the reader says so");
     });
 });

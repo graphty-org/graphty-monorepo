@@ -1656,6 +1656,24 @@ function readOgdfLabelPlace(
 }
 
 /**
+ * A yEd GML edge label's model and position, as `putYedEdgeLabel` keys them: a side or center slider with no stored box
+ * is at its line's start; a free label's box is not in the file's coordinates, so it is not read.
+ * @param model - the label's `model`
+ * @param position - its `position`
+ * @param stored - whether the file stores its box
+ * @returns the spot, or null for a place not read
+ */
+function yedLabelSpot(model: string, position: unknown, stored: boolean): string | null {
+    if (!stored && (model === "side_slider" || model === "center_slider")) {
+        return `${model}/start`;
+    }
+    if (model === "free" || (!stored && model.endsWith("_slider"))) {
+        return null;
+    }
+    return `${model}/${typeof position === "string" ? position : "center"}`;
+}
+
+/**
  * A yEd GML edge label's place: the box `x` and `y` store, its top left corner on the page, else its `model` and
  * `position`, as yEd's GraphML keeps them (`putYedEdgeLabel`). A curved line or a self-loop keeps graphty's place.
  * @param snapshot - the graph
@@ -1689,9 +1707,8 @@ function readYedLabelPlace(
     const width = Math.max(...lines.map((l) => l.length)) * YED_LABEL_CHARACTER * size + YED_LABEL_BOX_PADDING;
     const [x, y] = [Number(label.x), Number(label.y)];
     const stored = label.x !== undefined && label.y !== undefined && Number.isFinite(x) && Number.isFinite(y);
-    // a slider with no stored box sits somewhere along the line that the file does not say; a free label's box is not
-    // in the file's coordinates
-    if (label.model === "free" || (!stored && label.model.endsWith("_slider"))) {
+    const spot = yedLabelSpot(label.model, label.position, stored);
+    if (spot === null) {
         return;
     }
     putYedEdgeLabel(
@@ -1701,7 +1718,7 @@ function readYedLabelPlace(
         ],
         route.length >= 2 ? route : [s, t],
         {
-            spot: `${label.model}/${typeof label.position === "string" ? label.position : "center"}`,
+            spot,
             stored: stored ? [x, y, width, lines.length * YED_LABEL_LINE * size + YED_LABEL_BOX_PADDING] : null,
             storedOnPage: true,
             distance: 2,

@@ -517,6 +517,8 @@ export interface NodeStyleValues {
     readonly xlabelOffsetX: number;
     /** How far down from the node's center the middle of `xlabel` is drawn (a length). */
     readonly xlabelOffsetY: number;
+    /** How the lines of `xlabel` line up with one another; unset, as the label's (`labelTextAlign`). */
+    readonly xlabelTextAlign: StyleLabelTextAlign;
     /** The label's font family, as the file names it. */
     readonly labelFont: string;
     /** The label's font weight. */

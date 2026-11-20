@@ -834,6 +834,51 @@ describe("held", () => {
         assert.equal(both.misheld, false);
     });
 
+    it("lifts blocked only when the pull requests the reason waits on have closed (#9056)", () => {
+        const blockedIssue = (n, body) => ({
+            ...held(n, [], [c(body)]),
+            id: `I_${n}`,
+            labels: { nodes: [{ id: "L_blocked", name: "blocked" }] },
+        });
+        const blocked = [
+            // #291: the cited pull requests merged; what is left waits on an owner order
+            blockedIssue(
+                1,
+                "pipeline-round: blocked -- the element part merged (#8899, #9033). Unblock when the owner orders it.",
+            ),
+            blockedIssue(2, "pipeline-round: blocked -- needs owner-only code; waiting on the owner."),
+            blockedIssue(3, "pipeline-round: blocked on #500 and #501"),
+            blockedIssue(4, "pipeline-round: blocked on #500 and #502"),
+            blockedIssue(5, "pipeline-round: blocked until #503 merges"),
+        ];
+        const states = { 500: "MERGED", 501: "CLOSED", 502: "OPEN", 503: "MERGED", 8899: "MERGED", 9033: "MERGED" };
+        const mutations = [];
+        const run = (query, vars) => {
+            if (query.startsWith("mutation")) {
+                mutations.push(query);
+                return {};
+            }
+            if (query.startsWith("query {")) {
+                const repository = {};
+                for (const [, n] of query.matchAll(/p(\d+): issueOrPullRequest/g)) {
+                    repository[`p${n}`] = { __typename: "PullRequest", state: states[n] };
+                }
+                return { repository };
+            }
+            const page = (nodes) => ({ pageInfo: { hasNextPage: false }, nodes });
+            if (query.includes("pullRequests(states: OPEN")) return { repository: { pullRequests: page([]) } };
+            return { repository: { issues: page(vars.label === "blocked" ? blocked : []) } };
+        };
+        const dir = mkdtempSync(join(tmpdir(), "lift-"));
+        const r = claimsCommand({ fix: true, run, now: NOW, dir, facts: { openPrBranches: new Set() } });
+        assert.match(r.out, /; blocked lifted #3 #5$/);
+        assert.equal(mutations.length, 1);
+        assert.deepEqual(
+            [...mutations[0].matchAll(/labelableId: "(I_\d+)"/g)].map((m) => m[1]),
+            ["I_3", "I_5"],
+        );
+    });
+
     it("prints the held listing as JSON from one paged query", () => {
         const pages = [
             [

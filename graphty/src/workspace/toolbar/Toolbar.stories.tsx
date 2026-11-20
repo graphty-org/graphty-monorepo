@@ -165,7 +165,7 @@ export const LayoutOpen: Story = {
     },
 };
 
-/** The Camera menu in 2D: Fit, Frame selection, the standard views and Auto-rotate disabled, zoom, Export image and Record video. */
+/** The Camera menu in 2D: the starting cameras (the 3D-only ones disabled), Fit, Fit selection, zoom, and the two switches. */
 export const CameraMenu2D: Story = {
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
@@ -174,7 +174,7 @@ export const CameraMenu2D: Story = {
     },
 };
 
-/** The Camera menu in 3D: Fit, Frame selection, the standard views, Auto-rotate, Export image and Record video, each with its key. */
+/** The Camera menu in 3D: the starting cameras, Fit, Fit selection, Auto-rotate and Focus selected, each with its key. */
 export const CameraMenu3D: Story = {
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
@@ -182,6 +182,70 @@ export const CameraMenu3D: Story = {
         await element.session.layout.setDimension("3d");
         await element.waitForStableFrame();
         await press(canvasElement, "Camera");
+    },
+};
+
+/**
+ * Saves two cameras of the reader's own in 3D, after the five starting ones, the second on key 2,
+ * and a tour through them.
+ * @param element - the story's element.
+ */
+async function saveCamerasAndTour(element: GraphtyElement): Promise<void> {
+    await element.session.layout.setDimension("3d");
+    await element.waitForStableFrame();
+    await element.session.views.save([{ name: "Overview" }]);
+    await element.applyCameraView("Top");
+    await element.session.views.save([{ name: "From above", key: "2" }]);
+    await element.applyCameraView("fitToGraph");
+    await element.session.tours.save([
+        {
+            name: "Walk",
+            tour: {
+                stops: [
+                    { view: "Overview", hold: 2000 },
+                    { view: "From above", hold: 2000 },
+                ],
+            },
+        },
+    ]);
+    await element.waitForStableFrame();
+}
+
+/** The Camera menu in 3D with the reader's own cameras listed after the starting ones, each with its key */
+export const CameraMenuOwnCameras: Story = {
+    args: { initialState: OPEN },
+    play: async ({ canvasElement }) => {
+        const element = await loadRings(canvasElement);
+        await saveCamerasAndTour(element);
+        await press(canvasElement, "Camera");
+    },
+};
+
+/** The Camera menu in 2D with cameras saved in 3D: the 3D-only cameras say "3D only", the reader's "Saved in 3D" */
+export const CameraMenu2DDisabledRows: Story = {
+    args: { initialState: OPEN },
+    play: async ({ canvasElement }) => {
+        const element = await loadRings(canvasElement);
+        await saveCamerasAndTour(element);
+        await element.session.layout.setDimension("2d");
+        await element.waitForStableFrame();
+        await press(canvasElement, "Camera");
+    },
+};
+
+/** A tour holding on its first stop: the Camera tool is Stop (Esc), in Camera's place, 8 px from Mode */
+export const TourPlayingCameraIsStop: Story = {
+    args: { initialState: OPEN },
+    play: async ({ canvasElement }) => {
+        const element = await loadRings(canvasElement);
+        await saveCamerasAndTour(element);
+        // A hold far past the capture, on a jump with no flight, so the camera stands still.
+        await element.session.tours.save([{ name: "Hold", tour: { stops: [{ view: "Overview", hold: 3_600_000 }] } }]);
+        void element.playTour("Hold");
+        const toolbar = await within(canvasElement).findByRole("toolbar", { name: "Canvas tools" });
+        await within(toolbar).findByRole("button", { name: "Stop tour" });
+        await expect(within(toolbar).queryByRole("button", { name: "Camera" })).toBeNull();
+        await element.waitForStableFrame();
     },
 };
 

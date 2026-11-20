@@ -2,14 +2,15 @@
  * The location map on the REAL graphty-element, driven by real input: the location designated in
  * the Data place's Fields (what the element finds preselected), Map picked in the Layout popover
  * reading it, the 3D map (a globe) in the 3D view and the 2D map in the 2D view, Map type picking
- * the 2D map in 3D, and the map under the graph chosen in the same form.
+ * the 2D map in 3D, and the map under the graph chosen in the same form, an image from this computer
+ * among them.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
 import { afterEach, assert, beforeAll, describe, it } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { commands, page, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor, type Within, within } from "../../../test/test-utils";
 import { MAP_DEPTH_INDEPENDENT_SIZE } from "../../settings/preferences";
@@ -317,6 +318,21 @@ describe("the location map", () => {
         });
         await element.waitForStableFrame();
         assert.strictEqual(where(), before, "still no node moved");
+    });
+
+    it("draws an image chosen from this computer as the map, kept in the project as its contents", async () => {
+        const element = await openAirports();
+        await layOutOnMap(element, "2D");
+        const popover = await openMapForm();
+        await pickByKeys(popover, "Map", "Image");
+        const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="2" height="1"><rect width="2" height="1"/></svg>';
+        await commands.chooseNextFile("world.svg", "image/svg+xml", svg);
+        await userEvent.click(within(popover).getByRole("button", { name: "Upload image" }));
+        await waitFor(() => {
+            assert.deepStrictEqual(element.session.layout.options.map, {
+                image: `data:image/svg+xml;base64,${btoa(svg)}`,
+            });
+        });
     });
 
     it("greys Map out with its reason on a graph with no location, and the element refuses it", async () => {

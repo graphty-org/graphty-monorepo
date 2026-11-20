@@ -658,6 +658,25 @@ describe("the fixed layout puts nodes where their data says", () => {
         assert.deepStrictEqual(harness.coordsOf(node("a")), { x: 12, y: -34, z: 5 }, "the drag survived a recompute");
     });
 
+    it("spreads a node added after the first run by the factor the first run spread the others by (issue #1171)", async () => {
+        harness = createHarness();
+        harness.context.getStyles().config.data.knownFields.positionScale = 1;
+        harness.dataManager.addNodes([
+            { id: "a", position: { x: 0, y: 0, z: 0 } },
+            { id: "b", position: { x: 1, y: 0, z: 0 } },
+        ]);
+        harness.dataManager.addEdges([{ src: "a", dst: "b" }]);
+        await layoutManagerInternals.setLayout(harness.layoutManager, "fixed", {});
+        const node = (id: string): Node => harness?.dataManager.nodes.get(id) as Node;
+        assert.deepStrictEqual(harness.coordsOf(node("b")), { x: 3, y: 0, z: 0 }, "unit spacing spread three times");
+
+        harness.dataManager.addNodes([{ id: "c", position: { x: 2, y: 0, z: 0 } }]);
+        harness.dataManager.addEdges([{ src: "b", dst: "c" }]);
+        await harness.layoutManager.updatePositions([node("c")]);
+        assert.deepStrictEqual(harness.coordsOf(node("c")), { x: 6, y: 0, z: 0 });
+        assert.deepStrictEqual(harness.coordsOf(node("b")), { x: 3, y: 0, z: 0 }, "b stays where it was");
+    });
+
     it("puts a node added after two others at its own data position, not their mirror image of it", async () => {
         // Two held nodes lie on one line, so turning the re-run and mirroring it across that line
         // fit them equally well. The fixed layout's re-run already matches them exactly, and the

@@ -11,7 +11,7 @@ edges and paths, covers, the default scope of "the graph", the home of the run c
 views, element identity in the project file, the predicate language, how filters combine, how
 kept things are listed, the word for a kept subset, the shape of a path, community identity
 across re-runs, what an edge weight means, edge keys across a reload, results after a filter
-changes, neighbourhood expansion, where data cleaning happens, how a run reaches a subset, how
+changes, neighborhood expansion, where data cleaning happens, how a run reaches a subset, how
 many graphs a project holds, collapsed groups, what a saved view is, where positions and the layout
 command live, tuning an existing result, which quantities are attributes at rest, what a temporal
 result saves, and the scale of an encoding under a filter) and sets the tool evidence beside
@@ -28,7 +28,7 @@ Terms used throughout:
 - **Primary object**: the graph material itself (nodes, edges, the network). **Secondary
   object**: something about the graph or about how it is shown (a style, a filter, a saved
   view, an annotation).
-- **Mapping**: a rule that turns a data value into a visual value (a colour, a size).
+- **Mapping**: a rule that turns a data value into a visual value (a color, a size).
 - **Column** and **attribute** are used interchangeably for a named value carried by every
   node or every edge; tools differ on the word, see section 19.
 
@@ -40,7 +40,7 @@ The reference tool of biological network analysis, and the most explicit data mo
 tool surveyed.
 
 **First-class objects.** Networks, nodes, edges; each has a table (node table, edge table,
-network table) of typed columns. Networks are organised into **network collections**:
+network table) of typed columns. Networks are organized into **network collections**:
 "Network collections in Cytoscape are used to organize related networks, for example
 subnetworks. Networks in a collection are linked through the shared name node attribute."
 A network can have one or more **views** (the drawn picture of it). A **session** saves
@@ -108,10 +108,10 @@ columns: "several additional columns are added to the Node Table (and an EdgeBet
 column is added to the Edge Table)". Graph-level results appear in a Results Panel with
 charts; any column can be plotted: "Plot Histogram... for a single parameter distribution,
 or Plot Scatter... for a bivariate plot", and a chart region selects nodes. The command is
-**Tools, Analyze Network**; it analyses the whole current network, and the option to analyse
+**Tools, Analyze Network**; it analyses the whole current network, and the option to analyze
 only selected nodes was removed: "Prior versions of this tool offered the option of analyzing
 all nodes or only a selected subset. This is no longer supported directly in the program." The
-manual's replacement is to make a subnetwork from the selection and analyse that. Re-running
+manual's replacement is to make a subnetwork from the selection and analyze that. Re-running
 writes the same column names again (practitioner knowledge; the manual does not say).
 
 **Styling.** A **Style** is a named set of visual property settings for node, edge and
@@ -119,7 +119,7 @@ network properties. Three mapping types:
 - "Passthrough Mapping: The values of network column data are passed directly through to
   properties" (labels).
 - "Discrete Mapping: Discrete column data are mapped to discrete properties" (type to shape).
-- "Continuous Mapping: Continuous data are mapped to properties" (numbers to size, colour
+- "Continuous Mapping: Continuous data are mapped to properties" (numbers to size, color
   gradients, or to discrete bins).
 A **default value** "is used when no mapping is defined for a property". A **bypass**
 overrides both default and mapping for chosen elements. Precedence is therefore fixed:
@@ -211,7 +211,7 @@ workspace.
 
 **Groups.** Gephi had hierarchical graphs with meta-nodes since 0.7 and removed them: the
 0.9.0 release notes say "Remove hierarchical graphs support" and add "Multi-graph support".
-Grouping today is a partition column plus colour, or a plugin.
+Grouping today is a partition column plus color, or a plugin.
 
 **Paths.** A shortest-path tool highlights a path on the canvas (practitioner knowledge);
 no saved path object.
@@ -244,17 +244,17 @@ Three facts from the statistics source code decide a lot:
   "the left number is a random number given to communities. Essentially, this number does not
   say much. However, the right percentage is more important."
 
-The Appearance **partition list** shows one row per class value with its colour and share of
+The Appearance **partition list** shows one row per class value with its color and share of
 nodes. It is a legend with palette controls: a row cannot be named, and selecting a community
 means building a Partition filter on the class column and ticking boxes ("tick the first 20
 boxes" to keep the largest communities).
 
 **Styling (Appearance).** "Appearance: The way to change the visual aspect of nodes and
-edges." Three modes per visual property (colour, size, label colour, label size):
+edges." Three modes per visual property (color, size, label color, label size):
 "Unique: every node/edge gets the same visual property value", "Partition: we set the visual
 property value based on some attribute of the node" ("Visual clustering. Give colors to
 categories"), and "Ranking: we set the visual property value proportional to some numeric
-attribute". Appearance is applied as a one-shot write to each node's stored colour and size;
+attribute". Appearance is applied as a one-shot write to each node's stored color and size;
 Gephi Lite's documentation states this directly: "Gephi behaves like Photoshop", storing
 static values per node.
 
@@ -328,7 +328,7 @@ found". The path is added to the Scene and selected; it is not a saved
 object (practitioner knowledge for "selected").
 
 **Filters.** Filtered elements are dimmed, not removed: "When a filter is applied, all
-filtered elements are greyed out in the Scene, they are still visible but you cannot
+filtered elements are grayed out in the Scene, they are still visible but you cannot
 interact with them." **Dismiss** removes elements from the Scene (not the database); "Dismiss
 single nodes" removes isolates. The **Slicer** is a range filter over any numeric or temporal
 property with playback; "The Slicer lets you add up to five different ranges".
@@ -349,7 +349,7 @@ of the Perspective definition and run from the Search bar", which accepts "a nea
 language search query".
 
 **Styling.** Per category default, plus rule-based styling in three modes: **Single** (one
-colour, size or caption for elements that meet a condition, with a histogram to pick a
+color, size or caption for elements that meet a condition, with a histogram to pick a
 threshold), **Range** ("a range of colors or sizes to a range of values"), **Unique values**
 ("Assign a unique color to each property value"). Precedence is first-wins, the opposite of
 Cytoscape.js: "Rules override the default style setting such that if no rule is satisfied,
@@ -358,7 +358,7 @@ list is applied to that attribute", while "subsequent rules may still be applied
 affect other attributes." Rule matching is per visual channel.
 
 **Time.** Temporal property types are first-class in filters and the Slicer (with timezone
-normalisation); there is no element lifetime model.
+normalization); there is no element lifetime model.
 
 **Notes.** Not in the Scene; export is PNG, SVG or CSV, and Scenes are shared by link.
 
@@ -476,7 +476,7 @@ use an SQL-like expression (`point:degree < 10`). A selection box can become a f
 filtering.
 
 **Styling.** Encodings per channel, categorical or continuous (`as_continuous=True`), for
-colour, size, icon and badge, on points and edges. Algorithm results (PageRank, communities)
+color, size, icon and badge, on points and edges. Algorithm results (PageRank, communities)
 arrive as columns and are encoded like any column.
 
 Sources:
@@ -553,7 +553,7 @@ of one type and aggregates numeric properties by Sum, Average, Minimum or Maximu
 **Paths.** Shortest path between two selected nodes, returning up to a maximum count of
 paths into the visualization.
 
-**Filters.** Two outcomes, **hide** or **grey**, by category or property. Filters are built
+**Filters.** Two outcomes, **hide** or **gray**, by category or property. Filters are built
 in the UI; there is no typed filter language ("All 'hidden' nodes are displayed in light grey").
 Date properties are filtered only through the **Timeline**, which reads "Date or Datetime"
 properties (points in time) and can show "one or multiple properties at once".
@@ -572,7 +572,7 @@ Queries ... The context menu displays available queries", and with a node select
 queries will be displayed". Results are added to the visualization, with "all mutual edges
 between the nodes in the result" added automatically.
 
-**Styling.** A Design panel; each category has a default colour; "Default styles may be
+**Styling.** A Design panel; each category has a default color; "Default styles may be
 defined by an Administrator ... Users can then change these styles"; nodes without a
 matching value "retain their category color".
 
@@ -611,7 +611,7 @@ Commercial toolkits for investigation apps; they named the **combo**.
 **Groups (combos).** "To reduce clutter, you can combine multiple nodes into a single
 combined node." A combo is **closed** (one node with a count glyph) or **open** (members
 visible inside a border, with an internal arrangement: concentric, lens, grid, sequential).
-"Links are combined too": **combo links** summarise member edges; `reveal()` shows an
+"Links are combined too": **combo links** summarize member edges; `reveal()` shows an
 underlying link. Combos nest. Combos differ from hiding: "hidden nodes remain hidden even
 when combined", and combining restructures the chart's parent-child hierarchy rather than
 removing items. A combo is created either by combining chosen nodes or by a `parentId` in the
@@ -710,7 +710,7 @@ communities at each level are returned in a list. If `False`, only the community
 with the best modularity is returned." `community_edge_betweenness` (Girvan-Newman) returns "a
 `VertexDendrogram` object, initally cut at the maximum modularity or at the desired number of
 clusters". Two clusterings are compared by a score, `compare_communities` with variation of
-information, normalised mutual information, split-join distance or (adjusted) Rand index, not
+information, normalized mutual information, split-join distance or (adjusted) Rand index, not
 by matching cluster to cluster (practitioner knowledge; the page read does not list it).
 `induced_subgraph` "Returns a subgraph spanned by the given vertices" and `subgraph_edges` "a
 subgraph spanned by the given edges", the same two rules as NetworkX. `get_k_shortest_paths`
@@ -796,7 +796,7 @@ was not read in detail.
    unique values, Graphistry categorical), map a numeric range to a visual range (Cytoscape
    continuous, Gephi ranking, Bloom range, `mapData`, Graphistry continuous). Plus a default
    when no mapping applies. The names differ; the three kinds do not.
-6. **Mapping is per visual channel.** Colour, size, label, shape, opacity, width are separate
+6. **Mapping is per visual channel.** Color, size, label, shape, opacity, width are separate
    channels, each with its own mapping (Cytoscape one mapping per property, Gephi per-channel
    buttons, Bloom "subsequent rules may still be applied if they affect other attributes").
 7. **Selection is a transient state, not an object.** Every tool has one current selection,
@@ -807,14 +807,14 @@ was not read in detail.
    Select buttons on one query; Cytoscape filters select by default and optionally hide;
    Graphistry turns a selection into a filter or exclusion. A query (predicate) is one thing;
    what to do with its matches (select, hide, dim, style) is a second choice.
-9. **Groups collapse and expand, and collapsing summarises edges.** Cytoscape metanode and
+9. **Groups collapse and expand, and collapsing summarizes edges.** Cytoscape metanode and
    meta-edges, yEd open/closed group nodes, KeyLines open/closed combos with combo links,
    Linkurious collapsed groups with a count badge, Tulip meta-nodes, igraph `cluster_graph()`.
    A collapsed group shows a member count; its edges to the outside are merged; numeric
    attributes aggregate (Cytoscape, Linkurious edge grouping: sum, average, min, max).
-10. **Neighbourhood by degree of separation.** Cytoscape first neighbours, Bloom expand,
+10. **Neighborhood by degree of separation.** Cytoscape first neighbors, Bloom expand,
     Kumu focus "out 2", Graphistry multi-hop expander. The analyst's term is ego network or
-    N-hop neighbourhood.
+    N-hop neighborhood.
 11. **Communities are a partition.** NetworkX defines it formally (pairwise disjoint sets whose
     union is all nodes); Gephi stores it as a class column; igraph as a membership vector.
     Overlapping results are a cover. A community is a group of the partition, and the
@@ -877,7 +877,7 @@ was not read in detail.
    - Hide: Gephi Filter, Cytoscape "show", Kumu, Graphistry exclusions, KeyLines time bar.
    - Dim: Bloom ("greyed out ... you cannot interact with them"), Linkurious "grey" option.
    - Remove from the working set: Bloom dismiss, Gephi export to workspace.
-   - Linkurious offers hide and grey as a choice on one filter, which is the most complete
+   - Linkurious offers hide and gray as a choice on one filter, which is the most complete
      answer.
 6. **Where does an algorithm result live, and does it persist?**
    - Always written to the data: Gephi, Cytoscape, NodeXL, Tulip.
@@ -919,8 +919,8 @@ was not read in detail.
     KeyLines; "connection" in Kumu. See section 19.
 11. **Style scope: per category or global.** Bloom and Linkurious start from a per-category
     (label/type) default and add rules; Cytoscape and Gephi start from one global default.
-    Graphs without a node-type column (most analyst datasets) favour the global default;
-    typed property graphs favour the category default.
+    Graphs without a node-type column (most analyst datasets) favor the global default;
+    typed property graphs favor the category default.
 
 ## 19. Terminology: consensus words and the conflicts
 
@@ -934,9 +934,9 @@ was not read in detail.
 | community result | **community**, **partition** (all), **cover** (overlapping) | modularity class (Gephi), cluster (igraph) | community for a member group, partition for the whole result |
 | collapsed group node | **group** (Cytoscape, yEd, Linkurious) | metanode (Cytoscape internals), meta-node (Tulip), combo (KeyLines), virtual node (Ogma) | not an object in graphty: a set or a community shown "collapsed" (section 20.25); "group" is not used as a UI noun because graphty-element already publishes `group` as the community field |
 | edges merged into a collapsed group | **meta-edge** (Cytoscape) | combo link (KeyLines), grouped edge (Linkurious) | meta-edge where a term is needed |
-| subset of elements | **subgraph** (NetworkX, Tulip), **collection** (Cytoscape.js) | selection, set (Cytoscape setsApp, Tableau), group, NodeList | subgraph for a computed, induced subset analysts would recognise; **set** for a kept, named subset a user defines, because every graph word for that collides (section 20.15) |
+| subset of elements | **subgraph** (NetworkX, Tulip), **collection** (Cytoscape.js) | selection, set (Cytoscape setsApp, Tableau), group, NodeList | subgraph for a computed, induced subset analysts would recognize; **set** for a kept, named subset a user defines, because every graph word for that collides (section 20.15) |
 | node-induced vs edge-induced | **induced subgraph**, **edge subgraph** (NetworkX) | - | keep the distinction; it is the answer to "which edges does a node set carry" |
-| N-hop surroundings | **neighbourhood**, **ego network**, first neighbours | focus (Kumu), expand (Bloom) | neighbourhood |
+| N-hop surroundings | **neighborhood**, **ego network**, first neighbors | focus (Kumu), expand (Bloom) | neighborhood |
 | numeric-to-visual mapping | continuous (Cytoscape), ranking (Gephi), range (Bloom) | scale, gradient | no consensus word; continuous is the most exact |
 | category-to-visual mapping | discrete (Cytoscape), partition (Gephi), unique values (Bloom), categorical (Graphistry) | categorize | no consensus word; categorical is the plainest |
 | value shown as-is | passthrough (Cytoscape) | data() | only Cytoscape names it |
@@ -1031,12 +1031,12 @@ parameters exists in these tools only as a hand-made convention, the renamed col
 
 **graphty-element today.** Every run has its own `RunId` (author-assignable through `as`), and
 results live at `results.<runId>.<field>`, so two runs already sit beside each other and each
-keeps its parameters. That is Bloom's behaviour, plus the parameters Bloom lacks.
+keeps its parameters. That is Bloom's behavior, plus the parameters Bloom lacks.
 
 **Recommendation.** Keep the run visible and named: it replaces the column-renaming habit that
 every overwrite tool forces on its users. Its values must reach styling, filters and the table
 as an ordinary attribute, so comparing two runs is a two-attribute chart (a scatter for
-metrics) plus, for two partitions, a similarity score (normalised mutual information or
+metrics) plus, for two partitions, a similarity score (normalized mutual information or
 variation of information). Do not design a per-element diff first; nothing in the survey has
 one. Tuning a parameter of an existing result revises it in place, with the earlier output kept in
 the history rather than as a second row; keeping both is an explicit "Run as new" with a name,
@@ -1048,7 +1048,7 @@ one is not.
 
 | Tool | Where communities are listed | Selectable from the list | Nameable | Identity across re-runs |
 |---|---|---|---|---|
-| Gephi | Appearance partition list: value, colour, share of nodes | no; build a Partition filter and tick values | no | none; the id is "a random number given to communities" |
+| Gephi | Appearance partition list: value, color, share of nodes | no; build a Partition filter and tick values | no | none; the id is "a random number given to communities" |
 | Cytoscape clusterMaker2 | a column; optionally one metanode per cluster, or a new clustered network | a metanode is a node, so yes when made | as a node | none documented |
 | Kumu | a results table "ordered by community size", listing members and their strength | yes | yes, "rename communities to descriptive names" | yes: a re-run "uses existing communities to seed the algorithm" unless the user throws them away |
 | igraph | a VertexClustering indexed by cluster, with `subgraphs()` | in code | no | none; compare by score |
@@ -1181,7 +1181,7 @@ density over every node beside a PageRank computed over only the visible ones.
 
 **Recommendation.** "The graph", unqualified, means the whole loaded graph, for `statistics()`
 and for an unscoped run; the visible graph is an explicit, named scope. Gephi's silent scoping to
-the visible graph is what produced a column mixing two computations (issue 636) and a colour scale
+the visible graph is what produced a column mixing two computations (issue 636) and a color scale
 that moved with the filter (issue 541, after which Gephi made its scale global by default); section
 20.31 has that evidence. Every graph-level number carries its scope in words, and while a filter is
 active the resting counts show both ("1,204 of 50,000 nodes visible"), which costs little for counts
@@ -1194,21 +1194,21 @@ record must match the computation (section 20.31, and `graph-analysis.md` sectio
 | Tool | Home of the command | From the object |
 |---|---|---|
 | Gephi | a dedicated Statistics panel beside the canvas, one entry per measure (practitioner knowledge for the layout) | no |
-| Cytoscape | Tools, Analyze Network; app algorithms under Apps (clusterMaker2) | only by making the subset a network and analysing that network |
+| Cytoscape | Tools, Analyze Network; app algorithms under Apps (clusterMaker2) | only by making the subset a network and analyzing that network |
 | Bloom | a GDS button in the upper-left corner of the Scene | Scene actions: Cypher run "from the context menu when at least one element is selected" |
 | Linkurious | a `{}` Queries button on the right toolbar | right-click a node, Queries, with suggestions for the selected node |
 | Kumu | a Metrics icon in the bottom-right corner of the map | no |
 
 **Finding.** Measures that describe the whole graph (centrality, communities, statistics) live
 in one dedicated place in every tool. Running from the object exists only for questions about
-an element -- its neighbourhood, a pattern starting from it -- in the two investigation tools
+an element -- its neighborhood, a pattern starting from it -- in the two investigation tools
 (Bloom Scene actions, Linkurious queries). No tool runs a centrality measure from a node's
 context menu.
 
 **Recommendation.** Split by what the measure describes. A measure of the graph or of a set runs
 from that object's inspector: the graph's inspector is the equivalent of Gephi's Statistics
-panel, attached to the thing it describes, and a set's inspector is Cytoscape's "analyse the
-subnetwork" without making a copy. A question about an element (its neighbours, paths from it)
+panel, attached to the thing it describes, and a set's inspector is Cytoscape's "analyze the
+subnetwork" without making a copy. A question about an element (its neighbors, paths from it)
 runs from the element, as in Bloom and Linkurious. "Add a measure from the object it will
 describe" therefore has precedent at both ends. A toolbar home is not unprecedented: Bloom's GDS
 button, Kumu's Metrics icon and Linkurious's `{}` button are always-visible buttons on the canvas
@@ -1256,7 +1256,7 @@ silent or "incorrect".
 **graphty-element today.** A `NodeId` is the id as loaded (`nodeIdPath`), stable across a
 re-import that keeps it. An `EdgeId` is ALWAYS a counter handed out by the store
 (`GraphStore.nextEdgeId()` in `graphty-element/src/data/GraphStore.ts`), even when `edgeIdPath`
-is set; the file's own edge id is used only to recognise a repeated record (section 20.19 quotes
+is set; the file's own edge id is used only to recognize a repeated record (section 20.19 quotes
 the 2.3.1 source). The counter is stable only while the
 same records load in the same order into a fresh store; reordered rows or a second file renumber
 every edge.
@@ -1272,7 +1272,7 @@ choose the key column, as Linkurious and Cytoscape do.
 
 ### 20.11 Whether users type a predicate language
 
-| Tool | Do end users type predicates? | Attribute comparison | Neighbourhood traversal | What is saved |
+| Tool | Do end users type predicates? | Attribute comparison | Neighborhood traversal | What is saved |
 |---|---|---|---|---|
 | Kumu | yes: the search bar after `=`, the Advanced Editor; the Basic Editor generates the same text | `[team-members > 20]`, `["element type" = "person"]` | `-->`, `<--`, `<-->`, `:from()`, `:to()` | the selector text, in the view |
 | Cytoscape desktop | only in the search bar (Lucene) | `name:hello`, `pvalue:[0.2 TO 0.4]` | none in text; the topology filter is a GUI | filters are GUI objects that can be exported |
@@ -1284,17 +1284,17 @@ choose the key column, as Linkurious and Cytoscape do.
 
 **Finding.** Where end users type, the syntax is a bracketed attribute comparison with bare
 literals (Kumu and Cytoscape.js share `[field > value]`) or `field:value` (Lucene; Graphistry's
-`point:degree`). Where a language reaches neighbours, traversal is part of it (Kumu's arrows,
+`point:degree`). Where a language reaches neighbors, traversal is part of it (Kumu's arrows,
 Cypher patterns). None uses JMESPath. JMESPath quotes number and boolean literals in backticks
 -- the project's own example of a style-layer selector is
 ``algorithmResults.graphty.dijkstra.isInPath == `true` `` (`CLAUDE.md`, Graph Styling) -- and has no
-traversal, so neighbourhoods need a separate construct in any case (the element's `Filter`
+traversal, so neighborhoods need a separate construct in any case (the element's `Filter`
 already has a `neighborhood` kind).
 
 **Recommendation.** Keep JMESPath as graphty-element's internal form of an attribute predicate,
 since it is published, but do not make it the language users type into Find, and do not make it
 the saved form of every derived set. Save derived sets as the structured specification (the
-`Filter` and `Scope` kinds: range, categories, degree, neighbourhood, and so on), with JMESPath
+`Filter` and `Scope` kinds: range, categories, degree, neighborhood, and so on), with JMESPath
 confined to the expression arm. The survey's saved forms are either a user-facing text (Kumu) or
 a structure built in a GUI (Gephi, Cytoscape, Linkurious); a structure survives a later change
 of typed syntax, and a Kumu-like typed Find can compile into it. That keeps the one-way door
@@ -1351,10 +1351,10 @@ narrow: the structure is published now, and the typed syntax stays reversible.
 10. **Does `edgeIdPath` set the `EdgeId`?** `graphty-today.md` section 7.15 says no, and the
     2.3.1 source confirms it (20.19); section 20.10 follows it.
 11. **The scale of an encoding under a filter.** Following Gephi's statistics and Kumu, the visible
-    graph could be the unqualified meaning everywhere, which would give a colour scale that moves
+    graph could be the unqualified meaning everywhere, which would give a color scale that moves
     with the filter; Gephi shipped exactly that for scales and reversed it (issue 541). Resolution (20.31): an encoding's automatic domain
     is the whole measured column, as graphty-element already computes it, with "fit to visible" as a
-    labelled option.
+    labeled option.
 12. **Re-runs: add beside or revise.** graphty-element's derived run ids make every re-run with new
     parameters a new run beside the old one; `design-method.md` section 3.6 makes a re-run of
     a held result a step in the history, so the earlier value is reachable without a second row.
@@ -1366,8 +1366,8 @@ narrow: the structure is published now, and the typed syntax stays reversible.
 14. **Filters per view or per session.** The container model of Bloom, Linkurious and Kumu gives
     each view its own visibility state; the planned "View Bookmarks" capability restores "active filter configuration at time of bookmark".
     Resolution (20.26): one working state for the session, which a view snapshots.
-15. **One catalogue for algorithms and layouts.** `figma.md` gives "the algorithm and layout
-    catalogue" one rail button by Figma's runnable-catalogue test; every graph tool surveyed gives
+15. **One catalog for algorithms and layouts.** `figma.md` gives "the algorithm and layout
+    catalog" one rail button by Figma's runnable-catalog test; every graph tool surveyed gives
     layout a home apart from statistics. Resolution (20.27): one button can stay, but layouts are
     their own section of it with their own verb, and the arrangement in force is a property row of
     the graph, not a result.
@@ -1382,7 +1382,7 @@ current visibility state that they edit? Where is the active filter shown, and h
 | Gephi | many queries in the Queries panel ("Returns all queries in the model") | exactly one: `getCurrentQuery()` "Returns the query currently active or `null` if none is active" | inside that one query, by nesting a filter as a "subfilter" or with the intersection, union and NOT operators | the Queries panel and the pressed Filter button; the canvas shows only what passes | toggle the Filter button off, or right-click the filter and "remove" |
 | Cytoscape | many saved filters, chosen from a drop-down | one: "The name of active filter appears in the drop-down box at the top of Select panel" | inside that one filter: "Dropping a filter on top of another filter will group the filters into a composite filter"; by default elements "need to satisfy the constraints of all your filters" | the drop-down; the result is the selection unless "show" is checked | deselect, or show all (practitioner knowledge; the page read does not say) |
 | Neo4j Bloom | "You can create as many filters as you like, they remain in the Filter drawer until you delete them" | several, each switched on or off in the drawer (the per-filter switch is practitioner knowledge) | all applied filters together | the canvas: "all filtered elements are greyed out in the Scene"; the drawer lists the filters | delete the filter; "Filters are not saved, so when the scene is cleared so is the filter panel" |
-| Linkurious | filter rules by category and property | several: an "Applied Filters" section lists them | all applied rules together | the Applied Filters list; a "Reset Filters" button appears "When at least one filter is applied"; filtered nodes drawn in light grey | "clicking on the 'x' button on the name of the filter", or Reset Filters for all |
+| Linkurious | filter rules by category and property | several: an "Applied Filters" section lists them | all applied rules together | the Applied Filters list; a "Reset Filters" button appears "When at least one filter is applied"; filtered nodes drawn in light gray | "clicking on the 'x' button on the name of the filter", or Reset Filters for all |
 | Kumu | filters are part of a view, written as selectors | one view at a time; a view's filter can hold several selectors | in the selector text | the canvas | switch or edit the view |
 
 **How often is more than one active?** No tool publishes usage figures. The interfaces answer
@@ -1415,7 +1415,7 @@ filters" command beside it, and list the rules where each can be switched off or
 panels? Where a hierarchy exists, how is a node in several subsets shown, and does nesting mean
 "computed within" or "contained in"?
 
-| Tool | Kept subsets | Algorithm results | Styles | Organising principle |
+| Tool | Kept subsets | Algorithm results | Styles | Organizing principle |
 |---|---|---|---|---|
 | Cytoscape | the Network panel: collections, and inside them networks and subnetworks, with "the network provenance history" showing a network that "originated as a subnetwork from another network"; groups appear as nodes inside a network | columns in the Table Panel and the Results Panel | the Style tab | one panel per kind; the network list is a provenance tree |
 | Gephi | none kept except as a workspace (tabs); filters in the Queries panel | columns in the Data Laboratory; values in the Statistics panel | the Appearance panel | one panel per kind of activity |
@@ -1533,7 +1533,7 @@ node sequence derived. Because nothing produces repeats, a separate published "w
 needed, and the resolution in section 20.12 item 1 stands with that refinement. Before k shortest
 paths or all paths ships, the path result must carry, per path, the ordered edge ids and a path
 index, and the per-node `order` field cannot be the only order (a node on three of five paths has
-three positions). The shortest-path run must mark only the edges it took and honour direction
+three positions). The shortest-path run must mark only the edges it took and honor direction
 when the graph is directed.
 
 ### 20.17 Community identity across re-runs, and seeding
@@ -1545,7 +1545,7 @@ similarity score? Do graphty's Louvain and Leiden accept a starting partition?
 **Evidence.**
 - **No surveyed tool promises identity.** Gephi's class numbers are "a random number given to
   communities"; clusterMaker2, Bloom and igraph renumber freely (section 20.3). igraph compares
-  two clusterings by a single score (`compare_communities`: variation of information, normalised
+  two clusterings by a single score (`compare_communities`: variation of information, normalized
   mutual information, split-join, Rand; practitioner knowledge for the list).
 - **Kumu gets stability by seeding, not matching**: "When you rerun community detection, we'll
   use the existing communities to seed the algorithm by default. This keeps the communities more
@@ -1578,7 +1578,7 @@ community's name forward automatically).
 **Recommendation.** Communities are addressed as run plus group value and are never matched
 across runs by the element. A kept community is a fixed set with its origin; after a re-run the
 set can report how its members are now distributed across the new partition. Comparing two whole
-partitions is a score (normalised mutual information). Seeding is an addition, not a breaking
+partitions is a score (normalized mutual information). Seeding is an addition, not a breaking
 change: add a starting-membership option to Leiden (igraph's precedent) and expose the
 semi-supervised label propagation when a workflow needs "start from the previous communities".
 Louvain stays unseeded, as in igraph and NetworkX.
@@ -1599,7 +1599,7 @@ knowledge; graph-io's readers, section 20.1, read no such field because none exi
 |---|---|---|
 | Name the parameter by its meaning, per call | NetworkX; igraph's Voronoi communities | closeness takes `distance`: "Use the specified edge attribute as the edge distance in shortest path calculations"; `community_voronoi` takes separate `lengths` and `weights`: "Voronoi partitioning will use edge lengths ... Weights are used when selecting generator points, as well as for computing modularity" |
 | Convert per run, chosen in the run dialog | Cytoscape clusterMaker2 | an "Edge weight conversion" setting: "None", "1/value", "LOG(value)", "-LOG(value)", "SCPS" |
-| Assume strength and invert automatically | tnet (Opsahl) | `distance_w` assumes "high values equal stronger connections" and inverts them, normalising "by the average weight in the network" |
+| Assume strength and invert automatically | tnet (Opsahl) | `distance_w` assumes "high values equal stronger connections" and inverts them, normalizing "by the average weight in the network" |
 | Leave path measures unweighted | Gephi | Graph Distance (betweenness, closeness, diameter) never reads a weight; Modularity has `useWeight` and reads weight as strength (source) |
 
 **graphty-element today** is the Gephi strategy plus a record. Each algorithm reads `weight` with
@@ -1620,7 +1620,7 @@ project file (`cost` or `strength` per weight attribute, absent by default), and
 meaning actually used, and any conversion, in every run, as the caveats already do. With the
 meaning declared, the element converts per algorithm (a strength becomes a cost as 1/w for path
 measures, as tnet and clusterMaker2 do) and says so; with it absent, algorithms keep today's
-fixed readings and path-based centralities stay unweighted, which is Gephi's behaviour and cannot
+fixed readings and path-based centralities stay unweighted, which is Gephi's behavior and cannot
 silently route through the weakest ties. Requiring the declaration would block every unweighted
 analysis on a question most users cannot answer at import; recording it per run is what makes a
 wrong reading visible afterwards. This agrees with `graph-analysis.md` section 6.6, which asks
@@ -1716,14 +1716,14 @@ moves, so a run over time should instead be a per-window run in Gephi's manner (
 an ordinary run should say in words that it describes the window it ran on ("PageRank, 2019 to
 2020"), keeping its values rather than marking itself stale on every step of playback.
 
-### 20.21 Where neighbourhood expansion lives
+### 20.21 Where neighborhood expansion lives
 
 **Question.** Where do Bloom, Linkurious, Cytoscape and KeyLines put "expand neighbours" and
 k-hop expansion, and is there a visible control, not only a gesture?
 
 | Tool | Double-click | Context menu | Inspector or panel | Toolbar and menu | Depth and direction |
 |---|---|---|---|---|---|
-| Neo4j Bloom | (not stated in the page read) | yes: "Expansion can be done from the right-click context menu of a node" | yes: "or from the Inspector when viewing a node's relationships or neighbors" | -- | an "Advanced Expansion dialog" for chosen relationship types or neighbouring node types |
+| Neo4j Bloom | (not stated in the page read) | yes: "Expansion can be done from the right-click context menu of a node" | yes: "or from the Inspector when viewing a node's relationships or neighbors" | -- | an "Advanced Expansion dialog" for chosen relationship types or neighboring node types |
 | Linkurious | yes: "Double-click a node" | yes: "Right-click a node then click the Expand button in the context menu" | yes: "click the Expand button in the property panel on the left" | -- | Selective Expand by category and edge type, "change the maximum number of retrieved neighbors" |
 | Cytoscape | -- | -- | -- | menu Select, Nodes, "First Neighbors of Selected Nodes", with a toolbar button (`IN_TOOL_BAR` true) and the shortcut Cmd-6 | Undirected, "Directed: Incoming", "Directed: Outgoing"; k hops by repeating, and the Node Adjacency Transformer's Apply "pressed repeatedly may cause the selection to continuously expand" |
 | Kumu | -- | -- | -- | Focus, "out 2" | depth as a number |
@@ -1739,9 +1739,9 @@ explicit option in Cytoscape and Bloom.
 **Recommendation.** "Expand neighbours" is a command on the selection, shown in the node
 inspector (with a depth and a direction) and in the context menu, with double-click and a
 keyboard shortcut as the fast routes to the same command. In graphty the data is already loaded,
-so the command selects (and, where a filter hides them, reveals) the neighbours rather than
-fetching them, which is Cytoscape's meaning; repeating it grows the neighbourhood by one hop. The
-element already has a `neighborhood` filter kind, so a kept neighbourhood can be a rule set.
+so the command selects (and, where a filter hides them, reveals) the neighbors rather than
+fetching them, which is Cytoscape's meaning; repeating it grows the neighborhood by one hop. The
+element already has a `neighborhood` filter kind, so a kept neighborhood can be a rule set.
 
 ### 20.22 Where data cleaning happens
 
@@ -1776,7 +1776,7 @@ is running on a subset reached?
 | Tool | Home of the run command | How a subset is chosen |
 |---|---|---|
 | Gephi | the Statistics panel (section 20.8) | by the active filter: statistics start from the visible graph |
-| Cytoscape Network Analyzer | Tools, Analyze Network | make a subnetwork and analyse that ("no longer supported directly") |
+| Cytoscape Network Analyzer | Tools, Analyze Network | make a subnetwork and analyze that ("no longer supported directly") |
 | Cytoscape clusterMaker2 | Apps, clusterMaker, then the algorithm | an option in the run dialog: "Cluster only selected nodes" or "Only use selected nodes/edges for cluster" |
 | Neo4j Bloom | "the GDS button in the upper-left corner of the Scene" | settings in the GDS drawer: "all elements in the Scene, or specify which node categories and/or relationship types" |
 | Kumu | the Metrics icon | by the view's filter |
@@ -1828,7 +1828,7 @@ Comparison need more than one graph per project, and is a comparison of two sess
 and per-node differences, yes: that is what the adoption note scopes and what the designed
 `createComparison` reports (`matched`, `unmatchedA`, `unmatchedB`, `delta(field)`). For the
 workflow's merge phase, no: Cytoscape's union, intersection and difference produce a NEW network
-that is then analysed and exported with "a membership column", and a comparison object does not
+that is then analyzed and exported with "a membership column", and a comparison object does not
 hold a third graph.
 
 **Recommendation.** Two one-way doors, both cheap to get right now:
@@ -1909,7 +1909,7 @@ Pathway Similarity Network": "Cluster the map, auto-label each cluster ... renam
 clusters into single theme nodes for the summary figure"; its decision point is "Which clusters to
 collapse and what to name them"; its pain points are "Collapsed theme nodes lose the ability to
 inspect member pathways unless expandable" and "Publication figures need labels hidden on nodes but
-visible on themes". "Cluster and Functionally Annotate a Molecular Network" names the neighbouring
+visible on themes". "Cluster and Functionally Annotate a Molecular Network" names the neighboring
 pain ("Dense clusters render as hairballs") but asks for per-cluster layout, not collapse. No
 investigation workflow asks for a hand-made group. What collapses in the one workflow that needs it
 is therefore the members of a NAMED PARTITION (a community run whose communities the reader has
@@ -1999,13 +1999,13 @@ three ways:
   setting) would lose the working-state uses.
 - **Style layer definitions stay in the session's one stack.** A view stores which layers are
   visible, not copies of them, so editing a layer changes it in every view that shows it (the
-  Cytoscape Style model), which is what a reader fixing a colour expects.
+  Cytoscape Style model), which is what a reader fixing a color expects.
 
 ### 20.27 Several arrangements of one graph, and the home of the layout command
 
 **Question.** Do tools let a user keep several named arrangements (layout results) of one graph and
 switch between them, and do workflows need more than one besides separate 2D and 3D positions? In
-Gephi, Cytoscape and Bloom, is the layout command in the same catalogue as statistics, and is the
+Gephi, Cytoscape and Bloom, is the layout command in the same catalog as statistics, and is the
 current layout shown as a property of the network, of a view, or not at all?
 
 | Tool | Several arrangements of one graph | Layout command's home, beside statistics? | Current layout shown as |
@@ -2043,7 +2043,7 @@ the positions on screen.
   without changing them.
 - **Layout has its own home, separate from measures.** A layout answers "where do I draw it", not
   "what is true of it", and every tool surveyed separates them. If graphty keeps one runnable
-  catalogue, layouts are a separate section of it with their own verb ("Arrange"), and the current
+  catalog, layouts are a separate section of it with their own verb ("Arrange"), and the current
   arrangement is shown as a property row of the graph ("Positions: ForceAtlas2, 3D, 12 nodes moved
   by hand").
 
@@ -2058,9 +2058,9 @@ command called?
 |---|---|---|---|---|
 | Tableau parameters | "all calculations that use that parameter are updated" | yes, live | no | none; a second parameter |
 | Observable | "code re-runs automatically when referenced variables change" | yes, live | no | none; a second variable |
-| Gephi Lite | a metric writes to an attribute name shown in an editable field before the run; if it exists, the panel warns "A node attribute named ... already exists. Its values will be overridden" (`src/locales/en.json`) | yes: size and colour bounds are recomputed from the attribute values on every change (`core/appearance/utils.ts`) | no | type a different attribute name |
-| Gephi | re-running overwrites the column (section 20.2) | no: Appearance is a one-shot write (section 18, item 1), so colours stay on the old values until Apply is pressed again | no; the statistics report is kept ONE per statistic class (`StatisticsModelImpl` stores a map keyed by class), so the old report is replaced too | duplicate the column first |
-| Cytoscape | re-running writes the same column names (section 20.2) | the mapping is live, so colours follow; but a continuous mapping's range is taken once: "The first time you open the editor, the Min and Max values are set by the range of the data column", and it moves only on Reset | no | clusterMaker2's "Cluster Attribute" name per run |
+| Gephi Lite | a metric writes to an attribute name shown in an editable field before the run; if it exists, the panel warns "A node attribute named ... already exists. Its values will be overridden" (`src/locales/en.json`) | yes: size and color bounds are recomputed from the attribute values on every change (`core/appearance/utils.ts`) | no | type a different attribute name |
+| Gephi | re-running overwrites the column (section 20.2) | no: Appearance is a one-shot write (section 18, item 1), so colors stay on the old values until Apply is pressed again | no; the statistics report is kept ONE per statistic class (`StatisticsModelImpl` stores a map keyed by class), so the old report is replaced too | duplicate the column first |
+| Cytoscape | re-running writes the same column names (section 20.2) | the mapping is live, so colors follow; but a continuous mapping's range is taken once: "The first time you open the editor, the Min and Max values are set by the range of the data column", and it moves only on Reset | no | clusterMaker2's "Cluster Attribute" name per run |
 | Neo4j Bloom | every run is a new property "contains the name of the algorithm and a number", which "cannot" be renamed | no: rules bound to the old property stay on it; "Applying your selected algorithm does not immediately change anything in the Scene" | yes, as a sibling property | automatic |
 | Kumu | "Each time you run the metric the previous values are overwritten" (section 20.2) | yes (decorations read the field) | no | rename the field first |
 
@@ -2073,7 +2073,7 @@ than by undo. The "keep both" command is never a command: it is always a NAME ty
 duplicated column), and Linkurious's "Duplicate" for whole visualizations.
 
 **graphty-element today** is Bloom's side. A run's id is "the algorithm key, the parameters once
-canonicalised, and the scope that was asked for" (`graphty-element/src/session/runs/runId.ts`), so
+canonicalized, and the scope that was asked for" (`graphty-element/src/session/runs/runId.ts`), so
 a tuned parameter mints a new id and a style layer bound to `results.<oldId>` keeps painting the old
 output. An author-assigned id (`as`) cannot be re-pointed at a changed computation: the element
 refuses with "The run id ... already names a different computation"
@@ -2093,7 +2093,7 @@ refuses with "The run id ... already names a different computation"
   the parameters as a property of the current revision; a digest of the parameters can stay as the
   cache key but must not be the key other objects reference. graphty-element needs a "revise this
   run" operation that keeps the id and re-executes with new parameters, which today's refusal rules
-  out; the derived-id rule is published behaviour, so that change is a one-way door for the owner.
+  out; the derived-id rule is published behavior, so that change is a one-way door for the owner.
 - **Adding beside answers "keep both", not "tune".** Making every changed parameter a new run
   (today's derived ids, and Bloom) leaves every encoding on the old output and grows a row per
   attempt; section 20.2 is written to match.
@@ -2115,7 +2115,7 @@ runs that then appear as columns?
 **graphty-element today** already treats them as intrinsic in two places and as a run in a third:
 the `Filter` kinds `degree` and `component` read them directly, and `data.statistics()` holds the
 degree range, mean degree and component sizes at rest, but a per-node degree value, and so a degree
-histogram or a degree colour, needs a `degree` run (`graphty-today.md` sections 3 and 7.8).
+histogram or a degree color, needs a `degree` run (`graphty-today.md` sections 3 and 7.8).
 
 **Finding.** The analysis libraries and Gephi's own appearance and filter code treat plain degree as
 a property of the graph that is always there; the GUI tools also offer it as a run because their
@@ -2154,7 +2154,7 @@ tools persist per-window results?
 - **KeyLines persists nothing per window.** "Each bar represents a period in time and is a cumulative
   count of all items within the range", computed by the time bar from the items' dates; "The time bar
   and chart are independent of one another", and its API offers `range()` and `getIds(dt1, dt2)`
-  but no serialisation of per-window values. Combos are what the chart format serialises.
+  but no serialization of per-window values. Combos are what the chart format serializes.
 - Bloom's Slicer and Linkurious's Timeline are range filters with playback (section 20.1); neither
   computes a measure per window in the pages read.
 - **The workflow**: "Network Evolution Analysis" asks for "Time-series of key network metrics",
@@ -2179,7 +2179,7 @@ so a series survives a change of display window without being re-keyed.
 ### 20.31 The scale of an encoding and the meaning of "statistics" while a filter hides part of the graph
 
 **Question.** In Gephi, Cytoscape and Bloom, when a whole-graph measure is painted while a filter
-hides part of the graph, is the colour and size scale set from the global range or the visible range,
+hides part of the graph, is the color and size scale set from the global range or the visible range,
 and what did users report after Gephi added a local/global switch (issue 541)? Is there evidence that
 analysts misread a whole-graph summary describing the loaded graph while a filter is active?
 
@@ -2196,13 +2196,13 @@ analysts misread a whole-graph summary describing the loaded graph while a filte
   calculated only on the visible graph instead of the complete graph", and the choice is saved per
   workspace in the project (`AppearanceModelPersistenceProvider` writes `<localscale ranking=...
   partition=...>`).
-- **Gephi Lite** always takes size and colour bounds from the full dataset's values
+- **Gephi Lite** always takes size and color bounds from the full dataset's values
   (`core/appearance/utils.ts` walks `nodeData`, not the filtered graph), recomputed on each change.
 - **Cytoscape** takes a continuous mapping's range from "the range of the data column you selected",
   once, with Reset to re-read it; hiding nodes does not change the column (practitioner knowledge),
   so the scale is global and fixed.
 - **KeyLines** draws the time bar's selection lines on "a different scale to the full data, to
-  prevent them appearing too small": a local scale, but drawn as a separate, labelled series.
+  prevent them appearing too small": a local scale, but drawn as a separate, labeled series.
 - **Bloom**: the legend and GDS pages read do not say where a range rule's bounds come from.
 - **graphty-element** already takes an automatic domain from the whole column, over the elements
   the result measured, not from the visible ones: "A domain of 'auto' ... are all properties of the
@@ -2219,7 +2219,7 @@ analysts misread a whole-graph summary describing the loaded graph while a filte
 **Finding.** The one tool that tried a visible-only scale changed its default to global after users
 could not compare views, kept visible as an opt-in, and saved the choice with the project. The newer
 tool (Gephi Lite) never offered visible-only. A scale that moves with a filter breaks comparison; a
-global scale under a filter leaves colours unchanged as the reader narrows, which is what makes
+global scale under a filter leaves colors unchanged as the reader narrows, which is what makes
 "did the important nodes disappear?" answerable.
 
 **Recommendation.**
@@ -2236,7 +2236,7 @@ global scale under a filter leaves colours unchanged as the reader narrows, whic
 - **Why not the visible graph, as Gephi's statistics and Kumu do.** Gephi's own reversal for
   scales, issue 636 for statistics, and the element's actual computation all point to the whole
   loaded graph; this agrees with `graph-analysis.md` section 6.14, and section 20.7 is written to
-  match. Both defaults are published element behaviour, so the owner confirms them.
+  match. Both defaults are published element behavior, so the owner confirms them.
 
 Sources for sections 20.25 to 20.31 (beyond those listed in the tool sections):
 - https://github.com/gephi/gephi/issues/541 (issue text and comments, read through the GitHub API)
@@ -2319,13 +2319,13 @@ against the evidence above.
    (sections 20.3 and 20.6).
 7. A saved, named path has no end-user precedent. It should be its own kind, an ordered edge
    sequence, with a family of paths kept as a list from one run (section 20.5). Its naming and
-   behaviour must be tested against the workflows rather than copied.
+   behavior must be tested against the workflows rather than copied.
 8. Notes split into notes about an element and notes on the picture; both are secondary.
 9. Time is an attribute of elements plus a range filter with playback; it is not a new kind
    of object. An element's lifetime is a list of intervals, an instant being a zero-length
    one, tested against the window by overlap (section 20.1).
 10. Use the standard analyst vocabulary from section 19: node, edge, attribute, degree,
-    component, community, partition, neighbourhood, subgraph, filter, statistics, view,
+    component, community, partition, neighborhood, subgraph, filter, statistics, view,
     project.
 11. A saved view is a snapshot of the one working state (camera, view mode, visibility, visible
     layers, collapsed sets) that applying replaces, as an undoable step, with Update and Revert when
@@ -2356,7 +2356,7 @@ against the evidence above.
     (section 20.19).
 21. A run stores its scope as specified and as resolved; measures over time are per-window series
     rather than runs that go stale as the window moves (section 20.20).
-22. Neighbourhood expansion is a visible command on the selection (node inspector and context
+22. Neighborhood expansion is a visible command on the selection (node inspector and context
     menu, with depth and direction), with double-click and a shortcut as fast routes (section
     20.21).
 23. Cleaning lives in the table dock with the canvas visible; row commands are selection commands
@@ -2379,7 +2379,7 @@ against the evidence above.
 30. A temporal result stores its structured recipe and its values keyed by window start; graph-level
     series always, per-node series only for measures that hold their value (section 20.30).
 31. An encoding's automatic domain is global (the whole measured column), with "fit to visible" as a
-    labelled per-layer option; `statistics()` and an unscoped run mean the whole loaded graph, and the
+    labeled per-layer option; `statistics()` and an unscoped run mean the whole loaded graph, and the
     visible graph is a named scope (section 20.31).
 
 ## Follow-up: what scope statistics are computed over in Gephi and Cytoscape
@@ -2393,8 +2393,8 @@ has the wider survey).
 |---|---|---|
 | How a restriction is made | a filter query in the Filters panel; its Filter button constrains the visible graph, its Select button only marks matches | a selection (from a filter or by hand), then File, New Network, From Selected Nodes, All Edges (the induced subgraph) or ..., Selected Edges |
 | What the restriction is | a view of the same workspace: the full graph is still loaded, the filter decides what is "visible" | a new network, a sibling in the same collection, with its own name, view and Results Panel |
-| What statistics compute over | the visible graph: `Degree.java` starts `Graph graph = graphModel.getGraphVisible();`, and Modularity and Graph Distance start from `getUndirectedGraphVisible()` / `getDirectedGraphVisible()` | the whole of the network it is run on; to analyse a subset "you can use the command File -> New Network -> From Selected Nodes, All Edges ... to create the desired subnetwork" |
-| Analysing a subset in place | automatic whenever a filter is on | removed: "Prior versions of this tool offered the option of analyzing all nodes or only a selected subset. This is no longer supported directly in the program." |
+| What statistics compute over | the visible graph: `Degree.java` starts `Graph graph = graphModel.getGraphVisible();`, and Modularity and Graph Distance start from `getUndirectedGraphVisible()` / `getDirectedGraphVisible()` | the whole of the network it is run on; to analyze a subset "you can use the command File -> New Network -> From Selected Nodes, All Edges ... to create the desired subnetwork" |
+| Analyzing a subset in place | automatic whenever a filter is on | removed: "Prior versions of this tool offered the option of analyzing all nodes or only a selected subset. This is no longer supported directly in the program." |
 | Where results land | columns on the one workspace table, overwritten by the next run whatever filter was on | columns on the subnetwork's rows |
 | What goes wrong | a column holds values from different filters with nothing recording which (issues cited in section 20.31) | the subset is a copy; changes to one network do not follow to the other |
 

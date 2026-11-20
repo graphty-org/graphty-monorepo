@@ -10,8 +10,8 @@
  * never becomes ready and no node is drawn, with no error from the element.
  *
  * The side-effect imports below put both shader languages' default shaders in the ShaderStore with
- * the element itself, and {@link useBundledStandardShaders} marks each StandardMaterial created in
- * the scene as already loaded from the moment it is constructed, so Babylon skips the `import()`.
+ * the element itself, and {@link useBundledStandardShaders} marks StandardMaterial's shaders as
+ * already loaded, so Babylon skips the `import()`.
  */
 
 import "@babylonjs/core/Shaders/default.vertex.js";
@@ -21,7 +21,6 @@ import "@babylonjs/core/ShadersWGSL/default.fragment.js";
 
 import { ShaderStore } from "@babylonjs/core/Engines/shaderStore.js";
 import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial.js";
-import type { Scene } from "@babylonjs/core/scene.js";
 
 import { pinShadersLoaded } from "./pinShadersLoaded";
 
@@ -37,11 +36,11 @@ function defaultShadersStored(): boolean {
 }
 
 /**
- * Make every StandardMaterial created in `scene` skip Babylon's lazy shader import.
- * @param scene - The scene whose materials are pinned.
+ * Make every StandardMaterial skip Babylon's lazy shader import (Babylon.js 9 keeps that per
+ * class, not per scene).
  */
-export function useBundledStandardShaders(scene: Scene): void {
+export function useBundledStandardShaders(): void {
     if (defaultShadersStored()) {
-        pinShadersLoaded(StandardMaterial, scene);
+        pinShadersLoaded(StandardMaterial);
     }
 }

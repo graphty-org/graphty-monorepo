@@ -55,7 +55,7 @@ export interface ValueGroup {
     readonly entries: Readonly<Partial<Record<Channel, string | number>>>;
     /**
      * True when the group is folded into the layer's Other group (`styles.setFoldBelow`, or a
-     * colour palette that ran out under `overflow: "other"`), so it paints what Other paints.
+     * color palette that ran out under `overflow: "other"`), so it paints what Other paints.
      * Folded groups come after the rest, largest first.
      * @since 3.27.0
      */
@@ -309,7 +309,7 @@ function bindingsBy(layer: Layer, by: Path): [Channel, ValueBinding][] {
 }
 
 /**
- * What one channel paints the groups folded into Other: the grey of the Other bucket for a color,
+ * What one channel paints the groups folded into Other: the gray of the Other bucket for a color,
  * else the one value the channel paints every group without an entry.
  * @param channel - The channel.
  * @param otherwise - The binding's `otherwise`, if it has one.

@@ -37,6 +37,7 @@ import type { BrowserCommand } from "vitest/node";
 import { withFeaturesOn } from "../tools/features-on.mjs";
 import { shardCacheDir } from "../tools/test-slots.mjs";
 import { withTestGuards } from "../tools/test-wait-guard.mjs";
+import { rawModelWorkers } from "../tools/vite-raw-model-workers.mjs";
 import { PRODUCTION, visualStoryTest } from "../visual-review/capture/story-test.mjs";
 import { withBabylonCompilers } from "../vitest.babylon-compilers.mjs";
 import { baseTest } from "../vitest.base.mjs";
@@ -203,6 +204,12 @@ const MODEL_CHUNK = [
     "@babylonjs/core/Meshes/mesh.vertexData.js",
     "@babylonjs/core/Meshes/instancedMesh.js",
     "@babylonjs/core/Instrumentation/sceneInstrumentation.js",
+    // The loaders babylonjs-models imports for one format the first time a model of it loads,
+    // and what it draws an FBX file's curves with.
+    "@babylonjs/loaders/FBX/fbxFileLoader.pure.js",
+    "@babylonjs/loaders/USD/usdFileLoader.pure.js",
+    "@babylonjs/core/Meshes/Builders/tubeBuilder.js",
+    "@babylonjs/core/Materials/standardMaterial.js",
 ];
 
 /**
@@ -396,6 +403,15 @@ const refusedPictures = new WeakMap<object, string[] | null>();
  */
 const emulateReducedMotion: BrowserCommand<[reduce: boolean]> = async (ctx, reduce) => {
     await ctx.page.emulateMedia({ reducedMotion: reduce ? "reduce" : "no-preference" });
+};
+
+/**
+ * Emulate the reader's color scheme (test/browser/color-scheme.test.ts). In the `browser` project's `commands`.
+ * @param ctx - the browser command context
+ * @param dark - true for `prefers-color-scheme: dark`, false for light
+ */
+const emulateColorScheme: BrowserCommand<[dark: boolean]> = async (ctx, dark) => {
+    await ctx.page.emulateMedia({ colorScheme: dark ? "dark" : "light" });
 };
 
 /**
@@ -718,6 +734,7 @@ const config = defineConfig({
         projects: [
             {
                 define: { ...define },
+                plugins: [rawModelWorkers()],
                 test: {
                     // Timing benchmarks, kept out of the coverage-collecting "default" project
                     // because instrumentation makes a stopwatch measure the instrumentation. Run
@@ -741,6 +758,7 @@ const config = defineConfig({
             },
             {
                 define: { ...define },
+                plugins: [rawModelWorkers()],
                 resolve: { alias: OWN_ENTRY_POINTS },
                 test: {
                     name: "default",
@@ -860,6 +878,7 @@ const config = defineConfig({
             },
             {
                 define: { ...define },
+                plugins: [rawModelWorkers()],
                 resolve: {
                     alias: {
                         // Mock @mlc-ai/web-llm in browser tests - the package is CDN-only
@@ -902,7 +921,7 @@ const config = defineConfig({
                         "test/browser/channel-paints.test.ts",
                         // Reads the shading on a node's surface, which nothing else in the
                         // package can see: the style model, the instance buffer and the mesh all
-                        // report the right colour while the lit half of the node is drawn flat.
+                        // report the right color while the lit half of the node is drawn flat.
                         // It is also the only thing that notices if a Babylon upgrade moves the
                         // line of the stock shader that src/meshes/InstanceColorShading.ts
                         // rewrites -- the rewrite then matches nothing, silently.
@@ -940,6 +959,7 @@ const config = defineConfig({
             },
             {
                 define: { ...define },
+                plugins: [rawModelWorkers()],
                 resolve: {
                     alias: {
                         // Mock @mlc-ai/web-llm in browser tests - the package is CDN-only
@@ -971,6 +991,7 @@ const config = defineConfig({
             },
             {
                 define: { ...define },
+                plugins: [rawModelWorkers()],
                 // Timing benchmarks on a real graph in the browser, kept out of "browser" for the
                 // reason "bench" is kept out of "default": nothing here runs under coverage, which
                 // would time the instrumentation. Like "bench", it gates no push: CI runs it in
@@ -1015,6 +1036,7 @@ const config = defineConfig({
             },
             {
                 define: { ...define },
+                plugins: [rawModelWorkers()],
                 // The env vars that cross into the page. The first is which flag set the run asked for.
                 // Naming it as a prefix is what puts it on `import.meta.env` in the browser --
                 // Vite copies every matching variable out of the process environment -- and
@@ -1076,7 +1098,12 @@ const config = defineConfig({
                     fileParallelism: false,
                     browser: {
                         enabled: true,
-                        commands: { ...mapTileCommands, ...samplePictureCommands, emulateReducedMotion },
+                        commands: {
+                            ...mapTileCommands,
+                            ...samplePictureCommands,
+                            emulateReducedMotion,
+                            emulateColorScheme,
+                        },
                         headless: true,
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
                         provider: playwright(),
@@ -1091,6 +1118,7 @@ const config = defineConfig({
                 // another flag set. A run crashes the GPU process several times: Chromium stops
                 // restarting it after a few, and after a second crash refuses the page an adapter.
                 define: { ...define },
+                plugins: [rawModelWorkers()],
                 envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU"],
                 cacheDir: SHARD_CACHE_DIR,
                 optimizeDeps: { include: ["iwer", ...PREBUNDLED], force: true },
@@ -1122,10 +1150,12 @@ const config = defineConfig({
             },
             {
                 // The `"batched"` render path against `"objects"`, on SwiftShader with both engines
-                // (design/rendering/row-renderer.md 7). Neither this nor "forced-batched" joins a pull
-                // request; the full run runs "forced-batched" in twelve shards (tools/ci-test-matrix.mjs), and
-                // .github/workflows/render-proof.yml dispatches the whole of both.
+                // (design/rendering/row-renderer.md 7). This never joins a pull request; "forced-batched" joins
+                // one only as the selected files of a change to a browser test or the render path, and the full
+                // run runs it in twelve shards (tools/ci-test-matrix.mjs). .github/workflows/render-proof.yml
+                // dispatches the whole of both.
                 define: { ...define },
+                plugins: [rawModelWorkers()],
                 envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU"],
                 resolve: {
                     alias: {
@@ -1164,6 +1194,7 @@ const config = defineConfig({
                 // The browser, interaction and XR suites with `"batched"` as the default path.
                 // test/forced-batched/skipped.json lists the files that inspect mesh structure.
                 define: { ...define },
+                plugins: [rawModelWorkers()],
                 envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU"],
                 resolve: {
                     alias: {
@@ -1192,6 +1223,7 @@ const config = defineConfig({
                             ...samplePictureCommands,
                             ...heldRequestCommands,
                             emulateReducedMotion,
+                            emulateColorScheme,
                         },
                         headless: true,
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
@@ -1209,6 +1241,7 @@ const config = defineConfig({
                 // "interactions" at full speed. A new test that reads the final picture of work the
                 // element splits across frames belongs in this list too.
                 define: { ...define },
+                plugins: [rawModelWorkers()],
                 envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU"],
                 cacheDir: SHARD_CACHE_DIR,
                 optimizeDeps: { include: ["iwer", ...PREBUNDLED], force: true },
@@ -1243,6 +1276,7 @@ const config = defineConfig({
                 // own dependencies are pre-bundled up front, as for "browser": discovered mid-run,
                 // Vite re-optimizes and reloads the page under the running test.
                 define: { ...define },
+                plugins: [rawModelWorkers()],
                 cacheDir: SHARD_CACHE_DIR,
                 optimizeDeps: { include: [...PREBUNDLED, ...ELEMENT_DEPENDENCIES], force: true },
                 resolve: { alias: OWN_ENTRY_POINTS },
@@ -1295,6 +1329,7 @@ const config = defineConfig({
                 // such a fetch has failed before. Chromium runs the same files through "browser",
                 // with coverage; v8 coverage cannot instrument WebKit, so this project runs without.
                 define: { ...define },
+                plugins: [rawModelWorkers()],
                 cacheDir: SHARD_CACHE_DIR,
                 optimizeDeps: { include: [...PREBUNDLED, ...ELEMENT_DEPENDENCIES], force: true },
                 resolve: { alias: OWN_ENTRY_POINTS },
@@ -1331,6 +1366,7 @@ const config = defineConfig({
                 // GRAPHTY_ORACLE_SLICE=<n>/<count> runs one slice of oracle-report.test.ts: CI's full run
                 // runs it as the graphty-element-fidelity-<n> shards (tools/ci-test-matrix.mjs).
                 define: { ...define },
+                plugins: [rawModelWorkers()],
                 envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU", "GRAPHTY_ORACLE_BASELINE", "GRAPHTY_ORACLE_SLICE"],
                 cacheDir: SHARD_CACHE_DIR,
                 optimizeDeps: { include: PREBUNDLED, force: true },
@@ -1356,6 +1392,7 @@ const config = defineConfig({
             },
             {
                 define: { ...define },
+                plugins: [rawModelWorkers()],
                 // Browser timing rows for the sets work (design/sets/sets-plan.md 1.4): rows that need
                 // the element's store, a DataManager or a run, which the Node runner in benchmarks/
                 // cannot reach. Never asserts, never in CI or the pre-push gate, and its suffix is one
@@ -1380,6 +1417,7 @@ const config = defineConfig({
             },
             {
                 define: { ...define },
+                plugins: [rawModelWorkers()],
                 cacheDir: SHARD_CACHE_DIR,
                 optimizeDeps: { include: ["iwer", ...PREBUNDLED], force: true },
                 test: {
@@ -1505,6 +1543,7 @@ const config = defineConfig({
             // spend money. CI sets the key in the environment.
             {
                 define: { ...define },
+                plugins: [rawModelWorkers()],
                 test: {
                     name: "llm-regression",
                     env: LLM_REGRESSION_ASKED ? loadEnv("", "..", LLM_REGRESSION_ENV) : {},

@@ -11,7 +11,7 @@
  * adapter fixture within the cross-adapter floors; under GRAPHTY_NOISE_FLOOR_WRITE=1 the run writes this adapter's
  * raw outputs, the twin's and the reference's as noise fixtures (contract 5.6).
  *
- * The positions recipe, the state initialisation and the params below are duplicated by test/browser/skeleton.test.ts
+ * The positions recipe, the state initialization and the params below are duplicated by test/browser/skeleton.test.ts
  * (P1-T7) so the SwiftShader / NVIDIA-Chromium fixtures compare against the same inputs; a drift between the two
  * copies shows up as a cross-adapter disagreement in test/noise-floor.test.ts.
  */

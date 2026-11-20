@@ -68,14 +68,14 @@ function sourceOf(picked: string, unit?: TimeUnit): TimeField | null {
 /**
  * The time card: Time field (and its unit for a number column), Step, Zone, Untimed and what results do
  * when the window moves; then Animation, with Mode.
+ * Drawn only inside the timeline dock, which is there only while a time field is designated.
+ * @param props - Component props
+ * @param props.session - the element's session.
  * @returns the card.
  */
-export function TimeCard(): React.JSX.Element | null {
-    const { session, store } = useWorkspace();
+export function TimeCard({ session }: Readonly<{ session: GraphSession }>): React.JSX.Element {
+    const { store } = useWorkspace();
     useSessionEvents(session, TIME_FIELD_EVENTS);
-    if (session === null) {
-        return null;
-    }
     const { time } = session;
     const attributes = session.data.attributes().filter((a) => a.origin !== "result");
     const { field, settings } = time;
@@ -131,7 +131,7 @@ export function TimeCard(): React.JSX.Element | null {
                                 }}
                             />
                         </FieldRow>
-                        {designated !== undefined && numeric ? (
+                        {numeric ? (
                             <FieldRow>
                                 <SegmentedControl
                                     label="Unit"
@@ -145,98 +145,90 @@ export function TimeCard(): React.JSX.Element | null {
                                 />
                             </FieldRow>
                         ) : null}
-                        {designated === undefined ? null : (
-                            <>
-                                <FieldRow>
-                                    <PanelField
-                                        label="Step"
-                                        kind="select"
-                                        width="fill"
-                                        data={[
-                                            { value: AUTO, label: autoLabel(time.current?.step) },
-                                            ...steps.map((s) => ({ value: String(s), label: stepLabel(s) })),
-                                        ]}
-                                        value={String(settings.step)}
-                                        onChange={(picked) => {
-                                            const text = String(picked);
-                                            let step: TimeStep | "auto" = text as TimeStep;
-                                            if (text === AUTO) {
-                                                step = "auto";
-                                            } else if (!Number.isNaN(Number(text))) {
-                                                step = Number(text);
-                                            }
-                                            retune(session, store, { step });
-                                        }}
-                                    />
-                                </FieldRow>
-                                {unit === "ordinal" || unit === "year" ? null : (
-                                    <FieldRow>
-                                        <SegmentedControl
-                                            label="Zone"
-                                            fullWidth
-                                            size="xs"
-                                            value={settings.timeZone}
-                                            data={[...zoneChoices(settings.timeZone)]}
-                                            onChange={(picked) => {
-                                                retune(session, store, { timeZone: picked });
-                                            }}
-                                        />
-                                    </FieldRow>
-                                )}
-                                {untimed > 0 ? (
-                                    <FieldRow>
-                                        <SegmentedControl
-                                            label="Untimed"
-                                            fullWidth
-                                            size="xs"
-                                            value={settings.missing}
-                                            data={UNTIMED_CHOICES.map((c) => ({ value: c.value, label: c.label }))}
-                                            onChange={(picked) => {
-                                                retune(session, store, {
-                                                    missing: picked === "outside" ? "outside" : "inside",
-                                                });
-                                            }}
-                                        />
-                                    </FieldRow>
-                                ) : null}
-                            </>
-                        )}
-                    </Stack>
-                </ControlSection>
-                {designated === undefined ? null : (
-                    <ControlSection label="Animation" collapsible={false} headingLevel={3} info={MODE_NOTE}>
-                        <FieldRow>
-                            <SegmentedControl
-                                label="Mode"
-                                fullWidth
-                                size="xs"
-                                value={settings.mode}
-                                data={MODE_CHOICES.map((c) => ({ value: c.value, label: c.label }))}
-                                onChange={(picked) => {
-                                    retune(session, store, {
-                                        mode: picked === "cumulative" ? "cumulative" : "sliding",
-                                    });
-                                }}
-                            />
-                        </FieldRow>
-                    </ControlSection>
-                )}
-                {designated === undefined ? null : (
-                    <ControlSection label="Algorithm results" collapsible={false} headingLevel={3} info={RESULTS_NOTE}>
                         <FieldRow>
                             <PanelField
-                                label={RESULTS_LABEL}
+                                label="Step"
                                 kind="select"
                                 width="fill"
-                                data={RESULTS_CHOICES.map((c) => ({ value: c.value, label: c.label }))}
-                                value={settings.results}
+                                data={[
+                                    { value: AUTO, label: autoLabel(time.current?.step) },
+                                    ...steps.map((s) => ({ value: String(s), label: stepLabel(s) })),
+                                ]}
+                                value={String(settings.step)}
                                 onChange={(picked) => {
-                                    retune(session, store, { results: picked as TimeResultsPolicy });
+                                    const text = String(picked);
+                                    let step: TimeStep | "auto" = text as TimeStep;
+                                    if (text === AUTO) {
+                                        step = "auto";
+                                    } else if (!Number.isNaN(Number(text))) {
+                                        step = Number(text);
+                                    }
+                                    retune(session, store, { step });
                                 }}
                             />
                         </FieldRow>
-                    </ControlSection>
-                )}
+                        {unit === "ordinal" || unit === "year" ? null : (
+                            <FieldRow>
+                                <SegmentedControl
+                                    label="Zone"
+                                    fullWidth
+                                    size="xs"
+                                    value={settings.timeZone}
+                                    data={[...zoneChoices(settings.timeZone)]}
+                                    onChange={(picked) => {
+                                        retune(session, store, { timeZone: picked });
+                                    }}
+                                />
+                            </FieldRow>
+                        )}
+                        {untimed > 0 ? (
+                            <FieldRow>
+                                <SegmentedControl
+                                    label="Untimed"
+                                    fullWidth
+                                    size="xs"
+                                    value={settings.missing}
+                                    data={UNTIMED_CHOICES.map((c) => ({ value: c.value, label: c.label }))}
+                                    onChange={(picked) => {
+                                        retune(session, store, {
+                                            missing: picked === "outside" ? "outside" : "inside",
+                                        });
+                                    }}
+                                />
+                            </FieldRow>
+                        ) : null}
+                    </Stack>
+                </ControlSection>
+                <ControlSection label="Animation" collapsible={false} headingLevel={3} info={MODE_NOTE}>
+                    <FieldRow>
+                        <SegmentedControl
+                            label="Mode"
+                            fullWidth
+                            size="xs"
+                            value={settings.mode}
+                            data={MODE_CHOICES.map((c) => ({ value: c.value, label: c.label }))}
+                            onChange={(picked) => {
+                                retune(session, store, {
+                                    mode: picked === "cumulative" ? "cumulative" : "sliding",
+                                });
+                            }}
+                        />
+                    </FieldRow>
+                </ControlSection>
+                <ControlSection label="Algorithm results" collapsible={false} headingLevel={3} info={RESULTS_NOTE}>
+                    <FieldRow>
+                        <PanelField
+                            label={RESULTS_LABEL}
+                            kind="select"
+                            width="fill"
+                            data={RESULTS_CHOICES.map((c) => ({ value: c.value, label: c.label }))}
+                            value={settings.results}
+                            onChange={(picked) => {
+                                retune(session, store, { results: picked as TimeResultsPolicy });
+                            }}
+                        />
+                    </FieldRow>
+                </ControlSection>
             </PanelLabelsProvider>
         </div>
     );

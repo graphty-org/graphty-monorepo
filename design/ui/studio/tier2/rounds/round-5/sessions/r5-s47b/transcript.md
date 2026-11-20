@@ -128,7 +128,7 @@ also shows as "1 note" when I click her. I also saved a copy to the laptop.
 
 **What confused me:**
 - The first time I pressed Add note it said "About PageRank", because the ranking happened to be
-  what the right side showed. I didn't want the club note tied to the ranking, so I cancelled and
+  what the right side showed. I didn't want the club note tied to the ranking, so I canceled and
   picked "Everything" first. Nothing told me up front that a note attaches to whatever is selected;
   I only caught it because I read the little "About ..." line.
 - After picking Everything it said "About Graph", not "About Everything" -- close enough, but two

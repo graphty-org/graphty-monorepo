@@ -17,6 +17,7 @@ import { NGraphEngine } from "../../src/layout/NGraphLayoutEngine";
 import { PlanarLayout } from "../../src/layout/PlanarLayoutEngine";
 import { RandomLayout } from "../../src/layout/RandomLayoutEngine";
 import type { Node } from "../../src/Node";
+import { fakeEdge, fakeNode } from "../helpers/layout-fakes";
 
 const IDS = ["a", "b", "c", "d", "e", "f"];
 
@@ -25,10 +26,8 @@ const IDS = ["a", "b", "c", "d", "e", "f"];
  * @returns the nodes and the edges between consecutive nodes
  */
 function pathGraph(): { nodes: Node[]; edges: Edge[] } {
-    const nodes = IDS.map((id, index) => ({ id, index }) as unknown as Node);
-    const edges = nodes
-        .slice(1)
-        .map((dst, i) => ({ srcId: nodes[i].id, dstId: dst.id, srcNode: nodes[i], dstNode: dst }) as unknown as Edge);
+    const nodes = IDS.map((id, index) => fakeNode(id, { index }));
+    const edges = nodes.slice(1).map((dst, i) => fakeEdge(nodes[i], dst));
     return { nodes, edges };
 }
 
@@ -137,9 +136,7 @@ describe("seeded placement", () => {
         // Math.cos and Math.sin leave their last bit to the engine, and the direction they gave fed every later step
         // of the simulation. With no repulsion and no edges, only the nodeGap separation moves the nodes, and the two
         // unpinned nodes sit exactly on the pinned one, so it takes the coincident branch.
-        const nodes = ["a", "b", "c"].map(
-            (id, index) => ({ id, index, layoutRadius: 1, roundRadius: 1 }) as unknown as Node,
-        );
+        const nodes = ["a", "b", "c"].map((id, index) => fakeNode(id, { index, layoutRadius: 1, roundRadius: 1 }));
         const layout = new NGraphEngine({ seed: 1, dim: 2, nodeGap: 1, gravity: 0 });
         nodes.forEach((n) => {
             layout.addNode(n);

@@ -105,6 +105,38 @@ async function openLayer(session: GraphSession, name: string, where?: UnionLeaf)
  */
 const editButton = (): Promise<HTMLElement> => screen.findByRole("button", { name: /^Style Nodes\.\.\./ });
 
+describe("the attribute finder takes the keys typed as it opens (#8943)", () => {
+    it("holds focus the moment it shows, and a word typed straight after the click lands in it", async () => {
+        const { session } = await openSample();
+        await openLayer(session, "Typed");
+        await userEvent.click(await editButton());
+        const ws = await opened();
+        // Where focus is at the first moment the finder's search shows: a key pressed then must
+        // land in it, not in whatever held focus before. Every finder is in the page, hidden, until
+        // its list opens.
+        const shown = (): HTMLElement | undefined =>
+            [...document.querySelectorAll<HTMLElement>('[aria-label="Find attributes, results"]')].find((each) =>
+                each.checkVisibility(),
+            );
+        assert.isUndefined(shown(), "no finder shows before the click");
+        let focusedWhenShown: boolean | undefined;
+        const watch = new MutationObserver(() => {
+            const search = shown();
+            if (search !== undefined && focusedWhenShown === undefined) {
+                focusedWhenShown = document.activeElement === search;
+            }
+        });
+        watch.observe(document.body, { childList: true, subtree: true, attributes: true });
+        await userEvent.click(within(ws).getByRole("button", { name: "Value" }));
+        await userEvent.keyboard("Degree");
+        watch.disconnect();
+        assert.isTrue(focusedWhenShown, "the search holds focus as soon as it shows");
+        const search = screen.getByRole("combobox", { name: "Find attributes, results" });
+        assert.strictEqual((search as HTMLInputElement).value, "Degree");
+        await userEvent.keyboard("{Escape}");
+    });
+});
+
 describe("plain words (check 45, fix 5)", () => {
     it("Degree says edges at a node and is found by links and connections; While says what it holds", async () => {
         const { session } = await openSample();

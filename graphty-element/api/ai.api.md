@@ -45,6 +45,8 @@ import { LOSS } from '@graphty/graph-io';
 import { Matrix } from '@babylonjs/core/Maths/math.vector.js';
 import { Mesh } from '@babylonjs/core/Meshes/mesh.js';
 import { ModelFormat } from 'babylonjs-models/detect';
+import type { ModelLimits as ModelLimits_2 } from 'babylonjs-models/files';
+import type { ModelSummary } from 'babylonjs-models/files';
 import { NEO4J_LOSS } from '@graphty/graph-io';
 import { NodeId as NodeId_2 } from '@graphty/graph-format';
 import { NodeMask } from '@graphty/graph-format';
@@ -581,9 +583,7 @@ export type AiVoiceConversationMode = "turns" | "live";
 export interface AiVoiceEndEvent {
     code?: AiResultCode;
     params?: AiResultParams;
-    // (undocumented)
     reason: "user" | "timeout" | "error";
-    // (undocumented)
     type: "ai-voice-end";
 }
 
@@ -640,7 +640,6 @@ export interface AiVoiceStartEvent {
     code?: AiResultCode;
     mode?: AiVoiceConversationMode;
     params?: AiResultParams;
-    // (undocumented)
     type: "ai-voice-start";
 }
 
@@ -659,12 +658,9 @@ export interface AiVoiceSupportChangeEvent {
 
 // @public
 export interface AiVoiceTranscriptEvent {
-    // (undocumented)
     isFinal: boolean;
     pointing?: AiPointing;
-    // (undocumented)
     transcript: string;
-    // (undocumented)
     type: "ai-voice-transcript";
 }
 
@@ -720,9 +716,6 @@ export interface AttributeHistogramBin {
 
 // @public
 export const captureScreenshot: GraphCommand;
-
-// @public
-export const captureVideo: GraphCommand;
 
 // @public
 export const clearStyles: GraphCommand;

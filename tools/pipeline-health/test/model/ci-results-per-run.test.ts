@@ -58,7 +58,7 @@ describe("source.ci_results_per_run", () => {
             shardRun("7.1.test.graphty"),
             // Its story-test capture posts a row too, but is no test job: neither side counts it.
             shardRun("7.1.story-tests.graphty"),
-            // A test job that was skipped or cancelled posts nothing and is not expected to.
+            // A test job that was skipped or canceled posts nothing and is not expected to.
             job(14, { runId: 1, name: "Test (layout-3)", family: "layout", conclusion: "skipped" }),
             job(15, { runId: 1, name: "Test (layout-4)", family: "layout", conclusion: "cancelled" }),
         ];

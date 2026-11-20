@@ -34,7 +34,7 @@ and counted with this pass's fix-now rows, origin repeat.
 
 | Unit                | What                                                                                                                 | Rows                           | Class  | Origin                                                                    |
 | ------------------- | -------------------------------------------------------------------------------------------------------------------- | ------------------------------ | ------ | ------------------------------------------------------------------------- |
-| setup-history       | A study start keeps the setup's steps as undo history, so Undo after a cancelled card undoes the colleague's work    | T77A.p4.3, T77B.p4.2 (carried) | spoils | repeat (sent by pass 4, not built; T71 A and T71 B show it on f0a9a014cb) |
+| setup-history       | A study start keeps the setup's steps as undo history, so Undo after a canceled card undoes the colleague's work     | T77A.p4.3, T77B.p4.2 (carried) | spoils | repeat (sent by pass 4, not built; T71 A and T71 B show it on f0a9a014cb) |
 | table-after-history | After a history move (a new card's take-back, Undo), the node table keeps the rows of the filter as it was before it | T77B.p4.1 (carried)            | spoils | repeat (sent by pass 4, not built; the code is unchanged)                 |
 
 Totals over the fix-now rows: 3 (0 crashes, 0 blocks, 3 spoils); 0 regressions, 3 repeats, 0 new.

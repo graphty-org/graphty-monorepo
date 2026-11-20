@@ -33,6 +33,14 @@ const WAITS = [
     "timeout 1h while true; do :; done",
     "inotifywait -e close_write tmp/x.log",
     "timeout 590 inotifywait tmp",
+    // Quoted text and here-documents that a shell, eval, ssh or watch runs are still commands.
+    "bash -c 'sleep 300'",
+    'sh -c "while true; do sleep 5; done"',
+    "eval 'tail -f log'",
+    "ssh host 'sleep 120'",
+    "bash <<'EOF'\nsleep 300\nEOF",
+    'echo "$(sleep 60)"',
+    "git commit -m 'x' && sleep 300",
 ];
 
 describe("claude-no-foreground-wait", () => {
@@ -73,6 +81,19 @@ describe("claude-no-foreground-wait", () => {
             assert.equal(waitIn(bash(command)), null, command);
         }
         assert.equal(respond({ tool_name: "Read", tool_input: { file_path: "sleep 300" } }), "");
+    });
+
+    it("ignores waiting words inside quoted arguments and here-documents", () => {
+        for (const command of [
+            "git commit -m 'fix(steps): StepsWatch.end stops the watch\n\nwatch the log; sleep 300 then tail -f it'",
+            'git commit -m "while it runs, sleep 600 and gh run watch 12"',
+            "gh issue create --title 'wait hook' --body 'The hook refuses `sleep 300`, `tail -f log` and `watch -n 5 x`.'",
+            "git commit -F- <<'EOF'\nfix: wait\n\nwatch -n 5 x\nwhile true; do sleep 60; done\nEOF",
+            "git commit -m \"$(cat <<'EOF'\nfix: tail -f and sleep 300 (watch)\nEOF\n)\"",
+            'echo "it said \\"sleep 300\\" there" # sleep 600',
+        ]) {
+            assert.equal(waitIn(bash(command)), null, command);
+        }
     });
 
     it("allows malformed input silently", () => {

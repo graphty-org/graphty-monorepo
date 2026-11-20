@@ -56,7 +56,7 @@ export class MaterialHelper {
         mesh.rotation.x = Math.PI / 2;
 
         // Mark as 2D for later identification
-        mesh.metadata = mesh.metadata ?? {};
+        mesh.metadata ??= {};
         mesh.metadata.is2D = true;
     }
 

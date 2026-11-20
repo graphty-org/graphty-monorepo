@@ -405,7 +405,7 @@ export function PathForm({ session, descriptor, onBack, onClose, onRun }: Readon
                 </Group>
                 {field("source")}
                 {field("target")}
-                {directed && followOption !== undefined && (
+                {directed && (
                     <Input.Wrapper label="Follow" labelElement="div" labelProps={{ id: followLabel }}>
                         <SegmentedControl
                             aria-labelledby={followLabel}

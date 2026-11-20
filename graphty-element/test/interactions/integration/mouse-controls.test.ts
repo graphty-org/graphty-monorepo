@@ -87,7 +87,7 @@ describe("the wheel in 3D", () => {
         const element = await mounted("3d");
         const center = { x: WIDTH / 2, y: HEIGHT / 2 };
         const distance = (): number => element.getCameraState().cameraDistance ?? Number.NaN;
-        // Whether each real wheel event reaching the page was cancelled, read once it is handled.
+        // Whether each real wheel event reaching the page was canceled, read once it is handled.
         const cancelled: boolean[] = [];
         const onWheel = (event: WheelEvent): void => {
             cancelled.push(event.defaultPrevented);

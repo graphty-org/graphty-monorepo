@@ -11,7 +11,7 @@
  *    with `arcBase != 0` and `accumulate = 1` (the 4.2 windowed pattern executed at the kernel level: the layout
  *    itself never windows, DEP-P4-B). Each window binds a COPY of its colIdx slice followed by POISON_TAIL words
  *    of INVALID_INDEX, so a read past the window (the `tier0-rebase-ignored` mutation reads `colIdx[a]` instead
- *    of `colIdx[a - P.arcBase]`) hits a neighbour index >= n whose `pos[j]` read is out of bounds; on the real
+ *    of `colIdx[a - P.arcBase]`) hits a neighbor index >= n whose `pos[j]` read is out of bounds; on the real
  *    kernel the tail is never read. A row inside one window folds the same arcs in the same order and adds the
  *    zero it accumulates onto, so it is BITWISE the one-dispatch result; a row split across windows folds each
  *    part from zero and adds the parts, a different association of the same terms, so it is held to the analytic

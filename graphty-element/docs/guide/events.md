@@ -57,7 +57,7 @@ when data arrives should skip those, or it starts the work again on every undo. 
 `"cancelled"`. Write the words you show from it.
 
 There is no edge-click event. Edge meshes are not pickable, so nothing could emit one; it returns,
-with a serialisable detail, when edge picking lands.
+with a serializable detail, when edge picking lands.
 
 ### The two load events count different things, and say so in their field names
 

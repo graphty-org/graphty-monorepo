@@ -4,7 +4,6 @@ import type { Channel } from "@graphty/graphty-element/schema";
 import { ActionIcon, Menu, Tooltip } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
-import { nodeModelsOn } from "../features";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { ControlLabel } from "./ControlLabel";
@@ -57,14 +56,13 @@ function isSet(ctx: RowContext, descriptor: ChannelDescriptor): boolean {
 }
 
 /**
- * Whether the Shape field holds a model in place of a built-in shape (node-models design 13.2),
- * with the experiment on.
+ * Whether the Shape field holds a model in place of a built-in shape (node-models design 13.2).
  * @param ctx - the row.
  * @param channel - the property.
  * @returns true for Shape on a row whose own layer names a model.
  */
 function modelSet(ctx: RowContext, channel: Channel): boolean {
-    if (channel !== "node.shape" || !nodeModelsOn(ctx.session)) {
+    if (channel !== "node.shape") {
         return false;
     }
     const model = lineIn(ctx, "node.model");
@@ -89,7 +87,7 @@ function optionsFor(descriptor: ChannelDescriptor): AddOption[] {
         return [{ key: "node.wireframe=true", label: channelWord(descriptor.channel) }];
     }
     if (descriptor.channel === "node.texture") {
-        // Only Fill with the node-models experiment on lists it, by the panel's word for it.
+        // Only Fill lists it, by the panel's word for it.
         return [{ key: descriptor.channel, label: PICTURE_WORD }];
     }
     return [{ key: descriptor.channel, label: channelWord(descriptor.channel) }];
@@ -338,7 +336,9 @@ function PropertySection({ ctx, spec, actions, itemActions }: Readonly<SectionPr
                                     addItem(key.slice(ITEM_KEY.length));
                                     return;
                                 }
-                                const [channel, pick] = key.split("=");
+                                const parts = key.split("=");
+                                const channel = parts[0];
+                                const pick = parts.at(1);
                                 const descriptor = unset.find((d) => d.channel === channel);
                                 if (descriptor !== undefined) {
                                     add(descriptor, ...(pick === undefined ? [] : [pick === "true"]));
@@ -677,6 +677,15 @@ function ShadersSection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
 }
 
 /**
+ * The clipboard as the browser offers it: absent outside a secure context, and without readText in
+ * older browsers, though the DOM types say it always has both.
+ * @returns the clipboard, if any.
+ */
+function clipboardOf(): Partial<Clipboard> | undefined {
+    return navigator.clipboard;
+}
+
+/**
  * Control+V (Command+V) with focus on a control of the Shaders section, not in a text field: opens
  * the code dialog with the clipboard's text, or with the unsent draft when the browser will not
  * read the clipboard.
@@ -690,7 +699,7 @@ function pasteKey(event: React.KeyboardEvent, open: (init: PasteInit) => void): 
         return;
     }
     event.preventDefault();
-    const read = navigator.clipboard?.readText?.();
+    const read = clipboardOf()?.readText?.();
     if (read === undefined) {
         open({});
         return;

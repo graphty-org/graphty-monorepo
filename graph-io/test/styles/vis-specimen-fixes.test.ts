@@ -263,6 +263,8 @@ describe("vis-network nodes", () => {
         // the dash and gap as drawn, in widths, a width longer and shorter with its caps; two dashes as their mean
         expect(values(r, "edge", "dashLength")).toEqual([6, 2.33333, 6, null, 1.1, null]);
         expect(values(r, "edge", "dashGap")).toEqual([4, 1, 1, null, 3, null]);
+        // several dash lengths are kept as drawn too
+        expect(values(r, "edge", "dashArray")).toEqual([null, null, "9 1 3 1", null, null, null]);
     });
 
     it("fades a node's colors by its opacity only where vis-network can: a hex or rgb() color", async () => {

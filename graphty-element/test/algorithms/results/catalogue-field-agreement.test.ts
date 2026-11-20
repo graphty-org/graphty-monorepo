@@ -1,7 +1,7 @@
 /**
- * @file The catalogue and the runtime publish the same field list, for every algorithm there is.
+ * @file The catalog and the runtime publish the same field list, for every algorithm there is.
  *
- * A consumer builds a form, a legend and a style layer from the catalogue's field descriptors
+ * A consumer builds a form, a legend and a style layer from the catalog's field descriptors
  * before anything has run, so the descriptor is a promise. Two ways it can be broken, and this
  * file fails on both:
  *
@@ -9,21 +9,22 @@
  *   consumer to build a control for a value that will never arrive. That is worse than saying
  *   nothing, because the gap only shows up on the reader's screen as an empty column.
  * - **Written but never advertised.** A run publishing a field the descriptor does not declare
- *   makes the catalogue an incomplete answer to "what will I get", so the field is reachable only
+ *   makes the catalog an incomplete answer to "what will I get", so the field is reachable only
  *   by someone who reads this package's source.
  *
  * Fields that depend on how the algorithm was asked to run -- whether breadth-first search was
  * given a target, whether shortest route was asked for every pair -- are covered by running the
  * algorithm both ways and holding the union of what the runs published against the descriptor.
- * That is why one catalogue key can have several entries below.
+ * That is why one catalog key can have several entries below.
  *
  * The last check is the one that keeps this file honest as the package grows: every key in the
- * catalogue must appear here, so a new algorithm cannot be added without its agreement being
+ * catalog must appear here, so a new algorithm cannot be added without its agreement being
  * checked.
  */
 
 import { assert, describe, it } from "vitest";
 
+import { AllPathsAlgorithm } from "../../../src/algorithms/AllPathsAlgorithm";
 import { AStarAlgorithm } from "../../../src/algorithms/AStarAlgorithm";
 import { BellmanFordAlgorithm } from "../../../src/algorithms/BellmanFordAlgorithm";
 import { BetweennessCentralityAlgorithm } from "../../../src/algorithms/BetweennessCentralityAlgorithm";
@@ -76,11 +77,11 @@ const FIXTURE = {
     ],
 };
 
-/** One way of running one algorithm, and the catalogue key its fields must agree with. */
+/** One way of running one algorithm, and the catalog key its fields must agree with. */
 interface Case {
     /** What to call this way of running it in a test name. */
     readonly name: string;
-    /** The catalogue key whose descriptor declares the fields. */
+    /** The catalog key whose descriptor declares the fields. */
     readonly key: string;
     /**
      * Build and run it, and say which fields it published.
@@ -102,7 +103,7 @@ function fieldKey(field: { name: string; kind: string; type: string }): string {
 /**
  * A case that runs an algorithm returning its own result.
  * @param name - What to call it.
- * @param key - The catalogue key.
+ * @param key - The catalog key.
  * @param make - Builds the algorithm.
  * @returns The case.
  */
@@ -122,7 +123,7 @@ function declared(name: string, key: string, make: (graph: Graph) => DeclaredAlg
 
 /**
  * A case that runs a metric, which publishes through the shared result pipeline.
- * @param name - What to call it, which is also its catalogue key.
+ * @param name - What to call it, which is also its catalog key.
  * @param make - Builds the metric.
  * @returns The case.
  */
@@ -174,13 +175,14 @@ const CASES: readonly Case[] = [
     declared("spectral clustering", "spectral-clustering", (g) => new SpectralClusteringAlgorithm(g)),
     declared("hierarchical clustering", "hierarchical-clustering", (g) => new HierarchicalClusteringAlgorithm(g)),
     declared("a-star", "astar", (g) => new AStarAlgorithm(g, { source: "A", target: "F" })),
+    declared("all paths", "all-paths", (g) => new AllPathsAlgorithm(g, { source: "A", target: "F" })),
     declared("edge betweenness", "edge-betweenness", (g) => new EdgeBetweennessCentralityAlgorithm(g)),
     declared("removal impact", "removal-impact", (g) => new RemovalImpactAlgorithm(g, { nodes: ["C"] })),
 ];
 
 /**
- * Every field published by every way of running one catalogue key.
- * @param key - The catalogue key.
+ * Every field published by every way of running one catalog key.
+ * @param key - The catalog key.
  * @returns The union, sorted.
  */
 async function publishedFields(key: string): Promise<string[]> {
@@ -198,8 +200,8 @@ async function publishedFields(key: string): Promise<string[]> {
 }
 
 /**
- * The fields one catalogue descriptor declares.
- * @param key - The catalogue key.
+ * The fields one catalog descriptor declares.
+ * @param key - The catalog key.
  * @returns The declared fields, sorted.
  */
 function declaredFields(key: string): string[] {

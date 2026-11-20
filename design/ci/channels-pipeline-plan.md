@@ -467,13 +467,13 @@ days against a 400 target, almost all of it pull request runs, so `pr-run-minute
 
 **cancel-superseded-master-builds** (#3855) -- done 2026-10-26. ci.yml's `concurrency` makes a newer
 push to master replace a waiting master build; a running one finishes (#3938). Pull request, dispatch,
-re-run and release.yml calls are unchanged. `master-guard.mjs` treats a master build cancelled for a
+re-run and release.yml calls are unchanged. `master-guard.mjs` treats a master build canceled for a
 newer one as superseded, not red, and `release-due.mjs` reads every merge since the last master build
-that finished, so a cancelled build's `Fixes #N` or `Refs #N` still starts its restart. Undo: revert.
+that finished, so a canceled build's `Fixes #N` or `Refs #N` still starts its restart. Undo: revert.
 
 **fewer-pushes-per-pr** (#3930) -- done 2026-10-26. On 2026-10-26 (07:00Z on, 244 pull request
-ci.yml runs) 101 runs were cancelled, 99 of them by a newer push to the same branch, a median 6
-minutes later, after running a median 8 minutes: about 1,800 cancelled run-minutes a day. Two causes:
+ci.yml runs) 101 runs were canceled, 99 of them by a newer push to the same branch, a median 6
+minutes later, after running a median 8 minutes: about 1,800 canceled run-minutes a day. Two causes:
 `.husky/post-commit` (`tools/branch-push.sh`) pushed every commit, and `tools/pr-open.sh` merged
 `origin/master` into a branch that was only behind. Now `branch-push.sh` does not push a branch with
 an open pull request (unsure, it pushes) and says so, and `pr-open.sh` merges master only on a

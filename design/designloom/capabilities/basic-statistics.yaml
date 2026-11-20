@@ -4,7 +4,8 @@ category: analysis
 description: "Compute fundamental graph metrics that provide an overview of the dataset: node count, edge count,
     density, average degree, and graph type classification. These metrics are the first thing analysts check when
     assessing a new dataset."
-status: planned
+status: implemented
+notes: "Ships: the element's statistics shown in graphty/src/workspace/inspector/GraphValues.tsx."
 algorithms: []
 used_by_workflows:
     - W01

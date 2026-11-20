@@ -14,6 +14,8 @@
  *   "test-slot-held" and "gpu-slot-held" the time a test run held its slot, with `what` (its package
  *   or shard family) and `exit` (its exit code, null when unknown): every local test run, waited or not.
  *   "test-slot-idle": a holder that stopped using the CPU gave its slot back early (tools/test-slots.mjs).
+ *   "browser-slot-stalled": a browser slot holder made no progress (no CPU, no output) from start to end;
+ *   waiter is the holder's checkout and command, with `slot`, `pid` and `ageMs` (tools/browser-slot-stall.mjs).
  * - start, end: ISO times; ms: end - start.
  * - waiter: who waited (its checkout and command); pid: its process.
  * - heldBy: who held what it waited for when the wait began, as each tool describes its holders.

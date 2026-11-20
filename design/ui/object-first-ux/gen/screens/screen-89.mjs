@@ -1,7 +1,7 @@
 // Screen 89: hovering a node. College football as screen 88, nothing
 // selected; the pointer rests on BrighamYoung (id 0). Its tooltip shows the
-// label and three values; its 12 neighbours and the edges to them are
-// highlighted, everything else dimmed, and the neighbours carry labels beyond
+// label and three values; its 12 neighbors and the edges to them are
+// highlighted, everything else dimmed, and the neighbors carry labels beyond
 // the label budget. The tree rows of the objects the node belongs to take
 // the hover fill; the selection is unchanged (nothing selected). The tooltip
 // is the kit's dark tooltip.

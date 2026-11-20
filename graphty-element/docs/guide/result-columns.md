@@ -239,6 +239,7 @@ const leiden = await element.run("leiden");
 const groups = element.session.results.compare(louvain, leiden);
 if (groups.kind === "partition") {
     console.log(groups.agreement); // 1 = the same grouping, whatever the groups are called
+    console.log(groups.adjustedMutualInformation); // the same scale, by shared information
     for (const { id, a, b, mostOfGroup } of groups.moves) {
         console.log(id, "left group", a, "for", b, "while most of its group went to", mostOfGroup);
     }
@@ -246,6 +247,10 @@ if (groups.kind === "partition") {
 ```
 
 `agreement` is the adjusted Rand index: 1 for the same grouping under any names, around 0 for chance.
+`adjustedMutualInformation` measures the same agreement by how much information the two groupings
+share, on the same scale (scikit-learn's default, arithmetic normalization). Both are `undefined`
+with fewer than two shared elements; `@graphty/algorithms` exports them as `partitionAgreement(a, b)`
+for two plain lists of group labels.
 `overlaps` lists every pair of groups sharing elements, the largest first, and `groups` counts the
 groups on each side.
 

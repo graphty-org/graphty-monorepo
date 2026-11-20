@@ -463,16 +463,6 @@ const settle = (n: BuiltNode): void => {
     }
     delete n.ends;
 };
-const retarget = (edges: Iterable<BuiltEdge>, from: string, to: string): void => {
-    for (const e of edges) {
-        if (e.from === from) {
-            e.from = to;
-        }
-        if (e.to === from) {
-            e.to = to;
-        }
-    }
-};
 
 type Lookup = (v: CellValue | undefined) => string[];
 const MISS_ORDER = ["left-out:empty-end", "left-out:fan-out", "left-out:unmatched"] as const;
@@ -556,6 +546,10 @@ class Builder {
     readonly nodes = new Map<string, BuiltNode>();
     readonly edges = new Map<string, BuiltEdge>();
     readonly aliases = new Map<string, string>();
+    // The edges ending at each node and the aliases naming each node, so a merge folding one node
+    // into another reads only what touches it rather than every edge and alias the build holds.
+    private readonly edgesAt = new Map<string, Set<BuiltEdge>>();
+    private readonly aliasesOf = new Map<string, Set<string>>();
     readonly edgeAliases = new Map<string, string>();
     readonly pairs = new Map<string, string>();
     readonly stats: StepStats[] = [];
@@ -1023,7 +1017,7 @@ class Builder {
             if ("space" in el) {
                 this.dropNode(el);
             } else {
-                this.edges.delete(el.id);
+                this.dropEdge(el.id);
             }
             return true;
         }
@@ -1076,7 +1070,7 @@ class Builder {
             e.values[c] = v;
             e.origin[c] = READER_SOURCE;
         }
-        this.edges.set(id, e);
+        this.putEdge(e);
         return true;
     }
 
@@ -1526,7 +1520,7 @@ class Builder {
             timeFrom: null,
             ends: a.ends,
         };
-        this.edges.set(id, e);
+        this.putEdge(e);
         if (!this.pairs.has(pairKey(e.weightMeaning))) {
             this.pairs.set(pairKey(e.weightMeaning), id);
         }
@@ -1656,27 +1650,73 @@ class Builder {
         n2.space = space;
         n2.key = key;
         this.nodes.set(id, n2);
-        this.aliases.set(old, id);
-        retarget(this.edges.values(), old, id);
+        this.alias(old, id);
+        this.retarget(old, id);
     }
 
     private dropNode(n: BuiltNode): void {
         this.nodes.delete(n.id);
-        for (const [id, e] of this.edges) {
-            if (e.from === n.id || e.to === n.id) {
-                this.edges.delete(id);
-            }
+        for (const e of [...(this.edgesAt.get(n.id) ?? [])]) {
+            this.dropEdge(e.id);
         }
+    }
+
+    private putEdge(e: BuiltEdge): void {
+        this.dropEdge(e.id);
+        this.edges.set(e.id, e);
+        for (const end of [e.from, e.to]) {
+            const at = this.edgesAt.get(end) ?? new Set<BuiltEdge>();
+            at.add(e);
+            this.edgesAt.set(end, at);
+        }
+    }
+
+    private dropEdge(id: string): void {
+        const e = this.edges.get(id);
+        if (e !== undefined) {
+            this.edges.delete(id);
+            this.edgesAt.get(e.from)?.delete(e);
+            this.edgesAt.get(e.to)?.delete(e);
+        }
+    }
+
+    // Every edge ending at `from` ends at `to` instead.
+    private retarget(from: string, to: string): void {
+        const moved = this.edgesAt.get(from);
+        if (moved === undefined) {
+            return;
+        }
+        this.edgesAt.delete(from);
+        const at = this.edgesAt.get(to) ?? new Set<BuiltEdge>();
+        for (const e of moved) {
+            if (e.from === from) {
+                e.from = to;
+            }
+            if (e.to === from) {
+                e.to = to;
+            }
+            at.add(e);
+        }
+        this.edgesAt.set(to, at);
+    }
+
+    private alias(id: string, to: string): void {
+        const before = this.aliases.get(id);
+        if (before !== undefined) {
+            this.aliasesOf.get(before)?.delete(id);
+        }
+        this.aliases.set(id, to);
+        const of = this.aliasesOf.get(to) ?? new Set<string>();
+        of.add(id);
+        this.aliasesOf.set(to, of);
     }
 
     // Node 2 folds into node 1 (3.4 join.merge): edges, sources, aliases, then values.
     private fold(n1: BuiltNode, n2: BuiltNode, at: WriteAt, rows: Row[]): void {
-        for (const e of this.edges.values()) {
-            if (e.from === n2.id || e.to === n2.id) {
-                this.endFoldedBy.set(e, at.st);
-            }
+        for (const e of this.edgesAt.get(n2.id) ?? []) {
+            this.endFoldedBy.set(e, at.st);
         }
-        retarget(this.edges.values(), n2.id, n1.id);
+        this.retarget(n2.id, n1.id);
         n2.loads.forEach((l) => {
             supply(n1, l);
         });
@@ -1698,14 +1738,12 @@ class Builder {
             this.mark(at.st, "typeDiffers", { element: n1.id, key: n2.key });
         }
         this.nodes.delete(n2.id);
-        this.aliases.set(n2.id, n1.id);
+        this.alias(n2.id, n1.id);
         for (const a of n2.aliases) {
-            this.aliases.set(nodeId(a.space, a.key), n1.id);
+            this.alias(nodeId(a.space, a.key), n1.id);
         }
-        for (const [k, v] of this.aliases) {
-            if (v === n2.id) {
-                this.aliases.set(k, n1.id);
-            }
+        for (const k of [...(this.aliasesOf.get(n2.id) ?? [])]) {
+            this.alias(k, n1.id);
         }
         this.foldValues(n1, n2, at, rows);
         if (n1.time === null && n2.time !== null) {

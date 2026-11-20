@@ -260,14 +260,22 @@ const PINNED_ROW_ID = "graphty:starting-pinned";
 const DRAFT_ROW_ID = "graphty:starting-draft";
 
 /**
- * The Draft row's look: a ring on the nodes a drawn source draft's commit would merge, and the edges
- * it would add drawn dashed.
+ * The Draft row's look: a ring on the nodes a drawn source draft's commit would merge, a dashed
+ * border on the nodes it would add, and the edges it would add drawn dashed. The literal part is
+ * `set`; what tells a merged node from a new one reads `graphty.draft` in `encode`.
  */
 export const STARTING_DRAFT_LOOK = {
-    "node.haloColor": "#7048E8",
-    "node.haloScale": 1.4,
-    "node.haloOpacity": 1,
-    "edge.style": "dash",
+    set: {
+        "node.haloColor": "#7048E8",
+        "node.haloScale": 1.4,
+        "node.borderColor": "#7048E8",
+        "node.borderStyle": "dashed",
+        "edge.style": "dash",
+    },
+    encode: {
+        "node.haloOpacity": { by: DRAFT_PATH, map: { merged: 1, new: 0 } },
+        "node.borderWidth": { by: DRAFT_PATH, map: { merged: 0, new: 0.1 } },
+    },
 } as const;
 
 /** One default row: its template id, where it is pinned, and what it is written with. */
@@ -401,13 +409,14 @@ export function startingRows(
                       spec: {
                           name: "Draft",
                           target: "both",
-                          // Read per element by each part: the node part rings merged and new
-                          // nodes, the edge part dashes new edges (no edge is merged).
+                          // Read per element by each part: the node part rings merged nodes and
+                          // dashes new ones, the edge part dashes new edges (no edge is merged).
                           selector: {
                               match: "expression",
                               where: `${DRAFT_PATH} == 'merged' || ${DRAFT_PATH} == 'new'`,
                           },
-                          set: STARTING_DRAFT_LOOK,
+                          set: STARTING_DRAFT_LOOK.set,
+                          encode: STARTING_DRAFT_LOOK.encode,
                           source: source(DRAFT_ROW_ID),
                       },
                   } as const,

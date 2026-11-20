@@ -1,0 +1,38 @@
+/* The Join card's live counts: three a row, the number over its words. */
+.ss-counts {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px;
+}
+
+.ss-count {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+/* The dock's Fields tab: the two profiles side by side, then the value list. */
+.ss-fields-tab {
+    padding: 4px 8px;
+}
+
+.ss-profile {
+    flex: 1;
+}
+
+/* Field 1 and Field 2, and each profile: a fieldset for its name, drawn as a plain stack. */
+.ss-field,
+.ss-profile {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+.ss-field > legend,
+.ss-profile > legend {
+    padding: 0;
+}

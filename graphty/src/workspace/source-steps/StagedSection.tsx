@@ -15,6 +15,8 @@ import { ariaKey, formatKey } from "../keys/keys";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { remap, removeStaged, startAdd } from "./actions";
 import { AddCard } from "./AddCard";
+import { type Choice, spaceChoices } from "./join";
+import { JoinButton } from "./JoinButton";
 import { ADD_KEY } from "./keys";
 import { distinctWords, fileWords, repeatsWords, replaceWords, ROWS_ARE, STAGED_WORDS } from "./words";
 
@@ -103,12 +105,6 @@ function ColumnSelect({
     );
 }
 
-/** A name offered by a picker: what the element calls it, and what the reader reads. */
-interface Choice {
-    readonly value: string;
-    readonly label: string;
-}
-
 /**
  * Names as choices that read as themselves: the types.
  * @param names - the names.
@@ -116,20 +112,6 @@ interface Choice {
  */
 function plain(names: readonly string[]): readonly Choice[] {
     return names.map((each) => ({ value: each, label: each }));
-}
-
-/**
- * The spaces as choices: a named space reads as its name, a source's own space as that source's
- * name (`ownedBy` on the element's space row).
- * @param session - the element's session.
- * @returns the choices.
- */
-function spaceChoices(session: GraphSession): readonly Choice[] {
-    const all = session.data.sources({ staged: true });
-    return session.data.spaces().map((row) => {
-        const owner = row.ownedBy === undefined ? undefined : all.find((each) => each.key === row.ownedBy);
-        return { value: row.space, label: owner === undefined ? row.space : sourceName(owner) };
-    });
 }
 
 /**
@@ -410,30 +392,42 @@ export function StagedSection({ source }: Readonly<{ source: LoadedSource }>): R
     const same =
         source.sameName === undefined ? undefined : session.data.sources().find((each) => each.key === source.sameName);
     const adding = card?.kind === "add" && card.source === source.key;
+    // While the Join card is open every staged section shows only its name (design 7.1).
+    const collapsed = card?.kind === "join";
+    const head = (
+        <div className="ss-staged-head">
+            <Text size="xs" fw={600} truncate className="ss-staged-name">
+                {name}
+            </Text>
+            <Menu position="bottom-end">
+                <Menu.Target>
+                    <ActionIcon variant="subtle" size="sm" aria-label={`${name} menu`}>
+                        <GLYPHS.more size={14} aria-hidden />
+                    </ActionIcon>
+                </Menu.Target>
+                <Menu.Dropdown>
+                    <Menu.Item
+                        leftSection={<GLYPHS.delete size={14} aria-hidden />}
+                        onClick={() => {
+                            void removeStaged(store, session, source.key);
+                        }}
+                    >
+                        {STAGED_WORDS.remove}
+                    </Menu.Item>
+                </Menu.Dropdown>
+            </Menu>
+        </div>
+    );
+    if (collapsed) {
+        return (
+            <section className="ss-staged" data-staged={source.key} aria-label={name}>
+                {head}
+            </section>
+        );
+    }
     return (
         <section className="ss-staged" data-staged={source.key} aria-label={name}>
-            <div className="ss-staged-head">
-                <Text size="xs" fw={600} truncate className="ss-staged-name">
-                    {name}
-                </Text>
-                <Menu position="bottom-end">
-                    <Menu.Target>
-                        <ActionIcon variant="subtle" size="sm" aria-label={`${name} menu`}>
-                            <GLYPHS.more size={14} aria-hidden />
-                        </ActionIcon>
-                    </Menu.Target>
-                    <Menu.Dropdown>
-                        <Menu.Item
-                            leftSection={<GLYPHS.delete size={14} aria-hidden />}
-                            onClick={() => {
-                                void removeStaged(store, session, source.key);
-                            }}
-                        >
-                            {STAGED_WORDS.remove}
-                        </Menu.Item>
-                    </Menu.Dropdown>
-                </Menu>
-            </div>
+            {head}
             <FactRow label={STAGED_WORDS.file} value={fileWords(facts.size, rows)} />
             <Text size="xs" id={rowsLabel}>
                 {STAGED_WORDS.rowsAre}
@@ -477,6 +471,7 @@ export function StagedSection({ source }: Readonly<{ source: LoadedSource }>): R
                 <AddCard session={session} />
             ) : (
                 <Group gap={6} className="ss-staged-acts">
+                    <JoinButton start={{ field2: source.key }} disabled={wanted !== null} />
                     <Button
                         size="compact-xs"
                         variant="default"

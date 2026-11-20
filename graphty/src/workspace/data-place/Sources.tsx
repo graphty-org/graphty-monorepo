@@ -3,8 +3,10 @@ import type { LoadedSource, SourceKey } from "@graphty/graphty-element/session";
 import React, { useEffect, useRef } from "react";
 
 import { sourceStepsOn } from "../features";
+import { JoinButton } from "../source-steps/JoinButton";
+import { JoinCard } from "../source-steps/JoinCard";
 import { StagedSection } from "../source-steps/StagedSection";
-import { useWorkspace } from "../state/WorkspaceContext";
+import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { StyleNotes } from "../styles/StyleNotes";
 import { AddSourceMenu } from "./AddSourceMenu";
 import { SourceRow } from "./SourceRow";
@@ -31,10 +33,12 @@ export function Sources({
     onSelect: (key: SourceKey) => void;
 }>): React.JSX.Element {
     const { session } = useWorkspace();
+    const card = useWorkspaceState((state) => state.sourceCard);
     const list = useRef<HTMLDivElement>(null);
     // Only the source-steps experiment stages a source: off, the list is empty and a staged source
     // a saved project holds is one of `sources`.
-    const staged = session === null || !sourceStepsOn(session) ? [] : session.data.staged();
+    const stepsOn = session !== null && sourceStepsOn(session);
+    const staged = stepsOn ? session.data.staged() : [];
     const known = useRef<ReadonlySet<SourceKey> | null>(null);
     useEffect(() => {
         const before = known.current;
@@ -50,7 +54,12 @@ export function Sources({
     return (
         <ControlSection
             label="Data sources"
-            actions={<AddSourceMenu />}
+            actions={
+                <>
+                    {stepsOn && staged.length + sources.length >= 2 ? <JoinButton /> : null}
+                    <AddSourceMenu />
+                </>
+            }
             empty={sources.length === 0 && staged.length === 0}
         >
             {sources.length === 0 ? null : (
@@ -75,6 +84,7 @@ export function Sources({
             {staged.map((source) => (
                 <StagedSection key={source.key} source={source} />
             ))}
+            {stepsOn && card?.kind === "join" ? <JoinCard session={session} card={card} /> : null}
             <StyleNotes notes={session?.data.lastImport()?.styles?.notes} />
         </ControlSection>
     );

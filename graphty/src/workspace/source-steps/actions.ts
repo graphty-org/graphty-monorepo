@@ -59,7 +59,13 @@ export function cancelCard(workspace: WorkspaceStore, session: GraphSession): vo
     if (draft?.open === true) {
         draft.dispose();
     }
-    workspace.set({ sourceCard: null });
+    const card = workspace.get().sourceCard;
+    // The Join card opened the dock on its Fields tab: closing it gives the dock back as it was.
+    workspace.set(
+        card?.kind === "join"
+            ? { sourceCard: null, dockOpen: card.dockWas.open, dockTab: card.dockWas.tab }
+            : { sourceCard: null },
+    );
 }
 
 /**

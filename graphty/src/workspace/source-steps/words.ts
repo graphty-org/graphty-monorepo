@@ -4,7 +4,12 @@
  * written here from what graphty-element reports.
  */
 
-import type { SourceOverlapQuestion, SourceTableMapping } from "@graphty/graphty-element/session";
+import type {
+    SourceCellValue,
+    SourceOverlapQuestion,
+    SourceProfileKind,
+    SourceTableMapping,
+} from "@graphty/graphty-element/session";
 
 import { sizeWords } from "../data-place/words";
 import { formatNumber } from "../inspector/words";
@@ -99,4 +104,85 @@ export function overlapCountWords(question: SourceOverlapQuestion): string {
  */
 export function replaceWords(name: string): string {
     return `Replace ${name}`;
+}
+
+/** The Join card's and the Fields tab's labels. */
+export const JOIN_WORDS = {
+    join: "Join",
+    field1: "Field 1",
+    field2: "Field 2",
+    type: "Type",
+    source: "Source",
+    field: "Field",
+    key: "Key",
+    swap: "Swap fields",
+    act: "Act",
+    edge: "Make an edge",
+    merge: "Merge 2 into 1",
+    edgeType: "Edge type",
+    direction: "Direction",
+    oneToTwo: "1->2",
+    twoToOne: "2->1",
+    ignoreCase: "Ignore case",
+    ignoreSpaces: "Ignore spaces",
+    cancel: "Cancel",
+    fields: "Fields",
+    values: "Values",
+    value: "Value",
+    in1: "In 1",
+    in2: "In 2",
+    kind: "Kind",
+    valid: "Valid",
+    empty: "Empty",
+    distinct: "Distinct",
+    samples: "Samples",
+    /** E_STEP_NEEDS_NODES: source 2 holds no node rows, so neither act applies. */
+    needsNodes: "No node rows",
+} as const;
+
+/** The six live counts of `data.matchCounts`, in the order the card shows them. */
+export const COUNT_WORDS = [
+    { id: "matched", label: "matched" },
+    { id: "only1", label: "only 1" },
+    { id: "only2", label: "only 2" },
+    { id: "repeated1", label: "repeat in 1" },
+    { id: "repeated2", label: "repeat in 2" },
+    { id: "textVersusNumber", label: "text vs number" },
+] as const;
+
+/** The value-overlap list's filters, as `data.matchValues` takes them. */
+export const OVERLAP_FILTERS = [
+    { value: "all", label: "All" },
+    { value: "matched", label: "Matched" },
+    { value: "only1", label: "Only 1" },
+    { value: "only2", label: "Only 2" },
+] as const;
+
+/** A profile's kind, as the reader reads it. */
+export const KIND_WORDS: Readonly<Record<SourceProfileKind, string>> = {
+    text: "text",
+    number: "number",
+    date: "date",
+    boolean: "yes / no",
+};
+
+/**
+ * A value as the card and the Fields tab show it.
+ * @param value - the cell.
+ * @returns its words; an empty cell reads as nothing.
+ */
+export function cellWords(value: SourceCellValue): string {
+    if (value === null) {
+        return "";
+    }
+    return typeof value === "number" ? formatNumber(value) : String(value);
+}
+
+/**
+ * The "+n" beside an Ignore switch: how many more keys it would match.
+ * @param more - the element's count, null while the switch is on.
+ * @returns such as "+1", or null while on.
+ */
+export function moreWords(more: number | null): string | null {
+    return more === null ? null : `+${formatNumber(more)}`;
 }

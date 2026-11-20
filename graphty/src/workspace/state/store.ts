@@ -79,6 +79,39 @@ export interface ReportPin {
     readonly note: string;
 }
 
+/**
+ * Field 1 of the Join card: the nodes in a space, matched on their key (`field` absent) or on a
+ * column of a source that supplied them.
+ */
+export interface JoinField1 {
+    readonly space: string;
+    readonly source?: SourceKey;
+    readonly field?: string;
+}
+
+/** Field 2 of the Join card: a source and, once picked, its field. */
+export interface JoinField2 {
+    readonly source: SourceKey;
+    readonly field?: string;
+}
+
+/** The Join card's picks (the source-steps experiment); nothing is written until it commits. */
+export interface JoinCardState {
+    readonly kind: "join";
+    readonly field1: JoinField1 | null;
+    readonly field2: JoinField2 | null;
+    /** Make an edge, Merge 2 into 1, or null until the reader picks one. */
+    readonly act: "edge" | "merge" | null;
+    /** Make an edge's edge type; empty for none. */
+    readonly edgeType: string;
+    /** Make an edge from 2 to 1 rather than 1 to 2. */
+    readonly reversed: boolean;
+    readonly ignoreCase: boolean;
+    readonly ignoreSpaces: boolean;
+    /** The table dock as it was when the card opened, given back when it closes. */
+    readonly dockWas: { readonly open: boolean; readonly tab: string };
+}
+
 /** The chrome state. */
 export interface WorkspaceState {
     /**
@@ -251,10 +284,11 @@ export interface WorkspaceState {
      */
     readonly ends: { readonly load: SourceKey; readonly source: string | null; readonly target: string | null } | null;
     /**
-     * The card open over a staged source (the source-steps experiment): Add, while it asks the
-     * key-overlap question. Its draft is the element's (`data.currentDraft()`).
+     * The card open over the sources (the source-steps experiment): Add, while it asks the
+     * key-overlap question, or Join, with the reader's picks. A draft it opens is the element's
+     * (`data.currentDraft()`).
      */
-    readonly sourceCard: { readonly kind: "add"; readonly source: SourceKey } | null;
+    readonly sourceCard: { readonly kind: "add"; readonly source: SourceKey } | JoinCardState | null;
     /**
      * Edges picked in a staged source's Rows are before both ends are (the source-steps
      * experiment): held here until both are, then written to the element. While it is set, that

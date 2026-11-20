@@ -16,7 +16,10 @@ import { isPanelEscape, isTypingTarget } from "../keys/keys";
 import { runName } from "../runWords";
 import { TABLE_EVENTS, useSessionEvents, VISIBILITY_EVENTS } from "../sessionEvents";
 import { formatCount, useNumberFormats } from "../settings/numberFormat";
-import type { WorkspaceStore } from "../state/store";
+import { FieldsTab } from "../source-steps/FieldsTab";
+import { FIELDS_TAB, joinCardOf } from "../source-steps/join";
+import { JOIN_WORDS } from "../source-steps/words";
+import type { JoinCardState, WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { panelsInView } from "../time/timeActions";
 import { useBoxSize } from "../useBoxSize";
@@ -694,6 +697,15 @@ function leaveGrid(event: React.KeyboardEvent): void {
 }
 
 /**
+ * The Fields tab's value while the Join card is open (the source-steps experiment), else none.
+ * @param join - the open Join card, or null.
+ * @returns the values.
+ */
+function fieldsTabValue(join: JoinCardState | null): string[] {
+    return join === null ? [] : [FIELDS_TAB];
+}
+
+/**
  * The table's tab values, in order: Nodes, Edges when there are edges, then one per group run.
  * @param hasEdges - whether the graph has edges
  * @param groups - the group runs
@@ -772,6 +784,65 @@ function ShowAllButton({ kind, onClear }: Readonly<{ kind: RecordKind; onClear: 
 }
 
 /**
+ * The dock on the Join card's Fields tab (the source-steps experiment): the same tab strip, Maximize
+ * and Close, and the Fields tab's profiles and value list in place of the table.
+ * @param props - Component props
+ * @param props.session - the element's session
+ * @param props.card - the open Join card
+ * @param props.tabList - the dock's tabs
+ * @param props.tabValues - every tab's value
+ * @param props.end - the strip's Maximize and Close
+ * @param props.maximized - whether the dock fills the canvas area
+ * @param props.height - the body's height in pixels
+ * @param props.bodyRef - measures the body
+ * @param props.onPick - takes the tab the reader picks
+ * @returns the dock's contents
+ */
+function FieldsDock({
+    session,
+    card,
+    tabList,
+    tabValues,
+    end,
+    maximized,
+    height,
+    bodyRef,
+    onPick,
+}: Readonly<{
+    session: GraphSession;
+    card: JoinCardState;
+    tabList: React.ReactNode;
+    tabValues: readonly string[];
+    end: React.ReactNode;
+    maximized: boolean;
+    height: number;
+    bodyRef: (element: HTMLElement | null) => void;
+    onPick: (value: string | null) => void;
+}>): React.JSX.Element {
+    return (
+        <div className="ws-table" data-maximized={maximized ? "" : undefined}>
+            <Tabs className="ws-table-main" value={FIELDS_TAB} onChange={onPick}>
+                <div className="ws-table-strip">
+                    {tabList}
+                    <span className="ws-table-spacer" />
+                    {end}
+                </div>
+                {tabValues
+                    .filter((value) => value !== FIELDS_TAB)
+                    .map((value) => (
+                        <Tabs.Panel key={value} value={value}>
+                            {null}
+                        </Tabs.Panel>
+                    ))}
+                <Tabs.Panel value={FIELDS_TAB} className="ws-table-body" ref={bodyRef}>
+                    <FieldsTab session={session} card={card} height={height} />
+                </Tabs.Panel>
+            </Tabs>
+        </div>
+    );
+}
+
+/**
  * The table dock (data prototype spec section 3.5): Nodes, Edges and one item tab per group run;
  * the count; the Columns chooser; the options menu with Export...; Maximize and Close. Every
  * column's configuration is in its header: type, role, warning and origin icons, the issue's
@@ -785,6 +856,8 @@ function ShowAllButton({ kind, onClear }: Readonly<{ kind: RecordKind; onClear: 
 export function TableDock(): React.JSX.Element {
     const { session, store } = useWorkspace();
     const tab = useWorkspaceState((state) => state.dockTab);
+    // The Join card's Fields tab (the source-steps experiment), while the card is open.
+    const join = useWorkspaceState((state) => joinCardOf(state.sourceCard));
     const maximized = useWorkspaceState((state) => state.dockMaximized);
     useSessionEvents(session, TABLE_EVENTS);
     // The reader's Number format respells the counts and the dock's chips.
@@ -947,33 +1020,59 @@ export function TableDock(): React.JSX.Element {
             : countOf(groupRun.groupCount, "group");
 
     // Every tab names a rendered tab panel (aria-controls); the showing one holds the table.
-    const tabValues = tabValuesOf(hasEdges, groups);
-    const table = (
-        <Tabs
-            className="ws-table-main"
-            value={active}
-            onChange={(value) => {
-                if (value !== null) {
-                    store.set({ dockTab: value });
+    const tabValues = [...tabValuesOf(hasEdges, groups), ...fieldsTabValue(join)];
+    const pickTab = (value: string | null): void => {
+        if (value !== null) {
+            store.set({ dockTab: value });
+        }
+    };
+    const tabList = (
+        <Tabs.List className="ws-table-tabs">
+            <Tabs.Tab ref={nodesTab} value="nodes">
+                Nodes
+            </Tabs.Tab>
+            {hasEdges ? (
+                <Tabs.Tab ref={edgesTab} value="edges">
+                    Edges
+                </Tabs.Tab>
+            ) : null}
+            {groups.map((run) => (
+                <Tabs.Tab key={run.id} value={`g:${run.id}`}>
+                    {run.label}
+                </Tabs.Tab>
+            ))}
+            {fieldsTabValue(join).map((value) => (
+                <Tabs.Tab key={value} value={value}>
+                    {JOIN_WORDS.fields}
+                </Tabs.Tab>
+            ))}
+        </Tabs.List>
+    );
+    const shownFields = tab === FIELDS_TAB ? join : null;
+    if (shownFields !== null) {
+        return (
+            <FieldsDock
+                session={session}
+                card={shownFields}
+                tabList={tabList}
+                tabValues={tabValues}
+                end={
+                    <>
+                        <MaximizeButton store={store} maximized={maximized} />
+                        {close}
+                    </>
                 }
-            }}
-        >
+                maximized={maximized}
+                height={tableHeight}
+                bodyRef={bodyRef}
+                onPick={pickTab}
+            />
+        );
+    }
+    const table = (
+        <Tabs className="ws-table-main" value={active} onChange={pickTab}>
             <div className="ws-table-strip">
-                <Tabs.List className="ws-table-tabs">
-                    <Tabs.Tab ref={nodesTab} value="nodes">
-                        Nodes
-                    </Tabs.Tab>
-                    {hasEdges ? (
-                        <Tabs.Tab ref={edgesTab} value="edges">
-                            Edges
-                        </Tabs.Tab>
-                    ) : null}
-                    {groups.map((run) => (
-                        <Tabs.Tab key={run.id} value={`g:${run.id}`}>
-                            {run.label}
-                        </Tabs.Tab>
-                    ))}
-                </Tabs.List>
+                {tabList}
                 <Text size="xs" c="dimmed" className="ws-table-count ws-table-ellipsis">
                     {count}
                 </Text>

@@ -1,7 +1,8 @@
 /**
  * With the source-steps experiment off, a project saved with a staged source (made while it was
  * on) opens on the REAL graphty-element and the Data place lists the source as an ordinary row, as
- * it did before staged sections existed, rather than failing to draw the panel.
+ * it did before staged sections existed, rather than failing to draw the panel. No Join control
+ * shows anywhere: not in the Sources header, nor in a node's inspector.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -52,5 +53,9 @@ describe("a staged source with the source-steps experiment off", () => {
         assert.isNotNull(within(list).getByRole("listitem", { name: "people.csv" }));
         assert.isNull(screen.queryByText("This panel could not be shown"));
         assert.isNull(screen.queryByRole("region", { name: "buildings.csv" }), "no staged section");
+        assert.isNull(screen.queryByRole("button", { name: /^Join/ }), "no Join with two sources");
+        await session?.selection.apply({ nodes: ["B1"] });
+        await screen.findByRole("button", { name: /^Copy id/ });
+        assert.isNull(screen.queryByRole("button", { name: /^Join/ }), "no Join in the inspector");
     });
 });

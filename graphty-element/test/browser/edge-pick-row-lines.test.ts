@@ -8,6 +8,7 @@
 
 import "../../src/graphty-element";
 
+import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 import { afterEach, assert, describe, it } from "vitest";
 
 import type { Graphty } from "../../index.js";
@@ -104,9 +105,13 @@ describe("picking a plain edge with a real pointer", () => {
         }
     }
 
-    // The lean line program, the shader-smoothed one, and lean while moving.
+    // The lean line program, the shader-smoothed one, and lean while moving, on each engine and view.
     for (const antialias of [false, "shader", "at-rest"] as const) {
-        cases.push({ path: "batched", viewMode: "2d", renderer: "webgl", antialias });
+        for (const renderer of ["webgl", "webgpu"] as const) {
+            for (const viewMode of ["2d", "3d"] as const) {
+                cases.push({ path: "batched", viewMode, renderer, antialias });
+            }
+        }
     }
 
     for (const { path, viewMode, renderer, antialias } of cases) {
@@ -194,9 +199,14 @@ describe("the work of a plain edge pick on batched", () => {
         }
     }
 
-    for (const renderer of ["webgl", "webgpu"] as const) {
+    for (const [renderer, viewMode] of [
+        ["webgl", "2d"],
+        ["webgpu", "2d"],
+        ["webgl", "3d"],
+        ["webgpu", "3d"],
+    ] as const) {
         it.skipIf(renderer === "webgpu" && ADAPTER === "")(
-            `measures only the lines near a hover and a press, and builds no Edge, on ${renderer}`,
+            `measures only the lines near a hover and a press, and builds no Edge, on ${renderer}, ${viewMode}`,
             async () => {
                 const element = document.createElement("graphty-element");
                 element.renderer = renderer;
@@ -210,7 +220,7 @@ describe("the work of a plain edge pick on batched", () => {
                     element.remove();
                 });
                 await element.updateComplete;
-                await element.setViewMode("2d");
+                await element.setViewMode(viewMode);
                 await operationQueueOf(element.graph).waitForCompletion();
                 const nodes = Array.from({ length: LINES * 2 }, (_, i) => {
                     const line = Math.floor(i / 2);
@@ -229,7 +239,7 @@ describe("the work of a plain edge pick on batched", () => {
                 }));
                 await element.session.data.addNodes(nodes);
                 await element.session.data.addEdges(edges);
-                await element.graph.setLayout("fixed", { dim: 2 });
+                await element.graph.setLayout("fixed", { dim: viewMode === "2d" ? 2 : 3 });
                 await operationQueueOf(element.graph).waitForCompletion();
                 await element.waitForStableFrame();
                 const manager = element.graph.getDataManager();
@@ -272,7 +282,11 @@ describe("the work of a plain edge pick on batched", () => {
                 await operationQueueOf(element.graph).waitForCompletion();
                 assert.deepEqual(element.session.selection.edges, [id], "the click selects it");
                 assert.isBelow(edgePickWork.rowLines - beforeClick, 20, "the click measures only lines near it");
-                assert.strictEqual(dataManagerInternals.edgesLive(manager), 1, "only the selected edge gets an Edge");
+                assert.isAtMost(
+                    dataManagerInternals.edgesLive(manager),
+                    1,
+                    "no Edge but at most the selected one is built",
+                );
 
                 // Clear the selection, rest the pointer on the line again, and pan the next line under it: the
                 // hover's read no longer answers, and the press finds the line that is there now.
@@ -286,6 +300,46 @@ describe("the work of a plain edge pick on batched", () => {
                 const rested = edgePickWork.rowLines;
                 assert.deepEqual(element.elementAt(mid), { kind: "edge", id }, "the line is found again");
                 assert.isBelow(edgePickWork.rowLines - rested, 10, "by the lines near the point");
+
+                // Move the rows instead: the line under the pointer goes into the gap beside it and the next line
+                // takes its place. The hover's read no longer answers, and the press finds the line there now.
+                const [nextId] = dataManagerInternals.incidentEdgeIds(manager, "n422");
+                const live = dataManagerInternals.edgesLive(manager);
+                const at = (i: number): { x: number; y: number; z: number } => nodes[i].position;
+                await element.session.positions.set([
+                    { id: "n420", ...at(420), x: at(420).x + 2.5 },
+                    { id: "n421", ...at(421), x: at(421).x + 2.5 },
+                    { id: "n422", ...at(420) },
+                    { id: "n423", ...at(421) },
+                ]);
+                await operationQueueOf(element.graph).waitForCompletion();
+                await element.waitForStableFrame();
+                const swapped = between(element, "n422", "n423");
+                assert.closeTo(swapped.x, mid.x, 1, "the next line is where the pointer rests");
+                assert.closeTo(swapped.y, mid.y, 1, "on both axes");
+                assert.deepEqual(
+                    element.elementAt(mid),
+                    { kind: "edge", id: nextId },
+                    "elementAt names the moved-in line",
+                );
+                assert.strictEqual(dataManagerInternals.edgesLive(manager), live, "and builds no Edge for it");
+                if (viewMode === "3d") {
+                    return;
+                }
+
+                // Back, then pan the camera so the next line lies under the pointer.
+                await element.session.positions.set([
+                    { id: "n420", ...at(420) },
+                    { id: "n421", ...at(421) },
+                    { id: "n422", ...at(422) },
+                    { id: "n423", ...at(423) },
+                ]);
+                await operationQueueOf(element.graph).waitForCompletion();
+                await element.waitForStableFrame();
+                before = reads();
+                await hover(element, mid);
+                await readBack(element, before);
+                assert.deepEqual(element.elementAt(mid), { kind: "edge", id }, "the first line is back");
                 const next = between(element, "n422", "n423");
                 const state = element.getCameraState();
                 const pan = state.pan ?? { x: 0, y: 0 };
@@ -300,8 +354,115 @@ describe("the work of a plain edge pick on batched", () => {
                 await element.waitForStableFrame();
                 const moved = between(element, "n422", "n423");
                 assert.closeTo(moved.x, mid.x, 1, "the next line is under the pointer now");
-                const [nextId] = dataManagerInternals.incidentEdgeIds(manager, "n422");
                 assert.deepEqual(element.elementAt(mid), { kind: "edge", id: nextId }, "elementAt names it");
+            },
+        );
+    }
+});
+
+describe("picking a curved edge, and a line while the layout moves it", () => {
+    const engines: { path: "batched" | "objects"; renderer: "webgl" | "webgpu" }[] = [];
+    for (const path of ["objects", "batched"] as const) {
+        for (const renderer of ["webgl", "webgpu"] as const) {
+            engines.push({ path, renderer });
+        }
+    }
+
+    for (const { path, renderer } of engines) {
+        it.skipIf(renderer === "webgpu" && ADAPTER === "")(
+            `hovers, finds and selects a curved edge on ${path}, ${renderer}`,
+            async () => {
+                const element = await plainEdges(path, "2d", renderer);
+                const { graph } = element;
+                await element.session.styles.add({
+                    name: "curved",
+                    target: "edge",
+                    selector: { match: "everything" },
+                    set: { "edge.curvature": true },
+                });
+                await operationQueueOf(graph).waitForCompletion();
+                await element.waitForStableFrame();
+                const manager = graph.getDataManager();
+                const [ab] = dataManagerInternals.incidentEdgeIds(manager, "a");
+                const edge = manager.edges.get(ab);
+                const curve = edge?.drawnCurve ?? null;
+                assert.isNotNull(curve, "the edge is drawn as a curve");
+                // The curve's middle, off the straight line between its nodes: graph-root's space to the world.
+                const root = graph.scene.getTransformNodeByName("graph-root")?.computeWorldMatrix(true);
+                const middle = (curve ?? [])[Math.floor((curve ?? []).length / 2)];
+                const world = root === undefined ? middle : Vector3.TransformCoordinates(middle, root);
+                const point = graph.worldToScreen(world);
+                const straight = between(element, "a", "b");
+                assert.isAbove(Math.hypot(point.x - straight.x, point.y - straight.y), 8, "the curve bows away");
+
+                const canvas = graph.scene.getEngine().getInputElement();
+                const target = graph.getEdgeIdTarget();
+                const readsBefore = target?.counts.reads ?? 0;
+                await hover(element, point);
+                if (path === "batched" && renderer === "webgpu") {
+                    while (
+                        canvas?.style.cursor !== "pointer" &&
+                        (target === null || target.counts.reads === readsBefore || target.counts.pending > 0)
+                    ) {
+                        await nextFrame();
+                    }
+                }
+
+                assert.strictEqual(canvas?.style.cursor, "pointer", "the cursor shows the curve");
+                assert.deepEqual(element.elementAt(point), { kind: "edge", id: ab }, "elementAt finds it");
+                assert.isNull(element.elementAt(straight), "nothing is on the straight line it no longer takes");
+                await click(element, point);
+                await operationQueueOf(graph).waitForCompletion();
+                assert.deepEqual(element.session.selection.edges, [ab], "the click selects it");
+            },
+        );
+
+        it.skipIf(renderer === "webgpu" && ADAPTER === "")(
+            `finds a plain line where a running layout has moved it on ${path}, ${renderer}`,
+            async () => {
+                const element = document.createElement("graphty-element");
+                element.renderer = renderer;
+                element.renderPath = path;
+                element.directed = false;
+                element.style.display = "block";
+                element.style.width = "500px";
+                element.style.height = "400px";
+                document.body.appendChild(element);
+                cleanups.push(() => {
+                    element.remove();
+                });
+                await element.updateComplete;
+                await element.setViewMode("2d");
+                await operationQueueOf(element.graph).waitForCompletion();
+                await element.session.data.addNodes([{ id: "a" }, { id: "b" }, { id: "c" }, { id: "d" }]);
+                await element.session.data.addEdges([{ src: "a", dst: "b" }]);
+                await element.graph.setLayout("ngraph", { dim: 2, seed: 7 });
+                const manager = element.graph.getDataManager();
+                const [ab] = dataManagerInternals.incidentEdgeIds(manager, "a");
+
+                // Each frame the layout runs, rest the pointer on the line where it is drawn now, then ask what
+                // is there: a press after the rows moved cannot use a read taken before they did.
+                let whileRunning = 0;
+                while (element.graph.isRunning()) {
+                    await nextFrame();
+                    if (!element.graph.isRunning()) {
+                        continue;
+                    }
+
+                    const mid = between(element, "a", "b");
+                    const a = element.nodeScreenPosition("a");
+                    if (a === undefined || Math.hypot(a.x - mid.x, a.y - mid.y) < 12) {
+                        continue;
+                    }
+
+                    assert.deepEqual(element.elementAt(mid), { kind: "edge", id: ab }, "elementAt finds the line");
+                    whileRunning++;
+                }
+
+                assert.isAbove(whileRunning, 0, "the line was asked for while the layout moved it");
+                if (path === "batched") {
+                    assert.strictEqual(dataManagerInternals.edgesLive(manager), 0, "no Edge is built");
+                }
             },
         );
     }

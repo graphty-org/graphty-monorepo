@@ -11,9 +11,10 @@ import { SECTIONS } from "../v2/things";
 describe("Style panel v2's sections", () => {
     for (const side of ["node", "edge"] as const) {
         it(`${side}: every part is a section and every item is in one thing`, () => {
+            // The owner removed Order and groups (E420, E422): its part is no section.
             assert.sameMembers(
                 SECTIONS[side].map((section) => section.part),
-                PARTS[side].map((part) => part.id),
+                PARTS[side].map((part) => part.id).filter((id) => id !== "order"),
             );
             for (const section of SECTIONS[side]) {
                 const part = PARTS[side].find((each) => each.id === section.part);

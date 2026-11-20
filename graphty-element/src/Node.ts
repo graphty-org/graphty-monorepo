@@ -33,7 +33,6 @@ import type { ElementPositions } from "./data/positions";
 import type { Graph } from "./Graph";
 import { layoutEngineInternals } from "./layout/LayoutEngine";
 import { GraphtyLogger } from "./logging/GraphtyLogger.js";
-import { dataManagerInternals } from "./managers/DataManager";
 import type { GraphContext } from "./managers/GraphContext";
 import { LabelDeclutter } from "./managers/LabelDeclutter";
 import type { GroupBox } from "./managers/LayoutManager";
@@ -3257,19 +3256,13 @@ export class Node implements ModelUser {
             return;
         }
 
-        // Built `Edge`s only: an edge stored with no `Edge` keeps no cached ends to invalidate.
-        for (const edge of dataManagerInternals.builtEdges(this.context.getDataManager()).values()) {
-            // By id: reading an end's `Node` would build one for a row drawn with none.
-            if (edge.srcId === this.id || edge.dstId === this.id) {
-                edge.invalidatePositionCache();
-            }
-        }
-
-        // Outside a style pass (a model or picture landing on a frame of its own) nothing else
-        // makes the frame loop visit the edges: it walks them only when a node moved, and this
-        // node did not. Without it the edges kept the ends measured against the placeholder shape
-        // whenever the model landed after the last walk, so one story drew two pictures (#4392).
-        this.context.getUpdateManager?.().forceEdgeWalk();
+        // Its own built edges measure their ends again and are placed: an edge stored with no `Edge` keeps no
+        // cached ends. Outside a style pass (a model or picture landing on a frame of its own) nothing else makes
+        // the frame loop visit them: it places edges only when a node moved, and this node did not. Without it the
+        // edges kept the ends measured against the placeholder shape whenever the model landed after the last walk,
+        // so one story drew two pictures (#4392). Only this node's: a walk of every edge here made putting one node
+        // back on a million-edge graph place every edge (issue #9164).
+        this.context.getUpdateManager?.().placeEdgesOfNode(this);
     }
 
     /**

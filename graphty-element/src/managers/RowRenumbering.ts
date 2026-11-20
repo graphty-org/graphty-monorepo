@@ -168,21 +168,21 @@ export class RowRenumbering {
     }
 
     /**
-     * Renumber an array indexed by row, as a freeze renumbered its rows.
-     * @param rows - The array, by old row.
-     * @param remap - Old row to new row, or INVALID_INDEX.
-     * @returns A new array, by new row.
+     * Renumber an array indexed by row in place, as an order-keeping freeze ({@link RowRenumbering.record} took it)
+     * renumbered its rows: the dropped rows are spliced out, which moves the rest natively, with no new array of
+     * the graph's length.
+     * @param rows - The array, by old row; by new row afterwards.
+     * @param remap - Old row to new row, or INVALID_INDEX, keeping order.
      */
-    static remapRows<T>(rows: readonly (T | undefined)[], remap: U32): (T | undefined)[] {
-        const next: (T | undefined)[] = [];
-        for (let row = 0; row < rows.length; row++) {
-            const each = rows[row];
-            const moved = remap[row] ?? INVALID_INDEX;
-            if (each !== undefined && moved !== INVALID_INDEX) {
-                next[moved] = each;
-            }
+    static closeUpRows(rows: unknown[], remap: U32): void {
+        if (rows.length > remap.length) {
+            rows.length = remap.length;
         }
 
-        return next;
+        for (let row = rows.length - 1; row >= 0; row--) {
+            if (remap[row] === INVALID_INDEX) {
+                rows.splice(row, 1);
+            }
+        }
     }
 }

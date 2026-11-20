@@ -31,9 +31,14 @@ const SPAN = 5;
  * Mount an element over a ring of `size` nodes, each joined to the next {@link SPAN}, placed where
  * their records say, under the starting rows, its paint applied and its frames at rest.
  * @param size - The node count.
+ * @param strict - Whether its session checks strict state (test/setup.ts). The check after each pass walks every
+ *     edge, which a consumer never runs, so an element whose walks are counted is mounted without it.
  * @returns The element.
  */
-async function mount(size: number): Promise<Graphty> {
+async function mount(size: number, strict = true): Promise<Graphty> {
+    const flag = globalThis as { __GRAPHTY_STRICT_STATE__?: boolean };
+    const wasStrict = flag.__GRAPHTY_STRICT_STATE__;
+    flag.__GRAPHTY_STRICT_STATE__ = strict && wasStrict === true;
     const element = document.createElement("graphty-element");
     element.layout = "fixed";
     element.style.width = "400px";
@@ -41,6 +46,7 @@ async function mount(size: number): Promise<Graphty> {
     element.style.display = "block";
     document.body.appendChild(element);
     await element.waitForStableFrame();
+    flag.__GRAPHTY_STRICT_STATE__ = wasStrict;
     await element.session.config.set({ startingRows: true });
     const ids = Array.from({ length: size }, (_, at) => `n${String(at)}`);
     const turn = (2 * Math.PI) / size;
@@ -82,9 +88,54 @@ interface Counted {
     readonly walked: number;
 }
 
-/** The data manager's built edges, which a walk of every edge iterates. */
-interface BuiltEdges {
-    built(): Iterator<Edge>;
+/** The ways a `Map` is walked; each is counted on the data manager's map of built edges. */
+const WALKS = ["values", "entries", "keys", "forEach", Symbol.iterator] as const;
+
+/**
+ * Count every walk of the built edges, by any caller: each entry of the data manager's edge map that a walk visits.
+ * @param edgeMap - The data manager's map of built `Edge`s.
+ * @returns How many were visited so far, and a function that stops counting.
+ */
+function countWalks(edgeMap: Map<unknown, unknown>): { visited: () => number; stop: () => void } {
+    let visited = 0;
+    const kept = WALKS.map((name) => [name, Map.prototype[name]] as const);
+    for (const [name, walk] of kept) {
+        Object.defineProperty(Map.prototype, name, {
+            configurable: true,
+            writable: true,
+            value: function (this: Map<unknown, unknown>, ...args: unknown[]) {
+                if (this !== edgeMap) {
+                    return (walk as (...a: unknown[]) => unknown).apply(this, args);
+                }
+
+                if (name === "forEach") {
+                    const [callback, thisArg] = args as [(...a: unknown[]) => void, unknown];
+                    walk.call(this, (...each: unknown[]) => {
+                        visited++;
+                        callback.apply(thisArg, each);
+                    });
+                    return undefined;
+                }
+
+                const each = (walk as () => Iterator<unknown>).call(this);
+                return (function* () {
+                    for (let next = each.next(); next.done !== true; next = each.next()) {
+                        visited++;
+                        yield next.value;
+                    }
+                })();
+            },
+        });
+    }
+
+    return {
+        visited: () => visited,
+        stop: () => {
+            for (const [name, walk] of kept) {
+                Object.defineProperty(Map.prototype, name, { configurable: true, writable: true, value: walk });
+            }
+        },
+    };
 }
 
 /**
@@ -94,16 +145,8 @@ interface BuiltEdges {
  * @returns The counts.
  */
 async function countedWork(element: Graphty, edit: () => Promise<unknown>): Promise<Counted> {
-    const { edgeMap } = element.graph.getDataManager() as unknown as { edgeMap: BuiltEdges };
-    const { built } = edgeMap;
-    let walked = 0;
-    edgeMap.built = function* (this: BuiltEdges) {
-        const each = built.call(this);
-        for (let next = each.next(); next.done !== true; next = each.next()) {
-            walked++;
-            yield next.value;
-        }
-    } as BuiltEdges["built"];
+    const { edgeMap } = element.graph.getDataManager() as unknown as { edgeMap: Map<unknown, unknown> };
+    const walks = countWalks(edgeMap);
     const placed = vi.spyOn(Edge.prototype, "update");
     const nodes = vi.spyOn(Node.prototype, "applySessionPaint");
     const rows = vi.spyOn(NodeBatches.prototype, "paintRow");
@@ -119,7 +162,7 @@ async function countedWork(element: Graphty, edit: () => Promise<unknown>): Prom
         await settle(element);
     } finally {
         Map.prototype.set = set;
-        edgeMap.built = built;
+        walks.stop();
     }
 
     const counted = {
@@ -129,7 +172,7 @@ async function countedWork(element: Graphty, edit: () => Promise<unknown>): Prom
             rows.mock.results.filter(({ value }) => value === true).length +
             edges.mock.calls.length,
         hashed,
-        walked,
+        walked: walks.visited(),
     };
     placed.mockRestore();
     nodes.mockRestore();
@@ -144,7 +187,7 @@ async function countedWork(element: Graphty, edit: () => Promise<unknown>): Prom
  * @returns The counts, by edit.
  */
 async function editsOn(size: number): Promise<Record<string, Counted>> {
-    const element = await mount(size);
+    const element = await mount(size, false);
     const { data } = element.session;
     const firstEdge = (): string => {
         const [record] = data.edgePage({ offset: 3, limit: 1 }).records;
@@ -222,6 +265,25 @@ describe("one data edit on a large graph", () => {
             } else {
                 assert.strictEqual(counted.hashed, before.hashed, `${edit} indexes nothing again`);
             }
+        }
+    });
+
+    it("places and repaints what the edit touched past the 10,000-node detail threshold too", async () => {
+        // Past `largeGraphThreshold` a node is drawn as the large graph draws it: putting a removed node back
+        // there built its shaded drawing, whose new size walked and placed every edge of the graph.
+        const work = await editsOn(12_000);
+        for (const [edit, counted] of Object.entries(work)) {
+            assert.isAtMost(
+                counted.placed,
+                (/^(undo|redo)/.test(edit) ? 6 : 2) * SPAN,
+                `${edit} places only the edges of its own pairs`,
+            );
+            assert.isAtMost(
+                counted.repainted,
+                /^(undo|redo)Remove/.test(edit) ? 3 * SPAN : 2,
+                `${edit} repaints only what it changed`,
+            );
+            assert.strictEqual(counted.walked, 0, `${edit} walks no built edge`);
         }
     });
 

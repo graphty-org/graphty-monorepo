@@ -13,7 +13,7 @@ import { type FramingSpot, OrbitCameraController } from "../cameras/OrbitCameraC
 import type { EdgeId, NodeId } from "../catalog/types";
 import type { NodeIdType } from "../config/GraphBehavior";
 import { WRITABLE_LANE, writableLane } from "../data/lane";
-import { Edge, pulledLines } from "../Edge";
+import { Edge, pulledEdgesOf, pulledLines } from "../Edge";
 import { drawnCurveInWorld } from "../edgeWorldCurve";
 import { StaticLayoutEngine } from "../layout/LayoutEngine";
 import type { LocationMapFrame } from "../layout/locationMap/place";
@@ -1406,17 +1406,7 @@ export class UpdateManager implements Manager {
      * @internal
      */
     adoptBuiltNode(node: Node): void {
-        // Placed by the frame that next places edges (`placeTouchedEdges` keeps them while a load holds the draw),
-        // and only them; a support point, which pushes on the others, still walks every edge (issue #9164).
-        for (const edge of this.edgesByNode().get(node.id) ?? []) {
-            edge.invalidatePositionCache();
-            this.edgesToPlace.push(edge);
-            if (this.hasSupportPoint(edge)) {
-                this.forceEdgeWalk();
-            }
-        }
-
-        this.sceneChanged = true;
+        this.placeEdgesOfNode(node);
 
         const masks = this.viewMasks ?? EMPTY_MASKS;
         const visibility = masks.visibility?.nodes() ?? null;
@@ -1815,8 +1805,7 @@ export class UpdateManager implements Manager {
     /** What a repaint looks up on each of its frames, kept until it ends; a version says when it went stale. */
     private paintIndex: {
         rows: { version: number; map: Map<number, Node> } | null;
-        incident: { version: number; map: Map<NodeIdType, Edge[]> } | null;
-    } = { rows: null, incident: null };
+    } = { rows: null };
 
     /** Release the token held while a repaint's batches remain, when one is held. */
     private paintBatchesDone(): void {
@@ -2413,7 +2402,7 @@ export class UpdateManager implements Manager {
             }
 
             this.forceEdgeWalk();
-            this.paintIndex = { rows: null, incident: null };
+            this.paintIndex = { rows: null };
         }
     }
 
@@ -2452,7 +2441,6 @@ export class UpdateManager implements Manager {
     private placeEdgesOfRows(rows: readonly number[]): boolean {
         // While a load holds the draw, `placeTouchedEdges` keeps them for the frame that releases it.
 
-        const incident = this.edgesByNode();
         for (const row of rows) {
             // By the row's id, built or not: a `Node` built this frame is not in the rows by index yet.
             const id = this.dataManager.nodeIdAtRow(row);
@@ -2460,7 +2448,7 @@ export class UpdateManager implements Manager {
                 return false;
             }
 
-            for (const edge of incident.get(id) ?? []) {
+            for (const edge of this.edgesAt(id)) {
                 edge.invalidatePositionCache();
                 this.edgesToPlace.push(edge);
             }
@@ -2477,11 +2465,10 @@ export class UpdateManager implements Manager {
      */
     private remeasureEdgesOf(resized: ReadonlySet<Node>): void {
         this.sceneChanged = true;
-        const incident = this.edgesByNode();
         const place = !this.dataManager.drawHeld;
 
         for (const node of resized) {
-            for (const edge of incident.get(node.id) ?? []) {
+            for (const edge of this.edgesAt(node.id)) {
                 edge.invalidatePositionCache();
                 if (place) {
                     this.edgesToPlace.push(edge);
@@ -2521,93 +2508,13 @@ export class UpdateManager implements Manager {
     }
 
     /**
-     * Each node's built edges, built once for a repaint rather than on each frame that resizes a
-     * node. Building an `Edge` moves `edgeVersion`, so a later build rebuilds the map.
-     * @returns The edges at each node, by its id.
+     * A node's built edges, from the data manager's index of them by end, which every build and teardown keeps: no
+     * edit lists every built edge again to find one node's (issue #9164).
+     * @param id - The node's id.
+     * @returns They.
      */
-    private edgesByNode(): ReadonlyMap<NodeIdType, Edge[]> {
-        const { edgeVersion } = this.dataManager;
-        const known = this.paintIndex.incident;
-        if (known !== null && known.version !== edgeVersion) {
-            this.followIncident(known);
-        }
-
-        if (this.paintIndex.incident?.version !== edgeVersion) {
-            const map = new Map<NodeIdType, Edge[]>();
-            const add = (node: NodeIdType, edge: Edge): void => {
-                const edges = map.get(node);
-
-                if (edges === undefined) {
-                    map.set(node, [edge]);
-                } else {
-                    edges.push(edge);
-                }
-            };
-
-            for (const edge of this.builtEdges()) {
-                // By id: reading an end's `Node` would build one for a row drawn with none.
-                add(edge.srcId, edge);
-                add(edge.dstId, edge);
-            }
-
-            this.paintIndex.incident = { version: edgeVersion, map };
-        }
-
-        return this.paintIndex.incident.map;
-    }
-
-    /**
-     * Bring the edges by node up to the edge set by listing again only the edges of the pairs whose edges came
-     * or went since (issue #9164). Leaves it stale when the edge set cannot say which pairs.
-     * @param incident - The map, listed at an earlier version.
-     * @param incident.version - That version.
-     * @param incident.map - The edges by node.
-     */
-    private followIncident(incident: { version: number; map: Map<NodeIdType, Edge[]> }): void {
-        const changed = this.dataManager.edgeSetChangesSince(incident.version);
-        // Asked while edges are being placed: never a freeze here.
-        const joined = changed === null ? null : this.dataManager.builtEdgesOfPairs(changed, false);
-        if (joined === null) {
-            return;
-        }
-
-        // Each end's list is filtered once, of the edges to every partner a change named, and then
-        // given those pairs' edges as they stand: a hub's list is read once a frame, not once a pair.
-        const partners = new Map<NodeIdType, Set<NodeIdType>>();
-        const note = (end: NodeIdType, other: NodeIdType): void => {
-            const known = partners.get(end);
-            if (known === undefined) {
-                partners.set(end, new Set([other]));
-            } else {
-                known.add(other);
-            }
-        };
-        for (const { a, b } of joined) {
-            note(a, b);
-            note(b, a);
-        }
-
-        const { map } = incident;
-        for (const [end, others] of partners) {
-            const kept = (map.get(end) ?? []).filter(
-                (edge) => !others.has(edge.srcId === end ? edge.dstId : edge.srcId),
-            );
-            map.set(end, kept);
-        }
-
-        for (const { a, b, edges } of joined) {
-            for (const end of a === b ? [a] : [a, b]) {
-                map.get(end)?.push(...edges);
-            }
-        }
-
-        for (const end of partners.keys()) {
-            if (map.get(end)?.length === 0) {
-                map.delete(end);
-            }
-        }
-
-        incident.version = this.dataManager.edgeVersion;
+    private edgesAt(id: NodeIdType): Iterable<Edge> {
+        return dataManagerInternals.builtEdgesAt(this.dataManager, id);
     }
 
     /**
@@ -4290,9 +4197,8 @@ export class UpdateManager implements Manager {
     }
 
     /**
-     * Tell every pulled line its nodes' rows after a freeze renumbered them ({@link rowsRenumbered}).
-     * ponytail: a walk of every edge per renumbering freeze (a removal); a list of the pulled edges if removals at a
-     * million edges need it.
+     * Tell every pulled line its nodes' rows after a freeze renumbered them ({@link rowsRenumbered}): the scene's
+     * pulled edges only ({@link pulledEdgesOf}), never every built edge.
      */
     private followRenumberedRows(): void {
         if (!this.pulledRowsMoved || this.dataManager.drawHeld) {
@@ -4300,10 +4206,8 @@ export class UpdateManager implements Manager {
         }
 
         this.pulledRowsMoved = false;
-        for (const edge of this.builtEdges()) {
-            if (edge.isPulled) {
-                edge.followRenumberedRows();
-            }
+        for (const edge of pulledEdgesOf(this.graphContext.getScene())) {
+            edge.followRenumberedRows();
         }
     }
 
@@ -4492,8 +4396,7 @@ export class UpdateManager implements Manager {
      *     nodes whose edges are to be visited when only those moved; false for none.
      */
     private edgesNeedWalking(): boolean | readonly Node[] {
-        const { edges } = this.layoutManager;
-        const edgeCount = Array.isArray(edges) ? edges.length : -1;
+        const edgeCount = this.layoutManager.layoutEngine?.edgeCount ?? 0;
         const { edgeVersion } = this.dataManager;
 
         if (this.edgeWalkForced) {
@@ -5096,6 +4999,26 @@ export class UpdateManager implements Manager {
             this.graphContext.getScene().unfreezeActiveMeshes();
             this.activeMeshesFrozen = false;
         }
+    }
+
+    /**
+     * Make a node's built edges measure their ends again and place them on the next frame that places edges, after
+     * its size or shape changed where it stands. Only its own edges: a support point, which pushes on the others,
+     * still walks every edge (issue #9164).
+     * @param node - The node.
+     * @internal
+     */
+    placeEdgesOfNode(node: Node): void {
+        // Placed by the frame that next places edges (`placeTouchedEdges` keeps them while a load holds the draw).
+        for (const edge of this.edgesAt(node.id)) {
+            edge.invalidatePositionCache();
+            this.edgesToPlace.push(edge);
+            if (this.hasSupportPoint(edge)) {
+                this.forceEdgeWalk();
+            }
+        }
+
+        this.sceneChanged = true;
     }
 
     /**

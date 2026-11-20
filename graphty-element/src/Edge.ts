@@ -138,6 +138,25 @@ const DEFAULT_ARC_HEIGHT = { arc: 0.25, "great-circle": 0.1 } as const;
  */
 export const pulledLines = { version: 0 };
 
+/** Each scene's edges whose line is pulled, so a renumbering visits only them (`UpdateManager.followRenumberedRows`). */
+const pulledByScene = new WeakMap<object, Set<Edge>>();
+
+/**
+ * The edges of a scene whose line is pulled ({@link Edge.isPulled}), kept as each line is pulled and let go.
+ * @param scene - The scene.
+ * @returns They: a live set.
+ * @internal
+ */
+export function pulledEdgesOf(scene: object): Set<Edge> {
+    let edges = pulledByScene.get(scene);
+    if (edges === undefined) {
+        edges = new Set();
+        pulledByScene.set(scene, edges);
+    }
+
+    return edges;
+}
+
 /** Style keys a pulled line can carry; any other set keeps the edge an object edge (`Edge.pullsLine`). */
 const PULLED_STYLE_KEYS = new Set(["line", "label", "arrowHead", "arrowTail", "band", "visible"]);
 
@@ -3235,6 +3254,7 @@ export class Edge {
         }
 
         pulledLines.version++;
+        pulledEdgesOf(this.context.getScene()).add(this);
         this.pulled = {
             batch,
             piece,
@@ -3503,6 +3523,7 @@ export class Edge {
 
             this.pulled = null;
             pulledLines.version++;
+            pulledEdgesOf(this.context.getScene()).delete(this);
             return;
         }
 

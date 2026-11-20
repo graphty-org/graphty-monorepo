@@ -683,6 +683,17 @@ export abstract class LayoutEngine {
     abstract get isSettled(): boolean;
 
     /**
+     * How many edges {@link LayoutEngine.edges} holds, or -1 when it is not an array: what the frame loop reads to
+     * notice an edge taken up late, without reading the list itself.
+     * @returns The count.
+     * @internal
+     */
+    get edgeCount(): number {
+        const { edges } = this;
+        return Array.isArray(edges) ? edges.length : -1;
+    }
+
+    /**
      * Start the layout again because a node's drawn size changed, when it keeps nodes apart by that size (`nodeGap`):
      * a node that grew after the layout came to rest may now cover another.
      * @returns True when the frame loop has to start stepping this layout again.
@@ -2728,6 +2739,16 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
      */
     get edges(): Iterable<Edge> {
         return this._edges;
+    }
+
+    /**
+     * The edges held, less those marked removed: counted with no sweep of the list, which a read of
+     * {@link StaticLayoutEngine.edges} after a removal is (issue #9164).
+     * @returns The count.
+     * @internal
+     */
+    override get edgeCount(): number {
+        return this.#edges.length - this.#goneEdges.size;
     }
 
     /**

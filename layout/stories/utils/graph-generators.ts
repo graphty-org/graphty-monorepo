@@ -70,7 +70,7 @@ function sample(type: GraphType, n: number, seed: number): SampleGraph {
 }
 
 /**
- * Generate a graph of the specified type with `nodeCount` labelled nodes.
+ * Generate a graph of the specified type with `nodeCount` labeled nodes.
  */
 export function generateGraph(type: GraphType, nodeCount: number, seed: number = 42): GeneratedGraph {
     const g = sample(type, nodeCount, seed);
@@ -84,7 +84,7 @@ export function generateGraph(type: GraphType, nodeCount: number, seed: number =
 }
 
 /**
- * A graph-samples graph in the shape the story renderer draws, with unlabelled nodes (the graphs are too big for
+ * A graph-samples graph in the shape the story renderer draws, with unlabeled nodes (the graphs are too big for
  * labels).
  * @param g - the generated graph
  * @returns its nodes and edges

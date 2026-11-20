@@ -1,7 +1,7 @@
 /**
- * @file The session's catalogue: what the element can offer, as plain data.
+ * @file The session's catalog: what the element can offer, as plain data.
  *
- * Every entry is a descriptor the catalogue module already declares -- a plain name, a technical
+ * Every entry is a descriptor the catalog module already declares -- a plain name, a technical
  * name, what it computes, what it costs and what it can be configured with. Nothing here is a
  * class or a closure, so the whole answer survives `JSON.stringify`, a `postMessage` to a worker
  * and a write to a saved document.
@@ -9,7 +9,7 @@
  * EVERY TABLE BUT `scales` IS COMPOSED: the element's own frozen table, followed by whatever a
  * third party registered. Six of the seven can carry a plugin -- algorithms, cameras, formats,
  * layouts, log destinations and palettes -- because those are the six supported extension points,
- * and a registered extension that could not be found in the catalogue could not be offered by a
+ * and a registered extension that could not be found in the catalog could not be offered by a
  * picker, which is half of what it means to have one. `scales` stays static because a scale is
  * internal and nothing registers one.
  *
@@ -17,16 +17,16 @@
  * what the element can do must get back the same data, and identity is how a consumer checks
  * that -- a fresh array per call would make two sessions that agree exactly look as though they
  * disagreed. A page that imports no plugin therefore sees precisely the object it saw before the
- * catalogue learned to carry plugins.
+ * catalog learned to carry plugins.
  *
  * WHAT THE ELEMENT SHIPS IS STILL A FIXED ANSWER. The static tables in `./catalog` are frozen
- * module constants and nothing appends to them; composition happens here, at the catalogue door,
+ * module constants and nothing appends to them; composition happens here, at the catalog door,
  * which is why "what does the element ship" and "what can this page do" stay two answerable
  * questions rather than one blurred one.
  *
  * `metrics()` is the exception and cannot be shared, because it is about THIS graph -- which
  * metrics it can support, what each would cost over the scope a run would cover, and which have
- * already been run here. So a session's catalogue is the shared tables with its own `metrics()`
+ * already been run here. So a session's catalog is the shared tables with its own `metrics()`
  * closed over its own graph.
  *
  * `optionsFor()` is graph-dependent too: it resolves one descriptor's data-dependent bounds and
@@ -141,7 +141,7 @@ export const SESSION_CATALOG_TABLES = Object.freeze({
      */
     logSinks: () => composeLogSinks(registeredLogSinkDescriptors()),
     /**
-     * Every colour palette a layer can paint with: the element's own seventeen, plus whatever was
+     * Every color palette a layer can paint with: the element's own seventeen, plus whatever was
      * registered.
      * @returns the palette descriptors, the element's own first
      */
@@ -166,12 +166,12 @@ export const SESSION_CATALOG_TABLES = Object.freeze({
      */
     transitions: () => transitionDescriptors(),
     /**
-     * Every graph generator `data.generate` runs: graph-samples' catalogue. Static.
+     * Every graph generator `data.generate` runs: graph-samples' catalog. Static.
      * @returns the generator descriptors
      */
     generators: () => GENERATOR_CATALOG,
     /**
-     * Every sample dataset `data.loadDataset` downloads: graph-samples' catalogue. Static.
+     * Every sample dataset `data.loadDataset` downloads: graph-samples' catalog. Static.
      * @returns the dataset descriptors
      */
     datasets: () => DATASETS,
@@ -320,11 +320,11 @@ function validateQuery(
 }
 
 /**
- * One session's catalogue: the shared tables, plus the metric listing and the option resolver for
+ * One session's catalog: the shared tables, plus the metric listing and the option resolver for
  * its own graph.
  * @param source - Where the metric listing reads the cost model and the run history, and where
  *   `optionsFor` resolves a scope.
- * @returns The catalogue.
+ * @returns The catalog.
  */
 export function createSessionCatalog(
     source: MetricsSource &
@@ -395,7 +395,7 @@ export function createSessionCatalog(
         /**
          * Every metric the element could compute on this graph, with what it would cost and
          * whether it has been run.
-         * @returns one entry per algorithm, in catalogue order
+         * @returns one entry per algorithm, in catalog order
          */
         metrics: () => describeMetrics(source),
         /**

@@ -57,7 +57,7 @@ const JSON_DOCUMENT = JSON.stringify({ nodes: NODES, edges: EDGES });
  * The layer every cell asks for.
  *
  * It paints a channel the element's own default layer also paints, which is deliberate: what is
- * asserted is not that the colour is crimson but that THIS layer is among the layers that painted
+ * asserted is not that the color is crimson but that THIS layer is among the layers that painted
  * the node. A channel nothing else writes would let a cell pass on a stack that had collapsed to
  * one layer.
  */

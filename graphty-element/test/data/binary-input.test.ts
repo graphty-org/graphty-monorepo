@@ -6,7 +6,7 @@
  * (a Cytoscape session) is corrupted beyond reading. So `data` may be a `Uint8Array` or an
  * `ArrayBuffer`, a `File` and a URL are read as bytes, and graph-io -- which reads a BOM and an
  * XML or DOT encoding declaration -- does the decoding. A format whose file can hold several
- * graphs publishes `listGraphs`, the catalogue's `listGraphs(source)` asks it, and the load
+ * graphs publishes `listGraphs`, the catalog's `listGraphs(source)` asks it, and the load
  * options `graphName` / `graphIndex` pick one.
  */
 
@@ -34,7 +34,7 @@ const encode = (text: string): Uint8Array<ArrayBuffer> => new TextEncoder().enco
 
 /**
  * Two Latin-1 letters whose bytes (C3 A9) are also valid UTF-8 for one letter: a reader that
- * honours a Latin-1 declaration keeps both, one that guesses UTF-8 makes them one.
+ * honors a Latin-1 declaration keeps both, one that guesses UTF-8 makes them one.
  */
 const MOJI = `Caf${String.fromCharCode(0xc3, 0xa9)}`;
 
@@ -387,7 +387,7 @@ describe("choosing one graph", () => {
     });
 
     // A built-in reader that does not hand the choice to its importer must not claim a lister,
-    // and one that lists must load what it listed: the catalogue asks the importer, the load asks
+    // and one that lists must load what it listed: the catalog asks the importer, the load asks
     // the reader. When graph-io gives an importer listGraphs, this fails until its reader declares
     // `static listGraphs` and passes `graphChoice()` to the importer.
     it("every built-in reader lists its graphs exactly when its importer does", () => {

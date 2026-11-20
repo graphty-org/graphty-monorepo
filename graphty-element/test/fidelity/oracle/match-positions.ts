@@ -113,7 +113,7 @@ export async function matchPositions(element: Graphty, first: OracleComparison, 
             return [g.id, [x - dx, y - dy]];
         }),
     );
-    // between unrelated layouts, a node the program's drawing does not show goes among its neighbours, not where
+    // between unrelated layouts, a node the program's drawing does not show goes among its neighbors, not where
     // graphty's own layout put it
     const undrawn =
         fit === null

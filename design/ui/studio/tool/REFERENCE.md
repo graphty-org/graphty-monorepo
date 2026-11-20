@@ -250,8 +250,8 @@ session follows the same rules as every other browser command. Waiting starts ar
 come, first served: each waiter takes a ticket in the pool's `queue/` folder, named by when it
 asked, and takes a free slot only while no older live ticket could take that slot too; a waiter
 that was killed leaves a ticket the next waiter removes. The low-priority lane
-(`BROWSER_SLOT_PRIORITY=low`) keeps tickets of its own and takes only slot 4 and up, so it never
-holds up an ordinary waiter, and while a high-lane command (the cut's screenshot preview) waits,
+(`BROWSER_SLOT_PRIORITY=low`) keeps tickets of its own, tries slot 4 and up first and takes slots 3
+to 1 only while no ordinary waiter wants them, so it never holds up an ordinary waiter, and while a high-lane command (the cut's screenshot preview) waits,
 no other command takes a slot. `node --test design/ui/studio/tool/with-browser.test.mjs` checks the
 order, the dead waiter, the lanes and the `bars.mjs` pass-through with no browser.
 

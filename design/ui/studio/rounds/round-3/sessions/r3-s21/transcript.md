@@ -24,7 +24,7 @@ Hesitation: no names on the balls, so I can't just point at the Medici. I'll typ
 ## Step 4 -- try the Find box by its words
 
 Command: `--click "Find nodes, edges, values" --type "Medici"` -> 04.png
-Result: the tool said nothing on screen is called "Find nodes, edges, values" and nothing was typed. (The grey words in the box are only a placeholder, apparently not the box's name.) I'll point at the box instead.
+Result: the tool said nothing on screen is called "Find nodes, edges, values" and nothing was typed. (The gray words in the box are only a placeholder, apparently not the box's name.) I'll point at the box instead.
 
 ## Step 5 -- type Medici in the Find box
 
@@ -40,7 +40,7 @@ That is what the program knows: just the name and "Degree 6". I guess "degree" m
 ## Step 7 -- open the Degree row
 
 Command: `--click-at 1320,236` (button "Degree 6") -> 07.png
-Saw: the right panel changed to "Medici -- Neighborhood", heading "Medici's 6 connections", and a list: Acciaiuoli, Albizzi, Barbadori, Ridolfi, Salviati, Tornabuoni. Seven balls are now ringed yellow on the drawing (Medici plus six). On the left "Selection" now says 7, which made me stop for a second -- the heading says 6 -- until I realised the 7 counts the Medici themselves too.
+Saw: the right panel changed to "Medici -- Neighborhood", heading "Medici's 6 connections", and a list: Acciaiuoli, Albizzi, Barbadori, Ridolfi, Salviati, Tornabuoni. Seven balls are now ringed yellow on the drawing (Medici plus six). On the left "Selection" now says 7, which made me stop for a second -- the heading says 6 -- until I realized the 7 counts the Medici themselves too.
 That is my answer, so I'm done.
 
 ## End

@@ -98,6 +98,28 @@ describe("edges drawn through bends", () => {
         assert.isFalse(route.some(([x, y]) => Math.hypot(x, y + 4) < 1e-6));
     });
 
+    // down two, across six, then up the diagonal into b: the middle segment's middle (3, -2) is not halfway along the
+    // whole line (3.41, -2), nor the middle of the straight run between the two rounded corners (2.9, -2)
+    for (const [what, set] of [
+        ["a solid", {}],
+        ["a dash-dot", { "edge.style": "dash-dot" }],
+        ["a rounded solid", { "edge.curvature": true }],
+        ["a rounded dash-dot", { "edge.style": "dash-dot", "edge.curvature": true }],
+    ] as const) {
+        it(`hangs ${what} line's label on the middle of its middle segment through its bends (#8190)`, async () => {
+            await drawn({
+                ...set,
+                "edge.bends": "0,-0.25 0.75,-0.25",
+                "edge.label": "e",
+                "edge.labelStyle": { location: "top", attachOffset: 0 },
+            });
+            const [edge] = graph.getDataManager().edges.values();
+            const at = edge.label?.labelMesh?.getAbsolutePosition();
+            assert.isDefined(at, "the edge draws its label");
+            assert.closeTo(at?.x ?? Number.NaN, 3, 1e-3);
+        });
+    }
+
     it("draws an arc through its one bend on the circle through both centers (edge.bendCurve arc)", async () => {
         // yEd's arc edge: the bend is the apex, 2 above the middle of the 8 between the centers
         const route =

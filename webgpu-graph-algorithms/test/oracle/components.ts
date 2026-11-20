@@ -63,8 +63,8 @@ export function componentsOracle(s: GraphSnapshot): { readonly labels: U32; read
 
 /**
  * Whether two label arrays describe the same partition (the same blocks, whatever the block names).
- * @param a - one labelling
- * @param b - the other labelling
+ * @param a - one labeling
+ * @param b - the other labeling
  * @returns true when the labels are a bijection of each other
  */
 export function partitionEquals(a: ArrayLike<number>, b: ArrayLike<number>): boolean {

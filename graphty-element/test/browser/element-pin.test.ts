@@ -5,7 +5,7 @@
  * now survives a layout change, a 2D/3D switch and a style template. So the moment pins stopped
  * being released by accident, every node a reader had ever dragged became permanently fixed -- and
  * the only way back out was `element.graph`, the escape hatch this release exists to close. A
- * behaviour a consumer cannot undo through the public surface is not a feature.
+ * behavior a consumer cannot undo through the public surface is not a feature.
  *
  * The application had already designed the UI against this: its node inspector carries a Pin verb
  * and a Pinned badge whose handler did nothing, because there was nothing to call.
@@ -17,7 +17,7 @@ import { afterEach, assert, describe, test, vi } from "vitest";
 import type { Graphty } from "../../index.js";
 
 /**
- * Wait until a just-connected element has initialised its graph.
+ * Wait until a just-connected element has initialized its graph.
  * @param element - The element.
  */
 async function untilReady(element: Graphty): Promise<void> {

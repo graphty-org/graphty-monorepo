@@ -78,7 +78,7 @@ afterEach(() => {
 
 /**
  * A layer the page declares.
- * @param color - Its colour.
+ * @param color - Its color.
  * @returns The specification.
  */
 function declared(color: string): LayerSpec {

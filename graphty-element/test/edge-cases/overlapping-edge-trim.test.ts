@@ -1,7 +1,7 @@
 /**
  * An edge between two nodes that overlap (issue #7759): walking out to each node's wall crosses the
- * other's centre, and the line used to run from wall to far wall -- 1.9 units for default-size nodes
- * 0.1 apart with an arrow head. It must be no longer than the gap between the centres, and a pattern's
+ * other's center, and the line used to run from wall to far wall -- 1.9 units for default-size nodes
+ * 0.1 apart with an arrow head. It must be no longer than the gap between the centers, and a pattern's
  * elements must stay between them.
  */
 

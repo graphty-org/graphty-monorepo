@@ -26,7 +26,7 @@ export const STYLE_NOTE_WORDS: Readonly<Record<ImportStyleCode, string>> = {
     W_STYLE_SIZE_MINIMUM: "The program grows nodes to fit their labels, so a stated size is a minimum",
     W_STYLE_HTML_LABEL: "A formatted label is shown as plain text",
     W_STYLE_RECORD_LABEL: "A label in fields is shown with its fields joined",
-    W_STYLE_EXTRA_LABELS: "An element has more than one label; the first is shown",
+    W_STYLE_EXTRA_LABELS: "An element has more labels than are shown",
     W_STYLE_INHERIT_COLOR: "An edge color taken from its ends could not be kept",
     W_STYLE_NOT_CARRIED: "A style graphty has no counterpart for was not kept",
     W_STYLE_ANNOTATION_SKIPPED: "An annotation of a kind graphty does not draw (an image, say) was left out",
@@ -66,7 +66,7 @@ export const STYLE_NOTE_WORDS: Readonly<Record<ImportStyleCode, string>> = {
  * @returns one sentence.
  */
 export function fileStyleNoteWords(note: FileStyleNote): string {
-    const said: string | undefined = (STYLE_NOTE_WORDS as Readonly<Record<string, string>>)[note.code];
+    const said = (STYLE_NOTE_WORDS as Readonly<Partial<Record<string, string>>>)[note.code];
     const { count: times } = note.params;
     const what = typeof note.params.property === "string" ? ` (${property(note.params)})` : "";
     const often = typeof times === "number" && times > 1 ? `, ${count(times, "time")}` : "";

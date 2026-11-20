@@ -138,10 +138,13 @@ jobs:
               if: startsWith(inputs.variant, 'graphty-element-browser')
               run: git lfs pull --include "$(node -p "require('./graphty-element/test/browser/oracle-scorecard-samples.json').map((id) => 'graph-io/test/fidelity/oracles/' + id + '.png').join(',')")"
 
-            - name: Install Mesa lavapipe and export the lane's environment
+            - name: Install Mesa lavapipe
+              if: startsWith(inputs.variant, 'webgpu-graph-algorithms-node')
+              uses: ./.github/actions/mesa-lavapipe
+
+            - name: Export the lavapipe lane's environment
               if: startsWith(inputs.variant, 'webgpu-graph-algorithms-node')
               run: |
-                  sudo apt-get update && sudo apt-get install -y --no-install-recommends mesa-vulkan-drivers libvulkan1 vulkan-tools
                   icd=$(find /usr/share/vulkan/icd.d /etc/vulkan/icd.d /usr/lib/x86_64-linux-gnu/vulkan/icd.d -name 'lvp_icd*.json' 2>/dev/null | sort | head -1 || true)
                   if [ -z "$icd" ]; then echo "::error::no lavapipe ICD json"; exit 1; fi
                   {

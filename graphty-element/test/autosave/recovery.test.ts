@@ -425,7 +425,7 @@ describe("a restore that does not finish", () => {
     it("keeps the graph imported right after a clear cancels a restore(id) waiting in line (#3674)", async () => {
         const memory = memoryAutosaveStore();
         const { id } = await earlier(memory, (session) => session.config.set({ name: "Picked by hand" }));
-        // The cancelled restore takes its attempt back with a commit a real store takes a while to
+        // The canceled restore takes its attempt back with a commit a real store takes a while to
         // land: it is held here until the page's import is in.
         let takingBack: () => void = () => undefined;
         let landed: () => void = () => undefined;
@@ -453,7 +453,7 @@ describe("a restore that does not finish", () => {
             assert.strictEqual(line.size, 2, "the restore's open took its place in line");
         });
 
-        // The page clears and loads at once, while the cancelled restore unwinds.
+        // The page clears and loads at once, while the canceled restore unwinds.
         const clearing = page.session.data.clear();
         const importing = rows(["a", "b"]).apply(page.session)();
         reading.leave();

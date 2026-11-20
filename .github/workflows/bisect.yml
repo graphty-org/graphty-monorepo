@@ -175,7 +175,7 @@ jobs:
             # every browser a shard may launch (the lifecycle shard runs Firefox and WebKit too)
             - run: pnpm exec playwright install chromium firefox webkit
             - name: Install Mesa lavapipe (the webgpu-graph-algorithms shards)
-              run: sudo apt-get update && sudo apt-get install -y --no-install-recommends mesa-vulkan-drivers libvulkan1
+              uses: ./.github/actions/mesa-lavapipe
             - name: Build every package
               id: build
               # ponytail: builds here; reuse the merge's master build (ci.yml `reuse_build_run`) once full-run-calls lands
@@ -281,7 +281,7 @@ jobs:
                   [ -n "$id" ] || { echo "::error::no ${WF} run started on ${BRANCH}"; exit 1; }
                   echo "::notice::point ${SHA} runs as $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/${id}"
                   gh run watch "$id" --interval 60 > /dev/null || true
-                  # success or failure is the point's verdict; anything else (cancelled, lost) is no run, tested again
+                  # success or failure is the point's verdict; anything else (canceled, lost) is no run, tested again
                   echo "result=$(gh run view "$id" --json conclusion --jq .conclusion)" >> "$GITHUB_OUTPUT"
             - name: Delete the point's branch
               if: ${{ always() && steps.dispatch.outputs.branch }}

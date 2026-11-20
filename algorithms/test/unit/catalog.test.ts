@@ -2,7 +2,7 @@
  * `ALGORITHMS` is only worth having if it is true and complete, so every claim in it is checked by running the
  * algorithm: the direction rule on a directed and an undirected graph, the weight rule on a weighted graph and its
  * unweighted twin, the inputs by calling `fn(graph, ...inputs, options)`, and the per-element result arrays by
- * their length. A new export that is not catalogued fails the completeness test.
+ * their length. A new export that is not cataloged fails the completeness test.
  */
 
 import { fromEdgeArrays, type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";

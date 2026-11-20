@@ -20,7 +20,7 @@ Command: `--click "Filters"` (03.png)
 
 ## Step 3
 
-It switched me to the Data panel (20 nodes, 41 edges; edges have a "weight" -- that must be my runs-together column) and opened "New filter step" on the right: Keep "an attribute's value", Attribute empty, Add step greyed out. I'll open the Attribute list.
+It switched me to the Data panel (20 nodes, 41 edges; edges have a "weight" -- that must be my runs-together column) and opened "New filter step" on the right: Keep "an attribute's value", Attribute empty, Add step grayed out. I'll open the Attribute list.
 
 Command: `--click "Attribute"` (04.png)
 

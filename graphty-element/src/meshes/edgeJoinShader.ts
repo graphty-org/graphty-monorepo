@@ -335,6 +335,8 @@ ${PULLED_CURVE_GLSL}
 
 // pieces the draw gives each curve: the most any of the batch's spans asks for (PulledLineBatch.stride)
 uniform float edgeStride;
+// set by pullEdge for a slot past its own curve's pieces: the vertex is put outside the clip volume
+bool pulledSkip = false;
 const int PIECE_TEXELS = 4;
 #else
 const int PIECE_TEXELS = 2;
@@ -352,6 +354,16 @@ void pullEdge() {
 #endif
     int piece = pulledPiece(slot);
     int texel = piece * PIECE_TEXELS;
+#ifdef EDGE_PULLED_CURVE
+    // a slot past its own curve's pieces draws nothing, read from one texel: a short curve beside a long one costs
+    // its spare slots this much
+    vec4 span = pulledRowsTexel(texel + 2);
+    int pieces = int(span.z + 0.5);
+    if (j >= pieces) {
+        pulledSkip = true;
+        return;
+    }
+#endif
     vec4 head = pulledRowsTexel(texel);
     vec4 tint = pulledRowsTexel(texel + 1);
     vec4 hiddenFlags = pulledHiddenTexel(piece >> 2);
@@ -365,10 +377,8 @@ void pullEdge() {
         vec4 a = pulledRow(int(rows.x + 0.5));
         vec4 b = pulledRow(int(rows.y + 0.5));
 #ifdef EDGE_PULLED_CURVE
-        vec4 span = pulledRowsTexel(texel + 2);
         vec4 end = pulledRowsTexel(texel + 3);
-        int pieces = int(span.z + 0.5);
-        if (a.w * b.w != 0.0 && j < pieces) {
+        if (a.w * b.w != 0.0) {
             vec4 counts = vec4(span.xyz, end.w);
             vec4 cut = vec4(span.w, end.xyz);
             int prev = j == 0 ? 0 : j - 1;
@@ -650,6 +660,13 @@ vec2 sideMeet(vec2 q0, float w0, vec2 p, float w, vec2 q1, float w1, vec2 dIn, v
 void main() {
 #ifdef EDGE_PULLED
     pullEdge();
+#ifdef EDGE_PULLED_CURVE
+    if (pulledSkip) {
+        // Every vertex of the slot at one point outside the clip volume: no triangle, no fragment.
+        gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+        return;
+    }
+#endif
 #else
     if (edgeHidden > 0.5) {
         // Every vertex of the piece at one point outside the clip volume: no triangle, no fragment.

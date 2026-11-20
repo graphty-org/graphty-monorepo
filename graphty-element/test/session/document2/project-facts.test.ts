@@ -14,6 +14,8 @@ import { finishAtOnce } from "../runs/harness";
 const SPEC = new URL("../../../spec/", import.meta.url);
 const readText = (path: string): string => readFileSync(new URL(path, SPEC), "utf8");
 const ON = { features: ["save-files-v2"] };
+// Off by name, not by default: the experiments-on lane turns every experiment on by default.
+const OFF = { features: [] };
 const EXAMPLE = "examples/card-fraud.graphty.json";
 
 describe("project.describe", () => {
@@ -73,7 +75,7 @@ describe("project.describe", () => {
     });
 
     it("is refused without the experiment", async () => {
-        const session = createGraphSession();
+        const session = createGraphSession(OFF);
         const error = await session.project.describe().catch((thrown: unknown) => thrown);
         assert.strictEqual((error as { code?: string }).code, "E_FEATURE_OFF");
         session.dispose();

@@ -24,6 +24,7 @@ import type { Meta, StoryObj } from "@storybook/web-components-vite";
 import cxUrl from "../../graph-io/test/corpus/styles/cx/ndex-90f78bcd-1dd0-11ef-9621-005056ae23aa.cx?url";
 import cx2Url from "../../graph-io/test/corpus/styles/cx2/ndex-90f78bcd-1dd0-11ef-9621-005056ae23aa.cx2?url";
 import annotationSessionUrl from "../../graph-io/test/corpus/styles/cys/cytoscape-tutorials-AnnotationExample.cys?url";
+import ensemblClustersUrl from "../../graph-io/test/corpus/styles/dot/Ensembl_ensembl-hive__long_mult_jobs_04.dot?url";
 import dotProfileUrl from "../../graph-io/test/corpus/styles/dot/graphviz-gallery-directed-profile.gv?url";
 import miserablesUrl from "../../graph-io/test/corpus/styles/gexf/gexfjs-miserables.gexf?url";
 import pmodelUrl from "../../graph-io/test/corpus/styles/gml/ImperialCollegeLondon_pyrealm__pmodel.gml?url";
@@ -259,6 +260,96 @@ export const GraphmlYed: Story = {
         );
         // `y:Arrows target="standard"`: yEd's standard arrow is a triangle with an impressed bottom side, a vee.
         await drewArrows(canvasElement, "GraphmlYed", { "n2::n21->n3::n0": "vee" });
+    },
+};
+
+/**
+ * Each group is drawn around every node it holds and behind them: its drawn box reaches past each
+ * member's center, and it sits farther from the camera (which looks along +z) than they do.
+ * @param canvasElement - Where the story rendered.
+ * @param story - The story, for failure messages.
+ * @param groups - Each group's id and the ids of nodes it holds.
+ */
+async function drewGroupsAround(
+    canvasElement: HTMLElement,
+    story: string,
+    groups: Readonly<Record<string, readonly string[]>>,
+): Promise<void> {
+    const scene = await drawn(canvasElement, `Data/File Styles ${story}`);
+    const { nodes } = scene.graph.getDataManager();
+    const wrong: string[] = [];
+    for (const [group, members] of Object.entries(groups)) {
+        const box = nodes.get(group);
+        if (box === undefined) {
+            wrong.push(`${group} is not in the graph`);
+            continue;
+        }
+
+        const at = box.drawnWorldPosition;
+        const half = box.drawnHalfExtents;
+        for (const id of members) {
+            const member = nodes.get(id)?.drawnWorldPosition;
+            const inside =
+                member !== undefined &&
+                Math.abs(member.x - at.x) <= half.x &&
+                Math.abs(member.y - at.y) <= half.y &&
+                member.z <= at.z;
+            if (!inside) {
+                wrong.push(`${id} is not inside and in front of ${group}`);
+            }
+        }
+    }
+
+    await holds(wrong.length === 0, `${story}: groups not drawn around their members -- ${wrong.join("; ")}`);
+}
+
+/**
+ * The same yEd file at the positions yEd stored, flat in 2D as yEd draws it. Look for: the four groups,
+ * "voctocore", "voctogui", "Internet" and "Encoder", each a labeled box drawn behind the nodes it
+ * holds, where yEd puts it.
+ */
+export const GraphmlYedAtFilePositions: Story = {
+    args: {
+        dataSource: "graphml",
+        features: ["file-styles"],
+        dataSourceConfig: { url: absolute(voctomixUrl), styles: "file", layout: "recommended" },
+        setup: storySetup({ viewMode: "2d" }),
+    },
+    play: async ({ canvasElement }) => {
+        await drewFileStyles(
+            canvasElement,
+            "GraphmlYedAtFilePositions",
+            { nodes: 43, edges: 48 },
+            {
+                "n0::n0": "#ffcc00",
+                "n2::n1": "#ccffff",
+            },
+        );
+        await drewGroupsAround(canvasElement, "GraphmlYedAtFilePositions", {
+            n0: ["n0::n0", "n0::n1", "n0::n2"],
+            n2: ["n2::n1", "n2::n3", "n2::n5", "n2::n9"],
+        });
+    },
+};
+
+/**
+ * `Ensembl_ensembl-hive__long_mult_jobs_04.dot`, an ensembl-hive job graph (Apache-2.0), laid out
+ * by Graphviz's dot as the file asks, flat in 2D as Graphviz draws it. Look for: one "long_mult" cluster holding three, "add_together"
+ * in gray, "part_multiply" in yellow and "take_b_apart" in blue, each a box around its jobs.
+ */
+export const DotClusters: Story = {
+    args: {
+        dataSource: "dot",
+        features: ["file-styles"],
+        dataSourceConfig: { url: absolute(ensemblClustersUrl), styles: "file", layout: "recommended" },
+        setup: storySetup({ viewMode: "2d" }),
+    },
+    play: async ({ canvasElement }) => {
+        await drewGroupsAround(canvasElement, "DotClusters", {
+            cluster_take_b_apart: ["job_1__long_mult", "job_2__long_mult"],
+            cluster_add_together: ["job_3__long_mult", "job_9__long_mult", "semaphore_1__long_mult"],
+            cluster_long_mult: ["job_1__long_mult", "job_10__long_mult", "semaphore_2__long_mult"],
+        });
     },
 };
 

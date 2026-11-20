@@ -132,6 +132,7 @@ import { SourceRuntime } from '@graphty/graph-io';
 import { SourceRuntimeReason } from '@graphty/graph-io';
 import { SourceValidators } from '@graphty/graph-io';
 import { StyleNoteCode } from '@graphty/graph-io/styles';
+import { Texture } from '@babylonjs/core/Materials/Textures/texture.js';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode.js';
 import { U32 } from '@graphty/graph-format';
 import { U8 } from '@graphty/graph-format';
@@ -378,11 +379,9 @@ export interface AnimationProgressEvent {
     type: "animation-progress";
 }
 
-// @public (undocumented)
+// @public
 export interface AnimationResult {
-    // (undocumented)
     blob: Blob;
-    // (undocumented)
     metadata: {
         duration: number;
         fps: number;
@@ -2811,6 +2810,15 @@ export interface FigureResult {
     width: number;
 }
 
+// @beta
+export type FileKind = "project" | "recipe" | "style" | "document" | "graph";
+
+// @public
+export interface FilesApi {
+    // @beta
+    kindOf(source: ProjectSource): Promise<FileKind>;
+}
+
 // @public
 export interface FindAtLeastRow {
     readonly count: number;
@@ -3038,6 +3046,8 @@ export class Graph implements GraphContext {
     exportGraph(format: FormatId, options?: ExportGraphOptions): Promise<ExportResult>;
     // (undocumented)
     fetchEdges?: FetchEdgesFn;
+    // @internal
+    fetchNeighborEdges?: FetchNeighborEdgesFn;
     // (undocumented)
     fetchNodes?: FetchNodesFn;
     forgetAiKeys(options?: {
@@ -3380,6 +3390,7 @@ export const GraphBackground: z.ZodDiscriminatedUnion<[z.ZodObject<{
 }, z.core.$strict>, z.ZodObject<{
     backgroundType: z.ZodLiteral<"skybox">;
     data: z.ZodUnion<[z.ZodURL, z.ZodString]>;
+    projection: z.ZodOptional<z.ZodLiteral<"flat" | "dome">>;
     color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
     darkColor: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
     shader: z.ZodOptional<z.ZodObject<{
@@ -7563,7 +7574,6 @@ export class OperationQueueManager implements Manager {
         size: number;
         isPaused: boolean;
     };
-    // (undocumented)
     hasLayoutEngine?: () => boolean;
     get hasWork(): boolean;
     init(): Promise<void>;
@@ -7827,6 +7837,8 @@ export interface ProjectFileSource {
 // @public
 export interface ProjectOpenOptions {
     // @beta
+    readonly applyRecipe?: boolean;
+    // @beta
     readonly bindOtherData?: boolean;
     // @beta
     readonly columns?: {
@@ -7906,6 +7918,8 @@ export interface ProjectSaveOptions {
     // @beta
     readonly results?: boolean;
     // @beta
+    readonly rewriteRecipe?: boolean;
+    // @beta
     readonly sections?: readonly DocumentSection[];
 }
 
@@ -7974,6 +7988,12 @@ export interface QueueableOptions {
     obsoletes?: OperationCategory[];
     respectProgress?: boolean;
     skipQueue?: boolean;
+}
+
+// @beta
+export interface RecipesApi {
+    apply(recipe: ProjectSource): Promise<ProjectOpenReport>;
+    export(): Promise<SavedProject>;
 }
 
 export { RecordBatch }

@@ -246,7 +246,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     ...(["GraphSession", "ElementSession"] as const).flatMap((root): Exclusion[] => [
         {
             root,
-            members: ["assets", "network", "time", "shaders", "features", "groups", "annotations"],
+            members: ["assets", "network", "time", "shaders", "features", "groups", "annotations", "recipes", "files"],
             reason: "namespace",
             kind: BY_DESIGN,
         },
@@ -544,7 +544,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     { root: "BasemapManager", members: ["dispose"], reason: "lifecycle", kind: BY_DESIGN },
     ...(["StylesApi", "SessionStylesApi"] as const).flatMap((root): Exclusion[] => [
         ...coveredBy(root, {
-            "style.add": ["addRow"],
+            "style.add": ["addRow", "duplicateRow"],
             "style.update": [
                 "writeRow",
                 "updateMany",
@@ -647,6 +647,8 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         kind: BY_DESIGN,
     },
     { root: "ProjectApi", members: ["open"], reason: "replaces-project", kind: BY_DESIGN },
+    { root: "RecipesApi", members: ["export", "apply"], reason: "needs-host", kind: BY_DESIGN },
+    { root: "FilesApi", members: ["kindOf"], reason: "needs-host", kind: BY_DESIGN },
     // Showing another graph replaces the session's graph and starts its history afresh, as an open does.
     {
         root: "SessionGraphs",
@@ -983,7 +985,12 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         reason: "internal-handle",
         kind: BY_DESIGN,
     },
-    { root: "Graph", members: ["fetchNodes", "fetchEdges"], reason: "needs-host", kind: BY_DESIGN },
+    {
+        root: "Graph",
+        members: ["fetchNodes", "fetchEdges", "fetchNeighborEdges"],
+        reason: "needs-host",
+        kind: BY_DESIGN,
+    },
     {
         root: "Graph",
         members: [

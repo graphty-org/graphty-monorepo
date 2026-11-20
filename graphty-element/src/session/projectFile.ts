@@ -310,6 +310,14 @@ export interface ProjectSaveOptions {
      * @beta
      */
     readonly location?: string;
+    /**
+     * Version 2 only: write the recipe from the session's state even when the session holds a
+     * recipe opened from a file, which is otherwise written back as read. Default false.
+     * @since 3.40.0
+     * @experimental save-files-v2
+     * @beta
+     */
+    readonly rewriteRecipe?: boolean;
 }
 
 /** What the session lends the project file for the loads. */
@@ -479,6 +487,15 @@ export interface ProjectOpenOptions {
      * @beta
      */
     readonly migrate?: boolean;
+    /**
+     * Version 2 only: apply a recipe the file holds to the data open now -- its filters, sets,
+     * runs and layout, in order -- instead of only keeping it for the next save. Default false.
+     * `session.recipes.apply` opens a recipe this way.
+     * @since 3.40.0
+     * @experimental save-files-v2
+     * @beta
+     */
+    readonly applyRecipe?: boolean;
     /**
      * Version 2 only: the URL of the file being opened, which a referenced source's relative
      * `url` or `path` is resolved against. Without it, a referenced source with a relative
@@ -3669,6 +3686,7 @@ export function projectOf(
                 ...(options.results === undefined ? {} : { results: options.results }),
                 ...(options.embed === undefined ? {} : { embed: options.embed }),
                 ...(options.paths === undefined ? {} : { paths: options.paths }),
+                ...(options.rewriteRecipe === undefined ? {} : { rewriteRecipe: options.rewriteRecipe }),
                 ...(options.handles === undefined ? {} : { handles: options.handles }),
                 ...(options.location === undefined ? {} : { location: options.location }),
                 extensions,
@@ -3734,6 +3752,7 @@ export function projectOf(
                 ...(options.runs === undefined ? {} : { runs: options.runs }),
                 ...(options.dataMode === undefined ? {} : { dataMode: options.dataMode }),
                 ...(options.bindOtherData === undefined ? {} : { bindOtherData: options.bindOtherData }),
+                ...(options.applyRecipe === undefined ? {} : { applyRecipe: options.applyRecipe }),
                 ...(options.columns === undefined ? {} : { columns: options.columns }),
             },
             {
@@ -3824,7 +3843,7 @@ export function projectOf(
         },
         save(options = {}) {
             const versionTwoOnly = (
-                ["sections", "form", "results", "embed", "paths", "handles", "location"] as const
+                ["sections", "form", "results", "embed", "paths", "handles", "location", "rewriteRecipe"] as const
             ).find((key) => options[key] !== undefined);
             if (options.format !== 2 && versionTwoOnly !== undefined) {
                 // Never ignored: a version 1 file cannot hold what the option asks for.

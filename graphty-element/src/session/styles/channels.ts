@@ -2820,7 +2820,8 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         caveat:
             "Drawing order in a 2D view, from -1000 to 0. A node below 0 is drawn " +
             "behind every edge and every node with a higher z-index, so a group (compound) node " +
-            "drawn at -1 never hides its members. 3D views draw by real depth and ignore it.",
+            "drawn at -1 never hides its members. A 3D view moves a flat shape back the same way and " +
+            "draws a solid one by real depth.",
     },
     "node.drawOrder": {
         channel: "node.drawOrder",

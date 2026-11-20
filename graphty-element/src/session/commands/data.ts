@@ -56,7 +56,7 @@ import type {
     DraftTable,
     HistoryCode,
     JoinRecord,
-    LoadChoices,
+    LoadedChoices,
     LoadedSource,
     LoadedSourceKind,
     LoadMappingRead,
@@ -341,7 +341,7 @@ export interface DataImportCommand {
     /** The load's key, in place of the next one: a next page or refresh adds to its entry, an edited join keeps it. */
     readonly key?: SourceKey;
     /** The choices the rows were read with, kept with the load in `data.sources()`. */
-    readonly choices?: LoadChoices;
+    readonly choices?: LoadedChoices;
     /** The roles each table was read with, the element's own reading included, kept with the load. */
     readonly mapping?: LoadMappingRead;
     /**

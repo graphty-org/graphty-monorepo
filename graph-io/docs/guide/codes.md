@@ -341,6 +341,7 @@ attribute: the node label, the edge weight, a position. See
 - <a id="W_NEO4J_IGNORED_COLUMNS"></a>`W_NEO4J_IGNORED_COLUMNS`: `:IGNORE` columns skipped on import. Save: [neo4j](./formats/neo4j.md).
 - <a id="W_NEO4J_MISSING_TYPE"></a>`W_NEO4J_MISSING_TYPE`: A relationship with an empty :TYPE cell (neo4j-admin requires one); kept without a type. Import: [neo4j](./formats/neo4j.md).
 - <a id="W_NEO4J_MULTIPLE_ID_PROPERTIES"></a>`W_NEO4J_MULTIPLE_ID_PROPERTIES`: Several stored-id properties; one becomes the `:ID` column. Save: [neo4j](./formats/neo4j.md).
+- <a id="W_NEO4J_POINT_CRS"></a>`W_NEO4J_POINT_CRS`: A point of the position property is in another coordinate reference system than its first point: a geographic point among cartesian ones (or the reverse) is dropped; a 2D point among 3D ones is kept with a 0 for the missing coordinate. Import: [neo4j](./formats/neo4j.md).
 - <a id="W_NEO4J_SECTION_KIND"></a>`W_NEO4J_SECTION_KIND`: A file under the nodes option holds a relationship header, or the reverse; read by its header. Import: [neo4j](./formats/neo4j.md).
 - <a id="W_NEO4J_UNDIRECTED_AS_DIRECTED"></a>`W_NEO4J_UNDIRECTED_AS_DIRECTED`: Neo4j relationships are always directed, so the edges of an undirected graph, and the undirected edges of a mixed graph, read back as directed. Save: [neo4j](./formats/neo4j.md).
 - <a id="W_NODE_ORDER"></a>`W_NODE_ORDER`: The nodes read back in a different order. Save: [json](./formats/json.md), [obo](./formats/obo.md).

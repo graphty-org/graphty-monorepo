@@ -121,6 +121,9 @@ overrides:
     # uuid 9).
     "ip-address@<10.7.4": ^10.7.4
     "uuid@<11.1.1": ^11.1.1
+    # webgpu-graph-algorithms' webdriverio -> proxy-agent -> pac-proxy-agent -> get-uri 6 pins basic-ftp 5.
+    # Floor 6.2.1 covers GHSA-c475-qrg2-pj4r (get-uri 8 itself asks for basic-ftp ^6.2.4).
+    "basic-ftp@<6.2.1": ^6.2.1
     # storybook 9.1.20 pins @vitest/mocker 3.2.4; GHSA-82fw-gwwq-j7x9 is patched only in 4.1.11, and
     # GHSA-qxg6-89mg-rqv8 and GHSA-xp26-3454-mjgp only in 4.1.12.
     "@vitest/mocker@>=2.1.0 <4.1.12": ^4.1.12

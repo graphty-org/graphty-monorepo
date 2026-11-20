@@ -4128,6 +4128,10 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             owe: LANE,
             forgive: LANE,
             settle: LANE,
+            // One row of an owed publish, read without writing it.
+            owesRows: READ,
+            readOwed: READ,
+            owedWrites: READ,
             keeps: READ,
             unsettledView: READ,
         },

@@ -656,8 +656,15 @@ export class RowTable {
         floats[base + 1] = bounds[base + 1] = y;
         floats[base + 2] = bounds[base + 2] = z;
         // ...so a node put exactly there, drawn whole, sends nothing: a labeled node following a running
-        // layout costs its own row each frame, and no texture line goes up to be caught up.
-        if (onCard && atLane && Math.fround(z) === lane.z && flags === 0 && floats[base + 3] === 1) {
+        // layout costs its own row each frame, and no texture line goes up to be caught up. A measured
+        // row counts: KNOWN says nothing about where the row is drawn.
+        if (
+            onCard &&
+            atLane &&
+            Math.fround(z) === lane.z &&
+            (flags & (HELD | HIDDEN | SHRUNK)) === 0 &&
+            floats[base + 3] === 1
+        ) {
             return;
         }
 

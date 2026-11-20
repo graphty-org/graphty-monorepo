@@ -6,6 +6,9 @@ export const POSITION_COMPONENTS = 3;
 /** Rows the array holds before its first growth. */
 export const DEFAULT_CAPACITY = 1024;
 
+/** Distinct rows an owed publish answers one at a time even in a small lane, before it is written instead. */
+const OWED_ROWS_FLOOR = 64;
+
 /**
  * Reject a row count that is not a non-negative integer.
  *
@@ -139,8 +142,13 @@ export class ElementPositions {
     private owed: (() => void) | null = null;
     /** Answers one row as the owed publish would write it: see {@link ElementPositions.owe}. */
     private owedRow: OwedRow | null = null;
-    /** Rows `owedRow` answered since the publish was owed: past one per row, writing the publish is cheaper. */
-    private owedReads = 0;
+    /**
+     * The distinct rows `owedRow` answered since the publish was owed. Past a quarter of the lane (and at least
+     * {@link OWED_ROWS_FLOOR}), writing
+     * the publish is cheaper. Distinct rows, not reads: a labeled node read every frame of a long landing
+     * is one row however many frames the landing spans.
+     */
+    private readonly owedAnswered = new Set<number>();
     private readonly owedScratch = { x: 0, y: 0, z: 0 };
 
     /**
@@ -209,8 +217,8 @@ export class ElementPositions {
      *
      * A reader of one row need not write them all: `row` answers one row as the publish would write
      * it, so a frame that draws a few rows from the CPU (a label, an arrowhead) costs those rows, not
-     * every row of the graph. Once as many rows were read that way as the lane has, the next read writes
-     * the publish instead, so a landing never costs more than about twice the publish.
+     * every row of the graph. Once a quarter of the lane's rows were read that way, a read of another row
+     * writes the publish instead, so a landing never costs more than about 1.25 times the publish.
      * @param publish - Writes the rows; null to owe nothing.
      * @param row - Answers one row as `publish` would write it, or null when every read settles.
      * @internal
@@ -218,7 +226,7 @@ export class ElementPositions {
     owe(publish: (() => void) | null, row: OwedRow | null = null): void {
         this.owed = publish;
         this.owedRow = publish === null ? null : row;
-        this.owedReads = 0;
+        this.owedAnswered.clear();
         if (publish !== null) {
             this.moves++;
         }
@@ -254,6 +262,7 @@ export class ElementPositions {
         if (this.owed === publish) {
             this.owed = null;
             this.owedRow = null;
+            this.owedAnswered.clear();
         }
     }
 
@@ -319,9 +328,14 @@ export class ElementPositions {
             return null;
         }
 
-        // Reading every row one at a time costs more than writing them: past that, write the publish.
-        if (++this.owedReads > this.rows) {
-            return null;
+        // Reading many rows one at a time costs more than writing them all: past that, write the publish.
+        const answered = this.owedAnswered;
+        if (!answered.has(index)) {
+            if (answered.size >= Math.max(OWED_ROWS_FLOOR, this.rows >> 2)) {
+                return null;
+            }
+
+            answered.add(index);
         }
 
         return row(index, out);
@@ -340,6 +354,7 @@ export class ElementPositions {
 
         this.owed = null;
         this.owedRow = null;
+        this.owedAnswered.clear();
         publish();
         return true;
     }

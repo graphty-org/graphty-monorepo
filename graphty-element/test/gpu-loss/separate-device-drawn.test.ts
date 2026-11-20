@@ -64,11 +64,12 @@ describe("the layout filling the row table from a separate device", () => {
         // yet the public generation says the coordinates moved, once a landing
         assert.isAtLeast(lane.generation - generation, 3);
 
-        // a read publishes the rows the texture shows
+        // a read of one node answers where the texture shows it and writes no row; a read of the table writes them
         const at = graph.getNode("n0")?.getPosition();
         assert.isTrue(Number.isFinite(at?.x));
-        assert.isAbove(lane.changes - written, 0);
+        assert.strictEqual(lane.changes - written, 0);
         assert.isBelow((await textureDiff(graph)).worst, 1e-5);
+        assert.isAbove(lane.changes - written, 0);
     });
 
     it("draws a layout switched to while a landing is owed", async () => {

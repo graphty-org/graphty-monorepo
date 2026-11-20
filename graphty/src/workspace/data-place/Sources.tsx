@@ -2,6 +2,7 @@ import { ControlSection } from "@graphty/compact-mantine";
 import type { LoadedSource, SourceKey } from "@graphty/graphty-element/session";
 import React, { useEffect, useRef } from "react";
 
+import { StagedSection } from "../source-steps/StagedSection";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { StyleNotes } from "../styles/StyleNotes";
 import { AddSourceMenu } from "./AddSourceMenu";
@@ -11,7 +12,8 @@ import { SourceRow } from "./SourceRow";
  * The Sources section (spec section 3.2): one row per load still in the graph
  * (`data.sources()`), oldest first, and "+" to add one. Clicking a row selects it, and the Fields
  * section below shows its special fields. A load added while the section is drawn takes focus on
- * its row, unless the reader is typing in a field.
+ * its row, unless the reader is typing in a field. A staged source (the source-steps experiment)
+ * shows as its own dashed section after the rows.
  * @param props - Component props
  * @param props.sources - `data.sources()`
  * @param props.selected - the selected load's key
@@ -29,6 +31,9 @@ export function Sources({
 }>): React.JSX.Element {
     const { session } = useWorkspace();
     const list = useRef<HTMLDivElement>(null);
+    // Only the source-steps experiment stages a source; off, every source is committed.
+    const committed = sources.filter((source) => source.state !== "staged");
+    const staged = sources.filter((source) => source.state === "staged");
     const known = useRef<ReadonlySet<SourceKey> | null>(null);
     useEffect(() => {
         const before = known.current;
@@ -43,14 +48,14 @@ export function Sources({
     }, [sources]);
     return (
         <ControlSection label="Data sources" actions={<AddSourceMenu />} empty={sources.length === 0}>
-            {sources.length === 0 ? null : (
+            {committed.length === 0 ? null : (
                 <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- a <ul>/<li> would bring list styling and spacing the compact rows do not use; the role gives the same semantics
                     ref={list}
                     role="list"
                     aria-label="Data sources"
                     className="dp-sources"
                 >
-                    {sources.map((source) => (
+                    {committed.map((source) => (
                         <SourceRow
                             key={source.key}
                             source={source}
@@ -62,6 +67,9 @@ export function Sources({
                     ))}
                 </div>
             )}
+            {staged.map((source) => (
+                <StagedSection key={source.key} source={source} />
+            ))}
             <StyleNotes notes={session?.data.lastImport()?.styles?.notes} />
         </ControlSection>
     );

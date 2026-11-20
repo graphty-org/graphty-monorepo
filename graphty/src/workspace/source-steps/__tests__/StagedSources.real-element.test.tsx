@@ -1,0 +1,201 @@
+/**
+ * A second source arrives staged, on the REAL graphty-element with the source-steps experiment on
+ * (design/data/multiple-data-sources-design.md, sections 5.1 and 5.5), driven by drops, clicks and
+ * keys: it waits in its own section drawing nothing; Add adds it; a source whose keys meet people
+ * already there asks "Same person?" and holds Commit until it is answered; Remove takes it away and
+ * Undo brings it back; a save and reopen keeps it staged.
+ */
+
+// Registers the real <graphty-element>, as main.tsx does.
+import "@graphty/graphty-element";
+
+import type { GraphSession } from "@graphty/graphty-element/session";
+import { assert, describe, it } from "vitest";
+import { userEvent } from "vitest/browser";
+
+import { withFeatures } from "../../../test/features";
+import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
+import { Workspace } from "../../Workspace";
+
+withFeatures(["source-steps"]);
+
+const PEOPLE = "badge,name,dept\nB1,Ann,Ops\nB2,Bo,Lab\nB3,Cy,Sales";
+const BUILDINGS = "door,building\nD1,North\nD2,South";
+/** V1 is new; B1 is a person already. */
+const VISITORS = "badge,name\nB1,Ann\nV1,Val";
+
+/**
+ * Drops a file as the browser does, on the window. A synthetic DragEvent, the one exception to
+ * real input here: a page cannot start a drag of a file from the operating system.
+ * @param name - the file's name.
+ * @param text - its contents.
+ */
+function drop(name: string, text: string): void {
+    const dataTransfer = new DataTransfer();
+    dataTransfer.items.add(new File([text], name, { type: "text/csv" }));
+    for (const type of ["dragover", "drop"]) {
+        globalThis.dispatchEvent(new DragEvent(type, { dataTransfer, bubbles: true, cancelable: true }));
+    }
+}
+
+/**
+ * An empty project on the Data place.
+ * @returns the store and the session.
+ */
+async function emptyProject(): Promise<{ store: WorkspaceStore; session: GraphSession }> {
+    const store = createWorkspaceStore({ project: { name: "Doors", id: 1 }, place: "data" });
+    render(<Workspace store={store} />);
+    let session: GraphSession | undefined;
+    await waitFor(() => {
+        session = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
+            "graphty-element:not([data-start-page])",
+        )?.session;
+        assert.isDefined(session);
+    });
+    if (session === undefined) {
+        throw new Error("the element never came up");
+    }
+    return { store, session };
+}
+
+/**
+ * A project whose first file, people.csv, was dropped and drawn.
+ * @returns the store and the session.
+ */
+async function withPeopleDropped(): Promise<{ store: WorkspaceStore; session: GraphSession }> {
+    const project = await emptyProject();
+    drop("people.csv", PEOPLE);
+    await waitFor(() => {
+        assert.strictEqual(project.session.data.nodes().length, 3);
+    });
+    project.store.set({ dockOpen: false, dockMaximized: false });
+    return project;
+}
+
+/**
+ * Drops a file and waits for its staged section.
+ * @param name - the file's name.
+ * @param text - its contents.
+ * @returns the section.
+ */
+async function stage(name: string, text: string): Promise<HTMLElement> {
+    drop(name, text);
+    return screen.findByRole("region", { name });
+}
+
+/**
+ * Picks a choice in a select by clicking it open and clicking the option.
+ * @param within_ - where the select is.
+ * @param name - the select's name.
+ * @param option - the option.
+ */
+async function choose(within_: HTMLElement, name: string, option: string): Promise<void> {
+    await userEvent.click(within(within_).getByRole("combobox", { name }));
+    await userEvent.click(await screen.findByRole("option", { name: option }));
+}
+
+describe("a second source arrives staged (source-steps)", () => {
+    it("stages buildings.csv drawing nothing, then Add adds it as one more source", async () => {
+        const { session } = await withPeopleDropped();
+        const section = await stage("buildings.csv", BUILDINGS);
+        assert.strictEqual(session.data.nodes().length, 3, "a staged source draws nothing");
+        assert.isNull(screen.queryByRole("region", { name: "Join buildings.csv" }), "no join screen");
+        assert.include(within(section).getByLabelText("File").textContent, "2 rows");
+
+        await userEvent.click(within(section).getByRole("button", { name: /^Add/ }));
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("region", { name: "buildings.csv" }));
+        });
+        assert.strictEqual(session.data.nodes().length, 5, "three people and two buildings");
+        const list = screen.getByRole("list", { name: "Data sources" });
+        assert.isNotNull(within(list).getByRole("listitem", { name: "buildings.csv" }));
+    });
+
+    it("asks Same person? for visitors.csv and holds Commit until it is answered", async () => {
+        const { session } = await emptyProject();
+        await session.data.import(
+            { type: "csv", config: { data: PEOPLE }, name: "people.csv" },
+            { key: "badge", type: "person" },
+        );
+        const section = await stage("visitors.csv", VISITORS);
+        await choose(section, "Key", "badge");
+        const type = within(section).getByRole("combobox", { name: "Type" });
+        await userEvent.click(type);
+        await userEvent.keyboard("person{Enter}");
+        await waitFor(() => {
+            assert.strictEqual(
+                session.data.sourceTable(session.data.sources()[1]?.key ?? "").summary().mapping.type,
+                "person",
+            );
+        });
+        // Distinct and Repeats read the key's profile.
+        assert.strictEqual(within(section).getByLabelText("Distinct").textContent, "2 keys");
+
+        (document.activeElement as HTMLElement | null)?.blur();
+        await userEvent.keyboard("{Shift>}D{/Shift}");
+        const card = await within(section).findByRole("form", { name: "Add" });
+        assert.include(card.textContent, "Same person?");
+        assert.include(card.textContent, "1 of 2");
+        const commit = within(card).getByRole("button", { name: /^Commit/ });
+        assert.isTrue(commit.hasAttribute("disabled"), "Commit waits for an answer");
+
+        await userEvent.click(within(card).getByRole("radio", { name: "Merge" }));
+        await waitFor(() => {
+            assert.isFalse(commit.hasAttribute("disabled"));
+        });
+        await userEvent.click(commit);
+        await waitFor(() => {
+            assert.strictEqual(session.data.nodes().length, 4, "B1 merged, V1 added");
+        });
+        assert.isNull(screen.queryByRole("region", { name: "visitors.csv" }));
+    });
+
+    it("Cancel (Esc) closes the Add card and leaves the source staged", async () => {
+        const { session } = await emptyProject();
+        await session.data.import(
+            { type: "csv", config: { data: PEOPLE }, name: "people.csv" },
+            { key: "badge", type: "person" },
+        );
+        await session.data.stage(
+            { type: "csv", config: { data: VISITORS }, name: "visitors.csv" },
+            {
+                key: "badge",
+                type: "person",
+            },
+        );
+        const section = await screen.findByRole("region", { name: "visitors.csv" });
+        await userEvent.click(within(section).getByRole("button", { name: /^Add/ }));
+        await within(section).findByRole("form", { name: "Add" });
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(within(section).queryByRole("form", { name: "Add" }));
+        });
+        assert.isNull(session.data.currentDraft(), "the draft is discarded");
+        assert.strictEqual(session.data.sources()[1]?.state, "staged");
+        assert.strictEqual(session.data.nodes().length, 3);
+    });
+
+    it("Remove in the section menu takes it away, and Undo brings it back", async () => {
+        await withPeopleDropped();
+        const section = await stage("buildings.csv", BUILDINGS);
+        await userEvent.click(within(section).getByRole("button", { name: "buildings.csv menu" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Remove" }));
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("region", { name: "buildings.csv" }));
+        });
+
+        await userEvent.keyboard("{Control>}z{/Control}");
+        await screen.findByRole("region", { name: "buildings.csv" });
+    });
+
+    it("stays staged through a save and reopen", async () => {
+        const { session } = await withPeopleDropped();
+        await stage("buildings.csv", BUILDINGS);
+        const { text } = await session.project.save();
+        await session.project.open(text, { discard: true });
+        const section = await screen.findByRole("region", { name: "buildings.csv" });
+        assert.strictEqual(session.data.nodes().length, 3);
+        assert.isNotNull(within(section).getByRole("button", { name: /^Add/ }));
+    });
+});

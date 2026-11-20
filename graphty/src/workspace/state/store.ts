@@ -250,6 +250,11 @@ export interface WorkspaceState {
      * Role): the load is read again as edges once both are picked.
      */
     readonly ends: { readonly load: SourceKey; readonly source: string | null; readonly target: string | null } | null;
+    /**
+     * The card open over a staged source (the source-steps experiment): Add, while it asks the
+     * key-overlap question. Its draft is the element's (`data.currentDraft()`).
+     */
+    readonly sourceCard: { readonly kind: "add"; readonly source: SourceKey } | null;
     /** The Sources row the reader picked, kept while they visit another place; null: the newest load. */
     readonly pickedSource: SourceKey | null;
     /** The Data place's tab: what was loaded or what was calculated; kept per project, Loaded first. */
@@ -465,6 +470,7 @@ export const ON_RELOAD = {
     joining: "fresh: holds a read file that cannot be saved",
     editingJoin: "fresh: an edit in progress on the join screen",
     ends: "fresh: a half-made choice of edge ends",
+    sourceCard: "fresh: its draft lives in the element, which a reload replaced",
     pickedSource: "kept",
     dataTab: "kept",
     timelineOpen: "kept",
@@ -586,6 +592,7 @@ const INITIAL: WorkspaceState = {
     joining: null,
     editingJoin: null,
     ends: null,
+    sourceCard: null,
     pickedSource: null,
     dataTab: "loaded",
     timelineOpen: false,

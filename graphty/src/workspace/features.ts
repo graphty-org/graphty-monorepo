@@ -29,3 +29,14 @@ export function fileStylesOn(session: GraphSession | null | undefined): boolean 
     const features = new Set<string>(session?.features.enabled ?? []);
     return features.has("file-styles");
 }
+
+/**
+ * Whether sources and steps are on (issue #9152): a second source arrives staged in its own section
+ * of the Sources list instead of opening the join screen, and is added from there. Off, a second
+ * source opens the join screen as before.
+ * @param session - the element's session, or null before it comes up.
+ * @returns true when the element switched the experiment on.
+ */
+export function sourceStepsOn(session: GraphSession | null | undefined): boolean {
+    return (session?.features.enabled ?? []).includes("source-steps");
+}

@@ -20,7 +20,7 @@ import type { StartSample } from "../../data/sampleManifest";
 import { siteConfig } from "../../siteConfig";
 import type { CommandContext } from "../commands/registry";
 import { refusalFor } from "../data-page/words";
-import { fileStylesOn } from "../features";
+import { fileStylesOn, sourceStepsOn } from "../features";
 import { focusOpenedGraphLater } from "../frame/focus";
 import { openProjectFile } from "../project/actions";
 import { notReadWords } from "../project/words";
@@ -63,6 +63,7 @@ export function openProject(
             },
         }),
         ends: null,
+        sourceCard: null,
         pickedSource: null,
         dataTab: "loaded",
     }));
@@ -339,7 +340,9 @@ async function drawFirst(
 
 /**
  * A second source while the graph holds data (spec sections 2.1, 3.6 and 3.7): a copy of a loaded
- * source replaces it; anything else is read as a table to join and waits for the join screen.
+ * source replaces it; anything else is read as a table to join and waits for the join screen. With
+ * the source-steps experiment on, every second source is staged instead (design
+ * design/data/multiple-data-sources-design.md, section 5.1).
  * @param workspace - the workspace store.
  * @param session - the project's session.
  * @param incoming - the source.
@@ -351,6 +354,14 @@ async function takeIn(
     incoming: Incoming,
     read?: LoadDraft,
 ): Promise<void> {
+    if (sourceStepsOn(session)) {
+        // Sources and steps: it waits staged in its own section of the Data place, drawing nothing,
+        // until the reader adds or joins it there.
+        read?.dispose();
+        await session.data.stage(incoming.source);
+        workspace.set({ place: "data", dataTab: "loaded" });
+        return;
+    }
     // The same columns: the same file again replaces at once; another file (next month's) opens
     // the join screen on Replace, with Add as rows beside it.
     const matches = await session.data.matchesSource(incoming.source);

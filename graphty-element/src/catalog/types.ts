@@ -666,7 +666,7 @@ export interface OptionUnsupported {
 /**
  * Every property a layer can paint.
  *
- * The label channels `labelColor`, `labelSize`, `labelLetterSize`, `labelFont`, `labelWeight`, `labelItalic`, `labelWrapWidth`, `labelWrapTrailingSpace`, `labelWrapSkipEndSpace`, `labelWrapEllipsis`, `labelWrapAnywhere`, `labelWrapSpaceCount`, `labelMaxLines`, `labelMaxLinesEllipsis`, `labelMinScreenSize`, `labelOnTop`, `labelRotation`, `labelBackground`, `labelOutline`, `labelOutlineWidth`, `labelBorder`, `labelBorderWidth`, `labelOpacity`, `labelBackgroundOpacity`, `labelOutlineOpacity`, `labelBorderOpacity`, `labelPadding`, `labelCornerRadius`, `labelLineHeight`, `labelLineBox`, `labelBorderAlign`, `labelBorderStyle`, `labelBackgroundShape`, `labelOffsetX`, `labelOffsetY`, `labelShiftX`, `labelShiftY`, `labelShiftOf` and `labelGapOf` are
+ * The label channels `labelColor`, `labelSize`, `labelLetterSize`, `labelFont`, `labelWeight`, `labelItalic`, `labelWrapWidth`, `labelWrapTrailingSpace`, `labelWrapSkipEndSpace`, `labelWrapEllipsis`, `labelWrapAnywhere`, `labelWrapSpaceCount`, `labelMaxLines`, `labelMaxLinesEllipsis`, `labelMinScreenSize`, `labelOnTop`, `labelRotation`, `labelBackground`, `labelOutline`, `labelOutlineWidth`, `labelBorder`, `labelBorderWidth`, `labelOpacity`, `labelBackgroundOpacity`, `labelOutlineOpacity`, `labelBorderOpacity`, `labelPadding`, `labelCornerRadius`, `labelLineHeight`, `labelLineBox`, `labelBorderAlign`, `labelBorderStyle`, `labelBackgroundShape`, `labelImage`, `labelImageWidth`, `labelImageHeight`, `labelImageOffsetX`, `labelImageOffsetY`, `labelOffsetX`, `labelOffsetY`, `labelShiftX`, `labelShiftY`, `labelShiftOf` and `labelGapOf` are
  * single fields of the label style, so they can be bound to a column (`encode`) where the whole
  * `labelStyle` can only be set. They land in the same label style the `labelStyle` channel
  * writes, field by field, the higher layer winning each field.
@@ -721,6 +721,11 @@ export type Channel =
     | "node.labelBorderAlign"
     | "node.labelBorderStyle"
     | "node.labelBackgroundShape"
+    | "node.labelImage"
+    | "node.labelImageWidth"
+    | "node.labelImageHeight"
+    | "node.labelImageOffsetX"
+    | "node.labelImageOffsetY"
     | "node.labelOffsetX"
     | "node.labelOffsetY"
     | "node.labelShiftX"
@@ -1056,6 +1061,11 @@ export type Channel =
     | "edge.labelBorderAlign"
     | "edge.labelBorderStyle"
     | "edge.labelBackgroundShape"
+    | "edge.labelImage"
+    | "edge.labelImageWidth"
+    | "edge.labelImageHeight"
+    | "edge.labelImageOffsetX"
+    | "edge.labelImageOffsetY"
     | "edge.labelOffsetX"
     | "edge.labelOffsetY"
     | "edge.labelShiftX"
@@ -1169,6 +1179,12 @@ export interface BindingNumberFormat {
     maximumSignificantDigits?: number;
     /** A BCP 47 locale such as `"en-US"`, which chooses the decimal and grouping marks. */
     locale?: string;
+    /**
+     * Whether thousands are grouped, as `Intl.NumberFormat` groups them: `false` writes 12345 as
+     * 12345 rather than 12,345. Absent, they are grouped.
+     * @since 3.40.0
+     */
+    useGrouping?: boolean;
 }
 
 /**
@@ -1222,7 +1238,15 @@ export type Binding =
           /** How the value meets what lies beneath. See {@link CombineMode}. @since 3.26.0 */
           combine?: CombineMode;
       }
-    | { template: readonly string[] }
+    | {
+          template: readonly string[];
+          /**
+           * How a number a `{path}` placeholder reads is written. See {@link BindingNumberFormat}.
+           * Text, counts and ranks are written as before.
+           * @since 3.40.0
+           */
+          format?: BindingNumberFormat;
+      }
     | {
           by: Path;
           /** How the value meets what lies beneath. See {@link CombineMode}. @since 3.26.0 */
@@ -2518,6 +2542,11 @@ export interface UnionBranch {
     readonly id?: string;
     /** Its name, the consumer's. */
     readonly name?: string;
+    /**
+     * Whether `name` was given automatically by the consumer (a letter, say) rather than typed by a
+     * reader, so the consumer may clear or replace it. The element only stores it. Default false.
+     */
+    readonly autoName?: boolean;
     /** Its color, filled from the branch palette on write (`session.scope.options.branchPalette`). */
     readonly color?: string;
     /** Whether it counts. Default true. */

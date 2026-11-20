@@ -11,7 +11,7 @@
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
-import type { GraphSession } from "@graphty/graphty-element/session";
+import type { AssetRecord, GraphSession } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
@@ -20,7 +20,10 @@ import { screen, waitFor, within } from "../../../test/test-utils";
 import type { WorkspaceStore } from "../../state/store";
 import policeUrl from "../__fixtures__/car-kit/police.glb?url";
 import colormapUrl from "../__fixtures__/car-kit/Textures/colormap.png?url";
-import { addModel, drawn, dropOn, openCustom, openShapes, previewOf } from "./modelHarness";
+import { addModel, choose, drawn, dropOn, openCustom, openShapes, previewOf } from "./modelHarness";
+
+/** police.glb with a/colormap.png and b/colormap.png, as the file chooser reads it (relative to the graphty project). */
+const TWO_PICTURES = "src/workspace/style/__fixtures__/two-pictures";
 
 // The Style panel the app shows with file styles off, as ModelParts.real-element.test.tsx drives it.
 withoutFeatures(["file-styles"]);
@@ -122,6 +125,66 @@ describe("the Parts pop-over's address field", () => {
             assert.equal(store.get().announcement, "Address discarded");
         });
         assert.equal(field.value, "");
+    });
+});
+
+/**
+ * Chooses a folder holding police.glb and two pictures that could each be its colormap.png
+ * (a/colormap.png and b/colormap.png) in the Load custom model dialog, and waits for the row
+ * asking which.
+ * @returns the session, the dialog and the row.
+ */
+async function policeWithTwoPictures(): Promise<{ session: GraphSession; dialog: HTMLElement; row: HTMLElement }> {
+    const { session, tab } = await openShapes();
+    const dialog = await openCustom(tab);
+    await choose(dialog, "Choose folder", [TWO_PICTURES]);
+    const files = await within(dialog).findByTestId("model-files");
+    const row = await within(files).findByRole("group", { name: "colormap.png" });
+    assert.isNotNull(within(row).getByRole("combobox", { name: "Which file is colormap.png" }));
+    return { session, dialog, row };
+}
+
+/**
+ * Whether a record is drawn without police.glb's picture.
+ * @param record - the record.
+ * @returns true when its colormap.png is skipped.
+ */
+function skippedPicture(record: AssetRecord): boolean {
+    return (record.skipped ?? []).some((name) => name.endsWith("Textures/colormap.png"));
+}
+
+/**
+ * The accepted record of police.glb.
+ * @param session - the session.
+ * @returns the record, once accepted.
+ */
+function acceptedPolice(session: GraphSession): Promise<AssetRecord> {
+    return waitFor(() => {
+        const found = session.assets
+            .list()
+            .find((r) => r.path?.endsWith("police.glb") === true && r.state === "accepted");
+        assert.isDefined(found);
+        return found;
+    });
+}
+
+describe("the Load custom model dialog with a picture two files could be (#8614)", () => {
+    it("adds the model without that picture, never waiting for the reader to choose", async () => {
+        const { session, dialog } = await policeWithTwoPictures();
+        await addModel(dialog);
+        const record = await acceptedPolice(session);
+        assert.isTrue(skippedPicture(record), "added without the picture");
+    });
+
+    it("loads the model without that picture with the row's Load without it", async () => {
+        const { session, dialog, row } = await policeWithTwoPictures();
+        await userEvent.click(within(row).getByRole("button", { name: "Load without colormap.png" }));
+        await waitFor(() => {
+            assert.isFalse(row.isConnected, "colormap.png is no longer asked for");
+        });
+        await addModel(dialog);
+        const record = await acceptedPolice(session);
+        assert.isTrue(skippedPicture(record), "added without the picture");
     });
 });
 

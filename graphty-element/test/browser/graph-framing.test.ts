@@ -10,6 +10,9 @@ import { afterEach, assert, describe, it } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
+import { fileStylesOn } from "../helpers/file-styles-on";
+
+fileStylesOn();
 
 const WIDTH = 480;
 const HEIGHT = 360;
@@ -114,5 +117,110 @@ describe("the framing setting", () => {
         await element.session.config.set({ framing: undefined });
         const back = await framed(element);
         assert.closeTo(back.a.x, before.a.x, 1, "the element's own framing is back");
+    });
+
+    it("frames a fixed box edge to edge whatever the nodes' extent", async () => {
+        const element = await mounted();
+        // a box twice the centers' box each way, as tall as the canvas's shape: the nodes fill its middle half
+        await element.session.config.set({
+            framing: { extent: "centers", padding: 0, box: { min: [-200, -150], max: [200, 150] } },
+        });
+        const { a, b } = await framed(element);
+        assert.closeTo(a.x, WIDTH / 4, 1, "a's center is a quarter in from the left");
+        assert.closeTo(b.x, (WIDTH * 3) / 4, 1, "b's center is a quarter in from the right");
+        assert.closeTo((a.y + b.y) / 2, HEIGHT / 2, 1, "the box is centered up and down");
+    });
+});
+
+/** A Pajek drawing: four vertices inside the file's 0..1 square, which Pajek frames whatever the vertices' extent. */
+const PAJEK = [
+    "*Vertices 4",
+    '1 "a" 0.2 0.2',
+    '2 "b" 0.8 0.2',
+    '3 "c" 0.8 0.8',
+    '4 "d" 0.2 0.8',
+    "*Edges",
+    "1 2",
+    "2 3",
+    "3 4",
+    "4 1",
+].join("\n");
+
+/**
+ * Load the Pajek drawing as the graphty app's file styles do, framed as Pajek frames it.
+ * @param element - The element.
+ */
+async function loadPajek(element: Graphty): Promise<void> {
+    await element.loadFromFile(new File([PAJEK], "square.net"), {
+        replace: true,
+        styles: "file",
+        layout: "recommended",
+        styleOptions: { framing: "file" },
+    });
+    await operationQueueOf(element.graph).waitForCompletion();
+    await element.waitForStableFrame();
+}
+
+/**
+ * Where every node's center is drawn after a fit, as a box in CSS pixels.
+ * @param element - The element.
+ * @returns The box of the node centers on screen.
+ */
+async function fittedCenters(element: Graphty): Promise<{ left: number; right: number; top: number; bottom: number }> {
+    element.zoomToFit();
+    await element.waitForStableFrame();
+    const box = { left: Infinity, right: -Infinity, top: Infinity, bottom: -Infinity };
+    for (const id of ["1", "2", "3", "4"]) {
+        const at = element.graph.nodeScreenPosition(id);
+        assert.isDefined(at, `node ${id} is drawn`);
+        box.left = Math.min(box.left, at.x);
+        box.right = Math.max(box.right, at.x);
+        box.top = Math.min(box.top, at.y);
+        box.bottom = Math.max(box.bottom, at.y);
+    }
+
+    return box;
+}
+
+/**
+ * Assert the fit framed the nodes: their centers fill the canvas's middle, not a corner of an old box.
+ * @param box - The node centers' box on screen.
+ */
+function assertFramesNodes(box: { left: number; right: number; top: number; bottom: number }): void {
+    // padding 0 fits the centers to the canvas's edge: within a pixel of it
+    assert.isAtLeast(box.left, -1, "every node is on the canvas");
+    assert.isAtMost(box.right, WIDTH + 1, "every node is on the canvas");
+    assert.isAtLeast(box.top, -1, "every node is on the canvas");
+    assert.isAtMost(box.bottom, HEIGHT + 1, "every node is on the canvas");
+    assert.closeTo((box.left + box.right) / 2, WIDTH / 2, WIDTH / 10, "the nodes are centered across");
+    assert.closeTo((box.top + box.bottom) / 2, HEIGHT / 2, HEIGHT / 10, "the nodes are centered up and down");
+    assert.isAbove(box.bottom - box.top, HEIGHT / 2, "the nodes fill the canvas, not a corner of it");
+}
+
+describe("a file's fixed framing box", () => {
+    it("frames the file's square while its positions are drawn, and the nodes once another layout runs", async () => {
+        const element = await mounted();
+        await loadPajek(element);
+        assert.isDefined(element.session.config.framing?.box, "the load framed Pajek's square");
+        // The square 0..1 is framed edge to edge across the shorter side: 0.2..0.8 fills its middle 60%.
+        const own = await fittedCenters(element);
+        assert.closeTo(own.bottom - own.top, HEIGHT * 0.6, 2, "the file's square fills the canvas's shorter side");
+
+        await element.setLayout("circular", { dim: 2 });
+        await operationQueueOf(element.graph).waitForCompletion();
+        await element.waitForStableFrame();
+        assertFramesNodes(await fittedCenters(element));
+    });
+
+    it("is dropped by a load that does not frame as its file does", async () => {
+        const element = await mounted();
+        await loadPajek(element);
+        assert.isDefined(element.session.config.framing?.box, "the load framed Pajek's square");
+
+        await element.loadFromFile(new File([PAJEK], "square.net"), { replace: true, layout: "recommended" });
+        await operationQueueOf(element.graph).waitForCompletion();
+        await element.waitForStableFrame();
+        assert.isUndefined(element.session.config.framing?.box, "the new graph is not framed by the last file's box");
+        assertFramesNodes(await fittedCenters(element));
     });
 });

@@ -31,7 +31,7 @@ import { absorbedByKnownFailures, MUTATIONS } from "./mutations";
 import type { OracleReport } from "./oracle/compare-oracle";
 import {
     compareWithOracle,
-    ORACLE_CANVAS,
+    oracleCanvas,
     oracleFormatOptions,
     oracleGraphName,
     oracleMeta,
@@ -145,7 +145,7 @@ describe("comparator mutants", () => {
         const meta = oracleMeta(id);
         const { element, sha256, command } = await mountSample(
             sample,
-            ORACLE_CANVAS,
+            oracleCanvas(meta, sample.format),
             oracleGraphName(meta),
             oracleFormatOptions(meta, sample.format),
         );

@@ -113,6 +113,13 @@ export { pageRank, type PageRankOptions, type PageRankResult, personalizedPageRa
 export { astar, type AstarResult, bidirectionalDijkstra, type PathOptions, type PathResult } from "./point-to-point.js";
 export { condensation, type CondensationResult, stronglyConnectedComponents } from "./scc.js";
 export {
+    countShortestPaths,
+    type CountShortestPathsOptions,
+    timeOrderedPaths,
+    type TimeOrderedPathsOptions,
+    type TimeOrderedPathsResult,
+} from "./shortest-routes.js";
+export {
     allSimplePaths,
     SIMPLE_PATHS_DEFAULT_MAX_PATHS,
     SIMPLE_PATHS_DEFAULT_MAX_STEPS,

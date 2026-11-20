@@ -1051,6 +1051,26 @@ const insideNode = (n: PNode, [x, y]: Pt): boolean => {
 };
 
 /**
+ * Whether a line's end lies on a node's box, within a pixel, and out past the ellipse the box holds by more than one:
+ * where the program stopped the line on an outline that reaches the box (a notched note's corner). Not for a box or a
+ * round node, which are cut at their own outline already.
+ * @param n - the node
+ * @param end - the line's end
+ * @param pixel - one render pixel, in the node's frame
+ * @returns whether it does
+ */
+export function onBoxPastEllipse(n: PNode, end: Pt, pixel: number): boolean {
+    // a round node's box is no outline: a line stopped there short of the ellipse leaves a gap a reader sees
+    if (n.shape === null || ["rect", "roundrect", "ellipse"].includes(n.shape) || !(n.w > 0 && n.h > 0)) {
+        return false;
+    }
+    const [dx, dy] = [Math.abs(end[0] - n.cx), Math.abs(end[1] - n.cy)];
+    const [hw, hh] = [n.w / 2, n.h / 2];
+    const onBox = dx <= hw + pixel && dy <= hh + pixel && (dx >= hw - pixel || dy >= hh - pixel);
+    return onBox && !insideNode({ ...n, shape: "ellipse", w: n.w + 2 * pixel, h: n.h + 2 * pixel }, end);
+}
+
+/**
  * A path without its ends inside a node: from where it first leaves the start node to where it last enters the
  * end node, each crossing found on its segment. One program draws an edge from border to border and another from
  * center to center under opaque nodes; a reader sees the same line, so a route is judged on the part between the
@@ -1998,6 +2018,16 @@ function withEdges(box: PBox, edges: readonly PEdge[], nodes: ReadonlySet<string
     return out;
 }
 
+/**
+ * Whether a font size in px is legible: at least {@link ORACLE_TOLERANCES}' `legibleFontPx`, less the share the fitted
+ * scale is good to (`labelRuleShare`). Pajek's 1 px label, drawn 1 px by graphty on the same canvas, reads 0.999999 px
+ * once divided by a fitted scale of 1.000001 (pajek-lin-rel4 v226, issue #8193).
+ * @param px - the size
+ * @returns true for a legible size
+ */
+export const legiblePx = (px: number): boolean =>
+    px >= ORACLE_TOLERANCES.legibleFontPx * (1 - ORACLE_TOLERANCES.labelRuleShare);
+
 /** The share of a canvas a box fills along its tighter axis: 1 when it fits the canvas exactly one way. */
 const fillOf = (b: PBox, width: number, height: number): number =>
     Math.max(boxW(b) / Math.max(width, 1e-9), boxH(b) / Math.max(height, 1e-9));
@@ -2443,6 +2473,21 @@ export function compareOracle(
         }
         if (!bodied(on) || !bodied(at)) {
             return [undefined, undefined];
+        }
+        // a line the program stops on its node's box out past the ellipse the box holds is cut at the boxes on both
+        // sides: the outline reaches the box there (graphml-libcitygml-mapping n38 -> n14: yEd stops at a UML note's
+        // top left corner, which the scene classes as a hexagon, and graphty's line, run to the center, was cut 20 px
+        // inside at the ellipse)
+        if (
+            on.figure === undefined &&
+            at.figure === undefined &&
+            end !== undefined &&
+            onBoxPastEllipse(on, end, pixel)
+        ) {
+            return [
+                { ...on, shape: "rect" },
+                { ...at, shape: "rect" },
+            ];
         }
         return at.figure !== undefined && runsToMiddle(on, end)
             ? [on, at]
@@ -2927,7 +2972,16 @@ export function compareOracle(
             } else if (place !== null) {
                 j.add("edge.arrowPlace", "edge", at, place.miss, place.oracle, place.graphty);
             }
-            j.add("edge.arrowFill", "edge", at, oa.filled === gg.filled ? 0 : 1, oa.filled, gg.filled);
+            // a head filled in the canvas's own color and drawn with no outline shows nothing on either side: the
+            // oracle's reads hollow with no color (associate.ts arrowFrom), graphty's as filled in that color
+            // (graphml-synthetic-edges n17 -> n27 and n27 -> n36: white lines and white heads on white, in both)
+            const blank =
+                !oa.filled &&
+                oa.color === null &&
+                gg.filled &&
+                gg.color !== null &&
+                deltaE(gg.color, oracle.background ?? "#ffffff") <= 3;
+            j.add("edge.arrowFill", "edge", at, oa.filled === gg.filled || blank ? 0 : 1, oa.filled, gg.filled);
             if (oa.color !== null && gg.color !== null) {
                 j.add(
                     "edge.arrowColor",
@@ -3198,7 +3252,7 @@ export function compareOracle(
         // (extract-scene.ts), so an oracle's that small is left out too (dot-real-depcruise's 9 pt cluster names at
         // about 1 px, issue #5756)
         const legible = (t: PText | null, scale: number): string | null =>
-            t !== null && (t.sizePx === 0 || t.sizePx / scale >= T.legibleFontPx) ? t.content : null;
+            t !== null && (t.sizePx === 0 || legiblePx(t.sizePx / scale)) ? t.content : null;
         const oWords = legible(o.label, lengthScale);
         const gWords = legible(g.label, 1);
         if (oWords !== null || gWords !== null) {
@@ -3243,7 +3297,7 @@ export function compareOracle(
     // a text under one render pixel is no text to a reader, as judgeLabel and extract-scene.ts drop graphty's: the
     // further lines of a wrapped node label Cytoscape draws at 0.15 px (cx-ddram, node 6907), which the association
     // leaves as free text when it drops the first line with its node
-    const legibleText = (t: PText): boolean => t.sizePx === 0 || t.sizePx / lengthScale >= T.legibleFontPx;
+    const legibleText = (t: PText): boolean => t.sizePx === 0 || legiblePx(t.sizePx / lengthScale);
     // Words a program drew as glyph outlines (Cytoscape desktop's labels on cx-polygenic-sle, each a white halo and
     // the black glyphs over it) say no words: one stray per place, drawn where graphty draws any text over it
     const glyphs = new Map<string, PBox>();
@@ -3891,15 +3945,12 @@ function judgeLabel(
     // A label that paints nothing (words, outline and box all clear) is no label to a reader either, on both sides:
     // at text-opacity 0 Cytoscape.js draws no text (json-cyjs-synth-nodes n67), Cytoscape desktop writes one at
     // opacity 0, and graphty draws its plane clear.
-    const legible =
-        oracle !== null && (oracle.sizePx === 0 || oracle.sizePx / scale >= T.legibleFontPx) && paints(oracle);
+    const legible = oracle !== null && (oracle.sizePx === 0 || legiblePx(oracle.sizePx / scale)) && paints(oracle);
     const o = legible ? oracle : null;
     // and graphty's by the same measure, for a text the scene keeps however small: a node's further texts
     // (`shape.texts`, Cytoscape's chart item labels at their default 1 px, xgmml-specimen-images-charts-p5)
     const g =
-        graphty !== null && (graphty.sizePx === 0 || graphty.sizePx >= T.legibleFontPx) && paints(graphty)
-            ? graphty
-            : null;
+        graphty !== null && (graphty.sizePx === 0 || legiblePx(graphty.sizePx)) && paints(graphty) ? graphty : null;
     // the oracle hid it by its own choice (overlap avoidance on an unrelated layout): nothing to judge
     if (oracle === null && oracleMayHide) {
         return;

@@ -59,6 +59,7 @@ export {
 } from "./styles/fileStyles/codes";
 export type { FileStyleNote, FileStyleOptions } from "./styles/fileStyles/translate";
 export type {
+    ByTableMapping,
     ColumnHistogram,
     ColumnRole,
     CommandOutcome,
@@ -115,6 +116,7 @@ export type {
     ImportColumnsInput,
     ImportOptions,
     JoinChoices,
+    JoinClashRule,
     JoinKey,
     JoinLink,
     JoinLookup,
@@ -131,6 +133,7 @@ export type {
     LeftOutEdge,
     LoadChoices,
     LoadDraft,
+    LoadedChoices,
     LoadedSource,
     LoadedSourceKind,
     LoadedWeight,
@@ -159,6 +162,7 @@ export type {
     PendingId,
     PendingStep,
     PositionEntry,
+    PreparePageControl,
     ProjectConfig,
     ProjectConfigPatch,
     ProjectSlice,
@@ -203,6 +207,7 @@ export type {
     SettingEffect,
     SettingEffectCode,
     SideMapping,
+    SourceLoaded,
     StartingCamera,
     StyleProblem,
     TableMapping,

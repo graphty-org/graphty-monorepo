@@ -902,6 +902,12 @@ function channelPlans(
             ["labelItalic", [label("labelItalic")]],
             ...labelBox,
             ...labelBoxShape,
+            // a picture in the label (yEd's label icon), sized and placed in the label's units as its padding is
+            ["labelImage", [picture("node.labelImage")]],
+            ["labelImageWidth", [labelLength("node.labelImageWidth", false)]],
+            ["labelImageHeight", [labelLength("node.labelImageHeight", false)]],
+            ["labelImageOffsetX", [labelLength("node.labelImageOffsetX", false)]],
+            ["labelImageOffsetY", [labelLength("node.labelImageOffsetY", false)]],
             ["labelBox", [label("labelBox")]],
             // moved in the scene's units, as a wrap width is
             ["labelOffsetX", [length("node.labelOffsetX", factors.node * SCENE_PER_UNIT.node)]],

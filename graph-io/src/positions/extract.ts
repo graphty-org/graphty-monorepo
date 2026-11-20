@@ -20,6 +20,7 @@ import type {
     ImporterPositions,
     PositionColumnExtra,
     PositionNote,
+    ViewerFrame,
 } from "./types.js";
 
 type Point = [number, number, number];
@@ -110,6 +111,7 @@ export function extractPositions(
         units: spelling.extra.units ?? "file",
         ...(spelling.extra.pxPerUnit === undefined ? {} : { pxPerUnit: spelling.extra.pxPerUnit }),
         ...(spelling.extra.viewerFit === undefined ? {} : { viewerFit: spelling.extra.viewerFit }),
+        ...(spelling.extra.viewerFrame === undefined ? {} : { viewerFrame: neutralFrame(spelling.extra) }),
         medianNodeSize: spelling.medianNodeSize ?? medianSize(spelling.size, n, containers),
         dims: coords.realZ ? 3 : 2,
         coords: coords.values,
@@ -253,7 +255,27 @@ function extraOf(source: object): PositionColumnExtra {
     if (typeof fit?.padding === "number" && Number.isFinite(fit.padding) && fit.padding >= 0) {
         out.viewerFit = { padding: fit.padding };
     }
+    const frame = extra.viewerFrame as Readonly<Record<string, unknown>> | null | undefined;
+    const pair = (v: unknown): v is readonly [number, number] =>
+        Array.isArray(v) && v.length === 2 && v.every((n) => typeof n === "number" && Number.isFinite(n));
+    if (pair(frame?.min) && pair(frame.max) && frame.min[0] < frame.max[0] && frame.min[1] < frame.max[1]) {
+        out.viewerFrame = { min: [frame.min[0], frame.min[1]], max: [frame.max[0], frame.max[1]] };
+    }
     return out;
+}
+
+/**
+ * The box the program fits to its canvas, in the neutral convention: its corners converted as a node's coordinates are.
+ * @param extra - the spelling, with its `viewerFrame`
+ * @returns the box, its smallest corner first
+ */
+function neutralFrame(extra: PositionColumnExtra): ViewerFrame {
+    const { min, max } = extra.viewerFrame as ViewerFrame;
+    const a: Point = [min[0], min[1], 0];
+    const b: Point = [max[0], max[1], 0];
+    toNeutral(a, extra, null, false);
+    toNeutral(b, extra, null, false);
+    return { min: [Math.min(a[0], b[0]), Math.min(a[1], b[1])], max: [Math.max(a[0], b[0]), Math.max(a[1], b[1])] };
 }
 
 // ------------------------------------------------------------ rows

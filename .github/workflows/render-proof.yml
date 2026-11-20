@@ -1,11 +1,10 @@
 name: Render proof
 
 # The whole of the render-parity and forced-batched test projects of graphty-element
-# (design/rendering/row-renderer.md 7). By dispatch on a branch only: it gates nothing. A pull request runs only
-# the forced-batched files its change selects, when it touches a browser test or the render path; the full run
-# runs the whole of forced-batched too, in twelve shards
-# (graphty-element-forced-batched-<n>, tools/ci-test-matrix.mjs), so this adds render-parity. Stages 11, 13 and 16 cite its run in
-# their Proof.
+# (design/rendering/row-renderer.md 7). By dispatch on a branch only: it gates nothing. A pull request runs the
+# forced-batched files its change selects, as it runs the browser shards; the full run runs the whole of
+# forced-batched in twelve shards and render-parity on WebGL, WebGPU and WebKit (tools/ci-test-matrix.mjs), so this
+# runs on a branch what the full run would. Stages 11, 13 and 16 cite its run in their Proof.
 
 on:
     workflow_dispatch:

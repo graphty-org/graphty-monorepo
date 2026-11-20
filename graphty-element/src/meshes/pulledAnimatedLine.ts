@@ -44,7 +44,7 @@ vec4 rowAt(int i) {
 }
 
 vec4 edgeAt(int i) {
-    return texelFetch(edgeRows, ivec2(i & 1023, i >> 10), 0);
+    return pulledTexel(edgeRows, i);
 }
 
 vec2 grlFix(vec4 i) {

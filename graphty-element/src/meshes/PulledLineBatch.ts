@@ -5,6 +5,7 @@ import { RawTexture } from "@babylonjs/core/Materials/Textures/rawTexture.js";
 import type { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 import type { Scene } from "@babylonjs/core/scene.js";
 
+import { GraphtyError } from "../errors/GraphtyError";
 import { DirtyRuns } from "./DirtyRuns";
 import {
     JOIN_TEMPLATE_INDICES,
@@ -70,8 +71,46 @@ export type Antialias = boolean | "at-rest" | "shader";
  */
 export type LeanLines = boolean | "smooth";
 
-/** Texels across the edge table, as across the row table: texel `i` is at `(i % 1024, i / 1024)`. */
+/**
+ * Texels across a table at first, as across the row table. A table taller than the card allows (`maxTextureSize`) is
+ * made wider instead, a power of two at a time: texel `i` is at `(i % width, i / width)`, and the shaders read the
+ * width from the texture itself (`pulledTexel`), so the CPU copy is the same at any width.
+ */
 const TABLE_WIDTH = 1024;
+
+/**
+ * The most entries a table may name: the draw order table and a curve's span name pieces and route texels as floats,
+ * which count every whole number only up to 2^24.
+ */
+const MOST_ENTRIES = 2 ** 24;
+
+/**
+ * The shape of a table that holds at least `texels` texels on a card whose textures are at most `most` a side.
+ * @param texels - Texels it must hold.
+ * @param most - The card's `maxTextureSize`.
+ * @param entries - What the table counts (pieces or texels), to check against {@link MOST_ENTRIES}.
+ * @returns Its width, the narrowest that keeps it no taller than `most`, and its texels in whole lines.
+ * @throws GraphtyError `E_TOO_LARGE` when no table the card can hold has room.
+ */
+export function tableShape(texels: number, most: number, entries = texels): { width: number; texels: number } {
+    let width = Math.min(TABLE_WIDTH, most);
+    while (width < most && Math.ceil(texels / width) > most) {
+        width *= 2;
+    }
+
+    if (Math.ceil(texels / width) > most || entries > MOST_ENTRIES) {
+        throw new GraphtyError({
+            code: "E_TOO_LARGE",
+            source: "view",
+            message:
+                `An edge table of ${texels.toLocaleString("en-US")} texels does not fit in one ` +
+                `${most.toLocaleString("en-US")} x ${most.toLocaleString("en-US")} texture. Draw fewer or shorter curved edges.`,
+            details: { texels, maxTextureSize: most, entries, mostEntries: MOST_ENTRIES },
+        });
+    }
+
+    return { width, texels: Math.ceil(texels / width) * width };
+}
 
 /**
  * Texels a piece takes: (source row, target row, width, opacity), then (red, green, blue, point);
@@ -127,11 +166,8 @@ interface WidthGroup {
     readonly free: number[];
 }
 
-/** Draw slots in one line of the draw order table: a float a slot, four to a texel. */
-const ORDER_PER_LINE = TABLE_WIDTH * 4;
-
-/** Hidden flags in one line of the hidden table: a byte a piece, four to a texel. */
-const HIDDEN_PER_LINE = TABLE_WIDTH * 4;
+/** Draw slots (in the draw order table, a float each) or hidden flags (in the hidden table, a byte each) a texel holds. */
+const FLAGS_PER_TEXEL = 4;
 
 /** A row number no row has: the piece draws nothing. */
 export const NO_ROW = -1;
@@ -168,6 +204,12 @@ export class PulledLineBatch {
     private rows: Float32Array<ArrayBuffer>;
 
     private table: RawTexture;
+
+    /** Texels across the edge table, the hidden table, the draw order table and the route table: see {@link tableShape}. */
+    private tableWidth = TABLE_WIDTH;
+    private hiddenWidth = TABLE_WIDTH;
+    private orderWidth = TABLE_WIDTH;
+    private routeWidth = TABLE_WIDTH;
 
     /**
      * Each piece's hidden flag, 255 for hidden (`edgeHidden`). A time window hides and shows pieces scattered
@@ -243,9 +285,6 @@ export class PulledLineBatch {
     /** Floats a piece takes in the table. */
     private readonly pieceFloats: number;
 
-    /** Pieces in one line of the edge table. */
-    private readonly piecesPerLine: number;
-
     /**
      * Start a batch on a joined line mesh made with `pulled: true`.
      * @param mesh - The mesh (`CustomLineRenderer.createJoinedLineMesh`), parented as the rows'
@@ -278,20 +317,27 @@ export class PulledLineBatch {
         this.mesh = mesh;
         const texels = curve ? TEXELS_PER_CURVE_PIECE : TEXELS_PER_PIECE;
         this.pieceFloats = texels * TEXEL_FLOATS;
-        this.piecesPerLine = TABLE_WIDTH / texels;
         markEdgeLineBatchMesh(mesh);
         mesh.isPickable = false;
         mesh.doNotSyncBoundingInfo = true;
         mesh.alwaysSelectAsActiveMesh = true;
         mesh.isUnIndexed = true;
-        this.rows = this.emptyTable(this.piecesPerLine);
+        const first = this.shape(TABLE_WIDTH);
+        this.tableWidth = first.width;
+        this.rows = this.emptyTable(first.texels / texels);
         this.table = this.build();
-        this.hidden = new Uint8Array(HIDDEN_PER_LINE);
+        const hidden = this.flagShape(first.texels / texels);
+        this.hiddenWidth = hidden.width;
+        this.hidden = new Uint8Array(hidden.flags);
         this.hiddenTable = this.buildHidden();
-        this.orderTable = this.buildOrder(new Float32Array(ORDER_PER_LINE));
+        const order = this.flagShape(1);
+        this.orderWidth = order.width;
+        this.orderTable = this.buildOrder(new Float32Array(order.flags));
         this.sort();
         if (curve) {
-            this.routes = new Float32Array(TABLE_WIDTH * TEXEL_FLOATS);
+            const routes = this.shape(TABLE_WIDTH);
+            this.routeWidth = routes.width;
+            this.routes = new Float32Array(routes.texels * TEXEL_FLOATS);
             this.routeTable = this.buildRoutes(this.routes);
         }
         if (switches) {
@@ -418,7 +464,7 @@ export class PulledLineBatch {
         }
 
         this.hidden[piece] = flag;
-        const line = Math.floor(piece / HIDDEN_PER_LINE);
+        const line = Math.floor(piece / (this.hiddenWidth * FLAGS_PER_TEXEL));
         this.hiddenFirst = this.hiddenFirst < 0 ? line : Math.min(this.hiddenFirst, line);
         this.hiddenLast = Math.max(this.hiddenLast, line);
     }
@@ -499,8 +545,8 @@ export class PulledLineBatch {
         for (let k = 0; k < count; k++) {
             routes.set(points.slice(3 * k, 3 * k + 3), (block + k) * TEXEL_FLOATS);
         }
-        const first = Math.floor(block / TABLE_WIDTH);
-        const last = Math.floor((block + size - 1) / TABLE_WIDTH);
+        const first = Math.floor(block / this.routeWidth);
+        const last = Math.floor((block + size - 1) / this.routeWidth);
         this.routesFirst = this.routesFirst < 0 ? first : Math.min(this.routesFirst, first);
         this.routesLast = Math.max(this.routesLast, last);
         return block;
@@ -533,7 +579,9 @@ export class PulledLineBatch {
             block = this.routeHighWater;
             this.routeHighWater += size;
             while (this.routes !== null && this.routeHighWater * TEXEL_FLOATS > this.routes.length) {
-                const grown = new Float32Array(this.routes.length * 2);
+                const { width, texels } = this.shape((this.routes.length / TEXEL_FLOATS) * 2);
+                this.routeWidth = width;
+                const grown = new Float32Array(texels * TEXEL_FLOATS);
                 grown.set(this.routes);
                 this.routes = grown;
                 this.routeTable?.dispose();
@@ -555,8 +603,8 @@ export class PulledLineBatch {
     private buildRoutes(routes: Float32Array<ArrayBuffer>): RawTexture {
         const texture = RawTexture.CreateRGBATexture(
             routes,
-            TABLE_WIDTH,
-            routes.length / (TABLE_WIDTH * TEXEL_FLOATS),
+            this.routeWidth,
+            routes.length / (this.routeWidth * TEXEL_FLOATS),
             this.scene,
             false,
             false,
@@ -614,13 +662,14 @@ export class PulledLineBatch {
         }
 
         const engine = this.scene.getEngine() as AbstractEngine & Pick<ThinEngine, "updateTextureData">;
+        const across = this.tableWidth;
         for (let at = first; at < end;) {
-            const x = at % TABLE_WIDTH;
-            const lines = x === 0 ? Math.floor((end - at) / TABLE_WIDTH) : 0;
-            const width = lines > 0 ? TABLE_WIDTH : Math.min(TABLE_WIDTH - x, end - at);
+            const x = at % across;
+            const lines = x === 0 ? Math.floor((end - at) / across) : 0;
+            const width = lines > 0 ? across : Math.min(across - x, end - at);
             const height = Math.max(lines, 1);
             const bytes = new Float32Array(this.rows.buffer, at * TEXEL_FLOATS * 4, width * height * TEXEL_FLOATS);
-            engine.updateTextureData(internal, bytes, x, Math.floor(at / TABLE_WIDTH), width, height);
+            engine.updateTextureData(internal, bytes, x, Math.floor(at / across), width, height);
             this.uploadedBytes += bytes.byteLength;
             at += width * height;
         }
@@ -634,10 +683,10 @@ export class PulledLineBatch {
         }
 
         const lines = this.routesLast - this.routesFirst + 1;
-        const floats = TABLE_WIDTH * TEXEL_FLOATS;
+        const floats = this.routeWidth * TEXEL_FLOATS;
         const bytes = new Float32Array(this.routes.buffer, this.routesFirst * floats * 4, lines * floats);
         const engine = this.scene.getEngine() as AbstractEngine & Pick<ThinEngine, "updateTextureData">;
-        engine.updateTextureData(internal, bytes, 0, this.routesFirst, TABLE_WIDTH, lines);
+        engine.updateTextureData(internal, bytes, 0, this.routesFirst, this.routeWidth, lines);
         this.uploadedBytes += bytes.byteLength;
         this.routesFirst = -1;
         this.routesLast = -1;
@@ -651,9 +700,10 @@ export class PulledLineBatch {
         }
 
         const lines = this.hiddenLast - this.hiddenFirst + 1;
-        const bytes = new Uint8Array(this.hidden.buffer, this.hiddenFirst * HIDDEN_PER_LINE, lines * HIDDEN_PER_LINE);
+        const perLine = this.hiddenWidth * FLAGS_PER_TEXEL;
+        const bytes = new Uint8Array(this.hidden.buffer, this.hiddenFirst * perLine, lines * perLine);
         const engine = this.scene.getEngine() as AbstractEngine & Pick<ThinEngine, "updateTextureData">;
-        engine.updateTextureData(internal, bytes, 0, this.hiddenFirst, TABLE_WIDTH, lines);
+        engine.updateTextureData(internal, bytes, 0, this.hiddenFirst, this.hiddenWidth, lines);
         this.uploadedBytes += bytes.byteLength;
         this.hiddenFirst = -1;
         this.hiddenLast = -1;
@@ -676,8 +726,8 @@ export class PulledLineBatch {
     private build(): RawTexture {
         const texture = RawTexture.CreateRGBATexture(
             this.rows,
-            TABLE_WIDTH,
-            this.rows.length / (TABLE_WIDTH * TEXEL_FLOATS),
+            this.tableWidth,
+            this.rows.length / (this.tableWidth * TEXEL_FLOATS),
             this.scene,
             false,
             false,
@@ -696,8 +746,8 @@ export class PulledLineBatch {
     private buildHidden(): RawTexture {
         const texture = RawTexture.CreateRGBATexture(
             this.hidden,
-            TABLE_WIDTH,
-            this.hidden.length / HIDDEN_PER_LINE,
+            this.hiddenWidth,
+            this.hidden.length / (this.hiddenWidth * FLAGS_PER_TEXEL),
             this.scene,
             false,
             false,
@@ -717,8 +767,8 @@ export class PulledLineBatch {
     private buildOrder(order: Float32Array<ArrayBuffer>): RawTexture {
         const texture = RawTexture.CreateRGBATexture(
             order,
-            TABLE_WIDTH,
-            order.length / ORDER_PER_LINE,
+            this.orderWidth,
+            order.length / (this.orderWidth * FLAGS_PER_TEXEL),
             this.scene,
             false,
             false,
@@ -728,6 +778,34 @@ export class PulledLineBatch {
         (this.mesh.material as ShaderMaterial | null)?.setTexture("edgeOrder", texture);
         this.uploadedBytes += order.byteLength;
         return texture;
+    }
+
+    /**
+     * The card's largest texture side, asked each time a table grows.
+     * @returns `maxTextureSize`.
+     */
+    private mostTexture(): number {
+        return this.scene.getEngine().getCaps().maxTextureSize;
+    }
+
+    /**
+     * {@link tableShape} on this batch's card.
+     * @param texels - Texels the table must hold.
+     * @param entries - What it counts, when not texels.
+     * @returns Its width and texels.
+     */
+    private shape(texels: number, entries = texels): { width: number; texels: number } {
+        return tableShape(texels, this.mostTexture(), entries);
+    }
+
+    /**
+     * The shape of the hidden or the draw order table, four flags a texel.
+     * @param flags - Flags it must hold.
+     * @returns Its width, and its flags in whole lines.
+     */
+    private flagShape(flags: number): { width: number; flags: number } {
+        const { width, texels } = this.shape(Math.ceil(flags / FLAGS_PER_TEXEL), flags);
+        return { width, flags: texels * FLAGS_PER_TEXEL };
     }
 
     /**
@@ -752,7 +830,13 @@ export class PulledLineBatch {
     private grow(): void {
         const doubled = (this.rows.length / this.pieceFloats) * 2;
         const reserved = this.highWater + takePoolReserve(this.scene, "lines");
-        const pieces = Math.max(doubled, Math.ceil(reserved / this.piecesPerLine) * this.piecesPerLine);
+        const texels = this.pieceFloats / TEXEL_FLOATS;
+        // the most pieces the card's largest texture holds: past them, a table of the most, and E_TOO_LARGE once full
+        const most = Math.min(this.mostTexture() ** 2 / texels, MOST_ENTRIES);
+        const wanted = this.highWater < most ? Math.min(Math.max(doubled, reserved), most) : this.highWater + 1;
+        const shape = this.shape(wanted * texels, wanted);
+        this.tableWidth = shape.width;
+        const pieces = shape.texels / texels;
         const grown = this.emptyTable(pieces);
         grown.set(this.rows);
         this.rows = grown;
@@ -761,7 +845,9 @@ export class PulledLineBatch {
         // the new table went up whole
         this.dirty.take(false);
         if (pieces > this.hidden.length) {
-            const hidden = new Uint8Array(Math.ceil(pieces / HIDDEN_PER_LINE) * HIDDEN_PER_LINE);
+            const flags = this.flagShape(pieces);
+            this.hiddenWidth = flags.width;
+            const hidden = new Uint8Array(flags.flags);
             hidden.set(this.hidden);
             this.hidden = hidden;
             this.hiddenTable.dispose();
@@ -793,7 +879,9 @@ export class PulledLineBatch {
             const drawn = Uint32Array.from({ length: highWater }, (_, piece) => piece).sort(
                 (a, b) => (keys[a] ?? 0) - (keys[b] ?? 0) || a - b,
             );
-            const size = Math.ceil(capacity / ORDER_PER_LINE) * ORDER_PER_LINE;
+            const shape = this.flagShape(capacity);
+            this.orderWidth = shape.width;
+            const size = shape.flags;
             const order = this.order?.length === size ? this.order : new Float32Array(size);
             order.set(drawn);
             // a piece handed out later whose key is its own number asks for no sort, so its slot must already name it

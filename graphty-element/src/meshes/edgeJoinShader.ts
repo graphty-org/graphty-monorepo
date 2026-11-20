@@ -143,11 +143,17 @@ export const PULLED_ORDER_GLSL = `
 uniform float edgeOrdered;
 uniform highp sampler2D edgeOrder;
 
+// texel i of a pulled batch's table, at whatever width the batch made it (PulledLineBatch's tableShape)
+vec4 pulledTexel(highp sampler2D table, int i) {
+    int width = textureSize(table, 0).x;
+    return texelFetch(table, ivec2(i % width, i / width), 0);
+}
+
 int pulledPiece(int slot) {
     if (edgeOrdered < 0.5) {
         return slot;
     }
-    vec4 order = texelFetch(edgeOrder, ivec2((slot >> 2) & 1023, slot >> 12), 0);
+    vec4 order = pulledTexel(edgeOrder, slot >> 2);
     return int(dot(order, vec4(equal(ivec4(0, 1, 2, 3), ivec4(slot & 3)))) + 0.5);
 }
 `;
@@ -324,9 +330,9 @@ void pullEdge() {
     position = JOIN_TEMPLATE[CORNER_OF[gl_VertexID - slot * PIECE_CORNERS]];
     int piece = pulledPiece(slot);
     int texel = piece * PIECE_TEXELS;
-    vec4 head = texelFetch(edgeRows, ivec2(texel & 1023, texel >> 10), 0);
-    vec4 tint = texelFetch(edgeRows, ivec2((texel + 1) & 1023, (texel + 1) >> 10), 0);
-    vec4 hiddenFlags = texelFetch(edgeHidden, ivec2((piece >> 2) & 1023, piece >> 12), 0);
+    vec4 head = pulledTexel(edgeRows, texel);
+    vec4 tint = pulledTexel(edgeRows, texel + 1);
+    vec4 hiddenFlags = pulledTexel(edgeHidden, piece >> 2);
     // a hidden piece reads as a free one: its flag is the byte (piece & 3) of its texel
     vec2 rows = dot(hiddenFlags, vec4(equal(ivec4(0, 1, 2, 3), ivec4(piece & 3)))) > 0.5 ? vec2(-1.0) : head.xy;
     pieceWidth = head.z;
@@ -337,8 +343,8 @@ void pullEdge() {
         vec4 a = pulledRow(int(rows.x + 0.5));
         vec4 b = pulledRow(int(rows.y + 0.5));
 #ifdef EDGE_PULLED_CURVE
-        vec4 span = texelFetch(edgeRows, ivec2((texel + 2) & 1023, (texel + 2) >> 10), 0);
-        vec4 end = texelFetch(edgeRows, ivec2((texel + 3) & 1023, (texel + 3) >> 10), 0);
+        vec4 span = pulledTexel(edgeRows, texel + 2);
+        vec4 end = pulledTexel(edgeRows, texel + 3);
         int j = int(tint.a + 0.5);
         int pieces = int(span.z + 0.5);
         if (a.w * b.w != 0.0 && j < pieces) {

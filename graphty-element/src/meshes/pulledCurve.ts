@@ -873,9 +873,11 @@ vec3 pulledCurveSample(vec3 src, vec3 dst, float i, float samples, vec4 cut, flo
 
 vec3 pulledCurvePoint(vec3 src, vec3 dst, vec4 span, vec4 cut, int j) {
     if (cut.w > 7.5) {
-        // a straight line through bends: its cut path's point j, read from the route table from texel cut.z
+        // a straight line through bends: its cut path's point j, read from the route table from texel cut.z, at the
+        // width the batch made it (PulledLineBatch's tableShape)
         int texel = int(cut.z + 0.5) + j;
-        return texelFetch(edgeRoutes, ivec2(texel & 1023, texel >> 10), 0).xyz;
+        int width = textureSize(edgeRoutes, 0).x;
+        return texelFetch(edgeRoutes, ivec2(texel % width, texel / width), 0).xyz;
     }
     if (abs(cut.w - 3.0) < 0.5) {
         // the lone curve between two points of the chord, where a gap moves an uncut curve's ends

@@ -16,7 +16,7 @@
  * 5. `cooToCsr` in its sorted-input mode builds the rows, which come out sorted by target.
  *
  * The first submit ends at step 3; steps 4 and 5 are recorded into a batch that is RETURNED OPEN, so the caller
- * records its own first work into the same submit and saves a synchronisation. The caller must check the
+ * records its own first work into the same submit and saves a synchronization. The caller must check the
  * precondition flag of `cooToCsr` with `assertBuildSorted` after that submit.
  *
  * Every intermediate array is `2 x edgeCount` words and is bound whole, so a snapshot whose arcs exceed one storage
@@ -389,7 +389,7 @@ export async function buildSimpleSymmetric(
  * runStart[r + 1])`, its weights the sorted weights, so a row's sum is the merged weight in input order.
  * @param runStart - the run starts plus the terminator
  * @param runs - the run count
- * @param sortedDst - the sorted targets (the fold reads a neighbour it ignores)
+ * @param sortedDst - the sorted targets (the fold reads a neighbor it ignores)
  * @param sortedW - the sorted weights
  * @param valid - the arcs the runs cover
  * @returns the core binding

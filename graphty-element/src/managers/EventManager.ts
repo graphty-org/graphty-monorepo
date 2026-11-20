@@ -506,6 +506,7 @@ export class EventManager implements Manager {
             case "layout-progress":
             case "operation-obsoleted":
             case "animation-progress":
+            case "animation-canceled":
             case "animation-cancelled":
             case "screenshot-enhancing":
             case "screenshot-ready":
@@ -528,6 +529,7 @@ export class EventManager implements Manager {
             case "basemap-status":
             case "render-lost":
             case "render-restored":
+            case "operation-canceled":
             case "operation-cancelled":
             case "stats-update":
             case "input-enabled-changed":
@@ -537,6 +539,10 @@ export class EventManager implements Manager {
             case "input-recording-started":
             case "input-recording-stopped":
             case "input-playback-completed":
+            case "reduced-motion-changed":
+            case "tour-progress":
+            case "tour-ended":
+            case "views-changed":
             case "overview-changed":
             case "xr-session-started":
             case "xr-session-ended":
@@ -556,6 +562,7 @@ export class EventManager implements Manager {
             case "ai-command-start":
             case "ai-command-complete":
             case "ai-command-error":
+            case "ai-command-canceled":
             case "ai-command-cancelled":
             case "ai-stream-chunk":
             case "ai-stream-tool-call":

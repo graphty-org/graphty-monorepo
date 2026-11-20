@@ -1,7 +1,7 @@
 /**
- * A compressed model in a build without the Draco and KTX2 decoders (`./bundle`, which carries no
- * WebAssembly): the model is not drawn, and the failure names the extension whose decoder the build
- * leaves out (`E_MODEL_DECODER_UNAVAILABLE`, `reason: "missing"`), with nothing fetched from a CDN in
+ * A compressed model, or a USD one, in a build without the Draco and KTX2 decoders and the OpenUSD
+ * importer (`./bundle`, which carries no WebAssembly): the model is not drawn, and the failure names
+ * the extension (or the format) whose decoder the build leaves out (`E_MODEL_DECODER_UNAVAILABLE`, `reason: "missing"`), with nothing fetched from a CDN in
  * its place. When a glTF only uses KTX2 and gives a PNG fallback, the fallback is drawn instead.
  */
 
@@ -14,11 +14,13 @@ import binUrl from "../../../../babylonjs-models/test/fixtures/variants/gltf-ktx
 import gltfUrl from "../../../../babylonjs-models/test/fixtures/variants/gltf-ktx2/cube.gltf?url";
 import ktx2Url from "../../../../babylonjs-models/test/fixtures/variants/gltf-ktx2/cube.ktx2?url";
 import pngUrl from "../../../../babylonjs-models/test/fixtures/variants/gltf-textured/cube.png?url";
+import usdzUrl from "../../../../babylonjs-models/test/fixtures/variants/usdz/cube.usdz?url";
 import { loadModel, ModelLoadFailure } from "../../../src/models/loadModel";
 
 // Stands in for ./bundle, whose build replaces these modules the same way (vite.bundle.config.ts).
 vi.mock("../../../../babylonjs-models/dist/decoders/draco.js", () => ({ available: false }));
 vi.mock("../../../../babylonjs-models/dist/decoders/ktx2.js", () => ({ available: false }));
+vi.mock("../../../../babylonjs-models/dist/decoders/usd.js", () => ({ available: false }));
 
 const bytes = async (url: string): Promise<Uint8Array> => new Uint8Array(await (await fetch(url)).arrayBuffer());
 
@@ -85,6 +87,24 @@ describe("a compressed model in a build without its decoder", () => {
             assert.deepStrictEqual(error.fact, {
                 code: "E_MODEL_DECODER_UNAVAILABLE",
                 params: { extension: "KHR_draco_mesh_compression", reason: "missing" },
+            });
+        } finally {
+            engine.dispose();
+            canvas.remove();
+        }
+    });
+
+    it("fails for a USD model, naming the format, not a fetch", async () => {
+        const canvas = document.createElement("canvas");
+        document.body.append(canvas);
+        const engine = new Engine(canvas);
+        try {
+            const files = new Map([["cube.usdz", await bytes(usdzUrl)]]);
+            const error = await loadModel(new Scene(engine), files, "cube.usdz", "usdz").catch((e: unknown) => e);
+            assert.instanceOf(error, ModelLoadFailure);
+            assert.deepStrictEqual(error.fact, {
+                code: "E_MODEL_DECODER_UNAVAILABLE",
+                params: { format: "usd", reason: "missing" },
             });
         } finally {
             engine.dispose();

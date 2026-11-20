@@ -11,7 +11,7 @@
  *
  * - A `jmespath.search()` per element: 1,843 ns per call, 92 ms for one layer at 50,000 nodes.
  * - Interning a style by scanning every style already minted: 515 ms for 500 distinct styles,
- *   2.1 s for 1,000, and a continuous colour encoding makes the distinct count the element count.
+ *   2.1 s for 1,000, and a continuous color encoding makes the distinct count the element count.
  * - Repainting the graph on every edit instead of the elements the edit touched.
  *
  * WHAT IS ASSERTED IS COUNTED WORK. Each of the three is a kind of work the edit can be made to
@@ -88,7 +88,7 @@ const WIDE_PATH: Path = "results.betweenness.score";
 /** What the narrow run published. */
 const NARROW_PATH: Path = "results.louvain.group";
 
-/** The element's own layer: a flat colour over the whole graph, which every stack below sits on. */
+/** The element's own layer: a flat color over the whole graph, which every stack below sits on. */
 const ELEMENT_BASE: ElementLayerSpec = {
     name: "Default",
     source: { by: "element", reason: "default" },
@@ -277,7 +277,7 @@ const HAS_THREAD_SCHEDSTAT = existsSync(THREAD_SCHEDSTAT);
  * runner is.
  *
  * WHY THIS THREAD AND NOT THE PROCESS. The budget is main-thread work, and the process's total
- * (`process.cpuUsage()`) also counts V8's background collector and compiler threads. The colour
+ * (`process.cpuUsage()`) also counts V8's background collector and compiler threads. The color
  * edit allocates heavily, so they ran beside it for a large and varying share: one idle machine
  * measured the same edit at 17.8 to 31.5 ms of process time while its clock read 13 to 20 ms, and
  * the ratio below failed a pre-push gate by 1.5% on a branch that did not touch the repaint
@@ -303,7 +303,7 @@ function cpuMs(): number {
  * A fifty-thousand-node session with its base layer already painted.
  *
  * The first draw is done and NOT timed: what the budget is about is the next edit, which is what
- * a person does when they colour a graph by a metric.
+ * a person does when they color a graph by a metric.
  * @returns The harness.
  */
 async function makeHarness(): Promise<Harness> {
@@ -466,7 +466,7 @@ describe("a single-layer edit stays inside one frame", () => {
 
         // Two, and both of them come from the base layer's SIZE: the one an element with no size
         // would keep, and the one every element actually has. The ramp painted five hundred
-        // distinct colours over them and added none, because colour is per-instance GPU state.
+        // distinct colors over them and added none, because color is per-instance GPU state.
         assert.strictEqual(engine.meshCount("node"), 2);
     });
 
@@ -601,7 +601,7 @@ describe("interning is a hash, not a scan", () => {
      *
      * Processor time is accounted in ticks, so timing a tenth of a millisecond of work measures
      * the scheduler and not the code. Both methods are measured over the same total number of
-     * styles, so the repetition cannot favour either.
+     * styles, so the repetition cannot favor either.
      *
      * THE TOTAL IS THIRTY-TWO THOUSAND AND NOT EIGHT, and that is a measurement fix rather than a
      * threshold one. At eight thousand the window was a single millisecond, and

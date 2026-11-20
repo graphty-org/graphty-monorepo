@@ -128,7 +128,7 @@ A brush tag dropped on a well or on the notes view becomes that filter, layer or
 
 8. **Keep only strong families (filter)**
     - **What you do:** On the PageRank histogram, drag from the right end leftward. Then pinch the left edge and drag it until its readout says 0.070, pulling your hand back for the last steps (or tap the readout and use the stepper). Drag the brush tag onto the graph's keep well, and look before you let go.
-    - **What you see:** As the edge moves, the count on the tag changes ("5 of 15"), and the families above and below the line light and dim in every view. Over the keep well, the preview shows the other ten families fading out of every view and reads "keep 5, hide 10". After the drop, they leave the graph, the table greys out their rows, the histogram shows the kept range solid and the rest hollow, and the keep well holds a filter chip. The rule clears, and the filter step goes on the history strip.
+    - **What you see:** As the edge moves, the count on the tag changes ("5 of 15"), and the families above and below the line light and dim in every view. Over the keep well, the preview shows the other ten families fading out of every view and reads "keep 5, hide 10". After the drop, they leave the graph, the table grays out their rows, the histogram shows the kept range solid and the rest hollow, and the keep well holds a filter chip. The rule clears, and the filter step goes on the history strip.
     - **Controls:** pinch-drag a range; pinch-drag a brush edge (or the stepper); pinch-drag the tag to a well.
 
 9. **Write a note**
@@ -138,7 +138,7 @@ A brush tag dropped on a well or on the notes view becomes that filter, layer or
 
 10. **Undo a mistake**
     - **What you do:** Say you dropped the pagerank column on the label well by accident. Tap undo on the history strip (or press the off-hand upper face button). To go further back, pull the strip open into the history view, pinch-hold a step to peek, and tap it to jump there.
-    - **What you see:** Undo removes the label layer and the strip shows the step before. In the open history, peeking shows every view as it was at that step, and releasing returns you to now. After a jump, the later steps stay greyed above it, so you can tap one to redo. To remove one layer without undoing what came after, aim at the "x" on its chip (the graph previews without it) and tap. A slip in the selection alone is cheaper still: tap back on the brush tag (or press the dominant upper face button).
+    - **What you see:** Undo removes the label layer and the strip shows the step before. In the open history, peeking shows every view as it was at that step, and releasing returns you to now. After a jump, the later steps stay grayed above it, so you can tap one to redo. To remove one layer without undoing what came after, aim at the "x" on its chip (the graph previews without it) and tap. A slip in the selection alone is cheaper still: tap back on the brush tag (or press the dominant upper face button).
     - **Controls:** strip undo or face button; pinch-hold and tap a history row; chip "x"; tag back.
 
 11. **Save**

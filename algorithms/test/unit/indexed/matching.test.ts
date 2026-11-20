@@ -26,7 +26,7 @@ import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
  */
 const addedEdges = new WeakMap<Graph, [NodeId, NodeId][]>();
 
-/** The graph frozen with its edges in the order they were added, as 2.x's neighbour lists held them. */
+/** The graph frozen with its edges in the order they were added, as 2.x's neighbor lists held them. */
 function inAddedOrder(graph: Graph): GraphSnapshot {
     const b = new GraphBuilder({ directed: graph.isDirected });
     for (const node of graph.nodes()) {
@@ -48,7 +48,7 @@ function randomBipartite(left: number, right: number, edges: number, seed: numbe
         return state / 4294967296;
     };
     // Interleave the two sides so the node order is not "all left, then all right" -- except on a
-    // directed graph, where the legacy colouring follows out-arcs only and finds the two sides
+    // directed graph, where the legacy coloring follows out-arcs only and finds the two sides
     // only when every arc's source comes first.
     for (let i = 0; i < Math.max(left, right); i++) {
         if (i < right && !directed) {
@@ -358,7 +358,7 @@ describe("indexed.maximumBipartiteMatching", () => {
     });
 
     it("augments along a path through every earlier left node", () => {
-        // Nodes numbered so every left node's lowest neighbour is the one its predecessor took:
+        // Nodes numbered so every left node's lowest neighbor is the one its predecessor took:
         // each new left node forces an augmenting path through all the earlier ones.
         const n = 4000;
         const b = new GraphBuilder({ directed: false });
@@ -393,7 +393,7 @@ describe("indexed.greedyBipartiteMatching", () => {
             const left = leftMaskOf(s);
             assertValidMatching(s, result, left);
 
-            // Legacy visits left nodes in set order and neighbours in insertion order; given the
+            // Legacy visits left nodes in set order and neighbors in insertion order; given the
             // index orders it must choose exactly the same pairs.
             const leftNodes = new Set<NodeId>();
             const rightNodes = new Set<NodeId>();

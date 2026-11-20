@@ -6,6 +6,7 @@
 import { screen } from "@testing-library/react";
 import React, { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { RangeSlider, Slider } from "../../src";
 import { renderThemed, resetHarness } from "../harness/measure";
@@ -100,5 +101,45 @@ describe("a slider released before the frame of its last move", () => {
         });
 
         expect(onEnd.mock.lastCall?.[0]).toBeGreaterThan(70);
+    });
+
+    it("still moves on the arrow keys and Home after a click on its track", async () => {
+        /**
+         * A slider whose value the caller keeps.
+         * @returns the slider
+         */
+        function Single(): React.JSX.Element {
+            const [value, setValue] = useState(0);
+            return (
+                <div style={{ width: 400, padding: 20 }}>
+                    <Slider
+                        min={0}
+                        max={100}
+                        step={1}
+                        label={null}
+                        thumbLabel="Amount"
+                        value={value}
+                        onChange={setValue}
+                    />
+                </div>
+            );
+        }
+        await renderThemed(<Single />);
+        const thumb = screen.getByRole("slider", { name: "Amount" });
+
+        await clickAtEighty("Amount");
+        await vi.waitFor(() => {
+            expect(Number(thumb.getAttribute("aria-valuenow"))).toBeGreaterThan(70);
+        });
+        const clicked = Number(thumb.getAttribute("aria-valuenow"));
+        thumb.focus();
+        await userEvent.keyboard("{ArrowLeft}{ArrowLeft}{ArrowLeft}");
+        await vi.waitFor(() => {
+            expect(thumb.getAttribute("aria-valuenow")).toBe(String(clicked - 3));
+        });
+        await userEvent.keyboard("{Home}");
+        await vi.waitFor(() => {
+            expect(thumb.getAttribute("aria-valuenow")).toBe("0");
+        });
     });
 });

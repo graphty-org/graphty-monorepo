@@ -35,7 +35,7 @@ chain that links two people, the strong ties only, and the notes a reporter keep
 - **Losing notes.** Reporters keep notes per source in a notes app (her first file's tools); notes
   that disappear when the file is closed would send her straight back to it.
 
-## Behaviour rules for playing Ruth, returning
+## Behavior rules for playing Ruth, returning
 
 - **Names, not dots.** She wants every answer in names. A result shown only as colors on the
   drawing is not an answer until she has read the names somewhere.

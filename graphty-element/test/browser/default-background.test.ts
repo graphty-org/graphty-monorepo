@@ -1,5 +1,5 @@
 /**
- * @file The published default background is the colour the element clears an unset canvas to, so a
+ * @file The published default background is the color the element clears an unset canvas to, so a
  * consumer showing "the default" reads it rather than writing its own.
  */
 

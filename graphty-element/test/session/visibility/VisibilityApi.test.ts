@@ -49,7 +49,7 @@ function summaryOf(visibility: VisibilityApi): VisibilitySummary {
     return visibility.summary;
 }
 
-/** Await a run that is expected to be cancelled, and answer with the error's name. */
+/** Await a run that is expected to be canceled, and answer with the error's name. */
 async function nameOfRejection(awaitable: PromiseLike<unknown>): Promise<string> {
     try {
         await awaitable;

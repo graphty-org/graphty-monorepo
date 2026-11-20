@@ -23,8 +23,10 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 const gate = join(dirname(fileURLToPath(import.meta.url)), "with-browser.sh");
-// run under tools/low-priority.sh, every waiter here would be in the low lane
-delete process.env.BROWSER_SLOT_PRIORITY;
+// A caller's slot settings must not reach the gates these tests start: run under tools/low-priority.sh
+// every waiter would be in the low lane (BROWSER_SLOT_PRIORITY), and run inside another gate an inherited
+// BROWSER_SLOTS of 4 kept a GPU command off slots 5 to 8, so it waited 600 s behind the four held slots.
+for (const name of Object.keys(process.env)) if (name.startsWith("BROWSER_")) delete process.env[name];
 // the gate logs each wait to the machine's tmp/waits.jsonl; a planted pool's waits are not the machine's
 process.env.PIPELINE_WAIT_LOG = "off";
 const until = async (cond) => {
@@ -254,18 +256,18 @@ test("the studio's waits keep the shared gate's lanes: a low-lane waiter never h
     // the studio's own copy of the gate let only the oldest ticket look, so a low-lane waiter for slots
     // 4 to 8 kept an ordinary one from a free slot 1, and it never looked at the high lane's marks
     const pool = mkdtempSync(join(tmpdir(), "with-browser-test-"));
-    const holders = [4, 5, 6, 7, 8].map((i) =>
+    // every slot is held, so the low-lane waiter waits: one that finds a slot free takes it (since #8930 slots
+    // 1 to 3 too, while no ordinary command waits), runs and removes its ticket at once, and the wait for that
+    // ticket below never ends (#6914's CI run). Slot 1 frees once the ordinary waiter has queued.
+    const slots = [1, 2, 3, 4, 5, 6, 7, 8];
+    const holders = slots.map((i) =>
         spawn("flock", [join(pool, `slot${i}`), "sleep", "600"], { stdio: "ignore", detached: true }),
     );
     const env = { ...process.env, BROWSER_SLOT_DIR: pool, BROWSER_GPU: "1" };
     const high = join(pool, `.high-${process.pid}`);
     let low;
     try {
-        // every holder, not only slot 8's: a low-lane waiter that finds slot 4 still free takes it, runs and
-        // removes its ticket at once, and the wait for that ticket below never ends (#6914's CI run)
-        await until(() =>
-            [4, 5, 6, 7, 8].every((i) => spawnSync("flock", ["-n", join(pool, `slot${i}`), "true"]).status !== 0),
-        );
+        await until(() => slots.every((i) => spawnSync("flock", ["-n", join(pool, `slot${i}`), "true"]).status !== 0));
         low = spawn(gate, ["true"], { env: { ...env, BROWSER_SLOT_PRIORITY: "low" }, stdio: "ignore" });
         await until(() => readdirSync(pool).some((f) => f.startsWith(".low-")));
         writeFileSync(high, "");
@@ -279,6 +281,8 @@ test("the studio's waits keep the shared gate's lanes: a low-lane waiter never h
         ordinary.stderr.on("data", (d) => (err += d));
         const done = new Promise((ok) => ordinary.on("exit", ok));
         await until(() => /waiting for one of 8 browser slots/.test(err));
+        process.kill(-holders[0].pid);
+        await until(() => spawnSync("flock", ["-n", join(pool, "slot1"), "true"]).status === 0);
         assert.ok(!existsSync(said), "an ordinary waiter took a slot while a high-lane mark was live");
         rmSync(high);
         assert.equal(await done, 0, err);
@@ -286,7 +290,7 @@ test("the studio's waits keep the shared gate's lanes: a low-lane waiter never h
         assert.match(readFileSync(`${said}.holder`, "utf8"), /^\d+ \S+ .* :: sh -c cp /);
     } finally {
         low?.kill("SIGTERM");
-        for (const h of holders) process.kill(-h.pid);
+        for (const h of holders) if (h.exitCode === null && h.signalCode === null) process.kill(-h.pid);
         rmSync(pool, { recursive: true, force: true });
     }
 });

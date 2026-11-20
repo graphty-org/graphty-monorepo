@@ -48,6 +48,8 @@ import { LOSS } from '@graphty/graph-io';
 import { Matrix } from '@babylonjs/core/Maths/math.vector.js';
 import { Mesh } from '@babylonjs/core/Meshes/mesh.js';
 import { ModelFormat } from 'babylonjs-models/detect';
+import type { ModelLimits as ModelLimits_2 } from 'babylonjs-models/files';
+import type { ModelSummary } from 'babylonjs-models/files';
 import { NEO4J_LOSS } from '@graphty/graph-io';
 import { NodeId } from '@graphty/graph-format';
 import { NodeMask } from '@graphty/graph-format';
@@ -92,6 +94,7 @@ export interface GraphtyElementJSXProps {
     "auto-rotate"?: string;
     "autosave-restore"?: string;
     "camera-transition-duration"?: string;
+    "color-scheme"?: string;
     "data-source"?: string;
     "data-source-config"?: string;
     "edge-data"?: string;
@@ -121,6 +124,7 @@ export interface GraphtyElementJSXProps {
     "onai-agent-start"?: (event: CustomEvent<EventOfType<"ai-agent-start">>) => void;
     "onai-approval-requested"?: (event: CustomEvent<EventOfType<"ai-approval-requested">>) => void;
     "onai-capability-unavailable"?: (event: CustomEvent<EventOfType<"ai-capability-unavailable">>) => void;
+    "onai-command-canceled"?: (event: CustomEvent<EventOfType<"ai-command-canceled">>) => void;
     "onai-command-cancelled"?: (event: CustomEvent<EventOfType<"ai-command-cancelled">>) => void;
     "onai-command-complete"?: (event: CustomEvent<EventOfType<"ai-command-complete">>) => void;
     "onai-command-error"?: (event: CustomEvent<EventOfType<"ai-command-error">>) => void;
@@ -141,6 +145,7 @@ export interface GraphtyElementJSXProps {
     "onai-voice-start"?: (event: CustomEvent<EventOfType<"ai-voice-start">>) => void;
     "onai-voice-support-change"?: (event: CustomEvent<EventOfType<"ai-voice-support-change">>) => void;
     "onai-voice-transcript"?: (event: CustomEvent<EventOfType<"ai-voice-transcript">>) => void;
+    "onanimation-canceled"?: (event: CustomEvent<EventOfType<"animation-canceled">>) => void;
     "onanimation-cancelled"?: (event: CustomEvent<EventOfType<"animation-cancelled">>) => void;
     "onanimation-progress"?: (event: CustomEvent<EventOfType<"animation-progress">>) => void;
     "onbasemap-status"?: (event: CustomEvent<EventOfType<"basemap-status">>) => void;
@@ -230,6 +235,7 @@ export interface GraphtyElementJSXProps {
     "onlimits-warning"?: (event: CustomEvent<EventOfType<"limits-warning">>) => void;
     "onmanager-initialized"?: (event: CustomEvent<EventOfType<"manager-initialized">>) => void;
     "onoperation-batch-complete"?: (event: CustomEvent<EventOfType<"operation-batch-complete">>) => void;
+    "onoperation-canceled"?: (event: CustomEvent<EventOfType<"operation-canceled">>) => void;
     "onoperation-cancelled"?: (event: CustomEvent<EventOfType<"operation-cancelled">>) => void;
     "onoperation-complete"?: (event: CustomEvent<EventOfType<"operation-complete">>) => void;
     "onoperation-obsoleted"?: (event: CustomEvent<EventOfType<"operation-obsoleted">>) => void;
@@ -238,6 +244,7 @@ export interface GraphtyElementJSXProps {
     "onoperation-queue-idle"?: (event: CustomEvent<EventOfType<"operation-queue-idle">>) => void;
     "onoperation-start"?: (event: CustomEvent<EventOfType<"operation-start">>) => void;
     "onoverview-changed"?: (event: CustomEvent<EventOfType<"overview-changed">>) => void;
+    "onreduced-motion-changed"?: (event: CustomEvent<EventOfType<"reduced-motion-changed">>) => void;
     "onrender-initialized"?: (event: CustomEvent<EventOfType<"render-initialized">>) => void;
     "onrender-lost"?: (event: CustomEvent<EventOfType<"render-lost">>) => void;
     "onrender-restored"?: (event: CustomEvent<EventOfType<"render-restored">>) => void;
@@ -248,6 +255,9 @@ export interface GraphtyElementJSXProps {
     "onskybox-loaded"?: (event: CustomEvent<EventOfType<"skybox-loaded">>) => void;
     "onstats-update"?: (event: CustomEvent<EventOfType<"stats-update">>) => void;
     "onstyle-changed"?: (event: CustomEvent<EventOfType<"style-changed">>) => void;
+    "ontour-ended"?: (event: CustomEvent<EventOfType<"tour-ended">>) => void;
+    "ontour-progress"?: (event: CustomEvent<EventOfType<"tour-progress">>) => void;
+    "onviews-changed"?: (event: CustomEvent<EventOfType<"views-changed">>) => void;
     "onxr-session-ended"?: (event: CustomEvent<EventOfType<"xr-session-ended">>) => void;
     "onxr-session-started"?: (event: CustomEvent<EventOfType<"xr-session-started">>) => void;
     "onzoom-to-fit-complete"?: (event: CustomEvent<EventOfType<"zoom-to-fit-complete">>) => void;
@@ -277,6 +287,7 @@ export interface GraphtyElementJSXProps {
     autosaveRestore?: Graphty["autosaveRestore"];
     background?: Graphty["background"];
     cameraTransitionDuration?: Graphty["cameraTransitionDuration"];
+    colorScheme?: Graphty["colorScheme"];
     dataSource?: Graphty["dataSource"];
     dataSourceConfig?: Graphty["dataSourceConfig"];
     directed?: Graphty["directed"];

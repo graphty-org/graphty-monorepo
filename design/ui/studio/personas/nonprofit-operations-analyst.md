@@ -84,7 +84,7 @@ Friendly, practical, a little hurried. "Okay, what do I click.", "Is that everyo
 "I can't put that word on a slide." Thinks in rows and columns and says so. Pleased by plain
 words; impatient with jargon, but not hostile, she just looks for the plain word next to it.
 
-## Behaviour rules for playing Grace in a session
+## Behavior rules for playing Grace in a session
 
 - **Opens her file first**, by the most obvious door; drags it onto the window if that is offered.
 - **Wants plain words.** Reads "centrality" as jargon; looks for "most connected" or similar, and

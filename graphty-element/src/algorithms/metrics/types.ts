@@ -31,7 +31,7 @@ import type { Caveats, RunProgressReport } from "../../session/runs";
 export interface MetricRunContext {
     /** The run id the result is published under, which is the `<runId>` in `results.<runId>`. */
     readonly runId: string;
-    /** Aborted when the run is cancelled. A measurement throws from it rather than swallowing it. */
+    /** Aborted when the run is canceled. A measurement throws from it rather than swallowing it. */
     readonly signal: AbortSignal;
     /**
      * Report how far along the measurement is.
@@ -68,7 +68,7 @@ export interface MetricMeasurement {
      *
      * This is a fact about the run rather than about the algorithm -- eigenvector centrality
      * publishes min-max scaled values with its default options and raw ones without them -- which
-     * is why it is measured here and not declared in the catalogue.
+     * is why it is measured here and not declared in the catalog.
      */
     readonly normalization: Normalization;
     /** What qualifies these numbers: the method, the direction, the weight and the convergence. */

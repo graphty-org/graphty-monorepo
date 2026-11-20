@@ -68,6 +68,6 @@ export function create2DMeshScene(): MeshTestScene {
     const camera = new ArcRotateCamera("test-2d-camera", 0, 0, 10, Vector3.Zero(), created.scene);
     camera.mode = Camera.ORTHOGRAPHIC_CAMERA;
     created.scene.activeCamera = camera;
-    created.scene.metadata = { ...(created.scene.metadata ?? {}), twoD: true };
+    created.scene.metadata = { ...(created.scene.metadata as Record<string, unknown> | null), twoD: true };
     return created;
 }

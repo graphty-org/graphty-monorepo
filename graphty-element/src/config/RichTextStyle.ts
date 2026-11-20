@@ -154,6 +154,15 @@ export const RichTextStyle = z.strictObject({
     lineBox: z.enum(["font", "size", "glyphs"]).optional(),
     /** Where the border is drawn: past the panel's edge, or centered on it. */
     borderAlign: z.enum(["outside", "center"]).optional(),
+    /** How the border is drawn: one line, or the line again inside it, one line's width in. */
+    borderStyle: z
+        .enum({
+            /** One line. */
+            solid: "solid",
+            /** Two lines, the second one line's width inside the first. */
+            double: "double",
+        })
+        .optional(),
     /** The panel's shape: a rectangle, or a disc as wide as its shorter side. */
     backgroundShape: z.enum(["rectangle", "circle"]).optional(),
     /** Below how many screen pixels tall the letters are drawn the label is hidden; unset, never. */
@@ -166,7 +175,7 @@ export const RichTextStyle = z.strictObject({
     /** Below how many screen pixels across its node is drawn this node label is hidden; unset, never. */
     minNodeScreenSize: z.number().min(0).optional(),
 
-    /** The color of the words. Default "#000000". */
+    /** The color of the words. Default "#000000", or a light gray under a dark color scheme when the label has no panel. */
     textColor: ColorStyle.default("#000000").optional(),
     /** How opaque the words are, over their color's own alpha; unset, 1. */
     textOpacity: z.number().min(0).max(1).optional(),

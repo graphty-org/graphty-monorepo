@@ -75,6 +75,8 @@ import type {
     PrimOptions,
     PrimResult,
     ScoresResult,
+    SimplePathsOptions,
+    SimplePathsResult,
     SpectralOptions,
     SpectralResult,
     SsspOptions,
@@ -242,6 +244,9 @@ expectTypeOf(algorithms.astar).toEqualTypeOf<
         options?: PathOptions,
     ) => AstarResult
 >();
+expectTypeOf(algorithms.allSimplePaths).toEqualTypeOf<
+    (g: AdjacencyView, sourceNode: NodeRef, targetNode: NodeRef, options?: SimplePathsOptions) => SimplePathsResult
+>();
 expectTypeOf(algorithms.bidirectionalDijkstra).toEqualTypeOf<
     (s: GraphSnapshot, source: NodeRef, target: NodeRef, options?: PathOptions) => PathResult
 >();
@@ -275,6 +280,7 @@ type Promoted =
     | "adamicAdarPrediction"
     | "adamicAdarScore"
     | "allPairsShortestPath"
+    | "allSimplePaths"
     | "APSP_DEFAULT_MAX_NODES"
     | "arcSourceIn"
     | "astar"
@@ -333,6 +339,8 @@ type Promoted =
     | "personalizedPageRank"
     | "primMST"
     | "PriorityDeltaPageRank"
+    | "SIMPLE_PATHS_DEFAULT_MAX_PATHS"
+    | "SIMPLE_PATHS_DEFAULT_MAX_STEPS"
     | "spectralClustering"
     | "stoerWagner"
     | "stronglyConnectedComponents"

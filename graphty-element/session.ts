@@ -165,9 +165,12 @@ export type {
     PendingId,
     PendingStep,
     PositionEntry,
+    PreparePageControl,
     ProjectConfig,
     ProjectConfigPatch,
     ProjectSlice,
+    RecordMatch,
+    RecordMatchRank,
     RecordPage,
     RecordPageOptions,
     RecordSort,
@@ -205,6 +208,7 @@ export type {
     SessionViews,
     SettingEffect,
     SettingEffectCode,
+    SideMapping,
     StartingCamera,
     StyleProblem,
     TableMapping,
@@ -242,6 +246,7 @@ export type {
     TooLargeDetails,
 } from "./src/data/report";
 export { IMPORT_ROWS_KEPT } from "./src/data/report";
+export type { SessionGraph, SessionGraphCreateOptions, SessionGraphs } from "./src/session/graphs/GraphsApi";
 export type { DataIssue, FixCode, FixResult, IssueCode, IssueId } from "./src/session/issues";
 export type {
     RecipeColumn,
@@ -607,6 +612,7 @@ export type {
     FilterResult,
     FilterSelectWithin,
     FilterStep,
+    FilterStepCount,
     HiddenNotDrawn,
     RuleTree,
     StepCounts,
@@ -872,6 +878,7 @@ export {
     quotePath,
     renamePaths,
     rulePath,
+    ruleValuePath,
     selectorRule,
     selectorStates,
 } from "./src/session/styles";

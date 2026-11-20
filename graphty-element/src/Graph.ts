@@ -174,6 +174,7 @@ import {
     type RenderRestoredEvent,
     type TourEndedEvent,
     type TourProgressEvent,
+    type XRMenuSelectEvent,
     type XRSessionEndedEvent,
     type XRSessionStartedEvent,
 } from "./events";
@@ -1158,6 +1159,8 @@ export class Graph implements GraphContext {
     // XR managers
     private xrSessionManager: XRSessionManager | null = null;
     private xrUIManager: XRUIManager | null = null;
+    /** The in-headset menu (`xr.menu`) while a session draws one. */
+    private xrMenu: import("./xr/menu").XrCardStack | null = null;
     /** What VR and AR can do here, and which is presenting: `session.capabilities.xr`. */
     private readonly xrAvailability: XrAvailability;
     /** Stops redrawing the canvas XR buttons on each availability change. */
@@ -5864,8 +5867,8 @@ export class Graph implements GraphContext {
             return ids;
         }
 
-        const project = screenProjector(this.scene);
-        const view = this.scene.getViewMatrix().m;
+        const project = screenProjector(this.scene, camera);
+        const view = camera.getViewMatrix().m;
         for (const node of this.dataManager.nodes.values()) {
             regionWork.nodes++;
             if (node.getRenderState() !== "visible") {
@@ -7179,6 +7182,7 @@ export class Graph implements GraphContext {
 
         this.xrSessionManager?.configure(this.xrSessionConfig());
         this.drawXRButtons();
+        void this.drawXRMenu();
         this.xrAvailability.changed();
     }
 
@@ -7273,11 +7277,12 @@ export class Graph implements GraphContext {
      * @returns Screen coordinates {x, y}
      */
     worldToScreen(worldPos: { x: number; y: number; z: number }): { x: number; y: number } {
-        if (!this.scene.activeCamera?.viewport) {
+        const camera = this.scene.activeCamera;
+        if (!camera?.viewport) {
             return { x: 0, y: 0 };
         }
 
-        return screenProjector(this.scene)(worldPos);
+        return screenProjector(this.scene, camera)(worldPos);
     }
 
     /**
@@ -7340,7 +7345,7 @@ export class Graph implements GraphContext {
         const { x, y } = this.worldToScreen(centre);
 
         // Distance in front of the camera along its view axis; the same test LabelDeclutter uses.
-        const view = this.scene.getViewMatrix().m;
+        const view = camera.getViewMatrix().m;
         const depth = centre.x * view[2] + centre.y * view[6] + centre.z * view[10] + view[14];
         const inDepth = depth >= camera.minZ && (camera.maxZ <= 0 || depth <= camera.maxZ);
 
@@ -7351,7 +7356,7 @@ export class Graph implements GraphContext {
 
         // The largest half-extent projected: the projection's y scale over the clip w (the depth in
         // perspective, 1 in orthographic), in pixels.
-        const projection = this.scene.getProjectionMatrix().m;
+        const projection = camera.getProjectionMatrix().m;
         const w = camera.mode === Camera.ORTHOGRAPHIC_CAMERA ? 1 : depth;
         const radius = inDepth ? (worldRadius * Math.abs(projection[5]) * height) / (2 * w) : 0;
 
@@ -10632,7 +10637,8 @@ export class Graph implements GraphContext {
      * it is built as one string and read back by `session.project.open`.
      * @param format - The format id, as `session.catalog.formats()` lists it.
      * @param options - The writer's options, plus graph-io's `sanitizeIds` and `onMixedDirection`
-     * and the element's `notes` and `styles`.
+     * and the element's `notes`, `styles` and `onProgress` (told what queued work the export waits
+     * behind, as `PENDING_WORK` facts, until it starts writing).
      * @returns What the export loses (`losses`, coded facts), and the document as text or as UTF-8
      * chunks.
      * @throws A `GraphtyError` (as a rejection): `E_UNKNOWN_FORMAT` when nothing writes the format,
@@ -10641,9 +10647,15 @@ export class Graph implements GraphContext {
      * options. A refusal found only while writing rejects `text()` or `bytes` instead.
      */
     async exportGraph(format: FormatId, options?: ExportGraphOptions): Promise<ExportResult> {
-        await this.operationQueue.waitForCompletion();
+        const { onProgress, ...writeOptions } = options ?? {};
+        const stop = onProgress === undefined ? undefined : this.operationQueue.watchPendingWork(onProgress);
+        try {
+            await this.operationQueue.waitForCompletion();
+        } finally {
+            stop?.();
+        }
         const painter = this.getStylePainter();
-        return exportSession(this.session, format, options, {
+        return exportSession(this.session, format, writeOptions, {
             nodeStyle: (row) => {
                 const paint = painter.nodePaint(row) ?? bootstrapNodePaint();
                 return {
@@ -11686,7 +11698,35 @@ export class Graph implements GraphContext {
                 // The session runs on without the assistant's controls.
                 graphLogger.warn("The assistant could not bind to the XR session", { error });
             });
+        await this.drawXRMenu();
         this.xrAvailability.changed();
+    }
+
+    /**
+     * Draw the in-headset menu (`xr.menu`) where the reader is now, or take it down when it has no
+     * items or no session is running. Pressing an item emits `xr-menu-select`.
+     */
+    private async drawXRMenu(): Promise<void> {
+        const items = this.xrConfig().menu ?? [];
+        const inSession = (): boolean => Boolean(this.scene.metadata?.xrHelper);
+        if (items.length === 0 || !inSession()) {
+            this.xrMenu?.dispose();
+            this.xrMenu = null;
+            return;
+        }
+
+        const { menuCards, MENU_HEIGHT, MENU_SIDE, XrCardStack } = await import("./xr/menu");
+        // The session can end while the module loads.
+        if (!inSession()) {
+            return;
+        }
+
+        this.xrMenu ??= new XrCardStack(this.scene, "graphty-xr-menu", MENU_HEIGHT, MENU_SIDE);
+        this.xrMenu.show(
+            menuCards(items, (id) => {
+                this.eventManager.emit("xr-menu-select", { id } satisfies Omit<XRMenuSelectEvent, "type">);
+            }),
+        );
     }
 
     /**
@@ -11700,6 +11740,8 @@ export class Graph implements GraphContext {
         this.immersiveSince = null;
         // Leaving XR closes a held microphone without sending, and stops speech.
         this.aiXr?.leave();
+        this.xrMenu?.dispose();
+        this.xrMenu = null;
 
         // Clean up XR camera controller
         const metadata = this.scene.metadata as {

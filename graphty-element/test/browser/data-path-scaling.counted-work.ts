@@ -11,6 +11,7 @@ export default {
         "DataManager.addNodes",
         "DataManager.clear",
         "DataManager.reconcile",
+        "DataManager.removeEdge",
         "DataManager.removeNodeAndIncidentEdges",
         "DataManager.setEdges",
         "DataManager.setNodes",

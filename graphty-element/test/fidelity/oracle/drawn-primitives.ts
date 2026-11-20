@@ -524,6 +524,8 @@ function edgeGradientOf(drawn: DrawnEdge["gradient"], points: readonly [number, 
         return null;
     }
     const n = drawn.colors.length;
+    // where each piece starts and ends along the line: as drawn, or equal shares
+    const at = (i: number): number => (drawn.shares?.length === n + 1 ? drawn.shares[i] : i / n);
     // a linear piece is one flat color from its start to its end: a hard switch between two pieces is drawn as one, not
     // blended across the two pieces' middles (dot-specimen-edges-lines color-segments, red;0.5:blue)
     const stops = drawn.colors
@@ -531,8 +533,8 @@ function edgeGradientOf(drawn: DrawnEdge["gradient"], points: readonly [number, 
             drawn.kind === "radial"
                 ? [{ offset: Math.abs((2 * (i + 0.5)) / n - 1), color, opacity: 1 }]
                 : [
-                      { offset: i / n, color, opacity: 1 },
-                      { offset: (i + 1) / n, color, opacity: 1 },
+                      { offset: at(i), color, opacity: 1 },
+                      { offset: at(i + 1), color, opacity: 1 },
                   ],
         )
         .sort((a, b) => a.offset - b.offset);

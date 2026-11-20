@@ -28,7 +28,7 @@ import {
     type ToolDefinition,
     ToolRefusal,
 } from "../types";
-import { coded, codedNow, nameField, ok } from "./common";
+import { coded, codedNow, ok } from "./common";
 
 /**
  * A registered algorithm class with no descriptor, which runs through the legacy op by its address.
@@ -260,8 +260,6 @@ async function runAlgorithm(
  */
 export function runAlgorithmTool(catalog: CatalogView): ToolDefinition {
     const keys = catalog.algorithms.map((entry) => entry.key);
-    // A class registered with no descriptor runs by its address, so the name field takes those too.
-    const names = [...keys, ...catalog.legacyAlgorithms];
     return {
         name: "run_algorithm",
         plainName: "Run an algorithm",
@@ -274,7 +272,13 @@ export function runAlgorithmTool(catalog: CatalogView): ToolDefinition {
                 name: "run",
                 summary: "one algorithm",
                 fields: {
-                    name: inputKind(nameField(names, "Algorithm."), "algorithm", "Algorithm"),
+                    // A string, never an enum of ids: the declaration then costs the same however many
+                    // algorithms the catalog holds, and runAlgorithm refuses an unknown id with suggestions.
+                    name: inputKind(
+                        z.string().max(200).describe("Algorithm id; find with catalog search kind algorithm."),
+                        "algorithm",
+                        "Algorithm",
+                    ),
                     options: z.record(z.string(), z.unknown()).optional().describe("Options by name."),
                     scope: z
                         .strictObject({
@@ -284,8 +288,8 @@ export function runAlgorithmTool(catalog: CatalogView): ToolDefinition {
                         .optional()
                         .describe("Run on a set or a selector's nodes only."),
                     style: z.boolean().optional().describe("Only when asked to see or color it."),
-                    exact: z.boolean().optional().describe("Exact even if slow."),
-                    sample: z.number().int().min(1).optional().describe("Approximate from this many."),
+                    exact: z.boolean().optional().describe("Exact even when slow."),
+                    sample: z.number().int().min(1).optional().describe("Approximate run's sample size."),
                 },
                 effect: "write",
                 reaches: [

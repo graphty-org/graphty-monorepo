@@ -1,5 +1,6 @@
 import type { OptionsSchema as ZodOptionsSchema } from "../config";
 import { Algorithm } from "./Algorithm";
+import { AllPathsAlgorithm } from "./AllPathsAlgorithm";
 import { AStarAlgorithm } from "./AStarAlgorithm";
 // Phase 4 shortest path algorithms
 import { BellmanFordAlgorithm } from "./BellmanFordAlgorithm";
@@ -89,6 +90,7 @@ Algorithm.register(MarkovClusteringAlgorithm);
 Algorithm.register(SpectralClusteringAlgorithm);
 Algorithm.register(HierarchicalClusteringAlgorithm);
 Algorithm.register(AStarAlgorithm);
+Algorithm.register(AllPathsAlgorithm);
 Algorithm.register(EdgeBetweennessCentralityAlgorithm);
 Algorithm.register(RemovalImpactAlgorithm);
 Algorithm.register(DistanceMeasuresAlgorithm);
@@ -159,6 +161,7 @@ export function getAllAlgorithmInfo(): AlgorithmInfo[] {
         SpectralClusteringAlgorithm,
         HierarchicalClusteringAlgorithm,
         AStarAlgorithm,
+        AllPathsAlgorithm,
         EdgeBetweennessCentralityAlgorithm,
         RemovalImpactAlgorithm,
         DistanceMeasuresAlgorithm,

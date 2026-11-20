@@ -390,6 +390,22 @@ describe("the doors", () => {
         });
     });
 
+    it("takes a branch's autoName flag, and refuses one that is not true or false", async () => {
+        const session = await lesMis();
+        const named = (autoName: unknown): UnionLeaf =>
+            ({
+                kind: "union",
+                side: "nodes",
+                within: "graph",
+                branches: [{ name: "A", autoName, start: "none", steps: [{ op: "add", rule: STAFF }] }],
+            }) as UnionLeaf;
+        assert.deepEqual(
+            await nodesOf(session, named(true)),
+            await nodesOf(session, one("none", [{ op: "add", rule: STAFF }])),
+        );
+        assert.include(await refusal(() => nodesOf(session, named("yes"))), { code: "E_BAD_COMMAND" });
+    });
+
     it("refuses a filter condition whose union reads the visible graph", async () => {
         const session = await lesMis();
         const leaf: UnionLeaf = { ...one("all", [{ op: "keep", rule: STAFF }]), within: "visible" };

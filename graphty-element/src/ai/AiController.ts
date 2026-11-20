@@ -326,8 +326,14 @@ const NO_TOTALS: MessageState["totals"] = { removeNodes: 0, removeEdges: 0, chan
 export type AiApprovalsSetting =
     | "none"
     | "writes"
-    | { readonly ask: readonly string[] }
-    | { readonly policy: (call: AiToolCallFacts) => AiApprovalVerdict };
+    | {
+          /** The tools (by command name) whose calls the reader is asked about; every other call runs. */
+          readonly ask: readonly string[];
+      }
+    | {
+          /** Decides each call: `"allow"` runs it, `"ask"` holds it for the reader, `"deny"` refuses it. */
+          readonly policy: (call: AiToolCallFacts) => AiApprovalVerdict;
+      };
 
 /** How an answer to a question was given. */
 export interface AiAnswerOptions {
@@ -347,7 +353,10 @@ export interface AiApprovalAnswer {
      * runs as the model made it. Edited arguments are checked as the model's are: invalid ones
      * run nothing (`AI_TOOL_INVALID_ARGUMENTS`).
      */
-    readonly calls?: readonly { readonly arguments?: Readonly<Record<string, unknown>> }[];
+    readonly calls?: readonly {
+        /** The arguments to run the call with in place of the model's. */
+        readonly arguments?: Readonly<Record<string, unknown>>;
+    }[];
 }
 
 /** What the main model is told a change after reading the web does, by `tools.webContentWrites`. */

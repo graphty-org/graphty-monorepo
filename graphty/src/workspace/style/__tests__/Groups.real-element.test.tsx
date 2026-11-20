@@ -170,6 +170,21 @@ function drawn(session: GraphSession, id: string, channel: "node.color" | "node.
     return value;
 }
 
+/**
+ * Types a group's new name into its Name box and waits for the element to label the value.
+ * @param session - the session.
+ * @param box - the Name box.
+ * @param path - the category path.
+ * @param key - the group, as the legend spells it.
+ */
+async function renameTo(session: GraphSession, box: HTMLElement, path: string, key: string): Promise<void> {
+    await userEvent.clear(box);
+    await userEvent.type(box, "Bishop's circle{Enter}");
+    await waitFor(() => {
+        assert.equal(session.data.valueLabels(path).get(key), "Bishop's circle");
+    });
+}
+
 describe("per-group settings", () => {
     it("Les Miserables: a group's detail sets a shape for that group alone; the row keeps one shape", async () => {
         await page.viewport(1440, 900);
@@ -798,11 +813,7 @@ describe("naming and picking groups", () => {
 
         // The Name field names the group when it is left.
         const box = within(detail).getByRole("textbox", { name: new RegExp(`^Name of .* ${name}$`) });
-        await userEvent.clear(box);
-        await userEvent.type(box, "Bishop's circle{Enter}");
-        await waitFor(() => {
-            assert.equal(session.data.valueLabels(path).get(key), "Bishop's circle");
-        });
+        await renameTo(session, box, path, key);
 
         // Its own color, then its Clear: back to the layer's.
         const group = (): ValueGroup | undefined =>
@@ -823,5 +834,43 @@ describe("naming and picking groups", () => {
         await waitFor(() => {
             assert.equal(session.selection.nodes.length, group()?.count);
         });
+    });
+
+    it("Les Miserables: a row's menu renames the group, clears its own color, and opens its properties", async () => {
+        await page.viewport(1440, 900);
+        const { session, store } = await openSample("Les Miserables", 77);
+        const { layer, path } = await runGroups(session, "louvain");
+        const popover = await openBinding(store, layer);
+        const row = (): HTMLElement => gridRows(popover)[0];
+        const key = row().querySelector("[data-group-row]")?.getAttribute("data-group-row") ?? "";
+        const name = nameCell(row()).firstChild?.textContent ?? "";
+        const menu = async (item: RegExp): Promise<void> => {
+            await userEvent.click(within(row()).getByRole("button", { name: / actions$/ }));
+            await userEvent.click(await within(popover).findByRole("menuitem", { name: item }));
+        };
+        const group = (): ValueGroup | undefined =>
+            session.styles.groups(layer.id, path).find((g) => String(g.value) === key);
+
+        // Rename: the row's name becomes a box; the name typed labels the value.
+        await menu(/^Rename/);
+        const box = await within(popover).findByRole("textbox", { name: new RegExp(`^Name of .* ${name}$`) });
+        await renameTo(session, box, path, key);
+
+        // The menu offers Clear only once the group has its own color.
+        await userEvent.click(within(row()).getByRole("button", { name: / actions$/ }));
+        await within(popover).findByRole("menuitem", { name: /^Rename/ });
+        assert.isNull(within(popover).queryByRole("menuitem", { name: /^Clear color/ }));
+        await userEvent.click(within(row()).getByRole("button", { name: / actions$/ }));
+        await session.styles.setValueEntries(layer.id, path, [
+            { channel: "node.color", value: group()?.value as number, entry: "#00aa00" },
+        ]);
+        await menu(/^Clear color: back to the layer's/);
+        await waitFor(() => {
+            assert.isUndefined(group()?.entries["node.color"], "the group's own color is cleared");
+        });
+
+        // Set properties for: the group's detail.
+        await menu(/^Set properties for /);
+        assert.isNotNull(await screen.findByRole("group", { name: "Bishop's circle properties" }));
     });
 });

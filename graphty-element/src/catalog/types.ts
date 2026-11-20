@@ -181,6 +181,7 @@ export const KNOWN_ALGORITHMS = [
     "spectral-clustering",
     "hierarchical-clustering",
     "astar",
+    "all-paths",
     "edge-betweenness",
     "removal-impact",
     "distance-measures",
@@ -551,7 +552,14 @@ export type OptionType = (typeof OPTION_TYPES)[number];
 /** One choice offered by an option whose type is "enum", or a column `catalog.optionsFor` lists. */
 export interface OptionChoice {
     value: string;
+    /** What to show for it. For a run's field, built from `runField`; an app may write its own words. */
     label: string;
+    /**
+     * The run field this choice names, for a "partition" choice `catalog.optionsFor` lists from a
+     * finished run: the run's id and the field's name. Absent for any other choice.
+     * @since 3.40.0
+     */
+    runField?: { readonly runId: RunId; readonly field: string };
     /**
      * Why this choice does not fit the option, when it does not: a column whose values the
      * option cannot read. A form lists such a choice after the fitting ones, disabled, and writes
@@ -878,6 +886,7 @@ export type Channel =
     | "node.groupMinHeightBiasTop"
     | "node.groupIncludeLabels"
     | "edge.color"
+    | "edge.colorFrom"
     | "edge.width"
     | "edge.minScreenWidth"
     | "edge.fadeStart"
@@ -1161,6 +1170,12 @@ export interface BindingNumberFormat {
     maximumSignificantDigits?: number;
     /** A BCP 47 locale such as `"en-US"`, which chooses the decimal and grouping marks. */
     locale?: string;
+    /**
+     * Whether thousands are grouped, as `Intl.NumberFormat` groups them: `false` writes 12345 as
+     * 12345 rather than 12,345. Absent, they are grouped.
+     * @since 3.40.0
+     */
+    useGrouping?: boolean;
 }
 
 /**
@@ -1214,7 +1229,15 @@ export type Binding =
           /** How the value meets what lies beneath. See {@link CombineMode}. @since 3.26.0 */
           combine?: CombineMode;
       }
-    | { template: readonly string[] }
+    | {
+          template: readonly string[];
+          /**
+           * How a number a `{path}` placeholder reads is written. See {@link BindingNumberFormat}.
+           * Text, counts and ranks are written as before.
+           * @since 3.40.0
+           */
+          format?: BindingNumberFormat;
+      }
     | {
           by: Path;
           /** How the value meets what lies beneath. See {@link CombineMode}. @since 3.26.0 */
@@ -2510,6 +2533,11 @@ export interface UnionBranch {
     readonly id?: string;
     /** Its name, the consumer's. */
     readonly name?: string;
+    /**
+     * Whether `name` was given automatically by the consumer (a letter, say) rather than typed by a
+     * reader, so the consumer may clear or replace it. The element only stores it. Default false.
+     */
+    readonly autoName?: boolean;
     /** Its color, filled from the branch palette on write (`session.scope.options.branchPalette`). */
     readonly color?: string;
     /** Whether it counts. Default true. */

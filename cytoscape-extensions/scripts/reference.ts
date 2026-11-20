@@ -232,6 +232,10 @@ const OVERRIDES: Readonly<Record<string, Override>> = {
     "graphty-spiral.equidistant": {
         doc: "Space consecutive nodes the same distance apart along the spiral, instead of by equal angles.",
     },
+    "graphty-spiral.height": {
+        default: "`1`",
+        doc: "Read only with `dim: 3`: how far the spiral rises per unit of radius, so the nodes lie on a cone. A 3D run is projected onto the x-y plane, so the rise itself is not drawn; with `equidistant: true` it changes the spacing along the spiral.",
+    },
     "graphty-shell.nlist": {
         doc: "The shells, innermost first. They are evenly spaced out to the edge of the fitted result, and a first shell of exactly one node goes at the center of the drawing. The fit then moves the centroid of all nodes to the center of `boundingBox`, so that node is at the box's center only when the drawing is symmetric. Absent: every node on one circle. A node in no shell is not placed and keeps its position.",
     },

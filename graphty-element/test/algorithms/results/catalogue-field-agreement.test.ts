@@ -24,6 +24,7 @@
 
 import { assert, describe, it } from "vitest";
 
+import { AllPathsAlgorithm } from "../../../src/algorithms/AllPathsAlgorithm";
 import { AStarAlgorithm } from "../../../src/algorithms/AStarAlgorithm";
 import { BellmanFordAlgorithm } from "../../../src/algorithms/BellmanFordAlgorithm";
 import { BetweennessCentralityAlgorithm } from "../../../src/algorithms/BetweennessCentralityAlgorithm";
@@ -176,6 +177,7 @@ const CASES: readonly Case[] = [
     declared("spectral clustering", "spectral-clustering", (g) => new SpectralClusteringAlgorithm(g)),
     declared("hierarchical clustering", "hierarchical-clustering", (g) => new HierarchicalClusteringAlgorithm(g)),
     declared("a-star", "astar", (g) => new AStarAlgorithm(g, { source: "A", target: "F" })),
+    declared("all paths", "all-paths", (g) => new AllPathsAlgorithm(g, { source: "A", target: "F" })),
     declared("edge betweenness", "edge-betweenness", (g) => new EdgeBetweennessCentralityAlgorithm(g)),
     declared("removal impact", "removal-impact", (g) => new RemovalImpactAlgorithm(g, { nodes: ["C"] })),
 ];

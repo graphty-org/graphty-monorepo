@@ -12,7 +12,6 @@ import {
     layersWord,
     matchesWordStart,
     OPTION_TILE_WORDS,
-    placeWords,
     SHADER_FACT_WORDS,
     shaderMatches,
     shaderProblemWords,
@@ -180,7 +179,7 @@ interface ShaderGalleryProps {
  * The one shader gallery (decisions-v2, section 2.2), the same from the Node tab, the Edge tab and
  * the Background: "New shader..." first, at the top of the box; a search field with focus; under it
  * the origin filter, a row of chips that wraps; then the tiles, buttons the arrows move through,
- * each its picture, name, place badge and the animates, cost and light facts. Choosing a shader
+ * each its picture, name and the animates, cost and light facts. Choosing a shader shows and
  * asks no place: each shader draws at its own, and the place is asked only by New shader. A search
  * also finds the tab's own style options (Outline, Glow, Halo, Wireframe; Band), shown as tiles marked as Shape or Line options, so a reader who types "glow"
  * learns it is an option. Enter in the search picks the tile whose name the search names, else
@@ -271,7 +270,6 @@ export function ShaderGallery({
         const description = [
             reason,
             used ? GALLERY_WORDS.inUse : undefined,
-            tab === "background" ? undefined : placeWords(descriptor.place, tab),
             ...factsOf(descriptor).map((fact) => fact.words),
         ]
             .filter((part) => part !== undefined)
@@ -282,14 +280,7 @@ export function ShaderGallery({
                 id={descriptor.id}
                 name={descriptor.plainName}
                 picture={descriptor.thumbnail}
-                badge={
-                    tab === "background" || bare ? undefined : (
-                        <span className="ws-place-badge">
-                            <PlaceDiagram place={descriptor.place} tab={tab} />
-                            <span>{placeWords(descriptor.place, tab)}</span>
-                        </span>
-                    )
-                }
+                // No place on a tile: a place is chosen only when creating a shader, never when choosing one (E368).
                 facts={bare ? undefined : <ShaderFacts descriptor={descriptor} />}
                 second={bare ? undefined : reason}
                 quiet={bare}
@@ -392,18 +383,16 @@ export function ShaderGallery({
 }
 
 /**
- * One gallery tile, a button that adds what it shows: the picture, the name, the place badge and
- * the facts, and a second line when there is one (its origin, an option's section, or why it cannot
- * be picked). Its name is the shader's name; everything else it shows, and whether it is already in
+ * One gallery tile, a button that adds what it shows: the picture, the name and the facts, and a
+ * second line when there is one (its origin, an option's section, or why it cannot be picked). Its name is the shader's name; everything else it shows, and whether it is already in
  * use, is its description, so a screen reader hears it all and not only the name.
  * @param props - Component props
  * @param props.id - what a pick hands back
  * @param props.name - the name
  * @param props.picture - the still picture, if any
- * @param props.badge - the place badge
  * @param props.facts - the facts' icons
  * @param props.second - the second line
- * @param props.description - what it says after its name: its place, facts, origin, whether in use
+ * @param props.description - what it says after its name: its facts, origin, whether in use
  * @param props.disabled - whether it cannot be picked here
  * @param props.marked - whether it is already in the list
  * @param props.stop - whether it is the gallery's one Tab stop
@@ -416,7 +405,6 @@ function GalleryTile({
     id,
     name,
     picture,
-    badge,
     facts,
     second,
     description,
@@ -433,7 +421,6 @@ function GalleryTile({
         id: string;
         name: string;
         picture?: string;
-        badge?: React.ReactNode;
         facts?: React.ReactNode;
         second?: string;
         description?: string;
@@ -486,7 +473,6 @@ function GalleryTile({
             <Text size="xs" truncate>
                 {name}
             </Text>
-            {badge}
             {facts}
             {second !== undefined && !quiet && (
                 <Text size="xs" c="dimmed" truncate>

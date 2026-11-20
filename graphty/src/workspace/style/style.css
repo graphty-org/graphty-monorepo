@@ -228,17 +228,11 @@
     touch-action: none;
 }
 
-.ws-shader-name,
-.ws-place-badge {
+.ws-shader-name {
     display: flex;
     align-items: center;
     gap: 4px;
     min-width: 0;
-}
-
-.ws-place-badge {
-    color: var(--cm-text-secondary, var(--mantine-color-dimmed));
-    font-size: var(--mantine-font-size-xs);
 }
 
 .ws-place-diagram {

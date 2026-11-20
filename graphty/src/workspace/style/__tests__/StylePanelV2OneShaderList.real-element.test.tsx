@@ -82,6 +82,15 @@ describe("custom and built-in shaders are one list", () => {
             for (const builtIn of builtIns) {
                 assert.include(tiles, builtIn.id, `${builtIn.id} is in the ${kind} list`);
             }
+            // Choosing names no place, in words or for a screen reader (E368): only New shader... asks one.
+            const placed = [...list.querySelectorAll<HTMLElement>(".ws-gallery-tile")].filter((tile) =>
+                /\b(on the node|around|on the line|along the line)\b/i.test(`${tile.textContent} ${tile.title}`),
+            );
+            assert.deepEqual(
+                placed.map((tile) => tile.getAttribute("data-shader")),
+                [],
+                `no ${kind} tile names a place`,
+            );
             for (const { id, place } of ids[kind]) {
                 if (place === "replace") {
                     assert.notInclude(tiles, id, "a replace shader is the Shape menu's");

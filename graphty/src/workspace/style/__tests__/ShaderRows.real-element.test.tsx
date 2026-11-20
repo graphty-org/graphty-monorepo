@@ -255,14 +255,14 @@ vec4 shade(NodeInput n) {
         await userEvent.keyboard("{ArrowLeft}");
         assert.strictEqual(document.activeElement, first);
 
-        // A screen reader hears the tile's place, facts and whether it is already in use.
+        // A screen reader hears the tile's facts and whether it is already in use; choosing names no place (E368).
         const described = (name: string): string => {
             const tile = within(tiles).getByRole("button", { name });
             return document.getElementById(tile.getAttribute("aria-describedby") ?? "")?.textContent ?? "";
         };
         const reticle = described("Reticle");
         assert.include(reticle, "In use");
-        assert.include(reticle, "Around");
+        assert.notInclude(reticle, "Around");
         assert.include(reticle, "Animates");
         assert.notInclude(described("Pearl"), "In use");
     });

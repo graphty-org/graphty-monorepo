@@ -3689,12 +3689,7 @@ export class SessionData implements SessionDataApi {
                 ? sources.length - 1
                 : sources.findIndex((each, index) => (each.key ?? `s${String(index + 1)}`) === key);
         if (key !== undefined && at < 0) {
-            throw new GraphtyError({
-                code: "E_SOURCE_UNKNOWN",
-                message: `No load still in the graph has key ${JSON.stringify(key)}.`,
-                source: "data",
-                details: { key, known: this.listed().map((each) => each.key) },
-            });
+            throw this.unknownLoad(key);
         }
 
         const newest = at === sources.length - 1;
@@ -4219,6 +4214,20 @@ export class SessionData implements SessionDataApi {
     profile(options: { readonly space: string }): SourceColumnProfile {
         this.requireSteps("profile");
         return spaceProfile(this.stepsValue(), this.stepsCopies(), options.space);
+    }
+
+    /**
+     * The refusal for a load key no source still in the graph has.
+     * @param key - The key asked for.
+     * @returns `E_SOURCE_UNKNOWN`, with the keys there are.
+     */
+    private unknownLoad(key: string): GraphtyError {
+        return new GraphtyError({
+            code: "E_SOURCE_UNKNOWN",
+            message: `No load still in the graph has key ${JSON.stringify(key)}.`,
+            source: "data",
+            details: { key, known: this.listed().map((each) => each.key) },
+        });
     }
 
     /**
@@ -5673,12 +5682,7 @@ export class SessionData implements SessionDataApi {
         const at = this.listed().findIndex((each) => each.key === key);
         const entry = stored[at] as LoadedSource | undefined;
         if (entry === undefined) {
-            throw new GraphtyError({
-                code: "E_SOURCE_UNKNOWN",
-                message: `No load still in the graph has key ${JSON.stringify(key)}.`,
-                source: "data",
-                details: { key, known: this.listed().map((each) => each.key) },
-            });
+            throw this.unknownLoad(key);
         }
 
         if (source.source !== undefined) {
@@ -6173,12 +6177,7 @@ export class SessionData implements SessionDataApi {
             ?.input;
         const input = token === undefined ? undefined : this.kept.get(token);
         if (entry === undefined) {
-            throw new GraphtyError({
-                code: "E_SOURCE_UNKNOWN",
-                message: `No load still in the graph has key ${JSON.stringify(key)}.`,
-                source: "data",
-                details: { key, known: this.listed().map((each) => each.key) },
-            });
+            throw this.unknownLoad(key);
         }
 
         if (input === undefined) {

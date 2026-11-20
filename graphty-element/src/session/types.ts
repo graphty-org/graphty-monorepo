@@ -5667,9 +5667,12 @@ export interface SourceOverlapQuestion {
  * ```
  *
  * The acts throw what the data door of the same name throws, and leave the draft as it was.
+ * `matchCounts`, `matchValues`, `sourceTable` and `profile` read as the data doors of the same
+ * name do, over the draft's sources and its build: a source the draft staged can be side 2 or be
+ * read.
  * @experimental source-steps
  */
-export interface SourceDraft {
+export interface SourceDraft extends Pick<SessionDataApi, "matchCounts" | "matchValues" | "sourceTable" | "profile"> {
     /** The draft's id, as `E_DRAFT_OPEN` and `data:draft-changed` name it. */
     readonly id: string;
     /** Whether the draft is still open: false once committed or discarded. */
@@ -5862,36 +5865,6 @@ export interface SourceDraft {
      * @returns The edits.
      */
     edits(): readonly ReaderEditRow[];
-    /**
-     * Live match counts of two fields in the draft, as `data.matchCounts` counts them: a source
-     * the draft staged can be side 2.
-     * @param pair - The two fields.
-     * @param options - Whether case and spaces count.
-     * @returns The counts.
-     */
-    matchCounts(pair: SourceMatchPair, options?: SourceMatchOptions): SourceMatchCounts;
-    /**
-     * The value-overlap list of two fields in the draft, as `data.matchValues` lists it.
-     * @param pair - The two fields.
-     * @param options - Which values, which page, and whether case and spaces count.
-     * @returns The page and the total.
-     */
-    matchValues(pair: SourceMatchPair, options?: SourceMatchValuesOptions): SourceMatchValues;
-    /**
-     * One source's rows as read in the draft, as `data.sourceTable` reads them: a source the draft
-     * staged too.
-     * @param source - The source.
-     * @returns The table.
-     */
-    sourceTable(source: SourceKey): SourceTable;
-    /**
-     * The profile of the keys of the nodes one id space holds in the draft's build, as
-     * `data.profile` reads it.
-     * @param options - The space.
-     * @param options.space - The space.
-     * @returns The profile.
-     */
-    profile(options: { readonly space: SourceSpaceName }): SourceColumnProfile;
     /**
      * What committing the draft would do: totals before and after, each step's buckets counted
      * over every row and their change from the committed counts, each source's counts, reader

@@ -7,10 +7,11 @@
 import type { GraphSession, LoadedSource, SourceKey, SourceMappingPatch } from "@graphty/graphty-element/session";
 
 import { sourceName } from "../data-place/words";
-import type { Notice, WorkspaceState, WorkspaceStore } from "../state/store";
+import { showUndoNotice } from "../frame/undoNotice";
+import type { WorkspaceState, WorkspaceStore } from "../state/store";
 import { askIfDraftOpen } from "./preview";
 import { stepCardSource } from "./steps";
-import { committedWords, PREVIEW_WORDS, refusedWords, removedWords, STAGED_WORDS } from "./words";
+import { committedWords, refusedWords, removedWords, STAGED_WORDS } from "./words";
 
 /**
  * The staged sources, oldest first.
@@ -131,26 +132,10 @@ export async function commitCard(workspace: WorkspaceStore, session: GraphSessio
     if (step === undefined || step === before) {
         return;
     }
-    const isNext = (): boolean => undoTarget(session) === step;
-    const notice: Notice = {
-        message: noticeWords(card, source === undefined ? "" : sourceName(source)),
-        action: {
-            label: PREVIEW_WORDS.undo,
-            run: () => {
-                if (isNext()) {
-                    void session.undo();
-                }
-            },
-        },
-    };
     // The notice goes once the commit is no longer the step Undo takes back.
-    const off = session.on("history:changed", () => {
-        if (!isNext()) {
-            off();
-            workspace.set((state) => (state.notice === notice ? { notice: null } : {}));
-        }
+    showUndoNotice(session, workspace, noticeWords(card, source === undefined ? "" : sourceName(source)), () => {
+        return undoTarget(session) === step;
     });
-    workspace.set({ notice });
 }
 
 /**

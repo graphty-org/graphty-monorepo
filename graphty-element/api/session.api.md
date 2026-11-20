@@ -7670,7 +7670,7 @@ export { SourceCursor }
 export { SourceDescriptor }
 
 // @public
-export interface SourceDraft {
+export interface SourceDraft extends Pick<SessionDataApi, "matchCounts" | "matchValues" | "sourceTable" | "profile"> {
     add(source: SourceKey, options?: {
         readonly overlap?: "separate" | "merge";
     }): void;
@@ -7693,8 +7693,6 @@ export interface SourceDraft {
         readonly overlap?: "separate" | "merge";
     }): Promise<string>;
     include(step: number, keys: readonly SourceCellValue[]): void;
-    matchCounts(pair: SourceMatchPair, options?: SourceMatchOptions): SourceMatchCounts;
-    matchValues(pair: SourceMatchPair, options?: SourceMatchValuesOptions): SourceMatchValues;
     merge(options: SourceMergeOptions): void;
     moveColumns(source: SourceKey, options: SourceMoveColumnsOptions): void;
     moveStep(index: number, to: number): void;
@@ -7702,9 +7700,6 @@ export interface SourceDraft {
     pick(ref: SourceElementRef, column: string, source: SourceKey): void;
     pickAll(options: SourcePickAllOptions): number;
     preview(): SourceDraftPreview;
-    profile(options: {
-        readonly space: SourceSpaceName;
-    }): SourceColumnProfile;
     removeEdit(id: string): void;
     removeSource(source: SourceKey): void;
     removeStep(index: number): void;
@@ -7714,7 +7709,6 @@ export interface SourceDraft {
     setMapping(source: SourceKey, patch: SourceMappingPatch): void;
     show(side: "before" | "after"): Promise<void>;
     readonly side: "before" | "after";
-    sourceTable(source: SourceKey): SourceTable;
     stage(source: DataSourceInput, options?: StageOptions): Promise<string>;
     steps(): readonly SourceStepRow[];
     types(): readonly SourceTypeEntry[];

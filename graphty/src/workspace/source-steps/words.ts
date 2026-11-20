@@ -91,11 +91,11 @@ export function repeatsWords(repeated: { readonly keys: number; readonly rows: n
 
 /**
  * The key-overlap question: "Same person?", named by the space the keys meet in.
- * @param question - the element's `W_SPACE_OVERLAP`.
+ * @param space - that space as the reader reads it: its name, or its owning source's name.
  * @returns the question.
  */
-export function overlapQuestionWords(question: SourceOverlapQuestion): string {
-    return `Same ${question.params.space}?`;
+export function overlapQuestionWords(space: string): string {
+    return `Same ${space}?`;
 }
 
 /**

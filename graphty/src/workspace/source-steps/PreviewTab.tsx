@@ -4,6 +4,7 @@ import { DataTable, type DataTableColumn, PANEL_GRID, SegmentedControl } from "@
 import type {
     GraphSession,
     SourceDraftCell,
+    SourceDraftPreview,
     SourceDraftRow,
     SourceKey,
     SourceValue,
@@ -14,7 +15,7 @@ import React from "react";
 import { sourceName } from "../data-place/words";
 import { formatNumber } from "../inspector/words";
 import { useSessionEvents } from "../sessionEvents";
-import type { JoinCardState, JoinDrill } from "../state/store";
+import type { JoinCardState, JoinDrill, WorkspaceStore } from "../state/store";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { cellId, openDraft, rowId, setDrill } from "./preview";
 import { bucketWords, CELL_FILTERS, cellWords, DRILL_WORDS, EFFECT_WORDS, RULE_WORDS } from "./words";
@@ -118,33 +119,67 @@ function cellColumns(session: GraphSession, cells: readonly SourceDraftCell[]): 
     ];
 }
 
+/** What each drill-down view is given: the session, the open draft's preview and step, the room. */
+interface ViewProps<D> {
+    readonly session: GraphSession;
+    readonly preview: SourceDraftPreview;
+    readonly step: number;
+    readonly drill: D;
+    readonly height: number;
+}
+
+/**
+ * The table props both drill-down views share: one row pitch, the room the dock gives, and the
+ * selection the card acts on.
+ * @param store - the chrome store, for the selection.
+ * @param drill - the drill-down.
+ * @param height - the room for the table, in pixels.
+ * @returns the props.
+ */
+function gridProps(
+    store: WorkspaceStore,
+    drill: NonNullable<JoinDrill>,
+    height: number,
+): {
+    rowHeight: number;
+    headerHeight: number;
+    height: number;
+    selectionMode: "multiple";
+    selectedIds: readonly string[];
+    onSelectionChange: (selected: readonly string[]) => void;
+} {
+    return {
+        rowHeight: PANEL_GRID.ROW_PITCH,
+        headerHeight: PANEL_GRID.ROW_PITCH,
+        height: Math.max(PANEL_GRID.ROW_PITCH * 4, height - PANEL_GRID.ROW_PITCH * 2),
+        selectionMode: "multiple",
+        selectedIds: drill.selected,
+        onSelectionChange: (selected) => {
+            setDrill(store, { ...drill, selected: [...selected] });
+        },
+    };
+}
+
 /**
  * The rows behind one count: held and incoming side by side, tinted by effect, Changed only or All.
  * @param props - Component props
  * @param props.session - the element's session
- * @param props.card - the card, previewing
+ * @param props.preview - the open draft's preview
+ * @param props.step - the card's step
  * @param props.drill - the count
  * @param props.height - the room for the table, in pixels
  * @returns the view
  */
 function RowsView({
     session,
-    card,
+    preview,
+    step,
     drill,
     height,
-}: Readonly<{
-    session: GraphSession;
-    card: JoinCardState;
-    drill: Extract<JoinDrill, { kind: "rows" }>;
-    height: number;
-}>): React.JSX.Element | null {
+}: ViewProps<Extract<JoinDrill, { kind: "rows" }>>): React.JSX.Element {
     const { store } = useWorkspace();
-    const draft = openDraft(session);
-    if (draft === null || card.preview === null) {
-        return null;
-    }
     // ponytail: every row of the count at once; page it as FieldsTab does when counts reach the thousands.
-    const { total, rows: all } = draft.preview().rows({ step: card.preview.step, bucket: drill.bucket });
+    const { total, rows: all } = preview.rows({ step, bucket: drill.bucket });
     const rows = drill.changedOnly ? all.filter((row) => row.effect !== "unchanged") : all;
     return (
         <Stack gap={6} className="ss-fields-tab">
@@ -171,18 +206,11 @@ function RowsView({
             <DataTable<SourceDraftRow>
                 key={`${drill.bucket}:${String(drill.changedOnly)}`}
                 label={DRILL_WORDS.rowsLabel}
-                rowHeight={PANEL_GRID.ROW_PITCH}
-                headerHeight={PANEL_GRID.ROW_PITCH}
                 data={rows}
                 columns={rowColumns(session, rows)}
                 getRowId={rowId}
                 rowColor={(row) => EFFECT_COLORS[row.effect]}
-                height={Math.max(PANEL_GRID.ROW_PITCH * 4, height - PANEL_GRID.ROW_PITCH * 2)}
-                selectionMode="multiple"
-                selectedIds={drill.selected}
-                onSelectionChange={(selected) => {
-                    setDrill(store, { ...drill, selected });
-                }}
+                {...gridProps(store, drill, height)}
             />
         </Stack>
     );
@@ -193,29 +221,22 @@ function RowsView({
  * Open or Decided.
  * @param props - Component props
  * @param props.session - the element's session
- * @param props.card - the card, previewing
+ * @param props.preview - the open draft's preview
+ * @param props.step - the card's step
  * @param props.drill - the column
  * @param props.height - the room for the table, in pixels
  * @returns the view
  */
 function CellsView({
     session,
-    card,
+    preview,
+    step,
     drill,
     height,
-}: Readonly<{
-    session: GraphSession;
-    card: JoinCardState;
-    drill: Extract<JoinDrill, { kind: "cells" }>;
-    height: number;
-}>): React.JSX.Element | null {
+}: ViewProps<Extract<JoinDrill, { kind: "cells" }>>): React.JSX.Element {
     const { store } = useWorkspace();
-    const draft = openDraft(session);
-    if (draft === null || card.preview === null) {
-        return null;
-    }
     // ponytail: every cell of the column at once; page it as FieldsTab does when counts reach the thousands.
-    const { total, cells } = draft.preview().cells({ column: drill.column, step: card.preview.step, only: drill.only });
+    const { total, cells } = preview.cells({ column: drill.column, step, only: drill.only });
     return (
         <Stack gap={6} className="ss-fields-tab">
             <Group gap={8} wrap="nowrap">
@@ -239,17 +260,10 @@ function CellsView({
             <DataTable<SourceDraftCell>
                 key={`${drill.column}:${drill.only}`}
                 label={DRILL_WORDS.cellsLabel}
-                rowHeight={PANEL_GRID.ROW_PITCH}
-                headerHeight={PANEL_GRID.ROW_PITCH}
                 data={cells}
                 columns={cellColumns(session, cells)}
                 getRowId={cellId}
-                height={Math.max(PANEL_GRID.ROW_PITCH * 4, height - PANEL_GRID.ROW_PITCH * 2)}
-                selectionMode="multiple"
-                selectedIds={drill.selected}
-                onSelectionChange={(selected) => {
-                    setDrill(store, { ...drill, selected });
-                }}
+                {...gridProps(store, drill, height)}
             />
         </Stack>
     );
@@ -272,12 +286,10 @@ export function PreviewTab({
 }: Readonly<{ session: GraphSession; card: JoinCardState; height: number }>): React.JSX.Element | null {
     useSessionEvents(session, DRAFT_EVENTS);
     const { drill } = card;
-    if (drill === null) {
+    const draft = openDraft(session);
+    if (drill === null || draft === null || card.preview === null) {
         return null;
     }
-    return drill.kind === "rows" ? (
-        <RowsView session={session} card={card} drill={drill} height={height} />
-    ) : (
-        <CellsView session={session} card={card} drill={drill} height={height} />
-    );
+    const view = { session, preview: draft.preview(), step: card.preview.step, height };
+    return drill.kind === "rows" ? <RowsView {...view} drill={drill} /> : <CellsView {...view} drill={drill} />;
 }

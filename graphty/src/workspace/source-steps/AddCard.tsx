@@ -6,6 +6,7 @@ import { ariaKey, formatKey } from "../keys/keys";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { cancelCard, commitCard } from "./actions";
 import { CancelButton } from "./CancelButton";
+import { spaceLabel } from "./join";
 import { overlapCountWords, overlapQuestionWords, STAGED_WORDS } from "./words";
 
 /** The answers to the key-overlap question, by the source it asks about. */
@@ -75,7 +76,7 @@ export function AddCard({ session }: Readonly<{ session: GraphSession }>): React
                         size="xs"
                         label={
                             <Group gap={6} wrap="nowrap" component="span">
-                                <span>{overlapQuestionWords(question)}</span>
+                                <span>{overlapQuestionWords(spaceLabel(session, question.params.space))}</span>
                                 <Text component="span" size="xs" c="dimmed">
                                     {overlapCountWords(question)}
                                 </Text>

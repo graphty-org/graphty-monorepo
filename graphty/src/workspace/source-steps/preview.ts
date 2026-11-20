@@ -442,6 +442,26 @@ export function includeKey(workspace: WorkspaceStore, session: GraphSession, key
 }
 
 /**
+ * Acts on the selected cells of the column the dock's Preview tab shows, as one step of the card.
+ * @param workspace - the workspace store.
+ * @param session - the element's session.
+ * @param act - what to do with the column and the selected cells' refs; true when it changed any.
+ */
+function actOnSelectedCells(
+    workspace: WorkspaceStore,
+    session: GraphSession,
+    act: (draft: SourceDraft, column: string, refs: ReturnType<typeof selectedRefs>) => boolean,
+): void {
+    const card = joinCardOf(workspace.get().sourceCard);
+    if (card?.drill?.kind !== "cells") {
+        return;
+    }
+    const { column } = card.drill;
+    const refs = selectedRefs(card);
+    actOnStep(workspace, session, (draft) => act(draft, column, refs));
+}
+
+/**
  * Pick 1 or Pick 2: takes one source's value for the selected cells of the column.
  * @param workspace - the workspace store.
  * @param session - the element's session.
@@ -452,13 +472,11 @@ export function pickSelected(
     session: GraphSession,
     side: Pick<SourcePickAllOptions, "source" | "otherThan">,
 ): void {
-    const card = joinCardOf(workspace.get().sourceCard);
-    if (card?.drill?.kind !== "cells") {
-        return;
-    }
-    const { column } = card.drill;
-    const refs = selectedRefs(card);
-    actOnStep(workspace, session, (draft) => draft.pickAll({ ...side, column, only: "all", refs }) > 0);
+    actOnSelectedCells(
+        workspace,
+        session,
+        (draft, column, refs) => draft.pickAll({ ...side, column, only: "all", refs }) > 0,
+    );
 }
 
 /**
@@ -467,11 +485,5 @@ export function pickSelected(
  * @param session - the element's session.
  */
 export function clearSelectedPicks(workspace: WorkspaceStore, session: GraphSession): void {
-    const card = joinCardOf(workspace.get().sourceCard);
-    if (card?.drill?.kind !== "cells") {
-        return;
-    }
-    const { column } = card.drill;
-    const refs = selectedRefs(card);
-    actOnStep(workspace, session, (draft) => draft.clearPicks({ column, refs }) > 0);
+    actOnSelectedCells(workspace, session, (draft, column, refs) => draft.clearPicks({ column, refs }) > 0);
 }

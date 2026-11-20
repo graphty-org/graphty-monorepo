@@ -128,7 +128,7 @@ describe("the ngraph layout's steps to settle", () => {
  *
  * Issue #7919: political-blogs in 3D also ran to the cap, though its stall was not read as one. Its
  * largest component kept its shape from about step 400 while the whole of it slid on, so its nodes
- * looked as if they were travelling. A stall now leaves out what every node moved together.
+ * looked as if they were traveling. A stall now leaves out what every node moved together.
  */
 describe("the ngraph layout on graph-samples datasets", () => {
     const cases: { name: string; dim: 2 | 3; steps: number; exact: boolean }[] = [

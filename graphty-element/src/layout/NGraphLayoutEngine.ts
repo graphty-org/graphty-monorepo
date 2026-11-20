@@ -984,7 +984,7 @@ export class NGraphEngine extends LayoutEngine {
             return;
         }
 
-        if (this.travelledInShape() < this.stallPath * STALL_WANDER) {
+        if (this.traveledInShape() < this.stallPath * STALL_WANDER) {
             settings.timeStep *= STALL_COOLING;
         }
 
@@ -996,10 +996,10 @@ export class NGraphEngine extends LayoutEngine {
      * together. A drift of the whole drawing changes no node's place in it: on political-blogs in
      * 3D (issue #7919) the largest component kept its shape from about step 400 while the whole of
      * it slid on at a fifth of a unit a step, so a stall that was swinging in place read as
-     * travelling and the time step never shortened.
+     * traveling and the time step never shortened.
      * @returns The summed distance of each body from where it started, net of the mean displacement.
      */
-    private travelledInShape(): number {
+    private traveledInShape(): number {
         const moves: [number, number, number][] = [];
         const drift = [0, 0, 0];
         this.ngraphLayout.forEachBody((body) => {

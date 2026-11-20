@@ -468,7 +468,7 @@ export interface SelectionApi {
      */
     readonly peeked: { readonly nodes: number; readonly edges: number } | null;
     /**
-     * Point at some elements for a moment: a neutral halo on them, drawn by a style layer the element
+     * Point at some elements for a moment: a neutral ring outside their border (`node.outerBorder*`), drawn by a style layer the element
      * holds above every other, while the rest of the picture stays as it is. It adds no undo step,
      * changes neither the selection nor the camera, and is never saved. `null` clears it; so does a
      * change to the graph, and the session's end.

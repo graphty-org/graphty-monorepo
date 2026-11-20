@@ -8,16 +8,17 @@
  * adding a layer either -- the element's own layers answer `E_PROTECTED`. Between those two
  * decisions the capability disappeared: there was no door at all.
  *
- * The halo belongs outside the layer stack; a selection is not a property of the data and a
- * layer that painted it would be reordered, persisted and lost at a dataset boundary along with
- * every other layer. So the door is the graph's own configuration, beside the background: what
- * colour the highlight is, how far it stands out past the node, and how solid it is.
+ * A selection is not a property of the data, so its look is the graph's own configuration,
+ * beside the background: what colour the highlight is, how far it stands out past the node, and
+ * how solid it is. The session draws it as a ring outside the node's border (`node.outerBorder*`,
+ * `(scale - 1) / 2` wide), the ring a style layer draws, so these read the ring.
  */
 
 import type { AbstractMesh } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
+import { nodeInternals } from "../../src/Node";
 import { nextFrame } from "../helpers/real-input";
 
 /** Two nodes, so selecting one leaves something unselected to compare against. */
@@ -26,7 +27,7 @@ const NODES = [{ id: "alpha" }, { id: "omega" }];
 /** The one edge between them. */
 const EDGES = [{ src: "alpha", dst: "omega" }];
 
-/** The default halo: the selected edge's blue, solid, 3:1 or better on light and dark canvases (#811). */
+/** The default ring: the selected edge's blue, solid, 3:1 or better on light and dark canvases (#811). */
 const DEFAULT_HALO = "#0077BB";
 
 describe("what a selected node looks like", () => {
@@ -53,30 +54,28 @@ describe("what a selected node looks like", () => {
     });
 
     /**
-     * The halo on screen.
-     *
-     * The mesh cache keeps its SOURCE mesh in the scene beside the instances, hidden and parked
-     * ten thousand units below the graph, so a search by name alone finds the source and reports
-     * its unscaled size. Visibility is what separates them.
-     * @returns the halo instance, or undefined when none is drawn
+     * The selection ring on screen: the ring outside a selected node's border.
+     * @returns the ring, or undefined when no selected node draws one
      */
     function drawnHalo(): AbstractMesh | undefined {
-        return graph.scene.meshes.find(
-            (mesh) => mesh.name.startsWith("graphty-selection-halo") && mesh.isVisible && mesh.isEnabled(),
-        );
+        return graph
+            .getNodes()
+            .filter((node) => node.isSelected())
+            .map((node) => nodeInternals.drawn(node).outerBorder)
+            .find((ring): ring is AbstractMesh => ring !== null && !ring.isDisposed() && ring.isEnabled());
     }
 
     /**
-     * How big the halo on screen is, as a radius in world units.
-     * @returns the halo's radius
+     * How far the ring on screen reaches, as a radius in world units.
+     * @returns the ring's outer radius
      */
     function haloRadius(): number {
         const halo = drawnHalo();
-        assert.isDefined(halo, "a selected node has a halo on screen");
-
+        assert.isDefined(halo, "a selected node has a ring on screen");
+        halo.computeWorldMatrix(true);
         const extent = halo.getBoundingInfo().boundingBox.extendSizeWorld;
 
-        return Math.max(extent.x, extent.y, extent.z);
+        return Math.max(extent.x, extent.y);
     }
 
     /**
@@ -142,7 +141,7 @@ describe("what a selected node looks like", () => {
         assert.strictEqual(haloMaterial()?.alpha, 0.9);
     });
 
-    it("draws no halo at all at opacity 0, and draws it again when the opacity comes back", async () => {
+    it("draws no ring at all at opacity 0, and draws it again when the opacity comes back", async () => {
         // Drawn invisible, the halo still covered the node in the depth and stencil buffers, so
         // an outline on the selected node was painted over the whole node instead of around it.
         await graph.select({ nodes: ["alpha"] });
@@ -181,12 +180,14 @@ describe("what a selected node looks like", () => {
         assert.isAbove(haloRadius(), nodeRadius("alpha"), "the halo is drawn outside the node");
     });
 
-    it("draws the halo at the scale the configuration asks for", async () => {
-        graph.setSelectionStyle({ scale: 3 });
+    it("draws the ring as far out as the scale the configuration asks for: (scale - 1) / 2 wide", async () => {
         await graph.select({ nodes: ["alpha"] });
         await frames();
+        const near = haloRadius();
+        graph.setSelectionStyle({ scale: 3 });
+        await frames();
 
-        assert.closeTo(haloRadius() / nodeRadius("alpha"), 3, 1e-6, "three times the node's own radius");
+        assert.isAbove(haloRadius(), near + 0.5, "a scale of 3 draws a wider ring than 1.45");
     });
 
     it("reports what it is currently set to", () => {

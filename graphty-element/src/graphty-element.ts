@@ -3657,8 +3657,8 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * What a selected node looks like: the halo's colour, how far it stands out past the node,
-     * and how solid it is.
+     * What a selected node looks like: the colour of the ring outside its border, how far it
+     * reaches past the node (a ring `(scale - 1) / 2` wide), and how solid it is.
      * @remarks
      * Merged over what is already set, so naming one field leaves the others alone, and it takes
      * effect on a selection that is already on screen.

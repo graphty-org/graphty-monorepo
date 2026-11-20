@@ -54,8 +54,8 @@ Tests for complex scenarios, state transitions, and edge cases.
 | `node-selection-click.test.ts`  | Clicking a node selects it, in 2D and 3D                     |
 | `halo-on-hover.test.ts`         | A layer's halo channels draw the halo on the hovered node    |
 | `halo-over-edges.test.ts`       | A selected node's halo is drawn over crossing edges          |
-| `selection-halo-shape.test.ts`  | The halo follows the shape of the node it rings              |
-| `capped-selection-halo.test.ts` | A selection that is full draws no halo for a node it refused |
+| `selection-halo-shape.test.ts`  | The ring follows the shape of the node it marks              |
+| `capped-selection-halo.test.ts` | A selection that is full draws no ring for a node it refused |
 
 ### Top-level tests
 

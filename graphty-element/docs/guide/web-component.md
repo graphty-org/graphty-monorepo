@@ -53,7 +53,7 @@ All configuration is done through HTML attributes or their corresponding JavaScr
 | `edgeWeightPath`         | `edge-weight-path`         | `string`                                                            | `'weight'`  | Path to an edge's weight, which every weighted algorithm reads                                                                                                                                                                                                                      |
 | `positionScale`          | `position-scale`           | `number`                                                            | `1`         | Multiplier from a record's own coordinates into scene units                                                                                                                                                                                                                         |
 | `directed`               | `directed`                 | `boolean \| 'auto'`                                                 | `'auto'`    | Overrules a file header's direction; `'auto'` lets the file decide                                                                                                                                                                                                                  |
-| `selectionStyle`         | property only              | `{ color?, scale?, opacity? }`                                      | blue halo   | What a selected node looks like                                                                                                                                                                                                                                                     |
+| `selectionStyle`         | property only              | `{ color?, scale?, opacity? }`                                      | blue ring   | What a selected node looks like                                                                                                                                                                                                                                                     |
 | `layoutBehavior`         | property only              | `object`                                                            | `{}`        | How the element drives the layout, whether overlapping labels are thinned out, and the two on-demand expansion functions                                                                                                                                                            |
 | `algorithmsOnLoad`       | (property only)            | `Array<string \| object>`                                           | unset       | Algorithms to run once data loads: names, or `{ algorithm, params?, style?, seed?, as? }` (see [Algorithms](./algorithms#running-algorithms-when-the-data-loads))                                                                                                                   |
 | `runAlgorithmsOnLoad`    | `run-algorithms-on-load`   | `boolean`                                                           | `false`     | Whether `algorithmsOnLoad` runs; a boolean attribute, on by presence                                                                                                                                                                                                                |
@@ -85,21 +85,22 @@ The Web Component exposes many methods directly. See [Direct Methods](#direct-me
 
 ### What a selected node looks like
 
-The highlight is a solid blue halo around the selected node (and a blue band along a selected edge), and it is configuration rather than a style
-layer -- a selection is what a reader is pointing at, not a property of the data, so a layer
-drawing it would be reorderable, persistable and lost at a dataset boundary along with every other
-layer.
+The highlight is a solid blue ring outside the selected node's border (and a blue band along a
+selected edge). Its look is configuration rather than a style layer you add -- a selection is what
+a reader is pointing at, not a property of the data -- and the element draws it with the same ring
+a style layer draws (`node.outerBorderColor`, `node.outerBorderWidth`, `node.outerBorderOpacity`),
+`(scale - 1) / 2` wide, so a border the node already has stays in view inside it.
 
 ```javascript
 element.selectionStyle = {
     color: "#00BCD4", // any color the element understands
-    scale: 1.8, // how far past the node it stands, as a multiple of the node's size
+    scale: 1.8, // how far out it reaches, as a multiple of the node's size: a ring (1.8 - 1) / 2 wide
     opacity: 0.55, // 0 to 1
 };
 ```
 
 Merged over what is already set, so naming one field leaves the others alone, and it takes effect
-on a selection that is already on screen. An `opacity` of `0` draws no halo at all, and an
+on a selection that is already on screen. An `opacity` of `0` draws no ring at all, and an
 `edgeOpacity` of `0` no band, for a page that marks the selection its own way, such as with a
 `node.outerBorderColor` style layer. With `startingRows` on, the Selected row draws the mark instead: delete
 it to stop drawing the selection ([Everything, Selected and Hovered](./starting-rows.md)).

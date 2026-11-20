@@ -2956,8 +2956,26 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         const shown =
             branchesShown === null ? basePainting(stack) : previewStack(paintedStack(stack), branchesShown.layers);
         const specs = sources.transient?.() ?? [];
-        return specs.length === 0 ? shown : [...shown, ...transientLayers(specs)];
+        if (specs.length === 0) {
+            return shown;
+        }
+        // The same array while the stack and the transient layers stand, so a reading keyed by
+        // the stack (an incremental repaint) is not thrown away on every call.
+        // Kept per stack, so an undo back to a stack reads the identical joined stack again.
+        const layers = transientLayers(specs);
+        let joined = paintedWith.get(shown);
+        if (joined?.layers !== layers) {
+            joined = { layers, stack: [...shown, ...layers] };
+            paintedWith.set(shown, joined);
+        }
+        return joined.stack;
     };
+
+    /** Each painting stack joined with the transient layers, by the stack and the layers it joined. */
+    const paintedWith = new WeakMap<
+        readonly CompiledLayer[],
+        { layers: readonly CompiledLayer[]; stack: readonly CompiledLayer[] }
+    >();
 
     /** The transient layers last compiled, by the array that named them. */
     let compiledTransient: { specs: readonly ElementLayerSpec[]; layers: readonly CompiledLayer[] } | undefined;

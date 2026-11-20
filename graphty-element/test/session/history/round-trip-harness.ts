@@ -84,6 +84,14 @@ export async function roundTrip(
 ): Promise<void> {
     const digests = async (): Promise<Digests> => {
         await rest();
+        // An undo or a redo selects what it changed, and a selected element is drawn with the
+        // selection's ring; the selection is not project state, so it is cleared before each
+        // reading (clearing adds no step) and the picture compared is the project's own.
+        if (session.selection.nodes.length > 0 || session.selection.edges.length > 0) {
+            session.selection.clear();
+            await session.styles.settled();
+            await rest();
+        }
         return digestsOf(session, extra);
     };
     await fixture.before?.(session);

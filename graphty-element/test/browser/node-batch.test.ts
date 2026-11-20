@@ -1927,7 +1927,8 @@ describe.each(RENDERERS)("the scene objects of a batched graph on %s (cosmos-gap
         await operationQueueOf(graph).waitForCompletion();
         await element.waitForStableFrame();
         assert.notEqual(node.drawnPosition.x, x, "the drag reached the row");
-        assert.equal(graph.rowCounts.batchedNodes, count, "every row is still drawn batched");
+        // The selected row draws its selection ring (node.outerBorder*) as its own mesh; the rest stay batched.
+        assert.equal(graph.rowCounts.batchedNodes, count - 1, "every row but the selected one is still drawn batched");
         return graph.getScene().transformNodes.length;
     }
 

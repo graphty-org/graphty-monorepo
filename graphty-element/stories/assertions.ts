@@ -2048,7 +2048,7 @@ export async function doubleClickNode(element: Graphty, id: string, input?: Real
 export async function assertSelectionDrawn(scene: Drawn, id: string, input?: RealInput): Promise<void> {
     await clickNode(scene, id, input);
 
-    // The halo is drawn by the render loop after the selection lands, so wait for the element to
+    // The ring is drawn by the render loop after the selection lands, so wait for the element to
     // say the frame on screen shows it.
     await scene.graph.waitForStableFrame();
 
@@ -2061,7 +2061,7 @@ export async function assertSelectionDrawn(scene: Drawn, id: string, input?: Rea
 
     const haloed = scene.graph
         .getNodes()
-        .filter((node) => node.drawnSelectionHalo)
+        .filter((node) => node.drawnSelectionRing)
         .map((node) => String(node.id));
 
     await holds(

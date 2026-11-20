@@ -1019,7 +1019,6 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
             "dispose",
             "setRenderState",
             "setSelected",
-            "refreshSelectionOverlay",
             "showTooltip",
             "hideTooltip",
         ],

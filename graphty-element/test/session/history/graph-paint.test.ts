@@ -204,6 +204,10 @@ describe("the headless graph hook", () => {
                 // Every other time to a node the edge creates, which no record of its own names.
                 await session.data.addEdges([{ src: id, dst: step % 2 === 0 ? pick() : `y${String(step)}` }]);
                 await dispatcherOf(session).lane.settled();
+                // An undo or a redo selects what it changed once its pass has run, and that repaints
+                // in a pass of its own (a selected node is drawn with the selection's ring): the
+                // picture is read once those passes are done too.
+                await session.styles.settled();
                 const incremental = pictureOf(session);
                 await paintBaseline(session);
                 assert.deepEqual(incremental, pictureOf(session), `step ${String(step)}`);
@@ -451,6 +455,10 @@ describe("an add under layers that encode or select by expression (issue #5897)"
             for (const [step, add] of ADDS.entries()) {
                 await add(session);
                 await dispatcherOf(session).lane.settled();
+                // An undo or a redo selects what it changed once its pass has run, and that repaints
+                // in a pass of its own (a selected node is drawn with the selection's ring): the
+                // picture is read once those passes are done too.
+                await session.styles.settled();
                 const incremental = pictureOf(session);
                 await paintBaseline(session);
                 assert.deepEqual(incremental, pictureOf(session), `add ${String(step)}`);

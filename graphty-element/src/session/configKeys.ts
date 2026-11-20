@@ -77,7 +77,7 @@ export const CONFIG_KEYS: ReadonlyMap<string, ConfigKey> = new Map<string, Confi
     ["runAlgorithmsOnLoad", { group: "runAlgorithmsOnLoad", schema: z.boolean().default(false) }],
     ["background", { group: "background", schema: GraphStyle.shape.background }],
     ["selectionStyle", { group: "selectionStyle", schema: unwrap(GraphStyle.shape.selection).prefault({}) }],
-    // Unset by default: set, the starting rows gain the Pinned row, drawing this halo.
+    // Unset by default: set, the starting rows gain the Pinned row, drawing this ring.
     ["pinnedStyle", { group: "pinnedStyle", schema: unwrap(GraphStyle.shape.selection) }],
     ["startingRows", { group: "startingRows", schema: z.boolean().default(false) }],
     // The base look's home goes with the starting rows: one round-trip fixture covers both.

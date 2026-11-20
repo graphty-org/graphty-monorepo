@@ -364,7 +364,7 @@ A color may carry an alpha (`#ff000080`, `rgba(255, 0, 0, 0.5)`). On `node.color
 `edge.color` and the two arrow colors the alpha multiplies the matching opacity channel, so
 `#ff000080` draws as `#ff0000` at opacity 0.5; an arrow with no color of its own takes its line's
 color, alpha included. On `node.glow` it fades the glow. The selection
-halo's color (`setSelectionStyle`) works the same way, multiplied with its `opacity`.
+ring's color (`setSelectionStyle`) works the same way, multiplied with its `opacity`.
 
 On a dense graph, long edges cross the whole drawing and hide its structure. Two line options help,
 and both are off until you set them. Each is an ordinary channel, so a layer can give them to some

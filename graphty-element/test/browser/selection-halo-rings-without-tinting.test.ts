@@ -140,37 +140,4 @@ describe("the selection halo rings a node without tinting it", () => {
         assert.isAbove(ring.r - ring.b, 40, `the ring carries the gold, read ${JSON.stringify(ring)}`);
         assert.isAbove(ring.g - ring.b, 30, `the ring carries the gold, read ${JSON.stringify(ring)}`);
     });
-
-    it("still draws the halo when the camera is inside it", async () => {
-        await graph.select({ nodes: ["alpha"] });
-        const before = await readFrame();
-        const corner = { x: 4, y: 4 };
-        const background = patch(before, corner);
-
-        const halo = graph.scene.meshes.find(
-            (mesh) => mesh.name.startsWith("graphty-selection-halo") && mesh.isVisible && mesh.isEnabled(),
-        );
-        assert.isDefined(halo, "a selected node has a halo");
-        const camera = graph.scene.activeCamera;
-        assert.isNotNull(camera);
-
-        // A unit-diameter source, so this scaling puts the sphere's surface twice the camera's
-        // distance from its centre: the camera is inside, and the far wall is in front of it.
-        halo.scaling.setAll(4 * Vector3.Distance(camera.globalPosition, halo.absolutePosition));
-        graph.scene.render();
-        const { engine } = graph;
-        const inside = (await engine.readPixels(
-            0,
-            0,
-            engine.getRenderWidth(),
-            engine.getRenderHeight(),
-        )) as unknown as Uint8Array;
-        const tinted = patch(inside, corner);
-
-        assert.isAbove(
-            background.b - tinted.b,
-            40,
-            `the inner wall tints the whole view gold: before ${JSON.stringify(background)}, inside ${JSON.stringify(tinted)}`,
-        );
-    });
 });

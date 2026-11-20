@@ -6,7 +6,6 @@ export default {
     methods: [
         "Edge.setSelected",
         "Graph.setSelectionStyle",
-        "Node.refreshSelectionOverlay",
         "Node.setSelected",
         "SelectionManager.bindSelection",
         "SelectionManager.onNodeRemoved",

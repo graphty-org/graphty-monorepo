@@ -56,9 +56,6 @@
     },
     "unicorn/no-array-callback-reference": {
       "count": 1
-    },
-    "unicorn/prefer-modern-math-apis": {
-      "count": 3
     }
   },
   "src/NodeBehavior.ts": {
@@ -542,15 +539,10 @@
   },
   "src/session/GraphSession.ts": {
     "unicorn/no-array-callback-reference": {
-      "count": 14
+      "count": 12
     },
     "unicorn/no-array-method-this-argument": {
       "count": 2
-    }
-  },
-  "src/session/assets/AssetsApi.ts": {
-    "unicorn/no-array-callback-reference": {
-      "count": 3
     }
   },
   "src/session/assets/projectMember.ts": {
@@ -603,11 +595,6 @@
   },
   "src/session/commands/style.ts": {
     "sonarjs/no-alphabetical-sort": {
-      "count": 1
-    }
-  },
-  "src/session/cost/estimate.ts": {
-    "unicorn/prefer-string-replace-all": {
       "count": 1
     }
   },
@@ -678,11 +665,6 @@
       "count": 1
     }
   },
-  "src/session/projectFile.ts": {
-    "unicorn/no-array-callback-reference": {
-      "count": 1
-    }
-  },
   "src/session/query.ts": {
     "sonarjs/cognitive-complexity": {
       "count": 1
@@ -717,16 +699,8 @@
       "count": 2
     }
   },
-  "src/session/runs/caveatFacts.ts": {
-    "unicorn/no-array-callback-reference": {
-      "count": 1
-    }
-  },
   "src/session/runs/groupNumbers.ts": {
     "sonarjs/cognitive-complexity": {
-      "count": 1
-    },
-    "unicorn/no-array-callback-reference": {
       "count": 1
     }
   },
@@ -841,7 +815,7 @@
       "count": 1
     },
     "unicorn/no-array-callback-reference": {
-      "count": 4
+      "count": 3
     }
   },
   "src/session/styles/channels.ts": {
@@ -865,16 +839,6 @@
       "count": 1
     }
   },
-  "src/session/styles/fileStyles/apply.ts": {
-    "unicorn/no-array-callback-reference": {
-      "count": 1
-    }
-  },
-  "src/session/styles/fileStyles/labelGrid.ts": {
-    "unicorn/no-array-callback-reference": {
-      "count": 1
-    }
-  },
   "src/session/styles/intern.ts": {
     "unicorn/prefer-math-trunc": {
       "count": 1
@@ -885,9 +849,6 @@
       "count": 1
     },
     "unicorn/no-array-callback-reference": {
-      "count": 3
-    },
-    "unicorn/numeric-separators-style": {
       "count": 1
     }
   },

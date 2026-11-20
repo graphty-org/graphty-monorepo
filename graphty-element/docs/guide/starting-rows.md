@@ -34,10 +34,8 @@ console.log(session.styles.counts(hovered.id).matched); // 1
 The Selected ring is a solid ring outside the node's border (`node.outerBorderColor`,
 `node.outerBorderWidth`, `node.outerBorderOpacity`) and the band a solid band, both in the
 `selectionStyle` colors and sizes (blue, `#0077BB`, by default); the ring is `(scale - 1) / 2`
-wide for the `selectionStyle` scale. On the default shape that reaches as far out as the
-`selectionStyle` halo would; on a sphere or a box 1 across, whose ring widths are drawn at the
-default shape's extent of 1.5, the ring is half again as wide as the halo's (a Selected ring
-reaches about 1.68 radii, the halo 1.45). That blue stands at least 3:1 off the light default
+wide for the `selectionStyle` scale, the same ring `selectionStyle` draws by itself while the
+starting rows are off. That blue stands at least 3:1 off the light default
 background and off dark ones such as `#202020`, the contrast WCAG 1.4.11 asks of a state
 indicator. On a mid-gray background, or for a ring that also stands off the node it surrounds, set
 `selectionStyle` (or edit the Selected row) to a color of your own, or add a glow or a border

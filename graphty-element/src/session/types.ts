@@ -3550,10 +3550,9 @@ export interface ProjectConfig {
     readonly background: GraphBackgroundConfig;
     /**
      * What a selected node's highlight looks like. While {@link ProjectConfig.startingRows} is off,
-     * these settings draw it themselves, as a halo. With it on, the starting Selected row draws it
-     * as a ring outside the node's border (`node.outerBorder*`), `(scale - 1) / 2` wide (as far
-     * out as the halo on the default shape, a little further on a shape 1 across), and these settings
-     * draw nothing.
+     * these settings draw it themselves, and with it on the starting Selected row draws it: either
+     * way as a ring outside the node's border (`node.outerBorder*`), `(scale - 1) / 2` wide. With
+     * it on these settings draw nothing.
      */
     readonly selectionStyle: GraphSelectionStyleConfig;
     /**

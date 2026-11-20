@@ -1,11 +1,11 @@
 /**
  * @file The selection highlight follows the shape of the node it rings (issue #2643).
  *
- * The highlight used to be one shared sphere scaled by the node's largest half-extent. Around a
- * sphere that reads as a halo; around a box its corners poke out through it, so the reader sees
- * a round blob behind a square node. These tests read the drawn highlight from the scene and
- * check that it reaches past the node in every direction the node itself reaches -- its corners
- * included -- rather than reading pixels.
+ * The highlight used to be one shared sphere scaled by the node's largest half-extent; around a
+ * box its corners poked out through it. A selected node is now marked by the ring outside its
+ * border (`node.outerBorder*`), drawn across the view in 2D and 3D alike. These tests read the
+ * drawn ring from the scene and check that it reaches past the node in every direction across
+ * the view the node itself reaches -- its corners included -- rather than reading pixels.
  *
  * The click tests drive the browser's own mouse (test/helpers/real-input.ts).
  */
@@ -18,6 +18,7 @@ import { afterEach, assert, describe, it } from "vitest";
 import type { Graphty } from "../../../index.js";
 import { NodeShapes } from "../../../src/config/NodeStyle";
 import { operationQueueOf } from "../../../src/Graph";
+import { nodeInternals } from "../../../src/Node";
 import { drawnFrames } from "../../helpers/drawn-frames";
 import { click, type Point } from "../../helpers/real-input";
 
@@ -105,10 +106,14 @@ function at(element: Graphty, id: string): Point {
  * @returns The one drawn highlight.
  */
 function drawnHalo(element: Graphty): AbstractMesh {
+    // The selection's mark is the ring outside the node's border (node.outerBorder*).
     const halos = element.graph
-        .getScene()
-        .meshes.filter((mesh) => mesh.name.startsWith("graphty-selection-halo") && mesh.isVisible && mesh.isEnabled());
-    assert.lengthOf(halos, 1, "one selected node draws one highlight");
+        .getNodes()
+        .filter((node) => node.isSelected())
+        .map((node) => nodeInternals.drawn(node).outerBorder)
+        .filter((ring): ring is AbstractMesh => ring !== null && !ring.isDisposed() && ring.isEnabled());
+    const selected = element.getSelectedNode()?.id;
+    assert.lengthOf(halos, 1, `the selected node ${String(selected)} draws one highlight`);
     return halos[0];
 }
 
@@ -146,15 +151,13 @@ function reach(points: Vector3[], center: Vector3, direction: Vector3): number {
 }
 
 /**
- * Assert the highlight reaches past the node in every direction the node reaches: along each
- * axis and out through every one of the node's own vertices (a box's corners).
- * In 2D the highlight is a sheet just in front of the edges (issue #7453), so only the directions
- * across the view count there.
+ * Assert the highlight reaches past the node in every direction across the view the node
+ * reaches: along each axis and out through every one of the node's own vertices (a box's
+ * corners). The ring is flat across the view in both modes, so depth does not count.
  * @param element - The element.
  * @param id - The selected node.
- * @param viewMode - The view mode.
  */
-function assertHaloSurrounds(element: Graphty, id: string, viewMode: "2d" | "3d" = "3d"): void {
+function assertHaloSurrounds(element: Graphty, id: string): void {
     const node = element.graph.getNode(id);
     assert.isDefined(node, `node ${id} exists`);
     const nodePoints = worldVertices(node.mesh);
@@ -169,7 +172,7 @@ function assertHaloSurrounds(element: Graphty, id: string, viewMode: "2d" | "3d"
         new Vector3(0, 0, -1),
         ...nodePoints.map((point) => point.subtract(center)).filter((offset) => offset.length() > 1e-6),
     ]
-        .map((direction) => (viewMode === "2d" ? new Vector3(direction.x, direction.y, 0) : direction))
+        .map((direction) => new Vector3(direction.x, direction.y, 0))
         .filter((direction) => direction.length() > 1e-6)
         .map((direction) => direction.normalize());
 
@@ -192,23 +195,24 @@ describe.each(["2d", "3d"] as const)("the selection highlight in %s", (viewMode)
         await applied(element);
 
         assert.strictEqual(element.getSelectedNode()?.id, "box", "the click selected the box");
-        assertHaloSurrounds(element, "box", viewMode);
+        assertHaloSurrounds(element, "box");
     });
 
-    it("is still a sphere at the configured scale around a sphere node", async () => {
+    it("is round at the configured scale around a sphere node", async () => {
         const element = await mounted(viewMode);
 
         await click(element, at(element, "ball"));
         await applied(element);
 
         assert.strictEqual(element.getSelectedNode()?.id, "ball", "the click selected the sphere");
-        assertHaloSurrounds(element, "ball", viewMode);
+        assertHaloSurrounds(element, "ball");
         const node = element.graph.getNode("ball");
         assert.isDefined(node);
         const nodeExtent = node.mesh.getBoundingInfo().boundingBox.extendSizeWorld;
         const haloExtent = drawnHalo(element).getBoundingInfo().boundingBox.extendSizeWorld;
-        for (const axis of viewMode === "2d" ? (["x", "y"] as const) : (["x", "y", "z"] as const)) {
-            assert.closeTo(haloExtent[axis] / nodeExtent[axis], DEFAULT_SCALE, 1e-3, `round on ${axis}`);
+        // the ring's outer edge is a polygon around the circle, so its corners reach a little past it
+        for (const axis of ["x", "y"] as const) {
+            assert.closeTo(haloExtent[axis] / nodeExtent[axis], DEFAULT_SCALE, 0.01, `round on ${axis}`);
         }
     });
 });
@@ -238,9 +242,11 @@ describe("the selection highlight", () => {
         }));
         const element = await mounted("3d", nodes);
 
-        for (const shape of NodeShapes.options) {
+        // "none" is a node with no body (only its label): there is no outline to ring
+        for (const shape of NodeShapes.options.filter((option) => option !== "none")) {
             assert.isTrue(element.selectNode(shape), `${shape} is selectable`);
             await applied(element);
+            assert.strictEqual(element.getSelectedNode()?.id, shape, `${shape} is selected`);
             assertHaloSurrounds(element, shape);
         }
     });

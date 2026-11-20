@@ -68,8 +68,9 @@ export type GraphBackgroundConfig = z.infer<typeof GraphBackground>;
  * DELIBERATELY NOT A STYLE LAYER, and this is the one place that decision is written down. A
  * selection is not a property of the data: it is what a person is pointing at, it changes many
  * times a minute, and a layer drawing it would be reorderable, persistable and lost at a dataset
- * boundary along with every other layer. So the halo is drawn by the renderer from the mask, and
- * what it LOOKS like is configuration, beside the background.
+ * boundary along with every other layer. So the session draws it, as a ring outside the node's
+ * border (`node.outerBorder*`, `(scale - 1) / 2` wide), and what it LOOKS like is configuration,
+ * beside the background.
  *
  * In 1.x this was `SelectionManager.setSelectionStyleLayer`. 2.0 drew a gold halo from three
  * constants and published no way to change it -- and because the element's own layers answer
@@ -77,7 +78,7 @@ export type GraphBackgroundConfig = z.infer<typeof GraphBackground>;
  */
 const GraphSelectionStyle = z.strictObject({
     /**
-     * The halo's colour. Any colour the element understands; normalised to hex on parse.
+     * The ring's colour. Any colour the element understands; normalised to hex on parse.
      *
      * The default is the selected edge's blue, so one colour marks the selection on nodes and
      * edges alike. Drawn solid, it stands 4.4:1 off the light default background and 3.9:1 off a
@@ -87,16 +88,14 @@ const GraphSelectionStyle = z.strictObject({
      */
     color: ColorStyle.default("#0077BB"),
     /**
-     * How much of the node's own size the halo is drawn at.
-     *
-     * Greater than 1 puts a ring around the node, which is what a highlight reads as. Below 1 the
-     * halo disappears inside the node it is meant to mark, so the schema takes any positive
+     * How far out the ring reaches, as a multiple of the node's own size: the ring is
+     * `(scale - 1) / 2` wide. At 1 or below it draws nothing, so the schema takes any positive
      * number and the default stands a little clear of the node.
      */
     scale: z.number().positive().default(1.45),
     /**
-     * How solid the halo is, in `[0, 1]`. Solid by default: a see-through halo takes on the
-     * background's colour and loses the contrast its own colour has. 0 draws no halo.
+     * How solid the ring is, in `[0, 1]`. Solid by default: a see-through ring takes on the
+     * background's colour and loses the contrast its own colour has. 0 draws no ring.
      */
     opacity: z.number().min(0).max(1).default(1),
     /**

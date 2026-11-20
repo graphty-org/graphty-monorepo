@@ -1491,12 +1491,6 @@ export class Graph implements GraphContext {
                 this.applyFraming();
             }
 
-            if (changed("selectionStyle") || changed("startingRows")) {
-                for (const node of dataManagerInternals.builtNodes(this.dataManager)) {
-                    node.refreshSelectionOverlay();
-                }
-            }
-
             // A selected edge's halo is drawn from the selection style: redraw it.
             if (changed("selectionStyle") || changed("startingRows")) {
                 for (const edge of this.builtEdges()) {
@@ -1508,8 +1502,11 @@ export class Graph implements GraphContext {
                 this.updateManager.forceEdgeWalk();
             }
 
-            // Every mark is drawn again at the new minimum; the painter drops its old paints itself.
-            return changed("minMarkSize") ? this.repaintFromSession() : undefined;
+            // Every mark is drawn again at the new minimum, and a selected node's ring in the new
+            // selection look (the session's selection layer reads it); the painter drops its old paints itself.
+            return changed("minMarkSize") || changed("selectionStyle") || changed("startingRows")
+                ? this.repaintFromSession()
+                : undefined;
         });
 
         // `view.camera` moves this renderer's camera; a session with no renderer refuses it.
@@ -3282,16 +3279,16 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Set what a selected node looks like: its halo's colour, how far it stands out past the
+     * Set what a selected node looks like: its ring's colour, how far it stands out past the
      * node, and how solid it is.
      *
      * MERGED, NOT REPLACED: naming the colour leaves the scale and the opacity where they were.
      * A project setting: one step, which undo takes back. It takes effect on a selection that is
      * already on screen as well as on the next one.
      *
-     * THE HALO IS NOT A STYLE LAYER, deliberately. A selection is what a person is pointing at
-     * rather than a property of the data, so it is drawn by the renderer from the selection mask
-     * and its appearance is configuration. See `GraphStyle`'s own note for why a layer would be
+     * THE SELECTION IS NOT A SAVED STYLE LAYER, deliberately. A selection is what a person is
+     * pointing at rather than a property of the data, so the session draws its ring
+     * (`node.outerBorder*`) from the selection mask and its appearance is configuration. See `GraphStyle`'s own note for why a layer would be
      * the wrong shape.
      * @param selection - The fields to change. Anything omitted keeps its current value.
      * @throws A Zod error when a value is outside what the schema allows -- a scale that is not

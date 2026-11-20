@@ -139,8 +139,8 @@ const CASES: readonly Case[] = [
         },
     },
     {
-        // A project setting: one step through the history, then every node's halo is redrawn.
-        methods: ["Graph.setSelectionStyle", "Node.refreshSelectionOverlay"],
+        // A project setting: one step through the history, then every node is repainted.
+        methods: ["Graph.setSelectionStyle"],
         growth: "linear",
         prepare: async (element) => {
             element.graph.selectNode("n1");

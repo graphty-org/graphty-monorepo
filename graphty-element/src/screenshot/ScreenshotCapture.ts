@@ -18,7 +18,7 @@ import { colorToHex } from "../config/common.js";
 import { type Graph, operationQueueOf } from "../Graph.js";
 import { CustomLineRenderer } from "../meshes/CustomLineRenderer.js";
 import { RichTextLabel } from "../meshes/RichTextLabel.js";
-import { SELECTION_HALO_MESH } from "../Node.js";
+import { nodeInternals } from "../Node.js";
 import type { LegendBlock } from "../session/styles/legend.js";
 import { downloadBlob } from "../utils/download.js";
 import { captureError } from "./captureError.js";
@@ -346,7 +346,12 @@ export class ScreenshotCapture {
      * @returns The halos hidden.
      */
     private hideSelectionHalos(): AbstractMesh[] {
-        const halos = this.scene.meshes.filter((m) => m.name.startsWith(SELECTION_HALO_MESH) && m.isEnabled(false));
+        // A selected node is marked by its ring (node.outerBorder*), drawn by the style stack.
+        const halos = this.graph
+            .getNodes()
+            .filter((node) => node.isSelected())
+            .flatMap((node) => nodeInternals.drawn(node).outerBorder ?? [])
+            .filter((ring) => ring.isEnabled(false));
         for (const halo of halos) {
             halo.setEnabled(false);
         }

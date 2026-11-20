@@ -32,6 +32,7 @@ import {
     ringSlab,
     setLabelBox,
 } from "./NodeShapeGeometry";
+import { readColor } from "./readColor";
 import {
     borderRing,
     convexHull,
@@ -837,34 +838,34 @@ export class NodeMesh {
      * @param cache - The mesh cache the node's own mesh came from.
      * @param options - The node's mesh options.
      * @param shape - The node's shape block.
-     * @param halo - The underlay or overlay.
+     * @param plate - The underlay or overlay.
      * @param kind - Which of the two.
      * @param fill - The node's own mesh, whose outline and depth it follows.
      * @param scene - The scene.
      * @returns The instance, or null.
      */
-    static createHalo(
+    static createPlate(
         cache: MeshCache,
         options: NodeMeshOptions,
         shape: NodeStyleConfig["shape"],
-        halo: NodeStyleConfig["underlay"],
+        plate: NodeStyleConfig["underlay"],
         kind: "underlay" | "overlay",
         fill: AbstractMesh,
         scene?: Scene,
     ): InstancedMesh | null {
-        const opacity = halo?.opacity ?? 0;
+        const opacity = plate?.opacity ?? 0;
         if (shape?.type === undefined || opacity <= 0) {
             return null;
         }
 
         const perSize = this.extentPerSize(shape);
-        const pad = (halo?.padding ?? 0) * perSize;
+        const pad = (plate?.padding ?? 0) * perSize;
         const sized = this.extentsOf(shape, Math.max(shape.size ?? options.size, MIN_NODE_SIZE));
         const flat = isFlatShape(shape.type);
         const instance = cache.get(this.ringKey(kind, options, flat, fill), () => {
-            // a solid shape of its own is drawn as its flat silhouette: a halo is a flat slab
-            const own = halo?.shape === undefined ? undefined : flatShapeOf(halo.shape);
-            const corner = halo?.cornerRadius === undefined ? undefined : halo.cornerRadius * perSize;
+            // a solid shape of its own is drawn as its flat silhouette: a plate is a flat slab
+            const own = plate?.shape === undefined ? undefined : flatShapeOf(plate.shape);
+            const corner = plate?.cornerRadius === undefined ? undefined : plate.cornerRadius * perSize;
             let outline: Point2[];
             if (own !== undefined) {
                 outline = flatShapeOutline(
@@ -898,7 +899,7 @@ export class NodeMesh {
                 mesh.setVerticesData(VertexBuffer.PositionKind, positions);
                 mesh.refreshBoundingInfo();
             }
-            mesh.material = this.createBorderMaterial(halo?.color ?? "#000000", opacity, scene);
+            mesh.material = this.createBorderMaterial(plate?.color ?? "#000000", opacity, scene);
 
             return mesh;
         });
@@ -1156,8 +1157,10 @@ export class NodeMesh {
     private static createBorderMaterial(color: string, opacity: number, scene?: Scene): StandardMaterial {
         const mat = new StandardMaterial("node-border", scene);
         mat.disableLighting = true;
-        mat.emissiveColor = Color3.FromHexString(color);
-        mat.alpha = opacity;
+        // A color's own alpha multiplies the opacity, as every other color channel's does.
+        const { rgb, alpha } = readColor(color, "#000000");
+        mat.emissiveColor = rgb;
+        mat.alpha = opacity * alpha;
         mat.freeze();
 
         return mat;

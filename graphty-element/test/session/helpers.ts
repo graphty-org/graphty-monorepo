@@ -12,11 +12,17 @@ import {
     type SessionDataConfig,
     type SessionRunsOptions,
 } from "../../src/session";
-import { createElementSession, dispatcherOf } from "../../src/session/GraphSession";
+import {
+    createElementSession,
+    dispatcherOf,
+    type FreezeFollower,
+    type LaneStore,
+} from "../../src/session/GraphSession";
 import { edgeSpaceOf } from "../../src/session/scope/ScopeApi";
 import { createStylesApi, type RepaintContext, type SessionStylesApi } from "../../src/session/styles/index";
 import type { SelectorSource } from "../../src/session/styles/predicate";
 import { createLayerRepaint, type RepaintEngine } from "../../src/session/styles/repaint";
+import { wholeGraph } from "../../src/session/working/graphs";
 import { ingestEdge, ingestNode } from "../helpers/rawIngest";
 
 /** One node record as a test writes it: an id plus whatever else it wants to say. */
@@ -126,13 +132,30 @@ export function makeSession(
     // bug this exists to make impossible: the session would report a graph as undirected while the
     // snapshot behind it was frozen directed, and nothing would say so.
     const config: SessionDataConfig = options.config ?? DataConfig.parse({ directed: options.directed ?? "auto" });
-    const store = new GraphStore({
-        directed: config.directed,
-        positionScale: () => config.knownFields.positionScale,
-        onReplaced: () => undefined,
-        onNodeRemap: () => undefined,
-        onEdgeRemap: () => undefined,
-    });
+    // The session follows a renumbering freeze (its selection masks move with the rows) as it
+    // does over the element's own store (DataManager's followRenumbering).
+    let follower: FreezeFollower | null = null;
+    const store: GraphStore & Pick<LaneStore, "followRenumbering"> = Object.assign(
+        new GraphStore({
+            directed: config.directed,
+            positionScale: () => config.knownFields.positionScale,
+            onReplaced: () => undefined,
+            onNodeRemap: (remap) => {
+                follower?.nodes(remap, wholeGraph(store).nodeCount);
+            },
+            onEdgeRemap: (remap) => {
+                follower?.edges(remap, wholeGraph(store).edgeCount);
+            },
+        }),
+        {
+            followRenumbering: (given: FreezeFollower): (() => void) => {
+                follower = given;
+                return () => {
+                    follower = null;
+                };
+            },
+        },
+    );
 
     const nodeAttributes = new Map<number, SessionAttributes>();
     const edgeAttributes = new Map<number, SessionAttributes>();

@@ -17,6 +17,7 @@ import { afterEach, assert, describe, it } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { renderManagerOf } from "../../src/Graph.js";
+import { nodeInternals } from "../../src/Node.js";
 import { hover, type Point } from "../helpers/real-input";
 
 const WIDTH = 480;
@@ -107,14 +108,23 @@ function at(element: Graphty, id: string): Point {
 }
 
 /**
- * The selection halo on screen: the visible instance, never the hidden cached source.
+ * How far the selected node's ring reaches across the view, or undefined when none is drawn. The
+ * selection's mark is the ring outside the node's border (`node.outerBorder*`); a new selection
+ * scale builds the ring again at a new width, so its reach is what changes.
  * @param element - The element.
- * @returns The halo mesh, or undefined when none is drawn.
+ * @returns The ring's half-width in world units, or undefined.
  */
-function haloOnScreen(element: Graphty): AbstractMesh | undefined {
-    return element.graph
-        .getScene()
-        .meshes.find((mesh) => mesh.name.startsWith("graphty-selection-halo") && mesh.isVisible && mesh.isEnabled());
+function ringReach(element: Graphty): number | undefined {
+    const ring = element.graph
+        .getNodes()
+        .filter((node) => node.isSelected())
+        .map((node) => nodeInternals.drawn(node).outerBorder)
+        .find((mesh): mesh is AbstractMesh => mesh !== null && !mesh.isDisposed() && mesh.isEnabled());
+    if (ring === undefined) {
+        return undefined;
+    }
+    ring.computeWorldMatrix(true);
+    return ring.getBoundingInfo().boundingBox.extendSizeWorld.x;
 }
 
 describe("waitForStableFrame waits for the frame that draws", () => {
@@ -212,21 +222,21 @@ describe("waitForStableFrame waits for the frame that draws", () => {
         element.graph.selectNode("a");
         await element.waitForStableFrame();
 
-        let drawnScale = 0;
+        let drawnReach = 0;
         afterEachFrame(element, () => {
-            drawnScale = haloOnScreen(element)?.scaling.x ?? 0;
+            drawnReach = ringReach(element) ?? 0;
         });
-        const before = haloOnScreen(element)?.scaling.x;
-        assert.isDefined(before, "the selected node has a halo");
+        const before = ringReach(element);
+        assert.isDefined(before, "the selected node has a ring");
 
         const release = holdFrames(element);
         element.selectionStyle = { scale: 2.6 };
         release();
         await element.waitForStableFrame();
 
-        const now = haloOnScreen(element)?.scaling.x;
-        assert.notStrictEqual(now, before, "the new style reached the halo");
-        assert.strictEqual(drawnScale, now, "the stable frame drew the halo at the new scale");
+        const now = ringReach(element);
+        assert.isAbove(now ?? 0, before, "the new style reached the ring");
+        assert.strictEqual(drawnReach, now, "the stable frame drew the ring at the new width");
     });
 
     it("a framing request", async () => {

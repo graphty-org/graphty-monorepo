@@ -111,6 +111,10 @@ describe("a session with no renderer", () => {
 
         await session.undo();
         await session.redo();
+        // A redo selects what it changed, and the selection's ring is drawn on it; the selection is
+        // not part of the change, so it is cleared before the pictures are compared.
+        session.selection.clear();
+        await session.styles.settled();
 
         assert.strictEqual(pictureDigest(session), forward, "the same picture after redo as after the change");
         session.dispose();

@@ -2363,7 +2363,7 @@ class Node_2 implements ModelUser {
     // @internal
     get drawnScene(): Scene;
     // @internal
-    get drawnSelectionHalo(): boolean;
+    get drawnSelectionRing(): boolean;
     // @internal
     get drawnSourceMesh(): AbstractMesh;
     // @internal
@@ -2453,7 +2453,6 @@ class Node_2 implements ModelUser {
     refreshFonts(families: ReadonlySet<string>): boolean;
     // @internal
     refreshScreenBorder(): boolean;
-    refreshSelectionOverlay(): void;
     // @internal
     refreshShaderPaint(): void;
     // @internal

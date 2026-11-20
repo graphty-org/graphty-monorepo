@@ -8,11 +8,11 @@
 
 import "../../src/graphty-element";
 
-import type { AbstractMesh } from "@babylonjs/core";
 import { afterEach, assert, describe, it } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
+import { nodeInternals } from "../../src/Node";
 import type { ElementSession } from "../../src/session/types";
 import { readDrawn } from "../fidelity/drawn-scene";
 import { nextFrame } from "../helpers/real-input";
@@ -94,7 +94,7 @@ function fills(element: Graphty): Map<string, { shown: boolean; fill: string; op
 }
 
 /**
- * Whether a node draws its halo ring now (the mesh one, which a node not drawn by a shader batch uses).
+ * Whether a node draws its ring now (`node.outerBorder*`: the selection's and the Pinned row's mark).
  * @param element - The element.
  * @param id - The node.
  * @returns True while the ring is on.
@@ -102,8 +102,8 @@ function fills(element: Graphty): Map<string, { shown: boolean; fill: string; op
 function haloOn(element: Graphty, id: string): boolean {
     const node = element.graph.getDataManager().nodes.get(id);
     assert.isDefined(node, `node ${id}`);
-    const { halo } = node as unknown as { halo: AbstractMesh | null };
-    return halo?.isEnabled() === true;
+    const { outerBorder } = nodeInternals.drawn(node);
+    return outerBorder?.isEnabled() === true;
 }
 
 describe("timeline ghosts on the canvas", () => {
@@ -212,7 +212,7 @@ describe("timeline ghosts on the canvas", () => {
     });
 
     it("takes a selected node's halo away with it outside the window, and draws it again as a ghost", async () => {
-        // No starting rows: the selection draws a halo.
+        // No starting rows: the selection draws its ring itself.
         const element = await trace(false);
         const { time } = element.session;
         await element.session.selection.apply({ nodes: ["s0"] });

@@ -2489,7 +2489,7 @@ export class RichTextLabel {
     }
 
     /**
-     * Keep the label clear of a ring drawn around what it is attached to -- a node's halo -- the
+     * Keep the label clear of a ring drawn around what it is attached to -- a node's ring -- the
      * way it keeps clear of the target itself, and put it back beside the target when the ring
      * goes. The ring is a sphere around the target's centre whose radius is `scale` times the
      * target's largest half-extent.

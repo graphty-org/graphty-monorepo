@@ -10,7 +10,6 @@
 
 import "../../src/graphty-element";
 
-import type { AbstractMesh } from "@babylonjs/core";
 import { afterEach, assert, describe, it } from "vitest";
 
 import type { Graphty } from "../../index.js";
@@ -94,17 +93,6 @@ function at(element: Graphty, id: string): Point {
 }
 
 /**
- * The halos drawn now.
- * @param element - The element.
- * @returns The enabled, visible halo instances.
- */
-function drawnHalos(element: Graphty): AbstractMesh[] {
-    return element.graph.scene.meshes.filter(
-        (mesh) => mesh.name.startsWith("graphty-selection-halo") && mesh.isVisible && mesh.isEnabled(),
-    );
-}
-
-/**
  * Count the probe-green pixels on each half of the canvas.
  * @param element - The element.
  * @returns How many on the left half and on the right half.
@@ -166,7 +154,6 @@ describe("the Selected and Hovered rows", () => {
         await settle(element);
 
         assert.deepStrictEqual([...session.selection.nodes], ["a"]);
-        assert.lengthOf(drawnHalos(element), 0, "the selection settings draw no halo beside the row's ring");
         const green = await greenPixels(element);
         assert.isAbove(green.left, 0, "the ring is drawn around the clicked node");
         assert.strictEqual(green.right, 0, "and nowhere else");
@@ -187,7 +174,6 @@ describe("the Selected and Hovered rows", () => {
         await click(element, EMPTY);
         await settle(element);
         assert.deepStrictEqual([...session.selection.nodes], []);
-        assert.lengthOf(drawnHalos(element), 0, "deselecting leaves no halo");
         assert.strictEqual(
             session.styles.counts(nodePart(element, "Selected")).matched,
             0,

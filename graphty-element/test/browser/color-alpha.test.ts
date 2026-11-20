@@ -22,6 +22,7 @@ import { afterAll, assert, beforeAll, describe, it } from "vitest";
 
 import type { LayerSpec } from "../../src/catalog/types";
 import { Graph, operationQueueOf } from "../../src/Graph";
+import { nodeInternals } from "../../src/Node";
 import type { GraphSession } from "../../src/session";
 import { nextFrame } from "../helpers/real-input";
 
@@ -170,20 +171,18 @@ describe("a color with an alpha channel", () => {
         }
     }
 
-    it("multiplies the selection halo's alpha with its opacity", async () => {
+    it("multiplies the selection ring's alpha with its opacity", async () => {
         graph.setSelectionStyle({ color: "#ff000080", opacity: 0.4 });
         await graph.select({ nodes: ["alpha"] });
 
-        // The halo takes the mask on the render loop's update, so draw until it is on screen.
-        let halo = graph.scene.meshes.find(
-            (mesh) => mesh.name.startsWith("graphty-selection-halo") && mesh.isVisible && mesh.isEnabled(),
-        );
-        while (halo === undefined) {
+        // The ring takes the selection on a repaint, so draw until it is on screen.
+        const node = graph.getNode("alpha");
+        assert.isDefined(node);
+        let halo = nodeInternals.drawn(node).outerBorder;
+        while (halo?.isEnabled() !== true) {
             graph.scene.render();
             await nextFrame();
-            halo = graph.scene.meshes.find(
-                (mesh) => mesh.name.startsWith("graphty-selection-halo") && mesh.isVisible && mesh.isEnabled(),
-            );
+            halo = nodeInternals.drawn(node).outerBorder;
         }
 
         const material = halo.material as unknown as { emissiveColor: { toHexString: () => string }; alpha: number };

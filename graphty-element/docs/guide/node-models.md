@@ -424,8 +424,9 @@ element draws every frame; once all are still or gone, it rests.
 ### Selecting and glowing a model
 
 A selected model node (while `startingRows` is off), and one a layer gives a glow, is marked with
-a band around its outline on screen, in the look's color: about `(scale - 1) x 20` pixels wide for
-the selection's halo (9 at the default 1.45), or the glow strength times 8, between 2 and 16. Only
+a band around its outline on screen, in the look's color: its ring's width (`node.outerBorderWidth`,
+which a selection writes) times 40 pixels (9 at the selection's default), or the glow strength times
+8, between 2 and 16. Only
 the node that is marked shows the band, however many nodes draw the same model. A selected node
 that also glows shows the selection's band.
 

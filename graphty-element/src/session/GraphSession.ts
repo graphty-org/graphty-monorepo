@@ -47,7 +47,7 @@ import type {
 } from "../catalog/types";
 import { DataConfig } from "../config/DataConfig";
 import { defaultEdgeStyle } from "../config/EdgeStyle";
-import { backgroundColorOf } from "../config/GraphStyle";
+import { backgroundColorOf, DEFAULT_SELECTION_STYLE, type GraphSelectionStyleConfig } from "../config/GraphStyle";
 import { defaultNodeStyle } from "../config/NodeStyle";
 import { createEdgeCounter, EDGE_ID_COLUMN, edgeIdOf, pairsOrdered } from "../data/edgeIdentity";
 import { GraphStore, type Renumbering } from "../data/GraphStore";
@@ -2589,6 +2589,83 @@ function peekLayersOf(peeked: {
     return made;
 }
 
+/** A session's selection ring layer and the transient list it heads, kept while what made them stands. */
+interface SelectionLayers {
+    /**
+     * The transient layers: the selection's ring (while the starting rows are off) under the peek's.
+     * @param look - The selection settings, or undefined for the defaults.
+     * @param rows - Whether the starting rows are on.
+     * @param peek - The peek's layers.
+     * @returns The same array while the settings' values and the peek stand, so it compiles once and an
+     *     incremental repaint keyed by the stack is kept.
+     */
+    transient(
+        look: Partial<GraphSelectionStyleConfig> | undefined,
+        rows: boolean,
+        peek: readonly ElementLayerSpec[],
+    ): readonly ElementLayerSpec[];
+}
+
+/**
+ * The layer that marks a selected node while the starting rows are off: a ring outside the node's
+ * border (`node.outerBorder*`) in the selection settings' color and opacity, `(scale - 1) / 2` wide,
+ * as the starting Selected row draws it. With the starting rows on, that row draws the selection
+ * and this layer is not drawn. One per session, keyed by the settings' values, not their object:
+ * the settings read back as a new object on every read while unset.
+ * @returns The session's selection layers.
+ */
+function selectionLayers(): SelectionLayers {
+    let ring: { key: string; layers: readonly ElementLayerSpec[] } | null = null;
+    let joined: {
+        ring: readonly ElementLayerSpec[];
+        peek: readonly ElementLayerSpec[];
+        all: readonly ElementLayerSpec[];
+    } | null = null;
+    const ringOf = (
+        look: Partial<GraphSelectionStyleConfig> | undefined,
+        rows: boolean,
+    ): readonly ElementLayerSpec[] => {
+        // A project's setting may hold only the fields a caller named: the rest are the defaults.
+        const style = { ...DEFAULT_SELECTION_STYLE, ...look };
+        const key = rows ? "rows" : JSON.stringify([style.color, style.scale, style.opacity]);
+        if (ring?.key !== key) {
+            const layers: readonly ElementLayerSpec[] = rows
+                ? NO_LAYERS
+                : Object.freeze([
+                      {
+                          name: "Selected nodes",
+                          kind: "base",
+                          source: { by: "element", reason: "selection" },
+                          target: "node",
+                          selector: { match: "state", state: "selected" },
+                          set: {
+                              "node.outerBorderColor": style.color,
+                              "node.outerBorderWidth": Math.max(0, (style.scale - 1) / 2),
+                              "node.outerBorderOpacity": style.opacity,
+                          },
+                      },
+                  ]);
+            ring = { key, layers };
+        }
+
+        return ring.layers;
+    };
+
+    return {
+        transient(look, rows, peek) {
+            const own = ringOf(look, rows);
+            if (own.length === 0) {
+                return peek;
+            }
+            if (joined?.ring !== own || joined.peek !== peek) {
+                joined = { ring: own, peek, all: peek.length === 0 ? own : [...own, ...peek] };
+            }
+
+            return joined.all;
+        },
+    };
+}
+
 /**
  * Every path this session can answer for one kind of element.
  * @param data - The session's data surface, which lists the attributes.
@@ -3145,6 +3222,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     };
     // Set once the style stack exists: what a selection change repaints.
     let repaintSelected = (): void => undefined;
+    // The ring a selected node is drawn with while the starting rows are off.
+    const selectionMarks = selectionLayers();
     let repaintGhosts = (_moved?: SlideCounts): void => undefined;
 
     // The style stack, late-bound because the runs are built before it and the auto-apply policy
@@ -4110,6 +4189,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         stack
             ?.compiled()
             .some(({ layer: { selector } }) => selector.match === "state" && states.includes(selector.state)) ?? false;
+    /** The graph the data hook below last left painted: renumbering freezes then, and its row counts. */
+    let paintedThrough: { readonly renumbers: number; readonly nodes: number; readonly edges: number } | null = null;
     const repaintStates = (dirty: ElementIndices, states: readonly ElementState[], rowsOnly = false): void => {
         if (dirty.node.length > 0 || dirty.edge.length > 0) {
             stateRevision++;
@@ -4120,6 +4201,12 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             return;
         }
 
+        // A state pass is not on the data passes' queue, so it can run after a freeze renumbered the
+        // rows and before the data pass carries the paint to its new rows: the next data pass then
+        // paints every element rather than carrying paint this pass laid out by the new rows.
+        // ponytail: one full pass after a state change and a data change meet; queue state passes
+        // with the data passes if that shows up in a profile.
+        paintedThrough = null;
         painter
             .repaintElements(stack.compiled(), dirty, { signal: teardown.signal, report: () => undefined, rowsOnly })
             .catch(repaintFailed("selection"));
@@ -4143,7 +4230,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         repaintStates({ node: nodes, edge: [] }, PIN_STATES);
     });
     // The selection as last repainted, so a change repaints what moved: one byte per element.
-    let paintedSelection: { readonly node: Uint8Array; readonly edge: Uint8Array } | null = null;
+    let paintedSelection: { readonly node: Uint8Array; readonly edge: Uint8Array; readonly renumbers: number } | null =
+        null;
     const changedBytes = (before: Uint8Array | undefined, after: Uint8Array): number[] => {
         const changed: number[] = [];
         for (let index = 0; index < after.length; index++) {
@@ -4154,22 +4242,36 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
 
         return changed;
     };
+    /** The selection repaint waiting for the data passes in flight, or null. */
+    let selectionRepaint: Promise<void> | null = null;
+    // A selection change repaints once the data passes in flight have run, so its rows are numbered
+    // as the painter's are (an undo selects what it changed while its own pass may still be due).
     repaintSelected = (): void => {
-        // No layer reads the selection: nothing to repaint, and nothing remembered, so the first
-        // change after one is added repaints every element once rather than trusting old bytes.
-        if (!readsState(SELECTION_STATES)) {
-            paintedSelection = null;
+        selectionRepaint ??= dispatcher.lane.settled().then(() => {
+            selectionRepaint = null;
+            paintSelection();
+        });
+    };
+    const paintSelection = (): void => {
+        if (teardown.signal.aborted) {
             return;
         }
-
+        // The selection is remembered on every change, so a change repaints only what moved,
+        // whether or not a layer reads it now: a layer added later is painted whole by its add,
+        // with the selection remembered here.
         const owner = requireSelection(selection);
-        const now = { node: owner.nodeMask(), edge: owner.edgeMask() };
-        const before = paintedSelection;
+        const renumbers = store.store.renumberCount ?? -1;
+        const now = { node: owner.nodeMask(), edge: owner.edgeMask(), renumbers };
+        // Bytes kept across a renumbering name other elements: every element is compared then.
+        const before = paintedSelection?.renumbers === renumbers ? paintedSelection : undefined;
+        const first = paintedSelection === null;
         paintedSelection = now;
-        repaintStates(
-            { node: changedBytes(before?.node, now.node), edge: changedBytes(before?.edge, now.edge) },
-            SELECTION_STATES,
-        );
+        // Before the first change the picture was painted with nothing selected.
+        const dirty = {
+            node: changedBytes(first ? new Uint8Array(now.node.length) : before?.node, now.node),
+            edge: changedBytes(first ? new Uint8Array(now.edge.length) : before?.edge, now.edge),
+        };
+        repaintStates(dirty, SELECTION_STATES);
     };
     // The ghosts and what lies outside the time window, as last repainted: a window move, a slide
     // or a held condition repaints the elements that entered or left either state.
@@ -4329,6 +4431,11 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         return id === null ? undefined : nodeIndex(id);
     });
     elementInState = (state, target, index) => {
+        // A pass still running as the session ends reads no state: the store under it is going.
+        if (teardown.signal.aborted) {
+            return false;
+        }
+
         if (state === "ghosted") {
             return visibility.ghosted(target, index);
         }
@@ -4368,7 +4475,12 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         admitScope: (spec: unknown) => scope.admit(spec),
         admitRule: (rule: unknown) => scope.canonicalUnions(rule),
         base: elementBaseLayers(),
-        transient: () => peekLayers,
+        transient: () =>
+            selectionMarks.transient(
+                dispatcher.state.config.get("selectionStyle") as Partial<GraphSelectionStyleConfig> | undefined,
+                dispatcher.state.config.get("startingRows") === true,
+                peekLayers,
+            ),
         // Any edge directed: a file can mix directed and undirected edges (graph-format's role
         // "directed" column), and a head no layer chose is drawn on each directed one.
         directed: () => directedness(snapshot()) !== "undirected",
@@ -4392,8 +4504,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         groupRanks: groupRanksOf(runs),
         repaint: painter.repaint,
         // The passes a selection or pointer change starts without awaiting: `settled()` waits for
-        // those already asked for when it is called.
-        idle: painter.idle,
+        // those already asked for when it is called, a selection repaint still waiting its turn too.
+        idle: () => (selectionRepaint ?? Promise.resolve()).then(() => painter.idle()),
         // Live sets a freeze queued for a later frame: `settled()` resolves them now (issue #3667).
         resolveQueuedSets: () => {
             notifier.drain();
@@ -4587,8 +4699,6 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // only appended and the layer reads nothing but its own row and a whole column: the engine
     // settles each binding again and paints everything if one settled differently, and a degree
     // moves only at the ends of the added edges, which are painted with the new rows.
-    /** The graph this hook last left painted: renumbering freezes then, and its row counts. */
-    let paintedThrough: { readonly renumbers: number; readonly nodes: number; readonly edges: number } | null = null;
     /**
      * The counts {@link paintedThrough} holds, as the graph stands now.
      * @returns The renumber count and the row counts.
@@ -5011,7 +5121,9 @@ function paintsRowAlone(entry: CompiledLayer): boolean {
  * reach a neighbor; a value read at an edge's end, which an edit or a degree moves on every edge
  * at that node; and a template's `|count` or `|rank`, which no settled fact describes. The state
  * `"outsideWindow"` is of this kind: an element's own time places it, and what a visibility pass
- * moves in or out of it is repainted by that pass.
+ * moves in or out of it is repainted by that pass. So is `"selected"`: the selection is a bit of the
+ * element's own, carried with its row through a renumbering, an added element is not selected, and
+ * what a selection change moves in or out is repainted by the selection's own pass.
  * @param entry - The layer.
  * @returns True when it does.
  */
@@ -5023,7 +5135,7 @@ function paintsFromRowAndColumn(entry: CompiledLayer): boolean {
             match === "has" ||
             match === "ids" ||
             match === "expression" ||
-            (selector.match === "state" && selector.state === "outsideWindow")) &&
+            (selector.match === "state" && (selector.state === "outsideWindow" || selector.state === "selected"))) &&
         !entry.reads.some((path) => edgeEndPathOf(path) !== undefined) &&
         !Object.values(entry.layer.encode ?? {}).some(
             (binding) => binding !== undefined && "template" in binding && readsWholeColumn(binding.template),

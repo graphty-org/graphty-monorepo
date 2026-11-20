@@ -278,7 +278,7 @@ unless its timeline settings said `"ghost"`. A project saved since opens with it
 as saved, including a layer of yours that reads `"ghosted"`.
 
 A play, a step or a jump moves no node and no camera, even with `layout.visibleOnly`, which lays
-out only what the filter keeps. A hidden element's halo, label and support point go with it.
+out only what the filter keeps. A hidden element's ring, label and support point go with it.
 
 ## Fading older edges
 

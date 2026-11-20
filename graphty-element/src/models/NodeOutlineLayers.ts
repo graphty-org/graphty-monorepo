@@ -1,5 +1,5 @@
 /**
- * @file The silhouette mark of a model node: its halo, outline or glow drawn as a band around the
+ * @file The silhouette mark of a model node: its ring or glow drawn as a band around the
  * model's real outline on screen, by Babylon's selection outline layer.
  *
  * A built-in shape marks itself with a copy of its own mesh, scaled out, or a ring that faces the

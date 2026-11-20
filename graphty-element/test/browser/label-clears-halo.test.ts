@@ -1,14 +1,14 @@
 /**
  * @file A node's label is drawn clear of the ring around its node.
  *
- * A label sits a fixed gap above its node's own surface, and the selection's halo
- * is drawn larger than the node, so the ring used to run through the bottom of the
+ * A label sits a fixed gap above its node's own surface, and the selection's ring
+ * (node.outerBorder*) is drawn outside the node, so a ring could run through the bottom of the
  * label's words. The label now keeps its gap from the ring while the node has one, and goes back
  * when the ring goes.
  *
  * Measured independently of the element's placement: the label plane's four corners after a
  * frame, projected through the scene's transform, times the share of the plane the words take;
- * the ring as its sphere's world radius projected at its centre.
+ * the ring as its box's world half-extent projected at its centre.
  */
 
 import "../../src/graphty-element";
@@ -139,13 +139,13 @@ function words(graph: Graph, node: Node): Rect {
  * @returns Its centre and radius in pixels.
  */
 function ring(graph: Graph, node: Node): { x: number; y: number; r: number } {
-    const { halo } = nodeInternals.drawn(node);
-    assert.isOk(halo, "the node draws a ring");
-    assert.isTrue(halo.isEnabled(), "the ring is on");
-    halo.computeWorldMatrix(true);
-    // The ring is a sphere: its box's half-extent is its radius (the bounding SPHERE of that box
-    // is the box's half-diagonal, larger by a third again).
-    const box = halo.getBoundingInfo().boundingBox;
+    const { outerBorder } = nodeInternals.drawn(node);
+    assert.isOk(outerBorder, "the node draws a ring");
+    assert.isTrue(outerBorder.isEnabled(), "the ring is on");
+    outerBorder.computeWorldMatrix(true);
+    // The ring's box's half-extent is its outer radius (the bounding SPHERE of that box is the
+    // box's half-diagonal, larger by a third again).
+    const box = outerBorder.getBoundingInfo().boundingBox;
     const radius = Math.max(box.extendSizeWorld.x, box.extendSizeWorld.y, box.extendSizeWorld.z);
     const camera = graph.scene.activeCamera;
     assert.isNotNull(camera);

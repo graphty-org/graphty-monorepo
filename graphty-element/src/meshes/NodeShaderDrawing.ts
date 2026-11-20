@@ -107,8 +107,6 @@ export interface NodeShaderLook {
     readonly radius: number;
     /** Whether the node is drawn at all. */
     readonly drawn: boolean;
-    /** The halo the batch draws, or null. */
-    readonly halo: { readonly color: string; readonly scale: number; readonly opacity: number } | null;
     /** The glow, or null. */
     readonly glow: { readonly color: string; readonly strength: number } | null;
 }
@@ -1316,7 +1314,7 @@ export class NodeShaderDrawing {
         const { x, y, z } = look.mesh.position;
         const radius = look.drawn ? look.radius : 0;
         const effect = slot.batch.role !== "impostor" && slot.batch.role !== "replace";
-        const { halo, glow } = look;
+        const { glow } = look;
         const minSize = this.minSizeOf(slot);
         return {
             center: [x, y, z, radius],
@@ -1325,7 +1323,8 @@ export class NodeShaderDrawing {
             meta,
             deco0: effect
                 ? [slot.entered, slot.exited, 0, minSize]
-                : [halo === null ? 0 : packHex(halo.color), halo?.scale ?? 0, halo?.opacity ?? 0, minSize],
+                : // the billboard's halo slot is empty: a selected node is marked by its ring (node.outerBorder*)
+                  [0, 0, 0, minSize],
             deco1: effect ? [0, 0, 0, 0] : [0, 0, glow === null ? 0 : packHex(glow.color), glow?.strength ?? 0],
         };
     }

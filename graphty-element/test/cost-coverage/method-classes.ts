@@ -181,7 +181,6 @@ export const MUTATING: readonly string[] = [
     "Node.applySessionPaint",
     "Node.dispose",
     "Node.pin",
-    "Node.refreshSelectionOverlay",
     "Node.setRenderState",
     "Node.setSelected",
     "Node.unpin",

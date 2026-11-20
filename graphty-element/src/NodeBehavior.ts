@@ -659,8 +659,8 @@ export class NodeDragHandler {
 
         // Update mesh position (triggers edge updates automatically)
         this.node.setMeshPosition(newPosition.x, newPosition.y, newPosition.z);
-        // Bring the selection halo along now: the update loop visits nodes only while a layout runs,
-        // so over a settled layout the halo stayed where the drag began until the drop.
+        // Bring the overlays along now: the update loop visits nodes only while a layout runs,
+        // so over a settled layout an overlay stayed where the drag began until the drop.
         this.node.update();
         this.dragState.moved = true;
         if (this.gesture !== null) {
@@ -758,8 +758,8 @@ export class NodeDragHandler {
 
         // Update mesh position
         this.node.setMeshPosition(newPosition.x, newPosition.y, newPosition.z);
-        // Bring the selection halo along now: the update loop visits nodes only while a layout runs,
-        // so over a settled layout the halo stayed where the drag began until the drop.
+        // Bring the overlays along now: the update loop visits nodes only while a layout runs,
+        // so over a settled layout an overlay stayed where the drag began until the drop.
         this.node.update();
         this.dragState.moved = true;
         if (this.gesture !== null) {

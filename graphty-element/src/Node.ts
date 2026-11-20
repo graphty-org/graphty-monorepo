@@ -20,13 +20,7 @@ import omit from "lodash/omit.js";
 
 import type { ShaderUse } from "./catalog/shaders";
 import type { Rgba } from "./catalog/types";
-import {
-    AdHocData,
-    DEFAULT_SELECTION_STYLE,
-    defaultNodeStyle,
-    type GraphSelectionStyleConfig,
-    NodeStyleConfig,
-} from "./config";
+import { AdHocData, DEFAULT_SELECTION_STYLE, defaultNodeStyle, NodeStyleConfig } from "./config";
 import { drawnText, labelTextOf, richTextLabelOptions } from "./config/RichTextStyle";
 import { writableLane } from "./data/lane";
 import type { ElementPositions } from "./data/positions";
@@ -48,7 +42,6 @@ import {
 } from "./managers/StylePainter";
 import { convexRayHit } from "./meshes/convexHit";
 import { surfaceReach, type Xyz } from "./meshes/edgeRoute";
-import { applyFlatHalo, flatHaloLift } from "./meshes/flatHalo";
 import { oweLabelAnimations } from "./meshes/labelAnimationDebt";
 import { unfreezeFor } from "./meshes/LabelBatch";
 import { imageAspectExtent, labelFitExtent } from "./meshes/labelFit";
@@ -111,12 +104,6 @@ export type NodeRenderState = "visible" | "hidden" | "context";
 
 const logger = GraphtyLogger.getLogger(["graphty", "node"]);
 
-/**
- * The prefix of the cached source meshes selection halos are instances of. There is one source
- * per node mesh source -- the halo is the node's own geometry -- keyed by the node's cache key.
- */
-export const SELECTION_HALO_MESH = "graphty-selection-halo";
-
 /** The cached source mesh every context point is an instance of. */
 const CONTEXT_POINT_MESH = "graphty-context-point";
 
@@ -162,14 +149,6 @@ export const XLABEL_UNSHARED = [
     "shiftY",
     "position",
 ] as const;
-
-/*
- * The halo's colour, size and opacity are NOT constants any more: they are
- * `graph.selection` in the element's configuration, set through
- * `element.selectionStyle` or `graph.setSelectionStyle()`. The gold, the 1.45 and the 0.4 that
- * used to live here are the schema's defaults, in `src/config/GraphStyle.ts`, so an element
- * nobody has configured still draws exactly what it always drew.
- */
 
 /** The context point's colour: neutral, so it never reads as a category. */
 const CONTEXT_POINT_COLOR = "#8A8A8A";
@@ -281,7 +260,7 @@ const FACE_THE_CAMERA = TransformNode.BILLBOARDMODE_ALL | TransformNode.BILLBOAR
  */
 export const nodeInternals = {} as {
     /**
-     * The node's border, outer border, shadow, underlay, overlay, selection halo and face
+     * The node's border, outer border, shadow, underlay, overlay and face
      * decoration meshes and the look it last drew.
      */
     drawn(node: Node): {
@@ -292,7 +271,6 @@ export const nodeInternals = {} as {
         shadow: Node["shadow"];
         underlay: Node["underlay"];
         overlay: Node["overlay"];
-        halo: Node["halo"];
         decorations: Node["decorations"];
     };
 };
@@ -476,7 +454,6 @@ export class Node implements ModelUser {
             shadow: node.shadow,
             underlay: node.underlay,
             overlay: node.overlay,
-            halo: node.halo,
             decorations: node.decorations,
         });
         rebuildsFor = (node, paint) => {
@@ -826,11 +803,9 @@ export class Node implements ModelUser {
     /**
      * Whether this node is in the session's selection.
      *
-     * The highlight this drives is drawn BY CONSTRUCTION -- a halo mesh the element owns -- and
-     * not by a style layer. Selection used to be expressed by writing a flag onto this node's
-     * result bag and letting a layer whose selector read that flag repaint it, which put the
-     * element's own highlight into the reader's layer stack to fight for precedence with the
-     * layers they had actually asked for.
+     * The highlight it drives is a ring the style stack draws from the node's `selected` state
+     * (`node.outerBorder*`): the starting Selected row, or the session's own selection layer
+     * while the starting rows are off.
      */
     private selected = false;
 
@@ -853,9 +828,6 @@ export class Node implements ModelUser {
      */
     private sessionPaint: NodePaint | null = null;
 
-    /** The halo instance drawn around this node while it is selected, or null when it is not. */
-    private halo: AbstractMesh | null = null;
-
     /** Whether the mesh was built as a group following its members: see `groupRegionPaint`. */
     private drawnAsGroup = false;
     /**
@@ -871,12 +843,6 @@ export class Node implements ModelUser {
      * mesh cache keeps its source, and with it the material the ring is drawn with.
      */
     private groupBorderSource: AbstractMesh | null = null;
-    /** The cache key of the halo's source mesh, so a node that changes shape rebuilds its halo. */
-    private haloKey: string | null = null;
-
-    /** How far toward the camera the halo is moved from the node: a 2D halo's lift over the edges. */
-    private haloLift = 0;
-
     /**
      * Which shader path draws this node's surface or sprite (design/rendering/shader-styles.md
      * section 5), or null while it is drawn plainly. Part of its source mesh's key: an impostor or
@@ -1168,7 +1134,7 @@ export class Node implements ModelUser {
                 old.dispose();
             }
 
-            const halo = NodeMesh.createHalo(
+            const plate = NodeMesh.createPlate(
                 this.context.getMeshCache(),
                 { styleId: key, is2D: this.context.is2D(), size: this.size },
                 style.shape,
@@ -1177,12 +1143,12 @@ export class Node implements ModelUser {
                 this.#anchor as AbstractMesh,
                 this.context.getScene(),
             );
-            if (halo !== null) {
-                halo.parent = this.#anchor;
-                halo.position.setAll(0);
+            if (plate !== null) {
+                plate.parent = this.#anchor;
+                plate.position.setAll(0);
             }
 
-            this[kind] = halo;
+            this[kind] = plate;
         }
     }
 
@@ -1221,7 +1187,8 @@ export class Node implements ModelUser {
         this.outerBorder = NodeMesh.createOuterBorder(
             this.context.getMeshCache(),
             { styleId: key, is2D: this.context.is2D(), size: this.size },
-            { shape: style.shape, border, outerBorder: style.outerBorder },
+            // A model is marked along its silhouette instead (syncModelMark).
+            { shape: style.shape, border, outerBorder: this.modelFor(style) === null ? style.outerBorder : undefined },
             this.#anchor as AbstractMesh,
             this.context.getScene(),
         );
@@ -1620,7 +1587,7 @@ export class Node implements ModelUser {
         }
         this.shaderDrawing?.moved(this, x, y, z);
         // The overlays follow here, not only in update(): over a settled layout the update loop
-        // visits no node, so a dragged node's halo stayed where the drag began until the drop.
+        // visits no node, so a dragged node's overlay stayed where the drag began until the drop.
         this.syncOverlayPositions();
     }
 
@@ -1675,9 +1642,7 @@ export class Node implements ModelUser {
      * @internal
      */
     togglesOwnMeshes(): boolean {
-        return (
-            this.batchSource === null || this.halo !== null || this.contextPoint !== null || this.labels().length > 0
-        );
+        return this.batchSource === null || this.contextPoint !== null || this.labels().length > 0;
     }
 
     /**
@@ -1691,7 +1656,6 @@ export class Node implements ModelUser {
     get walksEachFrame(): boolean {
         return (
             this.batchSource === null ||
-            this.halo?.isEnabled() === true ||
             this.contextPoint?.isEnabled() === true ||
             this.batchTable?.isHeld(this.row) === true ||
             // A label hangs from the anchor, which only a visit moves while the layout moves the row.
@@ -2223,15 +2187,6 @@ export class Node implements ModelUser {
     }
 
     /**
-     * Whether a selection highlight is drawn around the node now.
-     * @returns True while its halo is on the canvas.
-     * @internal
-     */
-    get drawnSelectionHalo(): boolean {
-        return this.halo !== null && !this.halo.isDisposed();
-    }
-
-    /**
      * A number that changes whenever the node is rebuilt, for a reader that remembers what it saw.
      * @returns The number.
      * @internal
@@ -2562,7 +2517,7 @@ export class Node implements ModelUser {
 
     /**
      * Hand the shader drawing what this node looks like now: its surface or sprite, its effects,
-     * and the halo and glow the batch draws for it.
+     * and the glow the batch draws for it.
      */
     private syncShaders(): void {
         const style = this.drawnStyle;
@@ -2605,6 +2560,18 @@ export class Node implements ModelUser {
     }
 
     /**
+     * Whether a selection mark is drawn around the node now: it is selected and its ring
+     * (`node.outerBorder*`) is on the canvas.
+     * @returns True while its ring is drawn.
+     * @internal
+     */
+    get drawnSelectionRing(): boolean {
+        return (
+            this.selected && this.outerBorder !== null && !this.outerBorder.isDisposed() && this.outerBorder.isEnabled()
+        );
+    }
+
+    /**
      * What the shader drawing draws this node with.
      * @param style - The resolved style.
      * @param uses - Its resolved shader uses.
@@ -2615,8 +2582,6 @@ export class Node implements ModelUser {
         const opacity = typeof painted === "object" ? (painted.opacity ?? 1) : 1;
         const color = this.drawnColor ?? { r: 255, g: 255, b: 255, a: 1 };
         const batch = this.drawnByBatch();
-        const halo = batch && this.getRenderState() === "visible" ? this.haloLook() : null;
-        const haloColor = halo === null ? null : hexOf(halo.color, DEFAULT_SELECTION_STYLE.color);
         const glow = style.effect?.glow;
         const glowColor = glow?.color;
         return {
@@ -2627,10 +2592,6 @@ export class Node implements ModelUser {
             opacity,
             radius: this.roundRadius ?? this.size / 2,
             drawn: this.getRenderState() === "visible",
-            halo:
-                halo === null || haloColor === null || halo.opacity === 0
-                    ? null
-                    : { color: haloColor.hex, scale: halo.scale, opacity: halo.opacity * haloColor.alpha },
             glow:
                 batch && glow && glowColor !== undefined && (glow.strength ?? 1) > 0
                     ? {
@@ -3073,7 +3034,7 @@ export class Node implements ModelUser {
         this.applyInstancePaint(o, color);
         this.syncLabel(o, false);
         this.syncTooltip(o);
-        this.syncHalo();
+        this.syncSelectionMarks();
     }
 
     /**
@@ -3250,7 +3211,7 @@ export class Node implements ModelUser {
             this.applyInstancePaint(o, color);
             this.syncLabel(o, false);
             this.syncTooltip(o);
-            this.syncHalo();
+            this.syncSelectionMarks();
             return;
         }
 
@@ -3388,7 +3349,7 @@ export class Node implements ModelUser {
         // The mesh above is a NEW instance, so everything that lives ON an instance rather than
         // in its source has to be said again: what the masks said about this node, and everything
         // the `instance` role covers. Otherwise a restyle silently un-hides a filtered node,
-        // drops its halo, and repaints it in its source mesh's own colour.
+        // drops its ring, and repaints it in its source mesh's own colour.
         this.applyRenderState();
         this.applyInstancePaint(o, color);
     }
@@ -3469,14 +3430,6 @@ export class Node implements ModelUser {
         // Cleared with it, so the cache never says a label is drawn that is not.
         this.drawnLabelText = undefined;
         this.drawnLabelStyle = undefined;
-
-        if (this.halo) {
-            if (!this.halo.isDisposed()) {
-                this.halo.dispose();
-            }
-
-            this.halo = null;
-        }
 
         if (this.contextPoint) {
             if (!this.contextPoint.isDisposed()) {
@@ -3565,8 +3518,8 @@ export class Node implements ModelUser {
      * Put the meshes into the state the two masks describe.
      *
      * Every operation here is O(1) per node and touches no style, no material and no layer: a
-     * node is drawn or it is not, and the two overlays are instances of ONE shared source mesh
-     * each, so the halo and the context point cost no material of their own however many nodes
+     * node is drawn or it is not, and the context point is an instance of ONE shared source mesh
+     * so it costs no material of its own however many nodes
      * carry one.
      */
     private applyRenderState(): void {
@@ -3603,56 +3556,41 @@ export class Node implements ModelUser {
         }
 
         this.showOverlay("context", state === "context");
-        // A hidden node draws no halo: the selection is still the selection, but there is nothing
-        // on screen for it to ring.
-        this.syncHalo();
+        this.syncSelectionMarks();
     }
 
     /**
-     * What a selected node is configured to look like.
-     *
-     * Read on every overlay pass rather than cached, because a consumer can restyle the
-     * selection while a selection is on screen and a cached answer would keep drawing the old
-     * one until something else happened to rebuild the node.
-     * @returns The configured colour, scale and opacity.
+     * Bring the node's selection marks up to date: a selected node is marked by a ring the style
+     * stack draws (`node.outerBorder*`, the session's selection layer or the starting Selected
+     * row); here only a model's silhouette band and the shader batch's look follow it.
      */
-    private selectionStyle(): GraphSelectionStyleConfig {
-        return this.context.getStyles().config.graph.selection ?? DEFAULT_SELECTION_STYLE;
-    }
-
-    /**
-     * The look this node's halo is drawn in, or null when it draws none: the selection's, on a
-     * selected node, while the starting rows are off. With them on, the Selected row draws the
-     * selection as a ring (`node.outerBorder*`) instead, so the selection itself draws none.
-     * @returns The colour, scale and opacity, or null.
-     */
-    private haloLook(): GraphSelectionStyleConfig | null {
-        const selectionDraws = this.selected && this.context.getStyles().config.graph.startingRows !== true;
-        return selectionDraws ? this.selectionStyle() : null;
-    }
-
-    /**
-     * Draw or take down this node's halo from the selection and the layers as they now stand.
-     */
-    private syncHalo(): void {
-        // Drawn only while the node is: a layer hiding it (what lies outside a time window) hides its halo too.
-        const look = this.getRenderState() === "visible" ? this.haloLook() : null;
+    private syncSelectionMarks(): void {
         this.syncModelMark();
-        if (this.drawnModel !== null) {
-            // A copy of one part, scaled out, is no halo for a model: its silhouette is marked instead.
-            this.showOverlay("halo", false);
-            return;
+        if (this.label?.setRing(this.ringScale()) === true) {
+            LabelDeclutter.track(this.#anchor.getScene(), this.context, this);
         }
-
-        if (this.drawnByBatch()) {
-            // The shader batch draws the halo from the radius; the mesh halo would be the proxy's.
-            this.showOverlay("halo", false);
-            this.ringLabel(look === null || look.opacity === 0 ? null : look.scale);
+        if (this.drawnModel === null && this.drawnByBatch()) {
             this.syncShaders();
-            return;
         }
+    }
 
-        this.showOverlay("halo", look !== null, look ?? undefined);
+    /**
+     * How far the node's ring (`node.outerBorder*`) reaches, over the node's own largest
+     * half-extent, so its label keeps clear of the ring as it keeps clear of the node.
+     * @returns The reach, or null when no ring is drawn.
+     */
+    private ringScale(): number | null {
+        const ring = this.outerBorder;
+        const mesh = this.#mesh;
+        if (ring === null || ring.isDisposed() || !ring.isEnabled() || mesh === null || mesh.isDisposed()) {
+            return null;
+        }
+        ring.computeWorldMatrix(true);
+        mesh.computeWorldMatrix(true);
+        const reach = ring.getBoundingInfo().boundingBox.extendSizeWorld;
+        const own = mesh.getBoundingInfo().boundingBox.extendSizeWorld;
+        const across = Math.max(own.x, own.y, own.z);
+        return across > 0 ? Math.max(reach.x, reach.y) / across : null;
     }
 
     /**
@@ -3698,7 +3636,7 @@ export class Node implements ModelUser {
     }
 
     /**
-     * Mark, change or take off the silhouette band of a model node: its halo, else its glow, drawn around the model's outline on screen (src/models/NodeOutlineLayers.ts).
+     * Mark, change or take off the silhouette band of a model node: its ring (`node.outerBorder*`), else its glow, drawn around the model's outline on screen (src/models/NodeOutlineLayers.ts).
      */
     private syncModelMark(): void {
         const model = this.drawnModel;
@@ -3722,16 +3660,17 @@ export class Node implements ModelUser {
     }
 
     /**
-     * The band a model node is marked with: its selection halo, else its glow. Width in pixels: a
-     * halo's `(scale - 1) x 20` (9 at the default 1.45), a glow's strength x 8, each between 2 and 16.
+     * The band a model node is marked with: its ring (`node.outerBorder*`, a selected node's mark),
+     * else its glow. Width in pixels: a ring's width x 40 (9 at the selection's default 0.225), a
+     * glow's strength x 8, each between 2 and 16.
      * @returns The look, or null for no mark.
      */
     private modelMarkLook(): ModelMarkLook | null {
         const pixels = (value: number): number => Math.min(16, Math.max(2, Math.round(value)));
-        const halo = this.haloLook();
-        if (halo !== null && halo.opacity !== 0) {
-            const { rgb } = readColor(halo.color, DEFAULT_SELECTION_STYLE.color);
-            return { color: rgb.toHexString(), thickness: pixels((halo.scale - 1) * 20) };
+        const ring = this.drawnStyle?.outerBorder;
+        if (ring?.color !== undefined && (ring.width ?? 0) > 0 && (ring.opacity ?? 1) > 0) {
+            const { rgb } = readColor(ring.color, DEFAULT_SELECTION_STYLE.color);
+            return { color: rgb.toHexString(), thickness: pixels((ring.width ?? 0) * 40) };
         }
 
         const effect = this.drawnStyle?.effect;
@@ -3746,41 +3685,20 @@ export class Node implements ModelUser {
     }
 
     /**
-     * Redraw this node's selection halo from the configuration as it now stands.
-     *
-     * Called for every node when `graph.setSelectionStyle()` changes it. A node with no halo has
-     * nothing to redraw and nothing happens.
-     */
-    refreshSelectionOverlay(): void {
-        if (this.disposed) {
-            return;
-        }
-
-        this.syncHalo();
-    }
-
-    /**
-     * Turn one of this node's two overlays on or off, building it the first time it is needed.
-     * @param kind - Which overlay.
+     * Turn this node's context point on or off, building it the first time it is needed.
+     * @param kind - Which overlay: the context point.
      * @param wanted - Whether it should be drawn.
-     * @param look - The halo's look; the selection style when absent.
      */
-    private showOverlay(
-        kind: "halo" | "context",
-        wanted: boolean,
-        look: GraphSelectionStyleConfig = this.selectionStyle(),
-    ): void {
-        const existing = kind === "halo" ? this.halo : this.contextPoint;
-
-        // A HALO OF OPACITY 0 IS NOT DRAWN AT ALL. Drawn invisible it still covered the node in
-        // the depth and stencil buffers, so a mark on a selected node was painted over the whole
-        // node instead of around it.
-        if (!wanted || (kind === "halo" && look.opacity === 0)) {
+    private showOverlay(kind: "context", wanted: boolean): void {
+        const existing = this.contextPoint;
+        if (!wanted) {
             // Only a drawn overlay makes the node walk each frame (`walksEachFrame`), so hiding one
             // that is not drawn changes nothing the batch needs to hear: a time window that hides
             // 40,000 plain nodes asked it 80,000 times (issue #6025).
             const drawn = existing?.isEnabled() === true;
-            this.hideOverlay(kind, existing);
+            if (existing && !existing.isDisposed()) {
+                existing.setEnabled(false);
+            }
             if (drawn) {
                 this.context.getNodeBatches?.()?.rewalk(this);
             }
@@ -3788,66 +3706,12 @@ export class Node implements ModelUser {
             return;
         }
 
-        const selection = look;
-        // A halo is the node's own shape, so a node redrawn in another shape needs another halo,
-        // and its own look's material, so a halo changing look needs another one too.
-        const stale = kind === "halo" && existing !== null && this.haloKey !== this.haloSourceKey(selection);
-        if (stale && !existing.isDisposed()) {
-            existing.dispose();
-        }
-
-        const overlay = existing && !stale && !existing.isDisposed() ? existing : this.createOverlay(kind, selection);
-
-        if (kind === "halo") {
-            this.halo = overlay;
-            // WRITTEN ON EVERY PASS, not only when the halo is built. Every halo in the graph is
-            // an instance of ONE source mesh and shares ONE material, so a selection restyled
-            // while a selection is on screen is this one write -- and it is the same write for
-            // one selected node and for forty thousand. Minting a source mesh per appearance
-            // instead would leave one behind in the cache for every colour a colour picker
-            // passed through.
-            Node.paintHalo(overlay, look);
-            this.ringLabel(look.scale);
-            // The node's own geometry, scaled about its centre: every point of the node's surface
-            // moves out by the configured multiplier, so a box gets a box, a cylinder a
-            // cylinder, and a node drawn wider than tall a halo wider than tall.
-            overlay.scaling.copyFrom(this.#anchor.scaling).scaleInPlace(selection.scale);
-            this.haloLift = flatHaloLift(overlay, this.#anchor.scaling.z);
-        } else {
-            this.contextPoint = overlay;
-            overlay.scaling.setAll(Math.max(this.size, MIN_OVERLAY_SIZE) * CONTEXT_POINT_SCALE);
-        }
-
+        const overlay = existing && !existing.isDisposed() ? existing : this.createOverlay(kind);
+        this.contextPoint = overlay;
+        overlay.scaling.setAll(Math.max(this.size, MIN_OVERLAY_SIZE) * CONTEXT_POINT_SCALE);
         this.syncOverlayPositions();
         overlay.setEnabled(true);
         this.context.getNodeBatches?.()?.rewalk(this);
-    }
-
-    /**
-     * Stop drawing one of this node's overlays, keeping it for the next time it is wanted.
-     * @param kind - Which overlay.
-     * @param existing - The overlay, when one was built.
-     */
-    private hideOverlay(kind: "halo" | "context", existing: AbstractMesh | null): void {
-        if (existing && !existing.isDisposed()) {
-            existing.setEnabled(false);
-        }
-
-        if (kind === "halo") {
-            this.ringLabel(null);
-        }
-    }
-
-    /**
-     * Keep the label clear of the halo as it keeps clear of the node, and have the label overlap
-     * pass look again: the label moved with no node moving.
-     * @param scale - The halo's size over the node's, or null when no halo is drawn.
-     */
-    private ringLabel(scale: number | null): void {
-        const { label } = this;
-        if (label?.setRing(scale) === true) {
-            LabelDeclutter.track(this.#anchor.getScene(), this.context, this);
-        }
     }
 
     /**
@@ -3866,7 +3730,7 @@ export class Node implements ModelUser {
      * How far the node's drawn surface reaches from its centre at most: its largest half-extent,
      * in the units its position is laid out in.
      *
-     * THE NODE'S OWN EXTENT, not its world one. The node and the halo are children of
+     * THE NODE'S OWN EXTENT, not its world one. The node and its overlays are children of
      * `graph-root`, and an XR gesture scales that root -- so measuring in world space would
      * count the gesture in a value that is compared with layout coordinates and local scalings.
      *
@@ -4113,29 +3977,18 @@ export class Node implements ModelUser {
      * Build one overlay instance for this node.
      *
      * The source mesh is interned in the mesh cache under a fixed name, so the whole graph shares
-     * one sphere and one material per overlay kind: turning the context layer on for 40,000 hidden
-     * nodes allocates 40,000 instances of one mesh, not 40,000 meshes.
-     * @param kind - Which overlay.
-     * @param selection - The halo's look.
+     * one sphere and one material: turning the context layer on for 40,000 hidden nodes allocates
+     * 40,000 instances of one mesh, not 40,000 meshes.
+     * @param _kind - Which overlay: the context point.
      * @returns The instance, parented and ready to be positioned.
      */
-    private createOverlay(kind: "halo" | "context", selection: GraphSelectionStyleConfig): AbstractMesh {
+    private createOverlay(_kind: "context"): AbstractMesh {
         const scene = this.context.getScene();
-        const name = kind === "halo" ? this.haloSourceKey(selection) : CONTEXT_POINT_MESH;
-        const color = kind === "halo" ? selection.color : CONTEXT_POINT_COLOR;
-        const alpha = kind === "halo" ? selection.opacity : CONTEXT_POINT_ALPHA;
-        const shape = kind === "halo" ? this.nodeSourceMesh() : null;
-        const flat = kind === "halo" && this.context.is2D();
         const overlay = this.context
             .getMeshCache()
-            .get(name, () => Node.createOverlaySource(name, color, alpha, scene, shape, flat));
-
-        if (kind === "halo") {
-            this.haloKey = name;
-        }
-
-        // Never pickable: the halo sits OVER the node it rings, so a pickable halo would take
-        // every click meant for the node underneath it and selection would stop working.
+            .get(CONTEXT_POINT_MESH, () =>
+                Node.createOverlaySource(CONTEXT_POINT_MESH, CONTEXT_POINT_COLOR, CONTEXT_POINT_ALPHA, scene),
+            );
         overlay.isPickable = false;
 
         const graphRoot = scene.getTransformNodeByName("graph-root");
@@ -4147,129 +4000,30 @@ export class Node implements ModelUser {
     }
 
     /**
-     * Bring the shared halo material into line with the configured appearance.
-     * @param overlay - Any halo instance; its material is the shared one.
-     * @param selection - The colour and opacity to draw it in.
-     */
-    private static paintHalo(overlay: AbstractMesh, selection: GraphSelectionStyleConfig): void {
-        const { material } = overlay;
-
-        if (!(material instanceof StandardMaterial)) {
-            return;
-        }
-
-        // The color's own alpha multiplies the configured opacity (issue #2071).
-        const { rgb, alpha } = readColor(selection.color, DEFAULT_SELECTION_STYLE.color);
-
-        material.emissiveColor = rgb;
-        material.alpha = selection.opacity * alpha;
-    }
-
-    /**
-     * Whether a mesh is flat: its geometry has no depth along one axis.
-     * @param mesh - The mesh.
-     * @returns True when one extent is (next to) zero beside the largest.
-     */
-    private static isFlat(mesh: Mesh): boolean {
-        const { extendSize } = mesh.getBoundingInfo().boundingBox;
-        const largest = Math.max(extendSize.x, extendSize.y, extendSize.z);
-        return Math.min(extendSize.x, extendSize.y, extendSize.z) <= largest * 1e-3;
-    }
-
-    /**
-     * Build the one source mesh a kind of overlay is instanced from.
+     * Build the one source mesh the context point is instanced from: a unit sphere.
      * @param name - The mesh name, which is also its cache key.
      * @param color - The colour, as a hex string.
      * @param alpha - How opaque it is, in `[0, 1]`.
      * @param scene - The scene to build it in.
-     * @param shape - The node source mesh whose geometry a halo shares, or null for a unit sphere.
-     * @param flat - Whether it is a 2D halo: a sheet in front of the edges (`applyFlatHalo`).
      * @returns The source mesh.
      */
-    private static createOverlaySource(
-        name: string,
-        color: string,
-        alpha: number,
-        scene: Scene,
-        shape: Mesh | null,
-        flat = false,
-    ): Mesh {
-        let source: Mesh;
-        // In front of the edges' plane, where a lifted 2D halo needs no depth offset.
-        let lifted = false;
-        if (flat && shape?.geometry) {
-            source = new Mesh(name, scene);
-            const front = applyFlatHalo(source, shape);
-            source.metadata = { flatHaloFront: front };
-            lifted = front < 0;
-        } else if (shape?.geometry) {
-            // SHARED geometry, not a copy: one halo source per node source costs a material and
-            // no vertices, and Babylon reference-counts the geometry so either can be disposed
-            // first. A new mesh rather than a clone, so nothing of the node's own source -- its
-            // material, its instance colour buffer, its visibility -- comes with it.
-            source = new Mesh(name, scene);
-            shape.geometry.applyToMesh(source);
-        } else {
-            source = MeshBuilder.CreateSphere(name, { diameter: 1, segments: 8 }, scene);
-        }
-
+    private static createOverlaySource(name: string, color: string, alpha: number, scene: Scene): Mesh {
+        const source = MeshBuilder.CreateSphere(name, { diameter: 1, segments: 8 }, scene);
         const material = new StandardMaterial(`${name}-material`, scene);
-
         // Unlit on purpose: an overlay is a marker, and a marker that changes shade as the camera
         // orbits reads as another node rather than as an annotation on one.
         material.disableLighting = true;
-        const painted = readColor(color, DEFAULT_SELECTION_STYLE.color);
-
+        const painted = readColor(color, CONTEXT_POINT_COLOR);
         material.emissiveColor = painted.rgb;
         material.diffuseColor = Color3.Black();
         material.specularColor = Color3.Black();
         material.alpha = alpha * painted.alpha;
-        // A halo around a solid draws only its far side. The near side lies in front of the node
-        // it surrounds, and blending it over the node tinted the whole node the halo's colour (a
-        // selected blue node drew gray-brown) instead of ringing it. The far side lies behind the
-        // node, so the node hides it inside its own outline and it shows only around it, as a
-        // ring; and from inside the halo every face seen is a far face, so the ring survives the
-        // camera there. A flat node's halo has no far side -- it is one sheet in the node's own
-        // plane, which the zOffset below keeps behind the node -- so it keeps both faces, and so
-        // does a context point, drawn in place of a hidden node with nothing in front of it.
-        material.backFaceCulling = name.startsWith(SELECTION_HALO_MESH) && !Node.isFlat(source);
+        // drawn in place of a hidden node with nothing in front of it, so both faces show
+        material.backFaceCulling = false;
         material.cullBackFaces = false;
-        // Drawn just behind a surface it shares a depth with, so around a flat node -- whose
-        // scaled copy lies in the node's own plane -- the halo shows as a rim around the node
-        // instead of fighting it for the same pixels. Too small to move a 3D halo visibly. A 2D
-        // halo lifted in front of the edges is already behind its node's front, and the offset
-        // would push it back into the edges' plane (issue #7453).
-        material.zOffsetUnits = lifted ? 0 : 4;
         source.material = material;
 
         return source;
-    }
-
-    /**
-     * The source mesh this node is drawn from, whether its own mesh or a batch draws it.
-     * @returns The mesh whose geometry the node is drawn with.
-     */
-    private nodeSourceMesh(): Mesh | null {
-        // #source, not #mesh: a row a batch draws has no mesh, and its halo still takes its shape
-        return this.#source instanceof Mesh ? this.#source : null;
-    }
-
-    /**
-     * The cache key of the halo source for this node's current shape and the halo's look: one per
-     * node source mesh in the selection's own look, so every selected node of one shape shares
-     * one halo source, and one more per colour and opacity a layer's halo asks for. Every
-     * halo of one source shares one material, so two looks cannot share a source.
-     * @param look - The halo's look.
-     * @returns The key.
-     */
-    private haloSourceKey(look: GraphSelectionStyleConfig): string {
-        const key = `${SELECTION_HALO_MESH}:${this.#anchor.name}${this.context.is2D() ? ":2d" : ""}`;
-        const selection = this.selectionStyle();
-        // ponytail: one cached source per halo colour and opacity ever drawn; evict unused
-        // ones if a continuous halo colour encoding ever shows up in a profile.
-        return look.color === selection.color && look.opacity === selection.opacity
-            ? key
-            : `${key}:${look.color}:${String(look.opacity)}`;
     }
 
     /**
@@ -4281,12 +4035,6 @@ export class Node implements ModelUser {
      */
     private syncOverlayPositions(): void {
         this.followRow();
-        if (this.halo && !this.halo.isDisposed()) {
-            this.halo.position.copyFrom(this.#anchor.position);
-            // the 2D camera looks along +z, so toward it is down z
-            this.halo.position.z -= this.haloLift;
-        }
-
         if (this.contextPoint && !this.contextPoint.isDisposed()) {
             this.contextPoint.position.copyFrom(this.#anchor.position);
         }
@@ -4764,6 +4512,7 @@ export class Node implements ModelUser {
         // Labels that would overlap on screen are thinned out when `labels.declutter` is on; see
         // LabelDeclutter.
         LabelDeclutter.track(scene, this.context, this);
+        const ringed = this.ringScale();
         // Its animation starts on the first frame at rest with no style paint left to draw.
         oweLabelAnimations(scene);
         labelOptions.glyphs = this.context.getStyles().config.behavior.labels.labelText === "glyphs";
@@ -4773,10 +4522,7 @@ export class Node implements ModelUser {
         if (styleConfig.label?.pickable === true && label.labelMesh) {
             label.labelMesh.metadata = { nodeId: this.id };
         }
-
-        if (this.halo?.isEnabled() === true) {
-            label.setRing(this.haloLook()?.scale ?? null);
-        }
+        label.setRing(ringed);
 
         return label;
     }

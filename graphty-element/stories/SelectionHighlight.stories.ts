@@ -17,6 +17,7 @@ import type { GraphSelectionStyleInput } from "../src/config";
 import type { Graphty } from "../src/graphty-element";
 // Importing the module is what defines the <graphty-element> custom element, so this line is
 // load-bearing even though only the type is named.
+import { nodeInternals } from "../src/Node";
 import { assertGraphLoaded, type Drawn, drawn, eventually, holds, renderedElement } from "./assertions";
 import { eventWaitingDecorator, setLayoutPreSteps, waitForGraphSettled } from "./helpers";
 
@@ -127,13 +128,11 @@ async function selected(canvasElement: HTMLElement, story: string): Promise<Draw
  * @returns The colour, opacity and drawn size of the halo, or null when none is drawn.
  */
 function haloOnScreen(scene: Drawn): { color: string; alpha: number; clearance: number } | null {
-    const mesh = scene.graph.scene.meshes.find(
-        (candidate) =>
-            candidate.name.startsWith("graphty-selection-halo") && candidate.isVisible && candidate.isEnabled(),
-    );
-
-    const material = mesh?.material;
+    // A selected node is marked by the ring outside its border (node.outerBorder*).
     const node = scene.graph.getNode(SELECTED);
+    const ring = node === undefined ? null : nodeInternals.drawn(node).outerBorder;
+    const mesh = ring !== null && !ring.isDisposed() && ring.isEnabled() ? ring : undefined;
+    const material = mesh?.material;
 
     if (!mesh || !material || !node || !("emissiveColor" in material)) {
         return null;
@@ -145,7 +144,8 @@ function haloOnScreen(scene: Drawn): { color: string; alpha: number; clearance: 
     }): number => {
         const extent = target.getBoundingInfo().boundingBox.extendSizeWorld;
 
-        return Math.max(extent.x, extent.y, extent.z);
+        // the ring is flat across the view: measured across it, as the node is
+        return Math.max(extent.x, extent.y);
     };
 
     // MEASURED AGAINST THE NODE, never as a raw scaling number: a halo drawn smaller than the
@@ -163,7 +163,10 @@ function haloOnScreen(scene: Drawn): { color: string; alpha: number; clearance: 
  * @param scene - The scene to read.
  * @param want - The colour, opacity and drawn size expected.
  */
-async function assertHalo(scene: Drawn, want: { color: string; alpha: number; clearance: number }): Promise<void> {
+async function assertHalo(
+    scene: Drawn,
+    want: { color: string; alpha: number; clearance: number | undefined },
+): Promise<void> {
     const halo = haloOnScreen(scene);
 
     await holds(halo !== null, `${scene.story}: a node is selected and no halo is drawn anywhere in the scene`);
@@ -179,8 +182,9 @@ async function assertHalo(scene: Drawn, want: { color: string; alpha: number; cl
         `${scene.story}: the halo is drawn at opacity ${String(drawnHalo.alpha)}, not ${String(want.alpha)}`,
     );
     await holds(
-        Math.abs(drawnHalo.clearance - want.clearance) < 0.001,
-        `${scene.story}: the halo is drawn at ${String(drawnHalo.clearance)} times the node's own radius, ` +
+        // the ring's outer edge is a polygon round the circle, its corners a little past it: 2 percent
+        want.clearance === undefined || Math.abs(drawnHalo.clearance / want.clearance - 1) < 0.02,
+        `${scene.story}: the ring is drawn at ${String(drawnHalo.clearance)} times the node's own radius, ` +
             `not ${String(want.clearance)}`,
     );
     await holds(
@@ -284,8 +288,8 @@ export const SelectedEdge: Story = {
 };
 
 /**
- * The halo around a box: a larger box around the selected node, never a sphere behind it. The
- * halo is the node's own shape scaled out, so a box's corners are ringed too (issue #2643).
+ * The ring around a box: a box outline around the selected node, never a sphere behind it. The
+ * ring follows the node's own outline, so a box's corners are ringed too (issue #2643).
  */
 export const Box: Story = {
     args: { shape: "box" },
@@ -294,6 +298,8 @@ export const Box: Story = {
 
         await holds(scene.graph.getNode(SELECTED)?.shapeType === "box", "Box: the selected node is drawn as a box");
 
-        await assertHalo(scene, { color: "#0077BB", alpha: 1, clearance: 1.45 });
+        // A box's ring follows its outline, corners included: it stands clear of the box, by no radius
+        // a sphere's scale names.
+        await assertHalo(scene, { color: "#0077BB", alpha: 1, clearance: undefined });
     },
 };

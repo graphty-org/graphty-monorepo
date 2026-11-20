@@ -83,8 +83,11 @@ export interface PendingWorkProgress {
     readonly code: "PENDING_WORK";
     /** How much is left, and the running operation's category and percent. */
     readonly params: {
+        /** How many operations are queued or running; 0 when none is left. */
         readonly operations: number;
+        /** The running operation's category; null when none is running. */
         readonly category: OperationCategory | null;
+        /** The running operation's progress, 0 to 100; null when none is running. */
         readonly percent: number | null;
     };
 }

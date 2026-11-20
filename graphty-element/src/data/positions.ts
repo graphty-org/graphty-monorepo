@@ -9,11 +9,10 @@ export const DEFAULT_CAPACITY = 1024;
 /** Distinct rows an owed publish answers one at a time even in a small lane, before it is written instead. */
 const OWED_ROWS_FLOOR = 64;
 /**
- * After a landing whose readers ran past their quarter of the lane, the next landings answer only
- * {@link OWED_ROWS_FLOOR} rows before writing, and every this-many-th one tries the quarter again: readers that
- * read every row (every edge arrowed) then cost about the publish alone, and fewer readers win the quarter back.
+ * An owed publish answers up to one row in 2^this of the lane one at a time (one in sixteen), and then is
+ * written: readers that read every row (every edge arrowed) cost the publish and a sixteenth more, at most.
  */
-const OWED_RETRY_EVERY = 8;
+const OWED_ROWS_SHIFT = 4;
 
 /**
  * Reject a row count that is not a non-negative integer.
@@ -149,16 +148,12 @@ export class ElementPositions {
     /** Answers one row as the owed publish would write it: see {@link ElementPositions.owe}. */
     private owedRow: OwedRow | null = null;
     /**
-     * The distinct rows `owedRow` answered since the publish was owed. Past a quarter of the lane (and at least
+     * The distinct rows `owedRow` answered since the publish was owed. Past a sixteenth of the lane (and at least
      * {@link OWED_ROWS_FLOOR}), writing
      * the publish is cheaper. Distinct rows, not reads: a labeled node read every frame of a long landing
      * is one row however many frames the landing spans.
      */
     private readonly owedAnswered = new Set<number>();
-    /** The owed publish's readers ran out of rows to answer and wrote it. */
-    private owedSpilled = false;
-    /** Landings in a row whose readers ran out, before this one: see {@link OWED_RETRY_EVERY}. */
-    private owedSpills = 0;
     private readonly owedScratch = { x: 0, y: 0, z: 0 };
 
     /**
@@ -227,9 +222,8 @@ export class ElementPositions {
      *
      * A reader of one row need not write them all: `row` answers one row as the publish would write
      * it, so a frame that draws a few rows from the CPU (a label, an arrowhead) costs those rows, not
-     * every row of the graph. Once a quarter of the lane's rows were read that way, a read of another row
-     * writes the publish instead. Readers that keep reading that many rows (every edge arrowed) get only
-     * {@link OWED_ROWS_FLOOR} rows on the landings after, so they cost about the publish alone.
+     * every row of the graph. Once a sixteenth of the lane's rows were read that way, a read of another row
+     * writes the publish instead, so a landing never costs more than about 1.06 times the publish.
      * @param publish - Writes the rows; null to owe nothing.
      * @param row - Answers one row as `publish` would write it, or null when every read settles.
      * @internal
@@ -238,11 +232,6 @@ export class ElementPositions {
         this.owed = publish;
         this.owedRow = publish === null ? null : row;
         this.owedAnswered.clear();
-        if (publish !== null && row !== null) {
-            this.owedSpills = this.owedSpilled ? this.owedSpills + 1 : 0;
-            this.owedSpilled = false;
-        }
-
         if (publish !== null) {
             this.moves++;
         }
@@ -347,9 +336,7 @@ export class ElementPositions {
         // Reading many rows one at a time costs more than writing them all: past that, write the publish.
         const answered = this.owedAnswered;
         if (!answered.has(index)) {
-            const full = this.owedSpills % OWED_RETRY_EVERY === 0;
-            if (answered.size >= (full ? Math.max(OWED_ROWS_FLOOR, this.rows >> 2) : OWED_ROWS_FLOOR)) {
-                this.owedSpilled = true;
+            if (answered.size >= Math.max(OWED_ROWS_FLOOR, this.rows >> OWED_ROWS_SHIFT)) {
                 return null;
             }
 

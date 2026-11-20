@@ -81,13 +81,23 @@ describe("the layout filling the row table on a shared device", () => {
     // would bring thousands of rows up to the owed landing one at a time.
     const SPREAD = 2100;
     for (const renderer of ["webgpu", "webgl"] as const) {
-        for (const which of ["one labeled node", "two labels far apart", "one arrowed edge"] as const) {
+        for (const which of [
+            "one labeled node",
+            "two labels far apart",
+            "a hundred labels spread",
+            "one arrowed edge",
+        ] as const) {
             it(`writes no row per landing with ${which}, and draws it where the card does (${renderer})`, async () => {
-                const spread = which === "two labels far apart";
+                // a hundred labels over 2100 rows: fewer than the rows an owed landing answers one at a time
+                const many = which === "a hundred labels spread";
+                const spread = many || which === "two labels far apart";
                 const graph = await running("batched", undefined, renderer, spread ? SPREAD : undefined);
                 const { styles } = graph.getSession();
                 if (which !== "one arrowed edge") {
-                    const nodes = spread ? ["n0", `n${String(SPREAD - 1)}`] : ["n0"];
+                    let nodes = spread ? ["n0", `n${String(SPREAD - 1)}`] : ["n0"];
+                    if (many) {
+                        nodes = Array.from({ length: 100 }, (_, i) => `n${String(i * 21)}`);
+                    }
                     await styles.add({
                         name: "labels",
                         target: "node",

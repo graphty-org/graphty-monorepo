@@ -527,7 +527,7 @@ describe("ElementPositions", () => {
     });
 
     it("writes an owed publish once reading it row by row would cost more than writing it", () => {
-        const rows = 400;
+        const rows = 4000;
         const p = new ElementPositions(rows);
         p.grow(rows);
         let publishes = 0;
@@ -552,15 +552,15 @@ describe("ElementPositions", () => {
         }
 
         assert.strictEqual(publishes, 0);
-        // up to a quarter of the lane's distinct rows are answered by the reader...
-        for (let row = 0; row < rows / 4; row++) {
+        // up to a sixteenth of the lane's distinct rows are answered by the reader...
+        for (let row = 0; row < rows / 16; row++) {
             p.read(row, out);
         }
 
         assert.strictEqual(publishes, 0);
         // ...and the next new row writes the publish, and every read after it is the lane's own
         const answered = rowsAnswered;
-        p.read(rows / 4, out);
+        p.read(rows / 16, out);
         p.read(0, out);
         assert.strictEqual(publishes, 1);
         assert.strictEqual(rowsAnswered, answered);
@@ -574,9 +574,9 @@ describe("ElementPositions", () => {
         assert.strictEqual(rowsAnswered, answered + 1);
     });
 
-    it("answers few rows on the landings after one whose readers read every row", () => {
-        // every edge arrowed: each landing's readers read every row, so answering a quarter of them one at
-        // a time before writing would cost more than the publish alone on every landing
+    it("answers at most a sixteenth of the rows one at a time on every landing whose readers read every row", () => {
+        // every edge arrowed: each landing's readers read every row, so each landing answers a sixteenth
+        // of them one at a time and then writes the publish, about 1.06 times the publish alone
         const rows = 4000;
         const p = new ElementPositions(rows);
         p.grow(rows);
@@ -601,16 +601,15 @@ describe("ElementPositions", () => {
             p.settle();
             return rowsAnswered - before;
         };
-        // the first landing answers a quarter of the rows, then writes
-        assert.strictEqual(land(rows), rows / 4);
-        // the next seven answer the floor of 64 only, and every eighth tries the quarter again
-        const answered = Array.from({ length: 16 }, () => land(rows));
-        assert.deepStrictEqual(answered, [64, 64, 64, 64, 64, 64, 64, rows / 4, 64, 64, 64, 64, 64, 64, 64, rows / 4]);
-        assert.strictEqual(publishes, 17);
-        // once the readers read few rows again, a landing whose readers stayed under the floor restores the quarter
-        assert.strictEqual(land(10), 10);
-        assert.strictEqual(land(1000), 1000);
-        assert.strictEqual(publishes, 19);
+        const answered = Array.from({ length: 8 }, () => land(rows));
+        assert.deepStrictEqual(
+            answered,
+            Array.from({ length: 8 }, () => rows / 16),
+        );
+        assert.strictEqual(publishes, 8);
+        // a landing after them whose readers read few rows answers them all, with no state carried over
+        assert.strictEqual(land(200), 200);
+        assert.strictEqual(publishes, 9);
     });
 
     it("forgets the one-row reader with the publish it came with", () => {

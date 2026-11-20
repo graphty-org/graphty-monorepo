@@ -136,3 +136,6 @@ design/githerd/
 /design/webgpu/webgpu-acceleration-plan.md
 /graphty/docs/decisions/G12.md
 /design/webgpu/plan-drafts-and-reviews/draft-B.md
+
+# Demo video data: written compact by tools/demo-video/data/make-*.mjs
+tools/demo-video/data/round2/*.json

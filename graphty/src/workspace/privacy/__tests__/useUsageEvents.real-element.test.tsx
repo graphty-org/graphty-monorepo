@@ -23,7 +23,7 @@ import {
 } from "../../../lib/analytics";
 import { withFeatures } from "../../../test/features";
 import { openSampleFromStart } from "../../../test/open";
-import { dragAcross, wheelOver } from "../../../test/real-pointer";
+import { dragAcross, dragTo, wheelOver } from "../../../test/real-pointer";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { firstOnPage, type Recorded, recordInto, TEST_ANALYTICS } from "../../../test/usage-recorders";
 import { clearRecent } from "../../project/recent";
@@ -342,6 +342,55 @@ describe("usage counts from the real element", () => {
         sendsNone("SECRET_GENES");
     });
 
+    it("sends one style_changed for one drag of a Style-sidebar slider", async () => {
+        const store = createWorkspaceStore({ project: { name: "Untitled", id: 1 }, inspected: null });
+        render(<Workspace store={store} />);
+        const { session } = await projectElement();
+        await session.data.addNodes(Array.from({ length: 20 }, (_, i) => ({ id: `n${String(i)}`, score: i + 1 })));
+        const layer = await session.styles.add({
+            name: "SECRET_LAYER",
+            target: "node",
+            selector: { match: "everything" },
+            encode: { "node.color": { by: "data.score" } },
+        });
+        await session.styles.settled();
+        // The layer's color ramp, opened from its value pill in the Style tab.
+        store.set({ inspected: { kind: "layer-row", id: layer.id } });
+        const tab = await screen.findByTestId("style-tab", {});
+        const pill = await waitFor(() => {
+            const found = tab.querySelector<HTMLElement>(".cm-var-fill-button");
+            assert.isNotNull(found);
+            return found;
+        });
+        if (pill === null) {
+            throw new Error("no value pill");
+        }
+        await userEvent.click(pill);
+        const popover = await screen.findByRole("group", { name: "Color binding" });
+        const handle = within(popover).getByRole("slider", { name: "Ramp end" });
+        const track = within(popover).getByTestId("ramp-editor-track").getBoundingClientRect();
+
+        const before = sent("style_changed").posthog.length;
+        const updates: string[] = [];
+        const off = session.on("journal:appended", ({ entry }) => {
+            if (entry.command.op === "style.patch") {
+                updates.push(entry.command.action);
+            }
+        });
+        await dragTo(handle, { x: track.left + track.width * 0.5, y: track.top + track.height / 2 });
+        await session.styles.settled();
+        off();
+        assert.isAbove(updates.length, 1, `the drag wrote the layer more than once (${updates.join(", ")})`);
+        assert.deepEqual(
+            sent("style_changed")
+                .posthog.slice(before)
+                .map(({ op, action }) => ({ op, action })),
+            [{ op: "style.patch", action: "update" }],
+            "one drag, one style edit",
+        );
+        sendsNone("SECRET_LAYER");
+    });
+
     it("sends a later, separate edit of the same layer again, after other work in between", async () => {
         const { session } = await loadedProject();
         const layer = await session.styles.add({
@@ -379,21 +428,31 @@ describe("usage counts from the real element", () => {
         sendsNone("SECRET_GENES", "TP53", "SECRET_LAYER");
     });
 
-    it("finds the entry's own step as the newest history step when the journal tells of it", async () => {
+    it("never credits the assistant with a reader's command that recorded no step", async () => {
         const { session } = await loadedProject();
-        // A step of another op first, so the newest step at the time is not the style's by chance.
-        await session.layout.set("circular");
-        const newest: (readonly string[] | undefined)[] = [];
-        const off = session.on("journal:appended", ({ entry }) => {
-            if (entry.command.op === "style.patch") {
-                newest.push(session.history.steps.at(-1)?.ops);
-            }
+        // The newest step is the assistant's when the reader acts.
+        await session.transaction("SECRET_TURN", (tx) => tx.config.set({ author: "SECRET_AUTHOR" }), {
+            provenance: { via: "assistant" },
         });
-        await session.styles.add({ name: "SECRET_LAYER", target: "node", selector: { match: "everything" }, set: {} });
-        await session.styles.settled();
+        assert.strictEqual(session.history.steps.at(-1)?.provenance.via, "assistant");
+        const entries: JournalEntry[] = [];
+        const off = session.on("journal:appended", ({ entry }) => {
+            entries.push(entry);
+        });
+        // 3D while already in 3D: the element writes the entry and records no step.
+        const switched = next("view_mode");
+        await userEvent.click(
+            within(screen.getByRole("toolbar", { name: "Canvas tools" })).getByRole("button", { name: "Mode, 3D" }),
+        );
+        const menu = await screen.findByRole("menu", { name: /^Mode/ });
+        await userEvent.click(within(menu).getByRole("menuitemradio", { name: /^3D/ }));
+        assert.deepEqual({ ...(await switched) }, { mode: "3d" });
         off();
-        assert.lengthOf(newest, 1);
-        assert.include(newest[0] ?? [], "style.patch");
+        assert.deepEqual(
+            entries.map(({ command, step }) => [command.op, step]),
+            [["view.dimension", undefined]],
+        );
+        sendsNone("SECRET_TURN", "SECRET_AUTHOR");
     });
 
     it("never sends a load or the app's own starting settings as a graph action", async () => {
@@ -503,7 +562,9 @@ describe("usage counts from the real element", () => {
         };
         const own = next("own_file_opened");
         drop(new File([JSON.stringify(style)], "SECRET_STYLES.graphty.json"));
-        assert.deepEqual({ ...(await own) }, { format: "graphty", via: "file" });
+        const ownProps = { ...(await own) };
+        assert.deepEqual(ownProps, { format: "graphty", via: "file", size: ownProps.size });
+        assert.include(["1-100", "101-1k", "1k-10k", "10k+"], ownProps.size);
         await screen.findByText(/^Added SECRET_STYLES/);
         assert.lengthOf(actionOps(), actionsBefore, "the document's own entries are not the reader's actions");
         assert.lengthOf(sent("own_file_opened").posthog, 2, "the TSV and the document");
@@ -689,7 +750,9 @@ describe("usage counts from the real element", () => {
 
         const own = next("own_file_opened");
         drop(new File([text], "SECRET_PROJECT_FILE.graphty.json"));
-        assert.deepEqual({ ...(await own) }, { format: "graphty", via: "file" });
+        const ownProps = { ...(await own) };
+        assert.deepEqual(ownProps, { format: "graphty", via: "file", size: ownProps.size });
+        assert.include(["1-100", "101-1k", "1k-10k", "10k+"], ownProps.size);
         await projectElement();
 
         // Kept in this browser under a name, then reopened from Recent projects.
@@ -706,6 +769,19 @@ describe("usage counts from the real element", () => {
         const again = next("project_saved");
         await userEvent.keyboard("{Control>}s{/Control}");
         assert.deepEqual({ ...(await again) }, { kind: "browser", as: "again" });
+        // A Save the browser refuses sends nothing.
+        const refusedSaves: string[] = [];
+        const offSaves = onUsageEvent((name) => {
+            if (name === "project_saved") {
+                refusedSaves.push(name);
+            }
+        });
+        vi.stubGlobal("indexedDB", undefined);
+        await userEvent.keyboard("{Control>}s{/Control}");
+        await screen.findAllByText(/could not be saved/);
+        vi.unstubAllGlobals();
+        offSaves();
+        assert.isEmpty(refusedSaves, "a refused Save is no save");
         await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Back to start" }));
         const recent = await screen.findByRole("gridcell", { name: /^SECRET_SAVED/ });

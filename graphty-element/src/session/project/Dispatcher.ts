@@ -434,6 +434,8 @@ export interface ExecutedCommand {
     readonly trigger?: JournalTrigger;
     /** The caller's own key for the work it belongs to. */
     readonly callerKey?: string;
+    /** The step its change was recorded in; absent when it recorded none. */
+    readonly step?: string;
 }
 
 /** One slot a queued command holds on the queue. */
@@ -2402,9 +2404,7 @@ export class Dispatcher {
         const { group } = job;
         group.jobs.delete(job);
         group.ops.push(job.command.op);
-        if (group.tx === null && !job.inline) {
-            this.seal(group);
-        }
+        const step = group.tx === null && !job.inline ? this.seal(group) : null;
 
         this.graphWriteEnded(job);
 
@@ -2420,6 +2420,7 @@ export class Dispatcher {
                 durationMs: this.clock() - job.startedAt,
                 ...(job.trigger === undefined ? {} : { trigger: job.trigger }),
                 ...(job.callerKey === undefined ? {} : { callerKey: job.callerKey }),
+                ...(step === null ? {} : { step }),
             };
             // A transaction member is published when the transaction records, and never when it
             // rolls back: what it did is undone then, so it did not happen.
@@ -2521,7 +2522,7 @@ export class Dispatcher {
         // was told to (`after`): its runs join that step, not one of their own beside it.
         const stepId = recorded ?? group.after;
         for (const done of group.executed.splice(0)) {
-            this.events.executed?.(done);
+            this.events.executed?.(recorded === null ? done : { ...done, step: recorded });
         }
         for (const job of runs) {
             const deferred = this.group(

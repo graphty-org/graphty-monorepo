@@ -19,7 +19,7 @@ import {
     type ProjectSaveReport,
 } from "@graphty/graphty-element/session";
 
-import { count } from "../../lib/analytics";
+import { count, graphSizeBucket } from "../../lib/analytics";
 import { forgetKeptWork } from "../autosave/autosave";
 import type { CommandContext } from "../commands/registry";
 import { openDataPage } from "../data-page/request";
@@ -683,7 +683,11 @@ async function openedProject(
     });
     // A file the reader picked or dropped counts as their own file; a Recent or browser-kept project is a reopen.
     if (pending.storedId === undefined && pending.recentId === undefined) {
-        count("own_file_opened", { format: "graphty", via: "file" });
+        count("own_file_opened", {
+            format: "graphty",
+            via: "file",
+            size: graphSizeBucket(session.data.statistics({ scope: "all" }).nodeCount),
+        });
     } else {
         count("project_reopened", { from: pending.recentId === undefined ? "browser" : "recent" });
     }

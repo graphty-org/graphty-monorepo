@@ -244,4 +244,25 @@ describe("usage counts for layout, filters and the timeline on the real element"
         assert.deepEqual(firstOnPage([...anonymous, ...posthog], "timeline_played"), [{}]);
         assert.notInclude(JSON.stringify({ anonymous, posthog }), "SECRET_MAIL");
     });
+
+    it("counts the press of Play and sends nothing for Pause", async () => {
+        const { session } = await openProject("graph");
+        // Two months of days: a play that is far from its end when Pause is pressed.
+        const days = Array.from({ length: 60 }, (_, i) =>
+            new Date(Date.UTC(2026, 0, 1 + i)).toISOString().slice(0, 10),
+        );
+        const csv = `source,target,sent\n${days.map((day, i) => `N${String(i)},N${String(i + 1)},${day}`).join("\n")}\n`;
+        await session.data.import({ type: "csv", name: "SECRET_MAIL.csv", config: { data: csv } });
+        await session.time.setField({ edges: { start: "sent" } });
+        await session.time.ready;
+        await session.time.setSettings({ step: "day" });
+        await userEvent.click(await screen.findByRole("button", { name: "Timeline" }));
+        const dock = await screen.findByRole("region", { name: "Timeline" });
+        await userEvent.click(within(dock).getByRole("button", { name: "Play" }));
+        await userEvent.click(await within(dock).findByRole("button", { name: "Pause" }));
+        await waitFor(() => {
+            assert.isFalse(session.time.playing);
+        });
+        assert.lengthOf(captured("timeline_played"), 1, "Play once, Pause nothing");
+    });
 });

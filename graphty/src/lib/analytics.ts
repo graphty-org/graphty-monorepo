@@ -279,6 +279,21 @@ export function sourceLoadedEvent(
 
 /** How an own file may be opened; a kind a later graphty-element adds is sent as "other". */
 const OPEN_VIA: ReadonlySet<string> = new Set<LoadedSourceKind>(["file", "url", "server", "join"]);
+/**
+ * A loaded graph's node count as its bucket.
+ * @param nodes - the nodes it holds.
+ * @returns "1-100", "101-1k", "1k-10k" or "10k+".
+ */
+export function graphSizeBucket(nodes: number): string {
+    if (nodes <= 100) {
+        return "1-100";
+    }
+    if (nodes <= 1000) {
+        return "101-1k";
+    }
+    return nodes <= 10_000 ? "1k-10k" : "10k+";
+}
+
 /** How a selection may be made; a way a later graphty-element adds is sent as "other". */
 export const SELECT_VIA: ReadonlySet<string> = new Set<NonNullable<SelectionDelta["via"]>>(["click", "box", "keys"]);
 

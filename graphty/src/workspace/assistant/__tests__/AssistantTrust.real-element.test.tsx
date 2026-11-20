@@ -1313,6 +1313,26 @@ describe("usage counts of the Assistant", () => {
         assert.notStrictEqual(approved.changed, "none", "the approved removal is this turn's change");
     });
 
+    it("counts the answer to a question as the answer step", async () => {
+        await openOn(3);
+        model.turns = [
+            calling("ask_reader", { question: "Which group?", choices: ["even", "odd"] }),
+            { text: "Odd it is.", toolCalls: [] },
+        ];
+        await say("Pick one");
+        await userEvent.click(await screen.findByRole("radio", { name: "odd" }));
+        await waitFor(() => {
+            assert.lengthOf(counted("assistant_used"), 1);
+        });
+        assert.deepInclude(counted("assistant_used")[0], { step: "message", outcome: "AI_QUESTION_ASKED" });
+        await userEvent.click(screen.getByRole("button", { name: "Answer" }));
+        await screen.findByText(/Odd it is\./);
+        await waitFor(() => {
+            assert.lengthOf(counted("assistant_used"), 2);
+        });
+        assert.deepInclude(counted("assistant_used")[1], { step: "answer", outcome: "AI_COMPLETED" });
+    });
+
     it("counts a failed turn by its result code", async () => {
         await openOn(3);
         model.setError(Object.assign(new Error("down"), { statusCode: 503 }));

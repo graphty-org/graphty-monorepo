@@ -255,7 +255,10 @@
                         </tr>
                         <tr>
                             <td><code>camera_saved</code></td>
-                            <td>That you saved a view. Never its name or the camera position.</td>
+                            <td>
+                                That you saved a view, or updated or duplicated one. Never its name or the camera
+                                position.
+                            </td>
                         </tr>
                         <tr>
                             <td><code>project_saved</code></td>
@@ -346,14 +349,16 @@
                     clicks, but where you click on the graph area goes into the click heatmap, as a position only.
                 </li>
                 <li>
-                    <b>What you do, by id only:</b> <code>command_run</code> and <code>command_failed</code> (the
-                    command's id and, when it failed, the error code); <code>graph_action</code> (the kind of change,
-                    such as a style, a filter or a note, never its contents or the note's text);
+                    <b>What you do, by id only:</b> <code>command_run</code> and
+                    <code>command_failed</code> (<code>command</code>: the command's id and, when it failed,
+                    <code>code</code>: the error code); <code>graph_action</code> (the kind of change, such as a filter
+                    or a note, never its contents or the note's text);
                     <code>canvas_selected</code> (<code>target</code>: node, edge, both or none; <code>count</code>: how
                     many, as <code>1</code>, <code>2-10</code> or <code>11+</code>; and <code>via</code>: whether by
                     click, box or keys); <code>nodes_dragged</code>; <code>source_expanded</code> (expanded or failed);
-                    <code>panel_opened</code> (the panel's id). Style edits, switching between 2D and 3D, entering VR or
-                    AR and saving a view are sent as the counts above, every time rather than once per page.
+                    <code>panel_opened</code> (<code>panel</code>: the panel's id). Style edits, switching between 2D
+                    and 3D, entering VR or AR and saving a view are sent as the counts above, every time rather than
+                    once per page.
                 </li>
                 <li><b>Page speed</b> (Web Vitals timings), and when you leave the page.</li>
                 <li>

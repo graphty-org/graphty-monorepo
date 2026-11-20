@@ -19,6 +19,7 @@ import type { ExecutedCommand } from "./project/Dispatcher";
 import { plainRecords } from "./project/recordMap";
 import { reportCaught } from "./project/strict";
 import type { EngineVersions } from "./runs/types";
+import type { HistoryStepId } from "./types";
 
 /** The identity of a journal entry. Opaque; unique within its session. */
 export type JournalId = string; // eslint-disable-line sonarjs/redundant-type-aliases -- the designed public name a run's journalId is typed by
@@ -73,6 +74,13 @@ export interface JournalEntry {
      * @since 3.40.0
      */
     readonly callerKey?: string;
+    /**
+     * The undo step (`session.history.steps`) the command's change went into, so a listener can
+     * read who made it from the step's `provenance`. Absent when the command recorded no step of
+     * its own, such as one that changed nothing.
+     * @since 3.40.0
+     */
+    readonly step?: HistoryStepId;
 }
 
 /** The record of the commands a session ran: `session.journal`. */
@@ -243,7 +251,7 @@ export function createJournal(options: {
             view = null;
             byId.clear();
         },
-        append({ command, value, coalesceKey, durationMs, trigger, callerKey }) {
+        append({ command, value, coalesceKey, durationMs, trigger, callerKey, step }) {
             const op = command.op as SessionCommand["op"];
             const entry: JournalEntry = Object.freeze({
                 id: `journal_${String(next++)}`,
@@ -257,6 +265,7 @@ export function createJournal(options: {
                 engine: options.engine,
                 ...(trigger === undefined ? {} : { trigger }),
                 ...(callerKey === undefined ? {} : { callerKey }),
+                ...(step === undefined ? {} : { step: step as HistoryStepId }),
             });
             if (coalesceKey !== null && list.at(-1)?.coalesceKey === coalesceKey) {
                 byId.delete((list.pop() as JournalEntry).id);

@@ -17,7 +17,7 @@ describe("privacy.html", () => {
         }
         const keys = new Set([...Object.values(EVENT_KEYS).flatMap((keys) => keys ?? []), "internal"]);
         for (const key of keys) {
-            assert.match(page, new RegExp(`\\b${key}\\b`), key);
+            assert.include(page, `<code>${key}</code>`, key);
         }
     });
 });

@@ -24,6 +24,7 @@ import {
     allowlisted,
     count,
     detail,
+    graphSizeBucket,
     isGraphActionOp,
     type LoadAllowlists,
     SELECT_VIA,
@@ -153,21 +154,6 @@ function countLoaded(session: GraphSession, loaded: SourceLoaded): void {
 }
 
 /**
- * A loaded graph's node count as its bucket.
- * @param nodes - the nodes it holds.
- * @returns "1-100", "101-1k", "1k-10k" or "10k+".
- */
-function graphSizeBucket(nodes: number): string {
-    if (nodes <= 100) {
-        return "1-100";
-    }
-    if (nodes <= 1000) {
-        return "101-1k";
-    }
-    return nodes <= 10_000 ? "1k-10k" : "10k+";
-}
-
-/**
  * A selection size as its bucket.
  * @param total - nodes plus edges selected.
  * @returns "0", "1", "2-10" or "11+".
@@ -271,16 +257,18 @@ function watchSession(session: GraphSession): () => void {
                 }
                 return;
             }
-            const newest = session.history.steps.at(-1);
-            if (entry.coalesceKey !== undefined && entry.coalesceKey === lastKey && newest?.id === lastStep) {
+            // The entry's own step says who made it; an entry that recorded none is no one's.
+            const step =
+                entry.step === undefined ? undefined : session.history.steps.find(({ id }) => id === entry.step);
+            if (entry.coalesceKey !== undefined && entry.coalesceKey === lastKey && entry.step === lastStep) {
                 return;
             }
-            const own = journalCount(entry, newest?.provenance.via === "assistant" ? "assistant" : undefined);
+            const own = journalCount(entry, step?.provenance.via === "assistant" ? "assistant" : undefined);
             if (own === null || (own === undefined && !isGraphActionOp(op))) {
                 return;
             }
             lastKey = entry.coalesceKey;
-            lastStep = newest?.id;
+            lastStep = entry.step;
             if (own === undefined) {
                 detail("graph_action", {
                     kind: entry.kind,

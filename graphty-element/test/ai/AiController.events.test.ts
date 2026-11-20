@@ -152,6 +152,23 @@ describe("AiController Events", () => {
         });
     });
 
+    describe("a turn that ends before it runs", () => {
+        it("ends with one ai-command-complete carrying its result", async () => {
+            const approval = await controller.resolveAiApproval("gone", { approve: true });
+            const answer = await controller.answerQuestion("gone", "yes");
+
+            const completes = emittedEvents.filter(
+                (e): e is AiCommandCompleteEvent => e.type === "ai-command-complete",
+            );
+            assert.strictEqual(approval.code, "AI_APPROVAL_STALE");
+            assert.strictEqual(answer.code, "AI_APPROVAL_STALE");
+            assert.deepStrictEqual(
+                completes.map((e) => e.result),
+                [approval, answer],
+            );
+        });
+    });
+
     describe("ai-command-error event", () => {
         it("emits ai-command-error with canRetry flag", async () => {
             mockProvider.setError(new Error("Network error"));

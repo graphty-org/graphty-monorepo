@@ -80,6 +80,8 @@ interface DraftHost {
     released(draft: Draft): void;
     /** For a draft prepared `onto: "graph"`: the graph as a join reads it. */
     joinGraph?(): JoinGraph;
+    /** Whether a join runs as source steps (the `source-steps` experiment), so only joins they express are suggested. */
+    joinsAsSteps?(): boolean;
     /**
      * For a draft prepared `onto: "graph"`: taken synchronously, as `importer` is; joins a table
      * onto the graph as one step.
@@ -144,7 +146,19 @@ const ROLES: Readonly<Record<"nodes" | "edges", ReadonlySet<string>>> = {
 };
 
 /** The choices a load keeps with it, for `data.reloadSource` to read the rows again the same way. */
-const KEPT_CHOICES = ["mapping", "unmatched", "duplicateIds", "kindIds", "directed"] as const;
+const KEPT_CHOICES = [
+    "mapping",
+    "unmatched",
+    "duplicateIds",
+    "kindIds",
+    "directed",
+    // The source-steps choices (experimental): kept only when given.
+    "key",
+    "type",
+    "space",
+    "edges",
+    "overlap",
+] as const;
 
 /**
  * The choices a load keeps, as `{ choices }`, or nothing when it was given none.
@@ -1159,7 +1173,12 @@ export class Draft implements LoadDraft {
                 roles.source === undefined || roles.target === undefined
                     ? undefined
                     : { source: roles.source.column, target: roles.target.column };
-            this.suggestion = suggestJoin(tableOf(read, held), host.joinGraph?.() ?? NO_GRAPH, endpoints);
+            this.suggestion = suggestJoin(
+                tableOf(read, held),
+                host.joinGraph?.() ?? NO_GRAPH,
+                endpoints,
+                host.joinsAsSteps?.() === true,
+            );
         }
 
         return this.suggestion;

@@ -788,7 +788,7 @@ export interface FeatureDescriptor {
 }
 
 // @public
-export type FeatureId = "assistant" | "data-management" | "location-map" | "cosmograph" | "file-styles" | "source-references" | "save-files-v2";
+export type FeatureId = "assistant" | "data-management" | "location-map" | "cosmograph" | "file-styles" | "source-steps" | "source-references" | "save-files-v2";
 
 // @public
 export const FEATURES: readonly FeatureDescriptor[];
@@ -1196,6 +1196,8 @@ export type GraphtyErrorCode =
 * A join names a clash rule that reads numbers (`min`, `max`, `mean`) for a column whose
 * incoming values are not all numbers (or, for `min` and `max`, ISO 8601 dates).
 * `details.column` and `details.rule` name them. The caller picks another rule for that column.
+* Under the source-steps experiment a step's merge refuses the same way, and `details.step`
+* also names the step.
 */
 | "E_CLASH_RULE_TYPE"
 /**
@@ -1741,6 +1743,40 @@ export type GraphtyErrorCode =
 * @since 3.40.0
 */
 | "E_NOT_SETTLED"
+/**
+* A load or a stage names an id space the element reserves (`graph:...`). `details.space` is
+* the space. The caller names another space. Experimental: the source-steps experiment.
+*/
+| "E_SPACE_RESERVED"
+/**
+* A key names nodes in more than one id space, so it names no one node. `details.key` is the
+* key, `details.spaces` the spaces holding it. The caller names the space, or the
+* `<space>:<key>` NodeId. Experimental: the source-steps experiment.
+*/
+| "E_AMBIGUOUS_ID"
+/**
+* Make an edge would add a staged source in the id space of the nodes it connects to, so its
+* nodes would meet them instead of being joined by edges. `details.source` and `details.space`
+* name them. The caller stages the source in another space. Experimental: the source-steps
+* experiment.
+*/
+| "E_JOIN_SPACE_SAME"
+/**
+* A merge or Make an edge reads node rows the source does not hold. `details.source` is the
+* source. Experimental: the source-steps experiment.
+*/
+| "E_STEP_NEEDS_NODES"
+/**
+* An edit, pick or rename names a column a key, an end, a role, a type rule or a step reads.
+* `details.column` is the column. Experimental: the source-steps experiment.
+*/
+| "E_EDIT_ROLE_COLUMN"
+/**
+* A role setter that names no source could mean several built sources: each carries the
+* column and can carry the role. `details.sources` lists them; the caller names one with the
+* setter's `source` option. Experimental: the source-steps experiment.
+*/
+| "E_ROLE_TARGET_AMBIGUOUS"
 /**
 * A recording (`captureAnimation`) was canceled: its `signal` aborted, or
 * `cancelAnimationCapture()` or `cancelCameraAnimation()` was called. No file is made. Thrown as
@@ -2708,6 +2744,14 @@ export type ScopeInput = Exclude<Scope, {
     define: unknown;
 }> | {
     define: SetDefinitionInput;
+}
+/**
+* Under the `source-steps` experiment: the nodes whose one type (`graphty.type`) is listed and
+* the edges between them. Read back as its canonical `{ where }` on `graphty.type`.
+* Experimental: may change or be removed in a minor release.
+*/
+| {
+    types: readonly string[];
 };
 
 // @public
@@ -2817,6 +2861,21 @@ export type Selector = {
     reach?: "node" | "neighbors";
     invert?: boolean;
     orSelected?: boolean;
+}
+/**
+* The elements of some types, under the `source-steps` experiment: those whose one type
+* (the readable path `graphty.type`) is listed, such as the accounts of a graph of accounts and
+* merchants. Refused with `E_FEATURE_OFF` while the experiment is off.
+*
+* ```ts
+* session.styles.add({ name: "Accounts", target: "node",
+*     selector: { match: "type", types: ["account"] }, set: { "node.color": "#4c6ef5" } });
+* ```
+* Experimental: may change or be removed in a minor release.
+*/
+| {
+    match: "type";
+    types: readonly string[];
 };
 
 // @public

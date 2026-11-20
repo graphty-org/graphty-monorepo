@@ -8,7 +8,7 @@
 
 import type { GraphtyErrorCode } from "../../../errors/codes";
 import { GraphtyError } from "../../../errors/GraphtyError";
-import { copyKey, isStaged, mintPart, nodeSpace, ownSpace, tableRows } from "./build";
+import { copyKey, isStaged, mintPart, nodeSpace, ownSpace, stepSources, tableRows } from "./build";
 import {
     addSource,
     buildOf,
@@ -105,6 +105,8 @@ export type StepsAct =
           readonly source: string;
       }
     | { readonly act: "remove-step"; readonly index: number }
+    /** Move one step to another place in the build order (an edited act keeps its step's place). */
+    | { readonly act: "move-step"; readonly index: number; readonly to: number }
     /** Turn one step off (kept and listed, not built) or back on (7.13). */
     | { readonly act: "set-step-off"; readonly index: number; readonly off: boolean }
     | { readonly act: "add-staged"; readonly source: string; readonly overlap?: "separate" | "merge" }
@@ -621,6 +623,41 @@ function removeStep(value: SourceSteps, index: number): SourceSteps {
 }
 
 /**
+ * Move one step to another place in the build order: the steps between shift by one. Refused when
+ * a step would read a source before the step that adds it.
+ * @param value - The value.
+ * @param index - The step's place.
+ * @param to - Its new place.
+ * @returns The next value.
+ */
+function moveStep(value: SourceSteps, index: number, to: number): SourceSteps {
+    const step = value.steps[index] as Step | undefined;
+    if (step === undefined) {
+        throw refused("E_BAD_COMMAND", `No step at ${String(index)}.`, { reason: "no-step", index });
+    }
+    if (!Number.isInteger(to) || to < 0 || to >= value.steps.length) {
+        throw refused("E_BAD_COMMAND", `No place ${String(to)} to move a step to.`, { reason: "no-step", index: to });
+    }
+    const steps = value.steps.filter((_, i) => i !== index);
+    steps.splice(to, 0, step);
+    const next: SourceSteps = { ...value, steps };
+    const adds = new Set(steps.flatMap((s) => (s.op === "join.add" ? [s.source] : [])));
+    const added = new Set<string>();
+    for (const s of steps) {
+        if (s.op === "join.add") {
+            added.add(s.source);
+        } else if (stepSources(s, next).some((id) => adds.has(id) && !added.has(id))) {
+            throw refused("E_BAD_COMMAND", `Step ${String(index)} cannot come before the source it reads.`, {
+                reason: "order",
+                index,
+                to,
+            });
+        }
+    }
+    return next;
+}
+
+/**
  * Turn one step off or back on (7.13): an off step is kept, listed and saved but not built; on, it
  * builds again, and a source whose only steps were off is built with it.
  * @param value - The value.
@@ -703,6 +740,8 @@ export function applyAct(value: SourceSteps, act: StepsAct, copies: Copies): Sou
         }
         case "set-step-off":
             return setStepOff(value, act.index, act.off);
+        case "move-step":
+            return moveStep(value, act.index, act.to);
         case "set-mapping":
             if (!isStaged(value, sourceOf(value, act.source).id)) {
                 throw refused("E_BAD_COMMAND", `Source ${act.source} is not staged.`, {

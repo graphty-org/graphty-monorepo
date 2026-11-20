@@ -3642,6 +3642,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             use: DRAFT_ACT,
             editStep: DRAFT_ACT,
             removeStep: DRAFT_ACT,
+            moveStep: DRAFT_ACT,
             removeSource: DRAFT_ACT,
             removeEdit: DRAFT_ACT,
             setMapping: DRAFT_ACT,

@@ -1,5 +1,5 @@
 import type { GraphSession, SourceStepRow } from "@graphty/graphty-element/session";
-import { ActionIcon, Button, Group, Kbd, Stack, Text, Tooltip } from "@mantine/core";
+import { ActionIcon, Badge, Button, Group, Kbd, Stack, Text, Tooltip } from "@mantine/core";
 import React from "react";
 
 import { sourceName } from "../data-place/words";
@@ -9,7 +9,7 @@ import { useWorkspace } from "../state/WorkspaceContext";
 import { spaceLabel } from "./join";
 import { DELETE_KEY } from "./keys";
 import { openEditStep, openRemove } from "./steps";
-import { actWords, missingWords, OP_WORDS, STEP_WORDS, stepCountWords, stepWords } from "./words";
+import { actWords, missingWords, OP_WORDS, STEP_WORDS, stepCountShortWords, stepCountWords, stepWords } from "./words";
 
 /**
  * One Steps row: its number, source, kind and counts, Off with what it misses, Edit on a join step
@@ -44,18 +44,35 @@ function StepRow({
                 }
             }}
         >
-            <Group gap={6} wrap="nowrap">
+            <Group gap={4} wrap="nowrap">
                 <Text size="xs" c="dimmed" w={16}>
                     {row.index + 1}
                 </Text>
                 <Text size="xs" fw={600}>
                     {OP_WORDS[row.op]}
                 </Text>
-                <Text size="xs" c="dimmed" truncate style={{ flex: 1, minWidth: 0 }}>
-                    {name}
-                </Text>
-                {row.act === null ? null : (
-                    <Text size="xs" truncate style={{ flex: 1, minWidth: 0 }} aria-label={`${label} joins`}>
+                {/* The source as a one-letter badge, its name on hover, so the row has room for what it joined. */}
+                <Tooltip label={name}>
+                    <Badge
+                        size="xs"
+                        variant="light"
+                        radius="sm"
+                        px={4}
+                        style={{ flex: "none" }}
+                        aria-label={`${label} source ${name}`}
+                    >
+                        {name.charAt(0).toUpperCase()}
+                    </Badge>
+                </Tooltip>
+                {row.act === null ? (
+                    <span style={{ flex: 1 }} />
+                ) : (
+                    // What the step joined tells two joins from one source apart: it wraps, never cut off.
+                    <Text
+                        size="xs"
+                        style={{ flex: 1, minWidth: 0, overflowWrap: "anywhere" }}
+                        aria-label={`${label} joins`}
+                    >
                         {actWords(row.act, spaceLabel(session, row.act.into.space))}
                     </Text>
                 )}
@@ -64,9 +81,11 @@ function StepRow({
                         {[STEP_WORDS.off, ...row.missing.map((issue) => missingWords(issue))].join(", ")}
                     </Text>
                 ) : (
-                    <Text size="xs" aria-label={`${label} counts`}>
-                        {stepCountWords(row)}
-                    </Text>
+                    <Tooltip label={stepCountWords(row)}>
+                        <Text size="xs" style={{ flex: "none" }} aria-label={`${label} counts`}>
+                            {stepCountShortWords(row)}
+                        </Text>
+                    </Tooltip>
                 )}
                 {row.act === null ? null : (
                     <Tooltip label={STEP_WORDS.edit}>

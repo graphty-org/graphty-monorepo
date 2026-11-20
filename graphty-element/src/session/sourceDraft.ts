@@ -418,7 +418,23 @@ export class SourceDraftHandle implements SourceDraft {
     }
 
     /** @inheritdoc */
+    moveStep(index: number, to: number): void {
+        this.stepsAct("moveStep", { act: "move-step", index, to });
+    }
+
+    /** @inheritdoc */
     removeSource(source: SourceKey): void {
+        this.live("removeSource");
+        if (this.state.value.sources[source] === undefined) {
+            // A source a file saved without the experiment brought in: the steps do not build it,
+            // so only data.removeSource takes it out.
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: `The steps do not read ${JSON.stringify(source)}: data.removeSource takes it out.`,
+                source: "data",
+                details: { reason: "not-in-steps", source },
+            });
+        }
         this.edit("removeSource", { kind: "remove-source", id: source });
     }
 

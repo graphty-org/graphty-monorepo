@@ -6,7 +6,12 @@
  * `data.edits()`, the draft's `preview()`).
  */
 
-import type { GraphSession, SourceKey, SourceStepAct } from "@graphty/graphty-element/session";
+import {
+    type GraphSession,
+    isGraphtyError,
+    type SourceKey,
+    type SourceStepAct,
+} from "@graphty/graphty-element/session";
 
 import type { JoinRepeats, StepCardState, WorkspaceStore } from "../state/store";
 import { panelsInView } from "../time/timeActions";
@@ -87,14 +92,17 @@ export async function openEditStep(workspace: WorkspaceStore, session: GraphSess
  * @param workspace - the workspace store.
  * @param session - the element's session.
  * @param remove - the step or the source.
+ * @param asBefore - removes a source no step reads, which the draft refuses, as with the
+ *   experiment off.
  * @returns settles once the draft is drawn.
  */
 export async function openRemove(
     workspace: WorkspaceStore,
     session: GraphSession,
     remove: StepCardState["remove"],
+    asBefore?: () => Promise<void>,
 ): Promise<void> {
-    if (busy(workspace, session, () => openRemove(workspace, session, remove))) {
+    if (busy(workspace, session, () => openRemove(workspace, session, remove, asBefore))) {
         return;
     }
     const draft = session.data.draft();
@@ -106,6 +114,10 @@ export async function openRemove(
         }
     } catch (error) {
         draft.dispose();
+        if (asBefore !== undefined && isGraphtyError(error) && error.details.reason === "not-in-steps") {
+            await asBefore();
+            return;
+        }
         workspace.set({ notice: { message: refusedWords(error), error: true } });
         return;
     }

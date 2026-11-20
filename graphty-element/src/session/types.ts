@@ -5520,8 +5520,27 @@ export interface SourceDraft {
      */
     removeStep(index: number): void;
     /**
+     * Move one step to another place in the build order; the steps between shift by one. Editing a
+     * step's field or act removes it and makes the new act, which lands last: moving it back keeps
+     * the step's place.
+     *
+     * ```ts
+     * draft.removeStep(2);
+     * draft.connect({ from: { source: entries, field: "badge" }, into: { space: "person" } });
+     * draft.moveStep(draft.steps().length - 1, 2);
+     * ```
+     * @param index - The step's place, as {@link SourceDraft.steps} lists it.
+     * @param to - Its new place.
+     * @throws A `GraphtyError` with `E_BAD_COMMAND`: `details.reason` `"no-step"` for no such place,
+     *   `"order"` when a step would read a source before the step that adds it.
+     */
+    moveStep(index: number, to: number): void;
+    /**
      * Take out one source and every step that reads it.
      * @param source - The source.
+     * @throws A `GraphtyError` with `E_BAD_COMMAND`, `details.reason` `"not-in-steps"`, for a
+     *   source no step reads, such as one a file saved without the source-steps experiment brought
+     *   in: `data.removeSource` takes that one out.
      */
     removeSource(source: SourceKey): void;
     /**

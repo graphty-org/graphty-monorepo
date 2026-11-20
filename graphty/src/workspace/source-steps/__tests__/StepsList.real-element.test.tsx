@@ -14,13 +14,13 @@
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
-import type { GraphSession, SourceClashRule } from "@graphty/graphty-element/session";
+import { createGraphSession, type GraphSession, type SourceClashRule } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
-import { stepCountWords } from "../words";
+import { stepCountShortWords, stepCountWords } from "../words";
 import { choose, emptyProject } from "./sourceSteps";
 
 withFeatures(["source-steps"]);
@@ -131,13 +131,13 @@ describe("Steps and Reader edits (source-steps)", () => {
             const item = within(list).getByRole("listitem", { name: `Step ${String(row.index + 1)}` });
             assert.strictEqual(
                 within(item).getByLabelText(`Step ${String(row.index + 1)} counts`).textContent,
-                stepCountWords(row),
+                stepCountShortWords(row),
                 "the element's counts",
             );
         }
         const edgeItem = within(list).getByRole("listitem", { name: "Step 3" });
         assert.include(edgeItem.textContent ?? "", "Edges");
-        assert.include(edgeItem.textContent ?? "", "5 edges", "E1, E2, E3, E5 and E6");
+        assert.include(edgeItem.textContent ?? "", "5 e", "E1, E2, E3, E5 and E6");
         assert.strictEqual(
             within(edgeItem).getByLabelText("Step 3 joins").textContent,
             "badge -> person",
@@ -179,7 +179,7 @@ describe("Steps and Reader edits (source-steps)", () => {
         const list = await stepsList();
         const item = await within(list).findByRole("listitem", { name: label });
         assert.strictEqual(within(item).getByLabelText(`${label} joins`).textContent, "badge -> people.csv");
-        assert.strictEqual(within(item).getByLabelText(`${label} counts`).textContent, "5 edges");
+        assert.strictEqual(within(item).getByLabelText(`${label} counts`).textContent, "5 e");
         const box = list.getBoundingClientRect();
         for (const name of [`Edit ${label}`, `Delete ${label}`]) {
             const button = within(item).getByRole("button", { name });
@@ -198,6 +198,35 @@ describe("Steps and Reader edits (source-steps)", () => {
             "Edges entries.csv badge -> people.csv",
         );
         await userEvent.keyboard("{Escape}");
+    });
+
+    it("two joins from one source show what each joined, unclipped, at the default panel width", async () => {
+        const { session } = await withPeople();
+        const entries = await joinEntries(session);
+        const buildings = await session.data.stage(
+            { type: "csv", config: { data: "door,building\nD1,North\nD2,South\nD3,North" }, name: "buildings.csv" },
+            { key: "door", type: "door" },
+        );
+        await session.data.add(buildings);
+        const draft = session.data.draft();
+        draft.connect({ from: { source: entries, field: "door" }, into: { source: buildings, field: "door" } });
+        await draft.commit();
+        const joins = session.data.steps().filter((row) => row.op === "join.edges");
+        assert.lengthOf(joins, 2);
+        assert.isTrue(
+            joins.every((row) => row.source === entries),
+            "both joins read entries.csv",
+        );
+        const list = await stepsList();
+        const texts = await waitFor(() =>
+            joins.map((row) => {
+                const act = within(list).getByLabelText(`Step ${String(row.index + 1)} joins`);
+                assert.isAbove(act.clientWidth, 0);
+                assert.isAtMost(act.scrollWidth, act.clientWidth, `${act.textContent ?? ""} is not cut off`);
+                return act.textContent;
+            }),
+        );
+        assert.notStrictEqual(texts[0], texts[1], "the two joins read apart");
     });
 
     it("Remove on the untyped source other steps join onto lists the later steps whose counts drop", async () => {
@@ -299,6 +328,12 @@ describe("Steps and Reader edits (source-steps)", () => {
     it("Edit on the edge step with the direction changed makes the new act in place of the step, one undo step", async () => {
         const { session } = await withPeople();
         await joinEntries(session);
+        // A later step, so the edited one has a step after it whose place must not change.
+        await mergeHr(session, "keep");
+        const order = session.data.steps().map((row) => `${row.op} ${row.source}`);
+        assert.strictEqual(session.data.steps()[2]?.op, "join.edges");
+        assert.strictEqual(session.data.steps().at(-1)?.op, "join.merge");
+        const direction = session.data.steps()[2]?.act?.direction;
         const edges = (): string[] =>
             session.data
                 .edges()
@@ -327,7 +362,13 @@ describe("Steps and Reader edits (source-steps)", () => {
         assert.strictEqual(session.history.steps.length, steps + 1, "one undo step");
         const turned = before.map((pair) => pair.split("->").reverse().join("->")).sort();
         assert.deepStrictEqual(edges(), turned, "every edge runs the other way");
-        assert.lengthOf(session.data.steps(), 3, "the new act took the old step's place");
+        const after = session.data.steps();
+        assert.deepStrictEqual(
+            after.map((row) => `${row.op} ${row.source}`),
+            order,
+            "the new act took the old step's place and HR's merge still comes after it",
+        );
+        assert.notStrictEqual(after[2]?.act?.direction, direction, "step 3 is the edited act");
     });
 
     it("a pick is listed under Reader edits (R), and its Delete takes it back", async () => {
@@ -406,6 +447,28 @@ describe("Steps and Reader edits (source-steps)", () => {
             assert.isTrue(sourcesHold(session, people));
         });
         assert.strictEqual(session.data.statistics({ scope: "all" }).nodeCount, nodes, "every node is back");
+    });
+
+    it("Remove on a source from a file saved with the experiment off takes its nodes out", async () => {
+        const off = createGraphSession({ features: [] });
+        await off.data.import({ type: "csv", config: { data: "source,target\na,b\nb,c" }, name: "links.csv" });
+        const { text } = await off.project.save();
+        off.dispose();
+        await page.viewport(1440, 900);
+        const { session, store } = await emptyProject();
+        await session.project.open(text);
+        store.set({ dockOpen: false, dockMaximized: false });
+        assert.lengthOf(session.data.steps(), 0, "no step builds it");
+        assert.isAbove(session.data.statistics({ scope: "all" }).nodeCount, 0);
+        const row = await screen.findByRole("listitem", { name: "links.csv" });
+        await userEvent.click(within(row).getByRole("button", { name: "links.csv menu" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Remove" }));
+        await waitFor(() => {
+            assert.lengthOf(session.data.sources(), 0);
+        });
+        assert.strictEqual(session.data.statistics({ scope: "all" }).nodeCount, 0, "its nodes go with it");
+        assert.isNull(screen.queryByRole("form", { name: "Remove links.csv" }), "no step card on a wrong preview");
+        assert.isNull(session.data.currentDraft());
     });
 
     it("after an Undo, deleting a step still shows its notice with Undo", async () => {

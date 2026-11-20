@@ -491,6 +491,32 @@ export function stepChangedWords(index: number, op: SourceStepRow["op"], before:
 }
 
 /**
+ * A step's counts as its Steps row shows them, short so the row keeps room for what it joined:
+ * "n" nodes, "e" edges, "m" merged.
+ * @param row - the step.
+ * @returns such as "3 n, 4 e", "3 m", or "" when it was not built.
+ */
+export function stepCountShortWords(row: SourceStepRow): string {
+    const { buckets } = row;
+    if (buckets === null) {
+        return "";
+    }
+    switch (row.op) {
+        case "join.add":
+            return [
+                `${formatNumber(buckets.newNodes)} n`,
+                ...(buckets.newEdges > 0 ? [`${formatNumber(buckets.newEdges)} e`] : []),
+            ].join(", ");
+        case "join.merge":
+            return `${formatNumber(buckets.merged)} m`;
+        case "join.edges":
+            return `${formatNumber(buckets.newEdges)} e`;
+        default:
+            return formatNumber(buckets.matched);
+    }
+}
+
+/**
  * A Steps row's counts, from the step's buckets in the committed build.
  * @param row - the step.
  * @returns such as "3 nodes, 4 edges", "3 merged", or "" when it was not built.

@@ -17,6 +17,7 @@ import {
     type SourceDraftPreviewStep,
     type SourceDraftRow,
     type SourceElementRef,
+    type SourceMatchPair,
     type SourcePickAllOptions,
     type SourceStepPatch,
 } from "@graphty/graphty-element/session";
@@ -45,6 +46,53 @@ export function canPreview(card: JoinCardState): boolean {
 }
 
 /**
+ * Makes the card's act in the draft with its choices. Editing a committed step, the draft removes
+ * that step first and the new act takes its place.
+ * @param session - the element's session.
+ * @param draft - the open draft.
+ * @param card - the card.
+ * @param pair - its two fields.
+ * @returns the step it made, or undefined when it made none.
+ * @throws What the draft throws for a refused act.
+ */
+function makeAct(
+    session: GraphSession,
+    draft: SourceDraft,
+    card: JoinCardState,
+    pair: SourceMatchPair,
+): number | undefined {
+    const matching = { ignoreCase: card.ignoreCase, ignoreSpaces: card.ignoreSpaces };
+    const op = card.act === "edge" ? "join.edges" : "join.merge";
+    // Editing a committed step with a field or the act changed: the step goes, the new act comes.
+    if (card.editing !== null) {
+        draft.removeStep(card.editing);
+    }
+    if (card.act === "edge") {
+        draft.connect({
+            ...pair,
+            ...matching,
+            direction: card.reversed ? "from-into" : "into-from",
+            ...(card.edgeType === "" ? {} : { edgeType: card.edgeType }),
+        });
+    } else {
+        draft.merge({ ...pair, ...matching, unmatchedFrom: card.unmatchedFrom });
+    }
+    // The draft holds only this act, so its last step of the op is the one it made (an edge from a
+    // column of source 1 reads source 1's rows, not source 2's).
+    let step = draft.steps().findLast((row) => row.op === op)?.index;
+    // An edited step's new act takes the step's place, so the steps after it still come after it.
+    if (card.editing !== null && step !== undefined && step !== card.editing) {
+        draft.moveStep(step, card.editing);
+        step = card.editing;
+    }
+    // Repeats other than First (the element's own default) are the step's to settle.
+    if (step !== undefined && card.act === "merge" && card.repeated !== "first") {
+        draft.editStep(step, repeatsPatch(session, card, card.repeated));
+    }
+    return step;
+}
+
+/**
  * Preview (Shift+P): opens a draft, makes the card's act in it with its choices, and draws it on
  * the graph (After first). Editing a committed step, the draft removes that step first. A refusal
  * discards the draft and says so.
@@ -62,31 +110,9 @@ export async function startPreview(workspace: WorkspaceStore, session: GraphSess
         return;
     }
     const draft = session.data.draft();
-    const matching = { ignoreCase: card.ignoreCase, ignoreSpaces: card.ignoreSpaces };
-    const op = card.act === "edge" ? "join.edges" : "join.merge";
     let step: number | undefined;
     try {
-        // Editing a committed step with a field or the act changed: the step goes, the new act comes.
-        if (card.editing !== null) {
-            draft.removeStep(card.editing);
-        }
-        if (card.act === "edge") {
-            draft.connect({
-                ...pair,
-                ...matching,
-                direction: card.reversed ? "from-into" : "into-from",
-                ...(card.edgeType === "" ? {} : { edgeType: card.edgeType }),
-            });
-        } else {
-            draft.merge({ ...pair, ...matching, unmatchedFrom: card.unmatchedFrom });
-        }
-        // The draft holds only this act, so its last step of the op is the one it made (an edge from a
-        // column of source 1 reads source 1's rows, not source 2's).
-        step = draft.steps().findLast((row) => row.op === op)?.index;
-        // Repeats other than First (the element's own default) are the step's to settle.
-        if (step !== undefined && card.act === "merge" && card.repeated !== "first") {
-            draft.editStep(step, repeatsPatch(session, card, card.repeated));
-        }
+        step = makeAct(session, draft, card, pair);
     } catch (error) {
         draft.dispose();
         workspace.set({ notice: { message: refusedWords(error), error: true } });

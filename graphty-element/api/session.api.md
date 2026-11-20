@@ -7454,6 +7454,7 @@ export interface SourceDraft {
     matchValues(pair: SourceMatchPair, options?: SourceMatchValuesOptions): SourceMatchValues;
     merge(options: SourceMergeOptions): void;
     moveColumns(source: SourceKey, options: SourceMoveColumnsOptions): void;
+    moveStep(index: number, to: number): void;
     readonly open: boolean;
     pick(ref: SourceElementRef, column: string, source: SourceKey): void;
     pickAll(options: SourcePickAllOptions): number;

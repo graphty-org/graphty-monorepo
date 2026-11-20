@@ -1274,6 +1274,7 @@ export const READ_ONLY: readonly string[] = [
     "SourceDraft.import",
     "SourceDraft.merge",
     "SourceDraft.moveColumns",
+    "SourceDraft.moveStep",
     "SourceDraft.pick",
     "SourceDraft.removeEdit",
     "SourceDraft.removeSource",

@@ -93,6 +93,7 @@ function actSource(act: StepsAct): string | null {
         case "rename":
             return act.rename.source;
         case "remove-step":
+        case "move-step":
         case "set-step-off":
             return null;
         default:
@@ -109,6 +110,7 @@ const ACT_LABELS: Readonly<Record<StepsAct["act"], string>> = {
     rename: "Renamed a column",
     pick: "Picked a value",
     "remove-step": "Deleted a step",
+    "move-step": "Moved a step",
     "set-step-off": "Turned a step off or on",
     "add-staged": "Added a staged source",
     "set-mapping": "Changed a staged source's mapping",

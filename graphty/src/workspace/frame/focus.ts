@@ -309,7 +309,7 @@ interface Held {
  */
 function saysOf(element: HTMLElement): string {
     const label = (element as HTMLInputElement).labels?.[0]?.textContent;
-    const name = element.getAttribute("aria-label") ?? label ?? element.textContent ?? "";
+    const name = element.getAttribute("aria-label") ?? label ?? element.textContent;
     const trimmed = name.replaceAll(/\s+/g, " ").trim().slice(0, 80);
     return trimmed === "" ? "" : `${element.tagName}|${element.getAttribute("role") ?? ""}|${trimmed}`;
 }
@@ -408,6 +408,7 @@ export function installFocusGuard(): () => void {
         }
     };
     let pending = 0;
+    let queued: ReturnType<typeof setTimeout> | undefined;
     const observer = new MutationObserver((records) => {
         // A view drawn again in place can select another tab under the focused one (a new view
         // opens on Values): the ring follows the selection, never resting on an unselected tab.
@@ -425,8 +426,9 @@ export function installFocusGuard(): () => void {
             return;
         }
         pending = requestAnimationFrame(() => {
-            setTimeout(() => {
+            queued = setTimeout(() => {
                 pending = 0;
+                queued = undefined;
                 rescue(history);
             });
         });
@@ -442,6 +444,8 @@ export function installFocusGuard(): () => void {
     return () => {
         observer.disconnect();
         cancelAnimationFrame(pending);
+        // The frame may have run already and queued the rescue: a stopped guard moves no focus.
+        clearTimeout(queued);
         document.removeEventListener("focusin", onFocusIn, true);
         document.removeEventListener("keydown", onKeyDown);
     };

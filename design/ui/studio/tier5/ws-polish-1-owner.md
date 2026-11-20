@@ -142,7 +142,7 @@ Every finding below was seen on screen, or read in the code where a cause is nam
 - **Fix:**
     - Keep the camera, but frame the preview's visible rectangle on open when the drawn graph's
       bounds fall more than a quarter outside it. This is one camera move, undoable, and it
-      matches what Fit does. Otherwise, show Fit as a labelled button, not an unlabelled corner
+      matches what Fit does. Otherwise, show Fit as a labeled button, not an unlabeled corner
       control.
     - Have graphty-element draw the group colors as one batch for the preview, or keep the key
       marked "Computing" until the repaint has settled, so the key never states a picture that is

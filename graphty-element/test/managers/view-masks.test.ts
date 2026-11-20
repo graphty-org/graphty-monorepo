@@ -1,5 +1,5 @@
 /**
- * The renderer honouring the session's two masks.
+ * The renderer honoring the session's two masks.
  *
  * What is under test is the pass that brings the meshes into line with the selection mask and the
  * visibility mask: which render state each element lands in, that `showContext` turns a hidden

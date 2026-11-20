@@ -4,7 +4,7 @@
  * maskNot), plus the E_MASK_LENGTH check that filterEdges() and inducedSubgraph({ mask }) apply
  * to a caller's mask. A NodeMask / EdgeMask is the same layout as a validity bitmap and a bool column
  * (decision C13): ceil(length / 32) Uint32Array words, LSB-first, bit i set means index i is included.
- * Masks are not part of the snapshot contract; no kernel is required to honour one.
+ * Masks are not part of the snapshot contract; no kernel is required to honor one.
  */
 
 import {

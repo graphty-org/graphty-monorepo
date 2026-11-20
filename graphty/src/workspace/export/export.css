@@ -25,6 +25,14 @@
     border-top: 1px solid var(--mantine-color-default-border);
 }
 
+/* A camera's Export image... or a tour's Export video...: the one output, its footer below it. */
+.ws-export-single {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    max-height: calc(100dvh - 184px);
+}
+
 .ws-export-main {
     min-height: 0;
     overflow: hidden auto;
@@ -110,6 +118,13 @@
     display: flex;
     flex-wrap: wrap;
     align-items: center;
+    gap: 4px;
+}
+
+/* The recording's bar and the stop it is on, under the fields. */
+.ws-export-progress {
+    display: flex;
+    flex-direction: column;
     gap: 4px;
 }
 

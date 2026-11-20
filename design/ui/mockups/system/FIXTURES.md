@@ -118,13 +118,13 @@ the real edge list rather than chosen.
 
 9 + 6 + 3 + 3 = 21 internal edges; the other 8 of the 29 cross groups.
 Group 4 is the only triangle in the graph, which is why its density is 1.00.
-The canvas colouring on GroupProfilePopout and ExplorerAfterCard already draws
+The canvas coloring on GroupProfilePopout and ExplorerAfterCard already draws
 exactly these four sets.
 
 **Group 1 is pinned independently** by three drawn numbers, and no other
 seven-node set satisfies them: internal hubs Mrs_Henderson 4, Garbage_Bandit 3,
 Shadow_Ninja 3 (links inside the group). Mrs_Henderson can reach 4 only if all
-four of her neighbours are in; Garbage_Bandit then needs Shadow_Ninja;
+four of her neighbors are in; Garbage_Bandit then needs Shadow_Ninja;
 Shadow_Ninja then needs Ghost_Cat. Every other drawn Group 1 number then
 checks out against that set:
 
@@ -425,7 +425,7 @@ makes it legible rather than contradictory.
   "on 38% of the shortest paths", approximate, 100 samples, seed 4171, 81% of
   nodes score zero or near zero.
 - The iPad board draws a different, smaller file, `security-events-41k.csv`:
-  41,200 nodes, 212,000 edges; DC01 has 12,412 neighbours; rings hold 29,300
+  41,200 nodes, 212,000 edges; DC01 has 12,412 neighbors; rings hold 29,300
   and 11,900 collapsed, and 29,300 + 11,900 = 41,200.
 
 ---
@@ -440,7 +440,7 @@ new defects.
    65,000/260,000/12 MB; Road network Oahu 62,000/81,000/9.8 MB), and its
    fifth slot alternates between College football (115/613, stable) and
    Airline routes (235/2,101 with one blurb, 235/1,297 with another). These
-   are catalogue entries, not the three datasets this document owns, and the
+   are catalog entries, not the three datasets this document owns, and the
    blurbs differ enough that they may be genuinely different files. Whoever
    owns the component inventory should settle the slot, and then one edge
    count per entry.

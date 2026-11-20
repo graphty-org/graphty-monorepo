@@ -11,7 +11,7 @@
  * claim `atomicMin(&depth[v], level + 1)`, the winners packed into the next vertex queue), `bfs-fused` (one workgroup
  * per frontier entry with the same claim inline and no edge queue; the fused level and the retry alike), then the
  * bottom-up trio: a `fill` zeroing the frontier bitset, `bfs-bitset-build` setting the frontier's bits, and
- * `bfs-bottom-up` sweeping the unvisited list over the REVERSE core (each unvisited vertex reads its in-neighbours
+ * `bfs-bottom-up` sweeping the unvisited list over the REVERSE core (each unvisited vertex reads its in-neighbors
  * until the first one in the bitset and claims itself), and last `bfs-next-degree` (the out-degree sum of whatever
  * the level claimed, into the block's `nextDegreeSum` word, while their in-degrees leave `unvisitedDegreeSum`: Beamer's m_f for the NEXT boundary, measured on the
  * frontier that boundary decides for -- issue #391, which found the previous proxy, the degree of the frontier just
@@ -30,7 +30,7 @@
  * without recompiling; the block's `fusedLevels` / `twoPhaseLevels` / `bottomUpLevels` / `overflowLevels` /
  * `switches` words record which path each level took.
  *
- * There is no dedupe: the edge queue holds duplicates -- a vertex with three frontier neighbours
+ * There is no dedupe: the edge queue holds duplicates -- a vertex with three frontier neighbors
  * appears three times -- but for one level exactly one invocation observes `INVALID_INDEX` at `depth[v]` and
  * exactly that one appends `v`, so the next vertex frontier is duplicate-free by construction and an ownership
  * dedupe would have nothing to remove. `parent` is not written by the claim: `sssp-pred` in `MODE 1` runs
@@ -41,7 +41,7 @@
  * into one staging slot, so a traversal maps `ceil(levels / 32) + 1` buffers in all.
  *
  * `maxDepth` reaches the device as a `u32` field of `FrontierParams`, and the uniform writer refuses anything that
- * is not an integer in `[0, 2^32 - 1]`; the host therefore normalises it first, to exactly the CPU port's rule
+ * is not an integer in `[0, 2^32 - 1]`; the host therefore normalizes it first, to exactly the CPU port's rule
  * (`algorithms/src/indexed/bfs.ts`: a node at depth `d >= maxDepth` is reached and not expanded, unbounded when
  * absent). The tuning entry `bfsWithTuning` is what the tests drive; nothing public exposes it.
  *
@@ -275,7 +275,7 @@ function checkBfsArgs(source: number, n: number, tuning: BfsTuning): number {
 }
 
 /**
- * The core the bottom-up sweep walks in-neighbours over: on an undirected snapshot the forward core itself
+ * The core the bottom-up sweep walks in-neighbors over: on an undirected snapshot the forward core itself
  * (graph-format invariant I7; P7's residency aliases them, so a windowed core's windows ARE the reverse's), on a
  * directed one the reverse view, bound whole while its colIdx fits one binding and as a windowed core above that
  * (issue #471), so the sweep runs once per reverse window.
@@ -428,7 +428,7 @@ export async function bfsWithTuning(
     // a windowed core (colIdx above the binding limit) is executed, not refused: every
     // frontier-walking kernel is dispatched once per arc window with the window's owned range in its record
     const forward = coreWindows(core);
-    // the bottom-up sweep walks in-neighbours over the reverse core, windowed like the forward one when it must be
+    // the bottom-up sweep walks in-neighbors over the reverse core, windowed like the forward one when it must be
     const reverse = reverseCore(ctx, s, core);
     const backward = coreWindows(reverse);
     // the two degree views: in-degrees for the unvisited rebuild and both for bfs-next-degree (issue #1358)

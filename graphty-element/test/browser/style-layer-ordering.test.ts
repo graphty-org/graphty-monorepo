@@ -120,9 +120,9 @@ async function outcomeOf(work: PromiseLike<unknown>): Promise<"resolved" | "reje
 }
 
 /**
- * What the style stack resolved for one node's colour, as `#rrggbb`.
+ * What the style stack resolved for one node's color, as `#rrggbb`.
  * @param id - The node id.
- * @returns The colour, or null when nothing painted that node's colour at all.
+ * @returns The color, or null when nothing painted that node's color at all.
  */
 function colorOf(id: string): string | null {
     return session.styles.explain({ node: id }).merged["node.color"]?.hex.toLowerCase() ?? null;

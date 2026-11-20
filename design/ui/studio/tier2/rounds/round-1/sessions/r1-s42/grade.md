@@ -36,7 +36,7 @@ and the tool named each target it clicked. The session is not void.
   14 commands; her mouse path with the detour is close to it.
 - **Wrong turns: 2.**
     1. Step 7 (`07.png`): pressed the Notes "+" with Medici still selected; the form read "About
-       Medici". She saw the label, cancelled (step 8), clicked empty canvas to clear the selection
+       Medici". She saw the label, canceled (step 8), clicked empty canvas to clear the selection
        (step 9, `09.png`, inspector shows Graph), and the "+" then read "About Graph" (`10.png`).
        Three extra steps.
     2. Step 13 (`13.png`): hovered "Local only" to find out whether her work was saved. Its tooltip,

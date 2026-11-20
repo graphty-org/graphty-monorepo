@@ -6,7 +6,7 @@
 // test guard never reaches them, and vitest has no limit of its own on either: both held a machine
 // test slot for hours. This one runs in vitest's own process, which neither can block.
 //
-// It stops the process rather than cancelling the run: a cancel waits for the page to answer, which a
+// It stops the process rather than canceling the run: a cancel waits for the page to answer, which a
 // blocked page never does. So this run writes no summary and no junit report, and tools/shard-verdict.mjs
 // and tools/test-quarantine.mjs read it as a failed run.
 

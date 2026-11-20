@@ -60,7 +60,7 @@ in 5 tool calls).
    confound and say so in the key.
 
 4. **App defect -- the legend shows a nonsense entry for a constant size.** Right after "Size"
-   is added with its fixed value 1, the legend reads "Size: Influence -- Influence - Node Colour
+   is added with its fixed value 1, the legend reads "Size: Influence -- Influence - Node Color
    1" (A/10.png, B/05.png): an entry for a size that does not vary, with an internal layer name
    and British spelling. It goes away once size is bound (A/12.png). A participant who stops at
    step 10 sees a "Size: Influence" legend while every dot is the same size -- a ready-made false

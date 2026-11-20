@@ -1211,7 +1211,7 @@ function GroupRows({
                     const index = Number(
                         (event.target as HTMLElement).closest<HTMLElement>("[data-index]")?.dataset.index,
                     );
-                    const row = shown[index];
+                    const row = Number.isNaN(index) ? undefined : shown.at(index);
                     if (row !== undefined) {
                         event.preventDefault();
                         event.stopPropagation();
@@ -1320,7 +1320,7 @@ function openNewLayer(
                 inspected: { kind: "layer-row", id },
                 announcement: `Layer ${name} added above ${layer.name}`,
             });
-            const [first] = channelsBy(layer, path);
+            const first = channelsBy(layer, path).at(0);
             if (first !== undefined) {
                 focusLineNext(session, first);
             }
@@ -1413,9 +1413,12 @@ export function GroupDetail({
 
     // Every property the Style tab draws that can vary, by section, for "+ Set another property".
     // A picture does not vary by a value yet (node-models design 13.7), so Fill offers no Picture here.
-    const offered = sectionsFor(target, { cosmograph: cosmographOn(session), nodeModels: false }).map((section) => ({
+    const offered = sectionsFor(target, { cosmograph: cosmographOn(session) }).map((section) => ({
         title: section.title,
         items: section.channels.flatMap((channel) => {
+            if (channel === "node.texture") {
+                return [];
+            }
             const descriptor = offeredChannel(session, target, channel);
             if (descriptor === undefined || !takesBinding(descriptor) || bound.includes(channel)) {
                 return [];

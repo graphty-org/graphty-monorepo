@@ -69,7 +69,7 @@ export interface SnapshotLayoutInput {
     /**
      * When the graph only grew since the last arrangement: the new rows. Every other row is kept
      * where it is (it is in `fixed`), so a layout that can start from `initial` places the newcomers
-     * among their neighbours. Null for a fresh arrangement.
+     * among their neighbors. Null for a fresh arrangement.
      */
     readonly added: NodeMask | null;
     /**
@@ -138,10 +138,16 @@ export type SnapshotLayoutAnswer = F32 | Promise<F32>;
 /** A layout on the snapshot contract: a descriptor, and a function from the graph to coordinates. */
 export interface SnapshotLayoutRegistration {
     /**
-     * What the catalogue publishes. `honoursWeights` and `scoped` are declared here, since there is
-     * no class to carry them as statics.
+     * What the catalog publishes. `honorsWeights` and `scoped` are declared here, since there is
+     * no class to carry them as statics. `honoursWeights` is the deprecated British spelling of
+     * `honorsWeights`, still read (and preferred) when set, and removed in the next major.
      */
-    readonly descriptor: AuthoredLayoutDescriptor & { readonly honoursWeights?: boolean; readonly scoped?: boolean };
+    readonly descriptor: AuthoredLayoutDescriptor & {
+        readonly honorsWeights?: boolean;
+        /** @deprecated Use `honorsWeights`. Removed in the next major. */
+        readonly honoursWeights?: boolean;
+        readonly scoped?: boolean;
+    };
     /** Arrange the graph. */
     readonly compute: (input: SnapshotLayoutInput) => SnapshotLayoutAnswer;
 }
@@ -632,18 +638,19 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
 
 /**
  * Register a layout on the snapshot contract: the element builds its engine from the
- * registration, publishes the descriptor to the catalogue and answers `setLayout(descriptor.id)`.
+ * registration, publishes the descriptor to the catalog and answers `setLayout(descriptor.id)`.
  * @param registration - the descriptor and the compute function
  * @throws what `LayoutEngine.register` throws for a missing, mismatched or taken name
  */
 export function registerSnapshotLayout(registration: SnapshotLayoutRegistration): void {
-    const { honoursWeights = false, scoped = false, ...descriptor } = registration.descriptor;
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- reading the alias is what keeps old registrations working
+    const { honorsWeights = false, honoursWeights, scoped = false, ...descriptor } = registration.descriptor;
     const { compute } = registration;
 
     class RegisteredSnapshotLayout extends SnapshotLayoutEngine {
         static override readonly type = descriptor.id;
         static readonly maxDimensions = descriptor.maxDimensions;
-        static override readonly honoursWeights = honoursWeights;
+        static override readonly honorsWeights = honoursWeights ?? honorsWeights;
         static override readonly scoped = scoped;
         static override readonly descriptor: AuthoredLayoutDescriptor = descriptor;
 

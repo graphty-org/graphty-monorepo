@@ -8,7 +8,7 @@
  * graph is now built the first time something needs it: being attached, or a property, method or
  * `session` reached before that, which must go on working exactly as before. And `shutdown()` on
  * an element whose graph was built but never attached now gives its engine back: shutting a graph
- * down used to dispose nothing until the graph had finished initialising.
+ * down used to dispose nothing until the graph had finished initializing.
  */
 
 import "../../src/algorithms";
@@ -120,7 +120,7 @@ describe("an element that is never used opens no engine", () => {
 
         element.shutdown();
 
-        // Graph shutdown used to dispose nothing unless the graph had finished initialising.
+        // Graph shutdown used to dispose nothing unless the graph had finished initializing.
         assert.notInclude(EngineStore.Instances, engine, "the engine of a graph never attached was not disposed");
         await release;
 

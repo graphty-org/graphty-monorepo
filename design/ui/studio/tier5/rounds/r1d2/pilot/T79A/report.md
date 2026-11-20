@@ -42,7 +42,7 @@ Data > Add filter; dept; Grants; tick (03.png: "1,076 of 50,000", top bar "1,076
 - 12.png: Escape then Control+Z undoes the participant's own color ("Undid changing node color on
   Layer 1.", fill 6366F1); 13.png Control+Shift+Z redoes it ("Redid ...", E4572E).
 
-The cancelled card never returns; the participant's own steps still undo and redo.
+The canceled card never returns; the participant's own steps still undo and redo.
 
 Folder: /home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier5/r1d2/pilot/T79A/touched-12-d3fda9f2b6
 

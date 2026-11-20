@@ -77,9 +77,9 @@ const FACE_BUTTONS: Record<XRControllerButton, { hand: "left" | "right"; index: 
 
 /** The orb's name, so a page or a test can find it. */
 export const XR_ASSISTANT_ORB = "graphty-xr-ai-orb";
-/** How far above the left wrist the orb floats, in metres. */
+/** How far above the left wrist the orb floats, in meters. */
 const ORB_LIFT = 0.06;
-/** How close a pinch must start to the orb to take it, in metres. */
+/** How close a pinch must start to the orb to take it, in meters. */
 const ORB_REACH = 0.06;
 
 /**

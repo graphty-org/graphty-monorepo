@@ -26,7 +26,7 @@ graphty-org/graphty-monorepo. `session.xxx` is a member of graphty-element's ses
   (`round-2/revision.md` section 4).
 - **Dry run**: asking the element what an action would do (how many rows match, how many
   edges survive) without doing it, so the dialog can show the count before the reader commits.
-- **Dialog**: the 480 px modal box centred on the canvas over a dimmed backdrop, used for a
+- **Dialog**: the 480 px modal box centered on the canvas over a dimmed backdrop, used for a
   decision with several fields (screen 14's Import dialog is one). **Popover**: the 240 px light
   panel anchored to the control that opened it, used for a short task that does not block the
   rest of the window. **Menu**: a list of verbs anchored to a "..." button or a right-click.
@@ -72,7 +72,7 @@ on them instead of repeating them.
 |---|---|---|---|
 | Read the import report, fix rejected rows | Dataset > Overview: the Import report disclosure; its "See in table" | the disclosure, open; the Table dock's Rejected tab | 33 |
 | Change how the file is read after a load | Dataset "..." > Import options...; the report's "Import options..." button | the Import options dialog | 34 |
-| Colour, size, shape, label, filter or group by a column; set a column's role | the column's "..." on Dataset > Data; the table's column header | the column menu | 35 |
+| Color, size, shape, label, filter or group by a column; set a column's role | the column's "..." on Dataset > Data; the table's column header | the column menu | 35 |
 | Rename, change type, fill empties, find and replace, split, delete a column | the column menu's Edit group | a popover per operation, anchored to the column's row | 35, 36 |
 | Join a table of node attributes, mapping identifiers when needed | Dataset > Data: the ATTRIBUTES "+" > Join a table... | the Join dialog with its Map identifiers section | 37 |
 | New column from a formula | Dataset > Data: the ATTRIBUTES "+" > New from formula... | the formula dialog | 38 |
@@ -180,7 +180,7 @@ options and return kept counts), small; the reload that keeps objects and re-app
 
 ## 3. The column menu, drawn open (screen 35)
 
-**Gap.** Every column row on Dataset > Data had a "..." with Colour by, Size by and the rest,
+**Gap.** Every column row on Dataset > Data had a "..." with Color by, Size by and the rest,
 drawn closed. It is the only way to encode by a raw column rather than by an algorithm's
 result.
 
@@ -194,12 +194,12 @@ in the row (so the reader learns why rather than wondering where it went):
 
 | Group | Items (node column) | Items (edge column) |
 |---|---|---|
-| Show | Colour by, Size by, Shape by, Label by | Colour by, Width by, Pattern by, Label by |
+| Show | Color by, Size by, Shape by, Label by | Color by, Width by, Pattern by, Label by |
 | Pick out | Filter by values... or Filter by range... (by type), Group by (category or text) or Group by ranges... (numbers) | the same, filtering edges |
 | Role | Set as label, Set as type, Set as time (dates only) | Set as weight (numbers only), Set as time, Set as type |
 | Edit | Rename..., Change type..., Fill N empty values..., Find and replace..., Split column... (text only), Delete column... | the same |
 
-What each Show item makes: Colour by and Size by on a number create a Measure over the column
+What each Show item makes: Color by and Size by on a number create a Measure over the column
 (a tree row with its encoding, selected, opening on its Values tab: the state screen 6 already
 draws); on a category they create a Grouping (screen 7's state). Filter by opens the Filter
 tool armed on that column (cluster 6's screens 59 and 60). A role that still reloads the file
@@ -264,7 +264,7 @@ cell in the Table dock; Enter on a focused cell. The value becomes an input in p
 input with the file's value kept under it ("in file 7  [Revert]"); a consequence line in
 secondary text ("Conference re-ran (instant): BrighamYoung moved from group 7 to group 9.
 Nothing else reads value."); the table row reads the new value in the attribute column and in
-every object column that changed; the canvas repaints (the node takes conference 9's colour);
+every object column that changed; the canvas repaints (the node takes conference 9's color);
 the status bar carries "Edited value of BrighamYoung: 7 -> 9  [Undo]". Several cells can be
 edited in a row; each is its own undo step. Pasting a column of values from a spreadsheet into
 the table fills the cells below the focused one as one step.
@@ -411,9 +411,9 @@ when an input re-runs.
 **Gap.** Expansion existed only as a double-click inside the element and a text row; no state
 showed it happening, succeeding or failing.
 
-**Entry points.** On a dataset whose source can fetch neighbours (a graph-database query, a
+**Entry points.** On a dataset whose source can fetch neighbors (a graph-database query, a
 service): double-click a node (decision T6 in `round-2/decisions.md`: elsewhere double-click
-selects neighbours); the node's "..." > Expand from server; the right-click menu. The inspector
+selects neighbors); the node's "..." > Expand from server; the right-click menu. The inspector
 header of such a dataset says where it comes from ("bolt://lab, Neo4j query").
 
 **States.**
@@ -429,7 +429,7 @@ header of such a dataset says where it comes from ("bolt://lab, Neo4j query").
 - **Failed:** "Server did not answer (timeout after 10 s)  [Retry]" in the slot, and the node
   unchanged.
 
-**Keyboard.** E is the Neighbours tool, so expansion has no letter; Enter on a focused node
+**Keyboard.** E is the Neighbors tool, so expansion has no letter; Enter on a focused node
 opens its menu where Expand from server is the first data row.
 
 **Element API.** The fetch hooks exist (`fetchNodes`, `fetchEdges` in

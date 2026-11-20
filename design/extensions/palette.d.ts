@@ -1,6 +1,6 @@
 /**
- * Palette extension point. NORMATIVE for shapes; behaviour in design/extensions/palette.md.
- * Entry point: @graphty/graphty-element/extend. Serialised form:
+ * Palette extension point. NORMATIVE for shapes; behavior in design/extensions/palette.md.
+ * Entry point: @graphty/graphty-element/extend. Serialized form:
  * design/extensions/descriptors.schema.json#/$defs/PaletteDescriptor.
  */
 import type { RegisterOptions } from "./common";
@@ -35,7 +35,7 @@ export declare const KNOWN_PALETTE_IDS: readonly [
 export type PaletteId = (typeof KNOWN_PALETTE_IDS)[number] | (string & {});
 
 /**
- * The colour-vision deficiencies a palette may claim to be safe for. CLOSED. NOT EXPORTED BY NAME.
+ * The color-vision deficiencies a palette may claim to be safe for. CLOSED. NOT EXPORTED BY NAME.
  * No grayscale or achromatopsia claim exists; README open decision 30.
  */
 export type ColorVisionDeficiency = "deuteranopia" | "protanopia" | "tritanopia";
@@ -43,7 +43,7 @@ export type ColorVisionDeficiency = "deuteranopia" | "protanopia" | "tritanopia"
 /**
  * One palette. IMPLEMENTED BY EXTENSIONS (an author writes it).
  *
- * The whole extension is this object: nothing in the element ever asks a palette for behaviour.
+ * The whole extension is this object: nothing in the element ever asks a palette for behavior.
  */
 export interface PaletteDescriptor {
     /** Permanent id; see README.md section 4.3. */
@@ -56,8 +56,8 @@ export interface PaletteDescriptor {
      */
     kind: "sequential" | "diverging" | "categorical";
     /**
-     * The anchors, in order. As authored: any CSS colour the element can parse (hex, rgb(),
-     * hsl(), oklch(), a named colour). As published by registerPalette: six-digit upper-case hex.
+     * The anchors, in order. As authored: any CSS color the element can parse (hex, rgb(),
+     * hsl(), oklch(), a named color). As published by registerPalette: six-digit upper-case hex.
      */
     colors: readonly string[];
     /**
@@ -86,7 +86,7 @@ export type PaletteRegistration = Omit<PaletteDescriptor, "capacity" | "colorbli
  */
 export declare function registerPalette(descriptor: PaletteDescriptor, options?: RegisterOptions): void;
 
-/** Every registered palette, as published (normalised and frozen), in registration order. */
+/** Every registered palette, as published (normalized and frozen), in registration order. */
 export declare function registeredPaletteDescriptors(): readonly PaletteDescriptor[];
 
 /** Tests only. Not part of the contract a consumer may call in production. */
@@ -103,7 +103,7 @@ export declare function clearRegisteredPalettesForTesting(): void;
  *               shadow no registered palette, are listed in the picker (marked as the
  *               document's) while the document is open, and are dropped when its last layer is
  *               removed. Within the document its own anchors win. A carried built-in id is refused.
- *   "require":  today's behaviour: every carried palette must already be registered.
+ *   "require":  today's behavior: every carried palette must already be registered.
  * Registering carried palettes into the page-global registry was considered and is not
  * recommended (palette.md section 5 item 4).
  */

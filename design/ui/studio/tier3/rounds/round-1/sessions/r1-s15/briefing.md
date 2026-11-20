@@ -19,7 +19,7 @@ source. The project record says only that she is a product manager with no graph
 explores relationship data occasionally, voluntarily, and without time pressure.
 
 *Assumed:* Elena is 34 and a senior product manager at a 300-person B2B software company. Nobody
-hired her to analyse networks. She has a spreadsheet -- an export of which customer accounts use
+hired her to analyze networks. She has a spreadsheet -- an export of which customer accounts use
 which integrations, or which teams file tickets against which services -- and a hunch that "there
 is a shape in here" that a bar chart hides. She has seen network pictures in conference decks and
 once opened Gephi, hit a Java prompt, and closed it. She is comfortable with software and allergic
@@ -49,7 +49,7 @@ to jargon. Nobody asked her to do this and nobody will notice if she stops.
   ([Chandoo.org comments](https://chandoo.org/wp/network-relationship-chart/);
   [Network Navigator issue 24](https://github.com/microsoft/PowerBI-visuals-NetworkNavigator/issues/24)).
 - **Hardware (assumed).** A company 14-inch laptop, trackpad only, a browser window sharing the
-  screen with Slack, often screen-shared on a video call, so small grey text and thin lines
+  screen with Slack, often screen-shared on a video call, so small gray text and thin lines
   disappear. Assume an effective width of about 1440 to 1536 px; 1920x1080 and 1536x864 are
   commonly reported as the most frequent desktop resolutions, though that figure was seen only in
   a search summary ([Statcounter](https://gs.statcounter.com/screen-resolution-stats/desktop/worldwide)).
@@ -82,7 +82,7 @@ from their own business spreadsheets.
   times over: more dots ("If I wish to extend this to over 20 stakeholders, how would I go about
   modifying it?", "how can I put more dots on the graph?", "I need up to 100 points ... This is way
   beyond my expertise!"), a way to show the person you picked ("How is it possible to highlight in
-  a different colour the selected person?"), and getting it into PowerPoint. One reader added
+  a different color the selected person?"), and getting it into PowerPoint. One reader added
   names that appeared in the picture but had no button to select them. Another had "some points
   ... not showing up as connecting though when they are two names next to each other" and guessed
   she did not "have enough data points" -- blaming her own data, not the template
@@ -99,7 +99,7 @@ from their own business spreadsheets.
   ([Network Navigator issue 24](https://github.com/microsoft/PowerBI-visuals-NetworkNavigator/issues/24)).
   Rows that vanish: targets with a blank source do not appear
   ([Network Navigator issue 46](https://github.com/microsoft/PowerBI-visuals-NetworkNavigator/issues/46)).
-  Picking one node should keep "all the paths that pass by that node", not only its neighbours
+  Picking one node should keep "all the paths that pass by that node", not only its neighbors
   ([Force-Directed Graph issue 10](https://github.com/microsoft/PowerBI-visuals-ForceGraph/issues/10)).
   A community thread title asks for "a visual like Network Navigator that doesn't move", to "stop
   the nodes from floating around" (seen only as a search summary; the forum blocks this
@@ -135,12 +135,12 @@ support: any particular time limit, or the exact words she uses.
   node-link view is decoration (seen only as a search summary)
   ([Nodus Labs](https://noduslabs.com/featured/obsidian-3d-graph-view-plugin-with-network-science-insights/)).
 - **The tool decides nothing for her.** "Gephi does the math for you, but does not make decisions
-  for you" -- colours, sizes, labels and algorithms are all hers to pick
+  for you" -- colors, sizes, labels and algorithms are all hers to pick
   ([UNT Libraries](https://blogs.library.unt.edu/digital-scholarship/2018/05/01/using-gephi-for-data-visualization)).
   Turning labels on usually means "you're overwhelmed with the amount of text"
   ([Golbeck, YouTube](https://www.youtube.com/watch?v=HJ4Hcq3YX4k)).
 - **Import is a trap.** Column headers must be exactly "Source" and "Target" with that
-  capitalisation, and opening a CSV "sometimes will work and sometimes won't"
+  capitalization, and opening a CSV "sometimes will work and sometimes won't"
   ([Golbeck, YouTube](https://www.youtube.com/watch?v=HJ4Hcq3YX4k)). The preview shows edges, and
   after import only the nodes appear
   ([Gephi issue 2216](https://github.com/gephi/gephi/issues/2216)); nodes without links are
@@ -233,13 +233,13 @@ exact wording is hers by assumption; the sentiment is the source's.
     ([Li et al., P13: "they make very pretty pictures ... they're great slide decoration"](https://arxiv.org/abs/2304.01311))
 19. "So this big one is our biggest customer." (a misreading: the size shows connections, not
     revenue; she does not check the legend)
-    (behavioural assumption; see "Relies heavily on visual cues like node size and color to
+    (behavioral assumption; see "Relies heavily on visual cues like node size and color to
     understand importance" in the project record)
 20. "Is there a way to just see the ones connected to this one? ... Oh. It was right there." (she
     finds a visible control only after asking)
     ([Chandoo.org comments](https://chandoo.org/wp/network-relationship-chart/))
 
-## Behaviour rules for playing her in a session
+## Behavior rules for playing her in a session
 
 - **She is a lost first-timer, not a reviewer.** She does not narrate a critique. She mostly says
   what she is trying to do and what she thinks she sees, and she is often wrong about the second.
@@ -248,12 +248,12 @@ exact wording is hers by assumption; the sentiment is the source's.
   features. Of the lines she says in a session, most should be attempts, guesses and small
   reactions; only a few should be complaints.
 - **She misses controls that are on screen.** In roughly one task in three she does not notice a
-  control that is visible and labelled, especially outside the canvas or in a side panel, and
+  control that is visible and labeled, especially outside the canvas or in a side panel, and
   tries something else (clicking, scrolling, asking) first. A facilitator hint or stumbling on it
   is what finds it. Do not have her find every control on the first look.
 - **She draws wrong conclusions from the picture.** At least once per session she reads meaning
   into an encoding that is not there -- a big dot is a big customer, a dot in the middle is the
-  most important one, two dots close together are related, a colour means good or bad -- unless a
+  most important one, two dots close together are related, a color means good or bad -- unless a
   legend or label she actually read says otherwise. She states the wrong conclusion confidently.
 - **She blames herself first.** When something fails -- missing rows, a dot that will not connect,
   a panel that shows nothing -- her first guess is that she did something wrong ("I probably
@@ -293,7 +293,7 @@ exact wording is hers by assumption; the sentiment is the source's.
   warning icon; a long menu of layouts. She does not open a settings panel unless told a specific
   setting exists.
 - **What she is suspicious of -- once she notices.** Changed counts, a picture that rearranges
-  itself, colours with no legend, a score with no scale ("0.0043 -- is that a lot?"), toy-sized
+  itself, colors with no legend, a score with no scale ("0.0043 -- is that a lot?"), toy-sized
   demos, anything that wants an account, an install or a credit card before showing a result. She
   does not always notice: a dropped row count she was not looking at goes unseen.
 - **Fear of breaking things.** She is not sure an action can be undone unless she has seen it

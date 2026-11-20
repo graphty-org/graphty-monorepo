@@ -66,9 +66,9 @@ export interface JoinSubject {
  * @returns the keys.
  */
 export function keysFor(choices: JoinChoices, shape: JoinShape, columns: readonly string[]): JoinKey[] {
-    const first = choices.keys[0]?.file ?? columns[0] ?? "";
+    const first = choices.keys.at(0)?.file ?? columns.at(0) ?? "";
     if (shape === "edges") {
-        const second = choices.keys[1]?.file ?? columns.find((column) => column !== first) ?? first;
+        const second = choices.keys.at(1)?.file ?? columns.find((column) => column !== first) ?? first;
         return [
             { file: first, graph: "id" },
             { file: second, graph: "id" },
@@ -120,7 +120,7 @@ export function draftSubject(joining: {
     readonly matches?: SourceKey;
 }): JoinSubject {
     const { draft } = joining;
-    const table = draft.tables[0];
+    const table = draft.tables.at(0);
     const { choices, how } = suggested(draft);
     return {
         name: joining.name,
@@ -201,7 +201,7 @@ export function replaceTargets(ctx: CommandContext): ReplaceTarget[] {
 }
 
 /**
- * Closes the join screen. Cancelling a file keeps its draft and offers Undo, which opens the
+ * Closes the join screen. Canceling a file keeps its draft and offers Undo, which opens the
  * screen on it again; the draft is let go once the notice goes without Undo.
  * @param ctx - the command context.
  * @param subject - the table, or undefined.

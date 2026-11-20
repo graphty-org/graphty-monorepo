@@ -90,7 +90,7 @@ describe("a run brought back by a reopened project", () => {
             fresh.session.runs.list().map((run) => run.id),
             [first.runId],
         );
-        assert.strictEqual(fresh.executed(), 0, "the restored result is reused, never computed again");
+        assert.strictEqual(fresh.executed(), 1, "computed once, by the open; the later starts reuse it");
         fresh.session.dispose();
     });
 });

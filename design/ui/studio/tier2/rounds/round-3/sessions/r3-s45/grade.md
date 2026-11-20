@@ -69,7 +69,7 @@ step; the only first-hand words are the own-words section.
    changed to 'PageRank, full graph' and I didn't know what that meant." Known on this build per the
    key; no wrong conclusion drawn.
 4. **The pressed "Filter to neighbors" goes gray, which reads as "did it work?". Severity 1.**
-   Evidence: `06.png`, the button drawn disabled; her words: "The Filter button greying out after I
+   Evidence: `06.png`, the button drawn disabled; her words: "The Filter button graying out after I
    pressed it made me wonder for a second if it had worked, but the '15 of 20 nodes' at the top told
    me." The key asks to record any participant who reads the disabled button as broken: a momentary
    doubt, resolved by the chip, no second press.

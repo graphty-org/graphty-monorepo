@@ -7,10 +7,6 @@
         "posthog": {
             "type": "http",
             "url": "https://mcp-eu.posthog.com/mcp"
-        },
-        "umami": {
-            "command": "bash",
-            "args": ["tools/umami-mcp.sh"]
         }
     }
 }

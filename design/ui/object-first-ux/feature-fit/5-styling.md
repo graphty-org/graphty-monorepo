@@ -29,22 +29,22 @@ this file adds:
   an expression (`degree > 10`), a presence test (`has` a result field), an explicit id list,
   and everything.
 - **Encoding** (a **bound** channel): a channel whose value is computed from a data column or a
-  result field through a scale and, for colours, a palette. A Measure's or Grouping's Fill is an
+  result field through a scale and, for colors, a palette. A Measure's or Grouping's Fill is an
   encoding. `session.styles.encode()` writes one for a run.
 - **Highlight**: a layer that paints the members of a set one fixed look ("these ones", not "this
   much"). `session.styles.highlight()` writes one for a run whose result is a path or a set. A
   Set's Fill is a highlight.
 - **Scale**: how a value becomes a position on a ramp or a size: linear, log, sqrt, quantile,
-  bins, ordinal (one colour per value), and so on (`session.catalog.scales()`).
-- **Palette**: a named list of colours. Sequential (a ramp, low to high), diverging (two ramps
-  meeting at a midpoint), categorical (one colour per group), highlight (a pair: chosen and
+  bins, ordinal (one color per value), and so on (`session.catalog.scales()`).
+- **Palette**: a named list of colors. Sequential (a ramp, low to high), diverging (two ramps
+  meeting at a midpoint), categorical (one color per group), highlight (a pair: chosen and
   muted). `session.catalog.palettes()`.
 - **Domain**: the value range the scale reads against, normally the measured min and max.
   **Clamp**: cutting the domain at percentiles so outliers do not flatten the ramp.
   **Missing**: what an element with no value is painted.
-- **Overflow**: what a categorical colour encoding does when there are more groups than colours:
-  paint the largest N and the rest grey ("other"), cycle node shapes ("shape"), or keep inventing
-  colours ("extend").
+- **Overflow**: what a categorical color encoding does when there are more groups than colors:
+  paint the largest N and the rest gray ("other"), cycle node shapes ("shape"), or keep inventing
+  colors ("extend").
 - **Legend**: the picture's key: one block per bound channel, with swatches or a ramp and the
   **departures** (sentences about what the encoding did that the picture does not show, such as
   "clamped at p2 and p98"). `session.styles.legend()` computes it; nothing draws it (#292).
@@ -98,22 +98,22 @@ defaults" cease to exist as surfaces. Their capabilities are re-homed row by row
 ### 2.1 Channels (what a Fill can write)
 
 The element has 40 channels (`Channel` in `graphty-element/src/catalog/types.ts`). A Fill's "+"
-opens the channel list under plain names; the grouping below is how the list is organised, so a
+opens the channel list under plain names; the grouping below is how the list is organized, so a
 reader sees twelve entries rather than forty.
 
 | Capability | Status | Home | Fit | Element API (gap) | Precedence / state / tree |
 |---|---|---|---|---|---|
-| `node.color`, `node.opacity` | shipped | Fill > Colour row (chit, hex, opacity field) on any object; the Dataset's Default look shows the element's locked value | natural | `set` / `encode` on the layer | no / repaint only / no |
+| `node.color`, `node.opacity` | shipped | Fill > Color row (chit, hex, opacity field) on any object; the Dataset's Default look shows the element's locked value | natural | `set` / `encode` on the layer | no / repaint only / no |
 | `node.size` | shipped | Fill > Size row: a number on a Set; Range [min] [max] on a Measure | natural | same | no / repaint / no |
 | `node.shape` (25 meshes) | shipped | Fill > Shape row: a select of the 25 with a glyph each; on a Grouping, Channel [Shape v] paints one shape per group (the designloom "6 shapes" requirement is a subset) | natural | `encode` with an ordinal scale onto `node.shape`; the legend swatch's `paints` field already carries a shape | no / repaint / no |
-| `node.outline`, `node.glow`, `node.glowStrength`, `node.wireframe`, `node.flat` | shipped | Fill > Outline row (width, colour) and Fill > Glow row (strength); wireframe and flat are checkboxes inside the Shape row's popover, because they are ways of drawing the shape | natural | `set` | no / repaint / no |
+| `node.outline`, `node.glow`, `node.glowStrength`, `node.wireframe`, `node.flat` | shipped | Fill > Outline row (width, color) and Fill > Glow row (strength); wireframe and flat are checkboxes inside the Shape row's popover, because they are ways of drawing the shape | natural | `set` | no / repaint / no |
 | `node.label`, `node.labelStyle` | shipped | Fill > Label row: the text source (an attribute, a member value such as a path's hop order, or fixed text) and a "style" button opening the label-style popover (section 2.4) | natural | `set` / `encode` with `passthrough` | no / repaint / no |
 | `node.tooltip`, `node.tooltipStyle` | shipped (hover only) | Fill > Tooltip row on any object; and Dataset > Canvas > Tooltip [attribute v] for the whole graph | natural | `set` / `encode` | no / repaint / no |
 | `node.marker` (image, icon, note marker) | proposed #295 | Fill > Marker row (an icon or image URL, or "by attribute"); Dataset > Canvas > Notes switch uses the same channel for note markers | natural once the channel renders | gap: #295, the channel is `renderable: false` | no / repaint / no |
-| `edge.color`, `edge.opacity`, `edge.width` | shipped | Fill > Edge colour, Edge width rows; on a Set of nodes they paint the set's inside edges | natural for edge sets and edge measures; awkward for a node set (note A1) | `set` / `encode` on an edge-target layer; gap A1: a selector for "edges between the members of a scope" | no / repaint / no |
+| `edge.color`, `edge.opacity`, `edge.width` | shipped | Fill > Edge color, Edge width rows; on a Set of nodes they paint the set's inside edges | natural for edge sets and edge measures; awkward for a node set (note A1) | `set` / `encode` on an edge-target layer; gap A1: a selector for "edges between the members of a scope" | no / repaint / no |
 | `edge.style`, `edge.patternCount` | shipped | Fill > Edge style row: a select of the nine patterns with a repeat count in its popover | natural | `set`; a Grouping of edges can bind it (ordinal) | no / repaint / no |
 | `edge.curvature` | shipped | Fill > Edge style popover ("Curve" field); Dataset > Canvas > Edges row for the whole graph | natural | `set` | no / repaint / no |
-| `edge.arrowHead`, `edge.arrowTail` and their size, colour, opacity, text, text style (12 channels) | shipped | Fill > Arrows row: head and tail selects with a popover for size, colour, opacity and end text; Dataset > Canvas > Arrows [switch] for "show direction" | natural; the twelve channels are one row with a popover | `set` | no / repaint / no |
+| `edge.arrowHead`, `edge.arrowTail` and their size, color, opacity, text, text style (12 channels) | shipped | Fill > Arrows row: head and tail selects with a popover for size, color, opacity and end text; Dataset > Canvas > Arrows [switch] for "show direction" | natural; the twelve channels are one row with a popover | `set` | no / repaint / no |
 | `edge.animationSpeed` | shipped | Fill > Animation row (edge flow speed); the same row on a Path set is the designloom "animate along path" | natural | `set` | no / repaint / no |
 | `edge.label`, `edge.labelStyle` | shipped | Fill > Label row on an edge object; Dataset > Canvas > Edge labels [attribute v] | natural | `set` / `encode` | no / repaint / no |
 | edge tooltip | withdrawn (edges unpickable) | none | no fit today; returns with edge picking (#319) as a Tooltip row on edge objects | gap: #319 | none |
@@ -148,27 +148,27 @@ reader sees twelve entries rather than forty.
 
 | Capability | Status | Home | Fit | Element API (gap) | Precedence / state / tree |
 |---|---|---|---|---|---|
-| Encode a run's field onto a channel | shipped | A Measure's Fill: Channel [Colour v], Scale, Palette, Domain, Missing; "+" adds a second channel (Size). A Grouping's Fill: Channel, Palette as one chip per group, Other | natural | `session.styles.encode({run, field, channel, ...})`; replaces in place, so re-encoding edits the same layer | no / repaint / no |
+| Encode a run's field onto a channel | shipped | A Measure's Fill: Channel [Color v], Scale, Palette, Domain, Missing; "+" adds a second channel (Size). A Grouping's Fill: Channel, Palette as one chip per group, Other | natural | `session.styles.encode({run, field, channel, ...})`; replaces in place, so re-encoding edits the same layer | no / repaint / no |
 | Choose the field (HITS hub vs authority, degree in vs out) | shipped | Measure > Values > Field [value v] row; the Fill follows the field | natural | `encode({field})` | no / repaint / no |
-| Encode a data attribute (colour by conference, #190) | shipped in the element, no app UI | Dataset > Attributes > "..." > Colour by / Size by / Shape by / Group by, each creating a Measure (numeric) or Grouping (category) object whose Definition is the attribute and whose Fill is the encoding | natural; this is the Tableau shelf drop | `encode: {by: "data.value", ...}` on a `has` selector; gap: `encode()` takes only a run, so the objects API needs the same one-call verb for an attribute (`encodeAttribute`, small) | new row / current (an attribute encoding is never stale unless data changes) / adds a Measure or Grouping |
-| Highlight a run's set (path, MST, cut) | shipped | A Set's Fill: Colour, Edge colour, Edge width by default | natural for the paint; **no fit** for the element's exclusivity rule (note A2) | `session.styles.highlight()`; gap A2: drop or make opt-in "every highlight layer is removed first" | new row at the top / current / adds a Set |
+| Encode a data attribute (color by conference, #190) | shipped in the element, no app UI | Dataset > Attributes > "..." > Color by / Size by / Shape by / Group by, each creating a Measure (numeric) or Grouping (category) object whose Definition is the attribute and whose Fill is the encoding | natural; this is the Tableau shelf drop | `encode: {by: "data.value", ...}` on a `has` selector; gap: `encode()` takes only a run, so the objects API needs the same one-call verb for an attribute (`encodeAttribute`, small) | new row / current (an attribute encoding is never stale unless data changes) / adds a Measure or Grouping |
+| Highlight a run's set (path, MST, cut) | shipped | A Set's Fill: Color, Edge color, Edge width by default | natural for the paint; **no fit** for the element's exclusivity rule (note A2) | `session.styles.highlight()`; gap A2: drop or make opt-in "every highlight layer is removed first" | new row at the top / current / adds a Set |
 | Auto-apply: a run paints on first completion | shipped | The tool hands back an object that already has a Fill; nothing else changes | natural for "paints once"; **no fit** for "an authored layer wins, so the suggestion is dropped" (note A3) | gap A3: the suggestion must pick a channel no visible object above writes, and still paint if none is free | new row / current / adds a row |
-| Auto-apply: a batch paints once, coalesced per channel | shipped | Rank > Several... creates one Measure per tick; only the top one paints Colour; the others get Size, then no Fill (a chip that reads "no fill") | awkward (note A4) | the coalescing rule must become "each object gets the next free channel, then none" | rows at the top / current / adds N rows |
+| Auto-apply: a batch paints once, coalesced per channel | shipped | Rank > Several... creates one Measure per tick; only the top one paints Color; the others get Size, then no Fill (a chip that reads "no fill") | awkward (note A4) | the coalescing rule must become "each object gets the next free channel, then none" | rows at the top / current / adds N rows |
 | `{style: false}` on a run | shipped | Not on screen; the assistant and recipes use it | natural | as is | n/a |
-| Scales (9) | shipped | Measure > Fill > Scale [Even steps v], plain names from the catalogue; the scale's own options (bins, exponent, midpoint) appear as rows under it when chosen | natural | `session.catalog.scales()`, `scalesForDomain()` | no / repaint / no |
-| Palettes (18) and colour-blind flags | shipped | Fill > Palette: a ramp swatch (sequential, diverging) or chips (categorical) that opens a picker grouped by kind, colour-blind-safe marked, capacity shown for categorical | natural | `session.catalog.palettes()`, `palettesOfKind()` | no / repaint / no |
+| Scales (9) | shipped | Measure > Fill > Scale [Even steps v], plain names from the catalog; the scale's own options (bins, exponent, midpoint) appear as rows under it when chosen | natural | `session.catalog.scales()`, `scalesForDomain()` | no / repaint / no |
+| Palettes (18) and color-blind flags | shipped | Fill > Palette: a ramp swatch (sequential, diverging) or chips (categorical) that opens a picker grouped by kind, color-blind-safe marked, capacity shown for categorical | natural | `session.catalog.palettes()`, `palettesOfKind()` | no / repaint / no |
 | Custom palette plugin | shipped | Appears in the picker; a saved look carries its descriptor | natural | `registerPalette`; `toDocument()` carries non-built-in palettes | none |
 | Domain, clamp, range, reverse, midpoint, bins, exponent | shipped | Measure > Fill rows: Domain [min] [max] with Reset; "Clamp outliers" checkbox (p2, p98) with the departure sentence under it; Reverse checkbox; Midpoint (diverging only); Range on Size; scale options | natural | binding fields; the legend's `departures` supply the sentence | no / repaint / no |
 | Missing value | shipped | Fill > Missing [chit] (the gene workflow's "grey for missing") | natural | `missing: {value}` | no / repaint / no |
-| Diverging palette centred on zero (log fold change) | shipped | Palette picker > Diverging; Midpoint [0] row appears | natural | `midpoint` | no / repaint / no |
-| Overflow "other" (largest N groups, rest grey) | shipped | Grouping > Groups > "Show the largest [8 v], rest as Other"; Fill > Other [chit] | natural | `overflow: "other"`; gap: the legend block must publish the Other colour (#201) | no / repaint / no |
-| Overflow "shape" (cycle shapes past the palette) | shipped | Grouping > Fill: a second Channel row [Shape v] bound to the same field. The element's policy writes shape from the colour layer; the reader sees two rows | awkward (note A5) | `overflow: "shape"` writes two channels in one layer; the Fill section must show it as two rows and edit it as one | no / repaint / no |
+| Diverging palette centered on zero (log fold change) | shipped | Palette picker > Diverging; Midpoint [0] row appears | natural | `midpoint` | no / repaint / no |
+| Overflow "other" (largest N groups, rest gray) | shipped | Grouping > Groups > "Show the largest [8 v], rest as Other"; Fill > Other [chit] | natural | `overflow: "other"`; gap: the legend block must publish the Other color (#201) | no / repaint / no |
+| Overflow "shape" (cycle shapes past the palette) | shipped | Grouping > Fill: a second Channel row [Shape v] bound to the same field. The element's policy writes shape from the color layer; the reader sees two rows | awkward (note A5) | `overflow: "shape"` writes two channels in one layer; the Fill section must show it as two rows and edit it as one | no / repaint / no |
 | Overflow "extend" | shipped | Grouping > Groups > "Show the largest [All v]" | natural | `overflow: "extend"` | no / repaint / no |
-| `map` (explicit value to colour) and per-value overrides | shipped (`map`), spec'd (per-row overrides) | A Group's Fill override (object-model 4.5): the child layer above the Grouping | natural | the override is a layer scoped to one group: `{match: "expression"}` on the group field today, `{match: "scope"}` later. `map` stays as the file form the objects API may write | yes (child above parent) / no / no new row (Groups already exist) |
-| Combining colour and size, colour and shape on the same nodes | designloom requirement | Two paint rows on one Measure or Grouping ("+"), or two objects | natural | two layers under one object | no / repaint / no |
-| A Set's default colour | shipped (blue-highlight for every set) | The tool assigns the next unused highlight palette (blue, green, orange) so three paths are told apart; the chip shows it | awkward (note A6) | gap A6: `highlight()` always uses `blue-highlight`; the objects API cycles | no / no / no |
-| Suggested encoding that avoids channels already written above | proposed (object-model section 11) | The default Fill of a new Measure | natural | gap: new element behaviour (small) | no / no / no |
-| Resolve a bound channel to a fixed value (`resolveToStatic`) | shipped | Not on the everyday screen (note A7). The reader's equivalents: "Colour this node..." (a one-node Set), or Values > "+" > Top N set with its own Colour | no fit as a control; kept as API | `session.styles.resolveToStatic` | n/a |
+| `map` (explicit value to color) and per-value overrides | shipped (`map`), spec'd (per-row overrides) | A Group's Fill override (object-model 4.5): the child layer above the Grouping | natural | the override is a layer scoped to one group: `{match: "expression"}` on the group field today, `{match: "scope"}` later. `map` stays as the file form the objects API may write | yes (child above parent) / no / no new row (Groups already exist) |
+| Combining color and size, color and shape on the same nodes | designloom requirement | Two paint rows on one Measure or Grouping ("+"), or two objects | natural | two layers under one object | no / repaint / no |
+| A Set's default color | shipped (blue-highlight for every set) | The tool assigns the next unused highlight palette (blue, green, orange) so three paths are told apart; the chip shows it | awkward (note A6) | gap A6: `highlight()` always uses `blue-highlight`; the objects API cycles | no / no / no |
+| Suggested encoding that avoids channels already written above | proposed (object-model section 11) | The default Fill of a new Measure | natural | gap: new element behavior (small) | no / no / no |
+| Resolve a bound channel to a fixed value (`resolveToStatic`) | shipped | Not on the everyday screen (note A7). The reader's equivalents: "Colour this node..." (a one-node Set), or Values > "+" > Top N set with its own Color | no fit as a control; kept as API | `session.styles.resolveToStatic` | n/a |
 | Explain an element's look | shipped | Node inspector > Look: one row per painted channel, "Colour from Communities", clickable to the object; "Covered by X on N of M" under a covered object's Fill | natural | `session.styles.explain`; gap: coverage counts over a set (object-model section 11, small) | none |
 | Results as attributes (origin `result`) | shipped | The data table columns; Dataset > Attributes hides `result` columns (they are objects already) | natural | `AttributeDescriptor.origin` | none |
 
@@ -179,7 +179,7 @@ reader sees twelve entries rather than forty.
 | Label text from an attribute | shipped | Dataset > Canvas > Labels [attribute v] (the source) beside the budget; Attributes > "..." > Label by | natural | `node.label` bound with `passthrough`, on the Dataset's Fill | no / repaint / no |
 | The label budget (none, all, top N by a Measure; the app's "Top degree labels") | shipped in the app (it runs degree on load and adds a layer) | Dataset > Canvas > Labels [Top 6 by Connections v]: none, all, or top N by any Measure in the tree. With no Measure the list offers only none and all | awkward (note A8): a Dataset-level Fill that links to an object | gap A8: a selector `{match: "scope", scope: {top: {run, field, n}}}` (the set-vocabulary unification); today the app writes an expression over a result path | no / stale if the Measure is re-run or deleted (falls back to none) / no |
 | Label visibility: selected only, above a size threshold (designloom) | designloom requirement | The same Labels select gains "Selected" (the element's selection layer writes the label) and "Nodes larger than [n]" (a rule over the painted size) | awkward for "larger than": the rule reads a painted value, not a data value (note A9) | gap A9: a selector over a painted channel does not exist; "Selected" is the element's own selection layer | no / no / no |
-| Rich text label style (font, size, weight, colour, gradient, outline, shadow, background, border) | shipped | The label-style popover opened from any Fill's Label row and from Dataset > Canvas > Labels' gear; a 240 px popover with a Text group, a Background group and a Placement group | natural | `node.labelStyle` (`LabelStyle` in `graphty-element/src/catalog/label-style.ts`) | no / repaint / no |
+| Rich text label style (font, size, weight, color, gradient, outline, shadow, background, border) | shipped | The label-style popover opened from any Fill's Label row and from Dataset > Canvas > Labels' gear; a 240 px popover with a Text group, a Background group and a Placement group | natural | `node.labelStyle` (`LabelStyle` in `graphty-element/src/catalog/label-style.ts`) | no / repaint / no |
 | Placement (attach position, offset) | shipped | Label-style popover > Placement | natural | `attachPosition`, `attachOffset` | no / repaint / no |
 | Billboarding | shipped (config) | Settings > Canvas ("Labels face the camera"); not a Fill | natural as a setting | `billboardMode` | none |
 | Depth fade | shipped | Label-style popover > Placement ("Fade with distance") | natural | `depthFadeEnabled`, near, far | no / repaint / no |
@@ -190,11 +190,11 @@ reader sees twelve entries rather than forty.
 | Truncate with ellipsis, full label on hover (designloom) | proposed | Same popover ("Cut at [15] characters"); the tooltip channel shows the full text on hover | natural once shipped | gap: a `maxCharacters` on `LabelStyle` (small); tooltip exists | no / repaint / no |
 | Label overlap avoidance (#5) | proposed | Dataset > Canvas > Labels gear > "Avoid overlaps" switch. A global rendering policy, not an object's property | natural as a setting | gap: #5 (element rendering) | none |
 | Edge label at midpoint, truncation | shipped / proposed | Dataset > Canvas > Edge labels; the same popover | natural | `edge.label`; truncation as above | no / repaint / no |
-| Hover: highlight the node and its neighbours, dim the rest (designloom `hover-highlight`) | partial (a hover event; no element hover layer) | Element-owned and transient: Settings > Canvas > "Highlight neighbours on hover" with a depth (1 or 2) and a "dim the rest" switch. Not a Fill, not an object | natural as a setting; the two-way hover link (row to canvas) is the element's hover layer | gap: the hover layer (`LayerSource.reason "hover"`, designloom `hover-highlight`, object-model section 11) | none (the hover layer sits above every object, like the selection halo) |
+| Hover: highlight the node and its neighbors, dim the rest (designloom `hover-highlight`) | partial (a hover event; no element hover layer) | Element-owned and transient: Settings > Canvas > "Highlight neighbours on hover" with a depth (1 or 2) and a "dim the rest" switch. Not a Fill, not an object | natural as a setting; the two-way hover link (row to canvas) is the element's hover layer | gap: the hover layer (`LayerSource.reason "hover"`, designloom `hover-highlight`, object-model section 11) | none (the hover layer sits above every object, like the selection halo) |
 | Dim everything a set did not select (designloom `path-highlighting` "dim non-path to 30%") | reader's choice by rule (root `CLAUDE.md`, Algorithm Styles) | An overflow verb on any Set: "Dim the rest", which creates a linked Set "Not in Path: 1 -> 34" (Everything minus the set) with Opacity 0.3 on nodes and 0.2 on edges, inserted immediately below the set | natural, and it stays an object the reader can see, move and delete (note A10) | Combine with a `not` operation over the "everything" scope (the set-vocabulary unification) | yes (a new row below the set) / current / adds a Set |
 | Number path nodes 1, 2, 3; hop distance labels (designloom) | shipped data (the path's `order` field) | A Path set's Fill > Label row bound to "Hop order" (a member value) | natural | `encode` `node.label` by `results.<run>.order` with `passthrough` | no / repaint / no |
-| Several paths at once with distinct colours and a path legend (designloom) | contradicted by the element's exclusive highlight | Several Path objects in the tree, each with the next highlight colour; the legend lists each as a highlight block | natural once A2 and A6 land | gaps A2, A6 | rows / current / adds Sets |
-| Selection halo style (`el.selectionStyle`) | shipped | Settings > Canvas > Selection colour. Not a Fill: the selection is not an object | natural as a setting | `el.selectionStyle` | none |
+| Several paths at once with distinct colors and a path legend (designloom) | contradicted by the element's exclusive highlight | Several Path objects in the tree, each with the next highlight color; the legend lists each as a highlight block | natural once A2 and A6 land | gaps A2, A6 | rows / current / adds Sets |
+| Selection halo style (`el.selectionStyle`) | shipped | Settings > Canvas > Selection color. Not a Fill: the selection is not an object | natural as a setting | `el.selectionStyle` | none |
 
 ### 2.5 Legend
 
@@ -203,7 +203,7 @@ reader sees twelve entries rather than forty.
 | Legend model (blocks, swatches, domain, palette, departures) | shipped as data | The legend overlay (L), bottom right: one block per visible Measure or Grouping in precedence order (top of the tree first), plus one small block per visible Set (its chip and name). Covered blocks are omitted, as the element already reports | natural | `session.styles.legend()`; the app reverses the bottom-first list | none |
 | Draw the legend on the canvas (#292) | proposed (the app draws its own) | The same overlay, drawn by the element once #292 lands; the app's `Legend.tsx` is deleted then | natural | gap: #292 | none |
 | Legend in the exported picture (#292) | proposed | Dataset > Export > Image gear > "Legend in picture" | natural | gap: #292 (`legend: true` on capture) | none |
-| Group numbering mismatch (#381), Other swatch colour (#201) | open defects | Dissolved by construction: the legend's categorical rows ARE the Group rows (same name, same chip, same order), so there is one numbering and one colour source. The Other row's colour comes from the block | natural | gap: the legend block must publish the overflow colour and the group's display name (#191, #201) | none |
+| Group numbering mismatch (#381), Other swatch color (#201) | open defects | Dissolved by construction: the legend's categorical rows ARE the Group rows (same name, same chip, same order), so there is one numbering and one color source. The Other row's color comes from the block | natural | gap: the legend block must publish the overflow color and the group's display name (#191, #201) | none |
 | Click a legend swatch to select that category; Shift-click to add to a filter (designloom) | proposed | Click selects the Group row (its members take the halo). Shift-click extends the row selection; Focus on the multi-selection then needs a Combine first (one mask at a time) | awkward (note A11) | the objects API `focus` over a union | click: no change; Focus: the mask |
 | Legend position (drag to a corner), collapse to an icon | designloom | The overlay's own header: a collapse chevron and a corner menu; remembered per viewer | natural | none | none |
 | Departures (clamp, sampling, coverage) | shipped | In the legend block under the ramp, and in the object's Made by as caveats | natural | `LegendBlock.departures`, `run.caveats` | none |
@@ -213,7 +213,7 @@ reader sees twelve entries rather than forty.
 
 | Capability | Status | Home | Fit | Element API (gap) | Precedence / state / tree |
 |---|---|---|---|---|---|
-| Background colour, skybox | shipped | Dataset > Canvas > Background [chit] with a popover for an image | natural | `el.background` | none |
+| Background color, skybox | shipped | Dataset > Canvas > Background [chit] with a popover for an image | natural | `el.background` | none |
 | Background follows light / dark theme (#291) | proposed | Background [Auto v] as the default | natural | gap: #291 | none |
 | Themes (`session.catalog.themes()`, #331) | proposed | Dataset > Canvas > Look [Default v]: the element's named looks and the reader's saved ones | awkward (note A12): a theme is a whole style document, and a document is a stack of layers with selectors, which the tree has no rows for | gap: #331, and a decision on what a look may contain (A12) | see A12 |
 | Style presets: Default, Presentation, Print, Dark, Colorblind safe, High contrast (designloom `style-presets`; the app's Styles section) | proposed | The same Look select; "Save current as look..."; each look is a document that changes the Dataset's Fill, the default palettes and the label size, never an object's own rows | awkward, same as A12 | same | none when restricted as A12 says |
@@ -226,14 +226,14 @@ reader sees twelve entries rather than forty.
 | Hide edges entirely (designloom) | designloom | Dataset > Fill > Edge opacity 0 (honest: the edges are still there); or Focus | natural | `set` on the Dataset's edge layer | no / repaint / no |
 | Show arrowheads on directed data by default | shipped (element default) | Dataset > Canvas > Arrows [switch], defaulting from the data's direction | natural | the Dataset Fill's `edge.arrowHead` | no / repaint / no |
 | Style on load (`algorithmsOnLoad` plus auto style) | shipped (element config) | Not on the everyday screen; a recipe (file menu > Run a recipe) is the reader's version | natural | as is | rows appear as the recipe's objects |
-| Sample hint "Try colouring by conference" (#190) | removed from the app | The sample's hint link runs Attributes > Colour by on load, creating the Grouping row | natural | as Colour by | adds a Grouping |
+| Sample hint "Try colouring by conference" (#190) | removed from the app | The sample's hint link runs Attributes > Color by on load, creating the Grouping row | natural | as Color by | adds a Grouping |
 
 ### 2.7 Multi-object and node-level painting
 
 | Capability | Status | Home | Fit | Element API (gap) | Precedence / state / tree |
 |---|---|---|---|---|---|
 | Edit several objects' Fill at once ("Mixed") | new | Tree multi-select > Fill (object-model 4.6) | natural | `update` on each | no / repaint / no |
-| Paint one node (the three-click colour change) | new | Node inspector > Look > "Colour this node..." creates a one-node fixed Set | natural | `{match: "ids"}` | new row at the top / current / adds a Set |
+| Paint one node (the three-click color change) | new | Node inspector > Look > "Colour this node..." creates a one-node fixed Set | natural | `{match: "ids"}` | new row at the top / current / adds a Set |
 | Paint a marquee selection | new | Several elements > "Colour these..." (4.9) or Ctrl+G then Fill | natural | `session.selection.promote` then a layer | adds a Set |
 | Which object painted this node | new | Node inspector > Look, clickable | natural | `explain()` | none |
 | Lock an object (Fill not editable, still paints) | new | The lock on the row | natural | the objects API; the element's `locked` is for element layers only, so the app-facing lock lives on the object | no / no / no |
@@ -261,32 +261,32 @@ retired.
 layer already writes that channel. In the model a new object goes to the top of the tree and
 wins by position; suppressing its paint would make a new Measure appear with no Fill and no
 explanation. The replacement is the rule the model already asks for (section 6.2 and section
-11): the suggestion picks the first channel no visible object above it writes (Colour, then Size,
-then Outline); when none is free it paints Colour anyway and the covered object's Fill says
+11): the suggestion picks the first channel no visible object above it writes (Color, then Size,
+then Outline); when none is free it paints Color anyway and the covered object's Fill says
 "Covered by X on N of M". Hidden objects and the Dataset's Fill never block a suggestion.
 
 **A4. Batch coalescing.** Rank > Several... starts a batch, and the element paints one layer per
 channel for the whole batch, keeping the one that would land on top. Under A3 the natural
-outcome is: the first Measure gets Colour, the second Size, the third Outline, the rest no Fill
+outcome is: the first Measure gets Color, the second Size, the third Outline, the rest no Fill
 (a "no fill" chip, one click from "+"). Awkward only in that a reader who ticks six boxes gets
-three painted and three not; the chips make that visible, and the alternative (six colour layers,
+three painted and three not; the chips make that visible, and the alternative (six color layers,
 five invisible) is what the element's rule exists to prevent.
 
-**A5. Overflow "shape".** The element writes the shape from the same layer as the colour so the
-two are added and removed together. The Fill section shows a Grouping's colour and shape as two
+**A5. Overflow "shape".** The element writes the shape from the same layer as the color so the
+two are added and removed together. The Fill section shows a Grouping's color and shape as two
 rows; the minus on the shape row must set `overflow` back to "other" rather than remove a layer.
 A small mapping rule in the objects API; no element change.
 
-**A6. Every Set is blue.** `highlight()` paints every chosen set the first colour of
-`blue-highlight`. Two paths, a neighbourhood and a Top 10 would all be one blue and the tree's
+**A6. Every Set is blue.** `highlight()` paints every chosen set the first color of
+`blue-highlight`. Two paths, a neighborhood and a Top 10 would all be one blue and the tree's
 chips would not tell them apart. The objects API assigns the next unused highlight palette
-(blue, green, orange, then the categorical palette's colours) at creation, and the reader can
-change it. Small element change: `HighlightSpec.set` already accepts the colour; the choice
+(blue, green, orange, then the categorical palette's colors) at creation, and the reader can
+change it. Small element change: `HighlightSpec.set` already accepts the color; the choice
 moves to the objects API.
 
-**A7. Resolve to static.** `resolveToStatic(id, channel)` turns a Measure's colour ramp into one
-fixed colour on that layer. In the model a Measure's Fill is a scale by definition; a fixed
-colour on a Measure would make it a Set with 34 members and no meaning. The reader's intents it
+**A7. Resolve to static.** `resolveToStatic(id, channel)` turns a Measure's color ramp into one
+fixed color on that layer. In the model a Measure's Fill is a scale by definition; a fixed
+color on a Measure would make it a Set with 34 members and no meaning. The reader's intents it
 served are covered elsewhere: "make this node red" is "Colour this node..."; "make the top ten
 red" is Values > "+" > Top N set. The verb stays in the API for consumers and the assistant; no
 control offers it.
@@ -308,7 +308,7 @@ paint). Offer "Top N by [the Measure that drives Size]" instead, which is what t
 No element work; a wording choice in the Labels select.
 
 **A10. "Dim the rest" as an object.** The root `CLAUDE.md` forbids an algorithm from dimming what
-it did not select, and the element's derivation honours that. The reader still wants it (the
+it did not select, and the element's derivation honors that. The reader still wants it (the
 designloom path and hover requirements say 30 percent). Making it an object ("Not in Path", a
 Combination of Everything minus the Path, with an Opacity Fill) keeps every rule: it is the
 reader's choice, it is visible in the tree, it can be moved, hidden or deleted, and it re-runs
@@ -333,7 +333,7 @@ is not on an object"). Two choices, and the recommendation is the first:
    Fill (match-everything layers: node and edge defaults, label style, arrows, background),
    the default palette per kind (sequential, categorical, diverging, highlight), and the
    default Size range. Applying a look rewrites those and touches no object. "Presentation" is
-   then "bigger labels, bigger nodes, thicker edges"; "Print" is a greyscale categorical palette
+   then "bigger labels, bigger nodes, thicker edges"; "Print" is a grayscale categorical palette
    and pattern edge styles; "Colorblind safe" swaps the default palettes; "Dark" sets the
    background. Every designloom preset in the list fits this restriction. `ThemeDescriptor`
    (#331) keeps its `document` field but the objects API validates that every layer is
@@ -367,9 +367,9 @@ Collected from the table, smallest first. Items already in object-model section 
 |---|---|---|---|
 | `highlight()` exclusivity becomes optional, off for the objects API (A2) | small | every second Set | no |
 | Auto-apply picks a free channel instead of dropping the suggestion (A3) | small | every new Measure | yes ("suggested encoding that avoids channels") |
-| Highlight colour cycles per set (A6) | small | every Set | no |
-| `encodeAttribute` (or `encode` accepting a data path) | small | Attributes > Colour by / Size by / Group by (#190) | no |
-| Legend block publishes the Other colour and group display names (#201, #191) | small | the legend, Group rows | #191 yes |
+| Highlight color cycles per set (A6) | small | every Set | no |
+| `encodeAttribute` (or `encode` accepting a data path) | small | Attributes > Color by / Size by / Group by (#190) | no |
+| Legend block publishes the Other color and group display names (#201, #191) | small | the legend, Group rows | #191 yes |
 | Coverage counts from `explain` over a set | small | "Covered by X on N of M" | yes |
 | `maxCharacters` on `LabelStyle`; wrap (#294) | small | label-style popover | no |
 | Layer selector by scope, including induced edges (A1) | small to medium | Set Fills, node sets' edges | yes (without the edge half) |
@@ -381,6 +381,6 @@ Collected from the table, smallest first. Items already in object-model section 
 | `node.marker` rendering (#295) | medium | Fill > Marker, note markers | yes |
 | Edge picking (#319) for edge tooltips and edge objects from the canvas | medium | edge Fills | yes |
 
-Nothing in this area asks the app to compute a colour, count a match, build a legend, or copy a
-palette. Every picker reads a catalogue; every paint is a layer on an object; every explanation
+Nothing in this area asks the app to compute a color, count a match, build a legend, or copy a
+palette. Every picker reads a catalog; every paint is a layer on an object; every explanation
 is `explain()` or a legend block.

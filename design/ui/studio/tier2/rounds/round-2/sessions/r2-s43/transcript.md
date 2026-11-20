@@ -21,7 +21,7 @@ spreadsheet. Now I have two. "New from data..." sounds like where you build some
 
 Wait, this is a page I haven't seen: "Open as a new graph". There's a "Tables" list on the left with a
 plus, "Drop a file here, or choose a file..." in the middle, and Direction "As the file says" at the
-bottom, Load greyed out ("Choose a file first"). Tables -- so maybe I can add two? I'll start with the
+bottom, Load grayed out ("Choose a file first"). Tables -- so maybe I can add two? I'll start with the
 people file by clicking "choose a file...".
 
 ## Step 3

@@ -82,6 +82,10 @@ describe("custom and built-in shaders are one list", () => {
             for (const builtIn of builtIns) {
                 assert.include(tiles, builtIn.id, `${builtIn.id} is in the ${kind} list`);
             }
+            // A shader drawn in the node's place is a Shape kind, never in this list (E378).
+            for (const replacer of session.catalog.shaders({ target: kind, place: "replace" })) {
+                assert.notInclude(tiles, replacer.id, `${replacer.id} is the Shape menu's, not the ${kind} list's`);
+            }
             // Choosing names no place, in words or for a screen reader (E368): only New shader... asks one.
             const placed = [...list.querySelectorAll<HTMLElement>(".ws-gallery-tile")].filter((tile) =>
                 /\b(on the node|around|on the line|along the line)\b/i.test(`${tile.textContent} ${tile.title}`),
@@ -132,6 +136,7 @@ describe("custom and built-in shaders are one list", () => {
         };
         await found("Sphere");
         await found("Mandala");
+        await found("Sticker");
         // A shader drawn around or over the node is the Shaders list's only (E368): searched, it lists nothing.
         await userEvent.clear(search);
         await userEvent.type(search, "Test node around");

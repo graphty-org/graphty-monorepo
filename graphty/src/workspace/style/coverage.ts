@@ -522,7 +522,7 @@ const VARY_DECISIONS = {
         "A yes-or-no property (wireframe, show, curved) has no vary by: picking which elements are on is what Which elements does, so a layer for those elements sets it",
     look: "A label's look is a set of fields, each set in its settings; its size, text color and background vary through their own properties",
     opacity:
-        "Opacity varies by a value from its own field in the color's settings pop-out (Color, Line, Ends, Halo and Band settings), shown as a percent",
+        "Opacity varies by a value from its own field in the color's settings pop-out (Color, Line, Ends, Ring and Band settings), shown as a percent",
     shader: "A shader is picked from the gallery, not varied: what varies per element is its parameters declared 'varies', each bound from the shader's settings pop-out",
 } as const;
 
@@ -597,9 +597,9 @@ export const GRAPH_SETTING_HOMES: Readonly<Record<string, Home>> = {
     "background.color": at("Graph settings, Canvas, Background color"),
     "background.skybox": at("Graph settings, Canvas, Background image"),
     "background.shader": NOT_PLACED,
-    "selection.color": at("Selected row, Effects, Halo"),
-    "selection.scale": at("Selected row, Effects, Halo settings"),
-    "selection.opacity": at("Selected row, Effects, Halo settings"),
+    "selection.color": at("Selected row, Effects, Ring"),
+    "selection.scale": at("Selected row, Effects, Ring, Width"),
+    "selection.opacity": at("Selected row, Effects, Ring settings"),
     "selection.edgeColor": at("Selected row, Effects, Band"),
     "selection.edgeScale": at("Selected row, Effects, Band settings"),
     "selection.edgeOpacity": at("Selected row, Effects, Band settings"),

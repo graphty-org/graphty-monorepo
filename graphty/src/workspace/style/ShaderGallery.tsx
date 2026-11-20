@@ -21,7 +21,7 @@ import {
 /** The gallery's columns, which Up and Down move across. */
 const COLUMNS = 2;
 
-/** A tile for one of the tab's own style options (Outline, Glow, Halo, Wireframe, Band), found by search. */
+/** A tile for one of the tab's own style options (Ring, Glow, Wireframe, Band), found by search. */
 export interface OptionTile {
     /** What a pick hands back: the option's key in its section's "+". */
     readonly key: string;
@@ -181,7 +181,7 @@ interface ShaderGalleryProps {
  * the origin filter, a row of chips that wraps; then the tiles, buttons the arrows move through,
  * each its picture, name and the animates, cost and light facts. Choosing a shader shows and
  * asks no place: each shader draws at its own, and the place is asked only by New shader. A search
- * also finds the tab's own style options (Outline, Glow, Halo, Wireframe; Band), shown as tiles marked as Shape or Line options, so a reader who types "glow"
+ * also finds the tab's own style options (Ring, Glow, Wireframe; Band), shown as tiles marked as Shape or Line options, so a reader who types "glow"
  * learns it is an option. Enter in the search picks the tile whose name the search names, else
  * the first. Hovering a tile changes nothing on the canvas: only a pick writes.
  * @param props - Component props

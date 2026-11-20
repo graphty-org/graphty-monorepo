@@ -617,7 +617,7 @@ export function SelectionRowStyle(): React.JSX.Element | null {
 type Highlight = GraphSession["config"]["selectionStyle"];
 
 /**
- * The two parts of the highlight: the halo a selected node is drawn with and the band a selected
+ * The two parts of the highlight: the ring a selected node is drawn with and the band a selected
  * edge is drawn with, each its own color, opacity and size in the element's `selectionStyle`.
  */
 const HIGHLIGHT_PARTS = [

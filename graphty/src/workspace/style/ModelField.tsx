@@ -206,14 +206,18 @@ function shapeList(args: LineHelpers, base: AssetLine | undefined, state: ShapeL
                       section: SHAPE_LIST_SECTIONS.models,
                   },
               ];
-    const shaders = [
-        { value: NEW_REPLACE_PICK, label: GALLERY_WORDS.newShader, section: SHAPE_LIST_SECTIONS.shaders },
-        ...ctx.session.catalog.shaders({ target: "node", place: "replace" }).map((shader) => ({
-            value: `${REPLACE_PICK}${shader.id}`,
-            label: shader.plainName,
-            section: SHAPE_LIST_SECTIONS.shaders,
-        })),
-    ];
+    // Picking a shader writes through the Shape family, so with no family the list offers none.
+    const shaders =
+        family === undefined
+            ? []
+            : [
+                  { value: NEW_REPLACE_PICK, label: GALLERY_WORDS.newShader, section: SHAPE_LIST_SECTIONS.shaders },
+                  ...ctx.session.catalog.shaders({ target: "node", place: "replace" }).map((shader) => ({
+                      value: `${REPLACE_PICK}${shader.id}`,
+                      label: shader.plainName,
+                      section: SHAPE_LIST_SECTIONS.shaders,
+                  })),
+              ];
     const fail = (error: unknown): void => {
         store.set({ notice: { message: failureWords("Shape", "changed", error), error: true } });
     };

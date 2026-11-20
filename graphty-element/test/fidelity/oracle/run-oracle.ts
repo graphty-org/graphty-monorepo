@@ -8,8 +8,9 @@
  * comparator, so a change is said to come from the drawing or from the comparator.
  *
  * The verdict is the elements' (`floors.ts`): a sample fails when an element fails a property that
- * `oracle-known-failures.json` does not list; the pass rates in `oracle-floors.json` are recorded values the run is
- * reported against, never a gate. `scripts/fidelity-ratchet.ts` applies a run's report to both files.
+ * `oracle-known-failures.json` does not list, or when an element-judged pass rate falls below its floor in
+ * `oracle-floors.json` and below any drop accepted for it (`gateFloors`). The raster regions' floors are reported
+ * against, never a gate. `scripts/fidelity-ratchet.ts` applies a run's report to both files.
  *
  * Browser only.
  */
@@ -83,7 +84,7 @@ function captureCanvas(element: Graphty): string {
     return canvas.toDataURL("image/png").replace(/^data:image\/png;base64,/, "");
 }
 
-/** One comparison's report and its scores, and the baseline drawing's judgements when the run judged one. */
+/** One comparison's report and its scores, and the baseline drawing's judgments when the run judged one. */
 export interface OracleScored {
     report: OracleReport;
     /** Pass rate per judged property, rounded to 4 places; the raster regions' similarity as `raster.<region>`. */
@@ -272,7 +273,7 @@ function referencesOf(first: OracleComparison, second: OracleComparison | null):
     }));
 }
 
-/** What a run's report file keeps that a later run judges again: its judgement and graphty's drawing. */
+/** What a run's report file keeps that a later run judges again: its judgment and graphty's drawing. */
 interface BaselineReport {
     failures: OracleReport["failures"];
     judged?: OracleReport["judged"];
@@ -287,7 +288,7 @@ interface BaselineReport {
  * @param id - the sample
  * @param base - the baseline report
  * @param inputs - this run's comparison inputs for the sample
- * @returns both judgements
+ * @returns both judgments
  */
 async function rejudge(
     id: string,

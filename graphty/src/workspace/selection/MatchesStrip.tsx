@@ -51,7 +51,7 @@ export function MatchesStrip({
             : (id: NodeId | EdgeId): { name: string; color: string } | null => {
                   const branchId = reading.branchOf(id);
                   const at = reading.rule.branches.findIndex((branch) => branch.id === branchId);
-                  const branch = reading.rule.branches[at];
+                  const branch = at === -1 ? undefined : reading.rule.branches[at];
                   const single = reading.rule.branches.length === 1 ? title : undefined;
                   return branch === undefined
                       ? null

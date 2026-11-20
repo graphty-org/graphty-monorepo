@@ -4,9 +4,9 @@
  * Every arrowhead used to be its own mesh with its own shader material, so the default edge
  * style -- which draws a head on every edge -- cost one extra draw call per edge per frame.
  * Now a scene keeps one mesh per arrow shape and each head is a THIN instance of it, with its
- * direction, size and colour as per-instance attributes. This file checks both halves on a real
+ * direction, size and color as per-instance attributes. This file checks both halves on a real
  * WebGL engine: the heads cost a draw call per shape rather than per edge, and heads of two
- * different colours in that one call still reach the screen in their own colours.
+ * different colors in that one call still reach the screen in their own colors.
  */
 import { Matrix, SceneInstrumentation, Vector3 } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
@@ -26,7 +26,7 @@ const WIDTH = 640;
 /** How tall it is. */
 const HEIGHT = 480;
 
-/** How many pixels of a colour must be on screen before it counts as drawn. */
+/** How many pixels of a color must be on screen before it counts as drawn. */
 const ENOUGH = 20;
 
 describe("arrowheads are drawn in bulk", () => {
@@ -55,7 +55,7 @@ describe("arrowheads are drawn in bulk", () => {
         await graph.setLayout("circular", { scale: 0.5 });
         await operationQueueOf(graph).waitForCompletion();
 
-        // Grey nodes and lines, so the only red and blue on screen are the heads.
+        // Gray nodes and lines, so the only red and blue on screen are the heads.
         await session.styles.add({
             name: "grey graph, red heads",
             target: "edge",
@@ -105,9 +105,9 @@ describe("arrowheads are drawn in bulk", () => {
     }
 
     /**
-     * Count the pixels on screen near a pure colour.
+     * Count the pixels on screen near a pure color.
      * @param want - Which channel is lit: 0 red, 2 blue
-     * @returns How many pixels are that colour
+     * @returns How many pixels are that color
      */
     async function pixelsOf(want: 0 | 2): Promise<number> {
         const { engine } = graph;

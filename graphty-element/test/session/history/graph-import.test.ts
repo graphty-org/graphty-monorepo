@@ -3,7 +3,7 @@
  * source, a batch of data changes, and the baseline a session starts from.
  *
  * An import is one step whether it replaces the graph or adds to it; undo takes back every row it
- * wrote and the report it left, and never reads the source again. A failed or cancelled import
+ * wrote and the report it left, and never reads the source again. A failed or canceled import
  * records nothing. Two imports under one coalesce key dispatched in one tick are one load. A batch
  * is one step and rolls back whole. And with the baseline window open, what was declared at
  * construction, and every setting made before the graph first changes, is where history starts.

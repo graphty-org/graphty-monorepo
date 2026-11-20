@@ -66,12 +66,15 @@ interface FramingBox {
     spots: FramingSpot[];
 }
 
+/** A framing box's corners alone, kept after a fit to tell whether the extent moved. */
+type FittedBox = Pick<FramingBox, "min" | "max">;
+
 /**
  * The box the nodes alone occupy: every visible node, where it is in world space, out to its size.
  * This is what the 2D/3D view-mode switch frames. Zoom-to-fit frames {@link framingBox}, which
  * grows this one by the labels.
  *
- * NO MARGIN on top. A fixed one is paid by every graph, labelled or not, and on a small graph it is
+ * NO MARGIN on top. A fixed one is paid by every graph, labeled or not, and on a small graph it is
  * most of the picture: one world unit on each side moved a two-node graph's camera from 6.0 to 8.6
  * units out. The cameras pad the fit themselves.
  * @param nodes - The nodes to frame; hidden ones are skipped.
@@ -276,7 +279,7 @@ const MAX_LABEL_FIT_ROUNDS = 32;
  * @param b - The other.
  * @returns True when no corner moved by more than that.
  */
-function sameBox(a: FramingBox, b: FramingBox): boolean {
+function sameBox(a: FittedBox, b: FittedBox): boolean {
     const tolerance = Math.max(Vector3.Distance(a.min, a.max), Vector3.Distance(b.min, b.max)) * 1e-9;
     return Vector3.Distance(a.min, b.min) <= tolerance && Vector3.Distance(a.max, b.max) <= tolerance;
 }
@@ -326,7 +329,7 @@ export function framingBox(
 }
 
 /**
- * One set of elements the renderer honours, as the session holds it.
+ * One set of elements the renderer honors, as the session holds it.
  *
  * A MASK, not a list of ids: membership is one array read per element, the bytes are bounded at
  * the element count however many elements are in the set, and the `version` counter is what lets
@@ -368,27 +371,21 @@ export interface ViewMasks {
      */
     readonly showContext?: () => boolean;
     /**
-     * Whether `visibility` is drawing ghosts now (elements outside the time window kept on screen).
+     * Whether `visibility` draws more than is visible now: what lies outside a time window, for
+     * the style layers to hide or ghost, or what a held filter condition would remove.
      * Read on every pass: switching it swaps which mask `visibility` answers with, so the next pass
      * walks everything rather than trusting a version from the other mask.
      * @returns True while ghosts are drawn.
      */
     readonly ghost?: () => boolean;
     /**
-     * Whether the timeline experiment is on. Only with it on does a pass follow a mask by its
-     * changed rows; off, every pass is the walk it always was.
-     * @returns True while the experiment is on.
-     */
-    readonly timeline?: () => boolean;
-    /**
-     * Whether a time window is in force, read only while {@link ViewMasks.timeline} is on. While
-     * one is, the batches upload the slots a step wrote rather than whole buffers.
+     * Whether a time window is in force. While one is, the batches upload the slots a step wrote
+     * rather than whole buffers.
      * @returns True while a window is in force.
      */
     readonly timeWindow?: () => boolean;
     /**
-     * What edges fade by age with (the timeline's `ageFade`), read only while
-     * {@link ViewMasks.timeline} is on, once a frame.
+     * What edges fade by age with (the timeline's `ageFade`), read once a frame.
      * @returns The ages and the window, or null while nothing fades.
      */
     readonly ageFade?: () => EdgeAgeFade | null;
@@ -553,6 +550,11 @@ export class UpdateManager implements Manager {
     autoTurning = false;
     /** Whether motion is reduced, which keeps `camera.autoRotate` from turning; set by the graph. */
     reducedMotion = false;
+    /**
+     * Whether a tour holds the camera: `camera.autoRotate` and the glide to the selection wait
+     * until it ends, so a hold stands still. Set by the graph while a tour plays or records.
+     */
+    cameraHeld = false;
     /** The longest frame the auto-rotation turns for, so a tab coming back does not jump. */
     private static readonly MAX_TURN_MS = 100;
     /** `camera.autoRotate` and `camera.autoRotateResume` as the last pass read them; a change ends the reader's pause. */
@@ -595,7 +597,7 @@ export class UpdateManager implements Manager {
     private lastLanding: {
         engine: SimulationLayoutEngine;
         landed: number;
-        positions: Map<NodeIdType, { x: number; y: number; z: number }>;
+        positions: Map<number, { x: number; y: number; z: number }>;
     } | null = null;
 
     /** Where the two masks are read from, or null while nothing has been bound. */
@@ -873,7 +875,7 @@ export class UpdateManager implements Manager {
      * Say where the renderer reads the selection and visibility masks from.
      *
      * Binding is how the element's own model reaches the render loop: the masks belong to the
-     * session, one per dataset, and every view of that dataset honours the same two. Passing null
+     * session, one per dataset, and every view of that dataset honors the same two. Passing null
      * unbinds them, which draws the whole graph with no highlight.
      * @param masks - The two mask sources, or null.
      */
@@ -919,11 +921,11 @@ export class UpdateManager implements Manager {
 
     /**
      * Switch the scene's batches to uploading only what they wrote while a time window is in force.
-     * With the timeline off or no window, the switch was never touched and this writes nothing.
+     * With no window, the switch was never touched and this writes nothing.
      * @param masks - What the renderer reads.
      */
     private followTimeWindow(masks: ViewMasks): void {
-        const ranged = masks.timeline?.() === true && masks.timeWindow?.() === true;
+        const ranged = masks.timeWindow?.() === true;
         if (ranged !== this.rangedUploads) {
             this.rangedUploads = ranged;
             batchUploadFrames.rangedUploads(this.graphContext.getScene()).on = ranged;
@@ -932,12 +934,12 @@ export class UpdateManager implements Manager {
 
     /**
      * Hand the scene's lines the fade by age the session asks for: whether it is on, the edges'
-     * ages and the window the uniform carries. With the timeline off or the setting at 1 the
-     * state is never touched and every line keeps today's program.
+     * ages and the window the uniform carries. With the setting at 1 the state is never touched
+     * and every line keeps today's program.
      * @param masks - What the renderer reads.
      */
     private followAgeFade(masks: ViewMasks): void {
-        batchUploadFrames.edgeAges(this.graphContext.getScene()).track = masks.timeline?.() === true;
+        batchUploadFrames.edgeAges(this.graphContext.getScene()).track = true;
         if (!this.ageFadeOwed(masks)) {
             return;
         }
@@ -981,7 +983,7 @@ export class UpdateManager implements Manager {
      * @returns The fade, or null for none.
      */
     private static ageFadeOf(masks: ViewMasks): EdgeAgeFade | null {
-        return masks.timeline?.() === true ? (masks.ageFade?.() ?? null) : null;
+        return masks.ageFade?.() ?? null;
     }
 
     /**
@@ -1037,7 +1039,7 @@ export class UpdateManager implements Manager {
      * not moved, so the cost lands only while records are actually arriving.
      */
     syncViewMasks(): void {
-        // An unbound renderer is not a renderer that stops honouring the masks: it is one whose
+        // An unbound renderer is not a renderer that stops honoring the masks: it is one whose
         // session says nothing about them, which means the whole graph is drawn and nothing is
         // highlighted. Returning early here instead would freeze the last answer on screen after
         // an unbind, which is the one state nobody asked for.
@@ -1075,11 +1077,7 @@ export class UpdateManager implements Manager {
 
         // A time window's slide says which rows it moved, so a step costs those rows and not the
         // graph. Anything else that moved a mask answers null here and walks, as below.
-        const sameLook =
-            masks.timeline?.() === true &&
-            this.appliedAnything &&
-            showContext === this.appliedShowContext &&
-            ghost === this.appliedGhost;
+        const sameLook = this.appliedAnything && showContext === this.appliedShowContext && ghost === this.appliedGhost;
         const nodeRows = sameLook ? inRowOrder(nodeVisibility?.changedSince(this.appliedNodeVisibility) ?? null) : null;
         const edgeRows = sameLook ? inRowOrder(edgeVisibility?.changedSince(this.appliedEdgeVisibility) ?? null) : null;
 
@@ -1199,7 +1197,7 @@ export class UpdateManager implements Manager {
             }
         }
 
-        this.applyColumnRows(rows, nodeVisibility);
+        this.applyColumnRows(rows, nodeVisibility, showContext);
     }
 
     /**
@@ -1327,7 +1325,15 @@ export class UpdateManager implements Manager {
             }
         }
 
-        this.applyColumnRows(null, nodeVisibility);
+        // A selected row stored with no `Node` gets one, as the selection's own pass gives it (`applyNodeSelection`):
+        // its halo is the `Node`'s. Built, it takes the masks (`adoptBuiltNode`).
+        for (const id of nodeSelection?.ids() ?? []) {
+            if (dataManagerInternals.builtNode(this.dataManager, id) === undefined) {
+                this.dataManager.nodes.get(id);
+            }
+        }
+
+        this.applyColumnRows(null, nodeVisibility, showContext);
     }
 
     /**
@@ -1522,7 +1528,7 @@ export class UpdateManager implements Manager {
      *
      * An element whose paint has not changed still costs nothing: `Node.applySessionPaint` and
      * `Edge.applySessionPaint` compare the source mesh they are handed with the one already on
-     * screen and rebuild only when it differs, so a colour change on a node is one buffer write
+     * screen and rebuild only when it differs, so a color change on a node is one buffer write
      * and no geometry at all.
      * @param budgetMs - How long this frame may spend applying paint before it leaves the rest
      *     for the next frame; each kind of element paints at least one batch. Unbounded when absent.
@@ -1626,8 +1632,11 @@ export class UpdateManager implements Manager {
     /** {@link UpdateManager.labelPasses} as the last fit measured them. */
     private fitLabelPasses = 0;
 
-    /** The box the last fit framed, before any map grew it; see {@link UpdateManager.noteRepaintedExtent}. */
-    private fittedBox: FramingBox | undefined;
+    /**
+     * The corners of the box the last fit framed, before any map grew it; see
+     * {@link UpdateManager.noteRepaintedExtent}. Only the corners: the box's spots are one per node.
+     */
+    private fittedBox: FittedBox | undefined;
 
     /** Whether a node repaint was applied since the last fit, before its picture was final. */
     private repaintedSinceFit = false;
@@ -1669,8 +1678,10 @@ export class UpdateManager implements Manager {
         // A repainted edge's own appearance changed, so this frame places the edges it painted (in the
         // edge pass, after every batch: a fanned edge is placed from its siblings' paint), and the
         // frame that finishes the repaint visits every edge. A frame paints at least a
-        // REPAINT_FRAMES-th of the graph's edges, whatever the budget.
-        this.sceneChanged = true;
+        // REPAINT_FRAMES-th of the graph's edges, whatever the budget. A time window's slide says for
+        // itself: only an edge's own meshes shown, hidden or rebuilt reach the list of what is drawn,
+        // as a mask's rows do (`applyEdgeRows`); a batch's slot is written in place.
+        this.sceneChanged ||= !painter.edgesFromRowsOnly;
         let painted = 0;
         const least = minimumWorkPerFrame() ? 0 : Math.ceil(this.dataManager.edges.size / REPAINT_FRAMES);
         // A paint run's first frame tells the edge pools how many edges it will paint, so a pool that
@@ -1718,7 +1729,9 @@ export class UpdateManager implements Manager {
             const paint = edge === undefined ? null : painter.edgePaint(index);
 
             if (edge !== undefined && paint !== null) {
+                const own = edge.togglesOwnMeshes();
                 edge.applySessionPaint(paint);
+                this.sceneChanged ||= own || edge.togglesOwnMeshes();
                 this.edgesToPlace.push(edge);
                 this.paintedSupportPoint ||= this.hasSupportPoint(edge);
                 painted++;
@@ -1745,6 +1758,11 @@ export class UpdateManager implements Manager {
         const lines = this.graphContext.getEdgeRowLines?.() ?? null;
         const paint = painter.edgePaint(index);
         const [source, target] = ends;
+        // An edge a style hides (what lies outside a time window) draws nothing, and needs no `Edge` to hide it.
+        if (paint?.style.visible === false) {
+            lines?.unpaintRow(index);
+            return undefined;
+        }
         const lineable =
             lines !== null &&
             paint !== null &&
@@ -1752,6 +1770,8 @@ export class UpdateManager implements Manager {
             !this.mapArcsEdges() &&
             !this.endBehindEdges(source) &&
             !this.endBehindEdges(target) &&
+            !this.endInvisible(source) &&
+            !this.endInvisible(target) &&
             !this.rowSelected(index);
         if (lineable && lines.paintRow(index, source, target, paint)) {
             lines.setHidden(index, this.rowHidden(index));
@@ -1832,11 +1852,19 @@ export class UpdateManager implements Manager {
      * @returns The `Edge`, or undefined when no edge is stored there.
      */
     private buildRowEdge(index: number, paintingNow = false): Edge | undefined {
-        const edge = dataManagerInternals.buildEdgeAt(this.dataManager, index, paintingNow);
-        if (edge === undefined) {
-            return undefined;
-        }
+        // The build adopts it (`adoptBuiltEdge`), which draws it as the masks say.
+        return dataManagerInternals.buildEdgeAt(this.dataManager, index, paintingNow);
+    }
 
+    /**
+     * Draw an `Edge` just built from a row stored with no `Edge` as the edge masks the last pass read
+     * say, however it was asked for (a pass, or a read of the edge map): no pass walks it before its
+     * row's masks move.
+     * @param edge - The edge.
+     * @internal
+     */
+    adoptBuiltEdge(edge: Edge): void {
+        const { index } = edge;
         const hidden = edge.setRenderVisible(this.edgeVisibilityMask?.has(index) !== false);
         const selected = this.edgeSelectionMask?.has(index) === true;
         edge.setSelected(selected);
@@ -1847,8 +1875,6 @@ export class UpdateManager implements Manager {
         if (hidden || selected) {
             this.forceEdgeWalk();
         }
-
-        return edge;
     }
 
     /**
@@ -1880,6 +1906,23 @@ export class UpdateManager implements Manager {
 
         const look = batches.lookOf(row);
         return (look?.paint.style.shape?.zIndex ?? 0) < 0;
+    }
+
+    /**
+     * Whether a node row is drawn at opacity 0 (`Node.drawnOpacity`), so an edge ends at its outline (`Edge.bareEnd`),
+     * which a row line, drawn center to center, does not: read from the row's batch when no `Node` draws it.
+     * @param row - The node row.
+     * @returns True when it is.
+     */
+    private endInvisible(row: number): boolean {
+        const node = this.dataManager.nodesByIndex[row];
+        if (node !== undefined) {
+            return node.drawnOpacity <= 0;
+        }
+
+        const batches = this.graphContext.getNodeBatches?.() ?? null;
+        const column = batches?.columnRowOf(row);
+        return column !== undefined && batches !== null && batches.columnOpacityOf(column) <= 0;
     }
 
     /**
@@ -1918,11 +1961,26 @@ export class UpdateManager implements Manager {
      */
     private unbuiltPainted(painter: StylePainter, index: number): Node | undefined {
         const id = dataManagerInternals.unbuiltAt(this.dataManager, index);
-        // one style per look, not per row (`StylePainter.rowPaint`); a row that needs a `Node` is
-        // painted again below through `nodePaint`, so the Node never holds a shared style
+        // one style per look, not per row (`StylePainter.rowPaint`)
         const paint = id === undefined ? null : painter.rowPaint(index);
         const batches = this.graphContext.getNodeBatches?.() ?? null;
-        if (id === undefined || paint === null || batches?.paintRow(index, paint) === true) {
+        const table = this.graphContext.getRowTable?.() ?? null;
+        const filtered = (): boolean => this.viewMasks?.visibility?.nodes()?.has(index) === false;
+        // A row a style hides (what lies outside a time window) draws nothing, and needs no `Node` to hide it.
+        // Its bound goes to 0 as a hidden `Node`'s does, so a pick or a region skips it.
+        if (paint?.style.visible === false) {
+            batches?.unpaintRow(index);
+            table?.hide(index, true);
+            return undefined;
+        }
+
+        if (id === undefined || paint === null) {
+            return undefined;
+        }
+
+        if (batches?.paintRow(index, paint) === true) {
+            // shown again: hidden now only if a filter hides it, as `applyColumnRows` writes
+            table?.hide(index, filtered());
             return undefined;
         }
 
@@ -1932,6 +1990,7 @@ export class UpdateManager implements Manager {
         const plain =
             batches === null || dataManagerInternals.nodesLive(this.dataManager) < cap ? null : plainNodePaint(paint);
         if (plain !== null && batches?.paintRow(index, plain) === true) {
+            table?.hide(index, filtered());
             if (plain.labelled === true) {
                 // label sampling may pick it, and then builds it a `Node` for the label (`buildPlainRow`)
                 LabelDeclutter.notePlainLabel(this.graphContext.getScene(), this.graphContext);
@@ -2062,7 +2121,11 @@ export class UpdateManager implements Manager {
      */
     private syncNodeStyles(painter: StylePainter, deadline: number): void {
         // A rebuilt mesh leaves the scene's mesh count as it was, and a frozen scene draws the old one.
-        this.sceneChanged = true;
+        // A time window's slide says for itself: only a rebuilt mesh or a node's own meshes shown or
+        // hidden reach the list of what is drawn, as a mask's rows do (`applyNodeRows`).
+        const slide = painter.nodesFromRowsOnly;
+        this.sceneChanged ||= !slide;
+        this.ownMeshesPainted = false;
         const rows = this.nodesByRow();
 
         // ONE BATCH, AND SO ONE TEARDOWN, A FRAME. A batch that rebuilds a mesh pays a pass over
@@ -2088,6 +2151,7 @@ export class UpdateManager implements Manager {
             return { resized: new Set(painted.resized), rebuilt: painted.rebuilt };
         });
 
+        this.sceneChanged ||= rebuilt || this.ownMeshesPainted;
         if (rebuilt || resized.size > 0) {
             for (const group of this.redrawGroups()) {
                 resized.add(group);
@@ -2264,7 +2328,9 @@ export class UpdateManager implements Manager {
         });
         const resized = collectResizedNodes(() => {
             for (const [node, paint] of painted) {
+                const own = node.togglesOwnMeshes();
                 node.applySessionPaint(paint);
+                this.ownMeshesPainted ||= own || node.togglesOwnMeshes();
             }
         });
 
@@ -2320,6 +2386,21 @@ export class UpdateManager implements Manager {
         if (!this.explicitZoomToFit) {
             this.forceZoomToFit = false;
         }
+    }
+
+    /**
+     * Remember whether the element frames the graph on its own and what it still owes, for a
+     * camera a tour places only for its own length.
+     * @returns Puts the framing back as it was.
+     */
+    saveFraming(): () => void {
+        const { needsZoomToFit, forceZoomToFit, explicitZoomToFit } = this;
+        return () => {
+            this.needsZoomToFit = needsZoomToFit;
+            this.forceZoomToFit = forceZoomToFit;
+            this.explicitZoomToFit = explicitZoomToFit;
+            this.fitRead = null;
+        };
     }
 
     /**
@@ -2396,6 +2477,16 @@ export class UpdateManager implements Manager {
     }
 
     /**
+     * Whether the last pass left a finished state that no drawn frame has shown yet: the frame
+     * about to be drawn is the one that would be called final. Tests aim a race at that frame.
+     * @returns True between a pass that finished the state and the first frame drawn from it.
+     * @internal
+     */
+    get finalFrameIsNext(): boolean {
+        return this.stateIsFinished && !this.drawnFrameIsFinished;
+    }
+
+    /**
      * Say that meshes were built outside a pass that moves anything, so the finished picture has
      * to be earned again.
      *
@@ -2445,6 +2536,20 @@ export class UpdateManager implements Manager {
      */
     operationsPending: (() => boolean) | null = null;
 
+    /**
+     * The renderer's count of fenced WebGL frames and whether the GPU has finished one, so a wait
+     * for the final picture ends only once the GPU has finished the frame that drew it; see
+     * `RenderManager.gpuFinishedFrame`. Null when nothing fences frames.
+     * @internal
+     */
+    gpuFrames: { fenced: () => number; finished: (frame: number) => boolean } | null = null;
+
+    /**
+     * The renderer's fenced-frame count when the frame that drew the finished picture was drawn,
+     * so its own fence is this plus one; null when no such fence is owed.
+     */
+    private finishedFrameFencedAfter: number | null = null;
+
     /** Callers of {@link UpdateManager.onceNothingIsOwed} still waiting. */
     private readonly owedWaiters = new Set<() => void>();
 
@@ -2457,7 +2562,25 @@ export class UpdateManager implements Manager {
         // `wait` work (a queued operation, issue #3528) too: the frame on screen is final about
         // the graph it shows, so `frameIsStable`, the frame announcement and the on-demand loop's
         // rest do not ask it, but a wait for the final picture does.
-        return this.pending.firstPending("wait") === null && this.frameIsStable;
+        return this.pending.firstPending("wait") === null && this.frameIsStable && this.gpuFinishedPicture();
+    }
+
+    /**
+     * Whether the GPU has finished drawing the frame that drew the finished picture. The render
+     * loop lets two WebGL frames be in flight, so the frame called final can still be queued on
+     * the GPU behind an older one, and a screenshot or readback taken then can read the older
+     * frame (issues #8344, #8346). Only that frame is waited for, not every frame since: a picture
+     * that keeps drawing (a moving shader) on a GPU slower than the loop always has one in flight.
+     * @returns True once that frame is done, or when no fence was owed.
+     */
+    private gpuFinishedPicture(): boolean {
+        const before = this.finishedFrameFencedAfter;
+        if (before === null || this.gpuFrames === null) {
+            return true;
+        }
+
+        // Asked while the frame is still being drawn, its fence is not made yet.
+        return this.gpuFrames.fenced() > before && this.gpuFrames.finished(before + 1);
     }
 
     /**
@@ -2645,6 +2768,23 @@ export class UpdateManager implements Manager {
      * source's shader, so it is answered by the source rather than one by one.
      * @returns True when no drawn mesh and no drawn effect is waiting for a shader.
      */
+    /**
+     * Whether a mesh can be drawn whole, its outline included. `Mesh.isReady` leaves the outline
+     * out, and the outline renderer skips the mesh while its shader compiles, which on WebGPU
+     * outlasts the frame first called final (#8734).
+     * @param scene - The scene.
+     * @param mesh - The mesh.
+     * @param instanced - Whether it draws instances.
+     * @returns True when the mesh and any outline it draws are ready.
+     */
+    private static meshIsReady(scene: Scene, mesh: Mesh, instanced: boolean): boolean {
+        if (!mesh.isReady(true, instanced)) {
+            return false;
+        }
+
+        return !mesh.renderOutline || mesh.subMeshes.every((sub) => scene.getOutlineRenderer().isReady(sub, instanced));
+    }
+
     private everyDrawnMeshIsReady(): boolean {
         const scene = this.graphContext.getScene();
         const layers = scene.effectLayers.filter((layer) => layer.shouldRender());
@@ -2664,7 +2804,7 @@ export class UpdateManager implements Manager {
                 continue;
             }
 
-            if (!(mesh as Mesh).isReady(true, instanced)) {
+            if (!UpdateManager.meshIsReady(scene, mesh as Mesh, instanced)) {
                 return false;
             }
 
@@ -2683,19 +2823,32 @@ export class UpdateManager implements Manager {
      *
      * Asked under the layer's render pass, because that is where the layer keeps the mesh's
      * shader -- which is what Babylon's own readiness check does before asking the same thing.
+     * A mesh with no geometry -- a model's root, an empty mesh -- has no submeshes and nothing to
+     * draw into the layer, so it is ready, as `Mesh.isReady` answers for it; one still loading was
+     * already answered not ready by `isReady` before the layers are asked.
      * @param layer - The layer drawing the mesh.
      * @param mesh - The mesh.
      * @param instanced - Whether the mesh is drawn through instances.
      * @returns True when every part of the mesh is ready to be drawn into the layer.
      */
     private static layerIsReadyFor(layer: EffectLayer, mesh: AbstractMesh, instanced: boolean): boolean {
+        // A mesh with no geometry draws nothing and has no subMeshes at all (a batched node's
+        // anchor): asking for them threw in the render loop on every frame.
+        if (mesh.getTotalVertices() === 0) {
+            return true;
+        }
+
         const engine = mesh.getEngine();
         const pass = engine.currentRenderPassId;
 
         engine.currentRenderPassId = layer.mainTexture.renderPassId;
 
+        // Babylon leaves subMeshes unset on a mesh with no geometry (a model's root), which a layer
+        // draws nothing of.
+        const { subMeshes }: { readonly subMeshes?: AbstractMesh["subMeshes"] } = mesh;
+
         try {
-            return mesh.subMeshes.every((subMesh) => layer.isReady(subMesh, instanced));
+            return subMeshes === undefined || subMeshes.every((subMesh) => layer.isReady(subMesh, instanced));
         } finally {
             engine.currentRenderPassId = pass;
         }
@@ -2709,6 +2862,16 @@ export class UpdateManager implements Manager {
      */
     private noteFrameDrawn(): void {
         this.noteNodesDrawn();
+        const engine = this.layoutManager.layoutEngine;
+        this.drawnLanding =
+            engine instanceof SimulationLayoutEngine
+                ? {
+                      engine,
+                      landed: engine.landedBatchesPublished,
+                      released: this.pending.released,
+                      quiet: this.pending.pendingOnly(UpdateManager.BETWEEN_LANDINGS),
+                  }
+                : null;
         if (!this.stateIsFinished || this.drawnFrameIsFinished) {
             return;
         }
@@ -2729,6 +2892,7 @@ export class UpdateManager implements Manager {
 
         this.finishedEpoch = this.pending.epoch;
         this.finishedMeshCount = this.graphContext.getScene().meshes.length;
+        this.finishedFrameFencedAfter = this.gpuFrames?.fenced() ?? null;
         // The picture the last fit framed is final: a later input change moves nothing.
         this.fitRead = null;
         this.eventManager.emit("graph-frame-stable", { frames: this.frameCount });
@@ -2750,6 +2914,51 @@ export class UpdateManager implements Manager {
         this.nodesDrawn = true;
         this.eventManager.emit("graph-first-frame", { frames: this.frameCount });
     }
+
+    /**
+     * When the last frame was drawn: the accelerated layout, its landed batch count, how many
+     * pending-work tokens had been released, and whether nothing but the layout and framing was
+     * pending then.
+     */
+    private drawnLanding: {
+        engine: SimulationLayoutEngine;
+        landed: number;
+        released: number;
+        quiet: boolean;
+    } | null = null;
+
+    /**
+     * Whether the only thing still changing the picture is a running accelerated layout that has
+     * published no new landing since the last frame drawn (issue #8801). Its batches land frames
+     * apart, and a frame drawn in between shows the same positions again while taking GPU time
+     * from the batches still computing. Pending work of any other kind (a style repaint, sizing, a
+     * transition, a model loading) says false, as does a layout that can land nothing more (a
+     * failed batch), and so does work that ended since that frame
+     * without owing an event -- a token released (the last batch of a repaint applied over several
+     * passes), or work of another kind that was pending when it was drawn -- since the frame
+     * drawn does not show it yet. Framing is left to the render loop, which draws whenever the
+     * camera moved.
+     * @returns True when the frame about to be drawn would show no new layout positions.
+     */
+    get awaitsLanding(): boolean {
+        const drawn = this.drawnLanding;
+        const engine = drawn?.engine;
+        return (
+            engine !== undefined &&
+            engine === this.layoutManager.layoutEngine &&
+            engine.isAccelerated &&
+            engine.canLand &&
+            engine.landedBatchesPublished === drawn?.landed &&
+            drawn.quiet &&
+            this.pending.released === drawn.released &&
+            this.layoutIsMoving() &&
+            transitionsOf(this.layoutManager)?.active !== true &&
+            this.pending.pendingOnly(UpdateManager.BETWEEN_LANDINGS)
+        );
+    }
+
+    /** The kinds of pending work {@link UpdateManager.awaitsLanding} allows. */
+    private static readonly BETWEEN_LANDINGS: ReadonlySet<string> = new Set(["layout", "framing"]);
 
     /**
      * Whether a frame showing the graph's nodes has been drawn since the graph last held none.
@@ -2775,6 +2984,11 @@ export class UpdateManager implements Manager {
      *     frames are drawn. Omitted or 0 -- every hand-pumped pass -- it takes one step.
      */
     update(frameMs = 0): void {
+        // A finished frame drawn without a fence (by hand, outside the loop) owes the GPU nothing.
+        if (this.finishedFrameFencedAfter !== null && this.gpuFrames?.fenced() === this.finishedFrameFencedAfter) {
+            this.finishedFrameFencedAfter = null;
+        }
+
         // Work waiting for this pass -- a style edit's paint, a layout, a framing -- changes what
         // the next frame draws, so it has to be announced again once that frame is drawn.
         if (!this.pictureIsFinished()) {
@@ -2886,7 +3100,7 @@ export class UpdateManager implements Manager {
      */
     private followSelection(frameMs: number): void {
         this.followingSelection = false;
-        if (!this.graphContext.getStyles().config.behavior.camera.pivotOnSelection) {
+        if (this.cameraHeld || !this.graphContext.getStyles().config.behavior.camera.pivotOnSelection) {
             return;
         }
 
@@ -2912,8 +3126,10 @@ export class UpdateManager implements Manager {
             return;
         }
 
-        // A camera still gliding to the selection is a picture that is not final yet.
-        const frames = Math.min(MAX_CATCH_UP_ROUNDS, frameMs / NOMINAL_FRAME_MS);
+        // A camera still gliding to the selection is a picture that is not final yet. Not capped as
+        // the layout's catch-up is: a glide round is one multiplication, so a slow frame covers all
+        // the time it took. Capped, a page drawing a frame a second glided for seven (issue #9032).
+        const frames = frameMs / NOMINAL_FRAME_MS;
         this.followingSelection = this.camera.followPoint(selectionCenter(nodes), frames);
     }
 
@@ -2977,7 +3193,7 @@ export class UpdateManager implements Manager {
         }
 
         // Reduced motion keeps the camera still.
-        const turnSpeed = this.reducedMotion ? 0 : camera.autoRotate;
+        const turnSpeed = this.reducedMotion || this.cameraHeld ? 0 : camera.autoRotate;
         this.autoTurning = this.camera.autoTurn(
             (turnSpeed * Math.min(frameMs, UpdateManager.MAX_TURN_MS)) / 1000,
             frameMs,
@@ -3209,22 +3425,23 @@ export class UpdateManager implements Manager {
     }
 
     /**
-     * Where the layout engine currently has every node.
-     * @returns One position per node, by node id.
+     * Where the layout has every placed node: read by row from the shared positions every engine writes, so a row
+     * stored with no `Node` under "batched" counts too (the engine's `nodes` lists only `Node`s).
+     * @returns One position per placed row, by row.
      */
-    private enginePositions(): Map<NodeIdType, { x: number; y: number; z: number }> {
-        const engine = this.layoutManager.layoutEngine;
-        const positions = new Map<NodeIdType, { x: number; y: number; z: number }>();
+    private enginePositions(): Map<number, { x: number; y: number; z: number }> {
+        const positions = new Map<number, { x: number; y: number; z: number }>();
 
-        if (!engine) {
+        if (!this.layoutManager.layoutEngine) {
             return positions;
         }
 
-        for (const node of this.layoutManager.nodes) {
-            const at = engine.getNodePosition(node);
-
-            if (at) {
-                positions.set(node.id, { x: at.x, y: at.y, z: at.z ?? 0 });
+        const shared = this.dataManager.positions;
+        for (let row = 0; row < shared.count; row++) {
+            if (shared.isPlaced(row)) {
+                const at = { x: 0, y: 0, z: 0 };
+                shared.read(row, at);
+                positions.set(row, at);
             }
         }
 
@@ -3239,7 +3456,7 @@ export class UpdateManager implements Manager {
      *     no placed nodes has not settled, it has not started.
      */
     private largestMove(
-        before: Map<NodeIdType, { x: number; y: number; z: number }>,
+        before: Map<number, { x: number; y: number; z: number }>,
         now = this.enginePositions(),
     ): number {
         if (before.size === 0 || now.size === 0) {
@@ -3474,22 +3691,36 @@ export class UpdateManager implements Manager {
     /**
      * Show or hide the rows drawn with no `Node`, which no walk of the nodes reaches. Their batch
      * draws them from the row table, so the table's hidden flag is all there is to write. A row
-     * drawn faintly in context, or ringed as selected, needs a `Node`: none of these is.
+     * drawn faintly in context needs a `Node`, so a hidden row gets one built while `showContext` is on.
      * @param rows - The rows to bring into line, or null for every one.
      * @param nodeVisibility - The visible nodes.
+     * @param showContext - Whether hidden nodes are drawn faintly.
      */
-    private applyColumnRows(rows: Rows | null, nodeVisibility: ElementMask<NodeId> | null): void {
+    private applyColumnRows(rows: Rows | null, nodeVisibility: ElementMask<NodeId> | null, showContext: boolean): void {
         const batches = this.graphContext.getNodeBatches?.() ?? null;
         const table = this.graphContext.getRowTable?.() ?? null;
         if (batches === null || table === null) {
             return;
         }
 
+        // A faint context point is a `Node`'s overlay: a hidden row with none gets one, which draws it.
+        const faint: number[] = [];
         // A slide's rows are looked up one by one: a set of every drawn row cost about 6 ms a jump at
         // 100,000 nodes (#6025).
         for (const row of rows ?? batches.columnRowIndices()) {
             if (rows === null || batches.columnRowOf(row) !== undefined) {
-                table.hide(row, nodeVisibility !== null && !nodeVisibility.has(row));
+                const hidden = nodeVisibility !== null && !nodeVisibility.has(row);
+                table.hide(row, hidden);
+                if (hidden && showContext) {
+                    faint.push(row);
+                }
+            }
+        }
+
+        for (const row of faint) {
+            const id = dataManagerInternals.unbuiltAt(this.dataManager, row);
+            if (id !== undefined) {
+                dataManagerInternals.buildRow(this.dataManager, id);
             }
         }
     }
@@ -3520,6 +3751,8 @@ export class UpdateManager implements Manager {
 
     /** Set by anything in this frame that changed what is drawn. See `settleActiveMeshFreeze`. */
     private sceneChanged = true;
+    /** Whether the node paint running now showed, hid or rebuilt a node's own meshes. */
+    private ownMeshesPainted = false;
 
     /** Whether a freeze of the list of what is visible was asked for and not withdrawn since. */
     private activeMeshesFrozen = false;
@@ -3799,7 +4032,7 @@ export class UpdateManager implements Manager {
      *
      * WHY IT ASKS THE NODES RATHER THAN BEING TOLD. A flag set wherever something moves cannot be
      * trusted: a node's position is written by the layout, by a drag (which Babylon's own drag
-     * behaviour writes straight onto the mesh, through no method of ours), by the two-dimensional
+     * behavior writes straight onto the mesh, through no method of ours), by the two-dimensional
      * mode switch, and by a restore. Missing one of those would leave edges hanging in mid-air
      * with nothing in a test to catch which writer was forgotten. Reading the positions cannot
      * miss a writer, and it is a walk of the NODES -- a hundred thousand where the edges are a
@@ -3832,7 +4065,7 @@ export class UpdateManager implements Manager {
         }
 
         // An edge added or removed since the last walk has never been placed, or has left a
-        // neighbour's slot behind. The store's version says so, and catches one removed and one
+        // neighbor's slot behind. The store's version says so, and catches one removed and one
         // added, which leave a count alone. An engine's array is counted as well, for an engine
         // that takes an edge up after the store told it: read off the array's own length, since
         // COUNTING BY ITERATING would be the million-edge walk this method exists to avoid. An
@@ -4471,7 +4704,7 @@ export class UpdateManager implements Manager {
     /**
      * Whether the camera is looking at something other than what it looked at last frame.
      *
-     * Read rather than signalled, because a camera is moved by a reader's mouse, by an animation,
+     * Read rather than signaled, because a camera is moved by a reader's mouse, by an animation,
      * by zoom-to-fit and by the XR rig, and a frozen scene keeps whatever was inside the frustum
      * when it froze. Six numbers cover the orbit camera the element uses and the free cameras.
      * @returns True when the view has changed.
@@ -4666,7 +4899,7 @@ export class UpdateManager implements Manager {
 
         this.hasZoomedToFit = true;
         this.fitRead = this.fitInputs();
-        this.fittedBox = framed;
+        this.fittedBox = { min: framed.min, max: framed.max };
         this.fitLabelPasses = this.labelPasses();
         this.fitExtentMoved = false;
         this.repaintedSinceFit = false;

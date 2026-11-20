@@ -1,30 +1,30 @@
 #!/bin/bash
-# The pre-push gate's source-only checks: formatting, the offline link check, the CI workflow tests,
+# The source-only checks: formatting, the offline link check, the CI workflow tests,
 # the config and tool checks and the duplicate code check. They read only the source -- no
 # build, no affected list -- and take about two minutes together, so they run before anything slow:
-#  - tools/prepush.sh runs them first (it sources this file, which also gives it run_step), and
-#  - tools/push-queue.sh runs them before a push waits for a gate slot, so a slip fails in about a minute
-#    instead of after the queue.
+# tools/push-queue.sh runs them before a push waits for a gate slot, so a slip fails in about a minute
+# instead of after the queue. (The old full pre-push gate, tools/prepush.sh, which also sourced this file,
+# was removed on 2026-11-02; the pre-push hook no longer runs it.)
 # A pass is recorded under the checkout's gate key (tools/prepush-inputs.mjs: the content of every
 # file git does not ignore, the installed lockfile, the gate's own scripts, the Node version and the
 # lane environment, and the parent branch when this one is stacked on an unlanded branch -- not the
 # branch's own name, not HEAD) in <main checkout>/tmp/prepush-passes/source/. When a
 # pass is recorded under the key the checkout has now, on any branch, the checks are skipped: they
 # already passed on exactly these inputs. So a commit that changes no file (a merge that brings
-# nothing new, golden's land commit of a branch that merged golden first) does not run them again;
-# any edit, new file, lockfile install or gate change does, and so does PREPUSH_RERUN_ALL=1. GATE_KEY is left set for tools/prepush.sh.
+# nothing new) does not run them again; any edit, new file, lockfile install or gate change does, and so
+# does PREPUSH_RERUN_ALL=1.
 #
 # Run by hand: ./tools/prepush-source-checks.sh
 
 # The gate's scripts are beside this file; the checkout they check is PREPUSH_ROOT when the push queue
-# runs this from the gate's live copy (tools/prepush.sh says more), else this file's own checkout.
+# runs this from the gate's live copy, else this file's own checkout.
 GATE_TOOLS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${PREPUSH_ROOT:-$GATE_TOOLS/..}" && pwd)" || exit 1
 unset PREPUSH_ROOT
 cd "$ROOT_DIR" || exit 1
 
 # A git hook exports GIT_DIR and friends; a test that builds a throwaway repository would act on this
-# one with them set (tools/prepush.sh says more).
+# one with them set.
 unset $(git rev-parse --local-env-vars)
 
 # node_modules must match the lockfile, or everything below runs against dependency versions CI
@@ -154,8 +154,8 @@ bg_kill() {
 }
 trap bg_kill EXIT
 
-# The branch this push is measured from (tools/push-base.mjs), asked once: the duplicate code step, the gate
-# key and tools/prepush.sh's affected packages all use it.
+# The branch this push is measured from (tools/push-base.mjs), asked once: the duplicate code step and the
+# gate key use it.
 PUSH_BASE_REF=${PUSH_BASE_REF:-$(node "$GATE_TOOLS/push-base.mjs")} && export PUSH_BASE_REF
 
 GATE_KEY="$(node "$GATE_TOOLS/prepush-inputs.mjs" key 2>/dev/null)"
@@ -289,8 +289,7 @@ else
 
     # Recorded only when nothing changed while the checks ran (prepush-inputs.mjs record compares), and
     # only when the release dry run checked the push: a pass it did not check would let the next push of these
-    # files, golden's landing push included, skip it. An empty GATE_KEY also keeps tools/prepush.sh
-    # from recording or reusing a whole-gate pass.
+    # files skip it.
     if [ -n "${RELEASE_UNCHECKED:-}" ]; then
         GATE_KEY=""
     elif [ -n "$GATE_KEY" ]; then

@@ -193,10 +193,10 @@ describe("the shipped-port adapters give the numbers the algorithms give", () =>
                 const run = new KCoreAlgorithm(graph);
                 await run.run();
 
-                /* algorithms 2.x counted a node's self-loop as one of its own neighbours, so E -- a
+                /* algorithms 2.x counted a node's self-loop as one of its own neighbors, so E -- a
                    self-loop and one edge -- sat in the 2-core. A core number is defined on the
                    simple graph underneath, as NetworkX defines it, and a self-loop counts not at
-                   all. The difference does not stop at the self-looped node: a neighbour whose core
+                   all. The difference does not stop at the self-looped node: a neighbor whose core
                    number leaned on it can drop too. */
                 const simple = copyOf(referenceSnapshot(graph.getDataManager(), "undirected"), "no self-loops");
                 const coreness = byId(simple, kCoreDecomposition(simple).coreness);
@@ -204,8 +204,8 @@ describe("the shipped-port adapters give the numbers the algorithms give", () =>
                     assert.strictEqual(values.value, coreness.get(id), `core number of ${String(id)}`);
                 }
                 assert.include(
-                    run.result?.summary().caveats.notes ?? [],
-                    "A self-loop does not count toward its node's core number, and parallel edges count once.",
+                    (run.result?.summary().caveats.facts ?? []).map((fact) => fact.code),
+                    "k-core.loops-and-parallels",
                 );
                 if (name !== "data4") {
                     assert.strictEqual(published(graph, run).get("E")?.value, 1);
@@ -271,7 +271,7 @@ describe("the shipped-port adapters give the numbers the algorithms give", () =>
 
     it("louvain passes maxIterations and tolerance through: each one stops the merging early", async () => {
         /* A ring of 1200 eight-node cliques, each joined to the next by one edge. Every level merges
-           neighbouring groups: 1200 cliques, then 600, 300 and finally 150 groups. The third level
+           neighboring groups: 1200 cliques, then 600, 300 and finally 150 groups. The third level
            gains under 0.01 modularity, so the largest tolerance stops there, at 300; one level
            stops at the cliques. */
         const nodes: { id: string }[] = [];
@@ -293,7 +293,7 @@ describe("the shipped-port adapters give the numbers the algorithms give", () =>
     });
 
     it("k-core: a node with no self-loop drops when its core leaned on self-looped neighbours", async () => {
-        // D joins three leaves, each with a self-loop. Counting each self-loop as a neighbour, as
+        // D joins three leaves, each with a self-loop. Counting each self-loop as a neighbor, as
         // algorithms 2.x did, put every leaf at degree 2 and D in the 2-core; without them the
         // leaves have degree 1 and D sits in the 1-core, though D itself has no self-loop.
         const graph = await createMockGraph({
@@ -429,7 +429,9 @@ describe("the direction and endpoint options", () => {
         const labels = (Run: typeof HITSAlgorithm | typeof KatzCentralityAlgorithm): Record<string, string> => {
             const { mode } = Run.optionsSchema;
             assert.strictEqual(mode.type, "select");
-            return Object.fromEntries((mode.options ?? []).map((option) => [option.value, option.label]));
+            return Object.fromEntries(
+                (mode.options ?? []).map((option): [string, string] => [String(option.value), option.label]),
+            );
         };
         assert.deepStrictEqual(labels(HITSAlgorithm), {
             total: "Average of hub and authority",
@@ -526,7 +528,7 @@ describe("hits and katz on an accelerator", () => {
 
     it("runs k-core and louvain on the CPU port under required, even when the accelerator has both members", async () => {
         // The element forwards neither member, so the controller is not asked: an accelerator that
-        // implements them is never planned, never labelled f32, and never made to fail the run.
+        // implements them is never planned, never labeled f32, and never made to fail the run.
         const calls: string[] = [];
         const fake = createFakeAccelerator({
             members: {

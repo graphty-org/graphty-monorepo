@@ -2,6 +2,8 @@
 
 # @graphty/cytoscape-extensions
 
+[![Coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fgraphty-org%2Fgraphty-monorepo%2Fcoverage-badges%2Fcytoscape-extensions.json)](https://github.com/graphty-org/graphty-monorepo/blob/coverage-badges/cytoscape-extensions.md)
+
 Graph layouts and graph algorithms for [Cytoscape.js](https://js.cytoscape.org/) 3.x, added with one
 `cytoscape.use()` call: 16 layouts registered as `graphty-<name>` (ForceAtlas2, Fruchterman-Reingold, Kamada-Kawai,
 radial, shell and more), 63 algorithm methods on every collection and on the core named `graphty<Name>` (PageRank,

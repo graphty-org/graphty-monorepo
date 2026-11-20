@@ -27,7 +27,7 @@ describe("transaction", () => {
         assert.strictEqual(result, 42);
         const { steps } = dispatcher.history;
         assert.lengthOf(steps, 1);
-        assert.strictEqual(steps[0].label, "Load flights");
+        assert.strictEqual(steps[0].fact.params.label, "Load flights");
         assert.deepEqual(steps[0].ops, ["fake.styles", "fake.config"]);
         assert.deepEqual([...steps[0].slices].sort(), ["config", "styles"]);
         assert.deepEqual(steps[0].provenance, { via: "assistant" });
@@ -47,7 +47,7 @@ describe("transaction", () => {
         });
 
         assert.deepEqual(
-            dispatcher.history.steps.map((step) => step.label),
+            dispatcher.history.steps.map((step) => step.fact.params.label),
             ["Set bg", "Outer"],
         );
     });
@@ -172,7 +172,7 @@ describe("transaction", () => {
 
         const { steps } = dispatcher.history;
         assert.lengthOf(steps, 1);
-        assert.strictEqual(steps[0].label, "Outer");
+        assert.strictEqual(steps[0].fact.params.label, "Outer");
         assert.deepEqual(steps[0].ops, ["fake.styles", "fake.config"]);
     });
 

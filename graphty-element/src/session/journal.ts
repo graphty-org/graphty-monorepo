@@ -3,7 +3,7 @@
  *
  * Every command that changes the project and finishes writes one entry, whether it was
  * dispatched on its own or as a member of a batch or a transaction. A command that fails or is
- * cancelled writes nothing; a batch or a transaction writes its members' entries when it
+ * canceled writes nothing; a batch or a transaction writes its members' entries when it
  * records, and none when it rolls back. Moving the camera and entering or leaving a headset session are not
  * project changes and write nothing either. A run carries the id of the entry its command wrote.
  *
@@ -86,6 +86,8 @@ const KINDS: Readonly<Record<SessionCommand["op"], JournalEntry["kind"]>> = {
     "algo.remove": "run",
     "algo.move": "run",
     "algo.rename": "run",
+    "annotations.set": "data",
+    "annotations.patch": "data",
     // Never journaled itself: each member of a batch writes its own entry.
     batch: "data",
     "config.set": "config",
@@ -99,8 +101,8 @@ const KINDS: Readonly<Record<SessionCommand["op"], JournalEntry["kind"]>> = {
     "data.import-source": "data",
     "data.setSource": "data",
     "data.label": "data",
-    "data.setFileStyles": "data",
     "shader.set": "style",
+    "asset.defaults": "style",
     "data.columns": "data",
     "data.derive": "data",
     "layout.scope": "layout",
@@ -122,10 +124,18 @@ const KINDS: Readonly<Record<SessionCommand["op"], JournalEntry["kind"]>> = {
     "style.encode": "style",
     "style.patch": "style",
     "style.template": "style",
+    "tour.move": "view",
+    "tour.remove": "view",
+    "tour.rename": "view",
+    "tour.save": "view",
     "view.camera": "view",
     "view.dimension": "view",
     "view.immersive": "view",
+    "view.move": "view",
+    "view.key": "view",
+    "view.starting": "view",
     "view.remove": "view",
+    "view.rename": "view",
     "view.save": "view",
     "visibility.context": "filter",
     "visibility.hide": "filter",

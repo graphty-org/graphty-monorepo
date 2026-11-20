@@ -20,7 +20,7 @@ import type { Capabilities, GraphAccelerator } from "@graphty/graphty-element/se
 /**
  * What a status chip renders, written the way a consumer writes it.
  *
- * Plain, serialisable data with no device object anywhere in it, which is what lets an
+ * Plain, serializable data with no device object anywhere in it, which is what lets an
  * application put the vendor on screen without importing a GPU type.
  */
 export const status: Capabilities["acceleration"] = {

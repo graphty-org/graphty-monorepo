@@ -22,7 +22,7 @@ export function unboundWords(report: ReplaceReport): string[] {
         counts.set(fact.code, (counts.get(fact.code) ?? 0) + 1);
     }
     return [...counts].map(([code, n]) => {
-        const word = UNBOUND_WORDS[code] ?? code;
+        const word = UNBOUND_WORDS[code];
         const plural = n === 1 ? word : `${word}s`;
         return `${formatNumber(n)} ${plural} unbound`;
     });

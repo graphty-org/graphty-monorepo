@@ -8,6 +8,8 @@ algorithms: []
 used_by_workflows:
     - W12
     - W17
+    - W21
+    - W24
 implemented_by_components:
     - metric-card
 requirements:

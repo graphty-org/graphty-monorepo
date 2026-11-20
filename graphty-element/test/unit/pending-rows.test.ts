@@ -116,4 +116,37 @@ describe("PendingRows", () => {
             assert.equal(rows.has(row), model.has(row), `row ${row}`);
         }
     });
+
+    it("lets go of the ring a large queue grew once it is drained, and keeps the row flags", () => {
+        const rows = new PendingRows();
+        const ring = rows.bytes - 64;
+        for (let row = 0; row < 100_000; row++) {
+            rows.add(row);
+        }
+
+        assert.isAbove(rows.bytes, 100_000 * 5, "a byte and a slot per row while they wait");
+        rows.take(60_000);
+        assert.isAbove(rows.bytes, 100_000 * 5, "kept while rows still wait");
+        assert.strictEqual(rows.take(Infinity).length, 40_000);
+        const drained = rows.bytes;
+        assert.isAtLeast(drained, 100_000, "the row flags stay");
+        assert.isBelow(drained, 100_000 * 2 + ring, "the ring is back to an empty queue's size");
+
+        for (let repaint = 0; repaint < 10; repaint++) {
+            rows.add(99_999);
+            assert.deepEqual(rows.take(10), [99_999]);
+        }
+
+        assert.strictEqual(rows.bytes, drained, "repainting a high row allocates nothing");
+
+        for (let row = 0; row < 1000; row++) {
+            rows.add(row);
+        }
+
+        rows.clear();
+        assert.strictEqual(rows.bytes, drained, "cleared: the same");
+        assert.isFalse(rows.has(5));
+        rows.add(5);
+        assert.deepEqual(rows.take(10), [5]);
+    });
 });

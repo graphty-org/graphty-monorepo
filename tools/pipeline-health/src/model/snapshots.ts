@@ -68,7 +68,7 @@ export interface ReleaseSeen {
 /** The release attempts a channel's tile shows, newest last (the design's 14 dots). */
 export const CHANNEL_ATTEMPTS = 14;
 
-/** How one release attempt of a channel ended: promoted or deployed, failed, passed but held back, or cancelled. */
+/** How one release attempt of a channel ended: promoted or deployed, failed, passed but held back, or canceled. */
 export type ChannelOutcome = "ok" | "bad" | "held" | "cancelled";
 
 /** One release attempt of a channel (#4460): a deploy-pages.yml run, a nightly promotion, a production promotion. */
@@ -136,6 +136,8 @@ export interface Snapshots {
     quarantine: QuarantineEntry[];
     codeowners: string[];
     "chronic-jobs": ChronicJob[];
+    /** The tests flaky.no_issue counts, as `file > name` (collector/flaky.ts). */
+    "flaky-no-issue": string[];
     /** The jobs allowed to fail (job-level continue-on-error in ci.yml), by name; `${{ }}` matches anything. */
     "non-gating": string[];
     /** Every job ci.yml on master defines, by name; `${{ }}` matches anything. */

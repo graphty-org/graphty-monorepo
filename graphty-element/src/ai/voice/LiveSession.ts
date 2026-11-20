@@ -155,7 +155,7 @@ export class LiveSession {
 
     /**
      * Close the connection: a held press ends with `AI_CANCELLED`, an answer being spoken too, and
-     * an opening still under way is cancelled.
+     * an opening still under way is canceled.
      */
     close(): void {
         this.abort?.abort();

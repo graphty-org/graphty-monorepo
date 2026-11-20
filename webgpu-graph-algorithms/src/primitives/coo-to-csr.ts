@@ -1,11 +1,11 @@
 /**
- * The `cooToCsr` primitive driver (design 6 row 10; the P11 plan's PD-1): compressed sparse rows built on the device
+ * The `cooToCsr` primitive driver: compressed sparse rows built on the device
  * from `count` arcs `(src[i], dst[i], weights[i])` over `n` nodes. It is the histogram of the sources (over `n + 1`
  * bins, so the last word is 0), their exclusive scan into `rowPtr` (so `rowPtr[n]` is the arc count) and the
  * `coo-scatter` of the targets and weights into `colIdx` and `outWeights`.
  *
  * The scatter has two modes, and they promise different things:
- * - `sortedInput: false` is design 6 row 10's cursor scatter. Each arc reserves its slot with an atomic on its row's
+ * - `sortedInput: false` is the design's cursor scatter. Each arc reserves its slot with an atomic on its row's
  *   cursor, so slots go out in race order: `rowPtr` is deterministic, but the order inside a row is not, and a row is
  *   NOT sorted by target even when the input was.
  * - `sortedInput: true` requires the arcs ordered by source and writes each at its own index minus its row's start:
@@ -19,6 +19,8 @@
  *
  * A planner over a ReduceScope with a synchronous `record` (the shape of every primitive here), not the design's free
  * function: pipelines compile once in `prepareCooToCsr`, and `src/primitives/**` never imports `src/context.ts`.
+ *
+ * See design/webgpu/webgpu-acceleration-plan.md, "6. Primitives".
  */
 
 import { U32_MAX } from "../constants.js";

@@ -192,7 +192,7 @@ a format choice next to the text box and pass the user's choice as `format`, whi
 
 ## When the import stops: ImportError
 
-Every error graph-io throws is a `GraphFormatError`, except the reason of a cancelled load.
+Every error graph-io throws is a `GraphFormatError`, except the reason of a canceled load.
 `ImportError` is the kind you get when the input could not be loaded, and it carries the report:
 
 - `err.code` is always `"E_IMPORT"`.

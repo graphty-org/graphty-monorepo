@@ -6,8 +6,18 @@
  * and nothing reaches Babylon.js or the DOM (design/rendering/node-models.md section 3).
  */
 
-import { BUILT_IN_MODEL_FORMATS, detectModelFormat, imageFormatOf, isZip, type ModelFormat } from "./detect.js";
+import {
+    BUILT_IN_MODEL_FORMATS,
+    detectModelFormat,
+    imageFormatOf,
+    isZip,
+    type ModelFormat,
+    splatExtensionOf,
+    splatKind,
+} from "./detect.js";
+import { findFbxParts, scanFbx } from "./fbxChecks.js";
 import { checkGltf, findGltfParts, parseGltfJson, readGlb } from "./gltfChecks.js";
+import { DEFAULT_MODEL_LIMITS } from "./limits.js";
 import { isPrivateHost } from "./privateHost.js";
 import { isGltf1, readGlb1, upgradeGltf1 } from "./readers/gltf1.js";
 import {
@@ -19,19 +29,16 @@ import {
     normalizePath,
     refuse,
     refuseAll,
+    resolveReference,
     roleOfName,
 } from "./references.js";
 import {
     findBabylonParts,
     findObjParts,
     findPlyParts,
-    findSogParts,
     scanBabylon,
     scanObj,
     scanPly,
-    scanSog,
-    scanSplat,
-    scanSpz,
     scanStl,
     withSkips,
 } from "./textFormats.js";
@@ -46,6 +53,7 @@ import type {
     NamedBlob,
 } from "./types.js";
 import { unzipModel } from "./unzip.js";
+import { findUsdParts, scanUsd } from "./usdChecks.js";
 
 /** Something with bytes to read: a Blob, a File, or anything shaped like one. */
 interface BlobLike {
@@ -214,10 +222,8 @@ export async function unpackZip(
     }
 
     const [[name, only]] = given;
-    // A .sog is a zip of a meta.json and the pictures it names: unpacked as a set, so its
-    // meta.json is the main file.
     const format = isZip(only) ? detectModelFormat({ filename: name, head: only })?.format : undefined;
-    if (format !== "zip" && format !== "sog") {
+    if (format !== "zip") {
         return given;
     }
 
@@ -405,7 +411,7 @@ async function followRedirect(
 }
 
 /**
- * Read a stream until it ends or passes the byte cap, cancelling it then.
+ * Read a stream until it ends or passes the byte cap, canceling it then.
  * @param reader - The stream's reader.
  * @param maxBytes - The byte cap.
  * @param onChunk - Hears the bytes counted after each chunk.
@@ -462,12 +468,28 @@ async function readBody(
             const whole = new Uint8Array(await response.arrayBuffer());
             read = { chunks: [whole], total: whole.length };
         } else {
-            read = await readChunks(response.body.getReader(), limits.maxBytes, onChunk);
+            // A stop ends the read itself: a body that does not end with its request (a fetch
+            // stand-in, a service worker's stream) kept the download waiting after it was stopped.
+            const reader = response.body.getReader();
+            const stop = (): void => {
+                reader.cancel().catch(() => undefined);
+            };
+            signal?.addEventListener("abort", stop, { once: true });
+            if (signal?.aborted === true) {
+                stop();
+            }
+            try {
+                read = await readChunks(reader, limits.maxBytes, onChunk);
+            } finally {
+                signal?.removeEventListener("abort", stop);
+            }
         }
     } catch {
         signal?.throwIfAborted();
         refuse("E_MODEL_FETCH", { url: shown, status: null, offline: isOffline() });
     }
+
+    signal?.throwIfAborted();
 
     if (read.total > limits.maxBytes) {
         refuse("E_MODEL_TOO_LARGE", { what: "bytes", found: read.total, limit: limits.maxBytes });
@@ -499,6 +521,9 @@ function fetchedName(url: URL): string {
     return normalizePath(name) || BYTES_KEY;
 }
 
+/** The longest delay setTimeout honors; a longer one fires at once. */
+const MAX_TIMER_MS = 2_147_483_647;
+
 /**
  * Fetch a model with no credentials, no referrer, an idle time limit and a byte cap enforced while
  * the body streams.
@@ -521,10 +546,13 @@ export async function fetchModel(
     checkFetchable(url);
     const shown = shownUrl(url);
     const controller = new AbortController();
-    const idle = (): ReturnType<typeof setTimeout> =>
-        setTimeout(() => {
-            controller.abort();
-        }, limits.fetchTimeoutMs);
+    // setTimeout fires at once for a delay past 2^31 - 1 ms (Infinity too): such a wait is no wait.
+    const idle = (): ReturnType<typeof setTimeout> | undefined =>
+        limits.fetchTimeoutMs > MAX_TIMER_MS
+            ? undefined
+            : setTimeout(() => {
+                  controller.abort();
+              }, limits.fetchTimeoutMs);
     let timer = idle();
     const onAbort = (): void => {
         controller.abort();
@@ -563,9 +591,6 @@ export async function fetchModel(
         signal?.removeEventListener("abort", onAbort);
     }
 }
-
-/** The most files a model fetched by URL may load beside its main file. */
-const MAX_COMPANION_FILES = 64;
 
 /** The most requests the automatic tries make for one part beyond its first (design 12.2). */
 const MAX_EXTRA_REQUESTS = 16;
@@ -669,7 +694,7 @@ function triesFor(fact: ModelFact, main: URL): (readonly [string, URL])[] {
 interface PartFetch {
     readonly url: URL;
     readonly limits: ModelLimits;
-    readonly signal: AbortSignal | undefined;
+    signal: AbortSignal | undefined;
     readonly gate: RedirectGate | undefined;
     readonly given: Map<string, Uint8Array>;
     /** The bytes fetched so far, misses included. */
@@ -825,8 +850,13 @@ async function fetchPart(fact: ModelFact, fetching: PartFetch, tried: Map<string
     tried.set(name, shown);
     const budget = { requests: 0 };
     for (const [path, address] of triesFor(fact, fetching.url)) {
-        if (fetching.given.size > MAX_COMPANION_FILES) {
-            refuse("E_MODEL_TOO_LARGE", { what: "count", found: fetching.given.size, limit: MAX_COMPANION_FILES });
+        if (fetching.given.size > fetching.limits.maxFiles) {
+            refuse("E_MODEL_TOO_LARGE", {
+                what: "count",
+                item: "files",
+                found: fetching.given.size,
+                limit: fetching.limits.maxFiles,
+            });
         }
 
         if (shown.length < MAX_TRIED_SHOWN) {
@@ -852,7 +882,7 @@ async function fetchPart(fact: ModelFact, fetching: PartFetch, tried: Map<string
  * and the images the .mtl names. Each is tried at the addresses of design 12.2, all on the main
  * file's origin: in its folder or below, or at the address a reference outside the folder names
  * (design 3.3); the set's total, misses included, is held to `maxBytes`, at most
- * {@link MAX_COMPANION_FILES} files are added and at most {@link MAX_EXTRA_REQUESTS} requests
+ * `maxFiles` files are added and at most {@link MAX_EXTRA_REQUESTS} requests
  * beyond the first are made for one part. A reference to another origin is never fetched here: it
  * stays a missing part carrying its `url`, for the reader to supply. Every part still missing
  * after its tries is reported at once, with the addresses tried.
@@ -861,6 +891,9 @@ async function fetchPart(fact: ModelFact, fetching: PartFetch, tried: Map<string
  * @param signal - The caller's signal.
  * @param gate - What to ask when an answer comes from another host.
  * @param onProgress - Hears the bytes received so far, the main file's and then its parts'.
+ * @param pictures - Pictures may arrive last: `onWaiting` hears the set once only pictures are
+ *     still to fetch (a copy, with the facts naming them), and `signal` stops fetching pictures:
+ *     those not fetched are then reported missing, as if they had not been found.
  * @returns The file set and its main file (none for a zip, whose main file is inside it).
  */
 export async function fetchModelSet(
@@ -869,6 +902,7 @@ export async function fetchModelSet(
     signal?: AbortSignal,
     gate?: RedirectGate,
     onProgress?: ModelProgressListener,
+    pictures?: PictureFetch,
 ): Promise<{ given: Map<string, Uint8Array>; main?: string }> {
     if (isKnownWebPage(url)) {
         refuse("E_MODEL_WEB_PAGE", webPageParams(url));
@@ -903,9 +937,87 @@ export async function fetchModelSet(
             throw finalRefusal(facts, tried, parts, { given, main });
         }
 
-        for (const fact of fresh) {
-            await fetchPart(fact, fetching, tried);
+        const others = notPictures(fresh, pictures);
+        if (others.length > 0) {
+            for (const fact of others) {
+                await fetchPart(fact, fetching, tried);
+            }
+
+            continue;
         }
+
+        pictures?.onWaiting?.({ given: new Map(given), main }, facts);
+        await fetchPictures(fresh, fetching, tried, pictures?.signal, pictures?.part);
+    }
+}
+
+/**
+ * The missing parts to fetch before the pictures: with `pictures`, everything but them, so the
+ * model can be held without them; without, every part.
+ * @param fresh - The parts not tried yet.
+ * @param pictures - How pictures are fetched, if they may arrive last.
+ * @returns The parts to fetch now; none when only pictures are left.
+ */
+function notPictures(fresh: readonly ModelFact[], pictures: PictureFetch | undefined): readonly ModelFact[] {
+    return pictures === undefined ? fresh : fresh.filter((f) => roleOfName(String(f.params.name)) !== "texture");
+}
+
+/** How {@link fetchModelSet} fetches a model's pictures, which a reader may go without. */
+export interface PictureFetch {
+    /** Stops fetching pictures; the rest of the set is kept. */
+    readonly signal?: AbortSignal;
+    /**
+     * Stops fetching one picture, by its name in the set's facts: it is then reported missing, as
+     * one stopped by `signal` is, and the other pictures go on.
+     */
+    readonly part?: (name: string) => AbortSignal | undefined;
+    /** Hears the set once only pictures are left to fetch, and the facts naming them. */
+    readonly onWaiting?: (
+        held: { readonly given: Map<string, Uint8Array>; readonly main: string },
+        facts: readonly ModelFact[],
+    ) => void;
+}
+
+/**
+ * Fetch a model's missing pictures until `stop` aborts: one in flight then stops, and the rest are
+ * marked tried, so they are reported missing.
+ * @param facts - The missing pictures.
+ * @param fetching - The shared state.
+ * @param tried - The addresses tried, by part name.
+ * @param stop - Stops fetching pictures.
+ * @param part - Stops fetching one picture, by name.
+ */
+async function fetchPictures(
+    facts: readonly ModelFact[],
+    fetching: PartFetch,
+    tried: Map<string, string[]>,
+    stop: AbortSignal | undefined,
+    part?: (name: string) => AbortSignal | undefined,
+): Promise<void> {
+    const outer = fetching.signal;
+    try {
+        for (const fact of facts) {
+            const name = String(fact.params.name);
+            const one = part?.(name);
+            // Read afresh after each await: a reader may stop the pictures, or this one, while it downloads.
+            const stopped = (): boolean => stop?.aborted === true || one?.aborted === true;
+            if (stopped()) {
+                tried.set(name, tried.get(name) ?? []);
+                continue;
+            }
+
+            const signals = [outer, stop, one].filter((s): s is AbortSignal => s !== undefined);
+            fetching.signal = signals.length <= 1 ? signals[0] : AbortSignal.any(signals);
+            try {
+                await fetchPart(fact, fetching, tried);
+            } catch (error) {
+                if (!stopped() || outer?.aborted === true) {
+                    throw error;
+                }
+            }
+        }
+    } finally {
+        fetching.signal = outer;
     }
 }
 
@@ -969,6 +1081,7 @@ export async function checkModelFiles(
             textureBytes,
             upAxis: "unknown",
             animations: [],
+            pictures: [],
             skinned: false,
             morphTargets: 0,
             transparent: false,
@@ -1077,8 +1190,41 @@ function bestOfEachBase(candidates: readonly Candidate[]): Candidate[] {
 }
 
 /**
- * Choose the main file of a set (design 3.2): ranked GLB, glTF, OBJ, STL, PLY, .babylon, SPZ, SOG,
- * .splat, then formats the element does not load; of files sharing a base name only the best ranked counts; two different
+ * Of candidates, those no other candidate names as a part: a USD stage's root layer, not the
+ * layers or packages it references (its payloads and sublayers are USD files too).
+ * @param top - The candidates.
+ * @param files - The set.
+ * @returns The candidates left; all of them when that would leave none.
+ */
+function withoutParts(top: Candidate[], files: ReadonlyMap<string, Uint8Array>): Candidate[] {
+    if (top.length < 2) {
+        return top;
+    }
+
+    const parts = new Set<string>();
+    for (const candidate of top) {
+        const findings: Findings = { warnings: [], missing: [], found: [] };
+        try {
+            findPartsByFormat(candidate, files.get(candidate.path), files, DEFAULT_MODEL_LIMITS, findings);
+        } catch (error) {
+            if (!(error instanceof ModelError)) {
+                throw error;
+            }
+        }
+        for (const part of findings.found ?? []) {
+            if (part.file !== candidate.path) {
+                parts.add(part.file);
+            }
+        }
+    }
+
+    const roots = top.filter((c) => !parts.has(c.path));
+    return roots.length > 0 ? roots : top;
+}
+
+/**
+ * Choose the main file of a set (design 3.2): ranked GLB, glTF, OBJ, STL, PLY, .babylon, then
+ * formats the element does not load; of files sharing a base name only the best ranked counts; two different
  * candidates of the best rank are ambiguous.
  * @param files - The set.
  * @param forced - A format the caller forced.
@@ -1095,7 +1241,9 @@ function chooseMain(files: ReadonlyMap<string, Uint8Array>, forced?: ModelFormat
         refuse("E_MODEL_FORMAT_UNKNOWN", { fileName: cut([...files.keys()][0] ?? "") });
     }
 
-    const kept = bestOfEachBase(candidates);
+    // A file another candidate names as a part is never the main one, whatever its rank: a USD root
+    // layer beside the .usdz package it references.
+    const kept = withoutParts(bestOfEachBase(candidates), files);
     const best = Math.min(...kept.map((c) => c.rank));
     const top = kept.filter((c) => c.rank === best);
     if (top.length > 1) {
@@ -1161,13 +1309,45 @@ interface GltfJson {
 }
 
 /**
+ * A glTF 1.0 buffer's bytes, for its upgrade: a GLB version 1's body, a file in the set or a
+ * `data:` URL; undefined for one that cannot be found (the checks report it).
+ * @param path - The main file's path.
+ * @param files - The set.
+ * @param body - A GLB's body.
+ * @returns The reader {@link upgradeGltf1} takes.
+ */
+export function gltf1Bytes(
+    path: string,
+    files: ReadonlyMap<string, Uint8Array>,
+    body: Uint8Array | undefined,
+): (id: string, buffer: Record<string, unknown>) => Uint8Array | undefined {
+    return (id, buffer) => {
+        if (id === "binary_glTF") {
+            return body;
+        }
+        try {
+            return typeof buffer.uri === "string" ? resolveReference(buffer.uri, path, files).bytes : undefined;
+        } catch {
+            return undefined;
+        }
+    };
+}
+
+/**
  * Read a glTF or GLB's JSON with the strict rules, upgrading glTF 1.0 (and a GLB version 1) to
  * glTF 2.0 JSON, so one checker reads both.
  * @param bytes - The main file.
  * @param format - `glb` or `gltf`.
+ * @param path - The main file's path.
+ * @param files - The set, for a glTF 1.0's buffers.
  * @returns The JSON and the binary chunk.
  */
-function gltfJsonOf(bytes: Uint8Array, format: "glb" | "gltf"): GltfJson {
+function gltfJsonOf(
+    bytes: Uint8Array,
+    format: "glb" | "gltf",
+    path: string,
+    files: ReadonlyMap<string, Uint8Array>,
+): GltfJson {
     if (
         format === "glb" &&
         bytes.length >= 8 &&
@@ -1180,13 +1360,21 @@ function gltfJsonOf(bytes: Uint8Array, format: "glb" | "gltf"): GltfJson {
             return refuse("E_MODEL_STRUCTURE", { rule: "json" });
         }
 
-        return { json: upgradeGltf1(parseGltfJson(glb1.text)), bin: glb1.body, upgraded: true };
+        return {
+            json: upgradeGltf1(parseGltfJson(glb1.text), undefined, gltf1Bytes(path, files, glb1.body)),
+            bin: glb1.body,
+            upgraded: true,
+        };
     }
 
     const { text, bin } = format === "glb" ? readGlb(bytes) : { text: gltfText(bytes), bin: undefined };
     const json = parseGltfJson(text);
     return isGltf1(json)
-        ? { json: upgradeGltf1(json), ...(bin === undefined ? {} : { bin }), upgraded: true }
+        ? {
+              json: upgradeGltf1(json, undefined, gltf1Bytes(path, files, bin)),
+              ...(bin === undefined ? {} : { bin }),
+              upgraded: true,
+          }
         : { json, ...(bin === undefined ? {} : { bin }), upgraded: false };
 }
 
@@ -1209,7 +1397,7 @@ function checkByFormat(
     switch (main.format) {
         case "glb":
         case "gltf": {
-            const { json, bin, upgraded } = gltfJsonOf(bytes, main.format);
+            const { json, bin, upgraded } = gltfJsonOf(bytes, main.format, main.path, files);
             findGltfParts(json, main.path, files, findings);
             refuseMissing(findings);
             return checkGltf({
@@ -1232,18 +1420,19 @@ function checkByFormat(
             findPlyParts(main.path, files, findings);
             refuseMissing(findings);
             return scanPly(main.path, files, limits);
-        case "splat":
-            return scanSplat(bytes, limits);
-        case "spz":
-            return scanSpz(bytes, limits);
-        case "sog":
-            findSogParts(main.path, files, limits, findings);
-            refuseMissing(findings);
-            return scanSog(main.path, files, limits);
         case "babylon":
             findBabylonParts(main.path, files, limits, findings);
             refuseMissing(findings);
             return scanBabylon(main.path, files, limits);
+        case "fbx":
+            findFbxParts(main.path, files, limits, findings);
+            refuseMissing(findings);
+            return scanFbx(main.path, files, limits);
+        case "usd":
+        case "usdz":
+            findUsdParts(main.path, files, limits, findings);
+            refuseMissing(findings);
+            return scanUsd(main.path, main.format, files, limits);
         default:
             return refuse("E_MODEL_FORMAT_UNSUPPORTED", { format: main.format, fileName: cut(main.path) });
     }
@@ -1273,10 +1462,23 @@ async function checkFileSet(
             refuse("E_MODEL_FORMAT_UNKNOWN", { fileName: cut(main.path) });
         }
 
-        refuse("E_MODEL_FORMAT_UNSUPPORTED", { format: main.format, fileName: cut(main.path) });
+        const bytes = files.get(main.path);
+        const splat =
+            main.format === "glb" || main.format === "gltf" ? splatExtensionOf(bytes ?? new Uint8Array()) : undefined;
+        refuse("E_MODEL_FORMAT_UNSUPPORTED", {
+            // A splat glTF or GLB is refused the way checkGltf refuses an extension it does not read.
+            format: splat === undefined ? main.format : "gltf",
+            fileName: cut(main.path),
+            ...(splat === undefined ? {} : { extension: cut(splat) }),
+            ...splatKind(main.format, splat),
+        });
     }
 
-    const findings: Findings = { warnings: [], missing: [], ...(base === undefined ? {} : { base }) };
+    const findings: Findings = {
+        warnings: [],
+        missing: [],
+        ...(base === undefined ? {} : { base, outside: new Map() }),
+    };
     const checked = checkByFormat(main, files, limits, findings);
     return {
         files,
@@ -1309,7 +1511,7 @@ function findPartsByFormat(
     switch (main.format) {
         case "glb":
         case "gltf":
-            findGltfParts(gltfJsonOf(bytes, main.format).json, main.path, files, findings);
+            findGltfParts(gltfJsonOf(bytes, main.format, main.path, files).json, main.path, files, findings);
             break;
         case "obj":
             findObjParts(main.path, files, limits, findings);
@@ -1317,11 +1519,15 @@ function findPartsByFormat(
         case "ply":
             findPlyParts(main.path, files, findings);
             break;
-        case "sog":
-            findSogParts(main.path, files, limits, findings);
-            break;
         case "babylon":
             findBabylonParts(main.path, files, limits, findings);
+            break;
+        case "fbx":
+            findFbxParts(main.path, files, limits, findings);
+            break;
+        case "usd":
+        case "usdz":
+            findUsdParts(main.path, files, limits, findings);
             break;
         default:
             break;
@@ -1404,4 +1610,51 @@ function partsFound(
     }
 
     return parts;
+}
+
+/** One model of a file set, as {@link listModels} finds it. */
+export interface ModelInSet {
+    /** The model's own file: its path in the set. */
+    readonly main: string;
+    readonly format: ModelFormat;
+    /** Every file of the set it uses: its main file first, then each part it names that the set holds. */
+    readonly files: readonly string[];
+}
+
+/**
+ * Every model a file set holds that this package loads, each with the files it uses, so a folder,
+ * a .zip or a drop of several models can be added one model at a time. Of files sharing a base
+ * name (rack.glb, rack.obj) only the best ranked counts, and a file another model uses as a part
+ * is not a model of its own. A set of one model lists it alone; `mainFileOf` and the checks are
+ * unchanged.
+ * @param files - The set, a zip already unpacked.
+ * @param limits - The limits in force.
+ * @returns The models, by path.
+ * @example
+ * ```ts
+ * for (const model of listModels(files, DEFAULT_MODEL_LIMITS)) {
+ *     const own = new Map(model.files.map((path) => [path, files.get(path)!]));
+ *     await checkModelFiles(own, { main: model.main }, DEFAULT_MODEL_LIMITS);
+ * }
+ * ```
+ */
+export function listModels(files: ReadonlyMap<string, Uint8Array>, limits: ModelLimits): ModelInSet[] {
+    const models = bestOfEachBase(rankedCandidates(files))
+        .filter((c) => c.supported && c.rank < UNSUPPORTED_RANK)
+        .sort((a, b) => byCodeUnits(a.path, b.path))
+        .map((main) => {
+            const findings: Findings = { warnings: [], missing: [], found: [] };
+            try {
+                findPartsByFormat(main, files.get(main.path), files, limits, findings);
+            } catch (error) {
+                // A model that cannot be read is still listed; its checks say why.
+                if (!(error instanceof ModelError)) {
+                    throw error;
+                }
+            }
+            const used = [main.path, ...(findings.found ?? []).map((part) => part.file)];
+            return { main: main.path, format: main.format, files: [...new Set(used)] };
+        });
+    const parts = new Set(models.flatMap((m) => m.files.slice(1)));
+    return models.filter((m) => !parts.has(m.main));
 }

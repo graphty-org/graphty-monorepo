@@ -22,6 +22,7 @@ import {
     type StyleProperty,
     type StyleRule,
     type StyleTarget,
+    unsettledStyles,
 } from "../../../src/styles/internal.js";
 import { editPajekVertexFill, replacePajekBlock } from "../../styles/formats/pajek.js";
 
@@ -61,7 +62,10 @@ function drawn(ex: ExtractedStyles, snapshot: GraphSnapshot, target: StyleTarget
 
 const file = (name: string): Uint8Array => new Uint8Array(readFileSync(join(GENERATED, name)));
 const text = (name: string): string => readFileSync(join(GENERATED, name), "utf8");
-const plain = (ex: ExtractedStyles): StyleRule[] => JSON.parse(JSON.stringify(ex.styles.rules)) as StyleRule[];
+// the rules as planned, before values are settled for drawing (which depends on the program, so not the same after a
+// file graphty wrote is read back)
+const plain = (ex: ExtractedStyles): StyleRule[] =>
+    JSON.parse(JSON.stringify(unsettledStyles(ex).styles.rules)) as StyleRule[];
 const codes = (ex: ExtractedStyles): string[] => ex.styles.notes.map((n) => n.code);
 
 describe("Pajek styles: Pajek's rules", () => {
@@ -268,7 +272,7 @@ describe("Pajek styles: Pajek's rules", () => {
         expect(drawn(styles, snapshot, "node", "labelSize")).toEqual([15, 15, 15]);
         expect(drawn(styles, snapshot, "node", "labelColor")).toEqual(["#ad0000", "#ad0000", "#ad0000"]);
         expect(drawn(styles, snapshot, "node", "labelWeight")).toEqual(["bold", "bold", "bold"]);
-        // an arc is grey and 1 wide, an edge (kept as a pair) teal and 2 wide
+        // an arc is gray and 1 wide, an edge (kept as a pair) teal and 2 wide
         expect(drawn(styles, snapshot, "edge", "width")).toEqual([1, 2, 2]);
         expect(drawn(styles, snapshot, "edge", "color")).toEqual(["#999999", "#007091", "#007091"]);
         expect(drawn(styles, snapshot, "edge", "targetArrow")).toEqual(["triangle", "none", "none"]);
@@ -440,6 +444,29 @@ describe("Pajek styles: sizes, label placement and line labels", () => {
             const back = await load(file);
             expect(drawn(back.styles, back.snapshot, "edge", "arrowPosition")).toEqual([0.472222, 0.0277778]);
         }
+    });
+
+    it("draws a part-way tip Pajek puts inside the target overlapping it, and writes the same ap back", async () => {
+        // a 30 px line between vertices 20 across: ap 0.5 at s 4 puts the tip 20 ahead of the middle, 5 past the
+        // target's center and 15 inside its outline, 0.625 of the 24 px arrowhead (pajek-synth-lines 10 -> 11)
+        const arcs = "*Vertices 2\n1 a 0.1 0.1\n2 b 0.16 0.1\n*Arcs\n1 2 1 s 4 ap 0.5\n";
+        const { snapshot, styles } = await load(arcs);
+        expect(drawn(styles, snapshot, "edge", "arrowPosition")).toEqual([null]);
+        expect(drawn(styles, snapshot, "edge", "targetArrowGap")).toEqual([-0.625]);
+        const out = await registry.exportGraphToString(snapshot, "pajek", { styles });
+        expect(out).toMatch(/^1 2 .*\bap 0\.5\b/m);
+        const back = await load(out.replace(/^% graphty\.styles .*\n/m, ""));
+        expect(drawn(back.styles, back.snapshot, "edge", "targetArrowGap")).toEqual([-0.625]);
+    });
+
+    it("places a man's or a woman's label from the figure's point, below the middle of its box", async () => {
+        // pajek-synth-vertices v49: a woman's point is 0.06 of her size below her box's middle, 1.2 at y_fact 1, and
+        // her label starts 12 right of it, its middle 0.3465 of its size 8 above its baseline
+        const { snapshot, styles } = await load('*Vertices 1\n1 "w" 0.5 0.5 0.5 woman y_fact 1 lr 12 lphi 0 fos 8\n');
+        expect(drawn(styles, snapshot, "node", "labelOffsetX")).toEqual([12]);
+        expect(drawn(styles, snapshot, "node", "labelOffsetY")).toEqual([-1.572]);
+        const out = await registry.exportGraphToString(snapshot, "pajek", { styles });
+        expect(out).toMatch(/^1 w .*\blr 12\.0 lphi 0\.0$/m);
     });
 
     it("writes the same sizes, label places and line labels back, read without the block as with it", async () => {

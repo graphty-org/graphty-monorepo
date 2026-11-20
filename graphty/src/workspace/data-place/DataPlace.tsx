@@ -4,8 +4,8 @@ import type { SourceKey } from "@graphty/graphty-element/session";
 import { Tabs } from "@mantine/core";
 import React from "react";
 
-import { useSessionVersion } from "../inspector/hooks";
 import { ServerPlace } from "../server/ServerForm";
+import { INSPECTOR_EVENTS, useSessionEvents } from "../sessionEvents";
 import { useNumberFormats } from "../settings/numberFormat";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { Fields } from "./Fields";
@@ -30,7 +30,7 @@ import { Sources } from "./Sources";
  */
 export function DataPlace(): React.JSX.Element {
     const { session, store } = useWorkspace();
-    useSessionVersion(session);
+    useSessionEvents(session, INSPECTOR_EVENTS);
     // The reader's Number format respells the counts.
     useNumberFormats();
     const graphName = useWorkspaceState((state) => state.project?.name ?? "");

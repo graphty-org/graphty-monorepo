@@ -37,7 +37,7 @@ async function buildBundle() {
                     // (graph-format/src/constants.ts:37), so two copies would still interoperate and
                     // no test would fail -- the bundle would just double in size, silently. Exactly
                     // the reasoning the layout seam used (2026-09-16-graphty-monorepo-integration.md:2245).
-                    // NOTHING ELSE is externalised: typedfastbitset stays inlined, as today.
+                    // NOTHING ELSE is externalized: typedfastbitset stays inlined, as today.
                     external: [/^@graphty\/graph-format(\/|$)/],
                     output: {
                         preserveModules: false,

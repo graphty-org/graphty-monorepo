@@ -1,0 +1,266 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://graphty.app/schema/documents/graphty-document/v2.json",
+    "title": "graphty document, version 2 (the full file)",
+    "description": "A thin wrapper whose sections object holds any subset of sections, keyed by section name (spec/README.md, 'The full file').",
+    "type": "object",
+    "required": ["kind", "version", "generator", "sections"],
+    "properties": {
+        "$schema": {
+            "type": "string",
+            "format": "uri"
+        },
+        "kind": {
+            "const": "graphty-document"
+        },
+        "version": {
+            "const": 2
+        },
+        "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
+        },
+        "name": {
+            "type": "string",
+            "maxLength": 1024
+        },
+        "description": {
+            "type": "string",
+            "maxLength": 65536
+        },
+        "created": {
+            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/timestamp"
+        },
+        "modified": {
+            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/timestamp"
+        },
+        "generator": {
+            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/generator"
+        },
+        "authors": {
+            "type": "array",
+            "items": {
+                "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/author"
+            }
+        },
+        "license": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+        },
+        "keywords": {
+            "type": "array",
+            "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+            }
+        },
+        "language": {
+            "type": "string",
+            "pattern": "^[A-Za-z]{2,8}(-[A-Za-z0-9]{1,8})*$"
+        },
+        "sections": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "object",
+                    "required": ["kind", "version"],
+                    "properties": {
+                        "version": {
+                            "type": "integer",
+                            "minimum": 1
+                        }
+                    },
+                    "if": {
+                        "properties": {
+                            "kind": {
+                                "const": "graphty-data"
+                            },
+                            "version": {
+                                "const": 2
+                            }
+                        },
+                        "required": ["kind", "version"]
+                    },
+                    "then": {
+                        "$ref": "https://graphty.app/schema/documents/graphty-data/v2.json"
+                    },
+                    "description": "The data section. The key decides what it is: a value carrying another kind, or a version this schema does not describe, is held by a reader and written back unchanged, never a refusal of the file."
+                },
+                "style": {
+                    "type": "object",
+                    "required": ["kind", "version"],
+                    "properties": {
+                        "version": {
+                            "type": "integer",
+                            "minimum": 1
+                        }
+                    },
+                    "if": {
+                        "properties": {
+                            "kind": {
+                                "const": "graphty-style"
+                            },
+                            "version": {
+                                "const": 2
+                            }
+                        },
+                        "required": ["kind", "version"]
+                    },
+                    "then": {
+                        "$ref": "https://graphty.app/schema/documents/graphty-style/v2.json"
+                    },
+                    "description": "The style section. The key decides what it is: a value carrying another kind, or a version this schema does not describe, is held by a reader and written back unchanged, never a refusal of the file."
+                },
+                "recipe": {
+                    "type": "object",
+                    "required": ["kind", "version"],
+                    "properties": {
+                        "version": {
+                            "type": "integer",
+                            "minimum": 1
+                        }
+                    },
+                    "if": {
+                        "properties": {
+                            "kind": {
+                                "const": "graphty-recipe"
+                            },
+                            "version": {
+                                "const": 2
+                            }
+                        },
+                        "required": ["kind", "version"]
+                    },
+                    "then": {
+                        "$ref": "https://graphty.app/schema/documents/graphty-recipe/v2.json"
+                    },
+                    "description": "The recipe section. The key decides what it is: a value carrying another kind, or a version this schema does not describe, is held by a reader and written back unchanged, never a refusal of the file."
+                },
+                "settings": {
+                    "type": "object",
+                    "required": ["kind", "version"],
+                    "properties": {
+                        "version": {
+                            "type": "integer",
+                            "minimum": 1
+                        }
+                    },
+                    "if": {
+                        "properties": {
+                            "kind": {
+                                "const": "graphty-settings"
+                            },
+                            "version": {
+                                "const": 1
+                            }
+                        },
+                        "required": ["kind", "version"]
+                    },
+                    "then": {
+                        "$ref": "https://graphty.app/schema/documents/graphty-settings/v1.json"
+                    },
+                    "description": "The settings section. The key decides what it is: a value carrying another kind, or a version this schema does not describe, is held by a reader and written back unchanged, never a refusal of the file."
+                },
+                "results": {
+                    "type": "object",
+                    "required": ["kind", "version"],
+                    "properties": {
+                        "version": {
+                            "type": "integer",
+                            "minimum": 1
+                        }
+                    },
+                    "if": {
+                        "properties": {
+                            "kind": {
+                                "const": "graphty-results"
+                            },
+                            "version": {
+                                "const": 2
+                            }
+                        },
+                        "required": ["kind", "version"]
+                    },
+                    "then": {
+                        "$ref": "https://graphty.app/schema/documents/graphty-results/v2.json"
+                    },
+                    "description": "The results section. The key decides what it is: a value carrying another kind, or a version this schema does not describe, is held by a reader and written back unchanged, never a refusal of the file."
+                },
+                "notes": {
+                    "type": "object",
+                    "required": ["kind", "version"],
+                    "properties": {
+                        "version": {
+                            "type": "integer",
+                            "minimum": 1
+                        }
+                    },
+                    "if": {
+                        "properties": {
+                            "kind": {
+                                "const": "graphty-notes"
+                            },
+                            "version": {
+                                "const": 2
+                            }
+                        },
+                        "required": ["kind", "version"]
+                    },
+                    "then": {
+                        "$ref": "https://graphty.app/schema/documents/graphty-notes/v2.json"
+                    },
+                    "description": "The notes section. The key decides what it is: a value carrying another kind, or a version this schema does not describe, is held by a reader and written back unchanged, never a refusal of the file."
+                },
+                "view": {
+                    "type": "object",
+                    "required": ["kind", "version"],
+                    "properties": {
+                        "version": {
+                            "type": "integer",
+                            "minimum": 1
+                        }
+                    },
+                    "if": {
+                        "properties": {
+                            "kind": {
+                                "const": "graphty-view"
+                            },
+                            "version": {
+                                "const": 1
+                            }
+                        },
+                        "required": ["kind", "version"]
+                    },
+                    "then": {
+                        "$ref": "https://graphty.app/schema/documents/graphty-view/v1.json"
+                    },
+                    "description": "The view section. The key decides what it is: a value carrying another kind, or a version this schema does not describe, is held by a reader and written back unchanged, never a refusal of the file."
+                }
+            },
+            "additionalProperties": {
+                "type": "object",
+                "required": ["kind", "version"],
+                "properties": {
+                    "kind": {
+                        "type": "string",
+                        "minLength": 1
+                    },
+                    "version": {
+                        "type": "integer",
+                        "minimum": 1
+                    }
+                },
+                "description": "A section a later release, or a third party under its reverse-domain kind, adds: skipped with W_UNKNOWN_KIND and kept on re-save."
+            }
+        },
+        "graphs": {
+            "description": "Reserved for a later file that holds several graphs (spec/README.md 2.2 rule 4). A file of one graph never writes it."
+        },
+        "extensions": {
+            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/extensions"
+        }
+    }
+}

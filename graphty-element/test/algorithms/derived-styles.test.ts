@@ -41,8 +41,8 @@ const EXPECTED: Readonly<Record<ResultShape, { as: "encoding" | "mark" | "nothin
 };
 
 /**
- * A run of one catalogued algorithm, as the derivation reads it: its shape and its fields.
- * @param key - The algorithm's catalogue key, which is also the run id here.
+ * A run of one cataloged algorithm, as the derivation reads it: its shape and its fields.
+ * @param key - The algorithm's catalog key, which is also the run id here.
  * @param shape - The shape it declares.
  * @param fields - The fields it declares.
  * @returns What `suggestStyles` takes.

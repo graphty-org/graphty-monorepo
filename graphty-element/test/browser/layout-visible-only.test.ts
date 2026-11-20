@@ -12,6 +12,7 @@ import { afterEach, assert, beforeEach, describe, it } from "vitest";
 import { Graph, operationQueueOf } from "../../src/Graph";
 import { layoutEngineInternals } from "../../src/layout/LayoutEngine";
 import type { ElementSession } from "../../src/session/types";
+import { windowCount } from "../helpers/time-window";
 
 /** Twenty nodes on a path. */
 const IDS = Array.from({ length: 20 }, (_, index) => `n${String(index)}`);
@@ -58,7 +59,7 @@ function positionsOf(graph: Graph): Map<string, [number, number, number]> {
 }
 
 /**
- * The angles of some nodes about the centre of the circle they lie on, sorted, in degrees.
+ * The angles of some nodes about the center of the circle they lie on, sorted, in degrees.
  * @param at - Every node's position.
  * @param ids - The nodes.
  * @returns The angles.
@@ -71,7 +72,7 @@ function anglesOf(at: Map<string, [number, number, number]>, ids: readonly strin
 }
 
 /**
- * The smallest gap between two neighbouring angles, in degrees.
+ * The smallest gap between two neighboring angles, in degrees.
  * @param angles - The sorted angles.
  * @returns The gap.
  */
@@ -133,13 +134,40 @@ describe("a layout over only what the filter shows", () => {
         assert.closeTo(smallestGap(anglesOf(positionsOf(graph), five)), 72, 0.5);
     });
 
+    it("moves no node and no camera as a time window steps, and still follows the filter", async () => {
+        await session.data.updateNodes(IDS.map((id, index) => ({ id, values: { step: index } })));
+        await graph.setLayout("circular", { dim: 2 });
+        graph.setLayoutBehavior({ layout: { visibleOnly: true } });
+        await session.time.setField({ nodes: { start: "step" } });
+        await session.time.window({ from: 2, to: 6 });
+        await graph.waitForSettled();
+        const before = positionsOf(graph);
+        const camera = JSON.stringify(graph.getCameraState());
+        const runs = layoutsRun;
+
+        for (let step = 0; step < 5; step++) {
+            await session.time.stepBy(1);
+            await graph.waitForSettled();
+        }
+
+        assert.isBelow(windowCount(session.visibility).nodes, IDS.length, "the window leaves nodes out");
+        assert.strictEqual(session.visibility.summary.visibleNodes, IDS.length, "all of them still visible");
+        assert.strictEqual(layoutsRun, runs, "no layout ran");
+        assert.deepEqual(positionsOf(graph), before, "no node moved");
+        assert.strictEqual(JSON.stringify(graph.getCameraState()), camera, "the camera stayed");
+
+        // A filter is still a layout input: the circle is laid out again over what it keeps.
+        await show(SHOWN);
+        assert.isAbove(layoutsRun, runs);
+    });
+
     it("runs the whole graph with the working graph off, hidden nodes keeping their slots", async () => {
         await graph.setLayout("circular", { dim: 2 });
         const five = ["n0", "n1", "n2", "n3", "n4"];
         await show(five);
         await graph.setLayout("circular", { dim: 2, scale: 1.5 });
 
-        // Five neighbouring nodes of a twenty-slot circle are 18 degrees apart.
+        // Five neighboring nodes of a twenty-slot circle are 18 degrees apart.
         assert.closeTo(smallestGap(anglesOf(positionsOf(graph), five)), 18, 0.5);
     });
 
@@ -178,7 +206,10 @@ describe("a layout over only what the filter shows", () => {
         );
         await Promise.all([building, ...changes]);
         await graph.waitForSettled();
-        assert.strictEqual(layoutsRun, 2, "the layout asked for, then one relayout for the four changes");
+        // The layout asked for reads what the filter keeps when it is built, so changes that land
+        // before then are already in it; the rest share one relayout.
+        assert.isAtLeast(layoutsRun, 1);
+        assert.isAtMost(layoutsRun, 2, "the layout asked for, then at most one relayout for the four changes");
         // The last filter's three nodes on a circle of their own, 120 degrees apart.
         assert.closeTo(smallestGap(anglesOf(positionsOf(graph), SHOWN.slice(0, 3))), 120, 0.5);
     });
@@ -255,7 +286,7 @@ function farthest(a: number[][], b: number[][]): number {
 }
 
 describe("a force layout over only what the filter shows", () => {
-    // ngraph and d3 pull a node toward its neighbours: moving the hidden ones must not move it.
+    // ngraph and d3 pull a node toward its neighbors: moving the hidden ones must not move it.
     for (const layout of ["ngraph", "d3"]) {
         it(`does not let hidden neighbours pull a shown node under ${layout}`, async () => {
             const pull = async (visibleOnly: boolean): Promise<number> =>

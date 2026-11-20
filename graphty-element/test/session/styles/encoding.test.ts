@@ -22,6 +22,9 @@ import {
 } from "../../../src/session/styles/EncodingSpec";
 import { createScaleRegistry, type ScaleRegistry } from "../../../src/session/styles/scales";
 
+/** A run fixture with the name its layers are given by default. */
+type NamedRun = EncodingRun & { readonly label: string };
+
 /** A fresh registry per call, so one test's plugin scale never reaches the next test. */
 function scales(): ScaleRegistry {
     return createScaleRegistry();
@@ -53,7 +56,7 @@ function countsOf(prepared: PreparedBinding): BindingCounts {
     return prepared.counts;
 }
 
-/** The hex a painted colour carries, so a colour assertion reads as a colour. */
+/** The hex a painted color carries, so a color assertion reads as a color. */
 function hex(value: EncodedValue | undefined): string | undefined {
     return value === undefined ? undefined : (value as ColorValue).hex;
 }
@@ -348,7 +351,7 @@ describe("the palette's capacity", () => {
     });
 
     it("gives a binding that names no palette and no overflow a palette big enough to name it", () => {
-        // The eight-colour default cannot name ten groups, and a categorical palette never wraps.
+        // The eight-color default cannot name ten groups, and a categorical palette never wraps.
         // What the element must NOT do is hand ITSELF that palette and then refuse its own layer:
         // this is a run of ten communities that got exactly that, and drew nothing at all.
         // encode() now writes overflow "other" onto such a binding (see overflow.test.ts); a layer
@@ -373,7 +376,7 @@ describe("the palette's capacity", () => {
 
     it("still refuses a palette the CALLER named that cannot name the groups", () => {
         // The element choosing for itself is what changed. A consumer who asked for these eight
-        // colours and has ten groups is told so, rather than shown a picture in colours it did
+        // colors and has ten groups is told so, rather than shown a picture in colors it did
         // not ask for.
         const chosen: PaletteId = "okabe-ito";
         const layer = plan({ run: "louvain", channel: "node.color", palette: chosen });
@@ -672,7 +675,7 @@ function field(
 }
 
 /** A centrality run: a number per node. */
-const BETWEENNESS: EncodingRun = {
+const BETWEENNESS: NamedRun = {
     id: "betweenness",
     label: "Betweenness",
     distinguishedBy: null,
@@ -689,7 +692,7 @@ const BETWEENNESS: EncodingRun = {
 };
 
 /** A partition run: a group per node. */
-const LOUVAIN: EncodingRun = {
+const LOUVAIN: NamedRun = {
     id: "louvain",
     label: "Communities",
     distinguishedBy: null,
@@ -701,7 +704,7 @@ const LOUVAIN: EncodingRun = {
 };
 
 /** A flow run: a number per edge. */
-const FLOW: EncodingRun = {
+const FLOW: NamedRun = {
     id: "flow",
     label: "Flow",
     distinguishedBy: null,
@@ -713,7 +716,7 @@ const FLOW: EncodingRun = {
 };
 
 /** A route run, which names a subset rather than measuring everything. */
-const ROUTE: EncodingRun = {
+const ROUTE: NamedRun = {
     id: "route",
     label: "Shortest Path",
     distinguishedBy: null,
@@ -725,7 +728,7 @@ const ROUTE: EncodingRun = {
 };
 
 /** A cut run: a chosen set of edges, and the side every node ended up on. */
-const CUT: EncodingRun = {
+const CUT: NamedRun = {
     id: "cut",
     label: "Weakest link",
     distinguishedBy: null,
@@ -737,7 +740,7 @@ const CUT: EncodingRun = {
 };
 
 /** A prediction run, which publishes a table and nothing per element. */
-const PAIRS: EncodingRun = {
+const PAIRS: NamedRun = {
     id: "pairs",
     label: "Link Prediction",
     distinguishedBy: null,
@@ -749,12 +752,13 @@ const PAIRS: EncodingRun = {
 };
 
 /** Every run these tests can look up. */
-const RUNS: readonly EncodingRun[] = [BETWEENNESS, LOUVAIN, FLOW, ROUTE, CUT, PAIRS];
+const RUNS: readonly NamedRun[] = [BETWEENNESS, LOUVAIN, FLOW, ROUTE, CUT, PAIRS];
 
 /** A source over the runs above, which is all `encode()` needs from a session. */
 const SOURCE: EncodingSource = {
     run: (ref: RunRef): EncodingRun | undefined => RUNS.find((entry) => entry.id === ref),
     runIds: (): readonly RunId[] => RUNS.map((entry) => entry.id),
+    defaultLayerName: (id: RunId): string | undefined => RUNS.find((entry) => entry.id === id)?.label,
 };
 
 /** Plan one encoding over the runs above. */
@@ -842,7 +846,7 @@ describe("encode()", () => {
         // A palette written in here would be a guess: nothing at this point has read a single one
         // of the run's values, and how many groups there are is what decides whether a palette can
         // name them. The guess was made and it was wrong -- a ten-community result was planned
-        // onto the eight-colour default, refused by the capacity check one step later, and left in
+        // onto the eight-color default, refused by the capacity check one step later, and left in
         // the stack enabled and painting nothing. Choosing is deferred to the paint, where the
         // count is known; see the capacity tests below for the choice itself.
         assert.isUndefined(bindingOf(plan({ run: "louvain", channel: "node.color" }), "node.color").palette);

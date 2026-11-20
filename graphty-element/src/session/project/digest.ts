@@ -133,7 +133,7 @@ export function stateDigest(state: ProjectState, options: DigestOptions = {}): s
         ...(ownRows(state.styles) === undefined ? [] : [`styleRows=${canonical(ownRows(state.styles), path)}`]),
         `visibility=${canonical(state.visibility, path)}`,
         // Each set by its revision, the canonical hash of its definition: a fixed set's edge
-        // members are typed columns that a walk would materialise at 72 bytes a member.
+        // members are typed columns that a walk would materialize at 72 bytes a member.
         `sets=${canonical(
             new Map(
                 [...state.sets].map(([id, set]) => [
@@ -150,12 +150,18 @@ export function stateDigest(state: ProjectState, options: DigestOptions = {}): s
             path,
         )}`,
         `views=${canonical(state.views, path)}`,
+        // The order the views are kept in; a canonical map sorts its keys.
+        `viewOrder=${canonical(state.viewOrder, path)}`,
+        // Only when a tour is saved, so a digest of a state without tours is as it was.
+        ...(state.tours.length === 0 ? [] : [`tours=${canonical(state.tours, path)}`]),
         `notes=${canonical(state.notes, path)}`,
         `attributes=${canonical(state.attributes, path)}`,
         // Only when some value is named, so a digest of a state without names is as it was.
         ...(state.valueLabels.size === 0 ? [] : [`valueLabels=${canonical(state.valueLabels, path)}`]),
         // Likewise for pasted shaders.
         ...(state.shaders.size === 0 ? [] : [`shaders=${canonical(state.shaders, path)}`]),
+        // And for the models' own settings.
+        ...(state.modelDefaults.size === 0 ? [] : [`modelDefaults=${canonical(state.modelDefaults, path)}`]),
     ];
     if (options.snapshot !== undefined) {
         parts.push(
@@ -174,7 +180,7 @@ const dataDigests = new WeakMap<object, string>();
  * weights and columns). Equal for two loads of the same data, whatever else the project holds, so
  * a run can tell that the numbers it was computed from have changed under it.
  *
- * Memoised per `graph` slice, which is replaced, never edited, when data moves. The snapshot is
+ * Memoized per `graph` slice, which is replaced, never edited, when data moves. The snapshot is
  * read only on a miss: a layout replaces it every frame (positions are lane columns, which the
  * digest leaves out), so keying on it re-hashed the whole graph on every frame of a layout.
  * ponytail: hashes the whole graph once per data change; hash per column if a large graph's edits

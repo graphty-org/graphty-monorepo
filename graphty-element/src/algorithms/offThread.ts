@@ -24,7 +24,7 @@ import type { GraphSnapshot } from "@graphty/graph-format";
 import type { OffThreadReply, OffThreadRequest } from "./offThreadProtocol";
 
 /** The dispatcher members computed in the Worker: each returns plain data. */
-// ponytail: the Worker answers one call at a time and a cancelled run is only abandoned there, so
+// ponytail: the Worker answers one call at a time and a canceled run is only abandoned there, so
 // a long Girvan-Newman delays the next off-thread call; terminate and restart the Worker on cancel
 // if that starts to matter. The page stays live either way.
 const OFF_THREAD_MEMBERS: ReadonlySet<string> = new Set([

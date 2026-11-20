@@ -269,6 +269,7 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "data.removeEdit()": "writes",
     "data.removeStep()": "writes",
     "data.resolveStep()": "writes",
+    "data.setStepOff()": "writes",
     "data.settleEdit()": "writes",
     "data.spaces()": "not the graph",
     "data.stage()": "writes",

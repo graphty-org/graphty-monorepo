@@ -248,12 +248,13 @@ edge joins its two nodes whichever way it was declared.
 
 `articulation-points` finds the nodes, and `bridges` the edges, whose removal would split their
 piece of the graph. Each flagged node or edge carries `in: true`, which the suggested highlight
-layer paints; nothing else is touched.
+layer paints; nothing else is touched. Each run also reports how many it found, and what share of
+the nodes (or edges) that is.
 
 ```typescript
 const points = await element.session.runs.start("articulation-points");
-const cuts = await element.session.runs.start("bridges");
-console.log(points.graph.count, cuts.graph.count);
+// How many cut points, and the fraction of the nodes they are.
+const { count, share } = points.graph;
 ```
 
 Both read the graph as undirected. Two edges between the same pair of nodes back each other up, so

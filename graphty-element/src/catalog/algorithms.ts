@@ -1189,10 +1189,12 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         category: "structure",
         keywords: ["single point of failure", "cut vertex", "chokepoint", "vulnerability"],
         shape: "node-set",
-        fields: [
-            field({ name: "in", plainName: "Cut point", technicalName: "in", kind: "node", type: "boolean" }),
-            field({ name: "count", plainName: "Count", technicalName: "count", kind: "graph", type: "integer" }),
-        ],
+        fields: setFields("node", "Cut point", {
+            name: "share",
+            plainName: "Share of nodes",
+            technicalName: "share",
+            type: "number",
+        }),
         options: optionsOf("articulation-points"),
         costClass: "instant",
         complexity: "O(n + m)",
@@ -1207,10 +1209,12 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         category: "structure",
         keywords: ["single point of failure", "cut edge", "weak link", "vulnerability"],
         shape: "edge-set",
-        fields: [
-            field({ name: "in", plainName: "Cut edge", technicalName: "in", kind: "edge", type: "boolean" }),
-            field({ name: "count", plainName: "Count", technicalName: "count", kind: "graph", type: "integer" }),
-        ],
+        fields: setFields("edge", "Cut edge", {
+            name: "share",
+            plainName: "Share of edges",
+            technicalName: "share",
+            type: "number",
+        }),
         options: optionsOf("bridges"),
         costClass: "instant",
         complexity: "O(n + m)",

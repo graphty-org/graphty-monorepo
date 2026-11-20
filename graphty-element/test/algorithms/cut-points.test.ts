@@ -51,6 +51,7 @@ describe("articulation points", () => {
             ["c", "d", "f"],
         );
         assert.strictEqual(result.graph.count, 3);
+        assert.strictEqual(result.graph.share, 3 / 11);
     });
 });
 
@@ -64,5 +65,6 @@ describe("bridges", () => {
         );
         assert.deepEqual(flagged, ["c-d", "f-g", "j-k"]);
         assert.strictEqual(result.graph.count, 3);
+        assert.strictEqual(result.graph.share, 3 / 11);
     });
 });

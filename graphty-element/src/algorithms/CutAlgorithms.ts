@@ -1,7 +1,8 @@
 /**
  * @file Articulation points and bridges: the nodes and the edges whose removal would split the
  * piece of the graph they are in. Each publishes a set; only its own members carry `in: true`, so
- * the shape's suggested mark paints them and nothing else.
+ * the shape's suggested mark paints them and nothing else. Beside the set's count each publishes
+ * `share`: the fraction of the scope's nodes (or edges) that are cut points (or bridges).
  */
 
 import { articulationPoints, bridges } from "@graphty/algorithms";
@@ -18,6 +19,7 @@ import {
     DeclaredAlgorithm,
     declaredCaveats,
     forEachChunked,
+    setFieldSpecs,
 } from "./results";
 
 /** What both cut algorithms share: the undirected input, kept with its parallel edges apart. */
@@ -59,25 +61,28 @@ abstract class CutAlgorithm extends DeclaredAlgorithm {
         for (const index of this.find(snapshot)) {
             flagged[index] = 1;
         }
+        let members = 0;
         context.signal.throwIfAborted();
 
         const nodes: ResultElementValues[] = [];
         await forEachChunked(context, "marking-cuts", nodeIds, (nodeId) => {
-            nodes.push({ id: nodeId, values: { in: flagged[snapshot.ids.indexOf(nodeId)] === 1 } });
+            const isIn = flagged[snapshot.ids.indexOf(nodeId)] === 1;
+            members += isIn ? 1 : 0;
+            nodes.push({ id: nodeId, values: { in: isIn } });
         });
         const edges: ResultElementValues<EdgeId>[] = [];
         await forEachChunked(context, "marking-cuts", graphEdges, (edge) => {
             const merged = edgeRemap === null ? edge.row : (edgeRemap[edge.row] ?? INVALID_INDEX);
-            edges.push({ id: edge.id, values: { in: merged !== INVALID_INDEX && flagged[merged] === 1 } });
+            const isIn = merged !== INVALID_INDEX && flagged[merged] === 1;
+            members += isIn ? 1 : 0;
+            edges.push({ id: edge.id, values: { in: isIn } });
         });
 
         return {
             shape: kind === "node" ? "node-set" : "edge-set",
-            fields: [
-                { name: "in", kind, type: "boolean" },
-                { name: "count", kind: "graph", type: "integer" },
-            ],
+            fields: setFieldSpecs(kind, { name: "share", type: "number" }),
             ...(kind === "node" ? { nodes } : { edges }),
+            graph: { share: members / (nodeIds.length + graphEdges.length) },
             caveats: declaredCaveats({
                 method: (this.constructor as typeof CutAlgorithm & { type: string }).type,
                 direction: "undirected",

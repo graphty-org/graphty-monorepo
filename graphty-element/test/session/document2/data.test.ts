@@ -1849,7 +1849,7 @@ describe("the join history: steps that read sources (spec 4.1.8)", () => {
 
     it("holds the section for a referenced source whose parse options its parser does not read", async () => {
         const { body, first } = await stagedBody();
-        // A CSV source: no parser reads sheet, the CSV parser no pointer, and missing takes a list.
+        // A CSV source: the CSV parser reads no sheet and no pointer, and missing takes a list.
         assert.strictEqual(recordOf(body, first)?.format, "csv");
         for (const name of ["pointer", "sheet", "missing"]) {
             const copy = structuredClone(body);
@@ -2040,6 +2040,36 @@ describe("a source saved by reference, read again", () => {
             ["/graph/people", "/graph/knows"],
             "kept on a second save",
         );
+        reopened.dispose();
+    });
+
+    it("reads a referenced workbook's second sheet again by its name, and a first sheet it read by default", async () => {
+        const book = new Uint8Array(
+            readFileSync(new URL("../../../../graph-io/test/formats/xlsx/fixtures/two-sheets.xlsx", import.meta.url)),
+        );
+        vi.stubGlobal("fetch", () => Promise.resolve(new Response(book)));
+        const session = createGraphSession(ON);
+        await session.data.import({ type: "xlsx", config: { data: book, sheet: "Links" }, name: "org.xlsx" });
+        await session.data.import({ type: "xlsx", config: { data: book }, name: "org.xlsx" }, { mode: "merge" });
+        const { body } = await writeBody(session);
+        session.dispose();
+        const files = (body.sources as JsonObject[]).filter((source) => source.kind === "file");
+        // the sheet a load read is recorded even when the load named none
+        assert.deepStrictEqual(
+            files.map((record) => (record.options as JsonObject).sheet),
+            ["Links", "People"],
+        );
+        for (const record of files) {
+            delete record.copy;
+            (record.origin as JsonObject).path = "org.xlsx";
+        }
+
+        assert.deepStrictEqual(invalid(asSection(body)), []);
+        await refetchSources(body, { location: LOCATION, ...how });
+        const reopened = createGraphSession(ON);
+        assert.deepStrictEqual(await readBody(reopened, body), [], "the section is read, not held");
+        assert.strictEqual(reopened.data.edges().length, 3);
+        assert.strictEqual(reopened.data.node("ava")?.code, "007");
         reopened.dispose();
     });
 

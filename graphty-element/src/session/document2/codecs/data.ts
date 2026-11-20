@@ -36,8 +36,8 @@
  *   every other step that is not `off` (`join.merge`, `join.node-values`, `join.edge-values`,
  *   `join.edges`), a `join.add` with `columns`, and a second `join.add` of one source hold the
  *   section. A referenced source parsed again with a parse option its format does not read holds
- *   it too: `pointer` is read by `json`, `missing` by `csv` and `json`, and `sheet` by none yet (no
- *   workbook reader), and a malformed value of either holds it as well. `repeatedEdges` reduces repeats of one pair and one type
+ *   it too: `pointer` is read by `json`, `missing` by `csv`, `json` and `xlsx`, and `sheet` by `xlsx`,
+ *   and a malformed value of any holds it as well. `repeatedEdges` reduces repeats of one pair and one type
  *   (spec 6.1), and becomes the session's setting; the writer writes the session's setting back. A
  *   node only edges name is supplied by their sources, not a row of their copies. A referenced `file` or `url` source is built from the rows an open read again
  *   (dataFetch.ts); one it could not read supplies nothing, is reported `W_SOURCE_UNAVAILABLE` with
@@ -164,9 +164,9 @@ const PARSE_OPTIONS: Readonly<Record<string, { formats: readonly string[]; valid
         formats: ["json"],
         valid: (value) => typeof value === "string" && /^(?:\/(?:[^~/]|~[01])*)*$/.test(value),
     },
-    sheet: { formats: [], valid: () => false },
+    sheet: { formats: ["xlsx"], valid: (value) => typeof value === "string" },
     missing: {
-        formats: ["csv", "json"],
+        formats: ["csv", "json", "xlsx"],
         valid: (value) => Array.isArray(value) && value.every((text) => typeof text === "string"),
     },
 };

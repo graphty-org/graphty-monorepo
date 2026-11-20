@@ -160,6 +160,15 @@ export interface GraphtyErrorDetailsMap {
         /** The element or column graph-io names as where the read stopped, when it names one. */
         readonly element?: string;
     };
+    /** A workbook sheet the `sheet` option names that the workbook does not have. */
+    E_SHEET_NOT_FOUND: {
+        /** The format the file was read as. */
+        readonly format?: string;
+        /** The sheet name asked for. */
+        readonly sheet?: string;
+        /** Every sheet's name, in tab order. */
+        readonly available?: readonly string[];
+    };
     /** A source that could not be fetched or a file that could not be read. */
     E_FETCH_FAILED: {
         /** The address fetched, when it was a URL. */

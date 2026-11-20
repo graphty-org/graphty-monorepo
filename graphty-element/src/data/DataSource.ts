@@ -300,6 +300,22 @@ export interface ImporterSourceOptions<Opts> {
 const READER_SIGNALS = new WeakMap<object, AbortSignal>();
 
 /**
+ * The options a reader settled that its load left out (the sheet a workbook load read when it named
+ * none), set once the reader has read. A load records them with its source, so a save reads the
+ * file the same way again. Kept beside the reader, as READER_SIGNALS is.
+ */
+const SETTLED_OPTIONS = new WeakMap<object, Readonly<Record<string, unknown>>>();
+
+/**
+ * The options a reader settled that its load left out (see SETTLED_OPTIONS).
+ * @param reader - the reader
+ * @returns the options, or undefined when it settled none
+ */
+export function settledOptionsOf(reader: unknown): Readonly<Record<string, unknown>> | undefined {
+    return typeof reader === "object" && reader !== null ? SETTLED_OPTIONS.get(reader) : undefined;
+}
+
+/**
  * Sets the cancel signal of the load a reader is read for (see READER_SIGNALS).
  * @param reader - the reader
  * @param signal - the load's cancel signal
@@ -1221,6 +1237,18 @@ export abstract class DataSource {
                     { firstDeclarationWins: true },
                 );
                 const { snapshot, report } = imported;
+                // A declared option the load left out that the importer reports the value of.
+                const passed = this.#config as unknown as Record<string, unknown>;
+                const settled = Object.fromEntries(
+                    Object.entries(report.resolved ?? {}).filter(
+                        ([name]) =>
+                            passed[name] === undefined && described.options.some((option) => option.name === name),
+                    ),
+                );
+                if (Object.keys(settled).length > 0) {
+                    SETTLED_OPTIONS.set(this, Object.freeze(settled));
+                }
+
                 const words = statedBy?.(snapshot, report) ?? null;
                 if (words !== null) {
                     this.declareDirection(snapshot.directed, words, report.counts.expandedMixed);

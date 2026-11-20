@@ -311,6 +311,13 @@ export type GraphtyErrorCode =
      */
     | "E_PARSE_FAILED"
     /**
+     * A workbook source's `sheet` option names no sheet of the workbook. `details` are
+     * `{ sheet, available }`: the name asked for, and every sheet's name in tab order. The file
+     * itself was read fine. The caller loads again naming one of the available sheets, or leaves
+     * `sheet` out to read the first.
+     */
+    | "E_SHEET_NOT_FOUND"
+    /**
      * A graphty project or document file (one `session.project.save` writes) was handed to a data
      * import (`session.data.import`, `session.data.prepare`, a data source) instead of being
      * opened. `details` are `{ kind, use: "project.open" }`: the document's `kind`, and the verb
@@ -1141,6 +1148,7 @@ const CODE_TABLE = {
     E_LOCKED: "E_LOCKED",
     E_FETCH_FAILED: "E_FETCH_FAILED",
     E_PARSE_FAILED: "E_PARSE_FAILED",
+    E_SHEET_NOT_FOUND: "E_SHEET_NOT_FOUND",
     E_PROJECT_FILE_AS_DATA: "E_PROJECT_FILE_AS_DATA",
     E_EDGE_ENDPOINTS_UNRESOLVED: "E_EDGE_ENDPOINTS_UNRESOLVED",
     E_ID_MISSING: "E_ID_MISSING",

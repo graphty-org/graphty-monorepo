@@ -342,14 +342,14 @@ describe("format catalogue", () => {
         );
     });
 
-    it("reports that every built-in format but the project file can be read, and all but OBO written", () => {
+    it("reports that every built-in format but the project file can be read, and all but OBO and workbooks written", () => {
         assert.deepEqual(
             FORMAT_DESCRIPTORS.filter((descriptor) => !descriptor.canImport).map((descriptor) => descriptor.id),
             ["graphty"],
         );
         assert.deepEqual(
             FORMAT_DESCRIPTORS.filter((descriptor) => !descriptor.canExport).map((descriptor) => descriptor.id),
-            ["obo"],
+            ["obo", "xlsx"],
         );
     });
 

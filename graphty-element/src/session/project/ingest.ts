@@ -17,7 +17,13 @@ import type { RequestedLayout } from "@graphty/graph-io";
 import { unknownFormat } from "../../catalog/detect";
 import type { EdgeId, NodeId, SourceKey } from "../../catalog/types";
 import { CSVDataSource } from "../../data/CSVDataSource";
-import { DataSource, type DataSourceChunk, type DeclaredDirection, setReaderSignal } from "../../data/DataSource";
+import {
+    DataSource,
+    type DataSourceChunk,
+    type DeclaredDirection,
+    setReaderSignal,
+    settledOptionsOf,
+} from "../../data/DataSource";
 import { decideRepeat, edgeCounterOf, edgeIdOf, pairKey, recordType, reducesInto } from "../../data/edgeIdentity";
 import { readEndpoint, type ResolvedEndpoints, resolveEndpoints, searchRecord } from "../../data/endpoints";
 import { type DataLoadingError, ErrorAggregator } from "../../data/ErrorAggregator";
@@ -182,6 +188,20 @@ function inputOf(command: { readonly input?: string }): { readonly input?: strin
 function drawnOf(command: DataImportCommand): { readonly drawn?: Pick<DataImportCommand, "styles" | "styleOptions"> } {
     const { styles, styleOptions } = command;
     return styles === undefined ? {} : { drawn: { styles, ...(styleOptions === undefined ? {} : { styleOptions }) } };
+}
+
+/**
+ * A load's source with the options its reader settled that the load left out (the sheet a workbook
+ * load read), recorded as if the load had named them, so a save reads the file the same way.
+ * @param described - The source as the load named it.
+ * @param reader - The load's reader.
+ * @returns The source.
+ */
+function withSettled(described: DataSourceDescriptor, reader: unknown): DataSourceDescriptor {
+    const settled = settledOptionsOf(reader);
+    return settled === undefined
+        ? described
+        : Object.freeze({ ...described, config: Object.freeze({ ...settled, ...described.config }) });
 }
 
 /**
@@ -1043,7 +1063,7 @@ export class Ingest<K extends KnownEdge> {
                       })
                     : undefined;
             this.recordLoad(command, writer, {
-                described,
+                described: withSettled(described, outcome.reader),
                 readBy: readByOfLoad(outcome.reader, command.held),
                 type,
                 added,

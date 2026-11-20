@@ -355,6 +355,7 @@ If that pair's load failed, assigning it again retries it.
 | CX                | `.cx`                                         | Version 1 of CX, read only                               |
 | Cytoscape Session | `.cys`                                        | A saved Cytoscape session, read only                     |
 | OBO               | `.obo`                                        | The Gene Ontology's ontology format, read only           |
+| Excel Workbook    | `.xlsx`, `.xlsm`                              | One sheet of a workbook read as a table, read only       |
 
 An OBO Graphs document (the JSON form of an ontology, such as `go-basic.json`) is JSON: it is
 recognized by its content and read with the `json` format.
@@ -771,6 +772,28 @@ columns are typed, so a number column holding `N/A` stays a number column, a pla
 its row out, and a placeholder end is a missing end. A Neo4j file refuses the option with
 `E_OPTION_RANGE`. In a JSON file only string values at the top level of each record are compared;
 numbers, `true`, `false`, `null` and nested values never are.
+
+## One Sheet of a Workbook
+
+An Excel workbook (`.xlsx` or `.xlsm`) is read one sheet at a time, as a table: the header row names
+the columns, and `source` and `target` columns make edges, an `id` column nodes, as a CSV file is
+read. Pass `sheet`, the name of the sheet, to read one other than the first:
+
+```typescript
+await session.data.import({ config: { url: "org.xlsx", sheet: "Links" } });
+```
+
+The name is matched exactly, after Unicode NFC normalization. Left out, the first sheet in tab order
+is read, and the load records its name (`session.data.sources()[n].config.sheet`), so a project
+saved with the file by reference reads the same sheet again even when the tabs are reordered. A
+name the workbook does not have fails the load with `E_SHEET_NOT_FOUND`, whose `details` are
+`{ format, sheet, available }`: the name asked for and every sheet's name in tab order. The
+catalog's `listGraphs` lists the sheets.
+
+Text cells stay text (`007` stays `007`), dates become ISO 8601 text, formulas are read as the
+value Excel saved, and error cells (`#N/A`) are unset. `missing` applies to workbook cells too. A
+legacy `.xls` file or a password-protected workbook fails with `E_PARSE_FAILED`; save it as `.xlsx`
+first. The workbook reader loads the first time a workbook is opened.
 
 ## Custom ID Paths
 

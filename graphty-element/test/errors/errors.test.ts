@@ -111,6 +111,7 @@ const CODES_FROM_THE_DESIGN = [
     "E_LOCKED",
     "E_FETCH_FAILED",
     "E_PARSE_FAILED",
+    "E_SHEET_NOT_FOUND",
     "E_PROJECT_FILE_AS_DATA",
     "E_EDGE_ENDPOINTS_UNRESOLVED",
     "E_ID_MISSING",
@@ -213,6 +214,7 @@ function bucketOf(code: GraphtyErrorCode): string {
             return "identity";
         case "E_FETCH_FAILED":
         case "E_PARSE_FAILED":
+        case "E_SHEET_NOT_FOUND":
         case "E_PROJECT_FILE_AS_DATA":
         case "E_EDGE_ENDPOINTS_UNRESOLVED":
         case "E_ID_MISSING":

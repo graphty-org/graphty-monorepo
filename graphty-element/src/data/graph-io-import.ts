@@ -21,6 +21,7 @@ import {
     readJsonRecords,
     recordKey,
     registry,
+    XLSX_ISSUE,
 } from "@graphty/graph-io";
 import { placeRecords } from "@graphty/graph-io/positions";
 import { isStyleSlotColumn } from "@graphty/graph-io/styles";
@@ -203,8 +204,12 @@ export function emptyLoad(error: unknown, format: string): GraphtyError | null {
     });
 }
 
+/** graph-io's issue code for a `sheet` option no sheet of the workbook has. */
+const { SHEET_NOT_FOUND } = XLSX_ISSUE;
+
 /**
- * The error a load fails with when the importer could not read the file.
+ * The error a load fails with when the importer could not read the file, or, for a workbook, could
+ * not find the sheet asked for (`E_SHEET_NOT_FOUND`).
  * @param format - the format the file was read as
  * @param error - the importer's error
  * @returns a `GraphtyError` with `E_PARSE_FAILED` naming the format and the last error line
@@ -213,6 +218,25 @@ export function parseFailed(format: string, error: ImportError): GraphtyError {
     const empty = emptyLoad(error, format);
     if (empty !== null) {
         return empty;
+    }
+
+    // The file read fine; the choice of sheet did not, and the caller needs the sheets to fix it.
+    const { issue } = error;
+    if (issue?.code === SHEET_NOT_FOUND) {
+        const { sheet, sheets } = (issue.params ?? {}) as { sheet?: unknown; sheets?: unknown };
+        // built rather than wrapped, so the details are these three and not graph-io's params too
+        return new GraphtyError({
+            code: "E_SHEET_NOT_FOUND",
+            source: "data",
+            recoverable: false,
+            message: error.message,
+            details: {
+                format,
+                ...(typeof sheet === "string" ? { sheet } : {}),
+                ...(Array.isArray(sheets) ? { available: sheets.filter((name) => typeof name === "string") } : {}),
+            },
+            cause: error,
+        });
     }
 
     const line = error.report.issues.filter((issue) => issue.severity === "error").at(-1)?.line ?? null;

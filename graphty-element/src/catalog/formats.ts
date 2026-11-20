@@ -188,6 +188,64 @@ const xgmmlOptions: readonly OptionDescriptor[] = [
     zAsOption,
 ];
 
+/** Cell texts read as unset, for the table formats. */
+const missingOption: OptionDescriptor = {
+    name: "missing",
+    plainName: "Missing Values",
+    technicalName: "missing",
+    type: "unknown",
+    unsupported: { code: "option.array", params: {} },
+    description:
+        "Cell texts read as unset, such as N/A. Compared exactly, after Unicode normalization, and never trimmed.",
+};
+
+/** The options of a workbook: which sheet, and how its table is read. */
+const xlsxOptions: readonly OptionDescriptor[] = [
+    {
+        name: "sheet",
+        plainName: "Sheet",
+        technicalName: "sheet",
+        type: "string",
+        description:
+            "The name of the sheet to load, matched exactly. Left unset, the first sheet is loaded. " +
+            "listGraphs from the catalog lists the sheets.",
+    },
+    missingOption,
+    {
+        name: "table",
+        plainName: "Table",
+        technicalName: "table",
+        type: "enum",
+        values: [
+            { value: "auto", label: "Worked out from the header" },
+            { value: "edges", label: "Edges" },
+            { value: "nodes", label: "Nodes" },
+        ],
+        description: "Whether each row is an edge or a node. Worked out from the header row when it is not set.",
+    },
+    {
+        name: "idColumn",
+        plainName: "Node Id Column",
+        technicalName: "idColumn",
+        type: "string",
+        description: "The column holding each node's identity, when the sheet lists nodes.",
+    },
+    {
+        name: "sourceColumn",
+        plainName: "Edge Start Column",
+        technicalName: "sourceColumn",
+        type: "string",
+        description: "The column holding the node an edge starts at. Worked out from the header when it is not set.",
+    },
+    {
+        name: "targetColumn",
+        plainName: "Edge End Column",
+        technicalName: "targetColumn",
+        type: "string",
+        description: "The column holding the node an edge ends at. Worked out from the header when it is not set.",
+    },
+];
+
 const oboOptions: readonly OptionDescriptor[] = [
     {
         name: "obsolete",
@@ -681,6 +739,20 @@ const SHIPPED_FORMATS: readonly FormatDescriptor[] = [
         canImport: true,
         canExport: false,
         options: oboOptions,
+        styles: { read: false, write: "none" },
+    },
+    {
+        id: "xlsx",
+        plainName: "Excel Workbook",
+        extensions: [".xlsx", ".xlsm"],
+        mimeTypes: [
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "application/vnd.ms-excel.sheet.macroEnabled.12",
+        ],
+        canImport: true,
+        canExport: false,
+        binary: true,
+        options: xlsxOptions,
         styles: { read: false, write: "none" },
     },
     {

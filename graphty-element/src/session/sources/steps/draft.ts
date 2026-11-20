@@ -10,7 +10,7 @@
  */
 
 import { GraphtyError } from "../../../errors/GraphtyError";
-import { checkClash, mapped, type MappingPatch, refuseBoth } from "./acts";
+import { checkClash, mapped, type MappingPatch, refuseBoth, rowsCopies } from "./acts";
 
 export type { MappingPatch } from "./acts";
 import { isStaged, ownSpace } from "./build";
@@ -450,13 +450,15 @@ export function stepEdit(value: SourceSteps, copies: Copies, index: number, patc
 /**
  * Change the mapping, space or type of one source (5.6): what a staged source the draft adds may
  * still change while the draft is open.
- * @param value - The value.
+ * @param state - The draft.
  * @param id - The source's id.
  * @param patch - The change.
- * @returns The `set` edit that makes the change.
+ * @returns The draft with the change made.
  */
-export function mappingEdit(value: SourceSteps, id: string, patch: MappingPatch): StepsEdit {
-    return { kind: "set", value: mapped(value, id, patch) };
+export function mappingApply(state: DraftState, id: string, patch: MappingPatch): DraftState {
+    const more = rowsCopies(state.value, state.copies, id, patch);
+    const copies = more === undefined ? state.copies : { ...state.copies, ...more };
+    return draftApply(state, { kind: "set", value: mapped(state.value, id, patch, copies) }, more);
 }
 
 /** What a draft's commit does to one element (design 10, row 12), as `graphty.draft` reads it. */

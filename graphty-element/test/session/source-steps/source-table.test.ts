@@ -191,6 +191,100 @@ describe("source-steps: a staged source's mapping outside a draft", () => {
         assert.strictEqual(noNodes.reason, "no-nodes");
         session.dispose();
     });
+
+    it("keeps one edge end's type when the other end's changes after a save and reopen", async () => {
+        const { session } = await withPeople();
+        const visits = await session.data.stage(csv("visits.csv", "from,to", "B1,D1", "B2,D2"), {
+            edges: { from: { column: "from" }, to: { column: "to" } },
+        });
+        await session.data.setMapping(visits, {
+            edges: { sourceSpace: "person", targetSpace: "door" },
+            endTypes: { source: "person", target: "door" },
+        });
+        const { text } = await session.project.save();
+        session.dispose();
+
+        const opened = createGraphSession({ features: ["source-steps"] });
+        await opened.project.open(text);
+        await opened.data.setMapping(visits, { endTypes: { target: "room" } });
+        const rules = opened.data.types().flatMap((t) => t.rules.map((r) => [t.name, r] as const));
+        assert.deepInclude(rules, ["person", { source: visits, end: "source" }], "the source end keeps its type");
+        assert.deepInclude(rules, ["room", { source: visits, end: "target" }]);
+        assert.notDeepInclude(rules, ["door", { source: visits, end: "target" }]);
+        opened.dispose();
+    });
+
+    it("changes what a staged source's rows are: nodes, edges, or both", async () => {
+        const { session, people } = await withPeople();
+        const entries = await session.data.stage(ENTRIES, { key: "entry" });
+        const tablesOf = (): string[] =>
+            session.data
+                .sourceTable(entries)
+                .summary()
+                .tables.map((t) => t.table);
+        assert.deepStrictEqual(tablesOf(), ["nodes"]);
+
+        await session.data.setMapping(entries, {
+            rows: "edges",
+            edges: { source: "badge", target: "door", sourceSpace: "person", targetSpace: "door" },
+        });
+        assert.deepStrictEqual(tablesOf(), ["edges"]);
+        assert.deepInclude(session.data.sourceTable(entries).summary().tables[0], { table: "edges", rows: 6 });
+        const byBadge = { from: { source: entries, field: "badge" }, into: { source: people } } as const;
+        assert.deepInclude(
+            session.data.matchCounts(byBadge),
+            { matched: 2, only1: 1, only2: 2 },
+            "B9 and b3 meet no one",
+        );
+        assert.strictEqual(session.data.sources().find((s) => s.key === entries)?.state, "staged");
+
+        await session.data.setMapping(entries, { rows: "both", nodes: { key: "entry" } });
+        assert.deepStrictEqual(tablesOf(), ["nodes", "edges"]);
+
+        await session.data.setMapping(entries, { rows: "nodes" });
+        assert.deepStrictEqual(tablesOf(), ["nodes"]);
+        await refused(() => session.data.setMapping(entries, { edges: { source: "badge" } }), "E_BAD_COMMAND");
+
+        const noEnds = await refused(() => session.data.setMapping(entries, { rows: "edges" }), "E_BAD_COMMAND");
+        assert.strictEqual(noEnds.reason, "no-ends");
+        const badEnd = await refused(
+            () => session.data.setMapping(entries, { rows: "edges", edges: { source: "badge", target: "floor" } }),
+            "E_UNKNOWN_ATTRIBUTE",
+        );
+        assert.deepInclude(badEnd, { source: entries, column: "floor", table: "edges" });
+        const badKey = await refused(
+            () => session.data.setMapping(entries, { nodes: { key: "nope" } }),
+            "E_UNKNOWN_ATTRIBUTE",
+        );
+        assert.deepInclude(badKey, { source: entries, column: "nope", table: "nodes" });
+        assert.deepStrictEqual(tablesOf(), ["nodes"], "a refused change leaves the source as it was");
+
+        await session.data.add(entries);
+        assert.strictEqual(session.data.count().nodes, 9, "three people and six entries");
+        session.dispose();
+    });
+
+    it("a draft changes what the rows of a source it staged are, and its commit keeps them", async () => {
+        const { session, people } = await withPeople();
+        const draft = session.data.draft();
+        const entries = await draft.stage(ENTRIES, { key: "entry" });
+        draft.setMapping(entries, {
+            rows: "edges",
+            edges: { source: "badge", target: "door", sourceSpace: "person", targetSpace: "door" },
+        });
+        draft.add(entries);
+        await draft.commit();
+        assert.deepStrictEqual(
+            session.data
+                .sourceTable(entries)
+                .summary()
+                .tables.map((t) => t.table),
+            ["edges"],
+        );
+        assert.strictEqual(session.data.count().edges, 6, "one edge per entry");
+        assert.isDefined(session.data.sources().find((s) => s.key === people));
+        session.dispose();
+    });
 });
 
 describe("source-steps: matching choices the join card sets", () => {

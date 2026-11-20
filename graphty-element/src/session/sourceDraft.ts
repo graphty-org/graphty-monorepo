@@ -20,7 +20,7 @@ import {
     type DraftMarks,
     draftMarks,
     type DraftState,
-    mappingEdit,
+    mappingApply,
     openQuestions,
     stepEdit,
 } from "./sources/steps/draft";
@@ -434,7 +434,7 @@ export class SourceDraftHandle implements SourceDraft {
             // the committed project's, refused as every data write is while a draft is open.
             throw draftOpenError(this.id);
         }
-        this.act("setMapping", (state) => draftApply(state, mappingEdit(state.value, source, patch)));
+        this.act("setMapping", (state) => mappingApply(state, source, patch));
     }
 
     /** @inheritdoc */

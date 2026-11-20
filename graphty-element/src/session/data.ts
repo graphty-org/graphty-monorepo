@@ -214,7 +214,7 @@ import {
 import { pendingSourceLoads, targetOf } from "./sources/pending";
 import { type Provenance, PROVENANCE_VALUE, provenanceIndex, withoutSource, withSupplied } from "./sources/provenance";
 import { refreshReport } from "./sources/refreshReport";
-import type { StepsAct } from "./sources/steps/acts";
+import { rowsCopies, type StepsAct } from "./sources/steps/acts";
 import { copyKey, resolveNode } from "./sources/steps/build";
 import {
     compileCommand,
@@ -3769,7 +3769,8 @@ export class SessionData implements SessionDataApi {
      */
     async setMapping(source: SourceKey, patch: SourceMappingPatch): Promise<void> {
         this.requireSteps("setMapping");
-        await this.stepsEdit(() => ({ kind: "act", act: { act: "set-mapping", source, patch } }), undefined, true);
+        const copies = rowsCopies(this.stepsValue(), this.stepsCopies(), source, patch);
+        await this.stepsEdit(() => ({ kind: "act", act: { act: "set-mapping", source, patch } }), copies, true);
     }
 
     /**

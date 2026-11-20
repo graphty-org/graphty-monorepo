@@ -1796,7 +1796,8 @@ export interface SessionDataApi {
      */
     profile(options: { readonly space: SourceSpaceName }): SourceColumnProfile;
     /**
-     * Change what a staged source's rows are for -- its key, space, type, edge ends and roles --
+     * Change what a staged source's rows are and are for -- nodes, edges or both, its key, space,
+     * type, edge ends and roles --
      * outside a draft (design 5.1). A type picked writes its whole-source or end rule at once.
      * Like staging, it is no undo step of its own: it joins the step before it.
      *
@@ -1808,9 +1809,11 @@ export interface SessionDataApi {
      * @param patch - The change.
      * @returns Settles once it is recorded.
      * @throws A `GraphtyError` with `E_BAD_COMMAND` (`details.reason` `"not-staged"`) for a source a
-     *   step reads, `"no-nodes"` or `"no-edges"` for roles of a table it does not hold;
-     *   `E_LOAD_UNKNOWN`, `E_SPACE_RESERVED`, `E_DRAFT_OPEN` while a draft is open, or
-     *   `E_FEATURE_OFF` while the source-steps experiment is off.
+     *   step reads, `"no-nodes"` or `"no-edges"` for roles of a table it does not hold, `"no-ends"`
+     *   for edge rows with no column for an end, `"many-tables"` for `rows` on a source that read
+     *   more than one table; `E_UNKNOWN_ATTRIBUTE` (`details` `{ source, column, table }`) for a
+     *   column its rows do not hold; `E_LOAD_UNKNOWN`, `E_SPACE_RESERVED`, `E_DRAFT_OPEN` while a
+     *   draft is open, or `E_FEATURE_OFF` while the source-steps experiment is off.
      * @experimental source-steps
      */
     setMapping(source: SourceKey, patch: SourceMappingPatch): Promise<void>;
@@ -5032,6 +5035,11 @@ export interface SourceRolePatch {
  * @experimental source-steps
  */
 export interface SourceMappingPatch {
+    /**
+     * What its rows are: `"nodes"`, `"edges"` or `"both"`. Only for a source that read one table,
+     * such as a CSV file. Edge rows need a column for each end, named in `edges` or already held.
+     */
+    readonly rows?: "nodes" | "edges" | "both";
     /** The id space its node keys live in; naming one means Add never asks the key-overlap question. */
     readonly space?: SourceSpaceName;
     /** Its node type, written as its whole-source rule; `null` for none. */

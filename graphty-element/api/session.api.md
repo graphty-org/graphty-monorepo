@@ -7907,6 +7907,7 @@ export interface SourceMappingPatch {
     readonly nodes?: SourceRolePatch & {
         readonly key?: string;
     };
+    readonly rows?: "nodes" | "edges" | "both";
     readonly space?: SourceSpaceName;
     readonly type?: SourceTypeName | null;
 }

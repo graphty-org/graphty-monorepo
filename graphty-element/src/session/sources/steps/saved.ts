@@ -428,6 +428,24 @@ function stagedTypeOf(types: readonly TypeEntry[], id: string): string | undefin
 }
 
 /**
+ * The node types a source's edge ends were staged with: the types its end rules with no part name.
+ * @param types - The registry.
+ * @param id - The source.
+ * @returns The end types, or undefined when it has none.
+ */
+function endTypesIn(types: readonly TypeEntry[], id: string): StepsSource["endTypes"] {
+    const out: { source?: string; target?: string } = {};
+    for (const t of types) {
+        for (const r of t.kind === "node" ? t.rules : []) {
+            if (r.source === id && r.end !== undefined && r.part === undefined) {
+                out[r.end] = t.name;
+            }
+        }
+    }
+    return Object.keys(out).length === 0 ? undefined : out;
+}
+
+/**
  * A saved copy back as rows.
  * @param copy - The copy as saved.
  * @param columns - Its column declarations, by table.
@@ -501,6 +519,7 @@ function sourceIn(
             tableRows: facts?.tableRows,
             join: facts?.join,
             stagedType,
+            endTypes: endTypesIn(types, id),
             spacePicked:
                 nodes?.key !== undefined && space !== undefined && space !== ownSpace(id) && space !== stagedType
                     ? true

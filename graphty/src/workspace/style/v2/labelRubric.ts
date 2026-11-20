@@ -124,6 +124,7 @@ export const LABEL_RUBRIC: LabelRubric = {
         { field: "color", name: null },
     ],
     main: [
+        { field: "enabled", name: "Show" },
         { field: "look", name: "Switch to", rule: "R9" },
         { field: "font", name: "Font", rule: "R13" },
         { field: "weight", name: "Weight", rule: "R5b", toggle: "italic", toggleGlyph: "italic" },
@@ -149,6 +150,23 @@ export const LABEL_RUBRIC: LabelRubric = {
                 { field: "cornerRadius", name: "Corners" },
                 { field: "padding", name: "Padding", units: ["boxPadding"] },
                 { field: "padding", name: "Unit", rule: "R8", unit: PADDING_UNIT },
+                { field: "backgroundShape", name: "Shape", rule: "R8" },
+            ],
+        },
+        {
+            name: "Gradient",
+            on: "gradient",
+            lines: [
+                { field: "gradientType", name: "Kind", rule: "R8" },
+                { field: "gradientColors", name: "Colors" },
+                { field: "gradientDirection", name: null, rule: "R8f" },
+            ],
+        },
+        {
+            name: "Margin",
+            lines: [
+                { field: "marginTop", name: "Margin", pair: "marginBottom", letters: ["T", "B"] },
+                { field: "marginLeft", name: "Sides", pair: "marginRight", letters: ["L", "R"] },
             ],
         },
         {
@@ -289,6 +307,9 @@ export const LABEL_OPTION_NAMES: Readonly<Partial<Record<LabelField, Readonly<Re
     shiftOf: { box: { name: "Box" }, words: { name: "Words" } },
     gapOf: { box: { name: "Box" }, words: { name: "Words" } },
     declutter: { degree: { name: "Degree" }, size: { name: "Size" } },
+    backgroundShape: { rectangle: { name: "Box" }, circle: { name: "Circle" } },
+    gradientType: { linear: { name: "Linear" }, radial: { name: "Radial" } },
+    gradientDirection: { vertical: { name: "Down" }, horizontal: { name: "Across" }, diagonal: { name: "Diagonal" } },
     weight: { normal: { name: "Regular" }, bold: { name: "Bold" } },
     look: { default: { name: "Plain" } },
 };

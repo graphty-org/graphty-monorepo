@@ -17,7 +17,7 @@ import { userEvent } from "vitest/browser";
 import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
 import { LABEL_RUBRIC } from "../v2/labelRubric";
-import { openProject, openStyle, sectionOf, written } from "./v2Harness";
+import { openGraph, openProject, openStyle, picture, sectionOf, written } from "./v2Harness";
 
 /**
  * The layer's label style object.
@@ -248,5 +248,52 @@ describe("Style panel v2's Text section", () => {
             1,
             "only the hub's label is red",
         );
+    });
+
+    it("a new Label draws at a size a reader can read, every line under it is named, its color is a color", async () => {
+        const { element } = await openGraph();
+        const before = await picture(element);
+        const tab = await openStyle("Key people");
+        const row = await addLabel(tab);
+        await element.session.styles.settled();
+        const after = await picture(element);
+        // The rows the label's words take: the height of what changed on the canvas.
+        let top = Infinity;
+        let bottom = -Infinity;
+        for (let i = 0; i < after.data.length; i += 4) {
+            if ([0, 1, 2].some((c) => Math.abs((after.data[i + c] ?? 0) - (before.data[i + c] ?? 0)) > 1)) {
+                const y = Math.floor(i / 4 / after.width);
+                top = Math.min(top, y);
+                bottom = Math.max(bottom, y);
+            }
+        }
+        const tall = (bottom - top + 1) / (after.width / element.clientWidth);
+        assert.isAtLeast(tall, 10, `the label is drawn ${String(tall)} px tall`);
+        for (const line of row.querySelectorAll(".ws-row[data-line]")) {
+            const named = line.querySelector(".ws-field-name")?.textContent ?? line.getAttribute("data-rule");
+            assert.isTrue(named !== "" && named !== null, `${line.getAttribute("data-line") ?? ""} has a name`);
+        }
+        const pop = await popoverOf(row);
+        const color = await lineOf(pop, "node.labelStyle.color");
+        assert.isNotNull(color.querySelector(".cm-paint"), "the color line is a color control with a swatch");
+    });
+
+    it("a label's Margin is dimmed while its box padding is set, the padding standing in for it", async () => {
+        const { session, id } = await openProject();
+        await session.styles.update(id, {
+            set: { "node.color": "#E8590C", "node.label": "Hello", "node.labelStyle": { boxPadding: 4 } },
+        });
+        const tab = await openStyle("Key people");
+        const row = await waitFor(() => {
+            const found = sectionOf(tab, "node-text").querySelector<HTMLElement>('[data-thing="label"]');
+            assert.isNotNull(found);
+            return found;
+        });
+        const pop = await popoverOf(row);
+        await userEvent.click(within(pop).getByRole("button", { name: "Add to node label settings" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Margin" }));
+        const margin = await lineOf(pop, "node.labelStyle.marginTop");
+        assert.isTrue(margin.hasAttribute("data-dimmed"), "dimmed while box padding is set");
+        assert.match(margin.getAttribute("title") ?? "", /Box padding|padding/i, "its tooltip names what it waits on");
     });
 });

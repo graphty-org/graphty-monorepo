@@ -172,7 +172,8 @@ describe("Style panel v2's label rubric", () => {
     it("Main and every sub-group hold at most 8 lines, '+' holds 12, and nothing says Scene or World", () => {
         assert.isAtMost(LABEL_RUBRIC.common.length, 2);
         assert.isAtMost(LABEL_RUBRIC.main.length, 8);
-        assert.equal(LABEL_RUBRIC.groups.length, 12, "design 7.3's twelve sub-groups");
+        // Design 7.3's twelve, with Gradient and Margin, whose label fields had no line (round 5, task 5.6).
+        assert.equal(LABEL_RUBRIC.groups.length, 14, "design 7.3's twelve sub-groups, Gradient and Margin");
         for (const group of LABEL_RUBRIC.groups) {
             assert.isAtMost(group.lines.length, 8, group.name);
         }

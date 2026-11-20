@@ -1180,3 +1180,6 @@ async function readPending(host: SourceHost, id: string, options: SourceLoadOpti
     });
     host.emit("source:refreshed", { load: id });
 }
+
+/** A load's endpoint, for references.ts, which loads this module only when it reads a network load again. */
+export { targetOf } from "./pending";

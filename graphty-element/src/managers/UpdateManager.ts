@@ -2324,19 +2324,18 @@ export class UpdateManager implements Manager {
     }
 
     /**
-     * Place again the edges of some repainted nodes, as a walk of every edge would, when they are few.
+     * Place again the edges of some repainted nodes, as a walk of every edge would, when they are few: at once,
+     * or, while an edit's own new rows hold the draw, on the frame that releases it.
      * @param rows - The node rows.
      * @returns False when a row no longer names a node, and every edge has to be walked.
      */
     private placeEdgesOfRows(rows: readonly number[]): boolean {
-        if (this.dataManager.drawHeld) {
-            return false;
-        }
+        // While a load holds the draw, `placeTouchedEdges` keeps them for the frame that releases it.
 
         const incident = this.edgesByNode();
-        const { nodesByIndex } = this.dataManager;
         for (const row of rows) {
-            const id = nodesByIndex[row]?.id ?? dataManagerInternals.unbuiltAt(this.dataManager, row);
+            // By the row's id, built or not: a `Node` built this frame is not in the rows by index yet.
+            const id = this.dataManager.nodeIdAtRow(row);
             if (id === undefined) {
                 return false;
             }

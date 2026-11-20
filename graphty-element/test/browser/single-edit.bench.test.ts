@@ -175,7 +175,8 @@ describe("one data edit on a large graph", () => {
                 for (const [edit, step] of Object.entries(steps)) {
                     // An edge's ends and the edges of a removed node's pairs: a handful at any size.
                     assert.isAtMost(step.placed, 64, `${edit} places only the edges of its own pairs`);
-                    assert.isAtMost(step.repainted, 2, `${edit} repaints only what it changed`);
+                    // An added edge, and under "batched" the `Node`s its two ends are built for it.
+                    assert.isAtMost(step.repainted, 3, `${edit} repaints only what it changed`);
                 }
             });
         }

@@ -37,6 +37,7 @@ export const registration = defineRegistration({
             group: "Data",
             keys: [ADD_KEY],
             experiment: true,
+            /** @experimental source-steps */
             feature: "source-steps",
             shown: ({ session, workspace }) =>
                 sourceStepsOn(session) &&
@@ -58,6 +59,7 @@ export const registration = defineRegistration({
             group: "Data",
             keys: [JOIN_KEY],
             experiment: true,
+            /** @experimental source-steps */
             feature: "source-steps",
             shown: ({ session, workspace }) =>
                 sourceStepsOn(session) &&
@@ -92,6 +94,7 @@ export const registration = defineRegistration({
             whileShownKeys: ["Escape"],
             inPalette: false,
             experiment: true,
+            /** @experimental source-steps */
             feature: "source-steps",
             shown: ({ session, workspace }) =>
                 sourceStepsOn(session) && session !== null && workspace.get().sourceCard !== null,
@@ -107,6 +110,7 @@ export const registration = defineRegistration({
             group: "Data",
             keys: [PREVIEW_KEY],
             experiment: true,
+            /** @experimental source-steps */
             feature: "source-steps",
             shown: ({ session, workspace }) => {
                 const card = joinCardOf(workspace.get().sourceCard);
@@ -123,6 +127,7 @@ export const registration = defineRegistration({
             whileShownKeys: [COMMIT_KEY],
             inPalette: false,
             experiment: true,
+            /** @experimental source-steps */
             feature: "source-steps",
             shown: ({ session, workspace }) =>
                 sourceStepsOn(session) &&
@@ -140,6 +145,7 @@ export const registration = defineRegistration({
             group: "Data",
             keys: [SIDE_KEY],
             experiment: true,
+            /** @experimental source-steps */
             feature: "source-steps",
             shown: ({ session }) =>
                 sourceStepsOn(session) && session !== null && openDraft(session)?.displayed === true,
@@ -151,6 +157,7 @@ export const registration = defineRegistration({
             group: "Data",
             keys: [READER_EDITS_KEY],
             experiment: true,
+            /** @experimental source-steps */
             feature: "source-steps",
             shown: ({ session }) => sourceStepsOn(session) && session !== null && session.data.edits().length > 0,
             run: ({ workspace }) => {
@@ -166,6 +173,7 @@ export const registration = defineRegistration({
             whileShownKeys: ["Mod+Z"],
             inPalette: false,
             experiment: true,
+            /** @experimental source-steps */
             feature: "source-steps",
             shown: ({ session, workspace }) =>
                 sourceStepsOn(session) && session !== null && previewing(workspace.get().sourceCard),

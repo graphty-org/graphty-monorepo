@@ -4017,7 +4017,9 @@ export function projectOf(
      * @returns The file.
      */
     const saveNow = (options: ProjectSaveOptions, references?: LeaveOut): SavedProject => {
-        const { document, leftOut } = committedOnly(() => write({ session, dispatcher, isDerived }, options, references));
+        const { document, leftOut } = committedOnly(() =>
+            write({ session, dispatcher, isDerived }, options, references),
+        );
         return finishSave(
             document,
             (document.members as { kind: string }[]).map((member) => member.kind),

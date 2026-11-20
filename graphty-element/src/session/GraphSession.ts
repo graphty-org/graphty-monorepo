@@ -25,6 +25,7 @@ import { sessionColumns } from "../algorithms/input/columns";
 import { shareInputs } from "../algorithms/input/ScopedInput";
 import type { Tour } from "../camera/tour";
 import type { CameraState } from "../camera/types";
+import type { CameraGestureKind } from "../cameras/gestureEnd";
 import { arrangedDimension, LAYOUT_CATALOG, LAYOUT_DESCRIPTORS } from "../catalog/layouts";
 import { readingOfScope } from "../catalog/sets/parse";
 import type {
@@ -80,7 +81,7 @@ import {
     type MachineCalibration,
 } from "./cost";
 import { headlessDataService, SessionData, sliceRecords } from "./data";
-import { dispatcherOf, registerDispatcher, registerSessionRuns } from "./dispatchers";
+import { dispatcherOf, registerDispatcher, registerSessionData, registerSessionRuns } from "./dispatchers";
 import { createGroupsApi, type GroupsApi } from "./groups";
 import { createJournal, type JournalApi } from "./journal";
 import { type LayoutRecommendation, recommendLayout } from "./layout";
@@ -103,7 +104,7 @@ import {
     type PlanningContext,
     type SessionCommand,
 } from "./planning";
-export { dispatcherOf, sessionRunsOf } from "./dispatchers";
+export { dispatcherOf, sessionDataOf, sessionRunsOf } from "./dispatchers";
 import { ANNOTATIONS_VALUE, type DrawnAnnotation, type DrawnAnnotations, drawnAnnotationsOf } from "./annotations";
 import { graphsOf, type SessionGraphs } from "./graphs/GraphsApi";
 import { boundaryOf, projectBoundary } from "./project/boundary";
@@ -111,6 +112,7 @@ import { dataDigest } from "./project/digest";
 import {
     Dispatcher,
     type DispatchFunction,
+    type JournalTrigger,
     runQueueScheduler,
     type Scheduler,
     type TransactionOptions as DispatchOptions,
@@ -818,6 +820,7 @@ class Session implements ElementSession {
         registerDispatcher(this, this.dispatcher);
         LANES.set(this, this.store);
         registerSessionRuns(this, this.sessionRuns);
+        registerSessionData(this, parts.data);
         this.history = historyOf(this.dispatcher, () => version);
         this.views = viewsOf(this.dispatcher, (names) => {
             publish(this.watchers, "views:seeded", { names });
@@ -923,6 +926,22 @@ class Session implements ElementSession {
                     this.sessionData.restoreSourceMember(read, autosave);
                 },
             },
+        });
+        this.sessionData.setHeldRefresh(async (load, options) => {
+            // Only a version 2 open holds a source.
+            if (!this.features.has("save-files-v2")) {
+                return undefined;
+            }
+
+            const { refreshHeldSource } = await import("./document2/onDemand");
+            return refreshHeldSource(this, load, {
+                scratch: () =>
+                    createGraphSession({
+                        features: [...this.features.enabled],
+                        config: { acceleration: { policy: "off" } },
+                    }),
+                ...(options.signal === undefined ? {} : { signal: options.signal }),
+            });
         });
     }
 
@@ -1084,17 +1103,24 @@ class Session implements ElementSession {
      */
     private scopeOf(scope: DispatchScope): TransactionScope {
         const via: DispatchFunction = (each, options) => scope.dispatch(each, options);
+        // A run started through it carries the transaction's trigger, as its journal entry does.
+        const trigger = this.dispatcher.triggerOf(scope);
         // Every verb of a part runs with its dispatches routed into the transaction, so
         // `tx.styles.add` and `tx.data.addNodes` join it exactly as `tx.execute` does.
-        const parts = Object.fromEntries(TX_PARTS.map((name) => [name, { value: this.routedPart(this[name], via) }]));
+        const parts = Object.fromEntries(
+            TX_PARTS.map((name) => [name, { value: this.routedPart(this[name], via, trigger) }]),
+        );
         const tx: TransactionScope = Object.create(this, {
             ...parts,
             execute: {
                 value: <C extends SessionCommand>(command: C) =>
-                    this.executeThrough(command, via, (_label, body) => body(via)),
+                    this.dispatcher.triggered(trigger, () =>
+                        this.executeThrough(command, via, (_label, body) => body(via)),
+                    ),
             },
             run: {
-                value: (command: AlgorithmRunCommand, options?: RunOptions) => this.startCommand(via, command, options),
+                value: (command: AlgorithmRunCommand, options?: RunOptions) =>
+                    this.dispatcher.triggered(trigger, () => this.startCommand(via, command, options)),
             },
             // Its layout verbs join the transaction too.
             layout: {
@@ -1121,15 +1147,18 @@ class Session implements ElementSession {
      * read from it are handed back as they are.
      * @param part - The part.
      * @param via - Where its dispatches go.
+     * @param trigger - Why the session runs what its verbs start, when it is not a direct call.
      * @returns The routed part.
      */
-    private routedPart<P extends object>(part: P, via: DispatchFunction): P {
+    private routedPart<P extends object>(part: P, via: DispatchFunction, trigger?: JournalTrigger): P {
         return new Proxy(Object.create(null) as P, {
             get: (_target, key) => {
                 const value: unknown = Reflect.get(part, key, part);
                 return typeof value === "function"
                     ? (...args: unknown[]): unknown =>
-                          this.dispatcher.routed(via, (): unknown => Reflect.apply(value, part, args))
+                          this.dispatcher.routed(via, (): unknown =>
+                              this.dispatcher.triggered(trigger, (): unknown => Reflect.apply(value, part, args)),
+                          )
                     : value;
             },
             // A setter (`tx.visibility.showContext = true`) dispatches too: without this trap the
@@ -1458,6 +1487,14 @@ class Session implements ElementSession {
             "canvas:element-click",
             "node" in target ? { node: target.node } : { edge: target.edge },
         );
+    }
+
+    /**
+     * Publishes `camera:gesture-end`.
+     * @param kind - What the gesture did.
+     */
+    cameraGestureEnd(kind: CameraGestureKind): void {
+        publish(this.watchers, "camera:gesture-end", { kind });
     }
 
     /**
@@ -3464,8 +3501,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 const send = dispatcher.capturedDispatch();
                 return (mutation) => send({ op: "data.apply", mutation });
             },
-            importer: (signal) => dispatcher.capturedDispatch(signal === undefined ? {} : { signal }),
+            importer: (options) => dispatcher.capturedDispatch(options),
             loadLine: loadLineOf(dispatcher),
+            edgeMeaning: (counter) => dispatcher.services.data?.edgeMeaning?.(counter),
             ceilings,
             slice,
             measure: async (command, config) => {
@@ -3495,7 +3533,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             progress: (change) => {
                 publish(watchers, "progress:changed", change);
             },
-            send: (command) => dispatcher.dispatch(command),
+            send: (command, stamp) => dispatcher.dispatch(command, stamp),
             emit: (event, detail) => {
                 publish(watchers, event, detail);
             },

@@ -2877,7 +2877,12 @@ export interface StyleSequence {
      * node shapes, `"pattern"` on `edge.color` gives edge patterns), one per item; null when the
      * binding cycles none.
      */
-    readonly cue: { readonly channel: Channel; readonly values: readonly (EncodedValue | undefined)[] } | null;
+    readonly cue: {
+        /** The channel the second cue paints. */
+        readonly channel: Channel;
+        /** What the second cue paints for each item, first item first; undefined where it paints nothing. */
+        readonly values: readonly (EncodedValue | undefined)[];
+    } | null;
     /** The palette painting a color channel, `"custom"` for its own stops, null otherwise. */
     readonly palette: PaletteId | null;
 }

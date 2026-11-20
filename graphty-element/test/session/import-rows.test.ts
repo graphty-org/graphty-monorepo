@@ -20,8 +20,10 @@ describe("the rejected and unmatched rows of an import", () => {
         const rejectedNodes = await draft.rows("nodes", { only: "rejected" });
         const rejectedEdges = await draft.rows("edges", { only: "rejected" });
         const unmatched = await draft.rows("edges", { only: "unmatched" });
-        // The node row with no id is keyless, not rejected: it makes a node of its own.
-        assert.deepEqual(rejectedNodes.records, []);
+        assert.deepEqual(
+            rejectedNodes.records.map((row) => [row.line, row.reason]),
+            [[3, { code: "refused-row", params: { rowsAre: "nodes" } }]],
+        );
         assert.deepEqual(
             rejectedEdges.records.map((row) => [row.line, row.reason]),
             [[3, { code: "refused-row", params: { rowsAre: "edges", ends: ["source"] } }]],
@@ -35,7 +37,10 @@ describe("the rejected and unmatched rows of an import", () => {
         const rows = session.data.lastImport()?.rows;
         assert.deepEqual(
             rows?.rejected.map((row) => [row.line, row.reason?.code, row.reason?.params.rowsAre]),
-            [[3, "refused-row", "edges"]],
+            [
+                [3, "refused-row", "nodes"],
+                [3, "refused-row", "edges"],
+            ],
         );
         assert.deepEqual(
             rows?.unmatched.map((row) => [row.line, row.values.target, row.missingEnds, row.reason]),

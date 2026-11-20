@@ -83,8 +83,11 @@ export interface PendingWorkProgress {
     readonly code: "PENDING_WORK";
     /** How much is left, and the running operation's category and percent. */
     readonly params: {
+        /** How many operations are queued or running; 0 when none is left. */
         readonly operations: number;
+        /** The running operation's category; null when none is running. */
         readonly category: OperationCategory | null;
+        /** The running operation's progress, 0 to 100; null when none is running. */
         readonly percent: number | null;
     };
 }
@@ -138,7 +141,10 @@ export class OperationQueueManager implements Manager {
         } | null)[]
     >();
 
-    // Check if layout engine exists (will be set by Graph)
+    /**
+     * Whether the graph has a layout engine, set by the graph; while it returns false, finished
+     * operations do not trigger a layout update.
+     */
     hasLayoutEngine?: () => boolean;
 
     // Dependency graph based on actual manager dependencies
@@ -961,8 +967,11 @@ export class OperationQueueManager implements Manager {
      * @returns Current queue state including pending operations, size, and pause status
      */
     getStats(): {
+        /** Operations running now. */
         pending: number;
+        /** Operations waiting to start. */
         size: number;
+        /** Whether the queue is paused and starts nothing new. */
         isPaused: boolean;
     } {
         return {

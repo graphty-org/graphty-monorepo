@@ -1151,24 +1151,6 @@ export function selectShards(shards, packages, graphs, allowed, browserAllowed =
 }
 
 /**
- * A shard with a "pull-request-when" list (tools/ci-test-matrix.mjs, the forced-batched shards) selects nothing
- * unless a changed path matches one of its patterns; otherwise its selection stands.
- * @param selection selectShards() output
- * @param shards the shards it was made from
- * @param changed repo-relative changed paths
- * @returns the selection
- */
-export function onlyWhenChanged(selection, shards, changed) {
-    return selection.map((sel) => {
-        const when = shards.find((s) => s.shard === sel.shard)?.["pull-request-when"];
-        if (!when || changed.some((f) => when.some((p) => new RegExp(p, "u").test(f)))) {
-            return sel;
-        }
-        return { ...sel, mode: "none", files: [], reasons: [`no changed path matches ${when.join(" or ")}`] };
-    });
-}
-
-/**
  * One shard's answer from its package's selection.
  * @param p the package's selection
  * @param own shardSpecs() or null
@@ -1504,7 +1486,8 @@ export function lightPlan(root, shards, selection, durations = {}) {
     for (const [family, runs] of families) {
         const fileMs = new Map(Object.entries(durations[family] ?? {}));
         if (runs.some((r) => r.mode === "all")) {
-            if (!packWhole(root, family, runs, fileMs, out)) {
+            // a shard marked "pack-whole": false runs whole as its own slices (tools/ci-test-matrix.mjs)
+            if (runs[0].shard["pack-whole"] === false || !packWhole(root, family, runs, fileMs, out)) {
                 runWhole(family, runs, out);
             }
             continue;
@@ -3237,11 +3220,7 @@ export async function selectChange(root, changed, shards, graphs, deferDownstrea
     });
     return {
         ...sel,
-        shards: onlyWhenChanged(
-            selectShards(shards, sel.packages, all, rules.fileLevel, rules.fileLevelBrowser, sel.smoke),
-            shards,
-            changed,
-        ),
+        shards: selectShards(shards, sel.packages, all, rules.fileLevel, rules.fileLevelBrowser, sel.smoke),
         graphs: all,
         // by directory: nx names remote-logger, which has no project.json, @graphty/remote-logger
         deps: new Map(

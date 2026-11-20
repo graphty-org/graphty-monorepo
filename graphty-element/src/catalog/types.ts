@@ -667,7 +667,7 @@ export interface OptionUnsupported {
 /**
  * Every property a layer can paint.
  *
- * The label channels `labelColor`, `labelSize`, `labelLetterSize`, `labelFont`, `labelWeight`, `labelItalic`, `labelWrapWidth`, `labelWrapTrailingSpace`, `labelWrapSkipEndSpace`, `labelWrapEllipsis`, `labelWrapAnywhere`, `labelWrapSpaceCount`, `labelMaxLines`, `labelMaxLinesEllipsis`, `labelMinScreenSize`, `labelOnTop`, `labelRotation`, `labelBackground`, `labelOutline`, `labelOutlineWidth`, `labelBorder`, `labelBorderWidth`, `labelOpacity`, `labelBackgroundOpacity`, `labelOutlineOpacity`, `labelBorderOpacity`, `labelPadding`, `labelCornerRadius`, `labelLineHeight`, `labelLineBox`, `labelBorderAlign`, `labelBorderStyle`, `labelBackgroundShape`, `labelOffsetX`, `labelOffsetY`, `labelShiftX`, `labelShiftY`, `labelShiftOf` and `labelGapOf` are
+ * The label channels `labelColor`, `labelSize`, `labelLetterSize`, `labelFont`, `labelWeight`, `labelItalic`, `labelWrapWidth`, `labelWrapTrailingSpace`, `labelWrapSkipEndSpace`, `labelWrapEllipsis`, `labelWrapAnywhere`, `labelWrapSpaceCount`, `labelMaxLines`, `labelMaxLinesEllipsis`, `labelMinScreenSize`, `labelOnTop`, `labelRotation`, `labelBackground`, `labelOutline`, `labelOutlineWidth`, `labelBorder`, `labelBorderWidth`, `labelOpacity`, `labelBackgroundOpacity`, `labelOutlineOpacity`, `labelBorderOpacity`, `labelPadding`, `labelCornerRadius`, `labelLineHeight`, `labelLineBox`, `labelBorderAlign`, `labelBorderStyle`, `labelBackgroundShape`, `labelImage`, `labelImageWidth`, `labelImageHeight`, `labelImageOffsetX`, `labelImageOffsetY`, `labelOffsetX`, `labelOffsetY`, `labelShiftX`, `labelShiftY`, `labelShiftOf` and `labelGapOf` are
  * single fields of the label style, so they can be bound to a column (`encode`) where the whole
  * `labelStyle` can only be set. They land in the same label style the `labelStyle` channel
  * writes, field by field, the higher layer winning each field.
@@ -722,6 +722,11 @@ export type Channel =
     | "node.labelBorderAlign"
     | "node.labelBorderStyle"
     | "node.labelBackgroundShape"
+    | "node.labelImage"
+    | "node.labelImageWidth"
+    | "node.labelImageHeight"
+    | "node.labelImageOffsetX"
+    | "node.labelImageOffsetY"
     | "node.labelOffsetX"
     | "node.labelOffsetY"
     | "node.labelShiftX"
@@ -1057,6 +1062,11 @@ export type Channel =
     | "edge.labelBorderAlign"
     | "edge.labelBorderStyle"
     | "edge.labelBackgroundShape"
+    | "edge.labelImage"
+    | "edge.labelImageWidth"
+    | "edge.labelImageHeight"
+    | "edge.labelImageOffsetX"
+    | "edge.labelImageOffsetY"
     | "edge.labelOffsetX"
     | "edge.labelOffsetY"
     | "edge.labelShiftX"

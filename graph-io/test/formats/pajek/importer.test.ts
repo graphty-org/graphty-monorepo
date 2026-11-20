@@ -97,6 +97,7 @@ describe("pajekImporter: the corpus", () => {
             yAxis: "down",
             zOrigin: 0.5,
             zeroUnplaced: true,
+            viewerFrame: { min: [0, 0], max: [1, 1] },
         });
         expect(Array.from(position.value(0) as ArrayLike<number>)).toEqual([0.1, 0.2, 0]);
         expect(Array.from(position.value(4) as ArrayLike<number>)).toEqual([0.9, 1, 0]);

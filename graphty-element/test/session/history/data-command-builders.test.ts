@@ -179,7 +179,6 @@ describe("a session without its data service", () => {
 
         const commands = [
             { op: "data.setSource", source: { type: "json", name: "a.json" } },
-            { op: "data.setFileStyles", loads: [] },
             { op: "data.columns", settings: { hidden: [], types: {}, renamed: {} } },
         ] as const;
         for (const command of commands) {

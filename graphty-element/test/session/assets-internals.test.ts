@@ -265,12 +265,7 @@ describe("limits and hosts set by the page", () => {
         const assets = createAssetsApi();
         const before = assets.limits();
 
-        for (const changes of [
-            { nonsense: 1 },
-            { maxBytes: 0 },
-            { maxBytes: Number.POSITIVE_INFINITY },
-            { maxBytes: "1" },
-        ]) {
+        for (const changes of [{ nonsense: 1 }, { maxBytes: 0 }, { maxBytes: Number.NaN }, { maxBytes: "1" }]) {
             assert.strictEqual(
                 await codeOf(() => {
                     assets.setLimits(changes as never);

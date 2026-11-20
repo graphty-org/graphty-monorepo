@@ -115,8 +115,8 @@ export const registration = defineRegistration({
             run: ({ session, workspace }) => (session === null ? undefined : startPreview(workspace, session)),
         },
         {
-            // Enter while the Join card previews or the step card is open, wherever focus is but on
-            // something Enter presses.
+            // Enter while the Join card previews, the step card is open or the Add card has no open
+            // question, wherever focus is but on something Enter presses.
             id: "source.commit-card",
             label: PREVIEW_WORDS.commit,
             group: "Data",
@@ -127,7 +127,10 @@ export const registration = defineRegistration({
             shown: ({ session, workspace }) =>
                 sourceStepsOn(session) &&
                 session !== null &&
-                (previewing(workspace.get().sourceCard) || workspace.get().sourceCard?.kind === "step") &&
+                (previewing(workspace.get().sourceCard) ||
+                    workspace.get().sourceCard?.kind === "step" ||
+                    (workspace.get().sourceCard?.kind === "add" &&
+                        openDraft(session)?.preview().questions.length === 0)) &&
                 enterCommits(),
             run: ({ session, workspace }) => (session === null ? undefined : commitCard(workspace, session)),
         },

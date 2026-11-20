@@ -468,7 +468,7 @@ export function StagedSection({ source }: Readonly<{ source: LoadedSource }>): R
                   ))
                 : null}
             {adding ? (
-                <AddCard session={session} />
+                <AddCard session={session} source={source.key} />
             ) : (
                 <Group gap={6} className="ss-staged-acts">
                     <JoinButton start={{ field2: source.key }} disabled={wanted !== null} />

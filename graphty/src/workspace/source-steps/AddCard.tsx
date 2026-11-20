@@ -1,13 +1,26 @@
-import type { GraphSession, SourceOverlapQuestion } from "@graphty/graphty-element/session";
+import type { GraphSession, SourceKey, SourceOverlapQuestion } from "@graphty/graphty-element/session";
 import { Button, Group, Kbd, Radio, Stack, Text } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
 import { ariaKey, formatKey } from "../keys/keys";
+import { useSessionEvents } from "../sessionEvents";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { cancelCard, commitCard } from "./actions";
 import { CancelButton } from "./CancelButton";
 import { spaceLabel } from "./join";
-import { overlapCountWords, overlapQuestionWords, STAGED_WORDS } from "./words";
+import { Count, GraphAfter } from "./JoinPreview";
+import { openDraft } from "./preview";
+import {
+    endsMeetWords,
+    newTypeWords,
+    overlapCountWords,
+    overlapQuestionWords,
+    PREVIEW_WORDS,
+    STAGED_WORDS,
+} from "./words";
+
+/** The element's events after which the card reads the draft's preview again. */
+const DRAFT_EVENTS = ["data:draft-changed"] as const;
 
 /** The answers to the key-overlap question, by the source it asks about. */
 type Answers = Readonly<Partial<Record<string, "merge" | "separate">>>;
@@ -23,20 +36,74 @@ function openQuestions(session: GraphSession): readonly SourceOverlapQuestion[] 
 }
 
 /**
- * The Add card (design 5.5): for each space the staged source's keys meet nodes in, "Same <type>?"
- * with the count, answered Merge or Keep separate. Commit (Enter) waits for every answer; Cancel
- * (Esc) discards the draft and leaves the source staged.
+ * The Add's preview (design 5.6): the added step's counts, from the draft's `preview()`, as the
+ * Join card shows a join's: rows meeting nodes already in the graph by space, new elements by type
+ * (or in all when untyped), repeated keys, and the graph's totals before and after.
+ * @param props - Component props
+ * @param props.session - the element's session
+ * @param props.source - the staged source the draft adds
+ * @returns the preview, or nothing while no draft is open
+ */
+function AddPreview({
+    session,
+    source,
+}: Readonly<{ session: GraphSession; source: SourceKey }>): React.JSX.Element | null {
+    useSessionEvents(session, DRAFT_EVENTS);
+    const preview = openDraft(session)?.preview();
+    if (preview === undefined) {
+        return null;
+    }
+    const buckets = preview.steps.find((step) => step.source === source && step.state === "new")?.buckets ?? null;
+    const newTypes =
+        buckets === null ? [] : [...Object.entries(buckets.newNodeTypes), ...Object.entries(buckets.newEdgeTypes)];
+    return (
+        <section className="ss-preview" aria-label={PREVIEW_WORDS.preview}>
+            <Stack gap={6}>
+                {buckets === null ? null : (
+                    <dl className="ss-counts" aria-label={PREVIEW_WORDS.buckets}>
+                        {Object.entries(buckets.endsMeet).map(([space, count]) => (
+                            <Count
+                                key={`meet:${space}`}
+                                label={endsMeetWords(spaceLabel(session, space))}
+                                value={count}
+                            />
+                        ))}
+                        {newTypes.map(([type, count]) => (
+                            <Count key={`new:${type}`} label={newTypeWords(type)} value={count} />
+                        ))}
+                        {newTypes.length === 0 ? (
+                            <Count label={PREVIEW_WORDS.new} value={buckets.newNodes + buckets.newEdges} />
+                        ) : null}
+                        <Count label={PREVIEW_WORDS.keysRepeat} value={buckets.repeated2} />
+                    </dl>
+                )}
+                <GraphAfter preview={preview} />
+            </Stack>
+        </section>
+    );
+}
+
+/**
+ * The Add card (design 5.5, 5.6): for each space the staged source's keys meet nodes in, "Same
+ * <type>?" with the count, answered Merge or Keep separate; then the Add's preview, recounted after
+ * each answer. Commit (Enter) waits for every answer; Cancel (Esc) discards the draft and leaves the
+ * source staged.
  * @param props - Component props
  * @param props.session - the element's session.
+ * @param props.source - the staged source the card adds.
  * @returns the card
  */
-export function AddCard({ session }: Readonly<{ session: GraphSession }>): React.JSX.Element {
+export function AddCard({
+    session,
+    source,
+}: Readonly<{ session: GraphSession; source: SourceKey }>): React.JSX.Element {
     const { store } = useWorkspace();
     const [questions] = useState(() => openQuestions(session));
     const [answers, setAnswers] = useState<Answers>({});
     const card = useRef<HTMLFormElement>(null);
     useEffect(() => {
-        card.current?.querySelector<HTMLElement>("input")?.focus();
+        // The first question, else Commit: Enter then commits the Add.
+        card.current?.querySelector<HTMLElement>("input, button[type='submit']")?.focus();
     }, []);
     const ready = questions.every((question) => answers[question.params.source] !== undefined);
     const answer = (question: SourceOverlapQuestion, value: string): void => {
@@ -93,6 +160,7 @@ export function AddCard({ session }: Readonly<{ session: GraphSession }>): React
                         </Group>
                     </Radio.Group>
                 ))}
+                <AddPreview session={session} source={source} />
                 <Group gap={6} justify="flex-end">
                     <CancelButton onClick={cancel} />
                     <Button

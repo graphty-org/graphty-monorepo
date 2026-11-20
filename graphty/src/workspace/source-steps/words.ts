@@ -202,6 +202,8 @@ export const PREVIEW_WORDS = {
     graphAfter: "Graph after",
     buckets: "Buckets",
     largestGroup: "largest group",
+    keysRepeat: "keys repeat",
+    new: "new",
     nodes: "Nodes",
     edges: "Edges",
     noChange: "no change",
@@ -328,6 +330,15 @@ export function committedWords(kind: "add" | "join" | "edit", name: string): str
  */
 export function newTypeWords(type: string): string {
     return `new ${type}`;
+}
+
+/**
+ * An Add's count of rows whose key meets a node already in the graph, by the space it looks in.
+ * @param space - the space's name as the reader reads it.
+ * @returns such as "ends meet person".
+ */
+export function endsMeetWords(space: string): string {
+    return `ends meet ${space}`;
 }
 
 /** The dock's Preview tab and the card's acts on its selection. */

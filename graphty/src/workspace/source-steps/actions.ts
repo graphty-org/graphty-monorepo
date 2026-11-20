@@ -23,14 +23,14 @@ export function stagedSources(session: GraphSession): readonly LoadedSource[] {
 }
 
 /**
- * Add (Shift+D): adds a staged source with no join, in one draft. Nothing happens while its Rows
- * are holds edges whose ends are not both picked. A source whose keys meet nodes
- * already in the graph opens the Add card on the key-overlap question instead, and commits from
- * there; any other commits at once, as one undo step.
+ * Add (Shift+D): adds a staged source with no join, in a draft drawn on the graph, and opens the
+ * Add card on its preview (design 5.6); the card commits it as one undo step. A source whose keys
+ * meet nodes already in the graph also asks the key-overlap question there. Nothing happens while
+ * its Rows are holds edges whose ends are not both picked.
  * @param workspace - the workspace store.
  * @param session - the element's session.
  * @param source - the staged source.
- * @returns settles once it is added or the card is open.
+ * @returns settles once the card is open and the draft drawn.
  */
 export async function startAdd(workspace: WorkspaceStore, session: GraphSession, source: SourceKey): Promise<void> {
     // Edges picked without both ends are not the element's yet: adding now would add the old rows.
@@ -45,17 +45,13 @@ export async function startAdd(workspace: WorkspaceStore, session: GraphSession,
     const draft = session.data.draft({ askOverlap: true });
     try {
         draft.add(source);
-        if (draft.preview().questions.length > 0) {
-            workspace.set({ sourceCard: { kind: "add", source } });
-            return;
-        }
-        await draft.commit();
     } catch {
-        if (draft.open) {
-            draft.dispose();
-        }
+        draft.dispose();
         workspace.set({ notice: { message: STAGED_WORDS.notAdded } });
+        return;
     }
+    workspace.set({ sourceCard: { kind: "add", source } });
+    await draft.display(true);
 }
 
 /**

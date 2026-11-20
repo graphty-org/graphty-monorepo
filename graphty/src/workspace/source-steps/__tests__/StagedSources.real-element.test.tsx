@@ -51,7 +51,7 @@ async function stage(name: string, text: string): Promise<HTMLElement> {
 }
 
 describe("a second source arrives staged (source-steps)", () => {
-    it("stages buildings.csv drawing nothing, then Add adds it as one more source", async () => {
+    it("stages buildings.csv drawing nothing, then Add previews it and Commit adds it as one more source", async () => {
         const { session } = await withPeopleDropped();
         const section = await stage("buildings.csv", BUILDINGS);
         assert.strictEqual(session.data.nodes().length, 3, "a staged source draws nothing");
@@ -64,9 +64,24 @@ describe("a second source arrives staged (source-steps)", () => {
         );
 
         await userEvent.click(within(section).getByRole("button", { name: /^Add/ }));
+        const card = await within(section).findByRole("form", { name: "Add" });
+        const preview = within(card).getByRole("region", { name: "Preview" });
+        assert.strictEqual(within(preview).getByLabelText("Nodes after").textContent, "3 -> 5");
+        assert.strictEqual(within(preview).getByLabelText("Edges after").textContent, "no change");
+        const buckets = within(preview).getByLabelText("Buckets");
+        assert.include(buckets.textContent, "new");
+        assert.include(buckets.textContent, "keys repeat");
+        assert.notInclude(buckets.textContent, "ends meet", "no door is in the graph yet");
+        // The draft is drawn: Before / After (B) flips the canvas between the two.
+        const side = await screen.findByRole("radiogroup", { name: "Before / After" });
+        assert.isNotNull(side);
+        assert.strictEqual(session.data.staged()[0]?.name, "buildings.csv", "nothing is added before the commit");
+
+        await userEvent.keyboard("{Enter}");
         await waitFor(() => {
             assert.isNull(screen.queryByRole("region", { name: "buildings.csv" }));
         });
+        assert.isNull(screen.queryByRole("radiogroup", { name: "Before / After" }), "the draft is gone");
         assert.deepStrictEqual(
             session.data
                 .nodes()
@@ -107,9 +122,25 @@ describe("a second source arrives staged (source-steps)", () => {
         const commit = within(card).getByRole("button", { name: /^Commit/ });
         assert.isTrue(commit.hasAttribute("disabled"), "Commit waits for an answer");
 
+        const preview = within(card).getByRole("region", { name: "Preview" });
+        assert.isNotNull(await screen.findByRole("radiogroup", { name: "Before / After" }));
+
         await userEvent.click(within(card).getByRole("radio", { name: "Merge" }));
         await waitFor(() => {
             assert.isFalse(commit.hasAttribute("disabled"));
+        });
+        // The preview counts what Merge does: B1 meets a person, V1 is new.
+        await waitFor(() => {
+            assert.strictEqual(within(preview).getByLabelText("Nodes after").textContent, "3 -> 4");
+        });
+        assert.include(within(preview).getByLabelText("Buckets").textContent, "ends meet person");
+        await userEvent.click(within(card).getByRole("radio", { name: "Keep separate" }));
+        await waitFor(() => {
+            assert.strictEqual(within(preview).getByLabelText("Nodes after").textContent, "3 -> 5");
+        });
+        await userEvent.click(within(card).getByRole("radio", { name: "Merge" }));
+        await waitFor(() => {
+            assert.strictEqual(within(preview).getByLabelText("Nodes after").textContent, "3 -> 4");
         });
         await userEvent.click(commit);
         await waitFor(() => {
@@ -196,7 +227,7 @@ describe("a second source arrives staged (source-steps)", () => {
                 .hasAttribute("disabled"),
             "Commit waits for an answer",
         );
-        assert.strictEqual(session.data.nodes().length, 3, "nothing is added before the answer");
+        assert.strictEqual(session.data.staged()[0]?.name, "visitors.csv", "nothing is added before the answer");
     });
 
     it("lists a staged source nowhere outside its section: the inspector's graph header names one file", async () => {

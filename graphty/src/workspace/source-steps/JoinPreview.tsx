@@ -1,5 +1,10 @@
 import { SegmentedControl, UiGlyph } from "@graphty/compact-mantine";
-import type { GraphSession, SourceClashRule, SourceDraftPreviewStep } from "@graphty/graphty-element/session";
+import type {
+    GraphSession,
+    SourceClashRule,
+    SourceDraftPreview,
+    SourceDraftPreviewStep,
+} from "@graphty/graphty-element/session";
 import { ActionIcon, Button, Group, Select, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
 import React from "react";
 
@@ -52,7 +57,7 @@ const REPEATS: readonly JoinRepeats[] = ["first", "last", "count", "list"];
  * @param props.onShow - lists the rows behind the count
  * @returns the pair
  */
-function Count({
+export function Count({
     label,
     value,
     onShow,
@@ -331,6 +336,34 @@ function Selection({
 }
 
 /**
+ * Graph after: the graph's node and edge totals before and after the draft.
+ * @param props - Component props
+ * @param props.preview - the draft's preview
+ * @returns the block
+ */
+export function GraphAfter({ preview }: Readonly<{ preview: SourceDraftPreview }>): React.JSX.Element {
+    return (
+        <fieldset className="ss-field">
+            <Text component="legend" size="xs" fw={600}>
+                {PREVIEW_WORDS.graphAfter}
+            </Text>
+            <Group gap={6} justify="space-between">
+                <Text size="xs">{PREVIEW_WORDS.nodes}</Text>
+                <Text size="xs" aria-label={`${PREVIEW_WORDS.nodes} after`}>
+                    {afterWords(preview.before.nodes, preview.after.nodes)}
+                </Text>
+            </Group>
+            <Group gap={6} justify="space-between">
+                <Text size="xs">{PREVIEW_WORDS.edges}</Text>
+                <Text size="xs" aria-label={`${PREVIEW_WORDS.edges} after`}>
+                    {afterWords(preview.before.edges, preview.after.edges)}
+                </Text>
+            </Group>
+        </fieldset>
+    );
+}
+
+/**
  * The Join card's Preview (design 5.3): the step's buckets and new elements by type, its choices,
  * and the graph's totals before and after, all from the draft's `preview()`.
  * @param props - Component props
@@ -385,23 +418,7 @@ export function JoinPreview({
                         <Selection session={session} card={card} step={step} />
                     </>
                 )}
-                <fieldset className="ss-field">
-                    <Text component="legend" size="xs" fw={600}>
-                        {PREVIEW_WORDS.graphAfter}
-                    </Text>
-                    <Group gap={6} justify="space-between">
-                        <Text size="xs">{PREVIEW_WORDS.nodes}</Text>
-                        <Text size="xs" aria-label={`${PREVIEW_WORDS.nodes} after`}>
-                            {afterWords(preview.before.nodes, preview.after.nodes)}
-                        </Text>
-                    </Group>
-                    <Group gap={6} justify="space-between">
-                        <Text size="xs">{PREVIEW_WORDS.edges}</Text>
-                        <Text size="xs" aria-label={`${PREVIEW_WORDS.edges} after`}>
-                            {afterWords(preview.before.edges, preview.after.edges)}
-                        </Text>
-                    </Group>
-                </fieldset>
+                <GraphAfter preview={preview} />
                 {edited === undefined ? null : (
                     <>
                         <Line

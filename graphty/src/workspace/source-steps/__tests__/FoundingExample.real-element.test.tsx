@@ -127,6 +127,10 @@ describe("the founding example through the app (source-steps)", () => {
             assert.strictEqual(session.data.sourceTable(key).summary().mapping.type, "person");
         });
         await userEvent.click(within(people).getByRole("button", { name: /^Add/ }));
+        const addPeople = await within(people).findByRole("form", { name: "Add" });
+        assert.include(within(addPeople).getByLabelText("Buckets").textContent, "new person");
+        assert.strictEqual(within(addPeople).getByLabelText("Nodes after").textContent, "2 -> 6");
+        await commit(addPeople, "Add");
         await waitFor(() => {
             assert.isNull(screen.queryByRole("region", { name: "people.csv" }));
         });

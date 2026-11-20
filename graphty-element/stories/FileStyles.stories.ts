@@ -335,7 +335,7 @@ export const GraphmlYedAtFilePositions: Story = {
 /**
  * `Ensembl_ensembl-hive__long_mult_jobs_04.dot`, an ensembl-hive job graph (Apache-2.0), laid out
  * by Graphviz's dot as the file asks, flat in 2D as Graphviz draws it. Look for: one "long_mult" cluster holding three, "add_together"
- * in grey, "part_multiply" in yellow and "take_b_apart" in blue, each a box around its jobs.
+ * in gray, "part_multiply" in yellow and "take_b_apart" in blue, each a box around its jobs.
  */
 export const DotClusters: Story = {
     args: {

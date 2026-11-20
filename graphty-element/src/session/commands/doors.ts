@@ -2299,6 +2299,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             togglesOwnMeshes: READ,
             columnEnd: READ,
             endRow: READ,
+            batchEndRow: READ,
+            endDrawnAsGroup: READ,
         },
     },
     {

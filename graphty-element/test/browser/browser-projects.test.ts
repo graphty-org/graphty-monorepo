@@ -8,6 +8,7 @@ import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
 import { browserProjects } from "../../session";
 import { isGraphtyError } from "../../src/errors";
+import { setDefaultFeatures } from "../../src/features/resolve";
 import { Graph, operationQueueOf } from "../../src/Graph";
 import { sphereGlb } from "../fixtures/models/fixtures";
 
@@ -156,6 +157,27 @@ describe("browserProjects", () => {
         assert.deepInclude(entry, { source: url, stored: "url" });
         assert.isUndefined(entry.files);
         assert.deepStrictEqual(await browserProjects.list(), [stored], "the listing carries the report too");
+    });
+
+    it("stores a version 2 file when asked, and a subset of sections as a copy that leaves the project dirty", async () => {
+        setDefaultFeatures(["save-files-v2"]);
+        cleanups.push(() => {
+            setDefaultFeatures([]);
+        });
+        const from = (await threeInARow()).getSession();
+        const copy = await browserProjects.save(from, { format: 2, sections: ["style"] });
+        assert.isTrue(from.project.dirty, "a copy never marks the project saved");
+        assert.deepStrictEqual(copy.report?.written, ["style"]);
+
+        const stored = await browserProjects.save(from, { format: 2 });
+        assert.isFalse(from.project.dirty);
+        const file = await browserProjects.get(stored.id);
+        const text = (await file?.text()) ?? "";
+        assert.strictEqual((JSON.parse(text) as { version?: unknown }).version, 2);
+        const to = (await emptyGraph()).getSession();
+        const report = await to.project.open(text);
+        assert.strictEqual(report.opened, "project");
+        assert.strictEqual(to.status.counts.nodes, 3);
     });
 
     it("lists the newest first", async () => {

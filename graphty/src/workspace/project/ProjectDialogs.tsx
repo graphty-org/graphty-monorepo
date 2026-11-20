@@ -1,9 +1,10 @@
 import { ModalFooter, SegmentedControl } from "@graphty/compact-mantine";
 import type { GraphSession, ProjectAssetChoice } from "@graphty/graphty-element/session";
-import { Button, Group, Modal, Stack, Text, TextInput } from "@mantine/core";
-import React, { useEffect, useRef, useState } from "react";
+import { Button, Group, Modal, Stack, Text } from "@mantine/core";
+import React, { lazy, Suspense, useEffect, useRef, useState } from "react";
 
 import { modelName, pictureName } from "../canvas/models";
+import { saveFilesV2On } from "../features";
 import { megabytes } from "../start/library";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { chipLine, middleCut } from "../style/modelWords";
@@ -17,9 +18,14 @@ import {
     openPending,
     SAVE_AS_DIALOG,
     saveProjectAs,
+    saveProjectAsV2,
 } from "./actions";
+import { NameField } from "./NameField";
 import { NetworkPrompt } from "./NetworkPrompt";
 import { type PendingCopies, SourceCopyControl } from "./SourceCopyControl";
+
+// The version 2 dialogs load only when the save-files-v2 experiment is on.
+const SaveFilesV2Dialogs = lazy(async () => ({ default: (await import("./saveV2Lazy")).SaveFilesV2Dialogs }));
 
 /**
  * Save as... (`#/project-menu/save-as`): titled with the project's name, the name a field with
@@ -82,17 +88,7 @@ function SaveAsDialog(): React.JSX.Element {
                     void save();
                 }}
             >
-                <TextInput
-                    data-autofocus
-                    label="Name"
-                    value={name}
-                    onChange={(event) => {
-                        setName(event.currentTarget.value);
-                    }}
-                    onFocus={(event) => {
-                        event.currentTarget.select();
-                    }}
-                />
+                <NameField value={name} onChange={setName} />
                 <SourceCopyControl pending={pending} onPending={setPending} onSettingsOpen={setSettingsOpen} />
                 <ModalFooter mt="md">
                     <Button variant="default" onClick={close}>
@@ -352,7 +348,13 @@ export function ProjectDialogs(): React.JSX.Element {
 
     return (
         <>
-            <SaveAsDialog />
+            {saveFilesV2On(session) ? (
+                <Suspense fallback={null}>
+                    <SaveFilesV2Dialogs saveAsDialog={SAVE_AS_DIALOG} save={saveProjectAsV2} />
+                </Suspense>
+            ) : (
+                <SaveAsDialog />
+            )}
             <DiscardDialog />
             <KeepAssetsDialog />
             <NetworkPrompt />

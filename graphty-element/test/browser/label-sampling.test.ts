@@ -78,7 +78,7 @@ describe("label sampling builds labels bounded by the cell count", () => {
         g.setLayoutBehavior({ labels: sampleCell === undefined ? {} : { sampleCell } });
         await g.addNodes(square());
         await g.addEdges(EDGES);
-        await g.setLayout("fixed", { dim: 3 });
+        await g.setLayout("fixed", { dim: 3, spacing: 0 });
         await operationQueueOf(g).waitForCompletion();
         await g.setCameraState(VIEW);
         await g.getSession().styles.add({

@@ -23,8 +23,20 @@ export type KeymapRoot = Pick<EventTarget, "addEventListener" | "removeEventList
  * `done` settles with what it did.
  */
 export type KeymapReport =
-    | { readonly action: "deselect"; readonly nodes: number; readonly edges: number }
-    | { readonly action: "undo" | "redo"; readonly done: Promise<HistoryOutcome> };
+    | {
+          /** The selection was cleared. */
+          readonly action: "deselect";
+          /** How many nodes the selection held. */
+          readonly nodes: number;
+          /** How many edges the selection held. */
+          readonly edges: number;
+      }
+    | {
+          /** An undo or redo is starting. */
+          readonly action: "undo" | "redo";
+          /** Settles with what the undo or redo did. */
+          readonly done: Promise<HistoryOutcome>;
+      };
 
 /** How `attachKeymap` behaves; every field is optional. */
 export interface KeymapOptions {

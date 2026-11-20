@@ -215,6 +215,7 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "config.background": "not the graph",
     "config.data": "not the graph",
     "config.editableBase": "not the graph",
+    "config.framing.box": "not the graph",
     "config.framing.extent": "not the graph",
     "config.framing.padding": "not the graph",
     "config.layoutBehavior": "not the graph",

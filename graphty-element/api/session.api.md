@@ -1767,6 +1767,10 @@ export interface GraphAccelerator {
 
 // @public
 export interface GraphFraming {
+    readonly box?: {
+        readonly min: readonly [number, number];
+        readonly max: readonly [number, number];
+    };
     readonly extent: "drawn" | "centers";
     readonly padding?: number;
 }

@@ -20,9 +20,23 @@ export const VIDEO_FORMATS: readonly VideoFormat[] = Object.freeze(["webm", "mp4
  */
 export interface CameraWaypoint {
     /** Where the camera stands, in world units. */
-    position: { x: number; y: number; z: number };
+    position: {
+        /** The world x coordinate. */
+        x: number;
+        /** The world y coordinate. */
+        y: number;
+        /** The world z coordinate. */
+        z: number;
+    };
     /** What the camera looks at, in world units. */
-    target: { x: number; y: number; z: number };
+    target: {
+        /** The world x coordinate. */
+        x: number;
+        /** The world y coordinate. */
+        y: number;
+        /** The world z coordinate. */
+        z: number;
+    };
     /** Time to reach this waypoint from the previous one (ms) */
     duration?: number;
     /**
@@ -193,10 +207,15 @@ export interface AnimationOptions {
     downloadFilename?: string;
 }
 
+/** A finished recording: the video file and what was recorded. */
 export interface AnimationResult {
+    /** The recorded video file, in the format `metadata.format` names. */
     blob: Blob;
+    /** Facts about the recording. */
     metadata: {
+        /** How long the recording runs, in milliseconds. */
         duration: number;
+        /** The frame rate the video was recorded at, in frames per second. */
         fps: number;
         /** The format the recording came out in; with `"auto"`, the one the browser could record. */
         format: VideoFormat;

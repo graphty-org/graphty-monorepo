@@ -862,6 +862,33 @@ describe("csvImporter: node tables", () => {
         });
     });
 
+    it("reads the missing option's cell texts as unset, compared after NFC and never trimmed", async () => {
+        const text = 'id,age,note\na,30,N/A\nb,N/A,ok\nc,7," N/A"\nd,8,"N/A"\ne,9,cafe\u0301\n';
+        const plain = await load(text, { table: "nodes" });
+        expect(column(plain.snapshot, "nodes", "note")).toEqual(["N/A", "ok", " N/A", "N/A", "cafe\u0301"]);
+        expect(column(plain.snapshot, "nodes", "age")).toEqual(["30", "N/A", "7", "8", "9"]);
+        const { snapshot } = await load(text, { table: "nodes", missing: ["N/A", "caf\u00e9"] });
+        expect(column(snapshot, "nodes", "note")).toEqual([undefined, "ok", " N/A", undefined, undefined]);
+        // the column stays numeric: the placeholder is unset before inference
+        expect(column(snapshot, "nodes", "age")).toEqual([30, undefined, 7, 8, 9]);
+    });
+
+    it("reads a missing endpoint or id from the missing option, and never compares the header", async () => {
+        const edges = await load("source,target,N/A\na,b,1\nN/A,c,2\n", { missing: ["N/A"] });
+        expect(edgesOf(edges.snapshot)).toEqual(["a->b"]);
+        expect(codes(edges.report)).toContain(MISSING_ENDPOINT_CODE);
+        expect(column(edges.snapshot, "edges", "N/A")).toEqual([1]);
+        const nodes = await load("id,x\na,1\nN/A,2\n", { table: "nodes", idColumn: "id", missing: ["N/A"] });
+        // the id guess sees the placeholder as blank too, so no column keys every row
+        const guessed = await load("id,x\na,1\nN/A,2\n", { table: "nodes", missing: ["N/A"] });
+        expect(guessed.snapshot.ids.toArray()).toEqual([0, 1]);
+        expect(nodes.snapshot.ids.toArray()).toEqual(["a"]);
+        expect(codes(nodes.report)).toContain(MISSING_ID_CODE);
+        await expect(load("id\na\n", { missing: "N/A" as unknown as string[] })).rejects.toMatchObject({
+            code: "E_UNSUPPORTED",
+        });
+    });
+
     it("resolves the id column by candidates or by option, and fails without one", async () => {
         const named = await load("source,target\n1,2\n", { nodes: "name,x\n1,a\n2,b\n" });
         expect(column(named.snapshot, "nodes", "x")).toEqual(["a", "b"]);

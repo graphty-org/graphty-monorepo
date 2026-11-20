@@ -90,6 +90,8 @@ export interface RowExtent {
     round: number | null;
     /** How far its surface reaches along each axis. */
     half: Xyz;
+    /** How far its border reaches past its surface (`Node.borderReach`). */
+    border: number;
 }
 
 /** One float texture and the CPU copy it is uploaded from. */
@@ -573,6 +575,7 @@ export class RowTable {
             scale: of(0),
             round: ((floats[base + 3] ?? 0) & ROW_EXTENT_ROUND) === 0 ? null : of(1),
             half: { x: of(4), y: of(5), z: of(6) },
+            border: of(2),
         };
     }
 

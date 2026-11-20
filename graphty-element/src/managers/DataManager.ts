@@ -340,9 +340,9 @@ export function laneStoreOf(manager: DataManager): LaneStore {
 interface ExistingEdge {
     /** The edge's index in the builder. */
     readonly edgeIndex: number;
-    /** The render object, or null while it is still pending. */
+    /** The render object, or null while it is still pending or stored with none (`storeUnbuiltEdge`). */
     readonly edge: Edge | null;
-    /** The pending entry, or null once the render object exists. */
+    /** The pending entry, or null once the render object exists or the edge is stored with none. */
     readonly pending: PendingEdge | null;
 }
 
@@ -2028,6 +2028,8 @@ export class DataManager implements Manager {
                     adoptEdgeRecord(known.edge, record as AdHocData);
                 } else if (known.pending) {
                     known.pending.record = record;
+                } else {
+                    this.replaceUnbuiltRecord(known.edgeIndex, record);
                 }
             },
             rowsRemoved: (nodes, edges) => {
@@ -2312,12 +2314,39 @@ export class DataManager implements Manager {
      * @returns the existing edges, oldest first; empty when the pair is new
      */
     private existingBetween(sourceId: NodeIdType, targetId: NodeIdType): ExistingEdge[] {
-        const built = this.getEdgesBetween(sourceId, targetId);
+        // Builds no `Edge`: an edge stored with none is built when its row is painted, in row order, as the objects
+        // path builds every one. Building the first of a pair when its repeat arrives drew it under the rows before it.
+        const found: ExistingEdge[] = [];
+        if (isStorableId(sourceId) && isStorableId(targetId)) {
+            const { builder } = this.store;
+            const u = builder.indexOf(sourceId);
+            const v = builder.indexOf(targetId);
+            if (u !== INVALID_INDEX && v !== INVALID_INDEX) {
+                for (const e of builder.findEdges(u, v)) {
+                    const known = this.existingAt(e);
+                    const source = known?.edge?.srcId ?? this.unbuiltEdges.sourceAt(e);
+                    if (known?.pending === null && source !== undefined && builder.indexOf(source) === u) {
+                        found.push(known);
+                    }
+                }
+            }
+        }
+
         const pending = this.pendingByPair.get(sourceId)?.get(targetId) ?? [];
-        return [
-            ...built.map((edge) => ({ edgeIndex: edge.index, edge, pending: null })),
-            ...pending.map((entry) => ({ edgeIndex: entry.edgeIndex, edge: null, pending: entry })),
-        ];
+        return [...found, ...pending.map((entry) => ({ edgeIndex: entry.edgeIndex, edge: null, pending: entry }))];
+    }
+
+    /**
+     * Hand an edge stored with no `Edge` the record a repeat policy replaced its own with, which its `Edge` is built
+     * from.
+     * @param row - Its row.
+     * @param record - The record.
+     */
+    private replaceUnbuiltRecord(row: number, record: Record<string | number, unknown>): void {
+        const stored = this.unbuiltEdges.get(row);
+        if (stored !== undefined && stored.record !== IN_SLICE) {
+            this.unbuiltEdges.set(row, { ...stored, record });
+        }
     }
 
     /**
@@ -3351,9 +3380,13 @@ export class DataManager implements Manager {
      * @returns the existing edge, or null when the row is not one this manager holds
      */
     private existingAt(edgeIndex: number): ExistingEdge | null {
-        const edge = this.edgesByIndex[edgeIndex] ?? this.buildEdgeRow(edgeIndex);
+        const edge = this.edgesByIndex[edgeIndex];
         if (edge) {
             return { edgeIndex, edge, pending: null };
+        }
+
+        if (this.unbuiltEdges.edgeIdAt(edgeIndex) !== undefined) {
+            return { edgeIndex, edge: null, pending: null };
         }
 
         // A linear scan, and deliberately so: it is reached only when `edgeIdPath` is configured

@@ -176,6 +176,11 @@ interface SnapshotLayoutHost {
      * null before it is measured.
      */
     rowHalfExtents?(row: number): Readonly<{ x: number; y: number; z: number }> | null;
+    /**
+     * How far past {@link rowHalfExtents} a row drawn with no `Node` reaches with its border, as the row table measured
+     * it; 0 before it is measured.
+     */
+    rowBorderReach?(row: number): number;
     /** The element's `data.knownFields.positionScale`; undefined before the element is attached. */
     positionScale?(): number | undefined;
     /** The element's `data.knownFields`; undefined before the element is attached. */
@@ -512,24 +517,27 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
             // The sizes as the nodes are about to be drawn: paint that has arrived is drawn first.
             // ponytail: a style pass still running is not waited for; its sizes are read as drawn
             // now. Wait for it here if a layout is ever seen starting mid-pass.
-            // A row drawn with no `Node` (renderPath "batched") is read from the row table, as a batched `Node` is.
+            // Under renderPath "batched" every measured row is read from the row table, `Node` or none, border included as
+            // `Node.layoutRadius` counts it: whether a row has its `Node` when a layout reads the sizes is no fixed point
+            // in a load, and two answers (one without the border, one in doubles) had Graphviz route round two sizes.
+            // ponytail: the table holds a border sized on the screen at its scene width, which `layoutRadius` leaves out.
             nodeSizes: () => {
                 this.#host?.drawPaint();
                 return Float32Array.from({ length: n }, (_, row) => {
-                    const node = nodes[row];
-                    if (node !== undefined) {
-                        return 2 * node.layoutRadius;
+                    const half = this.#host?.rowHalfExtents?.(row);
+                    if (half) {
+                        return 2 * (Math.max(half.x, half.y, half.z) + (this.#host?.rowBorderReach?.(row) ?? 0));
                     }
 
-                    const half = this.#host?.rowHalfExtents?.(row);
-                    return half ? 2 * Math.max(half.x, half.y, half.z) : Number.NaN;
+                    const node = nodes[row];
+                    return node === undefined ? Number.NaN : 2 * node.layoutRadius;
                 });
             },
             nodeExtents: () => {
                 this.#host?.drawPaint();
                 const out = new Float32Array(2 * n).fill(Number.NaN);
                 for (let row = 0; row < n; row++) {
-                    const half = nodes[row]?.drawnHalfExtents ?? this.#host?.rowHalfExtents?.(row);
+                    const half = this.#host?.rowHalfExtents?.(row) ?? nodes[row]?.drawnHalfExtents;
                     if (half) {
                         out[2 * row] = 2 * half.x;
                         out[2 * row + 1] = 2 * half.y;

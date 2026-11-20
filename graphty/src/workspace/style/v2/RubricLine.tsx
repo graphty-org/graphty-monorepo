@@ -216,6 +216,8 @@ interface ControlArgs {
     readonly label: string;
     readonly write: (to: Channel, value: ChannelValue | undefined) => void;
     readonly fail: (error: unknown) => void;
+    /** R6 sides: a pair drawn split into its two numbers. */
+    readonly split: boolean;
 }
 
 /**
@@ -285,8 +287,25 @@ function checkboxControl(args: ControlArgs): React.ReactNode {
  * @returns The control
  */
 function numberControl(args: ControlArgs): React.ReactNode {
-    const { ctx, line, descriptor, value, set, write } = args;
+    const { ctx, line, descriptor, value, set, write, split, fail } = args;
     const { channel } = descriptor;
+    const { pair } = line;
+    if (line.sides === true && pair !== undefined && !split) {
+        // One number for both sides, one undo step.
+        return (
+            <NumberLine
+                descriptor={descriptor}
+                value={value}
+                onWrite={(next) => {
+                    const done =
+                        next === undefined
+                            ? unsetIn(ctx, [channel, pair])
+                            : writeIn(ctx, channel, { value: next }, { [pair]: next }, true);
+                    done.catch(fail);
+                }}
+            />
+        );
+    }
     if (line.pair === undefined) {
         const Glyph = line.glyph === undefined ? undefined : GLYPHS[line.glyph];
         return (
@@ -583,17 +602,44 @@ const CONTROLS: Readonly<Record<Exclude<Rule, "field" | "R15" | "R17">, (args: C
 };
 
 /**
- * A line's modifier slot: a thing row's settings, else its toggle (R6).
+ * The R6 sides toggle: splits a padding into its sides.
+ * @param props - Component props
+ * @param props.split - whether the sides are split
+ * @param props.onChange - splits or joins them
+ * @returns The toggle
+ */
+export function SidesToggle({
+    split,
+    onChange,
+}: Readonly<{ split: boolean; onChange: (on: boolean) => void }>): React.JSX.Element {
+    return (
+        <ToggleIconButton
+            size="sm"
+            label="Sides"
+            icon={<GLYPHS.sides size={14} aria-hidden />}
+            checked={split}
+            onChange={onChange}
+        />
+    );
+}
+
+/**
+ * A line's modifier slot: a thing row's settings, else its toggle or its sides toggle (R6).
  * @param ctx - the row.
  * @param line - the line.
  * @param write - writes the toggle.
+ * @param sides - whether its sides are split, and what splits or joins them.
  * @returns The slot's contents
  */
 function modifierOf(
     ctx: RowContext,
     line: LineSpec,
     write: (to: Channel, value: ChannelValue | undefined) => void,
+    sides: Readonly<{ split: boolean; onSplit: (on: boolean) => void }>,
 ): React.ReactNode {
+    if (line.sides === true && line.pair !== undefined) {
+        return <SidesToggle split={sides.split} onChange={sides.onSplit} />;
+    }
     const toggle = line.toggle === undefined ? undefined : shownChannel(ctx.session, ctx.side, line.toggle, false);
     const Glyph = GLYPHS[line.toggleGlyph ?? "lock"];
     return toggle === undefined ? null : (
@@ -673,6 +719,8 @@ interface RubricLineProps {
  */
 export function RubricLine({ ctx, line, row, named: alwaysNamed = false }: RubricLineProps): React.JSX.Element | null {
     const { store } = useWorkspace();
+    // R6 sides: split by the toggle, or because the two sides already differ.
+    const [splitAsked, setSplit] = React.useState(false);
     const { session, side } = ctx;
     // A line standing for several units edits whichever the row sets.
     const channel = [line.channel, ...(line.units ?? [])].find((c) => setOn(ctx, c)) ?? line.channel;
@@ -714,7 +762,19 @@ export function RubricLine({ ctx, line, row, named: alwaysNamed = false }: Rubri
             />
         );
     }
-    const args: ControlArgs = { ctx, line, descriptor, value: own?.value, set, label: fieldName(channel), write, fail };
+    const pairValue = line.pair === undefined ? undefined : lineIn(ctx, line.pair)?.value;
+    const split = splitAsked || (line.sides === true && pairValue !== own?.value);
+    const args: ControlArgs = {
+        ctx,
+        line,
+        descriptor,
+        value: own?.value,
+        set,
+        label: fieldName(channel),
+        write,
+        fail,
+        split,
+    };
     const control = line.unit === undefined ? CONTROLS[rule](args) : unitControl(args);
     const channels = [channel, ...(line.pair === undefined ? [] : [line.pair])];
     // A pair's minus names both its channels, so it is told from its sub-group's ("Remove width and height").
@@ -735,7 +795,19 @@ export function RubricLine({ ctx, line, row, named: alwaysNamed = false }: Rubri
             set={set}
             rule={rule}
             control={control}
-            modifier={row?.slot ?? modifierOf(ctx, line, write)}
+            modifier={
+                row?.slot ??
+                modifierOf(ctx, line, write, {
+                    split,
+                    onSplit: (on) => {
+                        setSplit(on);
+                        // Joined again, both sides take the first one's value.
+                        if (!on && line.pair !== undefined && pairValue !== own?.value) {
+                            write(line.pair, own?.value);
+                        }
+                    },
+                })
+            }
             removeName={set || row !== undefined ? removeName : undefined}
             onRemove={onRemove}
             dimmed={dimmed}

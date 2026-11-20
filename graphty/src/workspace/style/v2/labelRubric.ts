@@ -50,6 +50,8 @@ export interface LabelLineSpec {
     /** A boolean modifying the line, drawn as a toggle in its modifier slot (R6). */
     readonly toggle?: LabelField;
     readonly toggleGlyph?: keyof typeof GLYPHS;
+    /** R6 sides: top, right, bottom and left; one number writes all four until the sides toggle splits them. */
+    readonly sides?: readonly [LabelField, LabelField, LabelField, LabelField];
 }
 
 /** One sub-group of a label's pop-over. */
@@ -165,8 +167,11 @@ export const LABEL_RUBRIC: LabelRubric = {
         {
             name: "Margin",
             lines: [
-                { field: "marginTop", name: "Margin", pair: "marginBottom", letters: ["T", "B"] },
-                { field: "marginLeft", name: "Sides", pair: "marginRight", letters: ["L", "R"] },
+                {
+                    field: "marginTop",
+                    name: "Margin",
+                    sides: ["marginTop", "marginRight", "marginBottom", "marginLeft"],
+                },
             ],
         },
         {
@@ -338,6 +343,7 @@ export function labelLineFields(line: LabelLineSpec): readonly LabelField[] {
     return [
         line.field,
         ...(line.pair === undefined ? [] : [line.pair]),
+        ...(line.sides?.filter((side) => side !== line.field) ?? []),
         ...(line.units ?? []),
         ...(line.toggle === undefined ? [] : [line.toggle]),
         ...(line.unit ?? []).flatMap((unit) => [unit.field, ...(Object.keys(unit.also ?? {}) as LabelField[])]),

@@ -33,6 +33,8 @@ export interface LineSpec {
     readonly pair?: Channel;
     /** The letters in a pair's two fields' glyph slots. */
     readonly letters?: readonly [string, string];
+    /** R6 sides on a pair: one number writes both until the sides toggle splits them. */
+    readonly sides?: boolean;
     /** The in-field glyph of a number (a stroke width's weight). */
     readonly glyph?: keyof typeof GLYPHS;
     /** Channels standing for the same quantity in another unit: the line edits whichever is set. */
@@ -187,7 +189,13 @@ const SHAPE_GROUPS: readonly SubGroup[] = [
         name: "Fit to label",
         lines: [
             { channel: "node.labelFit", name: "Fit", rule: "R8" },
-            { channel: "node.labelPaddingX", name: "Padding", pair: "node.labelPaddingY", letters: ["X", "Y"] },
+            {
+                channel: "node.labelPaddingX",
+                name: "Padding",
+                pair: "node.labelPaddingY",
+                letters: ["X", "Y"],
+                sides: true,
+            },
             { channel: "node.labelFitSquare" },
             { channel: "node.labelFitQuantum" },
             { channel: "node.labelFitImage" },

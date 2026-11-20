@@ -37,7 +37,7 @@ import {
     type TextThing,
 } from "./labelRubric";
 import { segmentOptions } from "./rubric";
-import { FontSelect, LineFrame, NumberLine, PresetLine, SegmentsLine } from "./RubricLine";
+import { FontSelect, LineFrame, NumberLine, PresetLine, SegmentsLine, SidesToggle } from "./RubricLine";
 import { setOn } from "./things";
 
 /** A write to a label style: each field's new value, undefined taking the field off. */
@@ -109,6 +109,8 @@ interface LineControlArgs {
     readonly descriptor: ChannelDescriptor;
     readonly name: string;
     readonly set: boolean;
+    /** R6 sides: drawn split into its sides. */
+    readonly split: boolean;
 }
 
 /**
@@ -122,16 +124,17 @@ function valueOf(style: Readonly<LabelStyle>, field: LabelField): unknown {
 }
 
 /**
- * A number, or a pair of numbers with their letters (R5).
+ * A number, a pair of numbers with their letters (R5), or a number split into its sides (R6 sides).
  * @param args - the line.
  * @param args.label - the line's label
  * @param args.line - the line's line
  * @param args.field - the line's field
  * @param args.descriptor - the line's descriptor
  * @param args.name - the line's name
+ * @param args.split - whether its sides are split
  * @returns The control
  */
-function numberControl({ label, line, field, descriptor, name }: LineControlArgs): React.ReactNode {
+function numberControl({ label, line, field, descriptor, name, split }: LineControlArgs): React.ReactNode {
     const percent = field.endsWith("pacity");
     const one = (which: LabelField, glyph: React.ReactNode, words: string): React.JSX.Element => (
         <NumberLine
@@ -145,6 +148,40 @@ function numberControl({ label, line, field, descriptor, name }: LineControlArgs
             }}
         />
     );
+    const { sides } = line;
+    if (sides !== undefined) {
+        if (!split) {
+            return (
+                <NumberLine
+                    descriptor={descriptor}
+                    label={name}
+                    value={valueOf(label.style, sides[0])}
+                    onWrite={(next) => {
+                        label.write(Object.fromEntries(sides.map((each) => [each, next])));
+                    }}
+                />
+            );
+        }
+        // Top | right, bottom | left, each with its side's glyph (R17).
+        const [top, right, bottom, left] = sides;
+        const sideOf = (which: LabelField, glyph: keyof typeof GLYPHS): React.JSX.Element => {
+            const Glyph = GLYPHS[glyph];
+            const word = labelFieldDescriptor(which)?.plainName ?? which;
+            return one(which, <Glyph size={12} aria-hidden />, `${label.title} ${word.toLowerCase()}`);
+        };
+        return (
+            <Stack gap={4}>
+                <Group grow gap={4} wrap="nowrap">
+                    {sideOf(top, "arrowUpToLine")}
+                    {sideOf(right, "arrowRightToLine")}
+                </Group>
+                <Group grow gap={4} wrap="nowrap">
+                    {sideOf(bottom, "arrowDownToLine")}
+                    {sideOf(left, "arrowLeftToLine")}
+                </Group>
+            </Stack>
+        );
+    }
     if (line.pair === undefined) {
         const Glyph = line.glyph === undefined ? undefined : GLYPHS[line.glyph];
         return one(field, Glyph === undefined ? undefined : <Glyph size={12} aria-hidden />, name);
@@ -432,6 +469,8 @@ export function LabelFieldLine({
     line,
     named: alwaysNamed = false,
 }: Readonly<{ label: LabelLineContext; line: LabelLineSpec; named?: boolean }>): React.JSX.Element | null {
+    // R6 sides: split by the toggle, or because the sides already differ.
+    const [splitAsked, setSplit] = React.useState(false);
     const flat = flatHeld(label, line);
     if (flat !== undefined) {
         const word =
@@ -449,13 +488,31 @@ export function LabelFieldLine({
     const shownName = line.name ?? descriptor.plainName;
     const name = `${title} ${shownName.toLowerCase()}`;
     const rule = line.unit === undefined ? (line.rule ?? RULE_OF_KIND[descriptor.accepts] ?? "R14") : "R8";
-    const args: LineControlArgs = { label, line, field, descriptor, name, set };
+    const sideValues = line.sides?.map((each) => valueOf(style, each)) ?? [];
+    const split = splitAsked || new Set(sideValues).size > 1;
+    const args: LineControlArgs = { label, line, field, descriptor, name, set, split };
     const control = line.unit === undefined ? controlOf(args, rule) : unitControl(args);
     const Toggle = GLYPHS[line.toggleGlyph ?? "lock"];
     const { toggle } = line;
     const toggleWord = toggle === undefined ? "" : (labelFieldDescriptor(toggle)?.plainName ?? toggle);
+    const { sides } = line;
+    const sidesToggle =
+        sides === undefined ? null : (
+            <SidesToggle
+                split={split}
+                onChange={(on) => {
+                    setSplit(on);
+                    // Joined again, every side takes the top's value.
+                    if (!on && new Set(sideValues).size > 1) {
+                        write(Object.fromEntries(sides.map((each) => [each, sideValues[0]])));
+                    }
+                }}
+            />
+        );
     const modifier =
-        toggle === undefined ? null : (
+        toggle === undefined ? (
+            sidesToggle
+        ) : (
             <ToggleIconButton
                 size="sm"
                 label={toggleWord}

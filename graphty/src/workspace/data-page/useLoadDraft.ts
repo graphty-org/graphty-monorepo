@@ -11,6 +11,7 @@ import type {
     GraphSession,
     LoadChoices,
     LoadDraft,
+    LoadedChoices,
     LoadReport,
     ProgressChange,
     RecordPage,
@@ -137,7 +138,7 @@ export function useLoadDraft(
     session: GraphSession | null,
     mode: "replace" | "merge",
     initial: PageSource | null,
-    carried?: LoadChoices,
+    carried?: LoadedChoices,
     replacing?: SourceKey,
 ): LoadDraftState {
     const [source, setSource] = useState<PageSource | null>(initial);

@@ -166,7 +166,14 @@ describe("the style codec writes", () => {
             ["Keep"],
         );
         assert.deepEqual(problems, [
-            { code: "W_ELEMENT_NAMING_LEFT_OUT", params: { section: "style", pointer: "/layers/1" } },
+            {
+                code: "W_ELEMENT_NAMING_LEFT_OUT",
+                params: {
+                    section: "style",
+                    pointer: "/layers/1",
+                    layer: session.styles.list().find((layer) => layer.name === "Picked")?.id ?? null,
+                },
+            },
         ]);
         assert.deepEqual(invalid(section), []);
     });

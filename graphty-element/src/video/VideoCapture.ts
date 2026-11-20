@@ -2,15 +2,41 @@ import type { EasingName, TourInput } from "../camera/tour.js";
 import type { CameraState } from "../screenshot/types.js";
 
 /**
+ * The formats a recording comes out in: what `AnimationResult.metadata.format` names.
+ * @since 3.40.0
+ */
+export type VideoFormat = "webm" | "mp4";
+
+/**
+ * Every {@link VideoFormat}, for a caller that lists the formats or checks a value against them.
+ * @since 3.40.0
+ */
+export const VIDEO_FORMATS: readonly VideoFormat[] = Object.freeze(["webm", "mp4"]);
+
+/**
  * One stop of a camera path given as a 3D position and target, flown as `setCameraState` would place
  * the camera. It is used only in 3D: in 2D it is refused with `E_UNSUPPORTED`; give a
  * {@link ViewWaypoint} with a zoom and pan there.
  */
 export interface CameraWaypoint {
     /** Where the camera stands, in world units. */
-    position: { x: number; y: number; z: number };
+    position: {
+        /** The world x coordinate. */
+        x: number;
+        /** The world y coordinate. */
+        y: number;
+        /** The world z coordinate. */
+        z: number;
+    };
     /** What the camera looks at, in world units. */
-    target: { x: number; y: number; z: number };
+    target: {
+        /** The world x coordinate. */
+        x: number;
+        /** The world y coordinate. */
+        y: number;
+        /** The world z coordinate. */
+        z: number;
+    };
     /** Time to reach this waypoint from the previous one (ms) */
     duration?: number;
     /**
@@ -83,7 +109,7 @@ export interface AnimationOptions {
      */
     fps?: number;
     /** Video format: 'webm', 'mp4', or 'auto' to detect best format for browser */
-    format?: "webm" | "mp4" | "auto";
+    format?: VideoFormat | "auto";
     /**
      * Video bitrate in bits per second.
      * Higher values = better quality but larger file size.
@@ -181,12 +207,18 @@ export interface AnimationOptions {
     downloadFilename?: string;
 }
 
+/** A finished recording: the video file and what was recorded. */
 export interface AnimationResult {
+    /** The recorded video file, in the format `metadata.format` names. */
     blob: Blob;
+    /** Facts about the recording. */
     metadata: {
+        /** How long the recording runs, in milliseconds. */
         duration: number;
+        /** The frame rate the video was recorded at, in frames per second. */
         fps: number;
-        format: string; // Actual format used (e.g., "webm", "mp4")
+        /** The format the recording came out in; with `"auto"`, the one the browser could record. */
+        format: VideoFormat;
         /** The recorded video's width in pixels. */
         width: number;
         /** The recorded video's height in pixels. */

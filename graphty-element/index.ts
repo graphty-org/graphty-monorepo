@@ -117,6 +117,7 @@ export type {
     XRConfig,
     XRControllerButton,
     XRInputConfig,
+    XRMenuItem,
     XRModeConfig,
     XRUIConfig,
 } from "./src/config/index";
@@ -216,22 +217,42 @@ export type {
 export type { FileKind, FilesApi } from "./src/session/files/kindOf";
 export type {
     AssetStorage,
+    DocumentBindFacts,
     DocumentCode,
+    DocumentHeldFacts,
+    DocumentHeldReason,
     DocumentSection,
+    DocumentSectionAbout,
+    DocumentSectionFacts,
+    DocumentSectionNeed,
     ProjectApi,
     ProjectAssetChoice,
+    ProjectFileFacts,
+    ProjectFileHandle,
+    ProjectFileRun,
+    ProjectFileSection,
+    ProjectFileSource,
     ProjectOpenOptions,
     ProjectOpenReport,
     ProjectProblem,
+    ProjectSaveFacts,
     ProjectSaveOptions,
     ProjectSaveReport,
+    ProjectSaveSection,
     ProjectSource,
+    ProjectSourceChoice,
+    ProjectSourceKind,
     ProjectStatus,
     SavedProject,
+    SectionBinding,
+    SourceEmbeddedReason,
     SourceStorage,
+    SourceUnavailableReason,
 } from "./src/session/projectFile";
-export { PROJECT_FILE, projectFileName } from "./src/session/projectFile";
+export { DOCUMENT_SECTIONS, PROJECT_FILE, projectFileName } from "./src/session/projectFile";
 export type { RecipesApi } from "./src/session/recipes/RecipesApi";
+// What the element's `graphty-source-loaded` DOM event carries.
+export type { SourceLoaded } from "./src/session/types";
 // What autosave reports: its status, its codes, its entries and what a restore found.
 export type { AutosaveAtRisk } from "./src/autosave/elementAutosave";
 export type {
@@ -273,6 +294,7 @@ export type {
     ExportScope,
     ExportStyleLossCode,
 } from "./src/data/export";
+export type { OperationCategory, PendingWorkProgress } from "./src/managers/OperationQueueManager";
 export type { GroupSummary, GroupTableOptions } from "./src/session/types";
 
 // Error aggregation for data loading
@@ -371,6 +393,7 @@ export type {
     TourEndedEvent,
     TourProgressEvent,
     ViewsChangedEvent,
+    XRMenuSelectEvent,
     XRSessionEndedEvent,
     XRSessionStartedEvent,
 } from "./src/events";
@@ -445,7 +468,14 @@ export type { CapabilityCheck, ScreenshotWarningCode } from "./src/screenshot/ca
 // Video capture exports
 // =============================================================================
 export { AnimationCanceledError, AnimationCancelledError } from "./src/video/MediaRecorderCapture";
-export type { AnimationOptions, AnimationResult, CameraWaypoint, ViewWaypoint } from "./src/video/VideoCapture";
+export type {
+    AnimationOptions,
+    AnimationResult,
+    CameraWaypoint,
+    VideoFormat,
+    ViewWaypoint,
+} from "./src/video/VideoCapture";
+export { VIDEO_FORMATS } from "./src/video/VideoCapture";
 
 // Video capture estimation
 export type { CaptureEstimate } from "./src/video/estimation";

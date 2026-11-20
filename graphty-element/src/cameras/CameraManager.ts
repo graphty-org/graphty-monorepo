@@ -5,6 +5,7 @@ import { Scene } from "@babylonjs/core/scene.js";
 
 import type { ViewInsets } from "../camera/types";
 import type { FitBounds, FitInsets } from "../config/GraphBehavior";
+import type { CameraGestureKind, GestureEndHooks } from "./gestureEnd";
 import type { FramingSpot } from "./OrbitCameraController";
 import type { XRPivotCameraController } from "./XRPivotCameraController";
 
@@ -69,7 +70,7 @@ export interface CameraController {
     takeView?(from: this): void;
 }
 
-interface InputHandler {
+interface InputHandler extends GestureEndHooks {
     enable(): void;
     disable(): void;
     update(): void;
@@ -109,6 +110,12 @@ export class CameraManager {
     /** Told each time the reader's own input -- a wheel, a drag, a pinch, a key -- moves a camera. */
     public onReaderMove: (() => void) | null = null;
 
+    /** Told once when a reader's camera gesture ends, on whichever camera; see `camera:gesture-end`. */
+    public onGestureEnd: ((kind: CameraGestureKind) => void) | null = null;
+
+    /** Asks the render loop for one more frame, for an input waiting on the frame that ends its gesture. */
+    public requestFrame: (() => void) | null = null;
+
     /** Frame time since the reader last moved the camera, for `camera.autoRotateResume`; null, not since it turned. */
     #idleMs: number | null = null;
 
@@ -129,6 +136,12 @@ export class CameraManager {
     public registerCamera(key: CameraKey, controller: CameraController, inputHandler: InputHandler): void {
         this.controllers.set(key, controller);
         this.inputs.set(key, inputHandler);
+        inputHandler.onGestureEnd = (kind) => {
+            this.onGestureEnd?.(kind);
+        };
+        inputHandler.requestFrame = () => {
+            this.requestFrame?.();
+        };
         controller.onReaderMove = () => {
             this.#idleMs = 0;
             this.onReaderMove?.();

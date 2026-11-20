@@ -11,8 +11,11 @@ import { GraphtyError } from "../../errors/GraphtyError";
 import type { TransactionOptions } from "../project/Dispatcher";
 import type { CannedOutcomes } from "../projectFile";
 import { ENGINE_VERSIONS } from "../runs";
-import type { GraphSession, ProjectSlice } from "../types";
-import { dataBindingOf, elementRefsOf } from "./codecs/dataRefs";
+import type { GraphSession, ProjectSlice, TransactionScope } from "../types";
+import { newDocumentId } from "./basics";
+import { refetchOptionsOf } from "./codecs/dataFetch";
+import { dataBindingOf, elementRefsOf, rebasedRecord } from "./codecs/dataRefs";
+import type { ProjectFileHandle } from "./codecs/fileHandles";
 import {
     assembleSection,
     assembleWrapper,
@@ -21,7 +24,6 @@ import {
     documentStateOf,
     type HeldSection,
     isJsonObject,
-    newDocumentId,
     type ParsedDocument,
     plainNumbers,
     rememberOpened,
@@ -32,6 +34,7 @@ import {
     APPLY_ORDER,
     type BindsTo,
     type CodecRegistry,
+    type ColumnRenames,
     DOCUMENT_SECTIONS,
     type DocumentProblem,
     type DocumentSection,
@@ -64,6 +67,10 @@ export interface SaveChoices {
     readonly rewriteRecipe?: boolean;
     /** A file source's path relative to the folder the file is saved in, per source id or load key. */
     readonly paths?: Readonly<Record<string, string>>;
+    /** A file source's browser file handle, per source id or load key. */
+    readonly handles?: Readonly<Record<string, ProjectFileHandle>>;
+    /** The URL of the file being saved: every path read is rebased to it. */
+    readonly location?: string;
 }
 
 /** What a version 2 open loads. */
@@ -80,6 +87,8 @@ export interface OpenChoices {
     readonly dataMode?: "replace" | "add";
     /** Load a bound section written on other data (spec 6.4, "No match"); default false. */
     readonly bindOtherData?: boolean;
+    /** The open data's column for each column a style section names, by table. */
+    readonly columns?: ColumnRenames;
 }
 
 /** The generator every version 2 save writes. */
@@ -100,7 +109,7 @@ function dataIdOf(state: DocumentState): string {
  * @param session - The session.
  * @returns A getter that builds them once.
  */
-function lazyRefs(session: GraphSession): () => ElementRefs {
+export function lazyRefs(session: GraphSession): () => ElementRefs {
     let refs: ElementRefs | undefined;
     return () => {
         refs ??= elementRefsOf(session);
@@ -119,11 +128,11 @@ function lazyRefs(session: GraphSession): () => ElementRefs {
  * @param refs - The element references, built once per save.
  * @returns The context.
  */
-function writeContextOf(
+export function writeContextOf(
     session: GraphSession,
     state: DocumentState,
     sections: ReadonlySet<DocumentSection>,
-    choices: Pick<SaveChoices, "embed" | "paths" | "rewriteRecipe">,
+    choices: Pick<SaveChoices, "embed" | "paths" | "handles" | "location" | "rewriteRecipe">,
     isDerived: (id: RunId) => boolean,
     problems: DocumentProblem[],
     refs: () => ElementRefs = lazyRefs(session),
@@ -136,6 +145,8 @@ function writeContextOf(
         sections,
         embed: choices.embed ?? {},
         paths: choices.paths ?? {},
+        ...(choices.handles === undefined ? {} : { handles: choices.handles }),
+        ...(choices.location === undefined ? {} : { location: choices.location }),
         rewriteRecipe: choices.rewriteRecipe === true,
         isDerived,
         bindsTo: (): Promise<BindsTo> => Promise.resolve({ data: dataIdOf(state) }),
@@ -193,10 +204,23 @@ async function rememberBaselines(
     const state = documentStateOf(session);
     state.opened.clear();
     // ponytail: one extra write per section at open; skip the data section's if its write is slow on large graphs.
-    const context = writeContextOf(session, state, new Set(sections.keys()), {}, isDerived, []);
+    // Written as a save to the file it was opened from, the one save that keeps every path as read.
+    const location = refetchOptionsOf(session)?.location;
+    const choices = location === undefined ? {} : { location };
+    const context = writeContextOf(session, state, new Set(sections.keys()), choices, isDerived, []);
     for (const [name, section] of sections) {
         const codec = codecs[name];
         if (codec === undefined || (name === "results" && rerun) || codec.standsAsRead?.(section) === false) {
+            continue;
+        }
+
+        // With no location to write a path read relative to, no save keeps it: none stands as read.
+        const lost: DocumentProblem[] = [];
+        if (name === "data" && location === undefined) {
+            rebasedData(section.body, {}, lost);
+        }
+
+        if (lost.length > 0) {
             continue;
         }
 
@@ -220,7 +244,7 @@ async function rememberBaselines(
  * @throws A `GraphtyError` with `E_BAD_COMMAND` for a section file of other than one section, or
  *     a section name that is not one of the seven.
  */
-function sectionsToSave(choices: SaveChoices, state: DocumentState): DocumentSection[] {
+export function sectionsToSave(choices: SaveChoices, state: DocumentState): DocumentSection[] {
     const asked =
         choices.sections ?? DOCUMENT_SECTIONS.filter((name) => name !== "results" || state.hadResults === true);
     const unknown = asked.find((name) => !DOCUMENT_SECTIONS.includes(name));
@@ -251,6 +275,9 @@ function sectionsToSave(choices: SaveChoices, state: DocumentState): DocumentSec
     return sections;
 }
 
+/** The codes a codec reports about the session's own content that a save leaves out. */
+const SESSION_LEFT_OUT: ReadonlySet<string> = new Set(["W_ELEMENT_NAMING_LEFT_OUT"]);
+
 /**
  * One section as a save writes it: the codec's write, or the section as read when the session has
  * not changed it since the open (`rememberBaselines`), framed.
@@ -277,6 +304,9 @@ async function writeSection(
         context.problems.push(...reported);
     } else {
         written = asRead.read;
+        // The section as read never held what the session added since, so what the codec left
+        // out of the session is still left out.
+        context.problems.push(...reported.filter((fact) => SESSION_LEFT_OUT.has(fact.code)));
     }
 
     // A bound section's `bindsTo` is `{ data }` alone (spec 6.4); a results run carries its own
@@ -316,12 +346,15 @@ export async function saveDocument2(
     const problems: DocumentProblem[] = [];
     const sections: JsonObject = {};
     const refs = lazyRefs(session);
+    // The sections the codecs write: a held one is written back as read, never by its codec.
+    const live = new Set(chosen.filter((name) => !state.held.has(name)));
 
     for (const name of chosen) {
         const held = state.held.get(name);
         if (held !== undefined) {
-            // Written back exactly as read; the session's own content of this kind is not saved.
-            sections[name] = held.value;
+            // Written back exactly as read but for its file paths (spec 8.1 rule 4); the session's
+            // own content of this kind is not saved.
+            sections[name] = heldWritten(session, name, held.value, choices.location, problems);
             const { version } = held.value as { version?: unknown };
             problems.push({
                 code: "W_SECTION_KEPT",
@@ -332,7 +365,7 @@ export async function saveDocument2(
 
         const codec = codecs[name];
         if (codec !== undefined) {
-            const context = writeContextOf(session, state, new Set(chosen), choices, isDerived, problems, refs);
+            const context = writeContextOf(session, state, live, choices, isDerived, problems, refs);
             sections[name] = await writeSection(name, codec, context, state, now);
         }
     }
@@ -360,7 +393,85 @@ export async function saveDocument2(
         sections,
         now,
     );
+    if (Array.isArray(document.graphs)) {
+        const where = whereOf(session, choices.location);
+        document.graphs = document.graphs.map((graph: unknown) => rebasedGraph(graph, where, problems));
+    }
+
     return { document: plainNumbers(document), written: Object.keys(sections), problems };
+}
+
+/**
+ * A held section as a save writes it back: as read, but a data section's file paths rebased to the
+ * file being saved, and dropped when the saver gives no location (spec 8.1 rule 4).
+ * @param session - The session.
+ * @param name - The section's key.
+ * @param value - The section as read.
+ * @param location - The URL of the file being saved, if given.
+ * @param problems - Collects `W_SOURCE_NO_PATH`.
+ * @returns The section.
+ */
+function heldWritten(
+    session: GraphSession,
+    name: string,
+    value: unknown,
+    location: string | undefined,
+    problems: DocumentProblem[],
+): unknown {
+    return name === "data" ? rebasedData(value, whereOf(session, location), problems) : value;
+}
+
+/** The URLs of the file being saved and of the file it was opened from, each when known. */
+interface SaveWhere {
+    readonly location?: string;
+    readonly opened?: string;
+}
+
+/**
+ * Where the save is written and where the project was opened from.
+ * @param session - The session.
+ * @param location - The URL of the file being saved, if given.
+ * @returns Both URLs, each when known.
+ */
+function whereOf(session: GraphSession, location: string | undefined): SaveWhere {
+    const opened = refetchOptionsOf(session)?.location;
+    return { ...(location === undefined ? {} : { location }), ...(opened === undefined ? {} : { opened }) };
+}
+
+/**
+ * A data section written back as read but for its file sources' paths, rebased to the file being
+ * saved (spec 8.1 rule 4): a file outside the saved file's folder loses its path.
+ * @param data - The data section as read.
+ * @param where - The URLs of the file being saved and of the file it was opened from.
+ * @param problems - Collects `W_SOURCE_NO_PATH`.
+ * @returns The section.
+ */
+function rebasedData(data: unknown, where: SaveWhere, problems: DocumentProblem[]): unknown {
+    if (!isJsonObject(data) || !Array.isArray(data.sources)) {
+        return data;
+    }
+
+    const sources = data.sources.map((record: unknown) =>
+        isJsonObject(record) ? rebasedRecord(record, where, problems) : record,
+    );
+    return { ...data, sources };
+}
+
+/**
+ * A later graph of the file, written back as read but for its file sources' paths (spec 2.2 rule
+ * 4): this release never builds it.
+ * @param graph - The `graphs` entry as read.
+ * @param where - The URLs of the file being saved and of the file it was opened from.
+ * @param problems - Collects `W_SOURCE_NO_PATH`.
+ * @returns The entry.
+ */
+function rebasedGraph(graph: unknown, where: SaveWhere, problems: DocumentProblem[]): unknown {
+    const sections = isJsonObject(graph) && isJsonObject(graph.sections) ? graph.sections : undefined;
+    if (sections?.data === undefined) {
+        return graph;
+    }
+
+    return { ...(graph as JsonObject), sections: { ...sections, data: rebasedData(sections.data, where, problems) } };
 }
 
 /** What `openDocument2` needs from the project that is not the session. */
@@ -376,61 +487,37 @@ export interface OpenHooks {
     readonly name: string | null;
     /** Whether the element minted a run's id; default none. */
     readonly isDerived?: (id: RunId) => boolean;
+    /**
+     * Empties the session, in the open's transaction, when the open replaces the project; default
+     * clears only the data, and only when the file's data section is held.
+     */
+    readonly clear?: (tx: TransactionScope) => Promise<void>;
+    /**
+     * Remembers where the open read the file from, when it replaces the project, before the
+     * sections' baselines are written: a path read is written back only relative to it.
+     */
+    readonly opened?: () => void;
 }
 
 /**
- * Leave out each bound section written on other data than the open's (spec 6.4, "No match").
- * @param chosen - The sections to load; the ones left out are deleted.
- * @param codecs - The codecs.
- * @param openDataId - The id of the data the open binds to.
- * @param problems - Where `W_DATA_MISMATCH` is reported.
+ * How an open treats one bound section (spec 6.4): `loads`, it binds to the data the open leaves
+ * open; `held`, it was written on the file's held data section and is held with it; `other-data`,
+ * it was written on other data, reported `W_DATA_MISMATCH` and loaded only with `bindOtherData`.
+ * @experimental save-files-v2
+ * @beta
  */
-function dropOtherData(
-    chosen: Map<DocumentSection, ReadSection>,
-    codecs: CodecRegistry,
-    openDataId: string | undefined,
-    problems: DocumentProblem[],
-): void {
-    for (const [name, section] of [...chosen]) {
-        const bound = section.header.bindsTo?.data;
-        if (codecs[name]?.bound === true && (bound === undefined || bound !== openDataId)) {
-            problems.push({
-                code: "W_DATA_MISMATCH",
-                params: { section: name, data: typeof bound === "string" ? bound : null },
-            });
-            chosen.delete(name);
-        }
-    }
-}
+export type SectionBinding = "loads" | "held" | "other-data";
 
-/**
- * When a full file's data section is held, its bound sections written on that data are held with
- * it, verbatim, so the next save writes them back beside it (spec 8.5).
- * @param chosen - The sections to load; the ones held are deleted.
- * @param codecs - The codecs.
- * @param dataId - The held data section's id.
- * @param problems - Where `W_SECTION_KEPT` is reported.
- * @returns The held sections, by key.
- */
-function holdBoundTo(
-    chosen: Map<DocumentSection, ReadSection>,
-    codecs: CodecRegistry,
-    dataId: string | undefined,
-    problems: DocumentProblem[],
-): Map<string, HeldSection> {
-    const held = new Map<string, HeldSection>();
-    for (const [name, section] of [...chosen]) {
-        if (codecs[name]?.bound === true && dataId !== undefined && section.header.bindsTo?.data === dataId) {
-            held.set(name, { value: section.header, reason: "data" });
-            problems.push({
-                code: "W_SECTION_KEPT",
-                params: { section: name, version: section.header.version, reason: "data" },
-            });
-            chosen.delete(name);
-        }
-    }
-
-    return held;
+/** What an open binds its bound sections to. */
+export interface BindPlan {
+    /** Whether the open replaces the data (a data section in replace mode, loaded or held). */
+    readonly replaced: boolean;
+    /** The data section it loads, if any. */
+    readonly data: ReadSection | undefined;
+    /** The data section it holds, if any. */
+    readonly heldData: HeldSection | undefined;
+    /** The id of the data the bound sections bind to. */
+    readonly openDataId: string | undefined;
 }
 
 /**
@@ -446,6 +533,86 @@ function dataSectionId(data: ReadSection | undefined, held: HeldSection | undefi
 
     const id = isJsonObject(held?.value) ? held.value.id : undefined;
     return typeof id === "string" ? id : undefined;
+}
+
+/**
+ * What an open of a parsed file with these choices binds to: the data it brings, or the data
+ * already open.
+ * @param parsed - The file.
+ * @param choices - The sections and the data mode.
+ * @param openNow - The id of the data open in the session now.
+ * @returns The plan.
+ */
+export function bindPlanOf(
+    parsed: ParsedDocument,
+    choices: Pick<OpenChoices, "sections" | "dataMode">,
+    openNow: string | undefined,
+): BindPlan {
+    const takesData = choices.sections === undefined || choices.sections.includes("data");
+    const data = takesData ? parsed.sections.get("data") : undefined;
+    const heldData = takesData ? parsed.held.get("data") : undefined;
+    // A file carrying a data section opens a project, whether its data loads or is held.
+    const replaced = (choices.dataMode ?? "replace") === "replace" && (data !== undefined || heldData !== undefined);
+    return { replaced, data, heldData, openDataId: replaced ? dataSectionId(data, heldData) : openNow };
+}
+
+/**
+ * How the open planned treats a bound section written on `bound`.
+ * @param bound - The section's `bindsTo.data`.
+ * @param plan - The open's plan.
+ * @returns Its binding.
+ */
+export function bindingOf(bound: unknown, plan: BindPlan): SectionBinding {
+    if (plan.replaced && plan.data === undefined && plan.openDataId !== undefined && bound === plan.openDataId) {
+        return "held";
+    }
+
+    return bound === plan.openDataId && bound !== undefined ? "loads" : "other-data";
+}
+
+/**
+ * Bind each chosen bound section as the plan says: one written on the file's held data section is
+ * held with it, verbatim, so the next save writes it back beside it (spec 8.5); one written on
+ * other data is left out (spec 6.4, "No match") unless the caller binds it anyway.
+ * @param chosen - The sections to load; the ones held or left out are deleted.
+ * @param codecs - The codecs.
+ * @param plan - The open's plan.
+ * @param bindOther - Whether a section written on other data loads anyway.
+ * @param problems - Where `W_SECTION_KEPT` and `W_DATA_MISMATCH` are reported.
+ * @returns The held sections, by key.
+ */
+function bindChosen(
+    chosen: Map<DocumentSection, ReadSection>,
+    codecs: CodecRegistry,
+    plan: BindPlan,
+    bindOther: boolean,
+    problems: DocumentProblem[],
+): Map<string, HeldSection> {
+    const held = new Map<string, HeldSection>();
+    for (const [name, section] of [...chosen]) {
+        if (codecs[name]?.bound !== true) {
+            continue;
+        }
+
+        const bound = section.header.bindsTo?.data;
+        const binding = bindingOf(bound, plan);
+        if (binding === "held") {
+            held.set(name, { value: section.header, reason: "data" });
+            problems.push({
+                code: "W_SECTION_KEPT",
+                params: { section: name, version: section.header.version, reason: "data" },
+            });
+            chosen.delete(name);
+        } else if (binding === "other-data" && !bindOther) {
+            problems.push({
+                code: "W_DATA_MISMATCH",
+                params: { section: name, data: typeof bound === "string" ? bound : null },
+            });
+            chosen.delete(name);
+        }
+    }
+
+    return held;
 }
 
 /**
@@ -491,17 +658,10 @@ async function applyDocument(
         [...parsed.sections].filter(([name]) => asked === undefined || asked.has(name)),
     );
     const dataMode = choices.dataMode ?? "replace";
-    const data = chosen.get("data");
-    const heldData = asked === undefined || asked.has("data") ? parsed.held.get("data") : undefined;
-    // A file carrying a data section opens a project, whether its data loads or is held.
-    const replaced = dataMode === "replace" && (data !== undefined || heldData !== undefined);
     // A bound section binds to the data this open brings, or to the data already open.
-    const openDataId = replaced ? dataSectionId(data, heldData) : documentStateOf(session).dataId;
-    const heldBound = replaced && data === undefined ? holdBoundTo(chosen, codecs, openDataId, problems) : new Map();
-
-    if (choices.bindOtherData !== true) {
-        dropOtherData(chosen, codecs, openDataId, problems);
-    }
+    const plan = bindPlanOf(parsed, choices, documentStateOf(session).dataId);
+    const { replaced, data, openDataId } = plan;
+    const heldBound = bindChosen(chosen, codecs, plan, choices.bindOtherData === true, problems);
 
     if (replaced) {
         hooks.beforeReplace();
@@ -520,12 +680,10 @@ async function applyDocument(
         replaced ? "Open project" : "Open document",
         async (tx) => {
             if (replaced) {
+                // Nothing of the project it replaces stays: its layers, notes, sets, runs, views
+                // and data go before the file's are read.
+                await (hooks.clear ?? ((scope) => (data === undefined ? scope.data.clear() : Promise.resolve())))(tx);
                 await tx.config.set({ name: hooks.name });
-            }
-
-            if (replaced && data === undefined) {
-                // The held data is the project's: the old project's data does not stay under it.
-                await tx.data.clear();
             }
 
             for (const name of APPLY_ORDER) {
@@ -552,6 +710,7 @@ async function applyDocument(
                     other: (other) => chosen.get(other),
                     canned: hooks.canned,
                     restoreDerived: hooks.restoreDerived,
+                    ...(choices.columns === undefined ? {} : { columns: choices.columns }),
                 };
                 await codec.read(section, context);
                 rememberUnknownMembers(state, name, section, codec);
@@ -562,6 +721,7 @@ async function applyDocument(
 
     if (replaced) {
         state.dataId = openDataId ?? newDocumentId();
+        hooks.opened?.();
         await rememberBaselines(session, codecs, chosen, choices.rerun ?? true, hooks.isDerived ?? (() => false));
     }
 

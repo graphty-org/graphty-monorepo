@@ -12,6 +12,7 @@ import type { EdgeId, NodeId, RunId } from "../../catalog/types";
 import type { CannedOutcomes } from "../projectFile";
 import type { CodedFact } from "../shared";
 import type { GraphSession, ProjectSlice, TransactionScope } from "../types";
+import type { ProjectFileHandle } from "./codecs/fileHandles";
 
 /**
  * A section's name: its key in a full file's `sections`, and `graphty-<name>` is its kind.
@@ -20,7 +21,12 @@ import type { GraphSession, ProjectSlice, TransactionScope } from "../types";
  */
 export type DocumentSection = "data" | "style" | "recipe" | "settings" | "results" | "notes" | "view";
 
-/** The sections in the order a full file writes them (spec 1). */
+/**
+ * The sections in the order a full file writes them (spec 1).
+ * @since 3.40.0
+ * @experimental save-files-v2
+ * @beta
+ */
 export const DOCUMENT_SECTIONS: readonly DocumentSection[] = Object.freeze([
     "data",
     "style",
@@ -53,6 +59,28 @@ export const APPLY_ORDER: readonly DocumentSection[] = Object.freeze([
  */
 export type SourceStorage = "embedded" | "referenced";
 
+/**
+ * Why a save asked to reference a source embedded it (`W_SOURCE_EMBEDDED` `params.reason`):
+ * `edited`, the reader edited, removed or merged rows; `bytes`, the session kept no digest of the
+ * bytes it read; `rows`, another load also supplied one of its rows; `mapping`, its read has no
+ * spelling in a mapping; `kind`, no open reads its kind again. OPEN UNION.
+ * @experimental save-files-v2
+ * @beta
+ */
+export type SourceEmbeddedReason = "edited" | "bytes" | "rows" | "mapping" | "kind";
+
+/**
+ * Why a referenced source supplied nothing on open (`W_SOURCE_UNAVAILABLE` `params.reason`): the
+ * source is held until `data.refresh`. `not-found` (its fetch failed), `needs-file` (no location to
+ * read it from), `read` (unreadable), `too-large` (over the open's size limit), `needs-permission`
+ * (a fetch the caller did not allow), `copy-changed` (its bytes changed since the save, `params.size`
+ * the new byte count; a network source always), `kind` (no open reads its kind again). OPEN UNION.
+ * @experimental save-files-v2
+ * @beta
+ */
+export type SourceUnavailableReason =
+    "not-found" | "needs-file" | "read" | "too-large" | "needs-permission" | "copy-changed" | "kind";
+
 /** A JSON object as read from or written to a document. */
 export type JsonObject = Record<string, unknown>;
 
@@ -73,7 +101,6 @@ export type DocumentCode =
     | "W_ELEMENT_NAMING_LEFT_OUT"
     | "W_SOURCE_NO_PATH"
     | "W_SOURCE_UNAVAILABLE"
-    | "W_SOURCE_CHANGED"
     | "W_SOURCE_EMBEDDED"
     | "W_REFERENCE_UNBOUND"
     | "W_DATA_CHANGED"
@@ -86,6 +113,9 @@ export type DocumentCode =
     | "W_SOURCE_UNKEYED"
     | "W_NODE_NAMED_ONLY"
     | "W_EDGE_END_MISSING"
+    | "W_KEY_EMPTY"
+    | "W_ROLES_DIFFER"
+    | "W_CLASH_RULE_TYPE"
     | "W_COLUMN_WIDENED"
     | "W_MEMBER_LEFT_OUT"
     | "W_RECIPE_NOT_APPLIED";
@@ -239,6 +269,10 @@ export interface WriteContext extends CodecContext {
     readonly embed: Readonly<Record<string, SourceStorage>>;
     /** A file source's path relative to the folder the file is saved in, per source id or load key. */
     readonly paths?: Readonly<Record<string, string>>;
+    /** A file source's browser file handle, per source id or load key: referenced with no `path`. */
+    readonly handles?: Readonly<Record<string, ProjectFileHandle>>;
+    /** The URL of the file being saved: every path read is rebased to it. */
+    readonly location?: string;
     /** Write the recipe from the session even when one was opened from a file (spec 8.1 rule 5). Default false. */
     readonly rewriteRecipe?: boolean;
     /** Whether a run's id was minted by the element (its namespace is the element's own). */
@@ -275,6 +309,14 @@ export interface ReadContext extends CodecContext {
     readonly canned: CannedOutcomes;
     /** Mark a restored run's id as minted by the element. */
     restoreDerived(id: RunId): void;
+    /** The open data's column for each column a style section names, by table (spec 3.6 rule 1). */
+    readonly columns?: ColumnRenames;
+}
+
+/** The open data's column for each column a reusable section names, by table: file name to open name. */
+export interface ColumnRenames {
+    readonly node?: Readonly<Record<string, string>>;
+    readonly edge?: Readonly<Record<string, string>>;
 }
 
 /**

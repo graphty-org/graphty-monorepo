@@ -258,6 +258,7 @@ export {
     type GraphvizFont,
     graphvizFont,
     graphvizPosBends,
+    graphvizPosCurve,
     RANK_COLUMN,
     RANK_SET_COLUMN,
     type RequestedLayout,

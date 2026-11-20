@@ -323,13 +323,12 @@ describe("a file's looks in a source saved as a reference", () => {
         reopened.dispose();
     });
 
-    it("reports a referenced file that changed since the save, binds what it still holds and keeps the rest", async () => {
+    it("holds a referenced file that changed since the save, and builds it again on refresh", async () => {
         vi.stubGlobal("fetch", () => Promise.resolve(new Response(GEXF)));
         const session = await ring("url");
         session.notes.add({ text: "the last one", targets: [{ node: "n5" }] });
         const { text, id } = await savedByReference(session);
         const data = dataOf(text);
-        const expected = String((ringSource(data).origin as JsonObject).copy);
 
         // The file now lacks n5 and its edges.
         const changed = GEXF.replace(/<node id="n5"[^\n]*\n/, "").replaceAll(/<edge [^>]*"n5"[^>]*\/>\n?/g, "");
@@ -339,18 +338,24 @@ describe("a file's looks in a source saved as a reference", () => {
             fetchSources: true,
             location: "https://example.org/projects/ring.graphty.json",
         });
-        const found = report.problems.find((problem) => problem.code === "W_SOURCE_CHANGED");
-        assert.deepInclude(found?.params, { source: id, expected });
-        assert.notStrictEqual(found?.params.found, expected);
-        assert.include(
-            report.problems.map((problem) => problem.code),
-            "W_REFERENCE_UNBOUND",
-        );
+        assert.deepInclude(report.problems, {
+            code: "W_SOURCE_UNAVAILABLE",
+            params: { source: id, reason: "copy-changed", size: new TextEncoder().encode(changed).length },
+        });
+        assert.strictEqual(reopened.data.nodes().length, 0, "held: the graph is built without it");
+        const held = dataOf((await reopened.project.save({ format: 2 })).text);
+        assert.deepEqual(ringSource(held), ringSource(data), "a held source is written back unchanged");
+
+        const refreshed = await reopened.data.refresh(id);
+        assert.strictEqual(refreshed.fact.code, "I_SOURCE_REFRESHED");
         assert.isUndefined(reopened.data.node("n5"));
         assert.isDefined(reopened.data.node("n4"));
-
         const again = dataOf((await reopened.project.save({ format: 2 })).text);
-        assert.notStrictEqual(again.build, data.build, "a changed source is a new build");
+        assert.notStrictEqual(again.build, data.build, "a refreshed source is a new build");
+        assert.notDeepEqual(
+            (ringSource(again).origin as JsonObject).copy,
+            (ringSource(data).origin as JsonObject).copy,
+        );
         assert.strictEqual(reopened.notes.list().length, 1, "the note naming what the file lost is kept");
         session.dispose();
         reopened.dispose();

@@ -248,7 +248,7 @@ export const Tree: Story = sceneStory(async () => {
     await openStyle("Everything");
 });
 
-/** Selected at rest: the selection look as a halo and a band. */
+/** Selected at rest: the selection look as a ring and a band. */
 export const SelectedAtRest: Story = sceneStory(async () => {
     await openStyle("Selected");
 });
@@ -572,7 +572,7 @@ export const LabelSettings: Story = sceneStory(async () => {
     await page().findByRole("dialog", { name: "Label settings" });
 });
 
-/** Key people's Shape "+": the options the layer does not set yet, Wireframe, Outline, Glow and Halo among them. */
+/** Key people's Shape "+": the options the layer does not set yet, Wireframe and Glow among them. */
 export const ShapeMenu: Story = sceneStory(async () => {
     const tab = await openStyle("Key people");
     await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));

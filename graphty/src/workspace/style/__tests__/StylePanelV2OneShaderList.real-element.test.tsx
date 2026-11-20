@@ -197,7 +197,9 @@ describe("custom and built-in shaders are one list", () => {
         assert.notInclude(shown, "Custom shader...", "no Custom shader item (E381)");
         await userEvent.click(within(list).getByRole("option", { name: "New shader..." }));
         const dialog = await screen.findByRole("dialog", { name: "New shader" });
-        assert.isNotNull(dialog);
+        // From the Shape list the new shader starts in the node's place (6.3).
+        const place = within(dialog).getByLabelText<HTMLInputElement>(/^Place/);
+        assert.strictEqual(place.value, "Instead of the node", "Place is preset to replace the node");
         await userEvent.keyboard("{Escape}");
     });
 

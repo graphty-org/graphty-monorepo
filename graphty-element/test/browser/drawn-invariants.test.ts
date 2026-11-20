@@ -1,8 +1,9 @@
 /**
  * @file What is drawn, read off the canvas: every node and every edge loaded is on screen, and each
- * edge lies between its nodes as they are drawn, after a load, a click, a view switch and at every
- * held pose of a layout transition -- on both render paths, in 2D and 3D, with and without
- * arrowheads.
+ * edge lies between its nodes as they are drawn, with no node or edge ink anywhere else, after a
+ * load, a click, a hover, a style that takes one node off its batch, a view switch and at held poses
+ * of every transition that moves nodes -- on both render paths, in 2D and 3D, with and without
+ * arrowheads, with the default style rows (the graphty app) and without (the element's default).
  *
  * The configuration the graphty app ships on canary (renderPath "batched", plain undirected
  * edges, data loaded into an element already drawn) stores rows with no Node or Edge object; three
@@ -24,12 +25,18 @@ import {
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
 import { dataManagerInternals } from "../../src/managers/DataManager";
-import { undrawnEdges, undrawnNodes } from "../helpers/drawn-invariants";
-import { click, nodePoint } from "../helpers/real-input";
+import { strayInk, undrawnEdges, undrawnNodes } from "../helpers/drawn-invariants";
+import { click, hover, nodePoint } from "../helpers/real-input";
 
 const N = 8;
 const IDS = Array.from({ length: N }, (_, i) => String(i));
 const PAIRS = IDS.map((id, i) => [id, IDS[(i + 1) % N]] as const);
+
+/**
+ * The transitions that move nodes and keep drawing them; `fade-through` and `particle-morph` draw
+ * each node as a particle cloud on the way, so a held pose of theirs shows no node by design.
+ */
+const MOVING = ["glide", "staggered-glide", "arc-move", "swirl", "collapse-bloom"];
 
 /** The ring layout a transition moves to: radius 2, turned by half a step. */
 const RING_SMALL: AuthoredLayoutDescriptor = {
@@ -93,6 +100,8 @@ afterEach(() => {
 type Path = "objects" | "batched";
 type View = "2d" | "3d";
 type Edges = "arrow" | "undirected";
+/** The default style rows on, as the graphty app sets them, or off, the element's default. */
+type Rows = "rows" | "no rows";
 
 /**
  * An element already drawn, empty, then given a ring of 8 nodes and its edges: the way a file loads
@@ -100,9 +109,10 @@ type Edges = "arrow" | "undirected";
  * @param path - The render path.
  * @param view - 2D or 3D.
  * @param edges - Directed with the default arrowhead, or undirected (capless).
+ * @param rows - Whether the project starts with the default style rows.
  * @returns The element.
  */
-async function ring(path: Path, view: View, edges: Edges): Promise<Graphty> {
+async function ring(path: Path, view: View, edges: Edges, rows: Rows): Promise<Graphty> {
     const element = document.createElement("graphty-element");
     element.renderPath = path;
     element.style.display = "block";
@@ -114,7 +124,10 @@ async function ring(path: Path, view: View, edges: Edges): Promise<Graphty> {
     });
     await element.updateComplete;
     await element.setViewMode(view);
-    await element.session.config.set({ startingRows: true });
+    if (rows === "rows") {
+        await element.session.config.set({ startingRows: true });
+    }
+
     await element.session.styles.add({
         name: "Node ink",
         target: "node",
@@ -163,42 +176,96 @@ function assertLazy(element: Graphty, path: Path, edges: Edges): void {
 }
 
 /**
- * Every node and every edge is drawn, each edge between its nodes as drawn.
+ * Every node and every edge is drawn, each edge between its nodes as drawn, and nothing else is.
  * @param element - The element.
  * @param when - What just happened, for the message.
  */
 async function assertAllDrawn(element: Graphty, when: string): Promise<void> {
     assert.deepEqual(await undrawnNodes(element, IDS), [], `nodes not drawn ${when}`);
     assert.deepEqual(await undrawnEdges(element, PAIRS), [], `edges not drawn between their nodes ${when}`);
+    assert.deepEqual(await strayInk(element, IDS, PAIRS), [], `node or edge ink away from every node and edge ${when}`);
 }
+
+/**
+ * Let what the last input or write started finish, and the frame settle.
+ * @param element - The element.
+ */
+async function settle(element: Graphty): Promise<void> {
+    await operationQueueOf(element.graph).waitForCompletion();
+    await element.waitForStableFrame();
+}
+
+it("covers every catalog transition that keeps drawing its nodes", () => {
+    const element = document.createElement("graphty-element");
+    document.body.appendChild(element);
+    cleanups.push(() => {
+        element.remove();
+    });
+    const ids = element.session.catalog
+        .transitions()
+        .filter((transition) => transition.drawable === undefined)
+        .map((transition) => transition.id);
+    assert.deepEqual(ids, MOVING);
+});
 
 describe.each(
     (["objects", "batched"] as const).flatMap((path) =>
         (["2d", "3d"] as const).flatMap((view) =>
-            (["arrow", "undirected"] as const).map((edges) => ({ path, view, edges })),
+            (["arrow", "undirected"] as const).flatMap((edges) =>
+                (["rows", "no rows"] as const).map((rows) => ({ path, view, edges, rows })),
+            ),
         ),
     ),
-)("what is drawn on the $path path in $view with $edges edges", ({ path, view, edges }) => {
+)("what is drawn on the $path path in $view with $edges edges and $rows", ({ path, view, edges, rows }) => {
     it("draws every node, and every edge on its drawn nodes, after a load into a drawn element", async () => {
-        const element = await ring(path, view, edges);
+        const element = await ring(path, view, edges, rows);
         assertLazy(element, path, edges);
         await assertAllDrawn(element, "after the load");
     });
 
     // #9226/#9228: a click built Nodes for the selected node and its neighbours only, and the rest stopped drawing.
     it("keeps every node and edge drawn after a click selects one", async () => {
-        const element = await ring(path, view, edges);
+        const element = await ring(path, view, edges, rows);
         assertLazy(element, path, edges);
         await click(element, nodePoint(element, "0"));
-        await operationQueueOf(element.graph).waitForCompletion();
-        await element.waitForStableFrame();
+        await settle(element);
         assert.deepEqual(element.session.selection.nodes.map(String), ["0"]);
         await assertAllDrawn(element, "after a click selected node 0");
     });
 
+    // #9226: anything that takes one row off its batch while keeping its source, not only a selection, hid the rest.
+    it("keeps every node and edge drawn while the pointer hovers one", async () => {
+        const element = await ring(path, view, edges, rows);
+        assertLazy(element, path, edges);
+        // The default Hovered row sets nothing; a halo is what takes a row off its batch, as Selected's does.
+        await element.session.styles.add({
+            name: "Hover halo",
+            target: "node",
+            selector: { match: "state", state: "hovered" },
+            set: { "node.haloColor": "#20c020" },
+        });
+        await settle(element);
+        await hover(element, nodePoint(element, "0"));
+        await settle(element);
+        await assertAllDrawn(element, "while the pointer is on node 0");
+    });
+
+    it("keeps every node and edge drawn when a style gives one node a halo, which no batch draws", async () => {
+        const element = await ring(path, view, edges, rows);
+        assertLazy(element, path, edges);
+        await element.session.styles.add({
+            name: "Halo on 0",
+            target: "node",
+            selector: { match: "ids", nodes: ["0"] },
+            set: { "node.haloColor": "#20c020" },
+        });
+        await settle(element);
+        await assertAllDrawn(element, "after a halo on node 0");
+    });
+
     // #9223: a switch between 2D and 3D on the batched path left plain edges in disposed batches.
     it("draws every edge again after a switch to the other view and back", async () => {
-        const element = await ring(path, view, edges);
+        const element = await ring(path, view, edges, rows);
         assertLazy(element, path, edges);
         const other = view === "2d" ? "3d" : "2d";
         await element.setViewMode(other);
@@ -209,16 +276,15 @@ describe.each(
         await assertAllDrawn(element, `after a switch back to ${view}`);
     });
 
-    // #9222: a capless edge was laid at the layout's answer while its nodes glided there.
-    it("keeps each edge's ends on its nodes as drawn at every held pose of a Glide transition", async () => {
-        for (const hold of [0.25, 0.5, 0.75]) {
-            const element = await ring(path, view, edges);
+    // #9222: a capless edge was laid at the layout's answer while its nodes travelled there.
+    it.each(MOVING)("keeps each edge's ends on its nodes as drawn at held poses of %s", async (transition) => {
+        for (const hold of [0.3, 0.7]) {
+            const element = await ring(path, view, edges, rows);
             assertLazy(element, path, edges);
-            await element.session.config.set({ layoutTransition: { transition: "glide", seconds: 30, hold } });
+            await element.session.config.set({ layoutTransition: { transition, seconds: 30, hold } });
             await element.graph.setLayout("inv-ring-small");
-            await operationQueueOf(element.graph).waitForCompletion();
-            await element.waitForStableFrame();
-            await assertAllDrawn(element, `at the Glide pose held at ${String(hold)}`);
+            await settle(element);
+            await assertAllDrawn(element, `at the ${transition} pose held at ${String(hold)}`);
             element.remove();
         }
     });

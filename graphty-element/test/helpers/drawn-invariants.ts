@@ -16,12 +16,17 @@ const REACH = 2;
 /** Where along an edge, from source to target center, its ink is looked for (arrowheads sit past 0.85). */
 const ALONG = [0.3, 0.5, 0.7];
 
+/** How far past a node's measured radius its ink may reach, in CSS pixels: antialiasing. */
+const SLACK = 3;
+
 /** One frame and how to read it at a CSS point. */
 interface Picture {
     /** The pixel at a CSS point, or undefined off the canvas. */
     at(x: number, y: number): readonly number[] | undefined;
     /** The background, read from a corner. */
     background: readonly number[];
+    /** Every pixel, with its CSS point. */
+    each(visit: (p: readonly number[], x: number, y: number) => boolean): void;
 }
 
 /**
@@ -44,6 +49,16 @@ async function picture(element: Graphty): Promise<Picture> {
     return {
         at: (x, y) => pixel(Math.round(x * scale), frame.height - Math.round(y * scale) - 1),
         background: pixel(0, 0) ?? [0, 0, 0],
+        each: (visit) => {
+            for (let py = 0; py < frame.height; py++) {
+                for (let px = 0; px < frame.width; px++) {
+                    const p = pixel(px, py) ?? [];
+                    if (!visit(p, px / scale, (frame.height - 1 - py) / scale)) {
+                        return;
+                    }
+                }
+            }
+        },
     };
 }
 
@@ -75,6 +90,31 @@ function near(pic: Picture, x: number, y: number, test: (p: readonly number[]) =
  */
 function magenta(p: readonly number[]): boolean {
     return p[0] > p[1] + 60 && p[2] > p[1] + 60;
+}
+
+/**
+ * Whether a pixel is the nodes' blue (#2040ff), lit or blended.
+ * @param p - The pixel.
+ * @returns True when blue leads red and green.
+ */
+function blue(p: readonly number[]): boolean {
+    return p[2] > p[0] + 60 && p[2] > p[1] + 60;
+}
+
+/**
+ * The distance from a point to a segment.
+ * @param x - The point's x.
+ * @param y - The point's y.
+ * @param a - The segment's start.
+ * @param b - The segment's end.
+ * @returns The distance.
+ */
+function toSegment(x: number, y: number, a: { x: number; y: number }, b: { x: number; y: number }): number {
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const length2 = dx * dx + dy * dy;
+    const t = length2 === 0 ? 0 : Math.max(0, Math.min(1, ((x - a.x) * dx + (y - a.y) * dy) / length2));
+    return Math.hypot(x - a.x - t * dx, y - a.y - t * dy);
 }
 
 /**
@@ -126,4 +166,63 @@ export async function undrawnEdges(
             ALONG.some((t) => !near(pic, a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, magenta))
         );
     });
+}
+
+/**
+ * Node or edge ink drawn away from every node and edge where it belongs: a drawing left behind,
+ * such as edges on the poses a transition passed or a view's edges after a switch.
+ * @param element - The element.
+ * @param ids - Every node loaded.
+ * @param pairs - Every edge loaded, as source and target ids.
+ * @returns Up to five stray points, in CSS pixels, rounded.
+ */
+export async function strayInk(
+    element: Graphty,
+    ids: readonly string[],
+    pairs: readonly (readonly [string, string])[],
+): Promise<string[]> {
+    const pic = await picture(element);
+    const at = new Map(ids.map((id) => [id, centre(element, id)]));
+    const nodes = [...at.values()].filter((c) => c !== undefined);
+    // A node's drawn radius, walked out from its center while the pixels stay node blue: the camera
+    // frames each pose afresh, so a fixed band would not fit both a wide ring and a narrow one.
+    const radius = Math.max(
+        0,
+        ...nodes.flatMap((c) =>
+            [
+                [1, 0],
+                [-1, 0],
+                [0, 1],
+                [0, -1],
+            ].map(([dx, dy]) => {
+                let r = 0;
+                while (blue(pic.at(c.x + dx * (r + 1), c.y + dy * (r + 1)) ?? [0, 0, 0])) {
+                    r++;
+                }
+
+                return r;
+            }),
+        ),
+    );
+    // An arrowhead's wing is about a node's radius from its line; a plain line is narrower.
+    const nodeBand = radius + SLACK;
+    const edgeBand = radius + SLACK;
+    const segments = pairs.flatMap(([src, dst]) => {
+        const a = at.get(src);
+        const b = at.get(dst);
+        return a === undefined || b === undefined ? [] : [[a, b] as const];
+    });
+    const stray: string[] = [];
+    pic.each((p, x, y) => {
+        if (
+            (magenta(p) || blue(p)) &&
+            !nodes.some((c) => Math.hypot(x - c.x, y - c.y) <= nodeBand) &&
+            !segments.some(([a, b]) => toSegment(x, y, a, b) <= edgeBand)
+        ) {
+            stray.push(`${String(Math.round(x))},${String(Math.round(y))}`);
+        }
+
+        return stray.length < 5;
+    });
+    return stray;
 }

@@ -9,8 +9,7 @@
 // Claude Code sessions, so the owner's own shell is untouched. Any failure exits 0 silently (allow).
 //
 //   echo '{"tool_name":"Bash","tool_input":{"command":"git checkout --ours a.ts"}}' | node tools/claude-no-file-checkout.mjs
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { deny, runHook } from "./claude-hook.mjs";
 
 // git options before the subcommand that take a separate argument
 const GIT_OPTION_WITH_ARG = new Set(["-C", "-c", "--git-dir", "--work-tree", "--namespace"]);
@@ -137,25 +136,13 @@ export function respond(input) {
     if (!why) {
         return "";
     }
-    return JSON.stringify({
-        hookSpecificOutput: {
-            hookEventName: "PreToolUse",
-            permissionDecision: "deny",
-            permissionDecisionReason:
-                `Refused: ${why}. Never check out, restore or take one side of individual files. Settle a ` +
-                "conflict by editing the file so it keeps both intents; for a generated or record file, rerun " +
-                "its generator or test after the merge. If a run rewrote a tracked file you did not mean to " +
-                "change, leave it uncommitted and say so in your report. Whole-branch checkouts " +
-                "(git checkout <branch>, git switch) are allowed.",
-        },
-    });
+    return deny(
+        `Refused: ${why}. Never check out, restore or take one side of individual files. Settle a ` +
+            "conflict by editing the file so it keeps both intents; for a generated or record file, rerun " +
+            "its generator or test after the merge. If a run rewrote a tracked file you did not mean to " +
+            "change, leave it uncommitted and say so in your report. Whole-branch checkouts " +
+            "(git checkout <branch>, git switch) are allowed.",
+    );
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
-    try {
-        process.stdout.write(respond(JSON.parse(readFileSync(0, "utf8"))));
-    } catch {
-        // Never block a command because the hook itself failed.
-    }
-    process.exit(0);
-}
+runHook(import.meta.url, respond);

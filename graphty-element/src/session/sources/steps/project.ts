@@ -1018,7 +1018,7 @@ export interface StepRow {
 }
 
 /** A merge or a Make an edge step, read back as the act that makes it (5.2, 7.13). */
-export interface StepAct {
+interface StepAct {
     readonly act: "connect" | "merge";
     /** Source 2's field, read on its rows. */
     readonly from: { readonly source: string; readonly field: string };

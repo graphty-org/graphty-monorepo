@@ -257,7 +257,7 @@ type StartingRowId =
 const PINNED_ROW_ID = "graphty:starting-pinned";
 
 /** The template id the Draft row carries (experimental: source-steps). */
-const DRAFT_ROW_ID = "graphty:starting-draft";
+const DRAFT_ROW_ID = "graphty:draft";
 
 /**
  * The Draft row's look: a ring on the nodes a drawn source draft's commit would merge, a dashed

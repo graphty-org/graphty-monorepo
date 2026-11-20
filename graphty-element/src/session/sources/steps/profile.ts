@@ -15,7 +15,7 @@ import type { CellValue, Row, TableName } from "./types";
 const SAMPLES = 5;
 
 /** What most of a column's filled cells read as. */
-export type ProfileKind = "text" | "number" | "date" | "boolean";
+type ProfileKind = "text" | "number" | "date" | "boolean";
 
 /** One column's profile. */
 export interface ColumnProfile {
@@ -36,7 +36,7 @@ export interface ColumnProfile {
 }
 
 /** One table of a source as read. */
-export interface TableSummary {
+interface TableSummary {
     readonly table: TableName;
     readonly rows: number;
     /** Its columns under their working names, in the order first read. */
@@ -44,7 +44,7 @@ export interface TableSummary {
 }
 
 /** What a source's rows are. */
-export interface SourceSummary {
+interface SourceSummary {
     readonly tables: readonly TableSummary[];
     /** Its copy id: `sha256:` and the digest of the bytes as read, or a ULID. */
     readonly origin: string;
@@ -56,7 +56,7 @@ export interface SourceSummary {
 }
 
 /** What a source's rows are for: rows are, key, the spaces named, the types. */
-export interface MappingSummary {
+interface MappingSummary {
     readonly rows: "nodes" | "edges" | "both";
     readonly key?: string;
     readonly space?: string;
@@ -130,7 +130,7 @@ function kindOf(v: CellValue): ProfileKind {
  * @param cells - The cells, one per row.
  * @returns The profile.
  */
-export function profileOf(cells: Iterable<CellValue | undefined>): ColumnProfile {
+function profileOf(cells: Iterable<CellValue | undefined>): ColumnProfile {
     let rows = 0;
     let empty = 0;
     const kinds: Record<ProfileKind, number> = { text: 0, number: 0, date: 0, boolean: 0 };
@@ -216,7 +216,7 @@ function columnsOf(rows: readonly Row[]): string[] {
  * @throws A `GraphtyError` with `E_LOAD_UNKNOWN` for an unknown source, or `E_UNKNOWN_ATTRIBUTE`
  *   `{ source, column, table }` for a column the table does not hold.
  */
-export function sourceProfile(
+function sourceProfile(
     value: SourceSteps,
     copies: Copies,
     source: string,
@@ -261,7 +261,7 @@ export function spaceProfile(value: SourceSteps, copies: Copies, space: string):
  * @returns The summary.
  * @throws A `GraphtyError` with `E_LOAD_UNKNOWN` for an unknown source.
  */
-export function sourceSummary(value: SourceSteps, copies: Copies, source: string): SourceSummary {
+function sourceSummary(value: SourceSteps, copies: Copies, source: string): SourceSummary {
     const src = sourceOf(value, source);
     const map = copyMap(copies);
     const tables = (["nodes", "edges"] as const).flatMap((table): TableSummary[] => {

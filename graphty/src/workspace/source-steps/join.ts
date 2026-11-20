@@ -237,7 +237,7 @@ function summaryOf(session: GraphSession, source: SourceKey): SourceTableFacts |
  * @param source - the source.
  * @returns the space, or undefined when it built no node.
  */
-export function spaceOfSource(session: GraphSession, source: SourceKey): string | undefined {
+function spaceOfSource(session: GraphSession, source: SourceKey): string | undefined {
     return session.data.spaces().find((row) => row.nodes > 0 && row.sources.includes(source))?.space;
 }
 

@@ -836,6 +836,28 @@ describe("source-steps: save and reopen", () => {
         q.dispose();
     });
 
+    it("a file saved without the experiment, opened with it and given a staged source, keeps its own source", async () => {
+        const off = createGraphSession({ features: [] });
+        await off.data.import({ type: "csv", config: { data: "id,dept\np1,Ops\np2,Lab\n" }, name: "people.csv" });
+        const { text: old } = await off.project.save();
+        off.dispose();
+        const on = createGraphSession({ features: ["source-steps"] });
+        await on.project.open(old);
+        const names = (s: GraphSession): (string | undefined)[] => s.data.sources({ staged: true }).map((x) => x.name);
+        assert.deepStrictEqual(names(on), ["people.csv"]);
+        await on.data.stage({ type: "csv", config: { data: "id,site\np1,B1\n" }, name: "hr2.csv" });
+        assert.deepStrictEqual(names(on), ["people.csv", "hr2.csv"]);
+        assert.deepStrictEqual(
+            on.data.sources().map((x) => x.name),
+            ["people.csv"],
+        );
+        assert.lengthOf(on.data.nodes({ scope: "graph" }), 2);
+        const { q, problems } = await reopen(on);
+        assert.deepStrictEqual(problems, []);
+        assert.deepStrictEqual(names(q), ["people.csv", "hr2.csv"]);
+        q.dispose();
+    });
+
     it("a file saved without the experiment, opened with it and given a staged then added source, keeps it", async () => {
         const off = createGraphSession({ features: [] });
         await off.data.import({ type: "csv", config: { data: "source,target,w\nx,y,1\ny,z,2\n" } });

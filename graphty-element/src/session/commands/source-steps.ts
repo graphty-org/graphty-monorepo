@@ -288,6 +288,39 @@ function listed(
 }
 
 /**
+ * The listed sources with those no step builds put back first: the sources a file saved without the
+ * experiment brought in stay listed, with their provenance, until a replacing load starts a new graph.
+ * @param ctx - The command's context.
+ * @param prior - The value before the edit.
+ * @param next - The value after it.
+ * @param sources - The sources the steps list.
+ * @param provenance - Their provenance.
+ * @returns The sources and provenance to write.
+ */
+function withUnbuilt(
+    ctx: UndoableContext,
+    prior: SourceSteps,
+    next: SourceSteps,
+    sources: readonly LoadedSource[],
+    provenance: Provenance,
+): { sources: readonly LoadedSource[]; provenance: Provenance } {
+    const stepped = (key: string): boolean => prior.sources[key] !== undefined || next.sources[key] !== undefined;
+    // An entry saved before loads had keys has its place in the list as its key, as `sources()` reads it.
+    const unbuilt = valueOf<readonly LoadedSource[]>(ctx, SOURCES_VALUE, []).filter(
+        (each, at) => !stepped(each.key ?? `s${String(at + 1)}`),
+    );
+    if (unbuilt.length === 0) {
+        return { sources, provenance };
+    }
+    const priorProvenance = valueOf<Provenance>(ctx, PROVENANCE_VALUE, {});
+    const kept = Object.entries(priorProvenance).filter(([key]) => key !== READER_SOURCE && !stepped(key));
+    return {
+        sources: Object.freeze([...unbuilt, ...sources]),
+        provenance: Object.freeze({ ...Object.fromEntries(kept), ...provenance }),
+    };
+}
+
+/**
  * The writes that add a diff's new edges: one `add-edges` per set of columns their ends and weight
  * are read from, each with the built ids of its records in order.
  * @param edges - The edges to add, by built id, in build order.
@@ -548,7 +581,9 @@ const dataStepsSet: UndoableDefinition<DataStepsSetCommand> = {
             apply({ kind: "add-nodes", records: diff.addNodes, idPath });
         }
         const ids = Object.freeze({ ...diff.kept, ...addEdges(diff.addEdges, ctx) });
-        const { sources, provenance } = listed(next, copies, ids);
+        const built = listed(next, copies, ids);
+        const { sources, provenance } =
+            adds?.replace === true ? built : withUnbuilt(ctx, prior, next, built.sources, built.provenance);
         const added = adds?.source ?? null;
         // A removal names the source left, as the off path does; an add names the one it adds.
         const named = edit.kind === "remove-source" ? newestLoaded(next) : added;

@@ -9,7 +9,7 @@
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
-import type { GraphSession } from "@graphty/graphty-element/session";
+import { createGraphSession, type GraphSession } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
@@ -195,6 +195,36 @@ describe("a second source arrives staged (source-steps)", () => {
         const section = await screen.findByRole("region", { name: "buildings.csv" });
         assert.strictEqual(session.data.nodes().length, 3);
         assert.isNotNull(within(section).getByRole("button", { name: /^Add/ }));
+    });
+
+    it("keeps the first file of a project saved without the experiment when a second one is staged", async () => {
+        const off = createGraphSession({ features: [] });
+        const draft = await off.data.prepare(
+            { type: "csv", config: { data: PEOPLE }, name: "people.csv" },
+            { guess: "values" },
+        );
+        await draft.load({ mapping: { rowsAre: "nodes" } });
+        const { text } = await off.project.save();
+        off.dispose();
+        const { session } = await emptyProject();
+        await session.project.open(text, { discard: true });
+        await waitFor(() => {
+            assert.strictEqual(session.data.nodes().length, 3);
+        });
+        await stage("buildings.csv", BUILDINGS);
+        assert.deepStrictEqual(
+            session.data.sources({ staged: true }).map((each) => each.name),
+            ["people.csv", "buildings.csv"],
+        );
+        const list = screen.getByRole("list", { name: "Data sources" });
+        assert.isNotNull(within(list).getByRole("listitem", { name: "people.csv" }));
+        const saved = await session.project.save();
+        await session.project.open(saved.text, { discard: true });
+        await screen.findByRole("region", { name: "buildings.csv" });
+        assert.deepStrictEqual(
+            session.data.sources({ staged: true }).map((each) => each.name),
+            ["people.csv", "buildings.csv"],
+        );
     });
 
     it("asks again after a save and reopen: a picked Space comes back as a proposal, and Add holds Commit for an answer", async () => {

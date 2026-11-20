@@ -153,8 +153,9 @@ describe("one data edit on a large graph", () => {
 
         const counted = await countedWork(element, () => element.session.data.addEdges(added));
 
-        // Each of the fan's 41 edges may be placed again on each frame that builds or paints part of it.
-        assert.isAtMost(counted.placed, 41 * 41, "placements are bounded by the fan, not the graph");
+        // Each of the fan's 41 edges is placed once a frame at most, on the frames that build and paint it: a few
+        // hundred placements, against 2,000 for one walk of every edge.
+        assert.isAtMost(counted.placed, 1000, "placements are bounded by the fan, not the graph");
         assert.isAtMost(counted.repainted, added.length + 2, "the added edges and their ends are repainted");
     });
 

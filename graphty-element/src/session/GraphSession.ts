@@ -4985,9 +4985,11 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             through.renumbers === now.renumbers &&
             through.nodes === now.nodes &&
             through.edges === now.edges;
-        // A record edit that named no field it changed (none was heard) is painted whole, as before.
+        // A record edit of a kind whose changed fields were not heard is painted whole, as before.
+        const keys = [...(dirty ?? [])];
         const heard =
-            changed.node.length + changed.edge.length > 0 || [...(dirty ?? [])].every((key) => key.startsWith("v:"));
+            (changed.node.length > 0 || !keys.some((key) => key.startsWith("n:"))) &&
+            (changed.edge.length > 0 || !keys.some((key) => namesEdges(key)));
         if (dirty !== null && rowsKept && heard && recordsOnlyKeys(dirty)) {
             const readers = stack.filter((entry) => readsAnyField(entry, changed));
             if (readers.length > 0) {

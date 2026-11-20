@@ -3508,17 +3508,8 @@ export class DataManager implements Manager {
             return;
         }
 
-        const snapshot = this.getSnapshot();
         const byRow = this.renderLimits?.batched() === true;
-        const seen = new Set<string>();
-        for (const [a, b] of changed) {
-            const key = pairKey(a, b);
-            if (seen.has(key)) {
-                continue;
-            }
-
-            seen.add(key);
-            const joined = this.pairMembers(snapshot, a, b);
+        for (const { members: joined } of this.membersOfPairs(changed)) {
             // The bundles as they stood: an edge that left keeps no answer, and one left alone is lone.
             for (const each of joined) {
                 const stood = typeof each === "number" ? undefined : bundles.byEdge.get(each);
@@ -3555,15 +3546,30 @@ export class DataManager implements Manager {
             return null;
         }
 
+        return this.membersOfPairs(pairs).map(({ a, b, members }) => ({
+            a,
+            b,
+            edges: members.filter((each): each is Edge => typeof each !== "number"),
+        }));
+    }
+
+    /**
+     * Each of some pairs of nodes once, whichever way round and however often it is named, with
+     * {@link pairMembers}'s edges between them, off the current snapshot.
+     * @param pairs - The pairs, repeats allowed.
+     * @returns Each pair's two ends and members.
+     */
+    private membersOfPairs(
+        pairs: Iterable<readonly [NodeIdType, NodeIdType]>,
+    ): { readonly a: NodeIdType; readonly b: NodeIdType; readonly members: (Edge | number)[] }[] {
         const snapshot = this.getSnapshot();
         const seen = new Set<string>();
-        const found: { readonly a: NodeIdType; readonly b: NodeIdType; readonly edges: Edge[] }[] = [];
+        const found: { readonly a: NodeIdType; readonly b: NodeIdType; readonly members: (Edge | number)[] }[] = [];
         for (const [a, b] of pairs) {
             const key = pairKey(a, b);
             if (!seen.has(key)) {
                 seen.add(key);
-                const edges = this.pairMembers(snapshot, a, b).filter((each): each is Edge => typeof each !== "number");
-                found.push({ a, b, edges });
+                found.push({ a, b, members: this.pairMembers(snapshot, a, b) });
             }
         }
 

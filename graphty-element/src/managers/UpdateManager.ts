@@ -993,6 +993,9 @@ export class UpdateManager implements Manager {
             if (edge.setSelected(false) || revealed) {
                 this.edgesToPlace.push(edge);
                 this.sceneChanged = true;
+                if (this.hasSupportPoint(edge)) {
+                    this.forceEdgeWalk();
+                }
             }
         }
     }
@@ -1357,19 +1360,17 @@ export class UpdateManager implements Manager {
      * @internal
      */
     adoptBuiltNode(node: Node): void {
-        // While a load holds the draw they wait for the walk that ends the repaint, as a resize's do;
-        // otherwise this frame places them, and only them (issue #9164).
-        const place = !this.dataManager.drawHeld;
+        // Placed by the frame that next places edges (`placeTouchedEdges` keeps them while a load holds the draw),
+        // and only them; a support point, which pushes on the others, still walks every edge (issue #9164).
         for (const edge of this.edgesByNode().get(node.id) ?? []) {
             edge.invalidatePositionCache();
-            if (place) {
-                this.edgesToPlace.push(edge);
+            this.edgesToPlace.push(edge);
+            if (this.hasSupportPoint(edge)) {
+                this.forceEdgeWalk();
             }
         }
 
-        if (place) {
-            this.sceneChanged = true;
-        }
+        this.sceneChanged = true;
 
         const masks = this.viewMasks ?? EMPTY_MASKS;
         const visibility = masks.visibility?.nodes() ?? null;
@@ -1810,6 +1811,27 @@ export class UpdateManager implements Manager {
     }
 
     /**
+     * Queue for placing the other edges of an edge's fan, when it has one and no walk of every edge is
+     * coming: while a load holds the draw, or when the bundles cannot be read without a freeze, the
+     * walk that ends the repaint places them.
+     * @param edge - The edge.
+     */
+    private placeFanOf(edge: Edge): void {
+        if (this.dataManager.drawHeld || this.edgeWalkForced) {
+            return;
+        }
+
+        const { members } = this.dataManager.drawnBundle(edge);
+        if (members.length > 1) {
+            for (const member of members) {
+                if (member !== edge) {
+                    this.edgesToPlace.push(member);
+                }
+            }
+        }
+    }
+
+    /**
      * Paint one batch of pending edges.
      * @param painter - Where the paint is read from.
      * @returns How many edges were painted.
@@ -1826,6 +1848,9 @@ export class UpdateManager implements Manager {
                 edge.applySessionPaint(paint);
                 this.sceneChanged ||= own || edge.togglesOwnMeshes();
                 this.edgesToPlace.push(edge);
+                // Each edge of a fan takes its slot from every member's paint: they are placed again with it,
+                // as the walk that used to end every repaint placed them (issue #9164).
+                this.placeFanOf(edge);
                 this.paintedSupportPoint ||= this.hasSupportPoint(edge);
                 painted++;
             }
@@ -4090,7 +4115,8 @@ export class UpdateManager implements Manager {
         }
 
         this.updateEdgesOf(walk === false ? [] : walk);
-        UpdateManager.placeEdges(this.edgesToPlace);
+        // An edge several things queued this frame is placed once.
+        UpdateManager.placeEdges(new Set(this.edgesToPlace));
         this.placedEdgesAtRows();
         this.unbuiltRowsMoved = false;
         this.edgesToPlace = [];

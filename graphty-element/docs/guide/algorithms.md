@@ -244,6 +244,22 @@ it is cut off. `cutOffShare` is the share of the remaining nodes cut off, read t
 interpretation bands: `none`, `minor` (any), `severe` (more than a tenth). Pieces are weak: an
 edge joins its two nodes whichever way it was declared.
 
+#### Single points of failure
+
+`articulation-points` finds the nodes, and `bridges` the edges, whose removal would split their
+piece of the graph. Each flagged node or edge carries `in: true`, which the suggested highlight
+layer paints; nothing else is touched. Each run also reports how many it found, and what share of
+the nodes (or edges) that is.
+
+```typescript
+const points = await element.session.runs.start("articulation-points");
+// How many cut points, and the fraction of the nodes they are.
+const { count, share } = points.graph;
+```
+
+Both read the graph as undirected. Two edges between the same pair of nodes back each other up, so
+neither is a bridge.
+
 ### Traversal Algorithms
 
 Explore the graph systematically:

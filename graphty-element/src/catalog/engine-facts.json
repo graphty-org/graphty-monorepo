@@ -1099,6 +1099,18 @@
             "weightMeaning": null,
             "loadedWeightByDefault": true
         },
+        "articulation-points": {
+            "options": [],
+            "scopeInput": "subgraph",
+            "weightMeaning": null,
+            "loadedWeightByDefault": true
+        },
+        "bridges": {
+            "options": [],
+            "scopeInput": "subgraph",
+            "weightMeaning": null,
+            "loadedWeightByDefault": true
+        },
         "spectral-clustering": {
             "options": [
                 {

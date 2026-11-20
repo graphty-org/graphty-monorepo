@@ -9,6 +9,7 @@
  */
 
 export { allPairsShortestPath, APSP_DEFAULT_MAX_NODES, type ApspOptions, type ApspResult } from "./all-pairs.js";
+export { articulationPoints, bridges, type EdgeSetResult, type NodeSetResult } from "./articulation.js";
 export { bellmanFord, type BellmanFordResult } from "./bellman-ford.js";
 export {
     betweennessCentrality,

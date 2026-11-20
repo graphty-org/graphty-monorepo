@@ -17,11 +17,13 @@ import {
     adamicAdarScore,
     allPairsShortestPath,
     allSimplePaths,
+    articulationPoints,
     astar,
     bellmanFord,
     betweennessCentrality,
     bidirectionalDijkstra,
     breadthFirstSearch,
+    bridges,
     closenessCentrality,
     commonNeighborsForPairs,
     commonNeighborsPrediction,
@@ -140,6 +142,7 @@ export interface AlgorithmInput {
  *   two sides. "isomorphism": a yes/no and a node mapping. "isomorphisms": every node mapping.
  * - "link-predictions": ranked node pairs with scores. "pair-scores": a score per given pair.
  *   "metrics": precision, recall, F1 and AUC.
+ * - "node-set": node indices, ascending (`nodes`). "edge-set": edge indices, ascending (`edges`).
  * - "boolean", "number": the value itself.
  */
 export type AlgorithmResultKind =
@@ -158,6 +161,8 @@ export type AlgorithmResultKind =
     | "matching"
     | "order"
     | "bipartition"
+    | "node-set"
+    | "edge-set"
     | "isomorphism"
     | "isomorphisms"
     | "link-predictions"
@@ -568,6 +573,32 @@ export const ALGORITHMS = {
         values: ["coreness"],
         dispatch: "kCoreDecomposition",
         accelerator: "kCoreDecomposition",
+    },
+    articulationPoints: {
+        name: "articulationPoints",
+        fn: articulationPoints,
+        category: "components",
+        direction: "undirected",
+        weights: "never",
+        inputs: [],
+        requiredOptions: [],
+        result: "node-set",
+        values: [],
+        dispatch: null,
+        accelerator: null,
+    },
+    bridges: {
+        name: "bridges",
+        fn: bridges,
+        category: "components",
+        direction: "undirected",
+        weights: "never",
+        inputs: [],
+        requiredOptions: [],
+        result: "edge-set",
+        values: [],
+        dispatch: null,
+        accelerator: null,
     },
 
     // Structure

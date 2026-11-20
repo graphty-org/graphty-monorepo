@@ -544,7 +544,9 @@ export function claimOf(issue) {
 }
 
 /**
- * Whether a claim is live. Live when ANY holds: an open pull request on its branch; a marker, commit or changed
+ * Whether a claim is live. Live when ANY holds: an open pull request on its branch (claimsCommand leaves out one red or
+ * conflicting with no head commit for 6 hours, stalledPr: with no other evidence that claim is stranded, kept and
+ * never released, since that pull request still names its issue); a marker, commit or changed
  * worktree file in the last 60 minutes; a held or waiting test-slot ticket in its worktree; a subagent transcript of
  * its session naming its branch written in the last 30 minutes; or, for a session other than the round's, that the
  * session is alive and the branch was active in the last 24 hours. The round's own session is always alive, so its
@@ -563,7 +565,11 @@ export function judgeClaim(c, f, now) {
     // that branch still run (a red pull request's own claim used to keep it red).
     const named = f.namedBy?.(c.n);
     if (named) return { live: true, why: named, at: c.at, byWork: true };
-    if (c.kind === "released") return { live: false, why: "released, label left on", at: c.at, labelOnly: true };
+    // Named only by a pull request red or conflicting with no head commit for 6 hours (#9136): not live work, but never
+    // released either, or a second job would start on an issue an open pull request still names: it is stranded.
+    const stale = f.stalledBy?.(c.n);
+    if (c.kind === "released" && !stale)
+        return { live: false, why: "released, label left on", at: c.at, labelOnly: true };
     const at = Math.max(
         c.at || 0,
         c.branch ? f.branchCommitAt(c.branch) : 0,
@@ -578,7 +584,13 @@ export function judgeClaim(c, f, now) {
     if (c.session && c.session !== f.roundSession && now - at < OTHER_SESSION_MS && f.sessionAlive(c.session))
         return { live: true, why: "its session is alive", at };
     const commits = c.branch || c.worktree ? f.commitsAhead(c.branch, c.worktree) : 0;
-    return { live: false, why: `no activity for ${ago}`, at, stranded: commits > 0, commits };
+    return {
+        live: false,
+        why: stale ?? `no activity for ${ago}`,
+        at,
+        stranded: commits > 0 || Boolean(stale),
+        commits,
+    };
 }
 
 // A line that claims work: `Fixes #1`, `Refs #2, #3 and #4`
@@ -719,9 +731,20 @@ const HELD_QUERY = LIST_QUERY.replace(
 );
 const OPEN_PR_QUERY = `query($owner: String!, $name: String!, $after: String) {
   repository(owner: $owner, name: $name) {
-    pullRequests(states: OPEN, first: 100, after: $after) { pageInfo { hasNextPage endCursor } nodes { number headRefName title body } }
+    pullRequests(states: OPEN, first: 100, after: $after) { pageInfo { hasNextPage endCursor } nodes { number headRefName title body mergeable
+      commits(last: 1) { nodes { commit { committedDate statusCheckRollup { state } } } } } }
   }
 }`;
+
+// A pull request red or conflicting with no head commit for 6 hours is no evidence of live work (#9136: about 45 such
+// pull requests kept their claims live for days): their claims are stranded, and issue-groups' `fix-red` takes the
+// agent's own.
+const RED_PR_IDLE_MS = 6 * HOUR;
+const stalledPr = (p, now) => {
+    const head = p.commits?.nodes?.[0]?.commit;
+    if (!head?.committedDate || now - Date.parse(head.committedDate) < RED_PR_IDLE_MS) return false;
+    return ["FAILURE", "ERROR"].includes(head.statusCheckRollup?.state) || p.mergeable === "CONFLICTING";
+};
 
 const paged = (run, query, vars, pick) => {
     const all = [];
@@ -929,10 +952,18 @@ export function claimsCommand(o = {}) {
         throw new Error("git fetch failed: claims unknown");
     }
     const issues = fetchLabeled("in-progress", run);
-    const prs = paged(run, OPEN_PR_QUERY, {}, (r) => r.pullRequests);
+    const all = paged(run, OPEN_PR_QUERY, {}, (r) => r.pullRequests);
+    const stalled = new Set(all.filter((p) => stalledPr(p, now)).map((p) => p.headRefName));
+    const prs = all.filter((p) => !stalled.has(p.headRefName));
     const machine = o.facts ?? machineFacts(root, new Set(prs.map((p) => p.headRefName)));
-    const named = namedIssues({ prs, branches: machine.recentBranches?.(now) ?? [] });
-    const facts = { ...machine, namedBy: (n) => named.get(n) ?? null };
+    const recent = machine.recentBranches?.(now) ?? [];
+    const named = namedIssues({ prs, branches: recent.filter((b) => !stalled.has(b.name)) });
+    const stale = namedIssues({
+        prs: all.filter((p) => stalled.has(p.headRefName)),
+        branches: recent.filter((b) => stalled.has(b.name)),
+    });
+    const stalledBy = (n) => (stale.has(n) ? `${stale.get(n)}, red or conflicting with no commit for 6 h` : null);
+    const facts = { ...machine, namedBy: (n) => named.get(n) ?? null, stalledBy };
     const { claims } = sweepClaims(issues, facts, now);
     const by = (a) => claims.filter((c) => c.action === a);
     const lines = [];

@@ -884,6 +884,7 @@ export type Channel =
     | "node.groupMinHeightBiasTop"
     | "node.groupIncludeLabels"
     | "edge.color"
+    | "edge.colorFrom"
     | "edge.width"
     | "edge.minScreenWidth"
     | "edge.fadeStart"

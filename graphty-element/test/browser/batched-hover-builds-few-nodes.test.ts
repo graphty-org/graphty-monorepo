@@ -32,9 +32,10 @@ const FEW = 1;
  * A 10,000-node chain on the batched path, drawn with the default arrowheads, on a fixed grid.
  * @param directed - Whether its edges carry arrowheads.
  * @param shape - The nodes' shape, when not the default sphere.
+ * @param edges - What a layer paints on every edge, if anything.
  * @returns The element.
  */
-async function mounted(directed: boolean, shape?: string): Promise<Graphty> {
+async function mounted(directed: boolean, shape?: string, edges?: Record<string, unknown>): Promise<Graphty> {
     const element = document.createElement("graphty-element");
     element.renderPath = "batched";
     element.directed = directed;
@@ -54,6 +55,15 @@ async function mounted(directed: boolean, shape?: string): Promise<Graphty> {
             target: "node",
             selector: { match: "everything" },
             set: { "node.shape": shape },
+        });
+    }
+
+    if (edges !== undefined) {
+        await element.session.styles.add({
+            name: "edges",
+            target: "edge",
+            selector: { match: "everything" },
+            set: edges,
         });
     }
 
@@ -130,6 +140,16 @@ describe("one node acted on in a 10,000-node connected batched graph builds that
 
         await hoverMiddle(element);
     });
+
+    // a line with no arrowhead that a row line does not draw (a label, a dash) starts at its ends' outlines
+    it.each([{ "edge.label": "e" }, { "edge.style": "dash" }])(
+        "a real hover with undirected edges set %o",
+        async (set) => {
+            const element = await mounted(false, undefined, set);
+            assert.equal(built(element), 0, "the load builds no Node");
+            await hoverMiddle(element);
+        },
+    );
 
     it("a border on one node", async () => {
         const element = await mounted(true);

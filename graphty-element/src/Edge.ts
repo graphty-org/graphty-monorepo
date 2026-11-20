@@ -1895,19 +1895,25 @@ export class Edge {
      */
     private bareEnd(end: "source" | "target", centre: Vector3, toward: Vector3): Vector3 {
         const gap = this.gapAt(end);
-        const node = end === "source" ? this.srcNode : this.dstNode;
         // a node drawn at opacity 0 hides nothing: the line ends at its outline, where a drawn node's hides the rest
         // (Cytoscape.js `visibility: hidden` keeps the node's place and its edges, trimmed at its shape)
-        const invisible = node.drawnOpacity <= 0;
+        const invisible = this.endInvisible(end);
+        const behind = this.endBehindEdges(end);
         // an end drawn in front of edges hides the line's start at its center, and asks nothing of its node, unless its
         // body is translucent and would show the line through it: then the line leaves at its outline, as the batched
         // path's shader leaves it (`PULLED_TRIM_GLSL`, #8281)
-        if (gap <= 0 && !invisible && !this.endBehindEdges(end)) {
+        if (gap <= 0 && !invisible && !behind) {
             const seen = this.seenThroughEnd(end);
             return seen === null ? centre : this.leaveNode(seen, centre, toward);
         }
 
-        return gap > 0 || invisible ? this.leaveNode(node, centre, toward, gap) : this.groupEnd(node, centre, toward);
+        // an end drawn with no `Node` is measured by its row, so none is built for it (issue #9166)
+        const node: RowMeasure = this.columnEnd(end) ?? (end === "source" ? this.srcNode : this.dstNode);
+        if (gap > 0 || invisible) {
+            return this.leaveNode(node, centre, toward, gap);
+        }
+
+        return behind ? this.plateEnd(node, centre, toward) : centre;
     }
 
     /**
@@ -1940,10 +1946,17 @@ export class Edge {
      * @returns The point.
      */
     private groupEnd(node: Node, centre: Vector3, toward: Vector3): Vector3 {
-        if (!node.isDrawnBehindEdges) {
-            return centre;
-        }
+        return node.isDrawnBehindEdges ? this.plateEnd(node, centre, toward) : centre;
+    }
 
+    /**
+     * Where a line leaves a node drawn behind every edge ({@link groupEnd}): its outline across the view.
+     * @param node - The end's node, or the row that draws it.
+     * @param centre - Its center.
+     * @param toward - The other end's center.
+     * @returns The point.
+     */
+    private plateEnd(node: RowMeasure, centre: Vector3, toward: Vector3): Vector3 {
         // The region is a thin plate: the line leaves it through its outline across the view, never through its
         // face, so the crossing is found in the plane and the line's depth carried along to it.
         const across = Math.hypot(toward.x - centre.x, toward.y - centre.y);

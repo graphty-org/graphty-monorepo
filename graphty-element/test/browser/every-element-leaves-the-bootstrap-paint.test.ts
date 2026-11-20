@@ -9,7 +9,7 @@
  * repaint ever reached, and it will go on ignoring every layer a consumer adds.
  *
  * WHY IT IS READ OFF THE SCENE AND NOT OFF THE STYLE MODEL. The model was right the whole time.
- * Measured on the algorithm stories: the pass had resolved a colour, a size and a shape for every
+ * Measured on the algorithm stories: the pass had resolved a color, a size and a shape for every
  * one of the twenty nodes, `styles.explain()` named the layers that painted them, and the meshes
  * on screen were built from the bootstrap key. What was lost was the hand-over between the two --
  * the dirty set the pass announces and the renderer applies.

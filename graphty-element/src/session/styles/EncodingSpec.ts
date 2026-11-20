@@ -1,7 +1,7 @@
 /**
  * @file `encode()`: the one path an analysis layer takes, and the layer it writes.
  *
- * A consumer that has just run an algorithm wants one thing -- "colour the graph by this" -- and
+ * A consumer that has just run an algorithm wants one thing -- "color the graph by this" -- and
  * everything else in a style layer is detail it can get wrong. So `encode()` takes the run, the
  * channel and the taste (a palette, a scale, a clamp), and `planEncoding` writes the rest:
  * the path, the selector, the layer's kind, its name and where it came from.
@@ -26,7 +26,7 @@
  * - A result shape that names a SUBSET rather than measuring everything -- a route, a chosen set
  *   of nodes or edges -- is a highlight, and `highlight()` paints it. Encoding one would produce
  *   a layer scoped to every element the run looked at, including the ones that are not on the
- *   route, and then colour them by whether they are: exactly the "this algorithm painted my whole
+ *   route, and then color them by whether they are: exactly the "this algorithm painted my whole
  *   graph" defect, one level down. Only the field that names the subset is refused: a field
  *   published beside it, like the side of a cut every node ended up on, is encoded like any other.
  * - A field the run did not publish, or a field of the wrong half -- a node field driving an edge
@@ -54,7 +54,6 @@ import type {
     ShaderParamAddress,
 } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
-import { englishRunLabel } from "../english";
 import { nearestNames } from "../results/ResultsApi";
 import { fieldMeasurement, resultPath, resultShapeContract, type RunRef } from "../results/types";
 import type { RunDistinction } from "../runs/types";
@@ -94,30 +93,30 @@ export interface EncodingSpec {
      * The palette.
      *
      * Left off, the element picks one when the layer is painted, from the groups the run actually
-     * produced: a ramp for a measurement, and for groups the smallest palette in the catalogue
-     * that can name them all. Named, it is honoured as named -- and refused if the run has more
-     * groups than it has colours, because a categorical palette never wraps.
+     * produced: a ramp for a measurement, and for groups the smallest palette in the catalog
+     * that can name them all. Named, it is honored as named -- and refused if the run has more
+     * groups than it has colors, because a categorical palette never wraps.
      */
     readonly palette?: PaletteId;
     /**
-     * What a categorical colour encoding does when the run found more groups than the palette has
-     * colours (8 for the default palette). Ignored for a measurement, which has no groups.
+     * What a categorical color encoding does when the run found more groups than the palette has
+     * colors (8 for the default palette). Ignored for a measurement, which has no groups.
      *
-     * - `"other"` -- THE DEFAULT. The 8 largest groups keep the palette's colours in palette order,
-     *   largest first, and every remaining group is painted one grey (#686868), which the legend
+     * - `"other"` -- THE DEFAULT. The 8 largest groups keep the palette's colors in palette order,
+     *   largest first, and every remaining group is painted one gray (#686868), which the legend
      *   lists as its last row, marked `role: "other"`.
-     * - `"shape"` -- node encodings only. Colours cycle through the palette and each full cycle
-     *   moves to the next node shape: group i is colour i mod 8 and shape floor(i / 8) from
+     * - `"shape"` -- node encodings only. Colors cycle through the palette and each full cycle
+     *   moves to the next node shape: group i is color i mod 8 and shape floor(i / 8) from
      *   icosphere (the default shape), box, octahedron, cylinder, cone, torus. Groups past 48 fold
-     *   into the grey. The shape is written by the same layer, so it is added and removed with
-     *   the colour. Refused with `E_BAD_COMMAND` on an edge channel, since an edge has no shape.
-     * - `"extend"` -- every group gets a colour of its own: a larger categorical palette when one
-     *   fits, and past that the sequential default sampled once per group. Colours past the
+     *   into the gray. The shape is written by the same layer, so it is added and removed with
+     *   the color. Refused with `E_BAD_COMMAND` on an edge channel, since an edge has no shape.
+     * - `"extend"` -- every group gets a color of its own: a larger categorical palette when one
+     *   fits, and past that the sequential default sampled once per group. Colors past the
      *   palette's capacity are NOT guaranteed to be told apart.
      *
      * With a `palette` named, N is that palette's capacity. A named palette with NO overflow keeps
      * the strict rule: too many groups is refused with `E_CAP_EXCEEDED`, because the caller asked
-     * for exactly those colours. Naming an overflow applies it instead.
+     * for exactly those colors. Naming an overflow applies it instead.
      */
     readonly overflow?: BindingOverflow;
     /** The extent to read values against. Defaults to the extent the run measured. */
@@ -222,12 +221,6 @@ export interface EncodingRun {
     /** The run id, which is the path segment under `results`. */
     readonly id: RunId;
     /**
-     * What to call the run, which becomes half of the layer's name.
-     * @deprecated Word the run from its `algorithm`, {@link EncodingRun.distinguishedBy} and
-     *   {@link EncodingRun.siblingsDifferBy} yourself. Removed in the next major.
-     */
-    readonly label: string;
-    /**
      * The option the run's name was suggested by, once it left its default. See
      * {@link Run.distinguishedBy}.
      * @since 3.18.0
@@ -263,6 +256,12 @@ export interface EncodingSource {
      * @returns The ids, in the order the runs were started.
      */
     runIds(): readonly RunId[];
+    /**
+     * The name a run's layers are given when the caller names none.
+     * @param id - The run id.
+     * @returns The name, or undefined when this session holds no such run.
+     */
+    defaultLayerName(id: RunId): string | undefined;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -458,10 +457,10 @@ function buildBinding(spec: EncodingOptions, path: string, scale: string, descri
     // omission. Nothing here knows how many groups the run found -- the field's values are not
     // read at plan time and the count is only settled when the column is walked -- so a palette
     // written in now is a guess, and the guess was wrong: a ten-community result was planned onto
-    // an eight-colour palette and then refused by the capacity check one step later, leaving a
+    // an eight-color palette and then refused by the capacity check one step later, leaving a
     // correct, enabled layer painting nothing. A binding with no palette is chosen for in
-    // `prepareRamp`, where the real count is in hand. A caller who wants the colours pinned names
-    // the palette, and then it is recorded and honoured exactly as written.
+    // `prepareRamp`, where the real count is in hand. A caller who wants the colors pinned names
+    // the palette, and then it is recorded and honored exactly as written.
     if (descriptor.accepts === "color" && spec.palette !== undefined) {
         binding.palette = spec.palette;
     }
@@ -497,7 +496,7 @@ function buildBinding(spec: EncodingOptions, path: string, scale: string, descri
 /**
  * The overflow policy a binding records.
  *
- * The default, "other", is written only onto a colour binding whose scale names groups and whose
+ * The default, "other", is written only onto a color binding whose scale names groups and whose
  * palette the element picks. A named palette with no policy keeps the strict refusal, and a
  * measurement has no groups to overflow, so writing a policy onto either would be noise in every
  * saved document. A policy the caller asked for is always recorded.
@@ -522,9 +521,9 @@ function overflowOf(spec: EncodingOptions, scale: string, descriptor: ChannelDes
 
 /**
  * The second half of `overflow: "shape"` (node shapes) or `"pattern"` (edge patterns), written
- * into the same layer as the colour.
+ * into the same layer as the color.
  * @param spec - The encoding.
- * @param colour - The colour binding it pairs with.
+ * @param colour - The color binding it pairs with.
  * @param descriptor - The channel, refused when it paints edges.
  * @returns The extra channel bindings, empty unless the policy cycles a second cue.
  * @throws A `GraphtyError` with code `E_BAD_COMMAND` for "shape" on an edge channel, or "pattern"
@@ -545,7 +544,7 @@ function overflowCompanion(spec: EncodingOptions, colour: RuleBinding, descripto
     }
 
     // The half carries what decides the cycle -- the value, the scale, the palette -- and nothing
-    // the colour's own reading of the data adds.
+    // the color's own reading of the data adds.
     const { by, overflow, scale, palette } = colour;
     const half = overflowHalf(descriptor.channel, {
         by,
@@ -611,7 +610,7 @@ export function planEncoding(spec: EncodingSpec, source: EncodingSource): LayerS
     const binding = { ...buildBinding(ranged, path, scale, descriptor), ...stepped?.extra };
 
     return {
-        name: spec.name ?? englishRunLabel(run),
+        name: spec.name ?? source.defaultLayerName(run.id) ?? run.algorithm,
         target: descriptor.target,
         kind: "encoding",
         selector: { match: "has", path },
@@ -642,7 +641,7 @@ const MAX_STEPS = 5;
 /**
  * The ordered sets a number steps through on a channel that takes one of a list, lightest first:
  * a line from dotted to solid, a shape from fewest faces to most, an arrow from a bar to a box.
- * A channel not listed walks its own catalogue list.
+ * A channel not listed walks its own catalog list.
  */
 const STEPPED_CHOICES: ReadonlyMap<Channel, readonly string[]> = new Map([
     ["edge.style", ["dot", "dash-dot", "dash", "solid"]],

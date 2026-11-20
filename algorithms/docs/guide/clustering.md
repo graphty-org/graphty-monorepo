@@ -6,7 +6,7 @@ related items, partitioning networks, and discovering hierarchical structures. E
 
 ## K-Core Decomposition
 
-The k-core of a graph is the largest subgraph in which every node has at least k neighbours. A node's core number is
+The k-core of a graph is the largest subgraph in which every node has at least k neighbors. A node's core number is
 the largest k whose k-core contains it.
 
 <!-- doc-check -->

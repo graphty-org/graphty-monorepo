@@ -14,7 +14,7 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 
 import { isGraphtyError } from "../../src/errors";
 import { type AssetRecord, type AssetsApi, createAssetsApi, isAssetId } from "../../src/session/assets/AssetsApi";
-import { canonicalFileSet, sha256Fallback, sha256Hex } from "../../src/session/assets/digest";
+import { canonicalFileSet, sha256Hex } from "../../src/session/assets/digest";
 import { createGraphSession } from "../../src/session/GraphSession";
 import {
     accessorBomb,
@@ -203,7 +203,6 @@ describe("session.assets: ids and records", () => {
         );
         const big = new Uint8Array(100_003).map((_, i) => i * 7);
         assert.strictEqual(await sha256Hex(big, false), createHash("sha256").update(big).digest("hex"));
-        assert.strictEqual(sha256Fallback(new Uint8Array(0)).length, 32);
     });
 
     it("keeps a friendly name, refuses it for different files and reserves asset:sample/", async () => {
@@ -269,6 +268,33 @@ describe("session.assets: ids and records", () => {
         assertRejected(await assets.add(binaryStl(2)), "E_MODEL_TOO_LARGE", { what: "bytes" });
     });
 
+    it("draws a model with many materials by default, and refuses it under a page's lower count limit", async () => {
+        const materials = gltfPair(triangleGltf({ materials: Array.from({ length: 148 }, () => ({})) }));
+        assert.strictEqual((await add({ files: materials })).state, "accepted");
+        const assets = createAssetsApi();
+        assets.setLimits({ maxMaterials: 64 });
+        assertRejected(await assets.add({ files: materials }), "E_MODEL_TOO_LARGE", {
+            what: "count",
+            item: "materials",
+            found: 148,
+            limit: 64,
+        });
+    });
+
+    it("holds any number of models by default, and refuses one past a page's session limit", async () => {
+        const assets = createAssetsApi();
+        assert.strictEqual(assets.limits().sessionBytes, Number.POSITIVE_INFINITY);
+        assert.strictEqual((await assets.add(binaryStl(2))).state, "accepted");
+        assert.strictEqual((await assets.add(binaryStl(3))).state, "accepted");
+        assets.setLimits({ sessionBytes: 1 });
+        assertRejected(await assets.add(binaryStl(4)), "E_MODEL_TOO_LARGE", { what: "sessionBytes" });
+        assets.setLimits({ sessionBytes: Number.POSITIVE_INFINITY });
+        assert.strictEqual((await assets.add(binaryStl(5))).state, "accepted");
+        assert.throws(() => {
+            assets.setLimits({ sessionBytes: Number.NaN });
+        }, /positive/);
+    });
+
     it("refuses a bad name with E_BAD_COMMAND", async () => {
         try {
             await add(binaryStl(1), { name: "rack" as `asset:${string}` });
@@ -332,7 +358,7 @@ describe("session.assets: hostile files, each refused with its code", () => {
         assert.strictEqual(done.state, "accepted", JSON.stringify(done.problems));
     });
 
-    it("refuses an accessor of 2e8 elements with no buffer view", async () => {
+    it("refuses an accessor of 3e8 elements with no buffer view", async () => {
         assertRejected(await add({ files: accessorBomb() }), "E_MODEL_TOO_LARGE", { what: "decodedBytes" });
     });
 
@@ -347,7 +373,9 @@ describe("session.assets: hostile files, each refused with its code", () => {
     });
 
     it("counts the triangles of a mesh per use, refusing one mesh used by 100,000 nodes", async () => {
-        assertRejected(await add({ files: meshUsedBy(100_000) }), "E_MODEL_TOO_LARGE", {
+        const strict = createAssetsApi();
+        strict.setLimits({ maxTriangles: 1_000_000 });
+        assertRejected(await strict.add({ files: meshUsedBy(100_000) }), "E_MODEL_TOO_LARGE", {
             what: "triangles",
             limit: 1_000_000,
         });
@@ -455,14 +483,12 @@ describe("session.assets: hostile files, each refused with its code", () => {
     });
 
     it("names formats it recognizes but does not load, and refuses what it does not know", async () => {
-        assertRejected(await add(file(utf8("Kaydara FBX Binary  \0rest"), "rig.fbx")), "E_MODEL_FORMAT_UNSUPPORTED", {
-            format: "fbx",
+        // FBX is read; a file cut short after its magic is refused as damaged.
+        assertRejected(await add(file(utf8("Kaydara FBX Binary  \0rest"), "rig.fbx")), "E_MODEL_STRUCTURE", {
+            rule: "fbx",
         });
         assertRejected(await add(file(utf8("hello"), "notes.txt")), "E_MODEL_FORMAT_UNKNOWN", {
             fileName: "notes.txt",
-        });
-        assertRejected(await add(file(utf8("HIERARCHY\nROOT Hips\n"), "walk.bvh")), "E_MODEL_FORMAT_UNSUPPORTED", {
-            format: "bvh",
         });
         const points = utf8(
             "ply\nformat ascii 1.0\nelement vertex 1\nproperty float x\nproperty float y\nproperty float z\nend_header\n0 0 0\n",
@@ -656,6 +682,29 @@ describe("session.assets: tolerant matching (design 12.5)", () => {
             assert.isFalse(
                 log.some((url) => /Users|C:/i.test(decodeURIComponent(url))),
                 log.join(" "),
+            );
+        } finally {
+            vi.unstubAllGlobals();
+        }
+    });
+
+    it("lets go of a model by its address, with the digest id it was held under once accepted", async () => {
+        const base = "https://models.example.com/drop/";
+        stubSite({
+            [`${base}quad.obj`]: { body: utf8(quad) },
+            [`${base}quad.mtl`]: { body: utf8("newmtl m\nmap_Kd wood.png\n") },
+            [`${base}wood.png`]: { body: PNG_1X1 },
+        });
+        try {
+            const api = createAssetsApi();
+            const record = await api.ready(`${base}quad.obj`);
+            assert.strictEqual(record.state, "accepted", JSON.stringify(record.problems));
+            api.remove(`${base}quad.obj`);
+            assert.isUndefined(api.find(record.id), "not held under its id");
+            assert.isUndefined(api.find(`${base}quad.obj`), "nor under its address");
+            assert.notInclude(
+                api.list().map((r) => r.id),
+                record.id,
             );
         } finally {
             vi.unstubAllGlobals();
@@ -922,10 +971,10 @@ describe("detectModelFormat", () => {
         });
         assert.deepStrictEqual(detectModelFormat({ filename: "scene.usdz", head: zip({ "a.usdc": PNG_1X1 }) }), {
             format: "usdz",
-            supported: false,
+            supported: true,
         });
-        assert.deepStrictEqual(detectModelFormat({ filename: "rig.fbx" }), { format: "fbx", supported: false });
-        assert.deepStrictEqual(detectModelFormat({ filename: "a.splat" }), { format: "splat", supported: true });
+        assert.deepStrictEqual(detectModelFormat({ filename: "rig.fbx" }), { format: "fbx", supported: true });
+        assert.deepStrictEqual(detectModelFormat({ filename: "a.splat" }), { format: "splat", supported: false });
     });
 
     it("says nothing about graph data", () => {

@@ -70,6 +70,9 @@ describe("KatzCentralityAlgorithm", () => {
             assert.isBelow(caveats?.iterations ?? Infinity, 100);
             const valjean = getNodeResult(algo, "Valjean", "graphty", "katz", "scorePct");
             assert.strictEqual(valjean, 1, "Valjean, the best-connected character, scores highest");
+            // The algorithms package derives the alpha (about 0.018 here), and the caveat names it.
+            const attenuation = caveats?.facts?.find((fact) => fact.code === "katz.attenuation");
+            assert.closeTo(attenuation?.params.alpha as number, 0.018, 0.002);
         });
 
         it("converges with its default options on a complete graph, and keeps alpha 0.1 where that converges", async () => {

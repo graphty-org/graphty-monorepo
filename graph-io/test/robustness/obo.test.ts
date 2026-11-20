@@ -1,5 +1,5 @@
 /**
- * Robustness of the OBO flat-file importer: hostile, damaged, truncated and mislabelled input.
+ * Robustness of the OBO flat-file importer: hostile, damaged, truncated and mislabeled input.
  * Every test pins one condition: the import either recovers with the named issue codes and the
  * recoverable data kept, or rejects with ImportError carrying the named code. Conditions already
  * pinned by test/formats/obo/importer.test.ts or the audit suite are not repeated here.
@@ -15,6 +15,7 @@ import { OBO_ISSUE, oboImporter, type OboImportOptions } from "../../src/formats
 import { importGraph } from "../../src/registry.js";
 import { type CommonImportOptions, ImportError, type ImportInput, type ImportReport } from "../../src/types.js";
 import { charactersExamined } from "../helpers/work-meter.js";
+import { codes, ids } from "./helpers.js";
 
 type Options = OboImportOptions & CommonImportOptions;
 
@@ -38,20 +39,12 @@ async function fails(input: ImportInput, options?: Options): Promise<ImportError
     throw new Error("expected the import to throw ImportError");
 }
 
-function codes(report: ImportReport): string[] {
-    return report.issues.map((i) => i.code);
-}
-
 function issue(report: ImportReport, code: string): ImportReport["issues"][number] {
     const found = report.issues.find((i) => i.code === code);
     if (found === undefined) {
         throw new Error(`no ${code} in ${codes(report).join(", ")}`);
     }
     return found;
-}
-
-function ids(snapshot: GraphSnapshot): unknown[] {
-    return Array.from({ length: snapshot.nodeCount }, (_, i) => snapshot.ids.idOf(i));
 }
 
 function cell(snapshot: GraphSnapshot, column: string, id: string): unknown {

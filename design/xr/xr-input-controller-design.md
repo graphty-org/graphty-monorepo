@@ -1,6 +1,11 @@
 # XR Input Controller Design - Unified Drag Implementation
 
-**Status**: Design Phase
+Status: historical record (2025). The file names it gives as current code are out of
+date: there is no `src/xr-button.ts`, `XRCameraController.ts`, `XRInputController.ts` or
+`CameraPivotController.ts`. graphty-element's XR code is now `src/xr/XRSessionManager.ts`,
+`src/ui/XRUIManager.ts`, `src/cameras/XRPivotCameraController.ts`, `src/cameras/XRInputHandler.ts`
+and `src/cameras/PivotController.ts`.
+
 **Created**: 2025-11-18
 **Author**: AI Assistant with user collaboration
 

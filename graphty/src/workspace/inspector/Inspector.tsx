@@ -7,11 +7,11 @@ import { wordsFor } from "../analyze/words";
 import type { InspectedKind } from "../commands/registry";
 import { useAttributeActions } from "../data-place/attributeActions";
 import { AttributeMenuItems } from "../data-place/MenuItems";
+import { resultItems } from "../data-place/resultItems";
 import { useSourceActions } from "../data-place/sourceActions";
 import { KIND_ICONS } from "../data-place/sourceKindIcons";
 import { SourceValues } from "../data-place/SourceValues";
 import { TypeGlyphIcon } from "../data-place/TypeGlyphIcon";
-import { useVisibilityVersion } from "../data-place/useVisibilityVersion";
 import { columnGlyph, loadName, sourceKeyOf, sourceKindWord, sourcesWords, type TypeGlyph } from "../data-place/words";
 import { INSPECTOR_TITLE_ID } from "../frame/focus";
 import { Sections } from "../frame/menus";
@@ -33,15 +33,16 @@ import { LayerRowPanel } from "../graph-place/StyleTree";
 import { NoteList } from "../notes/NotesPlace";
 import { notesAbout } from "../notes/words";
 import { runName } from "../runWords";
+import { type SelectionMenuItem, SelectionMenuItems } from "../selection/SelectionMenu";
+import { INSPECTOR_EVENTS, useSessionEvents, VISIBILITY_EVENTS } from "../sessionEvents";
 import { useNumberFormats } from "../settings/numberFormat";
-import { type InspectorTab, tabFor, type WorkspaceState } from "../state/store";
+import { type InspectorTab, type ReportPin, tabFor, type WorkspaceState } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { FolderPanel } from "../style/FolderPanel";
 import { MultiRowPanel } from "../style/MultiRowPanel";
 import { GroupStyle, SelectionRowStyle, SelectionStyle, StylePanel } from "../style/StylePanel";
 import { GraphSettings } from "./GraphSettings";
 import { AttributeValues, Overview } from "./GraphValues";
-import { useSessionVersion } from "./hooks";
 import { identityOf, type InspectedKindId, type Resolved, resolveInspected } from "./inspected";
 import { MENUS } from "./kindMenus";
 import { EverythingRowValues, FolderValues, LayerValues } from "./LayerValues";
@@ -49,7 +50,7 @@ import { EdgeValues, NeighborList, NodeValues, SeveralValues } from "./NodeValue
 import { type Draft, swatchOf } from "./reads";
 import { GroupValues, RunStateBar, RunValues } from "./RunValues";
 import { WhyThisLook } from "./WhyThisLook";
-import { count, edgeName, groupName, KIND_WORDS, nodeName, PATH_WORD, runTime, selectionWords } from "./words";
+import { count, edgeName, groupName, KIND_WORDS, nodeName, RUN_SHAPE_WORDS, runTime, selectionWords } from "./words";
 
 /** A kind's two tab bodies (`style` null when it has nothing to style: no Style tab), or its one body when it has no tabs. */
 type Body = { readonly style: React.ReactNode; readonly values: React.ReactNode } | { readonly only: React.ReactNode };
@@ -328,6 +329,27 @@ function dataActionsOf(
 }
 
 /**
+ * A result's Run again, Pin to report and Copy items, the same as its Data place row's.
+ * @param session - the session.
+ * @param store - the workspace store.
+ * @param run - the inspected run, if any.
+ * @param resolved - what is inspected.
+ * @param pins - the results pinned to the report now.
+ * @returns the items, none unless a result (not one of its groups) is inspected.
+ */
+function resultActionsOf(
+    session: GraphSession,
+    store: Workspace["store"],
+    run: Run | undefined,
+    resolved: Resolved,
+    pins: readonly ReportPin[],
+): SelectionMenuItem[] {
+    return run !== undefined && (resolved.kind === "measure-row" || resolved.kind === "run-row")
+        ? resultItems(session, store, run, pins)
+        : [];
+}
+
+/**
  * The inspector's body: the Style and Values tabs, and Notes when the item has notes, or one body
  * for a kind with no tabs.
  * @param props - Component props
@@ -444,13 +466,14 @@ function HeaderFrom({ from }: Readonly<{ from: Header["from"] }>): React.ReactNo
 
 /**
  * The header's actions menu: the style tree's row menu for a style tree row, else the kind's
- * commands, then the Data place's verbs.
+ * commands, then a result's Run again and Copy items, then the Data place's verbs.
  * @param props - Component props
  * @param props.kindWord - the kind in words.
  * @param props.selectsPaints - whether Select what it paints sits before it.
  * @param props.tree - the style tree.
  * @param props.treeRow - the style tree row, if it is one.
  * @param props.menu - the kind's commands.
+ * @param props.resultActions - a result's Run again and Copy items, the same as its Data place row's.
  * @param props.attributeActions - the Data place's verbs.
  * @param props.moveTo - moves a style tree row into a folder.
  * @returns the menu.
@@ -461,6 +484,7 @@ function HeaderMenu({
     tree,
     treeRow,
     menu,
+    resultActions,
     attributeActions,
     moveTo,
 }: Readonly<{
@@ -469,6 +493,7 @@ function HeaderMenu({
     tree: HeaderTree["tree"];
     treeRow: HeaderTree["treeRow"];
     menu: readonly { id: string }[];
+    resultActions: readonly SelectionMenuItem[];
     attributeActions: ReturnType<typeof dataActionsOf>;
     moveTo: (row: { id: string; name: string }, folderId: string | null) => void;
 }>): React.JSX.Element {
@@ -501,6 +526,7 @@ function HeaderMenu({
                         }}
                     />
                 )}
+                <SelectionMenuItems items={resultActions} />
                 <AttributeMenuItems actions={attributeActions} />
             </Menu.Dropdown>
         </Menu>
@@ -516,14 +542,15 @@ function HeaderMenu({
  */
 export function Inspector(): React.JSX.Element {
     const { session, store, registry, run: runCommand } = useWorkspace();
-    const version = useSessionVersion(session);
+    const version = useSessionEvents(session, INSPECTOR_EVENTS);
     // The reader's Number format respells every value the inspector draws.
     useNumberFormats();
     // A filter step turned on or off changes its editor's header.
-    useVisibilityVersion(session);
+    useSessionEvents(session, VISIBILITY_EVENTS);
     const inspected = useWorkspaceState((state) => state.inspected);
     const projectName = useWorkspaceState((state) => state.project?.name);
     const remembered = useWorkspaceState((state) => state.tabs);
+    const pins = useWorkspaceState((state) => state.reportPins);
     const [picked, setPicked] = useState<{ identity: string; tab: InspectorTab } | null>(null);
     // A link that names the tab it opens on (a layer's look opens on Style) overrides the last pick.
     const [seen, setSeen] = useState(inspected);
@@ -546,7 +573,7 @@ export function Inspector(): React.JSX.Element {
     const resolved = gone ? resolveInspected(null, selection) : opened;
     // A source stays open while it is briefly unlisted: a Replace takes the load off the list and
     // lists it again in one step, and the row must come back to the same source.
-    const closes = gone && opened?.kind !== "source";
+    const closes = gone && opened.kind !== "source";
     useEffect(() => {
         if (closes) {
             store.set({ inspected: null });
@@ -557,14 +584,16 @@ export function Inspector(): React.JSX.Element {
     const barRun = run ?? layerRunOf(session, resolved);
     const kindId = kindIdOf(run, resolved);
     const kind = registry.kinds.get(kindId);
-    const isPath = run?.shape === "path";
     // The notes about this, listed in its Notes tab; with none there is no Notes tab.
     const notes = session === null ? [] : notesAbout(session, resolved);
     const hasNotes = notes.length > 0;
     const opensOn = opensOnOf(opensOnValues(session, run, resolved), kind, inspected, remembered, hasNotes);
     const tab = tabShown(picked, identity, hasNotes, opensOn);
-    // A path is not a measure, though its run row is one.
-    const kindWord = isPath ? PATH_WORD : KIND_WORDS[kindId];
+    // A run row that publishes no groups is headed for what it holds (a path, an edge set).
+    const kindWord =
+        run !== undefined && kindId === "run-row" && run.record.summary?.groups === undefined
+            ? RUN_SHAPE_WORDS[run.shape]
+            : KIND_WORDS[kindId];
     const runDraft = run !== undefined && draft?.run === run.id ? draft.values : {};
     const onDraft = (values: Draft): void => {
         if (run !== undefined) {
@@ -598,6 +627,7 @@ export function Inspector(): React.JSX.Element {
     const body = bodyOf(session, resolved, run, runDraft, onDraft, version);
     const menu = (MENUS[kindId] ?? []).flatMap((id) => registry.built(id) ?? []);
     const attributeActions = dataActionsOf(session, resolved, attributeActionsOf, sourceActionsOf);
+    const resultActions = resultActionsOf(session, store, run, resolved, pins);
     // A style tree row's header carries Select what it paints (Figma's Select matching layers).
     const selectsPaints = kindId === "layer-row" || kindId === "folder-row";
     // ... and draws the tree's own glyph and menu for the row.
@@ -680,13 +710,14 @@ export function Inspector(): React.JSX.Element {
                                 </ActionIcon>
                             </Tooltip>
                         )}
-                        {menu.length + attributeActions.length > 0 && (
+                        {menu.length + resultActions.length + attributeActions.length > 0 && (
                             <HeaderMenu
                                 kindWord={kindWord}
                                 selectsPaints={selectsPaints}
                                 tree={tree}
                                 treeRow={treeRow}
                                 menu={menu}
+                                resultActions={resultActions}
                                 attributeActions={attributeActions}
                                 moveTo={moveTo}
                             />

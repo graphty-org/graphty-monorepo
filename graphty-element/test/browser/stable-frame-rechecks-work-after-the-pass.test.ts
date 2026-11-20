@@ -50,7 +50,7 @@ describe("a stable frame after work that arrived behind the pass", () => {
         // After the frame's pass, before it is drawn: the layout starts and the view moves.
         await new Promise<void>((resolve) => {
             scene.onBeforeRenderObservable.addOnce(() => {
-                graph.getLayoutManager().running = true;
+                graph.setRunning(true);
                 graph.getUpdateManager().viewMoved();
                 scene.onAfterRenderObservable.addOnce(() => {
                     resolve();
@@ -62,6 +62,6 @@ describe("a stable frame after work that arrived behind the pass", () => {
         assert.strictEqual(announced, 0, "the frame drawn while the layout runs is not called final");
         graph.eventManager.removeListener(listener);
         await element.waitForStableFrame();
-        assert.isFalse(graph.getLayoutManager().running, "the stable frame waited for the layout to rest");
+        assert.isFalse(graph.isRunning(), "the stable frame waited for the layout to rest");
     });
 });

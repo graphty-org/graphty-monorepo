@@ -1,17 +1,17 @@
-import { ResultRow, SearchInput } from "@graphty/compact-mantine";
+import { ResultRow, ScrollArea, SearchInput } from "@graphty/compact-mantine";
 import type { FindHit, FindResult, FindValueRow } from "@graphty/graphty-element";
 import { type GraphSession, isGraphtyError, type RuleCheck, rulePath } from "@graphty/graphty-element/session";
-import { ScrollArea, Text, VisuallyHidden } from "@mantine/core";
+import { Text, VisuallyHidden } from "@mantine/core";
 import React, { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { focusInspectorTitle } from "../frame/focus";
 import { GLYPHS } from "../glyphs";
 import { focusValuesNext, takeValuesFocus } from "../inspector/reads";
 import { edgeJoiner, edgeName, selectedNameWords, sizeWords, valueWord, yesNoWord } from "../inspector/words";
+import { GRAPH_PLACE_EVENTS, useSessionEvents } from "../sessionEvents";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { selectorName } from "../style/cards";
 import { attributeName, plainRule, readableName, shownName, shownRule } from "../style/words";
-import { useSessionVersion } from "./useSessionVersion";
 
 /** The find box's id, which `find.focus` ("/") moves focus to. */
 export const FIND_BOX_ID = "ws-find";
@@ -114,7 +114,7 @@ function backtickSuggestion(error: unknown): string | null {
     if (!isGraphtyError(error) || error.code !== "E_BAD_SELECTOR") {
         return null;
     }
-    const details = (error.details ?? {}) as { reason?: unknown; suggestion?: unknown };
+    const details = error.details as { reason?: unknown; suggestion?: unknown };
     return details.reason === "number-needs-backticks" && typeof details.suggestion === "string"
         ? details.suggestion
         : null;
@@ -155,7 +155,7 @@ function ruleRefusal(error: unknown): Refusal | null {
     if (!isGraphtyError(error) || error.code !== "E_BAD_SELECTOR") {
         return null;
     }
-    const details = (error.details ?? {}) as { position?: unknown };
+    const details = error.details as { position?: unknown };
     // The element counts from 0 after the "="; the reader counts from 1 including it.
     const words =
         typeof details.position === "number"
@@ -1676,7 +1676,7 @@ export function FindBox(): React.JSX.Element {
     const shiftPicked = useRef(false);
     useClearAfterShiftPicks(listOpen, shiftPicked, setText, setActive, setPickedValues);
     // A change to the data, a run or the selection asks again, so a count or a hit is never stale.
-    const version = useSessionVersion(session);
+    const version = useSessionEvents(session, GRAPH_PLACE_EVENTS);
 
     const found: FindResult | null = useMemo(() => {
         const _changeCount = version; // reads the change count so the memo runs again on each session change
@@ -1727,7 +1727,7 @@ export function FindBox(): React.JSX.Element {
 
     const runsTyped = runsTypedOf(found, session, isRule, text);
     const target = enterTarget(active, ruleOption, runsTyped, options.length);
-    const chosen: Option | undefined = options[target];
+    const chosen = target < 0 ? undefined : options.at(target);
     useScrollActiveIntoView(active >= 0 ? optionIdOf(listId, active) : undefined);
 
     const open = found !== null && listOpen;

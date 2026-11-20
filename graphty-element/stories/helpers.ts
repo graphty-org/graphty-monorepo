@@ -5,7 +5,7 @@
 
 import type { AbstractMesh } from "@babylonjs/core";
 import { RemoteLogClient } from "@graphty/remote-logger";
-import type { Meta } from "@storybook/web-components-vite";
+import type { Meta, WebComponentsRenderer } from "@storybook/web-components-vite";
 import lodash from "lodash";
 // Using direct property access instead of destructuring to avoid unbound-method warnings
 const deepSet = lodash.set.bind(lodash);
@@ -81,8 +81,9 @@ let storyObserver: MutationObserver | undefined;
  * Enhanced decorator that sets up event listeners before elements are rendered
  * This decorator should be added to the meta configuration
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const eventWaitingDecorator = (story: any): any => {
+export const eventWaitingDecorator = (
+    story: () => WebComponentsRenderer["storyResult"],
+): WebComponentsRenderer["storyResult"] => {
     // One observer at a time: the previous story's stops when the next one renders. It is not
     // stopped on a timer, because an element added after that timer would have no listeners, and
     // its play function would wait for an event that had already fired.
@@ -241,7 +242,7 @@ interface StorySetup {
     layers?: readonly LayerSpec[];
     /** 2D or 3D. */
     viewMode?: ViewMode;
-    /** What the graph is drawn against: a colour, or a photo-dome skybox. */
+    /** What the graph is drawn against: a color, or a photo-dome skybox. */
     background?: GraphBackgroundConfig;
     /** How far the camera starts from the graph. */
     startingCameraDistance?: number;
@@ -255,9 +256,9 @@ interface StorySetup {
      * project's wait for a final frame -- should spend on it. The settled picture is the same.
      */
     stepMultiplier?: number;
-    /** Hide labels whose words would overlap: the element's `labels.declutter` behaviour. */
+    /** Hide labels whose words would overlap: the element's `labels.declutter` behavior. */
     declutterLabels?: boolean;
-    /** How node labels draw their words: the element's `labels.labelText` behaviour. */
+    /** How node labels draw their words: the element's `labels.labelText` behavior. */
     labelText?: "canvas" | "glyphs";
 }
 
@@ -518,7 +519,7 @@ export const renderFn = (args: RenderArg1, storyConfig: RenderArg2): Element => 
     // Set runAlgorithmsOnLoad BEFORE setting data, because data loading triggers
     // the algorithm-run operation which checks this property
     if (args.runAlgorithmsOnLoad !== undefined) {
-        g.runAlgorithmsOnLoad = args.runAlgorithmsOnLoad;
+        g.runAlgorithmsOnLoad = args.runAlgorithmsOnLoad as Graphty["runAlgorithmsOnLoad"];
     }
 
     // The story's own setup, with whatever the reader has moved a control to written over it. A
@@ -534,14 +535,14 @@ export const renderFn = (args: RenderArg1, storyConfig: RenderArg2): Element => 
             continue;
         }
 
-        const value = args[arg];
+        const value: unknown = args[arg];
 
         if (writeChannelControl(setup, name, value)) {
             continue;
         }
 
         // The two background controls build the element's own background value: one names a
-        // colour and the other the image a photo dome is built from.
+        // color and the other the image a photo dome is built from.
         if (name === "background.color" && typeof value === "string" && value !== "") {
             setup.background = { backgroundType: "color", color: value };
             continue;
@@ -600,7 +601,7 @@ export const renderFn = (args: RenderArg1, storyConfig: RenderArg2): Element => 
     // BEFORE the data, because these say how a record is read and the reading happens as the rows
     // arrive. See FORWARDED_ELEMENT_PROPERTIES.
     for (const property of FORWARDED_ELEMENT_PROPERTIES) {
-        const value = args[property];
+        const value: unknown = args[property];
 
         if (typeof value === "string") {
             g[property] = value;
@@ -616,12 +617,12 @@ export const renderFn = (args: RenderArg1, storyConfig: RenderArg2): Element => 
     if (args.dataSource) {
         // Set dataSourceConfig BEFORE dataSource, because setting dataSource
         // triggers addDataFromSource which needs the config
-        g.dataSourceConfig = args.dataSourceConfig;
-        g.dataSource = args.dataSource;
+        g.dataSourceConfig = args.dataSourceConfig as Graphty["dataSourceConfig"];
+        g.dataSource = args.dataSource as Graphty["dataSource"];
     } else {
         // Use story-specific data if provided, otherwise use defaults
-        g.nodeData = args.nodeData ?? nodeData;
-        g.edgeData = args.edgeData ?? edgeData;
+        g.nodeData = (args.nodeData as Graphty["nodeData"] | undefined) ?? nodeData;
+        g.edgeData = (args.edgeData as Graphty["edgeData"] | undefined) ?? edgeData;
     }
 
     // Set layout properties if provided
@@ -632,12 +633,12 @@ export const renderFn = (args: RenderArg1, storyConfig: RenderArg2): Element => 
     }
 
     if (args.layout) {
-        g.layout = args.layout;
+        g.layout = args.layout as Graphty["layout"];
     }
 
     // Set XR config if provided
     if (args.xr) {
-        g.xr = args.xr;
+        g.xr = args.xr as Graphty["xr"];
     }
 
     return g;
@@ -705,7 +706,7 @@ export const remoteLogging = (): (() => void) | undefined => {
 /**
  * One console argument as text.
  * @param arg - What was passed to the console.
- * @returns It as JSON when it is an object that serialises, otherwise as a string.
+ * @returns It as JSON when it is an object that serializes, otherwise as a string.
  */
 function formatConsoleArg(arg: unknown): string {
     if (typeof arg !== "object" || arg === null) {

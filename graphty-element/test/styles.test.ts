@@ -2,7 +2,7 @@
  * The element's configuration document.
  *
  * WHAT `Styles` IS NOW. The id paths a record is read with, the view mode, the background, the
- * layout and its options, the algorithms to run on load, and the behaviour settings -- and
+ * layout and its options, the algorithms to run on load, and the behavior settings -- and
  * nothing else. The stack of jmespath-selector layers it used to carry beside them is gone;
  * style layers are `session.styles`, which addresses a layer by a stable id and is tested in
  * `test/session/`.
@@ -14,11 +14,10 @@
  * below pin exactly that.
  */
 
-import { assert, describe, it, vi } from "vitest";
+import { assert, describe, it } from "vitest";
 
 import { colorToHex } from "../src/config";
 import { ColorStyle } from "../src/config/common";
-import { GraphtyError } from "../src/errors/GraphtyError";
 import { Styles } from "../src/Styles";
 import badLayer from "./helpers/styles-bad-layer.json";
 import basicDualStyle from "./helpers/styles-basic-dual.json";
@@ -44,42 +43,6 @@ describe("Styles", () => {
         assert.deepStrictEqual(Object.keys(s), []);
         assert.deepStrictEqual(Object.getOwnPropertyNames(Styles.prototype).sort(), ["config", "constructor"]);
         assert.isObject(s.config);
-    });
-
-    describe("fromJson", () => {
-        it("accepts a document with an empty layer array", () => {
-            const s = Styles.fromJson('{"graphtyTemplate": true, "majorVersion": "1", "layers": []}');
-
-            assert.isEmpty(s.config.layers);
-        });
-    });
-
-    describe("fromUrl", () => {
-        it("reads the document at the URL", async () => {
-            const s = await Styles.fromUrl(
-                'data:application/json,{"graphtyTemplate":true,"majorVersion":"1","layers":[]}',
-            );
-
-            assert.isEmpty(s.config.layers);
-        });
-
-        it("refuses an HTTP failure with E_FETCH_FAILED", async () => {
-            vi.stubGlobal("fetch", () => Promise.resolve(new Response("missing", { status: 404 })));
-            try {
-                const error: unknown = await Styles.fromUrl("missing.json").catch((e: unknown) => e);
-                assert.instanceOf(error, GraphtyError);
-                assert.strictEqual(error.code, "E_FETCH_FAILED");
-                assert.strictEqual(error.details.status, 404);
-            } finally {
-                vi.unstubAllGlobals();
-            }
-        });
-
-        it("refuses a body that is not JSON with E_PARSE_FAILED", async () => {
-            const error: unknown = await Styles.fromUrl("data:text/plain,not%20json").catch((e: unknown) => e);
-            assert.instanceOf(error, GraphtyError);
-            assert.strictEqual(error.code, "E_PARSE_FAILED");
-        });
     });
 
     describe("fromObject", () => {
@@ -123,7 +86,7 @@ describe("Styles", () => {
             });
 
             assert.strictEqual(s.config.graph.viewMode, "2d");
-            // A CSS colour name is normalised on parse, which is why a background set through
+            // A CSS color name is normalized on parse, which is why a background set through
             // the element reaches the renderer as hex whatever the caller wrote.
             assert.deepStrictEqual(s.config.graph.background, { backgroundType: "color", color: "#FF69B4" });
             assert.strictEqual(s.config.graph.layout, "circular");
@@ -138,7 +101,7 @@ describe("Styles", () => {
      * The 1.x keys, and the rule that governs both of them: they parse, and nothing reads them.
      *
      * The tests that used to live here asserted the opposite -- that a malformed layer threw a
-     * `ZodError` and refused the document. That refusal is the behaviour that deliberately went
+     * `ZodError` and refused the document. That refusal is the behavior that deliberately went
      * away: with nothing reading the array, turning down a whole configuration over one field in
      * an ignored layer loses the id paths, the view mode and the layout that the same document
      * carries, and the reader is given a parse error about a feature that no longer exists.

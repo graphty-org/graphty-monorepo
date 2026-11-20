@@ -57,7 +57,7 @@ the existing semver ranges, or none. An agent adds its fresh review by running `
 | `promote.yml`                                                   | Production promotion (graphty.app, npm `latest`) and nightly rollback; owner only (`tools/channel/promote.mjs`)                                                                                                                                                                                    |
 | `master-guard.yml`                                              | A red master build: a revert pull request and a `priority:critical` issue (none for a failure that looks external); a failed canary deploy: one issue                                                                                                                                              |
 | `coverage.yml`                                                  | Called by the full run: merges coverage and publishes it to Coveralls                                                                                                                                                                                                                              |
-| `gpu.yml`                                                       | The paid NVIDIA T4 lane of webgpu-graph-algorithms; only in the full run and by dispatch                                                                                                                                                                                                           |
+| `gpu.yml`                                                       | The paid NVIDIA T4 lane of webgpu-graph-algorithms; only in the full run and by dispatch; a rotating quarter of its test files per run (tools/test-rotation.mjs)                                                                                                                                   |
 | `hosts.yml`                                                     | The host matrix (Metal + WebKit on macOS, D3D12 WARP + Chromium on Windows); pull requests touching `webgpu-graph-algorithms/` or `graph-format/` (advisory), and the full run                                                                                                                     |
 | `work-protection-macos.yml`                                     | graphty-element's autosave in WebKit, Safari and iOS Safari; the full run                                                                                                                                                                                                                          |
 | `pr-integrity.yml`, `pr-issue-link.yml`, `pr-title.yml`         | PR Integrity, Link PR Issue and Lint PR Title (title of 100 characters or fewer, an allowed scope, and the owner's `breaking-go` label on a breaking commit)                                                                                                                                       |
@@ -189,8 +189,8 @@ only the selected test files where `test-select-rules.json` allows file-level se
 of them (31 jobs, the short shards grouped into `small-node` and `small-browser`). A change to a file in
 nx.json's `sharedGlobals` affects every package; a `pnpm-lock.yaml` change affects only the packages whose
 resolved dependencies changed. `graphty-element-lifecycle`, `graphty-element-fidelity-1` to `-4` (the style
-fidelity gate over every oracle, in four slices) and `graphty-element-forced-batched-scorecard` (the drawn fidelity
-scorecard on the batched render path) run only in the full run.
+fidelity gate over every oracle, in four slices) and `graphty-element-forced-batched-1` to `-12` (the browser and
+interaction tests on the batched render path) run only in the full run.
 
 ## Visual review
 

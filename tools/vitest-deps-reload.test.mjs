@@ -4,7 +4,9 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import setup, { depsOptimized, waitForBrowserDeps, watchLogger } from "./vitest-deps-reload.mjs";
+import { EventEmitter } from "node:events";
+
+import setup, { ConnectTimeline, depsOptimized, waitForBrowserDeps, watchLogger } from "./vitest-deps-reload.mjs";
 
 const fakeLogger = () => {
     const lines = [];
@@ -116,5 +118,40 @@ describe("vitest-deps-reload", () => {
         assert.deepEqual(order, ["init", "scan", "bundle", "page"]);
         await depsOptimized(undefined);
         await waitForBrowserDeps.onBrowserInit({ browser: { vite: { environments: {} } } });
+    });
+
+    it("records the page's requests and upgrades, and prints them only when a page never connects", () => {
+        const timeline = new ConnectTimeline("real-element (chromium)", () => 0);
+        const server = new EventEmitter();
+        timeline.watch(server);
+        timeline.mark("dependency hold ends");
+        const served = new EventEmitter();
+        server.emit("request", { url: "/__vitest_test__/" }, served);
+        server.emit("request", { url: "/@vite/client" }, new EventEmitter());
+        served.emit("close");
+        server.emit("upgrade", { url: "/__vitest_browser_api__?type=orchestrator" });
+        assert.deepEqual(timeline.report(), [
+            "[browser connect] real-element (chromium): what its server saw (#8823)",
+            "  1970-01-01T00:00:00.000Z dependency hold ends",
+            "  1970-01-01T00:00:00.000Z first request /__vitest_test__/",
+            "  1970-01-01T00:00:00.000Z upgrade /__vitest_browser_api__?type=orchestrator",
+            "  1 request(s) served, 1 never finished:",
+            "    1970-01-01T00:00:00.000Z /@vite/client",
+        ]);
+
+        const printed = [];
+        const error = console.error;
+        console.error = (line) => printed.push(line);
+        try {
+            waitForBrowserDeps.onTestRunEnd([], [new Error("boom")]);
+            assert.equal(printed.length, 0);
+            waitForBrowserDeps.onTestRunEnd(
+                [],
+                [new Error('Failed to connect to the browser session "x" [p] within the timeout.')],
+            );
+            assert.equal(printed.length, 1);
+        } finally {
+            console.error = error;
+        }
     });
 });

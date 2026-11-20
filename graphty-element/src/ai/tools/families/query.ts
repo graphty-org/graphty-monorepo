@@ -272,9 +272,14 @@ export const queryTool: ToolDefinition = {
             summary: "names, types, ranges",
             fields: {},
             effect: "read",
-            reaches: [{ door: "SessionDataApi.attributes" }, { door: "SessionDataApi.resultColumns" }],
-            run: ({ tx }) =>
-                Promise.resolve(
+            reaches: [
+                { door: "SessionDataApi.attributes" },
+                { door: "SessionDataApi.resultColumns" },
+                { door: "GraphSession.status" },
+            ],
+            run: ({ tx }) => {
+                const { counts } = tx.status;
+                return Promise.resolve(
                     ok(
                         tx.data.attributes().map((attribute) => {
                             const out: JsonObject = {
@@ -282,6 +287,14 @@ export const queryTool: ToolDefinition = {
                                 kind: attribute.kind,
                                 type: attribute.type,
                             };
+                            // How many elements carry no value. Without it a model asked "which attributes
+                            // are missing values?" guessed from samples and ranges, and said none (#9000).
+                            const total = attribute.kind === "node" ? counts.nodes : counts.edges;
+                            const missing = Math.round((1 - attribute.completeness) * total);
+                            if (missing > 0) {
+                                out.missing = missing;
+                            }
+
                             if (attribute.uniqueCount !== undefined) {
                                 out.distinct = attribute.uniqueCount;
                             }
@@ -302,7 +315,8 @@ export const queryTool: ToolDefinition = {
                                 .map((column) => ({ run: column.run, path: column.path })),
                         },
                     ),
-                ),
+                );
+            },
         },
         {
             name: "histogram",
@@ -330,7 +344,9 @@ export const queryTool: ToolDefinition = {
         },
         {
             name: "statistics",
-            summary: "density, degrees, components",
+            // The component count answers "is it connected?" as a read: a model that saw only the
+            // word "components" ran the components algorithm, a step the reader must undo (#8736).
+            summary: "density, degrees, component count",
             fields: {},
             effect: "read",
             reaches: [{ door: "SessionDataApi.statistics" }],

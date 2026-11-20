@@ -88,7 +88,7 @@ export function rowsView(source: RowSource): readonly GraphRecord[] {
             }
 
             const row = isRow(key);
-            return row < 0 ? Reflect.get(target, key, receiver) : taggedRecord(source, row);
+            return row < 0 ? (Reflect.get(target, key, receiver) as unknown) : taggedRecord(source, row);
         },
         has(target, key) {
             return isRow(key) >= 0 || Reflect.has(target, key);

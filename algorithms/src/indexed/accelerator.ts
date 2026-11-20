@@ -43,7 +43,7 @@ import type { MaxFlowOptions, MaxFlowResult, MinCutResult } from "./flow.js";
 import type { GirvanNewmanOptions, GirvanNewmanResult } from "./girvan-newman.js";
 import { checkHitsOptions, type HitsOptions } from "./hits.js";
 import * as indexed from "./index.js";
-import { checkKatzOptions, type KatzOptions } from "./katz.js";
+import { checkKatzOptions, katzAlpha, type KatzOptions, katzRadiusBound } from "./katz.js";
 import type { LabelPropagationOptions, SynchronousLabelPropagationOptions } from "./label-propagation.js";
 import type { LeidenOptions, LeidenResult } from "./leiden.js";
 import type { LinkPredictionOptions, LinkPredictionResult } from "./link-prediction.js";
@@ -163,7 +163,7 @@ export interface AlgorithmAccelerator {
     sssp?(s: GraphSnapshot, source: number, options?: SsspOptions): Promise<SsspResultLike>;
     bellmanFord?(s: GraphSnapshot, source: number, options?: SsspOptions): Promise<BellmanFordResultLike>;
     closenessCentrality?(s: GraphSnapshot, options?: ClosenessAcceleratorOptions): Promise<ClosenessResultLike>;
-    /** True when `closenessCentrality` honours `harmonic` on an exact run; absent, harmonic closeness runs on the CPU. */
+    /** True when `closenessCentrality` honors `harmonic` on an exact run; absent, harmonic closeness runs on the CPU. */
     readonly harmonicCloseness?: boolean;
     betweennessCentrality?(
         s: GraphSnapshot,
@@ -185,7 +185,7 @@ export interface AlgorithmAccelerator {
 
 /**
  * The options every power-iteration algorithm takes, as an accelerator sees them. It is deliberately not
- * `Record<string, unknown>`, so an accelerator honours exactly these members.
+ * `Record<string, unknown>`, so an accelerator honors exactly these members.
  * @public
  */
 export interface HitsOptionsLike {
@@ -273,13 +273,13 @@ export interface ClosenessResultLike extends ScoresResultLike {
  * of the two paths differ.
  *
  * `labelPropagation` passes its options through the same way, except that a call with a `seed`
- * set runs the CPU port: the partition depends on the seed, and a GPU kernel has none to honour. An
+ * set runs the CPU port: the partition depends on the seed, and a GPU kernel has none to honor. An
  * accelerator's result carries no `iterations` or `converged`; call `labelPropagation` directly for
  * those. webgpu-graph-algorithms runs synchronous passes (the rules of `labelPropagationSynchronous`),
  * so its partition can differ from the CPU port's, which visits nodes in a seeded random order.
  *
  * `breadthFirstSearch` with a `target` or an `arcOrder` runs the CPU port: a GPU BFS expands whole
- * levels and has no early stop and no neighbour order, so it would give a different result.
+ * levels and has no early stop and no neighbor order, so it would give a different result.
  *
  * `pageRank` and `personalizedPageRank` run the CPU port when `initialRanks` or
  * `convergenceNorm: "max"` is set: the accelerator members take neither. The accelerator is
@@ -298,7 +298,7 @@ export interface ClosenessResultLike extends ScoresResultLike {
  * from the uniform start. Older webgpu-graph-algorithms releases iterate on `A`, which oscillates
  * forever on a bipartite component; current ones iterate on the port's shifted `A + cI` and stop at
  * the port's pass, but the dispatcher cannot tell the two apart, so a bipartite component still runs
- * the port. The kernel walks every parallel arc where the port counts a neighbour once. A directed
+ * the port. The kernel walks every parallel arc where the port counts a neighbor once. A directed
  * snapshot always runs the port, since a periodic strongly connected component oscillates on `A`.
  * The accelerator is called with `{ maxIterations, tolerance, weighted: false }` and its
  * unit-length vector is rescaled to [0, 1] exactly as the port rescales its own unless
@@ -583,7 +583,7 @@ function acceleratorAnswersEigenvector(s: GraphSnapshot, options: EigenvectorOpt
 }
 
 /**
- * Whether some connected component with at least one edge is bipartite, by two-colouring each
+ * Whether some connected component with at least one edge is bipartite, by two-coloring each
  * component breadth first. A self-loop is an odd cycle.
  * @param s - An undirected snapshot
  * @returns True when a component with an edge has no odd cycle
@@ -644,7 +644,7 @@ function finishEigenvector(like: ScoresResultLike, options: EigenvectorOptions |
  * false`) are lost to the accelerator's own rescaling, and a constant vector -- `alpha` 0, or the
  * same in-degree (in-weight) everywhere -- is one the port leaves unscaled. The series converges when `alpha`
  * times the spectral radius is below 1; past that an accelerator iterating in f32 with no
- * per-iteration normaliser can overflow to Infinity, so such a graph goes to the port, which throws
+ * per-iteration normalizer can overflow to Infinity, so such a graph goes to the port, which throws
  * `ConvergenceError`. Options out of range are refused here first, as the port refuses them. The radius is bounded, in one pass over the arcs, by the largest
  * `sqrt(r_u * r_v)` over the arcs u -> v, where `r` is a node's in-arc total (absolute weights):
  * scale the in-arc matrix by `diag(sqrt(r))` and each row sum is at most that, by Cauchy-Schwarz.
@@ -652,38 +652,27 @@ function finishEigenvector(like: ScoresResultLike, options: EigenvectorOptions |
  * radius sqrt(d), not d -- so one busy node does not keep a graph off the accelerator.
  * @param s - The snapshot
  * @param options - The caller's port options
+ * @param alpha - The alpha the run uses: the caller's, or the one `katzAlpha` derives
  * @returns True when the call may go to the accelerator
  */
-function acceleratorAnswersKatz(s: GraphSnapshot, options: KatzOptions | undefined): boolean {
+function acceleratorAnswersKatz(s: GraphSnapshot, options: KatzOptions | undefined, alpha: number): boolean {
     checkKatzOptions(s, options);
-    if (options?.normalized === false || options?.alpha === 0) {
+    if (options?.normalized === false || alpha === 0) {
         return false;
     }
     const rev = s.reverse();
     const weights = options?.weighted === true ? rev.weights : null;
-    const totals = new Float64Array(s.nodeCount);
     let first: number | undefined;
     let uneven = false;
     for (let v = 0; v < s.nodeCount; v++) {
         let inWeight = 0;
         for (let a = rev.rowPtr[v]; a < rev.rowPtr[v + 1]; a++) {
             inWeight += weights === null ? 1 : weights[a];
-            totals[v] += weights === null ? 1 : Math.abs(weights[a]);
         }
         first ??= inWeight;
         uneven ||= inWeight !== first;
     }
-    if (!uneven) {
-        return false;
-    }
-    let largest = 0;
-    for (let v = 0; v < s.nodeCount; v++) {
-        for (let a = rev.rowPtr[v]; a < rev.rowPtr[v + 1]; a++) {
-            largest = Math.max(largest, totals[v] * totals[rev.colIdx[a]]);
-        }
-    }
-    const alpha = options?.alpha ?? 0.1;
-    return alpha * alpha * largest < 1;
+    return uneven && alpha * katzRadiusBound(s, options?.weighted === true) < 1;
 }
 
 /**
@@ -873,18 +862,21 @@ export function accelerated(acc: AlgorithmAccelerator | null | undefined): Accel
             acc?.kCoreDecomposition !== undefined
                 ? acc.kCoreDecomposition(s)
                 : Promise.resolve(indexed.kCoreDecomposition(s)),
-        katzCentrality: (s, options) =>
-            acc?.katzCentrality !== undefined && acceleratorAnswersKatz(s, options)
+        katzCentrality: (s, options) => {
+            // Resolved here so the accelerator runs the alpha the port would, not a default of its own.
+            const alpha = acc?.katzCentrality === undefined ? undefined : katzAlpha(s, options);
+            return acc?.katzCentrality !== undefined && alpha !== undefined && acceleratorAnswersKatz(s, options, alpha)
                 ? acc
                       .katzCentrality(s, {
-                          alpha: options?.alpha,
+                          alpha,
                           beta: options?.beta,
                           maxIterations: options?.maxIterations,
                           tolerance: options?.tolerance,
                           weighted: options?.weighted === true,
                       })
                       .then((like) => finishKatz(like, options))
-                : Promise.resolve(indexed.katzCentrality(s, options)),
+                : Promise.resolve(indexed.katzCentrality(s, options));
+        },
         hits: (s, options) =>
             acc?.hits !== undefined && passes(checkHitsOptions, s, options)
                 ? acc

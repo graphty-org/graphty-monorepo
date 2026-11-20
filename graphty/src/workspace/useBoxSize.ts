@@ -16,7 +16,7 @@ export function useBoxSize(): { ref: (element: HTMLElement | null) => void; widt
             return undefined;
         }
         const observer = new ResizeObserver(([entry]) => {
-            const box = entry.borderBoxSize[0];
+            const box = entry.borderBoxSize.at(0);
             const width = box?.inlineSize ?? entry.contentRect.width;
             const height = box?.blockSize ?? entry.contentRect.height;
             setSize((now) => (now.width === width && now.height === height ? now : { width, height }));

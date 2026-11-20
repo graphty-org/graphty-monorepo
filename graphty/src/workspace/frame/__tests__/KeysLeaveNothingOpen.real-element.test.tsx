@@ -49,6 +49,19 @@ async function openGraph(): Promise<{ session: GraphSession; store: WorkspaceSto
 }
 
 /**
+ * Fills the Everything layer's Fill: it sets Color already, and a picture here, so Fill's "+" has
+ * nothing left to add.
+ * @param session - the element's session.
+ */
+async function fillEverything(session: GraphSession): Promise<void> {
+    const everything = session.styles.list().find((layer) => layer.name === "Everything" && layer.target === "node");
+    if (everything === undefined) {
+        throw new Error("no Everything layer");
+    }
+    await session.styles.update(everything.id, { set: { ...everything.set, "node.texture": "asset:not-held" } });
+}
+
+/**
  * Opens a style tree row in the inspector.
  * @param name - the row's name.
  */
@@ -210,7 +223,8 @@ describe("keys that close what they leave and land focus in the right place", ()
     });
 
     it("Tab from Add to node text passes over the full Fill +", async () => {
-        await openGraph();
+        const { session } = await openGraph();
+        await fillEverything(session);
         await openRow("Everything");
         const text = await screen.findByRole("button", { name: "Add to node text" });
         const fill = screen.getByRole("button", { name: "Add to node fill" });

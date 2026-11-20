@@ -19,8 +19,6 @@ const config: KnipConfig = {
         // Root workspace - shared configs and docs
         ".": {
             entry: [
-                "vite.shared.config.ts",
-                "vitest.shared.config.ts",
                 // First setup file of the packages' browser test projects (named in their vitest configs)
                 "vitest.browser-coverage-setup.ts",
                 // Every package's wait guard setup file (named in their vitest configs)
@@ -200,6 +198,8 @@ const config: KnipConfig = {
                 "test/**/*.test.ts",
                 "test/types/**/*.test-d.ts",
                 "test/setup/*.ts",
+                // what test/docs-examples.test.ts points the docs examples' `./node` imports at, by path
+                "test/helpers/docs-node-entry.ts",
                 "benchmarks/layout-run.ts",
                 "scripts/**/*.{ts,js}",
                 // the browser demo (`npm run demo`): its two pages and its vite config
@@ -339,7 +339,7 @@ const config: KnipConfig = {
                       ]
                     : []),
                 // Copied into dist by vite.config.ts (`bundledDependencies`, and ngraph.random because
-                // nothing externalises it), so each is a devDependency that production source imports.
+                // nothing externalizes it), so each is a devDependency that production source imports.
                 // TanStack AI is built into the AI engine's own chunks the same way, imported only by
                 // src/ai/engine/tanstack/ (design/ai/tanstack-ai-harness-design.md, section 3.2), and so
                 // is the in-page code sandbox (TanStack Code Mode's QuickJS driver and its WebAssembly).
@@ -440,10 +440,6 @@ const config: KnipConfig = {
             // The plugin finds nothing else that run reads.
             ...(production ? { vite: false } : {}),
             ignoreDependencies: [
-                // The engine @storybook/addon-a11y ships (a devDependency here), imported by
-                // tests/a11y/stories-axe.browser.test.tsx to enforce what the addon only reports.
-                // Declaring it would change pnpm-lock.yaml.
-                "axe-core",
                 // The types of the `react` peer, which the published declaration files (dist/index.d.ts)
                 // import and --production follows into the build
                 ...(production ? ["@types/react"] : []),
@@ -461,7 +457,7 @@ const config: KnipConfig = {
     // be referenced once inside its own file, in all six workspaces.
     //
     // The narrower mechanism is per symbol: knip skips any export whose JSDoc block
-    // carries a `@public` tag (knip honours `@public` with no `tags` entry needed), so a
+    // carries a `@public` tag (knip honors `@public` with no `tags` entry needed), so a
     // deliberate public surface states that intent at the declaration and everything else
     // stays under dead-code detection. Add `@public` -- with a clause saying why -- rather
     // than reaching for a blanket setting or an ignore pattern.
@@ -508,6 +504,7 @@ const config: KnipConfig = {
         "pkill",
         "pgrep",
         "safaridriver",
+        "setsid", // util-linux, so a merge in tools/workspace-sync.mjs has no terminal to prompt on
         "ssh-keygen",
         "taskset",
     ],

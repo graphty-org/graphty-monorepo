@@ -118,7 +118,19 @@ function nodeOptions(descriptor: AlgorithmDescriptor): string[] {
  * @returns the options.
  */
 export function settingsOf(descriptor: AlgorithmDescriptor): AlgorithmDescriptor["options"] {
-    return descriptor.options.filter((o) => o.internal !== true && o.type !== "node-id");
+    return descriptor.options.filter((o) => o.internal !== true && !SELECTION_TYPES.has(o.type));
+}
+
+/** The option types read from the selection rather than set: a node, the selected nodes, the selected edges. */
+const SELECTION_TYPES: ReadonlySet<string> = new Set(["node-id", "node-set", "edge-set"]);
+
+/**
+ * The options an algorithm reads the whole selection into: its selected nodes or its selected edges.
+ * @param descriptor - the algorithm.
+ * @returns the options.
+ */
+function setOptions(descriptor: AlgorithmDescriptor): AlgorithmDescriptor["options"] {
+    return descriptor.options.filter((o) => o.internal !== true && (o.type === "node-set" || o.type === "edge-set"));
 }
 
 /**
@@ -244,6 +256,10 @@ export function unavailable(session: GraphSession, descriptor: AlgorithmDescript
     // The Path form picks its own ends, so it needs no selection.
     const needed = descriptor.key === PATH_ALGORITHM ? 0 : nodeOptions(descriptor).length;
     const selected = session.selection.nodes.length;
+    // One that reads the selection as a whole needs something selected.
+    if (setOptions(descriptor).length > 0 && selected + session.selection.edges.length === 0) {
+        return "Select a node or edge first";
+    }
     if (needed > selected) {
         return needed === 1 ? "Select a node first" : `Select ${String(needed)} nodes first`;
     }
@@ -259,7 +275,8 @@ export function unavailable(session: GraphSession, descriptor: AlgorithmDescript
 
 /**
  * The parameters to run with: what the reader set, plus the selected nodes for the options that
- * read them, when the selection holds exactly that many.
+ * read them, when the selection holds exactly that many, and the whole selection for an option
+ * that reads its nodes or its edges.
  * @param session - the element's session.
  * @param descriptor - the algorithm.
  * @param set - the values the reader set.
@@ -277,6 +294,10 @@ export function paramsFor(
         names.forEach((name, i) => {
             params[name] = session.selection.nodes[i];
         });
+    }
+    for (const option of setOptions(descriptor)) {
+        params[option.name] ??=
+            option.type === "node-set" ? [...session.selection.nodes] : [...session.selection.edges];
     }
     return params;
 }

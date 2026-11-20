@@ -5,8 +5,7 @@ import { defineConfig } from "vitest/config";
 import { withTestGuards } from "../tools/test-wait-guard.mjs";
 import { baseTest, localVerbose } from "../vitest.base.mjs";
 
-// Standalone rather than vitest.shared.config.ts, like graph-format: the shared factory runs happy-dom, and
-// headless Cytoscape needs no DOM. @graphty/* resolve through their dist/, so build them first (nx does).
+// Node environment: headless Cytoscape needs no DOM. @graphty/* resolve through their dist/, so build them first (nx does).
 const config = defineConfig({
     resolve: {
         alias: {

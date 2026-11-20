@@ -110,7 +110,7 @@ as the 2D one with placed edges, and the CPU profile of it is 81% waiting on the
 - **Small frames are the element's pacing floor, not its drawing cost.** At 10,000 nodes, and at 100,000 nodes with few
   edges, the batched frame sits at 18-24 ms while cosmos.gl draws in 1-4 ms. A probe at 10,000 nodes and 100 edges found
   the page's animation frame firing every 1.2 ms, and the element's frame loop skipping 174 of 426 ticks as
-  `gpuBehind` (its fence after the previous frame not yet signalled); the CPU profile of that stage is 83% idle. The
+  `gpuBehind` (its fence after the previous frame not yet signaled); the CPU profile of that stage is 83% idle. The
   serial still frame of the same probe ran at 1.5 ms median in one run and 19 ms in others. So below about 20 ms these
   rows measure how often the element's fence lets it draw, and the ratios against cosmos.gl at those sizes are upper
   bounds on the real cost, not the cost.

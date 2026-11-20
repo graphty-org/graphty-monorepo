@@ -8,8 +8,8 @@ export interface TriangleCountResult {
     readonly total: number;
     /**
      * Each node's local clustering coefficient, `2 T(v) / (d(v) (d(v) - 1))` with `d(v)` its number of
-     * distinct neighbours. 0 -- a defined value, not a missing one -- for a node with fewer than two
-     * neighbours, so a star gives all zeros.
+     * distinct neighbors. 0 -- a defined value, not a missing one -- for a node with fewer than two
+     * neighbors, so a star gives all zeros.
      */
     readonly coefficient: NumericVector;
     /** The graph's transitivity, `3 x triangles / connected triples`; 0 when there is no connected triple. */
@@ -34,7 +34,7 @@ function dropRepeats(colIdx: Uint32Array, start: number, end: number): number {
 }
 
 /**
- * The simple undirected graph underlying a snapshot: every row sorted, each neighbour once, no
+ * The simple undirected graph underlying a snapshot: every row sorted, each neighbor once, no
  * self-loop, and both directions of a directed arc.
  * @param s - Any snapshot
  * @returns The rows, as a CSR pair

@@ -135,20 +135,31 @@ const layoutEngineRegistry = new SharedImplementationMap<LayoutEngineClass>("lay
 type RegisterableLayout = LayoutEngineClass & Partial<LayoutEngineStatics>;
 
 /**
+ * Whether a layout class reads edge weights, under either spelling of the static: the deprecated
+ * British `honoursWeights` when the class sets it, otherwise `honorsWeights`.
+ * @param cls - The engine class.
+ * @returns True when the engine arranges a weighted graph differently.
+ */
+export function honorsWeights(cls: Partial<Pick<LayoutEngineStatics, "honorsWeights" | "honoursWeights">>): boolean {
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- reading the alias is what keeps old engines working
+    return cls.honoursWeights ?? cls.honorsWeights ?? false;
+}
+
+/**
  * The engine names the element itself ships, which is also the list of names a third party may
  * not take.
  *
- * WHY IT IS SPELLED OUT HERE rather than read from the layout catalogue, which is where the
- * element's editorial answer lives: the catalogue module imports all nineteen engine classes so it
+ * WHY IT IS SPELLED OUT HERE rather than read from the layout catalog, which is where the
+ * element's editorial answer lives: the catalog module imports all nineteen engine classes so it
  * can emit their options, and every one of those imports this module in order to extend
- * {@link LayoutEngine}. Importing the catalogue from here would close that loop, and a class
+ * {@link LayoutEngine}. Importing the catalog from here would close that loop, and a class
  * evaluated before its own base class is a "Cannot access before initialization" crash at import
- * time rather than a type error. The list is pinned against the catalogue by
+ * time rather than a type error. The list is pinned against the catalog by
  * `test/browser/extensions/layout-extension.test.ts`, so the copy cannot drift in silence.
  *
  * These nineteen are also the one exemption from the descriptor requirement: the arrangements they
  * serve are authored centrally in `src/catalog/layouts.ts`, where five engines can sit behind one
- * public arrangement name, which is a judgement the element makes about its own implementations
+ * public arrangement name, which is a judgment the element makes about its own implementations
  * and not a shape a plugin declares.
  */
 const BUILT_IN_LAYOUT_ENGINES: readonly string[] = Object.freeze([
@@ -206,6 +217,12 @@ export interface LayoutEngineStatics {
      * picker can tell a reader which arrangements the `weighted` option actually does something
      * for, instead of offering it on seventeen layouts that ignore it.
      */
+    honorsWeights?: boolean;
+    /**
+     * The British spelling of {@link LayoutEngineStatics.honorsWeights}, still read when a class
+     * declares it.
+     * @deprecated Declare `honorsWeights`. Removed in the next major.
+     */
     honoursWeights?: boolean;
     /**
      * Whether this engine can lay out a set of nodes while holding every other node still, which is
@@ -227,7 +244,7 @@ export interface LayoutEngineStatics {
      */
     scoped?: boolean;
     /**
-     * What the catalogue publishes about this layout, so a picker can offer it.
+     * What the catalog publishes about this layout, so a picker can offer it.
      *
      * REQUIRED OF A THIRD PARTY'S ENGINE and absent from the element's own nineteen, whose
      * arrangements are authored in `src/catalog/layouts.ts` instead. `descriptor.id` must equal
@@ -342,6 +359,13 @@ export const layoutEngineInternals = {} as {
      * hands it to the engine. Undefined when an end has no position.
      */
     edgePositionOf(engine: LayoutEngine, e: Edge): EdgePosition | undefined;
+    /**
+     * Tell the engine whether the element has stopped stepping it (settled, paused or stopped). A
+     * resting engine lets go of its publish scratch and allocates it again on its next publish.
+     */
+    rest(engine: LayoutEngine, resting: boolean): void;
+    /** How many doubles the engine's publish scratch holds. */
+    scratchHeld(engine: LayoutEngine): number;
 };
 
 /**
@@ -408,6 +432,13 @@ export abstract class LayoutEngine {
             engine.unpin(n);
         };
         layoutEngineInternals.positions = (engine) => engine.writablePositions;
+        layoutEngineInternals.rest = (engine, resting) => {
+            engine.resting = resting;
+            if (resting) {
+                engine.releasePublishScratch();
+            }
+        };
+        layoutEngineInternals.scratchHeld = (engine) => engine.scratchRows.length + engine.scratchCoords.length;
         // An edge the working graph hides is drawn and, by design, never held.
         layoutEngineInternals.edgeProblems = (engine, drawn) =>
             engine.edgeProblems(
@@ -476,13 +507,21 @@ export abstract class LayoutEngine {
     static maxDimensions: number;
 
     /**
-     * Whether this engine reads edge weights. See {@link LayoutEngineStatics.honoursWeights}.
+     * Whether this engine reads edge weights. See {@link LayoutEngineStatics.honorsWeights}.
      *
      * False here because most layouts have no weight channel at all: of the element's own
      * nineteen, only Kamada-Kawai and ForceAtlas2 can read one, and the other seventeen would be
      * advertising a control that changes nothing.
      */
-    static honoursWeights = false;
+    static honorsWeights = false;
+
+    /**
+     * The British spelling of {@link LayoutEngine.honorsWeights}. Undefined unless a class sets
+     * it; when one does, it wins over `honorsWeights`, so an engine written against the old name
+     * keeps its weight channel.
+     * @deprecated Declare `static honorsWeights`. Removed in the next major.
+     */
+    static readonly honoursWeights?: boolean;
 
     /**
      * Whether this engine accepts a scope. See {@link LayoutEngineStatics.scoped}, which states the
@@ -497,7 +536,7 @@ export abstract class LayoutEngine {
      * What a picker reads about this layout. See {@link LayoutEngineStatics.descriptor}.
      *
      * A third party's engine declares one and {@link LayoutEngine.register} publishes it to the
-     * catalogue; the element's own engines leave it undefined because their arrangements are
+     * catalog; the element's own engines leave it undefined because their arrangements are
      * authored centrally.
      */
     static descriptor?: AuthoredLayoutDescriptor;
@@ -549,6 +588,8 @@ export abstract class LayoutEngine {
 
     private scratchRows = new Float64Array(0);
     private scratchCoords = new Float64Array(0);
+    /** Whether the element has stopped stepping this engine; see `layoutEngineInternals.rest`. */
+    private resting = false;
 
     /**
      * The box the last {@link LayoutEngine.publishColumn} left the rows it was handed in: min x, y, z
@@ -969,6 +1010,20 @@ export abstract class LayoutEngine {
     clusterColumn: ClusterColumn | null = null;
 
     /**
+     * The stored record of a row with no `Node`, which the layout manager fills in; read for `clusterBy` under
+     * renderPath "batched".
+     * @internal
+     */
+    rowRecord: ((row: number) => unknown) | null = null;
+
+    /**
+     * The store's row of a node id, which the layout manager fills in; read for `clusterBy` under renderPath
+     * "batched", where a row the engine holds may have no `Node` to ask.
+     * @internal
+     */
+    storeRowOf: ((id: NodeIdType) => number) | null = null;
+
+    /**
      * Read `clusterBy` again because a run's results changed, and start the layout again when the communities did.
      * @returns True when the frame loop has to start stepping this layout again.
      * @internal
@@ -1224,6 +1279,30 @@ export abstract class LayoutEngine {
         count: number,
         firstPlacement = false,
     ): void {
+        this.#publishColumn(n, rows, coords, count, firstPlacement);
+        // A settled or stopped simulation publishes seldom if ever again, so the scratch (42 MiB at
+        // a million nodes) is let go rather than kept for the life of the graph; a running one
+        // reuses it every frame.
+        if (rows === this.scratchRows && (this.resting || this.isSettled)) {
+            this.releasePublishScratch();
+        }
+    }
+
+    /**
+     * {@link LayoutEngine.publishColumn}, before the scratch is let go.
+     * @param n - see {@link LayoutEngine.publishColumn}
+     * @param rows - see {@link LayoutEngine.publishColumn}
+     * @param coords - see {@link LayoutEngine.publishColumn}
+     * @param count - see {@link LayoutEngine.publishColumn}
+     * @param firstPlacement - see {@link LayoutEngine.publishColumn}
+     */
+    #publishColumn(
+        n: Parameters<LayoutEngine["publishColumn"]>[0],
+        rows: Float64Array,
+        coords: Float64Array,
+        count: number,
+        firstPlacement: boolean,
+    ): void {
         if (n === undefined) {
             return;
         }
@@ -1367,17 +1446,17 @@ export abstract class LayoutEngine {
 
     /**
      * File a layout engine class under the name it declares, and publish what it says about
-     * itself to the catalogue.
+     * itself to the catalog.
      *
      * WHAT CHANGED AND WHY. This used to read `cls.type` through a cast and put the class in a
      * map, which meant a class with no `static type` registered under the string "undefined", a
      * second class under a taken name silently replaced the first, and a registered engine
-     * reached no catalogue at all -- so a third party's layout could run but could never be
+     * reached no catalog at all -- so a third party's layout could run but could never be
      * offered by a picker, described in a reader's language, or found by `layoutIdForEngine`.
      *
      * A third party's class must declare a `static descriptor` whose `id` equals its
      * `static type`. The element's own nineteen are the one exemption, because their arrangements
-     * are authored centrally in the layout catalogue where several engines may sit behind one
+     * are authored centrally in the layout catalog where several engines may sit behind one
      * public name.
      * @param cls - The layout engine class.
      * @param options - How to register it; `strict` refuses a different layout under a taken id.
@@ -1448,15 +1527,17 @@ export abstract class LayoutEngine {
         // an engine reachable by name whose descriptor nothing carries is exactly the half-built
         // state this check exists to prevent.
         //
-        // `honoursWeights` and `scoped` are taken from the class rather than from the descriptor the author
+        // `honorsWeights` and `scoped` are taken from the class rather than from the descriptor the author
         // wrote, because the engine is where the fact is true: a descriptor that claimed weights
         // for an engine whose arrangement ignores them would put a live control in front of a
         // reader that changes nothing.
+        const weightsHonored = honorsWeights(declared);
         publishLayoutDescriptor(
             {
                 descriptor: {
                     ...descriptor,
-                    honoursWeights: declared.honoursWeights ?? false,
+                    honorsWeights: weightsHonored,
+                    honoursWeights: weightsHonored,
                     scoped: declared.scoped ?? false,
                 },
                 type,
@@ -1774,7 +1855,7 @@ function existingRows(change: SnapshotReplacement): NodeMask | null {
  *
  * A re-run after an add arranges the whole enlarged graph, and its existing rows land somewhere
  * other than where they are held: a circle of ten is rotated against the circle of nine it
- * replaces, and Kamada-Kawai re-centres and rescales its answer. Taking a newcomer's coordinate
+ * replaces, and Kamada-Kawai re-centers and rescales its answer. Taking a newcomer's coordinate
  * from that other frame as it stands can put it on top of a held node. So the re-run is moved onto
  * the held picture -- shifted centroid onto centroid, turned about z (mirrored first when that
  * fits better) by the least-squares rotation, and scaled by the ratio of the two spreads -- and
@@ -1922,7 +2003,7 @@ export const simpleLayoutInternals = {
  * edges to the ones already drawn -- and no file is still loading, a re-run of an engine that
  * reads `graph` places only the new nodes and leaves every existing one where it was. The
  * existing coordinates are also offered to the layout as its start (`startPositions`), which is
- * what lets Kamada-Kawai and ARF place a newcomer among its neighbours rather than from scratch.
+ * what lets Kamada-Kawai and ARF place a newcomer among its neighbors rather than from scratch.
  * The new nodes' coordinates are then carried into the frame the existing nodes are drawn in, by
  * the turn (or mirror), scale and shift that best map the re-run's existing nodes onto their held
  * places.

@@ -13,7 +13,8 @@ name: Base check
 # - `[FAIL]` or `[NEW-FLAKY]` of a test whose imports the pull request changed but not the test file itself; repeat 1
 #   or 5. When master fails one of the same tests (`failed`) here, this run re-runs the one job of the pull request's
 #   run that failed it (`job`), whose re-run reads this run's records as master's and passes the failure as `[KNOWN]`
-#   or quarantined (#8363). Such a check carries no `tests`: a touched test's flake is likely the pull request's own.
+#   or quarantined (#8363). A `[NEW-FLAKY]` check carries its tests in `tests` too, and files their issues when all 5
+#   pass (#8795): the pull request changed only the test's imports, often a lint pass or a dependency bump.
 # Design: design/ci/channels-pipeline/results-service.md, sections 6.1 and 6.3.
 
 on:
@@ -111,7 +112,7 @@ jobs:
                       exit 1
                   fi
 
-            - uses: pnpm/action-setup@v6
+            - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
 
             - name: Setup Node.js
               uses: actions/setup-node@v7
@@ -137,10 +138,13 @@ jobs:
               if: startsWith(inputs.variant, 'graphty-element-browser')
               run: git lfs pull --include "$(node -p "require('./graphty-element/test/browser/oracle-scorecard-samples.json').map((id) => 'graph-io/test/fidelity/oracles/' + id + '.png').join(',')")"
 
-            - name: Install Mesa lavapipe and export the lane's environment
+            - name: Install Mesa lavapipe
+              if: startsWith(inputs.variant, 'webgpu-graph-algorithms-node')
+              uses: ./.github/actions/mesa-lavapipe
+
+            - name: Export the lavapipe lane's environment
               if: startsWith(inputs.variant, 'webgpu-graph-algorithms-node')
               run: |
-                  sudo apt-get update && sudo apt-get install -y --no-install-recommends mesa-vulkan-drivers libvulkan1 vulkan-tools
                   icd=$(find /usr/share/vulkan/icd.d /etc/vulkan/icd.d /usr/lib/x86_64-linux-gnu/vulkan/icd.d -name 'lvp_icd*.json' 2>/dev/null | sort | head -1 || true)
                   if [ -z "$icd" ]; then echo "::error::no lavapipe ICD json"; exit 1; fi
                   {

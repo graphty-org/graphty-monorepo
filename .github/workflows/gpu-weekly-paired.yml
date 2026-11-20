@@ -39,7 +39,7 @@ jobs:
         # (issue #2313, runs 37340409927 and 38281344619). gpu.yml's comments give why each option is load-bearing;
         # --privileged and --ipc=host are kept so the two T4 jobs run in the same environment.
         container:
-            image: ubuntu:24.04
+            image: ubuntu:24.04@sha256:73b999393d07f2bf65a40373778a44dc9a6d54ad7718d29247d8ff9413c4d6a8
             options: --gpus all --ipc=host --privileged
             env:
                 NVIDIA_VISIBLE_DEVICES: all
@@ -57,8 +57,11 @@ jobs:
             # The .deb files apt chose are cached, keyed on the bare image's own package list (every package and
             # version dpkg reports before anything is installed) and the packages asked for, so a hit installs with
             # dpkg and never touches archive.ubuntu.com: in run 42555029230 the runner could not reach it, apt
-            # found "no installation candidate" for libvulkan1 and the full run went red (#6390). A new ubuntu:24.04
-            # build changes the key, so its first run fetches once more (with apt's retries) and saves the set.
+            # found "no installation candidate" for libvulkan1 and the full run went red (#6390). The image is pinned
+            # by digest (above) because a new ubuntu:24.04 build changes the key, and the first run on it must reach
+            # the archive: full run 44519887010 met a new build while archive.ubuntu.com refused connections and went
+            # red (#9035). Bump the digest on purpose (`docker pull ubuntu:24.04` prints it) in both T4 workflows; the
+            # first run after the bump fetches once (with apt's retries) and saves the set.
             - name: Key the container's packages by its image
               id: t4-debs-key
               working-directory: /
@@ -111,9 +114,9 @@ jobs:
                   nvidia-smi
                   test -e /usr/share/vulkan/icd.d/nvidia_icd.json -o -e /etc/vulkan/icd.d/nvidia_icd.json \
                     || { echo "::error::no NVIDIA Vulkan ICD in the container -- NVIDIA_DRIVER_CAPABILITIES must include graphics"; exit 1; }
-            - uses: pnpm/action-setup@v6
+            - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
             - uses: actions/setup-node@v7
-              with: { node-version: 22.x, cache: pnpm }
+              with: { node-version: 22.x, package-manager-cache: false } # weekly: a saved pnpm store is evicted long before the next run (#8841, see gpu.yml)
             - run: pnpm install --frozen-lockfile
               working-directory: .
               env: { HUSKY: "0" }

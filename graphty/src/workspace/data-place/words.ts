@@ -19,6 +19,7 @@ import {
     type LocationUnused,
     type LocationUsing,
     pathParts,
+    type Run,
     type TableMapping,
     type TableMappingRead,
 } from "@graphty/graphty-element/session";
@@ -119,7 +120,7 @@ export function loadName(load: LoadedSource): string {
  */
 export function sourcesWords(sources: readonly LoadedSource[]): string | undefined {
     const files = sources.flatMap((load) =>
-        load.tables.length > 1 ? load.tables : [load.name ?? load.tables[0] ?? "Untitled data"],
+        load.tables.length > 1 ? load.tables : [load.name ?? load.tables.at(0) ?? "Untitled data"],
     );
     if (files.length <= 1) {
         return files.length === 0 ? undefined : `From ${files[0]}`;
@@ -229,9 +230,6 @@ export function attributeRows(
             };
         });
 }
-
-/** Why an attribute's verbs cannot run: it went away under the open menu. */
-export const GONE_WORD = "No longer in the data";
 
 /**
  * A notice for a filter change the element refused, with its reason when the app has words for
@@ -781,4 +779,29 @@ export function namesOnce(names: readonly string[]): string {
         counts.set(name, (counts.get(name) ?? 0) + 1);
     }
     return [...counts].map(([name, count]) => (count > 1 ? `${name} x${String(count)}` : name)).join(", ");
+}
+
+/**
+ * A result's methods text, for a write-up: what ran, over what, with which settings, and which
+ * versions computed it, all read from the run's record.
+ * @param session - the element's session.
+ * @param run - the result.
+ * @returns the text.
+ */
+export function methodsWords(session: GraphSession, run: Run): string {
+    const descriptor = session.catalog.algorithms().find((each) => each.key === run.algorithm);
+    const name = descriptor === undefined ? run.algorithm : `${descriptor.plainName} (${descriptor.technicalName})`;
+    const settings = Object.entries(run.params).map(
+        ([key, value]) => `${key} = ${typeof value === "string" ? value : JSON.stringify(value)}`,
+    );
+    const over = `${count(run.scope.nodeCount, "node")} and ${count(run.scope.edgeCount, "edge")}`;
+    const withSettings = settings.length === 0 ? "" : `, with ${settings.join(", ")}`;
+    const lines = [
+        `${name} was computed over ${over}${withSettings}.`,
+        `Computed by graphty-element ${run.engine.element} with @graphty/algorithms ${run.engine.algorithms}.`,
+    ];
+    if (run.record.seed !== null) {
+        lines.push(`Seed: ${String(run.record.seed)}.`);
+    }
+    return lines.join(" ");
 }

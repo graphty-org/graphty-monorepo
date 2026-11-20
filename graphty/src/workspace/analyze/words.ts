@@ -206,13 +206,18 @@ const WORDS: Readonly<Record<string, AlgorithmWords>> = {
         answers: "Which missing edges the shared neighbors suggest.",
         aliases: ["missing links", "recommend", "adamic-adar", "jaccard"],
     },
+    "removal-impact": {
+        name: "Removal impact",
+        answers: "What the selected nodes or edges hold together: the nodes cut off if they were removed.",
+        aliases: ["simulate removing", "what breaks", "what if", "cut off", "vulnerable", "resilience"],
+    },
 };
 
 /**
  * The line under an algorithm in the Find list, keyed by the element's `descriptionId`. An
  * algorithm a third party registered has no line here, so it shows none.
  */
-export const ALGORITHM_DESCRIPTIONS: Readonly<Record<string, string>> = {
+export const ALGORITHM_DESCRIPTIONS: Readonly<Partial<Record<string, string>>> = {
     "algorithm.degree": "Counts how many edges each node has, incoming, outgoing and in total.",
     "algorithm.betweenness":
         "Scores a node by how many of the shortest paths between other nodes run through it, which is what finds the bridges.",
@@ -265,6 +270,8 @@ export const ALGORITHM_DESCRIPTIONS: Readonly<Record<string, string>> = {
         "Scores a node by how many of its neighbors are also neighbors of each other, and counts the triangles that makes.",
     "algorithm.link-prediction":
         "Scores the pairs of nodes that are not yet joined by the neighbors they share, and lists the pairs most likely to be joined next.",
+    "algorithm.removal-impact":
+        "Works out what removing some nodes or edges would cut off, without removing them: the separate pieces before and after, and the nodes left cut off from the rest of their piece.",
 };
 
 /**
@@ -412,7 +419,7 @@ const SAMPLE_SIZE: OptionWords = { label: "Sample size", empty: "Every node" };
  * `<algorithm key>.<option name>` (a test holds that every key option the element ships has
  * words here).
  */
-const OPTION_WORDS: Readonly<Record<string, OptionWords>> = {
+const OPTION_WORDS: Readonly<Partial<Record<string, OptionWords>>> = {
     "pagerank.dampingFactor": { label: "Damping factor" },
     "katz.alpha": { label: "Attenuation" },
     "louvain.resolution": { label: "Resolution" },
@@ -473,7 +480,7 @@ const OPTION_WORDS: Readonly<Record<string, OptionWords>> = {
  * The words for options that mean the same thing in every algorithm, by option name; an entry
  * in OPTION_WORDS wins over these.
  */
-const SHARED_OPTION_WORDS: Readonly<Record<string, string>> = {
+const SHARED_OPTION_WORDS: Readonly<Partial<Record<string, string>>> = {
     maxIterations: "Max iterations",
     tolerance: "Tolerance",
     k: "Sample size",

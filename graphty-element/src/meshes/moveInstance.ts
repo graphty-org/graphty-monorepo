@@ -39,7 +39,7 @@ export function moveInstance(instance: InstancedMesh, to: Mesh): void {
         instance.instancedBuffers ??= {};
         for (const kind of Object.keys(to.instancedBuffers)) {
             if (!(kind in instance.instancedBuffers)) {
-                instance.instancedBuffers[kind] = to.instancedBuffers[kind];
+                instance.instancedBuffers[kind] = to.instancedBuffers[kind] as unknown;
             }
         }
     }

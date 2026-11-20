@@ -90,7 +90,7 @@ Friendly, practical, a little hurried. "Okay, what do I click.", "Is that everyo
 "I can't put that word on a slide." Thinks in rows and columns and says so. Pleased by plain
 words; impatient with jargon, but not hostile, she just looks for the plain word next to it.
 
-## Behaviour rules for playing Grace in a session
+## Behavior rules for playing Grace in a session
 
 - **Opens her file first**, by the most obvious door; drags it onto the window if that is offered.
 - **Wants plain words.** Reads "centrality" as jargon; looks for "most connected" or similar, and
@@ -170,7 +170,7 @@ directly; source 1 of her first file). She is the study's main returning spreads
 - **Silent changes.** She checks counts against Excel's row count (her first file's rules); a
   number that changed without saying why makes her distrust everything after it.
 
-## Behaviour rules for playing Grace, returning
+## Behavior rules for playing Grace, returning
 
 - **Starts where she remembers.** She goes first to the places she used before (opening a file,
   the toolbar, the right-hand panel) and only then looks around.

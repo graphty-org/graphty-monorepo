@@ -6,7 +6,7 @@ algorithms. Each one takes a graph snapshot and a start node index, and returns 
 
 ## Breadth-First Search (BFS)
 
-BFS explores nodes level by level, visiting all neighbours of a node before moving to the next level.
+BFS explores nodes level by level, visiting all neighbors of a node before moving to the next level.
 
 <!-- doc-check -->
 

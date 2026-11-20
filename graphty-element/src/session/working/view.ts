@@ -64,9 +64,9 @@ export interface WorkingGraph {
     enabled: boolean;
     /**
      * The view a reader reads.
-     * @param scope - `"visible"` for what is visible now (the filters and the time window), `"graph"`
-     *   for the whole graph; absent, the working graph (what the filters show, the window aside)
-     *   while `enabled`, else the whole graph.
+     * @param scope - `"visible"` for what the filters show (a time window hides by drawing and is
+     *   never part of a view), `"graph"` for the whole graph; absent, the working graph (what the
+     *   filters show) while `enabled`, else the whole graph.
      * @returns The view, the same object until the state changes.
      */
     view(scope?: WorkingScope): WorkingView;
@@ -84,9 +84,9 @@ export interface WorkingGraph {
 export interface WorkingGraphSources {
     /** The store's current snapshot, by name. */
     readonly snapshot: () => WholeSnapshot;
-    /** What is visible now (the filters and the time window); each read returns the same copy until its membership changes. */
+    /** What the filters show (a time window hides by drawing, never here); each read returns the same copy until its membership changes. */
     readonly masks: ScopeVisibilitySource;
-    /** What the filters keep, the time window aside; the same copies as `masks` while no window is in force. */
+    /** What the filters keep, the time window aside; the session passes the same copies as `masks`. */
     readonly kept: ScopeVisibilitySource;
     /** The store, which a run's membership names. */
     readonly store: object;

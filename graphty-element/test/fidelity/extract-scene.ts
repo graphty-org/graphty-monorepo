@@ -20,6 +20,8 @@
  * expresses every length in reference units with its scale. The vocabulary maps are unit-tested in
  * Node (`extract-scene.test.ts`); the reader runs in the browser (`fidelity.test.ts`).
  */
+import type { GraphSnapshot } from "@graphty/graph-format";
+
 import { resample } from "../../../graph-io/test/fidelity/compare";
 import { canCarry } from "../../../graph-io/test/fidelity/routes";
 import {
@@ -36,6 +38,7 @@ import {
 import { channelDescriptor } from "../../catalog";
 import type { Graphty } from "../../index.js";
 import { polygonPoints } from "../../src/meshes/shapeOutlines";
+import { childrenOf } from "../../src/session/styles/fileStyles/translate";
 import type { DrawnEdge, DrawnGraph, DrawnNode, ScreenBox } from "./drawn-scene";
 import { insideFigure } from "./oracle/primitives";
 
@@ -91,12 +94,32 @@ export function shapeClassOf(shape: unknown): ShapeClass {
 }
 
 /**
+ * The shape class a node's style asks for: a polygon of three corners (`node.shapePoints`) asks for a triangle, as
+ * vis-network's triangles are drawn; any other polygon stays "other", the class the references give the free-form
+ * polygons of DOT, GML and yEd.
+ * @param shape - its `node.shape`
+ * @param points - its `node.shapePoints`
+ * @returns the class
+ */
+export function askedShapeClass(shape: unknown, points: unknown): ShapeClass {
+    const triangle =
+        shape === "polygon" && polygonPoints(typeof points === "string" ? points : undefined)?.length === 3;
+    return triangle ? "triangle" : shapeClassOf(shape);
+}
+
+/**
  * The shape class of a polygon node, from its corners as a reader tells them apart: by how many
  * there are, and four as a rectangle when three sit on their box's corners, else a diamond.
  * @param points - the polygon's `shape.points`
+ * @param drawn - the box it is drawn in on screen, so a corner counts as on its box's corner within 2% of the box's
+ * longer side, as the oracle's outlines are classed (associate.ts `shapeOf`); without it the corners are taken as drawn
+ * at their own scale
  * @returns the class; "rect", the box graphty draws, without usable corners
  */
-export function polygonClassOf(points: string | undefined): ShapeClass {
+export function polygonClassOf(
+    points: string | undefined,
+    drawn?: Pick<ScreenBox, "x0" | "y0" | "x1" | "y1">,
+): ShapeClass {
     const corners = polygonPoints(points);
     if (corners === null) {
         // without usable corners graphty draws the node's box (shapeOutlines.flatShapeOutline)
@@ -105,12 +128,20 @@ export function polygonClassOf(points: string | undefined): ShapeClass {
     if (corners.length === 4) {
         const xs = corners.map(([x]) => x);
         const ys = corners.map(([, y]) => y);
-        const near = (v: number, ends: readonly number[]): boolean => ends.some((e) => Math.abs(v - e) < 1e-3);
+        const [spanX, spanY] = [Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)];
+        // the corners stretched to the drawn box: a node is drawn its own width and height, not square
+        const [w, h] = drawn === undefined ? [spanX, spanY] : [drawn.x1 - drawn.x0, drawn.y1 - drawn.y0];
+        const slack = 0.02 * Math.max(w, h);
+        const near = (v: number, ends: readonly number[], scale: number): boolean =>
+            ends.some((e) => Math.abs(v - e) * scale < slack);
         const onBox = corners.filter(
-            ([x, y]) => near(x, [Math.min(...xs), Math.max(...xs)]) && near(y, [Math.min(...ys), Math.max(...ys)]),
+            ([x, y]) =>
+                near(x, [Math.min(...xs), Math.max(...xs)], spanX > 0 ? w / spanX : 1) &&
+                near(y, [Math.min(...ys), Math.max(...ys)], spanY > 0 ? h / spanY : 1),
         ).length;
         // as the oracle's outlines are classed (associate.ts): a diamond touches its box at no corner, and a
-        // parallelogram or a trapezium, at one or two, is neither
+        // parallelogram or a trapezium, at one or two, is neither (a skewed Graphviz polygon, dot-real-crazy
+        // "8th Edition", with one corner 1% of its width off its box's)
         if (onBox >= 3) {
             return "rect";
         }
@@ -310,7 +341,7 @@ function boxInside(inner: ScreenBox, outer: ScreenBox): boolean {
  */
 const drawnShapeClass = (d: DrawnNode): ShapeClass =>
     d.shapeType === "polygon"
-        ? polygonClassOf(d.polygon)
+        ? polygonClassOf(d.polygon, d.box)
         : shapeClassOf(SHAPE_NAMES.has(d.meshName) ? d.meshName : d.shapeType);
 
 /**
@@ -566,7 +597,7 @@ export function sceneNode(
         z: -d.box.near,
         requested: {
             size: channel(merged, "node.size"),
-            shape: shapeClassOf(channel(merged, "node.shape")),
+            shape: askedShapeClass(channel(merged, "node.shape"), merged["node.shapePoints"]),
             fill: requestedFill?.hex ?? null,
             fillOpacity: (typeof opacity === "number" ? opacity : 1) * (requestedFill?.alpha ?? 1),
             borderColor: colorOf(merged["node.borderColor"] ?? merged["node.outline"])?.hex ?? null,
@@ -600,6 +631,23 @@ const MAX_PATH_POINTS = 65;
 const PATTERN_STYLES: Readonly<Record<string, LineStyle>> = { dash: "dashed", dot: "dotted" };
 
 /**
+ * The line style of a drawn edge, by its pattern's name; a dash pattern whose every element is no longer than the line is
+ * wide draws dots (a dot shorter than the line is wide is drawn as a short square-ended dash, `EdgeMesh.joinedPattern`).
+ * @param d - what the renderer drew
+ * @returns the style
+ */
+function drawnStyleOf(d: DrawnEdge): LineStyle {
+    if (d.pattern === null) {
+        return "solid";
+    }
+    const on = d.dashPx?.filter((_, i) => i % 2 === 0) ?? [];
+    if (d.pattern === "dash" && on.length > 0 && on.every((len) => len <= d.thicknessPx)) {
+        return "dotted";
+    }
+    return PATTERN_STYLES[d.pattern] ?? "other";
+}
+
+/**
  * One edge as drawn, and what its style asked for.
  * @param record - the edge's id and ends
  * @param record.id - the edge id
@@ -631,7 +679,7 @@ function sceneEdge(
         color: d.color ?? "#000000",
         opacity: d.opacity,
         width: d.thicknessPx,
-        style: d.pattern === null ? "solid" : (PATTERN_STYLES[d.pattern] ?? "other"),
+        style: drawnStyleOf(d),
         arrow: { source: capAt("arrowTail"), target: capAt("arrowHead") },
         label: d.label?.enabled === true && d.label.text !== "" ? d.label.text : null,
         requested: {
@@ -682,6 +730,16 @@ export function comparerEdgeIds(
 }
 
 /**
+ * The nodes a graph nests others in (graph-io's `parent` or `parents` column), by id: the ones the reference
+ * extractors read groups off.
+ * @param snapshot - the graph
+ * @returns their ids
+ */
+export function nestingNodes(snapshot: GraphSnapshot): Set<string> {
+    return new Set([...childrenOf(snapshot).keys()].map((row) => String(snapshot.ids.idOf(row))));
+}
+
+/**
  * Builds the scene from what was drawn. Call `readDrawn(element.graph)` after
  * `waitForStableFrame()` and hand its result here.
  * @param element - the mounted element, for its records and the requested styles
@@ -697,8 +755,10 @@ export function extractScene(element: Graphty, drawn: DrawnGraph, provenance: Gr
     const hidden = occluders(drawn.nodes);
     const nodes: SceneNode[] = [];
     // the nodes the file nests others in: the file styles draw each behind its members by the "node.groups" rule
-    // (`fileStyles/translate.ts`), which matches the file's containment (graph-io's `parent` or `parents` column)
-    const declared = new Set<string>();
+    // (`fileStyles/translate.ts`), which matches the file's containment (graph-io's `parent` or `parents` column);
+    // that rule's name is gone once the file's layers are folded to the cap (`fileStyles/fold.ts`;
+    // dot-synth-edges-clusters), so the containment is read off the data too
+    const declared = nestingNodes(session.data.snapshot());
     for (const record of session.data.nodes()) {
         const id = String(record.id);
         const d = drawn.nodes.get(id);

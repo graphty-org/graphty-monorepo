@@ -486,6 +486,8 @@ export interface DrawnLabel {
         color: string | null;
         opacity: number;
         rounded: boolean;
+        /** Whether it is a disc (`backgroundShape: "circle"`). */
+        circle: boolean;
         border: { color: string; opacity: number; width: number } | null;
     } | null;
 }
@@ -563,6 +565,28 @@ function leadingOf(label: RichTextLabel, opt: LabelInternals["options"]): [numbe
     const half = (line: readonly TextSegment[]): number =>
         (measureLine(ctx, [...line], options).lineBox * (1 - 1 / lineHeight)) / 2;
     return [half(lines[0]), half(lines[lines.length - 1])];
+}
+
+/**
+ * The panel behind a label's words on screen: its canvas without the room round it for a shadow and an outline, or
+ * for a disc, the square its circle fills, as wide as the panel's shorter side and centered on it.
+ * @param margin - the room round the panel, in label units
+ * @param dims - the label's canvas, in label units
+ * @param dims.width - its width
+ * @param dims.height - its height
+ * @param circle - whether the panel is a disc
+ * @param onScreen - a box in label units on screen
+ * @returns the box
+ */
+function panelBox<B>(
+    margin: number,
+    dims: { width: number; height: number },
+    circle: boolean,
+    onScreen: (x: number, y: number, w: number, h: number) => B,
+): B {
+    const [w, h] = [dims.width - margin * 2, dims.height - margin * 2];
+    const d = circle ? Math.min(w, h) : 0;
+    return circle ? onScreen(margin + (w - d) / 2, margin + (h - d) / 2, d, d) : onScreen(margin, margin, w, h);
 }
 
 /**
@@ -676,10 +700,13 @@ export function readLabel(label: RichTextLabel | null | undefined, p: Projector)
             !known || ((bgCss === null || bgCss.alpha <= 0) && borderCss === null)
                 ? null
                 : {
-                      box: onScreen(0, 0, dims.width, dims.height),
+                      // the panel, without the room round it for its shadow and the words' outline (#8746); a disc
+                      // as wide as its shorter side
+                      box: panelBox(inner.shadowMargin, dims, opt.backgroundShape === "circle", onScreen),
                       color: bgCss !== null && bgCss.alpha > 0 ? bgCss.hex : null,
                       opacity: (bgCss?.alpha ?? 0) * planeAlpha,
                       rounded: (opt.cornerRadius ?? 0) > 0,
+                      circle: opt.backgroundShape === "circle",
                       border:
                           border === undefined || borderCss === null
                               ? null
@@ -731,7 +758,10 @@ export interface DrawnNode {
     insetPx: number;
     /** The border ring drawn outside the fill, or null when the node has none. */
     border: DrawnBorder | null;
-    /** Where a table label's background is the node's body, its cells' outline, else null. */
+    /**
+     * The outline of its label's table drawn inside its margin; else, where a table label's background is the node's
+     * body, its cells' outline; else null.
+     */
     tableOutline?: DrawnBorder | null;
     /**
      * Where the node also draws an outer ring (`outer`), its own border ring at the fill, else null: `border` and the
@@ -816,6 +846,30 @@ function readTableOutline(node: Node, p: Projector): DrawnBorder | null {
     return {
         color: css.hex,
         widthPx: width * NodeMesh.extentPerSize(shape) * p.pxPerWorld(at),
+        lineWidthPx: null,
+        style: "solid",
+        screen: false,
+        opacity: css.alpha * (drawnStyle?.border?.opacity ?? 1),
+    };
+}
+
+/**
+ * The outline a node draws round its label's table where the table is smaller than the node (`tableFrame`), in its
+ * border's color, as the program draws the table's border inside the node's margin.
+ * @param node - the node
+ * @param p - the projector
+ * @returns the outline, or null when the node draws none
+ */
+function readTableFrame(node: Node, p: Projector): DrawnBorder | null {
+    const { drawnStyle, tableFrame } = nodeInternals.drawn(node);
+    const color = drawnStyle?.border?.color;
+    if (tableFrame === null || typeof color !== "string") {
+        return null;
+    }
+    const css = cssColor(color);
+    return {
+        color: css.hex,
+        widthPx: tableFrame * NodeMesh.extentPerSize(drawnStyle?.shape) * p.pxPerWorld(node.mesh.getAbsolutePosition()),
         lineWidthPx: null,
         style: "solid",
         screen: false,
@@ -1451,7 +1505,8 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
         }),
     );
     // its outline is the table's cells' outlines (`shape.lines`), drawn in its border's color, as the program's is
-    const tableOutline = tableBody.length > 0 ? readTableOutline(node, p) : null;
+    // a table drawn inside a larger node (a margin round it) has its own outline drawn where it is: the node's
+    const tableOutline = readTableFrame(node, p) ?? (tableBody.length > 0 ? readTableOutline(node, p) : null);
     const tableFill =
         tableBody[0]?.fill === undefined
             ? null
@@ -1552,6 +1607,8 @@ export interface DrawnEdge {
      * does not taper.
      */
     taper?: number;
+    /** Its width at the source over the line's width (`line.taperSource`), where the line tapers there. */
+    taperSource?: number;
     /**
      * The band drawn under the line (`line.outline`): its color, opacity, whole width in pixels and the pattern it is
      * drawn in (a joined line's "dash" or "dot"; absent, solid); null for none.
@@ -1704,7 +1761,7 @@ function capOutline(cap: ArrowCap | null, p: Projector): [number, number][] | nu
 
 /**
  * A joined line's dashes or dots on screen: each element is `elementLength` long along the line and the elements sit
- * `spacing` apart centre to centre (the slot's spacing, `EdgeLineBatch`), so each gap is the spacing less the length.
+ * `spacing` apart center to center (the slot's spacing, `EdgeLineBatch`), so each gap is the spacing less the length.
  * @param batch - the line's batch
  * @param slots - the edge's slots in it
  * @param pattern - the batch's pattern, or undefined for a solid line
@@ -1715,7 +1772,7 @@ function capOutline(cap: ArrowCap | null, p: Projector): [number, number][] | nu
 function joinedDashes(
     batch: EdgeLineBatch,
     slots: readonly number[],
-    pattern: { kind: string; elementLength?: number } | undefined,
+    pattern: { kind: string; elementLength?: number; dashes?: readonly number[] } | undefined,
     at: Vector3,
     p: Projector,
 ): number[] | null {
@@ -1729,6 +1786,10 @@ function joinedDashes(
         return null;
     }
     const k = p.pxPerWorld(at);
+    // a dash array (`line.dashArray`) is its own dashes and gaps
+    if (pattern.dashes !== undefined) {
+        return pattern.dashes.map((d) => d * k);
+    }
     return [length * k, Math.max(0, spacing - length) * k];
 }
 
@@ -1837,6 +1898,7 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
     let pattern: string | null = null;
     let dashPx: number[] | null = null;
     let taper: number | undefined;
+    let taperSource: number | undefined;
     if (batch !== null) {
         const slots = internal.lineSlots;
         const flat = (batch.mesh.metadata as { is2DLine?: boolean } | null)?.is2DLine === true;
@@ -1848,7 +1910,8 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
             const straight = flat ? "line-2d" : "screen-line";
             kind = internal.drawnStyle?.line?.bezier === true || !internal.lineIsCurve ? "curve" : straight;
         } else {
-            world = slots.length > 0 ? batch.endsOf(slots[0]) : [];
+            // one straight line, in one piece or in a run of them (a line tapered at both ends is two halves)
+            world = slots.length > 0 ? [batch.endsOf(slots[0])[0], batch.endsOf(slots[slots.length - 1])[1]] : [];
             kind = flat ? "line-2d" : "screen-line";
         }
         const mid = world[Math.floor(world.length / 2)] ?? Vector3.Zero();
@@ -1870,6 +1933,8 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
         dashPx = joinedDashes(batch, slots, meta?.pattern, mid, p);
         const asked = internal.drawnStyle?.line?.taper;
         taper = asked !== undefined && asked !== 1 && batch.widened ? asked : undefined;
+        const askedSource = internal.drawnStyle?.line?.taperSource;
+        taperSource = askedSource !== undefined && askedSource !== 1 && batch.widened ? askedSource : undefined;
         const styled = own?.alpha ?? meta?.lineOpacity;
         // A joined line's shader draws its own `opacity` and never reads the mesh's visibility, which
         // it sets only to be drawn in the transparent pass, so the visibility is not ink.
@@ -1898,9 +1963,11 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
         ({ opacity } = fields);
         dashPx = elementDashes(pm.elements, p);
     } else if (internal.pulled?.run === null) {
-        // a straight line pulled from the row table (`PulledLineBatch`) runs between its two node centres, in the
+        // a straight line pulled from the row table (`PulledLineBatch`) runs between its two node centers, stopped at
+        // a translucent end's outline as its shader stops it (`PULLED_TRIM_GLSL`, the object line's bare ends), in the
         // color, opacity and width its piece carries (`PulledLineBatch.setLook`): the batched path's plain lines
-        world = [edge.srcNode.drawnPosition, edge.dstNode.drawnPosition];
+        const [src, dst] = [edge.srcNode.drawnPosition, edge.dstNode.drawnPosition];
+        world = [edgeInternals.bareEnd(edge, "source", src, dst), edgeInternals.bareEnd(edge, "target", dst, src)];
         const { batch, piece } = internal.pulled;
         const look = batch as unknown as { rows: Float32Array; pieceFloats: number };
         const at = piece * look.pieceFloats;
@@ -1998,6 +2065,7 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
         pattern,
         dashPx,
         ...(taper === undefined ? {} : { taper }),
+        ...(taperSource === undefined ? {} : { taperSource }),
         outline: readOutline(internal, p),
         overlay: readOverlay(internal, p),
         caps,

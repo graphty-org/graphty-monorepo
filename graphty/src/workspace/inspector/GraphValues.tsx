@@ -12,8 +12,8 @@ import { Button, Text, Tooltip } from "@mantine/core";
 import React, { useState } from "react";
 
 import { weightName } from "../analyze/words";
-import { useVisibilityVersion } from "../data-place/useVisibilityVersion";
 import { TEXT_WORD, YES_NO_WORD } from "../data-place/words";
+import { useSessionEvents, VISIBILITY_EVENTS } from "../sessionEvents";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { designate } from "../time/timeActions";
 import { DistributionRows } from "./Distribution";
@@ -121,7 +121,7 @@ function ofWords(part: number, whole: number): string {
  */
 export function Overview(): React.JSX.Element | null {
     const { session, store } = useWorkspace();
-    useVisibilityVersion(session);
+    useSessionEvents(session, VISIBILITY_EVENTS);
     if (session === null) {
         return null;
     }

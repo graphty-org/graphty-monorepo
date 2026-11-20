@@ -174,7 +174,7 @@ export const SECTIONS: Readonly<Record<Kind, readonly SectionSpec[]>> = {
         {
             id: "shape",
             title: "Shape",
-            // Wireframe, Outline, Glow, Halo and the outer border are style options of the shape, never shaders.
+            // Wireframe, Glow and the outer border are style options of the shape, never shaders.
             // The outer border is here because the Selected and Pinned starting rows draw their ring with it.
             channels: [
                 "node.shape",
@@ -184,13 +184,8 @@ export const SECTIONS: Readonly<Record<Kind, readonly SectionSpec[]>> = {
                 "node.depth",
                 "node.relativeExtents",
                 "node.wireframe",
-                "node.outline",
-                "node.outlineWidth",
                 "node.glow",
                 "node.glowStrength",
-                "node.haloColor",
-                "node.haloScale",
-                "node.haloOpacity",
                 "node.outerBorderColor",
                 "node.outerBorderWidth",
                 "node.outerBorderOpacity",
@@ -432,19 +427,13 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.tooltip": "Tooltip",
     "node.tooltipStyle": "Tooltip style",
     "node.opacity": "Opacity",
-    "node.outline": "Outline",
-    "node.outlineWidth": "Outline width",
     "node.glow": "Glow",
     "node.glowStrength": "Glow strength",
-    "node.halo": "Halo",
-    "node.haloScale": "Halo size",
     "node.wireframe": "Wireframe",
     "node.meshDetail": "Mesh detail",
     "node.flat": "Flat shading",
     "node.unlit": "Unlit",
     "node.marker": "Marker",
-    "node.haloColor": "Halo",
-    "node.haloOpacity": "Halo opacity",
     "node.visible": "Show",
     "node.labelBackground": "Label background",
     "node.tooltipSize": "Tooltip size",
@@ -816,7 +805,7 @@ export function channelWord(channel: Channel): string {
 
 /**
  * A style's setting named on its own line under the style's row, where the style is already said:
- * "Size" under Halo for "Halo size", "Count" under Pattern for "Pattern count".
+ * "Strength" under Glow for "Glow strength", "Count" under Pattern for "Pattern count".
  * @param style - the style's channel (graphty-element's `modifies`).
  * @param setting - the setting's channel.
  * @returns the words.

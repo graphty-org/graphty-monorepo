@@ -471,32 +471,3 @@ export const AnimationPoses: Story = {
         await assertGraphLoaded(scene, { nodes: 3, edges: 0 });
     },
 };
-
-/**
- * A halo on a model node is a band around the model's outline on screen, not a copy of the model
- * laid over it: the middle rack has a gold halo; the racks beside it draw the same model unmarked.
- */
-export const ModelHaloHugsSilhouette: Story = {
-    args: {
-        setup: storySetup({
-            viewMode: "3d",
-            node: { "node.model": "asset:sample/server" },
-            layers: [
-                {
-                    name: "Halo on the middle rack",
-                    target: "node",
-                    selector: { match: "expression", where: "data.kind == 'marked'" },
-                    set: { "node.haloColor": "#FFD700", "node.haloScale": 1.45 },
-                },
-            ],
-        }),
-        nodeData: [at("l", "plain", -4), at("m", "marked", 0), at("r", "plain", 4)],
-        edgeData: [],
-    },
-    play: async ({ canvasElement }) => {
-        const change = await settled(canvasElement, "asset:sample/server", ["drawn", "rejected", "failed"]);
-        await holds(change.state === "drawn", `the racks ended ${change.state}: ${JSON.stringify(change.problems)}`);
-        const scene = await drawn(canvasElement, "Styles/Node Models ModelHaloHugsSilhouette");
-        await assertGraphLoaded(scene, { nodes: 3, edges: 0 });
-    },
-};

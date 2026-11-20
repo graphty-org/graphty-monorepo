@@ -10,7 +10,7 @@ import type { Channel } from "@graphty/graphty-element/catalog";
 export const SEARCH_ALIASES: Readonly<Partial<Record<Channel, readonly string[]>>> = {
     "node.color": ["paint", "background", "fill color"],
     "edge.color": ["stroke", "line color", "paint"],
-    "node.borderColor": ["stroke", "line color", "outline color"],
+    "node.borderColor": ["stroke", "line color"],
     "node.borderWidth": ["stroke width", "pen width", "line width"],
     "edge.width": ["stroke width", "pen width", "line width"],
     "node.borderStyle": ["stroke style", "dash"],

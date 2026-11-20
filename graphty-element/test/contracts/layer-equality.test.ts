@@ -168,7 +168,7 @@ const NARROWER: Layer["selector"] = { match: "has", path: "data.only" };
 function channel(layer: Layer): Channel {
     const unused: readonly Channel[] = [
         `${layer.target}.color`,
-        layer.target === "node" ? "node.haloColor" : "edge.bandColor",
+        layer.target === "node" ? "node.outerBorderColor" : "edge.bandColor",
     ];
     return unused.find((each) => layer.encode?.[each] === undefined) ?? unused[0];
 }

@@ -436,10 +436,9 @@ describe("a node border another program wrote", () => {
         }
     }
 
-    // node.outline is a screen-space glow of one pixel width, wider than a node framed to fit, so
-    // drawing another program's border on it hides the node's fill (issue #2252). The border is a
-    // ring sized with the node, so it is drawn on the border channels.
-    it("is drawn as a border ring, not as an outline", async () => {
+    // Another program's border is a ring sized with the node, so it is drawn on the border channels
+    // (issue #2252).
+    it("is drawn as a border ring", async () => {
         const { merged, notes } = await load({
             "background-color": "#00ff00",
             "border-color": "#ff0000",
@@ -449,7 +448,6 @@ describe("a node border another program wrote", () => {
             height: 40,
         });
         assert.strictEqual(norm(merged["node.color"]), "#00ff00");
-        assert.isNull(norm(merged["node.outline"]));
         assert.strictEqual(norm(merged["node.borderColor"]), "#ff0000");
         // Cytoscape.js dashes a border 4 on and 2 off in pixels whatever its width, so a 4-wide dashed border is
         // drawn as the dots it looks like

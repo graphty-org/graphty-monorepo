@@ -93,13 +93,7 @@ import { rowScanOf } from "./render/PickService";
 import type { RowTable } from "./render/RowTable";
 import { dispatcherOf } from "./session/GraphSession";
 import { frozenRecord } from "./session/project/draft";
-import {
-    CHANNEL_DESCRIPTORS,
-    DEFAULT_GLOW_COLOR,
-    DEFAULT_OUTLINE_COLOR,
-    drawnUses,
-    toColorValue,
-} from "./session/styles/channels";
+import { CHANNEL_DESCRIPTORS, DEFAULT_GLOW_COLOR, drawnUses, toColorValue } from "./session/styles/channels";
 import { transitionsOf } from "./transitions/LayoutTransitionRunner";
 
 export type NodeIdType = string | number;
@@ -981,8 +975,8 @@ export class Node implements ModelUser {
         this.syncLabel(o, true);
         this.syncTooltip(o);
 
-        // Everything that lives on the instance rather than in its source: the colour, the
-        // outline and the glow. See applyInstancePaint.
+        // Everything that lives on the instance rather than in its source: the colour and the
+        // glow. See applyInstancePaint.
         this.applyInstancePaint(o, paint.color);
 
         NodeBehavior.addDefaultBehaviors(this, this.opts);
@@ -2501,13 +2495,12 @@ export class Node implements ModelUser {
     private applyInstancePaint(style: NodeStyleConfig, color: Rgba | null): void {
         this.applyInstanceColor(color);
         this.syncModelAnimation(style);
-        // A node drawn by the shader batch draws its outline ring and glow there, from its radius:
-        // on its invisible pick proxy they would ring nothing.
-        // A model node marks its silhouette instead (syncModelMark): a ring is a circle whatever the
-        // model's shape, and a glow on its shared source mesh lights every node drawing the model.
+        // A node drawn by the shader batch draws its glow there, from its radius: on its invisible
+        // pick proxy it would ring nothing.
+        // A model node marks its silhouette instead (syncModelMark): a glow on its shared source
+        // mesh lights every node drawing the model.
         const effect = this.drawnByBatch() || this.drawnModel !== null ? undefined : style.effect;
         if (this.#mesh !== null) {
-            NodeEffects.applyOutlineEffect(this.#mesh, effect, this.context.getMeshCache());
             NodeEffects.applyGlowEffect(this.#mesh, effect);
         }
         this.syncModelMark();
@@ -2559,7 +2552,7 @@ export class Node implements ModelUser {
 
     /**
      * Hand the shader drawing what this node looks like now: its surface or sprite, its effects,
-     * and the halo, ring and glow the batch draws for it.
+     * and the halo and glow the batch draws for it.
      */
     private syncShaders(): void {
         const style = this.drawnStyle;
@@ -2614,7 +2607,6 @@ export class Node implements ModelUser {
         const batch = this.drawnByBatch();
         const halo = batch && this.getRenderState() === "visible" ? this.haloLook() : null;
         const haloColor = halo === null ? null : hexOf(halo.color, DEFAULT_SELECTION_STYLE.color);
-        const outline = style.effect?.outline;
         const glow = style.effect?.glow;
         const glowColor = glow?.color;
         return {
@@ -2629,13 +2621,6 @@ export class Node implements ModelUser {
                 halo === null || haloColor === null || halo.opacity === 0
                     ? null
                     : { color: haloColor.hex, scale: halo.scale, opacity: halo.opacity * haloColor.alpha },
-            ring:
-                batch && outline && NodeEffects.outlineDrawn(style.effect)
-                    ? {
-                          color: hexOf(NodeEffects.extractColorValue(outline.color), "#000000").hex,
-                          width: NodeEffects.outlineWidthOf(this.context.getScene(), outline.width),
-                      }
-                    : null,
             glow:
                 batch && glow && glowColor !== undefined && (glow.strength ?? 1) > 0
                     ? {
@@ -3626,33 +3611,14 @@ export class Node implements ModelUser {
     }
 
     /**
-     * The look this node's halo is drawn in, or null when it draws none.
-     *
-     * ONE HALO, TWO SOURCES. The selection draws one on a selected node, in the configured
-     * selection style; a layer draws one on any node through the `node.halo*` channels. A
-     * node with both shows one halo: each value the layer set wins and the selection style gives
-     * the rest, and a layer's `node.halo: false` takes the halo off even a selected node. With
-     * the starting rows on, the Selected row draws the selection's halo as a style instead, so
-     * the selection itself draws none and a node never carries two.
+     * The look this node's halo is drawn in, or null when it draws none: the selection's, on a
+     * selected node, while the starting rows are off. With them on, the Selected row draws the
+     * selection as a ring (`node.outerBorder*`) instead, so the selection itself draws none.
      * @returns The colour, scale and opacity, or null.
      */
     private haloLook(): GraphSelectionStyleConfig | null {
-        const layer = this.drawnStyle?.effect?.halo;
-        const color = layer?.color;
-        const scale = layer?.scale !== undefined && layer.scale > 0 ? layer.scale : undefined;
-        const opacity = layer?.opacity;
-        const lookSet = color !== undefined || scale !== undefined || opacity !== undefined;
         const selectionDraws = this.selected && this.context.getStyles().config.graph.startingRows !== true;
-
-        if (!(layer?.enabled ?? (lookSet || selectionDraws))) {
-            return null;
-        }
-
-        const base = this.selectionStyle();
-
-        return lookSet
-            ? { ...base, color: color ?? base.color, scale: scale ?? base.scale, opacity: opacity ?? base.opacity }
-            : base;
+        return selectionDraws ? this.selectionStyle() : null;
     }
 
     /**
@@ -3722,8 +3688,7 @@ export class Node implements ModelUser {
     }
 
     /**
-     * Mark, change or take off the silhouette band of a model node: its halo, else its outline,
-     * else its glow, drawn around the model's outline on screen (src/models/NodeOutlineLayers.ts).
+     * Mark, change or take off the silhouette band of a model node: its halo, else its glow, drawn around the model's outline on screen (src/models/NodeOutlineLayers.ts).
      */
     private syncModelMark(): void {
         const model = this.drawnModel;
@@ -3747,9 +3712,8 @@ export class Node implements ModelUser {
     }
 
     /**
-     * The band a model node is marked with: its halo (selection or `node.halo*`), else its
-     * outline, else its glow. Width in pixels: a halo's `(scale - 1) x 20` (9 at the default
-     * 1.45), an outline's width x 4, a glow's strength x 8, each between 2 and 16.
+     * The band a model node is marked with: its selection halo, else its glow. Width in pixels: a
+     * halo's `(scale - 1) x 20` (9 at the default 1.45), a glow's strength x 8, each between 2 and 16.
      * @returns The look, or null for no mark.
      */
     private modelMarkLook(): ModelMarkLook | null {
@@ -3761,12 +3725,6 @@ export class Node implements ModelUser {
         }
 
         const effect = this.drawnStyle?.effect;
-        if (effect?.outline !== undefined && NodeEffects.outlineDrawn(effect)) {
-            const { rgb } = readColor(NodeEffects.extractColorValue(effect.outline.color), DEFAULT_OUTLINE_COLOR);
-            const width = NodeEffects.outlineWidthOf(this.context.getScene(), effect.outline.width);
-            return { color: rgb.toHexString(), thickness: pixels(width * 4) };
-        }
-
         const glow = NodeEffects.extractColorValue(effect?.glow?.color);
         const strength = effect?.glow?.strength ?? 1;
         if (glow !== undefined && strength > 0) {
@@ -3805,9 +3763,8 @@ export class Node implements ModelUser {
         const existing = kind === "halo" ? this.halo : this.contextPoint;
 
         // A HALO OF OPACITY 0 IS NOT DRAWN AT ALL. Drawn invisible it still covered the node in
-        // the depth and stencil buffers, so an outline on a selected node (`node.outline`) was
-        // painted over the whole node instead of around it. The halo's OWN look: a layer's
-        // halo is drawn even while the selection's own halo is hidden at opacity 0.
+        // the depth and stencil buffers, so a mark on a selected node was painted over the whole
+        // node instead of around it.
         if (!wanted || (kind === "halo" && look.opacity === 0)) {
             // Only a drawn overlay makes the node walk each frame (`walksEachFrame`), so hiding one
             // that is not drawn changes nothing the batch needs to hear: a time window that hides

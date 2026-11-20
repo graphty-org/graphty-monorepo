@@ -73,41 +73,55 @@ describe("Style panel v2 on", () => {
         });
     });
 
-    it("an empty section's '+' opens its menu in groups, and Rings is added from it", async () => {
+    it("an empty section's '+' opens its menu in groups, and Ring is added from it", async () => {
         const { session, id } = await openProject();
         const tab = await openStyle("Key people");
-        const border = sectionOf(tab, "node-border");
-        const plus = border.querySelector<HTMLElement>("[data-plus]");
+        const effects = sectionOf(tab, "node-effects");
+        const plus = effects.querySelector<HTMLElement>("[data-plus]");
         assert.isNotNull(plus, 'the section\'s "+"');
         await userEvent.click(plus);
         const menu = await screen.findByRole("menu");
+        // Every look around the node is an Effect; Border is only the stroke on its edge (ia-design 2, E675).
         assert.deepEqual(
             within(menu)
                 .getAllByRole("menuitem")
                 .map((item) => item.textContent),
-            ["Border", "Rings", "Raised edge", "Outline", "Inner lines"],
+            ["Ring", "Glow", "Drop shadow", "Raised edge", "Underlay", "Overlay"],
         );
         assert.lengthOf(menu.querySelectorAll(".mantine-Menu-divider"), 1, "a divider between the two groups");
-        await userEvent.click(within(menu).getByRole("menuitem", { name: "Rings" }));
+        await userEvent.click(within(menu).getByRole("menuitem", { name: "Ring" }));
         await waitFor(() => {
-            assert.isDefined(written(session, id, "node.outerBorderColor"), "Rings starts with its color");
+            assert.isDefined(written(session, id, "node.outerBorderColor"), "Ring starts with its color");
+            assert.isAbove(Number(written(session, id, "node.outerBorderOffset")), 0, "and stands off the rim");
         });
-        const rings = await waitFor(() => {
-            const found = border.querySelector<HTMLElement>('[data-thing="rings"]');
+        const ring = await waitFor(() => {
+            const found = effects.querySelector<HTMLElement>('[data-thing="rings"]');
             assert.isNotNull(found);
             return found;
         });
-        assert.include(rings.textContent, "Rings", "the row is named, as its section does not name it");
+        assert.include(ring.textContent, "Ring", "the row is named, as its section does not name it");
 
-        // Set now, the section's "+" no longer lists Rings.
-        await userEvent.click(within(border).getByRole("button", { name: "Add to node border" }));
+        // Set now, the section's "+" no longer lists Ring.
+        await userEvent.click(within(effects).getByRole("button", { name: "Add to node effects" }));
         const again = await screen.findByRole("menu");
         assert.notInclude(
             within(again)
                 .getAllByRole("menuitem")
                 .map((item) => item.textContent),
-            "Rings",
+            "Ring",
         );
+    });
+
+    it("Border's '+' adds the one Border, a stroke with its color and width", async () => {
+        const { session, id } = await openProject();
+        const tab = await openStyle("Key people");
+        const border = sectionOf(tab, "node-border");
+        await userEvent.click(within(border).getByRole("button", { name: "Add to node border" }));
+        await waitFor(() => {
+            assert.isDefined(written(session, id, "node.borderColor"), "a color");
+            assert.isAbove(Number(written(session, id, "node.borderWidth")), 0, "and a width (E305)");
+        });
+        assert.isNull(document.querySelector('[role="menu"]'), "one thing: no menu to choose from");
     });
 });
 
@@ -183,21 +197,6 @@ describe("Style panel v2's '+' lists", () => {
         await waitFor(() => {
             assert.isNull(document.querySelector("[data-thing-popover]"));
         });
-
-        // A points list: Inner lines opens its pop-over on its lines.
-        const border = sectionOf(tab, "node-border");
-        await userEvent.click(within(border).getByRole("button", { name: "Add to node border" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Inner lines" }));
-        const lines = await waitFor(() => {
-            const found = [
-                ...document.querySelectorAll<HTMLElement>('[data-thing-popover] [data-plus-list="group"]'),
-            ].find((each) => each.querySelector('[data-testid="control-group-label"]')?.textContent === "Lines");
-            assert.isDefined(found);
-            return found;
-        });
-        if (lines !== undefined) {
-            await onlyPlusAdds(session, lines, "Inner lines' lines");
-        }
     });
 
     it("the edge tab's sections are '+' lists too: only each '+' adds", async () => {

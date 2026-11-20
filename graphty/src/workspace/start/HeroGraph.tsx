@@ -8,7 +8,7 @@ import React, { useCallback, useContext, useEffect, useRef, useState } from "rea
 import { siteConfig } from "../../siteConfig";
 import { useElementDefined } from "../../useElementDefined";
 import { GLYPHS } from "../glyphs";
-import { EDGE_WIDTH, HIGHLIGHT_OPACITY, LOOK } from "./heroLook";
+import { EDGE_WIDTH, HIGHLIGHT_OPACITY, HIGHLIGHT_RING_WIDTH, LOOK } from "./heroLook";
 import { HeroTurns } from "./heroTurns";
 import { Groups, Path, Star } from "./icons";
 
@@ -173,11 +173,15 @@ function lookLayers(scheme: "light" | "dark"): LayerSpec[] {
             set: { "edge.color": look.hot, "edge.opacity": 1, "edge.width": EDGE_WIDTH * 1.25 },
         },
         {
-            // The selection's halo, in the node's own shape, in the page's color.
+            // A ring outside the node, in the node's own shape, in the page's color.
             name: "Highlight the focused node",
             target: "node",
             selector: { match: "hover", orSelected: true },
-            set: { "node.haloColor": look.ring, "node.haloOpacity": HIGHLIGHT_OPACITY },
+            set: {
+                "node.outerBorderColor": look.ring,
+                "node.outerBorderWidth": HIGHLIGHT_RING_WIDTH,
+                "node.outerBorderOpacity": HIGHLIGHT_OPACITY,
+            },
         },
         {
             // A tooltip, not a label: graphty-element draws a tooltip over everything, so no

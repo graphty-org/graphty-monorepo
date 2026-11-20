@@ -398,9 +398,9 @@
                     "source": { "by": "template", "templateId": "graphty:starting-selected" },
                     "enabled": true,
                     "set": {
-                        "node.haloColor": "#FFD700",
-                        "node.haloSize": 1.45,
-                        "node.haloOpacity": 1,
+                        "node.outerBorderColor": "#FFD700",
+                        "node.outerBorderWidth": 0.225,
+                        "node.outerBorderOpacity": 1,
                         "node.glow": "#111111"
                     },
                     "row": "selected_2"

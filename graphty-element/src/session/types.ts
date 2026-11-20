@@ -3803,12 +3803,7 @@ export interface SessionConfig extends ProjectConfig {
  * @since 3.26.0
  */
 export type GraphSettingKey =
-    | "background"
-    | "lighting"
-    | "node.sizeSpace"
-    | "node.outlineWidth"
-    | "labels.declutter"
-    | "labels.avoidNodesAndEdges";
+    "background" | "lighting" | "node.sizeSpace" | "labels.declutter" | "labels.avoidNodesAndEdges";
 
 /**
  * Why a graph setting is or is not in effect. `params.setting` names the setting.

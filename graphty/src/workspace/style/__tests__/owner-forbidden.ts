@@ -15,6 +15,8 @@ export interface Forbidden {
     readonly text?: RegExp;
     /** A section "+" menu item it shows as (not a kind in a row's Switch to). */
     readonly plusItem?: RegExp;
+    /** A "+" menu item or Switch to kind it shows as on the Node tab only (the edge tab keeps a look of that name). */
+    readonly nodePlusItem?: RegExp;
     /** The channels a line writing it names (a line's data-line, a layer's written channel). */
     readonly channel?: RegExp;
     /** The words of a Settings control it shows as. */
@@ -102,6 +104,21 @@ export const OWNER_FORBIDDEN: readonly Forbidden[] = [
         what: "a '+' section whose title or bar is a button: only its '+' adds",
         ledger: "E210",
         check: "only-plus-adds",
+    },
+    {
+        what: "the node outline: an Outline item in a Node '+' menu or Switch to, a node.outline* line or source",
+        ledger: "E309, E310",
+        nodePlusItem: /^Outline$/,
+        channel: /^node\.outline/,
+        source: /node\.outline/,
+    },
+    {
+        what: "the halo (it is a Ring): a Halo item, row or line, or a node.halo* line or source",
+        ledger: "E305, E496",
+        text: /^Halo$/,
+        plusItem: /^Halo$/,
+        channel: /^node\.halo/,
+        source: /node\.halo/,
     },
     {
         what: "a line under a row drawing an icon the other lines lack: a number's scrub slot is a letter, never a per-field icon",

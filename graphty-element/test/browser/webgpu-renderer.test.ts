@@ -565,14 +565,6 @@ describe.skipIf(!GPU_LANE)(`work started before WebGPU opens (${ADAPTER})`, () =
         assert.isNotNull(renderManagerOf(graph).drawHeld, "the new render manager does not ask the graph");
     });
 
-    it("keeps a node outline width set while WebGPU opens", async () => {
-        const { graph, finish } = await holdWebGPUOpening();
-        graph.setLayoutBehavior({ node: { outlineWidth: 3 } });
-        await finish();
-
-        assert.equal((graph.scene.metadata as { outlineWidth?: number }).outlineWidth, 3);
-    });
-
     it("keeps what a page set on the input while WebGPU opens", async () => {
         const { graph, finish } = await holdWebGPUOpening();
         const heard: string[] = [];

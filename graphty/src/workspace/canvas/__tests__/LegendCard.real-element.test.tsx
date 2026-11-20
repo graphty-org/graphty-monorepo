@@ -1,7 +1,7 @@
 /**
  * The canvas key on the REAL graphty-element, on Les Miserables with the starting rows on and
  * nothing selected: no block for a row that paints nothing (Selected), none for a ring's size or
- * a label's size printed as a bare number, a halo titled by what it is, a run's groups in rank
+ * a label's size printed as a bare number, a ring titled by what it is, a run's groups in rank
  * order even when one has its own color, a chit ring that shows on the dark card, and at 900 x 700
  * a key that leaves the drawing most of the canvas.
  */
@@ -30,7 +30,7 @@ const SHOTS = "../../../../../design/ui/studio/tier3/build/tree-key-settings";
 
 /**
  * Renders the workspace at a window size, loads Les Miserables with the starting rows on, adds a
- * reader's layer with a label size and a halo, runs Louvain and gives its third-largest group its
+ * reader's layer with a label size and a ring, runs Louvain and gives its third-largest group its
  * own color.
  * @param width - the window's width.
  * @param height - the window's height.
@@ -59,7 +59,12 @@ async function scene(
         name: "Key people",
         target: "node",
         selector: { match: "ids", nodes: ids.slice(0, 4) },
-        set: { "node.color": "#e69f00", "node.labelSize": 72, "node.haloColor": "#009e73", "node.haloScale": 1.5 },
+        set: {
+            "node.color": "#e69f00",
+            "node.labelSize": 72,
+            "node.outerBorderColor": "#009e73",
+            "node.outerBorderWidth": 0.25,
+        },
     });
     const run = await session.runs.start("louvain");
     await session.styles.settled();
@@ -172,9 +177,9 @@ describe("the canvas key on the real element", () => {
                     group.getAttribute("aria-label") ?? group.querySelector(".cm-data-row-name")?.textContent ?? "",
             );
         assert.notInclude(titles.join("|"), "Selected", "Selected paints nothing while nothing is selected");
-        assert.include(titles, "Halo: Key people");
+        assert.include(titles, "Ring: Key people");
         assert.notInclude(legend.textContent, "72", "a label's size is not a key");
-        assert.notInclude(legend.textContent, "1.5", "a halo's size is not a key");
+        assert.notInclude(legend.textContent, "0.25", "a ring's width is not a key");
 
         const groups = [...louvain.querySelectorAll(".cm-data-row-name")].map((name) => name.textContent ?? "");
         const ranked = groups.filter((name) => name.startsWith("Group "));
@@ -390,7 +395,7 @@ describe("the canvas key on the real element", () => {
             name: "Key people",
             target: "node",
             selector: { match: "ids", nodes: [session.data.nodes()[0]?.id ?? ""] },
-            set: { "node.haloColor": "#ff00ff" },
+            set: { "node.outerBorderColor": "#ff00ff", "node.outerBorderWidth": 0.25 },
         });
         await screen.findByRole("region", { name: "Legend" });
         await element.waitForStableFrame();

@@ -656,10 +656,7 @@ export function settleFor(
         rules: extracted.styles.rules.filter((rule) => keepDefaults || rule.origin !== "tool"),
         columns: { node: new Map(extracted.columns.node), edge: new Map(extracted.columns.edge) },
     };
-    if (graphty) {
-        // graphty wrote a viewer's node outline as `borderColor` before the outline had a property of its own
-        work.rules = work.rules.map((rule) => (rule.target === "node" ? outlined(rule) : rule));
-    } else {
+    if (!graphty) {
         corners(work, defaults);
         drawing(extracted, snapshot, work, tool, defaults);
     }
@@ -701,23 +698,6 @@ function nearestNotes(work: Work): StyleNote[] {
         elements: { count: seen.size },
         message: `${target} ${property} ${[...samples].join(", ")} is drawn as the nearest graphty value`,
     }));
-}
-
-/**
- * A rule of a file graphty wrote with its `borderColor`, which held a viewer's node outline, as that outline.
- * @param rule - the rule
- * @returns the rule
- */
-function outlined(rule: StyleRule): StyleRule {
-    const value = rule.set?.borderColor;
-    const mapping = rule.map?.borderColor;
-    if (value === undefined && mapping === undefined) {
-        return rule;
-    }
-    return changed(rule, {
-        ...(value === undefined ? {} : { set: { borderColor: undefined, "graphty:node.outline": value } }),
-        ...(mapping === undefined ? {} : { map: { borderColor: undefined, "graphty:node.outline": mapping } }),
-    });
 }
 
 /**

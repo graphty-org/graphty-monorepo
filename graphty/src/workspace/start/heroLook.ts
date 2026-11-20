@@ -8,6 +8,9 @@ import { defaultEdgeStyle } from "@graphty/graphty-element/schema";
 /** How solid the highlight around the focused node is. */
 export const HIGHLIGHT_OPACITY = 0.5;
 
+/** How wide the ring around the focused node is, in node sizes: it reaches 1.6 node radii out. */
+export const HIGHLIGHT_RING_WIDTH = 0.3;
+
 /** The page's colors the graph is drawn in, per color scheme (start.css holds the same tokens). */
 export const LOOK = {
     light: {

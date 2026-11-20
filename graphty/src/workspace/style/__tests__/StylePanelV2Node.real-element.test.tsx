@@ -71,7 +71,7 @@ async function clickSegment(name: string): Promise<void> {
 }
 
 /**
- * Adds Border from the empty Border section's title.
+ * Adds Border from the empty Border section's "+", which adds its one thing at once.
  * @param tab - the Style tab.
  * @returns the Border row.
  */
@@ -80,7 +80,6 @@ async function addBorder(tab: HTMLElement): Promise<HTMLElement> {
     const plus = border.querySelector<HTMLElement>("[data-plus]");
     assert.isNotNull(plus, 'the section\'s "+"');
     await userEvent.click(plus);
-    await userEvent.click(await screen.findByRole("menuitem", { name: "Border" }));
     return rowOf(border, "border");
 }
 
@@ -245,17 +244,34 @@ describe("Style panel v2's node things", () => {
         await userEvent.keyboard("{Escape}");
         assert.isNotNull(await rowOf(text, "record"), "the Record row stays");
 
-        const border = sectionOf(tab, "node-border");
-        await userEvent.click(within(border).getByRole("button", { name: /^Add to node border|^Add Border/ }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Inner lines" }));
+        // Inner lines are the custom shape's: the Shape pop-over's Custom shape sub-group (ia-design 2).
+        const shape = sectionOf(tab, "node-shape");
+        await userEvent.click(within(shape).getByRole("button", { name: "Add to node shape" }));
+        const row = await rowOf(shape, "shape");
+        await userEvent.click(within(row).getByRole("button", { name: /^Node shape settings/ }));
+        const pop = await waitFor(() => {
+            const found = document.querySelector<HTMLElement>("[data-thing-popover]");
+            assert.isNotNull(found);
+            return found;
+        });
+        await userEvent.click(within(pop).getByRole("button", { name: "Add to node shape settings" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Custom shape" }));
+        const custom = await within(pop).findByRole("group", { name: "Custom shape" });
+        // Extra pieces take lines too: Inner lines' own "+" is on its line.
+        const innerLines = (): HTMLElement => {
+            const found = custom.querySelector<HTMLElement>('[data-line="node.shapeLines"]');
+            assert.isNotNull(found);
+            return found;
+        };
+        await userEvent.click(within(innerLines()).getByRole("button", { name: "Add line" }));
         await waitFor(() => {
             assert.equal(written(session, id, "node.shapeLines"), "-1,0 1,0", "Inner lines start with one line");
         });
-        await userEvent.click(await screen.findByRole("button", { name: "Add line" }));
+        await userEvent.click(within(innerLines()).getByRole("button", { name: "Add line" }));
         await waitFor(() => {
             assert.equal(written(session, id, "node.shapeLines"), "-1,0 1,0; -1,0 1,0", "a second line");
         });
-        await userEvent.click(screen.getByRole("button", { name: "Remove line 2" }));
+        await userEvent.click(within(custom).getByRole("button", { name: "Remove line 2" }));
         await waitFor(() => {
             assert.equal(written(session, id, "node.shapeLines"), "-1,0 1,0", "one line again");
         });

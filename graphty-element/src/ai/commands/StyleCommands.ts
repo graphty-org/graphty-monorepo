@@ -21,6 +21,7 @@ import type { ShaderUse } from "../../catalog/shaders";
 import type { Channel, ChannelValue, LayerSource, LayerSpec, StaticStyle } from "../../catalog/types";
 import { isGraphtyError } from "../../errors";
 import type { Graph } from "../../Graph";
+import { CHANNEL_DESCRIPTORS } from "../../session/styles/channels";
 import type { TransactionScope } from "../../session/types";
 import { CONNECTED_BY_SYNTAX, isMatchAllSelector, nodeScopeOf, normalizeSelector, SELECTOR_SYNTAX } from "./selectors";
 import { type CommandContext, type CommandResult, type GraphCommand, writerOf } from "./types";
@@ -58,16 +59,15 @@ const NodeStyleParamsSchema = z
             .describe(
                 "Glow effect strength (default 1), per style. It scales a glow color and draws nothing without one",
             ),
-        outlineColor: z.string().optional().describe("Outline color"),
-        outlineWidth: z
+        borderColor: z
+            .string()
+            .optional()
+            .describe("Border color: a ring drawn along the node's own outline, outside its fill"),
+        borderWidth: z
             .number()
             .positive()
-            .max(10)
             .optional()
-            .describe(
-                "Outline width (default 1, a multiple of the ring's own band), per style. It widens an outline " +
-                    "color and draws nothing without one",
-            ),
+            .describe("Border width, in the units of the node's size; a border color alone draws a thin border"),
         enabled: z.boolean().optional().describe("Whether the node is visible"),
         shader: z
             .string()
@@ -119,8 +119,8 @@ const AI_LAYER_SOURCE: LayerSource = { by: "plugin", name: "graphty-ai" };
 /**
  * Turn the simplified node parameters into literal channel values.
  *
- * Every one of them has a channel now: the glow's strength and the outline's width were both
- * refused here once, and each is drawn per style.
+ * Every one of them has a channel now: the glow's strength was refused here once, and is drawn
+ * per style.
  * @param params - What was asked for.
  * @returns The channel values to write, and the properties the channel set cannot express.
  */
@@ -150,8 +150,13 @@ function nodeChannels(params: z.infer<typeof NodeStyleParamsSchema>): {
         set["node.glowStrength"] = params.glowStrength;
     }
 
-    if (params.outlineColor !== undefined) {
-        set["node.outline"] = params.outlineColor;
+    if (params.borderColor !== undefined) {
+        set["node.borderColor"] = params.borderColor;
+        // A color alone draws nothing: the width the element says a border needs goes with it.
+        set["node.borderWidth"] =
+            params.borderWidth ?? Number(CHANNEL_DESCRIPTORS["node.borderColor"].needs?.[0]?.value ?? 0.1);
+    } else if (params.borderWidth !== undefined) {
+        set["node.borderWidth"] = params.borderWidth;
     }
 
     if (params.shader !== undefined) {
@@ -172,10 +177,6 @@ function nodeChannels(params: z.infer<typeof NodeStyleParamsSchema>): {
     // mask's job and a style layer has no spelling for it. The node keeps its place in the graph.
     if (params.enabled === false) {
         set["node.opacity"] = 0;
-    }
-
-    if (params.outlineWidth !== undefined) {
-        set["node.outlineWidth"] = params.outlineWidth;
     }
 
     return { set, unsupported: [] };

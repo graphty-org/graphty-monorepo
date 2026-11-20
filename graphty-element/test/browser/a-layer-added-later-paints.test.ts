@@ -22,9 +22,6 @@
  *   at all, the key never moved, and `Edge.paintFrom` returned early without rebuilding the cap.
  * - `node.glow` was drawn on the first frame and never again, because `Node.paintFrom` applied a
  *   node's effects only on the branch that rebuilds its mesh.
- * - `node.outline` was never drawn at all: the highlight layer was handed the node's
- *   `InstancedMesh`, which Babylon renders through its SOURCE mesh and the layer therefore never
- *   consults, and the TypeError that came back went into a silent catch.
  *
  * All five are `renderable: true` in the channel table and all five were in `UNPAINTED_CHANNELS`
  * -- except `node.glowStrength`. It is a `mesh` channel, because a glow's strength is set per
@@ -179,7 +176,6 @@ describe("a layer written to a graph that is already drawn", () => {
     for (const [what, target, set] of [
         ["an arrow head's colour", "edge", { "edge.arrowHeadColor": "#ff00ff" }],
         ["an arrow tail's colour", "edge", { "edge.arrowTailColor": "#00ff00" }],
-        ["a node's outline", "node", { "node.outline": "#ff00ff" }],
         ["a node's glow", "node", { "node.glow": "#ff00ff" }],
     ] as const) {
         it(`changes the frame: ${what}`, async () => {

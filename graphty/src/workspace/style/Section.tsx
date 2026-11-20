@@ -31,11 +31,11 @@ import {
 } from "./words";
 
 /**
- * The tab's own style options a gallery search also finds (decisions-v2, section 2.2): Outline,
- * Glow, Halo and Wireframe on the Node tab, Band on the Edge tab, each by the property its "+" adds.
+ * The tab's own style options a gallery search also finds (decisions-v2, section 2.2): Glow and
+ * Wireframe on the Node tab, Band on the Edge tab, each by the property its "+" adds.
  */
 const OPTION_CHANNELS: Readonly<Record<"node" | "edge", readonly Channel[]>> = {
-    node: ["node.outline", "node.glow", "node.haloColor", "node.wireframe"],
+    node: ["node.glow", "node.wireframe"],
     edge: ["edge.bandColor"],
 };
 
@@ -120,7 +120,7 @@ function notAvailable(ctx: RowContext, spec: SectionSpec): string | null {
  * and a "+" at the header's right end. A section the layer does not write is only its dimmed title
  * and "+". One it writes lists only the properties the layer sets, each with its value and a
  * minus. "+" opens a menu of the section's styles not set yet (with one left, it adds it); a
- * style's settings (Halo's size and opacity) are added from the style's own row and drawn under it;
+ * style's settings (Glow's strength) are added from the style's own row and drawn under it;
  * picking one adds its line waiting for a value, showing what the row's elements draw now (else
  * graphty-element's starting value), says so, and puts focus in it. Nothing is written, so the
  * drawing and the key change only once the reader picks a value.
@@ -204,7 +204,7 @@ function PropertySection({ ctx, spec, actions, itemActions }: Readonly<SectionPr
     if (joined) {
         flat.sort((a, b) => descriptors.indexOf(a) - descriptors.indexOf(b));
     }
-    // A style's settings (graphty-element's `modifies`: Halo's size and opacity, Glow's strength)
+    // A style's settings (graphty-element's `modifies`: Glow's strength)
     // are added from the style's own row and drawn under it, never listed by the section's "+".
     const isSetting = (d: ChannelDescriptor): boolean =>
         d.modifies !== undefined && descriptors.some((style) => style.channel === d.modifies);
@@ -259,7 +259,7 @@ function PropertySection({ ctx, spec, actions, itemActions }: Readonly<SectionPr
             optionAdds.delete(listener);
         };
     }, []);
-    // A style's own "+": the settings it does not set yet, named under it ("Size" under Halo).
+    // A style's own "+": the settings it does not set yet, named under it ("Strength" under Glow).
     const settingsAdd = (style: ChannelDescriptor): React.ReactNode => {
         const options = unset.flatMap((d) =>
             d.modifies === style.channel ? [{ key: d.channel, label: settingWord(style.channel, d.channel) }] : [],
@@ -777,7 +777,7 @@ function addName(kind: string, title: string): string {
  * @param props.onAdd - adds one, by its key
  * @param props.disabledReason - why it adds nothing on this graph, which disables it as a full one is
  * @param props.expanded - whether the pop-out its one item opens is open (a shader gallery)
- * @param props.inRow - a style's own "+" on its row ("Add to node halo"), which adds its settings
+ * @param props.inRow - a style's own "+" on its row ("Add to node glow"), which adds its settings
  * @param props.groups - what it can add in groups, a divider between each two; in place of `options`
  * @param props.opened - whether its menu is open, when the caller drives it
  * @param props.onOpenChange - called when its menu opens or closes

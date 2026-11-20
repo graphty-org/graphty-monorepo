@@ -34,8 +34,7 @@
  * caveat says what the renderer can and cannot draw; a style field that IS declared and that no
  * channel reaches belongs in the reachability waiver list, `src/catalog/unreachable.ts`, where a
  * test can see it rather than only a reader. `node.glow` used to carry a note about the glow's
- * strength having no channel, and the strength has one now; `node.outline` carried one saying
- * every outline was drawn at one width, and `node.outlineWidth` sets it per layer now.
+ * strength having no channel, and the strength has one now.
  *
  * The enumerated channels take their values from the element's own schemas -- the node shape
  * list, the line pattern list, the arrow list -- read out of the Zod enums rather than retyped.
@@ -434,14 +433,8 @@ export interface ChannelValues {
     "node.tooltip": string;
     "node.tooltipStyle": LabelStyle;
     "node.opacity": number;
-    "node.outline": ColorValue;
-    "node.outlineWidth": number;
     "node.glow": ColorValue;
     "node.glowStrength": number;
-    "node.halo": boolean;
-    "node.haloColor": ColorValue;
-    "node.haloScale": number;
-    "node.haloOpacity": number;
     "node.wireframe": boolean;
     "node.meshDetail": NodeMeshDetailValue;
     "node.flat": boolean;
@@ -786,9 +779,7 @@ export interface ChannelValues {
  */
 export type ColorChannel =
     | "node.color"
-    | "node.outline"
     | "node.glow"
-    | "node.haloColor"
     | "node.labelColor"
     | "node.labelBackground"
     | "node.borderColor"
@@ -1100,7 +1091,7 @@ export type ChannelCondition =
 
 /**
  * A caveat a channel carries, as a code. No channel carries one now: `"outline.sharedWidth"`
- * (every outline drawn at one width) was retired when `node.outlineWidth` gave each layer its own.
+ * was retired, and the node outline with it.
  *
  * More codes may be added in a minor release.
  * @since 3.26.0
@@ -1128,9 +1119,6 @@ const BAND_CAVEAT =
     "A wider line drawn behind the edge's own, so the line keeps its paint down the middle and " +
     "the band shows on both sides as a casing.";
 
-/** The colour an outline is drawn in when a style switches one on without naming a colour. */
-export const DEFAULT_OUTLINE_COLOR = "#FFFF00";
-
 /**
  * The glow color to start from when switching a glow on: the `node.glow` channel's default. A glow
  * is drawn only when a style names a color (a strength alone draws nothing), so a consumer that
@@ -1138,18 +1126,6 @@ export const DEFAULT_OUTLINE_COLOR = "#FFFF00";
  * canvas, where a white glow would not be seen. A saturated cyan leaves a visible halo there.
  */
 export const DEFAULT_GLOW_COLOR = "#00B4FF";
-
-/**
- * What the four halo channels draw, written once and read by each of them.
- */
-const NODE_HALO_CAVEAT =
-    "The halo is the selection settings' highlight (`selectionStyle`) -- the node's own shape, scaled " +
-    "about its center, so it looks like a border (`node.borderColor`) as wide as the scale reaches; " +
-    "the starting Selected and Pinned rows draw a border instead -- drawn on any node a layer picks. Any of its color, scale or opacity switches it on; `node.halo` " +
-    "alone switches it on in the selection's look, and false takes it off, even off a selected " +
-    "node. A selected node a layer gives a halo shows one halo: each value the layer sets wins, " +
-    "and the selection style (`selectionStyle`) gives the rest. Each distinct color and opacity " +
-    "is its own source mesh; the scale is per node.";
 
 /**
  * What an arrow caption narrows, written once and read by all four caption channels.
@@ -1291,8 +1267,7 @@ const NODE_STRIPES_CAVEAT =
 const NODE_OUTER_BORDER_CAVEAT =
     "A second ring outside the node's border, `node.outerBorderOffset` beyond the border's outer edge " +
     "(Cytoscape.js's outline): drawn only with a width above 0. Widths and the offset are in the units " +
-    "of `node.borderWidth`; `node.outerBorderCount` draws that many rings, each the offset beyond the one before. " +
-    "It is not `node.outline`, which is a highlight drawn over the node's rim.";
+    "of `node.borderWidth`; `node.outerBorderCount` draws that many rings, each the offset beyond the one before.";
 
 const NODE_SHADOW_CAVEAT =
     "A shadow drawn beneath the node: the node's own shape in `node.shadowColor`, moved by `node.shadowOffsetX` " +
@@ -2352,17 +2327,7 @@ const NODE_BORDER_CAVEAT =
     "A border is a ring drawn OUTSIDE the node's fill, so it never covers it, and an edge " +
     "stops at its outer edge; `node.borderPosition` sets whether the fill is the node's size or shrinks inside it. Its width is in the units of `node.size` and is drawn only when it is " +
     "above 0. A flat shape's border follows its outline in every view; a solid's follows the " +
-    "outline it shows from the front and turns to face the camera in a 3D view. Unlike `node.outline` " +
-    "-- a camera-facing circular ring at the node's radius, its band set by `node.outlineWidth` -- a " +
-    "border follows the node's own outline and an edge stops at it.";
-
-/**
- * What a node outline is, written once and read by its two channels.
- */
-const NODE_OUTLINE_CAVEAT =
-    "A camera-facing circular ring at the node's radius, its band `node.outlineWidth` wide, whatever " +
-    "the node's shape: on a box or a star it is still a circle. Unlike a border (`node.borderColor`), " +
-    "it does not follow the node's outline, and edges do not stop at it.";
+    "outline it shows from the front and turns to face the camera in a 3D view; an edge stops at it.";
 
 /** How a reader says a node measures along each axis. */
 const EXTENT_ADJECTIVE = { width: "wide", height: "tall", depth: "deep" } as const;
@@ -2806,36 +2771,6 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         stylePath: "texture.color.opacity",
         renderable: true,
     },
-    "node.outline": {
-        channel: "node.outline",
-        target: "node",
-        plainName: "Node Outline",
-        shortName: "Outline",
-        group: "effects",
-        // The colour an outline is drawn in when a style switches one on without naming one.
-        default: DEFAULT_OUTLINE_COLOR,
-        accepts: "color",
-        stylePath: "effect.outline.color",
-        off: EFFECT_OFF,
-        renderable: true,
-        caveat: NODE_OUTLINE_CAVEAT,
-    },
-    "node.outlineWidth": {
-        channel: "node.outlineWidth",
-        target: "node",
-        plainName: "Node Outline Width",
-        shortName: "Outline width",
-        group: "effects",
-        // What an outline with no width is drawn at when the graph sets none
-        // (`layoutBehavior.node.outlineWidth`): the ring's own band. A width alone draws nothing.
-        default: 1,
-        accepts: "number",
-        min: 0,
-        max: 10,
-        stylePath: "effect.outline.width",
-        renderable: true,
-        caveat: NODE_OUTLINE_CAVEAT,
-    },
     "node.glow": {
         channel: "node.glow",
         target: "node",
@@ -2863,56 +2798,6 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         step: 0.1,
         stylePath: "effect.glow.strength",
         renderable: true,
-    },
-    "node.halo": {
-        channel: "node.halo",
-        target: "node",
-        plainName: "Node Halo",
-        shortName: "Halo",
-        group: "effects",
-        accepts: "boolean",
-        stylePath: "effect.halo.enabled",
-        renderable: true,
-        caveat: NODE_HALO_CAVEAT,
-    },
-    "node.haloColor": {
-        channel: "node.haloColor",
-        target: "node",
-        plainName: "Node Halo Color",
-        shortName: "Halo color",
-        group: "effects",
-        default: DEFAULT_SELECTION_STYLE.color,
-        accepts: "color",
-        stylePath: "effect.halo.color",
-        renderable: true,
-        caveat: NODE_HALO_CAVEAT,
-    },
-    "node.haloScale": {
-        channel: "node.haloScale",
-        target: "node",
-        plainName: "Node Halo Scale",
-        shortName: "Halo scale",
-        group: "effects",
-        default: DEFAULT_SELECTION_STYLE.scale,
-        accepts: "number",
-        min: 0,
-        stylePath: "effect.halo.scale",
-        renderable: true,
-        caveat: NODE_HALO_CAVEAT,
-    },
-    "node.haloOpacity": {
-        channel: "node.haloOpacity",
-        target: "node",
-        plainName: "Node Halo Opacity",
-        shortName: "Halo opacity",
-        group: "effects",
-        default: DEFAULT_SELECTION_STYLE.opacity,
-        accepts: "number",
-        min: 0,
-        max: 1,
-        stylePath: "effect.halo.opacity",
-        renderable: true,
-        caveat: NODE_HALO_CAVEAT,
     },
     "node.wireframe": {
         channel: "node.wireframe",
@@ -5611,9 +5496,6 @@ function shippedDefault(descriptor: ChannelDescriptor): string | number | boolea
 /** Which drawn part each sub-setting channel adjusts: see {@link ChannelDescriptor.modifies}. */
 const DECLARED_MODIFIES: ReadonlyMap<string, Channel> = new Map<string, Channel>([
     ["node.glowStrength", "node.glow"],
-    ["node.outlineWidth", "node.outline"],
-    ["node.haloScale", "node.haloColor"],
-    ["node.haloOpacity", "node.haloColor"],
     ["edge.bandWidth", "edge.bandColor"],
     ["edge.bandOpacity", "edge.bandColor"],
     ["edge.patternCount", "edge.style"],
@@ -5926,7 +5808,6 @@ const NEEDS: ReadonlyMap<string, readonly ChannelNeed[]> = new Map<Channel, read
         ],
     ],
     ["node.glowStrength", [{ channel: "node.glow", value: DEFAULT_GLOW_COLOR }]],
-    ["node.outlineWidth", [{ channel: "node.outline", value: DEFAULT_OUTLINE_COLOR }]],
     [
         "node.chartKind",
         [
@@ -5989,7 +5870,6 @@ const NEEDS: ReadonlyMap<string, readonly ChannelNeed[]> = new Map<Channel, read
 
 /** Tops of a control's range: see {@link ChannelDescriptor.suggestedMax}. */
 const SUGGESTED_MAX: ReadonlyMap<string, number> = new Map<Channel, number>([
-    ["node.haloScale", 3],
     ["node.outerBorderCount", 10],
     ["edge.animationSpeed", 5],
     ["edge.patternCount", 50],
@@ -6321,46 +6201,6 @@ export function modelBindingProblem(
                   "Add the file with session.assets.add and map the category to the id it returns.",
               path: `${path}${bad[0]}`,
           };
-}
-
-/**
- * Channels an earlier build saved under another name, by old name. Only a document being read
- * consults this: the channel set, `channelDescriptor` and every document the element writes use
- * the new name.
- */
-const RENAMED_CHANNELS: Readonly<Record<string, Channel>> = {
-    // Same drawn part and units (`effect.halo.scale`, times the node's radius): only the name moved.
-    "node.haloSize": "node.haloScale",
-};
-
-/**
- * A saved layer with any renamed channel read under its current name, so a document an earlier
- * build wrote opens with the look it was saved with. Where a layer names both, the current name wins.
- * @param spec - A layer as a document holds it.
- * @returns The same layer when it names no old channel, otherwise a copy that names the new ones.
- */
-export function readRenamedChannels<T extends { readonly set?: object; readonly encode?: object }>(spec: T): T {
-    const rename = (entries: object | undefined): object | undefined => {
-        if (entries === undefined || !Object.keys(entries).some((key) => key in RENAMED_CHANNELS)) {
-            return entries;
-        }
-
-        const out: Record<string, unknown> = {};
-        for (const [key, value] of Object.entries(entries)) {
-            const current = RENAMED_CHANNELS[key] ?? key;
-            if (current === key || !(current in entries)) {
-                out[current] = value;
-            }
-        }
-
-        return out;
-    };
-    const set = rename(spec.set);
-    const encode = rename(spec.encode);
-
-    return set === spec.set && encode === spec.encode
-        ? spec
-        : { ...spec, ...(set === undefined ? {} : { set }), ...(encode === undefined ? {} : { encode }) };
 }
 
 // ---------------------------------------------------------------------------------------------

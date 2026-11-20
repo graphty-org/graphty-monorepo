@@ -173,7 +173,7 @@ describe("Graph settings", () => {
         assert.match(background.backgroundType === "skybox" ? background.data : "", /^data:image\/png;base64,/);
     });
 
-    it("offers no Outline width: each style layer sets its own", async () => {
+    it("offers no Outline width: the node outline is gone", async () => {
         await openGraphSettings();
         assert.isNotNull(screen.getByRole("combobox", { name: "Lighting" }), "the panel is open");
         assert.isNull(screen.queryByText(/Outline width/));

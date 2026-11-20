@@ -144,10 +144,6 @@ async function drewArrows(
         const head = merged({ edge: edge.id })["edge.arrowHead"];
         return head !== undefined && head !== "none";
     });
-    const outlined = [...new Set(headed.map((edge) => edge.target))].filter(
-        (node) => merged({ node })["node.outline"] !== undefined,
-    );
-    await holds(outlined.length === 0, `${story}: outlines bury the arrowheads at ${outlined.join(", ")}`);
 
     const scene = await drawn(canvasElement, `Data/File Styles ${story}`);
     await holds(

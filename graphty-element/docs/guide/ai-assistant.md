@@ -481,7 +481,7 @@ Each call of a message also says how long it ran, in milliseconds, as `call.dura
 
 ### Peek
 
-`selection.peek(target)` points at some elements for a moment: a neutral halo, drawn by a style layer
+`selection.peek(target)` points at some elements for a moment: a neutral ring, drawn by a style layer
 the element holds above every other. It adds no undo step and never changes the selection or the
 camera, and nothing about it is saved.
 

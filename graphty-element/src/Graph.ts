@@ -210,7 +210,6 @@ import { MeshCache } from "./meshes/MeshCache";
 import { LiveModelPreview, type ModelPreview, type ModelPreviewOptions, PreviewEngines } from "./meshes/ModelPreview";
 import { type ColumnRow, NodeBatches, type RenderPath, renderPathDefault, type RowCounts } from "./meshes/NodeBatch";
 import { forgetGlyphs } from "./meshes/NodeDecorationMesh";
-import { NodeEffects } from "./meshes/NodeEffects";
 import { sceneLighting } from "./meshes/NodeLighting";
 import { NodeMesh } from "./meshes/NodeMesh";
 import { NodeShaderDrawing } from "./meshes/NodeShaderDrawing";
@@ -2600,7 +2599,6 @@ export class Graph implements GraphContext {
         shadersControllerOf(this.session)?.attach(createLazyShaderHost(this.scene, this.renderManager.shaderGuard));
         this.bindRenderManager();
         this.renderManager.applyLighting(this.#lighting);
-        NodeEffects.setOutlineWidth(this.scene, this.styles.config.behavior.node.outlineWidth);
         this.scene.clearColor = background;
         this.scene.animationsEnabled = animates;
         this.statsManager.initializeBabylonInstrumentation(this.scene, this.engine);
@@ -3358,11 +3356,6 @@ export class Graph implements GraphContext {
         this.writeViewSettings((settings) => {
             settings.behavior = view;
         });
-        if (NodeEffects.outlineWidthOf(this.scene, undefined) !== (parsed.node.outlineWidth ?? 1)) {
-            NodeEffects.setOutlineWidth(this.scene, parsed.node.outlineWidth);
-            // A ring the shader batch draws packs the width when painted, so it is painted again.
-            NodeShaderDrawing.peek(this.scene)?.outlineWidthChanged();
-        }
 
         // A label declutter switched on or off changes the picture without moving anything.
         this.renderManager.requestFrame();

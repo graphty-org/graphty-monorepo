@@ -153,8 +153,7 @@ describe("replacing a color in some rows", () => {
 });
 
 describe("an effect written off", () => {
-    it("names the off value of the outline, the glow and the animation", () => {
-        assert.strictEqual(CHANNEL_DESCRIPTORS["node.outline"].off, "none");
+    it("names the off value of the glow and the animation", () => {
         assert.strictEqual(CHANNEL_DESCRIPTORS["node.glow"].off, "none");
         assert.strictEqual(CHANNEL_DESCRIPTORS["edge.animationSpeed"].off, 0);
         assert.isUndefined(CHANNEL_DESCRIPTORS["node.color"].off);

@@ -4798,12 +4798,6 @@ export type GraphtyWarningCode =
 */
 | "W_UNKNOWN_ID"
 /**
-* A style layer writes a color with an alpha (`#rrggbbaa`, `rgba()`) to a channel that cannot
-* draw it translucent, so the color is drawn opaque. `params.channel` is the channel and
-* `params.path` where in the layer the color sits. Today only `node.outline` cannot.
-*/
-| "W_ALPHA_IGNORED"
-/**
 * A style layer changes one item of a list channel by its address (`node.pieColors.5`), but the
 * list the layers beneath give the element is shorter, so the item changes nothing.
 * `params.channel` is the list channel, `params.index` the item's index from 0,
@@ -6144,16 +6138,6 @@ export const NodeStyle: z.ZodObject<{
         glow: z.ZodOptional<z.ZodObject<{
             color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
             strength: z.ZodOptional<z.ZodNumber>;
-        }, z.core.$strict>>;
-        outline: z.ZodOptional<z.ZodObject<{
-            color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
-            width: z.ZodOptional<z.ZodNumber>;
-        }, z.core.$strict>>;
-        halo: z.ZodOptional<z.ZodObject<{
-            enabled: z.ZodOptional<z.ZodBoolean>;
-            color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
-            scale: z.ZodOptional<z.ZodNumber>;
-            opacity: z.ZodOptional<z.ZodNumber>;
         }, z.core.$strict>>;
         wireframe: z.ZodOptional<z.ZodBoolean>;
         flatShaded: z.ZodOptional<z.ZodBoolean>;

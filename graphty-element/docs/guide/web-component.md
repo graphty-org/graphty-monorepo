@@ -101,7 +101,7 @@ element.selectionStyle = {
 Merged over what is already set, so naming one field leaves the others alone, and it takes effect
 on a selection that is already on screen. An `opacity` of `0` draws no halo at all, and an
 `edgeOpacity` of `0` no band, for a page that marks the selection its own way, such as with a
-`node.outline` style layer. With `startingRows` on, the Selected row draws the mark instead: delete
+`node.outerBorderColor` style layer. With `startingRows` on, the Selected row draws the mark instead: delete
 it to stop drawing the selection ([Everything, Selected and Hovered](./starting-rows.md)).
 
 ### How 3D nodes are lit

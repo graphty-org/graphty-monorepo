@@ -87,8 +87,8 @@ describe("Style panel v2 dims what draws nothing in this view", () => {
         await session.styles.settled();
         await switchView("3D");
         const tab = await openStyle("Key people");
-        const border = sectionOf(tab, "node-border");
-        await userEvent.click(within(border).getByRole("button", { name: /^Add to node border/ }));
+        const border = sectionOf(tab, "node-effects");
+        await userEvent.click(within(border).getByRole("button", { name: /^Add to node effects/ }));
         const item = await screen.findByRole("menuitem", { name: "Raised edge" });
         assert.equal(dimmed(item), "2D only", "the '+' item is dimmed in 3D");
         await userEvent.click(item);

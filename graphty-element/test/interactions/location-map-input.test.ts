@@ -642,7 +642,7 @@ function outlined(element: Graphty): { nodes: number; edges: number } {
     let nodes = 0;
     let edges = 0;
     for (let index = 0; index < CITIES.length; index++) {
-        if (painter.nodePaint(index)?.style.effect?.outline !== undefined) {
+        if (painter.nodePaint(index)?.style.outerBorder !== undefined) {
             nodes++;
         }
     }

@@ -83,9 +83,8 @@ describe("the value a line starts with", () => {
         }
     });
 
-    it("starts a glow and an outline in the color the element draws them", () => {
+    it("starts a glow in the color the element draws it", () => {
         assert.equal(startingValue(CHANNEL_DESCRIPTORS["node.glow"]), CHANNEL_DESCRIPTORS["node.glow"].default);
-        assert.notEqual(startingValue(CHANNEL_DESCRIPTORS["node.outline"]), "#000000");
     });
 });
 

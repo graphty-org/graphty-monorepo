@@ -37,10 +37,9 @@ const PROPERTY_WORDS: Partial<Record<Channel, string>> = {
     "node.size": "Size",
     "node.shape": "Shape",
     "node.opacity": "Opacity",
-    "node.outline": "Outline",
     "node.glow": "Glow",
     "node.label": "Label",
-    "node.haloColor": "Halo",
+    "node.outerBorderColor": "Ring",
     "edge.color": "Edge color",
     "edge.width": "Edge width",
     "edge.opacity": "Edge opacity",
@@ -75,8 +74,8 @@ const TEXT_CHANNELS: ReadonlySet<Channel> = new Set<Channel>([
  * row is drawn, not read.
  */
 const NUMBER_CHANNELS: ReadonlySet<Channel> = new Set<Channel>([
-    "node.haloScale",
-    "node.haloOpacity",
+    "node.outerBorderWidth",
+    "node.outerBorderOpacity",
     "edge.bandWidth",
     "edge.bandOpacity",
     "node.labelSize",

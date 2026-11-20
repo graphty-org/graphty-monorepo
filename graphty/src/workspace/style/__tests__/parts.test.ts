@@ -156,14 +156,6 @@ describe("the Style panel's parts of the drawing", () => {
                 }
             }
         }
-        const halo = PARTS.node.flatMap((part) => part.items).find((item) => item.id === "halo");
-        assert.isDefined(halo);
-        if (halo !== undefined) {
-            assert.deepEqual(
-                ["node.halo", "node.haloColor"].map((channel) => itemWord(channel as Channel, halo)),
-                ["On", "Color"],
-            );
-        }
     });
 
     it("the middle ends and the end captions are named as the panel names their items", () => {

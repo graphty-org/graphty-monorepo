@@ -92,7 +92,7 @@ describe("styles.showBranches", () => {
             name: "Selected",
             target: "node",
             selector: { match: "state", state: "selected" },
-            set: { "node.haloColor": "#FFAA00", "node.haloOpacity": 1 },
+            set: { "node.outerBorderColor": "#FFAA00", "node.outerBorderOpacity": 1 },
         });
         const { id: hover } = await session.styles.add({
             name: "Hovered",
@@ -106,7 +106,7 @@ describe("styles.showBranches", () => {
         await session.styles.settled();
         const halo = session.styles
             .explain({ node: "Valjean" })
-            .channels.find((each) => each.channel === "node.haloColor");
+            .channels.find((each) => each.channel === "node.outerBorderColor");
         assert.strictEqual(halo?.layerId, ring, "the ring is still written while the view is drawn");
         assert.strictEqual(colorOf(session, "Napoleon").layerId, hover, "the hover mark is drawn above the view");
         view.end();

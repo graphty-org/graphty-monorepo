@@ -167,22 +167,22 @@ describe("the legend card's words", () => {
     });
 
     it("keys no row that paints nothing now, and no ring, band, text size or motion speed as a bare number", () => {
-        const halo = block({ layerId: "halo", channel: "node.haloColor", kind: "literal" });
+        const ring = block({ layerId: "ring", channel: "node.outerBorderColor", kind: "literal" });
         const blocks = [
             block({ layerId: "selected", kind: "literal", painted: 0 }),
             block({ layerId: "label", channel: "node.labelSize", kind: "literal", swatches: [swatch({ value: 72 })] }),
-            block({ layerId: "halo", channel: "node.haloScale", kind: "literal" }),
-            block({ layerId: "halo", channel: "node.haloOpacity", kind: "literal" }),
+            block({ layerId: "ring", channel: "node.outerBorderWidth", kind: "literal" }),
+            block({ layerId: "ring", channel: "node.outerBorderOpacity", kind: "literal" }),
             block({ layerId: "band", channel: "edge.bandWidth", kind: "literal" }),
             block({ layerId: "band", channel: "edge.bandOpacity", kind: "literal" }),
             // A motion's speed would print "On the path 2".
             block({ layerId: "band", channel: "edge.animationSpeed", kind: "literal" }),
             // A pattern count would print "Bob 2".
             block({ layerId: "line", channel: "edge.patternCount", kind: "literal", swatches: [swatch({ value: 2 })] }),
-            halo,
+            ring,
         ];
-        assert.deepEqual(keyBlocks(blocks), [halo]);
-        assert.equal(sectionTitle(halo, "Key people"), "Halo: Key people");
+        assert.deepEqual(keyBlocks(blocks), [ring]);
+        assert.equal(sectionTitle(ring, "Key people"), "Ring: Key people");
     });
 
     it("keys no edge line shape: a route, bends or curve is drawn, not read", () => {

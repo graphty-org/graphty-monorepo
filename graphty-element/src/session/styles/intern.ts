@@ -251,9 +251,6 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     // colour is therefore not a cost this table is choosing to pay, it is the only granularity
     // the renderer can express, and it is exactly the one `NodeEffects.resolveRenderedMesh`
     // describes: one source mesh is precisely the set of nodes sharing one effect configuration.
-    "node.outline": "mesh",
-    // The ring's width picks its cached ring source, keyed by colour and width (NodeEffects).
-    "node.outlineWidth": "mesh",
     "node.glow": "mesh",
     // A glow's STRENGTH is keyed the same way. `NodeEffects.syncGlowStrengths` gives each SOURCE
     // mesh its own intensity (Babylon's per-mesh `setEffectIntensity`, keyed by uniqueId), so two
@@ -264,13 +261,6 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     // ponytail: quantize the strength in the key (or evict source meshes left with no instances)
     // if a continuous glow encoding ever shows up in a profile.
     "node.glowStrength": "mesh",
-    // The highlight is the selection halo: an overlay beside the node's mesh, keyed by the node's
-    // shape and the halo's own look, so it never mints a node source mesh. `Node.syncHalo` reads
-    // it on every paint, which is what lets a hover layer turn it on and off without a rebuild.
-    "node.halo": "content",
-    "node.haloColor": "content",
-    "node.haloScale": "content",
-    "node.haloOpacity": "content",
     "edge.width": "mesh",
     "edge.minScreenWidth": "mesh",
     "edge.fadeStart": "mesh",

@@ -340,20 +340,30 @@ vec4 shade(NodeInput n) { return n.color * 1.2; }
             assert.notInclude(result.message, "was not applied");
         });
 
-        it("applies an outline's width on nodes instead of refusing it", async () => {
+        it("applies a border's color and width on nodes", async () => {
             const result = await findAndStyleNodes.execute(
                 graph,
                 {
                     selector: "",
-                    style: { outlineColor: "#0000FF", outlineWidth: 4 },
-                    layerName: "thick-outline",
+                    style: { borderColor: "#0000FF", borderWidth: 0.3 },
+                    layerName: "thick-border",
                 },
                 context,
             );
 
             assert.strictEqual(result.success, true);
             assert.notInclude(result.message, "was not applied");
-            assert.strictEqual(layerNamed("thick-outline")?.set?.["node.outlineWidth"], 4);
+            assert.strictEqual(layerNamed("thick-border")?.set?.["node.borderWidth"], 0.3);
+        });
+
+        it("gives a border color alone the width the element says a border needs", async () => {
+            await findAndStyleNodes.execute(
+                graph,
+                { selector: "", style: { borderColor: "#0000FF" }, layerName: "thin-border" },
+                context,
+            );
+
+            assert.isAbove(Number(layerNamed("thin-border")?.set?.["node.borderWidth"]), 0);
         });
     });
 

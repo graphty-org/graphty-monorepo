@@ -28,7 +28,6 @@ describe("whether a graph setting is in effect", () => {
         });
         assert.isFalse(session.config.inEffect("node.sizeSpace").inEffect);
         assert.isTrue(session.config.inEffect("labels.declutter").inEffect);
-        assert.isTrue(session.config.inEffect("node.outlineWidth").inEffect);
         assert.isTrue(session.config.inEffect("background").inEffect);
         session.dispose();
     });

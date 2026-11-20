@@ -7,9 +7,6 @@
  * with no color of its own follows its line's color, alpha included. A glow's alpha fades the
  * glow; a glow is blended around the node rather than added, so no opaque color draws the same
  * picture, and `glow-around-the-node.test.ts` checks that fade instead of a case here.
- * An outline cannot be drawn translucent at all -- Babylon's highlight layer pins the alpha of
- * every outline to 1 -- so an outline's alpha is ignored, the color is drawn opaque, and the
- * layer check says so with `W_ALPHA_IGNORED`.
  *
  * WHAT IT REPLACES. Every channel but the node fill read its color with Babylon's
  * `Color3.FromHexString`, which reads `#rrggbb` and nothing else: handed nine characters it leaves
@@ -47,7 +44,6 @@ interface AlphaCase {
 
 const CASES: readonly AlphaCase[] = [
     { target: "node", channel: "node.color", equivalent: { "node.color": "#ff0000", "node.opacity": HALF } },
-    { target: "node", channel: "node.outline", equivalent: { "node.outline": "#ff0000" } },
     {
         target: "edge",
         channel: "edge.color",
@@ -173,24 +169,6 @@ describe("a color with an alpha channel", () => {
             });
         }
     }
-
-    it("says an outline's alpha is ignored, with a code", () => {
-        const spec: LayerSpec = {
-            name: "translucent outline",
-            target: "node",
-            selector: { match: "everything" },
-            set: { "node.outline": "#ff000080" },
-        };
-
-        assert.deepStrictEqual(session.styles.validate(spec).warnings, [
-            { code: "W_ALPHA_IGNORED", params: { channel: "node.outline", path: "set.node.outline" } },
-        ]);
-        assert.deepStrictEqual(
-            session.styles.validate({ ...spec, set: { "node.outline": "#ff0000" } }).warnings,
-            [],
-            "an opaque outline earns no warning",
-        );
-    });
 
     it("multiplies the selection halo's alpha with its opacity", async () => {
         graph.setSelectionStyle({ color: "#ff000080", opacity: 0.4 });

@@ -109,8 +109,6 @@ export interface NodeShaderLook {
     readonly drawn: boolean;
     /** The halo the batch draws, or null. */
     readonly halo: { readonly color: string; readonly scale: number; readonly opacity: number } | null;
-    /** The outline ring's color and width (a multiple of the ring's own band), or null. */
-    readonly ring: { readonly color: string; readonly width: number } | null;
     /** The glow, or null. */
     readonly glow: { readonly color: string; readonly strength: number } | null;
 }
@@ -646,23 +644,6 @@ export class NodeShaderDrawing {
      */
     arrived(node: ShadedNode): void {
         this.arrivals.set(node, performance.now());
-    }
-
-    /**
-     * The graph's outline width (`layoutBehavior.node.outlineWidth`) changed: draw again every
-     * node whose ring the batch draws, since its look holds the width it was painted with.
-     */
-    outlineWidthChanged(): void {
-        const ringed: ShadedNode[] = [];
-        for (const entry of this.entries.values()) {
-            if (entry.look !== null && entry.look.ring !== null) {
-                ringed.push(entry.node);
-            }
-        }
-
-        if (ringed.length > 0) {
-            this.redrawNodes(ringed);
-        }
     }
 
     /**
@@ -1345,14 +1326,7 @@ export class NodeShaderDrawing {
             deco0: effect
                 ? [slot.entered, slot.exited, 0, minSize]
                 : [halo === null ? 0 : packHex(halo.color), halo?.scale ?? 0, halo?.opacity ?? 0, minSize],
-            deco1: effect
-                ? [0, 0, 0, 0]
-                : [
-                      look.ring === null ? 0 : packHex(look.ring.color),
-                      look.ring === null ? 0 : look.ring.width,
-                      glow === null ? 0 : packHex(glow.color),
-                      glow?.strength ?? 0,
-                  ],
+            deco1: effect ? [0, 0, 0, 0] : [0, 0, glow === null ? 0 : packHex(glow.color), glow?.strength ?? 0],
         };
     }
 

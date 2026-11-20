@@ -624,12 +624,12 @@ describe("a uniform mesh-key fill (cosmos-gap G6)", () => {
                 await h.styles.add({
                     name: "Off",
                     selector: { match: "expression", where: 'data.kind == `"host"`' },
-                    set: { "node.outline": "none" },
+                    set: { "node.glow": "none" },
                 });
                 await h.styles.add({
                     name: "Clear",
                     selector: { match: "expression", where: 'data.kind == `"switch"`' },
-                    set: { "node.outline": transparent },
+                    set: { "node.glow": transparent },
                 });
                 await h.paintAll();
                 keys.push(NODES.map((_, index) => h.engine.meshKeyOf("node", index)));

@@ -18,7 +18,6 @@ import {
     COLOR_CHANNELS,
     type ColorChannel,
     DEFAULT_GLOW_COLOR,
-    DEFAULT_OUTLINE_COLOR,
     type EdgeLineValue,
     isChannel,
     labelFieldOf,
@@ -85,14 +84,8 @@ const DECLARED = [
     "node.tooltip",
     "node.tooltipStyle",
     "node.opacity",
-    "node.outline",
-    "node.outlineWidth",
     "node.glow",
     "node.glowStrength",
-    "node.halo",
-    "node.haloColor",
-    "node.haloScale",
-    "node.haloOpacity",
     "node.wireframe",
     "node.meshDetail",
     "node.flat",
@@ -452,8 +445,8 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into two hundred and eighteen node channels and one hundred and seventy-seven edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 218);
+    it("splits into two hundred and twelve node channels and one hundred and seventy-seven edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 212);
         assert.strictEqual(channelsFor("edge").length, 177);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
@@ -497,10 +490,6 @@ describe("what the element can really draw", () => {
         // A curvature is a switch, not an amount.
         assert.isDefined(CHANNEL_DESCRIPTORS["edge.curvature"].caveat);
         assert.strictEqual(CHANNEL_DESCRIPTORS["edge.curvature"].accepts, "boolean");
-        // An outline's width is set per layer by `node.outlineWidth`, so the outline's caveat says
-        // only what it is (a circle whatever the shape), never that its width is shared.
-        assert.notInclude(CHANNEL_DESCRIPTORS["node.outline"].caveat ?? "", "one fixed width");
-        assert.isUndefined(CHANNEL_DESCRIPTORS["node.outline"].caveatCode);
         // A glow's strength is drawn per style (one source mesh per strength), so it carries no
         // caveat: the old one said two glowing styles shared whichever strength landed last.
         assert.isUndefined(CHANNEL_DESCRIPTORS["node.glowStrength"].caveat);
@@ -666,9 +655,8 @@ describe("what the element can really draw", () => {
         assert.strictEqual(CHANNEL_DESCRIPTORS["node.glowStrength"].min, 0);
     });
 
-    it("states the colour a switched-on outline or glow is drawn in when none is named", () => {
+    it("states the colour a switched-on glow is drawn in when none is named", () => {
         assert.strictEqual(CHANNEL_DESCRIPTORS["node.glow"].default, DEFAULT_GLOW_COLOR);
-        assert.strictEqual(CHANNEL_DESCRIPTORS["node.outline"].default, DEFAULT_OUTLINE_COLOR);
     });
 });
 
@@ -706,8 +694,6 @@ describe("what a style editor needs to draw a row", () => {
         "edge.xlabelOffsetX",
         "edge.xlabelOffsetY",
         "node.tooltipStyle",
-        // Unset, a node is highlighted when it is selected and not otherwise.
-        "node.halo",
         "node.marker",
         // Unset, a node's width, height and depth follow its size and its shape's proportions.
         "node.width",
@@ -992,16 +978,14 @@ describe("what a style editor needs to draw a row", () => {
 });
 
 describe("colour channels", () => {
-    it("are the forty-one that carry a colour, and the type says the same forty-one", () => {
+    it("are the ones that carry a colour, and the type says the same ones", () => {
         const fromTheType: readonly ColorChannel[] = [
             "node.color",
             "node.labelColor",
             "node.labelBackground",
             "node.labelOutline",
             "node.labelBorder",
-            "node.outline",
             "node.glow",
-            "node.haloColor",
             "node.borderColor",
             "node.outerBorderColor",
             "node.raisedBorderLightColor",
@@ -1247,16 +1231,12 @@ describe("which drawn part a channel adjusts", () => {
         }
     });
 
-    it("folds a band, a halo, an arrowhead and a label's look into their parts", () => {
+    it("folds a band, an arrowhead and a label's look into their parts", () => {
         assert.strictEqual(CHANNEL_DESCRIPTORS["edge.bandWidth"].modifies, "edge.bandColor");
-        assert.strictEqual(CHANNEL_DESCRIPTORS["node.haloOpacity"].modifies, "node.haloColor");
         assert.strictEqual(CHANNEL_DESCRIPTORS["edge.arrowTailSize"].modifies, "edge.arrowTail");
         assert.strictEqual(CHANNEL_DESCRIPTORS["edge.arrowHeadTextColor"].modifies, "edge.arrowHeadText");
         assert.strictEqual(CHANNEL_DESCRIPTORS["node.labelSize"].modifies, "node.label");
         assert.isUndefined(CHANNEL_DESCRIPTORS["edge.arrowHeadText"].modifies, "an end label is a part of its own");
-        assert.isUndefined(CHANNEL_DESCRIPTORS["node.outline"].modifies);
-        assert.strictEqual(CHANNEL_DESCRIPTORS["node.outlineWidth"].modifies, "node.outline");
-        assert.strictEqual(CHANNEL_DESCRIPTORS["node.outlineWidth"].stylePath, "effect.outline.width");
     });
 });
 
@@ -1497,7 +1477,7 @@ describe("every sub-setting names its part", () => {
             .filter((descriptor) => descriptor.modifies === undefined && descriptor.off !== undefined)
             .map((descriptor) => descriptor.channel)
             .sort();
-        assert.deepStrictEqual(heads, ["edge.animationSpeed", "edge.bandColor", "node.glow", "node.outline"]);
+        assert.deepStrictEqual(heads, ["edge.animationSpeed", "edge.bandColor", "node.glow"]);
     });
 
     it("groups each part's settings under the channel that switches it on", () => {
@@ -1553,7 +1533,6 @@ describe("a channel's range", () => {
         "node.gradientDirection": 360,
         "node.groupMinHeightBiasTop": 1,
         "node.groupMinWidthBiasLeft": 1,
-        "node.haloOpacity": 1,
         "node.imageOpacity": 1,
         "node.labelBackgroundOpacity": 1,
         "node.labelBorderOpacity": 1,
@@ -1563,7 +1542,6 @@ describe("a channel's range", () => {
         "node.modelTurn": 360,
         "node.opacity": 1,
         "node.outerBorderOpacity": 1,
-        "node.outlineWidth": 10,
         "node.overlayOpacity": 1,
         "node.pieHole": 1,
         "node.shadowOpacity": 1,
@@ -1649,18 +1627,6 @@ describe("a channel's range", () => {
 
             assert.include(descriptor.values ?? [], String(descriptor.default), descriptor.channel);
         }
-    });
-});
-
-describe("what the border, outline and halo caveats say", () => {
-    it("never calls the outline a screen-space glow, and tells border from outline", () => {
-        for (const descriptor of Object.values(CHANNEL_DESCRIPTORS)) {
-            assert.notInclude(descriptor.caveat ?? "", "screen-space glow", descriptor.channel);
-        }
-
-        assert.include(CHANNEL_DESCRIPTORS["node.borderColor"].caveat, "camera-facing circular ring");
-        assert.include(CHANNEL_DESCRIPTORS["node.outline"].caveat, "camera-facing circular ring");
-        assert.include(CHANNEL_DESCRIPTORS["node.outlineWidth"].caveat, "camera-facing circular ring");
     });
 });
 

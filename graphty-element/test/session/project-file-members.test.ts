@@ -286,7 +286,7 @@ describe("the project file's generator", () => {
 });
 
 describe("a project an earlier build saved", () => {
-    // Both were saved while the halo's size channel was still called node.haloSize.
+    // Both were saved by an earlier build; their Selected row draws the selection as a ring.
     for (const [file, layer] of [
         ["lesmis-poster.graphty.json", "Poster"],
         ["volunteers-thanks.graphty.json", "Thank-you cards"],
@@ -303,7 +303,7 @@ describe("a project an earlier build saved", () => {
             const selected = session.styles
                 .list()
                 .find((entry) => entry.name === "Selected" && entry.target === "node");
-            assert.equal(selected?.set?.["node.haloScale"], 1.45);
+            assert.equal(selected?.set?.["node.outerBorderWidth"], 0.225);
         });
     }
 });

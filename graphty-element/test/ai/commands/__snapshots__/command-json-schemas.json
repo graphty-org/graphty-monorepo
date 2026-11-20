@@ -182,6 +182,15 @@
                 "additionalProperties": false,
                 "description": "Style properties for nodes",
                 "properties": {
+                    "borderColor": {
+                        "description": "Border color: a ring drawn along the node's own outline, outside its fill",
+                        "type": "string"
+                    },
+                    "borderWidth": {
+                        "description": "Border width, in the units of the node's size; a border color alone draws a thin border",
+                        "exclusiveMinimum": 0,
+                        "type": "number"
+                    },
                     "color": {
                         "description": "Color for the node (e.g., '#ff0000', 'red')",
                         "type": "string"
@@ -202,16 +211,6 @@
                     "model": {
                         "description": "Draw the nodes as a 3D model: a model id ('asset:...', such as 'asset:sample/server') or the URL of a .glb, .gltf or .obj file. A URL is fetched only after the reader allows its site",
                         "type": "string"
-                    },
-                    "outlineColor": {
-                        "description": "Outline color",
-                        "type": "string"
-                    },
-                    "outlineWidth": {
-                        "description": "Outline width (default 1, a multiple of the ring's own band), per style. It widens an outline color and draws nothing without one",
-                        "exclusiveMinimum": 0,
-                        "maximum": 10,
-                        "type": "number"
                     },
                     "shader": {
                         "description": "A node shader from the shader catalog to draw the nodes with, by its id, at its own place",

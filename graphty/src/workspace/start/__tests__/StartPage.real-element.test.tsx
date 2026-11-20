@@ -138,12 +138,12 @@ function named(session: GraphSession, node: string): boolean {
  * @returns the color, or undefined when no layer highlights it.
  */
 function highlighted(session: GraphSession, node: string): string | undefined {
-    return session.styles.explain({ node }).merged["node.haloColor"]?.hex;
+    return session.styles.explain({ node }).merged["node.outerBorderColor"]?.hex;
 }
 
 /**
  * How many pixels around a node are drawn in the start page's highlight green, read from the
- * element's own screenshot: the halo is the node's shape scaled out in that green, so it shows as
+ * element's own screenshot: the ring is drawn around the node's shape in that green, so it shows as
  * green pixels around the node that are not there without it.
  * @param element - the hero's element.
  * @param node - the node.
@@ -230,7 +230,7 @@ describe("the start page's graph", () => {
 
         assert.deepEqual([...session.selection.nodes].map(String), ["Valjean"]);
         const clicked = await greenAround(element, "Valjean");
-        assert.isAbove(clicked, before * 2 + 50, `the clicked node is drawn with a halo (${before} -> ${clicked})`);
+        assert.isAbove(clicked, before * 2 + 50, `the clicked node is drawn with a ring (${before} -> ${clicked})`);
         const card = await screen.findByRole("dialog", { name: "Node details" });
         assert.isNotNull(within(card).getByText("Valjean"));
         assert.match(card.textContent ?? "", /36 connections/);

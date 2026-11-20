@@ -1,7 +1,7 @@
 /**
  * Spelling neutral styles in a program's own vocabulary before an exporter writes them. A consumer such as
  * graphty-element hands graph-io styles in graphty's generic names (an end cap and a row of arrow parts, `half-barb`,
- * `inverted-vee`, element shape names, `graphty:node.outline`) with no record of which program they came from; this
+ * `inverted-vee`, element shape names) with no record of which program they came from; this
  * is the inverse of settling's renames, so a file written from them names what its program reads.
  *
  * Styles graph-io read and gave back with `unsettledStyles()` already hold the program's spellings, and pass through
@@ -295,36 +295,9 @@ function withEntry<V>(
 }
 
 /**
- * A node rule's `graphty:node.outline` as the `borderColor` a program draws a node's outline with, where the rule
- * gives no border color of its own.
- * @param rule - the rule
- * @returns the rule
- */
-function outlineAsBorder(rule: StyleRule): StyleRule {
-    const key = "graphty:node.outline" as StyleProperty;
-    const border = "borderColor" as StyleProperty;
-    const value = rule.set?.[key];
-    const mapping = rule.map?.[key];
-    if (
-        (value === undefined && mapping === undefined) ||
-        rule.set?.[border] !== undefined ||
-        rule.map?.[border] !== undefined
-    ) {
-        return rule;
-    }
-    const rename = <V>(record: Readonly<Partial<Record<StyleProperty, V>>>): Partial<Record<StyleProperty, V>> =>
-        Object.fromEntries(Object.entries(record).map(([k, v]) => [k === key ? border : k, v]));
-    return {
-        ...rule,
-        ...(rule.set === undefined ? {} : { set: rename(rule.set) }),
-        ...(rule.map === undefined ? {} : { map: rename(rule.map) }),
-    };
-}
-
-/**
  * Styles in the vocabulary of the program a format is written for: graphty's generic shape, stroke and arrow names as
  * the file's own spellings, an end cap and row that draw a yEd arrow as that arrow's name (GraphML and GML), an arrow
- * row as the parts of a Graphviz arrow name (DOT), and a node outline as its border color. A value no program
+ * row as the parts of a Graphviz arrow name (DOT). A value no program
  * spelling holds is left as it is, for the writer to write the nearest or leave out.
  * @param extracted - the styles
  * @param snapshot - the graph they belong to
@@ -337,7 +310,7 @@ export function spellForFormat(extracted: ExtractedStyles, snapshot: GraphSnapsh
         snapshot,
         columns: { node: new Map(extracted.columns.node), edge: new Map(extracted.columns.edge) },
     };
-    let rules = extracted.styles.rules.map((rule) => (rule.target === "node" ? outlineAsBorder(rule) : rule));
+    let { rules } = extracted.styles;
 
     // a yEd arrow is read per element, from the end cap and the row of whichever rules give them
     if (YED_ROW_FORMATS.has(format) || PART_NAME_FORMATS.has(format)) {

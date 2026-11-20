@@ -727,15 +727,14 @@ export const AxisAlignedColoredSpheres: Story = {
  * An alpha written inside a color, beside the same color written opaque with the opacity channel.
  *
  * Left column: the color carries the alpha (`#rrggbbaa`). Right column: the color is opaque and
- * the channel's opacity says 0.5. Each row must look the same on both sides, except the outline,
- * which cannot be drawn translucent and so draws its color opaque on both sides.
- * Rows, top to bottom: node fill, glow, outline, edge line (its arrow caps follow its color),
+ * the channel's opacity says 0.5. Each row must look the same on both sides.
+ * Rows, top to bottom: node fill, glow, edge line (its arrow caps follow its color),
  * arrow head and tail colors.
  */
 export const ColorAlpha: Story = {
     play: async ({ canvasElement }) => {
         const scene = await drawn(canvasElement, "Styles/Layered ColorAlpha");
-        await assertGraphLoaded(scene, { nodes: 14, edges: 4 });
+        await assertGraphLoaded(scene, { nodes: 12, edges: 4 });
         await assertDrawnColour(scene, { fillAlpha: "#ff0000", fillOpacity: "#ff0000" });
         await assertDrawnOpacity(scene, { fillAlpha: 128 / 255, fillOpacity: 128 / 255 });
         await assertDistinctPicture(scene, "Styles/Layered");
@@ -746,8 +745,6 @@ export const ColorAlpha: Story = {
             { id: "fillOpacity", position: { x: 2, y: 4, z: 0 } },
             { id: "glowAlpha", position: { x: -2, y: 2, z: 0 } },
             { id: "glowOpacity", position: { x: 2, y: 2, z: 0 } },
-            { id: "outlineAlpha", position: { x: -2, y: 0, z: 0 } },
-            { id: "outlineOpacity", position: { x: 2, y: 0, z: 0 } },
             { id: "lineAlphaFrom", row: "end", position: { x: -4, y: -2, z: 0 } },
             { id: "lineAlphaTo", row: "end", position: { x: -1, y: -2, z: 0 } },
             { id: "lineOpacityFrom", row: "end", position: { x: 1, y: -2, z: 0 } },
@@ -794,18 +791,6 @@ export const ColorAlpha: Story = {
                     target: "node",
                     selector: { match: "ids", nodes: ["glowOpacity"] },
                     set: { "node.glow": "#800000" },
-                },
-                {
-                    name: "outline: #ff000080 (alpha ignored)",
-                    target: "node",
-                    selector: { match: "ids", nodes: ["outlineAlpha"] },
-                    set: { "node.outline": "#ff000080" },
-                },
-                {
-                    name: "outline: #ff0000",
-                    target: "node",
-                    selector: { match: "ids", nodes: ["outlineOpacity"] },
-                    set: { "node.outline": "#ff0000" },
                 },
                 {
                     name: "every edge: caps at both ends, wide",

@@ -156,7 +156,6 @@ import {
     StepBack,
     StepForward,
     StickyNote,
-    Sun,
     Table,
     Table2,
     Tag,
@@ -242,11 +241,10 @@ export const GLYPHS = {
     everything: Layers,
     // What a result ran over, when it is not what is showing: a frame round the part it read.
     ranOver: Scan,
-    // The effects a layer adds to nodes (outline, glow, halo) and to edges (band, motion).
+    // The effects a layer adds to nodes (glow) and to edges (outline, band, motion).
     outline: Disc,
     // A lamp: light given off. Sparkles would read as the assistant.
     glow: Lamp,
-    halo: Sun,
     band: Highlighter,
     motion: ChevronsRight,
     // The kinds of text a layer adds: a label, a node's tooltip, and an edge's caption at each end.

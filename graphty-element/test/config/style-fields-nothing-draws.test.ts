@@ -36,13 +36,6 @@ describe("a style field nothing draws", () => {
         }
     });
 
-    it("leaves the outline colour and width, which ARE drawn, alone", () => {
-        const parsed = NodeStyle.parse({ effect: { outline: { color: "#FF0000", width: 3 } } });
-
-        assert.strictEqual(parsed.effect?.outline?.color, "#FF0000");
-        assert.strictEqual(parsed.effect?.outline?.width, 3);
-    });
-
     it("leaves the node icon, which IS drawn, alone", () => {
         const parsed = NodeStyle.parse({ texture: { icon: "star" } });
 

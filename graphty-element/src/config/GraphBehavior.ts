@@ -33,27 +33,30 @@ const NodeBehaviorShape = z.strictObject({
      * An XR session draws every node at its scene size.
      */
     sizeSpace: NodeSizeSpaces.optional(),
-
-    /*
-     * How wide a node outline is drawn when its style sets no width (the `node.outlineWidth`
-     * channel), as a multiple of the ring's own band. Unset, the ring's own width (1).
-     */
-    outlineWidth: z.number().positive().max(10).optional(),
 });
 
 /**
  * Read a saved `depthIndependentSize`, which `sizeSpace` replaced: true is `sizeSpace: "pivot"`
- * (unless `sizeSpace` is set too), false is dropped. Old projects, tag attributes and
- * `session.config.set` calls keep their look instead of failing the strict parse.
+ * (unless `sizeSpace` is set too), false is dropped; and drop a saved `outlineWidth`, whose node
+ * outline is gone. Old projects, tag attributes and `session.config.set` calls keep their look
+ * instead of failing the strict parse.
  * @param value - The node behavior as given.
- * @returns It, without the old key.
+ * @returns It, without the old keys.
  */
 function migrateDepthIndependent(value: z.input<typeof NodeBehaviorShape>): unknown {
-    if (typeof value !== "object" || value === null || !("depthIndependentSize" in value)) {
+    if (typeof value !== "object" || value === null || !("depthIndependentSize" in value || "outlineWidth" in value)) {
         return value;
     }
 
-    const { depthIndependentSize, ...rest } = value as { depthIndependentSize?: unknown; sizeSpace?: unknown };
+    const {
+        depthIndependentSize,
+        outlineWidth: _outlineWidth,
+        ...rest
+    } = value as {
+        depthIndependentSize?: unknown;
+        outlineWidth?: unknown;
+        sizeSpace?: unknown;
+    };
     return depthIndependentSize === true && rest.sizeSpace === undefined ? { ...rest, sizeSpace: "pivot" } : rest;
 }
 

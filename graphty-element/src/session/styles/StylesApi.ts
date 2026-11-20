@@ -160,7 +160,6 @@ import {
     isChannel,
     labelStyleFieldChannels,
     parseLabelFieldAddress,
-    readRenamedChannels,
     toColorValue,
 } from "./channels";
 import {
@@ -4401,8 +4400,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         const ids = document.layers.map((spec) => id(spec.name));
         const rowKeys = documentRowKeys(document.layers, ids);
 
-        for (const [index, saved] of document.layers.entries()) {
-            const spec = readRenamedChannels(saved);
+        for (const [index, spec] of document.layers.entries()) {
             const authored = stamped(rowKeys.has(index) ? { ...spec, row: rowKeys.get(index) } : spec, templateId);
 
             if (isElementSource(sourceOf(authored))) {

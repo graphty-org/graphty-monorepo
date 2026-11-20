@@ -2125,7 +2125,6 @@ const GRAPH_SETTINGS: ReadonlySet<string> = new Set<GraphSettingKey>([
     "background",
     "lighting",
     "node.sizeSpace",
-    "node.outlineWidth",
     "labels.declutter",
     "labels.avoidNodesAndEdges",
 ]);
@@ -2552,7 +2551,7 @@ function elementBaseLayers(): readonly ElementLayerSpec[] {
 const NO_LAYERS: readonly ElementLayerSpec[] = Object.freeze([]);
 
 /**
- * The layers that draw a peek: a slate halo and band, in no hue the data draws with, dark enough to
+ * The layers that draw a peek: a slate ring and band, in no hue the data draws with, dark enough to
  * read on the element's light canvas. Base layers, so a key never lists them.
  * @param peeked - What it shows.
  * @param peeked.nodes - The nodes.
@@ -2571,7 +2570,8 @@ function peekLayersOf(peeked: {
             source: { by: "element", reason: "hover" },
             target: "node",
             selector: { match: "ids", nodes: peeked.nodes },
-            set: { "node.haloColor": "#334155", "node.haloScale": 1.6, "node.haloOpacity": 1 },
+            // A ring outside the node's border, as the starting Selected row draws a selection.
+            set: { "node.outerBorderColor": "#334155", "node.outerBorderWidth": 0.3, "node.outerBorderOpacity": 1 },
         });
     }
 

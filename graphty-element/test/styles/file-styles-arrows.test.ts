@@ -57,7 +57,7 @@ function resolved(session: GraphSession, element: ExplainTarget, channel: string
 }
 
 describe("a file's arrowheads", () => {
-    it.each(FILES)("$path: resolves each named edge's arrow, and outlines no node an arrow points at", async (file) => {
+    it.each(FILES)("$path: resolves each named edge's arrow", async (file) => {
         const data = new Uint8Array(readFileSync(join(CORPUS, file.path)));
         const session = createGraphSession();
         try {
@@ -73,18 +73,6 @@ describe("a file's arrowheads", () => {
 
                 assert.strictEqual(resolved(session, { edge: edge.id }, "edge.arrowHead"), arrow, ends);
             }
-
-            // Every node an arrowhead or an arrow tail sits against.
-            const drawn = (value: unknown): boolean => value !== undefined && value !== "none";
-            const pointedAt = new Set(
-                edges.flatMap((edge) => [
-                    ...(drawn(resolved(session, { edge: edge.id }, "edge.arrowHead")) ? [edge.target] : []),
-                    ...(drawn(resolved(session, { edge: edge.id }, "edge.arrowTail")) ? [edge.source] : []),
-                ]),
-            );
-            assert.isAbove(pointedAt.size, 0, "the file draws arrowheads");
-            const outlined = [...pointedAt].filter((node) => resolved(session, { node }, "node.outline") !== undefined);
-            assert.deepEqual(outlined, [], "nodes whose outline buries the arrows beside them");
         } finally {
             session.dispose();
         }

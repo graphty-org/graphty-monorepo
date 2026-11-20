@@ -198,8 +198,8 @@ describe("names and lists", () => {
     });
 
     it("names a style's setting without repeating the style, and a property with its kind", () => {
-        assert.strictEqual(settingWord("node.halo", "node.haloScale"), "Size");
-        assert.strictEqual(settingWord("node.halo", "node.size"), "Size");
+        assert.strictEqual(settingWord("node.glow", "node.glowStrength"), "Strength");
+        assert.strictEqual(settingWord("node.glow", "node.size"), "Size");
         assert.strictEqual(channelPhrase("edge.width"), "edge width");
         assert.strictEqual(bindingTitle("node.size", "Degree"), "Size by Degree");
         assert.strictEqual(bindingTitle("node.size"), "Size from each layer");

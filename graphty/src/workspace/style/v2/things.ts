@@ -42,6 +42,31 @@ export interface SectionThings {
     readonly groups: readonly (readonly ThingSpec[])[];
 }
 
+/** The ring outside the node's border: an Effects thing, though `parts.ts` lists it under Border. */
+const RING_CHANNELS: readonly Channel[] = [
+    "node.outerBorderColor",
+    "node.outerBorderWidth",
+    "node.outerBorderOpacity",
+    "node.outerBorderStyle",
+    "node.outerBorderOffset",
+    "node.outerBorderCount",
+];
+
+/** The raised edge, a bevel: an Effects thing, though `parts.ts` lists it under Border. */
+const RAISED_CHANNELS: readonly Channel[] = [
+    "node.raisedBorderWidth",
+    "node.raisedBorderLightColor",
+    "node.raisedBorderDarkColor",
+];
+
+/** The custom shape's inner lines: the Shape's (its Custom shape sub-group), though `parts.ts` lists them under Border. */
+const INNER_LINE_CHANNELS: readonly Channel[] = [
+    "node.shapeLines",
+    "node.shapeLineWidth",
+    "node.shapeLineHaloColor",
+    "node.shapeLineHaloWidth",
+];
+
 /** Each kind's sections in the panel's order (design 2.3) and their things (design 4.1, 4.2). */
 export const SECTIONS: Readonly<Record<"node" | "edge", readonly SectionThings[]>> = {
     node: [
@@ -55,6 +80,7 @@ export const SECTIONS: Readonly<Record<"node" | "edge", readonly SectionThings[]
                         items: ["shape", "model"],
                         main: ["node.model", "node.shape"],
                         start: "node.shape",
+                        own: INNER_LINE_CHANNELS,
                         unnamed: true,
                     },
                 ],
@@ -80,22 +106,11 @@ export const SECTIONS: Readonly<Record<"node" | "edge", readonly SectionThings[]
                 ],
             ],
         },
+        // Border is the stroke on the node's own edge, nothing around it (ia-design 2, E675): the ring
+        // and the raised edge are Effects, the inner lines the Shape's custom shape.
         {
             part: "border",
-            groups: [
-                [{ id: "border", name: "Border", items: ["border"], main: ["node.borderColor"], unnamed: true }],
-                [
-                    { id: "rings", name: "Rings", items: ["rings"], main: ["node.outerBorderColor"] },
-                    {
-                        id: "raised",
-                        name: "Raised edge",
-                        items: ["raised"],
-                        main: ["node.raisedBorderWidth"],
-                    },
-                    { id: "outline", name: "Outline", items: ["outline"], main: ["node.outline"] },
-                    { id: "innerLines", name: "Inner lines", items: ["innerLines"], main: ["node.shapeLines"] },
-                ],
-            ],
+            groups: [[{ id: "border", name: "Border", items: ["border"], main: ["node.borderColor"], unnamed: true }]],
         },
         {
             part: "text",
@@ -120,6 +135,11 @@ export const SECTIONS: Readonly<Record<"node" | "edge", readonly SectionThings[]
         {
             part: "effects",
             groups: [
+                // Every look drawn around the node is here (ia-design 2): the ring stands off the rim.
+                [
+                    { id: "rings", name: "Ring", items: [], main: ["node.outerBorderColor"], own: RING_CHANNELS },
+                    { id: "glow", name: "Glow", items: ["glow"], main: ["node.glow"] },
+                ],
                 [
                     {
                         id: "shadow",
@@ -127,15 +147,13 @@ export const SECTIONS: Readonly<Record<"node" | "edge", readonly SectionThings[]
                         items: ["shadow"],
                         main: ["node.shadowColor"],
                     },
-                    { id: "glow", name: "Glow", items: ["glow"], main: ["node.glow"] },
                     {
-                        id: "halo",
-                        name: "Halo",
-                        items: ["halo"],
-                        main: ["node.haloColor"],
+                        id: "raised",
+                        name: "Raised edge",
+                        items: [],
+                        main: ["node.raisedBorderWidth"],
+                        own: RAISED_CHANNELS,
                     },
-                ],
-                [
                     {
                         id: "underlay",
                         name: "Underlay",

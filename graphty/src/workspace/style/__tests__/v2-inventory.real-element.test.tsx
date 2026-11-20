@@ -169,7 +169,7 @@ const KNOWN_CHANNEL_GAPS: readonly string[] = [
 ];
 
 /** Check 1: graph-wide style settings with no line in Graph settings. */
-const KNOWN_GRAPH_SETTING_GAPS: readonly string[] = ["node.outlineWidth"];
+const KNOWN_GRAPH_SETTING_GAPS: readonly string[] = [];
 
 /** Check 2: label style fields, per text kind (`<style channel>.<field>`), with no line or no By data. */
 const KNOWN_LABEL_FIELD_GAPS: readonly string[] = [
@@ -433,7 +433,6 @@ const ELEMENT_GRAPH_SETTINGS: Readonly<Record<GraphSettingKey, true>> = {
     background: true,
     lighting: true,
     "node.sizeSpace": true,
-    "node.outlineWidth": true,
     "labels.declutter": true,
     "labels.avoidNodesAndEdges": true,
 };

@@ -110,16 +110,6 @@ describe("a label at the center of its node", () => {
         assert.isAbove(green, 0, `the node's center shows ${String(red)} red pixels and no label`);
     });
 
-    it("is drawn over an outlined node, not under the outline", async () => {
-        await graph.getSession().styles.add({
-            name: "a black outline",
-            selector: { match: "ids", nodes: ["alpha"] },
-            set: { "node.outline": "#000000" },
-        });
-        const { green, red } = await colorsAtCenter();
-        assert.isAbove(green, 0, `the node's center shows ${String(red)} red pixels and no label`);
-    });
-
     it("is drawn in front of the node from the opposite side", async () => {
         await graph.setCameraState({ position: { x: 0, y: 0, z: 10 }, target: { x: 0, y: 0, z: 0 } });
         const { green, red } = await colorsAtCenter();

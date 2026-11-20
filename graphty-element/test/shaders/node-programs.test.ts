@@ -63,7 +63,7 @@ describe("the batch program", () => {
         );
     });
 
-    it("a billboard draws its halo, ring and glow; a stacking square does not", () => {
+    it("a billboard draws its halo and glow; a stacking square does not", () => {
         assert.include(batchProgram("impostor", { params: [] }, BODY).fragment, "graphty_decoration(");
         assert.notInclude(batchProgram("over", { params: [] }, BODY).fragment, "graphty_decoration(");
     });

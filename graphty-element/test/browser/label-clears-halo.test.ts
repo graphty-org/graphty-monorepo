@@ -1,8 +1,8 @@
 /**
  * @file A node's label is drawn clear of the ring around its node.
  *
- * A label sits a fixed gap above its node's own surface, and a halo (the selection ring, or one a
- * layer paints) is drawn larger than the node, so the ring used to run through the bottom of the
+ * A label sits a fixed gap above its node's own surface, and the selection's halo
+ * is drawn larger than the node, so the ring used to run through the bottom of the
  * label's words. The label now keeps its gap from the ring while the node has one, and goes back
  * when the ring goes.
  *
@@ -211,23 +211,18 @@ describe("a label and the ring around its node", () => {
         );
     });
 
-    it("are apart when a layer paints the ring, and the label goes back when it is gone", async () => {
+    it("the label goes back when the ring is gone", async () => {
         const graph = await labelled();
         const node = graph.getNode("Cosette");
         assert.isOk(node);
         const before = words(graph, node);
 
-        const added = await graph.getSession().styles.add({
-            name: "ring",
-            target: "node",
-            selector: { match: "ids", nodes: ["Cosette"] },
-            set: { "node.haloColor": "#FFD700", "node.haloScale": 1.45, "node.haloOpacity": 1 },
-        });
+        assert.isTrue(graph.selectNode("Cosette"));
         await operationQueueOf(graph).waitForCompletion();
         await draw(graph);
         assert.isFalse(meets(words(graph, node), ring(graph, node)));
 
-        await graph.getSession().styles.remove(added.id);
+        graph.deselectNode();
         await operationQueueOf(graph).waitForCompletion();
         await draw(graph);
         const after = words(graph, node);

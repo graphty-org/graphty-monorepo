@@ -583,7 +583,7 @@ export function sceneNode(
             shape: askedShapeClass(channel(merged, "node.shape"), merged["node.shapePoints"]),
             fill: requestedFill?.hex ?? null,
             fillOpacity: (typeof opacity === "number" ? opacity : 1) * (requestedFill?.alpha ?? 1),
-            borderColor: colorOf(merged["node.borderColor"] ?? merged["node.outline"])?.hex ?? null,
+            borderColor: colorOf(merged["node.borderColor"])?.hex ?? null,
             labelColor: colorOf(labelStyle.color ?? channel(merged, "node.labelColor"))?.hex ?? null,
             fontSize: labelStyle.sizePx ?? channel(merged, "node.labelSize"),
             labelPosition: labelPositionOf(labelStyle.location),

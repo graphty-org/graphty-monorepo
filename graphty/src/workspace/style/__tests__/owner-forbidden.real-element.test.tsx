@@ -27,6 +27,8 @@ interface Seen {
     readonly words: Set<string>;
     /** Every section "+" menu item. */
     readonly plusItems: Set<string>;
+    /** Every section "+" menu item and Switch to kind on the Node tab. */
+    readonly nodePlusItems?: Set<string>;
     /** Every line's channel (data-line) in the panel and its pop-overs. */
     readonly lines: Set<string>;
     /** Every forbidden selector found, with where. */
@@ -164,7 +166,7 @@ function pluses(): HTMLElement[] {
  * @param seen - the record.
  * @param adding - whether to add what the menus offer.
  */
-async function walkMenus(seen: Seen, adding: boolean): Promise<void> {
+async function walkMenus(seen: Seen, adding: boolean, kind: "node" | "edge"): Promise<void> {
     const count = pluses().length;
     for (let index = 0; index < count; index++) {
         const done = new Set<string>();
@@ -186,6 +188,9 @@ async function walkMenus(seen: Seen, adding: boolean): Promise<void> {
             look(seen, menu);
             for (const item of within(menu).queryAllByRole("menuitem")) {
                 seen.plusItems.add(item.textContent.trim());
+                if (kind === "node") {
+                    seen.nodePlusItems?.add(item.textContent.trim());
+                }
             }
             const next = within(menu)
                 .queryAllByRole("menuitem")
@@ -245,7 +250,7 @@ async function walkKind(seen: Seen, kind: "node" | "edge", adding: boolean, sess
             await onlyPlusAdds(session, section, `${kind} ${section.textContent} (${why.ledger})`);
         }
     }
-    await walkMenus(seen, adding);
+    await walkMenus(seen, adding, kind);
     look(seen, panel());
     for (const each of outsideTheList(panel())) {
         seen.unapproved?.add(`${kind}: ${each}`);
@@ -290,6 +295,7 @@ describe("nothing the owner ordered out of the Style panel comes back", () => {
         const seen: Seen = {
             words: new Set(),
             plusItems: new Set(),
+            nodePlusItems: new Set(),
             lines: new Set(),
             selectors: new Set(),
             unscrubbed: new Set(),
@@ -328,6 +334,13 @@ describe("nothing the owner ordered out of the Style panel comes back", () => {
             if (forbidden.plusItem !== undefined) {
                 assert.deepEqual(
                     [...seen.plusItems].filter((item) => forbidden.plusItem?.test(item)),
+                    [],
+                    why,
+                );
+            }
+            if (forbidden.nodePlusItem !== undefined) {
+                assert.deepEqual(
+                    [...(seen.nodePlusItems ?? [])].filter((item) => forbidden.nodePlusItem?.test(item)),
                     [],
                     why,
                 );
@@ -426,7 +439,18 @@ describe("nothing the owner ordered out of the Style panel comes back", () => {
 
     it("Find a setting, on both tabs, finds none of them by name", async () => {
         await openGraph();
-        const words = ["Glyph", "Group", "Order", "Group outline", "Stacking", "Custom shader", "Around", "Material"];
+        const words = [
+            "Glyph",
+            "Group",
+            "Order",
+            "Group outline",
+            "Stacking",
+            "Custom shader",
+            "Around",
+            "Material",
+            "Outline",
+            "Halo",
+        ];
         for (const kind of ["node", "edge"] as const) {
             await openStyle(kind === "node" ? "Key people" : "Links");
             await showKind(kind);

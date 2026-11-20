@@ -204,15 +204,15 @@ describe("settled facts in place of the program", () => {
         );
     });
 
-    it("gives a file graphty drew in scene units, with its old border color as the outline", async () => {
+    it("gives a file graphty drew in scene units, keeping its border color a border", async () => {
         const result = await registry.importGraph(DOT, { format: "dot" });
         const read = readFileStyles(registry.importer("dot"), result.snapshot, result.report) as ExtractedStyles;
         const graphty = { ...read, styles: { ...read.styles, source: { ...read.styles.source, tool: "graphty" } } };
         const settled = settleStyles(graphty, result.snapshot);
         expect(settled.styles.lengths).toEqual({ units: "scene" });
-        const outline = resolveStyles(settled, "node", "graphty:node.outline", result.snapshot);
-        expect(outline).toEqual(resolveStyles(read, "node", "borderColor", result.snapshot));
-        expect(resolveStyles(settled, "node", "borderColor", result.snapshot)).toEqual([null, null, null]);
+        expect(resolveStyles(settled, "node", "borderColor", result.snapshot)).toEqual(
+            resolveStyles(read, "node", "borderColor", result.snapshot),
+        );
         expect(resolveStyles(settled, "node", "drawOrder", result.snapshot)).toEqual([null, null, null]);
     });
 

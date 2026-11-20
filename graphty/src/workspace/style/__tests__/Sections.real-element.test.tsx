@@ -385,102 +385,56 @@ describe("the Style tab's sections", () => {
         assert.isUndefined(written(session, "Everything", "edge.patternCount"), "nothing written before a value");
     });
 
-    it("lists styles, not their settings, in '+': Halo's and Glow's settings are added from their own rows", async () => {
+    it("lists styles, not their settings, in '+': Glow's settings are added from its own row", async () => {
         const { session } = await openScene();
         await openStyle("Key people");
         const shape = (): HTMLElement => section("node", "shape");
         await userEvent.click(within(shape()).getByRole("button", { name: "Add to node shape" }));
         const items = (await screen.findAllByRole("menuitem")).map((item) => item.textContent);
-        assert.includeMembers(items, ["Glow", "Halo"], "one entry per style");
-        for (const setting of ["Glow strength", "Halo size", "Halo opacity"]) {
-            assert.notInclude(items, setting, `${setting} is a setting of its style, not a menu entry`);
-        }
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Halo" }));
-        // Halo's row has its own "+", which lists its settings by their own names.
-        await userEvent.click(await within(shape()).findByRole("button", { name: "Add to node halo" }));
-        assert.deepEqual(
-            (await screen.findAllByRole("menuitem")).map((item) => item.textContent),
-            ["Size", "Opacity"],
-        );
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Size" }));
+        assert.include(items, "Glow", "one entry per style");
+        assert.notInclude(items, "Glow strength", "Glow strength is a setting of its style, not a menu entry");
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Glow" }));
+        // Glow's row has its own "+": its one setting, Strength, is added at once, named by its own name.
+        await userEvent.click(await within(shape()).findByRole("button", { name: "Add to node glow" }));
         await waitFor(() => {
             const rows = [...shape().querySelectorAll<HTMLElement>(".ws-row")];
             assert.deepEqual(
                 rows.map((row) => row.dataset.line),
-                ["node.haloColor", "node.haloScale"],
-                "the size sits under its halo",
+                ["node.glow", "node.glowStrength"],
+                "the strength sits under its glow",
             );
-            assert.equal(rows[1]?.querySelector(".ws-field-name")?.textContent, "Size");
-            assert.isDefined(rows[1]?.dataset.setting, "drawn as the halo's setting");
+            assert.equal(rows[1]?.querySelector(".ws-field-name")?.textContent, "Strength");
+            assert.isDefined(rows[1]?.dataset.setting, "drawn as the glow's setting");
         });
 
-        // Removing the halo takes its settings with it, in one step.
+        // Removing the glow takes its settings with it, in one step.
         const people = session.styles.list().find((layer) => layer.name === "Key people");
         if (people === undefined) {
             throw new Error("no Key people layer");
         }
         await session.styles.update(people.id, {
-            set: { ...people.set, "node.haloColor": "#FF0000", "node.haloScale": 2, "node.glow": "#00B4FF" },
+            set: {
+                ...people.set,
+                "node.glow": "#FF0000",
+                "node.glowStrength": 2,
+                "node.outerBorderColor": "#00B4FF",
+                "node.outerBorderWidth": 0.2,
+            },
         });
-        const halo = await waitFor(() => {
-            const found = shape().querySelector<HTMLElement>('.ws-row[data-line="node.haloColor"]');
+        const glow = await waitFor(() => {
+            const found = shape().querySelector<HTMLElement>('.ws-row[data-line="node.glow"]');
             assert.isNotNull(found);
             return found;
         });
-        if (halo === null) {
-            throw new Error("no halo row");
+        if (glow === null) {
+            throw new Error("no glow row");
         }
-        await userEvent.click(within(halo).getByRole("button", { name: "Remove node halo" }));
+        await userEvent.click(within(glow).getByRole("button", { name: "Remove node glow" }));
         await waitFor(() => {
-            assert.isUndefined(written(session, "Key people", "node.haloColor"));
-            assert.isUndefined(written(session, "Key people", "node.haloScale"), "the size goes with its halo");
+            assert.isUndefined(written(session, "Key people", "node.glow"));
+            assert.isUndefined(written(session, "Key people", "node.glowStrength"), "the strength goes with its glow");
         });
-        assert.isDefined(written(session, "Key people", "node.glow"), "another style stays");
-        // Glow's strength is added from the Glow row, the only setting it has.
-        await userEvent.click(within(shape()).getByRole("button", { name: "Add to node glow" }));
-        await waitFor(() => {
-            const strength = shape().querySelector<HTMLElement>('.ws-row[data-line="node.glowStrength"]');
-            assert.equal(strength?.querySelector(".ws-field-name")?.textContent, "Strength");
-        });
-    });
-
-    it("sets an outline's width per layer from the Outline row, leaving another layer's outline as it was", async () => {
-        const { session } = await openScene();
-        const idOf = (name: string): string => String(session.data.nodes().find((n) => n.name === name)?.id);
-        const people = session.styles.list().find((layer) => layer.name === "Key people");
-        if (people === undefined) {
-            throw new Error("no Key people layer");
-        }
-        await session.styles.update(people.id, { set: { ...people.set, "node.outline": "#FF0000" } });
-        await session.styles.add({
-            name: "Bishop",
-            target: "node",
-            selector: { match: "ids", nodes: [idOf("Myriel")] },
-            set: { "node.outline": "#0000FF" },
-        });
-        await session.styles.settled();
-        await openStyle("Key people");
-        const shape = (): HTMLElement => section("node", "shape");
-        // The width is the outline's only setting: the Outline row's "+" adds it at once.
-        await userEvent.click(await within(shape()).findByRole("button", { name: "Add to node outline" }));
-        const width = await waitFor(() => {
-            const row = shape().querySelector<HTMLElement>('.ws-row[data-line="node.outlineWidth"]');
-            assert.equal(row?.querySelector(".ws-field-name")?.textContent, "Width");
-            const box = row?.querySelector<HTMLInputElement>("input");
-            assert.isDefined(box ?? undefined);
-            return box as HTMLInputElement;
-        });
-        await userEvent.clear(width);
-        await userEvent.type(width, "3{Enter}");
-        await waitFor(() => {
-            assert.strictEqual(written(session, "Key people", "node.outlineWidth"), 3);
-        });
-        await session.styles.settled();
-        assert.strictEqual(session.styles.explain({ node: idOf("Valjean") }).merged["node.outlineWidth"], 3);
-        assert.isUndefined(
-            session.styles.explain({ node: idOf("Myriel") }).merged["node.outlineWidth"],
-            "the other layer's outline keeps the graph's width",
-        );
+        assert.isDefined(written(session, "Key people", "node.outerBorderColor"), "another style stays");
     });
 
     it("an end label on an undirected graph's edges says why it is not drawn", async () => {

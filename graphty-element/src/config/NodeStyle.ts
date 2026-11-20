@@ -411,28 +411,6 @@ export const NodeStyle = z.strictObject({
                     strength: z.number().nonnegative().optional(),
                 })
                 .optional(),
-            outline: z
-                .strictObject({
-                    // The ring around the node (NodeEffects.applyOutlineEffect). A width alone,
-                    // with no colour, draws nothing, as a glow strength alone draws nothing.
-                    color: ColorStyle.optional(),
-                    // How wide the ring's band is drawn, as a multiple of its own width (1).
-                    // Unset, the graph's `layoutBehavior.node.outlineWidth`, else 1.
-                    width: z.number().nonnegative().max(10).optional(),
-                })
-                .optional(),
-            // The halo the selection is drawn with (`selectionStyle`), in the node's own shape, for any
-            // node a layer picks. Any of the look's fields switches it on; `enabled` alone switches
-            // it on with the selection's look, and `enabled: false` takes it off, even off a
-            // selected node. A field left unset is the selection style's.
-            halo: z
-                .strictObject({
-                    enabled: z.boolean().optional(),
-                    color: ColorStyle.optional(),
-                    scale: z.number().min(0).optional(), // 0 leaves the selection style's scale, as the channel does
-                    opacity: z.number().min(0).max(1).optional(),
-                })
-                .optional(),
             wireframe: z.boolean().optional(),
             flatShaded: z.boolean().optional(),
             // Drawn in the node's own colour with no light or shade, as 2D draws every node.
@@ -472,8 +450,7 @@ export const NodeStyle = z.strictObject({
      * A second ring drawn outside the border, `offset` beyond its outer edge (Cytoscape.js
      * `outline-*`): its color, its width and offset in the units of the border's width, its
      * opacity and its line style. `count` (default 1, a fraction rounded down) draws that many rings, each `offset` beyond
-     * the one before (Graphviz's `peripheries`). No width, or an opacity of 0, draws none. Unlike
-     * `effect.outline`, a highlight drawn over the node's rim, this is a ring of its own.
+     * the one before (Graphviz's `peripheries`). No width, or an opacity of 0, draws none.
      */
     outerBorder: z
         .strictObject({

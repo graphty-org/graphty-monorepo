@@ -249,7 +249,7 @@ describe("a legend block names everything the picture does not say for itself", 
                     name: "Highlight",
                     kind: "highlight",
                     selector: { match: "everything" },
-                    set: { "node.outline": "#ff9900" },
+                    set: { "node.borderColor": "#ff9900" },
                 },
             ]).legend,
         );
@@ -599,7 +599,7 @@ describe("what a legend leaves out, and why", () => {
         const blocks = buildLegend(
             harness([
                 betweennessColor({
-                    set: { "node.outline": "#ffffff" },
+                    set: { "node.borderColor": "#ffffff" },
                     encode: { "node.color": { by: "results.betweenness.value", palette: "viridis" } },
                 }),
             ]).legend,
@@ -608,7 +608,7 @@ describe("what a legend leaves out, and why", () => {
         assert.deepEqual(
             blocks.map((block) => [block.channel, block.kind]),
             [
-                ["node.outline", "literal"],
+                ["node.borderColor", "literal"],
                 ["node.color", "sequential"],
             ],
         );
@@ -626,10 +626,10 @@ describe("explain answers why one element looks the way it does", () => {
         },
         betweennessColor(),
         {
-            name: "My outline",
+            name: "My border",
             kind: "custom",
             selector: { match: "everything" },
-            set: { "node.outline": "#ff9900" },
+            set: { "node.borderColor": "#ff9900" },
         },
     ];
 
@@ -638,7 +638,7 @@ describe("explain answers why one element looks the way it does", () => {
         const why = explainStyle({ node: "n3" }, explain);
 
         assert.strictEqual(why.merged["node.size"], 1);
-        assert.strictEqual(why.merged["node.outline"]?.hex, "#ff9900");
+        assert.strictEqual(why.merged["node.borderColor"]?.hex, "#ff9900");
         assert.notStrictEqual(why.merged["node.color"]?.hex, "#333333");
     });
 
@@ -648,11 +648,11 @@ describe("explain answers why one element looks the way it does", () => {
 
         assert.deepEqual(
             why.contributions.map((entry) => entry.name),
-            ["Default", "Betweenness - Node Color", "My outline"],
+            ["Default", "Betweenness - Node Color", "My border"],
         );
         assert.deepEqual(contributionOf(why, "Default").properties, ["node.color", "node.size"]);
         assert.deepEqual(contributionOf(why, "Betweenness - Node Color").properties, ["node.color"]);
-        assert.deepEqual(contributionOf(why, "My outline").properties, ["node.outline"]);
+        assert.deepEqual(contributionOf(why, "My border").properties, ["node.borderColor"]);
     });
 
     it("leaves out a layer whose selector does not match the element", () => {
@@ -661,7 +661,7 @@ describe("explain answers why one element looks the way it does", () => {
 
         assert.deepEqual(
             why.contributions.map((entry) => entry.name),
-            ["Default", "My outline"],
+            ["Default", "My border"],
         );
         assert.strictEqual(why.merged["node.color"]?.hex, "#333333");
     });
@@ -709,16 +709,16 @@ describe("explain says whether a channel can be edited where it is, and why not"
         },
         betweennessColor(),
         {
-            name: "My outline",
+            name: "My border",
             kind: "custom",
             selector: { match: "everything" },
-            set: { "node.outline": "#ff9900" },
+            set: { "node.borderColor": "#ff9900" },
         },
     ];
 
     it("offers a control for a fixed value on a layer the consumer owns", () => {
         const why = explainStyle({ node: "n3" }, harness(stack).explain);
-        const outline = channelOf(why, "node.outline");
+        const outline = channelOf(why, "node.borderColor");
 
         assert.strictEqual(outline.mode, "static");
         assert.strictEqual(outline.editable, true);
@@ -749,7 +749,7 @@ describe("explain says whether a channel can be edited where it is, and why not"
 
         assert.deepEqual(
             why.channels.map((entry) => entry.channel),
-            ["node.color", "node.size", "node.outline"],
+            ["node.color", "node.size", "node.borderColor"],
         );
     });
 });

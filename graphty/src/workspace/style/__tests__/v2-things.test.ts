@@ -1,11 +1,11 @@
 /**
  * Style panel v2's section table (style/v2/things.ts) against parts.ts: every section is a part,
- * every item of a part (shaders apart) belongs to exactly one thing, and no "+" menu passes 12.
+ * every item of a part (shaders apart) belongs to exactly one thing (its own section's, or one that takes it whole), and no "+" menu passes 12.
  */
 
 import { assert, describe, it } from "vitest";
 
-import { PARTS } from "../parts/parts";
+import { itemChannels, PARTS } from "../parts/parts";
 import { SECTIONS } from "../v2/things";
 
 describe("Style panel v2's sections", () => {
@@ -24,9 +24,19 @@ describe("Style panel v2's sections", () => {
                 if (section.part === "shaders") {
                     continue;
                 }
+                // An item another section's thing takes whole as its own (the ring, in Effects) is that thing's.
+                const takenWhole = (channels: readonly string[]): number =>
+                    SECTIONS[side]
+                        .flatMap((each) => each.groups.flat())
+                        .filter((thing) => channels.every((channel) => thing.own?.includes(channel as never) === true))
+                        .length;
                 for (const item of part?.items ?? []) {
                     const owners = things.filter((thing) => thing.items.includes(item.id));
-                    assert.lengthOf(owners, 1, `${side} ${section.part} ${item.id}`);
+                    assert.equal(
+                        owners.length + takenWhole(itemChannels(item)),
+                        1,
+                        `${side} ${section.part} ${item.id}`,
+                    );
                 }
                 for (const thing of things) {
                     for (const item of thing.items) {

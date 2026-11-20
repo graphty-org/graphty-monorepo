@@ -206,7 +206,6 @@ export const PARTS: Readonly<Record<"node" | "edge", readonly PartSpec[]>> = {
                     name: "Raised edge",
                     tail: ["node.raisedBorderWidth", "node.raisedBorderLightColor", "node.raisedBorderDarkColor"],
                 },
-                { id: "outline", name: "Outline", tail: ["node.outline", "node.outlineWidth"] },
                 {
                     id: "innerLines",
                     name: "Inner lines",
@@ -330,11 +329,6 @@ export const PARTS: Readonly<Record<"node" | "edge", readonly PartSpec[]>> = {
                     ],
                 },
                 { id: "glow", name: "Glow", main: ["node.glow", "node.glowStrength"] },
-                {
-                    id: "halo",
-                    name: "Halo",
-                    main: ["node.halo", "node.haloColor", "node.haloScale", "node.haloOpacity"],
-                },
                 {
                     id: "underlay",
                     name: "Underlay",
@@ -620,6 +614,8 @@ export const PARTS: Readonly<Record<"node" | "edge", readonly PartSpec[]>> = {
                         "edge.nodeGap",
                         "edge.sourceNodeGap",
                         "edge.targetNodeGap",
+                        "edge.bundleStrength",
+                        "edge.bundleIterations",
                     ],
                 },
                 {

@@ -107,7 +107,6 @@ export const OPTION_NAMES: Partial<Readonly<Record<Channel, Readonly<Record<stri
     "node.modelDoubleSided": { file: { name: "File" }, true: { name: "On" }, false: { name: "Off" } },
     "node.labelFit": { inside: { name: "Inside" }, bounds: { name: "Bounds" } },
     "node.visible": { true: { name: "Shown" }, false: { name: "Hidden" } },
-    "node.halo": { true: { name: "On" }, false: { name: "Off" } },
     "edge.route": {
         straight: { name: "Straight", glyph: "routeStraight" },
         arc: { name: "Arc", glyph: "routeArc" },
@@ -234,7 +233,6 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
         main: [
             { channel: "node.shapeRotation", name: "Rotation" },
             { channel: "node.meshDetail", name: "Detail", rule: "R5b" },
-            { channel: "node.shapeParts", name: "Parts", rule: "R15" },
         ],
         groups: [
             {
@@ -243,8 +241,19 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
                     { channel: "node.cornerRadius", name: "Radius" },
                     { channel: "node.exactCornerRadius" },
                     { channel: "node.cornerFraction", name: "Fraction" },
+                ],
+            },
+            // The pieces graph-io writes for a shape drawn from coordinates (ia-design 2, Shape).
+            {
+                name: "Custom shape",
+                lines: [
                     { channel: "node.shapePoints", name: "Points", rule: "R15" },
                     { channel: "node.shapeStretchPoints" },
+                    { channel: "node.shapeParts", name: "Extra pieces", rule: "R15" },
+                    { channel: "node.shapeLines", name: "Inner lines", rule: "R15" },
+                    { channel: "node.shapeLineWidth", name: "Inner line width" },
+                    { channel: "node.shapeLineHaloColor", name: "Inner line backing" },
+                    { channel: "node.shapeLineHaloWidth", name: "Inner line backing width" },
                 ],
             },
             ...SHAPE_GROUPS,
@@ -413,34 +422,20 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
             },
         ],
     },
+    // A ring: a stroke standing off the node's edge, outside any border (ia-design 2).
     rings: {
-        common: [{ channel: "node.outerBorderCount", name: "Count" }],
+        common: [{ channel: "node.outerBorderWidth", name: "Width" }],
         main: [
-            { channel: "node.outerBorderWidth", name: "Width" },
-            { channel: "node.outerBorderOffset", name: "Offset" },
-            { channel: "node.outerBorderStyle", name: "Style", rule: "R10" },
             { channel: "node.outerBorderOpacity", name: "Opacity" },
+            { channel: "node.outerBorderStyle", name: "Style", rule: "R10" },
+            { channel: "node.outerBorderOffset", name: "Offset" },
+            { channel: "node.outerBorderCount", name: "Count" },
         ],
     },
     raised: {
         main: [
             { channel: "node.raisedBorderLightColor", name: "Light" },
             { channel: "node.raisedBorderDarkColor", name: "Dark" },
-        ],
-    },
-    outline: { common: [{ channel: "node.outlineWidth", name: "Width" }], main: [] },
-    innerLines: {
-        // The lines themselves are the list editor's (R15, `ItemList.tsx`), under Main.
-        rowOwns: ["node.shapeLines"],
-        main: [{ channel: "node.shapeLineWidth", name: "Width" }],
-        groups: [
-            {
-                name: "Halo",
-                lines: [
-                    { channel: "node.shapeLineHaloColor", name: null },
-                    { channel: "node.shapeLineHaloWidth", name: "Width" },
-                ],
-            },
         ],
     },
     shadow: {
@@ -451,13 +446,6 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
         ],
     },
     glow: { main: [{ channel: "node.glowStrength", name: "Strength" }] },
-    halo: {
-        main: [
-            { channel: "node.halo", name: "Show", rule: "R8" },
-            { channel: "node.haloScale", name: "Scale" },
-            { channel: "node.haloOpacity", name: "Opacity" },
-        ],
-    },
     underlay: backdrop("underlay"),
     overlay: backdrop("overlay"),
     visibility: { row: { channel: "node.visible", name: null, rule: "R8" }, main: [] },

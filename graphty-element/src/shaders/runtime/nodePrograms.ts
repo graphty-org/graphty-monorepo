@@ -43,7 +43,7 @@ export const BATCH_ATTRIBUTES = [
     // billboard: halo (rgb packed, scale, opacity); square: entered and exited stamps; w: the
     // use's minimum size in CSS pixels (0: none)
     "graphtyDeco0",
-    // billboard: ring (rgb packed, width: a multiple of its band, 0 for none), glow (rgb packed, strength)
+    // billboard: x and y unused (0), glow (rgb packed, strength)
     "graphtyDeco1",
 ] as const;
 
@@ -64,18 +64,6 @@ const BATCH_UNIFORMS = [
 
 /** The mesh path's two instanced attributes: the varying parameters, then the meta of the batch. */
 export const MESH_ATTRIBUTES = ["graphtyShaderA", "graphtyShaderB"] as const;
-
-/** The radii the outline ring is drawn between at width 1, as multiples of the node's (NodeEffects). */
-const RING_INNER = 1;
-const RING_OUTER = 1.35;
-
-/**
- * The ring's outer radius in GLSL, its band widened by the slot's width.
- * @param width - The GLSL expression holding the width (`graphtyDeco1.y`, `vDeco1.y`).
- * @returns The GLSL expression.
- */
-const ringOuter = (width: string): string =>
-    `(${RING_INNER.toFixed(2)} + ${(RING_OUTER - RING_INNER).toFixed(2)} * ${width})`;
 
 /** How far a glow reaches, as a multiple of the radius. */
 const GLOW_REACH = 1.8;
@@ -176,7 +164,7 @@ function stacks(role: BatchRole): boolean {
 
 /**
  * The vertex stage of a batch: one camera-facing square per slot, in view space at the node's
- * center, big enough for the shader's reach or the billboard's halo, ring and glow.
+ * center, big enough for the shader's reach or the billboard's halo and glow.
  *
  * `minSize` (the slot's `graphtyDeco0.w`, CSS pixels) applies at `replace`, `around` and `behind`:
  * the square is drawn at least that wide, by drawing the look as if the node's radius were larger
@@ -186,10 +174,10 @@ function stacks(role: BatchRole): boolean {
  */
 function batchVertex(role: BatchRole): string {
     const square = stacks(role);
-    // The billboard's square holds its halo, ring and glow; the square in place of the node also
+    // The billboard's square holds its halo and glow; the square in place of the node also
     // its reach.
     const decorated = (least: string): string =>
-        `max(max(${least}, graphtyDeco0.y), max(graphtyDeco1.y > 0.0 ? ${ringOuter("graphtyDeco1.y")} : 1.0, graphtyDeco1.w > 0.0 ? ${GLOW_REACH.toFixed(2)} : 1.0))`;
+        `max(max(${least}, graphtyDeco0.y), graphtyDeco1.w > 0.0 ? ${GLOW_REACH.toFixed(2)} : 1.0)`;
     let extent = "graphty_reach";
     if (role === "impostor") {
         extent = decorated("1.0");
@@ -270,7 +258,7 @@ void main() {
 }
 
 /**
- * The billboard's halo, outline ring and glow at a distance from the center (in radii), drawn from
+ * The billboard's halo and glow at a distance from the center (in radii), drawn from
  * the radius rather than from a mesh, so they ring the sphere or the sprite and not its square.
  */
 const BILLBOARD_DECORATION = `
@@ -282,9 +270,6 @@ vec4 graphty_decoration(float d) {
     }
     if (vDeco0.y > 1.0 && d > 1.0 && d < vDeco0.y) {
         deco = vec4(graphty_unpackRgb(vDeco0.x), vDeco0.z);
-    }
-    if (vDeco1.y > 0.0 && d > ${RING_INNER.toFixed(2)} && d < ${ringOuter("vDeco1.y")}) {
-        deco = vec4(graphty_unpackRgb(vDeco1.x), 1.0);
     }
     return deco;
 }
@@ -328,7 +313,7 @@ const CARD_TILT = `
 
 /**
  * The fragment statements that fill the input's `uv` and `normal` for a role, and leave
- * `graphty_deco` (the billboard's halo, ring and glow) and, for the impostor, `graphty_z`.
+ * `graphty_deco` (the billboard's halo and glow) and, for the impostor, `graphty_z`.
  * @param role - The batch.
  * @returns The GLSL.
  */
@@ -361,7 +346,7 @@ function surfaceInput(role: BatchRole): string {
     }
 
     if (role === "replace") {
-        // The square in place of the node: the look out to its reach, over the halo, ring and
+        // The square in place of the node: the look out to its reach, over the halo and
         // glow drawn from the node's own outline. The normal faces the camera here and is tilted
         // once the seed is known (cardTilt).
         return `

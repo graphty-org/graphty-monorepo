@@ -421,13 +421,13 @@ shape keys (morph targets) are not played (`W_MODEL_ANIMATION_PARTIAL`), and a c
 does not have holds the first frame (`W_MODEL_ANIMATION_UNKNOWN`). While any node plays, the
 element draws every frame; once all are still or gone, it rests.
 
-### Selecting, outlining and glowing a model
+### Selecting and glowing a model
 
-A selected model node, and one a layer gives a halo, an outline or a glow, is marked with a band
-around its outline on screen, in the look's color: about `(scale - 1) x 20` pixels wide for a
-halo (9 at the default 1.45), the outline width times 4, or the glow strength times 8, between 2
-and 16. Only the node that is marked shows the band, however many nodes draw the same model. A
-node with more than one of these shows its halo, else its outline, else its glow.
+A selected model node (while `startingRows` is off), and one a layer gives a glow, is marked with
+a band around its outline on screen, in the look's color: about `(scale - 1) x 20` pixels wide for
+the selection's halo (9 at the default 1.45), or the glow strength times 8, between 2 and 16. Only
+the node that is marked shows the band, however many nodes draw the same model. A selected node
+that also glows shows the selection's band.
 
 ### Turning a model upright
 

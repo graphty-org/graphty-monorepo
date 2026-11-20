@@ -1,5 +1,5 @@
 /**
- * @file A peek on a real element: its halo is drawn on the canvas, the camera and the selection stay
+ * @file A peek on a real element: its ring is drawn on the canvas, the camera and the selection stay
  * where they were, and clearing it restores the picture.
  */
 
@@ -56,7 +56,7 @@ afterEach(() => {
 });
 
 describe("selection.peek on an element", () => {
-    it("draws a halo on what it names, moves nothing, and clears", async () => {
+    it("draws a ring on what it names, moves nothing, and clears", async () => {
         const { session } = element;
         await session.selection.apply({ ids: ["c"] });
         const steps = session.history.steps.length;
@@ -67,7 +67,7 @@ describe("selection.peek on an element", () => {
         await session.selection.peek({ ids: ["a"] });
         const peeked = await slatePixels();
 
-        assert.isAbove(peeked, bare + 50, "the halo is on the canvas");
+        assert.isAbove(peeked, bare + 50, "the ring is on the canvas");
         assert.strictEqual(JSON.stringify(element.getCameraState()), camera);
         assert.deepEqual([...session.selection.nodes], ["c"]);
         assert.strictEqual(session.history.steps.length, steps);

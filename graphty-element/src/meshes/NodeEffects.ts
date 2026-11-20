@@ -1,66 +1,23 @@
 import type { EffectLayer } from "@babylonjs/core";
-import { Camera } from "@babylonjs/core/Cameras/camera.js";
 import { Constants } from "@babylonjs/core/Engines/constants.js";
 import { HighlightLayer } from "@babylonjs/core/Layers/highlightLayer.js";
 import { ThinGlowBlurPostProcess } from "@babylonjs/core/Layers/thinEffectLayer.js";
-import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial.js";
-import { Color3 } from "@babylonjs/core/Maths/math.color.js";
-import { Vector2, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import { Vector2 } from "@babylonjs/core/Maths/math.vector.js";
 import { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
 import { InstancedMesh } from "@babylonjs/core/Meshes/instancedMesh.js";
 import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
-import { VertexData } from "@babylonjs/core/Meshes/mesh.vertexData.js";
-import { TransformNode } from "@babylonjs/core/Meshes/transformNode.js";
 import { PostProcess } from "@babylonjs/core/PostProcesses/postProcess.js";
 import { Scene } from "@babylonjs/core/scene.js";
 
 import type { NodeStyleConfig } from "../config";
 import { GraphtyLogger, type Logger } from "../logging";
-import { DEFAULT_GLOW_COLOR, DEFAULT_OUTLINE_COLOR } from "../session/styles/channels";
-import type { MeshCache } from "./MeshCache";
+import { DEFAULT_GLOW_COLOR } from "../session/styles/channels";
 import { readColor } from "./readColor";
 
 const logger: Logger = GraphtyLogger.getLogger(["graphty", "meshes", "effects"]);
 
 /** How far a glow reaches at strength 1: the blur width of the glow layer, in glow-map texels. */
 const GLOW_SPREAD = 2;
-
-/**
- * The name every outline ring's source mesh and instances start with; the color follows, then
- * {@link OUTLINE_WIDTH_MARK} and the width for a ring a style gives a width of its own.
- */
-const OUTLINE_RING_PREFIX = "graphty-node-outline-";
-
-/** What separates a ring's color from the width a style gave it, in the ring's name. */
-const OUTLINE_WIDTH_MARK = "-w";
-
-/**
- * The ring's inner radius, in radii of the node's outline as the camera sees it: a little inside
- * the node's edge, so it overlaps it.
- */
-const OUTLINE_RING_INNER = 0.9;
-
-/** The ring's outer radius, in radii of the node's outline as the camera sees it. */
-const OUTLINE_RING_OUTER = 1.35;
-
-/**
- * How far the ring sits in front of the node's centre, toward the camera, in node radii: at the
- * node's front surface. Through the centre, the node's own edges (which meet there) were drawn
- * over the ring wherever they crossed it; in front, they pass behind it.
- */
-const OUTLINE_RING_LIFT = 1.05;
-
-/** How many straight pieces the ring is drawn in. */
-const OUTLINE_RING_SEGMENTS = 48;
-
-/** The ring's depth offset; see createOutlineRingSource. */
-const OUTLINE_RING_DEPTH_OFFSET = 2;
-
-/** The smallest node radius a ring is sized for, so a node with no bounds yet still gets one. */
-const MIN_RING_RADIUS = 0.01;
-
-/** Scratch vector, so placing a ring every frame allocates nothing. */
-const TO_CAMERA = new Vector3();
 
 /**
  * The narrowest and the widest a glow is spread, as multiples of {@link GLOW_SPREAD}. The blur
@@ -84,9 +41,9 @@ const GLOW_SMOOTH_SPACING = 1;
 const GLOW_REACH_MAX = [3.5, 10] as const;
 
 /**
- * The rendering group outlines and glows are drawn at the end of: the graph's own. Babylon's
- * default draws them after every group, over the labels (`RichTextLabel` draws them in later
- * groups), so a selected node's ring was drawn across its name.
+ * The rendering group glows are drawn at the end of: the graph's own. Babylon's default draws
+ * them after every group, over the labels (`RichTextLabel` draws them in later groups), so a
+ * glow was drawn across its node's name.
  */
 const GRAPH_RENDERING_GROUP = 0;
 
@@ -193,25 +150,24 @@ class NodeGlowLayer extends HighlightLayer {
 /**
  * Manages visual effects for node meshes.
  * Currently supports:
- * - Outline effect: a ring mesh around the node
  * - Glow effect using a second HighlightLayer that draws only outside the node (NodeGlowLayer)
  */
 // eslint-disable-next-line @typescript-eslint/no-extraneous-class
 export class NodeEffects {
     private static readonly GLOW_LAYER_NAME = "graphty-node-glow";
 
-    /** The source meshes that write the stencil, each once: those an outline or a glow was put on. */
+    /** The source meshes that write the stencil, each once: those a glow was put on. */
     private static readonly stencilWriters = new WeakSet<Mesh>();
 
     /**
-     * Lets only outlined and glowing nodes write the stencil an outline and a glow are masked by.
+     * Lets only glowing nodes write the stencil a glow is masked by.
      *
      * WHAT WAS BROKEN: Babylon's highlight layer draws its ring wherever the stencil does not hold
      * the node's mark, and every mesh drawn in the main pass writes the stencil -- so an edge (or a
-     * label, or an arrowhead) drawn in front of an outlined node overwrote the node's mark along
-     * its line, and the ring was drawn there too: streaks of outline color across the node. Now the
-     * main pass writes no stencil except while an outlined or glowing node draws, so the mark is
-     * the node's whole silhouette and the ring stays outside it.
+     * label, or an arrowhead) drawn in front of a glowing node overwrote the node's mark along
+     * its line, and the glow was drawn there too: streaks of glow color across the node. Now the
+     * main pass writes no stencil except while a glowing node draws, so the mark is
+     * the node's whole silhouette and the glow stays outside it.
      * @param mesh - The source mesh just put on a highlight layer.
      */
     private static writeStencilOnlyFor(mesh: Mesh): void {
@@ -265,242 +221,6 @@ export class NodeEffects {
     }
 
     /**
-     * Set how wide an outline is drawn when its style sets no width
-     * (`layoutBehavior.node.outlineWidth`): the ring's band, as a multiple of its own width, on
-     * every such ring now drawn and every one made later. A ring whose style sets
-     * `effect.outline.width` keeps its own.
-     * @param scene - The Babylon.js scene.
-     * @param width - The width as a multiple of the ring's own, or undefined for that.
-     */
-    static setOutlineWidth(scene: Scene, width: number | undefined): void {
-        scene.metadata = scene.metadata ?? {};
-        scene.metadata.outlineWidth = width;
-        const outer = this.ringOuterOf(this.outlineWidthOf(scene, undefined));
-        for (const mesh of scene.meshes) {
-            if (
-                mesh instanceof Mesh &&
-                mesh.name.startsWith(OUTLINE_RING_PREFIX) &&
-                !mesh.name.includes(OUTLINE_WIDTH_MARK)
-            ) {
-                this.ringVertexData(outer).applyToMesh(mesh, true);
-            }
-        }
-    }
-
-    /**
-     * How wide a node's outline is drawn: its style's width, else the scene's
-     * (`layoutBehavior.node.outlineWidth`), else 1, the ring's own.
-     * @param scene - The Babylon.js scene.
-     * @param width - The width the node's style sets, if any.
-     * @returns The width, as a multiple of the ring's own.
-     */
-    static outlineWidthOf(scene: Scene, width: number | undefined): number {
-        const shared: unknown = scene.metadata?.outlineWidth;
-        return width ?? (typeof shared === "number" ? shared : 1);
-    }
-
-    /**
-     * Whether a node's style draws an outline: it names one, and not a width alone (a width with
-     * no colour draws nothing, as a glow strength with no colour draws nothing).
-     * @param effect - The effect configuration from the node style.
-     * @returns True when an outline is drawn.
-     */
-    static outlineDrawn(effect: NodeStyleConfig["effect"] | undefined): boolean {
-        const outline = effect?.outline;
-        return outline !== undefined && (outline.color !== undefined || outline.width === undefined);
-    }
-
-    /**
-     * The outer radius of a ring: the inner radius plus the band, widened by the outline width.
-     * @param width - The width, as a multiple of the ring's own.
-     * @returns The outer radius.
-     */
-    private static ringOuterOf(width: number): number {
-        return OUTLINE_RING_INNER + (OUTLINE_RING_OUTER - OUTLINE_RING_INNER) * width;
-    }
-
-    /**
-     * Draw (or take away) a node's outline: a flat ring around the node, facing the camera.
-     *
-     * THE RING IS GEOMETRY IN THE SCENE, drawn in the opaque pass and depth-tested like the node
-     * it rings. It used to be a Babylon highlight layer, a full-screen pass composited after the
-     * whole frame with the depth test off and kept off only the outlined node's own pixels by the
-     * stencil. So the ring of a node behind another was painted across the nearer node, and every
-     * ring was painted over every label (`test/browser/node-outline-depth.test.ts`). As geometry
-     * at the node's front surface, a nearer node or label covers the ring, a label beside it is
-     * drawn over it, and the node's own edges pass behind it.
-     *
-     * ONE SOURCE MESH PER OUTLINE COLOR AND WIDTH, cached in the mesh cache, and one instance of it per
-     * outlined node. The instance is a CHILD of the node's mesh, so it moves, hides and is
-     * disposed with it (a restyle that rebuilds the mesh takes the old ring with it, and this is
-     * called again for the new mesh). Its scaling is the node's own largest half-extent, and the
-     * node mesh's scaling and the graph root's carry through the parent link.
-     * @param mesh - The node's mesh, normally an InstancedMesh from MeshCache.
-     * @param effect - The effect configuration from the node style.
-     * @param cache - The mesh cache the ring's source mesh is kept in.
-     */
-    static applyOutlineEffect(
-        mesh: AbstractMesh,
-        effect: NodeStyleConfig["effect"] | undefined,
-        cache: MeshCache,
-    ): void {
-        const existing = mesh.getChildMeshes(true).find((child) => child.name.startsWith(OUTLINE_RING_PREFIX));
-
-        const outline = effect?.outline;
-        if (outline === undefined || !this.outlineDrawn(effect)) {
-            existing?.dispose();
-
-            return;
-        }
-
-        // THE ALPHA IS DROPPED: an outline is drawn opaque. The layer check reports it as
-        // W_ALPHA_IGNORED, so the drop is said rather than silent.
-        const { rgb } = readColor(this.extractColorValue(outline.color), DEFAULT_OUTLINE_COLOR);
-        // ONE SOURCE PER COLOR AND WIDTH. A ring with no width of its own is named by its color
-        // alone and drawn at the scene's width, which setOutlineWidth rewrites in place.
-        const own = outline.width;
-        const widthPart = own === undefined ? "" : OUTLINE_WIDTH_MARK + String(own);
-        const name = `${OUTLINE_RING_PREFIX}${rgb.toHexString()}${widthPart}`;
-        const scene = mesh.getScene();
-        const ring =
-            existing?.name === name && !existing.isDisposed()
-                ? existing
-                : cache.get(name, () =>
-                      this.createOutlineRingSource(name, rgb, scene, this.outlineWidthOf(scene, own)),
-                  );
-
-        if (ring !== existing) {
-            existing?.dispose();
-            ring.isPickable = false;
-            ring.parent = mesh;
-            const observer = scene.onBeforeCameraRenderObservable.add((camera) => {
-                this.followCamera(ring, camera);
-            });
-            ring.onDisposeObservable.addOnce(() => {
-                scene.onBeforeCameraRenderObservable.remove(observer);
-            });
-        }
-
-        const extent = mesh.getBoundingInfo().boundingBox.extendSize;
-        ring.metadata = { outlineRadius: Math.max(extent.x, extent.y, extent.z, MIN_RING_RADIUS) };
-        const camera = scene.activeCamera;
-        if (camera) {
-            this.followCamera(ring, camera);
-        }
-    }
-
-    /**
-     * Place a node's ring for one camera, before that camera draws: on the line from the node's
-     * centre to the camera, {@link OUTLINE_RING_LIFT} node radii toward it, and sized to the cone
-     * of sight lines that graze the node, so its inner edge lies on the node's visible edge.
-     *
-     * WHY EVERY FRAME. Under perspective a node's visible edge is where that cone meets it, and the
-     * cone depends on how far away and in which direction the camera is. The ring used to be a
-     * billboard turned with the camera's rotation, lifted along the view axis and sized once for a
-     * node straight ahead: for a node off to the side the lift carried the ring further out than
-     * the node, and as the graph turned a node toward the side of the view a gap opened between
-     * the node and its ring (`test/browser/node-outline-perspective.test.ts`). An orthographic
-     * camera has no cone: the ring is the node's own radius, lifted along the view axis, as before.
-     *
-     * Cost: a few vector operations per outlined node per camera, no scene search.
-     * @param ring - The node's ring, a child of the node's mesh.
-     * @param camera - The camera about to draw.
-     */
-    private static followCamera(ring: AbstractMesh, camera: Camera): void {
-        const node = ring.parent;
-        const radius = (ring.metadata as { outlineRadius?: number } | null)?.outlineRadius;
-        if (!(node instanceof AbstractMesh) || radius === undefined) {
-            return;
-        }
-
-        const { m } = node.computeWorldMatrix();
-        // The node's world scale; a node is scaled the same along every axis.
-        const scale = Math.hypot(m[0], m[1], m[2]) || 1;
-        const r = radius * scale;
-        const lift = OUTLINE_RING_LIFT * r;
-        const toCamera = TO_CAMERA;
-        let seen = r;
-
-        if (camera.mode === Camera.ORTHOGRAPHIC_CAMERA) {
-            ring.billboardMode = TransformNode.BILLBOARDMODE_ALL;
-            camera.getDirectionToRef(Vector3.Forward(camera.getScene().useRightHandedSystem), toCamera);
-            toCamera.scaleInPlace(-1);
-        } else {
-            // Turned toward the camera's POSITION, not its rotation, so the ring is square to the
-            // line of sight to this node wherever it is in the view.
-            ring.billboardMode = TransformNode.BILLBOARDMODE_ALL | TransformNode.BILLBOARDMODE_USE_POSITION;
-            camera.globalPosition.subtractToRef(node.getAbsolutePosition(), toCamera);
-            const distance = toCamera.length();
-            toCamera.scaleInPlace(1 / (distance || 1));
-            // The cone's radius at the ring's distance from the camera.
-            seen = (Math.max(distance - lift, 0) * r) / Math.sqrt(Math.max(distance * distance - r * r, r * r * 1e-6));
-        }
-
-        // The billboard keeps the parent's scale and position but not its rotation, so the
-        // position is a world direction in the parent's units.
-        toCamera.scaleToRef(lift / scale, ring.position);
-        ring.scaling.setAll(seen / scale);
-    }
-
-    /**
-     * A ring's geometry: a flat band from {@link OUTLINE_RING_INNER} to an outer radius in the XY
-     * plane, facing +z.
-     * @param outer - The outer radius.
-     * @returns The vertex data.
-     */
-    private static ringVertexData(outer: number): VertexData {
-        const positions: number[] = [];
-        const indices: number[] = [];
-        for (let i = 0; i <= OUTLINE_RING_SEGMENTS; i++) {
-            const angle = (i / OUTLINE_RING_SEGMENTS) * Math.PI * 2;
-            const x = Math.cos(angle);
-            const y = Math.sin(angle);
-            positions.push(x * OUTLINE_RING_INNER, y * OUTLINE_RING_INNER, 0, x * outer, y * outer, 0);
-            if (i < OUTLINE_RING_SEGMENTS) {
-                const at = i * 2;
-                indices.push(at, at + 1, at + 2, at + 1, at + 3, at + 2);
-            }
-        }
-
-        const data = new VertexData();
-        data.positions = positions;
-        data.indices = indices;
-        // +z faces the camera: the ring is a billboard turned toward the camera's position.
-        data.normals = positions.map((_, i) => (i % 3 === 2 ? 1 : 0));
-        return data;
-    }
-
-    /**
-     * Build the source mesh of one outline color and width: a flat ring of inner radius
-     * {@link OUTLINE_RING_INNER} in the XY plane, its band widened by the width;
-     * followCamera places and sizes it.
-     * @param name - The mesh name, which is also its cache key.
-     * @param color - The ring's color.
-     * @param scene - The scene to build it in.
-     * @param width - The band's width, as a multiple of its own.
-     * @returns The source mesh.
-     */
-    private static createOutlineRingSource(name: string, color: Color3, scene: Scene, width: number): Mesh {
-        const source = new Mesh(name, scene);
-        this.ringVertexData(this.ringOuterOf(width)).applyToMesh(source, true);
-
-        const material = new StandardMaterial(`${name}-material`, scene);
-        // Unlit: a ring is a mark on the node, the same color from every side.
-        material.disableLighting = true;
-        material.emissiveColor = color;
-        material.diffuseColor = Color3.Black();
-        material.specularColor = Color3.Black();
-        material.backFaceCulling = false;
-        // Pushed back a little in depth, so a label drawn in the same plane (a billboard through
-        // the same node) is drawn over the ring rather than fighting it for the pixel.
-        material.zOffset = OUTLINE_RING_DEPTH_OFFSET;
-        material.freeze();
-        source.material = material;
-
-        return source;
-    }
-
-    /**
      * Resolve the mesh that the effect layers actually render.
      *
      * WHY THIS EXISTS: every node mesh handed to this class is an `InstancedMesh` -- `MeshCache`
@@ -508,9 +228,7 @@ export class NodeEffects {
      * meshes/MeshCache.ts). Babylon renders an instance through its SOURCE mesh's sub-meshes, and
      * `ThinEffectLayer._renderSubMesh` asks `hasMesh(subMesh.getRenderingMesh())` -- the source --
      * when deciding whether a sub-mesh belongs in the effect. Putting the INSTANCE in the
-     * inclusion list therefore includes a mesh Babylon never consults, and nothing glows: that is
-     * the same class of failure as the "HighlightLayer has issues with InstancedMesh" note on
-     * `applyOutlineEffect`.
+     * inclusion list therefore includes a mesh Babylon never consults, and nothing glows.
      *
      * Including the source is not a compromise, it is exactly the right granularity: glow color
      * and strength are part of the node style, `Styles.styleToId` interns a style by deep value
@@ -542,11 +260,6 @@ export class NodeEffects {
      * glow recreates the layer through this method.
      *
      * A highlight layer draws only the meshes added to it, so an emptied layer draws nothing.
-     *
-     * TWO HIGHLIGHT LAYERS, ONE STENCIL. A node with both an outline and a glow is in both, and
-     * each layer marks its nodes with its own stencil value, so one of the two may draw over that
-     * node. ponytail: accepted for the rare node that has both; give the layers disjoint stencil
-     * bits (`numStencilBits`) if it shows.
      * @param scene - The Babylon.js scene
      * @returns The glow layer for the scene
      */
@@ -584,10 +297,8 @@ export class NodeEffects {
      * `git log -S "new GlowLayer" -- graphty-element/` finds the string only in a 2024 demo page
      * under examples/, never in src: glow was never implemented here and never removed, it was
      * accepted, paid for, and dropped on the floor. That is the product owner's report "glow
-     * doesn't work" exactly. This method is the missing renderer, and it is
-     * deliberately shaped like `applyOutlineEffect` -- same call site in `Node.updateStyle`, same
-     * try/catch -- so the two effects cannot drift apart. Unlike the outline, glow is on only
-     * when the merged style names a glow colour: a strength on its own draws nothing.
+     * doesn't work" exactly. This method is the missing renderer. Glow is on
+     * only when the merged style names a glow colour: a strength on its own draws nothing.
      *
      * ORDERING TRAP, do not "fix" this by touching the material: `NodeMesh.createMaterial` calls
      * `mat.freeze()` immediately after building it. The highlight layer's per-mesh color is the
@@ -621,8 +332,7 @@ export class NodeEffects {
             const { rgb: color, alpha } = readColor(colorValue, DEFAULT_GLOW_COLOR);
             this.glowStrengths(scene).set(renderedMesh, { strength, alpha });
 
-            // Same defence as the outline path: a mesh in an unexpected state must not take down
-            // a repaint.
+            // A mesh in an unexpected state must not take down a repaint.
             try {
                 glowLayer.addMesh(renderedMesh, color);
                 this.writeStencilOnlyFor(renderedMesh);

@@ -385,7 +385,7 @@ describe("the node tab by part of the drawing", () => {
             within(menu)
                 .getAllByRole("menuitem")
                 .map((item) => item.textContent),
-            ["Drop shadow", "Glow", "Halo", "Underlay", "Overlay"],
+            ["Drop shadow", "Glow", "Underlay", "Overlay"],
         );
         await userEvent.click(within(menu).getByRole("menuitem", { name: "Drop shadow" }));
         const effects = section(tab, "effects");

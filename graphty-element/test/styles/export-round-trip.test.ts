@@ -65,7 +65,7 @@ const WRITERS: readonly {
 /** The neutral properties each channel is drawn from, for matching a difference to a note. */
 const PROPERTIES: Readonly<Record<string, readonly string[]>> = {
     "node.color": ["fill"],
-    "node.outline": ["borderColor"],
+    "node.borderColor": ["borderColor"],
     "node.size": ["width", "height"],
     "node.opacity": ["opacity", "fillOpacity"],
     "node.shape": ["shape"],
@@ -182,11 +182,11 @@ const STACK: readonly LayerSpec[] = [
         encode: { "node.size": { by: "data.w", scale: "linear", domain: [1, 8], range: [1, 4] } },
     },
     {
-        name: "log outline width",
+        name: "border by width",
         target: "node",
         kind: "encoding",
         selector: { match: "expression", where: "data.w > `2`" },
-        encode: { "node.outline": { by: "data.w", palette: "viridis" } },
+        encode: { "node.borderColor": { by: "data.w", palette: "viridis" } },
     },
     {
         name: "fade",

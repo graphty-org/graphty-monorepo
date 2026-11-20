@@ -3292,9 +3292,7 @@ export class Graphty extends LitElement {
      * "pivot" draws every node in the 3D view as if it stood at the depth the camera turns about,
      * so a node with a larger size is never drawn smaller because it is farther away -- set it
      * when node size shows a value readers compare; "screen" keeps every node one size on screen
-     * at any depth and zoom. `node.outlineWidth` (unset by default) draws
-     * the band of every outline whose style sets no width (the `node.outlineWidth` channel) at
-     * that multiple of its own width. `camera.pivotOnSelection` (off by
+     * at any depth and zoom. `camera.pivotOnSelection` (off by
      * default) makes the selection the camera's pivot: one selected node, or the average position
      * of several, is what the camera turns and zooms about, in 2D, 3D, VR and AR.
      *

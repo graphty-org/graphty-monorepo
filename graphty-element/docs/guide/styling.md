@@ -119,24 +119,18 @@ with no undo step: pointing is view state. `session.selection.hovered` reads the
 and `session.selection.hover(id)` sets it, for a page that draws its own pointer or a test. Pointing
 at a node selects nothing.
 
-To mark the node under the pointer the way a selected node is marked, give it a halo: the
-selection highlight, drawn around the node in the node's own shape, so it stays on the node from
+To mark the node under the pointer the way the starting Selected row marks a selected node, give it
+a ring: a stroke outside the node's border, in the node's own shape, so it stays on the node from
 any angle.
 
 ```ts
 await session.styles.add({
-    name: "Halo on the pointed-at node",
+    name: "Ring on the pointed-at node",
     target: "node",
     selector: { match: "hover", orSelected: true },
-    set: { "node.halo": true },
+    set: { "node.outerBorderColor": "#0077BB", "node.outerBorderWidth": 0.225 },
 });
 ```
-
-`node.halo` alone draws the selection's look (`selectionStyle`); `node.haloColor`,
-`node.haloScale` and `node.haloOpacity` change it for the nodes the layer picks, and writing any of
-them switches the halo on. A selected node a layer gives a halo shows one halo: each value the
-layer sets wins and the selection style gives the rest. `node.halo: false` takes the halo off a
-node, even a selected one. Unset, a node has a halo only while it is selected, as before.
 
 ### The top N
 
@@ -305,14 +299,8 @@ A channel is one visual property with one name. These are all of them:
 | `node.tooltip`                | the words to show on hover                                                                                                                       |
 | `node.tooltipStyle`           | as `node.labelStyle`, for the tooltip                                                                                                            |
 | `node.opacity`                | 0 to 1                                                                                                                                           |
-| `node.outline`                | a color                                                                                                                                          |
-| `node.outlineWidth`           | 0 to 10: the outline's width, a multiple of its own (1); unset, `layoutBehavior.node.outlineWidth`; alone it draws none                          |
 | `node.glow`                   | a color                                                                                                                                          |
 | `node.glowStrength`           | 0 or more, scaling `node.glow`; 0 or on its own it draws no glow                                                                                 |
-| `node.halo`                   | true or false: the selection highlight around the node, in its own shape                                                                         |
-| `node.haloColor`              | a color; the selection highlight's when unset (blue, `#0077BB`)                                                                                  |
-| `node.haloScale`              | above 0: how many times the node's size the halo is drawn at (1.45)                                                                              |
-| `node.haloOpacity`            | 0 to 1 (1)                                                                                                                                       |
 | `node.wireframe`              | true or false                                                                                                                                    |
 | `node.flat`                   | true or false: one normal per face, so a sphere looks faceted (3D)                                                                               |
 | `node.unlit`                  | true or false: drawn in its own color with no light, as a flat dot (3D)                                                                          |
@@ -375,9 +363,7 @@ A channel is one visual property with one name. These are all of them:
 A color may carry an alpha (`#ff000080`, `rgba(255, 0, 0, 0.5)`). On `node.color`,
 `edge.color` and the two arrow colors the alpha multiplies the matching opacity channel, so
 `#ff000080` draws as `#ff0000` at opacity 0.5; an arrow with no color of its own takes its line's
-color, alpha included. On `node.glow` it fades the glow. An outline cannot be drawn translucent:
-`node.outline` draws the color opaque, and `styles.validate()` and the `style:changed` change
-report it as a `W_ALPHA_IGNORED` warning, with `params.channel` and `params.path`. The selection
+color, alpha included. On `node.glow` it fades the glow. The selection
 halo's color (`setSelectionStyle`) works the same way, multiplied with its `opacity`.
 
 On a dense graph, long edges cross the whole drawing and hide its structure. Two line options help,
@@ -519,8 +505,7 @@ await element.session.styles.add({
 });
 ```
 
-A border is not `node.outline`: an outline is a ring around the node, drawn for
-emphasis, while a border is part of the node's shape. Each distinct border is one more mesh,
+Each distinct border is one more mesh,
 shared by every node drawn with it.
 
 Glowing nodes are drawn through one mesh per distinct `node.glow` and `node.glowStrength`

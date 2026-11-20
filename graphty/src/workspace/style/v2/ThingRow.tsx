@@ -46,6 +46,7 @@ import { LineFrame, type RowSlots, RubricLine } from "./RubricLine";
 import { RowSettings, ThingLine } from "./ThingLine";
 import { FirstLines, ThingPopover } from "./ThingPopover";
 import { mainOf, setOn, type ThingSpec } from "./things";
+import { useRowPeek } from "./useRowPeek";
 import { ValueButton } from "./ValueButton";
 
 /**
@@ -338,6 +339,7 @@ export function ThingRow({
     const [open, setOpen] = useState(false);
     const [picking, setPicking] = useState(false);
     const box = useRef<HTMLDivElement>(null);
+    const peek = useRowPeek(ctx);
     useEffect(() => {
         if (!opening) {
             return;
@@ -415,7 +417,7 @@ export function ThingRow({
     const text = TEXT_THINGS[ctx.side][thing.id] as TextThing | undefined;
     if (text !== undefined) {
         return (
-            <div data-thing={thing.id}>
+            <div data-thing={thing.id} {...peek}>
                 <LabelRow
                     ctx={ctx}
                     kind={text}
@@ -461,7 +463,7 @@ export function ThingRow({
         },
     };
     return (
-        <div ref={box} data-thing={thing.id}>
+        <div ref={box} data-thing={thing.id} {...peek}>
             {picker}
             <ThingLine
                 member={family === undefined ? undefined : <MemberMenu ctx={ctx} family={family} title={title} />}

@@ -518,8 +518,9 @@ Each its own pull request, in this order:
 
 Built at test time from `CHANNEL_DESCRIPTORS`, the label style descriptors and the graph config keys; each entry
 has one home: panel (section, thing, sub-group), graph settings, Layout panel, alias, or not offered (the
-element's code). `__tests__/v2-homes.test.ts` fails on any entry with no home or two, and checks that every
-family member's popover reaches every thing-wide channel.
+element's code). `__tests__/v2-homes.test.ts` fails on any entry with two homes, and checks that every family
+member's popover reaches every thing-wide channel; `__tests__/v2-inventory.real-element.test.tsx` fails on any
+entry with no home.
 
 ### 10.4 Folders and several layers
 

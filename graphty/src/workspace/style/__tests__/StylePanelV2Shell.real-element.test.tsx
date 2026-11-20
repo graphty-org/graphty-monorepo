@@ -17,6 +17,7 @@ import { userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
 import { cleanup, screen, waitFor, within } from "../../../test/test-utils";
+import { showKind } from "./kindTab";
 import { openProject, openStyle, sectionOf, written } from "./v2Harness";
 
 /** The node tab's sections, in the design's order. */
@@ -244,6 +245,27 @@ describe("Style panel v2's '+' lists", () => {
         });
         if (lines !== undefined) {
             await onlyPlusAdds(session, lines, "Inner lines' lines");
+        }
+    });
+
+    it("the edge tab's sections are '+' lists too: only each '+' adds", async () => {
+        const { session } = await openProject();
+        await session.styles.add({
+            name: "Links",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.color": "#1971C2" },
+        });
+        await session.styles.settled();
+        const tab = await openStyle("Links");
+        await showKind("edge");
+        const sections = await waitFor(() => {
+            const found = [...tab.querySelectorAll<HTMLElement>('[data-section^="edge-"] [data-plus-list="section"]')];
+            assert.isNotEmpty(found, "the edge tab draws its sections");
+            return found;
+        });
+        for (const section of sections) {
+            await onlyPlusAdds(session, section, section.textContent ?? "an edge section");
         }
     });
 

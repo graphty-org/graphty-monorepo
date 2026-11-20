@@ -1,26 +1,14 @@
 /**
  * Style panel v2's home table (design/ui/style-panel-v2/design.md, section 10.3), built from
- * graphty-element's catalog and the panel's tables: no channel is a line of two things, every
- * channel the element offers has a place to be seen, and every member of a style family reaches
- * every setting the family keeps through a switch.
+ * graphty-element's catalog and the panel's tables: no channel is a line of two things, and every member of
+ * a style family reaches every setting the family keeps through a switch. That every channel has a place
+ * is v2-inventory.real-element.test.tsx's check 1.
  */
 
-import { type Channel, channelsFor, STYLE_FAMILIES, textFieldOf } from "@graphty/graphty-element/catalog";
+import { type Channel, STYLE_FAMILIES } from "@graphty/graphty-element/catalog";
 import { assert, describe, it } from "vitest";
 
-import { LABEL_COVERED, TEXT_THINGS } from "../v2/labelRubric";
 import { EDGE_RUBRIC, NODE_RUBRIC, rubricChannels, SHAPE_REPLACE_RUBRIC, type ThingRubric } from "../v2/rubric";
-import { SECTIONS } from "../v2/things";
-
-/**
- * Channels with no normal visible v2 control today, exactly: a channel that gains one must leave this list, and
- * none may join it. The flag-off panel's parts table is not a home, and a label field's own channel is placed
- * only through its text kind's field line.
- */
-const KNOWN_GAPS: Readonly<Record<"node" | "edge", readonly Channel[]>> = {
-    node: ["node.labelBackgroundShape", "node.borderOpacity", "node.gradientColor", "node.labels"],
-    edge: ["edge.labelBackgroundShape", "edge.labels"],
-};
 
 /** Each kind's rubric table. */
 const RUBRICS = { node: NODE_RUBRIC, edge: EDGE_RUBRIC } as const;
@@ -67,29 +55,6 @@ describe("Style panel v2's home table", () => {
                 .filter(([, things]) => things.size > 1)
                 .map(([c, t]) => `${c}: ${[...t].join(", ")}`);
             assert.deepEqual(twice, []);
-        });
-
-        it(`${side}: every channel the element offers has a place in the panel`, () => {
-            const placed = new Set<Channel>([
-                ...Object.values(RUBRICS[side]).flatMap((rubric) => rubricChannels(rubric)),
-                ...SECTIONS[side].flatMap((section) => section.groups.flat().flatMap((thing) => thing.main)),
-                ...Object.values(TEXT_THINGS[side]).flatMap((thing) => [
-                    thing.words,
-                    thing.style,
-                    ...(thing.distance === undefined ? [] : [thing.distance]),
-                ]),
-                `${side}.shaders`,
-            ]);
-            const fieldLine = (channel: Channel): boolean => {
-                const found = textFieldOf(channel);
-                return found !== undefined && found.into !== channel && LABEL_COVERED.has(found.field);
-            };
-            // A channel the element does not draw (`renderable: false`) is offered nowhere.
-            const unplaced = channelsFor(side)
-                .filter(({ renderable }) => renderable)
-                .map(({ channel }) => channel)
-                .filter((channel) => !placed.has(channel) && !fieldLine(channel));
-            assert.deepEqual(unplaced, KNOWN_GAPS[side]);
         });
     }
 

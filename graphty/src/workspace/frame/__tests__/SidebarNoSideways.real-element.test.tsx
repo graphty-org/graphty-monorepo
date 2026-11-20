@@ -28,14 +28,6 @@ const SIZES = [
 ] as const;
 
 /**
- * Fields (by their line) whose text a swipe slides sideways: Chrome scrolls an input's overflowing text under a
- * sideways wheel, and CSS cannot stop it (overflow and text-overflow leave it scrolling). compact-mantine's
- * Select shows its value in an input; a value wider than its field slides (issue #9145). A known-gaps list:
- * it may only shrink.
- */
-const KNOWN_SIDEWAYS_FIELDS: readonly string[] = ["edge.supportModel"];
-
-/**
  * Where a swipe over an element lands, in the test page.
  * @param element - the element.
  * @returns x and y.
@@ -122,12 +114,46 @@ function scrollers(root: Element): HTMLElement[] {
 }
 
 /**
+ * Swipes over every field in a region whose text is wider than the field (Chrome slides such text under a
+ * sideways wheel, focused or not), waits until the wheel has scrolled it, and checks that its text is back at
+ * its start.
+ * @param region - the panel region.
+ * @param where - what the region shows, for messages.
+ */
+async function swipeOverflowingFields(region: HTMLElement, where: string): Promise<void> {
+    const fields = [...region.querySelectorAll("input")].filter((each) => each.scrollWidth > each.clientWidth);
+    for (const field of fields) {
+        field.scrollIntoView({ block: "center" });
+        const [px, py] = pointOf(field);
+        if (document.elementFromPoint(px, py) !== field) {
+            continue;
+        }
+        const line = field.closest<HTMLElement>("[data-line]")?.dataset.line ?? field.name;
+        let scrolled = false;
+        // On the window, in the capture phase: it hears the scroll before the app's listeners on the document.
+        const seen = (event: Event): void => {
+            scrolled ||= event.target === field;
+        };
+        window.addEventListener("scroll", seen, true);
+        const [x, y] = topPoint(px, py);
+        await mouse({ type: "mouseWheel", x, y, deltaX: 40, deltaY: 0 });
+        await waitFor(() => {
+            assert.isTrue(scrolled, `${where}: the swipe scrolled ${line}'s text`);
+        });
+        window.removeEventListener("scroll", seen, true);
+        assert.equal(field.scrollLeft, 0, `${where}: ${line}'s text is back at its start`);
+    }
+}
+
+/**
  * Swipes over a region several times and checks that nothing moved sideways and that the region's scroller
  * moved down when it has room to.
  * @param region - the panel region (the left panel, the inspector or a pop-over).
  * @param where - what the region shows, for messages.
  */
 async function swipeAndCheck(region: HTMLElement, where: string): Promise<void> {
+    // First, while nothing is still moving from an earlier swipe: a wheel's scroll runs on over several frames.
+    await swipeOverflowingFields(region, where);
     const { left } = region.getBoundingClientRect();
     const scrolling = scrollers(region);
     const before = scrolling.map((each) => each.scrollTop);
@@ -145,18 +171,14 @@ async function swipeAndCheck(region: HTMLElement, where: string): Promise<void> 
             assert.isAbove(target.scrollTop, before[at], `${where}: the panel moved down`);
         });
     }
+    // A field's text included: Chrome slides an input's overflowing text under a sideways wheel.
     const moved = [region, ...region.querySelectorAll("*")].filter((each) => each.scrollLeft !== 0);
-    const isField = (each: Element): boolean => each instanceof HTMLInputElement || each instanceof HTMLTextAreaElement;
     assert.deepEqual(
-        moved.filter((each) => !isField(each)).map((each) => `${each.tagName}.${each.className}`),
+        moved.map(
+            (each) => each.closest<HTMLElement>("[data-line]")?.dataset.line ?? `${each.tagName}.${each.className}`,
+        ),
         [],
         `${where}: nothing scrolled sideways`,
-    );
-    const fields = moved.filter(isField).map((each) => each.closest<HTMLElement>("[data-line]")?.dataset.line ?? "?");
-    assert.deepEqual(
-        fields.filter((line) => !KNOWN_SIDEWAYS_FIELDS.includes(line)),
-        [],
-        `${where}: no field's text slid sideways but the known ones`,
     );
     assert.deepEqual([window.scrollX, window.scrollY], [0, 0], `${where}: the page did not scroll`);
     assert.deepEqual(

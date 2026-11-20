@@ -89,6 +89,22 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
             element?.focus();
         }
     }, [panels, dockOpen, element]);
+    // TEMPORARY workaround of a compact-mantine defect (issue #9145): Chrome slides an input's overflowing
+    // text under a sideways wheel, focused or not, and compact-mantine's Select shows its value in an input,
+    // so a touchpad swipe over the panels moves a long value sideways. A field nobody is editing goes back
+    // to its start. Delete this when compact-mantine's Select stops its value scrolling.
+    useEffect(() => {
+        const unslide = (event: Event): void => {
+            const field = event.target;
+            if (field instanceof HTMLInputElement && field !== document.activeElement && field.scrollLeft !== 0) {
+                field.scrollLeft = 0;
+            }
+        };
+        document.addEventListener("scroll", unslide, true);
+        return () => {
+            document.removeEventListener("scroll", unslide, true);
+        };
+    }, []);
     // A row only the Data place shows (a source, an attribute, a filter step) is not left open in
     // the inspector once another place is showing: nothing on that page is its row.
     useEffect(() => {

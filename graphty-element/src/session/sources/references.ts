@@ -200,7 +200,7 @@ function pageOrigin(): string | undefined {
  * @param network - The gate, or undefined to fetch without asking (the page's own load).
  * @returns The records, or why they could not be read.
  */
-async function readAsLoaded(
+export async function readAsLoaded(
     how: LoadHow,
     scratch: () => GraphSession,
     network: NetworkApiInternal | undefined,

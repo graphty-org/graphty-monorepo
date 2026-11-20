@@ -193,8 +193,8 @@ published at `spec/schemas/<kind>/v<version>.json` in the `@graphty/graphty-elem
 
 A section that draws a 3D model or an image carries it in its own `assets` list, each entry the
 files themselves (base64) or a URL it is kept by (`stored: "url"` with `source`). An entry's `id`
-(`asset:<sha256>` or `asset:<name>`) is what the section's layers name; `asset:sample/...` is never
-written.
+(`asset:<sha256>` or `asset:<name>`) is what the section's layers name; a sample a layer names is
+carried under its own id (`asset:sample/...`).
 
 ### 3.5 Times
 

@@ -45,6 +45,7 @@ import {
     assetsMember,
     type AssetStorage,
     type ProjectAssetChoice,
+    readNamedSamples,
     restoreAssets,
     withAcceptedAssetIds,
 } from "./assets/projectMember";
@@ -3838,23 +3839,28 @@ export function projectOf(
                 );
             }
 
-            if (options.format === 2) {
-                if (!session.features.has("save-files-v2")) {
-                    return Promise.reject(featureOff("save-files-v2", "project.save"));
-                }
-
-                return saveVersion2(options);
+            if (options.format === 2 && !session.features.has("save-files-v2")) {
+                return Promise.reject(featureOff("save-files-v2", "project.save"));
             }
 
-            const { document, leftOut } = write({ session, dispatcher, isDerived }, options);
-            return Promise.resolve(
-                finishSave(
-                    document,
-                    (document.members as { kind: string }[]).map((member) => member.kind),
-                    leftOut,
-                    options,
-                ),
-            );
+            const saveNow = (): Promise<SavedProject> => {
+                if (options.format === 2) {
+                    return saveVersion2(options);
+                }
+
+                const { document, leftOut } = write({ session, dispatcher, isDerived }, options);
+                return Promise.resolve(
+                    finishSave(
+                        document,
+                        (document.members as { kind: string }[]).map((member) => member.kind),
+                        leftOut,
+                        options,
+                    ),
+                );
+            };
+            // A sample a layer names is carried, so it is read first when nothing has drawn it yet.
+            const unread = readNamedSamples(session);
+            return unread.length === 0 ? saveNow() : Promise.allSettled(unread).then(saveNow);
         },
         markSaved(saved) {
             rememberOf.get(saved)?.();

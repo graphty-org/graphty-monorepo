@@ -1150,10 +1150,7 @@
             "properties": {
                 "id": {
                     "type": "string",
-                    "pattern": "^asset:[A-Za-z0-9._/-]+$",
-                    "not": {
-                        "pattern": "^asset:sample/"
-                    }
+                    "pattern": "^asset:[A-Za-z0-9._/-]+$"
                 },
                 "sha256": {
                     "type": "string",

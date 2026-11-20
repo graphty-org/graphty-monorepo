@@ -9,6 +9,10 @@
  * entry from `exceptions` in `saved-format-lists.json`, in one commit.
  */
 
+import { readFile } from "node:fs/promises";
+
+import { vi } from "vitest";
+
 import { LABEL_LOOKS } from "../../src/catalog/label-looks";
 import type { ShaderDescriptor } from "../../src/catalog/shaders";
 import * as graphStyle from "../../src/config/GraphStyle";
@@ -32,6 +36,8 @@ export interface SelfContainedKind {
     readonly useEvery: (session: GraphSession) => Promise<UsedEvery>;
     /** Each module that ships the built-ins, relative to this folder, with the exports of its empty stub. */
     readonly builtInModules: Readonly<Record<string, Record<string, unknown>>>;
+    /** What a project save holds of the kind, which B's save must hold as A's did. */
+    readonly saved?: (text: string) => unknown;
     /** False for a kind with no catalog behind it (a default value), which the census leaves out. */
     readonly catalog?: false;
     /** What the kind leaves in a session, which the session that opens the save must hold too. */
@@ -141,6 +147,35 @@ function useEveryDefault(): Promise<UsedEvery> {
 }
 
 /**
+ * Use every sample model: one node layer naming each, read from the package (Node's fetch cannot
+ * read the `file:` URLs the samples have in a test, so it is served from disk here).
+ * @param session - The session.
+ * @returns What was used.
+ */
+async function useEveryModel(session: GraphSession): Promise<UsedEvery> {
+    const models = session.catalog.models();
+    vi.stubGlobal("fetch", async (url: string) => {
+        const bytes = await readFile(new URL(url));
+        return new Response(bytes);
+    });
+    try {
+        for (const model of models) {
+            await session.styles.add({
+                name: `Model ${model.id}`,
+                target: "node",
+                selector: { match: "everything" },
+                set: { "node.model": model.id },
+            });
+            await session.assets.ready(model.id);
+        }
+    } finally {
+        vi.unstubAllGlobals();
+    }
+
+    return { used: models.map((each) => each.id), listed: models.length, saves: [] };
+}
+
+/**
  * Use every palette the catalog lists: one layer per palette, coloring nodes by a measurement.
  * @param session - The session.
  * @returns What was used.
@@ -215,6 +250,18 @@ export const SELF_CONTAINED_KINDS: readonly SelfContainedKind[] = [
         builtInModules: {
             "../../src/shaders/presets/index.ts": { SHADER_PRESETS: [] },
             "../../src/shaders/presets/bodies.ts": { SHADER_PRESET_BODIES: {} },
+        },
+    },
+    {
+        kind: "models",
+        useEvery: useEveryModel,
+        saved: (text) =>
+            (JSON.parse(text) as { members: { kind: string; assets?: { id: string; sha256: string }[] }[] }).members
+                .find((each) => each.kind === "graphty-assets")
+                ?.assets?.map(({ id, sha256 }) => ({ id, sha256 })),
+        builtInModules: {
+            "../../src/catalog/models.ts": { MODEL_DESCRIPTORS: [] },
+            "../../src/session/assets/samples.ts": { SAMPLE_MODEL_URLS: {} },
         },
     },
     {

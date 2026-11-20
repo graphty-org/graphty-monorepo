@@ -10,7 +10,7 @@
  *
  * The saved-name scan: every string a save holds, and every segment of a dotted key, is compared
  * with every built-in id this build ships. A save that names a built-in fails unless the name is a
- * shader, palette or label look the same file carries, or it sits at a path
+ * shader, palette, label look or model the same file carries, or it sits at a path
  * `saved-format-lists.json` lists as a known exception with a tracking issue. Changing that list
  * needs the owner's approval.
  */
@@ -190,6 +190,8 @@ function scan(text: string, ids: Map<string, string[]>): Hit[] {
         labelLooks: new Set(),
     };
     const carried = carriedIn.shaders;
+    // The models the file carries with their files: the assets member's entries, and a style file's `assets`.
+    const models = new Set<string>();
     const hits: Hit[] = [];
     const note = (id: string, path: string, reference: boolean): void => {
         if (reference && carried.has(id)) {
@@ -202,6 +204,10 @@ function scan(text: string, ids: Map<string, string[]>): Hit[] {
     };
     const walk = (value: Json, path: string): void => {
         if (typeof value === "string") {
+            if (models.has(value)) {
+                return;
+            }
+
             const definition = /(^|\.)shaders\[\]\.id$/.test(path) && carried.has(value);
             const reference =
                 /\.set\.(node|edge)\.shaders\[\]\.shader$/.test(path) || /(^|\.)background\.shader\.id$/.test(path);
@@ -238,6 +244,22 @@ function scan(text: string, ids: Map<string, string[]>): Hit[] {
         }
     };
     const root = file as Record<string, Json>;
+    const assetLists = [
+        root.assets,
+        ...((root.members as Record<string, Json>[] | undefined) ?? [])
+            .filter((each) => each.kind === "graphty-assets")
+            .map((each) => each.assets),
+    ];
+    for (const list of assetLists) {
+        const entries = (list ?? []) as { id?: string; sha256?: string; files?: unknown[] }[];
+        const withFiles = new Set(entries.filter((each) => Array.isArray(each.files)).map((each) => each.sha256));
+        for (const entry of entries) {
+            if (typeof entry.id === "string" && withFiles.has(entry.sha256)) {
+                models.add(entry.id);
+            }
+        }
+    }
+
     for (const each of [...((root.members as Record<string, Json>[] | undefined) ?? []), root]) {
         for (const shader of (each.shaders as { id?: string; text?: string }[] | undefined) ?? []) {
             if (typeof shader.id === "string" && typeof shader.text === "string") {
@@ -326,6 +348,7 @@ describe("save files are self-contained", () => {
                         carriedParts(text),
                         "A's and B's carried parts, layers and background",
                     );
+                    assert.deepEqual(row.saved?.(bSave), row.saved?.(text), `A's and B's ${row.kind}`);
                     b.dispose();
                     c.dispose();
                 }

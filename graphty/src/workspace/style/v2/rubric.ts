@@ -605,7 +605,8 @@ export const EDGE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
     middleTarget: edgeEnd("arrowMiddleHead"),
     middleSource: edgeEnd("arrowMiddleTail"),
     route: {
-        row: { channel: "edge.route", name: "Route", rule: "R8" },
+        // No name: its section is Route, and four routes, Bundling among them, need the full width.
+        row: { channel: "edge.route", name: null, rule: "R8" },
         main: [],
         groups: [
             {

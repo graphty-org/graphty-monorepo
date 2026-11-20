@@ -118,6 +118,7 @@ export type ExportGraphOptions = Readonly<Record<string, unknown>> &
         readonly scope?: ExportScope;
         readonly columns?: readonly string[];
         readonly groupTable?: ExportGroupTable;
+        /** Told how much queued work the export waits behind, until it starts writing. */
         readonly onProgress?: (fact: PendingWorkProgress) => void;
     };
 

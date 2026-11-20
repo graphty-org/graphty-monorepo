@@ -544,7 +544,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     { root: "BasemapManager", members: ["dispose"], reason: "lifecycle", kind: BY_DESIGN },
     ...(["StylesApi", "SessionStylesApi"] as const).flatMap((root): Exclusion[] => [
         ...coveredBy(root, {
-            "style.add": ["addRow"],
+            "style.add": ["addRow", "duplicateRow"],
             "style.update": [
                 "writeRow",
                 "updateMany",

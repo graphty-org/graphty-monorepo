@@ -578,6 +578,7 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     },
     "styles.defaultValue()": "not the graph",
     "styles.deleteRow()": "writes",
+    "styles.duplicateRow()": "writes",
     "styles.encode()": "writes",
     "styles.explain()": "names its target",
     "styles.get()": "not the graph",

@@ -2326,7 +2326,7 @@ export class DataManager implements Manager {
         }
 
         if (renumbering.record(remap)) {
-            RowRenumbering.closeUpRows(this.edgeRows, remap);
+            this.edgeRows = RowRenumbering.remapRows(this.edgeRows, remap);
         } else {
             this.restampEdges(remap);
         }

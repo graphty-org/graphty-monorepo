@@ -7502,7 +7502,6 @@ export interface SourceDraftCell extends SourceConflict {
 
 // @public
 export interface SourceDraftCells {
-    // (undocumented)
     readonly cells: readonly SourceDraftCell[];
     readonly total: number;
 }
@@ -7540,13 +7539,10 @@ export interface SourceDraftPreview {
     readonly before: SourceDraftPreviewTotals;
     cells(query: SourceDraftCellsQuery): SourceDraftCells;
     readonly draft: string;
-    // (undocumented)
     readonly edges: SourceDraftPreviewChanges;
     readonly edits: readonly ReaderEditRow[];
     elements(query: SourceDraftElementsQuery): readonly SourceElementRef[];
-    // (undocumented)
     readonly issues: readonly SourceDraftPreviewIssue[];
-    // (undocumented)
     readonly nodes: SourceDraftPreviewChanges;
     readonly questions: readonly SourceOverlapQuestion[];
     rows(query: SourceDraftRowsQuery): SourceDraftRows;
@@ -7556,11 +7552,8 @@ export interface SourceDraftPreview {
 
 // @public
 export interface SourceDraftPreviewChanges {
-    // (undocumented)
     readonly added: number;
-    // (undocumented)
     readonly changed: number;
-    // (undocumented)
     readonly removed: number;
 }
 
@@ -7672,7 +7665,6 @@ export interface SourceDraftPreviewSource {
     readonly named: number;
     readonly nodes: number;
     readonly noStep: number;
-    // (undocumented)
     readonly source: SourceKey;
     readonly state: "staged" | "built" | "off" | "held" | "removed";
 }
@@ -7686,13 +7678,9 @@ export interface SourceDraftPreviewStep extends SourceStepRow {
 
 // @public
 export interface SourceDraftPreviewTotals {
-    // (undocumented)
     readonly edges: number;
-    // (undocumented)
     readonly edgeTypes: Readonly<Record<SourceTypeName, number>>;
-    // (undocumented)
     readonly nodes: number;
-    // (undocumented)
     readonly nodeTypes: Readonly<Record<SourceTypeName, number>>;
 }
 
@@ -7713,7 +7701,6 @@ export interface SourceDraftRow {
 
 // @public
 export interface SourceDraftRows {
-    // (undocumented)
     readonly rows: readonly SourceDraftRow[];
     readonly total: number;
 }
@@ -8024,9 +8011,7 @@ export interface SourceNodeRef {
 
 // @public
 export interface SourceOverlapQuestion {
-    // (undocumented)
     readonly code: "W_SPACE_OVERLAP";
-    // (undocumented)
     readonly params: {
         readonly space: SourceSpaceName;
         readonly count: number;
@@ -8201,6 +8186,9 @@ export interface SourceSpaceRow {
 }
 
 // @public
+export type SourceStepByName = "valuesDiffer" | "ruleType" | "rowsDifferIn" | "endsMeet" | "endsMissing" | "newNodeTypes" | "newEdgeTypes";
+
+// @public
 export interface SourceStepCounts {
     readonly emptyKey: number;
     readonly endsMeet: Readonly<Record<SourceSpaceName, number>>;
@@ -8239,6 +8227,11 @@ export type SourceStepCountsChange = {
 } & {
     readonly [K in SourceStepByName]: Readonly<Record<string, number>>;
 };
+
+// @public
+export type SourceStepNumber = Exclude<{
+    [K in keyof SourceStepCounts]-?: SourceStepCounts[K] extends number | undefined ? K : never;
+}[keyof SourceStepCounts], "step" | "part">;
 
 // @public
 export type SourceStepOp = "join.add" | "join.merge" | "join.node-values" | "join.edge-values" | "join.edges";

@@ -10,6 +10,8 @@
 //
 // `run` runs each scenario on each path in a fresh browser through run.mjs, one at a time: it holds the machine's GPU
 // lock (PERF_LOCK) for each run and starts the run only once the one-minute load average is at most PERF_MAX_LOAD (12).
+// PERF_WRAP, when set, is a command prefix each timed run goes through instead of the load wait (for example one that
+// gives the run reserved CPU cores for exactly its length); its words are split on spaces.
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -25,6 +27,7 @@ const MAIN = dirname(
 const TOOLS = process.env.BENCH_TOOLS ?? join(HERE, "../..");
 const LOCK = process.env.PERF_LOCK ?? join(MAIN, "tmp/cosmos-impl/gpu-bench.lock");
 const MAX_LOAD = Number(process.env.PERF_MAX_LOAD ?? 12);
+const WRAP = (process.env.PERF_WRAP ?? "").split(" ").filter(Boolean);
 const BASELINE = join(HERE, "perf-baseline.json");
 const PATHS = ["objects", "batched"];
 
@@ -197,6 +200,7 @@ function summarize(rows) {
         const failures = rs.map((r) => r.failure).filter(Boolean);
         if (failures.length) e.failures = failures.map((f) => f.slice(0, 160));
         e.sha = rs[0].sha;
+        e.cpus = rs[0].cpus;
         out[key] = e;
     }
     return out;
@@ -213,14 +217,23 @@ const selected = () => {
     return matrix().filter((s) => (!args.includes("--gate-set") || s.gate) && (!only || only.test(s.id)));
 };
 
+/**
+ * With --resume, the runs the results file already holds per scenario and path, so an interrupted run carries on.
+ * @param {string} results - The results file.
+ * @returns {Map<string, number>} Runs done per scenario and path.
+ */
+function doneRuns(results) {
+    const done = new Map();
+    if (args.includes("--resume") && existsSync(results))
+        for (const r of readRows(results)) done.set(keyOf(r), (done.get(keyOf(r)) ?? 0) + 1);
+    return done;
+}
+
 function run(results) {
     if (!process.env.BENCH_URL) throw new Error("set BENCH_URL to the bench page (RUNBOOK.md, section 2)");
     const reps = Number(opt("--reps") ?? 1);
     const paths = (opt("--paths") ?? PATHS.join(",")).split(",");
-    // --resume counts the rows the results file already holds, so an interrupted run carries on where it stopped.
-    const done = new Map();
-    if (args.includes("--resume") && existsSync(results))
-        for (const r of readRows(results)) done.set(keyOf(r), (done.get(keyOf(r)) ?? 0) + 1);
+    const done = doneRuns(results);
     for (const s of selected())
         for (let rep = 0; rep < reps; rep++)
             // Alternate which path goes first, so neither always runs on a warmer machine.
@@ -238,18 +251,13 @@ function run(results) {
  * @param {string} results - The results file.
  */
 function runOne(s, path, results) {
-    // The lock is held while the load is waited out, so no other GPU run starts in between.
-    const wait = `while awk '{exit !($1 > ${MAX_LOAD})}' /proc/loadavg; do sleep 5; done; exec "$@"`;
-    const command = [
-        LOCK,
-        "bash",
-        "-c",
-        wait,
-        "_",
-        join(TOOLS, "tools/with-browser.sh"),
-        "node",
-        join(HERE, "run.mjs"),
-    ];
+    // The lock is held while the load is waited out, so no other GPU run starts in between. With PERF_WRAP the wrapper
+    // takes the place of the load wait, inside the browser slot, so it covers only the timed run.
+    const wait = WRAP.length
+        ? 'exec "$@"'
+        : `while awk '{exit !($1 > ${MAX_LOAD})}' /proc/loadavg; do sleep 5; done; exec "$@"`;
+    const browser = [join(TOOLS, "tools/with-browser.sh"), ...WRAP, "node", join(HERE, "run.mjs")];
+    const command = [LOCK, "bash", "-c", wait, "_", ...browser];
     const r = spawnSync(
         "flock", // eslint-disable-line sonarjs/no-os-command-from-path -- a local measuring tool, run from the owner's PATH
         [...command, "graphty", s.mode, s.accel, String(s.n), String(s.m), "1", ...s.flags],
@@ -298,6 +306,9 @@ function gate(results) {
     let compared = 0;
     for (const [key, cur] of Object.entries(now)) {
         if (!base.entries[key]) continue;
+        // Timings taken on other CPUs (reserved cores against the shared machine) are not comparable.
+        if (cur.cpus !== base.entries[key].cpus)
+            worse.push(`${key}: ran on CPUs ${cur.cpus}, the baseline on ${base.entries[key].cpus}`);
         const c = compareEntry(key, cur, base.entries[key]);
         compared += c.compared;
         worse.push(...c.worse);

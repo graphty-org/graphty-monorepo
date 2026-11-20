@@ -6,7 +6,7 @@
 // dpr other than 1 sets pixel-ratio="device" on graphty-element. BENCH_RENDER_PATH sets its renderPath option;
 // unset, the element keeps its default. BENCH_ANTIALIAS=false sets antialias="false". See RUNBOOK.md for the others.
 import { execFileSync, execSync } from "node:child_process";
-import { appendFileSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { loadavg } from "node:os";
 import { dirname, join } from "node:path";
@@ -115,6 +115,8 @@ const out = {
     flags,
     at: new Date().toISOString(),
     loadavgBefore: loadavg()[0],
+    // The CPUs this run may use (Linux), so a run on reserved cores can be told from one on the shared machine.
+    cpus: /Cpus_allowed_list:\s*(\S+)/.exec(readFileSync("/proc/self/status", "utf8"))?.[1],
 };
 const log = (k, v) => {
     out[k] = v;

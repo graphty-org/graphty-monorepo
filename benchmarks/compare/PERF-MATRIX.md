@@ -52,6 +52,12 @@ Every run holds the machine's GPU lock (`tmp/cosmos-impl/gpu-bench.lock` in the 
 starts only once the one-minute load average is at most 12 (`PERF_MAX_LOAD`). Never wrap it in
 `tools/low-priority.sh`: niceness would skew the timing.
 
+`PERF_WRAP` names a command prefix that each run goes through instead of the load wait, inside its browser slot,
+so it covers the timed run and nothing else. On this machine it gives each run reserved CPU cores for exactly its
+length (`PERF_WRAP="<main checkout>/tmp/bench-cores/bench-cores.sh run"`). Each row records the CPUs it ran on
+(`cpus`), and the gate fails a scenario whose CPUs differ from its baseline's: numbers taken on reserved cores and
+on the shared machine are not comparable.
+
     node perf-matrix.mjs run ../results/<label>/matrix.jsonl                     # the whole matrix, once
     node perf-matrix.mjs run ../results/<label>/gate.jsonl --gate-set --reps 3   # the gate's scenarios
     node perf-matrix.mjs run <file> --only '^style-node' --paths batched          # a part of it

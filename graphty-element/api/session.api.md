@@ -914,6 +914,9 @@ export interface CostMeasurement {
 export type CostProvenanceCode = "cost.measured" | "cost.extrapolated" | "cost.declared-model" | "cost.calibrated" | "cost.built-in" | "cost.no-throughput" | "cost.size-unknown" | "cost.unbounded" | "cost.refused" | "cost.layout";
 
 // @public
+export type CountedValue = string | number | boolean;
+
+// @public
 export function createGraphSession(options?: CreateGraphSessionOptions): GraphSession;
 
 // @public
@@ -8227,7 +8230,7 @@ export interface ValueCounts {
     readonly missing: number;
     readonly total: number;
     readonly values: readonly {
-        readonly value: string | number | boolean;
+        readonly value: CountedValue;
         readonly count: number;
     }[];
 }

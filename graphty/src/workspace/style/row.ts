@@ -40,6 +40,9 @@ function setOf(layer: Layer, key: EncodeKey): ChannelValue | undefined {
 /** A binding that reads a value from the data. */
 export type DataBinding = Extract<Binding, { by: string }>;
 
+/** What one line of a row writes: a value, a binding to the data, or a template. */
+type LineValue = LiteralWrite | { readonly binding: DataBinding } | TemplateWrite;
+
 /** What the From data list hands back: a column of the file, or one field of a run's result. */
 export type DataChoice =
     | { readonly kind: "column"; readonly column: ColumnRef }
@@ -57,7 +60,7 @@ export interface Line {
 }
 
 /** Text built from several values: a `{ template }` binding's lines. */
-export interface TemplateWrite {
+interface TemplateWrite {
     readonly template: readonly string[];
 }
 
@@ -309,7 +312,6 @@ function sameSelector(a: Layer["selector"], b: Layer["selector"]): boolean {
  *   undefined for a row that adds none (a run's row): the write then fails rather than land on a
  *   layer the row does not name.
  * @param also - values for other channels written in the same step where the layer has none.
- * @param alsoReplaces - write `also` over the values the layer has (one edit of several channels).
  * @returns the id of the layer written to.
  */
 export async function writeLine(
@@ -317,11 +319,34 @@ export async function writeLine(
     ids: readonly LayerId[],
     target: Target,
     channel: EncodeKey,
-    write: LiteralWrite | { readonly binding: DataBinding } | TemplateWrite,
+    write: LineValue,
     fresh: NewLayer | undefined,
     also?: Readonly<Partial<Record<Channel, ChannelValue>>>,
-    alsoReplaces = false,
 ): Promise<LayerId> {
+    return writeLineWith({ session, ids, target, channel, write, fresh, also, alsoReplaces: false });
+}
+
+/** One line to write, as {@link writeLine} takes it, and whether `also` replaces the layer's values. */
+interface LineWrite {
+    readonly session: TransactionScope;
+    readonly ids: readonly LayerId[];
+    readonly target: Target;
+    readonly channel: EncodeKey;
+    readonly write: LineValue;
+    readonly fresh: NewLayer | undefined;
+    readonly also: Readonly<Partial<Record<Channel, ChannelValue>>> | undefined;
+    /** Write `also` over the values the layer has (one edit of several channels). */
+    readonly alsoReplaces: boolean;
+}
+
+/**
+ * Writes one line of a row, as {@link writeLine} does, with `also` written over the layer's values
+ * when asked.
+ * @param line - the line to write.
+ * @returns the id of the layer written to.
+ */
+async function writeLineWith(line: LineWrite): Promise<LayerId> {
+    const { session, ids, target, channel, write, fresh, also, alsoReplaces } = line;
     const layers = rowLayers(session, ids, target);
     const everything = fresh?.selector.match === "everything";
     // A binding graphty-element refuses on a layer that paints everything goes on the layer it names instead.
@@ -373,11 +398,7 @@ export async function writeLine(
  * @param combined - whether the literal combines with what lies beneath.
  * @returns the encode, or undefined for a plain literal.
  */
-function encodeOf(
-    write: LiteralWrite | { readonly binding: DataBinding } | TemplateWrite,
-    channel: EncodeKey,
-    combined: boolean,
-): Layer["encode"] {
+function encodeOf(write: LineValue, channel: EncodeKey, combined: boolean): Layer["encode"] {
     if ("binding" in write) {
         return { [channel]: write.binding };
     }
@@ -537,7 +558,16 @@ export function writeIn(
 ): Promise<unknown> {
     const { many } = ctx;
     if (many === undefined) {
-        return writeLine(ctx.session, ctx.row, ctx.side, channel, write, ctx.fresh, also, alsoReplaces);
+        return writeLineWith({
+            session: ctx.session,
+            ids: ctx.row,
+            target: ctx.side,
+            channel,
+            write,
+            fresh: ctx.fresh,
+            also,
+            alsoReplaces,
+        });
     }
     // Several rows: the value and each extra value are written one after another, each merged into
     // the step before it, so Undo takes them back together.

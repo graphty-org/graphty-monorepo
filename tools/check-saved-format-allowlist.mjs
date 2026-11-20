@@ -38,6 +38,31 @@ const ARCHIVE = "graphty-element/test/shaders/shipped-texts/";
 const TRAILER = "Saved-Format-Exception-Approved";
 
 /**
+ * The exceptions a commit adds or widens with a path or a catalog.
+ * @param before the lists before the commit
+ * @param after the lists after it
+ * @returns one sentence per change
+ */
+function widenedExceptions(before, after) {
+    const found = [];
+    const kinds = new Map((before.exceptions ?? []).map((each) => [each.kind, each]));
+    for (const each of after.exceptions ?? []) {
+        const old = kinds.get(each.kind);
+        if (old === undefined) {
+            found.push(`adds the exception ${each.kind}`);
+            continue;
+        }
+        for (const path of each.paths.filter((p) => !old.paths.includes(p))) {
+            found.push(`adds the path ${path} to the exception ${each.kind}`);
+        }
+        for (const catalog of each.catalogs.filter((c) => !old.catalogs.includes(c))) {
+            found.push(`adds the catalog ${catalog} to the exception ${each.kind}`);
+        }
+    }
+    return found;
+}
+
+/**
  * What one commit does to the saved-format checks that needs the owner, and what it may never do.
  * @param before the lists, shipped and revoked hashes before the commit
  * @param after the same after it
@@ -46,22 +71,8 @@ const TRAILER = "Saved-Format-Exception-Approved";
  * @returns `{ needsOwner, forbidden }`, each a list of sentences
  */
 export function judge(before, after, changes, reverted = new Set()) {
-    const needsOwner = [];
+    const needsOwner = widenedExceptions(before.lists, after.lists);
     const forbidden = [];
-    const kinds = new Map((before.lists.exceptions ?? []).map((each) => [each.kind, each]));
-    for (const each of after.lists.exceptions ?? []) {
-        const old = kinds.get(each.kind);
-        if (old === undefined) {
-            needsOwner.push(`adds the exception ${each.kind}`);
-            continue;
-        }
-        for (const path of each.paths.filter((p) => !old.paths.includes(p))) {
-            needsOwner.push(`adds the path ${path} to the exception ${each.kind}`);
-        }
-        for (const catalog of each.catalogs.filter((c) => !old.catalogs.includes(c))) {
-            needsOwner.push(`adds the catalog ${catalog} to the exception ${each.kind}`);
-        }
-    }
     for (const key of Object.keys(after.lists.notSaved ?? {}).filter((k) => !(k in (before.lists.notSaved ?? {})))) {
         needsOwner.push(`adds ${key} to notSaved`);
     }

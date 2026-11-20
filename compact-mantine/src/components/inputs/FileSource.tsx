@@ -629,7 +629,8 @@ export function FileSource(props: Readonly<FileSourceProps>): React.JSX.Element 
                       }
                     : undefined,
             );
-            return showUrl ? urlField(icons, folder ? 48 : undefined) : chooseButton(true);
+            const urlWidth = folder ? 48 : undefined;
+            return showUrl ? urlField(icons, urlWidth) : chooseButton(true);
         }
         return dropBody(buttons(false), hint, showUrl ? urlField() : false);
     };

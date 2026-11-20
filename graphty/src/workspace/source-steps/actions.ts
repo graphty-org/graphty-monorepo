@@ -117,7 +117,9 @@ export async function commitCard(workspace: WorkspaceStore, session: GraphSessio
     }
     const key = cardSource(session, card);
     const source = session.data.sources({ staged: true }).find((each) => each.key === key);
-    const before = session.history.steps.length;
+    // Undo's target, not the history's length: after an undo, a commit drops the redo step and adds
+    // its own, so the length stays the same while the next undo is the new step.
+    const before = undoTarget(session);
     try {
         await draft.commit();
     } catch (error) {
@@ -125,15 +127,11 @@ export async function commitCard(workspace: WorkspaceStore, session: GraphSessio
         return;
     }
     closeCard(workspace);
-    if (session.history.steps.length === before) {
+    const step = undoTarget(session);
+    if (step === undefined || step === before) {
         return;
     }
-    const next = session.history.nextUndo;
-    const step = next?.kind === "undo" ? next.step.id : undefined;
-    const isNext = (): boolean => {
-        const now = session.history.nextUndo;
-        return step !== undefined && now?.kind === "undo" && now.step.id === step;
-    };
+    const isNext = (): boolean => undoTarget(session) === step;
     const notice: Notice = {
         message: noticeWords(card, source === undefined ? "" : sourceName(source)),
         action: {
@@ -153,6 +151,16 @@ export async function commitCard(workspace: WorkspaceStore, session: GraphSessio
         }
     });
     workspace.set({ notice });
+}
+
+/**
+ * The step the next undo takes back.
+ * @param session - the element's session.
+ * @returns its id, or undefined when the next undo takes back no step.
+ */
+function undoTarget(session: GraphSession): string | undefined {
+    const next = session.history.nextUndo;
+    return next?.kind === "undo" ? next.step.id : undefined;
 }
 
 /**

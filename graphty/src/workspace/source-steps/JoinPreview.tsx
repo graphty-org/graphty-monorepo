@@ -6,6 +6,7 @@ import React from "react";
 import { formatNumber } from "../inspector/words";
 import type { JoinCardState, JoinRepeats } from "../state/store";
 import { useWorkspace } from "../state/WorkspaceContext";
+import { DraftEffects, Line } from "./DraftEffects";
 import {
     cellId,
     clearSelectedPicks,
@@ -25,6 +26,7 @@ import {
     BUCKET_WORDS,
     cellWords,
     clearPicksWords,
+    countsChangeWords,
     DRILL_WORDS,
     excludeWords,
     newTypeWords,
@@ -34,6 +36,8 @@ import {
     RULE_WORDS,
     showCellsWords,
     showRowsWords,
+    stepCountWords,
+    stepWords,
 } from "./words";
 
 /** The Repeats menu's ways, in its order. */
@@ -347,6 +351,8 @@ export function JoinPreview({
     const step = previewStep(preview, card);
     const buckets = step?.buckets ?? null;
     const kind = card.act === "merge" ? "merge" : "edge";
+    // Editing a committed step: its own counts, and what the edit does to later steps and reader edits.
+    const edited = card.editing === null ? undefined : session.data.steps()[card.editing];
     const newTypes =
         buckets === null ? [] : Object.entries(kind === "merge" ? buckets.newNodeTypes : buckets.newEdgeTypes);
     return (
@@ -396,6 +402,15 @@ export function JoinPreview({
                         </Text>
                     </Group>
                 </fieldset>
+                {edited === undefined ? null : (
+                    <>
+                        <Line
+                            label={stepWords(edited.index)}
+                            value={countsChangeWords(stepCountWords(edited), step === null ? "" : stepCountWords(step))}
+                        />
+                        <DraftEffects session={session} preview={preview} own={(each) => each.step === edited.index} />
+                    </>
+                )}
             </Stack>
         </section>
     );

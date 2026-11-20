@@ -541,6 +541,26 @@ export function stepWords(index: number): string {
 }
 
 /**
+ * The Join card's title while it edits a committed step: the step, its kind and its source.
+ * @param row - the step.
+ * @param name - its source's name.
+ * @returns such as "Step 2 Merge hr.csv".
+ */
+export function editTitleWords(row: SourceStepRow, name: string): string {
+    return `${stepWords(row.index)} ${OP_WORDS[row.op]} ${name}`;
+}
+
+/**
+ * The edited step's own counts, now and once committed.
+ * @param before - its counts now, from `stepCountWords`.
+ * @param after - its counts once committed.
+ * @returns such as "3 merged -> 4 merged".
+ */
+export function countsChangeWords(before: string, after: string): string {
+    return before === after ? PREVIEW_WORDS.noChange : `${before || STEP_WORDS.off} -> ${after || STEP_WORDS.off}`;
+}
+
+/**
  * The step card's title.
  * @param remove - what it removes.
  * @param name - the source's name.

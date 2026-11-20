@@ -28,7 +28,7 @@ import {
 import { JoinPreview } from "./JoinPreview";
 import { COMMIT_KEY, PREVIEW_KEY } from "./keys";
 import { canPreview, openDraft, setChoice, startPreview } from "./preview";
-import { cellWords, COUNT_WORDS, distinctWords, JOIN_WORDS, moreWords, PREVIEW_WORDS } from "./words";
+import { cellWords, COUNT_WORDS, distinctWords, editTitleWords, JOIN_WORDS, moreWords, PREVIEW_WORDS } from "./words";
 
 /** The element's events after which the card reads its draft again. */
 const DRAFT_EVENTS = ["data:draft-changed"] as const;
@@ -387,6 +387,16 @@ export function JoinCard({
     );
     const swap = swapped(session, card);
     const previewing = card.preview !== null;
+    // Editing a committed step, the card names it, so the reader knows which step is open.
+    const edited = card.editing === null ? undefined : session.data.steps()[card.editing];
+    const editedSource =
+        edited === undefined
+            ? undefined
+            : session.data.sources({ staged: true }).find((each) => each.key === edited.source);
+    const title =
+        edited === undefined
+            ? JOIN_WORDS.join
+            : editTitleWords(edited, editedSource === undefined ? edited.source : sourceName(editedSource));
     const cancel = (): void => {
         cancelCard(store, session);
     };
@@ -394,7 +404,7 @@ export function JoinCard({
         <form // eslint-disable-line jsx-a11y/no-noninteractive-element-interactions -- catches Esc bubbling from the card's own controls to cancel it
             ref={form}
             className="ss-card ss-join"
-            aria-label={JOIN_WORDS.join}
+            aria-label={title}
             onSubmit={(event) => {
                 // Enter in a field submits a form: only the Commit button and the window's Enter commit.
                 event.preventDefault();
@@ -410,6 +420,11 @@ export function JoinCard({
             }}
         >
             <Stack gap={6}>
+                {edited === undefined ? null : (
+                    <Text size="xs" fw={600}>
+                        {title}
+                    </Text>
+                )}
                 <Field1 session={session} card={card} />
                 <Group justify="center">
                     <Tooltip label={JOIN_WORDS.swap}>

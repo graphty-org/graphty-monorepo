@@ -254,7 +254,7 @@ describe("Steps and Reader edits (source-steps)", () => {
         const list = await stepsList();
         const steps = session.history.steps.length;
         await userEvent.click(within(list).getByRole("button", { name: `Edit ${name}` }));
-        const card = await screen.findByRole("form", { name: "Join" });
+        const card = await screen.findByRole("form", { name: `${name} Merge hr.csv` });
         const preview = await within(card).findByRole("region", { name: "Preview" });
         assert.isTrue(
             within(card).getByRole<HTMLInputElement>("radio", { name: "Merge 2 into 1" }).checked,
@@ -285,7 +285,7 @@ describe("Steps and Reader edits (source-steps)", () => {
         assert.strictEqual(session.history.steps.length, steps, "nothing written yet");
         await userEvent.click(within(card).getByRole("button", { name: /^Commit/ }));
         await waitFor(() => {
-            assert.isNull(screen.queryByRole("form", { name: "Join" }));
+            assert.isNull(screen.queryByRole("form", { name: `${name} Merge hr.csv` }));
         });
         assert.strictEqual(session.history.steps.length, steps + 1, "one undo step");
         assert.strictEqual(session.data.node("B1")?.dept, "Ops", "Keep 1 keeps people.csv's");
@@ -308,7 +308,7 @@ describe("Steps and Reader edits (source-steps)", () => {
         const list = await stepsList();
         const steps = session.history.steps.length;
         await userEvent.click(within(list).getByRole("button", { name: "Edit Step 3" }));
-        const card = await screen.findByRole("form", { name: "Join" });
+        const card = await screen.findByRole("form", { name: "Step 3 Edges entries.csv" });
         await within(card).findByRole("region", { name: "Preview" });
         assert.isTrue(within(card).getByRole<HTMLInputElement>("radio", { name: "Make an edge" }).checked);
         // The direction is a segmented control: its radio is hidden, a reader clicks the label.
@@ -322,7 +322,7 @@ describe("Steps and Reader edits (source-steps)", () => {
         assert.strictEqual(within(preview).getByLabelText("Edges after").textContent, "no change", "5 edges, turned");
         await userEvent.click(within(card).getByRole("button", { name: /^Commit/ }));
         await waitFor(() => {
-            assert.isNull(screen.queryByRole("form", { name: "Join" }));
+            assert.isNull(screen.queryByRole("form", { name: "Step 3 Edges entries.csv" }));
         });
         assert.strictEqual(session.history.steps.length, steps + 1, "one undo step");
         const turned = before.map((pair) => pair.split("->").reverse().join("->")).sort();
@@ -406,6 +406,95 @@ describe("Steps and Reader edits (source-steps)", () => {
             assert.isTrue(sourcesHold(session, people));
         });
         assert.strictEqual(session.data.statistics({ scope: "all" }).nodeCount, nodes, "every node is back");
+    });
+
+    it("after an Undo, deleting a step still shows its notice with Undo", async () => {
+        const { session } = await withPeople();
+        await joinEntries(session);
+        await mergeHr(session, "keep");
+        (document.activeElement as HTMLElement | null)?.blur();
+        await userEvent.keyboard("{Control>}z{/Control}");
+        await waitFor(() => {
+            assert.lengthOf(session.data.steps(), 3, "HR's merge is undone, and is the redo step");
+        });
+        const { length } = session.history.steps;
+        const list = await stepsList();
+        await userEvent.click(within(list).getByRole("button", { name: "Delete Step 3" }));
+        const card = await screen.findByRole("form", { name: "Delete step 3" });
+        await userEvent.click(within(card).getByRole("button", { name: /^Commit/ }));
+        await waitFor(() => {
+            assert.strictEqual(session.data.statistics({ scope: "all" }).edgeCount, 0);
+        });
+        assert.strictEqual(session.history.steps.length, length, "the commit took the redo step's place");
+        const slot = await waitFor(() => {
+            const found = document.querySelector<HTMLElement>(".ws-notice-slot");
+            assert.isNotNull(found);
+            return found;
+        });
+        await within(slot).findByText("Deleted step 3");
+        await userEvent.click(within(slot).getByRole("button", { name: "Undo" }));
+        await waitFor(() => {
+            assert.strictEqual(session.data.statistics({ scope: "all" }).edgeCount, 5, "the edges are back");
+        });
+    });
+
+    it("Edit names the step, and a changed field lists the later step whose counts it moves before Commit", async () => {
+        await page.viewport(1440, 900);
+        const { session, store } = await emptyProject();
+        await session.data.import(
+            { type: "csv", config: { data: PEOPLE }, name: "people.csv" },
+            { key: "badge", type: "person" },
+        );
+        store.set({ dockOpen: false, dockMaximized: false });
+        // HR's list names B4, whom people.csv lacks: the merge keeps B4 as a person, and E7's edge
+        // reaches B4 only because the merge runs first.
+        const hr = await session.data.stage(
+            { type: "csv", config: { data: `${HR}\nB4,Ops` }, name: "hr.csv" },
+            { key: "badge" },
+        );
+        const merge = session.data.draft();
+        merge.merge({ from: { source: hr, field: "badge" }, into: { space: "person" } });
+        await merge.commit();
+        const entries = await session.data.stage(
+            { type: "csv", config: { data: `${ENTRIES}\nE7,B4,D1` }, name: "entries.csv" },
+            { key: "entry", type: "entry" },
+        );
+        const connect = session.data.draft();
+        connect.connect({
+            from: { source: entries, field: "badge" },
+            into: { space: "person" },
+            edgeType: "entered",
+        });
+        await connect.commit();
+        const rows = session.data.steps();
+        const hrStep = rows.find((row) => row.op === "join.merge");
+        const edgeStep = rows.find((row) => row.op === "join.edges");
+        assert.strictEqual(edgeStep === undefined ? "" : stepCountWords(edgeStep), "6 edges", "E7 reaches B4");
+        const hrName = `Step ${String((hrStep?.index ?? 0) + 1)}`;
+        const edgeName = `Step ${String((edgeStep?.index ?? 0) + 1)}`;
+
+        const list = await stepsList();
+        const steps = session.history.steps.length;
+        await userEvent.click(within(list).getByRole("button", { name: `Edit ${hrName}` }));
+        const card = await screen.findByRole("form", { name: `${hrName} Merge hr.csv` });
+        assert.include(card.textContent ?? "", `${hrName} Merge hr.csv`, "the card names the step it edits");
+        await within(card).findByRole("region", { name: "Preview" });
+        // Merging on dept, B4's row meets no person: B4 is no longer a person when the edges are made.
+        await choose(card, "Field 2 field", "dept");
+        await userEvent.click(within(card).getByRole("button", { name: /^Preview/ }));
+        const preview = await within(card).findByRole("region", { name: "Preview" });
+        const later = await within(preview).findByRole("group", { name: "Later steps" });
+        await waitFor(() => {
+            assert.include(
+                later.textContent ?? "",
+                `${edgeName} Edges: 6 edges -> 5 edges`,
+                "the edge step loses E7's edge",
+            );
+        });
+        assert.notInclude(later.textContent ?? "", `${hrName}:`, "the step it edits is not a later step");
+        assert.isNotNull(within(preview).getByLabelText("Reader edits after"));
+        assert.strictEqual(session.history.steps.length, steps, "nothing written before Commit");
+        await userEvent.keyboard("{Escape}");
     });
 });
 

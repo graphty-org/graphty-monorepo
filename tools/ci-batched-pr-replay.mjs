@@ -8,11 +8,12 @@
  *
  * Usage: node tools/ci-batched-pr-replay.mjs [--root <checkout>] [--tools <dir>] [--last 30] [--json]
  *   --tools: the tools/ folder whose selector and matrix to use (default <root>/tools), such as an older commit's
- *   extracted with `git archive <commit> tools | tar -x -C <dir>`, to compare against it on the same import graphs
+ *   extracted with `git archive <commit> tools graphty-element/src/features | tar -x -C <dir>` (features-on.mjs
+ *   reads that folder), to compare against it on the same import graphs
  *
- * The estimate is files x (FILE_MS + the family's per-file overhead) + jobs x JOB_SETUP_MIN. Every file counts
- * FILE_MS (the whole forced-batched project ran 542 files in 98 minutes, about 10.8 s each, in render-proof.yml run
- * 42466940961), so the numbers compare the two families and two commits with each other, not with a bill.
+ * The estimate is files x (FILE_MS + the family's per-file overhead) + jobs x JOB_SETUP_MIN, fitted to the full
+ * run of 2026-11-19 (release.yml run 44596884333): its twelve forced-batched jobs ran 106 runner minutes, 88 of them
+ * in the test step, over 629 files (8.4 s a file with its overhead, 1.5 min of setup a job).
  * The import graphs are built once, from the checkout, not per merged commit; only graphty-element's shards are
  * planned.
  */
@@ -23,9 +24,9 @@ import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 
 /** A file's test time, ms (see the header). */
-const FILE_MS = 10_800;
+const FILE_MS = 3_900;
 /** A test job's setup outside its tests (checkout, install, artifacts, browser), minutes. */
-const JOB_SETUP_MIN = 3;
+const JOB_SETUP_MIN = 1.5;
 const FAMILIES = { batched: "graphty-element-forced-batched", objects: "graphty-element-browser" };
 
 const { values } = parseArgs({

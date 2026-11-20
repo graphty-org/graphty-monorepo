@@ -269,6 +269,9 @@ type LabelLineBoxValue = "font" | "size" | "glyphs";
 /** Where the line round a label's panel is drawn against the panel's edge (`labelBorderAlign`). */
 type LabelBorderAlignValue = "outside" | "center";
 
+/** How the line round a label's panel is drawn (`labelBorderStyle`). */
+type LabelBorderStyleValue = "solid" | "double";
+
 /** The shape of the panel behind a label's words (`labelBackgroundShape`). */
 type LabelBackgroundShapeValue = "rectangle" | "circle";
 
@@ -323,6 +326,8 @@ type EdgeSupportScaleValue = NonNullable<NonNullable<EdgeStyleConfig["line"]>["s
 /** The force law an edge's support point settles under (`edge.supportModel`). */
 type EdgeSupportModelValue = NonNullable<NonNullable<EdgeStyleConfig["line"]>["supportModel"]>;
 
+/** Which end node's painted color an edge's line is drawn in (`edge.colorFrom`). */
+type EdgeColorFromValue = NonNullable<NonNullable<EdgeStyleConfig["line"]>["colorFrom"]>;
 /** A value of `edge.route`: the path a line takes between its nodes. */
 type EdgeRouteValue = NonNullable<NonNullable<EdgeStyleConfig["line"]>["route"]>;
 type EdgeGradientKindValue = NonNullable<NonNullable<NonNullable<EdgeStyleConfig["line"]>["gradient"]>["kind"]>;
@@ -408,6 +413,7 @@ export interface ChannelValues {
     "node.labelLineHeight": number;
     "node.labelLineBox": LabelLineBoxValue;
     "node.labelBorderAlign": LabelBorderAlignValue;
+    "node.labelBorderStyle": LabelBorderStyleValue;
     "node.labelBackgroundShape": LabelBackgroundShapeValue;
     "node.labelOffsetX": number;
     "node.labelOffsetY": number;
@@ -573,6 +579,7 @@ export interface ChannelValues {
     "node.groupMinHeightBiasTop": number;
     "node.groupIncludeLabels": boolean;
     "edge.color": ColorValue;
+    "edge.colorFrom": EdgeColorFromValue;
     "edge.width": number;
     "edge.minScreenWidth": number;
     "edge.fadeStart": number;
@@ -602,6 +609,7 @@ export interface ChannelValues {
     "edge.wavePeriod": number;
     "edge.dashLength": number;
     "edge.dashGap": number;
+    "edge.dashArray": string;
     "edge.curvature": boolean;
     "edge.bends": string;
     "edge.fanSpacing": number;
@@ -739,6 +747,7 @@ export interface ChannelValues {
     "edge.labelLineHeight": number;
     "edge.labelLineBox": LabelLineBoxValue;
     "edge.labelBorderAlign": LabelBorderAlignValue;
+    "edge.labelBorderStyle": LabelBorderStyleValue;
     "edge.labelBackgroundShape": LabelBackgroundShapeValue;
     "edge.labelOffsetX": number;
     "edge.labelOffsetY": number;
@@ -752,6 +761,7 @@ export interface ChannelValues {
     "node.xlabelLocation": LabelLocation;
     "node.xlabelOffsetX": number;
     "node.xlabelOffsetY": number;
+    "node.xlabelTextAlign": LabelTextAlign;
     "edge.labelTable": string;
     "edge.xlabel": string;
     "edge.xlabelStyle": LabelStyle;
@@ -1109,6 +1119,7 @@ const EDGE_SUPPORT_MODEL_VALUES: readonly EdgeSupportModelValue[] = ["barnesHut"
 const EDGE_SUPPORT_SCALE_VALUES: readonly EdgeSupportScaleValue[] = ["unit", "drawing"];
 const SUPPORT_CAVEAT = " Only an edge with an `edge.supportModel` has a support point; any other ignores it.";
 const EDGE_ROUTE_VALUES: readonly EdgeRouteValue[] = ["straight", "arc", "great-circle"];
+const EDGE_COLOR_FROM_VALUES: readonly EdgeColorFromValue[] = ["source", "target"];
 
 const EDGE_OUTLINE_CAVEAT =
     "A band drawn under the edge's line along its whole length, `edge.outlineWidth` wider than the " +
@@ -1576,7 +1587,7 @@ function arrowMidChannels<End extends "MiddleHead" | "MiddleTail">(
 
 /** The label channels that write one field of a label style. */
 type LabelFieldChannel<Target extends "node" | "edge"> =
-    `${Target}.label${"Color" | "Size" | "LetterSize" | "Font" | "Weight" | "Italic" | "WrapWidth" | "WrapTrailingSpace" | "WrapSkipEndSpace" | "WrapEllipsis" | "WrapAnywhere" | "WrapSpaceCount" | "MaxLines" | "MaxLinesEllipsis" | "RunAlign" | "MinScreenSize" | "OnTop" | "Rotation" | "Background" | "Outline" | "OutlineWidth" | "Border" | "BorderWidth" | "Opacity" | "BackgroundOpacity" | "OutlineOpacity" | "BorderOpacity" | "Padding" | "CornerRadius" | "LineHeight" | "LineBox" | "BorderAlign" | "BackgroundShape" | "OffsetX" | "OffsetY" | "ShiftX" | "ShiftY" | "ShiftOf" | "GapOf" | "Box"}`;
+    `${Target}.label${"Color" | "Size" | "LetterSize" | "Font" | "Weight" | "Italic" | "WrapWidth" | "WrapTrailingSpace" | "WrapSkipEndSpace" | "WrapEllipsis" | "WrapAnywhere" | "WrapSpaceCount" | "MaxLines" | "MaxLinesEllipsis" | "RunAlign" | "MinScreenSize" | "OnTop" | "Rotation" | "Background" | "Outline" | "OutlineWidth" | "Border" | "BorderWidth" | "Opacity" | "BackgroundOpacity" | "OutlineOpacity" | "BorderOpacity" | "Padding" | "CornerRadius" | "LineHeight" | "LineBox" | "BorderAlign" | "BorderStyle" | "BackgroundShape" | "OffsetX" | "OffsetY" | "ShiftX" | "ShiftY" | "ShiftOf" | "GapOf" | "Box"}`;
 
 /** The field of a label style each label field channel writes, by the channel's suffix. */
 const LABEL_FIELD_OF_SUFFIX = {
@@ -1612,6 +1623,7 @@ const LABEL_FIELD_OF_SUFFIX = {
     LineHeight: "lineHeight",
     LineBox: "lineBox",
     BorderAlign: "borderAlign",
+    BorderStyle: "borderStyle",
     BackgroundShape: "backgroundShape",
     OffsetX: "offsetX",
     OffsetY: "offsetY",
@@ -1897,8 +1909,16 @@ function labelFieldChannels<Target extends "node" | "edge">(
             values: LABEL_BORDER_ALIGN_VALUES,
             caveat:
                 'Where the line round the panel behind the label\'s words is drawn: "outside", all of it past the ' +
-                'panel\'s edge; "center", centered on that edge, half over the panel, as a canvas strokes a box. ' +
-                'Unset, "outside".',
+                'panel\'s edge; "center", centered on that edge, half over the panel, as a canvas strokes a box ' +
+                '(a double border\'s outer line; its inner line lies inside the panel). Unset, "outside".',
+        }),
+        row("BorderStyle", "Border Style", {
+            accepts: "enum",
+            values: LABEL_BORDER_STYLE_VALUES,
+            caveat:
+                'How the line round the panel behind the label\'s words is drawn: "solid", one line; "double", the ' +
+                "line drawn again inside it, one line's width in, as Cytoscape.js draws a double text border. " +
+                'Unset, "solid".',
         }),
         row("BackgroundShape", "Background Shape", {
             accepts: "enum",
@@ -1995,6 +2015,9 @@ const LABEL_LINE_BOX_VALUES: readonly LabelLineBoxValue[] = ["font", "size", "gl
 /** Every value the `labelBorderAlign` channels take. */
 const LABEL_BORDER_ALIGN_VALUES: readonly LabelBorderAlignValue[] = ["outside", "center"];
 
+/** Every value the `labelBorderStyle` channels take. */
+const LABEL_BORDER_STYLE_VALUES: readonly LabelBorderStyleValue[] = ["solid", "double"];
+
 /** Every value the `labelBackgroundShape` channels take. */
 const LABEL_BACKGROUND_SHAPE_VALUES: readonly LabelBackgroundShapeValue[] = ["rectangle", "circle"];
 
@@ -2049,7 +2072,7 @@ export function labelFieldOf(channel: Channel): { readonly into: Channel; readon
     }
 
     const match =
-        /^(node|edge)\.label(Color|Size|LetterSize|Font|Weight|Italic|WrapWidth|WrapTrailingSpace|WrapSkipEndSpace|WrapEllipsis|WrapAnywhere|WrapSpaceCount|MaxLines|MaxLinesEllipsis|RunAlign|MinScreenSize|OnTop|Rotation|Background|Outline|OutlineWidth|Border|BorderWidth|Opacity|BackgroundOpacity|OutlineOpacity|BorderOpacity|Padding|CornerRadius|LineHeight|LineBox|BorderAlign|BackgroundShape|OffsetX|OffsetY|ShiftX|ShiftY|ShiftOf|GapOf|Box)$/.exec(
+        /^(node|edge)\.label(Color|Size|LetterSize|Font|Weight|Italic|WrapWidth|WrapTrailingSpace|WrapSkipEndSpace|WrapEllipsis|WrapAnywhere|WrapSpaceCount|MaxLines|MaxLinesEllipsis|RunAlign|MinScreenSize|OnTop|Rotation|Background|Outline|OutlineWidth|Border|BorderWidth|Opacity|BackgroundOpacity|OutlineOpacity|BorderOpacity|Padding|CornerRadius|LineHeight|LineBox|BorderAlign|BorderStyle|BackgroundShape|OffsetX|OffsetY|ShiftX|ShiftY|ShiftOf|GapOf|Box)$/.exec(
             channel,
         );
 
@@ -4408,6 +4431,21 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         stylePath: "line.color",
         renderable: true,
     },
+    "edge.colorFrom": {
+        channel: "edge.colorFrom",
+        target: "edge",
+        plainName: "Edge Color From Node",
+        shortName: "Color from",
+        group: "line",
+        accepts: "enum",
+        values: EDGE_COLOR_FROM_VALUES,
+        stylePath: "line.colorFrom",
+        renderable: true,
+        caveat:
+            'Draws the line in the color the layers painted one of its nodes, in place of `edge.color`: "source" ' +
+            "its source node's, \"target\" its target node's. It follows the node: a later layer that recolors the " +
+            "node recolors the line. An end node no layer colored leaves the line its own `edge.color`.",
+    },
     "edge.width": {
         channel: "edge.width",
         target: "edge",
@@ -4718,6 +4756,20 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "The clear space between two dashes of a dashed edge or two dots of a dotted one, in the units of " +
             "`edge.width`, repeating from the edge's start, the last dash cut where the edge ends. Unset, the " +
             "first and last touch the edge's ends and the rest spread between them.",
+    },
+    "edge.dashArray": {
+        channel: "edge.dashArray",
+        target: "edge",
+        plainName: "Edge Dash Array",
+        shortName: "Dash array",
+        group: "line",
+        accepts: "text",
+        stylePath: "line.dashArray",
+        renderable: true,
+        caveat:
+            "A pattern of several dash lengths on a dashed, dotted or dash-dot edge: dashes and gaps alternating from " +
+            "the edge's start, in the units of `edge.width`, separated by spaces or commas (`8 1 2 1`). It replaces " +
+            "the edge's own elements, dash length and gap; unset, they hold.",
     },
     "edge.curvature": {
         channel: "edge.curvature",
@@ -5182,6 +5234,20 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         stylePath: "xlabel.offsetY",
         renderable: true,
         caveat: "How far the external label is moved down from where its location puts it, in scene units.",
+    },
+    "node.xlabelTextAlign": {
+        channel: "node.xlabelTextAlign",
+        target: "node",
+        plainName: "Node External Label Text Align",
+        shortName: "External label text align",
+        group: "text",
+        accepts: "enum",
+        values: LABEL_TEXT_ALIGN_VALUES,
+        stylePath: "xlabel.textAlign",
+        renderable: true,
+        caveat:
+            "Lines up the lines of an external label of more than one line with one another: their left edges, " +
+            "their middles or their right edges. Unset, as the label's.",
     },
     "edge.labelTable": {
         channel: "edge.labelTable",

@@ -283,6 +283,7 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "edge.wavePeriod": "mesh",
     "edge.dashLength": "mesh",
     "edge.dashGap": "mesh",
+    "edge.dashArray": "mesh",
     "edge.curvature": "mesh",
     "edge.animationSpeed": "mesh",
 
@@ -340,6 +341,9 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.color": "instance",
     "node.opacity": "instance",
     "edge.color": "instance",
+    // Read by the renderer as the end node's color in place of `edge.color` (GraphSession's paint), so it keys what
+    // `edge.color` keys.
+    "edge.colorFrom": "instance",
     "edge.opacity": "instance",
     // The outline is a batch of its own, keyed by its color, width and opacity.
     "edge.outlineColor": "mesh",
@@ -406,6 +410,7 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.labelLineHeight": "content",
     "node.labelLineBox": "content",
     "node.labelBorderAlign": "content",
+    "node.labelBorderStyle": "content",
     "node.labelBackgroundShape": "content",
     "node.labelOffsetX": "content",
     "node.labelOffsetY": "content",
@@ -449,6 +454,7 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "edge.labelLineHeight": "content",
     "edge.labelLineBox": "content",
     "edge.labelBorderAlign": "content",
+    "edge.labelBorderStyle": "content",
     "edge.labelBackgroundShape": "content",
     "edge.labelOffsetX": "content",
     "edge.labelOffsetY": "content",
@@ -541,6 +547,7 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.xlabelLocation": "content",
     "node.xlabelOffsetX": "content",
     "node.xlabelOffsetY": "content",
+    "node.xlabelTextAlign": "content",
     "edge.xlabel": "content",
     "edge.xlabelStyle": "content",
     "edge.xlabelLocation": "content",

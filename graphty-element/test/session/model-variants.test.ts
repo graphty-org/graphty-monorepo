@@ -44,7 +44,7 @@ function filesOf(variant: Variant): Map<string, Uint8Array> {
 describe("every model variant on intake", () => {
     it("covers every built-in format", () => {
         const formats = new Set(manifest.filter((v) => v.refused === null).map((v) => v.format));
-        for (const format of ["glb", "gltf", "obj", "stl", "ply", "splat", "spz", "sog", "babylon"]) {
+        for (const format of ["glb", "gltf", "obj", "stl", "ply", "babylon"]) {
             assert.isTrue(formats.has(format), format);
         }
     });

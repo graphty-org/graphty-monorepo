@@ -250,7 +250,10 @@ export function ModelsPopover({
                                             name={modelName(session, record.id)}
                                             tile={tile(record.id, ownStop)}
                                             onPick={() => {
-                                                onPick(record.id);
+                                                // A model held by address is named by it, as the
+                                                // Load custom model dialog names it, so a save can
+                                                // offer to keep it by URL.
+                                                onPick(record.url ?? record.id);
                                             }}
                                         />
                                     ))}

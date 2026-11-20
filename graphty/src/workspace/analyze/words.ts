@@ -151,6 +151,12 @@ const WORDS: Readonly<Record<string, AlgorithmWords>> = {
         answers: "A route between two nodes, optionally steered by where they are drawn.",
         aliases: ["a*", "astar", "route", "path", "how are they connected"],
     },
+    "all-paths": {
+        name: "Every route",
+        answers:
+            "Every route between two nodes that visits no node twice, and how many run through each node and edge.",
+        aliases: ["all paths", "all routes", "simple paths", "alternatives", "redundancy"],
+    },
     "all-pairs-distance": {
         name: "All-pairs distance",
         answers: "How far each node is from all the others.",
@@ -217,7 +223,7 @@ const WORDS: Readonly<Record<string, AlgorithmWords>> = {
  * The line under an algorithm in the Find list, keyed by the element's `descriptionId`. An
  * algorithm a third party registered has no line here, so it shows none.
  */
-export const ALGORITHM_DESCRIPTIONS: Readonly<Record<string, string>> = {
+export const ALGORITHM_DESCRIPTIONS: Readonly<Partial<Record<string, string>>> = {
     "algorithm.degree": "Counts how many edges each node has, incoming, outgoing and in total.",
     "algorithm.betweenness":
         "Scores a node by how many of the shortest paths between other nodes run through it, which is what finds the bridges.",
@@ -251,6 +257,8 @@ export const ALGORITHM_DESCRIPTIONS: Readonly<Record<string, string>> = {
         "Finds the cheapest route from one node to another, and how far every reachable node is from the source.",
     "algorithm.astar":
         "Finds a route from one node to another, optionally steered by how far apart the nodes are drawn. Without that steering it finds the cheapest route.",
+    "algorithm.all-paths":
+        "Finds every route from one node to another that visits no node twice, up to a longest route and a number of routes, and how many of the routes run through each node and edge.",
     "algorithm.all-pairs-distance":
         "Measures the distance between every pair of nodes, and gives each node the distance to the furthest node it can reach.",
     "algorithm.bfs": "Walks outwards from one node a level at a time, recording how many steps away each node is.",
@@ -419,7 +427,7 @@ const SAMPLE_SIZE: OptionWords = { label: "Sample size", empty: "Every node" };
  * `<algorithm key>.<option name>` (a test holds that every key option the element ships has
  * words here).
  */
-const OPTION_WORDS: Readonly<Record<string, OptionWords>> = {
+const OPTION_WORDS: Readonly<Partial<Record<string, OptionWords>>> = {
     "pagerank.dampingFactor": { label: "Damping factor" },
     "katz.alpha": { label: "Attenuation" },
     "louvain.resolution": { label: "Resolution" },
@@ -480,7 +488,7 @@ const OPTION_WORDS: Readonly<Record<string, OptionWords>> = {
  * The words for options that mean the same thing in every algorithm, by option name; an entry
  * in OPTION_WORDS wins over these.
  */
-const SHARED_OPTION_WORDS: Readonly<Record<string, string>> = {
+const SHARED_OPTION_WORDS: Readonly<Partial<Record<string, string>>> = {
     maxIterations: "Max iterations",
     tolerance: "Tolerance",
     k: "Sample size",

@@ -697,6 +697,7 @@ function channelPlans(
         ["labelLineHeight", [label("labelLineHeight")]],
         ["labelLineBox", [label("labelLineBox")]],
         ["labelBorderAlign", [label("labelBorderAlign")]],
+        ["labelBorderStyle", [label("labelBorderStyle")]],
         ["labelBackgroundShape", [label("labelBackgroundShape")]],
     ];
     if (kind === "node") {
@@ -878,6 +879,7 @@ function channelPlans(
                 ],
             ],
             ["xlabelOffsetY", [length("node.xlabelOffsetY", factors.node * SCENE_PER_UNIT.node)]],
+            ["xlabelTextAlign", [id("node.xlabelTextAlign")]],
             ["shape", [table("node.shape", shapeTable)]],
             ["labelColor", [label("labelColor")]],
             ["labelSize", labelSize("node.labelSize", "node.labelLetterSize")],
@@ -958,6 +960,7 @@ function channelPlans(
         // in the line's own widths, as the element draws a dash pattern
         ["dashLength", [id("edge.dashLength")]],
         ["dashGap", [id("edge.dashGap")]],
+        ["dashArray", [id("edge.dashArray")]],
         // in the line's own width units, as its width is
         ["waveAmplitude", [length("edge.waveAmplitude")]],
         ["wavePeriod", [length("edge.wavePeriod")]],

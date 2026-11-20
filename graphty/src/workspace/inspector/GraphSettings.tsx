@@ -439,6 +439,7 @@ function BackgroundImage({
     const { store } = useWorkspace();
     return (
         <FileSource
+            submitOnBlur
             variant="row"
             defaultValue={address}
             url

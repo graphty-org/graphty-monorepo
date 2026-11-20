@@ -12,6 +12,7 @@ import { fileURLToPath } from "node:url";
 
 import { assert, describe, it } from "vitest";
 
+import { AllPathsAlgorithm } from "../../src/algorithms/AllPathsAlgorithm";
 import { AStarAlgorithm } from "../../src/algorithms/AStarAlgorithm";
 import { BellmanFordAlgorithm } from "../../src/algorithms/BellmanFordAlgorithm";
 import { BetweennessCentralityAlgorithm } from "../../src/algorithms/BetweennessCentralityAlgorithm";
@@ -56,6 +57,7 @@ import { ForceAtlas2Layout } from "../../src/layout/ForceAtlas2LayoutEngine";
 import { GRAPHVIZ_LAYOUTS } from "../../src/layout/GraphvizLayoutEngine";
 import { GridLayout } from "../../src/layout/GridLayoutEngine";
 import { KamadaKawaiLayout } from "../../src/layout/KamadaKawaiLayoutEngine";
+import { honorsWeights } from "../../src/layout/LayoutEngine";
 import { LocationMapLayout } from "../../src/layout/LocationMapLayoutEngine";
 import { MultipartiteLayout } from "../../src/layout/MultipartiteLayoutEngine";
 import { NGraphEngine } from "../../src/layout/NGraphLayoutEngine";
@@ -71,6 +73,7 @@ import { SpringLayout } from "../../src/layout/SpringLayoutEngine";
 const FACTS_FILE = fileURLToPath(new URL("../../src/catalog/engine-facts.json", import.meta.url));
 
 const ALGORITHMS = [
+    AllPathsAlgorithm,
     AStarAlgorithm,
     BellmanFordAlgorithm,
     BetweennessCentralityAlgorithm,
@@ -151,7 +154,7 @@ function factsFromClasses(): EngineFacts {
                 cls.type,
                 {
                     options: optionsFromZod(cls.zodOptionsSchema ?? {}),
-                    honoursWeights: cls.honoursWeights,
+                    honoursWeights: honorsWeights(cls),
                     scoped: cls.scoped,
                 },
             ]),

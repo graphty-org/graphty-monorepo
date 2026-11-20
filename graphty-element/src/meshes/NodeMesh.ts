@@ -42,6 +42,7 @@ import {
     mitredEdges,
     offsetOutline,
     type Point2,
+    sharpTwinOf,
     type WaveShape,
 } from "./shapeOutlines";
 
@@ -456,7 +457,7 @@ export class NodeMesh {
      */
     static createModelInstance(template: ModelTemplate, shape: NodeStyleConfig["shape"], name: string): InstancedMesh {
         const [first, ...rest] = template.groups;
-        const root = first.createInstance(name);
+        const root = modelInstance(first, name);
         root.isPickable = true;
         root.instancedBuffers.color = new Color4(1, 1, 1, 1);
         // The box only: a pointer move tests no model triangle (design section 3.8).
@@ -464,7 +465,7 @@ export class NodeMesh {
         root.intersects = (ray, fastCheck, trianglePredicate, _onlyBoundingInfo, worldToUse, skipBoundingInfo) =>
             intersects(ray, fastCheck, trianglePredicate, true, worldToUse, skipBoundingInfo);
         for (const group of rest) {
-            const part = group.createInstance(`${name}-part`);
+            const part = modelInstance(group, `${name}-part`);
             part.parent = root;
             part.isPickable = false;
             part.instancedBuffers.color = new Color4(1, 1, 1, 1);
@@ -694,8 +695,15 @@ export class NodeMesh {
 
         const build = type === "none" ? bodilessSlab : outlineSlab;
         const mesh = build(type, this.flatOutline(shape, extents), extents.z ?? extents.across, scene);
-        if ((shape.rotation ?? 0) % 360 !== 0) {
-            setLabelBox(mesh, this.unturnedFlatOutline(shape, extents));
+        // a rounded polygon's label is placed against its sharp twin's box, the node's own width and height, as
+        // Cytoscape.js places it: its rounded apex is lower than the box's top (json-cyjs-synth-nodes round-triangle)
+        // the twins named in shapeOutlines' ROUNDED are node shapes too
+        const sharp = sharpTwinOf(type) as NonNullable<NodeStyleConfig["shape"]>["type"];
+        if ((shape.rotation ?? 0) % 360 !== 0 || sharp !== undefined) {
+            setLabelBox(
+                mesh,
+                this.unturnedFlatOutline(sharp === undefined ? shape : { ...shape, type: sharp }, extents),
+            );
         }
 
         return mesh;
@@ -1020,6 +1028,73 @@ export class NodeMesh {
         mesh.isPickable = false;
 
         return mesh;
+    }
+
+    /**
+     * The fill of a group drawn over its members' box, as a source mesh of its own: the shape built at the box's own
+     * width and height, as its border is ({@link NodeMesh.createGroupBorder}), then shrunk by the stretch the group's
+     * mesh is drawn under, so the stretched instance draws it at the box's size. Stretching the shared fill instead
+     * stretched a rounded rectangle's corners into long ellipses (issue #8194). Drawn with the shared source's
+     * material, opacity and draw settings; the caller disposes it (never its material).
+     * @param from - The shared source the group's instance is drawn from now.
+     * @param shape - The group's flat shape.
+     * @param extents - The box's drawn size.
+     * @param extents.x - Its width.
+     * @param extents.y - Its height.
+     * @param extents.z - Its depth.
+     * @param stretch - The scaling the group's instance is drawn under.
+     * @param stretch.x - Across its width.
+     * @param stretch.y - Across its height.
+     * @param stretch.z - Across its depth.
+     * @param is2D - Whether the view is 2D.
+     * @returns The source, or null for a shape that is not flat.
+     */
+    static createGroupFill(
+        from: Mesh,
+        shape: NodeStyleConfig["shape"],
+        extents: { x: number; y: number; z: number },
+        stretch: { x: number; y: number; z: number },
+        is2D: boolean,
+    ): Mesh | null {
+        if (shape?.type === undefined || !isFlatShape(shape.type)) {
+            return null;
+        }
+
+        const scene = from.getScene();
+        const mesh = this.createFlatShape(shape, { across: Math.max(extents.x, extents.y), ...extents }, scene);
+        mesh.bakeTransformIntoVertices(Matrix.Scaling(1 / stretch.x, 1 / stretch.y, 1 / stretch.z));
+        // placed along z in the source's own units, as the shared source was, so it is drawn at the same depth
+        placeByZIndex(mesh, shape, is2D);
+        mesh.name = `${from.name}-group`;
+        mesh.material = from.material;
+        mesh.visibility = from.visibility;
+        mesh.renderingGroupId = from.renderingGroupId;
+        mesh.alphaIndex = from.alphaIndex;
+        mesh.renderOutline = from.renderOutline;
+        mesh.outlineWidth = from.outlineWidth;
+        mesh.outlineColor = from.outlineColor;
+        mesh.isPickable = from.isPickable;
+        mesh.isVisible = false;
+        for (const kind of Object.keys(from.instancedBuffers ?? {})) {
+            mesh.registerInstancedBuffer(kind, from.getVertexBuffer(kind)?.getSize() ?? 4);
+            mesh.instancedBuffers[kind] = from.instancedBuffers[kind] as unknown;
+        }
+        mesh.position.copyFrom(from.position);
+        mesh.freezeWorldMatrix();
+
+        return mesh;
+    }
+
+    /**
+     * A hidden instance of a shared source, keeping it alive while nothing drawn instances it: the mesh cache
+     * disposes a source with no instance left, and its material with it.
+     * @param source - The shared source.
+     * @returns The instance; dispose it to let the source go.
+     */
+    static keepSource(source: Mesh): InstancedMesh {
+        const kept = source.createInstance(`${source.name}-kept`);
+        kept.setEnabled(false);
+        return kept;
     }
 
     /**
@@ -1707,4 +1782,20 @@ export class NodeMesh {
             scene,
         );
     }
+}
+
+/**
+ * An instance of a model template's group, answering for the group's own locked box. Babylon
+ * sizes an instance of a skinned source from its raw vertices, and an animated template's are in
+ * the file's units (its bones place and fit them), so a Fox was boxed 150 times too large and the
+ * camera framed the graph by that box (issue #8607).
+ * @param group - The template's group.
+ * @param name - The instance's name.
+ * @returns The instance.
+ */
+function modelInstance(group: Mesh, name: string): InstancedMesh {
+    const instance = group.createInstance(name);
+    const { minimum, maximum } = group.getBoundingInfo();
+    instance.buildBoundingInfo(minimum, maximum);
+    return instance;
 }

@@ -8,9 +8,10 @@ import { noteSlabOutline } from "./convexHit";
 import { earClip, fansFromOrigin, type Point2, type RingPiece } from "./shapeOutlines";
 
 /**
- * The box a label is placed against, for a node mesh whose turned outline (`shape.rotation`) reaches past it: the
- * node's own width and height, unturned, in the mesh's local units. A label stays where it is beside its node
- * however the node's shape is turned, as Pajek places it. A mesh not listed is placed against its bounding box.
+ * The box a label is placed against, for a node mesh whose turned outline (`shape.rotation`) reaches past it, or
+ * whose rounded corners fall short of it: the node's own width and height, unturned, in the mesh's local units. A
+ * label stays where it is beside its node however the node's shape is turned, as Pajek places it, and beside a
+ * rounded polygon's box, as Cytoscape.js places it. A mesh not listed is placed against its bounding box.
  */
 const LABEL_BOXES = new WeakMap<Mesh, { readonly min: Vector3; readonly max: Vector3 }>();
 

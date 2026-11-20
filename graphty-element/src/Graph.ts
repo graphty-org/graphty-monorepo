@@ -1,3 +1,4 @@
+/// <reference types="@webgpu/types" />
 // Force side-effect imports to not be tree-shaken
 import "./data/index"; // register all internal data sources
 import "./layout/index"; // register all internal layouts
@@ -15,7 +16,6 @@ import { Engine } from "@babylonjs/core/Engines/engine.js";
 import { NullEngine } from "@babylonjs/core/Engines/nullEngine.js";
 import { WebGPUEngine } from "@babylonjs/core/Engines/webgpuEngine.js";
 import { PointerEventTypes } from "@babylonjs/core/Events/pointerEvents.js";
-import type { Effect } from "@babylonjs/core/Materials/effect.js";
 import { type Matrix, Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 import { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
 import type { SubMesh } from "@babylonjs/core/Meshes/subMesh.js";
@@ -92,14 +92,34 @@ const MAP_CLEARANCE = 1e-4;
 import { measureBounds } from "./camera/bounds.js";
 import { orbitAnglesToPosition } from "./camera/builtins.js";
 import { fullInsets } from "./camera/insets.js";
+import { cameraRefusal, stateProblem } from "./camera/mode.js";
+import { orientationOf } from "./camera/orientation.js";
 import type { GraphOverview, OverviewOptions } from "./camera/overview.js";
-import { type CameraViewContext, cameraViewIds, isCameraViewName, resolveCameraView } from "./camera/resolve.js";
+import { presetsOf, type SkippedPreset, splitPresetImport } from "./camera/presets.js";
+import {
+    type CameraViewContext,
+    cameraViewIds,
+    cameraViewModes,
+    isCameraViewName,
+    resolveCameraView,
+} from "./camera/resolve.js";
+import {
+    type EasingName,
+    isTourPause,
+    planTourStops,
+    stopTarget,
+    type TourEndReason,
+    type TourInput,
+    type TourPlan,
+    type TourPlanContext,
+} from "./camera/tour.js";
 import type { CameraState, CameraViewExtent, DrawingMode, GraphBounds, ViewInsets } from "./camera/types.js";
 import { type CameraController, cameraForViewMode, type CameraKey, CameraManager } from "./cameras/CameraManager";
 import { OrbitCameraController } from "./cameras/OrbitCameraController";
 import { type OverviewInputs, OverviewSource, watchOverview } from "./cameras/overview";
 import { TwoDCameraController } from "./cameras/TwoDCameraController";
 import { algorithmByKey, algorithmByLegacyKey } from "./catalog/algorithms";
+import { onCameraViewRegistered } from "./catalog/cameraRegistry";
 import { undetectedFormat } from "./catalog/detect";
 import { layoutIdForEngine } from "./catalog/layouts";
 import { registeredAlgorithmByKey } from "./catalog/registry";
@@ -118,6 +138,7 @@ import type {
 } from "./catalog/types";
 import {
     AdHocData,
+    type ColorScheme,
     defaultXRConfig,
     FetchEdgesFn,
     FetchNodesFn,
@@ -141,14 +162,18 @@ import { type ExportGraphOptions, type ExportResult, exportSession } from "./dat
 import { WRITABLE_LANE, writableLane } from "./data/lane";
 import { fetchBytes, sampleOf } from "./data/source-bytes";
 import type { Edge } from "./Edge";
-import { GraphtyError } from "./errors";
+import { GraphtyError, isGraphtyError } from "./errors";
+import type { GraphtyErrorCode } from "./errors/codes";
 import {
     EventCallbackType,
     EventOfType,
     EventType,
     type LimitsWarningEvent,
+    type ReducedMotionChangedEvent,
     type RenderLostEvent,
     type RenderRestoredEvent,
+    type TourEndedEvent,
+    type TourProgressEvent,
     type XRSessionEndedEvent,
     type XRSessionStartedEvent,
 } from "./events";
@@ -207,7 +232,14 @@ import { payLabelAnimations } from "./meshes/labelAnimationDebt";
 import { closeRectOnScreen, hasCloseLabels, inRect, isCloseLabel } from "./meshes/labelClose";
 import { labelFontsLoading, watchFontLoads } from "./meshes/labelFonts";
 import { MeshCache } from "./meshes/MeshCache";
-import { LiveModelPreview, type ModelPreview, type ModelPreviewOptions, PreviewEngines } from "./meshes/ModelPreview";
+import {
+    LiveModelPreview,
+    type ModelCheck,
+    type ModelCheckOptions,
+    type ModelPreview,
+    type ModelPreviewOptions,
+    PreviewEngines,
+} from "./meshes/ModelPreview";
 import { type ColumnRow, NodeBatches, type RenderPath, renderPathDefault, type RowCounts } from "./meshes/NodeBatch";
 import { forgetGlyphs } from "./meshes/NodeDecorationMesh";
 import { NodeEffects } from "./meshes/NodeEffects";
@@ -265,7 +297,7 @@ import {
 } from "./session/commands/data";
 import type { BatchCommand } from "./session/commands/index";
 import { DEFAULT_LAYOUT } from "./session/commands/layout";
-import { assertViewName } from "./session/commands/view";
+import { unknownFollowed } from "./session/commands/view";
 import {
     addSetsUsers,
     dispatcherOf,
@@ -294,13 +326,14 @@ import { reportCaught, strictStateEnabled, strictViolation } from "./session/pro
 import type { Run, StartOptions } from "./session/runs";
 import type { SelectionDelta, SelectionOp, SelectionTarget } from "./session/selection";
 import { shadersControllerOf } from "./session/shaders";
+import type { CodedFact } from "./session/shared";
 import { PROVENANCE_VALUE } from "./session/sources/provenance";
 import type { StyleSuggestion } from "./session/styles";
 import { suggestionCommand } from "./session/styles/autoApply";
 import { toColorValue } from "./session/styles/channels";
 import type { FileStyleOptions } from "./session/styles/fileStyles/translate";
 import type { CompiledLayer } from "./session/styles/Layer";
-import type { HistoryCause, ProjectConfig, ProjectConfigPatch, TransactionScope } from "./session/types";
+import type { HistoryCause, ProjectConfig, ProjectConfigPatch, SavedView, TransactionScope } from "./session/types";
 import type { WorkingGraph } from "./session/working/view";
 import {
     attachTransitions,
@@ -317,6 +350,7 @@ import { XRUIManager } from "./ui/XRUIManager";
 import { asError } from "./utils/asError";
 import { downloadBlob } from "./utils/download";
 import type { QueueableOptions, RunAlgorithmOptions, SetLayoutOptions } from "./utils/queue-migration";
+import { inXR } from "./xr/inXR";
 import { XrAvailability } from "./xr/XrAvailability";
 import { type XRSessionEndCause, XRSessionManager } from "./xr/XRSessionManager";
 
@@ -372,19 +406,11 @@ function isAbort(error: unknown): boolean {
     return (error as { name?: unknown } | null)?.name === "AbortError";
 }
 
+/** A 2D camera's frustum edges, as a camera state names them. */
+const ORTHO_EDGES = ["orthoLeft", "orthoRight", "orthoTop", "orthoBottom"] as const;
+
 /** The camera state fields that set where the camera stands or how much of the graph it shows. */
-const FRAMING_FIELDS = [
-    "position",
-    "target",
-    "cameraDistance",
-    "radius",
-    "zoom",
-    "pan",
-    "orthoLeft",
-    "orthoRight",
-    "orthoTop",
-    "orthoBottom",
-] as const;
+const FRAMING_FIELDS = ["position", "target", "cameraDistance", "radius", "zoom", "pan", ...ORTHO_EDGES] as const;
 
 /**
  * Whether a camera placement sets anything a framing sets, rather than only turning the camera.
@@ -820,8 +846,14 @@ export class Graph implements GraphContext {
      */
     #cameraPlaced = false;
 
-    /** The tour playing now, if any: `ended` is set to stop it at its next step or frame. */
+    /** The tour playing now, if any; `#finishTour` ends it. */
     #tour: TourHandle | undefined;
+
+    /**
+     * True while the element applies a camera state itself: the 2D camera reports that move as a
+     * reader's, which must not end a tour.
+     */
+    #applyingCameraState = false;
 
     /**
      * The reader moved the camera: the element's own framing stops until the next load or layout,
@@ -830,6 +862,11 @@ export class Graph implements GraphContext {
      * A consumer's own `zoomToFit()` still lands.
      */
     readonly #readerMovedCamera = (): void => {
+        // The reader's own move ends a tour; the element placing a state is not the reader's.
+        if (!this.#applyingCameraState) {
+            this.#endTour("interrupted");
+        }
+
         // A pan or a zoom of the reader's own is kept: the camera stops gliding back to the selection.
         this.updateManager.holdSelectionFollow();
         if (this.#cameraPlaced) {
@@ -861,6 +898,8 @@ export class Graph implements GraphContext {
     readonly #previewEngines = new PreviewEngines();
     /** The last thumbnail drawing in line. */
     #thumbnailQueue: Promise<unknown> = Promise.resolve();
+    /** Whether each model's template could be built, by digest and stand-ins (`checkModel`). */
+    readonly #modelChecks = new Map<string, Promise<ModelCheck>>();
     /** Margins of the canvas something else covers, in CSS pixels; see {@link setViewInsets}. */
     #viewInsets: Required<ViewInsets> = fullInsets(undefined);
     skybox?: string;
@@ -1081,6 +1120,14 @@ export class Graph implements GraphContext {
         this.updateManager.frameIsStable &&
         !(this.updateManager.autoTurning && this.renderManager.canvasInView) &&
         (this.xrSessionManager?.getActiveMode() ?? null) === null;
+    /**
+     * Whether a tick drawing on demand, or any tick under renderPath "batched", may skip its frame
+     * because the running layout landed nothing new since the last one, and no headset is showing
+     * the picture. See `RenderManager.mayRest`.
+     * @returns True when only a layout landing would change the picture.
+     */
+    private readonly awaitsLanding = (): boolean =>
+        this.updateManager.awaitsLanding && (this.xrSessionManager?.getActiveMode() ?? null) === null;
     /** How many `batchOperations` callbacks are open. */
     private openBatches = 0;
     private readonly selectionManager: SelectionManager;
@@ -1201,7 +1248,10 @@ export class Graph implements GraphContext {
         this.stylePainter = new StylePainter(
             (row) => this.dataManager.edgeDirected(row),
             () => this.session.config.minMarkSize,
+            // eslint-disable-next-line unicorn/no-array-callback-reference -- the session's find, not Array.find
+            (model) => this.session.assets.find(model)?.defaults,
             () => this.dataManager.nodes.size > DEFAULT_LIMITS.largeGraphThreshold,
+            () => this.#darkScheme,
         );
 
         // get the element that we are going to use for placing our canvas
@@ -1235,7 +1285,9 @@ export class Graph implements GraphContext {
         this.renderManager = new RenderManager(this.canvas, this.eventManager, {
             pixelRatio: this.#pixelRatio,
             pictureIsFinal: this.pictureIsFinal,
+            awaitsLanding: this.awaitsLanding,
             drawsOnDemand: this.drawsOnDemand,
+            restsBetweenLandings: this.#batchedFrames,
             flushesFrameFence: this.#batchedFrames,
             pacesWebGpuFrames: this.#batchedFrames,
             antialias: this.#multisampled,
@@ -1340,6 +1392,7 @@ export class Graph implements GraphContext {
                 // Under "batched" only, the repaint fills a uniform dirty set's mesh keys at once.
                 batched: () => this.#renderPath === "batched",
                 nodeSizeSpace: () => this.styles.config.behavior.node.sizeSpace,
+                darkScheme: () => this.#darkScheme,
             },
         );
 
@@ -1516,8 +1569,29 @@ export class Graph implements GraphContext {
             return changed("minMarkSize") ? this.repaintFromSession() : undefined;
         });
 
+        // A model's own settings changed (an edit, an undo): its nodes are drawn again with them.
+        dispatcherOf(this.session).lane.register("modelDefaults", (rendered, target, dirty) =>
+            [...dirty].some((id) => rendered.modelDefaults.get(id) !== target.modelDefaults.get(id))
+                ? this.repaintFromSession()
+                : undefined,
+        );
+
         // `view.camera` moves this renderer's camera; a session with no renderer refuses it.
         dispatcherOf(this.session).services.camera = {
+            pose: (follows) => {
+                try {
+                    return this.#savedPose({ follows });
+                } catch {
+                    return undefined;
+                }
+            },
+            current: () => {
+                const immersive = this.#immersiveProblem();
+                if (immersive !== null) {
+                    throw cameraRefusal(immersive);
+                }
+                return this.getCameraState();
+            },
             move: (command) =>
                 this.setCameraState(
                     command.preset === undefined
@@ -1974,6 +2048,20 @@ export class Graph implements GraphContext {
                 this.followShown(cause === "undo" || cause === "redo");
             }
         });
+        // What a tour plan or `viewProblem` reads: the saved views, their order, the tours, and
+        // the camera views registered (the drawing mode is told in `writeSceneDimension`).
+        this.session.on("project:changed", ({ slices }) => {
+            if (slices.includes("views") || slices.includes("tours")) {
+                this.eventManager.emit("views-changed", {});
+            }
+        });
+        this.session.on("views:seeded", () => {
+            this.eventManager.emit("views-changed", {});
+        });
+        const unwatchCameraViews = onCameraViewRegistered(() => {
+            this.eventManager.emit("views-changed", {});
+        });
+        this.#teardown.signal.addEventListener("abort", unwatchCameraViews, { once: true });
         // A layout's `clusterBy` may name a run's field, which moves when the run ends, is undone or comes back.
         this.session.on("run:changed", ({ phase }) => {
             if (phase === "end" || phase === "removed" || phase === "restored") {
@@ -2120,6 +2208,10 @@ export class Graph implements GraphContext {
         // First, so a repaint queued behind a load or a run -- or one already painting -- stops
         // rather than running against the store and session this is about to dispose.
         this.#teardown.abort(new DOMException("The graph was disposed.", "AbortError"));
+
+        // A tour's holds and an untimed recording count drawn frames, which stop now: end both.
+        this.#endTour("cancelled");
+        this.cancelAnimationCapture();
 
         // XR listens on the page's navigator.xr, which outlives this graph: a listener left there
         // when the element leaves the page (which shuts the graph down without disposing it) keeps
@@ -2578,7 +2670,9 @@ export class Graph implements GraphContext {
             engine: opened,
             pixelRatio: this.#pixelRatio,
             pictureIsFinal: this.pictureIsFinal,
+            awaitsLanding: this.awaitsLanding,
             drawsOnDemand: this.drawsOnDemand,
+            restsBetweenLandings: this.#batchedFrames,
             flushesFrameFence: this.#batchedFrames,
             pacesWebGpuFrames: this.#batchedFrames,
             antialiasAtRest: this.#antialiasAtRest,
@@ -2673,30 +2767,14 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Reports a shader the GLSL compiler stops on. Babylon compiles in an async method it never
-     * awaits, so the failure is a rejection nobody holds and the effect is never told: its material
-     * stays not ready for good and nothing waiting on it ever hears. The effect is told here, as a
-     * synchronous failure would have told it, and everything listening to it hears as it does
-     * under WebGL. An effect with its own `onError` is the shader check's, which has its own report.
+     * Reports a shader the GLSL compiler stops on. Babylon.js 9 hands the effect a rejection of its
+     * async compile as it would a synchronous failure, so everything listening to the effect hears
+     * as it does under WebGL; this reports it. An effect with its own `onError` is the shader
+     * check's, which has its own report. (Babylon 8 dropped the rejection, and this wrapped the
+     * engine's compile to tell the effect.)
      * @param engine - The engine that compiles the graph's shaders.
      */
     private watchShaderCompiles(engine: WebGPUEngine): void {
-        const prepare = engine._preparePipelineContextAsync.bind(engine);
-        engine._preparePipelineContextAsync = async (context, ...rest) => {
-            try {
-                await prepare(context, ...rest);
-            } catch (error) {
-                const { _compiledEffects: effects } = engine as unknown as { _compiledEffects: Record<string, Effect> };
-                const failed = Object.values(effects).find((effect) => effect.getPipelineContext() === context);
-                if (failed === undefined) {
-                    this.reportRefusedShader("compiler", [String(error)]);
-                } else {
-                    (
-                        failed as unknown as { _processCompilationErrors(cause: unknown): void }
-                    )._processCompilationErrors(error);
-                }
-            }
-        };
         engine.onEffectErrorObservable.add(({ effect, errors }) => {
             if (!effect.onError) {
                 this.reportRefusedShader("compiler", [errors]);
@@ -5819,9 +5897,7 @@ export class Graph implements GraphContext {
 
         this.scene.onPrePointerObservable.add((pointerInfo) => {
             // Skip in XR mode - XR has its own input handling
-            const xrHelper = this.scene.metadata?.xrHelper;
-            if (xrHelper?.baseExperience?.state === 2) {
-                // WebXRState.IN_XR
+            if (inXR(this.scene)) {
                 return;
             }
 
@@ -6094,9 +6170,15 @@ export class Graph implements GraphContext {
      * @param twoD - Whether the scene is 2D.
      */
     private writeSceneDimension(twoD: boolean): void {
-        this.scene.metadata = this.scene.metadata ?? {};
+        this.scene.metadata ??= {};
+        const was = this.scene.metadata.viewMode as string | undefined;
         this.scene.metadata.twoD = twoD;
         this.scene.metadata.viewMode = this.viewSettings.graph.immersive ?? (twoD ? "2d" : "3d");
+        if (was !== undefined && was !== this.scene.metadata.viewMode) {
+            // The drawing mode switched: a tour playing ends, and every view is judged again.
+            this.#endTour("mode-changed");
+            this.eventManager.emit("views-changed", {});
+        }
     }
 
     /**
@@ -6468,13 +6550,106 @@ export class Graph implements GraphContext {
         return this.#motionReduced() ? 0 : this.#cameraTransitionMs;
     }
 
+    /**
+     * Whether motion is reduced now: `setReducedMotion`'s setting, with `"auto"` resolved against
+     * the platform's `prefers-reduced-motion`. `reduced-motion-changed` fires when the answer
+     * changes.
+     * @returns True when camera moves jump, auto-rotate is stopped and layouts are shown settled.
+     * @since 3.58.0
+     */
+    isMotionReduced(): boolean {
+        return this.#motionReduced();
+    }
+
+    /** The answer `reduced-motion-changed` last reported; false before any. */
+    #motionWasReduced = false;
+
     /** Tell the camera, the layout and the frame loop whether motion is reduced. */
     #applyMotion(): void {
         const reduced = this.#motionReduced();
         this.camera.setInstantGlides(this.#cameraMoveMs() === 0);
         this.layoutManager.reducedMotion = reduced;
         this.updateManager.reducedMotion = reduced;
+        if (reduced !== this.#motionWasReduced) {
+            this.#motionWasReduced = reduced;
+            this.eventManager.emit("reduced-motion-changed", { reduced } satisfies Omit<
+                ReducedMotionChangedEvent,
+                "type"
+            >);
+        }
     }
+
+    /**
+     * Which background color the canvas is cleared to; see {@link setColorScheme}.
+     * @returns The setting: "light", "dark" or "auto".
+     */
+    getColorScheme(): ColorScheme {
+        return this.#colorScheme;
+    }
+
+    /**
+     * Clear the canvas to the background's `color` (`"light"`, the default) or its `darkColor`
+     * (`"dark"`); `"auto"` follows the page's `prefers-color-scheme` as it changes. Repaints at
+     * once, with nothing reloaded. Under a dark scheme a label no layer colors is drawn light, and
+     * `session.config.backgroundColor` reports the dark color. A preference of the view, not saved
+     * in a project file.
+     * @param scheme - "light", "dark" or "auto".
+     * @throws TypeError when the scheme is none of the three; nothing is changed then.
+     * @since 3.58.0
+     */
+    setColorScheme(scheme: ColorScheme): void {
+        if (scheme !== "light" && scheme !== "dark" && scheme !== "auto") {
+            throw new TypeError(`colorScheme must be "light", "dark" or "auto", not ${JSON.stringify(scheme)}`);
+        }
+
+        this.#colorScheme = scheme;
+        this.#schemeQuery?.abort();
+        this.#schemeQuery = null;
+        const query =
+            scheme === "auto" && typeof globalThis.matchMedia === "function"
+                ? matchMedia("(prefers-color-scheme: dark)")
+                : null;
+        const apply = (): void => {
+            const dark = scheme === "dark" || (query?.matches ?? false);
+            this.renderManager.darkScheme = dark;
+            if (dark === this.#darkScheme) {
+                return;
+            }
+
+            this.#darkScheme = dark;
+            // Labels no layer colored change color with the scheme: paint every mark again.
+            void this.operationQueue
+                .queueOperationAsync(
+                    "style-apply",
+                    async () => {
+                        await this.repaintFromSession();
+                    },
+                    {
+                        description: "Repainting for the color scheme",
+                    },
+                )
+                .catch((error: unknown) => {
+                    graphLogger.error("The repaint for the color scheme failed.", asError(error));
+                });
+        };
+        if (query !== null) {
+            this.#schemeQuery = new AbortController();
+            query.addEventListener("change", apply, {
+                signal: AbortSignal.any([this.#schemeQuery.signal, this.#teardown.signal]),
+            });
+        }
+
+        apply();
+    }
+
+    /** See {@link setColorScheme}. */
+    #colorScheme: ColorScheme = "light";
+
+    /** Whether the scheme in effect is dark: `"dark"`, or `"auto"` on a dark page. */
+    #darkScheme = false;
+
+    /** Ends the platform-preference listener `"auto"` adds. */
+    #schemeQuery: AbortController | null = null;
 
     /**
      * Where the active map layout read its locations, and how it lays the map, as plain facts:
@@ -7316,14 +7491,14 @@ export class Graph implements GraphContext {
 
         const state = this.getCameraState();
         if (state.pan) {
-            await this.setCameraState({ pan: { x: state.pan.x + shift.x, y: state.pan.y + shift.y } }, options);
+            await this.#placeCamera({ pan: { x: state.pan.x + shift.x, y: state.pan.y + shift.y } }, options);
         } else if (state.position && state.target) {
             const move = (p: { x: number; y: number; z: number }): { x: number; y: number; z: number } => ({
                 x: p.x + shift.x,
                 y: p.y + shift.y,
                 z: p.z + shift.z,
             });
-            await this.setCameraState({ position: move(state.position), target: move(state.target) }, options);
+            await this.#placeCamera({ position: move(state.position), target: move(state.target) }, options);
         }
     }
 
@@ -7779,7 +7954,11 @@ export class Graph implements GraphContext {
             });
         }
 
-        const record = await assets.ready(ref);
+        // A model held while its pictures still download is drawn now, with them stood in for.
+        const record =
+            standInMissing && held?.state === "rejected" && (assets as AssetsApiInternal).standIn(held.id) !== undefined
+                ? held
+                : await assets.ready(ref);
         const problem =
             record.kind === "image"
                 ? {
@@ -7810,6 +7989,7 @@ export class Graph implements GraphContext {
      * @param record - The model's record.
      * @param standIn - What stands in for a waiting model's missing parts.
      * @param style - The node's style values.
+     * @param hidden - The pictures drawn without.
      * @returns The template, the caller's to dispose.
      */
     async #modelTemplate(
@@ -7818,6 +7998,7 @@ export class Graph implements GraphContext {
         record: AssetRecord,
         standIn: ReturnType<AssetsApiInternal["standIn"]>,
         style: Readonly<Partial<Record<Channel, ChannelValue>>>,
+        hidden: readonly string[] = [],
     ): Promise<ModelTemplate> {
         const { assets } = this.getSession();
         const shape = {
@@ -7837,6 +8018,7 @@ export class Graph implements GraphContext {
             standIn?.main ?? record.path ?? "",
             standIn?.format ?? record.format,
             standIn?.skipped ?? record.skipped,
+            hidden,
         ).catch((error: unknown) => {
             if (!(error instanceof ModelLoadFailure)) {
                 throw error;
@@ -7858,19 +8040,31 @@ export class Graph implements GraphContext {
         if (image !== null && typeof picture === "string") {
             textures?.hold(picture, 1);
         }
-        return chunk.prepareTemplate(
-            scene,
-            container,
-            `graphty-model-preview-${record.digest.slice(0, 8)}`,
-            {
-                ...optionsOf(shape, standIn === undefined ? assets.inspect(record.id).upAxis : "unknown", {
-                    unlit: style["node.unlit"] === true,
-                    wireframe: style["node.wireframe"] === true,
-                }),
-                image,
-            },
-            () => chunk.neutralEnvironment(scene),
-        );
+        return chunk
+            .prepareTemplate(
+                scene,
+                container,
+                `graphty-model-preview-${record.digest.slice(0, 8)}`,
+                {
+                    ...optionsOf(shape, standIn === undefined ? assets.inspect(record.id).upAxis : "unknown", {
+                        unlit: style["node.unlit"] === true,
+                        wireframe: style["node.wireframe"] === true,
+                    }),
+                    image,
+                },
+                () => chunk.neutralEnvironment(scene),
+            )
+            .catch((error: unknown) => {
+                // As a node reports it (ModelCache): a file that loads but cannot be built into a
+                // template is E_MODEL_PARSE, never a bare error that reads as "no WebGL".
+                throw new GraphtyError({
+                    code: "E_MODEL_PARSE",
+                    source: "data",
+                    message: `The model ${ref} could not be drawn.`,
+                    details: { format: record.format },
+                    cause: error,
+                });
+            });
     }
 
     /**
@@ -7884,11 +8078,13 @@ export class Graph implements GraphContext {
      */
     async modelPreview(ref: string, host: HTMLElement, options: ModelPreviewOptions = {}): Promise<ModelPreview> {
         const { record, standIn } = await this.#drawableModel(ref, options.standInMissing === true);
+        const hidden = options.hiddenTextures ?? record.defaults?.hiddenTextures ?? [];
         const preview = new LiveModelPreview(
             host,
-            async (scene, style) => this.#modelTemplate(scene, ref, record, standIn, style),
+            async (scene, style) => this.#modelTemplate(scene, ref, record, standIn, style, hidden),
             this.#lighting,
             this.#previewEngines,
+            record.defaults?.style,
         );
         try {
             await preview.update(options.style ?? {});
@@ -7914,11 +8110,14 @@ export class Graph implements GraphContext {
      */
     async modelThumbnail(ref: string, options: ModelThumbnailOptions = {}): Promise<string> {
         const { record, standIn } = await this.#drawableModel(ref, options.standInMissing === true);
-        const style = options.style ?? {};
+        const style = { ...record.defaults?.style, ...options.style };
+        const hidden = options.hiddenTextures ?? record.defaults?.hiddenTextures ?? [];
         const is2D = this.getViewMode() === "2d";
         const key = JSON.stringify([
             standIn === undefined ? "model" : "model-stand-in",
-            record.digest,
+            record.digest === "" ? record.id : record.digest,
+            standIn?.skipped ?? [],
+            hidden,
             options.size,
             style["node.color"],
             style["node.modelSourceUp"],
@@ -7938,7 +8137,7 @@ export class Graph implements GraphContext {
         let shot = this.#thumbnails.get(key);
         if (shot === undefined) {
             shot = this.#thumbnailQueue.then(async () => {
-                const template = await this.#modelTemplate(this.scene, ref, record, standIn, style);
+                const template = await this.#modelTemplate(this.scene, ref, record, standIn, style, hidden);
                 try {
                     // As nodeThumbnail: the instance is made now, so the frozen list must not leave it out.
                     this.updateManager.thawActiveMeshes();
@@ -7958,6 +8157,78 @@ export class Graph implements GraphContext {
             });
         }
         return shot;
+    }
+
+    /**
+     * Whether a model can be drawn, without drawing it: its template is built once and freed. See
+     * {@link ModelCheck}. Kept by the model's files, so asking again, or for every member of a set,
+     * costs one build each.
+     * @param ref - What `node.model` takes.
+     * @param options - A signal, and whether a waiting model's stand-ins count.
+     * @returns Whether it can be drawn, and why not.
+     */
+    async checkModel(ref: string, options: ModelCheckOptions = {}): Promise<ModelCheck> {
+        const { signal } = options;
+        signal?.throwIfAborted();
+        if (this.engine instanceof NullEngine) {
+            return { drawable: null };
+        }
+
+        const failed = (error: unknown): ModelCheck => {
+            if (!isGraphtyError(error)) {
+                throw error;
+            }
+
+            return {
+                drawable: false,
+                failure: { code: error.code, params: (error.details ?? {}) as CodedFact["params"] },
+            };
+        };
+        const found = await this.#drawableModel(ref, options.standInMissing === true).catch(failed);
+        signal?.throwIfAborted();
+        if ("drawable" in found) {
+            return found;
+        }
+
+        const { record, standIn } = found;
+        // A model waiting by address has no digest yet: its provisional id names it.
+        const key = JSON.stringify([
+            record.digest === "" ? record.id : record.digest,
+            standIn === undefined ? "model" : "model-stand-in",
+            standIn?.skipped ?? [],
+        ]);
+        let check = this.#modelChecks.get(key);
+        if (check === undefined) {
+            check = this.#thumbnailQueue.then(async () => {
+                try {
+                    (await this.#modelTemplate(this.scene, ref, record, standIn, {})).dispose();
+                    return { drawable: true };
+                } catch (error) {
+                    return failed(error);
+                }
+            });
+            this.#thumbnailQueue = check.catch(() => undefined);
+            this.#modelChecks.set(key, check);
+            // Only a success belongs to the digest: a failure can come from the record leaving the
+            // assets mid-check (E_MODEL_UNKNOWN_ASSET), and the same files added again must be checked anew.
+            const settled = check;
+            settled.then(
+                (result) => {
+                    if (result.drawable !== true && this.#modelChecks.get(key) === settled) {
+                        this.#modelChecks.delete(key);
+                    }
+                },
+                () => {
+                    if (this.#modelChecks.get(key) === settled) {
+                        this.#modelChecks.delete(key);
+                    }
+                },
+            );
+        }
+
+        const result = await check;
+        signal?.throwIfAborted();
+        return result;
     }
 
     /**
@@ -8032,46 +8303,51 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Capture an animation as a video (stationary or animated camera)
-     * @param options - Animation capture options
-     * @returns Promise resolving to AnimationResult with blob and metadata
+     * Record a video: a still recording, or a tour.
+     *
+     * A still recording lasts `duration` and records from `camera` (or the camera as it is). A tour
+     * recording (`tour`: a saved tour's name, a tour, or stops, as `playTour` takes) opens on the
+     * first stop, flies the tour and lasts as long as it does unless `duration` is given, then puts
+     * the camera back. With `motion: "authored"` each flight is recorded as authored even under
+     * reduced motion. `animation-progress` reports 0 to 100 as it records; a tour also fires
+     * `tour-progress` at each stop.
+     * @param options - What to record and how.
+     * @returns The video and what was recorded.
+     * @throws A `GraphtyError`: `E_BAD_COMMAND` `{ reason: "conflict", options }` for `tour` with
+     *     `cameraPath`, or either with `cameraMode: "stationary"`; `{ reason: "missing-option",
+     *     option }` for a still recording (or the `string[]` tour form) without `duration`, or
+     *     `cameraMode: "animated"` without a tour; `{ reason: "no-stops" }` for an empty tour; the
+     *     problem `planTour` reports for a tour that cannot be played; `E_UNSUPPORTED`
+     *     `{ reason: "xr", mode }` while immersive; `E_CANCELED` (an `AnimationCancelledError`) when
+     *     canceled; `E_CAPTURE_FAILED` `{ media: "video", reason }` when the tab is hidden
+     *     (`"hidden"`), the canvas changes size (`"resized"`), or the tour ends early
+     *     (`"interrupted"`, `"replaced"`, `"mode-changed"`).
      * @example
      * ```typescript
-     * // Basic 5-second video at 30fps
-     * const result = await graph.captureAnimation({
-     *   duration: 5000,
-     *   fps: 30,
-     *   cameraMode: 'stationary'
-     * });
+     * // A 5-second still video
+     * const still = await graph.captureAnimation({ duration: 5000 });
      *
-     * // High-quality 60fps video with download
-     * const result = await graph.captureAnimation({
-     *   duration: 10000,
-     *   fps: 60,
-     *   cameraMode: 'stationary',
-     *   download: true,
-     *   downloadFilename: 'graph-video.webm'
-     * });
+     * // A saved tour, as long as the tour, saved as a file
+     * const tour = await graph.captureAnimation({ tour: "intro", destination: { download: true } });
      *
-     * // Animated camera path (camera tour)
-     * const result = await graph.captureAnimation({
-     *   duration: 5000,
-     *   fps: 30,
-     *   cameraMode: 'animated',
-     *   cameraPath: [
-     *     { position: { x: 10, y: 10, z: 10 }, target: { x: 0, y: 0, z: 0 } },
-     *     { position: { x: 0, y: 20, z: 0 }, target: { x: 0, y: 0, z: 0 }, duration: 2500 },
-     *     { position: { x: -10, y: 10, z: 10 }, target: { x: 0, y: 0, z: 0 }, duration: 2500 }
-     *   ],
-     *   easing: 'easeInOut',
-     *   download: true
+     * // Stops given inline: a stop's duration is its flight there
+     * const inline = await graph.captureAnimation({
+     *   tour: [{ view: "fitToGraph", hold: 1000 }, { view: "topView", duration: 1500, hold: 1000 }],
      * });
      * ```
      */
     async captureAnimation(
         options: import("./video/VideoCapture.js").AnimationOptions,
     ): Promise<import("./video/VideoCapture.js").AnimationResult> {
-        const { MediaRecorderCapture, holdCameraForCapture } = await import("./video/MediaRecorderCapture.js");
+        const tourInput = recordingTour(options);
+        const immersive = this.#immersiveProblem();
+        if (immersive !== null) {
+            throw cameraRefusal(immersive);
+        }
+        const flown = tourInput === null ? undefined : this.#checkedTour(tourInput);
+
+        const { AnimationCancelledError, MediaRecorderCapture, holdCameraForCapture } =
+            await import("./video/MediaRecorderCapture.js");
 
         // A frame reaches the recorder once the engine has ended it: WebGPU submits the frame's
         // work only in endFrame(), so a copy made from the scene's after-render would read a canvas
@@ -8093,8 +8369,17 @@ export class Graph implements GraphContext {
             };
         });
 
+        const { signal } = options;
+        if (signal?.aborted === true) {
+            throw new AnimationCancelledError();
+        }
+
         // Store reference for cancellation
         this.activeCapture = capture;
+        const onAbort = (): void => {
+            this.cancelAnimationCapture();
+        };
+        signal?.addEventListener("abort", onAbort, { once: true });
 
         // Set up progress event handler
         const onProgress = (progress: number): void => {
@@ -8106,149 +8391,364 @@ export class Graph implements GraphContext {
         const releaseFrames = animatesEveryFrame(this.scene);
 
         try {
-            // Handle animated camera mode
-            if (options.cameraMode === "animated") {
-                return await this.captureAnimatedCameraVideo(options, capture, onProgress);
-            }
-
-            // Capture stationary video, from the camera asked for
-            const restoreCamera = options.camera ? await holdCameraForCapture(this, options.camera) : undefined;
             let result: import("./video/VideoCapture.js").AnimationResult;
-            try {
-                result = await capture.captureRealtime(this.canvas, options, onProgress);
-            } finally {
-                await restoreCamera?.();
+            if (flown !== undefined) {
+                result = await this.#recordTour(options, flown, capture, onProgress);
+            } else {
+                // A still recording, from the camera asked for
+                const restoreCamera = options.camera ? await holdCameraForCapture(this, options.camera) : undefined;
+                try {
+                    result = await capture.captureRealtime(this.canvas, options, onProgress);
+                } finally {
+                    await restoreCamera?.();
+                }
             }
 
-            // Handle download if requested
             this.handleVideoDownload(result, options);
-
             return result;
         } finally {
             releaseFrames();
+            signal?.removeEventListener("abort", onAbort);
             // Clear reference when done
-            this.activeCapture = null;
+            if (this.activeCapture === capture) {
+                this.activeCapture = null;
+            }
         }
     }
 
     /**
-     * Capture video with animated camera path
-     * @param options - Animation configuration options
-     * @param capture - Media recorder capture instance
-     * @param onProgress - Progress callback function
-     * @returns Promise resolving to animation result with video blob
+     * Record a tour: stop 0 put in place before the recorder starts, the tour flown from the
+     * recorder's first data, and the camera put back afterwards. Without `duration` the recording
+     * ends with the tour and its progress follows the tour's frame clock; a tour ending early
+     * fails the recording.
+     * @param options - The recording's options.
+     * @param flown - The checked tour.
+     * @param capture - The recorder.
+     * @param onProgress - Reports progress, 0 to 100.
+     * @returns The recording.
      */
-    private async captureAnimatedCameraVideo(
+    async #recordTour(
         options: import("./video/VideoCapture.js").AnimationOptions,
+        flown: FlownTour,
         capture: import("./video/MediaRecorderCapture.js").MediaRecorderCapture,
         onProgress: (progress: number) => void,
     ): Promise<import("./video/VideoCapture.js").AnimationResult> {
-        // Every path, and a `tour` of names, is flown with the element's own camera moves
-        // (setCameraState), so each stop lands where setCameraState puts it, in 2D and in 3D.
-        // A tour of names jumps to the first view and splits the duration evenly between the legs.
-        const names = options.tour;
-        const leg = names && names.length > 1 ? options.duration / (names.length - 1) : 0;
-        const path = names
-            ? names.map((view, index) => ({ view, duration: index === 0 ? 0 : leg }))
-            : options.cameraPath;
-        const isTour = !names && path?.some((stop) => "view" in stop || stop.hold !== undefined);
-        if (!path || (path.length < 2 && !isTour)) {
-            throw new Error("Animated camera mode requires at least 2 waypoints in cameraPath");
+        const before = this.getCameraState();
+        const handle = this.#beginTour(flown.name, flown.states.length);
+        handle.onEnd = (reason) => {
+            // A cancel that ends the tour (cancelCameraAnimation) is announced as any other.
+            if (reason !== "finished" && capture.fail(reason) && reason === "cancelled") {
+                this.eventManager.emit("animation-canceled", {});
+                this.eventManager.emit("animation-cancelled", {});
+            }
+        };
+        const timed = options.duration !== undefined;
+        const easing = options.easing ?? flown.easing ?? "easeInOut";
+        let tourFinished = false;
+        let flight: Promise<void> | undefined;
+        let stopClock = (): void => undefined;
+
+        // The first frames show stop 0 when it is reached with no flight (a pause shows the camera as it is).
+        const first = flown.states[0];
+        if (first !== null && flown.plan.stops[0]?.duration === 0) {
+            await this.#applyTourCamera(first, 0);
         }
-        return this.captureTourVideo(options, path, capture, onProgress);
+
+        try {
+            return await capture.captureRealtime(this.canvas, options, timed ? onProgress : undefined, {
+                lengthMs: flown.plan.totalMs,
+                onStart: () => {
+                    if (!timed) {
+                        stopClock = this.#tourClock(flown.plan.totalMs, onProgress);
+                    }
+                    flight = this.#flyTour(handle, flown, easing, options.motion === "authored").then(() => {
+                        if (handle.ended) {
+                            return;
+                        }
+                        tourFinished = true;
+                        // The whole tour is recorded: a press or camera move in a longer
+                        // duration's trailing hold ends the hold, never the recording.
+                        handle.onEnd = undefined;
+                        if (!timed) {
+                            stopClock();
+                            onProgress(100);
+                            capture.stop();
+                        }
+                    });
+                },
+            });
+        } finally {
+            stopClock();
+            handle.onEnd = undefined;
+            // The camera goes back, unless the reader, another camera move or a mode switch took it,
+            // or the graph is gone.
+            const { reason } = handle;
+            if (
+                reason !== "interrupted" &&
+                reason !== "replaced" &&
+                reason !== "mode-changed" &&
+                !this.#teardown.signal.aborted
+            ) {
+                await this.#applyTourCamera(before, 0);
+                // Placing the camera marks it placed and stops the element's framing: a tour that
+                // has already ended (cancelCameraAnimation) put those back before, so again now.
+                if (handle.ended) {
+                    handle.restore();
+                }
+            }
+            // A recording that ended before its tour (a shorter duration, a failure) cancels it.
+            this.#finishTour(handle, tourFinished ? "finished" : "cancelled");
+            await flight;
+        }
     }
 
     /**
-     * Record a tour: the stops flown with the element's own camera moves while the recording runs,
-     * and the tour stopped when the recording ends.
-     * @param options - Animation configuration options
-     * @param path - The tour's stops
-     * @param capture - Media recorder capture instance
-     * @param onProgress - Progress callback function
-     * @returns The recording
+     * Report a recorded tour's progress from the frames drawn, the clock its holds count in: up to
+     * 99 while it plays, so 100 comes only when the tour has finished.
+     * @param totalMs - The tour's planned length.
+     * @param onProgress - Reports progress.
+     * @returns Stops reporting.
      */
-    private async captureTourVideo(
-        options: import("./video/VideoCapture.js").AnimationOptions,
-        path: readonly (
-            import("./video/VideoCapture.js").CameraWaypoint | import("./video/VideoCapture.js").ViewWaypoint
-        )[],
-        capture: import("./video/MediaRecorderCapture.js").MediaRecorderCapture,
-        onProgress: (progress: number) => void,
-    ): Promise<import("./video/VideoCapture.js").AnimationResult> {
-        const stops = this.resolveTour(path);
-        const tour = this.beginTour();
-        const recording = capture.captureRealtime(this.canvas, options, onProgress).finally(() => {
-            if (this.#tour === tour) {
-                this.cancelCameraAnimation();
+    #tourClock(totalMs: number, onProgress: (progress: number) => void): () => void {
+        let elapsed = 0;
+        let last = -1;
+        const observer = this.scene.onAfterRenderObservable.add(() => {
+            elapsed += this.engine.getDeltaTime();
+            const progress = totalMs > 0 ? Math.min(99, Math.floor((elapsed / totalMs) * 100)) : 99;
+            if (progress !== last) {
+                last = progress;
+                onProgress(progress);
             }
         });
-        const [result] = await Promise.all([recording, this.flyTour(stops, options.easing, tour)]);
-        this.handleVideoDownload(result, options);
-        return result;
+        return () => {
+            this.scene.onAfterRenderObservable.remove(observer);
+        };
     }
 
     /**
-     * Each stop of a tour as the camera state it flies to, checked before anything moves.
-     * @param path - The stops.
-     * @returns The camera state, flight and hold of each stop.
-     * @throws A `GraphtyError` with `E_UNKNOWN_CAMERA` for a view name nothing answers to, or
-     * `E_UNSUPPORTED` for a stop with nothing the current drawing mode can use.
+     * Check and time a tour, moving nothing: each stop's flight, hold and start time, and why it
+     * cannot be played now, if it cannot. `playTour` and a recording refuse with the same coded
+     * problem the plan reports, so a caller that only plays needs no plan; an editor showing
+     * lengths and broken stops plans on every `views-changed`.
+     * @param tour - A saved tour's name (`session.tours`), a tour, or stops given inline.
+     * @returns The plan: `totalMs`, `playable`, each stop's times and problem, and the tour's own
+     *     problem.
+     * @since 3.58.0
      */
-    private resolveTour(
-        path: readonly (
-            import("./video/VideoCapture.js").CameraWaypoint | import("./video/VideoCapture.js").ViewWaypoint
-        )[],
-    ): { state: import("./screenshot/types.js").CameraState; duration: number; hold: number }[] {
-        const flat = this.getViewMode() === "2d";
-        return path.map((stop, index) => {
-            const view = "view" in stop ? stop.view : { position: stop.position, target: stop.target };
-            const state = orbitAnglesToPosition(typeof view === "string" ? this.resolveCameraPreset(view) : view);
-            if (flat ? state.zoom === undefined && !state.pan : !state.position || !state.target) {
-                throw new GraphtyError({
-                    code: "E_UNSUPPORTED",
-                    message: `tour stop ${index} has no ${flat ? "2D zoom or pan" : "camera position and target"} to fly to`,
-                    source: "view",
-                    details: { stop: index, ...(typeof view === "string" ? { view } : {}), mode: flat ? "2d" : "3d" },
-                });
-            }
-            return { state, duration: Math.max(0, stop.duration ?? 0), hold: Math.max(0, stop.hold ?? 0) };
-        });
+    planTour(tour: TourInput): TourPlan {
+        return planTourStops(tour, this.#tourContext()).plan;
     }
 
     /**
-     * Make a new tour the one playing, ending any tour or camera move under way.
+     * What the planner reads now: the view mode, the saved tours, and how a view name is judged.
+     * @returns The context.
+     */
+    #tourContext(): TourPlanContext {
+        return {
+            mode: this.#immersiveProblem()?.mode ?? this.dimension(),
+            tours: this.session.tours,
+            judge: (name) => this.viewProblem(name),
+        };
+    }
+
+    /**
+     * A tour checked and resolved: the camera state each stop flies to, with its plan.
+     * @param input - The tour.
+     * @returns The tour's name, easing, plan and states.
+     * @throws A `GraphtyError` with the first problem the plan reports.
+     */
+    #checkedTour(input: TourInput): FlownTour {
+        const { tour, plan } = planTourStops(input, this.#tourContext());
+        const problem = plan.problem ?? plan.stops.find((stop) => stop.problem !== null)?.problem ?? null;
+        if (tour === null || problem !== null) {
+            throw tourRefusal(problem ?? { code: "E_BAD_COMMAND", params: { reason: "no-stops" } });
+        }
+
+        const states = tour.stops.map((stop) => {
+            if (isTourPause(stop)) {
+                return null;
+            }
+            const target = stopTarget(stop);
+            return orbitAnglesToPosition(typeof target === "string" ? this.resolveCameraPreset(target) : target);
+        });
+        const views = tour.stops.map((stop) => {
+            const target = isTourPause(stop) ? undefined : stopTarget(stop);
+            return typeof target === "string" ? target : undefined;
+        });
+        return { name: tour.name, easing: tour.easing, plan, states, views };
+    }
+
+    /**
+     * Make a new tour the one playing, ending any tour playing now as replaced. While it plays,
+     * auto-rotate and the glide to the selection wait, and a press on the canvas ends it.
+     * @param name - The saved tour's name, or null for one given inline.
+     * @param stops - How many stops it has.
      * @returns The tour's handle.
      */
-    private beginTour(): TourHandle {
-        this.cancelCameraAnimation();
-        const tour = { ended: false };
+    #beginTour(name: string | null, stops: number): TourHandle {
+        this.#endTour("replaced");
+        this.operationQueue.cancelByCategory("camera-update");
+        const onPress = (): void => {
+            this.#finishTour(tour, "interrupted");
+        };
+        const restorePlacement = this.saveCameraPlacement();
+        const restoreFraming = this.updateManager.saveFraming();
+        const tour: TourHandle = {
+            name,
+            stops,
+            ended: false,
+            reason: undefined,
+            wake: undefined,
+            onEnd: undefined,
+            restore: () => {
+                restoreFraming();
+                restorePlacement();
+            },
+            release: () => {
+                this.canvas.removeEventListener("pointerdown", onPress);
+                this.updateManager.cameraHeld = false;
+            },
+        };
+        this.canvas.addEventListener("pointerdown", onPress);
+        this.updateManager.cameraHeld = true;
         this.#tour = tour;
         return tour;
     }
 
     /**
-     * Fly a tour's stops in order, holding at each, until the last or until the tour is ended.
-     * @param stops - The resolved stops.
-     * @param easing - The easing of each flight.
-     * @param tour - The tour's handle, from `beginTour`.
+     * End a tour, once: let go of the camera, put the framing back unless the reader's own move
+     * ended it, say why, and wake the flight or hold it waits on.
+     * @param tour - The tour.
+     * @param reason - Why it ended.
      */
-    private async flyTour(
-        stops: readonly { state: import("./screenshot/types.js").CameraState; duration: number; hold: number }[],
-        easing: import("./screenshot/types.js").CameraAnimationOptions["easing"],
-        tour: TourHandle,
+    #finishTour(tour: TourHandle, reason: TourEndReason): void {
+        if (tour.ended) {
+            return;
+        }
+
+        tour.ended = true;
+        tour.reason = reason;
+        if (this.#tour === tour) {
+            this.#tour = undefined;
+        }
+
+        tour.release();
+        // A flight under way stops where it is.
+        this.operationQueue.cancelByCategory("camera-update");
+        // The reader's move stands as outside a tour: placed, and the element's framing stopped.
+        if (reason !== "interrupted") {
+            tour.restore();
+        }
+
+        this.eventManager.emit("tour-ended", { tour: tour.name, reason } satisfies Omit<TourEndedEvent, "type">);
+        tour.onEnd?.(reason);
+        tour.wake?.();
+    }
+
+    /**
+     * End the tour playing now, if any.
+     * @param reason - Why it ended.
+     * @returns True when a tour was playing.
+     */
+    #endTour(reason: TourEndReason): boolean {
+        const tour = this.#tour;
+        if (tour === undefined) {
+            return false;
+        }
+
+        this.#finishTour(tour, reason);
+        return true;
+    }
+
+    /**
+     * End a playing tour as replaced, for a capture about to move the camera: before the capture
+     * reads the framing and placement it puts back, so it puts back the pre-tour ones.
+     * @internal
+     */
+    replaceTour(): void {
+        this.#endTour("replaced");
+    }
+
+    /**
+     * Put the camera back at once after a capture, without ending a tour: not a camera API call.
+     * @param state - Where the camera goes.
+     * @returns Settles once the camera is placed.
+     * @internal
+     */
+    applyCaptureCamera(state: import("./screenshot/types.js").CameraState): Promise<void> {
+        return this.#applyTourCamera(state, 0);
+    }
+
+    /**
+     * Place the camera for a tour: the flight time as given, never the view's own transition
+     * time, and no camera API call, so the tour does not end itself.
+     * @param state - Where the camera goes.
+     * @param ms - The flight; 0 jumps.
+     * @param easing - The flight's easing.
+     * @returns Settles once the camera has arrived, or the flight was canceled.
+     */
+    #applyTourCamera(
+        state: import("./screenshot/types.js").CameraState,
+        ms: number,
+        easing: EasingName = "easeInOut",
     ): Promise<void> {
-        try {
-            for (const { state, duration, hold } of stops) {
-                if (tour.ended) {
-                    return;
-                }
-                await this.setCameraState(state, { animate: duration > 0, duration, easing: easing ?? "easeInOut" });
+        return this.#placeCamera(state, ms > 0 ? { animate: true, duration: ms, easing } : undefined, true);
+    }
+
+    /**
+     * Fly a tour's stops in order, holding at each, until the last hold ends or the tour is ended.
+     * The caller finishes a tour that was not ended.
+     * Under reduced motion a flight is a cut at its start, held for the flight's time, so the tour
+     * lasts its planned length either way.
+     * @param tour - The tour's handle, from `#beginTour`.
+     * @param flown - The resolved stops and their plan.
+     * @param easing - The easing of each flight.
+     * @param authored - Fly each flight as authored even under reduced motion (a recording's
+     *     `motion: "authored"`).
+     */
+    async #flyTour(tour: TourHandle, flown: FlownTour, easing: EasingName, authored = false): Promise<void> {
+        const progress = (stop: number, phase: TourProgressEvent["phase"]): void => {
+            const view = flown.views[stop];
+            this.eventManager.emit("tour-progress", {
+                tour: tour.name,
+                stop,
+                stops: tour.stops,
+                ...(view === undefined ? {} : { view }),
+                phase,
+            } satisfies Omit<TourProgressEvent, "type">);
+        };
+
+        for (const [index, state] of flown.states.entries()) {
+            const { duration, hold } = flown.plan.stops[index];
+            if (tour.ended) {
+                return;
+            }
+
+            if (state === null) {
+                // A pause waits where the camera is.
+                progress(index, "pause");
                 await this.holdTourStop(hold, tour);
+                continue;
             }
-        } finally {
-            if (this.#tour === tour) {
-                this.#tour = undefined;
+
+            if (duration > 0) {
+                progress(index, "flight");
+                if (!authored && this.#motionReduced()) {
+                    await this.#applyTourCamera(state, 0);
+                    await this.holdTourStop(duration, tour);
+                } else {
+                    await this.#applyTourCamera(state, duration, easing);
+                }
+            } else {
+                await this.#applyTourCamera(state, 0);
             }
+
+            if (tour.ended) {
+                return;
+            }
+
+            progress(index, "hold");
+            await this.holdTourStop(hold, tour);
         }
     }
 
@@ -8264,49 +8764,91 @@ export class Graph implements GraphContext {
         }
         return new Promise((resolve) => {
             let held = 0;
+            const done = (): void => {
+                this.scene.onAfterRenderObservable.remove(observer);
+                tour.wake = undefined;
+                resolve();
+            };
             const observer = this.scene.onAfterRenderObservable.add(() => {
                 held += this.engine.getDeltaTime();
-                if (held >= ms || tour.ended) {
-                    this.scene.onAfterRenderObservable.remove(observer);
-                    resolve();
+                if (held >= ms) {
+                    done();
                 }
             });
+            tour.wake = done;
         });
     }
 
     /**
-     * Play a camera tour: fly to each stop in turn and hold there, in 2D or in 3D. A stop names a
-     * view (a camera view or one saved in `session.views`), gives a camera state, or gives a 3D
-     * `position` and `target`. Every stop is checked before the camera moves. The camera's
-     * transition time (`setCameraTransitionDuration`), when set, replaces each flight's duration.
-     * `cancelCameraAnimation` ends the tour where it is; a new tour or a capture's tour replaces it.
-     * @param path - The stops, in order.
+     * Play a camera tour: fly to each stop in turn and hold there, in 2D or in 3D. A tour is a
+     * saved tour's name (`session.tours`), a tour, or stops given inline; a stop names a view (a
+     * camera view or one saved in `session.views`), gives a camera state, gives a 3D
+     * `position` and `target`, or is a pause (`{ pause }`, ms) that waits where the camera is.
+     * Every stop is checked before the camera moves, as `planTour`
+     * checks it. A stop's `duration` is the flight to it, taken as given; under reduced motion a
+     * flight is a cut held for the flight's time. Auto-rotate and the glide to the selection wait
+     * while it plays.
+     *
+     * It ends `"finished"` after the last hold, `"cancelled"` on `signal` or
+     * `cancelCameraAnimation()`, `"interrupted"` when the reader moves the camera or presses the
+     * canvas, `"replaced"` when another tour, a recording, `setCameraState`, `applyCameraView`, the
+     * `view.camera` op or a screenshot with a `camera` moves the camera, and `"mode-changed"`
+     * when the drawing mode switches. `tour-progress` marks each stop and phase, `tour-ended`
+     * says how it ended. The element's own framing comes back as it was before the tour, except
+     * after `"interrupted"`, where the reader's move stands.
+     * @param tour - A saved tour's name, a tour, or stops.
      * @param options - How to fly.
-     * @param options.easing - The easing of each flight. Default `"easeInOut"`.
-     * @returns Settles when the last stop's hold is over, or the tour is ended.
-     * @throws A `GraphtyError` with `E_UNKNOWN_CAMERA` for a view name nothing answers to, or
-     * `E_UNSUPPORTED` for a stop with nothing the current drawing mode can use.
+     * @param options.easing - The easing of each flight; wins over the tour's own. Default `"easeInOut"`.
+     * @param options.restoreCamera - Put the camera back where it was when the tour finishes
+     *     (only on `"finished"`). Default false.
+     * @param options.signal - Ends the tour as `"cancelled"` when it aborts.
+     * @returns How the tour ended; it resolves however it ends.
+     * @throws A `GraphtyError` with the problem `planTour` reports: `E_BAD_COMMAND`
+     *     `{ missing, available }` for a tour name nothing is saved under, `{ reason: "no-stops" }`
+     *     for no stops, `E_UNKNOWN_CAMERA` `{ name, available, stop }`, `E_UNSUPPORTED`
+     *     `{ reason: "mode", ... }` or `{ reason: "xr", mode }`, or `E_OPTION_RANGE`
+     *     `{ option, stop }`.
      * @example
      * ```typescript
-     * await graph.playTour([
+     * await graph.session.tours.save([{ name: "intro", tour: { stops: [
      *     { view: "overview", hold: 2000 },
      *     { view: "cluster-a", duration: 1500, hold: 3000 },
-     * ]);
+     * ] } }]);
+     * const { reason } = await graph.playTour("intro", { restoreCamera: true });
      * ```
      */
     async playTour(
-        path: readonly (
-            import("./video/VideoCapture.js").CameraWaypoint | import("./video/VideoCapture.js").ViewWaypoint
-        )[],
-        options?: { easing?: import("./screenshot/types.js").CameraAnimationOptions["easing"] },
-    ): Promise<void> {
-        const stops = this.resolveTour(path);
+        tour: TourInput,
+        options?: { easing?: EasingName; restoreCamera?: boolean; signal?: AbortSignal },
+    ): Promise<{ /** How the tour ended. */ reason: TourEndReason }> {
+        const flown = this.#checkedTour(tour);
+        const { signal } = options ?? {};
+        if (signal?.aborted === true) {
+            return { reason: "cancelled" };
+        }
+
+        const before = options?.restoreCamera === true ? this.getCameraState() : undefined;
+        const handle = this.#beginTour(flown.name, flown.states.length);
+        const onAbort = (): void => {
+            this.#finishTour(handle, "cancelled");
+        };
+        signal?.addEventListener("abort", onAbort, { once: true });
         const releaseFrames = animatesEveryFrame(this.scene);
         try {
-            await this.flyTour(stops, options?.easing, this.beginTour());
+            await this.#flyTour(handle, flown, options?.easing ?? flown.easing ?? "easeInOut");
         } finally {
             releaseFrames();
+            signal?.removeEventListener("abort", onAbort);
         }
+
+        if (!handle.ended) {
+            // Put back before the tour is finished, which puts back the framing the camera had.
+            if (before !== undefined) {
+                await this.#applyTourCamera(before, 0);
+            }
+            this.#finishTour(handle, "finished");
+        }
+        return { reason: handle.reason ?? "finished" };
     }
 
     /**
@@ -8318,8 +8860,14 @@ export class Graph implements GraphContext {
         result: import("./video/VideoCapture.js").AnimationResult,
         options: import("./video/VideoCapture.js").AnimationOptions,
     ): void {
-        if (options.download) {
-            let filename = options.downloadFilename ?? `animation-${Date.now()}.webm`;
+        const destination = options.destination ?? {
+            // eslint-disable-next-line @typescript-eslint/no-deprecated -- the older spelling is still honored
+            download: options.download,
+            // eslint-disable-next-line @typescript-eslint/no-deprecated -- the older spelling is still honored
+            filename: options.downloadFilename,
+        };
+        if (destination.download === true) {
+            let filename = destination.filename ?? `animation-${Date.now()}.webm`;
 
             // Auto-fix extension based on actual format when using auto-detect
             if (!options.format || options.format === "auto") {
@@ -8354,11 +8902,11 @@ export class Graph implements GraphContext {
      *   console.log('Cancelled:', wasCancelled);
      * }, 2000);
      *
-     * // The promise will reject with AnimationCancelledError
+     * // The promise will reject with E_CANCELED (an AnimationCancelledError)
      * try {
      *   await capturePromise;
      * } catch (error) {
-     *   if (error.name === 'AnimationCancelledError') {
+     *   if (isGraphtyError(error) && error.code === 'E_CANCELED') {
      *     console.log('Capture was cancelled');
      *   }
      * }
@@ -8371,8 +8919,9 @@ export class Graph implements GraphContext {
 
         const cancelled = this.activeCapture.cancel();
 
-        // Emit cancellation event
+        // `animation-cancelled` is the deprecated British name, still sent until the next major.
         if (cancelled) {
+            this.eventManager.emit("animation-canceled", {});
             this.eventManager.emit("animation-cancelled", {});
         }
 
@@ -8409,12 +8958,8 @@ export class Graph implements GraphContext {
      * ```
      */
     cancelCameraAnimation(): boolean {
-        const tour = this.#tour;
-        if (tour) {
-            tour.ended = true;
-            this.#tour = undefined;
-        }
-        return this.operationQueue.cancelByCategory("camera-update") > 0 || tour !== undefined;
+        const moves = this.operationQueue.cancelByCategory("camera-update");
+        return this.#endTour("cancelled") || moves > 0;
     }
 
     /**
@@ -8426,17 +8971,15 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Estimate performance and potential issues for animation capture
-     * @param options - Animation options to estimate
+     * Estimate performance and potential issues for animation capture: the frames it expects,
+     * whether frames are likely to drop, and the file's approximate size. Absent `width` and
+     * `height` are the canvas's pixel size, as a recording takes them; an absent `duration` is the
+     * tour's planned length (`planTour(tour).totalMs`).
+     * @param options - The recording's length or tour, frame rate, size and bitrate.
      * @returns Promise resolving to CaptureEstimate
      * @example
      * ```typescript
-     * const estimate = await graph.estimateAnimationCapture({
-     *   duration: 5000,
-     *   fps: 60,
-     *   width: 3840,
-     *   height: 2160
-     * });
+     * const estimate = await graph.estimateAnimationCapture({ tour: "intro", fps: 60 });
      *
      * if (estimate.likelyToDropFrames) {
      *   console.warn(`May drop frames. Recommended: ${estimate.recommendedFps}fps`);
@@ -8444,10 +8987,20 @@ export class Graph implements GraphContext {
      * ```
      */
     async estimateAnimationCapture(
-        options: Pick<import("./video/VideoCapture.js").AnimationOptions, "duration" | "fps" | "width" | "height">,
+        options: Pick<
+            import("./video/VideoCapture.js").AnimationOptions,
+            "duration" | "fps" | "width" | "height" | "videoBitrate" | "tour"
+        >,
     ): Promise<import("./video/estimation.js").CaptureEstimate> {
-        const { estimateAnimationCapture } = await import("./video/estimation.js");
-        return estimateAnimationCapture(options);
+        const { estimateAnimationCapture, outputSize } = await import("./video/estimation.js");
+        const { tour } = options;
+        const duration = options.duration ?? (tour === undefined || isNameList(tour) ? 0 : this.planTour(tour).totalMs);
+        return estimateAnimationCapture({
+            ...outputSize(this.canvas, options),
+            duration,
+            fps: options.fps,
+            videoBitrate: options.videoBitrate,
+        });
     }
 
     /**
@@ -8508,6 +9061,8 @@ export class Graph implements GraphContext {
             }
 
             state.cameraDistance = orbitController.cameraDistance;
+            state.fov = orbitController.camera.fov;
+            state.mode = "3d";
         } else if (controller instanceof TwoDCameraController) {
             // TwoDCameraController - get zoom and pan
             const twoDController = controller;
@@ -8524,6 +9079,7 @@ export class Graph implements GraphContext {
                 y: twoDController.camera.position.y,
             };
             state.rotation = controller.rotation;
+            state.mode = "2d";
         } else if ("position" in camera) {
             // Fallback for other camera types
             state.position = {
@@ -8546,21 +9102,68 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Set the camera state (Phase 4: with animation support)
+     * Put the camera in a state, or at a named view.
+     *
+     * The state must fit the drawing mode: one with a `mode` applies only in that mode, and one
+     * without applies in each mode it holds a member of (2D reads `zoom`, `pan` and `rotation`; 3D
+     * reads `position`, `target`, `alpha`, `beta`, `radius`, `pivotRotation`, `cameraDistance` and
+     * `fov`). `{}` fits both and changes nothing. A named view resolves first and is judged as the
+     * state it resolves to.
      * @param state - Camera state or preset name to apply
      * @param options - Optional animation configuration
+     * @returns Settles once the camera has arrived.
+     * @throws A `GraphtyError` with `E_UNSUPPORTED` `{ reason: "mode", name?, modes, mode }` for a
+     *     state that does not fit the drawing mode, or `{ reason: "xr", mode }` while immersive.
      */
     async setCameraState(
         state: import("./screenshot/types.js").CameraState | { preset: string },
         options?: import("./screenshot/types.js").CameraAnimationOptions,
+    ): Promise<void> {
+        const immersive = this.#immersiveProblem();
+        if (immersive !== null) {
+            throw cameraRefusal(immersive);
+        }
+
+        const name = "preset" in state ? state.preset : undefined;
+        const resolved = "preset" in state ? this.resolveCameraPreset(state.preset) : state;
+        const problem = stateProblem(resolved, this.dimension(), name === undefined ? {} : { name });
+        if (problem !== null) {
+            throw cameraRefusal(problem);
+        }
+
+        // An outside move of the camera replaces a tour playing.
+        this.#endTour("replaced");
+        return this.#placeCamera(resolved, options);
+    }
+
+    /**
+     * Why no camera can be placed now: the element is drawing into a headset or a phone's AR view.
+     * @returns The refusal's params, or null when the camera can be placed.
+     */
+    #immersiveProblem(): { reason: "xr"; mode: "ar" | "vr" } | null {
+        const mode = this.getViewMode();
+        return mode === "ar" || mode === "vr" ? { reason: "xr", mode } : null;
+    }
+
+    /**
+     * Place the camera with no check of the drawing mode: for states the element built for the
+     * mode it is in (a reset, a zoom step, a pan, a tour stop already judged).
+     * @param state - The camera state.
+     * @param options - Optional animation configuration.
+     * @param ownTime - Take the move's duration as given, not the view's own transition time
+     *     (a tour's flight).
+     */
+    async #placeCamera(
+        state: import("./screenshot/types.js").CameraState,
+        options?: import("./screenshot/types.js").CameraAnimationOptions,
+        ownTime = false,
     ): Promise<void> {
         const camera = this.scene.activeCamera;
         if (!camera) {
             return;
         }
 
-        // Resolve preset if needed
-        const resolvedState = orbitAnglesToPosition("preset" in state ? this.resolveCameraPreset(state.preset) : state);
+        const resolvedState = orbitAnglesToPosition(state);
 
         // An explicit placement of where the camera stands or how far it is answers any framing
         // the element still owes on its own initiative (a data load, a new layout, the first
@@ -8579,7 +9182,7 @@ export class Graph implements GraphContext {
 
         // The view's own transition time, when set, wins over the move's.
         const moveMs = this.#cameraMoveMs();
-        if (options !== undefined && moveMs !== undefined) {
+        if (options !== undefined && moveMs !== undefined && !ownTime) {
             options = { ...options, duration: moveMs };
         }
 
@@ -8651,12 +9254,17 @@ export class Graph implements GraphContext {
         // Get the active camera controller
         const controller = this.camera.getActiveController();
 
-        if (controller instanceof OrbitCameraController) {
-            this.applyOrbitCameraState(controller, state);
-        } else if (controller instanceof TwoDCameraController) {
-            this.applyTwoDCameraState(controller, state);
-        } else {
-            this.applyFallbackCameraState(camera, state);
+        this.#applyingCameraState = true;
+        try {
+            if (controller instanceof OrbitCameraController) {
+                this.applyOrbitCameraState(controller, state);
+            } else if (controller instanceof TwoDCameraController) {
+                this.applyTwoDCameraState(controller, state);
+            } else {
+                this.applyFallbackCameraState(camera, state);
+            }
+        } finally {
+            this.#applyingCameraState = false;
         }
     }
 
@@ -8674,35 +9282,11 @@ export class Graph implements GraphContext {
             orbitController.pivot.position.set(state.target.x, state.target.y, state.target.z);
         }
 
-        // Set pivot rotation if provided (for exact state restoration)
-        // Must use rotationQuaternion because PivotController initializes with quaternion
-        // In Babylon.js, when rotationQuaternion is set (not null), it takes precedence over Euler rotation
-        if (state.pivotRotation) {
-            // Convert Euler angles to quaternion
-            const quat = Quaternion.RotationYawPitchRoll(
-                state.pivotRotation.y, // yaw
-                state.pivotRotation.x, // pitch
-                state.pivotRotation.z, // roll
-            );
-            orbitController.pivot.rotationQuaternion = quat;
-        } else if (state.position && state.target) {
-            // Calculate pivot rotation from position and target
-            // Camera should look from position towards target
-            const direction = new Vector3(
-                state.position.x - state.target.x,
-                state.position.y - state.target.y,
-                state.position.z - state.target.z,
-            );
-            const distance = direction.length();
-
-            // Calculate rotation angles to orient pivot so camera looks at target
-            // Add π to yaw because OrbitController's camera points in the opposite direction
-            const yaw = Math.atan2(direction.x, direction.z) + Math.PI;
-            const pitch = Math.asin(direction.y / distance);
-
-            // Convert Euler angles to quaternion
-            const quat = Quaternion.RotationYawPitchRoll(yaw, pitch, 0);
-            orbitController.pivot.rotationQuaternion = quat;
+        // The pivot is always turned through its quaternion: Babylon's Euler `rotation` is zeroed
+        // whenever `rotationQuaternion` is set, so it never says where the camera points.
+        const orientation = orientationOf(state);
+        if (orientation) {
+            orbitController.pivot.rotationQuaternion = orientation;
         }
 
         // Set camera distance if provided, floored the way every orbit distance is
@@ -8714,6 +9298,10 @@ export class Graph implements GraphContext {
             const dy = state.position.y - state.target.y;
             const dz = state.position.z - state.target.z;
             orbitController.cameraDistance = orbitController.clampDistance(Math.hypot(dx, dy, dz));
+        }
+
+        if (state.fov !== undefined) {
+            orbitController.camera.fov = state.fov;
         }
 
         // Update the pivot's world matrix and camera position
@@ -8730,9 +9318,16 @@ export class Graph implements GraphContext {
         controller: TwoDCameraController,
         state: import("./screenshot/types.js").CameraState,
     ): void {
-        // Set zoom (ortho bounds)
+        // Set zoom (ortho bounds), then any edge the state names over it
         if (state.zoom !== undefined) {
             controller.updateOrtho(controller.config.initialOrthoSize / state.zoom);
+        }
+
+        for (const edge of ORTHO_EDGES) {
+            const value = state[edge];
+            if (value !== undefined) {
+                controller.camera[edge] = value;
+            }
         }
 
         if (state.rotation !== undefined) {
@@ -8754,6 +9349,10 @@ export class Graph implements GraphContext {
         // Fallback for other camera types
         if (state.position && "position" in camera) {
             camera.position.set(state.position.x, state.position.y, state.position.z);
+        }
+
+        if (state.fov !== undefined) {
+            camera.fov = state.fov;
         }
 
         const targeted = camera as Camera & { setTarget?: (target: Vector3) => void };
@@ -8886,8 +9485,11 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Animate OrbitCameraController to target state
-     * Handles pivot-based camera system with custom distance animation
+     * Fly the orbit camera to a state: the pivot's position, its orientation and the camera
+     * distance move together on the scene's animation clock and end on the state exactly.
+     * The orientation turns from where the pivot really points, as a quaternion along the shortest
+     * arc: a flight that read the Euler `rotation` started from the front view whenever the camera
+     * had been placed by a cut, since a quaternion write zeroes the Euler angles.
      * @param targetState - Target camera state to animate to
      * @param options - Animation configuration options
      * @param signal - Optional abort signal to cancel animation
@@ -8906,13 +9508,19 @@ export class Graph implements GraphContext {
         }
 
         const orbitController = controller;
+        const { pivot } = orbitController;
+
+        // The field of view is not animated: it is set at the start, so the move glides in the new lens.
+        if (targetState.fov !== undefined) {
+            orbitController.camera.fov = targetState.fov;
+        }
 
         const fps = 60;
         const duration = options.duration ?? 1000;
-        const frameCount = Math.floor(duration / (1000 / fps));
-        const animations: Animation[] = [];
+        const frameCount = Math.round((duration * fps) / 1000);
+        const motions: Promise<void>[] = [];
 
-        // Animation 1: Pivot Position (target)
+        // Pivot position (target)
         if (targetState.target) {
             const posAnim = new Animation(
                 "pivot_position",
@@ -8921,201 +9529,122 @@ export class Graph implements GraphContext {
                 Animation.ANIMATIONTYPE_VECTOR3,
                 Animation.ANIMATIONLOOPMODE_CONSTANT,
             );
-
             posAnim.setKeys([
-                {
-                    frame: 0,
-                    value: orbitController.pivot.position.clone(),
-                },
+                { frame: 0, value: pivot.position.clone() },
                 {
                     frame: frameCount,
                     value: new Vector3(targetState.target.x, targetState.target.y, targetState.target.z),
                 },
             ]);
-
             this.applyEasing(posAnim, options.easing);
-            animations.push(posAnim);
+            motions.push(this.#playDirect(pivot, posAnim, frameCount, signal));
         }
 
-        // Animation 2: Pivot Rotation (view direction)
-        if (targetState.pivotRotation) {
-            const rotAnim = new Animation(
-                "pivot_rotation",
-                "rotation",
+        // Pivot orientation (view direction), slerped from the real current orientation
+        const endOrientation = orientationOf(targetState);
+        if (endOrientation) {
+            const start = pivot.rotationQuaternion ?? Quaternion.FromEulerVector(pivot.rotation);
+            const turn = { value: 0 };
+            const turnAnim = new Animation(
+                "pivot_turn",
+                "value",
                 fps,
-                Animation.ANIMATIONTYPE_VECTOR3,
+                Animation.ANIMATIONTYPE_FLOAT,
                 Animation.ANIMATIONLOOPMODE_CONSTANT,
             );
-
-            rotAnim.setKeys([
-                {
-                    frame: 0,
-                    value: orbitController.pivot.rotation.clone(),
-                },
-                {
-                    frame: frameCount,
-                    value: new Vector3(
-                        targetState.pivotRotation.x,
-                        targetState.pivotRotation.y,
-                        targetState.pivotRotation.z,
-                    ),
-                },
+            turnAnim.setKeys([
+                { frame: 0, value: 0 },
+                { frame: frameCount, value: 1 },
             ]);
-
-            this.applyEasing(rotAnim, options.easing);
-            animations.push(rotAnim);
-        } else if (targetState.position && targetState.target) {
-            // Calculate pivot rotation from position and target
-            const direction = new Vector3(
-                targetState.position.x - targetState.target.x,
-                targetState.position.y - targetState.target.y,
-                targetState.position.z - targetState.target.z,
-            );
-            const distance = direction.length();
-            const yaw = Math.atan2(direction.x, direction.z) + Math.PI;
-            const pitch = Math.asin(direction.y / distance);
-
-            const rotAnim = new Animation(
-                "pivot_rotation",
-                "rotation",
-                fps,
-                Animation.ANIMATIONTYPE_VECTOR3,
-                Animation.ANIMATIONLOOPMODE_CONSTANT,
-            );
-
-            rotAnim.setKeys([
-                {
-                    frame: 0,
-                    value: orbitController.pivot.rotation.clone(),
+            this.applyEasing(turnAnim, options.easing);
+            // First of the frame's observers, like the distance's: the passes before the frame read
+            // the camera where this frame draws it from (issue #5562).
+            const observer = this.scene.onBeforeRenderObservable.add(
+                () => {
+                    pivot.rotationQuaternion = Quaternion.Slerp(start, endOrientation, turn.value);
+                    orbitController.updateCameraPosition();
                 },
-                {
-                    frame: frameCount,
-                    value: new Vector3(pitch, yaw, 0),
+                undefined,
+                true,
+            );
+            motions.push(
+                this.#playDirect(turn, turnAnim, frameCount, signal).finally(() => {
+                    this.scene.onBeforeRenderObservable.remove(observer);
+                }),
+            );
+        }
+
+        // Camera distance
+        const requestedDistance =
+            targetState.cameraDistance ??
+            (targetState.position && targetState.target
+                ? Math.hypot(
+                      targetState.position.x - targetState.target.x,
+                      targetState.position.y - targetState.target.y,
+                      targetState.position.z - targetState.target.z,
+                  )
+                : undefined);
+        if (requestedDistance !== undefined) {
+            motions.push(
+                this.animateCameraDistance(orbitController, requestedDistance, frameCount, fps, options.easing, signal),
+            );
+        }
+
+        if (motions.length === 0) {
+            return;
+        }
+
+        await Promise.all(motions);
+
+        // A canceled flight's target is not the camera's now.
+        if (signal?.aborted === true) {
+            return;
+        }
+
+        // End on the state exactly, once all three motions are over.
+        if (targetState.target) {
+            pivot.position.set(targetState.target.x, targetState.target.y, targetState.target.z);
+        }
+
+        if (endOrientation) {
+            pivot.rotationQuaternion = endOrientation;
+        }
+
+        pivot.computeWorldMatrix(true);
+        orbitController.updateCameraPosition();
+
+        this.eventManager.emit("camera-state-changed", {
+            state: targetState,
+        });
+    }
+
+    /**
+     * Play one animation on a target until it ends or `signal` aborts it.
+     * @param target - What the animation writes to.
+     * @param animation - The animation.
+     * @param frameCount - Its last frame.
+     * @param signal - Stops it where it stands.
+     * @returns Settles when it has ended or been stopped.
+     */
+    #playDirect(target: object, animation: Animation, frameCount: number, signal?: AbortSignal): Promise<void> {
+        return new Promise((resolve) => {
+            if (signal?.aborted === true) {
+                resolve();
+                return;
+            }
+
+            const animatable = this.scene.beginDirectAnimation(target, [animation], 0, frameCount, false, 1, () => {
+                resolve();
+            });
+            signal?.addEventListener(
+                "abort",
+                () => {
+                    animatable.stop();
+                    resolve();
                 },
-            ]);
-
-            this.applyEasing(rotAnim, options.easing);
-            animations.push(rotAnim);
-        }
-
-        // Animation 3: Camera Distance (custom property)
-        let distanceAnimation: Promise<void> | undefined;
-        if (targetState.cameraDistance !== undefined) {
-            distanceAnimation = this.animateCameraDistance(
-                orbitController,
-                targetState.cameraDistance,
-                frameCount,
-                fps,
-                options.easing,
-                signal,
+                { once: true },
             );
-        } else if (targetState.position && targetState.target) {
-            // Calculate distance from position to target
-            const dx = targetState.position.x - targetState.target.x;
-            const dy = targetState.position.y - targetState.target.y;
-            const dz = targetState.position.z - targetState.target.z;
-            const calculatedDistance = Math.hypot(dx, dy, dz);
-            distanceAnimation = this.animateCameraDistance(
-                orbitController,
-                calculatedDistance,
-                frameCount,
-                fps,
-                options.easing,
-                signal,
-            );
-        }
-
-        // Apply animations to pivot
-        if (animations.length > 0) {
-            orbitController.pivot.animations = animations;
-
-            await new Promise<void>((resolve) => {
-                let settled = false;
-
-                const safeSettle = (): void => {
-                    if (!settled) {
-                        settled = true;
-                        resolve();
-                    }
-                };
-
-                this.scene.beginAnimation(orbitController.pivot, 0, frameCount, false, 1, () => {
-                    // Wait for distance animation to complete
-                    const finalize = async (): Promise<void> => {
-                        if (distanceAnimation) {
-                            await distanceAnimation;
-                        }
-
-                        // Stopping a canceled animation raises this too; its target is not the camera's now.
-                        if (signal?.aborted === true) {
-                            safeSettle();
-                            return;
-                        }
-
-                        // Ensure final state is applied exactly
-                        if (targetState.target) {
-                            orbitController.pivot.position.set(
-                                targetState.target.x,
-                                targetState.target.y,
-                                targetState.target.z,
-                            );
-                        }
-
-                        if (targetState.pivotRotation) {
-                            orbitController.pivot.rotation.set(
-                                targetState.pivotRotation.x,
-                                targetState.pivotRotation.y,
-                                targetState.pivotRotation.z,
-                            );
-                        } else if (targetState.position && targetState.target) {
-                            const direction = new Vector3(
-                                targetState.position.x - targetState.target.x,
-                                targetState.position.y - targetState.target.y,
-                                targetState.position.z - targetState.target.z,
-                            );
-                            const distance = direction.length();
-                            const yaw = Math.atan2(direction.x, direction.z) + Math.PI;
-                            const pitch = Math.asin(direction.y / distance);
-                            orbitController.pivot.rotation.set(pitch, yaw, 0);
-                        }
-
-                        orbitController.pivot.computeWorldMatrix(true);
-                        orbitController.updateCameraPosition();
-
-                        // Emit completion event
-                        this.eventManager.emit("camera-state-changed", {
-                            state: targetState,
-                        });
-
-                        safeSettle();
-                    };
-
-                    void finalize();
-                });
-
-                // Handle cancellation via AbortSignal - just resolve (don't reject)
-                // to avoid unhandled promise rejections during cleanup
-                if (signal) {
-                    signal.addEventListener(
-                        "abort",
-                        () => {
-                            // Stop the animation
-                            this.scene.stopAnimation(orbitController.pivot);
-                            // Resolve instead of reject to prevent unhandled rejection during cleanup
-                            // The operation queue will handle the abort signal separately
-                            safeSettle();
-                        },
-                        { once: true },
-                    );
-                }
-            });
-        } else if (distanceAnimation) {
-            // Only distance animation
-            await distanceAnimation;
-            this.eventManager.emit("camera-state-changed", {
-                state: targetState,
-            });
-        }
+        });
     }
 
     /**
@@ -9136,16 +9665,11 @@ export class Graph implements GraphContext {
             return;
         }
 
-        // The turn is not animated: it is set at the start, so the pan and zoom glide in the turned view.
-        if (targetState.rotation !== undefined) {
-            controller.rotation = targetState.rotation;
-        }
-
         const twoDController = controller;
 
         const fps = 60;
         const duration = options.duration ?? 1000;
-        const frameCount = Math.floor(duration / (1000 / fps));
+        const frameCount = Math.round((duration * fps) / 1000);
 
         // Create dummy object to animate camera properties
         const dummy = {
@@ -9155,74 +9679,68 @@ export class Graph implements GraphContext {
             orthoRight: twoDController.camera.orthoRight ?? 1,
             orthoTop: twoDController.camera.orthoTop ?? 1,
             orthoBottom: twoDController.camera.orthoBottom ?? -1,
+            rotation: twoDController.rotation,
         };
 
         const animations: Animation[] = [];
 
-        // Animate zoom (ortho bounds)
+        // The turn glides on the same eased clock as the pan and zoom, the short way round.
+        if (targetState.rotation !== undefined) {
+            const delta = Math.atan2(
+                Math.sin(targetState.rotation - dummy.rotation),
+                Math.cos(targetState.rotation - dummy.rotation),
+            );
+            if (Math.abs(delta) > 1e-9) {
+                const rotationAnim = new Animation(
+                    "camera_rotation",
+                    "rotation",
+                    fps,
+                    Animation.ANIMATIONTYPE_FLOAT,
+                    Animation.ANIMATIONLOOPMODE_CONSTANT,
+                );
+                rotationAnim.setKeys([
+                    { frame: 0, value: dummy.rotation },
+                    { frame: frameCount, value: dummy.rotation + delta },
+                ]);
+                this.applyEasing(rotationAnim, options.easing);
+                animations.push(rotationAnim);
+            }
+        }
+
+        // Animate the frustum: the zoom's symmetric frame, with any edge the state names over it
+        const edges = { ...dummy };
         if (targetState.zoom !== undefined) {
-            // Calculate target ortho bounds based on zoom factor
             // Zoom is absolute: 1.0 = initial size, 2.0 = half size (zoomed in), 0.5 = double size (zoomed out)
-            const initialSize = twoDController.config.initialOrthoSize;
-            const targetSize = initialSize / targetState.zoom;
-
-            const orthoLeftAnim = new Animation(
-                "ortho_left",
-                "orthoLeft",
-                fps,
-                Animation.ANIMATIONTYPE_FLOAT,
-                Animation.ANIMATIONLOOPMODE_CONSTANT,
-            );
-            orthoLeftAnim.setKeys([
-                { frame: 0, value: dummy.orthoLeft },
-                { frame: frameCount, value: -targetSize },
-            ]);
-            this.applyEasing(orthoLeftAnim, options.easing);
-            animations.push(orthoLeftAnim);
-
-            const orthoRightAnim = new Animation(
-                "ortho_right",
-                "orthoRight",
-                fps,
-                Animation.ANIMATIONTYPE_FLOAT,
-                Animation.ANIMATIONLOOPMODE_CONSTANT,
-            );
-            orthoRightAnim.setKeys([
-                { frame: 0, value: dummy.orthoRight },
-                { frame: frameCount, value: targetSize },
-            ]);
-            this.applyEasing(orthoRightAnim, options.easing);
-            animations.push(orthoRightAnim);
-
-            // Calculate aspect ratio to maintain proportions
+            const targetSize = twoDController.config.initialOrthoSize / targetState.zoom;
+            // Keep the current proportions
             const aspect = (dummy.orthoTop - dummy.orthoBottom) / (dummy.orthoRight - dummy.orthoLeft);
-            const orthoTopAnim = new Animation(
-                "ortho_top",
-                "orthoTop",
-                fps,
-                Animation.ANIMATIONTYPE_FLOAT,
-                Animation.ANIMATIONLOOPMODE_CONSTANT,
-            );
-            orthoTopAnim.setKeys([
-                { frame: 0, value: dummy.orthoTop },
-                { frame: frameCount, value: targetSize * aspect },
-            ]);
-            this.applyEasing(orthoTopAnim, options.easing);
-            animations.push(orthoTopAnim);
+            edges.orthoLeft = -targetSize;
+            edges.orthoRight = targetSize;
+            edges.orthoTop = targetSize * aspect;
+            edges.orthoBottom = -targetSize * aspect;
+        }
 
-            const orthoBottomAnim = new Animation(
-                "ortho_bottom",
-                "orthoBottom",
-                fps,
-                Animation.ANIMATIONTYPE_FLOAT,
-                Animation.ANIMATIONLOOPMODE_CONSTANT,
-            );
-            orthoBottomAnim.setKeys([
-                { frame: 0, value: dummy.orthoBottom },
-                { frame: frameCount, value: -targetSize * aspect },
-            ]);
-            this.applyEasing(orthoBottomAnim, options.easing);
-            animations.push(orthoBottomAnim);
+        for (const edge of ORTHO_EDGES) {
+            edges[edge] = targetState[edge] ?? edges[edge];
+        }
+
+        const framed = targetState.zoom !== undefined || ORTHO_EDGES.some((edge) => targetState[edge] !== undefined);
+        if (framed) {
+            for (const edge of ORTHO_EDGES) {
+                const edgeAnim = new Animation(
+                    `ortho_${edge}`,
+                    edge,
+                    fps,
+                    Animation.ANIMATIONTYPE_FLOAT,
+                    Animation.ANIMATIONLOOPMODE_CONSTANT,
+                );
+                edgeAnim.setKeys([
+                    { frame: 0, value: dummy[edge] },
+                    { frame: frameCount, value: edges[edge] },
+                ]);
+                this.applyEasing(edgeAnim, options.easing);
+                animations.push(edgeAnim);
+            }
         }
 
         // Animate pan (camera position)
@@ -9293,6 +9811,7 @@ export class Graph implements GraphContext {
                     twoDController.camera.orthoRight = dummy.orthoRight;
                     twoDController.camera.orthoTop = dummy.orthoTop;
                     twoDController.camera.orthoBottom = dummy.orthoBottom;
+                    twoDController.rotation = dummy.rotation;
                 },
                 undefined,
                 true,
@@ -9306,11 +9825,15 @@ export class Graph implements GraphContext {
                     twoDController.camera.position.y = dummy.posY;
                 }
 
-                if (targetState.zoom !== undefined) {
+                if (framed) {
                     twoDController.camera.orthoLeft = dummy.orthoLeft;
                     twoDController.camera.orthoRight = dummy.orthoRight;
                     twoDController.camera.orthoTop = dummy.orthoTop;
                     twoDController.camera.orthoBottom = dummy.orthoBottom;
+                }
+
+                if (targetState.rotation !== undefined) {
+                    twoDController.rotation = targetState.rotation;
                 }
 
                 this.eventManager.emit("camera-state-changed", {
@@ -9413,7 +9936,7 @@ export class Graph implements GraphContext {
     async resetCamera(options?: import("./screenshot/types.js").CameraAnimationOptions): Promise<void> {
         // Get default camera state from current controller
         const defaultState = this.getDefaultCameraState();
-        return this.setCameraState(defaultState, options);
+        return this.#placeCamera(defaultState, options);
     }
 
     /**
@@ -9438,11 +9961,11 @@ export class Graph implements GraphContext {
         const factor = direction === "in" ? 1 / ZOOM_STEP_FACTOR : ZOOM_STEP_FACTOR;
         const state = this.getCameraState();
         if (state.zoom !== undefined) {
-            return this.setCameraZoom(state.zoom / factor, options);
+            return this.#placeCamera({ zoom: state.zoom / factor }, options);
         }
 
         if (state.cameraDistance !== undefined) {
-            return this.setCameraState({ cameraDistance: state.cameraDistance * factor }, options);
+            return this.#placeCamera({ cameraDistance: state.cameraDistance * factor }, options);
         }
 
         return undefined;
@@ -9452,7 +9975,8 @@ export class Graph implements GraphContext {
      * Center the camera on the selection, keeping where it stands.
      *
      * The camera turns to look at the center of the box around the selected nodes and the ends
-     * of the selected edges; with nothing selected it does not move. The camera is view state, so this is not an undoable step.
+     * of the selected edges (in 2D it pans that center into the middle of the view, keeping its
+     * zoom); with nothing selected it does not move. It never refuses for the drawing mode. The camera is view state, so this is not an undoable step.
      * @param options - Optional animation configuration.
      * @returns Promise that resolves when the camera has moved.
      * @since 3.0.0
@@ -9468,7 +9992,13 @@ export class Graph implements GraphContext {
             return undefined;
         }
 
-        return this.setCameraTarget(bounds.center, options);
+        // A state the drawing mode reads: 2D pans its view's center there, 3D turns to look at it.
+        const { x, y, z } = bounds.center;
+        const state = this.getCameraState();
+        return this.#placeCamera(
+            state.position === undefined ? { pan: { x, y } } : { position: state.position, target: { x, y, z } },
+            options,
+        );
     }
 
     /**
@@ -9479,8 +10009,8 @@ export class Graph implements GraphContext {
      * move. The camera is view state, so this is not an undoable step.
      * @param nodeIds - One node id, or several.
      * @param options - Optional animation configuration, and the `extent` each node is measured by.
-     * @param options.extent - `"centers"` (the default) measures each node by its center;
-     *   `"drawn"` by the box it is drawn in, so a big node is framed whole.
+     * @param options.extent - `"drawn"` (the default) measures each node by the box it is drawn
+     *   in, so every framed node is whole; `"centers"` by its center alone.
      * @returns Promise that resolves when the camera has moved.
      * @since 3.3.0
      * @example
@@ -9666,10 +10196,10 @@ export class Graph implements GraphContext {
     }
 
     private boundsToFrame(nodeIds?: Iterable<string | number>, extentOption?: CameraViewExtent): GraphBounds {
-        // The whole graph is framed as the project's framing says, by what is drawn when it says
-        // nothing, so no node at the rim is cut off; a subset by its centers unless the caller asks otherwise.
+        // The whole graph is framed as the project's framing says, and a subset by what is drawn,
+        // unless the caller asks otherwise: so no framed node at the rim is cut off.
         const whole = nodeIds === undefined;
-        const extent = extentOption ?? (whole ? (this.session.config.framing?.extent ?? "drawn") : "centers");
+        const extent = extentOption ?? (whole ? this.session.config.framing?.extent : undefined) ?? "drawn";
         // The `Node`s, and the rows drawn with no `Node` (renderPath "batched"), measured by row:
         // building a `Node` for a row only to measure it cost 8.7 KB a row (#8204).
         const { nodes: measured, columns } = this.#measuredNodes(nodeIds);
@@ -9764,12 +10294,13 @@ export class Graph implements GraphContext {
      * @param options.nodes - The nodes to measure the box over. Absent frames the whole graph.
      * @param options.params - The view's own options, filled in from its declared defaults.
      * @param options.extent - What each node counts as in the box: `"centers"` its center,
-     *   `"drawn"` the box it is drawn in. The default is `"drawn"` for the whole graph and
-     *   `"centers"` when `nodes` names a subset.
+     *   `"drawn"` the box it is drawn in. The default is `"drawn"`.
      * @returns The camera state the view computed.
-     * @throws A `GraphtyError` with `E_UNKNOWN_CAMERA` when nothing answers to the name,
-     * `E_UNSUPPORTED` when the view does not work in the drawing mode the element is in, or
-     * `E_UNKNOWN_OPTION` / `E_OPTION_RANGE` when `params` is not what the view declared.
+     * @throws A `GraphtyError` with `E_BAD_COMMAND` `{ reason: "empty-name" }` for an empty name,
+     * `E_UNKNOWN_CAMERA` `{ name, available }` (camera views, then saved views) when nothing
+     * answers to the name, `E_UNSUPPORTED` when the view does not work in the drawing mode the
+     * element is in, or `E_UNKNOWN_OPTION` / `E_OPTION_RANGE` when `params` is not what the view
+     * declared.
      */
     resolveCameraPreset(
         preset: string,
@@ -9787,16 +10318,138 @@ export class Graph implements GraphContext {
            can never be shadowed this way, so asking the views first is what gives a registered
            view the same protection the element's own five have. A snapshot whose name no view
            holds is still reached by the name its author chose. */
+        if (typeof preset !== "string" || preset.trim() === "") {
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: "a view name is a string with something in it",
+                source: "view",
+                details: { reason: "empty-name" },
+            });
+        }
+
         if (!isCameraViewName(preset)) {
-            const snapshot = this.session.views.get(preset);
-            if (snapshot) {
-                return snapshot;
+            const saved = this.session.views.get(preset);
+            if (saved) {
+                return this.#savedPose(saved);
             }
+            // The same details viewProblem gives: every name that would have answered.
+            const available = [...cameraViewIds(), ...this.session.views.keys()];
+            throw new GraphtyError({
+                code: "E_UNKNOWN_CAMERA",
+                message: `no camera view or saved view is named "${preset}". The names that answer are: ${available.join(", ")}`,
+                source: "view",
+                details: { name: preset, available },
+            });
         }
 
         const context = this.cameraViewContext(this.boundsToFrame(options?.nodes, options?.extent), options?.params);
 
         return resolveCameraView(preset, context);
+    }
+
+    /**
+     * The pose a saved view gives now: its fixed camera, or the camera view it follows computed
+     * with its default scope for whatever is drawn.
+     * @param saved - The saved view.
+     * @returns The camera state.
+     * @throws A `GraphtyError` with `E_UNKNOWN_CAMERA` `{ name }` when the followed camera view is
+     *     no longer registered, or as `resolveCameraView` refuses.
+     */
+    #savedPose(saved: SavedView): import("./screenshot/types.js").CameraState {
+        if (saved.follows === undefined) {
+            return saved.camera ?? {};
+        }
+        if (!isCameraViewName(saved.follows)) {
+            throw unknownFollowed(saved.follows);
+        }
+        return resolveCameraView(saved.follows, this.cameraViewContext(this.boundsToFrame()));
+    }
+
+    /**
+     * The saved views as fixed poses, for the older preset readers: a following view as the pose
+     * it gives now, left out when it cannot give one.
+     * @returns Each name with its pose, in project order.
+     */
+    #savedPoses(): [string, import("./screenshot/types.js").CameraState][] {
+        return [...this.session.views].flatMap(([name, saved]) => {
+            try {
+                return [[name, this.#savedPose(saved)] as [string, import("./screenshot/types.js").CameraState]];
+            } catch {
+                return [];
+            }
+        });
+    }
+
+    /**
+     * Whether a view name can be applied now, without moving anything: the same answer
+     * `applyCameraView(name)` would give.
+     *
+     * A name is a camera view when one answers to it, and a saved view only otherwise, so a camera
+     * view registered later takes the name. `{ saved: true }` judges the saved view itself, for a
+     * list of saved views: a saved view whose name a camera view took cannot be reached by name
+     * until it is renamed.
+     * @param name - A camera view's id or a saved view's name.
+     * @param options - What to judge.
+     * @param options.saved - Judge the saved view under the name, not whatever the name resolves to.
+     * @returns Null when it can be applied now; otherwise one coded fact, as the refusal's `code`
+     *     and `details`: `E_UNSUPPORTED` `{ reason: "xr", mode }` while immersive,
+     *     `E_UNSUPPORTED` `{ reason: "mode", name, modes, mode }` when it does not work in the
+     *     drawing mode, `E_UNKNOWN_CAMERA` `{ name, available }` when nothing answers to the name,
+     *     `E_PROTECTED` `{ name }` for `{ saved: true }` when a camera view holds the name, and
+     *     `E_BAD_COMMAND` `{ reason: "empty-name" }` for an empty name.
+     * @since 3.58.0
+     */
+    viewProblem(name: string, options?: { saved?: boolean }): CodedFact | null {
+        const immersive = this.#immersiveProblem();
+        if (immersive !== null) {
+            return { code: "E_UNSUPPORTED", params: immersive };
+        }
+
+        if (typeof name !== "string" || name.trim() === "") {
+            return { code: "E_BAD_COMMAND", params: { reason: "empty-name" } };
+        }
+
+        const mode = this.dimension();
+        const modes = cameraViewModes(name);
+        if (modes !== undefined) {
+            if (options?.saved === true) {
+                return { code: "E_PROTECTED", params: { name } };
+            }
+            return modes.includes(mode)
+                ? null
+                : { code: "E_UNSUPPORTED", params: { reason: "mode", name, modes: [...modes], mode } };
+        }
+
+        const saved = this.session.views.get(name);
+        if (saved === undefined) {
+            const available = options?.saved === true ? [] : [...cameraViewIds()];
+            return {
+                code: "E_UNKNOWN_CAMERA",
+                params: { name, available: [...available, ...this.session.views.keys()] },
+            };
+        }
+
+        return savedViewProblem(name, saved, mode);
+    }
+
+    /**
+     * How big the drawing surface is: its pixel size and the device pixel ratio it is drawn at.
+     * @returns The canvas's width and height in device pixels, and the ratio of device pixels to
+     *     CSS pixels.
+     * @since 3.58.0
+     */
+    getCanvasSize(): {
+        /** The width in device pixels. */
+        width: number;
+        /** The height in device pixels. */
+        height: number;
+        /** Device pixels per CSS pixel. */
+        devicePixelRatio: number;
+    } {
+        const width = this.engine.getRenderWidth();
+        const height = this.engine.getRenderHeight();
+        const css = this.canvas.clientWidth;
+        return { width, height, devicePixelRatio: css > 0 ? width / css : 1 };
     }
 
     /**
@@ -9812,11 +10465,13 @@ export class Graph implements GraphContext {
      *   selected nodes and both ends of every selected edge.
      * @param options.params - The view's own options, filled in from its declared defaults.
      * @param options.extent - What each node counts as in the box the view is handed: `"centers"`
-     *   its center, `"drawn"` the box it is drawn in. The default is `"drawn"` for the whole graph
-     *   and `"centers"` when `scope` names a subset.
+     *   its center, `"drawn"` the box it is drawn in. The default is `"drawn"`.
      * @returns A promise that resolves once the camera has arrived.
      * @throws A `GraphtyError` with `E_UNKNOWN_CAMERA`, `E_UNSUPPORTED`, `E_UNKNOWN_OPTION` or
-     * `E_OPTION_RANGE`, exactly as `resolveCameraPreset` does.
+     * `E_OPTION_RANGE`, exactly as `resolveCameraPreset` does; `E_UNSUPPORTED`
+     * `{ reason: "mode", name, modes, mode }` for a saved view that does not fit the drawing
+     * mode, and `{ reason: "xr", mode }` while immersive. `viewProblem(id)` answers the same
+     * question without moving anything.
      */
     async applyCameraView(
         id: string,
@@ -9826,6 +10481,11 @@ export class Graph implements GraphContext {
             extent?: CameraViewExtent;
         } & import("./screenshot/types.js").CameraAnimationOptions,
     ): Promise<void> {
+        const immersive = this.#immersiveProblem();
+        if (immersive !== null) {
+            throw cameraRefusal(immersive);
+        }
+
         const scope = options?.scope;
         const resolver = scopeResolverOfSession(this.getSession());
         // Read from the scope's node bitmap, so framing a subset never builds an id Set. An inline
@@ -9842,8 +10502,17 @@ export class Graph implements GraphContext {
             ...(options?.params === undefined ? {} : { params: options.params }),
             ...(options?.extent === undefined ? {} : { extent: options.extent }),
         });
+        // A saved view is judged by the predicate; a camera view was judged by its declared modes.
+        const problem = stateProblem(state, this.dimension(), { name: id });
+        if (problem !== null) {
+            throw cameraRefusal(problem);
+        }
 
-        return this.setCameraState(state, options);
+        this.#endTour("replaced");
+        // The view's placement wins over `camera.pivotOnSelection`: the pivot stops gliding to the
+        // selection's center until the selection changes, as after a move of the reader's.
+        this.updateManager.holdSelectionFollow();
+        return this.#placeCamera(state, options);
     }
 
     /**
@@ -9854,15 +10523,13 @@ export class Graph implements GraphContext {
      * or a registered one -- is refused rather than shadowed.
      * @param name - The name to save it under.
      * @param camera - The camera state to save instead of where the camera is now.
-     * @throws A `GraphtyError` with `E_PROTECTED` when a camera view already answers to the name.
+     * @returns Settles once the step is recorded.
+     * @throws A `GraphtyError` (as a rejection) with `E_PROTECTED` when a camera view already
+     *     answers to the name, as `session.views.save` refuses.
+     * @deprecated Use `session.views.save([{ name, camera }])`.
      */
-    saveCameraPreset(name: string, camera?: import("./screenshot/types.js").CameraState): void {
-        assertViewName(name);
-        // Checked above, so the immediate lane records it before this returns; a refusal from
-        // here on would be a defect, reported as `graph-error`.
-        this.reportUnawaited(this.session.views.save([{ name, camera: camera ?? this.getCameraState() }]), {
-            op: "views.save",
-        });
+    saveCameraPreset(name: string, camera?: import("./screenshot/types.js").CameraState): Promise<void> {
+        return this.session.views.save([{ name, ...(camera === undefined ? {} : { camera }) }]);
     }
 
     /**
@@ -9889,6 +10556,7 @@ export class Graph implements GraphContext {
      * @returns Settles once the step is recorded.
      * @throws A `GraphtyError` (as a rejection) with `E_BAD_COMMAND` when nothing is saved under
      *     the name.
+     * @deprecated Use `session.views.remove([name])`.
      */
     removeCameraPreset(name: string): Promise<void> {
         return this.session.views.remove([name]);
@@ -9899,6 +10567,8 @@ export class Graph implements GraphContext {
      * @param name - Name of the preset to load
      * @param options - Optional animation configuration
      * @returns Promise that resolves when camera state is applied
+     * @throws A `GraphtyError` as `setCameraState` refuses.
+     * @deprecated Use `applyCameraView(name, options)`.
      */
     async loadCameraPreset(
         name: string,
@@ -9917,32 +10587,20 @@ export class Graph implements GraphContext {
      * everybody else's. What each view is called in plain words, and which drawing modes it works
      * in, is in `session.catalog.cameras()`.
      * @returns Every name, mapped to the snapshot it holds or to the computed-view marker.
+     * @deprecated Read `session.catalog.cameras()` for the camera views and `session.views` for
+     *     the saved ones.
      */
     getCameraPresets(): Record<string, import("./screenshot/types.js").CameraState | { builtin: true }> {
-        const presets: Record<string, import("./screenshot/types.js").CameraState | { builtin: true }> = {};
-
-        for (const name of cameraViewIds()) {
-            presets[name] = { builtin: true };
-        }
-
-        // User-defined presets
-        for (const [name, state] of this.session.views) {
-            presets[name] = state;
-        }
-
-        return presets;
+        return presetsOf(this.#savedPoses());
     }
 
     /**
      * Export user-defined presets as JSON
      * @returns Object mapping preset names to camera states
+     * @deprecated Read `session.views`, a map in project order.
      */
     exportCameraPresets(): Record<string, import("./screenshot/types.js").CameraState> {
-        const exported: Record<string, import("./screenshot/types.js").CameraState> = {};
-        for (const [name, state] of this.session.views) {
-            exported[name] = state;
-        }
-        return exported;
+        return Object.fromEntries(this.#savedPoses());
     }
 
     /**
@@ -10004,27 +10662,21 @@ export class Graph implements GraphContext {
     /**
      * Import user-defined presets from JSON, as one undoable step.
      * @param presets - Object mapping preset names to camera states
+     * @returns The entries left out, each with the code `session.views.save` would refuse it with:
+     *     `E_PROTECTED` for a camera view's name, `E_BAD_COMMAND` for an empty one.
+     * @deprecated Use `session.views.save`.
      */
-    importCameraPresets(presets: Record<string, import("./screenshot/types.js").CameraState>): void {
-        const views: { name: string; camera: import("./screenshot/types.js").CameraState }[] = [];
-        for (const [name, camera] of Object.entries(presets)) {
-            // A registered view is skipped for the same reason a built-in one is: the imported
-            // entry is a fixed position, and overwriting a view with it would quietly turn a rule
-            // that recomputes itself for the graph on screen into one that does not.
-            if (isCameraViewName(name)) {
-                graphLogger.warn(
-                    `Skipping import of camera preset "${name}": a camera view already answers to that name`,
-                );
-                continue;
-            }
-
-            views.push({ name, camera });
-        }
-
+    importCameraPresets(presets: Record<string, import("./screenshot/types.js").CameraState>): {
+        /** The presets left out, each with why. */
+        skipped: SkippedPreset[];
+    } {
+        const { views, skipped } = splitPresetImport(presets);
         if (views.length > 0) {
-            // A name the views refuse rejects; nobody holds this promise, so it is reported.
+            // Every name was checked above; a refusal from here on would be a defect, reported.
             this.reportUnawaited(this.session.views.save(views), { op: "views.save" });
         }
+
+        return { skipped };
     }
 
     /**
@@ -11003,7 +11655,7 @@ export class Graph implements GraphContext {
         }
 
         // Store XR helper in scene metadata for isXRMode() detection
-        this.scene.metadata = this.scene.metadata ?? {};
+        this.scene.metadata ??= {};
         this.scene.metadata.xrHelper = xrHelper;
 
         // Create XR pivot camera controller (handles input via pivot-based system)
@@ -11114,7 +11766,130 @@ export class Graph implements GraphContext {
     }
 }
 
-/** A playing tour, ended by setting `ended`: it stops at its next step or frame. */
+/**
+ * Whether a recording's `tour` is the older form: view names, with `duration` split evenly.
+ * @param tour - The option.
+ * @returns True for a non-empty array of names.
+ */
+function isNameList(tour: TourInput | readonly string[]): tour is readonly string[] {
+    return Array.isArray(tour) && tour.length > 0 && tour.every((stop) => typeof stop === "string");
+}
+
+/**
+ * Check a recording's options and find the tour it records.
+ * @param options - The recording's options.
+ * @returns The tour, with the older form of names turned into stops, or null for a still recording.
+ * @throws `E_BAD_COMMAND` for conflicting or missing options or an empty tour.
+ */
+function recordingTour(options: import("./video/VideoCapture.js").AnimationOptions): TourInput | null {
+    const refuse = (details: Record<string, unknown>): GraphtyError =>
+        new GraphtyError({
+            code: "E_BAD_COMMAND",
+            message: `the recording's options cannot be used: ${String(details.reason)}`,
+            source: "view",
+            details,
+        });
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- the older spelling is still honored
+    const { tour, cameraPath, cameraMode, duration } = options;
+    if (tour !== undefined && cameraPath !== undefined) {
+        throw refuse({ reason: "conflict", options: ["tour", "cameraPath"] });
+    }
+
+    const path = tour ?? cameraPath;
+    if (path === undefined) {
+        if (cameraMode === "animated") {
+            throw refuse({ reason: "missing-option", option: "tour" });
+        }
+        if (duration === undefined) {
+            throw refuse({ reason: "missing-option", option: "duration" });
+        }
+        return null;
+    }
+
+    if (cameraMode === "stationary") {
+        throw refuse({ reason: "conflict", options: [tour === undefined ? "cameraPath" : "tour", "cameraMode"] });
+    }
+    if (Array.isArray(path) && path.length === 0) {
+        throw refuse({ reason: "no-stops" });
+    }
+    if (!isNameList(path)) {
+        return path as TourInput;
+    }
+
+    // The older form: the names visited in order, the duration split evenly between the legs.
+    if (duration === undefined) {
+        throw refuse({ reason: "missing-option", option: "duration" });
+    }
+    const leg = path.length > 1 ? duration / (path.length - 1) : 0;
+    return path.map((view, index) => ({ view, duration: index === 0 ? 0 : leg }));
+}
+
+/** A playing tour; `Graph.#finishTour` ends it, once. */
 interface TourHandle {
+    /** The saved tour's name, or null for one given inline. */
+    readonly name: string | null;
+    /** How many stops it has. */
+    readonly stops: number;
     ended: boolean;
+    reason: TourEndReason | undefined;
+    /** Ends the hold the tour waits in, at once. */
+    wake: (() => void) | undefined;
+    /** Told how the tour ended, once: a recording fails when its tour ends early. */
+    onEnd: ((reason: TourEndReason) => void) | undefined;
+    /** Puts the element's framing and the camera's placement back as before the tour. */
+    readonly restore: () => void;
+    /** Stops holding auto-rotate and the selection glide, and stops listening for a press. */
+    readonly release: () => void;
+}
+
+/** A tour checked and resolved, ready to fly. */
+interface FlownTour {
+    readonly name: string | null;
+    readonly easing: EasingName | undefined;
+    readonly plan: TourPlan;
+    /** The camera state each stop flies to, or null for a pause. */
+    readonly states: readonly (import("./screenshot/types.js").CameraState | null)[];
+    /** The saved view each stop flies to, or undefined for a stop given as a camera state or a pause. */
+    readonly views: readonly (string | undefined)[];
+}
+
+/**
+ * Why a saved view cannot be applied in a drawing mode: a following view works where the camera
+ * view it follows works, a fixed one where its camera state fits.
+ * @param name - The saved view's name.
+ * @param saved - The saved view.
+ * @param mode - The drawing mode.
+ * @returns Null when it can be applied; else the coded fact.
+ */
+function savedViewProblem(name: string, saved: SavedView, mode: "2d" | "3d"): CodedFact | null {
+    if (saved.follows !== undefined) {
+        const followed = cameraViewModes(saved.follows);
+        if (followed === undefined) {
+            return { code: "E_UNKNOWN_CAMERA", params: { name: saved.follows } };
+        }
+        return followed.includes(mode)
+            ? null
+            : { code: "E_UNSUPPORTED", params: { reason: "mode", name, modes: [...followed], mode } };
+    }
+
+    const problem = stateProblem(saved.camera ?? {}, mode, { name });
+    return problem === null ? null : { code: "E_UNSUPPORTED", params: problem };
+}
+
+/**
+ * The error a tour is refused with, for a problem its plan reports.
+ * @param problem - The plan's problem.
+ * @returns The error, whose `details` are the problem's params.
+ */
+function tourRefusal(problem: CodedFact): GraphtyError {
+    if (problem.code === "E_UNSUPPORTED") {
+        return cameraRefusal(problem.params);
+    }
+
+    return new GraphtyError({
+        code: problem.code as GraphtyErrorCode,
+        message: `the tour cannot be played: ${problem.code}`,
+        source: "view",
+        details: { ...problem.params },
+    });
 }

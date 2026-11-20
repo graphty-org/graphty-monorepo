@@ -7,6 +7,7 @@ import { AssetContainer } from "@babylonjs/core/assetContainer.js";
 import { NullEngine } from "@babylonjs/core/Engines/nullEngine.js";
 import { PBRMaterial } from "@babylonjs/core/Materials/PBR/pbrMaterial.js";
 import { RawTexture } from "@babylonjs/core/Materials/Textures/rawTexture.js";
+import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder.js";
 import { Scene } from "@babylonjs/core/scene.js";
 import { afterEach, assert, describe, it } from "vitest";
@@ -72,6 +73,28 @@ describe("prepareTemplate", () => {
             assert.isTrue(container.textures.every((texture) => texture.getInternalTexture() === null));
         });
     }
+
+    it("draws every use of a mesh used by several nodes", async () => {
+        const { scene, container } = loaded();
+        const [box] = container.meshes;
+        assert.instanceOf(box, Mesh);
+        // As the glTF loader loads a mesh's second use: an instance of the first, placed apart.
+        const copy = box.createInstance("box-again");
+        copy.position.x = 3;
+        container.meshes.push(copy);
+        const template = await prepareTemplate(
+            scene,
+            container,
+            "reused",
+            { up: "y", turn: 0, center: "bounds", fit: "contain", replace: false },
+            () => null,
+        );
+
+        assert.strictEqual(template.triangles, 24);
+        assert.closeTo(template.size.x, 1, 1e-6);
+        assert.closeTo(template.size.y, 0.25, 1e-6);
+        template.dispose();
+    });
 
     it("frees a model with no triangles", async () => {
         const { scene, container } = loaded();

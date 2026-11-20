@@ -1837,7 +1837,7 @@ export class Ingest<K extends KnownEdge> {
      * @throws A `GraphtyError` with `E_TOO_LARGE` when the new set is past the ceiling.
      */
     refuseReplacement(edges: Record<string | number, unknown>[], replaced: number, options?: AddEdgesOptions): void {
-        const surviving = this.host.store().builder.edgeCount - replaced;
+        const surviving = this.host.store().reads.edgeCount - replaced;
         const policy = options?.repeated ?? this.host.dataConfig().knownFields.repeatedEdges;
         this.refuseAboveCeiling(
             "edges",
@@ -1934,7 +1934,7 @@ export class Ingest<K extends KnownEdge> {
         }
 
         const store = this.host.store();
-        const edges = store.builder.edgeCount;
+        const edges = store.reads.edgeCount;
         const held = this.storedPairs;
         // Outside a load each batch starts its own: between two pushes anything may write edges.
         if (
@@ -1962,7 +1962,7 @@ export class Ingest<K extends KnownEdge> {
             return;
         }
 
-        pairs.edges = store.builder.edgeCount;
+        pairs.edges = store.reads.edgeCount;
         let targets = pairs.bySource.get(sourceId);
         if (targets === undefined) {
             targets = new Set();
@@ -2212,7 +2212,7 @@ export class Ingest<K extends KnownEdge> {
                 type,
                 fileDeclares: declaration.directed,
                 statedBy: declaration.statedBy,
-                configuredDirected: store.builder.directed,
+                configuredDirected: store.reads.directed,
             });
         } else if (outcome === "edges-present") {
             // Not a warning a consumer can act on by changing their configuration: it means this
@@ -2222,7 +2222,7 @@ export class Ingest<K extends KnownEdge> {
                 type,
                 fileDeclares: declaration.directed,
                 statedBy: declaration.statedBy,
-                graphDirected: store.builder.directed,
+                graphDirected: store.reads.directed,
             });
         }
 
@@ -2618,7 +2618,7 @@ export class Ingest<K extends KnownEdge> {
      * @returns the node and edge counts the graph holds
      */
     heldCounts(): { nodes: number; edges: number } {
-        const { builder } = this.host.store();
+        const builder = this.host.store().reads;
         if (this.measure === null) {
             return { nodes: builder.nodeCount, edges: builder.edgeCount };
         }
@@ -2842,8 +2842,8 @@ export async function* untilAborted<T>(
     let stop: () => void = () => undefined;
     const aborted = new Promise<never>((_, reject) => {
         stop = (): void => {
-            const { reason } = signal;
-            reject(reason instanceof Error ? reason : new Error(String(reason)));
+            const cause: unknown = signal.reason;
+            reject(cause instanceof Error ? cause : new Error(String(cause)));
         };
         signal.addEventListener("abort", stop, { once: true });
     });

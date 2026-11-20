@@ -2,7 +2,7 @@
  * @file Turning a selection target into the two sets of elements it names.
  *
  * A target is the WHAT of a selection; the set operation beside it is the HOW. Keeping them apart
- * is what makes "shift-click adds the neighbours" and "alt-click removes the top twenty" the same
+ * is what makes "shift-click adds the neighbors" and "alt-click removes the top twenty" the same
  * two lines of code as "click replaces this node": every target resolves to a pair of masks, and
  * every operation is set algebra between that pair and the pair the session already holds.
  *
@@ -143,7 +143,12 @@ export type SelectionTarget =
     | ElementIdTarget
     | NeighborhoodTarget
     /** Every element a predicate matches, narrowed to a scope when one is named. */
-    | { readonly where: Query; readonly scope?: ScopeInput }
+    | {
+          /** The predicate. */
+          readonly where: Query;
+          /** Narrows the target to this scope; absent, the whole graph. */
+          readonly scope?: ScopeInput;
+      }
     /**
      * Every node a text search finds, narrowed to a scope when one is named.
      *
@@ -152,46 +157,93 @@ export type SelectionTarget =
      * the node's id and its attribute values. See {@link SelectionTextMode}. A leading `=` makes
      * the rest an expression, exactly as `{ where }` reads it, which selects edges as well.
      */
-    | { readonly text: string; readonly mode?: SelectionTextMode; readonly scope?: ScopeInput }
+    | {
+          /** The text to search for. */
+          readonly text: string;
+          /** How the text is matched; absent, read from the text's prefix. */
+          readonly mode?: SelectionTextMode;
+          /** Narrows the target to this scope; absent, the whole graph. */
+          readonly scope?: ScopeInput;
+      }
     /**
      * A list of ids, which may name nodes, edges, or nothing at all: a pasted column of text, or
      * the ids the element handed out (a neighbor, a table record, a found element), numbers
      * included. An id that names nothing comes back on `unmatched`, as text.
      */
-    | { readonly ids: readonly NodeId[] }
+    | {
+          /** The ids. */
+          readonly ids: readonly NodeId[];
+      }
     /** Everything a scope covers. An inline `{ define }` may name edges by session edge id. */
-    | { readonly scope: ScopeInput }
+    | {
+          /** The scope. */
+          readonly scope: ScopeInput;
+      }
     /**
      * The highest-ranked elements of a finished run. A tie group is taken whole and only when it
      * fits inside `n`, so this can select fewer than `n` elements, or none. See `TopRanking` in the results types.
      * With no `field`, the run's primary field is ranked.
      */
-    | { readonly top: ResultRef & { readonly n: number } }
+    | {
+          /** The run, and how many elements to take. */
+          readonly top: ResultRef & {
+              /** The most elements to take. */
+              readonly n: number;
+          };
+      }
     /** Every element of a finished run above a threshold. With no `field`, the run's primary field is read. */
-    | { readonly above: ResultRef & { readonly threshold: number } }
+    | {
+          /** The run, and the value to pass. */
+          readonly above: ResultRef & {
+              /** The elements whose value is above this are taken. */
+              readonly threshold: number;
+          };
+      }
     /**
      * Every element of a finished run whose value lies from `min` to `max`, both inclusive, the
      * way a `range` filter reads them. A missing bound is open. A histogram brush passes the first
      * bar's `from` and the last bar's `to`: exact for a per-value or whole-number histogram; on a
      * banded continuous field a value exactly on the last bar's upper edge comes too.
      */
-    | { readonly range: ResultRef & { readonly min?: number; readonly max?: number } }
+    | {
+          /** The run, and the bounds. */
+          readonly range: ResultRef & {
+              /** The lowest value taken; absent, no lower bound. */
+              readonly min?: number;
+              /** The highest value taken; absent, no upper bound. */
+              readonly max?: number;
+          };
+      }
     /** The edges whose endpoints are both selected. Names no nodes. */
-    | { readonly edgesBetween: true }
+    | {
+          /** Always `true`. */
+          readonly edgesBetween: true;
+      }
     /** Everything that is not selected, in both halves. */
-    | { readonly invert: true }
+    | {
+          /** Always `true`. */
+          readonly invert: true;
+      }
     /**
      * What a note is about: its node, edge, set and item targets, or only the one at `target`.
      * A target not in the graph is skipped and counted in `SelectionDelta.skipped`; a `graph` or
      * `result` target names no elements.
      */
-    | { readonly note: NoteId; readonly target?: number }
+    | {
+          /** The note. */
+          readonly note: NoteId;
+          /** The index of the one note target to take; absent, all of them. */
+          readonly target?: number;
+      }
     /**
      * Every element a style layer's rule matches, whether or not the layer is shown: what
      * `styles.counts(layer).matched` counts. A layer paints one kind, so this names nodes or edges.
      * @since 3.26.0
      */
-    | { readonly layer: LayerId }
+    | {
+          /** The style layer. */
+          readonly layer: LayerId;
+      }
     /**
      * Every drawn node whose center lies inside a polygon on the canvas: what a rectangle or a
      * lasso drawn over the graph covers. The points are in CSS pixels from the canvas's top-left
@@ -201,7 +253,18 @@ export type SelectionTarget =
      * does. A session that draws nothing refuses it with `E_UNSUPPORTED`.
      * @since 3.48.0
      */
-    | { readonly region: { readonly polygon: readonly { readonly x: number; readonly y: number }[] } };
+    | {
+          /** The region on the canvas. */
+          readonly region: {
+              /** The polygon's corners, in order. */
+              readonly polygon: readonly {
+                  /** CSS pixels from the canvas's left side. */
+                  readonly x: number;
+                  /** CSS pixels from the canvas's top. */
+                  readonly y: number;
+              }[];
+          };
+      };
 
 /** A point on the canvas, in CSS pixels from its top-left corner. */
 type RegionPoint = Extract<SelectionTarget, { region: unknown }>["region"]["polygon"][number];

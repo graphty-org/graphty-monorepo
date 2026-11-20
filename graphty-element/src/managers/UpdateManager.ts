@@ -550,6 +550,11 @@ export class UpdateManager implements Manager {
     autoTurning = false;
     /** Whether motion is reduced, which keeps `camera.autoRotate` from turning; set by the graph. */
     reducedMotion = false;
+    /**
+     * Whether a tour holds the camera: `camera.autoRotate` and the glide to the selection wait
+     * until it ends, so a hold stands still. Set by the graph while a tour plays or records.
+     */
+    cameraHeld = false;
     /** The longest frame the auto-rotation turns for, so a tab coming back does not jump. */
     private static readonly MAX_TURN_MS = 100;
     /** `camera.autoRotate` and `camera.autoRotateResume` as the last pass read them; a change ends the reader's pause. */
@@ -2384,6 +2389,21 @@ export class UpdateManager implements Manager {
     }
 
     /**
+     * Remember whether the element frames the graph on its own and what it still owes, for a
+     * camera a tour places only for its own length.
+     * @returns Puts the framing back as it was.
+     */
+    saveFraming(): () => void {
+        const { needsZoomToFit, forceZoomToFit, explicitZoomToFit } = this;
+        return () => {
+            this.needsZoomToFit = needsZoomToFit;
+            this.forceZoomToFit = forceZoomToFit;
+            this.explicitZoomToFit = explicitZoomToFit;
+            this.fitRead = null;
+        };
+    }
+
+    /**
      * Get current zoom to fit state
      * @returns True if zoom to fit is enabled
      */
@@ -2812,6 +2832,12 @@ export class UpdateManager implements Manager {
      * @returns True when every part of the mesh is ready to be drawn into the layer.
      */
     private static layerIsReadyFor(layer: EffectLayer, mesh: AbstractMesh, instanced: boolean): boolean {
+        // A mesh with no geometry draws nothing and has no subMeshes at all (a batched node's
+        // anchor): asking for them threw in the render loop on every frame.
+        if (mesh.getTotalVertices() === 0) {
+            return true;
+        }
+
         const engine = mesh.getEngine();
         const pass = engine.currentRenderPassId;
 
@@ -2836,6 +2862,16 @@ export class UpdateManager implements Manager {
      */
     private noteFrameDrawn(): void {
         this.noteNodesDrawn();
+        const engine = this.layoutManager.layoutEngine;
+        this.drawnLanding =
+            engine instanceof SimulationLayoutEngine
+                ? {
+                      engine,
+                      landed: engine.landedBatchesPublished,
+                      released: this.pending.released,
+                      quiet: this.pending.pendingOnly(UpdateManager.BETWEEN_LANDINGS),
+                  }
+                : null;
         if (!this.stateIsFinished || this.drawnFrameIsFinished) {
             return;
         }
@@ -2878,6 +2914,51 @@ export class UpdateManager implements Manager {
         this.nodesDrawn = true;
         this.eventManager.emit("graph-first-frame", { frames: this.frameCount });
     }
+
+    /**
+     * When the last frame was drawn: the accelerated layout, its landed batch count, how many
+     * pending-work tokens had been released, and whether nothing but the layout and framing was
+     * pending then.
+     */
+    private drawnLanding: {
+        engine: SimulationLayoutEngine;
+        landed: number;
+        released: number;
+        quiet: boolean;
+    } | null = null;
+
+    /**
+     * Whether the only thing still changing the picture is a running accelerated layout that has
+     * published no new landing since the last frame drawn (issue #8801). Its batches land frames
+     * apart, and a frame drawn in between shows the same positions again while taking GPU time
+     * from the batches still computing. Pending work of any other kind (a style repaint, sizing, a
+     * transition, a model loading) says false, as does a layout that can land nothing more (a
+     * failed batch), and so does work that ended since that frame
+     * without owing an event -- a token released (the last batch of a repaint applied over several
+     * passes), or work of another kind that was pending when it was drawn -- since the frame
+     * drawn does not show it yet. Framing is left to the render loop, which draws whenever the
+     * camera moved.
+     * @returns True when the frame about to be drawn would show no new layout positions.
+     */
+    get awaitsLanding(): boolean {
+        const drawn = this.drawnLanding;
+        const engine = drawn?.engine;
+        return (
+            engine !== undefined &&
+            engine === this.layoutManager.layoutEngine &&
+            engine.isAccelerated &&
+            engine.canLand &&
+            engine.landedBatchesPublished === drawn?.landed &&
+            drawn.quiet &&
+            this.pending.released === drawn.released &&
+            this.layoutIsMoving() &&
+            transitionsOf(this.layoutManager)?.active !== true &&
+            this.pending.pendingOnly(UpdateManager.BETWEEN_LANDINGS)
+        );
+    }
+
+    /** The kinds of pending work {@link UpdateManager.awaitsLanding} allows. */
+    private static readonly BETWEEN_LANDINGS: ReadonlySet<string> = new Set(["layout", "framing"]);
 
     /**
      * Whether a frame showing the graph's nodes has been drawn since the graph last held none.
@@ -3019,7 +3100,7 @@ export class UpdateManager implements Manager {
      */
     private followSelection(frameMs: number): void {
         this.followingSelection = false;
-        if (!this.graphContext.getStyles().config.behavior.camera.pivotOnSelection) {
+        if (this.cameraHeld || !this.graphContext.getStyles().config.behavior.camera.pivotOnSelection) {
             return;
         }
 
@@ -3045,8 +3126,10 @@ export class UpdateManager implements Manager {
             return;
         }
 
-        // A camera still gliding to the selection is a picture that is not final yet.
-        const frames = Math.min(MAX_CATCH_UP_ROUNDS, frameMs / NOMINAL_FRAME_MS);
+        // A camera still gliding to the selection is a picture that is not final yet. Not capped as
+        // the layout's catch-up is: a glide round is one multiplication, so a slow frame covers all
+        // the time it took. Capped, a page drawing a frame a second glided for seven (issue #9032).
+        const frames = frameMs / NOMINAL_FRAME_MS;
         this.followingSelection = this.camera.followPoint(selectionCenter(nodes), frames);
     }
 
@@ -3110,7 +3193,7 @@ export class UpdateManager implements Manager {
         }
 
         // Reduced motion keeps the camera still.
-        const turnSpeed = this.reducedMotion ? 0 : camera.autoRotate;
+        const turnSpeed = this.reducedMotion || this.cameraHeld ? 0 : camera.autoRotate;
         this.autoTurning = this.camera.autoTurn(
             (turnSpeed * Math.min(frameMs, UpdateManager.MAX_TURN_MS)) / 1000,
             frameMs,

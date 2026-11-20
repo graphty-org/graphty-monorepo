@@ -88,7 +88,8 @@ export const WIDENED_FLOATS_PER_PIECE = 21;
 /**
  * The static attributes of a widened batch, each a vec4, in their buffer's order: the line color
  * at the source and at the target (alpha the opacity), the shader's varying parameters, then
- * (seed, parameter-set row, state bits, taper) and the (entered, exited, changed) stamps.
+ * (seed, parameter-set row, state bits, taper) and the (entered, exited, changed) stamps with the
+ * source taper.
  */
 export const EDGE_STATIC_ATTRIBUTES = ["edgeColorA", "edgeColorB", "edgeParams", "edgeMeta", "edgeTimes"] as const;
 
@@ -194,7 +195,7 @@ const LEAN_CORNERS = LEAN_TEMPLATE_INDICES.map((i) => LEAN_TEMPLATE_OF[i] ?? 0);
 /**
  * A straight pulled piece's ends at translucent rows (#8281): a body drawn under opacity 1 shows the line through it,
  * so the line leaves such a row where `Edge.leaveNode` says, at its drawn outline and border, and leaves any other
- * row at its centre, which the body hides. Read per row from `rowExtent` (`RowTable.measure`): the seen-through flag,
+ * row at its center, which the body hides. Read per row from `rowExtent` (`RowTable.measure`): the seen-through flag,
  * then the closed forms of `EDGE_TRIM_GLSL` (round, flat ellipse, box) or, for a flat shape with an outline of its
  * own, its sides in `rowOutline`, as `surfaceReach` reads them. Nothing per edge is written on the CPU.
  */
@@ -212,7 +213,7 @@ vec4 pulledSide(int i) {
     return texelFetch(rowOutline, ivec2(i & 1023, i >> 10), 0);
 }
 
-// shapeOutlines.rayReach: the farthest crossing of the outline's sides by a ray from its centre
+// shapeOutlines.rayReach: the farthest crossing of the outline's sides by a ray from its center
 float pulledOutlineReach(float code, vec2 u) {
     int named = int(code + 0.5);
     int first = named >> 10;
@@ -236,7 +237,7 @@ float pulledOutlineReach(float code, vec2 u) {
     return far;
 }
 
-// How far from a row's centre a line leaving it along dir starts: Edge.reachOf for a seen-through row, else 0.
+// How far from a row's center a line leaving it along dir starts: Edge.reachOf for a seen-through row, else 0.
 float pulledReach(int row, float w, vec3 dir) {
     vec4 a = pulledExtent(row * 3);
     int flags = int(a.w + 0.5);
@@ -264,7 +265,7 @@ float pulledReach(int row, float w, vec3 dir) {
     return edgeTrimReach(dir, end) + a.z;
 }
 
-// Edge.leaveNode at both ends: each moves toward the other by its reach, never past the other centre. No name here
+// Edge.leaveNode at both ends: each moves toward the other by its reach, never past the other center. No name here
 // may be one WGSL reserves ("from"): WebGPU's translation keeps the names, and its pipeline would be invalid.
 void pulledTrim(int fromRow, int toRow, float fromW, float toW, inout vec3 head, inout vec3 tail) {
     vec3 line = tail - head;
@@ -463,7 +464,7 @@ varying vec4 vNext2;
 varying vec4 vWidth;
 varying vec3 vFar;
 #ifdef EDGE_LINE_AA
-// The pixel's signed distance from the centre line and the line's drawn half width there, both in
+// The pixel's signed distance from the center line and the line's drawn half width there, both in
 // pixels and times w, then w: divided by the interpolated w they are linear on screen.
 varying vec3 vAcross;
 #endif
@@ -536,17 +537,32 @@ float drawnHalfWidth(float hw) {
     return hw > 0.0 && hw < 0.5 ? 0.5 : hw;
 }
 
+#ifdef EDGE_WIDENED
+// The line's width along the whole edge (0 to 1) as a multiple of its width: straight from the
+// source's taper (edgeTimes.w) to the target's (edgeMeta.w), or, when both narrow the line, full
+// width at the middle and straight down to each end.
+float taperAt(float along) {
+    float t = clamp(along, 0.0, 1.0);
+    float s = edgeTimes.w;
+    float e = edgeMeta.w;
+    if (s < 1.0 && e < 1.0) {
+        return t < 0.5 ? mix(s, 1.0, t * 2.0) : mix(1.0, e, t * 2.0 - 1.0);
+    }
+    return mix(s, e, t);
+}
+#endif
+
 // Half the line's drawn width at a point's clip position, along the whole edge (0 to 1) for a
 // taper: the width the piece ending there draws it at.
 float drawnHalfWidthAt(vec4 c, float along) {
     float raw = halfWidthAt(c);
 #ifdef EDGE_WIDENED
-    raw *= mix(1.0, edgeMeta.w, clamp(along, 0.0, 1.0)) * edgeReach;
+    raw *= taperAt(along) * edgeReach;
 #endif
     return drawnHalfWidth(raw);
 }
 
-// The centre line of the piece from p0 to p1: its unit normal and offset (n, c, so a point x is
+// The center line of the piece from p0 to p1: its unit normal and offset (n, c, so a point x is
 // dot(x, n) - c from it), and its length. Every piece that reads this piece computes it from the
 // same two points with this same arithmetic, so all of them get the same line.
 vec4 lineOf(vec2 p0, vec2 p1) {
@@ -589,7 +605,7 @@ bool miterAt(vec2 dIn, vec2 dOut, float lenIn, float lenOut, float hw, out vec2 
 
 // The point, offset from the corner p, where the side s (+1 or -1) of the piece from q0 meets the
 // same side of the piece to q1, each piece a trapezoid of half widths w0 to w and w to w1 (under
-// perspective its sides are not parallel to its centre line). Where the two sides run parallel
+// perspective its sides are not parallel to its center line). Where the two sides run parallel
 // (a straight run) it is the miter point. Both pieces call it with the same arguments.
 vec2 sideMeet(vec2 q0, float w0, vec2 p, float w, vec2 q1, float w1, vec2 dIn, vec2 dOut, float s, vec2 tip) {
     vec2 a = s * perpOf(dIn) * w;
@@ -622,9 +638,9 @@ void main() {
     bool joinVertex = position.z > 0.5;
     bool clipVertex = position.z > 1.5;
 
-    // Every point is trimmed toward its neighbour nearer this piece before it is projected, so a
+    // Every point is trimmed toward its neighbor nearer this piece before it is projected, so a
     // point behind the camera is never divided by its w (issue #7126); a corner behind the camera
-    // joins nothing, and its neighbour, reading the same points, agrees.
+    // joins nothing, and its neighbor, reading the same points, agrees.
     vec4 uA = clipOf(pA);
     vec4 uB = clipOf(pB);
     vec4 uPrev = clipOf(pPrev);
@@ -664,8 +680,8 @@ void main() {
     float total = runTotal;
     float alongA = total > 0.0 ? clamp(run.x / total, 0.0, 1.0) : 0.0;
     float alongB = total > 0.0 ? clamp((run.x + length(pB - pA)) / total, 0.0, 1.0) : 1.0;
-    rawA *= mix(1.0, edgeMeta.w, alongA) * edgeReach;
-    rawB *= mix(1.0, edgeMeta.w, alongB) * edgeReach;
+    rawA *= taperAt(alongA) * edgeReach;
+    rawB *= taperAt(alongB) * edgeReach;
     vEdgeColorA = edgeColorA;
     vEdgeColorB = edgeColorB;
     vEdgeParams = edgeParams;
@@ -679,7 +695,7 @@ void main() {
     bool miterA = joinedA && miterAt(inA, outA, lenInA, lenOutA, hwA, tipA);
     bool miterB = joinedB && miterAt(inB, outB, lenInB, lenOutB, hwB, tipB);
 
-    // The neighbours' far ends, at the widths they are drawn, and the pieces two away.
+    // The neighbors' far ends, at the widths they are drawn, and the pieces two away.
 #ifdef EDGE_WIDENED
     float perTotal = total > 0.0 ? 1.0 / total : 0.0;
 #else
@@ -693,7 +709,7 @@ void main() {
     vec4 lineNext2 = lineOf(sNext, sNext2);
     float backPrev2 = run.x - length(pA - pPrev) - length(pPrev - pPrev2);
     float aheadNext2 = run.x + length(pB - pA) + length(pNext - pB) + length(pNext2 - pNext);
-    // Whether the neighbours' far corners are shared miter lines too: then the piece two away
+    // Whether the neighbors' far corners are shared miter lines too: then the piece two away
     // cannot reach this one.
     vec2 i2; vec2 o2; vec2 t2; float li2; float lo2; vec2 tip2;
     cornerAt(sPrev2, sPrev, sA, i2, o2, t2, li2, lo2);
@@ -701,7 +717,7 @@ void main() {
     cornerAt(sB, sNext, sNext2, i2, o2, t2, li2, lo2);
     bool miterNext = miterB && lo2 > EPS && miterAt(i2, o2, li2, lo2, hwNextFar, tip2);
     // Each corner: 0 the clipped join, 1 a shared miter line, 2 a shared miter line past a
-    // neighbour whose other corner is one too.
+    // neighbor whose other corner is one too.
     float cornerA = miterPrev ? 2.0 : miterA ? 1.0 : 0.0;
     float cornerB = miterNext ? 2.0 : miterB ? 1.0 : 0.0;
     // Both corners in one float (cornerA + 3 cornerB), so the widened batch stays within the 15
@@ -730,7 +746,7 @@ void main() {
         off = vec2(0.0);
     } else if (onMiterLine && !joinVertex && side != 0.0) {
         // A side vertex on the corner's shared miter line. The two pieces at the corner must put
-        // it at exactly the same clip position, or pixel centres on the line fall to neither (or
+        // it at exactly the same clip position, or pixel centers on the line fall to neither (or
         // both), so it is computed on one path for either end from the three points around the
         // corner, selected first: both pieces run the same arithmetic on the same values.
         // ponytail: a tapered edge's widths come from distances summed in two ways, so its corners
@@ -763,7 +779,7 @@ void main() {
         sP = k;
         off = meet;
     } else if (onMiterLine) {
-        // The join's triangles fold away to the centre.
+        // The join's triangles fold away to the center.
         off = vec2(0.0);
     } else if (joinVertex && joined) {
         vec2 dIn = atB ? inB : inA;
@@ -812,10 +828,10 @@ void main() {
     vNbA = vec4(-inA, joinedA ? lenInA : 0.0, lenInA > EPS ? length(pA - pPrev) / lenInA : 0.0);
     vEndB = vec4(sB, hwPrevFar, hwNextFar);
     vNbB = vec4(outB, joinedB ? lenOutB : 0.0, lenOutB > EPS ? length(pNext - pB) / lenOutB : 0.0);
-    // A piece two away is drawn only past a joined neighbour; its length 0 marks none.
+    // A piece two away is drawn only past a joined neighbor; its length 0 marks none.
     vPrev2 = vec4(linePrev2.xyz, joinedA && linePrev2.w > EPS ? linePrev2.w : 0.0);
     vNext2 = vec4(lineNext2.xyz, joinedB && lineNext2.w > EPS ? lineNext2.w : 0.0);
-    // The coverage is under 1 for a hairline; the last is the own centre line's offset, which the
+    // The coverage is under 1 for a hairline; the last is the own center line's offset, which the
     // pieces two away compute the same way.
     vWidth = vec4(hwA, hwB, raw > 0.0 && raw < 0.5 ? raw * 2.0 : 1.0, lineOf(sA, sB).z);
 #ifdef EDGE_FADE
@@ -836,7 +852,8 @@ void main() {
 
 /**
  * The fragment shader. `pattern` is (element length along the line, kind, half the line's width),
- * all in world units; kind 0 is solid, 1 dash or box, 2 dot, 3 diamond, 4 star.
+ * all in world units; kind 0 is solid, 1 dash or box, 2 dot, 3 diamond, 4 star, 5 a dash array (`dashA` then `dashB`,
+ * dashes and gaps alternating, in world units).
  */
 export const EDGE_JOIN_FRAGMENT_SHADER = `
 precision highp float;
@@ -844,6 +861,8 @@ precision highp float;
 uniform vec3 color;
 uniform float opacity;
 uniform vec3 pattern;
+uniform vec4 dashA;
+uniform vec4 dashB;
 uniform vec2 resolution;
 uniform float miterLimit;
 // The viewport's size in the pixels being drawn (the canvas's, or a capture's); 0 when unknown.
@@ -886,7 +905,7 @@ varying vec4 vEdgeColor;
 vec4 graphty_edgeShade(float t, float side, float lengthPx, float widthPx, float coverage);
 #endif
 
-// How far inside its edges a piece or a join must cover a pixel's centre to count, in pixels: more
+// How far inside its edges a piece or a join must cover a pixel's center to count, in pixels: more
 // than where the rasterizer, which snaps corners to a sub-pixel grid, might put an edge, so a piece
 // counted as covering a pixel always draws it.
 const float INSIDE = 0.05;
@@ -926,11 +945,28 @@ bool inJoin(vec2 u, vec2 dIn, vec2 dOut, float lenIn, float lenOut, float hw, fl
     return tMiter <= tMax || dot(u, mid) <= hw * cosH + tMax * sinH - m;
 }
 
-// Whether a pattern element covers a point: elements centred r, r + spacing, r + 2 spacing, ...
+// Whether a pattern element covers a point: elements centered r, r + spacing, r + 2 spacing, ...
 // along the edge, r half an element's length.
 bool patternOn(float dist, float across, float spacing) {
     if (pattern.y < 0.5 || spacing <= 0.0) {
         return true;
+    }
+    if (pattern.y > 4.5) {
+        // a dash array, repeating every spacing from the line's start: which dash or gap the point is in
+        float t = mod(max(dist, 0.0), spacing);
+        float s = dashA.x;
+        if (t < s) { return true; }
+        s += dashA.y;
+        if (t < s) { return false; }
+        s += dashA.z;
+        if (t < s) { return true; }
+        s += dashA.w;
+        if (t < s) { return false; }
+        s += dashB.x;
+        if (t < s) { return true; }
+        s += dashB.y;
+        if (t < s) { return false; }
+        return t < s + dashB.z;
     }
     float r = pattern.x * 0.5;
     float k = max(0.0, floor((dist - r) / spacing + 0.5));
@@ -961,7 +997,7 @@ bool patternOn(float dist, float across, float spacing) {
 void main() {
     vec2 x = vScreen.xy / vScreen.z;
     float m = INSIDE;
-    // The centre of the pixel being drawn. Interpolated, the position is off by up to a few
+    // The center of the pixel being drawn. Interpolated, the position is off by up to a few
     // hundredths of a pixel, differently in each piece's triangles, so near the inside of a corner
     // -- where both pieces' edges and the bisector meet -- two pieces could each give a pixel to
     // the other, or each keep it (issue #3114). Snapped, every piece tests the same point.
@@ -972,8 +1008,8 @@ void main() {
     }
 
     // Which piece draws the pixel: of the pieces whose shape -- the piece, and the joins at its
-    // corners -- covers its centre, the one whose centre line is nearest, the earlier on a tie.
-    // Between two neighbours that is the bisector of their corner, inside it and out; past a piece
+    // corners -- covers its center, the one whose center line is nearest, the earlier on a tie.
+    // Between two neighbors that is the bisector of their corner, inside it and out; past a piece
     // shorter than the line is wide it settles the overlap of the pieces either side (issue
     // #3096). In the join at one of this piece's own corners the two pieces' triangles already
     // split it, along the same line. A pixel no shape covers is the line's anti-aliased edge,
@@ -981,7 +1017,7 @@ void main() {
     // both, so exactly one of them takes the pixel.
     // ponytail: a piece three away (two short pieces in a row) is not read, and can still overlap.
 #ifndef EDGE_PULLED_LEAN
-    // The lean program's straight solid piece has no neighbour and no pattern: the rasterizer's
+    // The lean program's straight solid piece has no neighbor and no pattern: the rasterizer's
     // coverage of its rectangle is its whole shape, with no ownership test and no discard.
     float lenOwn = vOwn2.x;
     vec2 uA = x - vOwn.xy;
@@ -1002,14 +1038,14 @@ void main() {
     // overlap, and the rasterizer splits the pixels on that line by sample: neither tests the
     // other, nor the piece beyond it, for ownership, so neither discards a pixel the other cannot
     // fully draw. A curve's corners all are, so a solid curve discards nothing (issue #5799). A
-    // dash still reads the neighbours: each piece draws its side of the miter line where either
+    // dash still reads the neighbors: each piece draws its side of the miter line where either
     // piece's dash covers it, so the two halves of the inside overlap make the union they did.
     float corners = floor(vFar.z + 0.5);
     float cornerB = floor((corners + 0.5) / 3.0);
     float cornerA = corners - 3.0 * cornerB;
     bool sharedA = cornerA > 0.5;
     bool sharedB = cornerB > 0.5;
-    // The piece two away can still overlap this one unless the neighbour between is shared at
+    // The piece two away can still overlap this one unless the neighbor between is shared at
     // both its corners (a U whose middle is short, say).
     bool clearPrev2 = cornerA > 1.5;
     bool clearNext2 = cornerB > 1.5;
@@ -1062,7 +1098,7 @@ void main() {
             float a = dot(uB, vNbB.xy);
             on = patternOn(vOwn2.z + lenOwn * vOwn2.y + a * vNbB.w, dot(uB, vec2(-vNbB.y, vNbB.x)) * acrossScale, spacing);
         }
-        // The pieces two away, measured at their neighbours' scale.
+        // The pieces two away, measured at their neighbors' scale.
         if (!on && inPrev2) {
             float a = dot(u2, back2);
             on = patternOn(vOwn2.z - vNbA.z * vNbA.w - a * vNbA.w, dot(u2, vec2(-back2.y, back2.x)) * acrossScale, spacing);
@@ -1094,7 +1130,7 @@ void main() {
 #ifdef EDGE_PULLED
     gl_FragColor = vec4(vLook.rgb, vLook.a * vWidth.z);
 #ifdef EDGE_LINE_AA
-    // The share of the pixel the line covers, from its distance to the centre line: a smoothstep
+    // The share of the pixel the line covers, from its distance to the center line: a smoothstep
     // across one pixel at each side (antialias "shader", no multisampling). A line under a pixel
     // wide is drawn a pixel wide and fainter (vWidth.z), so its whole profile still sums to its width.
     float hwAA = vAcross.y / vAcross.z;

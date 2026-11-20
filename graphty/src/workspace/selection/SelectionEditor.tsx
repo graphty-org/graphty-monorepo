@@ -23,28 +23,18 @@ import {
     SegmentedControl,
     TargetTooltip,
 } from "@graphty/compact-mantine";
-import type {
-    GraphSession,
-    RuleTree,
-    ScopeEdit,
-    StepReading,
-    StepsReading,
-    UnionBranch,
-    UnionLeaf,
-    UnionStep,
-} from "@graphty/graphty-element/session";
 import {
-    ActionIcon,
-    Button,
-    Group,
-    InputBase,
-    Loader,
-    Menu,
-    Stack,
-    Text,
-    Tooltip,
-    UnstyledButton,
-} from "@mantine/core";
+    type GraphSession,
+    isGraphtyError,
+    type RuleTree,
+    type ScopeEdit,
+    type StepReading,
+    type StepsReading,
+    type UnionBranch,
+    type UnionLeaf,
+    type UnionStep,
+} from "@graphty/graphty-element/session";
+import { ActionIcon, Button, Group, InputBase, Loader, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
 import React, { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal, flushSync } from "react-dom";
@@ -71,20 +61,18 @@ import {
     removeStep,
     type Verb,
 } from "./model";
-import { type SelectionMenuItem, SelectionMenuItems } from "./SelectionMenu";
+import { RowMore, type SelectionMenuItem } from "./SelectionMenu";
 import { StepPane } from "./StepPane";
 import { StyleOpenLine } from "./StyleOpenLine";
 import { useSteps } from "./useSteps";
 import { type Host, pickerFields, type PickSection, pickSections, ruleOfField, sideOf, usedPaths } from "./values";
 import {
-    cardsWords,
     countWords,
     letterOf,
     NOUNS,
     reasonWords,
     rowTest,
     rowWords,
-    shortCount,
     shownWords,
     stepWords,
     VERB_WORDS,
@@ -110,7 +98,7 @@ interface SelectionEditorProps {
     readonly host: Host;
     /** Takes the next rule, which the host writes. */
     readonly onChange: (next: UnionLeaf) => void;
-    /** The workspace closed, or Escape on the sidebar's outline: the host may fold it. */
+    /** The workspace closed: the host may fold it. */
     readonly onDone?: () => void;
     /** What the selection belongs to, after its name in the workspace's title ("Style layer 1", "Filters"). */
     readonly ownerName?: string;
@@ -139,8 +127,6 @@ interface SelectionEditorProps {
      * or Cancel closed the workspace it was opened in. The host takes it away and moves focus.
      */
     readonly onEmptyCancel?: () => void;
-    /** Space on the title row: switches the host's on box (a filter card's), which takes no Tab stop. */
-    readonly onTitleToggle?: () => void;
     /** The host's on box is off: said with the title row's name. */
     readonly titleOff?: boolean;
     /**
@@ -186,6 +172,17 @@ function afterPaint(work: () => void): void {
 }
 
 /**
+ * Leave the camera where it is when the element refuses a move: the drawing mode changed (2D and
+ * 3D, or a headset) since the move was asked for. Anything else is a real failure.
+ * @param error - Why the move was rejected.
+ */
+function cameraRefused(error: unknown): void {
+    if (!isGraphtyError(error) || error.code !== "E_UNSUPPORTED") {
+        throw error;
+    }
+}
+
+/**
  * The selection editor: the read-only outline in its host's sidebar, and while it is open, the
  * one workspace over the canvas column that edits it (spec 3.0).
  * @param props - Component props
@@ -193,7 +190,7 @@ function afterPaint(work: () => void): void {
  * @param props.rule - the selection as the host holds it
  * @param props.host - where it is edited
  * @param props.onChange - takes the next rule, which the host writes
- * @param props.onDone - the workspace closed, or Escape on the sidebar outline: the host may fold it
+ * @param props.onDone - the workspace closed: the host may fold it
  * @param props.openFirst - opens the workspace on the first step on arrival
  * @param props.title - the title row's name
  * @param props.ownerName - what the selection belongs to, after its name in the workspace's title
@@ -206,7 +203,6 @@ function afterPaint(work: () => void): void {
  * @param props.titleMenu - the title pane's "..." items
  * @param props.titleExtra - drawn first in the title pane
  * @param props.onEmptyCancel - a new selection goes (left with no step, or Cancel on it)
- * @param props.onTitleToggle - Space on the title row
  * @param props.titleOff - the host's on box is off
  * @param props.onRename - renames the selection, from the title bar
  * @returns The editor
@@ -229,7 +225,6 @@ export function SelectionEditor({
     titleMenu,
     titleExtra,
     onEmptyCancel,
-    onTitleToggle,
     titleOff = false,
     onRename,
 }: SelectionEditorProps): React.JSX.Element {
@@ -305,7 +300,6 @@ export function SelectionEditor({
     // The step being added as the last render drew it: a picker that closes twice takes it back once.
     const addingNow = useRef(adding);
     addingNow.current = adding;
-    const [active, setActive] = useState<string | null>(null);
     const [renaming, setRenaming] = useState<string | null>(null);
     // The selection's own name being typed in the title bar (a filter card's).
     const [renamingTitle, setRenamingTitle] = useState(false);
@@ -406,13 +400,12 @@ export function SelectionEditor({
         // A rule with steps reopens on the pane of the step last edited, else its first step's; the
         // title's pane holds only the add actions (the owner's review, ws-polish 2).
         const steps = rule.branches.flatMap((branch) => branch.steps);
-        const toStep = steps.find((step) => step.id === lastEdited.current) ?? steps[0];
+        const toStep = steps.find((step) => step.id === lastEdited.current) ?? steps.at(0);
         const shown =
             add === undefined && row === TITLE && !stepless && !recipeTitle && toStep?.id !== undefined
                 ? toStep.id
                 : row;
         setSelected(add === undefined ? shown : null);
-        setActive(shown);
         if (add !== undefined && add.steps.length > 0) {
             setAdding({ branch: add.id ?? "", op: newVerb(add), open: !shut, back: row });
         } else if (add !== undefined || stepless) {
@@ -551,8 +544,8 @@ export function SelectionEditor({
             return;
         }
         arrived.current = true;
-        const first = rule.branches[0];
-        const firstStep = first?.steps[0]?.id;
+        const first = rule.branches.at(0);
+        const firstStep = first?.steps.at(0)?.id;
         if (openPicker && first !== undefined) {
             openAt(TITLE, TITLE, first);
         } else if (openFirst && firstStep !== undefined) {
@@ -646,7 +639,7 @@ export function SelectionEditor({
     // canvas's; it clears once the element has drawn the last batch (ws-polish 3).
     const [drawing, setDrawing] = useState(false);
     useEffect(() => {
-        if (!open || element === null || element === undefined) {
+        if (!open || element === null) {
             setDrawing(false);
             return undefined;
         }
@@ -709,7 +702,7 @@ export function SelectionEditor({
         } else {
             target = (typeof want === "string" ? [want] : want)
                 .map((each) => root.querySelector<HTMLElement>(each))
-                .find((each) => each !== null && each !== undefined);
+                .find((each) => each !== null);
         }
         if (target !== undefined) {
             focusAfter.current = null;
@@ -742,9 +735,6 @@ export function SelectionEditor({
         // A step whose pane was shown is where the workspace reopens.
         if (id !== null && rule.branches.some((branch) => branch.steps.some((step) => step.id === id))) {
             lastEdited.current = id;
-        }
-        if (id !== null) {
-            setActive(id);
         }
     };
     const pick = (branch: UnionBranch, op: Verb, stepRule: RuleTree): void => {
@@ -864,49 +854,6 @@ export function SelectionEditor({
         setStrip(true);
     };
 
-    // The outline is one Tab stop walked with the arrows (roving focus); a row's keys act on it.
-    const walk = (event: React.KeyboardEvent<HTMLElement>): boolean => {
-        const tree = event.currentTarget.closest("[role=tree]");
-        const rows = [...(tree?.querySelectorAll<HTMLElement>(ROW) ?? [])];
-        const at = rows.indexOf(event.currentTarget);
-        const targets: Partial<Record<string, number>> = {
-            ArrowDown: at + 1,
-            ArrowUp: at - 1,
-            Home: 0,
-            End: rows.length - 1,
-        };
-        const to = targets[event.key];
-        const row = to === undefined ? undefined : rows[to];
-        if (row === undefined) {
-            return to !== undefined;
-        }
-        event.preventDefault();
-        const id = row.dataset.row ?? null;
-        setActive(id);
-        row.focus();
-        return true;
-    };
-    // The sidebar's outline is read-only: Enter opens the workspace on the row (spec 3.4), Space
-    // switches a filter card's on box, Escape lets the host fold it.
-    const restKeys = (event: React.KeyboardEvent<HTMLElement>, selects: string): void => {
-        if (event.target !== event.currentTarget || walk(event)) {
-            return;
-        }
-        if (event.key === "Enter") {
-            event.preventDefault();
-            openAt(selects, event.currentTarget.dataset.row ?? selects);
-        } else if (event.key === " " && onTitleToggle !== undefined) {
-            event.preventDefault();
-            onTitleToggle();
-        } else if (event.key === "Escape" && onDone !== undefined) {
-            event.preventDefault();
-            onDone();
-        } else if (event.key === "F2") {
-            // The outline's, never the project's rename.
-            event.preventDefault();
-        }
-    };
-    const empty = rule.branches.every((branch) => branch.steps.length === 0);
     // Each step's row words, read once per reading rather than on every hover or key.
     const outlineWords = useMemo(
         () =>
@@ -923,7 +870,7 @@ export function SelectionEditor({
     // A filter card named after its only step draws no outline: its title row is the recipe, and its
     // title pane holds the step's controls under the card's own.
     const lone = rule.branches.length === 1 ? rule.branches[0]?.steps : undefined;
-    const loneStep = lone?.length === 1 ? lone[0] : undefined;
+    const loneStep = lone?.length === 1 ? lone.at(0) : undefined;
     const loneWords = loneStep === undefined ? undefined : outlineWords.get(loneStep.id ?? "");
     const recipeTitle =
         host === "filter" &&
@@ -935,21 +882,15 @@ export function SelectionEditor({
         !allRow(rule.branches[0]) &&
         loneStep.op === newVerb(rule.branches[0]) &&
         title === [loneWords.value, rowTest(loneWords)].filter((each) => each !== "").join(" ");
-    // The sidebar's Tab stop: its title row, or its summary row once walked onto.
-    const tabbed = active === "summary" ? "summary" : TITLE;
     const recipeRead = loneStep === undefined ? undefined : readingOf(loneStep.id);
-    const recipeState =
-        recipeTitle && loneStep !== undefined
-            ? reasonWords(recipeRead?.reason ?? null).short.replace(/ \(.*\)$/u, "")
-            : "";
+    const recipeState = recipeTitle ? reasonWords(recipeRead?.reason ?? null).short.replace(/ \(.*\)$/u, "") : "";
 
     // A group with no step says where it starts: "All nodes", "No nodes".
     const startWords = (branch: UnionBranch | undefined): string =>
         `${branch?.start === "all" ? "All" : "No"} ${NOUNS[side].many}`;
-    const restSummary = empty ? startWords(rule.branches[0]) : cardsWords(session, rule, reading);
     /**
-     * The sidebar's read-only copy of the selection at rest: a style layer's one line that opens
-     * the workspace, or a filter card's title row and one summary line (spec 3.1).
+     * The sidebar's copy of the selection: a style layer's one line that opens the workspace, or an
+     * open filter card's title row (spec 3.1).
      * @returns the outline.
      */
     const outline = (): React.JSX.Element => {
@@ -982,59 +923,21 @@ export function SelectionEditor({
                 </StyleOpenLine>
             );
         }
-        // While the workspace is open the sidebar keeps only the title row, marked as being edited,
-        // with no outline and no count: the workspace's header is the one place the count is drawn
+        // A filter card has no sidebar copy at rest: Filters.tsx mounts this editor only for the open
+        // card, the editor opens the workspace on arrival, and closing it folds the card away. While
+        // the workspace is open the sidebar, inert under it, keeps only the title row, marked as
+        // being edited, with no count: the workspace's header is the one place the count is drawn
         // (spec 3.0, the owner's review, ws-polish 2).
-        const editing = open;
-        const editButton = (
-            <Button
-                size="compact-xs"
-                variant="default"
-                data-edit=""
-                aria-label={`Edit ${name}`}
-                onClick={() => {
-                    openAt(TITLE, EDIT);
-                }}
-            >
-                Edit
-            </Button>
-        );
-        const rowProps = (
-            id: string,
-            selects: string,
-            label: string,
-        ): React.HTMLAttributes<HTMLDivElement> & Record<`data-${string}`, string | undefined> => ({
-            role: "treeitem",
-            "aria-level": 1,
-            tabIndex: tabbed === id ? 0 : -1,
-            "data-row": id,
-            "data-selects": selects,
-            "aria-label": label,
-            onKeyDown: (event) => {
-                restKeys(event, selects);
-            },
-            onFocus: () => {
-                setActive(id);
-            },
-            onClick: (event) => {
-                if ((event.target as Element).closest("button, input, label") !== null) {
-                    return;
-                }
-                openAt(selects, id);
-            },
-        });
         return (
             <div role="tree" aria-label={name} className="sel-outline">
                 <div
-                    {...rowProps(
-                        TITLE,
-                        TITLE,
-                        [
-                            name,
-                            ...(editing ? ["being edited"] : [countWords(reading.total.count, of, side)]),
-                            ...(titleOff ? ["off"] : []),
-                        ].join(", "),
-                    )}
+                    role="treeitem"
+                    aria-level={1}
+                    aria-selected={false}
+                    tabIndex={0}
+                    data-row={TITLE}
+                    data-selects={TITLE}
+                    aria-label={[name, "being edited", ...(titleOff ? ["off"] : [])].join(", ")}
                     className="sel-row sel-title-row"
                 >
                     {lead}
@@ -1042,59 +945,15 @@ export function SelectionEditor({
                         {name}
                     </Text>
                     {/* Its state word stays drawn while selected, as every step row's does (ws-polish 3). */}
-                    {recipeTitle && loneStep !== undefined && recipeState !== "" && (
+                    {recipeTitle && recipeState !== "" && (
                         <Text size="sm" c="dimmed" className="sel-state">
                             {recipeState}
                         </Text>
                     )}
-                    {editing && (
-                        <Text size="sm" c="dimmed" className="sel-state" ml="auto" data-editing="">
-                            Editing
-                        </Text>
-                    )}
-                    {!editing && (
-                        <Tooltip
-                            label={
-                                reading.pending.length > 0
-                                    ? `${String(reading.pending.length)} waiting`
-                                    : `${formatNumber(reading.total.count)} of ${formatNumber(of)} in the full graph`
-                            }
-                        >
-                            <Text size="sm" className="sel-count" ml="auto">
-                                {`${shortCount(reading.total.count)} of ${shortCount(of)}${shownWords(reading.total)}`}
-                            </Text>
-                        </Tooltip>
-                    )}
-                    {!editing && waitingSteps.length > 0 && (
-                        // A step whose run was removed waits; Run starts it, never unasked (cardruns.md 3).
-                        <Button
-                            size="compact-xs"
-                            variant="subtle"
-                            data-run-waiting=""
-                            leftSection={<GLYPHS.play size={12} aria-hidden />}
-                            aria-label={`Run ${name}`}
-                            onClick={() => {
-                                for (const id of waitingSteps) {
-                                    session.scope.allowRun(reading.rule, id);
-                                }
-                            }}
-                        >
-                            Run
-                        </Button>
-                    )}
-                    {!editing && recipeTitle && editButton}
+                    <Text size="sm" c="dimmed" className="sel-state" ml="auto" data-editing="">
+                        Editing
+                    </Text>
                 </div>
-                {!editing && !recipeTitle && (
-                    // At rest the sidebar says the selection in one calm line; Edit opens the modal.
-                    <Tooltip label={restSummary} openDelay={500}>
-                        <div {...rowProps("summary", TITLE, restSummary)} className="sel-row sel-summary-row">
-                            <Text size="sm" c="dimmed" className="sel-value">
-                                {restSummary}
-                            </Text>
-                            {editButton}
-                        </div>
-                    </Tooltip>
-                )}
             </div>
         );
     };
@@ -1121,11 +980,13 @@ export function SelectionEditor({
             icon: "maximize",
             group: "edit",
             onRun: () => {
-                void element?.applyCameraView("fitToGraph", {
-                    scope: reading.result,
-                    params: { keepAngle: true },
-                    animate: true,
-                });
+                void element
+                    ?.applyCameraView("fitToGraph", {
+                        scope: reading.result,
+                        params: { keepAngle: true },
+                        animate: true,
+                    })
+                    .catch(cameraRefused);
             },
         },
         {
@@ -1453,7 +1314,7 @@ export function SelectionEditor({
                                 }}
                             />
                         ),
-                    menu: <PaneMenu name={letter} items={cardItems(branch, at)} />,
+                    menu: <RowMore name={letter} items={cardItems(branch, at)} />,
                     children: (
                         <>
                             {/* Its own line in the open card, named: beside the count "No nodes" read as
@@ -1648,7 +1509,8 @@ export function SelectionEditor({
                     requestAnimationFrame(fit);
                 });
             } else if (camera !== undefined) {
-                void element?.setCameraState(camera);
+                // Switched to 2D or 3D, or into a headset, while open: the old camera no longer fits.
+                void element?.setCameraState(camera).catch(cameraRefused);
             }
         };
         // The canvas is placed once per opening; its observer follows the cell from there.
@@ -1656,7 +1518,7 @@ export function SelectionEditor({
 
     // While it is the preview, the drawing is named for it, as its F6 stop follows the workspace's.
     useEffect(() => {
-        if (!open || element === null || element === undefined) {
+        if (!open || element === null) {
             return undefined;
         }
         const was = element.getAttribute("aria-label");
@@ -1819,7 +1681,7 @@ export function SelectionEditor({
                                           setColors(value === "colors");
                                       }}
                                   />
-                                  <PaneMenu name={wsTitle} items={titleItems} />
+                                  <RowMore name={wsTitle} items={titleItems} />
                                   <span className="sel-ws-gap" />
                                   <Button
                                       size="compact-xs"
@@ -1989,7 +1851,7 @@ function untestedWords(step: UnionStep, read: StepReading | undefined): string {
  * @returns true when the group passes none because of where it starts.
  */
 function startEmpties(branch: UnionBranch, read: StepsReading["branches"][number] | undefined): boolean {
-    const [first] = branch.steps;
+    const first = branch.steps.at(0);
     return (
         branch.on !== false && branch.start === "none" && first !== undefined && first.op !== "add" && read?.count === 0
     );
@@ -2265,30 +2127,6 @@ function AddCard({
                 </Text>
             )}
         </div>
-    );
-}
-
-/**
- * A "..." menu of a pane.
- * @param props - Component props
- * @param props.name - what it is for
- * @param props.items - its items
- * @returns The menu
- */
-function PaneMenu({ name, items }: Readonly<{ name: string; items: readonly SelectionMenuItem[] }>): React.JSX.Element {
-    return (
-        <Menu position="bottom-end" withinPortal>
-            <Menu.Target>
-                <TargetTooltip label="More">
-                    <ActionIcon variant="subtle" size="sm" aria-label={`More for ${name}`}>
-                        <GLYPHS.more size={14} aria-hidden />
-                    </ActionIcon>
-                </TargetTooltip>
-            </Menu.Target>
-            <Menu.Dropdown data-portal="">
-                <SelectionMenuItems items={items} />
-            </Menu.Dropdown>
-        </Menu>
     );
 }
 

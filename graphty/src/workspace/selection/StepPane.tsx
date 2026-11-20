@@ -448,7 +448,10 @@ function LinksCondition({
                 .map((field) => ({ ...field, within })),
         [session, within],
     );
-    const card = step.links === undefined ? null : cardOf(session, step.links, fields, 0);
+    // An edge test that makes no condition yet (By position before its count is typed) writes none,
+    // so every link counts, but its card stays drawn for the count that comes next.
+    const [draft, setDraft] = useState<Card | null>(null);
+    const card = draft ?? (step.links === undefined ? null : cardOf(session, step.links, fields, 0));
     const shown = card === null || card.type === "fixed" ? null : card;
     const name = shown !== null && "field" in shown ? shown.field.name : "";
     return (
@@ -460,6 +463,7 @@ function LinksCondition({
                 opened={picking}
                 onAdd={(field) => {
                     setPicking(false);
+                    setDraft(null);
                     toTest.current = true;
                     // Untouched: every link with a value passes until a test is set.
                     onLinks(ruleOfField(session, field));
@@ -497,7 +501,9 @@ function LinksCondition({
                         card={shown}
                         side="edge"
                         onChange={(next) => {
-                            onLinks(leafOf(next) ?? undefined);
+                            const leaf = leafOf(next);
+                            setDraft(leaf === null ? next : null);
+                            onLinks(leaf ?? undefined);
                         }}
                         variant="step"
                     />

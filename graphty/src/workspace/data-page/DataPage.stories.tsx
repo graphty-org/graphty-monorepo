@@ -181,6 +181,13 @@ export const RefusedParse: Story = pageStory({ intent: "new", files: [new File([
 export const RefusedFetch: Story = pageStory({ intent: "new" }, async (canvas) => {
     await enterUrl(canvas, "https://example.invalid/no-such-file.csv", true);
     await canvas.findByRole("alert", {});
+    // The picture shows where focus settles: on Load, which took it as the URL field closed (#9005).
+    const load = canvas.getByRole("button", { name: "Load" });
+    await waitFor(() => {
+        if (document.activeElement !== load) {
+            throw new Error("focus has not settled on Load");
+        }
+    });
 });
 
 /** Adding to the open project: the title names it (`Add to <project>`). */

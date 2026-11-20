@@ -12,7 +12,7 @@ import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 import { afterEach, assert, describe, it } from "vitest";
 
 import type { Graphty } from "../../index.js";
-import { operationQueueOf } from "../../src/Graph";
+import { operationQueueOf, renderManagerOf } from "../../src/Graph";
 import { dataManagerInternals } from "../../src/managers/DataManager";
 import { edgePickWork } from "../../src/render/PickService";
 import { click, hover, nextFrame } from "../helpers/real-input";
@@ -218,6 +218,53 @@ describe("the work of a plain edge pick on batched", () => {
         }
     }
 
+    /**
+     * The grid of lines, drawn on `"batched"`.
+     * @param renderer - The engine.
+     * @param viewMode - The view.
+     * @returns The element, and the nodes as added.
+     */
+    async function lineGrid(
+        renderer: "webgl" | "webgpu",
+        viewMode: "2d" | "3d",
+    ): Promise<{ element: Graphty; nodes: { id: string; position: { x: number; y: number; z: number } }[] }> {
+        const element = document.createElement("graphty-element");
+        element.renderer = renderer;
+        element.renderPath = "batched";
+        element.directed = false;
+        element.style.display = "block";
+        element.style.width = "500px";
+        element.style.height = "400px";
+        document.body.appendChild(element);
+        cleanups.push(() => {
+            element.remove();
+        });
+        await element.updateComplete;
+        await element.setViewMode(viewMode);
+        await operationQueueOf(element.graph).waitForCompletion();
+        const nodes = Array.from({ length: LINES * 2 }, (_, i) => {
+            const line = Math.floor(i / 2);
+            return {
+                id: `n${String(i)}`,
+                position: {
+                    x: (line % 20) * 5,
+                    y: Math.floor(line / 20) * 4 + (i % 2 === 0 ? 1.5 : -1.5),
+                    z: 0,
+                },
+            };
+        });
+        const edges = Array.from({ length: LINES }, (_, i) => ({
+            src: `n${String(i * 2)}`,
+            dst: `n${String(i * 2 + 1)}`,
+        }));
+        await element.session.data.addNodes(nodes);
+        await element.session.data.addEdges(edges);
+        await element.graph.setLayout("fixed", { dim: viewMode === "2d" ? 2 : 3 });
+        await operationQueueOf(element.graph).waitForCompletion();
+        await element.waitForStableFrame();
+        return { element, nodes };
+    }
+
     for (const [renderer, viewMode] of [
         ["webgl", "2d"],
         ["webgpu", "2d"],
@@ -227,40 +274,7 @@ describe("the work of a plain edge pick on batched", () => {
         it.skipIf(renderer === "webgpu" && ADAPTER === "")(
             `measures only the lines near a hover and a press, and builds no Edge, on ${renderer}, ${viewMode}`,
             async () => {
-                const element = document.createElement("graphty-element");
-                element.renderer = renderer;
-                element.renderPath = "batched";
-                element.directed = false;
-                element.style.display = "block";
-                element.style.width = "500px";
-                element.style.height = "400px";
-                document.body.appendChild(element);
-                cleanups.push(() => {
-                    element.remove();
-                });
-                await element.updateComplete;
-                await element.setViewMode(viewMode);
-                await operationQueueOf(element.graph).waitForCompletion();
-                const nodes = Array.from({ length: LINES * 2 }, (_, i) => {
-                    const line = Math.floor(i / 2);
-                    return {
-                        id: `n${String(i)}`,
-                        position: {
-                            x: (line % 20) * 5,
-                            y: Math.floor(line / 20) * 4 + (i % 2 === 0 ? 1.5 : -1.5),
-                            z: 0,
-                        },
-                    };
-                });
-                const edges = Array.from({ length: LINES }, (_, i) => ({
-                    src: `n${String(i * 2)}`,
-                    dst: `n${String(i * 2 + 1)}`,
-                }));
-                await element.session.data.addNodes(nodes);
-                await element.session.data.addEdges(edges);
-                await element.graph.setLayout("fixed", { dim: viewMode === "2d" ? 2 : 3 });
-                await operationQueueOf(element.graph).waitForCompletion();
-                await element.waitForStableFrame();
+                const { element, nodes } = await lineGrid(renderer, viewMode);
                 const manager = element.graph.getDataManager();
                 assert.strictEqual(element.rowCounts.pulledEdges, LINES, "every edge is a row line");
                 const canvas = element.graph.scene.getEngine().getInputElement();
@@ -395,6 +409,83 @@ describe("the work of a plain edge pick on batched", () => {
                 const moved = between(element, "n422", "n423");
                 assert.closeTo(moved.x, mid.x, 1, "the next line is under the pointer now");
                 assert.deepEqual(element.elementAt(mid), { kind: "edge", id: nextId }, "elementAt names it");
+            },
+        );
+    }
+
+    for (const viewMode of ["2d", "3d"] as const) {
+        it.skipIf(ADAPTER === "")(
+            `elementAt measures only the lines near a point no hover read, still and moving, on webgpu, ${viewMode}`,
+            async () => {
+                const { element, nodes } = await lineGrid("webgpu", viewMode);
+                const manager = element.graph.getDataManager();
+                const target = element.graph.getEdgeIdTarget();
+                assert.isNotNull(target);
+                if (target === null) {
+                    return;
+                }
+
+                /** Wait until every whole read of the edge ID target the frames drawn so far sent has come back. */
+                const wholeBack = async (): Promise<void> => {
+                    await element.waitForStableFrame();
+                    while (target.counts.wholeReads === 0 || target.counts.wholePending > 0) {
+                        await nextFrame();
+                    }
+                };
+
+                // The first question about an edge (here a hover over empty canvas) starts the whole reads.
+                const { reads } = target.counts;
+                await hover(element, { x: 2, y: 2 });
+                await readBack(element, reads);
+                await wholeBack();
+
+                // elementAt where no hover has been: WebGPU cannot read the target now, and the whole read answers.
+                const mid = between(element, "n210", "n211");
+                const [id] = dataManagerInternals.incidentEdgeIds(manager, "n210");
+                let before = edgePickWork.rowLines;
+                assert.deepEqual(element.elementAt(mid), { kind: "edge", id }, "elementAt names the line");
+                assert.isAbove(edgePickWork.rowLines - before, 0, "it measures the line under the point");
+                assert.isBelow(edgePickWork.rowLines - before, 10, "and only the lines near it");
+
+                // Move the rows: the next line takes the place of the first. Once a frame has drawn them, the read of
+                // that frame answers.
+                const [nextId] = dataManagerInternals.incidentEdgeIds(manager, "n212");
+                const at = (i: number): { x: number; y: number; z: number } => nodes[i].position;
+                await element.session.positions.set([
+                    { id: "n210", ...at(210), x: at(210).x + 2.5 },
+                    { id: "n211", ...at(211), x: at(211).x + 2.5 },
+                    { id: "n212", ...at(210) },
+                    { id: "n213", ...at(211) },
+                ]);
+                await operationQueueOf(element.graph).waitForCompletion();
+                await wholeBack();
+                before = edgePickWork.rowLines;
+                assert.deepEqual(element.elementAt(mid), { kind: "edge", id: nextId }, "it names the moved-in line");
+                assert.isBelow(edgePickWork.rowLines - before, 10, "measuring only the lines near it");
+                assert.strictEqual(dataManagerInternals.edgesLive(manager), 0, "no Edge is built");
+                if (viewMode === "3d") {
+                    return;
+                }
+
+                // Pan a little, and ask in the very frame that draws the pan, before any read of it can come back (as
+                // while a layout or the camera keeps moving): the read of the picture before it answers.
+                const { activeCamera: camera } = element.graph.scene;
+                assert.isNotNull(camera);
+                const asked = await new Promise<{ hit: unknown; lines: number }>((resolve) => {
+                    element.graph.scene.onAfterRenderObservable.addOnce(() => {
+                        const start = edgePickWork.rowLines;
+                        const hit = element.elementAt(mid);
+                        resolve({ hit, lines: edgePickWork.rowLines - start });
+                    });
+                    if (camera !== null) {
+                        camera.position.x += 0.3;
+                    }
+
+                    renderManagerOf(element.graph).requestFrame();
+                });
+                assert.deepEqual(asked.hit, { kind: "edge", id: nextId }, "the line is still found");
+                assert.isAbove(asked.lines, 0, "it is measured");
+                assert.isBelow(asked.lines, 40, "with only the lines near it, from the read before the pan");
             },
         );
     }

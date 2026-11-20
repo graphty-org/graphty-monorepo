@@ -29,6 +29,13 @@ import type { EdgeRowLines } from "../meshes/EdgeRowLines";
  * ({@link edgeDrawChanges}), and a row line drawn, removed, hidden or shown rewrites only its own
  * row's two vertices (`EdgeRowLines.takeChanged`), so a selection or a restyle at a million edges
  * costs the target the rows it changed.
+ *
+ * On WebGPU a read comes back only after a frame, so a synchronous pick (`elementAt`) cannot wait for one. Once
+ * anything has asked the target about an edge, it is drawn in each frame whose picture changed and read back whole
+ * after it (one copy of the canvas's pixels, with no decoding), and a synchronous pick takes the edges near its point
+ * from the newest such read: one drawn from the same rows, camera and lines, or else from the picture on screen
+ * or the one before it, with a wider window to cover what moved since. The pick then costs a window of
+ * pixels, whatever the edge count.
  */
 
 /**
@@ -55,6 +62,12 @@ void main(void) {
     gl_Position = position.z < 0.5 ? vec4(2.0, 2.0, 2.0, 1.0) : viewProjection * world * vec4(grPlace.xyz, 1.0);
 }
 `;
+
+/**
+ * How much wider a window a synchronous pick on WebGPU reads from a whole read drawn up to a frame before what is on
+ * screen than from one drawn from what is there now: the rows and the camera may have moved since.
+ */
+const STALE_WIDEN = 4;
 
 /** The alpha a row line writes, to tell its id (an edge row) from an `Edge`'s (its place in the list). */
 const ROW_ALPHA = 128;
@@ -106,8 +119,9 @@ export class EdgeIdTarget {
      * How many times the target was drawn, its list rebuilt and windows read from it, and how many answers are
      * pending: on WebGPU a read answers a frame or more after it is asked for. `rowsWritten` counts row lines
      * written into its vertices, each row once a write: every row on a whole write, the changed ones otherwise.
+     * `wholeReads` counts whole reads back on WebGPU, and `wholePending` those sent and not yet back.
      */
-    readonly counts = { draws: 0, rebuilds: 0, reads: 0, pending: 0, rowsWritten: 0 };
+    readonly counts = { draws: 0, rebuilds: 0, reads: 0, pending: 0, rowsWritten: 0, wholeReads: 0, wholePending: 0 };
     /** The visible edges as of the last rebuild, in walk order. */
     edges: Edge[] = [];
 
@@ -146,6 +160,28 @@ export class EdgeIdTarget {
     private lastRead: { cx: number; cy: number; radius: number; from: number[]; named: EdgeCandidates } | null = null;
     /** The `Edge` list and row lines the drawn target holds: {@link builtAt}, then {@link rowVersion}. */
     private drawnVersion = "";
+    /** Whether whole reads are kept, on WebGPU: from the first question about an edge on. */
+    private armed = false;
+    /** Whole reads sent and not yet back. */
+    private wholeInFlight = 0;
+    /** What the last whole read sent was drawn from, so a frame drawn from the same sends none. */
+    private wholeSent: { from: number[]; version: string } | null = null;
+    /** The newest whole read back: the frame it was drawn in, what from, its size and its pixels. */
+    private whole: {
+        frame: number;
+        from: number[];
+        version: string;
+        width: number;
+        height: number;
+        pixels: Uint8Array;
+    } | null = null;
+    /** Buffers of whole reads no longer held, for the next ones. */
+    private readonly spare: Uint8Array[] = [];
+    /** What the last frame drawn was drawn from, and whether that changed from the frame before. */
+    private shown: number[] | null = null;
+    private shownChanged = false;
+    /** What the picture before the one on screen was drawn from. */
+    private before: number[] = [];
 
     /**
      * Start the target of a scene.
@@ -197,7 +233,7 @@ export class EdgeIdTarget {
                 this.material.setTexture("rowPosition", this.host.positionTexture());
             }),
             observe(scene.onBeforeRenderObservable, () => {
-                if (this.drawnRequested) {
+                if (this.drawnRequested || this.wantsWhole()) {
                     this.fit();
                     this.target.resetRefreshCounter();
                 }
@@ -208,6 +244,8 @@ export class EdgeIdTarget {
                 if (this.waiting.length > 0) {
                     this.settle();
                 }
+
+                this.afterFrame();
             }),
         );
         this.target.onAfterRenderObservable.add(() => {
@@ -238,6 +276,7 @@ export class EdgeIdTarget {
             return null;
         }
 
+        this.arm();
         if (this.builtAt !== edgeDrawChanges.count) {
             this.rebuild();
         }
@@ -271,34 +310,198 @@ export class EdgeIdTarget {
     }
 
     /**
-     * {@link candidates} with no read, for a press on WebGPU, which cannot wait for one: the edges the last window
-     * read back named, when it was read around the same pixel and nothing has moved, been shown or hidden, or
-     * changed size since the target it read was drawn. A click lands where the pointer last moved, so the hover's
-     * read usually answers it.
+     * {@link candidates} with no read, for a press on WebGPU, which cannot wait for one. First the edges the last
+     * window read back named, when it was read around the same pixel and nothing has moved, been shown or hidden, or
+     * changed size since the target it read was drawn: a click lands where the pointer last moved, so the hover's
+     * read usually answers it. Otherwise the window around the point in the newest whole read, when it holds the
+     * lines the target holds now and was drawn from what is drawn now, from the picture on screen, or from the one
+     * before it.
      * @param x - X in CSS pixels.
      * @param y - Y in CSS pixels.
      * @param radius - The window's half-width, in render pixels.
-     * @returns The edges, or null when no read still answers for this point.
+     * @returns The edges, or null when no read answers for this point: the first question about an edge, or right
+     *   after the lines or the canvas changed, before a frame has drawn them.
      */
     held(x: number, y: number, radius: number): EdgeCandidates | null {
-        if (!this.disposed) {
-            this.writeRows();
+        if (this.disposed) {
+            return null;
         }
 
-        const read = this.lastRead;
-        if (read === null || this.disposed || this.builtAt !== edgeDrawChanges.count || !this.fits()) {
+        this.arm();
+        this.writeRows();
+        if (this.builtAt !== edgeDrawChanges.count || !this.fits()) {
             return null;
         }
 
         const { cx, cy } = this.pixel(x, y);
-        const now = this.from(true);
-        const same =
-            read.cx === cx &&
-            read.cy === cy &&
-            read.radius === radius &&
-            read.from.length === now.length &&
-            read.from.every((value, i) => value === now[i]);
-        return same ? read.named : null;
+        const read = this.lastRead;
+        if (read !== null && read.cx === cx && read.cy === cy && read.radius === radius) {
+            if (sameValues(read.from, this.from(true))) {
+                return read.named;
+            }
+        }
+
+        return this.wholeWindow(cx, cy, radius);
+    }
+
+    /**
+     * The edges a window of the newest whole read names, when that read answers for now: see {@link held}.
+     * @param cx - The point's pixel column.
+     * @param cy - The point's pixel row, from the bottom.
+     * @param radius - The window's half-width, in render pixels, when the read was drawn from what is drawn now.
+     * @returns The edges, or null when the read does not answer.
+     */
+    private wholeWindow(cx: number, cy: number, radius: number): EdgeCandidates | null {
+        const { whole } = this;
+        const { width, height } = this.target.getSize();
+        if (whole?.version !== this.version() || whole.width !== width || whole.height !== height) {
+            return null;
+        }
+
+        // Drawn from what is drawn now; else from the picture on screen (rows the layout published since may not be
+        // drawn yet) or the picture before it.
+        const exact = sameValues(whole.from, this.from(false));
+        if (!exact && !sameValues(whole.from, this.shown ?? []) && !sameValues(whole.from, this.before)) {
+            return null;
+        }
+
+        const r = exact ? radius : radius * STALE_WIDEN;
+        const left = Math.max(0, cx - r);
+        const bottom = Math.max(0, cy - r);
+        const w = Math.min(width, cx + r + 1) - left;
+        const h = Math.min(height, cy + r + 1) - bottom;
+        if (w <= 0 || h <= 0) {
+            return this.named(this.pixels, 0);
+        }
+
+        if (this.pixels.length < w * h * 4) {
+            this.pixels = new Uint8Array(w * h * 4);
+        }
+
+        for (let row = 0; row < h; row++) {
+            const at = ((bottom + row) * width + left) * 4;
+            this.pixels.set(whole.pixels.subarray(at, at + w * 4), row * w * 4);
+        }
+
+        return this.named(this.pixels, w * h);
+    }
+
+    /** Keep whole reads from now on, on WebGPU, and draw a frame to take the first. */
+    private arm(): void {
+        if (!this.armed && this.scene.getEngine().isWebGPU) {
+            this.armed = true;
+            this.host.requestFrame();
+        }
+    }
+
+    /**
+     * Whether this frame should draw the target for a whole read: armed, with room for another read, and the picture
+     * changed in the last frame or the last read sent no longer holds what is drawn.
+     * @returns True to draw it.
+     */
+    private wantsWhole(): boolean {
+        if (!this.armed || this.disposed || this.wholeInFlight >= 2) {
+            return false;
+        }
+
+        if (this.builtAt !== edgeDrawChanges.count) {
+            this.rebuild();
+        }
+
+        this.writeRows();
+        const sent = this.wholeSent;
+        return this.shownChanged || sent?.version !== this.version() || !sameValues(sent.from, this.shown ?? []);
+    }
+
+    /**
+     * After each frame, while armed: note what it showed, and read the target back whole when it was drawn in it
+     * from a picture no read was sent for, or ask for a frame that draws it.
+     */
+    private afterFrame(): void {
+        if (!this.armed || this.disposed) {
+            return;
+        }
+
+        const frame = this.scene.getFrameId();
+        const from = this.from(false);
+        this.shownChanged = this.shown !== null && !sameValues(this.shown, from);
+        if (this.shownChanged && this.shown !== null) {
+            this.before = this.shown;
+        }
+
+        this.shown = from;
+        const sent = this.wholeSent;
+        const drawnNow = this.drawnIn === frame && this.drawnVersion === this.version();
+        if (drawnNow && (sent?.version !== this.drawnVersion || !sameValues(sent.from, this.drawnFrom))) {
+            const stamp = { from: this.drawnFrom, version: this.drawnVersion };
+            this.wholeSent = stamp;
+            // Read after the frame is sent, as a hover's read is.
+            queueMicrotask(() => {
+                this.readWhole(frame, stamp);
+            });
+        } else if (!drawnNow && this.wantsWhole()) {
+            this.host.requestFrame();
+        }
+    }
+
+    /**
+     * Read the whole target back, as drawn in a frame, and hold it when no newer one has come back.
+     * @param frame - The frame it was drawn in.
+     * @param stamp - What it was drawn from.
+     * @param stamp.from - The rows' move count and the matrix to the screen.
+     * @param stamp.version - The lines it holds.
+     */
+    private readWhole(frame: number, stamp: { from: number[]; version: string }): void {
+        const texture = this.target.getInternalTexture();
+        if (this.disposed || texture === null) {
+            return;
+        }
+
+        const { width, height } = this.target.getSize();
+        // WebGPU copies rows padded to 256 bytes, then packs them at the buffer's front.
+        const size = height * Math.ceil((width * 4) / 256) * 256;
+        const reused = this.spare.pop();
+        const pixels = reused?.length === size ? reused : new Uint8Array(size);
+        this.wholeInFlight++;
+        this.counts.wholePending++;
+        this.scene
+            .getEngine()
+            ._readTexturePixels(texture, width, height, -1, 0, pixels, true, false, 0, 0)
+            .then(
+                () => {
+                    const held = this.whole;
+                    if (this.disposed || (held !== null && held.frame >= frame)) {
+                        this.release(pixels);
+                        return;
+                    }
+
+                    if (held !== null) {
+                        this.release(held.pixels);
+                    }
+
+                    this.whole = { frame, from: stamp.from, version: stamp.version, width, height, pixels };
+                    this.counts.wholeReads++;
+                },
+                // A device lost mid-read leaves the last read held; the next frame drawn reads again.
+                () => undefined,
+            )
+            .finally(() => {
+                this.wholeInFlight--;
+                this.counts.wholePending--;
+                if (!this.disposed && this.wantsWhole()) {
+                    this.host.requestFrame();
+                }
+            });
+    }
+
+    /**
+     * Keep a whole read's buffer for the next read.
+     * @param pixels - The buffer.
+     */
+    private release(pixels: Uint8Array): void {
+        if (this.spare.length < 2) {
+            this.spare.push(pixels);
+        }
     }
 
     /**
@@ -629,6 +832,16 @@ export class EdgeIdTarget {
             rows: [...rows].sort((a, b) => a - b),
         };
     }
+}
+
+/**
+ * Whether two lists of numbers are the same.
+ * @param a - One.
+ * @param b - The other.
+ * @returns True when they have the same values in the same order.
+ */
+function sameValues(a: readonly number[], b: readonly number[]): boolean {
+    return a.length === b.length && a.every((value, i) => value === b[i]);
 }
 
 /**

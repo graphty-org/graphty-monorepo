@@ -1121,12 +1121,12 @@ export function hoverEdgeAt(
  * The drawn edge `elementAt` at a canvas point finds: {@link pickEdgeAt}'s answer, now. On the `"batched"` path it
  * measures only the edges the edge ID target draws near the point, and those it cannot draw, as {@link hoverEdgeAt}
  * does, so it costs the same at a million edges as at a thousand. WebGL reads the target now. WebGPU reads it back
- * only asynchronously, so there it takes the edges the last read named, which answers where the pointer rests while
- * nothing moves ({@link EdgeIdTarget.held}); a click does not use this, see {@link clickEdgeAt}.
- * ponytail: an answer the target cannot give now (on WebGPU at a point no read covers or while rows move, in a
- * layout transition, before the target is ready, or with no target) is one typed walk over every row line, with
- * no object per line, the same order of work as the node walk over every row that runs before it. `elementAt`
- * answers now, and a WebGPU read cannot; an asynchronous `elementAt` would bound this too.
+ * only asynchronously, so there it takes the edges near the point from the last read: the hover's window where the
+ * pointer rests, or else the newest whole read of the target, drawn from what is drawn now, from the picture on
+ * screen or from the one before it ({@link EdgeIdTarget.held}). A click does not use this, see {@link clickEdgeAt}.
+ * ponytail: an answer no read can give (the first question about an edge on WebGPU, right after the lines or the
+ * canvas changed and before a frame drew them, in a layout transition, before the target is ready, or with no
+ * target) is one typed walk over every row line, with no object per line.
  * @param args - {@link hoverEdgeAt}'s: the scene, the graph's edges, x and y, toScreen and the row lines.
  * @returns The edge's id, or `undefined`.
  */

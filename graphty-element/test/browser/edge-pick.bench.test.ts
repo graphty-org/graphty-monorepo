@@ -5,9 +5,12 @@
  * picks are timed at points on edges' middles:
  *
  * - `elementAt`, the press path: on `"batched"` WebGL it reads the edge ID target as a hover does; on WebGPU, whose
- *   read answers only later, a press at a point no hover has read is one typed walk over every line, and a press
- *   where a hover's read has come back ("rested", as a click lands where the pointer rests) measures only the lines
- *   that read named; on `"objects"` a walk over every `Edge`;
+ *   read answers only later, a press at a point no hover has read takes the lines near it from the newest whole read
+ *   of the target, and a press where a hover's read has come back ("rested", as a click lands where the pointer
+ *   rests) measures only the lines that read named; on `"objects"` a walk over every `Edge`;
+ * - `elementAt` while the picture changes every frame (`moving`): each frame pans the camera by about a pixel, which
+ *   leaves a read as stale as moving rows do, and `elementAt` is asked between frames, before that frame's read can
+ *   come back;
  * - the edge hover a pointer move runs (`hoverEdgeAt`, called as the element calls it, so the CDP round trip of a
  *   mouse event is not in the time): on `"batched"` it reads the edge ID target and measures only the lines drawn
  *   near the pointer; on `"objects"` it measures every edge;
@@ -102,7 +105,7 @@ const CASES: { path: "objects" | "batched"; edges: number; renderer: "webgl" | "
     { path: "batched", edges: 10_000, renderer: "webgl" },
     { path: "batched", edges: 100_000, renderer: "webgl" },
     { path: "batched", edges: 1_000_000, renderer: "webgl" },
-    // WebGPU reads the edge ID target back only asynchronously: a cold press there walks every line.
+    // WebGPU reads the edge ID target back only asynchronously: a cold press there reads the newest whole read.
     { path: "batched", edges: 100_000, renderer: "webgpu" },
     { path: "batched", edges: 1_000_000, renderer: "webgpu" },
 ];
@@ -162,6 +165,17 @@ describe("edge pick cost", () => {
                 await hover(element, { x: 1, y: 1 });
                 const firstHover = performance.now() - firstStart;
                 await element.waitForStableFrame();
+                // On WebGPU the first question about an edge starts the whole reads of the edge ID target: wait for
+                // the first to come back. The code before them has no such counts.
+                const wholeCounts = element.graph.getEdgeIdTarget()?.counts as
+                    { wholeReads?: number; wholePending?: number } | undefined;
+                while (
+                    renderer === "webgpu" &&
+                    wholeCounts?.wholeReads !== undefined &&
+                    (wholeCounts.wholeReads === 0 || (wholeCounts.wholePending ?? 0) > 0)
+                ) {
+                    await new Promise((resolve) => requestAnimationFrame(resolve));
+                }
 
                 const pressTimes: number[] = [];
                 let pressEdges = 0;
@@ -173,6 +187,35 @@ describe("edge pick cost", () => {
                     pressEdges += got?.kind === "edge" ? 1 : 0;
                 }
                 const pressLines = ((edgePickWork as { rowLines?: number }).rowLines ?? 0) - lines0;
+
+                // elementAt between frames while each frame pans the camera by about a pixel.
+                const camera = element.graph.scene.activeCamera;
+                const step = span / WIDTH;
+                const movingTimes: number[] = [];
+                let movingEdges = 0;
+                const movingLines0 = (edgePickWork as { rowLines?: number }).rowLines ?? 0;
+                const MOVES = 20;
+                for (const point of points.slice(0, MOVES)) {
+                    await new Promise<void>((resolve) => {
+                        element.graph.scene.onAfterRenderObservable.addOnce(() => {
+                            resolve();
+                        });
+                        if (camera !== null) {
+                            camera.position.x += step;
+                        }
+
+                        renderManagerOf(element.graph).requestFrame();
+                    });
+                    const start = performance.now();
+                    const got = element.elementAt(point);
+                    movingTimes.push(performance.now() - start);
+                    movingEdges += got?.kind === "edge" ? 1 : 0;
+                }
+                const movingLines = ((edgePickWork as { rowLines?: number }).rowLines ?? 0) - movingLines0;
+                if (camera !== null) {
+                    camera.position.x -= step * MOVES;
+                }
+                await element.waitForStableFrame();
 
                 const { graph } = element;
                 const rowLines = graph.getEdgeRowLines();
@@ -300,6 +343,10 @@ describe("edge pick cost", () => {
                     elementAtMaxMs: Number(Math.max(...pressTimes).toFixed(3)),
                     elementAtEdgesFound: pressEdges,
                     elementAtRowLinesPerPick: pressLines / POINTS,
+                    movingElementAtMedianMs: Number(median(movingTimes).toFixed(3)),
+                    movingElementAtMaxMs: Number(Math.max(...movingTimes).toFixed(3)),
+                    movingElementAtEdgesFound: movingEdges,
+                    movingElementAtRowLinesPerPick: movingLines / MOVES,
                     restedPressMedianMs: Number(median(restedTimes).toFixed(3)),
                     restedPressMaxMs: Number(Math.max(...restedTimes).toFixed(3)),
                     restedPressRowLinesPerPick: restedLines / POINTS,

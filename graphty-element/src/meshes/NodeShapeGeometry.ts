@@ -224,7 +224,7 @@ export function ringSlab(name: string, pieces: readonly RingPiece[], depth: numb
 /**
  * A node border's geometry as {@link ringSlab} builds it, for a ring rebuilt in place.
  * @param pieces - The ring's pieces, from `borderRing`.
- * @param depth - How deep each piece is along z, centred on z = 0.
+ * @param depth - How deep each piece is along z, centered on z = 0.
  * @returns The geometry.
  */
 export function ringVertexData(pieces: readonly RingPiece[], depth: number): VertexData {

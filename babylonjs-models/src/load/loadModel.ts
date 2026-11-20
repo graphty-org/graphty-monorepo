@@ -35,7 +35,7 @@ import type {
 import { readUsdz } from "../files/usdChecks.js";
 import { loadBabylonModel, type LoaderOptions, loadOwnModel, type ModelExtension, type OwnFormat } from "./loaders.js";
 import { guardRequests, REFUSED } from "./requestGuard.js";
-import { drawnAs, hdrAsLinear, withHdrAsBmp } from "./usdHdr.js";
+import { drawnAs, floatPicturesAsLinear, withFloatPicturesAsBmp } from "./usdHdr.js";
 import { markWithoutPictures, takeOffByName, takeOffUsdPictures } from "./withoutPicture.js";
 
 /** Which reader draws each built-in format: one of Babylon's loaders, or the element's own. */
@@ -729,20 +729,20 @@ function withStPrimvar(files: ReadonlyMap<string, Uint8Array>): ReadonlyMap<stri
  * is the root layer), and every picture drawn without swapped for a 1 x 1 white stand-in, taken
  * off once loaded. A picture OpenUSD cannot find is not a plain color: the parts whose material
  * reads it are not drawn at all (RoughnessTest.usdz without its roughness picture drew nothing).
- * A Radiance HDR picture is drawn as a BMP (./usdHdr.ts); one that cannot be decoded is drawn
- * without, as a stand-in.
+ * A Radiance HDR or OpenEXR picture is drawn as a BMP (./usdHdr.ts); one that cannot be decoded
+ * is drawn without, as a stand-in.
  * @param files - The set.
  * @param main - The main file's path.
  * @param format - `usd` or `usdz`.
  * @param gone - Pictures drawn without, by path.
  * @returns The set to load and its root layer.
  */
-function usdFiles(
+async function usdFiles(
     files: ReadonlyMap<string, Uint8Array>,
     main: string,
     format: "usd" | "usdz",
     gone: readonly string[],
-): { files: ReadonlyMap<string, Uint8Array>; main: string; gone: string[] } {
+): Promise<{ files: ReadonlyMap<string, Uint8Array>; main: string; gone: string[] }> {
     let set = files;
     let root = main;
     if (format === "usdz") {
@@ -764,7 +764,7 @@ function usdFiles(
         }
     }
 
-    const hdr = withHdrAsBmp(out, gone, DEFAULT_MODEL_LIMITS.maxDecodedBytes);
+    const hdr = await withFloatPicturesAsBmp(out, gone, DEFAULT_MODEL_LIMITS.maxDecodedBytes);
     return {
         files: withPreviewSurfaceDefaults(withStPrimvar(hdr.files)),
         main: root,
@@ -793,7 +793,7 @@ async function finish(
         await curvesAsTubes(container);
         takeOffByName(container, hidden);
     } else if (format === "usd" || format === "usdz") {
-        hdrAsLinear(container);
+        floatPicturesAsLinear(container);
         takeOffUsdPictures(container, gone);
     }
 
@@ -910,7 +910,7 @@ async function loadModelFilesNow(
     if (format === "fbx") {
         files = fbxFiles(files, main, hidden);
     } else if (format === "usd" || format === "usdz") {
-        ({ files, main, gone: usdGone } = usdFiles(files, main, format, [...skipped, ...hidden]));
+        ({ files, main, gone: usdGone } = await usdFiles(files, main, format, [...skipped, ...hidden]));
     }
 
     let reader = READERS[format];

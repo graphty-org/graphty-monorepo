@@ -100,7 +100,7 @@ export function truncateObjectStrings<T>(obj: T, maxLength = 100): T {
     }
 
     if (Array.isArray(obj)) {
-        return obj.map((item) => truncateObjectStrings(item, maxLength)) as T;
+        return (obj as unknown[]).map((item) => truncateObjectStrings(item, maxLength)) as T;
     }
 
     if (typeof obj === "object") {

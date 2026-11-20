@@ -92,5 +92,5 @@ Output: "session ended".
     - The line had no tooltip on hover; I only knew it was clickable because the pointer changed.
     - I'm not sure the yellow glow sticks once I click somewhere else. For a slide I'd need it to,
       so next time I'd go to the Fill plus on the Style tab, but I did not try that here.
-    - Small grey labels again ("Edge", "Selection" under the headings) -- hard to read without my
+    - Small gray labels again ("Edge", "Selection" under the headings) -- hard to read without my
       glasses.

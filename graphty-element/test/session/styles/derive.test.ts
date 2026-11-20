@@ -22,6 +22,9 @@ import {
 } from "../../../src/session/styles/index";
 import { CAVEATS, ENGINE, FakeGraph, finishAtOnce } from "../runs/harness";
 
+/** A run fixture with the name its layers are given by default. */
+type NamedRun = EncodingRun & { readonly label: string };
+
 /** One published field, spelled out so a test can say exactly what a run offers. */
 function field(
     name: string,
@@ -39,7 +42,7 @@ function field(
  * @param fields - What it published.
  * @returns The run.
  */
-function runOf(id: RunId, shape: ResultShape, fields: readonly FieldDescriptor[]): EncodingRun {
+function runOf(id: RunId, shape: ResultShape, fields: readonly FieldDescriptor[]): NamedRun {
     return {
         id,
         label: `The ${id} run`,
@@ -89,12 +92,13 @@ const BRIDGES = runOf("bridges", "edge-set", [field("in", "edge", "boolean", "br
 const PREDICTIONS = runOf("predictions", "pair-list", [field("pairs", "graph", "table", "predictions")]);
 
 /** Every run these tests look up, for the plan that turns a suggestion into a layer. */
-const RUNS: readonly EncodingRun[] = [BETWEENNESS, EDGE_BETWEENNESS, LOUVAIN, ROUTE, INFLUENCERS, BRIDGES];
+const RUNS: readonly NamedRun[] = [BETWEENNESS, EDGE_BETWEENNESS, LOUVAIN, ROUTE, INFLUENCERS, BRIDGES];
 
 /** Where a suggestion's run is looked up when it is planned into a layer. */
 const RUN_SOURCE: EncodingSource = {
     run: (ref: RunRef): EncodingRun | undefined => RUNS.find((entry) => entry.id === ref),
     runIds: (): readonly RunId[] => RUNS.map((entry) => entry.id),
+    defaultLayerName: (id: RunId): string | undefined => RUNS.find((entry) => entry.id === id)?.label,
 };
 
 /**
@@ -179,8 +183,8 @@ describe("what a run suggests be drawn from it", () => {
         assert.strictEqual(spec.run, "route");
         assert.strictEqual(spec.field, "onPath");
         assert.deepStrictEqual([...channels], ["node.color", "edge.color"]);
-        // The colour and the width are the mark's own, so nothing about it follows the element's
-        // highlight colour: today's vermilion, and an edge three times the default width.
+        // The color and the width are the mark's own, so nothing about it follows the element's
+        // highlight color: today's vermilion, and an edge three times the default width.
         assert.deepStrictEqual(spec.set, {
             "node.color": "#D55E00",
             "edge.color": "#D55E00",
@@ -276,7 +280,7 @@ describe("the layer a suggestion becomes", () => {
             scale: "linear",
         });
         // A grouping carries the default overflow policy, so a run that finds more groups than the
-        // palette has colours folds the smallest into one grey rather than being refused.
+        // palette has colors folds the smallest into one gray rather than being refused.
         assert.deepStrictEqual(grouped, {
             by: "results.louvain.group",
             scale: "ordinal",
@@ -288,7 +292,7 @@ describe("the layer a suggestion becomes", () => {
         // The scale is settled here because the SHAPE settles it -- a partition is categorical
         // however many groups it turns out to hold. The palette is not, because it depends on a
         // number nothing knows yet: how many groups there are. Writing one in anyway is what
-        // planted an eight-colour palette on a ten-community result, which the capacity check
+        // planted an eight-color palette on a ten-community result, which the capacity check
         // then refused, leaving a layer that was in the stack, enabled, and painting nothing.
         const grouped = layerFor(LOUVAIN).encode?.["node.color"];
         const measured = layerFor(BETWEENNESS).encode?.["node.color"];

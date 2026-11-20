@@ -132,6 +132,7 @@ export {
 export { defineSource, sourceEndpoint, sourceFileName } from "./sources/define.js";
 export {
     CYPHER_SOURCE_ID,
+    FIGSHARE_SOURCE_ID,
     GITHUB_SOURCE_ID,
     NDEX_SOURCE_ID,
     NEO4J_SOURCE_ID,
@@ -149,7 +150,7 @@ export {
     ZENODO_SOURCE_ID,
 } from "./sources/ids.js";
 export { type SourceParamsMap } from "./sources/params.js";
-export { sha256Hex } from "./sources/sigv4.js";
+export { sha256Hex, sha256HexSync } from "./sources/sha256.js";
 export {
     type Recording,
     recordingFrom,
@@ -240,6 +241,8 @@ export {
     type CysExportOptions,
     cysImporter,
     type CysImportOptions,
+    type CytoscapeStyleFileOptions,
+    readCytoscapeStyleFile,
 } from "./formats/cys/index.js";
 export {
     type BendPoint,
@@ -257,6 +260,8 @@ export {
     graphvizPosBends,
     RANK_COLUMN,
     RANK_SET_COLUMN,
+    type RequestedLayout,
+    requestedLayout,
 } from "./formats/dot/index.js";
 export {
     GEXF_1_2_CAPABILITIES,
@@ -301,8 +306,13 @@ export {
     type JsonImportDialect,
     jsonImporter,
     type JsonImportOptions,
+    type JsonRecords,
+    type JsonRecordsOptions,
     type JsonShapeMeta,
     jsonShapeOf,
+    readJsonRecords,
+    recordKey,
+    recordPaths,
     sniffJsonDialect,
 } from "./formats/json/index.js";
 export {
@@ -339,6 +349,16 @@ export {
     pajekImporter,
     type PajekImportOptions,
 } from "./formats/pajek/index.js";
+export {
+    INTERACTION_COLUMN,
+    SIF_CAPABILITIES,
+    SIF_ISSUE,
+    SIF_LOSS,
+    sifExporter,
+    type SifExportOptions,
+    sifImporter,
+    type SifImportOptions,
+} from "./formats/sif/index.js";
 export {
     XGMML_ISSUE,
     XGMML_LOSS,

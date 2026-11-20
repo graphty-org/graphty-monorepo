@@ -7,7 +7,7 @@
  * edge between two nodes in front of it -- was drawn across the words. The reviewer's report was
  * a tooltip in `Styles/Node Tooltip: On One Node Only` with an edge line struck through its text.
  *
- * WHAT IS MEASURED. One edge in a colour nothing else in the scene uses runs horizontally through
+ * WHAT IS MEASURED. One edge in a color nothing else in the scene uses runs horizontally through
  * the label, and closer to the camera than the label is. The pixels of that edge's screen row are
  * read off the frame: outside the label the edge must be there (so the row really is the edge's),
  * and inside the label's screen rectangle there must be none of it.
@@ -21,7 +21,7 @@ import type { RichTextLabel } from "../../src/meshes/RichTextLabel";
 import { styleEveryEdge } from "../helpers/testSetup";
 
 /**
- * The labelled node sits below the middle so its label, attached above it, is centred on y = 0;
+ * The labeled node sits below the middle so its label, attached above it, is centered on y = 0;
  * the two ends of the edge sit at y = 0 as well, and at z = -2, between the label and the camera
  * (the default camera looks along +z from the -z side).
  */
@@ -34,7 +34,7 @@ const NODES = [
 /** The edge that crosses in front of the label. */
 const EDGES = [{ src: "left", dst: "right" }];
 
-/** The colour of the edge: pure red, which the background, the node, the panel and the text are not. */
+/** The color of the edge: pure red, which the background, the node, the panel and the text are not. */
 const EDGE_COLOUR = "#FF0000";
 
 /** The label's panel: an opaque green, so anything red inside it can only be the edge. */
@@ -160,7 +160,7 @@ describe("text is drawn over the edges of the graph", () => {
             for (let x = 0; x < width; x++) {
                 const at = (y * width + x) * 4;
                 const red = pixels[at] > 150 && pixels[at + 1] < 90 && pixels[at + 2] < 90;
-                // The default selection colour, #0077BB: blue well above red.
+                // The default selection color, #0077BB: blue well above red.
                 const blue = pixels[at + 2] > 130 && pixels[at + 2] > pixels[at + 1] + 40 && pixels[at] < 60;
                 const within = x >= left && x <= right;
                 if (red) {
@@ -211,7 +211,7 @@ describe("text is drawn over the edges of the graph", () => {
         assert.strictEqual(inside, 0, `${String(inside)} pixels of the edge were drawn over the label's words`);
     });
 
-    // A selected edge wears a band in the selection colour on both sides of its line. The band is
+    // A selected edge wears a band in the selection color on both sides of its line. The band is
     // part of the graph, so a label set on top is drawn over it too.
     it("draws a node's label set on top over a selected edge's band", async () => {
         await graph.getSession().styles.add({
@@ -237,7 +237,7 @@ describe("text is drawn over the edges of the graph", () => {
                 name: "a label over its node",
                 selector: { match: "ids", nodes: ["alpha"] },
                 // One letter, not WORDS: a label keeps clear of its node's ring (e0bf7c63eb), so a
-                // centred label hangs nearer the camera and is drawn larger, and three letters
+                // centered label hangs nearer the camera and is drawn larger, and three letters
                 // covered the whole ring. One leaves the ring showing on both sides of it.
                 set: { "node.label": "W", "node.labelStyle": { ...LABEL_STYLE, location: "center", onTop } },
             });

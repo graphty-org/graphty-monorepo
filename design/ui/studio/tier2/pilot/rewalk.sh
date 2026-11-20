@@ -4,7 +4,7 @@
 #        a recorded session folder, or "routes:<round folder>": see route() below)
 # FINAL=1 writes each session to tier2/pilot/<task>-final/<A|B>/ with its steps in steps.log.
 set -u
-# a step that finds nothing to act on fails the walk (tool/README.md, "Scripted walks")
+# a step that finds nothing to act on fails the walk (tool/REFERENCE.md, "Scripted walks")
 export REAL_MISS_FAILS=1
 ST=$(cd "$(dirname "$0")/../.." && pwd)
 HERE=${HERE:-$ST/tmp/rewalk}

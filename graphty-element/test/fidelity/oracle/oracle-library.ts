@@ -101,8 +101,8 @@ export async function oraclePngUrl(id: string): Promise<string | undefined> {
 /**
  * The reader options a program's drawing was made with that the file cannot carry: the Gephi Preview
  * settings of a GEXF page (`previewProperties`), which graphty-element's GEXF reader takes as
- * `gephiPreview`, and the sigma.js settings of a graphology page (`settings`), which its JSON reader takes as
- * `sigmaSettings`.
+ * `gephiPreview`, and the sigma.js settings of a graphology page (`settings`), which its JSON reader hands graph-io
+ * as `importOptions: { sigmaSettings }`.
  * @param meta - the oracle's metadata
  * @param format - graph-io's format name of the sample
  * @returns the options, empty for none
@@ -118,7 +118,7 @@ export function oracleFormatOptions(meta: Record<string, unknown>, format: strin
         typeof meta.settings === "object" &&
         meta.settings !== null
     ) {
-        return { sigmaSettings: meta.settings };
+        return { importOptions: { sigmaSettings: meta.settings } };
     }
     return format === "gexf" && typeof preview === "object" && preview !== null ? { gephiPreview: preview } : {};
 }
@@ -201,7 +201,18 @@ async function associateOracle(
                 : prims;
         return associate(named, size.width, size.height, graphty, {
             ownLayout,
-            ...(named === prims ? {} : { drawn: meta.drawn as DrawnNodes }),
+            // desktop strokes a node's border, then paints its fill over the inner half (cytoscape-painted-borders);
+            // graph-io reads that half only from Cytoscape's own formats, so desktop standing in for another format's
+            // program (its drawing of a GML sheet, where yEd shows the whole border) is read at the stroke it drew
+            fillOverStroke: meta.program === "Cytoscape desktop" && !isStandIn(meta),
+            ...(named === prims
+                ? {}
+                : {
+                      drawn: {
+                          ...(meta.drawn as DrawnNodes),
+                          scale: (meta.observed as { scale?: number } | undefined)?.scale,
+                      },
+                  }),
         });
     }
     const png = await pngPixels(pngUrl);
@@ -228,6 +239,25 @@ export function isStandIn(meta: Record<string, unknown>): boolean {
 
 /** The oracle programs that draw no group box, whatever the file says. */
 const NO_GROUP_PROGRAMS: ReadonlySet<string> = new Set(["Gephi Toolkit", "Pajek"]);
+
+/**
+ * The oracle programs whose SVG names every node and group it draws (Graphviz's `<g class="node">` and
+ * `<g class="cluster">`): graphty's groups there are the ones the program names (`namedGroups`; a cluster's title is the
+ * id graph-io gives its group node), never a node drawn round a smaller one, which the oracle reads as the node it
+ * names (dot-real-softmaint 375499, an ellipse over the 5 px circle odfpr1_0_3t_21 in both drawings).
+ */
+const NAMED_GROUP_PROGRAMS: ReadonlySet<string> = new Set(["Graphviz"]);
+
+/**
+ * The groups an oracle's markup names, by id.
+ * @param id - the sample
+ * @returns their ids
+ */
+async function namedGroups(id: string): Promise<Set<string>> {
+    const svgPath = pathOf(svgs, id);
+    const read = svgPath === undefined ? null : await readSvgOnce(await svgs[svgPath]());
+    return new Set((read?.prims ?? []).flatMap((p) => (p.hint?.role === "group" ? [p.hint.id] : [])));
+}
 
 /**
  * What a comparison takes from the mounted element besides its drawing, so the same comparison can be run again on a
@@ -329,9 +359,11 @@ export async function compareWithOracle(
         const fontPx = (d?.label ?? d?.tableLabel)?.fontPx ?? 0;
         return n.label === null || fontPx >= 1 ? n : { ...n, label: { ...n.label, visible: false } };
     });
-    // An SVG names no group, so a box graphty draws round others is read as one by its drawing alone, as the oracle's
-    // is, not only where the file nests nodes (the scene's groups, which the reference scenes are judged by)
-    const unmutated = drawnPrimitives({ ...scene, nodes, groups: groupsOf(nodes, drawn.nodes) }, drawn, {
+    // An SVG that names no group has a box graphty draws round others read as one by its drawing alone, as the
+    // oracle's is, not only where the file nests nodes (the scene's groups, which the reference scenes are judged by);
+    // one that names its groups has only those
+    const declared = NAMED_GROUP_PROGRAMS.has(String(meta.program)) ? await namedGroups(id) : undefined;
+    const unmutated = drawnPrimitives({ ...scene, nodes, groups: groupsOf(nodes, drawn.nodes, declared) }, drawn, {
         groups: !groupless,
     });
     // A specimen sheet whose format ids its nodes otherwise (Cytoscape desktop by SUID, GML by number) keeps `cap-*`

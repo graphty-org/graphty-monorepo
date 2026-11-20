@@ -2,6 +2,7 @@ import { type F32, type GraphSnapshot, makeMask, maskSet, maskTest, type NodeMas
 import type { LayoutResult } from "@graphty/layout";
 
 import type { AuthoredLayoutDescriptor } from "../catalog/types";
+import type { RankSet } from "../data/groups";
 import { readSeedPosition } from "../data/seedPosition";
 import type { Edge } from "../Edge";
 import { GraphtyError } from "../errors";
@@ -68,7 +69,7 @@ export interface SnapshotLayoutInput {
     /**
      * When the graph only grew since the last arrangement: the new rows. Every other row is kept
      * where it is (it is in `fixed`), so a layout that can start from `initial` places the newcomers
-     * among their neighbours. Null for a fresh arrangement.
+     * among their neighbors. Null for a fresh arrangement.
      */
     readonly added: NodeMask | null;
     /**
@@ -137,10 +138,16 @@ export type SnapshotLayoutAnswer = F32 | Promise<F32>;
 /** A layout on the snapshot contract: a descriptor, and a function from the graph to coordinates. */
 export interface SnapshotLayoutRegistration {
     /**
-     * What the catalogue publishes. `honoursWeights` and `scoped` are declared here, since there is
-     * no class to carry them as statics.
+     * What the catalog publishes. `honorsWeights` and `scoped` are declared here, since there is
+     * no class to carry them as statics. `honoursWeights` is the deprecated British spelling of
+     * `honorsWeights`, still read (and preferred) when set, and removed in the next major.
      */
-    readonly descriptor: AuthoredLayoutDescriptor & { readonly honoursWeights?: boolean; readonly scoped?: boolean };
+    readonly descriptor: AuthoredLayoutDescriptor & {
+        readonly honorsWeights?: boolean;
+        /** @deprecated Use `honorsWeights`. Removed in the next major. */
+        readonly honoursWeights?: boolean;
+        readonly scoped?: boolean;
+    };
     /** Arrange the graph. */
     readonly compute: (input: SnapshotLayoutInput) => SnapshotLayoutAnswer;
 }
@@ -173,6 +180,8 @@ interface SnapshotLayoutHost {
     positionScale?(): number | undefined;
     /** The element's `data.knownFields`; undefined before the element is attached. */
     knownFields?(): LocationDesignation | undefined;
+    /** The data manager's rank subgraphs, which a graph whose rows have no `Node` (renderPath "batched") reaches no other way. */
+    rankSets?(): readonly RankSet[];
 }
 
 /** The element's reach into a snapshot engine. No entry point exports it. */
@@ -309,6 +318,11 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
         }
 
         super.refresh();
+        // Published, and the base class's column keeps the answer in scene units: the answer as
+        // computed is read only by the next refresh, so a layout that has finished holds one copy
+        // of its coordinates. (A third party's `SimpleLayoutEngine` keeps `result`, which its
+        // documented contract lets it read.)
+        this.result = null;
     }
 
     /**
@@ -596,6 +610,17 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
         return this.#host?.knownFields?.() ?? this._nodes[0]?.parentGraph?.getStyles?.().config.data.knownFields;
     }
 
+    /**
+     * The data manager's rank subgraphs: from the element, so a graph whose rows have no `Node` (the batched path)
+     * still reads them; else through the first `Node`, for an engine the element did not connect.
+     * @returns The rank sets; none before the element is attached.
+     */
+    protected rankSets(): readonly RankSet[] {
+        const graph: { getDataManager?: () => { readonly rankSets: readonly RankSet[] } } | undefined =
+            this._nodes[0]?.parentGraph;
+        return this.#host?.rankSets?.() ?? graph?.getDataManager?.().rankSets ?? [];
+    }
+
     #nodesByRow(n: number): (Node | undefined)[] {
         const out = new Array<Node | undefined>(n);
         // The stored graph's ids: the undirected graph has the same rows, and is not built for this.
@@ -613,18 +638,19 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
 
 /**
  * Register a layout on the snapshot contract: the element builds its engine from the
- * registration, publishes the descriptor to the catalogue and answers `setLayout(descriptor.id)`.
+ * registration, publishes the descriptor to the catalog and answers `setLayout(descriptor.id)`.
  * @param registration - the descriptor and the compute function
  * @throws what `LayoutEngine.register` throws for a missing, mismatched or taken name
  */
 export function registerSnapshotLayout(registration: SnapshotLayoutRegistration): void {
-    const { honoursWeights = false, scoped = false, ...descriptor } = registration.descriptor;
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- reading the alias is what keeps old registrations working
+    const { honorsWeights = false, honoursWeights, scoped = false, ...descriptor } = registration.descriptor;
     const { compute } = registration;
 
     class RegisteredSnapshotLayout extends SnapshotLayoutEngine {
         static override readonly type = descriptor.id;
         static readonly maxDimensions = descriptor.maxDimensions;
-        static override readonly honoursWeights = honoursWeights;
+        static override readonly honorsWeights = honoursWeights ?? honorsWeights;
         static override readonly scoped = scoped;
         static override readonly descriptor: AuthoredLayoutDescriptor = descriptor;
 

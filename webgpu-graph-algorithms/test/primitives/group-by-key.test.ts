@@ -6,15 +6,12 @@
  * and the same run twice. Plus the host planner of the tiers.
  */
 
-import { type TestContext } from "vitest";
-
 import { GROUP_HASH_LOAD_FACTOR, GROUP_ROW_THREAD_LIMIT, GROUP_ROW_THREAD_MAX } from "../../src/constants.js";
-import { type GpuContext } from "../../src/context.js";
 import { planGroupRows } from "../../src/primitives/group-by-key.js";
 import { expectBitwiseEqual } from "../helpers/matchers.js";
 import { groupRows, runGroupBy } from "../helpers/structure.js";
 import { groupByKeyOracle } from "../oracle/group-by-key.js";
-import { acquire, requireGpu } from "../setup/gpu.js";
+import { sharedContext } from "../setup/gpu.js";
 
 describe("planGroupRows (pure)", () => {
     it("splits rows by the bound, lays the workgroup tier's regions out after the flag word", () => {
@@ -36,14 +33,7 @@ describe("planGroupRows (pure)", () => {
 });
 
 describe("group-by-key-row (GPU, design 8.6)", () => {
-    let shared: GpuContext | null = null;
-
-    async function context(t: TestContext): Promise<GpuContext> {
-        requireGpu(t);
-        const ctx = shared ?? (await acquire({ label: "group-by-key" }));
-        shared = ctx;
-        return ctx;
-    }
+    const context = sharedContext({ label: "group-by-key" });
 
     for (const weighted of [false, true]) {
         it(`${weighted ? "weighted" : "unweighted"}: the reference, bitwise, in every tier split, twice`, async (t) => {
@@ -86,6 +76,6 @@ describe("group-by-key-row (GPU, design 8.6)", () => {
     });
 
     afterAll(() => {
-        shared?.dispose();
+        context.dispose();
     });
 });

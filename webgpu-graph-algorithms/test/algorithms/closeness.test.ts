@@ -19,7 +19,6 @@
 
 import { accelerated, closenessCentrality as cpuClosenessCentrality } from "@graphty/algorithms";
 import { type F32, type GraphSnapshot } from "@graphty/graph-format";
-import { type TestContext } from "vitest";
 
 import { createAccelerator } from "../../src/accelerator.js";
 import {
@@ -43,7 +42,7 @@ import { expectBitwiseEqual } from "../helpers/matchers.js";
 import { assertCheckPasses } from "../helpers/sabotage.js";
 import { ssspTolerance, weightedEdges } from "../helpers/sssp.js";
 import { closenessOracle, dijkstraOracle } from "../oracle/traversal.js";
-import { acquire, acquireRaw, requireGpu } from "../setup/gpu.js";
+import { acquireRaw, requireGpu, sharedContext } from "../setup/gpu.js";
 
 /** Design 9.7: the score tolerance against an f64 reference (the sums are exact; only the f32 store rounds). */
 const SCORE_REL = 1e-6;
@@ -131,14 +130,7 @@ async function routeOf(ctx: GpuContext, s: GraphSnapshot, options?: Options): Pr
 }
 
 describe("closenessCentrality (design 8.4 / 9.7)", () => {
-    let shared: GpuContext | null = null;
-
-    async function context(t: TestContext): Promise<GpuContext> {
-        requireGpu(t);
-        const ctx = shared ?? (await acquire({ label: "closeness" }));
-        shared = ctx;
-        return ctx;
-    }
+    const context = sharedContext({ label: "closeness" });
 
     /**
      * The level route three ways (the per-level choice, push only, pull only), each run twice: the scores and sums
@@ -635,7 +627,6 @@ describe("closenessCentrality (design 8.4 / 9.7)", () => {
     });
 
     afterAll(() => {
-        shared?.dispose();
-        shared = null;
+        context.dispose();
     });
 });

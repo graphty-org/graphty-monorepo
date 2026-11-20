@@ -26,8 +26,8 @@ describe("JsonDataSource: the JSON dialect of the whole document", () => {
         const small = { nodes: [{ id: "a", x: 10, y: 20 }, { id: "b" }], edges: [{ from: "a", to: "b" }] };
         const large = { nodes: [...small.nodes, ...padding], edges: small.edges };
         assert.isAbove(JSON.stringify(large).indexOf('"from"'), 65536);
-        const want = (await nodesOf(small)).find((n) => n.id === "a")?.position;
-        const got = (await nodesOf(large)).find((n) => n.id === "a")?.position;
+        const want: unknown = (await nodesOf(small)).find((n) => n.id === "a")?.position;
+        const got: unknown = (await nodesOf(large)).find((n) => n.id === "a")?.position;
         assert.isDefined(want);
         assert.deepEqual(got, want);
     });
@@ -35,8 +35,76 @@ describe("JsonDataSource: the JSON dialect of the whole document", () => {
     test("a vis-network document with no edges is told by its options", async () => {
         const withEdge = { nodes: [{ id: "a", x: 10, y: 20 }, { id: "b" }], edges: [{ from: "a", to: "b" }] };
         const edgeless = { nodes: [...withEdge.nodes, ...padding], edges: [], options: { physics: false } };
-        const want = (await nodesOf(withEdge)).find((n) => n.id === "a")?.position;
-        const got = (await nodesOf(edgeless)).find((n) => n.id === "a")?.position;
+        const want: unknown = (await nodesOf(withEdge)).find((n) => n.id === "a")?.position;
+        const got: unknown = (await nodesOf(edgeless)).find((n) => n.id === "a")?.position;
         assert.deepEqual(got, want);
+    });
+});
+
+/**
+ * Reads a JSON document with the default paths and returns its node and edge records.
+ * @param doc - the document
+ * @returns the records
+ */
+async function recordsOf(doc: unknown): Promise<{ nodes: AdHocData[]; edges: AdHocData[] }> {
+    const source = new JsonDataSource({ data: JSON.stringify(doc) });
+    const nodes: AdHocData[] = [];
+    const edges: AdHocData[] = [];
+    for await (const chunk of source.getData()) {
+        nodes.push(...chunk.nodes);
+        edges.push(...chunk.edges);
+    }
+    return { nodes, edges };
+}
+
+// One path for every document graph-io reads as records: the reader holds no branch on the program that wrote it.
+describe("JsonDataSource: the same graph from any program's JSON", () => {
+    const cytoscape = {
+        elements: {
+            nodes: [
+                { data: { id: "a" }, position: { x: 10, y: 20 } },
+                { data: { id: "b" }, position: { x: 30, y: 40 } },
+            ],
+            edges: [{ data: { source: "a", target: "b" } }],
+        },
+    };
+    const graphology = {
+        options: { type: "directed" },
+        nodes: [
+            { key: "a", attributes: { x: 10, y: -20 } },
+            { key: "b", attributes: { x: 30, y: -40 } },
+        ],
+        edges: [{ source: "a", target: "b" }],
+    };
+    const vis = {
+        nodes: [
+            { id: "a", x: 10, y: 20 },
+            { id: "b", x: 30, y: 40 },
+        ],
+        edges: [{ from: "a", to: "b" }],
+    };
+
+    test("gives identical ids, positions and endpoints for Cytoscape.js, graphology and vis.js", async () => {
+        const shape = async (doc: unknown): Promise<unknown> => {
+            const { nodes, edges } = await recordsOf(doc);
+            return {
+                nodes: nodes.map((node): Record<string, unknown> => ({ id: node.id, position: node.position })),
+                // under the file's own keys, which the element resolves (vis.js writes from and to)
+                edges: edges.map((edge): Record<string, unknown> => ({
+                    source: edge.source ?? edge.from,
+                    target: edge.target ?? edge.to,
+                })),
+            };
+        };
+        const want = await shape(vis);
+        assert.deepEqual(want, {
+            nodes: [
+                { id: "a", position: { x: 10, y: -20, z: 0 } },
+                { id: "b", position: { x: 30, y: -40, z: 0 } },
+            ],
+            edges: [{ source: "a", target: "b" }],
+        });
+        assert.deepEqual(await shape(cytoscape), want);
+        assert.deepEqual(await shape(graphology), want);
     });
 });

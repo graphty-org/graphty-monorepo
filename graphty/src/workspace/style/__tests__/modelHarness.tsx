@@ -1,6 +1,6 @@
 /**
- * The node models experiment's test harness (issue #3396): a workspace on the real element with the
- * experiment switched on as a site would, a "Shapes" layer open in the Style tab, and the ways a
+ * The node models test harness (issue #3396): a workspace on the real element with a "Shapes"
+ * layer open in the Style tab, and the ways a
  * reader reaches the Models pop-over. Every helper drives real input or reads what the element
  * reports.
  */
@@ -71,13 +71,13 @@ export interface Shapes {
 
 /**
  * A project with two nodes and a "Shapes" layer drawing them as cylinders, its Style tab open, with
- * the node models experiment on (or the given experiments).
+ * no experiments on (or the given experiments).
  * @param features - the site's experiments.
  * @param set - what the layer sets, or how to make it from the session once it is up.
  * @returns the session, the Style tab and the workspace store.
  */
 export async function openShapes(
-    features: readonly string[] = ["node-models"],
+    features: readonly string[] = [],
     set: Record<string, unknown> | ((session: GraphSession) => Promise<Record<string, unknown>>) = CYLINDERS,
 ): Promise<Shapes> {
     await page.viewport(1440, 900);
@@ -112,6 +112,19 @@ export async function openShapes(
 export function written(session: GraphSession, channel: string): unknown {
     const layer = session.styles.list().find((l) => l.name === "Shapes");
     return (layer?.set as Record<string, unknown> | undefined)?.[channel];
+}
+
+/**
+ * Waits until graphty-element reports the model the "Shapes" layer names drawn, whatever id the
+ * layer names by then (a supplied part can make a new record).
+ * @param session - the element's session.
+ */
+export async function drawn(session: GraphSession): Promise<void> {
+    await waitFor(() => {
+        const ref = written(session, "node.model");
+        assert.isString(ref);
+        assert.equal(session.assets.states().find((change) => change.ref === ref)?.state, "drawn");
+    });
 }
 
 /**
@@ -240,19 +253,18 @@ export async function openCustom(tab: HTMLElement): Promise<HTMLElement> {
 }
 
 /**
- * How many pixels of a picture are not fully transparent.
- * @param picture - the picture, loaded or loading.
+ * How many pixels of the preview's canvas are drawn (not fully transparent), as it shows now.
+ * @param canvas - the canvas graphty-element draws the preview in.
  * @returns the count of drawn pixels.
  */
-async function drawnPixels(picture: HTMLImageElement): Promise<number> {
-    await picture.decode();
-    const canvas = document.createElement("canvas");
-    canvas.width = picture.naturalWidth;
-    canvas.height = picture.naturalHeight;
-    const context = canvas.getContext("2d");
+function drawnPixels(canvas: HTMLCanvasElement): number {
+    const copy = document.createElement("canvas");
+    copy.width = canvas.width;
+    copy.height = canvas.height;
+    const context = copy.getContext("2d");
     assert.isNotNull(context);
-    context.drawImage(picture, 0, 0);
-    const { data } = context.getImageData(0, 0, canvas.width, canvas.height);
+    context.drawImage(canvas, 0, 0);
+    const { data } = context.getImageData(0, 0, copy.width, copy.height);
     let drawn = 0;
     for (let at = 3; at < data.length; at += 4) {
         drawn += data[at] > 0 ? 1 : 0;
@@ -261,17 +273,39 @@ async function drawnPixels(picture: HTMLImageElement): Promise<number> {
 }
 
 /**
- * Waits until the dialog shows its model drawn by graphty-element: a PNG with the model on it,
- * not an empty picture.
+ * The preview's canvas, by its name.
  * @param dialog - the dialog.
  * @param name - the model's name.
- * @returns the preview picture.
+ * @returns the canvas, or null while there is none.
  */
-export async function previewOf(dialog: HTMLElement, name: string): Promise<HTMLImageElement> {
-    const picture = await within(dialog).findByRole<HTMLImageElement>("img", { name: `${name} preview` });
-    assert.match(picture.src, /^data:image\/png;base64,/);
-    assert.isAbove(await drawnPixels(picture), 0, `${name} is drawn in the preview`);
-    return picture;
+function previewCanvas(dialog: HTMLElement, name: string): HTMLCanvasElement | null {
+    return within(dialog).queryByRole<HTMLCanvasElement>("img", { name: new RegExp(`^${name} preview`) });
+}
+
+/**
+ * The preview's picture as it is now, to compare with a later one.
+ * @param dialog - the dialog.
+ * @param name - the model's name.
+ * @returns the picture as a data URL, or "" without a preview.
+ */
+export function previewPicture(dialog: HTMLElement, name: string): string {
+    return previewCanvas(dialog, name)?.toDataURL() ?? "";
+}
+
+/**
+ * Waits until the dialog shows its model drawn live by graphty-element: its canvas, with the model
+ * on it, not empty.
+ * @param dialog - the dialog.
+ * @param name - the model's name.
+ * @returns the preview's canvas.
+ */
+export async function previewOf(dialog: HTMLElement, name: string): Promise<HTMLCanvasElement> {
+    return waitFor(() => {
+        const canvas = previewCanvas(dialog, name);
+        assert.isNotNull(canvas, `${name} has a preview`);
+        assert.isAbove(drawnPixels(canvas), 0, `${name} is drawn in the preview`);
+        return canvas;
+    });
 }
 
 /**
@@ -280,6 +314,14 @@ export async function previewOf(dialog: HTMLElement, name: string): Promise<HTML
  * @param word - the button's name: "Add model" with a layer, "Add to project" from the Main menu.
  */
 export async function addModel(dialog: HTMLElement, word = "Add model"): Promise<void> {
+    // Model settings is a modal pop-over over the dialog: the reader closes it to reach Add.
+    const close = screen.queryByRole("button", { name: "Close model settings" });
+    if (close !== null) {
+        await userEvent.click(close);
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("dialog", { name: "Model settings" }));
+        });
+    }
     const add = within(dialog).getByRole("button", { name: word });
     await waitFor(() => {
         assert.isNull(add.getAttribute("aria-disabled"));

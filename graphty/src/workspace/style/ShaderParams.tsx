@@ -297,13 +297,14 @@ function ParamRow({
             </span>
         );
     } else if (option.varies === true && ctx !== undefined && channel !== undefined) {
-        // The vary list reads the parameter as the element binds it: its own descriptor, under
-        // its address, so a pick writes encode on that address.
+        // The vary list reads the parameter as the element binds it: its own descriptor, written
+        // under its address, so a pick writes encode on that address.
         const address = `${channel}.${descriptor.id}.${option.name}` as ShaderParamAddress;
         vary = (
             <VarySlot
                 ctx={ctx}
-                descriptor={{ ...shaderParamChannel(address), channel: address as unknown as Channel }}
+                descriptor={shaderParamChannel(address)}
+                to={address}
                 label={`${option.plainName} by attribute`}
                 onFail={(error) => {
                     store.set({ notice: { message: failureWords(option.plainName, "varied", error), error: true } });

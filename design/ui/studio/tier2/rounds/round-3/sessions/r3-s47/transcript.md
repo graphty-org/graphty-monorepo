@@ -36,7 +36,7 @@ Command: `--step <session> --click-at 1350,178` (Hops 2)
 ## Step 7
 Command: `--step <session> --click "Filter to neighbors"`
 
-07.png: the top bar now says "15 of 20 nodes" and the five dots up in the top right corner are gone. I count 15 dots, all ringed. That is Ava and her 14. The button went grey, so it took. The legend now says "PageRank, full graph" and the PageRank row on the left got a little clock-looking icon instead of the bar icon. I don't know what that clock means -- I'd ask her whether the ranking is still right or out of date now. But the drawing has only Ava and those people, which is what was asked. I'm done.
+07.png: the top bar now says "15 of 20 nodes" and the five dots up in the top right corner are gone. I count 15 dots, all ringed. That is Ava and her 14. The button went gray, so it took. The legend now says "PageRank, full graph" and the PageRank row on the left got a little clock-looking icon instead of the bar icon. I don't know what that clock means -- I'd ask her whether the ranking is still right or out of date now. But the drawing has only Ava and those people, which is what was asked. I'm done.
 
 ## End
 Command: `--end <session>`

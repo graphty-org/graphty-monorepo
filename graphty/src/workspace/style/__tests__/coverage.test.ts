@@ -52,10 +52,7 @@ const SOURCES: Readonly<Record<string, string>> = Object.fromEntries(
 const COLOR_BRANCH = /accepts [!=]== "color"|\bisColor\b/g;
 
 /** Every section of the Style tab, the experiments' included. */
-const ALL_SECTIONS = [
-    ...sectionsFor("node", { cosmograph: true, nodeModels: true }),
-    ...sectionsFor("edge", { cosmograph: true, nodeModels: true }),
-];
+const ALL_SECTIONS = [...sectionsFor("node", { cosmograph: true }), ...sectionsFor("edge", { cosmograph: true })];
 
 /** Every channel a section of the Style tab draws as a line, the experiments' included. */
 const DRAWN = new Set<string>(ALL_SECTIONS.flatMap((section) => section.channels));
@@ -95,12 +92,6 @@ describe("every style has a home", () => {
             models.filter((channel) => !("place" in CHANNEL_HOMES[channel])),
             [],
         );
-    });
-
-    it("draws today's sections with the node-models experiment off", () => {
-        const off = sectionsFor("node", { cosmograph: true, nodeModels: false });
-        assert.isFalse(off.some((section) => section.channels.includes("node.texture")));
-        assert.isFalse(off.some((section) => section.inner !== undefined));
     });
 
     it("offers every style the design places in the panel: none of them is 'not offered'", () => {

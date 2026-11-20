@@ -1,5 +1,5 @@
 /**
- * @file The camera catalogue: the named views the element can put the viewer in.
+ * @file The camera catalog: the named views the element can put the viewer in.
  *
  * A view is a way of DECIDING where the viewer stands and what they look at -- not a camera, not
  * an input model, not a projection. That distinction is what makes the point publishable: a view
@@ -70,6 +70,13 @@ const SHIPPED_CAMERAS = Object.freeze([
         id: "isometric",
         plainName: "Isometric",
         description: "The classic three-quarter view: 45 degrees around and about 35 degrees up.",
+        modes: ["3d"],
+        options: [],
+    },
+    {
+        id: "bottomView",
+        plainName: "From below",
+        description: "Looks straight up at the graph from underneath: the mirror of the view from above.",
         modes: ["3d"],
         options: [],
     },

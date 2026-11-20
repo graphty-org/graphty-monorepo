@@ -1,7 +1,7 @@
 /**
- * nodeMass and weight resolution from graph-format primitives only (spec 7.14, 7.5; D28, Q-30): the role-"mass"
+ * nodeMass and weight resolution from graph-format primitives only: the role-"mass"
  * node column first, then outDegree() + 1; weights from the arc array, from a named edge column expanded to arcs
- * with expandEdges, or none. The Record form of nodeMass is rejected with the hint of spec 7.14 (graphty-element
+ * with expandEdges, or none. The Record form of nodeMass is rejected with a hint (graphty-element
  * writes its nodeMass config as the role column once at engine creation, so both simulations find it the same way
  * and this package parses no ids).
  */
@@ -10,7 +10,7 @@ import { type Column, expandEdges, type F32, type GraphSnapshot, type NodeId } f
 
 import { WebGpuGraphError } from "../errors.js";
 
-/** The message of spec 7.14 for the Record form of nodeMass. */
+/** The message for the Record form of nodeMass. */
 const NODE_MASS_HINT =
     "write a role 'mass' node column (nodes.set(name, vec, { role: 'mass', replaceRole: true })) or pass a " +
     "Float32Array; @graphty/layout's resolveNodeVector does this on the CPU path";
@@ -28,7 +28,7 @@ function invalid(argument: string, value: unknown, expected: unknown, message: s
 }
 
 /**
- * Asserts every mass is finite and > 0 (spec 7.14: a mass of 0 would divide the distributed action by zero).
+ * Asserts every mass is finite and > 0 (a mass of 0 would divide the distributed action by zero).
  * @param mass - the masses
  * @param source - what the masses came from, for the message
  */
@@ -51,7 +51,7 @@ function checkMass(mass: ArrayLike<number>, source: string): void {
 }
 
 /**
- * outDegree()[i] + 1 for every node (spec 7.2 "Mass" row; one O(n) loop over the cached view).
+ * outDegree()[i] + 1 for every node (one O(n) loop over the cached view).
  * @param s - the snapshot
  * @returns a fresh F32 of nodeCount masses
  */
@@ -67,7 +67,7 @@ function degreePlusOne(s: GraphSnapshot): F32 {
 
 /**
  * The masses of a node column: f32 as is, f64 / u32 / i32 through gpuView (f64 = the cached f32 copy; u32 / i32
- * converted to a fresh F32), u8 through column.data; every other dtype is E_INVALID_ARGUMENT (PLAN DECISION 14).
+ * converted to a fresh F32), u8 through column.data; every other dtype is E_INVALID_ARGUMENT.
  * @param s - the snapshot (the column belongs to s.nodes)
  * @param column - the node column
  * @returns nodeCount masses
@@ -115,9 +115,9 @@ function massFromColumn(s: GraphSnapshot, column: Column): F32 {
 }
 
 /**
- * nodeMass resolution by ROLE (spec 7.14): null -> the role-"mass" node column when present (any numeric dtype
+ * nodeMass resolution by ROLE: null -> the role-"mass" node column when present (any numeric dtype
  * through gpuView, converted to a fresh F32 when not f32), else outDegree()[i] + 1; an F32 of length n -> as is;
- * a column NAME -> nodes.get(name) (numeric); a Record -> E_UNSUPPORTED with the spec's message. Always returns n
+ * a column NAME -> nodes.get(name) (numeric); a Record -> E_UNSUPPORTED with NODE_MASS_HINT. Always returns n
  * values, every one finite and > 0.
  * @param s - the snapshot
  * @param spec - the ForceAtlas2Options.nodeMass value
@@ -180,14 +180,14 @@ export interface ResolvedWeights {
 }
 
 /**
- * Weight resolution (spec 7.5, 7.14): true -> { data: s.weights, source: "arcs" } (data null when unweighted ->
- * ones); a string -> a name `s.edges` does not hold is E_INVALID_ARGUMENT (spec 7.14's nodeMass rule applied to
+ * Weight resolution: true -> { data: s.weights, source: "arcs" } (data null when unweighted ->
+ * ones); a string -> a name `s.edges` does not hold is E_INVALID_ARGUMENT (the nodeMass rule applied to
  * weight too), else `column = s.edges.get(name)`, then by `column.dtype`: f32 / f64 / u32 / i32 ->
  * expandEdges(s, s.edges.gpuView(name)) (f64 arrives as gpuView's cached f32 copy; u32 / i32 are converted to a
  * fresh F32; `Column.data` is NOT used because it is U8 for u8 / bool and absent for string / list / json), string /
  * list / json -> the gpuView E_GPU_INELIGIBLE pass-through, u8 / bool / dict -> E_INVALID_ARGUMENT (gpuView returns
  * packed words, not per-edge values); source "column", `column` kept for the version check; false / null /
- * undefined -> none. A named column must have one component (PLAN DECISION 15); the weight values are never
+ * undefined -> none. A named column must have one component; the weight values are never
  * inspected.
  * @param s - the snapshot
  * @param spec - the ForceAtlas2Options.weight value
@@ -238,7 +238,7 @@ export function resolveWeights(s: GraphSnapshot, spec: boolean | string | null |
         case "string":
         case "list":
         case "json":
-            // gpuView throws the GraphFormatError E_GPU_INELIGIBLE, which passes through unchanged (D12)
+            // gpuView throws the GraphFormatError E_GPU_INELIGIBLE, which passes through unchanged
             s.edges.gpuView(spec);
             throw invalid("weight", spec, "a numeric edge column", `edge column "${spec}" is ${column.dtype}`);
         default:

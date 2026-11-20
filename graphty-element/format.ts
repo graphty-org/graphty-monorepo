@@ -15,7 +15,7 @@
  *
  * **Reading only.** The construction half of graph-format -- `GraphBuilder`, `AttributeTable`,
  * `NodeIdMap`, `fromRecords` and friends -- and the wire half -- `fromWire`, `fromBytes` and the
- * `Wire*` types -- are absent. A consumer that builds or serialises snapshots depends on
+ * `Wire*` types -- are absent. A consumer that builds or serializes snapshots depends on
  * `@graphty/graph-format` directly and gets the whole package, correctly versioned.
  *
  * **No brand, no version.** `SNAPSHOT_BRAND` and `FORMAT_VERSION` are never re-exported. The

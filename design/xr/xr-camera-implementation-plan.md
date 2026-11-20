@@ -1,6 +1,12 @@
 # Implementation Plan for XR (VR/AR) Camera and Controls
 
-Status: historical plan, written in January 2026 before the testing rules. Do not copy its test code. Its examples use practices the repository now bans: fixed sleeps
+Status: historical record (2025). The file names it gives as current code are out of
+date: there is no `src/xr-button.ts`, `XRCameraController.ts`, `XRInputController.ts` or
+`CameraPivotController.ts`. graphty-element's XR code is now `src/xr/XRSessionManager.ts`,
+`src/ui/XRUIManager.ts`, `src/cameras/XRPivotCameraController.ts`, `src/cameras/XRInputHandler.ts`
+and `src/cameras/PivotController.ts`.
+
+Do not copy its test code. Its examples use practices the repository now bans: fixed sleeps
 (`waitForTimeout`, `setTimeout` delays), local `timeout` deadlines, reads of private state
 (`activeCameraController`, `dataManager`, `node.mesh`), a fixed dev-server URL, and frame-rate
 assertions in functional tests. Tests now wait on the event or promise that settles the thing under
@@ -389,7 +395,7 @@ This implementation plan transforms the existing monolithic XR implementation (`
 1. **CSS Custom Properties** (14 available variables):
     - Button base: `--xr-button-font-family`, `--xr-button-font-size`, `--xr-button-font-weight`, `--xr-button-color`, `--xr-button-border-width`, `--xr-button-border-color`, `--xr-button-padding`, `--xr-button-margin-left`, `--xr-button-border-radius`
     - Available state: `--xr-available-bg` (default: black), `--xr-available-box-shadow`
-    - Unavailable state: `--xr-unavailable-bg` (default: grey), `--xr-unavailable-box-shadow`
+    - Unavailable state: `--xr-unavailable-bg` (default: gray), `--xr-unavailable-box-shadow`
     - Presenting state: `--xr-presenting-bg` (default: red), `--xr-presenting-prefix` (default: "EXIT ")
     - Overlay: `--xr-overlay-gap`, `--xr-overlay-z-index`, `--xr-overlay-offset-vertical`, `--xr-overlay-offset-horizontal`
 

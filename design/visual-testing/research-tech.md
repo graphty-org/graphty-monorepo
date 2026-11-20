@@ -73,7 +73,7 @@ project in parallel keeps the total at a few minutes.
 
 ### Recommendation
 
-Grow `tools/diff-stories.mjs` into one capture tool that walks `index.json`, honours the
+Grow `tools/diff-stories.mjs` into one capture tool that walks `index.json`, honors the
 parameters stories already declare (`chromatic.modes` for light and dark in compact-mantine and
 graphty, `chromatic.disableSnapshot` on three stories, `chromatic.delay` on two), and writes
 `<story-id>[.<mode>].png`. The measurement script this document used is a working prototype of it.
@@ -153,9 +153,9 @@ All three engines agree on what changed; they differ only at the edges.
   means an identical render. Hashing all captures takes 30 ms; in the measured runs 998 of 999
   pairs stopped here. The engine's speed is therefore irrelevant at our scale.
 - **Second pass: pixelmatch** on the few files whose bytes differ. It is the engine Playwright and
-  Vitest already use, has no dependencies, uses the OKLab HyAB colour metric, ignores anti-aliased
+  Vitest already use, has no dependencies, uses the OKLab HyAB color metric, ignores anti-aliased
   pixels by default (Vysniauskas's anti-aliasing detector), and offers `diffMask`, `diffColorAlt`
-  (added versus removed pixels in different colours) and a sliding `windowSize` for noise [4]. It
+  (added versus removed pixels in different colors) and a sliding `windowSize` for noise [4]. It
   runs in the browser too, so the review UI can compute the highlight itself with the same
   algorithm CI used. Decode with sharp rather than pngjs if decoding ever shows up in a profile
   (about 5 times faster, measured).
@@ -188,7 +188,7 @@ Recommendation: **keep Chromium's PNG unchanged.**
 - Re-encoding breaks the byte-equality fast path unless every capture is re-encoded the same way,
   and costs time on every run (oxipng: 140 ms per image).
 - WebP lossless would halve storage. At our sizes (below) that saving is worth a few megabytes a
-  year, so it is a later optimisation, not a starting point. AVIF lossless is larger and 50 times
+  year, so it is a later optimization, not a starting point. AVIF lossless is larger and 50 times
   slower; never.
 
 ## Baseline storage
@@ -224,7 +224,7 @@ year, to every full clone.
 Git LFS, verified against GitHub's current docs [7]: GitHub Free and Pro include 10 GiB of storage
 and 10 GiB of bandwidth a month; **GitHub Team and Enterprise Cloud include 250 GiB of each**.
 Actions downloads count against bandwidth. With a $0 budget, LFS "is blocked for the rest of the
-calendar month" when the allowance runs out. The graphty-org organisation is on the Team plan
+calendar month" when the allowance runs out. The graphty-org organization is on the Team plan
 (`gh api orgs/graphty-org` reports plan "team"), so the earlier concern that LFS would break CI no
 longer holds: 800 checkouts a month at about 20 MB is about 16 GB, 6% of the allowance. LFS still
 buys nothing at 14 MB of packed baselines, adds a tool every contributor and agent must install,
@@ -306,7 +306,7 @@ workflow`. Anything that token can do, an agent can do.
 - **A signed commit or tag.** The owner's commit-signing key is used by agents (commit scripts
   sign), so a signature from it proves nothing about who decided.
 - **A pull request review, a comment, a label, or a workflow dispatch.** All are API calls.
-- **Anything configured in repository or organisation settings** (rulesets, environments,
+- **Anything configured in repository or organization settings** (rulesets, environments,
   variables, secrets) as the root of trust, because an administrator's `repo` token can change it.
 
 ### What does work: a signature from a hardware key that needs a touch
@@ -378,7 +378,7 @@ WebAuthn details that constrain the design:
     2. The retrospective audit above runs on every push to master and in the pre-push hook, so a
        bypass is discovered at the next run rather than never.
        What remains is an administrator removing the required check and merging anyway. That is
-       visible in the ruleset history and the organisation audit log, and is detected by the audit,
+       visible in the ruleset history and the organization audit log, and is detected by the audit,
        but not prevented. Fully preventing it needs agents to run with a token that is not an
        administrator's (for example a fine-grained token without administration permission), which is
        a change to how agents are set up, outside this system.

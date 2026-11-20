@@ -21,7 +21,7 @@
  *   saying what stopped it.
  * - The emitter never throws. A schema that cannot be converted at all becomes a set of
  *   "unknown" descriptors, one per option, not an exception in the middle of building a
- *   catalogue.
+ *   catalog.
  *
  * What the emitter will not do is guess semantics from a name. An option called "seed" is an
  * integer as far as the schema is concerned, and turning it into the "seed" control is a
@@ -350,7 +350,9 @@ function flatten(node: JsonSchemaNode, depth: number): FlatUnion {
     const branches =
         node.anyOf ??
         node.oneOf ??
-        (Array.isArray(node.type) ? node.type.map((type) => ({ ...node, type })) : undefined);
+        (node.type === undefined || typeof node.type === "string"
+            ? undefined
+            : node.type.map((type) => ({ ...node, type })));
     if (branches === undefined) {
         if (node.type === "null") {
             return { arms: [], nullable: true, unresolvedRef: false };
@@ -519,7 +521,7 @@ function typeNameOf(node: JsonSchemaNode): string {
         return type;
     }
 
-    if (Array.isArray(type) && type.length > 0) {
+    if (type !== undefined && type.length > 0) {
         return type[0];
     }
 
@@ -544,7 +546,7 @@ function authoredBound(bound: number | undefined): number | undefined {
 /**
  * Turn an identifier into a readable label, for when no metadata supplies one.
  * @param name - The identifier to convert.
- * @returns The identifier with word breaks restored and each word capitalised.
+ * @returns The identifier with word breaks restored and each word capitalized.
  */
 function humanize(name: string): string {
     const spaced = name

@@ -1,6 +1,6 @@
 # Undo and redo in graphty-element: implementation plan
 
-This plan builds what `design/undo/undo-design.md` describes: undo, redo and a labelled history
+This plan builds what `design/undo/undo-design.md` describes: undo, redo and a labeled history
 owned by graphty-element's session, with every change to project state going through one
 dispatcher, and the graphty app's own history store deleted. GitHub issue #427; it also closes
 #197 (the app's Undo button reverts nothing) and delivers the undo half of #337 (the command
@@ -49,7 +49,7 @@ commands/doors.ts` lists every public member that can change the element, each m
    the gap list. The last element phase empties it.
 2. **A phase that breaks an in-repo caller fixes that caller in the same phase.** Narrowing a type
    or making a field private breaks the graphty app, stories or tests that used it; those edits
-   are part of the phase, kept to the minimum that compiles and keeps behaviour. The deliberate
+   are part of the phase, kept to the minimum that compiles and keeps behavior. The deliberate
    app migration is still its own phases (23 to 25c).
 3. **Tests land with the op.** A phase that adds an undoable op to `COMMANDS` adds, in the same
    phase: a round-trip fixture in `graphty-element/test/session/history/fixtures.ts` for every
@@ -79,7 +79,7 @@ Workflow constraints for whoever executes this: work in `.worktrees/element-undo
 ### The owner's decisions, and when they are needed
 
 Design section 15 lists the one-way doors: every published name and shape in design section 10,
-the op names, the transaction signature, the behaviour breaks in design section 15.2, and the
+the op names, the transaction signature, the behavior breaks in design section 15.2, and the
 release as graphty-element 3.0.0. None of these becomes one-way while it lives on an unmerged
 feature branch: no consumer can reach it, and renaming it before merge is an edit. So the work
 proceeds on the branch with the design's names, and **the pull request does not merge until the
@@ -106,7 +106,7 @@ different things.
   scene digest has two parts. The first is structural: node and edge render objects keyed by id
   and matching the slice ids, the skybox dome count, `scene.metadata.twoD`, the engine's
   dimension. The second is what was painted: for every node and edge id, in id order, the
-  values read back from the render side (instance colour and scale from the instance buffers,
+  values read back from the render side (instance color and scale from the instance buffers,
   mesh shape, enabled and visible flags, and label text), hashed together. Without the second
   part, a derivation hook that skips a repaint after undo leaves stale paint on the meshes while
   every state and structural digest still matches. The vocabulary test fails when an op that
@@ -159,7 +159,7 @@ module has to be reachable through the package's exports map.
 | 18c | Narrowing the public escapes and moving their callers                    | closure                |
 | 19a | Gestures: drag, keys, assistant, XR, `batchOperations`                   | gestures               |
 | 19b | Camera and view-preset doors                                             | element API            |
-| 20  | Selection after history, and columnar run results                        | behaviour and memory   |
+| 20  | Selection after history, and columnar run results                        | behavior and memory    |
 | 21  | Random sequences complete, and scale                                     | gap guarantees         |
 | 22  | Stories and picture equality                                             | gap guarantees         |
 | 23  | App: history surfaces call the session; `undoStore.ts` deleted           | app                    |
@@ -306,7 +306,7 @@ patches are made (design sections 5, 5.2, 7).
 **Tests first** (`test/session/history/dispatcher.test.ts`, `transaction.test.ts`), all over fake
 definitions.
 
-- A plain dispatch is one step labelled by its definition; an exempt command gets no draft (a
+- A plain dispatch is one step labeled by its definition; an exempt command gets no draft (a
   type test in `test/types/` asserts writing state from an exempt `ctx` does not compile).
 - A throwing command leaves no step and state unchanged; a throw before any write publishes
   nothing.
@@ -357,11 +357,11 @@ and a fake queue.
 - Holds: a dispatch needing an id a transaction holds fails at once with the error naming the
   transaction; one needing an id a chunked writer holds waits and lands on commit, or is dropped
   on rollback; `fn` awaiting an outside door on a key `tx` wrote settles instead of hanging.
-- Undo rules: newest pending work is cancelled first, with its dependents; work dispatched
+- Undo rules: newest pending work is canceled first, with its dependents; work dispatched
   before the top step survives an undo and a redo; rule 0 aborts an open group whose holds the
   top step touches; `nextUndo` names what the next press will do; `history.cancel` cancels one
   pending item and its dependents.
-- Deferred members join their group's step when they finish, and are cancelled with it.
+- Deferred members join their group's step when they finish, and are canceled with it.
 
 **Done when.** Tests pass under strict state; lint, knip, build green.
 
@@ -382,7 +382,7 @@ and a fake queue.
 - `History.ts` and `Dispatcher.ts`: history calls act synchronously (set `restoring`, choose the
   step, apply rules 0 and 1, move the cursor, apply the patch, schedule the pass, publish
   `project:changed` and `history:changed` synchronously), return a promise that resolves after
-  the pass, and serialise a history call made from inside a listener as a microtask.
+  the pass, and serialize a history call made from inside a listener as a microtask.
 
 **Tests first** (`test/session/history/derive.test.ts`, `event-order.test.ts`).
 
@@ -624,7 +624,7 @@ handles mean now").
   where they asserted the old queue order or one repaint per edit.
 
 **Done when.** Style round trips pass under strict state; the doors test shows the style doors
-dispatching and the `partial` rows above dispatching; the app's colour picker still works (its tests pass); lint, knip, build green.
+dispatching and the `partial` rows above dispatching; the app's color picker still works (its tests pass); lint, knip, build green.
 
 ---
 
@@ -763,7 +763,7 @@ mutable store; `Styles.config` becomes a frozen view built on change (design sec
   (plain objects recurse; arrays, `background` and `selectionStyle` replaced whole; `undefined`
   restores the default), coalesce key `config:<sorted key paths>`. The key list is enumerated at
   module load from the zod `DataConfig` schema (`config/DataConfig.ts`) plus the other four keys,
-  and grouped (data-config leaves, on-load runs, background, selection style, layout behaviour);
+  and grouped (data-config leaves, on-load runs, background, selection style, layout behavior);
   the vocabulary test reads the groups from this list.
 - `graphty-element/src/session/types.ts`: `ProjectConfig`, `ProjectConfigPatch`; `SessionConfig`
   gains a live getter per key and `set`; its TSDoc changes to "as they are now".
@@ -798,14 +798,14 @@ mutable store; `Styles.config` becomes a frozen view built on change (design sec
 
 **Tests first.**
 
-- Fixtures for `config.set` over a data-config leaf, `runAlgorithmsOnLoad`, `background` (colour
-  and skybox), `selectionStyle`, each project layout-behaviour key.
+- Fixtures for `config.set` over a data-config leaf, `runAlgorithmsOnLoad`, `background` (color
+  and skybox), `selectionStyle`, each project layout-behavior key.
 - Vocabulary checks un-skipped: a `config.set` naming a key outside `ProjectConfig` is rejected;
-  every `DataConfig` leaf is a slice key or exempt with a reason; each exempt layout-behaviour key
+  every `DataConfig` leaf is a slice key or exempt with a reason; each exempt layout-behavior key
   leaves the digest unchanged.
 - Strict state asserts two reads of `Styles.config` with no change return the identical object.
-- Background: colour, skybox, colour, undo twice, redo twice: at most one dome in the scene, none
-  while the background is a colour (`test/browser/history-background.test.ts`, run per rule 5).
+- Background: color, skybox, color, undo twice, redo twice: at most one dome in the scene, none
+  while the background is a color (`test/browser/history-background.test.ts`, run per rule 5).
 - Doors test getter-after-undo runs for each property ported here.
 
 **Done when.** Round trips pass; the existing readers of `styles.config` compile and pass
@@ -815,7 +815,7 @@ the view-mode, dimension-toggle and XR-entry tests pass in the `browser` and `xr
 
 **As built.**
 
-- The `config` slice holds each setting as it was set (a background's colour name, a partial
+- The `config` slice holds each setting as it was set (a background's color name, a partial
   selection style), keyed by dotted path; a key that is absent reads as its default, and the
   readers parse. So the element's getters return what was set and `undefined` when nothing was,
   as they did, and `session.config` returns the parsed, defaulted values. `config.set` is
@@ -846,7 +846,7 @@ the view-mode, dimension-toggle and XR-entry tests pass in the `browser` and `xr
 
 ## Phase 11. Ingest moves to the Node-safe session
 
-**Goal.** A pure move with no behaviour change: id and endpoint extraction, the repeated-edge
+**Goal.** A pure move with no behavior change: id and endpoint extraction, the repeated-edge
 policy, weight resolution, declared direction, the import report and chunking leave
 `DataManager` (which reaches Babylon.js) for a Node-safe module, so later phases can give the
 headless session data write verbs (design section 3.5).
@@ -896,7 +896,7 @@ op-log", 4.7, 9.2 `graph` row, 11.1).
   bumps the graph token, and calls `history.clear()`, so the state after the load becomes the
   baseline. Clearing is the honest outcome: the steps below were recorded against a graph that
   no longer exists and no inverse for the load was recorded, so undoing them would not return
-  to any state that ever existed. This is today's behaviour (a load is not undoable and
+  to any state that ever existed. This is today's behavior (a load is not undoable and
   nothing before it is either) and lasts only until phase 14, which ports the last such door
   and deletes `withUnrecordedWrites` and the no-record mode. The door names are passed rather
   than read from an ambient scope: each legacy door hands the writer `withUnrecordedWrites`
@@ -998,7 +998,7 @@ restores row order exactly", "Structural inverses are applied lazily", the pins 
   records, incident edges with resolved endpoints, weights and element-assigned ids, row
   indices, and every registered builder column's value per removed row; `replace(next)` holding
   the previous snapshot stripped of the position and pin columns, the records map and the pin
-  set; the pending structural list on `GraphStore` folded to its net effect and materialised once
+  set; the pending structural list on `GraphStore` folded to its net effect and materialized once
   on the next snapshot or builder read or in the derivation pass; the rebuild in recorded order
   in the style of `GraphBuilder.from`, or a plain append when the removed rows were at the end.
   `removeNodes` and `replace` drop removed ids from the `pins` slice in the same draft (the
@@ -1150,13 +1150,13 @@ undo keeps the result instead of recomputing; undo during a run cancels it (desi
 - `graphty-element/src/session/runs/Run.ts`: a stable facade per `RunId` reading the current
   entry; `resetForRerun` deleted; `rerun()` keeps the last result until the new execution
   commits; `status: "removed"` for an undone entry; the commit tail's liveness and generation
-  check drops late values; `stale` set when the graph token changed; a run cancelled with reason
+  check drops late values; `stale` set when the graph token changed; a run canceled with reason
   `"undo"` never writes an entry.
 - `graphty-element/src/session/styles/autoApply.ts`: plans layers into the run's group through
   `planInto(draft, ...)`; the hidden `painted` set moves into `RunEntry.painted`.
 - `RunChange` gains `cause` and `generation`; `RunPhase` gains `"removed"` and `"restored"`;
   `RunStatus` gains `"removed"`.
-- `Graph.runAlgorithm` for catalogue algorithms, `Graph.run`, the element's `run`,
+- `Graph.runAlgorithm` for catalog algorithms, `Graph.run`, the element's `run`,
   `runs.start`, `session.run` dispatch `algo.run`; `Graph.runAlgorithmsFromTemplate` and
   `runOnLoad` are one group; the on-load runs of adding commands (phases 12 and 14) become
   deferred members of the adding command's group.
@@ -1175,16 +1175,16 @@ undo keeps the result instead of recomputing; undo during a run cancels it (desi
   the handle held before the undo is what `runs.get(id)` returns after redo.
 - Undo during a fake accelerator run cancels it and records nothing; a style edit made during
   the run survives; redo while an older run is pending leaves it running; a run started before
-  a colour change survives undoing the colour change and records on top when it finishes.
+  a color change survives undoing the color change and records on top when it finishes.
 - Late run value: a fake accelerator resolving after `cancel()` writes no entry and no layer.
-- `runAlgorithm(ns, type, { applySuggestedStyles: true })` for a catalogue algorithm is one step
+- `runAlgorithm(ns, type, { applySuggestedStyles: true })` for a catalog algorithm is one step
   and one undo removes run and layers.
 - With `algorithmsOnLoad` set, `addNodes` is one step with the on-load runs as deferred members;
   a replacing import starts them once; undoing a removal starts none.
 - `runAlgorithmsFromTemplate` is one step.
 - Rerun then undo restores the previous result without computing.
 - `test/session/runs/*` and `runs-on-session.test.ts` updated only where they asserted the
-  deleted `resetForRerun` behaviour.
+  deleted `resetForRerun` behavior.
 
 **Done when.** Round trips pass; the `algo.run` door rows leave the gap list; the algorithm stories
 still pass in the `storybook` project; lint, knip, build green.
@@ -1331,7 +1331,7 @@ What was built, where it differs from the list above:
 
 ## Phase 16b. Group captures, seal targets, epochs and the eviction fold
 
-**Goal.** Coordinates are right for multi-part steps, across datasets, for cancelled work and
+**Goal.** Coordinates are right for multi-part steps, across datasets, for canceled work and
 after eviction (design sections 6.2, 6.4, 7 "eviction fold").
 
 **Files.**
@@ -1352,14 +1352,14 @@ after eviction (design sections 6.2, 6.4, 7 "eviction fold").
   row, and otherwise captures the lane and seals it into the seal target first.
 - `graphOps.ts`: `clear` (and so a replacing import) takes a fresh graph epoch, and undo and redo
   put the recorded one back.
-- `test/session/history/arrangement.test.ts` holds the dataset, cancelled-load and open-group
+- `test/session/history/arrangement.test.ts` holds the dataset, canceled-load and open-group
   fixtures; the eviction fold is in `random-sequences.test.ts`.
 
 **Tests first.**
 
 - Datasets do not share coordinates: import A, import B with the same ids, edit a style before
   B settles, undo the style: no row takes A's coordinates.
-- Cancelled work restores the arrangement: undo cancels a chunked import mid-load: lane equals
+- Canceled work restores the arrangement: undo cancels a chunked import mid-load: lane equals
   the capture before it and the step below keeps its bytes.
 - Rest points under an open group: a layout that settles between the chunks of a replacing
   import, and one that settles while a load transaction is open; undo restores the capture from
@@ -1374,7 +1374,7 @@ digest; lint, knip, build green.
 
 ## Phase 17. Layout choice and dimension
 
-**Goal.** The layout choice (catalogue id, engine, options) and 2D versus 3D are one slice with
+**Goal.** The layout choice (catalog id, engine, options) and 2D versus 3D are one slice with
 one home, and switching either is undoable (design sections 3.2 "The dimension has one home",
 4.7 slot-holding writers, 6.4 "Entering VR or AR from 2D", 11.4).
 
@@ -1414,7 +1414,7 @@ one home, and switching either is undoable (design sections 3.2 "The dimension h
 - Vocabulary check un-skipped: nothing but the `layout` hook writes a dimension field.
 - Pre-steps in flight: undo, and separately a second `layout.set`, while fake GPU pre-steps are
   in flight: nothing the first command computed is published.
-- Cancelled `layout.set` mid-pre-steps: the lane equals the before-capture.
+- Canceled `layout.set` mid-pre-steps: the lane equals the before-capture.
 - Rest points under an open group: a transaction runs `tx.layout.set`, the layout settles before
   `fn` returns, commit, undo: the lane equals the pre-transaction capture.
 - XR entry fails from 2D: no step and still 2D. `view.immersive` leaves the digest unchanged from
@@ -1448,10 +1448,10 @@ What was built, where it differs from the list above:
   cannot enter XR logs and resolves, as before; the transaction behind it records nothing.
 - The pre-steps stop on the command's signal (undo, a second `layout.set`, cancel), on a restore of
   the arrangement, and when the build is overtaken; the frame loop does not step an engine that is
-  still being built, so nothing a cancelled build computed is published.
+  still being built, so nothing a canceled build computed is published.
 - A forward switch from 2D to 3D lays the graph out in three dimensions; the Z a node had before
   it was flattened comes back only by undoing the switch to 2D. The mode-switching tests that
-  pinned the old saved-Z behaviour were replaced by tests that pin undo restoring it.
+  pinned the old saved-Z behavior were replaced by tests that pin undo restoring it.
 
 ---
 
@@ -1564,7 +1564,7 @@ read-only (design sections 4.9, 15.2).
 - `Node.id` and `Node.index`, `Edge.srcId`, `Edge.dstId` and `Edge.index` (writable public
   fields) become read-only, and `EdgeMap`'s `map`, `set`, `delete` and `clear` stop being
   reachable from a public member; their rows in `doors.ts` leave the gap list.
-- Moved to phase 19a: `data.apply` taking the queued lane. It is a change of behaviour, not a
+- Moved to phase 19a: `data.apply` taking the queued lane. It is a change of behavior, not a
   narrowing, and it turns on the same question 19a answers for `batchOperations` -- whether a
   data door holds the queue -- so the two land together.
 
@@ -1613,7 +1613,7 @@ itself (design sections 5.1 `batchOperations`, 5.3, 10.2).
   (`tx.data.*`, `tx.styles.*`, `tx.run`, ...) into the transaction, not only `tx.execute` and
   `tx.layout`.
 - Moved to phase 21: `data.apply` taking the queued lane. Every synchronous `DataManager` door
-  and the tests built on them change with it, which is a change of behaviour of its own, and the
+  and the tests built on them change with it, which is a change of behavior of its own, and the
   interleavings phase 21 generates are what check that a waiting add is pending work undo
   cancels.
 
@@ -1623,7 +1623,7 @@ itself (design sections 5.1 `batchOperations`, 5.3, 10.2).
   where it was at drag start. Undo mid-drag: lane equals the drag-start capture, no step, the drop
   does nothing. A drag held until the layout settles, then undo. Undo then reheat.
 - `test/browser/history-keys.test.ts`: one Mod+Z on a focused canvas moves `history.position` by
-  one with a window-level listener that honours `defaultPrevented` attached; `history-keys="false"`
+  one with a window-level listener that honors `defaultPrevented` attached; `history-keys="false"`
   leaves the key alone.
 - An assistant message that sets a layout, runs an algorithm and adds a style is one step; one
   that throws after all three rolls all three back; undo mid-message stops further tools and
@@ -1638,7 +1638,7 @@ itself (design sections 5.1 `batchOperations`, 5.3, 10.2).
 ## Phase 19b. Camera and view-preset doors
 
 **Goal.** Every camera move the graphty app makes today is an element door, so the app
-migration (phases 25a to 25c) adds no element API. Computing a camera move is graph behaviour
+migration (phases 25a to 25c) adds no element API. Computing a camera move is graph behavior
 and belongs to the element; these doors are exempt from history (camera state is not saved in
 the project file).
 
@@ -1654,7 +1654,7 @@ the project file).
 - `doors.ts`: a row per new door, `exempt` with the camera or view-setting reason.
 - Outcome: two members were missing and are added on `Graph` and `GraphtyElement`:
   `zoomStep("in" | "out")`, with the 1.25 step as a constant in `Graph.ts`, and
-  `zoomToSelection()`, which centres on the box around `session.selection.nodes`. The rest
+  `zoomToSelection()`, which centers on the box around `session.selection.nodes`. The rest
   already exist and phase 25b moves the app onto them: Zoom to fit is `zoomToFit`, Reset view
   is `resetCamera`, the XR buttons are `setXRConfig`, and Top, Front and Side are
   `loadCameraPreset("topView" | "frontView" | "sideView")`. The app's `top`/`front`/`side` table
@@ -1791,7 +1791,7 @@ picture is asserted in a test (design section 12.7).
 
 - `graphty-element/stories/Undo.stories.ts` (new): an untouched baseline story and act-then-undo
   stories for an import, a run with auto-applied styling, a style edit, a filter, a pin and a
-  drag, a layout switch, 2D to 3D, 3D to 2D, colour to skybox background, and a saved view. Each
+  drag, a layout switch, 2D to 3D, 3D to 2D, color to skybox background, and a saved view. Each
   play function acts and then awaits `session.undo()`. Data URLs are fully qualified.
 - `graphty-element/stories/story-roster.json`: add every new story id.
 - `test/browser/history-picture.test.ts`: for each case, compare canvas pixels before the action
@@ -2069,7 +2069,7 @@ major version (design sections 10.3, 15.3).
 - `graphty-element/CLAUDE.md`: a short section on the dispatcher rule (a new mutating door
   dispatches a command; a new op declares undoable or exempt with a reason).
 - File an element issue for the app's own file-format sniffing (`graphty/src/components/
-Graphty.tsx:108-186`), labelled per the repository's issue labels. Filed as #539: the gap was
+Graphty.tsx:108-186`), labeled per the repository's issue labels. Filed as #539: the gap was
   that `session.data.import` required a format name, which master's fix for #47 (the app calling
   the element's `loadFromUrl` / `loadFromFile`) does not cover, because those are not the undoable
   path. `session.data.import` now detects the format when none is named, and the app's detectors

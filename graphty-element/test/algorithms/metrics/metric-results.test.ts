@@ -15,7 +15,7 @@ import { checkShapeContract, type RunResult } from "../../../src/session/results
 import { bindResultPath } from "../../../src/session/results/types";
 import { createMockGraph } from "../../helpers/mockGraph";
 
-/** The seven metrics this file covers, with the catalogue key each one must agree with. */
+/** The seven metrics this file covers, with the catalog key each one must agree with. */
 const METRICS = [
     { key: "degree", make: (g: Graph): MetricAlgorithm => new DegreeAlgorithm(g) },
     { key: "betweenness", make: (g: Graph): MetricAlgorithm => new BetweennessCentralityAlgorithm(g) },
@@ -56,7 +56,7 @@ describe("metric results", () => {
                 const result = await runMetric(metric.make);
 
                 assert.strictEqual(result.shape, declared.shape);
-                // The catalogue names the run "$"; the result names the run it belongs to (#354).
+                // The catalog names the run "$"; the result names the run it belongs to (#354).
                 assert.deepStrictEqual(
                     result.fields,
                     declared.fields.map((field) => ({ ...field, path: bindResultPath(field.path, result.runId) })),
@@ -222,10 +222,7 @@ describe("metric results", () => {
             assert.strictEqual(caveats.method, "power-iteration");
             assert.isBoolean(caveats.converged);
             assert.isNumber(caveats.iterations);
-            assert.isFalse(
-                caveats.notes.some((note) => note.includes("delta")),
-                caveats.notes.join(" | "),
-            );
+            assert.isEmpty(caveats.notes, "no note talks about a delta method");
         });
 
         it("eigenvector says it converged, because an unconverged run fails instead", async () => {
@@ -247,11 +244,11 @@ describe("metric results", () => {
         });
 
         it("katz at an alpha too large for the graph fails with E_NOT_CONVERGED instead of publishing", async () => {
-            // The default alpha of 0.1: the graph's largest eigenvalue is at least 10, so the
+            // An alpha of 0.1, the conventional value: the graph's largest eigenvalue is at least 10, so the
             // attenuated sums grow every pass and the run has no answer.
             let thrown: unknown;
             try {
-                await runMetric((g) => new KatzCentralityAlgorithm(g));
+                await runMetric((g) => new KatzCentralityAlgorithm(g, { alpha: 0.1 }));
             } catch (error) {
                 thrown = error;
             }
@@ -266,7 +263,7 @@ describe("metric results", () => {
                 assert.isNotEmpty(caveats.method, `${metric.key} names its method`);
                 assert.oneOf(caveats.direction, ["directed", "undirected", "as-loaded"]);
                 assert.strictEqual(caveats.precision, "f64");
-                assert.isNotEmpty(caveats.notes, `${metric.key} says what qualifies its numbers`);
+                assert.isNotEmpty(caveats.facts, `${metric.key} says what qualifies its numbers`);
             }
         });
 

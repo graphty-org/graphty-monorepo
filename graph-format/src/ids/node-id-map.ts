@@ -1,7 +1,7 @@
 /**
  * The immutable id-to-index bijection of a snapshot (design section 4): five storage kinds chosen by
  * inspecting the ids once in O(n), SameValueZero equality, `INVALID_INDEX` on a miss, a dense-integer
- * fast path with no Map at all, lazily materialised typed / decoded representations in either
+ * fast path with no Map at all, lazily materialized typed / decoded representations in either
  * direction, and a reverse `Map` that is shared with the builder (guarded by `index < size`) or built
  * lazily on the first lookup.
  *
@@ -52,7 +52,7 @@ export function describeId(id: unknown): string {
 }
 
 /**
- * Check a value as a node id and normalise it (design section 4.1): a finite number (`-0` becomes
+ * Check a value as a node id and normalize it (design section 4.1): a finite number (`-0` becomes
  * `0`) or a string without a lone surrogate. NaN, non-finite numbers, bigints, objects, null and
  * undefined are E_INVALID_ID; a lone surrogate is E_INVALID_ID with details.reason "lone surrogate".
  * @param id - the value to check
@@ -87,7 +87,7 @@ export function validateNodeId(id: unknown): NodeId {
 
 /**
  * The private state of a NodeIdMap (design section 4.2). Which slots are non-null depends on the
- * kind and on which representations have been materialised so far:
+ * kind and on which representations have been materialized so far:
  *
  * - identity: nothing;
  * - dense: denseValues (index -> id) and denseInverse (id -> index, INVALID_INDEX where absent);
@@ -96,7 +96,7 @@ export function validateNodeId(id: unknown): NodeId {
  * - mixed: decoded (shared) and / or tags + numbers + strings (the wire form); map.
  *
  * `map` is null until first needed for numeric / string / mixed and always null for identity / dense.
- * The object is mutable so that lazily materialised representations can be cached; the map instance
+ * The object is mutable so that lazily materialized representations can be cached; the map instance
  * itself never changes. Exported only because the public constructor names it; never exported from
  * the package barrel.
  */
@@ -714,7 +714,7 @@ export class NodeIdMap implements NodeIdMapContract {
     }
 
     /**
-     * Bytes of typed storage currently materialised; excludes the reverse Map and JS strings.
+     * Bytes of typed storage currently materialized; excludes the reverse Map and JS strings.
      * @returns the byte count
      */
     byteLength(): number {
@@ -840,7 +840,7 @@ interface FromIdsOptions {
     readonly map?: Map<NodeId, number> | undefined;
     /**
      * Check every id (E_INVALID_ID) and their distinctness (E_DUPLICATE_ID), copying the array and
-     * normalising -0; default true. false trusts the caller (derived graphs) and shares the array.
+     * normalizing -0; default true. false trusts the caller (derived graphs) and shares the array.
      */
     readonly validate?: boolean | undefined;
 }
@@ -985,7 +985,7 @@ export function nodeIdMapFromF64(values: F64, options: FromF64Options = {}): Nod
 }
 
 /**
- * The distinct backing buffers of an id map's materialised typed storage (dense values and inverse,
+ * The distinct backing buffers of an id map's materialized typed storage (dense values and inverse,
  * numbers, tags, an encoded Utf8 store), for the owner count of design section 9.1.
  * @param map - the id map
  * @returns the buffers, each once
@@ -1255,7 +1255,7 @@ function mixedFromTyped(parts: NodeIdMapTypedParts, validate: ValidationLevel): 
 // ============================================================ typed form, gather, remap
 
 /**
- * The F64 of a numeric map, materialised from the decoded ids (and cached) on first use.
+ * The F64 of a numeric map, materialized from the decoded ids (and cached) on first use.
  * @param storage - the storage of a numeric map
  * @param size - the id count
  * @returns the numbers
@@ -1282,7 +1282,7 @@ function numericTypedOf(storage: NodeIdMapStorage, size: number): F64 {
 }
 
 /**
- * The tags, numbers and Utf8 store of a mixed map, materialised from the decoded ids (and cached)
+ * The tags, numbers and Utf8 store of a mixed map, materialized from the decoded ids (and cached)
  * on first use.
  * @param storage - the storage of a mixed map
  * @param size - the id count
@@ -1308,7 +1308,7 @@ function mixedTypedOf(storage: NodeIdMapStorage, size: number): { tags: U8; numb
     storage.numbers = numbers;
     const strings = Utf8Store.fromEncoded(offsets, utf8);
     storage.strings = strings;
-    // the map is the first holder of the buffers it materialises (design section 9.1)
+    // the map is the first holder of the buffers it materializes (design section 9.1)
     for (const buffer of [tags.buffer, numbers.buffer, offsets.buffer, utf8.buffer]) {
         claimHolder(buffer);
     }
@@ -1316,7 +1316,7 @@ function mixedTypedOf(storage: NodeIdMapStorage, size: number): { tags: U8; numb
 }
 
 /**
- * The typed (wire) representation of a map (design section 4.5), materialising and caching whatever
+ * The typed (wire) representation of a map (design section 4.5), materializing and caching whatever
  * the map only held in decoded form: the F64 of a numeric map, the Utf8 store of a string map, the
  * tags + numbers + Utf8 store of a mixed map. The dense inverse and the reverse Map are never part
  * of it. Repeated calls return the same arrays.

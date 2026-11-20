@@ -90,7 +90,7 @@ export function edgeStyleConfig(opts: {
 }
 
 /**
- * Set part of the behaviour half of a graph's configuration document.
+ * Set part of the behavior half of a graph's configuration document.
  *
  * Goes through the graph's own public verb, which merges one level deep, so naming
  * `layout.preSteps` leaves the other pacing settings alone.
@@ -113,7 +113,7 @@ export function setBehavior(
  * WHAT THIS REPLACES. Every one of these settings used to arrive as a whole style template --
  * forty lines of document to say "2D, circular layout, do not pin on drag" -- and applying one
  * rewrote every other setting in it. Each is its own verb now, and this is only their order:
- * the behaviour document first, because the layout reads it as it starts, then the view mode,
+ * the behavior document first, because the layout reads it as it starts, then the view mode,
  * then the layout.
  * @param graph - The graph to configure.
  * @param options - What to set. Anything left out keeps the value it had.

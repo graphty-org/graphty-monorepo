@@ -122,6 +122,7 @@ describe("a section's '+' waits for a value", () => {
         await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Some, / }));
         await screen.findByTestId("style-tab");
         const before = drawing(session);
+        const legendBefore = JSON.stringify(session.styles.legend());
 
         await plus("shape", "Shape");
         const shape = await lineOf("node.shape");
@@ -136,7 +137,7 @@ describe("a section's '+' waits for a value", () => {
         await session.styles.settled();
         assert.notStrictEqual(
             JSON.stringify(session.styles.legend()),
-            JSON.stringify(JSON.parse(before).legend),
+            legendBefore,
             "the key lists the shape once it is picked",
         );
     });

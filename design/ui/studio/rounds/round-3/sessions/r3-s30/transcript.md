@@ -45,7 +45,7 @@ Saw: a small Betweenness card: description, a collapsed "Advanced", "Under a sec
 Command: `--step --click "Run"`
 -> 05.png
 
-Saw: it ran instantly and painted every dot in an orange-to-dark-brown ramp. A key popped up top-left: "Color: Betweenness, 0 to 47.5" -- good, a legend, though it sits on top of one of the dots (the top-left node is hidden behind it). The left list now has a "Betweenness 15" row. But the dots are all still the same size. I asked for SIZE, it gave me COLOR. Also orange vs dark brown will not survive a greyscale printout.
+Saw: it ran instantly and painted every dot in an orange-to-dark-brown ramp. A key popped up top-left: "Color: Betweenness, 0 to 47.5" -- good, a legend, though it sits on top of one of the dots (the top-left node is hidden behind it). The left list now has a "Betweenness 15" row. But the dots are all still the same size. I asked for SIZE, it gave me COLOR. Also orange vs dark brown will not survive a grayscale printout.
 
 ## Step 6 -- open the Betweenness result row
 
@@ -68,14 +68,14 @@ Saw: a little menu: "Size", "Shape". There it is.
 Command: `--step --click "Size"`
 -> 08.png
 
-Saw: "Size by attribute" picker: Fixed size, then under Betweenness: Betweenness, Betweenness rank, Betweenness percentile; greyed out "Cannot be used: holds groups, not amounts" for id and name. Clear. Hesitation over rank vs raw score -- raw score is what I'd defend; rank would make the size gaps even.
+Saw: "Size by attribute" picker: Fixed size, then under Betweenness: Betweenness, Betweenness rank, Betweenness percentile; grayed out "Cannot be used: holds groups, not amounts" for id and name. Clear. Hesitation over rank vs raw score -- raw score is what I'd defend; rank would make the size gaps even.
 
 ## Step 9 -- size by Betweenness
 
 Command: `--step --click-at 1207,416` ("Betweenness" in the picker)
 -> 09.png
 
-Saw: now the dots differ in size. One big dark one in the middle, a couple of medium ones (right of center, and lower right), lots of small ones. Key top-left now has two rows: "Size: Betweenness 0 to 47.5" (a grey wedge) and "Color: Betweenness 0 to 47.5". Size row in the panel says "1 to 3". So size and color both encode the same number. That's the task done mechanically.
+Saw: now the dots differ in size. One big dark one in the middle, a couple of medium ones (right of center, and lower right), lots of small ones. Key top-left now has two rows: "Size: Betweenness 0 to 47.5" (a gray wedge) and "Color: Betweenness 0 to 47.5". Size row in the panel says "1 to 3". So size and color both encode the same number. That's the task done mechanically.
 
 But I don't trust it until I see who the big one is. If it's not the Medici I'd distrust the whole thing. There are no names on the dots.
 
@@ -109,7 +109,7 @@ Command: `--end rounds/round-3/sessions/r3-s30`
 - Size lives under "Shape" behind a + button. Nothing on the panel says "Size" until you open that menu; I guessed. In Gephi it's its own thing.
 - No names on the dots, and hovering a dot shows nothing. I only found out the big one was the Medici by clicking it. For a slide this is useless without names; I'd have to find "Label" next.
 - The key in the top-left corner sits on top of one of the dots -- one family is hidden behind it.
-- Orange-to-brown ramp: will not survive a greyscale printout or a washed-out projector.
+- Orange-to-brown ramp: will not survive a grayscale printout or a washed-out projector.
 - The analysis list leads with algorithm names (Betweenness, PageRank, Katz, HITS). The one-line descriptions saved me, but "Start here" on PageRank almost pulled me the wrong way -- for "who the network depends on", I wanted the brokers, not PageRank.
 
 **What I'd want next (not part of the task):** names on the big dots, a legend I could drop straight onto a slide, and a sorted table of the 15 families with their scores as a CSV.

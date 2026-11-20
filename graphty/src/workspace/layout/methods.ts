@@ -15,7 +15,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { useEffect, useState } from "react";
 
 import { isSlow } from "../analyze/words";
-import { useSessionVersion } from "../toolbar/useSessionVersion";
+import { TOOLBAR_EVENTS, useSessionEvents } from "../sessionEvents";
 import { layoutRefusalWords } from "./refusalWords";
 import { LAYOUT_DESCRIPTIONS } from "./words";
 
@@ -25,7 +25,7 @@ const logger = GraphtyLogger.getLogger(["graphty", "layout"]);
  * The app's name for each of the element's layouts, by catalog id. A layout a third party
  * registered reads under its technical name, the element's fact about it.
  */
-const LAYOUT_NAMES: Readonly<Record<string, string>> = {
+const LAYOUT_NAMES: Readonly<Partial<Record<string, string>>> = {
     force: "Force",
     circular: "Circle",
     radial: "Rings around a node",
@@ -148,7 +148,7 @@ function keyOption(descriptor: LayoutDescriptor, type: "node-id" | "partition"):
  * @returns the layouts.
  */
 export function useLayouts(session: GraphSession | null): readonly LayoutDescriptor[] {
-    const version = useSessionVersion(session);
+    const version = useSessionEvents(session, TOOLBAR_EVENTS);
     const [resolved, setResolved] = useState<{
         session: GraphSession;
         layouts: readonly LayoutDescriptor[];
@@ -225,7 +225,7 @@ export function startingValues(session: GraphSession, descriptor: LayoutDescript
         ? { seed: LAYOUT_SEED }
         : {};
     // On a map the app draws the map, flat or globe, six times larger than the element's default
-    // under the same nodes and edges, so a dense region (the United States, Europe) is not one grey
+    // under the same nodes and edges, so a dense region (the United States, Europe) is not one gray
     // patch. With nodes one size on screen (Settings, "Map layout automatically enables
     // depth-independent size", frame/ElementHost.tsx) that leaves a flat map's nodes too small to
     // see, so they are drawn twice that size: still apart.

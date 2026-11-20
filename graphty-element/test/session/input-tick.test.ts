@@ -5,7 +5,7 @@
 
 import { assert, describe, it } from "vitest";
 
-import { inputCountersOf, writeAttributes } from "../../src/session/attributes";
+import { inputCountersOf } from "../../src/session/attributes";
 import { inputCountersOfSession } from "../../src/session/GraphSession";
 import type { ElementSession } from "../../src/session/types";
 import { type Harness, makeSession } from "./helpers";
@@ -83,10 +83,10 @@ describe("the input tick", () => {
         harness.session.dispose();
     });
 
-    it("advances on an attribute-revision bump", () => {
+    it("advances on an attribute-revision bump", async () => {
         const harness = settled();
         const before = tick(harness);
-        writeAttributes(inputCountersOfSession(harness.session).edges, {}, { weight: 2 });
+        await harness.session.data.updateNodes([{ id: "a", values: { weight: 2 } }]);
         assert.strictEqual(tick(harness), before + 1);
         harness.session.dispose();
     });

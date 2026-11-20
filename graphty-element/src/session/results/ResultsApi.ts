@@ -5,7 +5,7 @@
  * matches on, what a filter reads and what an expression editor completes. Nobody types it by
  * hand: {@link ResultsApi.path} builds it from the run, and the field defaults to the one the
  * run's shape declares primary, because a caller holding a `Run` should not have to open the
- * catalogue to learn that a centrality's number is called `value`.
+ * catalog to learn that a centrality's number is called `value`.
  *
  * The other half is the one an editor needs. `roots` publishes every run that has a result
  * together with the fields it carries, so an unknown `results.*` path can be answered with the
@@ -144,8 +144,6 @@ export function suggestResultPaths(
 export interface ResultsRunEntry {
     /** The run id, which is the path segment under `results`. */
     readonly id: RunId;
-    /** What to call the run in a completion list. */
-    readonly label: string;
     /** The option the run's name was suggested by; none when absent. */
     readonly distinguishedBy?: RunDistinction | null;
     /** What tells the run apart from listed runs of its algorithm sharing its name; none when absent. */
@@ -366,7 +364,6 @@ class Results implements ResultsApi {
                 roots.push(
                     Object.freeze({
                         runId: entry.id,
-                        label: entry.label,
                         distinguishedBy: entry.distinguishedBy ?? null,
                         siblingsDifferBy: entry.siblingsDifferBy ?? null,
                         fields: entry.result.fields,

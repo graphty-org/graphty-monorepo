@@ -37,14 +37,16 @@ describe("a failed run", () => {
         }
         await session.data.import({ type: "gml", name: "les-miserables.gml", config: { data: lesMiserables } });
 
-        // Katz from the Calculated tab's Analyze, its Attenuation at the top of its range.
+        // Katz from the Calculated tab's Analyze, its Attenuation at the top of its range. Attenuation
+        // starts empty (the element derives one that converges), and an empty number field is a text
+        // box until it holds a number.
         await userEvent.click(await screen.findByRole("tab", { name: "Calculated" }));
         const place = screen.getByRole("region", { name: "Data place" });
         await userEvent.click(await within(place).findByRole("button", { name: /^Analyze/ }));
         await userEvent.type(await screen.findByRole("combobox", { name: "Filter analyses" }), "Katz");
         await userEvent.click(await screen.findByRole("option", { name: /^Katz/ }));
         await userEvent.click(await screen.findByRole("button", { name: "Settings for Katz" }));
-        const alpha = await screen.findByRole("spinbutton", { name: /^Attenuation/ });
+        const alpha = await screen.findByRole("textbox", { name: /^Attenuation/ });
         await userEvent.tripleClick(alpha);
         await userEvent.keyboard("0.5{Tab}");
         await userEvent.click(await screen.findByRole("button", { name: /^Run\b/ }));

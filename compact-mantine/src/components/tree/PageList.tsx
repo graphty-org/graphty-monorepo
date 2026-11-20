@@ -2,7 +2,7 @@ import { useUncontrolled } from "@mantine/hooks";
 import React, { forwardRef, useEffect, useRef, useState } from "react";
 
 import { useCompactStyles } from "../../theme/useCompactStyles";
-import { InlineRename } from "./InlineRename";
+import { InlineRename, useRenaming } from "./InlineRename";
 
 /**
  * Props for the PageRow component.
@@ -30,6 +30,8 @@ export interface PageRowProps extends Omit<React.HTMLAttributes<HTMLDivElement>,
     value?: React.ReactNode;
     /** The row's own control, in a cell after the row. See PageListItem.menu. */
     menu?: React.ReactNode;
+    /** Why the row cannot be switched to now. See PageListItem.disabledReason. */
+    disabledReason?: string | null;
 }
 
 /**
@@ -52,6 +54,7 @@ export const PageRow = forwardRef<HTMLDivElement, PageRowProps>(function PageRow
         descriptionTone = "default",
         value,
         menu,
+        disabledReason = null,
         ...rest
     },
     ref,
@@ -86,20 +89,22 @@ export const PageRow = forwardRef<HTMLDivElement, PageRowProps>(function PageRow
             role="row"
             className={hasMenu ? "cm-page-row" : undefined}
         >
-            <div // eslint-disable-line jsx-a11y/prefer-tag-over-role -- an ARIA grid of divs; a td needs a table around it
+            <div // eslint-disable-line jsx-a11y/prefer-tag-over-role, jsx-a11y/role-supports-aria-props -- an ARIA grid of divs, as a td needs a table around it; aria-description is a global ARIA 1.3 attribute, valid on a gridcell
                 ref={ref}
                 role="gridcell"
                 tabIndex={tabIndex}
                 aria-current={current ? "page" : undefined}
                 aria-selected={tone === "group" ? selected : undefined}
                 aria-label={divider ? "Divider" : undefined}
+                aria-disabled={disabledReason === null ? undefined : true}
+                aria-description={disabledReason ?? undefined}
                 data-tone={tone}
                 data-two-line={hasDescription ? "" : undefined}
                 className="cm-page-cell"
                 {...rest}
             >
                 {nameSlot ?? (
-                    <div className="cm-page-button" title={divider ? undefined : name}>
+                    <div className="cm-page-button" title={divider ? undefined : (disabledReason ?? name)}>
                         {content}
                     </div>
                 )}
@@ -139,6 +144,12 @@ export interface PageListItem {
      * moves back; the menu key or Shift+F10 presses it.
      */
     menu?: React.ReactNode;
+    /**
+     * Why the row cannot be switched to now ("Needs a 3D drawing"), or null. The row stays
+     * focusable and keeps its menu, with `aria-disabled`, the reason as its tooltip and
+     * description, and its name in the disabled ink; Enter, Space and a click do nothing.
+     */
+    disabledReason?: string | null;
 }
 
 /**
@@ -147,8 +158,8 @@ export interface PageListItem {
 export interface PageListProps {
     /** The pages, in order. */
     items: readonly PageListItem[];
-    /** The current page (controlled). */
-    current?: string;
+    /** The current page (controlled); null for none, in a list that is not a set of pages. */
+    current?: string | null;
     /** The current page to start with (uncontrolled). */
     defaultCurrent?: string;
     /** Called when a page is switched to, by click, Enter or Space. */
@@ -161,6 +172,15 @@ export interface PageListProps {
     onRename?: (id: string, name: string) => void;
     /** The accessible name of the rename field. Defaults to "Page name". */
     renameLabel?: string;
+    /** The row being renamed (controlled), e.g. from a row menu's Rename; null for none. */
+    renaming?: string | null;
+    /** Called when renaming starts (with the row) or ends (with null). */
+    onRenamingChange?: (id: string | null) => void;
+    /**
+     * Called with a key pressed on a row that the list does not answer itself: the list's own
+     * commands, such as Delete or a reorder key. Call `preventDefault` on keys you answer.
+     */
+    onRowKeyDown?: (id: string, event: React.KeyboardEvent<HTMLDivElement>) => void;
 }
 
 /**
@@ -220,6 +240,9 @@ function enterRowMenu(event: React.KeyboardEvent, target: HTMLElement): boolean 
  * @param props.label - The accessible name
  * @param props.onRename - Called with a new name; turns renaming on
  * @param props.renameLabel - The rename field's accessible name
+ * @param props.renaming - The row being renamed (controlled)
+ * @param props.onRenamingChange - Called when renaming starts or ends
+ * @param props.onRowKeyDown - Called with a row's keys the list does not answer
  * @returns The list
  * @example
  * A recent-files list: a size, a time, an error line and a row menu.
@@ -247,6 +270,9 @@ export function PageList({
     label = "Pages",
     onRename,
     renameLabel = "Page name",
+    renaming: renamingProp,
+    onRenamingChange,
+    onRowKeyDown,
 }: PageListProps): React.JSX.Element {
     useCompactStyles();
     const [value, setValue] = useUncontrolled<string | null>({
@@ -260,7 +286,7 @@ export function PageList({
         },
     });
     const [focusedId, setFocusedId] = useState<string | null>(null);
-    const [renaming, setRenaming] = useState<string | null>(null);
+    const [renaming, setRenaming] = useRenaming(renamingProp, onRenamingChange);
     const cells = useRef(new Map<string, HTMLDivElement>());
     const grid = useRef<HTMLDivElement>(null);
     // A row menu is reached with ArrowRight, never with Tab: keep its controls out of the Tab
@@ -299,6 +325,7 @@ export function PageList({
             return;
         }
         const i = pages.findIndex((p) => p.id === tabId);
+        const disabled = (pages[i]?.disabledReason ?? null) !== null;
         switch (event.key) {
             case "ArrowDown":
                 focus(pages[i + 1]?.id);
@@ -321,7 +348,9 @@ export function PageList({
                 break;
             case "Enter":
             case " ":
-                setValue(tabId, event);
+                if (!disabled) {
+                    setValue(tabId, event);
+                }
                 break;
             case "F2":
                 if (!onRename) {
@@ -330,6 +359,7 @@ export function PageList({
                 setRenaming(tabId);
                 break;
             default:
+                onRowKeyDown?.(tabId, event);
                 return;
         }
         event.preventDefault();
@@ -370,6 +400,7 @@ export function PageList({
                         descriptionTone={item.descriptionTone}
                         value={item.value}
                         menu={item.menu}
+                        disabledReason={item.disabledReason}
                         tone={tone}
                         current={tone === "page" && isCurrent}
                         selected={tone === "group" && isCurrent}
@@ -399,7 +430,9 @@ export function PageList({
                         onClick={(event) => {
                             if (item.divider !== true) {
                                 setFocusedId(item.id);
-                                setValue(item.id, event);
+                                if ((item.disabledReason ?? null) === null) {
+                                    setValue(item.id, event);
+                                }
                             }
                         }}
                         onDoubleClick={() => {

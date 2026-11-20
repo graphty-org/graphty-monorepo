@@ -1,20 +1,31 @@
 # babylonjs-map
 
+[![CI](https://github.com/graphty-org/graphty-monorepo/actions/workflows/ci.yml/badge.svg)](https://github.com/graphty-org/graphty-monorepo/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fgraphty-org%2Fgraphty-monorepo%2Fcoverage-badges%2Fbabylonjs-map.json)](https://github.com/graphty-org/graphty-monorepo/blob/coverage-badges/babylonjs-map.md)
+[![npm version](https://img.shields.io/npm/v/babylonjs-map.svg)](https://www.npmjs.com/package/babylonjs-map)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Documentation](https://img.shields.io/badge/docs-vitepress-blue)](https://graphty.app/docs/babylonjs-map/)
+
 Maps and globes for [Babylon.js](https://www.babylonjs.com/) scenes: a flat map or a globe drawn
 from a bundled world picture or from web map tiles, sharper tiles loaded as the camera comes closer,
 and parsers for the common ways of writing a location.
+
+<!-- #region install -->
 
 ```bash
 npm install babylonjs-map @babylonjs/core
 ```
 
-`@babylonjs/core` 8 is an optional peer dependency: the main `babylonjs-map` entry needs it, and you
+`@babylonjs/core` 9 is an optional peer dependency: the main `babylonjs-map` entry needs it, and you
 install it yourself. `babylonjs-map/location` and `babylonjs-map/projection` never load Babylon.js,
 so they work in Node, a Web Worker or a page without a 3D scene, with only:
 
 ```bash
 npm install babylonjs-map
 ```
+
+<!-- #endregion install -->
+<!-- #region globe -->
 
 ## A globe
 
@@ -51,7 +62,11 @@ globe.sun = null; // every side lit alike again
 The glow is added onto what is behind the globe, so it shows on a dark background and fades into a
 light one.
 
+<!-- #endregion globe -->
+
 ## A flat map
+
+<!-- #region flat-map -->
 
 ```ts
 import { FlatMap, mapSources } from "babylonjs-map";
@@ -78,7 +93,11 @@ is drawn on past the box, one world wide and centered on it, so panning or zoomi
 still shows map; the world is drawn once, never repeated to the east or west. A box whose east edge is past 180 degrees (data across the date line, which `boundsOf`
 gives) is drawn from both sides of the line.
 
+<!-- #endregion flat-map -->
+
 ## Map sources
+
+<!-- #region sources -->
 
 | Source                             | What it shows                                       | Deepest zoom |
 | ---------------------------------- | --------------------------------------------------- | ------------ |
@@ -154,10 +173,14 @@ aboutCredits.textContent = map.attribution.join(" | ");
   are not pickable.
 - `map.dispose()` frees every mesh, material and texture.
 
+<!-- #endregion sources -->
+
 ## Projections
 
+<!-- #region projections -->
+
 ```ts
-import { boundsOf, createMapFrame, latLonToSphere, webMercator } from "babylonjs-map/projection";
+import { boundsOf, createMapFrame, latLonToSphere, raySphere, webMercator } from "babylonjs-map/projection";
 
 webMercator.forward({ lat: 40.64, lon: -73.78 }); // { x, y } on a map one unit wide
 const box = boundsOf(points, { margin: 0.1 }); // the box around some points, or null
@@ -173,7 +196,11 @@ degree across.
 
 `webMercator` (tiles z/x/y cover x in [x, x + 1] / 2^z) and `equirectangular` (a 2:1 map).
 
+<!-- #endregion projections -->
+
 ## Read a location
+
+<!-- #region locations -->
 
 ```ts
 import { detectLocationFormat, isLocationError, parseLocation } from "babylonjs-map/location";
@@ -226,6 +253,8 @@ an alternative when a decimal pair reads as well longitude first.
 
 `latLonFromColumns(lat, lon)` reads separate latitude and longitude values: numbers, or text with a
 hemisphere letter (`"51.5074 N"`) or a decimal comma (`"48,8566"`).
+
+<!-- #endregion locations -->
 
 ## License
 

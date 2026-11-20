@@ -18,7 +18,7 @@ composing a VALUE snippet into it.
 
 Nothing else moves: `segmented-reduce` keeps its five storage bindings and its five-word snippet
 vocabulary (`row, arc, nbr, weight, v`), its one runtime caller (the PageRank out-weight
-normaliser in `src/algorithms/pagerank.ts`) keeps using it unchanged, and the pull formula, the
+normalizer in `src/algorithms/pagerank.ts`) keeps using it unchanged, and the pull formula, the
 caller-side `xNorm` pre-scaling of design 8.2 and the bound `perm` slot are exactly as the design
 describes them.
 
@@ -28,7 +28,7 @@ A `segmentedReduce` VALUE snippet may name only `row`, `arc`, `nbr`, `weight` an
 (`VALUE_SNIPPET_VOCABULARY`, `src/primitives/segmented-reduce.ts`), and the check is textual:
 every other identifier is `E_SHADER_COMPILE { stage: "compose", slot: "VALUE" }` before any
 shader is created. The pull's value is `weight * xNorm[nbr]`, and `xNorm` is a binding. A snippet
-cannot name it, so `segmentedReduce` as it exists cannot be specialised into the pull.
+cannot name it, so `segmentedReduce` as it exists cannot be specialized into the pull.
 
 The design itself already says the pull is a different kernel: the 8.10 binding table gives
 `spmvPull` an eight-binding row of its own, and `test/kernel/bind-group-budget.test.ts` pins
@@ -41,16 +41,16 @@ The rejected argument was to widen the vocabulary: admit `xNorm`, `personalizati
 `beta` as snippet words and add the three bindings to the `segmented-reduce` module. Design 6 row
 9 reads:
 
-> `segmentedReduce` specialised: `y[v] = beta + alpha * sum_{u in in(v)} w * xNorm[u]` where
+> `segmentedReduce` specialized: `y[v] = beta + alpha * sum_{u in in(v)} w * xNorm[u]` where
 > `xNorm[u] = x[u] / norm[u]` is PRE-SCALED by the caller's per-node kernel (8.2), so the pull
-> binds no normaliser
+> binds no normalizer
 
 It is right that the two loops are the same loop, and that one body with a hole is less code than
 two bodies. What it gives up is the property the vocabulary exists for: a snippet cannot reach a
 binding, so a snippet cannot alias, race or read out of bounds on anything but the five graph
 arrays the module already guards. A vocabulary that admits `xNorm` is a per-caller allowlist, and
 the three extra bindings would raise `segmented-reduce` from five to eight for every caller,
-including the PageRank out-weight normaliser, which needs none of them. (The FA2 attraction pass
+including the PageRank out-weight normalizer, which needs none of them. (The FA2 attraction pass
 is not a caller: `fa2-attraction` is its own kernel with its own body and six bindings.)
 
 The cost is one duplicated row loop, roughly forty lines of WGSL, and a second body to keep in

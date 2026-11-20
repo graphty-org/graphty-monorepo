@@ -28,7 +28,7 @@ Result: 04.png. "2 edges selected", the two ties drawn in blue on the picture. R
 ## Step 4
 Tom: "Good, it lights them up in blue. But it took 'is 10' literally. I want 10 and up. I'll try typing it the way I'd write it in Excel: >=10."
 `--step $S --click "Find nodes, edges, values" --type ">=10"`
-Result: 05.png. Under the box: 'No match for ">=10". To select by a value, type a rule such as =shared_chapters > `16`' (in small grey code text). The earlier two ties stay selected.
+Result: 05.png. Under the box: 'No match for ">=10". To select by a value, type a rule such as =shared_chapters > `16`' (in small gray code text). The earlier two ties stay selected.
 
 ## Step 5
 Tom: "At least it tells me what it wants. Odd little tick marks around the number, but I'll copy it exactly, only with 'greater or equal' and 10. Clear the box first."
@@ -50,4 +50,4 @@ Result: session ended.
 
 - Finished: yes. 13 ties of 10 or more shared chapters, all shown in blue on the drawing, nothing taken off. Lowest 10 (MmeMagloire -- Myriel, Bossuet -- Enjolras), highest 31 (Cosette -- Valjean).
 - Ease: 5 of 7.
-- What confused me: typing "10" only found ties of exactly 10, and the line under it ("Select where shared_chapters is 1...") was cut off, so I could not tell it meant "exactly 10" until I clicked it and saw only two. My Excel-style ">=10" got "No match"; the hint told me the form it wanted, but the little tick marks around the number in "=shared_chapters > `16`" are not something I would ever have guessed, and that hint is small grey code text. Once I copied the pattern it worked first time, and the count and the list with each value were right there -- I could check the lowest was 10 without counting by hand.
+- What confused me: typing "10" only found ties of exactly 10, and the line under it ("Select where shared_chapters is 1...") was cut off, so I could not tell it meant "exactly 10" until I clicked it and saw only two. My Excel-style ">=10" got "No match"; the hint told me the form it wanted, but the little tick marks around the number in "=shared_chapters > `16`" are not something I would ever have guessed, and that hint is small gray code text. Once I copied the pattern it worked first time, and the count and the list with each value were right there -- I could check the lowest was 10 without counting by hand.

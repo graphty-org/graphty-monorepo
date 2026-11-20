@@ -256,7 +256,7 @@ describe("optionsFromZod", () => {
 
     describe("constructs it cannot classify", () => {
         it("keeps an object-valued option, typed unknown, with a code", () => {
-            // `graph.selection` -- the colour, scale and opacity of the selection highlight. It
+            // `graph.selection` -- the color, scale and opacity of the selection highlight. It
             // replaced `graph.effects` here, which named three post-process settings no renderer
             // ever read and which were deleted rather than left in a published schema as
             // something a consumer could set and never see.

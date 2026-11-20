@@ -14,7 +14,7 @@ My running club as orange balls with arrows. A little box top-left says Size: Pa
 "The numbers are probably under Data." Data shows friends.csv, 20 nodes, 41 edges, a Filters row with a plus, and Attributes: Nodes id, Edges weight. I take "weight" to be my runs-together count.
 
 ## Step 2 -- `--step $S --click-at 276,197` ("Add filter step") (03.png)
-"Filters, plus. That's the obvious thing." The right side changed to "New filter step": Keep = "an attribute's value", Attribute = empty dropdown, a grey "Add step" button.
+"Filters, plus. That's the obvious thing." The right side changed to "New filter step": Keep = "an attribute's value", Attribute = empty dropdown, a gray "Add step" button.
 
 ## Step 3 -- `--step $S --click "Attribute"` (04.png)
 "Which thing do I filter on?" A list opened: Nodes: id; Edges: weight.

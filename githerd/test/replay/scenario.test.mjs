@@ -52,7 +52,7 @@ describe("replay scenario", () => {
         expect(events.filter((e) => e.runId === BACKWARDS.runId)).toEqual([]);
         // Every lane change of the day, as the record and that day's watcher saw them: CI red from the
         // 10-01 evening run until 03:27; GPU out of balance at 04:04 (the watcher: 04:05) and green
-        // at 05:02 when the re-run of that red run passed (a newer cancelled run is no verdict);
+        // at 05:02 when the re-run of that red run passed (a newer canceled run is no verdict);
         // the Windows host failures from 04:34; the camera race on CI at 05:00; the benchmark row at
         // 07:29 (the watcher: 07:30); the balance again at 23:42 (the watcher: 23:43).
         expect(events.map((e) => `${e.at} ${e.event} ${e.lane} ${e.runId}/${e.attempt}`)).toEqual([

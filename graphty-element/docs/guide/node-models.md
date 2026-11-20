@@ -161,6 +161,15 @@ input.addEventListener("change", async () => {
 });
 ```
 
+A folder, a `.zip` or a drop may hold several models. `session.assets.addEach` adds each one as its
+own record, holding only the files that model uses, and gives one record for a source of one model,
+just as `add` does:
+
+```ts
+const models = await element.session.assets.addEach(input.files!);
+const ids = models.filter((m) => m.state === "accepted").map((m) => m.id);
+```
+
 The same files always get the same id, so adding a file twice is harmless. A drop target that
 accepts both graph data and models asks `detectModelFormat` which one a file is, instead of
 guessing from the name:
@@ -188,36 +197,42 @@ canvas.addEventListener("drop", async (event) => {
 
 What the element loads, and what to do with anything else:
 
-| You have                                                                                        | What happens                                                                                                                                                   |
-| ----------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| One `.glb` file                                                                                 | Loads. This is the best format to use: one file holding the shape, colors and pictures                                                                         |
-| A `.gltf` file with its `.bin` and pictures                                                     | Loads when every file it names is given too: select them all, drop the folder, or zip them. A missing one is `E_MODEL_MISSING_FILE`, naming the file           |
-| A glTF compressed with Draco or meshopt (`EXT_` or `KHR_meshopt_compression`)                   | Loads. The decoders come with graphty-element                                                                                                                  |
-| A glTF with WebP or AVIF pictures                                                               | Loads                                                                                                                                                          |
-| A glTF with KTX2 / Basis Universal pictures (`KHR_texture_basisu`)                              | Loads. The transcoders come with graphty-element                                                                                                               |
-| A glTF with GPU instances (`EXT_mesh_gpu_instancing`, as `gltfpack -i` and Blender write)       | Loads, each instance drawn as its own copy. Every copy counts toward the triangle limit                                                                        |
-| A glTF 1.0 file (`.gltf`, or a version 1 `.glb`)                                                | Loads, drawn with each material's diffuse color or picture. Its shaders are never read, so its `.glsl` files are not needed                                    |
-| An `.obj` file, with its `.mtl` and pictures                                                    | Loads, the same way as `.gltf`. Colors on `v` lines are drawn. Pictures may be PNG, JPEG, WebP, TGA, BMP, GIF or DDS                                           |
-| An `.stl` file, ASCII or binary                                                                 | Loads. Face colors (VisCAM or Materialise) are drawn; otherwise one gray. Its up direction is a guess; see [Turning a model upright](#turning-a-model-upright) |
-| A `.ply` mesh: ASCII, binary or big-endian binary                                               | Loads, with its vertex colors, and its picture when a `comment TextureFile` line names one                                                                     |
-| A `.ply` point cloud, a Gaussian splat `.ply` (plain or compressed), `.splat`, `.spz` or `.sog` | Loads, each point or splat drawn as a small solid in its color (`W_MODEL_POINTS_APPROXIMATED`). At most 50,000 are drawn; more are thinned evenly              |
-| A `.babylon` file                                                                               | Loads its meshes and their diffuse colors and pictures                                                                                                         |
-| A `.zip` holding any of the above                                                               | Loads                                                                                                                                                          |
-| `.fbx`, `.usd`, `.usdz`, `.dae`, `.blend`, `.3mf`, `.bvh`                                       | Not loaded (`E_MODEL_FORMAT_UNSUPPORTED`). Open it in a 3D program such as Blender and export it as `.glb`                                                     |
+| You have                                                                                                                  | What happens                                                                                                                                                                                                                                                                                                                                                                        |
+| ------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| One `.glb` file                                                                                                           | Loads. This is the best format to use: one file holding the shape, colors and pictures                                                                                                                                                                                                                                                                                              |
+| A `.gltf` file with its `.bin` and pictures                                                                               | Loads when every file it names is given too: select them all, drop the folder, or zip them. A missing one is `E_MODEL_MISSING_FILE`, naming the file                                                                                                                                                                                                                                |
+| A glTF compressed with Draco or meshopt (`EXT_` or `KHR_meshopt_compression`)                                             | Loads. The decoders come with graphty-element                                                                                                                                                                                                                                                                                                                                       |
+| A glTF with WebP or AVIF pictures                                                                                         | Loads                                                                                                                                                                                                                                                                                                                                                                               |
+| A glTF with KTX2 / Basis Universal pictures (`KHR_texture_basisu`)                                                        | Loads. The transcoders come with graphty-element                                                                                                                                                                                                                                                                                                                                    |
+| A glTF with GPU instances (`EXT_mesh_gpu_instancing`, as `gltfpack -i` and Blender write)                                 | Loads, each instance drawn as its own copy. Every copy counts toward the triangle limit                                                                                                                                                                                                                                                                                             |
+| A glTF using another extension Babylon.js reads (`KHR_animation_pointer`, `KHR_materials_scatter`, `EXT_lights_ies`, ...) | Loads. The file's lights and its own pointer behavior (`KHR_interactivity`, `KHR_node_hoverability`, `KHR_node_selectability`) are not used: graphty-element lights the graph and decides what a click does. A glTF that requires `KHR_interactivity`, `EXT_lights_area`, `EXT_lights_image_based`, `MSFT_audio_emitter` or `MSFT_lod` is not loaded (`E_MODEL_FORMAT_UNSUPPORTED`) |
+| A glTF 1.0 file (`.gltf`, or a version 1 `.glb`)                                                                          | Loads, with its skins, drawn with each material's diffuse color or picture. Its animations play as one clip. Its shaders are never read, so its `.glsl` files are not needed, and vertex colors are drawn only when its shader reads them                                                                                                                                           |
+| An `.obj` file, with its `.mtl` and pictures                                                                              | Loads, the same way as `.gltf`. Colors on `v` lines are drawn. Pictures may be PNG, JPEG, WebP, TGA, BMP, GIF or DDS                                                                                                                                                                                                                                                                |
+| An `.stl` file, ASCII or binary                                                                                           | Loads. Face colors (VisCAM or Materialize) are drawn; otherwise one gray. Its up direction is a guess; see [Turning a model upright](#turning-a-model-upright)                                                                                                                                                                                                                      |
+| A `.ply` mesh: ASCII, binary or big-endian binary                                                                         | Loads, with its vertex colors, and its picture when a `comment TextureFile` line names one                                                                                                                                                                                                                                                                                          |
+| A `.ply` point cloud                                                                                                      | Loads, each point drawn as a small solid in its color (`W_MODEL_POINTS_APPROXIMATED`). At most 50,000 are drawn; more are thinned evenly                                                                                                                                                                                                                                            |
+| A `.babylon` file                                                                                                         | Loads its meshes and their diffuse colors and pictures                                                                                                                                                                                                                                                                                                                              |
+| A `.zip` holding any of the above                                                                                         | Loads                                                                                                                                                                                                                                                                                                                                                                               |
+| An `.fbx` file, binary or ASCII, with its pictures beside it or inside it                                                 | Loads, with its skins, blend shapes and clips. A picture named by a path on its author's disk is found by its file name. Curves are drawn as thin tubes, counted against the limits                                                                                                                                                                                                 |
+| A USD layer (`.usda`, `.usdc` or `.usd`) with the layers and pictures it references                                       | Loads, with its skins, its clip (`USD Animation 1`) and its `primvars:displayColor` as vertex colors. Select every file, drop the folder, or zip them; a missing layer is `E_MODEL_MISSING_FILE`. A reference into a package (`@./pkg.usdz[geo.usda]@`) is followed and counted, and the layer, not the package it references, is the model                                         |
+| A `.usdz` package                                                                                                         | Loads. OpenUSD (10 MB, 2.5 MB compressed) comes with graphty-element and is downloaded the first time a USD model loads                                                                                                                                                                                                                                                             |
+| `.dae`, `.blend`, `.3mf`, `.bvh`                                                                                          | Not loaded (`E_MODEL_FORMAT_UNSUPPORTED`). Open it in a 3D program such as Blender and export it as `.glb`                                                                                                                                                                                                                                                                          |
+| Gaussian splats (`.splat`, `.spz`, `.sog`, splat `.ply`, `KHR_gaussian_splatting` glTF)                                   | Not loaded (`E_MODEL_FORMAT_UNSUPPORTED`, `kind` `splat`, `format` `splat`, `spz`, `sog` or `splat-ply`; for a glTF, `extension`)                                                                                                                                                                                                                                                   |
 
 Nothing is fetched from a CDN to read a model: graphty-element reads models through its
-`babylonjs-models` dependency, whose package holds the Draco decoder and the KTX2 transcoders, and
-meshopt's decoder is the `meshoptimizer` dependency. A bundler copies them with the code that loads
-them, so a page that never loads a compressed model ships none of them. With Vite, keep the package
+`babylonjs-models` dependency, whose package holds the Draco decoder, the KTX2 transcoders and the
+OpenUSD importer, and meshopt's decoder is the `meshoptimizer` dependency. A bundler copies them with
+the code that loads them, so a page that never loads a compressed or USD model downloads none of them. With Vite, keep the package
 out of dependency pre-bundling, which moves its modules away from those files:
 `optimizeDeps: { exclude: ["babylonjs-models"] }`. A file whose compressed data is damaged fails to
 draw with `E_MODEL_DECODER_UNAVAILABLE` and `reason: "decode"`.
 
 `./bundle`, the single file for a page without a bundler, carries no WebAssembly beside it, so it
-leaves the Draco decoder and the KTX2 transcoders out: a glTF compressed with Draco, or one that
-requires KTX2 pictures, fails with `E_MODEL_DECODER_UNAVAILABLE`, `reason: "missing"` and the
-`extension`; a glTF that only uses KTX2 and also gives PNG or JPEG pictures draws those. meshopt
-works in `./bundle` too. To draw Draco or KTX2 models, load graphty-element through a bundler.
+leaves the Draco decoder, the KTX2 transcoders and OpenUSD out: a glTF compressed with Draco, or one
+that requires KTX2 pictures, fails with `E_MODEL_DECODER_UNAVAILABLE`, `reason: "missing"` and the
+`extension`, and a USD or USDZ model with `format: "usd"`; a glTF that only uses KTX2 and also gives
+PNG or JPEG pictures draws those. meshopt and FBX work in `./bundle` too. To draw Draco, KTX2 or USD
+models, load graphty-element through a bundler.
 
 `node.modelTint: true` does not yet tint the parts of a model that carry their own vertex colors;
 `"replace"` paints them flat.
@@ -264,6 +279,56 @@ it in `record.skipped`, and a saved project remembers the skip, so reopening it 
 An address on this machine or the local network is never fetched as a missing file unless it is
 the model's own site, and an address's query is used for the request and never shown or saved.
 
+To take a model without the pictures and `.mtl` files that did not come (an "add it anyway"
+button), `assets.accept(ref, { without: "missing" })` skips every one of them at once and resolves
+with the accepted record, its skips in `record.skipped`. A model missing its geometry throws
+`E_MODEL_PART_REQUIRED` with `details.name`, and nothing is skipped:
+
+```ts
+const waiting = await element.session.assets.add(droppedFiles); // rejected: wood.png is missing
+const car = await element.session.assets.accept(waiting.id, { without: "missing" });
+// car.state === "accepted"; car.skipped lists wood.png; find(waiting.id) finds it too
+```
+
+A model refused for anything other than a missing part (over a limit, unreadable) is never
+accepted: `accept` throws that problem's code, such as `E_MODEL_TOO_LARGE`, with its params in
+`details`.
+
+A part that drew in the model's own color picture and was left out takes the node's color
+(`node.color`) instead, in every format, so a model added without its textures can be colored by a
+style layer. Once every picture that colored the model is gone, the whole model takes the node's
+color, its parts colored only by a plain material color included; see-through parts (a watch's
+glass) take it too and stay see-through, and a layer that sets `node.modelTint: false` keeps every
+plain color.
+
+### A second model of the same file
+
+`assets.add` hands back the model the session already holds for the same files or address, with
+its settings. To set the same file up twice -- walking on one layer, standing still on another --
+add a second model of it with `assets.copy(ref)`: it has an id of its own (name it by that id, not
+by the address, which still names the first) and none of the first one's settings or name.
+
+```ts
+const walking = await element.session.assets.add("https://example.com/fox.glb");
+const still = await element.session.assets.copy(walking.id);
+await element.session.assets.setDefaults(still.id, { style: { "node.modelAnimationSpeed": 0 } });
+```
+
+### Taking a part back out
+
+A file handed over by mistake (the wrong picture, an `.mtl` the reader does not want) comes back
+out with `assets.dropPart(ref, name)`: the model is read again from its other files, so that part
+is missing again, and asked for or drawn without as any missing part. A model still waiting keeps
+its id; an accepted one gives a new record, and the model as it was stays until you `remove` it
+(by its id or by the address it was loaded from: either lets go of it under every name).
+The model's own file cannot be dropped (`E_BAD_COMMAND`):
+
+```ts
+const again = await element.session.assets.dropPart(car.id, "Textures/wrong.png");
+// again.parts lists Textures/wrong.png as "missing"
+element.session.assets.remove(car.id); // let go of the model as it was
+```
+
 ### Listing a model's files
 
 `record.parts` lists a model's files, accepted or waiting: the main file (`role: "model"`), each
@@ -290,6 +355,36 @@ with its first problem's code, such as `E_MODEL_MISSING_FILE`.
 ```ts
 img.src = await element.modelThumbnail(car.id, { size: 160, style: { "node.modelSourceUp": "z" } });
 element.session.assets.rename(car.id, "Cruiser"); // record.plainName, saved with the project
+```
+
+For a preview the reader can turn, `element.modelPreview(ref, box, { style })` draws the model
+live in a canvas that fills `box` (any sized element): dragging turns it, the wheel or a pinch
+zooms, and the arrow keys turn it while the canvas has focus. A clip named by
+`node.modelAnimation` plays at `node.modelAnimationSpeed` (Speed 0 holds the pose at
+`node.modelAnimationOffset`), and `node.unlit` and `node.wireframe` are drawn too.
+`preview.update(style)` redraws it with other values and keeps the reader's view;
+`preview.resetView()` goes back to the first view; `preview.dispose()` removes the canvas. It
+rejects with the same codes as `modelThumbnail`.
+
+To mark the models of a set that cannot be drawn before the reader looks at each one,
+`element.checkModel(ref)` builds the model once, as a node would draw it, without drawing it on
+screen, and resolves with `{ drawable: true }`, or `{ drawable: false, failure }` with the code
+`modelThumbnail` would reject with (`E_MODEL_PARSE`, `E_MODEL_STRUCTURE`, a missing file's code,
+...). It answers `{ drawable: null }` when nothing is drawn on this page (no WebGL), which is not
+the model's fault. The answer is kept by the model's files, so asking again costs nothing:
+
+```ts
+for (const record of records) {
+    const check = await element.checkModel(record.id);
+    if (check.drawable === false) markUndrawable(record, check.failure);
+}
+```
+
+```ts
+const preview = await element.modelPreview(car.id, box, { style: { "node.modelAnimation": "Drive" } });
+preview.canvas.setAttribute("aria-label", "Cruiser preview, drag to turn");
+await preview.update({ "node.modelAnimation": "Drive", "node.color": "#e63946", "node.modelTint": "replace" });
+preview.dispose(); // when the picker closes
 ```
 
 ### Dropped files go to the model that waits for them
@@ -337,11 +432,18 @@ await element.session.styles.add({
 `"node.modelTint": "replace"` paints the whole model in `node.color`, a flat silhouette.
 `"node.modelTint": "untextured"` paints only the parts with no picture and no vertex colors in
 `node.color` and leaves the rest as the file draws them: an OBJ's plain colors follow your data
-while its labels and decals keep their pictures.
+while its labels and decals keep their pictures. To draw a model with your styles instead of its
+own materials -- its embedded pictures dropped too -- use `"replace"`.
 
-A part the file gives no material, no picture and no vertex colors -- an OBJ with no `.mtl`, most
-STL files -- states no color of its own, so it is drawn in `node.color` whatever `node.modelTint`
-says. When a layer colors a model node and some part keeps the file's own color, the color is not
+A part the file gives no material, no picture and no vertex colors -- an OBJ loaded with no `.mtl`
+(or with its `.mtl` skipped), most STL and PLY files, a glTF primitive with no material, or a
+material left at its defaults (white, with no picture, map or glow) -- states no color of its own, so it is drawn in `node.color` whatever `node.modelTint`
+says. Vertex colors that are all white (a USD exporter's default `displayColor`) count as none. A
+part drawn without its picture keeps the sides its material draws, so a two-sided strip is still seen
+from behind. A model whose materials are all plain, opaque, non-metallic grays (white and black included)
+with no picture -- such as Blender's default material -- is shaded, not colored, so it too is drawn
+in `node.color` while `node.modelTint` is unset; a layer that sets `node.modelTint: false` keeps
+its grays. When a layer colors a model node and some part keeps the file's own color, the color is not
 drawn there and the element reports `W_MODEL_COLOR_IGNORED` with the layers that set it, so the
 color never disappears in silence.
 
@@ -371,11 +473,13 @@ the others.
 ### Playing an animation
 
 A model whose file holds animation clips (a walking figure, a watch's hands) is drawn still until a
-layer names one in `node.modelAnimation`. The asset's summary lists the clips:
+layer, or the model's own settings, names one in `node.modelAnimation`. The asset's summary lists
+the clips by the names that play them; a glTF clip with no name of its own is `animation0`,
+`animation1`, ... by its place in the file:
 
 ```ts
 const robot = await element.session.assets.add(file);
-const [walk] = robot.summary?.animations ?? [];
+const [walk] = element.session.assets.inspect(robot.id).animations;
 await element.session.styles.add({
     name: "Walking",
     target: "node",
@@ -386,10 +490,41 @@ await element.session.styles.add({
 
 Every node plays the clip on the GPU from one texture the element bakes when the model loads, so
 a thousand walking nodes cost about what one does. A pose is a clip held still:
-`"node.modelAnimationSpeed": 0` with the moment in `node.modelAnimationOffset`. A skinned model's
-shape keys (morph targets) are not played (`W_MODEL_ANIMATION_PARTIAL`), and a clip name the file
+`"node.modelAnimationSpeed": 0` with the moment in `node.modelAnimationOffset`. A clip that moves
+shape keys (morph targets) plays too, as a parrot's flapping wings do; only a skinned part's shape
+keys hold still (`W_MODEL_ANIMATION_PARTIAL`). A clip name the file
 does not have holds the first frame (`W_MODEL_ANIMATION_UNKNOWN`). While any node plays, the
 element draws every frame; once all are still or gone, it rests.
+
+### A model's own settings
+
+A model can carry its own `node.model*` settings, so every node that draws it starts from them,
+whichever layer names it: its up axis, turn, tint, clip and pose, fit, center and sides.
+`assets.setDefaults(ref, patch)` changes them as one step the reader can undo, and they are saved
+with the project. A layer's own value wins over the model's, and the model's over the channel's
+default. `undefined` (or `null`) takes a value out:
+
+```ts
+await element.session.assets.setDefaults(robot.id, {
+    style: { "node.modelAnimation": "Walk", "node.modelTurn": 90 },
+});
+element.session.assets.find(robot.id)?.defaults; // { style: { ... }, hiddenTextures: [] }
+```
+
+`hiddenTextures` draws the model without some of its pictures, by the names
+`assets.inspect(id).pictures` lists (each with the materials that draw it): those parts take the
+node's color. Hiding every picture draws the whole model in the node's color, as adding it without
+them does. glTF, OBJ, `.babylon` and PLY models list their pictures: a picture in a file of its own
+by its path in the set, an embedded one (glTF, `.babylon`) by its image name or `image<index>`.
+`modelThumbnail` and `modelPreview` draw with the model's settings under the `style` they are
+given, and take `hiddenTextures` of their own for a picker that tries some out before keeping them.
+Inside `session.transaction`, call `tx.assets.setDefaults` so the change joins the transaction's
+one step.
+
+```ts
+const [picture] = element.session.assets.inspect(robot.id).pictures;
+await element.session.assets.setDefaults(robot.id, { hiddenTextures: [picture.name] });
+```
 
 ### Selecting, outlining and glowing a model
 
@@ -442,6 +577,21 @@ const record = await element.session.assets.add(url, {
         // change.asset.stage: "downloading", "reading" or "unpacking"; change.fraction is null when the size is not known.
         bar.value = change.fraction ?? 0;
     },
+});
+```
+
+A model by address can be shown before its pictures arrive. `onWaiting` hears the model once
+everything but its pictures is in: its record waits for them (each picture an
+`E_MODEL_MISSING_FILE` with `downloading: true`), and `modelPreview` or `checkModel` with
+`standInMissing` draw it at once. `stopPictures` stops only those downloads: the model stays,
+waiting for the pictures as if they had not come, so the reader can hand them over with `supply` or
+take the model without them with `accept`. `signal` still stops everything:
+
+```ts
+const stopPictures = new AbortController();
+const record = await element.session.assets.add(url, {
+    onWaiting: (waiting) => showPreview(waiting.id), // shown while its pictures download
+    stopPictures: stopPictures.signal, // stopPictures.abort() keeps the model, without them
 });
 ```
 
@@ -557,11 +707,10 @@ The file then records the address and a fingerprint of the file. When the projec
 address is fetched (after the reader agrees), and if the site now serves a different file it is
 drawn and reported with `W_MODEL_CHANGED`.
 
-A save with no choice for an address embeds it. With the `node-models` experiment switched on
-(`features="node-models"`), a project keeps each address the way it was last kept instead: a file
-opened with an address kept that way saves it that way again, and so does a later save after a
-written one that was told (a `markSaved: false` copy counts once it is marked saved). Opening
-another project starts over. Autosave always embeds.
+A save with no choice for an address keeps it the way the project last kept it, and embeds it when
+the project has never kept it by address: a file opened with an address kept that way saves it that
+way again, and so does a later save after a written one that was told (a `markSaved: false` copy
+counts once it is marked saved). Opening another project starts over. Autosave always embeds.
 
 ### Asking before a save
 
@@ -584,19 +733,45 @@ await element.downloadProject({ assets });
 An empty list means there is nothing to ask. `element.downloadProject({ assets, markSaved: false })`
 downloads a copy and leaves `project.dirty` as it was.
 
-A project file holds at most 64 MB of model files. When it opens, each model is checked against
+A project file holds at most 64 MB of model files (the `documentBytes` limit, below); a model past
+it is left out of the file and named in the save's `leftOut`. When it opens, each model is checked against
 the fingerprint the file recorded for it, then by every check a dropped file gets; a model that
 fails is left out (its nodes keep their ordinary shape), and the open's `problems` name it with its
 code, such as `E_MODEL_DIGEST_MISMATCH` for a file whose bytes were changed.
 
 ## Limits
 
-To protect the tab, a model is refused (`E_MODEL_TOO_LARGE`) past a set of limits: 32 MB per
-model, 1,000,000 triangles, 128 MB of decoded pictures (a KTX2 picture counts a quarter of a PNG or JPEG of the same size), and 256 MB held by the session in all,
-among others. Only your page's code can change them; a project file never can:
+To protect the tab, a model is refused (`E_MODEL_TOO_LARGE`) past a set of limits. Every default
+refuses only what a browser tab cannot hold or draw; `Infinity` means no limit.
+
+| Limit                 | Default                 | What it counts                                                                     |
+| --------------------- | ----------------------- | ---------------------------------------------------------------------------------- |
+| `maxBytes`            | 1 GB                    | Bytes per model; a model fetched by URL counts its `.bin` and pictures too         |
+| `maxTextBytes`        | 536,870,888 (2^29 - 24) | Bytes per OBJ, ASCII STL or ASCII PLY file: the longest string a browser holds     |
+| `maxTriangles`        | 20,000,000              | Triangles per model, counted per use                                               |
+| `maxTextureBytes`     | 1 GB                    | Decoded picture bytes per model (a KTX2 picture counts a quarter of a PNG or JPEG) |
+| `maxDecodedBytes`     | 1 GB                    | What every glTF accessor decodes to, together                                      |
+| `maxFiles`            | 10,000                  | Files beside a model fetched by URL                                                |
+| `maxNodes`            | `Infinity`              | glTF nodes                                                                         |
+| `maxMeshes`           | `Infinity`              | glTF meshes                                                                        |
+| `maxMaterials`        | `Infinity`              | glTF materials                                                                     |
+| `maxTextures`         | `Infinity`              | glTF textures                                                                      |
+| `maxAnimations`       | `Infinity`              | glTF animations                                                                    |
+| `maxMorphTargets`     | `Infinity`              | Morph targets on one glTF primitive                                                |
+| `maxJoints`           | `Infinity`              | Joints in one glTF skin                                                            |
+| `maxTextureSize`      | 2048                    | Pixels per picture side; a larger picture is drawn smaller, never refused          |
+| `fetchTimeoutMs`      | 30,000                  | Milliseconds a fetch may receive nothing; `Infinity` waits for ever                |
+| `sessionBytes`        | `Infinity`              | Model bytes the session holds, all models together                                 |
+| `documentBytes`       | 64 MB                   | Model file bytes one project file embeds, all models together                      |
+| `sceneTriangleBudget` | 2,000,000               | Triangles across the scene before `W_MODEL_BUDGET` (a warning, never a refusal)    |
+
+`params.what` names the limit; for a count it is `"count"`, with `params.item` saying what was
+counted (`"materials"`, `"textures"`, `"nodes"`, ...). Only your page's code can change the limits,
+lower or higher; a project file never can, and `assets.limits()` reads them:
 
 ```ts
-element.session.assets.setLimits({ maxTriangles: 2_000_000 });
+element.session.assets.setLimits({ maxBytes: 64 * 1024 * 1024, maxTriangles: 2_000_000, maxMaterials: 64 });
+element.session.assets.setLimits({ sessionBytes: 512 * 1024 * 1024, documentBytes: 128 * 1024 * 1024 });
 ```
 
 ## Problems and their codes
@@ -604,43 +779,43 @@ element.session.assets.setLimits({ maxTriangles: 2_000_000 });
 Each problem is `{ code, params }`. A code starting `E_` means the model is not drawn (the node
 keeps its ordinary shape); `W_` means it is drawn and something is worth telling the reader.
 
-| Code                          | params                                              | When                                                                                                                                                                                                                      |
-| ----------------------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `E_MODEL_FETCH`               | `url`, `status`, `offline`                          | The address answered with an error, or not at all. `status` is `null` when nothing answered (offline, CORS and an unknown host look alike)                                                                                |
-| `E_MODEL_URL_BLOCKED`         | `hosts`, `denied`, `part`                           | The address may not be fetched: the reader said no, an address on the local network not from your code, or not `http`/`https`. `part` names the missing file, for an address given to `assets.supply`                     |
-| `E_MODEL_TOO_LARGE`           | `what`, `found`, `limit`                            | Over a limit; `what` says which one                                                                                                                                                                                       |
-| `E_MODEL_STRUCTURE`           | `rule`                                              | The file is damaged or unsafe to read                                                                                                                                                                                     |
-| `E_MODEL_FORMAT_UNSUPPORTED`  | `format`, `fileName`, `assetKind`                   | A 3D format graphty-element recognizes but does not load (FBX, USD, USDZ, DAE, .blend, 3MF, BVH). `assetKind` is `"image"` when `node.model` names a picture and `"model"` when `node.texture` names a model              |
-| `E_MODEL_FORMAT_UNKNOWN`      | `fileName`                                          | Not a 3D model file graphty-element knows                                                                                                                                                                                 |
-| `E_MODEL_AMBIGUOUS`           | `candidates`                                        | Several files could be the model; pass `{ main: "<name>" }` to `assets.add`                                                                                                                                               |
-| `E_MODEL_MISSING_FILE`        | `name`, `referencedBy`, `role`, `optional`, `tried` | A file the model needs (a `.bin`, a picture, an `.mtl`) was not found. One per missing file, all at once; `optional` is true for a picture or an `.mtl`, and `tried` lists the addresses tried for a model fetched by URL |
-| `E_MODEL_PART_AMBIGUOUS`      | `name`, `referencedBy`, `candidates`                | A file the model names matched more than one of the files given (by case or by name alone), so none was used                                                                                                              |
-| `E_MODEL_WEB_PAGE`            | `url`, `host`, `part`, `suggested`                  | An address answered with a web page, not a model or a picture. `suggested` is the file's own address, for a GitHub or GitLab file page                                                                                    |
-| `E_MODEL_PART_REQUIRED`       | `name`, `role`                                      | A file the model cannot be drawn without (its geometry) was asked to be left out                                                                                                                                          |
-| `E_MODEL_EXTERNAL_URL`        | `url`                                               | The model loads parts from somewhere outside its own files, which is not allowed. Export it as `.glb`                                                                                                                     |
-| `E_MODEL_DECODER_UNAVAILABLE` | `reason`, `extension`                               | Compressed data could not be decoded: `reason` is `missing` (the single-file `./bundle` has no Draco or KTX2 decoder), `load` (the decoder files did not load) or `decode` (damaged data)                                 |
-| `E_MODEL_PARSE`               | `format`                                            | The file passed every check but could not be read                                                                                                                                                                         |
-| `E_MODEL_ZIP`                 | `reason`                                            | The `.zip` cannot be opened safely                                                                                                                                                                                        |
-| `E_MODEL_NAME_TAKEN`          | `id`                                                | The name given to `assets.add` already belongs to different files, or starts with `asset:sample/`                                                                                                                         |
-| `E_MODEL_UNKNOWN_ASSET`       | `id`                                                | A layer names a model id the session does not hold                                                                                                                                                                        |
-| `E_MODEL_DIGEST_MISMATCH`     | `id`                                                | A model saved in a project file does not match the fingerprint the file recorded: the file was changed or damaged                                                                                                         |
-| `W_MODEL_COLOR_IGNORED`       | `layerIds`                                          | A layer colors model nodes whose `node.modelTint` is off                                                                                                                                                                  |
-| `W_MODEL_UP_GUESSED`          | `format`, `up`                                      | The file does not say which way is up, so it was guessed                                                                                                                                                                  |
-| `W_MODEL_HAS_ANIMATIONS`      | `clips`                                             | The model has animations; it is drawn still unless `node.modelAnimation` names one                                                                                                                                        |
-| `W_MODEL_ANIMATION_UNKNOWN`   | `name`, `available`                                 | `node.modelAnimation` names a clip the model does not have; its nodes hold the first frame                                                                                                                                |
-| `W_MODEL_ANIMATION_REDUCED`   | `fps`, `clips`                                      | The clips were sampled at fewer frames a second to keep their texture within 16 MB                                                                                                                                        |
-| `W_MODEL_ANIMATION_PARTIAL`   | `reason`                                            | Part of the animation is not played (`morph`: shape keys keep their rest shape)                                                                                                                                           |
-| `W_MODEL_EXTENSION_IGNORED`   | `extension`                                         | The glTF uses an extension that is drawn without: see-through glass and volume (`KHR_materials_transmission` and its family) are drawn opaque                                                                             |
-| `W_MODEL_POINTS_APPROXIMATED` | `points`, `drawn`                                   | A point cloud or Gaussian splat is drawn as small solids, one per point; at most `drawn` of its `points`                                                                                                                  |
-| `W_MODEL_HEAVY`               | `triangles`, `materials`, `nodes`                   | A detailed model on many nodes may make the graph slow                                                                                                                                                                    |
-| `W_MODEL_BUDGET`              | `nodes`, `triangles`, `budget`                      | Models across the graph draw more triangles than the budget                                                                                                                                                               |
-| `W_MODEL_TRANSPARENT`         | `nodes`                                             | Many nodes draw a see-through model, which may look wrong where they overlap                                                                                                                                              |
-| `W_MODEL_TEXTURES_REDUCED`    | `from`, `to`                                        | Pictures larger than the limit were drawn smaller                                                                                                                                                                         |
-| `W_MODEL_NOT_EMBEDDED`        | `ref`, `layerIds`                                   | A project was saved without a model its layers name, because the session does not hold it                                                                                                                                 |
-| `W_MODEL_CHANGED`             | `url`, `expected`, `found`                          | A model or picture a project keeps by address loaded, and is not the file the project was saved with                                                                                                                      |
-| `W_MODEL_PART_SUBSTITUTED`    | `name`, `used`, `referencedBy`                      | A file the model names was found under another case or folder; `used` is the file drawn                                                                                                                                   |
-| `W_MODEL_PART_SKIPPED`        | `name`, `role`                                      | The model is drawn without a picture or `.mtl` that was left out                                                                                                                                                          |
-| `W_MODEL_PART_UNUSED`         | `fileName`                                          | A file given for a model matched none of the files it is missing, and was not used                                                                                                                                        |
-| `W_MODEL_NOT_KEPT_BY_URL`     | `url`, `reason`                                     | A model asked to be kept by its address was saved with its files, because its missing files came from elsewhere (`reason: "parts"`)                                                                                       |
-| `W_URL_NEEDS_APPROVAL`        | `id`, `url`, `host`, `kind`, `by`                   | An address waits for the reader in `session.network` (not a model's own event: `network:pending`)                                                                                                                         |
-| `W_NETWORK_POLICY_IGNORED`    | `kind`                                              | In `project.open`'s problems: the file carries a network approval an earlier release wrote, which is ignored; its addresses still wait for the reader                                                                     |
+| Code                          | params                                              | When                                                                                                                                                                                                                                                                                                                                                             |
+| ----------------------------- | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `E_MODEL_FETCH`               | `url`, `status`, `offline`                          | The address answered with an error, or not at all. `status` is `null` when nothing answered (offline, CORS and an unknown host look alike)                                                                                                                                                                                                                       |
+| `E_MODEL_URL_BLOCKED`         | `hosts`, `denied`, `part`                           | The address may not be fetched: the reader said no, an address on the local network not from your code, or not `http`/`https`. `part` names the missing file, for an address given to `assets.supply`                                                                                                                                                            |
+| `E_MODEL_TOO_LARGE`           | `what`, `found`, `limit`                            | Over a limit; `what` says which one                                                                                                                                                                                                                                                                                                                              |
+| `E_MODEL_STRUCTURE`           | `rule`                                              | The file is damaged or unsafe to read; `rule` names what broke (`fbx`, `usd`, `usdz` for those formats' files)                                                                                                                                                                                                                                                   |
+| `E_MODEL_FORMAT_UNSUPPORTED`  | `format`, `fileName`, `assetKind`, `kind`           | A 3D format graphty-element recognizes but does not load (DAE, .blend, 3MF, BVH, Gaussian splats). `extension` names a required glTF extension not read, or the Gaussian splatting extension a glTF uses. `kind` is `"splat"` for any Gaussian splat. `assetKind` is `"image"` when `node.model` names a picture and `"model"` when `node.texture` names a model |
+| `E_MODEL_FORMAT_UNKNOWN`      | `fileName`                                          | Not a 3D model file graphty-element knows                                                                                                                                                                                                                                                                                                                        |
+| `E_MODEL_AMBIGUOUS`           | `candidates`                                        | Several files could be the model; pass `{ main: "<name>" }` to `assets.add`                                                                                                                                                                                                                                                                                      |
+| `E_MODEL_MISSING_FILE`        | `name`, `referencedBy`, `role`, `optional`, `tried` | A file the model needs (a `.bin`, a picture, an `.mtl`) was not found. One per missing file, all at once; `optional` is true for a picture or an `.mtl`, and `tried` lists the addresses tried for a model fetched by URL                                                                                                                                        |
+| `E_MODEL_PART_AMBIGUOUS`      | `name`, `referencedBy`, `candidates`                | A file the model names matched more than one of the files given (by case or by name alone), so none was used                                                                                                                                                                                                                                                     |
+| `E_MODEL_WEB_PAGE`            | `url`, `host`, `part`, `suggested`                  | An address answered with a web page, not a model or a picture. `suggested` is the file's own address, for a GitHub or GitLab file page                                                                                                                                                                                                                           |
+| `E_MODEL_PART_REQUIRED`       | `name`, `role`                                      | A file the model cannot be drawn without (its geometry) was asked to be left out                                                                                                                                                                                                                                                                                 |
+| `E_MODEL_EXTERNAL_URL`        | `url`                                               | The model loads parts from somewhere outside its own files, which is not allowed. Export it as `.glb`                                                                                                                                                                                                                                                            |
+| `E_MODEL_DECODER_UNAVAILABLE` | `reason`, `extension` or `format`                   | Compressed data could not be decoded: `reason` is `missing` (the single-file `./bundle` has no Draco or KTX2 decoder, and no OpenUSD, `format: "usd"`), `load` (the decoder files did not load) or `decode` (damaged data)                                                                                                                                       |
+| `E_MODEL_PARSE`               | `format`                                            | The file passed every check but could not be read                                                                                                                                                                                                                                                                                                                |
+| `E_MODEL_ZIP`                 | `reason`                                            | The `.zip` cannot be opened safely                                                                                                                                                                                                                                                                                                                               |
+| `E_MODEL_NAME_TAKEN`          | `id`                                                | The name given to `assets.add` already belongs to different files, or starts with `asset:sample/`                                                                                                                                                                                                                                                                |
+| `E_MODEL_UNKNOWN_ASSET`       | `id`                                                | A layer names a model id the session does not hold                                                                                                                                                                                                                                                                                                               |
+| `E_MODEL_DIGEST_MISMATCH`     | `id`                                                | A model saved in a project file does not match the fingerprint the file recorded: the file was changed or damaged                                                                                                                                                                                                                                                |
+| `W_MODEL_COLOR_IGNORED`       | `layerIds`                                          | A layer colors model nodes whose `node.modelTint` is off                                                                                                                                                                                                                                                                                                         |
+| `W_MODEL_UP_GUESSED`          | `format`, `up`                                      | The file does not say which way is up, so it was guessed                                                                                                                                                                                                                                                                                                         |
+| `W_MODEL_HAS_ANIMATIONS`      | `clips`                                             | The model has animations; it is drawn still unless `node.modelAnimation` names one                                                                                                                                                                                                                                                                               |
+| `W_MODEL_ANIMATION_UNKNOWN`   | `name`, `available`                                 | `node.modelAnimation` names a clip the model does not have; its nodes hold the first frame                                                                                                                                                                                                                                                                       |
+| `W_MODEL_ANIMATION_REDUCED`   | `fps`, `clips`                                      | The clips were sampled at fewer frames a second to keep their texture within 16 MB                                                                                                                                                                                                                                                                               |
+| `W_MODEL_ANIMATION_PARTIAL`   | `reason`                                            | Part of the animation is not played (`morph`: shape keys keep their rest shape)                                                                                                                                                                                                                                                                                  |
+| `W_MODEL_EXTENSION_IGNORED`   | `extension`                                         | The glTF uses an extension that is drawn without: see-through glass (`KHR_materials_transmission`) is drawn alpha blended, as clear as its transmission factor (at least 20% opaque), unless it is a solid body (`KHR_materials_volume` with a thickness), which is drawn opaque; the rest of its family is drawn opaque                                         |
+| `W_MODEL_POINTS_APPROXIMATED` | `points`, `drawn`                                   | A point cloud is drawn as small solids, one per point; at most `drawn` of its `points`                                                                                                                                                                                                                                                                           |
+| `W_MODEL_HEAVY`               | `triangles`, `materials`, `nodes`                   | A detailed model on many nodes may make the graph slow                                                                                                                                                                                                                                                                                                           |
+| `W_MODEL_BUDGET`              | `nodes`, `triangles`, `budget`                      | Models across the graph draw more triangles than the budget                                                                                                                                                                                                                                                                                                      |
+| `W_MODEL_TRANSPARENT`         | `nodes`                                             | Many nodes draw a see-through model, which may look wrong where they overlap                                                                                                                                                                                                                                                                                     |
+| `W_MODEL_TEXTURES_REDUCED`    | `from`, `to`                                        | Pictures larger than the limit were drawn smaller                                                                                                                                                                                                                                                                                                                |
+| `W_MODEL_NOT_EMBEDDED`        | `ref`, `layerIds`                                   | A project was saved without a model its layers name, because the session does not hold it                                                                                                                                                                                                                                                                        |
+| `W_MODEL_CHANGED`             | `url`, `expected`, `found`                          | A model or picture a project keeps by address loaded, and is not the file the project was saved with                                                                                                                                                                                                                                                             |
+| `W_MODEL_PART_SUBSTITUTED`    | `name`, `used`, `referencedBy`                      | A file the model names was found under another case or folder; `used` is the file drawn                                                                                                                                                                                                                                                                          |
+| `W_MODEL_PART_SKIPPED`        | `name`, `role`                                      | The model is drawn without a picture or `.mtl` that was left out                                                                                                                                                                                                                                                                                                 |
+| `W_MODEL_PART_UNUSED`         | `fileName`                                          | A file given for a model matched none of the files it is missing, and was not used                                                                                                                                                                                                                                                                               |
+| `W_MODEL_NOT_KEPT_BY_URL`     | `url`, `reason`                                     | A model asked to be kept by its address was saved with its files, because its missing files came from elsewhere (`reason: "parts"`)                                                                                                                                                                                                                              |
+| `W_URL_NEEDS_APPROVAL`        | `id`, `url`, `host`, `kind`, `by`                   | An address waits for the reader in `session.network` (not a model's own event: `network:pending`)                                                                                                                                                                                                                                                                |
+| `W_NETWORK_POLICY_IGNORED`    | `kind`                                              | In `project.open`'s problems: the file carries a network approval an earlier release wrote, which is ignored; its addresses still wait for the reader                                                                                                                                                                                                            |

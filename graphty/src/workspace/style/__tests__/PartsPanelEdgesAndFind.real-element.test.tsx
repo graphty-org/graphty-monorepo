@@ -18,6 +18,7 @@ import { FIND_BOX_ID } from "../../graph-place/FindBox";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { showKind } from "./kindTab";
+import { tooltipOf } from "./tooltip";
 
 withFeatures(["file-styles"]);
 
@@ -321,7 +322,8 @@ describe("Find a setting", () => {
             return found;
         });
         const link = within(color).getByRole("button", { name: "Open Shadowed" });
-        within(color).getByText(/Also set by/);
+        assert.notInclude(color.textContent, "Also set by", "said on the button's tooltip, not beside it");
+        assert.include(await tooltipOf(link), "Also set by Shadowed");
         await userEvent.click(link);
         await waitFor(() => {
             const tree = screen.getByRole("tree", { name: "Style layers" });
@@ -353,18 +355,11 @@ describe("Find a setting", () => {
         });
     });
 
-    it("with the cosmograph and node-models experiments off, Find a setting finds no fade, blending or picture", async () => {
-        await openProject([
-            every("Key", "edge", { "edge.color": "#ff0000" }),
-            every("Dots", "node", { "node.shape": "box" }),
-        ]);
+    it("with the cosmograph experiment off, Find a setting finds no fade or blending", async () => {
+        await openProject([every("Key", "edge", { "edge.color": "#ff0000" })]);
         const tab = await openStyle("Key", "edge");
         const results = await find(tab, "blending");
-        within(results).getByText("No setting matches");
-        const nodes = await openStyle("Dots");
-        const pictures = await find(nodes, "picture");
-        assert.notInclude(found(pictures), "node.texture");
-        assert.notInclude(found(pictures), "node.model");
+        assert.lengthOf(found(results), 0, "no setting matches, and no words say so");
     });
 
     it("words typed straight after slash all land in Find a setting", async () => {

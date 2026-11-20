@@ -80,9 +80,9 @@ its section and number on the page the section heading names, or by page when it
 | doc-68 | a session saved with `data: { embed: true }` after runs | a node-link data member holding the data columns only, never run results | Writing a file 4 |
 | doc-69 | a graph with a `__proto__` column, saved with `data: { embed: true }` | the data member refused and reported; the other members written | Writing a file 1 |
 | doc-70 | a session with an `ids` highlight layer, saved with defaults | that layer left out, listed in `leftOut`; kept with `keepElementSelectors: true` | Writing a file 4 |
-| doc-71 | a session holding a Louvain colouring and three layers of an opened look, saved with `style: { templateId }` | only the look's three layers written | Writing a file 4 |
-| doc-72 | a session of hand-made layers and a Louvain run's colouring, saved with `style: { id, sources: ["user", "template"] }` | only the hand-made layers written; the run's layer in `leftOut` | Writing a file 4 |
-| doc-73 | a style saved with `members: ["graphty-style"]` from a session holding a Louvain run's colouring | the run's layer left out and listed; with `sources` including `"run"`, kept | Writing a file 4 |
+| doc-71 | a session holding a Louvain coloring and three layers of an opened look, saved with `style: { templateId }` | only the look's three layers written | Writing a file 4 |
+| doc-72 | a session of hand-made layers and a Louvain run's coloring, saved with `style: { id, sources: ["user", "template"] }` | only the hand-made layers written; the run's layer in `leftOut` | Writing a file 4 |
+| doc-73 | a style saved with `members: ["graphty-style"]` from a session holding a Louvain run's coloring | the run's layer left out and listed; with `sources` including `"run"`, kept | Writing a file 4 |
 | doc-74 | a style saved whose selectors compare with `'TP53'` and `0.05` | the save report's notices list both literals | Writing a file 4 |
 | doc-75 | a file holding a member of an unknown kind, saved | the notices list that member written back verbatim, with its size | Writing a file 4 |
 | doc-76 | a style saved with no `style.id`, opened with none | the report notes that reopening the file will not replace an earlier opening | Writing a file 5 |
@@ -117,9 +117,9 @@ its section and number on the page the section heading names, or by page when it
 | imp-11 | a CSV column holding `0.01`, `0.2` and `NA` | typed text as a whole; an ordering comparison reads `"0.01"` as a number | What every importer produces 4 |
 | imp-12 | a JSON array column compared `== ["a","b"]` | matches the elements holding exactly that list | What every importer produces 5 |
 | imp-13 | a CSV listing each pair twice (`A B` and `B A`), no `repeatedEdges` | two edges per pair | What every importer produces 6 |
-| imp-14 | a `.txt.gz` file given as a `file`, a `stream` or a `url`, whatever its name | recognised by its first two bytes and decompressed as it is read | What every importer produces 6 |
+| imp-14 | a `.txt.gz` file given as a `file`, a `stream` or a `url`, whatever its name | recognized by its first two bytes and decompressed as it is read | What every importer produces 6 |
 | imp-15 | a file compressed as zip, bzip2 or xz | refused, `E_PARSE_FAILED`, naming the compression | What every importer produces 6 |
-| imp-16 | a CSV with no recognised endpoint headers and no options | the import fails, naming `edgeSource` and `edgeTarget`; no graph without edges is built | What every importer produces (table) |
+| imp-16 | a CSV with no recognized endpoint headers and no options | the import fails, naming `edgeSource` and `edgeTarget`; no graph without edges is built | What every importer produces (table) |
 | imp-17 | a header `protein1 protein2 combined_score` read by comma as one column, with `edgeSource: "protein1"` | the import fails, `E_PARSE_FAILED`, naming `delimiter: " "` as the one that finds `protein1` | What every importer produces (table) |
 | imp-18 | a CSV whose lines end in CR LF | a CR before an LF is never part of a field; the last header reads `combined_score` | What every importer produces 3 |
 | imp-19 | a node table imported with `{ file, idColumn: "gene" }` and no `variant`, headed `gene,baseMean,log2FoldChange,padj` | read as a node list | CSV shapes |
@@ -161,13 +161,13 @@ its section and number on the page the section heading names, or by page when it
 | sty-3 | a label style with `sizePx: 600`, or `padding`, `borderWidth` or `shadowBlur` of 65 | the layer refused, `E_OPTION_RANGE` | Compatible with graphty-element 2.x 1 |
 | sty-4 | `edge.arrowHeadSize`, `node.glowStrength` or `edge.animationSpeed` above 1,000,000 | the layer refused, `E_OPTION_RANGE` | Compatible with graphty-element 2.x 1 |
 | sty-5 | a `top` selector opened on graphty-element 2.2, or a `member` selector on 2.5 | that release refuses the whole style; a version 1 reader applies it | Compatible with graphty-element 2.x 2 |
-| sty-6 | `"node.label": { "by": "data.id", "scale": "passthrough" }` on a CSV edge list | every node labelled by its id; on 2.x, switched off and reported | Compatible with graphty-element 2.x 2; Paths 3 |
-| sty-7 | the same on JSON nodes carrying an attribute `id` besides their node id | labelled by the attribute: a real column wins, on 2.x and version 1 alike | Paths 3 |
+| sty-6 | `"node.label": { "by": "data.id", "scale": "passthrough" }` on a CSV edge list | every node labeled by its id; on 2.x, switched off and reported | Compatible with graphty-element 2.x 2; Paths 3 |
+| sty-7 | the same on JSON nodes carrying an attribute `id` besides their node id | labeled by the attribute: a real column wins, on 2.x and version 1 alike | Paths 3 |
 | sty-8 | a layer writing `"node.colour": "#f00"` and `"node.size": 2` | `node.colour` dropped, `E_UNKNOWN_CHANNEL`; the size applies; `node.colour` written back | Reading and applying 2 |
 | sty-9 | a layer writing only `"node.colour": "#f00"` | refused, `E_UNKNOWN_CHANNEL`; listed switched off; written back unchanged | Reading and applying 2 |
 | sty-10 | a layer setting `"node.shape": "star"` and `"node.size": 2` | `node.shape` dropped, `E_OPTION_RANGE`; the size applies; the entry written back | Reading and applying 2 |
-| sty-11 | a layer setting a node shape a later release added, with a colour | the shape entry dropped, `E_OPTION_RANGE`; the colour paints | Reading and applying 2 |
-| sty-12 | a layer writing `node.marker` and `node.color` | `node.marker` dropped, `E_UNSUPPORTED`; the colour paints | Reading and applying 2 |
+| sty-11 | a layer setting a node shape a later release added, with a color | the shape entry dropped, `E_OPTION_RANGE`; the color paints | Reading and applying 2 |
+| sty-12 | a layer writing `node.marker` and `node.color` | `node.marker` dropped, `E_UNSUPPORTED`; the color paints | Reading and applying 2 |
 | sty-13 | an unknown selector kind | the layer refused, `E_BAD_SELECTOR` | Reading and applying 1 |
 | sty-14 | an unknown scale | the layer refused, `E_UNKNOWN_SCALE` | Reading and applying 1 |
 | sty-15 | an unknown layer `kind` | the layer refused, `E_BAD_LAYER` | Reading and applying 1 |
@@ -190,7 +190,7 @@ its section and number on the page the section heading names, or by page when it
 | sty-32 | a layer reading `data.name` opened with `columns: { "name": "id" }` on a CSV edge list | labels each node by its id | Paths 3; README Applying to new data 2 |
 | sty-33 | a label layer `{ "by": "data.name", "scale": "passthrough" }` on a CSV edge list | switched off; the suggestions include `id`, naming `columns: { "name": "id" }` | Reading and applying 3 |
 | sty-34 | label layers `data.id` below `data.name`, on a Cytoscape GraphML export and on an edge list | the export shows `name`; the edge list shows ids, the `name` layer switched off | Worked example |
-| sty-35 | the worked example's three label layers on a stringApp GraphML (`name` = `9606.ENSP00000269305`, `display name` = `TP53`) | labelled by `display name`; a preview's `samples` for the `data.name` layer show the STRING ids | Worked example; Reading and applying 3 |
+| sty-35 | the worked example's three label layers on a stringApp GraphML (`name` = `9606.ENSP00000269305`, `display name` = `TP53`) | labeled by `display name`; a preview's `samples` for the `data.name` layer show the STRING ids | Worked example; Reading and applying 3 |
 | sty-36 | `where: "padj < 0.05 && significant == true && name != null"` | read as `data.padj < 0.05`, a boolean literal and `null` | Expressions 1 |
 | sty-37 | `where: "data.true"` | reads the column named `true` | Expressions 1 |
 | sty-38 | `where: "contains(data.labels, 'Supplier')"` | the layer refused, `E_BAD_SELECTOR`: no functions | Expressions 3 |
@@ -213,7 +213,7 @@ its section and number on the page the section heading names, or by page when it
 | sty-55 | a node layer with `ids: { "nodes": ["a"], "edges": ["17"] }` | `edges` ignored and reported; the node selection applies | Selectors |
 | sty-56 | a `member` selector of `"selection"`, opened | applied; reported as tied to the session it was written in | Selectors |
 | sty-57 | a layer with `{ "match": "neighbours", "of": { "set": "seeds" }, "hops": 1 }` on a reader that does not know `neighbours` | refused, `E_BAD_SELECTOR`; no `W_UNKNOWN_MEMBER` for `hops` | container.md Versions 2 |
-| sty-58 | `"node.color": "red\" onload=\"x"` | does not parse as a colour; the layer refused, `E_BAD_LAYER` | Channels and values |
+| sty-58 | `"node.color": "red\" onload=\"x"` | does not parse as a color; the layer refused, `E_BAD_LAYER` | Channels and values |
 | sty-59 | `"edge.patternCount": { "by": "data.w", "range": [2, 1e12] }` | values clamped to 1,000; the report counts them | Channels and values |
 | sty-60 | `"edge.patternCount": { "by": "data.n", "scale": "passthrough" }` over 4,294,967,295 | draws 1,000 pieces | Channels and values |
 | sty-61 | a `passthrough` label over a 60 MB text value | cut to 1,024 characters; counted | Channels and values |
@@ -221,7 +221,7 @@ its section and number on the page the section heading names, or by page when it
 | sty-63 | `"edge.patternCount": 1000` on every edge of a 100,000-edge graph | state `failing`, `E_CAP_EXCEEDED`; the layers beneath show | Channels and values; README Limits |
 | sty-64 | a `map` of 1,001 entries, or `bins: 257` | the layer refused, `E_OPTION_RANGE` | Channels and values |
 | sty-65 | a style whose layers finish just inside the opening budget, then a run completes | the repaint held to the same budget; the layers past it `failing`, `E_CAP_EXCEEDED` | README Limits |
-| sty-66 | a layer colouring by `data.logFC` where `logFC` holds numbers and `NA` | the numbers painted; `NA` missing; `W_COLUMN_TYPE` with the count | Bindings 7 |
+| sty-66 | a layer coloring by `data.logFC` where `logFC` holds numbers and `NA` | the numbers painted; `NA` missing; `W_COLUMN_TYPE` with the count | Bindings 7 |
 | sty-67 | embedded data with a node `"score": 1e400`, and `{ "node.size": { "by": "data.score" } }` | that node missing, counted with `W_COLUMN_TYPE`; the `"auto"` domain spans the others | Bindings 7 |
 | sty-68 | a binding `{ "scale": "pow", "exponent": 1e400 }` | the layer refused, `E_OPTION_RANGE` | Bindings 7 |
 | sty-69 | `{ "by": "data.padj", "scale": "neglog10", "range": [0.5, 3] }` over values including three `0` | the three missing and counted, as in 2.x; `missing: { value }` draws them | Bindings 7 |
@@ -229,18 +229,18 @@ its section and number on the page the section heading names, or by page when it
 | sty-71 | `{ "by": "data.x", "scale": "log" }` over values including `-2` | `-2` missing; `W_COLUMN_TYPE` counts it | Bindings 7 |
 | sty-72 | a layer with `domain: [0.4, 1]` over values from 0 to 1000 | paints; a notice that more than 95 percent of the values fall outside the domain | Bindings 1 |
 | sty-73 | `{ "by": "data.logFC", "midpoint": 0, "palette": "blue-white-red" }` with `"auto"` over values from 0.8 to 4.2 | the domain widened to 0 to 4.2; no value drawn in a blue | Bindings 2 |
-| sty-74 | a binding with `"midpoint": 0` and palette `red-blue` | paints; a notice that the palette has no middle colour | Bindings 2; Palettes |
+| sty-74 | a binding with `"midpoint": 0` and palette `red-blue` | paints; a notice that the palette has no middle color | Bindings 2; Palettes |
 | sty-75 | a binding with `"scale": "bins"` and no `bins`, and one with `"scale": "quantile"` and no `bins` | five groups and four groups | Bindings 6 |
-| sty-76 | an ordinal colour layer over `team` with groups of 5, 3 and 3 elements | the largest group takes the palette's first colour; the tied groups by name, by code point | Bindings 8 |
-| sty-77 | an ordinal colour over `mutation_count` holding the number 1, with `map: { "1": "#fdae61" }` | painted `#fdae61`, whether the column came from GraphML (int) or CSV | Bindings 8, 9 |
-| sty-78 | an ordinal colour over the numbers `1` and `1.0` | one category, `"1"` | Bindings 8 |
-| sty-79 | an ordinal colour over a JSON array column (`"aliases": ["TP53", "p53"]`) | the lists missing; `W_COLUMN_TYPE` with the count | Bindings 8 |
-| sty-80 | an ordinal colour over a neo4j-admin import CSV's node `labels` | a node labelled `Supplier` is the category `Supplier`; one labelled `Supplier;Company` is `Supplier;Company` | Bindings 8 |
-| sty-81 | `map` pins `Supplier` and `OEM` to the palette's first two colours; an unmapped `Distributor` is largest | `Distributor` takes the palette's third colour | Bindings 9 |
+| sty-76 | an ordinal color layer over `team` with groups of 5, 3 and 3 elements | the largest group takes the palette's first color; the tied groups by name, by code point | Bindings 8 |
+| sty-77 | an ordinal color over `mutation_count` holding the number 1, with `map: { "1": "#fdae61" }` | painted `#fdae61`, whether the column came from GraphML (int) or CSV | Bindings 8, 9 |
+| sty-78 | an ordinal color over the numbers `1` and `1.0` | one category, `"1"` | Bindings 8 |
+| sty-79 | an ordinal color over a JSON array column (`"aliases": ["TP53", "p53"]`) | the lists missing; `W_COLUMN_TYPE` with the count | Bindings 8 |
+| sty-80 | an ordinal color over a neo4j-admin import CSV's node `labels` | a node labeled `Supplier` is the category `Supplier`; one labeled `Supplier;Company` is `Supplier;Company` | Bindings 8 |
+| sty-81 | `map` pins `Supplier` and `OEM` to the palette's first two colors; an unmapped `Distributor` is largest | `Distributor` takes the palette's third color | Bindings 9 |
 | sty-82 | an ordinal shape binding with `map: { "missense": "octahedron" }` and an unmapped `nonsense` | `nonsense` missing, painted by `missing` or left to the layers beneath | Bindings 9 |
 | sty-83 | a `map` key `Supplier` on data whose values are `supplier` | the key reported as matching no value | Bindings 9 |
-| sty-84 | an ordinal colour with a palette of 8 and no `overflow`, painting 8 categories, then a merge adds a ninth | state `failing`, `E_CAP_EXCEEDED`; back to `paints` when the count fits; a save writes `enabled` as authored | Bindings 11 |
-| sty-85 | `"overflow": "other"` over 12 categories and the default palette | the 8 largest in the palette's colours; the other 4 `#505050` | Bindings 11 |
+| sty-84 | an ordinal color with a palette of 8 and no `overflow`, painting 8 categories, then a merge adds a ninth | state `failing`, `E_CAP_EXCEEDED`; back to `paints` when the count fits; a save writes `enabled` as authored | Bindings 11 |
+| sty-85 | `"overflow": "other"` over 12 categories and the default palette | the 8 largest in the palette's colors; the other 4 `#505050` | Bindings 11 |
 | sty-86 | a layer with `source: { "by": "user" }` from a document | stored as `{ "by": "template", "templateId": ... }` | Reading and applying 6 |
 | sty-87 | a document layer with `source: { "by": "run", "runId": "overview__degree" }` naming a run the reader made | stamped `{ "by": "template" }`; the replaced source reported; removing the template removes it | Reading and applying 6 |
 | sty-88 | a file with a recipe `as: "influence"` and a layer `source: { "by": "run", "runId": "influence" }`, opened without `run: true`, then `run()`, then the application's `remove()` | the layer tied to the run when it starts; removed with it | Reading and applying 6 |
@@ -250,11 +250,11 @@ its section and number on the page the section heading names, or by page when it
 | sty-92 | two layers with `id: "size"` | the second switched off, `E_DUPLICATE_ID` | Layer ids |
 | sty-93 | a layer naming palette `lab-reds`, carried, not registered | registered for this session only and reported; the layer paints | Reading and applying 4 |
 | sty-94 | a layer naming palette `lab-reds`, neither carried nor registered | switched off, `E_UNKNOWN_PALETTE` | Reading and applying 4 |
-| sty-95 | a carried palette `acme-brand` whose colours differ from the registered one | the registered colours used; the difference reported | Reading and applying 4 |
+| sty-95 | a carried palette `acme-brand` whose colors differ from the registered one | the registered colors used; the difference reported | Reading and applying 4 |
 | sty-96 | a carried descriptor under the id `viridis` | ignored and reported; the built-in palette used | Palettes |
-| sty-97 | a carried palette of 257 colours | the file refused, `E_TOO_LARGE`, naming the limit | README Limits |
-| sty-98 | a file's layer writing `node.color` while the reader has an enabled layer colouring by `department`, previewed | the file's layer carries `W_PAINTS_OVER` naming the reader's layer | Reading and applying 5 |
-| sty-99 | a run whose colouring would cover a layer of the reader's own | `W_PAINTS_OVER` whose reason names `"style": false` on that run | Reading and applying 5 |
+| sty-97 | a carried palette of 257 colors | the file refused, `E_TOO_LARGE`, naming the limit | README Limits |
+| sty-98 | a file's layer writing `node.color` while the reader has an enabled layer coloring by `department`, previewed | the file's layer carries `W_PAINTS_OVER` naming the reader's layer | Reading and applying 5 |
+| sty-99 | a run whose coloring would cover a layer of the reader's own | `W_PAINTS_OVER` whose reason names `"style": false` on that run | Reading and applying 5 |
 | sty-100 | the same style file opened twice from the same `base` | the second opening replaces the first's layers (`replaced` lists them) | Reading and applying 8 |
 | sty-101 | two files named "Overview" with no style `id`, opened one after the other | the second adds; the first's stay | Reading and applying 8 |
 | sty-102 | a style whose `id` another opening added, opened with the same `fileName` and no `base` | added, not replaced; `W_ID_COLLISION` | Reading and applying 8 |
@@ -271,7 +271,7 @@ its section and number on the page the section heading names, or by page when it
 | sty-113 | a style saved alone whose layer reads a run started without `as` | the layer left out, `E_UNSTABLE_RUN_ID`; the rest written | Writing 4 |
 | sty-114 | a layer switched off for a missing column, saved | written with its authored `enabled` (true) | Writing 6 |
 | sty-115 | a layer whose `userData` holds a function, a cycle or `NaN` | the save refuses that layer, naming it | Writing 2 |
-| sty-116 | a colour `{ "r": 255, "g": 0, "b": 0, "a": 0.5 }`, saved | written `#ff000080` | Writing 5 |
+| sty-116 | a color `{ "r": 255, "g": 0, "b": 0, "a": 0.5 }`, saved | written `#ff000080` | Writing 5 |
 | sty-117 | `applyTemplate` on 2.x with one bad layer | the whole document refused (2.x); on 3.0.0 that layer alone | When this applies |
 
 ## Recipe (recipe.md)
@@ -312,7 +312,7 @@ its section and number on the page the section heading names, or by page when it
 | rec-31 | `louvain` with `seed: 7` | runs; a notice that Louvain is deterministic and ignores the seed | Commands 7 |
 | rec-32 | `seed: 3000000000` | refused by the schema; a reader skips it, `E_OPTION_RANGE` | Commands 7 |
 | rec-33 | a seed above an algorithm's own seed range but within the schema's | skipped, `E_OPTION_RANGE` | Commands 7 |
-| rec-34 | a randomised command with no `seed`, whose seed option has no published default, previewed | no `seed` in its entry; a notice that one will be drawn when it runs | Commands 7 |
+| rec-34 | a randomized command with no `seed`, whose seed option has no published default, previewed | no `seed` in its entry; a notice that one will be drawn when it runs | Commands 7 |
 | rec-35 | the same, run | a seed drawn and reported in the caveats and a notice | Commands 7 |
 | rec-36 | `min-cut` with `params: { "useGlobalMinCut": true, "useKarger": true }` and `seed: 5`, while Karger's path takes no seed | planned with a notice that its results differ on every replay | Commands 7 |
 | rec-37 | `betweenness` with no `sample` and no `exact`, whose exact estimate is 45 s under the default cap | planned with `E_CAP_EXCEEDED`, quoting the `capSeconds` that would admit it; `method` exact; never sampled | Commands 7; Running 2 |
@@ -320,7 +320,7 @@ its section and number on the page the section heading names, or by page when it
 | rec-39 | a run with no `style` in a file whose style member reads its result | paints nothing of its own; the plan says so | Commands 8 |
 | rec-40 | `"style": { "size": [1, 3] }` on PageRank | only the size part painted, from 1 to 3 scene units | Commands 8 |
 | rec-41 | a run with `"style": { "size": true, "color": false }` on a reader that does not know `color` | `color` dropped, `W_UNKNOWN_MEMBER`; the run runs and paints its size | Replaying 3 |
-| rec-42 | a planned `louvain` command whose colouring paints nodes by group | `paints` gives `node.color` by `results.<runId>.group`, the palette, and the nodes it covers | Commands 8 |
+| rec-42 | a planned `louvain` command whose coloring paints nodes by group | `paints` gives `node.color` by `results.<runId>.group`, the palette, and the nodes it covers | Commands 8 |
 | rec-43 | algorithm key `scc` | runs `components` with `{ "strength": "strong" }`; the report names the current key | Commands 9 |
 | rec-44 | algorithm key `org.example:motif-census`, not registered | skipped, `E_UNKNOWN_ALGORITHM`; dependants skipped | Commands 9 |
 | rec-45 | a layout id not registered | skipped, `E_UNKNOWN_LAYOUT` | Commands 9 |
@@ -386,7 +386,7 @@ its section and number on the page the section heading names, or by page when it
 | rec-105 | the same `id` applied twice to the same data | the second refused, `E_REPEAT_APPLICATION`; with `onRepeat: "add"`, ids `ns__x` and `ns2__x` | Applying a recipe (repeat); Run ids 2 |
 | rec-106 | the same `id` applied after a `data.import` that merged a file | refused, `E_REPEAT_APPLICATION`: merging is the same data | Applying a recipe (repeat) |
 | rec-107 | the same `id` applied after new data replaced the graph | runs; not a repeat | Applying a recipe (repeat) |
-| rec-108 | `onRepeat: "replace"` | the earlier namespace kept; the earlier runs and their colouring removed; run again | Applying a recipe (repeat) |
+| rec-108 | `onRepeat: "replace"` | the earlier namespace kept; the earlier runs and their coloring removed; run again | Applying a recipe (repeat) |
 | rec-109 | a recipe of three runs; the reader edits a style layer while the second runs | the edit applies at once; the runs after it record as their own steps; `remove()` takes back all three | Applying a recipe (undo) |
 | rec-110 | `remove()` after a partial undo | removes and restores only what is still in force; reports what it found already gone | Applying a recipe (undo) |
 | rec-111 | opened with no instruction to run | nothing runs; every command planned, with its estimate, `style`, `fields` and the total | Running 1 |
@@ -400,7 +400,7 @@ its section and number on the page the section heading names, or by page when it
 | rec-119 | a filter keeping a 5,000-leaf star, then `link-prediction` | skipped, `E_CAP_EXCEEDED`, in the plan | Running 3 |
 | rec-120 | a recipe planned at twice the total budget, `run()` | not started, `E_CAP_EXCEEDED` with the estimate | Running 4 |
 | rec-121 | a recipe planned at 340 s under the default budget, previewed | `wouldStart: false`, `budgetSeconds: 300` | Running 4 |
-| rec-122 | a recipe cancelled after its second command, then `run()` | the first two results kept; the rest run | Running 5 |
+| rec-122 | a recipe canceled after its second command, then `run()` | the first two results kept; the rest run | Running 5 |
 | rec-123 | a command with `recordedPrecision: "f32"`, replayed on the CPU | `W_PRECISION_DIFFERS` naming both | Same data, same results 4 |
 | rec-124 | the same data under `acceleration: "auto"`, a small and a large graph | the small one may run in double precision, the large one in single; each run's caveats say which | Same data, same results 4 |
 | rec-125 | two replays that find the same communities numbered differently | the same result: compare membership, not numbers | Same data, same results |
@@ -473,10 +473,10 @@ its section and number on the page the section heading names, or by page when it
 | exp-7 | two Louvain runs exported | the first takes the `community` role; the second a plain column, `W_GRAPHTY_ROLE_TAKEN` | Results as columns 5 |
 | exp-8 | a run's `min`, `max` and precision, exported to CSV | reported, `W_GRAPHTY_GRAPH_FIELDS` | Results as columns 6 |
 | exp-9 | a GEXF read with its `viz` values, then exported to GEXF with style layers | the drawn appearance takes the roles; the imported columns written as plain columns, `W_GRAPHTY_ROLE_TAKEN` | Drawn appearance |
-| exp-10 | a colour authored as `"red"` exported to GEXF | written from the parsed RGBA | Drawn appearance |
+| exp-10 | a color authored as `"red"` exported to GEXF | written from the parsed RGBA | Drawn appearance |
 | exp-11 | a node label `<b>x</b>` exported to DOT | written as a quoted string, never an HTML-like label; `W_GRAPHTY_TEXT_QUOTED` | Per format (text) |
 | exp-12 | a label cell `=HYPERLINK(...)` exported to CSV | written prefixed with a single quote; `W_GRAPHTY_CSV_NEUTRALIZED` | Per format (CSV cells) |
-| exp-13 | a GraphML key named `=cmd` exported to CSV | the header cell neutralised the same way | Per format (CSV cells) |
+| exp-13 | a GraphML key named `=cmd` exported to CSV | the header cell neutralized the same way | Per format (CSV cells) |
 | exp-14 | a numeric cell `-2` exported to CSV | written as a number, not prefixed | Per format (CSV cells) |
 | exp-15 | the same with `spreadsheetSafe: false` | nothing prefixed | Per format (CSV cells) |
 | exp-16 | an undirected graph exported to GraphML, then replayed through a recipe | `edgedefault="undirected"` written; read undirected | Per format |
@@ -530,7 +530,7 @@ its section and number on the page the section heading names, or by page when it
 | asset-3 | one GLB added unnamed and as `asset:ball`, both named by layers | two entries; only the first carries `files` | Writing 3 |
 | asset-4 | a layer naming a URL that loaded | an entry with `source` set to the URL; reopened, naming the URL fetches nothing | Writing 5; Reading 8 |
 | asset-5 | a layer naming a URL that never loaded, or an asset id the session does not hold | no entry; the save reports `W_MODEL_NOT_EMBEDDED` with `ref` and `layerIds` | Writing 5 |
-| asset-6 | models totalling more than 64 MB | the model that passes the cap left out, `E_MODEL_TOO_LARGE`, `what: "documentBytes"` | Writing 6 |
+| asset-6 | models totaling more than 64 MB | the model that passes the cap left out, `E_MODEL_TOO_LARGE`, `what: "documentBytes"` | Writing 6 |
 | asset-7 | a member whose files' `data` are longer than the base64 of 64 MB | the file refused, `E_MODEL_TOO_LARGE`, `what: "documentBytes"`, before the session changes | Reading 2 |
 | asset-8 | a member with `"compression": "zstd"` | the file refused, `E_BAD_DOCUMENT` | Reading 1 |
 | asset-9 | an entry with `"encoding": "gzip"` | that entry skipped, `E_BAD_DOCUMENT` at `/assets/<n>/encoding`; the others added | Reading 3 |

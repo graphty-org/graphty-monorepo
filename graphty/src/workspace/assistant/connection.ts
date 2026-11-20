@@ -46,10 +46,9 @@ const PROVIDERS: ReadonlySet<string> = new Set(
 const RESULT_CODES: ReadonlySet<string> = new Set(AI_RESULT_CODES);
 const EFFECT_CODES: ReadonlySet<string> = new Set(AI_EFFECT_CODES);
 
-/** What the reader's next turn on the same message answers, by the result that left it waiting. */
-const WAITS_FOR: Readonly<Partial<Record<string, "approval" | "answer">>> = {
+/** What the reader's next turn on the same message is, by the result that left it waiting. */
+const WAITS_FOR: Readonly<Partial<Record<string, "approval">>> = {
     AI_CONFIRMATION_NEEDED: "approval",
-    AI_QUESTION_ASKED: "answer",
 };
 
 /** Results that end a message for now and wait on the reader. */
@@ -100,16 +99,26 @@ function countTurns(element: GraphtyElement): void {
         return;
     }
     counting.add(element);
-    // The newest reader message counted, the effects of its turn counted so far, and what the
-    // last turn left waiting: the next turn on the same message answers it.
+    // The newest reader message counted, the effects of its turn counted so far, what the last
+    // turn left waiting (the next turn on the same message approves it), and whether the reader
+    // just answered a question. An answer shows as a reader entry of its own, so it is told apart
+    // by the element's ai-pending-resolved, sent just before the answered message goes on.
     let reader: string | undefined;
     let counted = 0;
-    let waiting: "approval" | "answer" | undefined;
+    let waiting: "approval" | undefined;
+    let answered = false;
+    element.addEventListener("ai-pending-resolved", ({ detail }) => {
+        answered = detail.kind === "question" && detail.code === "AI_COMPLETED";
+    });
     const ended = (code: unknown): void => {
         const messages = element.getAiConversation()?.messages ?? [];
         const newest = messages.findLast((message) => message.role === "reader");
         const fresh = newest?.id !== reader;
-        const step = fresh ? "message" : (waiting ?? "message");
+        let step: "message" | "approval" | "answer" = fresh ? "message" : (waiting ?? "message");
+        if (answered) {
+            step = "answer";
+        }
+        answered = false;
         if (fresh) {
             reader = newest?.id;
             counted = 0;

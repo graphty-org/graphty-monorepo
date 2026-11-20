@@ -298,7 +298,8 @@ const route = await element.run("shortest-path", {
     invertStrength: true,
     timeOrder: "sentAt",
 });
-console.log(route.graph.cost, route.graph.tiedRoutes);
+const { cost, tiedRoutes } = route.graph;
+console.log(cost, tiedRoutes);
 for (const id of ["alice", "bob", "carol", "dave"]) {
     console.log(id, route.node(id)?.onPath, route.node(id)?.order);
 }

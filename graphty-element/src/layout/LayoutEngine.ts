@@ -2527,6 +2527,10 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
      * node with a `Node`. Under renderPath "batched" a row has no `Node`, so without this the answer kept what it
      * computed before a `positions.set` or a restore, and its next publish (owed pre-steps paid on a later frame)
      * wrote that back over the rows.
+     *
+     * ponytail: one pass over every row per call, as the base pass over every `Node` is on renderPath "objects",
+     * so n single-node sets each awaited on their own cost O(n^2) on both paths; pass the rows a set wrote if that
+     * pattern shows up in a profile.
      */
     #adoptRows(): void {
         const lane = this.#elementLane();

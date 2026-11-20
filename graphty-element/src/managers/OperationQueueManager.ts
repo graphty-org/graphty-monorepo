@@ -141,7 +141,10 @@ export class OperationQueueManager implements Manager {
         } | null)[]
     >();
 
-    // Check if layout engine exists (will be set by Graph)
+    /**
+     * Whether the graph has a layout engine, set by the graph; while it returns false, finished
+     * operations do not trigger a layout update.
+     */
     hasLayoutEngine?: () => boolean;
 
     // Dependency graph based on actual manager dependencies
@@ -964,8 +967,11 @@ export class OperationQueueManager implements Manager {
      * @returns Current queue state including pending operations, size, and pause status
      */
     getStats(): {
+        /** Operations running now. */
         pending: number;
+        /** Operations waiting to start. */
         size: number;
+        /** Whether the queue is paused and starts nothing new. */
         isPaused: boolean;
     } {
         return {

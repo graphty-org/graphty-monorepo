@@ -68,9 +68,22 @@ const ENDS = [
 ] as const;
 
 describe("source-steps: today's joins give the graph they give with the experiment off", () => {
-    it("keeps a clashing value both ways when the reader picks no clash rule", async () => {
+    it("keeps only the graph's value both ways when the reader picks no clash rule", async () => {
         const base = "id,score,label\na,5,A\nb,6,B";
-        const load = { join: { keys: [{ file: "id", graph: "id" }] } };
+        const { off, on } = await both(base, "id,score\na,1\nb,2", { join: { keys: [{ file: "id", graph: "id" }] } });
+        for (const session of [off, on]) {
+            assert.strictEqual(session.data.node("a")?.score, 5);
+            assert.isEmpty(
+                Object.keys(session.data.node("a") ?? {}).filter((name) => name.startsWith("score (")),
+                "no clash column",
+            );
+            session.dispose();
+        }
+    });
+
+    it("keeps a clashing value both ways when the reader asks to keep both", async () => {
+        const base = "id,score,label\na,5,A\nb,6,B";
+        const load = { join: { keys: [{ file: "id", graph: "id" }], clash: { "*": "both" as const } } };
         const { off, on } = await both(base, "id,score\na,1\nb,2", load);
         assert.strictEqual(off.data.node("a")?.score, 5);
         assert.strictEqual(off.data.node("a")?.["score (values.csv)"], 1);

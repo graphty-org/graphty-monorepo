@@ -176,6 +176,7 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_SELECTOR_EMPTY":
         case "E_UNSCOPED_RUN_ENCODING":
         case "E_OPTION_RANGE":
+        case "E_CLASH_RULE_TYPE":
         case "E_BAD_DOCUMENT":
         case "E_UNSUPPORTED_VERSION":
             return "malformed";
@@ -252,7 +253,6 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_UNSUPPORTED":
         case "E_STEP_NEEDS_NODES":
         case "E_EDIT_ROLE_COLUMN":
-        case "E_CLASH_RULE_TYPE":
         case "E_ROLE_TARGET_AMBIGUOUS":
         case "E_NOT_PLANAR":
         case "E_NOT_CONNECTED":

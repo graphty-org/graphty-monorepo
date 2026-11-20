@@ -132,6 +132,7 @@ import { SourceRuntime } from '@graphty/graph-io';
 import { SourceRuntimeReason } from '@graphty/graph-io';
 import { SourceValidators } from '@graphty/graph-io';
 import { StyleNoteCode } from '@graphty/graph-io/styles';
+import { Texture } from '@babylonjs/core/Materials/Textures/texture.js';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode.js';
 import { U32 } from '@graphty/graph-format';
 import { U8 } from '@graphty/graph-format';
@@ -378,11 +379,9 @@ export interface AnimationProgressEvent {
     type: "animation-progress";
 }
 
-// @public (undocumented)
+// @public
 export interface AnimationResult {
-    // (undocumented)
     blob: Blob;
-    // (undocumented)
     metadata: {
         duration: number;
         fps: number;
@@ -1061,10 +1060,59 @@ export function defineShader(definition: ShaderDefinition, options?: RegisterOpt
 export { defineSource }
 
 // @beta
-export type DocumentCode = "E_UNKNOWN_COMMAND" | "W_SCHEMA_MISMATCH" | "W_SECTION_KEPT" | "W_EXTENSION_REQUIRED" | "W_SECTION_UPGRADED" | "W_ELEMENT_NAMING_LEFT_OUT" | "W_SOURCE_NO_PATH" | "W_SOURCE_UNAVAILABLE" | "W_SOURCE_CHANGED" | "W_SOURCE_EMBEDDED" | "W_REFERENCE_UNBOUND" | "W_DATA_CHANGED" | "W_DATA_MISMATCH" | "W_JOIN_HISTORY_DIFFERS" | "W_CAMERA_CONTROLLER_UNKNOWN" | "W_RUN_NOT_RUN" | "W_RESULTS_DIFFER" | "W_EDGE_MATCH_AMBIGUOUS" | "W_SOURCE_UNKEYED" | "W_NODE_NAMED_ONLY" | "W_EDGE_END_MISSING" | "W_COLUMN_WIDENED" | "W_MEMBER_LEFT_OUT" | "W_RECIPE_NOT_APPLIED";
+export const DOCUMENT_SECTIONS: readonly DocumentSection[];
+
+// @beta
+export interface DocumentBindFacts {
+    readonly file: boolean;
+    readonly open: boolean;
+}
+
+// @beta
+export type DocumentCode = "E_UNKNOWN_COMMAND" | "W_SCHEMA_MISMATCH" | "W_SECTION_KEPT" | "W_EXTENSION_REQUIRED" | "W_SECTION_UPGRADED" | "W_ELEMENT_NAMING_LEFT_OUT" | "W_SOURCE_NO_PATH" | "W_SOURCE_UNAVAILABLE" | "W_SOURCE_EMBEDDED" | "W_REFERENCE_UNBOUND" | "W_DATA_CHANGED" | "W_DATA_MISMATCH" | "W_JOIN_HISTORY_DIFFERS" | "W_CAMERA_CONTROLLER_UNKNOWN" | "W_RUN_NOT_RUN" | "W_RESULTS_DIFFER" | "W_EDGE_MATCH_AMBIGUOUS" | "W_SOURCE_UNKEYED" | "W_NODE_NAMED_ONLY" | "W_EDGE_END_MISSING" | "W_KEY_EMPTY" | "W_ROLES_DIFFER" | "W_CLASH_RULE_TYPE" | "W_COLUMN_WIDENED" | "W_MEMBER_LEFT_OUT" | "W_RECIPE_NOT_APPLIED";
+
+// @beta
+export interface DocumentHeldFacts {
+    readonly reads: number | null;
+    readonly reason: DocumentHeldReason;
+    readonly version: number | null;
+}
+
+// @beta
+export type DocumentHeldReason = "version" | "extension" | "data" | "kind" | "unknown" | "malformed" | "graphs" | "add";
 
 // @beta
 export type DocumentSection = "data" | "style" | "recipe" | "settings" | "results" | "notes" | "view";
+
+// @beta
+export interface DocumentSectionAbout {
+    readonly authors?: readonly {
+        readonly name: string;
+        readonly uri?: string;
+    }[];
+    readonly created?: string;
+    readonly description?: string;
+    readonly from?: string;
+    readonly license?: string;
+    readonly modified?: string;
+}
+
+// @beta
+export interface DocumentSectionFacts {
+    readonly counts: Readonly<Record<string, number>>;
+    readonly held?: DocumentHeldFacts;
+    readonly name?: string;
+    readonly section: DocumentSection;
+}
+
+// @beta
+export interface DocumentSectionNeed {
+    readonly found?: boolean;
+    readonly kind: "column" | "type" | "source" | "result";
+    readonly name: string;
+    readonly schema?: Readonly<Record<string, unknown>>;
+    readonly table?: "node" | "edge";
+}
 
 // @public
 export interface DrawnShaders {
@@ -2762,6 +2810,15 @@ export interface FigureResult {
     width: number;
 }
 
+// @beta
+export type FileKind = "project" | "recipe" | "style" | "document" | "graph";
+
+// @public
+export interface FilesApi {
+    // @beta
+    kindOf(source: ProjectSource): Promise<FileKind>;
+}
+
 // @public
 export interface FindAtLeastRow {
     readonly count: number;
@@ -2989,6 +3046,8 @@ export class Graph implements GraphContext {
     exportGraph(format: FormatId, options?: ExportGraphOptions): Promise<ExportResult>;
     // (undocumented)
     fetchEdges?: FetchEdgesFn;
+    // @internal
+    fetchNeighborEdges?: FetchNeighborEdgesFn;
     // (undocumented)
     fetchNodes?: FetchNodesFn;
     forgetAiKeys(options?: {
@@ -3331,6 +3390,7 @@ export const GraphBackground: z.ZodDiscriminatedUnion<[z.ZodObject<{
 }, z.core.$strict>, z.ZodObject<{
     backgroundType: z.ZodLiteral<"skybox">;
     data: z.ZodUnion<[z.ZodURL, z.ZodString]>;
+    projection: z.ZodOptional<z.ZodLiteral<"flat" | "dome">>;
     color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
     darkColor: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
     shader: z.ZodOptional<z.ZodObject<{
@@ -4208,6 +4268,14 @@ export type GraphtyErrorCode =
 */
 | "E_DUPLICATE_ID"
 /**
+* A join names a clash rule that reads numbers (`min`, `max`, `mean`) for a column whose
+* incoming values are not all numbers (or, for `min` and `max`, ISO 8601 dates).
+* `details.column` and `details.rule` name them. The caller picks another rule for that column.
+* Under the source-steps experiment a step's merge refuses the same way, and `details.step`
+* also names the step.
+*/
+| "E_CLASH_RULE_TYPE"
+/**
 * Two edges run between the same ordered pair of nodes and `data.knownFields.repeatedEdges`
 * is `"error"`. `details` name both endpoints and the index of the edge already present. The
 * caller sets the policy to `keep`, `first`, `last`, `sum`, `min` or `max`.
@@ -4779,13 +4847,6 @@ export type GraphtyErrorCode =
 */
 | "E_EDIT_ROLE_COLUMN"
 /**
-* A merge's clash rule orders values (`min`, `max`, `mean`) but the values that meet in a column
-* are not all numbers (or, for `min` and `max`, all dates). `details.step`, `details.column` and
-* `details.rule` name the step, the column and the rule. Experimental: the source-steps
-* experiment.
-*/
-| "E_CLASH_RULE_TYPE"
-/**
 * A role setter that names no source could mean several built sources: each carries the
 * column and can carry the role. `details.sources` lists them; the caller names one with the
 * setter's `source` option. Experimental: the source-steps experiment.
@@ -4803,6 +4864,11 @@ export type GraphtyErrorDetails<C extends GraphtyErrorCode = GraphtyErrorCode> =
 
 // @public
 export interface GraphtyErrorDetailsMap {
+    E_CLASH_RULE_TYPE: {
+        readonly column: string;
+        readonly rule: string;
+        readonly step?: number;
+    };
     E_DUPLICATE_ID: {
         readonly id?: string | number;
     };
@@ -7588,7 +7654,6 @@ export class OperationQueueManager implements Manager {
         size: number;
         isPaused: boolean;
     };
-    // (undocumented)
     hasLayoutEngine?: () => boolean;
     get hasWork(): boolean;
     init(): Promise<void>;
@@ -7770,8 +7835,12 @@ export const PROJECT_FILE: Readonly<{
 // @public
 export interface ProjectApi {
     assetChoices(): ProjectAssetChoice[];
+    // @beta
+    describe(options?: Pick<ProjectSaveOptions, "sections" | "form" | "paths" | "handles" | "location">): Promise<ProjectSaveFacts>;
     readonly dirty: boolean;
     readonly id: string;
+    // @beta
+    inspect(source: ProjectSource, options?: Pick<ProjectOpenOptions, "migrate" | "limits" | "sections" | "dataMode" | "columns">): Promise<ProjectFileFacts | undefined>;
     markSaved(saved: SavedProject): void;
     readonly name: string | null;
     open(source: ProjectSource, options?: ProjectOpenOptions): Promise<ProjectOpenReport>;
@@ -7790,13 +7859,72 @@ export interface ProjectAssetChoice {
     readonly urlRefused?: CodedFact<"W_MODEL_NOT_KEPT_BY_URL">;
 }
 
+// @beta
+export interface ProjectFileFacts {
+    readonly form: "full" | "section";
+    readonly name: string | null;
+    readonly problems: readonly ProjectProblem[];
+    readonly runs: readonly ProjectFileRun[];
+    readonly sections: readonly ProjectFileSection[];
+    readonly sources: readonly ProjectFileSource[];
+}
+
+// @beta
+export interface ProjectFileHandle {
+    getFile(): Promise<Blob>;
+    readonly name: string;
+    queryPermission?(descriptor: {
+        mode: "read";
+    }): Promise<"granted" | "denied" | "prompt">;
+    requestPermission?(descriptor: {
+        mode: "read";
+    }): Promise<"granted" | "denied" | "prompt">;
+}
+
 // @public
-export function projectFileName(name: string | null | undefined): string;
+export function projectFileName(name: string | null | undefined, options?: {
+    readonly section?: DocumentSection;
+}): string;
+
+// @beta
+export interface ProjectFileRun {
+    readonly algorithm?: string;
+    readonly id: string;
+    readonly name?: string;
+    readonly replayable: boolean;
+    readonly restorable: boolean;
+}
+
+// @beta
+export interface ProjectFileSection extends DocumentSectionFacts {
+    readonly about: DocumentSectionAbout;
+    readonly binding?: SectionBinding;
+    readonly binds?: DocumentBindFacts;
+    readonly needs: readonly DocumentSectionNeed[];
+    readonly version: number | null;
+}
+
+// @beta
+export interface ProjectFileSource {
+    readonly id: string;
+    readonly kind: ProjectSourceKind;
+    readonly name: string;
+    readonly path?: string;
+    readonly storage: SourceStorage;
+    readonly url?: string;
+}
 
 // @public
 export interface ProjectOpenOptions {
     // @beta
+    readonly applyRecipe?: boolean;
+    // @beta
     readonly bindOtherData?: boolean;
+    // @beta
+    readonly columns?: {
+        readonly node?: Readonly<Record<string, string>>;
+        readonly edge?: Readonly<Record<string, string>>;
+    };
     // @beta
     readonly dataMode?: "replace" | "add";
     readonly discard?: boolean;
@@ -7822,6 +7950,8 @@ export interface ProjectOpenOptions {
     // @beta
     readonly rerun?: boolean;
     // @beta
+    readonly runs?: Readonly<Record<string, boolean>>;
+    // @beta
     readonly sections?: readonly DocumentSection[];
     // @beta
     readonly signal?: AbortSignal;
@@ -7840,6 +7970,13 @@ export interface ProjectOpenReport {
 // @public
 export type ProjectProblem = CodedFact<GraphtyErrorCode | GraphtyWarningCode | DocumentCode | "shader.unknown" | "shader.not-saved">;
 
+// @beta
+export interface ProjectSaveFacts {
+    readonly project: boolean;
+    readonly sections: readonly ProjectSaveSection[];
+    readonly sources: readonly ProjectSourceChoice[];
+}
+
 // @public
 export interface ProjectSaveOptions {
     readonly assets?: Readonly<Record<string, AssetStorage>>;
@@ -7850,12 +7987,18 @@ export interface ProjectSaveOptions {
     readonly form?: "full" | "section";
     // @beta
     readonly format?: 1 | 2;
+    // @beta
+    readonly handles?: Readonly<Record<string, ProjectFileHandle>>;
     readonly leaveOut?: readonly ("graphty-style" | "graphty-notes" | "graphty-view-state")[];
+    // @beta
+    readonly location?: string;
     readonly markSaved?: boolean;
     // @beta
     readonly paths?: Readonly<Record<string, string>>;
     // @beta
     readonly results?: boolean;
+    // @beta
+    readonly rewriteRecipe?: boolean;
     // @beta
     readonly sections?: readonly DocumentSection[];
 }
@@ -7867,8 +8010,32 @@ export interface ProjectSaveReport {
     readonly written: readonly string[];
 }
 
+// @beta
+export interface ProjectSaveSection extends DocumentSectionFacts {
+    readonly required: boolean;
+    readonly saved: boolean;
+}
+
 // @public
 export type ProjectSource = Blob | Uint8Array | string;
+
+// @beta
+export interface ProjectSourceChoice {
+    readonly edges: number;
+    readonly format?: string;
+    readonly id: string;
+    readonly key?: string;
+    readonly kind: ProjectSourceKind;
+    readonly name: string;
+    readonly nodes: number;
+    readonly operations?: number;
+    readonly referable: boolean;
+    readonly refused?: CodedFact<DocumentCode>;
+    readonly storage: SourceStorage;
+}
+
+// @beta
+export type ProjectSourceKind = "file" | "url" | "network" | "sample" | "derived" | "reader";
 
 // @public
 export interface ProjectStatus {
@@ -7901,6 +8068,12 @@ export interface QueueableOptions {
     obsoletes?: OperationCategory[];
     respectProgress?: boolean;
     skipQueue?: boolean;
+}
+
+// @beta
+export interface RecipesApi {
+    apply(recipe: ProjectSource): Promise<ProjectOpenReport>;
+    export(): Promise<SavedProject>;
 }
 
 export { RecordBatch }
@@ -8426,6 +8599,9 @@ export interface ScreenshotResult {
 // @public
 export type ScreenshotWarningCode = "W_LARGE_CAPTURE" | "W_HIGH_MEMORY";
 
+// @beta
+export type SectionBinding = "loads" | "held" | "other-data";
+
 // @public
 export class SelectionManager implements Manager {
     constructor(eventManager: EventManager);
@@ -8616,6 +8792,9 @@ export { SourceCursor }
 export { SourceDescriptor }
 
 export { SourceEdgeRecord }
+
+// @beta
+export type SourceEmbeddedReason = "edited" | "bytes" | "rows" | "mapping" | "kind";
 
 export { sourceEndpoint }
 
@@ -8809,6 +8988,9 @@ export type SourceSettings = Pick<SourceLoadRecord, "source" | "endpoint" | "con
 
 // @beta
 export type SourceStorage = "embedded" | "referenced";
+
+// @beta
+export type SourceUnavailableReason = "not-found" | "needs-file" | "read" | "too-large" | "needs-permission" | "copy-changed" | "kind";
 
 export { SourceValidators }
 

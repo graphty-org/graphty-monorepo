@@ -10,6 +10,7 @@ import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
 import { afterEach, assert, describe, test } from "vitest";
 
+import voctomixUrl from "../../../graph-io/test/corpus/styles/graphml/yed-shapenode/voc__voctomix__schema.graphml?url";
 import type { Graphty } from "../../index.js";
 import { readDrawn } from "../fidelity/drawn-scene";
 import { occluders } from "../fidelity/extract-scene";
@@ -73,6 +74,30 @@ describe("a file's groups in 2D", () => {
             const front = nodes.get(id)?.mesh.getBoundingInfo().boundingBox.minimumWorld.z ?? Number.NaN;
             assert.isAbove(front, 0, `${id} is behind the edges`);
         }
+    });
+});
+
+describe("a file's groups at their stored positions in 3D", () => {
+    test("are drawn flat behind their members, hiding none of them", async () => {
+        // yEd stores each group's box: the groups keep it, at their members' depth, and are drawn
+        // as flat regions as thick as the file's flat shapes, so only the z-index puts them behind
+        const element = document.createElement("graphty-element");
+        element.style.cssText = "display:block;width:800px;height:600px";
+        document.body.appendChild(element);
+        mounted = element;
+        await element.updateComplete;
+        await element.session.data.import(
+            { type: "graphml", config: { url: voctomixUrl } },
+            { styles: "file", layout: "recommended" },
+        );
+        await element.waitForSettled();
+        await element.session.styles.settled();
+        await element.waitForStableFrame();
+
+        assert.strictEqual(element.viewMode, "3d");
+        assert.strictEqual(element.layout, "fixed");
+        const drawn = readDrawn(element.graph);
+        assert.deepEqual([...occluders(drawn.nodes)], [], "no node is hidden behind another");
     });
 });
 

@@ -390,6 +390,12 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
 
     /**
      * Creates a new algorithm instance
+     *
+     * Constructing a class directly is the element's internal door: it checks the values of the
+     * options the class declares but drops a name it does not declare, because the run path hands
+     * every class the parameters that only chose it (a shortest path's `method`). The checked door
+     * is `session.runs`, which refuses an undeclared name with `E_UNKNOWN_OPTION`, as does a class
+     * written with `defineAlgorithm`.
      * @param g - The graph to run the algorithm on
      * @param options - Optional configuration options (uses schema defaults if not provided)
      */

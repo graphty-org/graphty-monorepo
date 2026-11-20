@@ -527,7 +527,7 @@ describe("ElementPositions", () => {
     });
 
     it("writes an owed publish once reading it row by row would cost more than writing it", () => {
-        const rows = 4000;
+        const rows = 32000;
         const p = new ElementPositions(rows);
         p.grow(rows);
         let publishes = 0;
@@ -577,7 +577,7 @@ describe("ElementPositions", () => {
     it("answers at most a sixteenth of the rows one at a time on every landing whose readers read every row", () => {
         // every edge arrowed: each landing's readers read every row, so each landing answers a sixteenth
         // of them one at a time and then writes the publish, about 1.06 times the publish alone
-        const rows = 4000;
+        const rows = 32000;
         const p = new ElementPositions(rows);
         p.grow(rows);
         let publishes = 0;

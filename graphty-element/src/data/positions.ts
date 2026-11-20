@@ -6,8 +6,12 @@ export const POSITION_COMPONENTS = 3;
 /** Rows the array holds before its first growth. */
 export const DEFAULT_CAPACITY = 1024;
 
-/** Distinct rows an owed publish answers one at a time even in a small lane, before it is written instead. */
-const OWED_ROWS_FLOOR = 64;
+/**
+ * Distinct rows an owed publish answers one at a time even in a small lane, before it is written instead: one
+ * line of the row table's position texture (1024 rows), since a row resent to the card sends its whole line and
+ * every row of that line is brought up to the landing first.
+ */
+const OWED_ROWS_FLOOR = 1024;
 /**
  * An owed publish answers up to one row in 2^this of the lane one at a time (one in sixteen), and then is
  * written: readers that read every row (every edge arrowed) cost the publish and a sixteenth more, at most.

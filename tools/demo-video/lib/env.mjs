@@ -22,7 +22,15 @@ const common = spawnSync("git", ["-C", TOOL, "rev-parse", "--path-format=absolut
 export const MAIN = dirname(common.stdout.trim());
 export const OUT = process.env.DEMO_VIDEO_OUT || join(MAIN, "tmp/demo-video");
 export const FFMPEG = process.env.DEMO_FFMPEG || join(OUT, "bin/ffmpeg");
-export const DIST = process.env.DEMO_DIST || join(REPO, "graphty/dist");
+/**
+ * The built app the clips film: DEMO_DIST, else round2.json's `dist` (the recording build, relative
+ * to the main checkout), else this checkout's graphty/dist.
+ */
+export const DIST = process.env.DEMO_DIST || roundDist() || join(REPO, "graphty/dist");
+function roundDist() {
+    const cfg = join(TOOL, "round2.json");
+    return existsSync(cfg) ? resolve(MAIN, JSON.parse(readFileSync(cfg, "utf8")).dist) : null;
+}
 export const GATE = join(REPO, "design/ui/studio/tool/with-browser.sh");
 export const W = 1920;
 export const H = 1080;
@@ -32,9 +40,14 @@ export const FPS = Number(process.env.DEMO_FPS) || 30;
 
 const EGL = process.env.DRY_RUN_EGL_DIR || join(MAIN, "tmp/egl/root/usr/lib/x86_64-linux-gnu");
 
-/** Every experiment id graphty-element declares, read from its registry so a new one is never missed. */
+/**
+ * Every experiment id graphty-element declares, read from the registry of the checkout the filmed app
+ * was built from (DIST's), so a new one is never missed.
+ */
+const REGISTRY = "graphty-element/src/features/registry.ts";
+const builtFrom = resolve(DIST, "../..");
 export const FEATURE_IDS = [
-    ...readFileSync(join(REPO, "graphty-element/src/features/registry.ts"), "utf8")
+    ...readFileSync(join(existsSync(join(builtFrom, REGISTRY)) ? builtFrom : REPO, REGISTRY), "utf8")
         .split("export type FeatureId =")[1]
         .split(";")[0]
         .matchAll(/"([a-z0-9-]+)"/g),

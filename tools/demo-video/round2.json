@@ -1,0 +1,4 @@
+{
+    "dist": ".worktrees/demo-video-rec-build/graphty/dist",
+    "distNote": "The app round 2 films: a throwaway build of origin/master with the in-flight fixes the video needs merged in (README.md, \"The recording build\"). Relative to the main checkout. DEMO_DIST overrides it."
+}

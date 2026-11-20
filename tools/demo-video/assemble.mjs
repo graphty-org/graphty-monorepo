@@ -1,15 +1,16 @@
 #!/usr/bin/env node
 /**
- * Builds a finished video from a cut file and the recorded clips: chapter cards, captions burned in
- * the lower third with a short fade, crossfades between every part, chapter marks in the mp4 and in
+ * Builds a finished video from a cut file and the recorded clips: chapter cards held long enough to
+ * read, captions burned in the band above the stage with a short fade, crossfades between every part, chapter marks in the mp4 and in
  * a YouTube chapter list, and a local page to watch the results.
  *
  *   node tools/demo-video/assemble.mjs tools/demo-video/cuts/tour.json
  *   node tools/demo-video/assemble.mjs tools/demo-video/cuts/highlight.json
  *
  * Writes <main>/tmp/demo-video/out/<name>.mp4, <name>-chapters.txt (the tour's is also chapters.txt)
- * and index.html (every video in out/ with its chapter list). A clip the cut names that has not been
- * recorded yet becomes a placeholder card saying so, so a cut always builds.
+ * and index.html (every video in out/ with its chapter list). A placeholder (a clip not recorded
+ * yet, a placeholder take or card) stops the build, so no production note reaches a finished video:
+ * skip the item with a reason, or pass --draft to build with placeholder cards for review.
  *
  * A clip item's `seconds` trims it to its last `seconds` (the result and its hold), or from `from`.
  *
@@ -32,8 +33,20 @@ const ENC = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "10", "-pix_fmt",
 const FINAL = ["-c:v", "libx264", "-preset", "slow", "-crf", "16", "-pix_fmt", "yuv420p", "-r", String(FPS)];
 const CLIPS = join(OUT, "clips");
 
-const cutPath = process.argv[2];
-if (!cutPath || !existsSync(cutPath)) throw new Error("usage: assemble.mjs <cut.json>");
+const DRAFT = process.argv.includes("--draft");
+const cutPath = process.argv.slice(2).find((a) => !a.startsWith("--"));
+if (!cutPath || !existsSync(cutPath)) throw new Error("usage: assemble.mjs <cut.json> [--draft]");
+
+/**
+ * Refuse a placeholder in a finished video (--draft allows it).
+ * @param what - which item, for the message
+ */
+function noPlaceholder(what) {
+    if (!DRAFT)
+        throw new Error(
+            `${what} is a placeholder: record it, give its cut item a "skip" reason, or build with --draft`,
+        );
+}
 gated(); // cards and captions are drawn by a (gated) browser
 const cut = JSON.parse(readFileSync(resolve(cutPath), "utf8"));
 // every length and cut point is a whole number of frames, so chapter marks never drift
@@ -76,20 +89,57 @@ async function still(pngFile, seconds) {
     return mp4;
 }
 
+// ---------------------------------------------------------------- how long a card holds
+// Long enough to find the text, read it and read it again (research-craft.md, rule 8): at full
+// opacity, 1.0 s + 0.33 s a word + 0.8 s, a web address counting three words; at least 4 s for a
+// chapter or the title, 6 s for the end card; the title at most 5 s (it follows the cold open, where
+// viewers leave). The crossfades in and out come on top. A chapter's `short: true` is a 2 s mini card
+// (the highlight's domain changes). The cut's `seconds` may ask for longer, never shorter.
+const CARD_FLOOR = { chapter: 4, title: 4, end: 6 };
+const CARD_CAP = { title: 5 };
+/**
+ * How long a card holds.
+ * @param kind - "title", "chapter", "end" or "placeholder"
+ * @param item - its fields (number, title, sub, big, lines, laterLines, text, seconds)
+ * @returns seconds, a whole number of frames
+ */
+function cardSeconds(kind, item) {
+    if (!(kind in CARD_FLOOR)) return snap(item.seconds ?? 3);
+    const text = [
+        kind === "chapter" && item.number != null ? `Chapter ${item.number}` : "",
+        item.title,
+        item.sub,
+        item.big ?? (kind === "end" ? "graphty.app" : ""),
+        ...(item.lines ?? []),
+        ...(item.laterLines ?? []),
+    ].join(" ");
+    const words = text.split(/\s+/).filter((w) => /\w/.test(w));
+    const count = words.length + 2 * words.filter((w) => /\w\.\w{2,}/.test(w)).length;
+    const later = item.laterLines?.length ? (item.laterSec ?? 1.5) : 0;
+    const read = item.short ? 2 : Math.max(1 + 0.33 * count + 0.8 + later, CARD_FLOOR[kind]);
+    const full = Math.min(read, CARD_CAP[kind] ?? Infinity);
+    return snap(Math.max(full + 2 * XF, item.seconds ?? 0));
+}
+
 // a card (title, chapter, placeholder, end) as a part of the video; a title with
-// `over: { clip, sec? }` is laid over that clip's result frame (`sec` before its end, default 0.3)
+// `over: { clip, sec? }` is laid over that clip's result frame (`sec` before its end, default 0.3);
+// a title's `laterLines` fade in `laterSec` (1.5) after it appears
 async function cardSegment(item) {
-    if (item.over && clipMeta(item.over.clip)) {
-        const frame = next("png");
+    if (item.card === "placeholder") noPlaceholder(`card "${item.text ?? item.caption}"`);
+    const seconds = cardSeconds(item.card, item);
+    const over = Boolean(item.over && clipMeta(item.over.clip));
+    let frame = null;
+    if (over) {
+        frame = next("png");
         const src = join(CLIPS, `${item.over.clip}.mp4`);
         await run(["-sseof", String(-(item.over.sec ?? 0.3)), "-i", src, "-frames:v", "1", frame]);
-        const card = await png(item.card, { ...item, over: true }, next("png"));
-        const seconds = snap(item.seconds ?? 3);
-        return { file: await overFrame(frame, card, seconds), seconds };
     }
-    const data = { ...item, over: false };
-    const seconds = snap(item.seconds ?? 3);
-    return { file: await still(await png(item.card, data, next("png")), seconds), seconds };
+    const card = await png(item.card, { ...item, over }, next("png"));
+    const later = item.laterLines?.length
+        ? { card: await png(item.card, { ...item, over: true, reveal: true }, next("png")), at: item.laterSec ?? 1.5 }
+        : null;
+    if (!frame && !later) return { file: await still(card, seconds), seconds };
+    return { file: await overFrame(frame, card, seconds, later), seconds };
 }
 
 /**
@@ -98,14 +148,15 @@ async function cardSegment(item) {
  * @param start - where in it to start, s
  * @param want - how long, s
  * @param caption - the caption
- * @param small - its smaller second line
+ * @param tag - a small label at the caption band's right ("Synthetic data"), or none
  * @param zoom - keyframes [{ t, rect: {x, y, w, h} }] (s from `start`, source pixels) to push in on, or none
  * @returns the mp4
  */
-async function framed(src, start, want, caption, small, zoom = []) {
+async function framed(src, start, want, caption, tag, zoom = []) {
     const mp4 = next("mp4");
-    // the clip framed on the ink stage, its caption in the band under it: no caption ever covers the app
-    const cap = await png("caption", { text: caption ?? "", small }, next("png"));
+    // the clip framed on the ink stage, its caption in the band above it: no caption ever covers the
+    // app, and no player control covers the caption
+    const cap = await png("caption", { text: caption ?? "", tag }, next("png"));
     const out = Math.max(0.6, want - 0.55);
     const loop = (f) => ["-loop", "1", "-framerate", String(FPS), "-i", f];
     await run([
@@ -128,46 +179,61 @@ async function framed(src, start, want, caption, small, zoom = []) {
 }
 
 /**
- * A perspective filter that pushes in on parts of the frame: the source rectangle shown eases from
- * one keyframe to the next (smoothstep, by frame), sampled with cubic interpolation so the motion has
- * no whole-pixel judder. Empty with no keyframes.
+ * A perspective filter that pushes in on parts of the frame: from one keyframe to the next the
+ * shown rectangle's scale eases in log scale (an even perceived speed: a linear width makes the
+ * last third of a push-in lurch) and its center eases linearly, both on smoothstep, by frame;
+ * sampled with cubic interpolation so the motion has no whole-pixel judder. Empty with no keyframes.
  * @param keys - [{ t, rect }] in time order
  * @returns the filter and its trailing comma, or ""
  */
 function zoomFilter(keys) {
     if (!keys.length) return "";
     const f = keys.map((k) => Math.round(k.t * FPS));
-    const coord = (pick) => {
-        const v = keys.map((k) => pick(k.rect).toFixed(2));
+    const v = keys.map(({ rect: r }) => ({ x: r.x + r.w / 2, y: r.y + r.h / 2, ls: Math.log(1920 / r.w) }));
+    const n = (x) => x.toFixed(4);
+    // one edge of the shown rectangle: axis "x" or "y", sign -1 (left, top) or +1 (right, bottom)
+    const edge = (axis, sign) => {
+        const half = axis === "x" ? 960 : 540;
+        const at = (p) => n(v[p][axis] + (sign * half) / Math.exp(v[p].ls));
         // commas inside a filter's option are escaped for the filtergraph
-        let e = v.at(-1);
+        let e = at(keys.length - 1);
         for (let i = keys.length - 2; i >= 0; i--) {
             const d = Math.max(1, f[i + 1] - f[i]);
-            const u = String.raw`clip((in-${f[i]})/${d}\,0\,1)`;
-            e = String.raw`if(lt(in\,${f[i + 1]})\,${v[i]}+(${v[i + 1]}-${v[i]})*${u}*${u}*(3-2*${u})\,${e})`;
+            const c = String.raw`clip((in-${f[i]})/${d}\,0\,1)`;
+            const u = `(${c}*${c}*(3-2*${c}))`;
+            const a = v[i];
+            const b = v[i + 1];
+            const mid = `(${n(a[axis])}+(${n(b[axis] - a[axis])})*${u}${sign < 0 ? "-" : "+"}${half}/exp(${n(a.ls)}+(${n(b.ls - a.ls)})*${u}))`;
+            e = String.raw`if(lt(in\,${f[i + 1]})\,${mid}\,${e})`;
         }
-        return String.raw`if(lt(in\,${f[0]})\,${v[0]}\,${e})`;
+        return String.raw`if(lt(in\,${f[0]})\,${at(0)}\,${e})`;
     };
-    const L = coord((r) => r.x);
-    const T = coord((r) => r.y);
-    const R = coord((r) => r.x + r.w);
-    const B = coord((r) => r.y + r.h);
+    const L = edge("x", -1);
+    const T = edge("y", -1);
+    const R = edge("x", 1);
+    const B = edge("y", 1);
     return `perspective=x0=${L}:y0=${T}:x1=${R}:y1=${T}:x2=${L}:y2=${B}:x3=${R}:y3=${B}:eval=frame:interpolation=cubic,`;
 }
 
 // ---------------------------------------------------------------- the automatic push-in
-// Controls are small at the stage's 85%: while the hand works in the app's panels and popovers, the
-// shot pushes in on them (up to 1.8x), and it eases back out when the hand returns to the drawing.
+// Controls are small at the stage's 80%: while the hand works in the app's panels and popovers, the
+// shot may push in on them, gently and rarely (research-craft.md, rules 1-5): at most 1.5x and only
+// if at least 1.3x; 1 s in and 1 s out; held at least 2.5 s; only for input on controls lasting
+// 2.5 s; at most one push-in a clip; 6 s of wide shot between push-ins, counted across clips; never
+// in a clip's first or last 500 ms, so no push-in crosses a cut. Never on the canvas (a box or a
+// point the hand aims at is the drawing or a drawn file window; only Locator targets are controls).
 const ZOOM = {
-    max: 1.8,
+    max: 1.5,
     min: 1.3,
     padX: 170,
     padY: 120,
-    gapMs: 1500,
-    minMs: 1100,
-    inMs: 650,
-    outMs: 700,
-    sweepPx: 700,
+    gapMs: 2500,
+    minMs: 2500,
+    holdMs: 2500,
+    inMs: 1000,
+    outMs: 1000,
+    restMs: 6000,
+    edgeMs: 500,
 };
 const FULL = { x: 0, y: 0, w: 1920, h: 1080 };
 const isControl = (e) => e.box && e.box.label !== "box" && e.box.label !== "point";
@@ -186,7 +252,8 @@ const scaleFor = (u) => Math.min(ZOOM.max, 1920 / (u.width + 2 * ZOOM.padX), 108
 
 /**
  * Runs of a clip's logged input on controls (Locator targets, never canvas boxes or points) that fit
- * together at 1.3x or more and follow one another closely; a move to the canvas or a drag ends a run.
+ * together at 1.3x or more and follow one another within 2.5 s; a move to the canvas or a drag ends
+ * a run. Typing and key presses extend the run they follow (in before the first key, held through it).
  * @param events - the clip's events
  * @returns [{ from, end, box }] in ms of the clip
  */
@@ -203,7 +270,7 @@ function controlRuns(events) {
         } else if (moving) {
             cur = { from: e.t, end, box: e.box };
             runs.push(cur);
-        } else if (cur && e.type !== "mark") cur.end = Math.max(cur.end, end);
+        } else if (cur && e.type !== "mark" && e.type !== "window") cur.end = Math.max(cur.end, end);
     }
     return runs;
 }
@@ -221,45 +288,74 @@ function zoomRect(c, k) {
 }
 
 /**
- * Where to push in, from a clip's logged input (controlRuns): in on each run's controls as the hand
- * reaches them, out when it leaves; a run that follows the last closely pans across instead.
+ * The clip's one push-in, if it earns one: on the first run of input on controls (controlRuns) long
+ * enough and wide enough, once the rest since the last push-in is over, all of it inside the clip's
+ * first and last 500 ms.
  * @param meta - the clip's json
  * @param start - where the segment starts in the clip, s
  * @param want - the segment's length, s
- * @param hold - true: stay pushed in to the end (the result is in a panel)
- * @returns keyframes [{ t, rect }] in s from `start`
+ * @param o - limits
+ * @param o.hold - true: stay pushed in to the end (the result is in a panel)
+ * @param o.restMs - the wide time still owed to the last push-in at the segment's start, ms
+ * @param o.after - runs that start before this time (ms of the clip) are skipped
+ * @returns the keyframes (`keys`: t in s from `start`, rect) and when it is fully out (`out`, s from `start`; null: no push-in)
  */
-function autoZoom(meta, start, want, hold = false) {
-    const keys = [];
+function autoZoom(meta, start, want, { hold = false, restMs = 0, after = 0 } = {}) {
     const s0 = start * 1000;
     const s1 = (start + want) * 1000;
     const at = (ms) => (ms - s0) / 1000;
-    let prev = null;
+    const earliest = s0 + Math.max(ZOOM.edgeMs, restMs);
+    const lastOut = s1 - ZOOM.edgeMs;
     for (const run of controlRuns(meta.events ?? [])) {
         const k = scaleFor(run.box);
-        if (k < ZOOM.min || run.end - run.from < ZOOM.minMs || run.end < s0 || run.from > s1) continue;
-        // a run near the last pans across to it; one far across the screen eases out first and
-        // pushes in again, so the camera never sweeps over the drawing pushed in
-        const c = { x: run.box.x + run.box.width / 2, y: run.box.y + run.box.height / 2 };
-        const near = prev && Math.hypot(c.x - prev.x, c.y - prev.y) <= ZOOM.sweepPx;
-        const lastT = (keys.at(-1)?.t ?? -Infinity) * 1000 + s0;
-        // ...unless too little of it is left once the camera is back out: then it stays out
-        if (prev && !near && run.end - Math.max(run.from, lastT) < ZOOM.minMs) continue;
-        prev = c;
-        const rect = zoomRect(c, k);
-        const tin = Math.max(run.from, lastT);
-        if (near && tin - lastT < ZOOM.outMs) keys.pop();
-        else keys.push({ t: at(tin), rect: FULL });
-        // a short run that follows closely still gets its whole push-in before it eases out
-        const end = Math.max(run.end, tin + ZOOM.inMs);
-        keys.push({ t: at(tin + ZOOM.inMs), rect }, { t: at(end), rect }, { t: at(end + ZOOM.outMs), rect: FULL });
+        if (k < ZOOM.min || run.end - run.from < ZOOM.minMs || run.end < s0 || run.from < after) continue;
+        const tin = Math.max(run.from, earliest);
+        if (tin + ZOOM.inMs >= s1) break;
+        const rect = zoomRect({ x: run.box.x + run.box.width / 2, y: run.box.y + run.box.height / 2 }, k);
+        const inAt = tin + ZOOM.inMs;
+        if (hold)
+            return {
+                keys: [
+                    { t: at(tin), rect: FULL },
+                    { t: at(inAt), rect },
+                ],
+                out: want,
+            };
+        const end = Math.min(Math.max(run.end, inAt + ZOOM.holdMs), lastOut - ZOOM.outMs);
+        if (end - inAt < ZOOM.holdMs) continue; // no room to hold it: stay wide
+        return {
+            keys: [
+                { t: at(tin), rect: FULL },
+                { t: at(inAt), rect },
+                { t: at(end), rect },
+                { t: at(end + ZOOM.outMs), rect: FULL },
+            ],
+            out: at(end + ZOOM.outMs),
+        };
     }
-    if (hold && keys.length) keys.pop();
-    return keys;
+    return { keys: [], out: null };
 }
 
 // an accurate input seek to a frame: a quarter frame early, so rounding never drops the frame asked for
 const seek = (file, sec) => [...(sec > 0 ? ["-ss", Math.max(0, sec - 0.25 / FPS).toFixed(4)] : []), "-i", file];
+
+/**
+ * A span of a take between two of its marks.
+ * @param meta - the clip's json
+ * @param spec - [markA, offA, markB, offB]: offsets in s after each mark
+ * @returns [from, to] in s of the take
+ */
+function markSpan(meta, spec) {
+    const [ma, oa, mb, ob] = spec;
+    const at = (name) => {
+        const e = (meta.events ?? []).find((x) => x.type === "mark" && x.name === name);
+        if (!e) throw new Error(`${meta.id}: no mark "${name}" for dropMarks`);
+        return e.t / 1000;
+    };
+    const span = [at(ma) + oa, at(mb) + ob];
+    if (span[1] - span[0] < 0.2) throw new Error(`${meta.id}: dropMarks span ${span} is empty`);
+    return span;
+}
 
 const clipMeta = (id) => {
     const json = join(CLIPS, `${id}.json`);
@@ -270,11 +366,12 @@ const clipMeta = (id) => {
  * A clip, trimmed to `seconds` if asked, framed on the stage with its caption under it.
  * The caption is the clip's own (checked against its take); the cut's caption is used only for a
  * clip not recorded yet.
- * @param item - the cut's item: { clip, seconds?, from?, drop?: [s, s], zoom?, caption?, small?, placeholder? }
+ * @param item - the cut's item: { clip, seconds?, from?, drop?: [s, s] | [[s, s], ...], dropMarks?: [mark, s, mark, s], zoom?, zoomAfter?, caption?, tag?, placeholder? }
  * @returns the part: { file, seconds, clip, start }
  */
 async function clipSegment(item) {
     const meta = clipMeta(item.clip);
+    if (!meta || meta.placeholder) noPlaceholder(`clip ${item.clip}`);
     if (!meta) {
         // what the clip will show, said in its own caption
         const card = item.placeholder
@@ -283,10 +380,17 @@ async function clipSegment(item) {
         return { ...(await cardSegment({ card: "placeholder", ...card, seconds: item.seconds ?? 5 })), missing: true };
     }
     let src = join(CLIPS, `${item.clip}.mp4`);
-    if (item.drop) {
-        // a still stretch the app froze for (a redraw of 150,000 edges), cut out of the take; the
-        // input log moves back with it, so the push-in still follows the hand
-        const [a, b] = item.drop.map((s) => snap(s));
+    // `drop`: [a, b] or a list of them; `dropMarks: [markA, offA, markB, offB]`: from offA s after
+    // markA to offB s after markB (a layout settling while the hand rests), found in the take, so a
+    // re-take needs no new numbers. Cut latest first, so each span's times still hold.
+    const dropped = Array.isArray(item.drop?.[0]) ? item.drop : [item.drop];
+    const spans = [...(item.dropMarks ? [markSpan(meta, item.dropMarks)] : []), ...(item.drop ? dropped : [])].sort(
+        (x, y) => y[0] - x[0],
+    );
+    for (const span of spans) {
+        // a still stretch (a freeze, a settle, a wait) cut out of the take; the input log moves
+        // back with it, so the push-in still follows the hand
+        const [a, b] = span.map((x) => snap(x));
         const cut = next("mp4");
         await run([
             "-i",
@@ -313,14 +417,27 @@ async function clipSegment(item) {
         await run([...seek(src, start), "-frames:v", String(toFrames(want)), "-an", ...ENC, mp4]);
         return { file: mp4, seconds: want, clip: item.clip, start };
     }
-    const zoom = item.zoom === false ? [] : autoZoom(meta, start, want, item.zoom === "hold");
-    const file = await framed(src, start, want, meta.caption ?? item.caption, item.small ?? meta.small, zoom);
+    const z =
+        item.zoom === false
+            ? { keys: [], out: null }
+            : autoZoom(meta, start, want, {
+                  hold: item.zoom === "hold",
+                  // `zoomAfter`: a mark in the clip; the menu clicks before it (that open the dialog) get no push-in
+                  after: item.zoomAfter ? ((meta.events ?? []).find((e) => e.name === item.zoomAfter)?.t ?? 0) : 0,
+                  restMs: Math.max(0, (lastOut + ZOOM.restMs / 1000 - playhead) * 1000),
+              });
+    if (z.out !== null) {
+        lastOut = playhead + z.out;
+        const k = 1920 / z.keys[1].rect.w;
+        console.log(`push-in: ${item.clip} at ${(playhead + z.keys[0].t).toFixed(1)} s, ${k.toFixed(2)}x`);
+    }
+    const file = await framed(src, start, want, meta.caption ?? item.caption, item.tag ?? meta.tag, z.keys);
     return { file, seconds: want, clip: item.clip, start };
 }
 
 /**
  * Footage that is not a clip (a file the app exported, such as the fly-through video), framed like a clip.
- * @param item - { video: path, caption, small?, seconds?, from? }
+ * @param item - { video: path, caption, tag?, seconds?, from? }
  * @returns the part
  */
 async function videoSegment(item) {
@@ -335,50 +452,51 @@ async function videoSegment(item) {
     // a browser-recorded webm often carries no duration: then trust the cut's seconds
     const total = await duration(src).catch(() => item.seconds ?? 4);
     const want = snap(Math.min(item.seconds ?? total, total - (item.from ?? 0)));
-    return { file: await framed(src, item.from ?? 0, want, item.caption, item.small), seconds: want };
+    return { file: await framed(src, item.from ?? 0, want, item.caption, item.tag), seconds: want };
 }
 
 /**
- * The outro montage: one result frame from each named clip, in turn, framed with one caption.
- * @param item - { montage: [{ clip, sec? (from the clip's end, default 0.3) }], seconds, caption }
+ * The outro: result frames from named clips, in turn, framed with one caption. Calm on purpose
+ * (research-craft.md, rule 6): at most four stills, each 2.5 s, joined by 500 ms crossfades, with no
+ * push-in, no scale change and no hard cut.
+ * @param item - { montage: [{ clip, sec? (from the clip's end, default 0.3) }], caption, tag?, each? }
  * @returns the part
  */
 async function montageSegment(item) {
-    const shots = item.montage.filter((m) => clipMeta(m.clip) && !clipMeta(m.clip).placeholder);
-    const each = snap(item.seconds / shots.length);
-    const lines = ["ffconcat version 1.0"];
+    let shots = item.montage.filter((m) => clipMeta(m.clip) && !clipMeta(m.clip).placeholder);
+    if (shots.length > 4) {
+        console.warn(`montage: ${shots.length} stills; only the first 4 are shown`);
+        shots = shots.slice(0, 4);
+    }
+    if (!shots.length) return cardSegment({ card: "placeholder", text: item.caption, tag: "NOT RECORDED YET" });
+    const each = snap(item.each ?? 2.5);
+    const xf = snap(0.5);
+    const seconds = snap(each * shots.length);
+    // every still spans the whole part; each later one fades in over the one before (this ffmpeg has no xfade)
+    const inputs = [];
     for (const m of shots) {
         const f = next("png");
         await run(["-sseof", String(-(m.sec ?? 0.3)), "-i", join(CLIPS, `${m.clip}.mp4`), "-frames:v", "1", f]);
-        lines.push(`file '${f}'`, `duration ${each.toFixed(3)}`);
+        inputs.push("-loop", "1", "-framerate", String(FPS), "-t", seconds.toFixed(3), "-i", f);
     }
-    lines.push(lines.at(-2));
-    const list = next("ffconcat");
-    writeFileSync(list, lines.join("\n") + "\n");
+    let graph = "[0]format=yuv420p[x0]";
+    for (let i = 1; i < shots.length; i++)
+        graph +=
+            `;[${i}]format=yuva420p,fade=in:st=${(i * each - xf).toFixed(3)}:d=${xf}:alpha=1[s${i}]` +
+            `;[x${i - 1}][s${i}]overlay=format=auto[x${i}]`;
     const show = next("mp4");
     await run([
-        "-f",
-        "concat",
-        "-safe",
-        "0",
-        "-i",
-        list,
-        "-vf",
-        `fps=${FPS},format=yuv420p`,
+        ...inputs,
+        "-filter_complex",
+        `${graph};[x${shots.length - 1}]format=yuv420p[v]`,
+        "-map",
+        "[v]",
         "-frames:v",
-        String(toFrames(each * shots.length)),
+        String(toFrames(seconds)),
         ...ENC,
         show,
     ]);
-    const seconds = each * shots.length;
-    // a slow push-in on each still, so the montage moves (8% over each shot, toward its middle)
-    const k = 1.08;
-    const inner = { x: (1920 - 1920 / k) / 2, y: (1080 - 1080 / k) / 2, w: 1920 / k, h: 1080 / k };
-    const zoom = shots.flatMap((_, i) => [
-        { t: i * each, rect: FULL },
-        { t: (i + 1) * each - 1 / FPS, rect: inner },
-    ]);
-    return { file: await framed(show, 0, seconds, item.caption, item.small, zoom), seconds };
+    return { file: await framed(show, 0, seconds, item.caption, item.tag), seconds };
 }
 
 /**
@@ -388,7 +506,7 @@ async function montageSegment(item) {
  * @returns the part: { file, seconds }
  */
 async function chapterSegment(chapter, first) {
-    const seconds = snap(chapter.seconds ?? 2);
+    const seconds = cardSeconds("chapter", chapter);
     if (!first?.clip && !first?.footage) return cardSegment({ card: "chapter", ...chapter, seconds });
     const frame = next("png");
     await run(["-i", first.file, "-frames:v", "1", frame]);
@@ -397,42 +515,37 @@ async function chapterSegment(chapter, first) {
 }
 
 /**
- * A card laid over a blurred still frame.
- * @param frame - the frame (PNG)
- * @param card - the card (transparent PNG)
+ * A card laid over a blurred still frame (or on its own), held still; a second card (the same card
+ * with more lines) may fade in over it later.
+ * @param frame - the frame (PNG), or null for an opaque card
+ * @param card - the card (transparent PNG over a frame)
  * @param seconds - how long
+ * @param later - { card, at }: the fuller card, faded in over 0.5 s from `at` s, or null
  * @returns the mp4
  */
-async function overFrame(frame, card, seconds) {
+async function overFrame(frame, card, seconds, later = null) {
     const mp4 = next("mp4");
-    await run([
-        "-loop",
-        "1",
-        "-framerate",
-        String(FPS),
-        "-i",
-        frame,
-        "-loop",
-        "1",
-        "-framerate",
-        String(FPS),
-        "-i",
-        card,
-        "-filter_complex",
-        "[0]boxblur=12:2[f];[f][1]overlay=format=auto,format=yuv420p",
-        "-frames:v",
-        String(toFrames(seconds)),
-        ...ENC,
-        mp4,
-    ]);
+    const loop = (f) => ["-loop", "1", "-framerate", String(FPS), "-i", f];
+    const inputs = [...(frame ? loop(frame) : []), ...loop(card), ...(later ? loop(later.card) : [])];
+    const c = frame ? 1 : 0;
+    let graph = frame ? `[0]boxblur=12:2[f];[f][1]overlay=format=auto[a]` : `[0]null[a]`;
+    graph += later
+        ? `;[${c + 1}]format=rgba,fade=in:st=${later.at}:d=0.5:alpha=1[l];[a][l]overlay=format=auto,format=yuv420p`
+        : ";[a]format=yuv420p";
+    await run([...inputs, "-filter_complex", graph, "-frames:v", String(toFrames(seconds)), ...ENC, mp4]);
     return mp4;
 }
 
 // ---------------------------------------------------------------- the parts, in order
 const segments = [];
 const marks = [];
+// where the next part starts in the finished video, and when the last push-in was fully out (s):
+// the 6 s of wide shot between push-ins is counted across clips and cards
+let playhead = 0;
+let lastOut = -Infinity;
 for (const section of cut.sections) {
     const items = [];
+    if (section.chapter) playhead += cardSeconds("chapter", section.chapter) - XF;
     for (const item of section.items) {
         if (item.skip) {
             console.log(`skipped ${item.clip ?? item.card}: ${item.skip}`);
@@ -442,6 +555,7 @@ for (const section of cut.sections) {
         else if (item.montage) items.push(await montageSegment(item));
         else if (item.video) items.push(await videoSegment(item));
         else items.push(await cardSegment(item));
+        playhead += items.at(-1).seconds - XF;
     }
     const head = section.chapter ? [await chapterSegment(section.chapter, items[0])] : [];
     if (section.marker) marks.push({ title: section.marker, index: segments.length });
@@ -507,7 +621,7 @@ const chapters = marks.map((m, i) => ({
 const meta = join(work, "chapters.ffmeta");
 writeFileSync(
     meta,
-    `;FFMETADATA1\ntitle=graphty -- ${cut.name}\n` +
+    `;FFMETADATA1\ntitle=graphty \u2014 ${cut.name}\n` +
         chapters
             .map((c) => `[CHAPTER]\nTIMEBASE=1/1000\nSTART=${ms(c.start)}\nEND=${ms(c.end)}\ntitle=${c.title}\n`)
             .join(""),
@@ -592,7 +706,7 @@ writeFileSync(
 body { margin: 0; padding: 24px 16px 60px; background: var(--bg); color: var(--fg); font: 16px/1.5 system-ui, sans-serif; }
 main { max-width: 1100px; margin: 0 auto; } h1 { font-size: 26px; } h2 small { color: var(--mute); font-weight: 400; }
 video { width: 100%; border-radius: 10px; background: #000; } ol { padding-left: 20px; columns: 2 260px; } a { color: #5b8a00; }
-</style></head><body><main><h1>graphty demo video -- proof of concept</h1>${blocks.join("")}</main>
+</style></head><body><main><h1>graphty demo video</h1>${blocks.join("")}</main>
 <script>for (const a of document.querySelectorAll("a[data-v]")) a.onclick = (e) => { e.preventDefault(); const v = document.getElementById(a.dataset.v); v.currentTime = Number(a.dataset.t); v.play(); };</script>
 </body></html>\n`,
 );

@@ -1,0 +1,46 @@
+{
+    "name": "r2-intro-ch1-ch2",
+    "crossfadeMs": 400,
+    "music": null,
+    "sections": [
+        {
+            "marker": "Intro",
+            "items": [
+                { "clip": "co-ring-dark" },
+                { "clip": "co-ring-lit" },
+                { "clip": "co-alz" },
+                {
+                    "card": "title",
+                    "over": { "clip": "co-ring-lit" },
+                    "lines": ["Find what's hidden in connected data."],
+                    "laterLines": ["Ahead: a fraud case, Alzheimer's, your own files."]
+                }
+            ]
+        },
+        {
+            "marker": "Catch a fraud ring",
+            "chapter": { "number": 1, "title": "Catch a fraud ring", "sub": "Sample bank data \u2014 synthetic" },
+            "items": [
+                { "clip": "open-fraud" },
+                { "clip": "settle-2d" },
+                { "clip": "find-groups" },
+                { "clip": "rule-under-10k" },
+                { "clip": "walk-neighbors" },
+                { "clip": "point-out-group" },
+                { "clip": "fade-rest", "zoom": false }
+            ]
+        },
+        {
+            "marker": "Inside Alzheimer's disease",
+            "chapter": { "number": 2, "title": "Inside Alzheimer's disease", "sub": "Real data: Open Targets, STRING" },
+            "items": [
+                { "clip": "find-groups-alz" },
+                { "clip": "shape-around-groups" },
+                { "clip": "bulk-select" },
+                { "clip": "bulk-style" },
+                { "clip": "ask-assistant" },
+                { "clip": "shortest-path" }
+            ]
+        }
+    ]
+}

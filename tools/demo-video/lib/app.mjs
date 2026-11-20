@@ -42,6 +42,73 @@ export async function openSample(page, name) {
 }
 
 /**
+ * The start page's Open a file, the browser's file chooser answered with `file` (setup only: a clip
+ * that shows the open uses h.openFile); waits until the graph is in.
+ * @param page - the Playwright page
+ * @param file - the file's path
+ */
+export async function openFile(page, file) {
+    const chooser = page.waitForEvent("filechooser");
+    await page.getByRole("button", { name: /^Open a file/ }).click();
+    await (await chooser).setFiles(file);
+    await opened(page);
+    await closeToast(page);
+}
+
+/**
+ * The opened graph laid out flat and framed, as most clips start (setup only): the data table closed, Mode 2D, the layout
+ * left to come to rest (the project's own seed gives the same drawing every take), Fit, then one
+ * wheel notch out so the lowest nodes clear the canvas toolbar. A clip starts on this settled
+ * drawing, so the viewer never watches the same layout run twice.
+ * @param page - the Playwright page
+ */
+export async function ready2D(page) {
+    // the data table opens with a new file and takes the lower half of the canvas: close it
+    const table = page.getByRole("button", { name: "Table", exact: true, pressed: true });
+    if (await table.isVisible()) {
+        await table.click();
+        await page.getByRole("button", { name: "Table", exact: true, pressed: false }).waitFor();
+    }
+    await mode(page, "2D");
+    await settled(page);
+    await camera(page, "Fit");
+    await settled(page);
+    const box = await page.getByRole("region", { name: "Graph drawing" }).boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.wheel(0, 100);
+    await settled(page);
+}
+
+/**
+ * A style layer's edges recolored and widened through the inspector's Style > Edge tab (setup only):
+ * a path made thick and bright over pale edges.
+ * @param page - the Playwright page
+ * @param layer - the layer's name in Style layers ("Shortest path", "Everything")
+ * @param o - the edge style
+ * @param [o.color] - a hex color without "#" ("FF5A1F")
+ * @param [o.width] - the edge width (the app's default is 24)
+ */
+export async function layerEdges(page, layer, { color, width } = {}) {
+    await page.getByRole("treeitem", { name: new RegExp(`^${layer}, `) }).click();
+    const insp = page.getByRole("complementary", { name: "Inspector" });
+    await insp.getByRole("tab", { name: "Style" }).click();
+    const edgeTab = page.getByRole("tablist", { name: "Style for" }).getByRole("tab", { name: /^Edge/ });
+    await edgeTab.click();
+    if (color) {
+        const field = insp.getByRole("textbox", { name: /^Edge color, set here/ });
+        await field.fill(color);
+        await field.press("Enter");
+    }
+    if (width) {
+        const field = insp.getByRole("spinbutton", { name: "Edge width" });
+        await field.fill(String(width));
+        await field.press("Enter");
+    }
+    // focus off the text fields, so a key typed next reaches the app
+    await edgeTab.click();
+}
+
+/**
  * Toolbar Mode, then 2D or 3D.
  * @param page - the Playwright page
  * @param which - "2D" or "3D"

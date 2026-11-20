@@ -7,323 +7,318 @@
             "marker": "Intro",
             "items": [
                 {
-                    "clip": "intro-groups",
-                    "caption": "Characters in Les Miserables, linked when they meet. Which groups form?",
-                    "zoom": false,
-                    "from": 0.9
+                    "clip": "co-ring-dark"
                 },
                 {
-                    "clip": "intro-key-players",
-                    "caption": "Who matters most? The biggest node: Valjean holds the story together.",
-                    "zoom": false
+                    "clip": "co-ring-lit"
                 },
                 {
-                    "clip": "intro-drop-file",
-                    "skip": "chapter 1 opens with the same drop of the same file; the intro ends on the title instead"
+                    "clip": "co-alz"
                 },
                 {
                     "card": "title",
-                    "seconds": 3,
-                    "lines": ["See the shape of any network -- free, in your browser.", "graphty.app"]
+                    "over": {
+                        "clip": "co-ring-lit"
+                    },
+                    "lines": ["Find what's hidden in connected data."],
+                    "laterLines": ["Ahead: a fraud case, Alzheimer's, your own files."],
+                    "laterSec": 1.0
                 }
             ]
         },
         {
-            "marker": "Open the files you already have",
+            "marker": "Catch a fraud ring",
             "chapter": {
                 "number": 1,
-                "title": "Open the files you already have",
-                "seconds": 2
+                "title": "Catch a fraud ring",
+                "sub": "Sample bank data \u2014 synthetic"
             },
             "items": [
                 {
-                    "clip": "drop-gephi",
-                    "caption": "Drag in the file you already have.",
-                    "from": 0.6
+                    "clip": "open-fraud",
+                    "from": 0.4,
+                    "seconds": 6.4
                 },
                 {
-                    "clip": "any-file-type",
-                    "caption": "Same network, any common file type.",
-                    "from": 0.6
+                    "clip": "settle-2d",
+                    "from": 4.6,
+                    "seconds": 6.4,
+                    "zoom": false
                 },
-                {
-                    "clip": "opens-looking-same",
-                    "caption": "Its colors and sizes come along, as layers you can change.",
-                    "from": 0.6
-                },
-                {
-                    "clip": "paste-link",
-                    "caption": "Or paste a link to a graph file."
-                },
-                {
-                    "clip": "spreadsheet-columns",
-                    "caption": "A spreadsheet works too: it finds which columns connect.",
-                    "skip": "chapter 1 runs long; combine-data starts from the same spreadsheet already open"
-                },
-                {
-                    "clip": "and-it-draws",
-                    "caption": "Links go both ways? Say so, and it redraws.",
-                    "skip": "the take shows no visible change: the drawing looks the same after Direction is set (the plan cuts this clip first)"
-                },
-                {
-                    "clip": "combine-data",
-                    "caption": "Add a spreadsheet's columns to the nodes it matches.",
-                    "from": 0.6
-                }
-            ]
-        },
-        {
-            "marker": "Find what matters",
-            "chapter": {
-                "number": 2,
-                "title": "Find what matters",
-                "seconds": 2
-            },
-            "items": [
                 {
                     "clip": "find-groups",
-                    "caption": "Find groups: characters who mostly link to each other."
+                    "from": 1.0
                 },
                 {
-                    "clip": "ask-plain-words",
-                    "caption": "Type 'brokers': it finds who links the groups."
+                    "clip": "rule-under-10k",
+                    "from": 1.4
                 },
                 {
-                    "clip": "who-comes-first",
-                    "caption": "Every character in a table: Valjean ranks first."
-                },
-                {
-                    "clip": "shortest-path",
-                    "caption": "Trace how any two characters are connected."
-                },
-                {
-                    "clip": "what-holds-it",
-                    "caption": "Who would be cut off without Valjean?"
-                },
-                {
-                    "clip": "ask-assistant",
-                    "caption": "Or just ask: 'color by group, size by importance'."
-                }
-            ]
-        },
-        {
-            "marker": "Arrange it your way",
-            "chapter": {
-                "number": 3,
-                "title": "Arrange it your way",
-                "seconds": 2
-            },
-            "items": [
-                {
-                    "clip": "list-of-layouts",
-                    "caption": "Many ways to arrange a network, all in one list."
-                },
-                {
-                    "clip": "gephi-look",
-                    "caption": "Used to Gephi? ForceAtlas2 is here too."
-                },
-                {
-                    "clip": "ring-per-group",
-                    "caption": "Put each group on its own ring."
-                },
-                {
-                    "clip": "steps-from-one",
-                    "from": 1.4,
-                    "caption": "Everyone arranged by steps from Valjean."
-                },
-                {
-                    "clip": "drag-to-pin",
-                    "caption": "Drag a node and it stays where you put it."
-                }
-            ]
-        },
-        {
-            "marker": "Make it say something",
-            "chapter": {
-                "number": 4,
-                "title": "Make it say something",
-                "seconds": 2
-            },
-            "items": [
-                {
-                    "clip": "shape-around-groups",
-                    "caption": "Draw a shape around each group.",
-                    "from": 6.6
+                    "clip": "walk-neighbors",
+                    "from": 1.0
                 },
                 {
                     "clip": "point-out-group",
-                    "caption": "Light up one group with a layer."
+                    "from": 1.2
                 },
                 {
-                    "clip": "labels",
-                    "caption": "Show names from any column."
-                },
-                {
-                    "clip": "edges",
-                    "caption": "Thicker edges mean more chapters together."
-                },
-                {
-                    "clip": "legend-and-why",
-                    "caption": "A legend for every color, and why each node looks that way.",
+                    "clip": "fade-rest",
+                    "from": 1.3,
+                    "seconds": 9.0,
                     "zoom": false
                 }
             ]
         },
         {
-            "marker": "Step into 3D",
+            "marker": "Inside Alzheimer's disease",
             "chapter": {
-                "number": 5,
-                "title": "Step into 3D",
-                "seconds": 2
+                "number": 2,
+                "title": "Inside Alzheimer's disease",
+                "sub": "Real data: Open Targets, STRING"
             },
             "items": [
                 {
-                    "clip": "groups-pull-apart",
-                    "caption": "The same graph and results, now in 3D."
+                    "clip": "find-groups-alz",
+                    "from": 0.3
                 },
                 {
-                    "clip": "fly-to-group",
-                    "caption": "Fly to any group, then let it turn."
+                    "clip": "shape-around-groups",
+                    "from": 0.4
                 },
                 {
-                    "clip": "path-moves",
-                    "caption": "Make the path you found move, so it stands out in a talk."
+                    "clip": "bulk-select",
+                    "from": 1.4
                 },
                 {
-                    "clip": "models-and-pictures",
-                    "caption": "Swap the dots for 3D models."
+                    "clip": "bulk-style",
+                    "from": 1.6
                 },
                 {
-                    "card": "placeholder",
-                    "text": "Voice, AR and VR -- filmed by hand",
-                    "caption": "Talk to it, put it on your desk, or step inside it.",
-                    "seconds": 5
+                    "clip": "ask-assistant",
+                    "skip": "no footage yet: needs a take recorded with an AI provider key"
+                },
+                {
+                    "clip": "shortest-path",
+                    "from": 0.3,
+                    "seconds": 9.5
                 }
             ]
         },
         {
-            "marker": "Put it on a map",
+            "marker": "Follow the money",
             "chapter": {
-                "number": 6,
-                "title": "Put it on a map",
-                "seconds": 2
+                "number": 3,
+                "title": "Follow the money"
             },
             "items": [
                 {
-                    "clip": "sample-library",
-                    "from": 1.8,
-                    "caption": "No data of your own? Open the world's airline routes.",
-                    "seconds": 6.5
+                    "clip": "assign-location",
+                    "from": 1.1
                 },
                 {
-                    "clip": "map-layout",
+                    "clip": "money-map",
+                    "from": 1.3,
+                    "zoom": false,
+                    "seconds": 9.5
+                },
+                {
+                    "clip": "ask-plain-words",
+                    "skip": "cut for length: the tour runs to about 6 minutes; the map and the timeline carry the chapter"
+                },
+                {
+                    "clip": "who-comes-first",
+                    "skip": "cut for length: the tour runs to about 6 minutes; the map and the timeline carry the chapter"
+                },
+                {
+                    "clip": "timeline",
+                    "from": 1.2,
+                    "zoom": false
+                },
+                {
+                    "clip": "press-play",
+                    "from": 1.4,
+                    "zoom": false,
+                    "seconds": 11.0
+                }
+            ]
+        },
+        {
+            "marker": "Show what you found",
+            "chapter": {
+                "number": 4,
+                "title": "Show what you found"
+            },
+            "items": [
+                {
+                    "clip": "fly-to-group",
                     "from": 1.5,
-                    "caption": "Data with places? Put every node where it belongs."
-                },
-                {
-                    "clip": "flat-map",
-                    "skip": "first cut the plan names when the tour runs long; this take also filmed at only 6 fps",
-                    "caption": "Prefer it flat? One key turns the globe into a map."
-                },
-                {
-                    "clip": "map-styles",
-                    "from": 1.8,
-                    "caption": "Satellite, plain or terrain maps underneath."
+                    "zoom": false
                 },
                 {
                     "clip": "fewest-stops",
-                    "from": 0.9,
-                    "caption": "Fewest stops from Sydney to Iceland."
+                    "from": 0.5,
+                    "seconds": 13.0
+                },
+                {
+                    "clip": "thick-path",
+                    "from": 1.4
+                },
+                {
+                    "clip": "ar-vr",
+                    "skip": "no footage yet: needs AR and VR filmed by hand on the devices"
                 }
             ]
         },
         {
             "marker": "Go big",
             "chapter": {
-                "number": 7,
-                "title": "Go big",
-                "seconds": 2
+                "number": 5,
+                "title": "Go big"
             },
             "items": [
                 {
-                    "clip": "fifty-thousand",
-                    "caption": "No big network at hand? Make one with 50,000 nodes."
-                },
-                {
-                    "clip": "gpu-layout",
-                    "from": 2.0,
-                    "caption": "Your graphics card pulls it into shape in seconds."
-                },
-                {
-                    "clip": "fade-long-edges",
-                    "caption": "Fade the long edges, and the tangle thins out.",
-                    "drop": [6.5, 13.4]
+                    "clip": "bioplex-open",
+                    "from": 1.8,
+                    "zoom": false
                 },
                 {
                     "clip": "blend-glow",
-                    "caption": "Blend the lines, and the busiest parts glow."
+                    "from": 6.5,
+                    "zoom": false
+                },
+                {
+                    "clip": "fade-long-edges",
+                    "from": 4.6,
+                    "zoom": false,
+                    "seconds": 7.5
                 }
             ]
         },
         {
-            "marker": "Watch it change over time",
+            "marker": "And more",
             "chapter": {
-                "number": 8,
-                "title": "Watch it change over time",
-                "seconds": 2
+                "title": "And more"
             },
             "items": [
                 {
-                    "clip": "timeline",
-                    "caption": "Data with dates gets a timeline."
+                    "clip": "list-of-layouts",
+                    "from": 7.5,
+                    "seconds": 4.5,
+                    "zoom": false
                 },
                 {
-                    "clip": "press-play",
-                    "caption": "Press play: films (orange) arrive year by year."
+                    "clip": "gephi-look",
+                    "seconds": 3.5,
+                    "zoom": false
                 },
                 {
-                    "clip": "biggest-team-up",
-                    "caption": "Bigger means more cast: watch the biggest team-up take over."
+                    "clip": "drag-to-pin",
+                    "skip": "cut for length: the tour runs to about 6 minutes"
                 },
                 {
-                    "clip": "actor-years",
-                    "caption": "Pick an actor: see only the years of their films."
+                    "clip": "labels",
+                    "skip": "cut for length: the tour runs to about 6 minutes"
+                },
+                {
+                    "clip": "legend-and-why",
+                    "skip": "the 'Why this look' list is about 10 px at stage size and cannot be read"
+                },
+                {
+                    "clip": "bulk-layers",
+                    "from": 7.3,
+                    "seconds": 4.5,
+                    "zoom": false
+                },
+                {
+                    "clip": "what-holds-it",
+                    "from": 3.8,
+                    "seconds": 3.7,
+                    "zoom": false
+                },
+                {
+                    "clip": "path-moves",
+                    "from": 3.2,
+                    "seconds": 3.7,
+                    "zoom": false
+                },
+                {
+                    "clip": "models-and-pictures",
+                    "from": 10.0,
+                    "seconds": 3.6,
+                    "zoom": false
+                },
+                {
+                    "clip": "map-styles",
+                    "skip": "cut for length: the tour runs to about 6 minutes"
+                },
+                {
+                    "clip": "just-say-it",
+                    "skip": "no footage yet: voice input has to be filmed by hand"
                 }
             ]
         },
         {
-            "marker": "Save it and share it",
+            "marker": "Bring your own files",
             "chapter": {
-                "number": 9,
-                "title": "Save it and share it",
-                "seconds": 2
+                "number": 6,
+                "title": "Bring your own files",
+                "sub": "Gephi, Cytoscape, GraphML, CSV"
+            },
+            "items": [
+                {
+                    "clip": "drop-gephi",
+                    "from": 0.3,
+                    "dropMarks": ["opened", -0.3, "settled", 0],
+                    "zoom": false
+                },
+                {
+                    "clip": "opens-looking-same",
+                    "skip": "the app opens the Cytoscape session unreadable (tiny nodes, 16 stray layers, a notice over the canvas)"
+                },
+                {
+                    "clip": "spreadsheet",
+                    "from": 0.4,
+                    "dropMarks": ["drawn", -0.4, "settled", 0],
+                    "drop": [13.3, 21.3]
+                },
+                {
+                    "clip": "combine-data",
+                    "from": 7.0
+                },
+                {
+                    "clip": "paste-link",
+                    "skip": "it shows a second force layout settle on another dataset"
+                }
+            ]
+        },
+        {
+            "marker": "Share what you found",
+            "chapter": {
+                "number": 7,
+                "title": "Share what you found"
             },
             "items": [
                 {
                     "clip": "picture",
-                    "caption": "Copy a picture straight into your slides."
-                },
-                {
-                    "clip": "fly-through",
-                    "caption": "Make a fly-through video of your graph."
-                },
-                {
-                    "video": "~/ch9/les-miserables_fly-through.webm",
-                    "caption": "The video it made.",
-                    "seconds": 3.2
+                    "from": 2.4,
+                    "zoomAfter": "dialog"
                 },
                 {
                     "clip": "back-to-gephi",
-                    "caption": "Export to Gephi, Cytoscape, GraphML, CSV and more.",
-                    "zoom": "hold"
+                    "from": 3.0,
+                    "zoomAfter": "dialog"
                 },
                 {
                     "clip": "send-project",
-                    "caption": "Send the whole project to a colleague."
+                    "from": 4.2,
+                    "zoom": false,
+                    "drop": [7.15, 7.85]
                 },
                 {
                     "clip": "keeps-your-work",
-                    "caption": "Close the tab, come back, carry on."
+                    "from": 0.6,
+                    "zoom": false,
+                    "drop": [3.4, 5.1]
                 }
             ]
         },
@@ -333,32 +328,25 @@
                 {
                     "montage": [
                         {
-                            "clip": "find-groups"
+                            "clip": "fade-rest"
                         },
                         {
                             "clip": "shortest-path"
                         },
                         {
-                            "clip": "fly-to-group"
-                        },
-                        {
-                            "clip": "map-layout"
-                        },
-                        {
-                            "clip": "gpu-layout"
-                        },
-                        {
-                            "clip": "biggest-team-up"
+                            "clip": "thick-path"
                         }
                     ],
-                    "seconds": 6,
-                    "caption": "Open your network at graphty.app. Free, no sign-up, nothing to install."
+                    "caption": "Your data. Your questions. Your browser."
                 },
                 {
                     "card": "end",
-                    "seconds": 6,
                     "big": "graphty.app",
-                    "lines": ["Developers: graphty-element on npm, link below."]
+                    "lines": ["Free and open source \u2014 nothing to install"],
+                    "smallLines": [
+                        "Developers: @graphty/graphty-element on npm",
+                        "Alzheimer's data: Open Targets Platform; STRING v12.5"
+                    ]
                 }
             ]
         }

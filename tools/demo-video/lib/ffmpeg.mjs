@@ -3,6 +3,8 @@ import { spawn } from "node:child_process";
 
 import { FFMPEG } from "./env.mjs";
 
+const ended = (code, signal) => (signal ? "killed by " + signal : "exited " + code);
+
 /**
  * Run ffmpeg; rejects with the last lines of its log.
  * @param args - ffmpeg's arguments after the common ones
@@ -16,8 +18,15 @@ export function run(args, { quiet = true } = {}) {
         let err = "";
         p.stderr.on("data", (d) => (err += d));
         p.on("error", no);
-        p.on("exit", (code) =>
-            code === 0 ? ok(err) : no(new Error(`ffmpeg ${args.join(" ")}\n${err.split("\n").slice(-15).join("\n")}`)),
+        // a kill has no stderr of its own: say which signal ended it
+        p.on("exit", (code, signal) =>
+            code === 0
+                ? ok(err)
+                : no(
+                      new Error(
+                          `ffmpeg ${ended(code, signal)}: ${args.join(" ")}\n${err.split("\n").slice(-15).join("\n")}`,
+                      ),
+                  ),
         );
     });
 }

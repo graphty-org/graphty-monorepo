@@ -1,0 +1,36 @@
+{
+    "name": "round2-proof",
+    "crossfadeMs": 400,
+    "music": null,
+    "sections": [
+        {
+            "marker": "Intro",
+            "items": [
+                {
+                    "card": "title",
+                    "lines": ["Find what's hidden in connected data."],
+                    "laterLines": ["Ahead: a fraud case, Alzheimer's, your own files."]
+                }
+            ]
+        },
+        {
+            "marker": "Catch a fraud ring",
+            "chapter": { "number": 1, "title": "Catch a fraud ring", "sub": "Sample bank data \u2014 synthetic" },
+            "items": [{ "clip": "open-fraud" }, { "clip": "find-groups" }]
+        },
+        {
+            "marker": "Outro",
+            "items": [
+                {
+                    "montage": [{ "clip": "open-fraud" }, { "clip": "find-groups" }],
+                    "caption": "Your data. Your questions. Your browser."
+                },
+                {
+                    "card": "end",
+                    "big": "graphty.app",
+                    "lines": ["Free and open source \u2014 nothing to install"]
+                }
+            ]
+        }
+    ]
+}

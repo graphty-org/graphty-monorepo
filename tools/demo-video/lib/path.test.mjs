@@ -59,12 +59,12 @@ test("minimum jerk starts and stops smoothly", () => {
     for (let s = 0; s < 1; s += 0.01) assert.ok(minJerk(s + 0.01) >= minJerk(s));
 });
 
-test("typing runs about 8-12 characters a second, slower after spaces", () => {
+test("typing runs about 4.5-6.5 characters a second (66 wpm), slower after spaces", () => {
     const r = rng(3);
     const text = "find groups of characters who link to each other ".repeat(20);
     const d = typingDelays(text, r);
     const cps = (1000 * d.length) / d.reduce((a, b) => a + b, 0);
-    assert.ok(cps > 8 && cps < 12, `cps ${cps}`);
+    assert.ok(cps > 4.5 && cps < 6.5, `cps ${cps}`);
     for (const ms of d) assert.ok(ms >= TYPE.min && ms <= TYPE.max);
     const after = d.filter((_, i) => text[i - 1] === " ");
     const other = d.filter((_, i) => i > 0 && text[i - 1] !== " ");

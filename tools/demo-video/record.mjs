@@ -41,9 +41,11 @@ function walk(d) {
 
 /**
  * Every clip module, in folder and file order.
+ * @param [only] - the ids being recorded: a shared id elsewhere (another author mid-move) is then
+ * no reason to refuse; only a picked id must be unique
  * @returns the clips' default exports, each with its `file`
  */
-export async function allClips() {
+export async function allClips(only = null) {
     const out = [];
     for (const f of walk(join(TOOL, "clips"))) {
         const m = (await import(pathToFileURL(f).href)).default;
@@ -51,7 +53,7 @@ export async function allClips() {
         out.push({ ...m, file: f });
     }
     const ids = out.map((c) => c.id);
-    const dup = ids.find((id, i) => ids.indexOf(id) !== i);
+    const dup = ids.find((id, i) => ids.indexOf(id) !== i && (!only || only.includes(id)));
     if (dup) throw new Error(`two clips share the id ${dup}`);
     return out;
 }
@@ -160,6 +162,22 @@ function choose(clips, o) {
     return picked;
 }
 
+/**
+ * What is wrong with a caption, by the craft rules (research-craft.md, rule 9): one line a viewer reads
+ * in a glance, a real em dash, never "--".
+ * @param text - the caption
+ * @returns the problems, in words (none for a good caption)
+ */
+export function captionProblems(text) {
+    const out = [];
+    const words = text.split(/\s+/).filter((w) => w && w !== "\u2014").length;
+    if (words > 10) out.push(`CAPTION ${words} words (at most 10, aim at 3-7)`);
+    if (text.length > 42) out.push(`CAPTION ${text.length} characters (at most 42)`);
+    if (text.includes("--")) out.push(String.raw`CAPTION uses "--": write the em dash as \u2014`);
+    if (/\bdots?\b/i.test(text)) out.push('CAPTION says "dots": they are nodes');
+    return out;
+}
+
 // record one clip and write its json
 async function recordOne(clip, origin) {
     const r = clip.placeholder ? await recordPlaceholder(clip) : await recordReal(clip, origin);
@@ -168,7 +186,7 @@ async function recordOne(clip, origin) {
         id: clip.id,
         chapter: clip.chapter,
         caption: clip.caption,
-        small: clip.small ?? null,
+        tag: clip.tag ?? null,
         dataset: clip.dataset ?? null,
         featuresOff: clip.featuresOff ?? [],
         size: `${W}x${H}`,
@@ -180,7 +198,8 @@ async function recordOne(clip, origin) {
     writeFileSync(join(CLIPS, `${clip.id}.json`), JSON.stringify(meta, null, 1) + "\n");
     const notes = [`${meta.seconds} s`];
     if (meta.capturedFps) notes.push(`filmed at ${meta.capturedFps} fps`);
-    if (meta.seconds > 8.1) notes.push("OVER 8 s: split or cut it");
+    if (meta.seconds > 10.1) notes.push("OVER 10 s: split or cut it");
+    notes.push(...captionProblems(clip.caption ?? ""));
     if (meta.problems?.length) notes.push(`PROBLEMS: ${meta.problems.join(" | ")}`);
     console.log(`${clip.id}: ${notes.join(", ")} -> ${mp4}`);
 }
@@ -194,7 +213,7 @@ async function main() {
             list: { type: "boolean", default: false },
         },
     });
-    const clips = await allClips();
+    const clips = await allClips(o.only?.split(",").filter(Boolean));
     if (o.list) {
         for (const c of clips)
             console.log(

@@ -1,0 +1,68 @@
+{
+    "name": "r2-share-outro",
+    "crossfadeMs": 400,
+    "music": null,
+    "sections": [
+        {
+            "marker": "Share what you found",
+            "chapter": {
+                "number": 7,
+                "title": "Share what you found"
+            },
+            "items": [
+                {
+                    "clip": "picture",
+                    "caption": "Copy a picture for your slides",
+                    "zoomAfter": "dialog"
+                },
+                {
+                    "clip": "back-to-gephi",
+                    "caption": "Export to Gephi, Cytoscape or CSV",
+                    "zoomAfter": "dialog"
+                },
+                {
+                    "clip": "send-project",
+                    "caption": "Send the whole case to a colleague",
+                    "zoom": false,
+                    "drop": [7.15, 7.85]
+                },
+                {
+                    "clip": "keeps-your-work",
+                    "caption": "Close the tab. Your work stays.",
+                    "zoom": false
+                }
+            ]
+        },
+        {
+            "marker": "Outro",
+            "items": [
+                {
+                    "montage": [
+                        {
+                            "clip": "fade-rest"
+                        },
+                        {
+                            "clip": "shortest-path"
+                        },
+                        {
+                            "clip": "money-map"
+                        },
+                        {
+                            "clip": "thick-path"
+                        }
+                    ],
+                    "caption": "Your data. Your questions. Your browser."
+                },
+                {
+                    "card": "end",
+                    "big": "graphty.app",
+                    "lines": ["Free and open source \u2014 nothing to install"],
+                    "smallLines": [
+                        "Developers: @graphty/graphty-element on npm",
+                        "Alzheimer's data: Open Targets Platform; STRING v12.5"
+                    ]
+                }
+            ]
+        }
+    ]
+}

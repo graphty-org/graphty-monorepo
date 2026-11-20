@@ -10,7 +10,7 @@
 import { basename } from "node:path";
 
 import { installOverlay } from "./overlay.mjs";
-import { aimPoint, minJerk, planMove, rng, typingDelays } from "./path.mjs";
+import { aimPoint, minJerk, planMove, rng, TYPE, typingDelays } from "./path.mjs";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const FRAME = 1000 / 60;
@@ -170,16 +170,37 @@ export async function createHuman(page, seed) {
         rightClick: (target, options = {}) => h.click(target, { ...options, button: "right" }),
 
         /**
-         * Type text at about 8-12 characters a second (focus a field first with h.click).
+         * Type text at about 5.5 characters a second (focus a field first with h.click): a look at the
+         * field before the first key, a beat after the last. Only what a person would type, at most
+         * 25 characters: anything longer is pasted (h.paste).
          * @param text - what to type
          */
         async type(text) {
+            if (text.length > 25) throw new Error(`"${text}" is over 25 characters: a person would paste it (h.paste)`);
             const delays = typingDelays(text, r);
-            log({ type: "type", text, ms: delays.reduce((a, b) => a + b, 0) });
+            const think = r.range(...TYPE.think);
+            const after = r.range(...TYPE.after);
+            log({ type: "type", text, ms: think + delays.reduce((a, b) => a + b, 0) + after });
+            await sleep(think);
             for (let i = 0; i < text.length; i++) {
                 await sleep(delays[i]);
                 await page.keyboard.type(text[i]);
             }
+            await sleep(after);
+        },
+
+        /**
+         * Paste text into the focused field, with a Ctrl+V key badge (long text, a web address).
+         * @param text - what is pasted
+         * @param options - where the badge shows
+         * @param options.near - a target to show the badge above (default: by the cursor)
+         */
+        async paste(text, { near } = {}) {
+            await h.badge("Ctrl+V", { near, label: "Paste" });
+            await sleep(r.range(...TYPE.think));
+            log({ type: "paste", text, badge: true });
+            await page.keyboard.insertText(text);
+            await sleep(r.range(...TYPE.after));
         },
 
         /**
@@ -281,41 +302,98 @@ export async function createHuman(page, seed) {
         },
 
         /**
-         * Drag a file in from the left edge of the screen and drop it on a target: a real browser
-         * drag (CDP Input.dispatchDragEvent with the file's path), so the page sees trusted
-         * dragenter, dragover and drop events carrying the file, and its "Drop to open" card shows.
-         * @param file - the file's path
+         * Drag a file out of a folder window and drop it on a target. The overlay draws the window
+         * (title `folder`, the `files` listed) at the left of the screen; the hand goes to the file,
+         * presses and drags it over the app. The drag is a real browser drag (CDP
+         * Input.dispatchDragEvent with the file's path), so the page sees trusted dragenter, dragover
+         * and drop events carrying the file. The window closes after the drop.
+         * @param file - the file's path (its name must be one of `files`, or is added)
          * @param target - where to drop it (default the middle of the screen)
-         * @param options - where the drag starts
-         * @param options.from - the start point (default the left edge)
+         * @param options - the window
+         * @param options.folder - the window's title (a folder name)
+         * @param options.files - the file names listed, 3-6 of them
+         * @param options.at - where the window's top left corner sits (default {x: 48, y: 250})
          */
-        async dropFile(file, target = null, { from } = {}) {
+        async dropFile(file, target = null, { folder = "Downloads", files = [], at = { x: 48, y: 250 } } = {}) {
+            const name = basename(file);
+            const list = files.includes(name) ? files : [name, ...files];
+            const boxes = await page.evaluate((o) => globalThis.__demoOverlay.window(o), {
+                folder,
+                files: list,
+                open: false,
+                ...at,
+            });
+            log({ type: "window", folder, files: list, box: { ...boxes.frame, label: "box" } });
+            await sleep(r.range(500, 700)); // the window is seen before the hand reaches it
+            const i = list.indexOf(name);
+            const row = boxes.rows[i];
+            await h.move({ ...row, width: Math.min(row.width, 260) }); // onto the file's icon and name
+            await sleep(r.range(250, 400));
             cdp ??= await page.context().newCDPSession(page);
             dragData = { items: [], files: [file], dragOperationsMask: 1 };
-            const start = from ?? { x: 6, y: r.range(380, 700) };
-            const vp = page.viewportSize();
-            // a hand on screen first goes out of the left edge to fetch the file, so it never jumps there
-            if (pos.x > 0 && pos.y > 0 && pos.x < vp.width && pos.y < vp.height && !from) {
-                await h.move({ x: 1, y: start.y });
-                await sleep(r.range(250, 400));
-            }
-            await h.park(start);
-            await page.evaluate((n) => globalThis.__demoOverlay.file(n), basename(file));
-            await cdp.send("Input.dispatchDragEvent", { type: "dragEnter", x: start.x, y: start.y, data: dragData });
+            await page.evaluate((k) => {
+                globalThis.__demoOverlay.press(true);
+                globalThis.__demoOverlay.taken(k);
+                return null;
+            }, i);
+            await page.evaluate((n) => globalThis.__demoOverlay.file(n), name);
+            await cdp.send("Input.dispatchDragEvent", { type: "dragEnter", x: pos.x, y: pos.y, data: dragData });
             const box = await boxOf(target ?? SCREEN_MIDDLE);
             const aim = aimAt(box);
             const p = plan(pos, aim, box, 1.5);
-            log({ type: "file-drag", file: basename(file), from: start, to: aim, ms: p.ms, box });
+            log({ type: "file-drag", file: name, from: pos, to: aim, ms: p.ms, box });
             await glide(p, true);
             await sleep(r.range(350, 500)); // let the drop card be seen
-            log({ type: "drop", file: basename(file), x: pos.x, y: pos.y, box });
+            log({ type: "drop", file: name, x: pos.x, y: pos.y, box });
             await cdp.send("Input.dispatchDragEvent", { type: "drop", x: pos.x, y: pos.y, data: dragData });
-            await page.evaluate(() => globalThis.__demoOverlay.file(null));
+            await page.evaluate(() => {
+                globalThis.__demoOverlay.file(null);
+                globalThis.__demoOverlay.press(false);
+                globalThis.__demoOverlay.closeWindow();
+                return null;
+            });
             await page.mouse.move(pos.x, pos.y);
         },
 
         /**
-         * Click a control that opens the browser's file chooser, and choose the file in it.
+         * Open a file the way a viewer can follow: click the app's real control that opens the file
+         * chooser (Open a file), then pick the file in an Open dialog the overlay draws (headless
+         * Chromium shows none): the folder `folder`, the files `files` with their kinds. The hand
+         * moves to the file, its row highlights, the hand clicks Open; the dialog closes and the
+         * real file chooser gets the file. The dialog stays up at least `minMs` so its names are read.
+         * @param target - the control that opens the chooser (a Locator, a button's name...)
+         * @param file - the file's path (its name must be one of `files`, or is added)
+         * @param options - the dialog
+         * @param options.folder - the folder shown
+         * @param options.files - the file names listed, 4-6 of them
+         * @param options.minMs - the least time the dialog is up (default 2500)
+         */
+        async openFile(target, file, { folder = "Downloads", files = [], minMs = 2500 } = {}) {
+            const name = basename(file);
+            const list = files.includes(name) ? files : [name, ...files];
+            const chooser = page.waitForEvent("filechooser");
+            await h.click(target);
+            const fc = await chooser;
+            const boxes = await page.evaluate((o) => globalThis.__demoOverlay.window(o), {
+                folder,
+                files: list,
+                open: true,
+            });
+            const shown = Date.now();
+            log({ type: "window", folder, files: list, box: { ...boxes.frame, label: "box" } });
+            await sleep(r.range(600, 900)); // the eye finds the dialog and reads the folder
+            const row = boxes.rows[list.indexOf(name)];
+            await h.click({ ...row, width: Math.min(row.width, 380) });
+            await sleep(Math.max(r.range(350, 550), minMs - (Date.now() - shown) - 900));
+            await h.click(boxes.open);
+            await page.evaluate(() => globalThis.__demoOverlay.closeWindow());
+            await fc.setFiles(file);
+            log({ type: "choose-file", file: name });
+        },
+
+        /**
+         * Click a control that opens the browser's file chooser, and choose the file in it, with no
+         * dialog drawn (prefer h.openFile: a file appearing from nowhere is hard to follow).
          * @param target - the control
          * @param file - the file's path
          */

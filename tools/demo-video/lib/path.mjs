@@ -183,7 +183,10 @@ export function planMove(from, to, size, r, { slow = 1, bounds = null } = {}) {
     return { segments, ms, at };
 }
 
-export const TYPE = { cps: 9.5, sigma: 0.28, min: 45, max: 320 };
+// 5.5 characters a second (66 wpm): a competent typist, a little above the 52 wpm mean of 168,000
+// typists (Dhakal et al., CHI 2018); round 1's 9.5 (114 wpm) looked unreal. `think` is the look at the
+// field before the first key, `after` the beat after the last (tmp/demo-video/rework/research-craft.md, rule 7).
+export const TYPE = { cps: 5.5, sigma: 0.28, min: 80, max: 420, think: [350, 600], after: [300, 500] };
 
 /**
  * Per-key delays for typing `text`, log-normal around TYPE.cps characters a second, longer after a

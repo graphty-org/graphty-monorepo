@@ -28,6 +28,9 @@ import { openWorkbook, type SheetRows, type Workbook } from "./workbook.js";
 /** The default total of uncompressed bytes one import may inflate (2 GiB), as for Cytoscape sessions. */
 const DEFAULT_MAX_UNCOMPRESSED = 2 * 1024 * 1024 * 1024;
 
+/** The longest text a JavaScript engine is sure to hold (V8's limit), which a sheet's table text may not pass. */
+const MAX_TABLE_TEXT = 2 ** 29 - 24;
+
 /**
  * The options of the workbook importer: which sheet, the archive's byte budget, and the CSV
  * importer's table options, which a sheet is read by.
@@ -60,7 +63,9 @@ export interface XlsxImportOptions
     sheet?: string | undefined;
     /**
      * The most bytes one import may unpack from the workbook archive, in total (2 GiB). A file that
-     * would unpack to more, or one compressed more than 1000 to 1, fails with E_TOO_LARGE.
+     * would unpack to more, or one compressed more than 1000 to 1, fails with E_TOO_LARGE, as does a
+     * sheet whose cells add up to more characters than this (or than about 536 million), which a
+     * small sheet can when many cells repeat one long shared string.
      * @defaultValue 2147483648
      */
     maxUncompressedBytes?: number | undefined;
@@ -149,23 +154,34 @@ function quote(text: string): string {
 }
 
 /**
- * A sheet's rows as CSV text: every row as wide as the widest used column, an empty row for each
- * row without a value (so a CSV line number is the sheet's row number), trailing empty rows and
- * columns left out. The empty cells this fills count against `maxEmptyCells`.
+ * A sheet's rows as CSV text: every row as wide as the used columns, an empty row for each
+ * row without a value (so a CSV line number is the sheet's row number), leading and trailing empty
+ * columns and trailing empty rows left out. The empty cells this fills count against
+ * `maxEmptyCells`, and the text's length against `maxChars` (E_TOO_LARGE).
  * @param sheet - the sheet's cells
- * @param maxEmptyCells - the most empty cells allowed
+ * @param limits - the most empty cells and characters allowed
+ * @param limits.maxEmptyCells - the most empty cells allowed
+ * @param limits.maxChars - the most characters the text may hold
  * @param report - the report
  * @returns the text
  */
-function tableText(sheet: SheetRows, maxEmptyCells: number, report: ImportReportBuilder): string {
-    let width = 0;
+function tableText(
+    sheet: SheetRows,
+    limits: { maxEmptyCells: number; maxChars: number },
+    report: ImportReportBuilder,
+): string {
+    const { maxEmptyCells, maxChars } = limits;
+    let first = Infinity;
+    let end = 0;
     let filled = 0;
     for (const { cells } of sheet.rows) {
         filled += cells.length;
         for (const cell of cells) {
-            width = Math.max(width, cell.column + 1);
+            first = Math.min(first, cell.column);
+            end = Math.max(end, cell.column + 1);
         }
     }
+    const width = Math.max(0, end - first);
     const empty = sheet.rows.length * width - filled;
     if (empty > maxEmptyCells) {
         report.failWith(
@@ -176,15 +192,25 @@ function tableText(sheet: SheetRows, maxEmptyCells: number, report: ImportReport
     }
     const lines: string[] = [];
     let line = 1;
+    let chars = 0;
     for (const { row, cells } of sheet.rows) {
         for (; line < row; line++) {
             lines.push("");
         }
         const fields = new Array<string>(width).fill("");
         for (const { column, text, quoted } of cells) {
-            fields[column] = quoted ? quote(text) : text;
+            fields[column - first] = quoted ? quote(text) : text;
         }
-        lines.push(fields.join(","));
+        const joined = fields.join(",");
+        chars += joined.length + 1;
+        if (chars > maxChars) {
+            report.failWith(
+                "unsupported",
+                XLSX_ISSUE.TOO_LARGE,
+                `the sheet's cells hold more than ${maxChars} characters`,
+            );
+        }
+        lines.push(joined);
         line++;
     }
     return lines.join("\n");
@@ -205,7 +231,8 @@ export async function importXlsx(
     const common = resolveImportOptions(options, { ids: "canonical", defaultDirected: true, weightFrom: "weight" });
     const report = new ImportReportBuilder(XLSX_FORMAT, common.errorLimit);
     const { sheet: _sheet, maxUncompressedBytes, graphIndex: _index, graphName: _name, ...table } = options;
-    const workbook = await openWorkbook(input, report, common, budgetOf(maxUncompressedBytes));
+    const budget = budgetOf(maxUncompressedBytes);
+    const workbook = await openWorkbook(input, report, common, budget);
     const chosen = workbook.sheets[chooseSheet(workbook, options, report)];
     report.resolve("sheet", chosen.name);
     const cells = await workbook.rows(chosen);
@@ -229,7 +256,7 @@ export async function importXlsx(
     }
     // importGraph's maxEmptyCells reaches the importer as the budget of the builder it fills
     const maxEmptyCells = sink instanceof CellBudgetBuilder ? sink.maxEmptyCells : maxEmptyCellsOption(undefined);
-    const text = tableText(cells, maxEmptyCells, report);
+    const text = tableText(cells, { maxEmptyCells, maxChars: Math.min(budget, MAX_TABLE_TEXT) }, report);
     let read: ImportReport;
     try {
         read = await csvImporter.import(text, sink, { ...table, delimiter: ",", decimal: "." });

@@ -190,12 +190,20 @@ export function resolveTarget(folder: string, target: string): string | null {
  * @returns true for a date or time format
  */
 export function isDateFormatCode(code: string): boolean {
-    const bare = code
+    return /[dmyhs]/i.test(formatLetters(code));
+}
+
+/**
+ * A format code without its quoted text, brackets, escaped characters and padding.
+ * @param code - the format code
+ * @returns the letters that format the value
+ */
+function formatLetters(code: string): string {
+    return code
         .replaceAll(/"[^"]*"/g, "")
         .replaceAll(/\[[^\]]*\]/g, "")
         .replaceAll(/\\./g, "")
         .replaceAll(/_./g, "");
-    return /[dmyhs]/i.test(bare);
 }
 
 /**
@@ -479,7 +487,7 @@ async function readStyles(
         const code = codes.get(id);
         const date = code === undefined ? DATE_FORMAT_IDS.has(id) : isDateFormatCode(code);
         dates.push(date);
-        const timeless = code === undefined ? id >= 14 && id <= 17 : !/[hs]/i.test(code.replaceAll(/"[^"]*"/g, ""));
+        const timeless = code === undefined ? id >= 14 && id <= 17 : !/[hs]/i.test(formatLetters(code));
         dateOnly.push(date && timeless);
     }
     return { dates, dateOnly };

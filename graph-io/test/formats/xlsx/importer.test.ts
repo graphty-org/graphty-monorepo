@@ -36,6 +36,45 @@ async function failure(promise: Promise<unknown>): Promise<ImportError> {
     throw new Error("the import did not fail");
 }
 
+const MAIN = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+const REL = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+const PKG_REL = "http://schemas.openxmlformats.org/package/2006/relationships";
+
+/** A one-sheet workbook from its sheet data, shared strings and number formats. */
+function book(rows: string, strings: readonly string[] = [], formats: readonly string[] = []): Uint8Array {
+    const numFmts = formats.map((code, i) => `<numFmt numFmtId="${165 + i}" formatCode="${code}"/>`).join("");
+    const xfs = formats.map((_, i) => `<xf numFmtId="${165 + i}"/>`).join("");
+    return makeZip([
+        {
+            name: "_rels/.rels",
+            data: `<Relationships xmlns="${PKG_REL}"><Relationship Id="rId1" Type="${REL}/officeDocument" Target="xl/workbook.xml"/></Relationships>`,
+        },
+        {
+            name: "xl/workbook.xml",
+            data: `<workbook xmlns="${MAIN}" xmlns:r="${REL}"><sheets><sheet name="S" sheetId="1" r:id="rId1"/></sheets></workbook>`,
+        },
+        {
+            name: "xl/_rels/workbook.xml.rels",
+            data:
+                `<Relationships xmlns="${PKG_REL}"><Relationship Id="rId1" Type="${REL}/worksheet" Target="worksheets/sheet1.xml"/>` +
+                `<Relationship Id="rIdS" Type="${REL}/sharedStrings" Target="sharedStrings.xml"/>` +
+                `<Relationship Id="rIdT" Type="${REL}/styles" Target="styles.xml"/></Relationships>`,
+        },
+        {
+            name: "xl/sharedStrings.xml",
+            data: `<sst xmlns="${MAIN}">${strings.map((text) => `<si><t>${text}</t></si>`).join("")}</sst>`,
+        },
+        {
+            name: "xl/styles.xml",
+            data: `<styleSheet xmlns="${MAIN}"><numFmts>${numFmts}</numFmts><cellXfs><xf numFmtId="0"/>${xfs}</cellXfs></styleSheet>`,
+        },
+        {
+            name: "xl/worksheets/sheet1.xml",
+            data: `<worksheet xmlns="${MAIN}"><sheetData>${rows}</sheetData></worksheet>`,
+        },
+    ]);
+}
+
 describe("the workbook importer", () => {
     it("reads a workbook's second sheet by its name", async () => {
         const { snapshot, report } = await importGraph(fixture("two-sheets.xlsx"), { format: "xlsx", sheet: "Links" });
@@ -141,6 +180,47 @@ describe("the workbook importer", () => {
             importGraph(fixture("hostile/far-cell.xlsx"), { format: "xlsx", maxEmptyCells: 1000 }),
         );
         expect(wide.issue?.code).toBe(XLSX_ISSUE.TOO_MANY_EMPTY_CELLS);
+    });
+
+    it("reads a date format with no time as a date, whatever its brackets and escapes hold", async () => {
+        const rows =
+            '<row r="1"><c r="A1" t="inlineStr"><is><t>id</t></is></c><c r="B1" t="inlineStr"><is><t>long</t></is></c>' +
+            '<c r="C1" t="inlineStr"><is><t>escaped</t></is></c></row>' +
+            '<row r="2"><c r="A2" t="inlineStr"><is><t>a</t></is></c><c r="B2" s="1"><v>45000</v></c>' +
+            '<c r="C2" s="2"><v>45000</v></c></row>';
+        const formats = ["[$-x-sysdate]dddd, mmmm dd, yyyy", String.raw`yyyy-mm-dd\h\s`];
+        const { snapshot } = await importGraph(book(rows, [], formats), { format: "xlsx", table: "nodes" });
+        expect(cell(snapshot, "long", "a")).toBe("2023-03-15");
+        expect(cell(snapshot, "escaped", "a")).toBe("2023-03-15");
+    });
+
+    it("reads a table that starts right of column A with no extra column", async () => {
+        const rows =
+            '<row r="1"><c r="B1" t="s"><v>0</v></c><c r="C1" t="s"><v>1</v></c></row>' +
+            '<row r="2"><c r="B2" t="s"><v>2</v></c><c r="C2" t="s"><v>3</v></c></row>';
+        const { snapshot } = await importGraph(book(rows, ["id", "name", "a", "b"]), {
+            format: "xlsx",
+            table: "nodes",
+        });
+        expect(snapshot.nodeCount).toBe(1);
+        expect(snapshot.nodes.names()).not.toContain("column1");
+        expect(cell(snapshot, "name", "a")).toBe("b");
+    });
+
+    it("bounds the text a sheet's repeated shared strings make", async () => {
+        const long = "x".repeat(10_000);
+        const rows = Array.from(
+            { length: 200 },
+            (_, i) => `<row r="${i + 1}"><c r="A${i + 1}" t="s"><v>0</v></c></row>`,
+        );
+        const error = await failure(
+            importGraph(book(rows.join(""), [long]), {
+                format: "xlsx",
+                table: "nodes",
+                maxUncompressedBytes: 1_000_000,
+            }),
+        );
+        expect(error.issue?.code).toBe(XLSX_ISSUE.TOO_LARGE);
     });
 
     it("keeps a header cell named __proto__ as a column, leaving Object.prototype alone", async () => {

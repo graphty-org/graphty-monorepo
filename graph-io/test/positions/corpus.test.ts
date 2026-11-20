@@ -7,7 +7,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { GraphBuilder, type GraphSnapshot } from "@graphty/graph-format";
+import { coordinateSystemOf, GraphBuilder, type GraphSnapshot } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
 import { createRegistry, type ImportInput } from "../../src/index.js";
@@ -224,6 +224,15 @@ const CASES: readonly Case[] = [
         dims: 2,
     },
     {
+        name: "XGMML graphics x / y: already y up",
+        file: join(CORPUS, "xgmml", "cytoscape3-small.xgmml"),
+        format: "xgmml",
+        expect: {},
+        units: "file",
+        yAxis: "up",
+        dims: 2,
+    },
+    {
         name: "Cytoscape session (cys): already y up",
         file: join(CORPUS, "cys", "karate-3x.cys"),
         format: "cys",
@@ -260,6 +269,14 @@ describe("extractPositions over each format's samples", () => {
         }
         expect(p.coords.length).toBe(3 * snapshot.nodeCount);
         expect(p.bounds).not.toBeNull();
+        // the position column describes the same y direction to a consumer that reads no format
+        const column = snapshot.nodes.byRole("position");
+        if (column !== null) {
+            const system = coordinateSystemOf(column.meta);
+            expect(system.kind).toBe("cartesian");
+            expect(system.yAxis).toBe(c.yAxis);
+            expect(system.order).toEqual(["x", "y", "z"]);
+        }
     });
 
     it("an unchanged column keeps the values the file wrote (the conversion is computed, not stored)", async () => {

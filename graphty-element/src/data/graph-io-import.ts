@@ -408,7 +408,8 @@ class FirstValueBuilder extends GraphBuilder {
 function rowOf(snapshot: GraphSnapshot, table: "nodes" | "edges", row: number): ImportedRecord {
     const record: ImportedRecord = {};
     for (const column of snapshot[table]) {
-        if (column.meta.name !== WEIGHT_COLUMN_NAME && column.isSet(row)) {
+        // the position is written once, as `position: { x, y, z }`, by importRecords
+        if (column.meta.name !== WEIGHT_COLUMN_NAME && column.meta.role !== "position" && column.isSet(row)) {
             record[column.meta.name] = column.value(row);
         }
     }
@@ -501,7 +502,15 @@ export async function importRecords<O>(
         throw error;
     }
 
-    return { ...recordsOf(builder.freeze()), report, aborted: false };
+    const snapshot = builder.freeze();
+    const records = recordsOf(snapshot);
+    // A node the file placed carries `position: { x, y, z }`, as toRecords writes it; nodes are in row order.
+    placeRecords(
+        records.nodes.map((node) => node.data),
+        filePositionsOf({ importer, snapshot, report }),
+        (_record, row) => row,
+    );
+    return { ...records, report, aborted: false };
 }
 
 /**

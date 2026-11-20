@@ -197,6 +197,25 @@ function setAsideAndDispose<T>(nodes: Iterable<Node>, edges: Iterable<Edge>, tea
 }
 
 /**
+ * Paint `Node`s just built for rows a batch drew: the meshes their paint rebuilds go in one teardown,
+ * then each takes its paint and is drawn at its place, which a frame's update would otherwise write
+ * only at the next frame.
+ * @param built - Each `Node` and its paint.
+ */
+function paintBuilt(built: readonly [Node, NodePaint][]): void {
+    const rebuilt = built.filter(([node, paint]) => nodeRebuildsFor(node, paint)).map(([node]) => node);
+    disposeReleased(rebuilt, [], () => {
+        for (const node of rebuilt) {
+            releaseNodeMesh(node);
+        }
+    });
+    for (const [node, paint] of built) {
+        node.applySessionPaint(paint);
+        node.update();
+    }
+}
+
+/**
  * Put the survivors a teardown set aside back into a list it emptied, ahead of anything it added.
  * @param list - The list.
  * @param survivors - What was in it before.
@@ -426,6 +445,12 @@ export const dataManagerInternals = {} as {
     /** Build the `Node` of every row stored with no `Node` yet, then the `Edge` of every edge stored with none. */
     buildAll(manager: DataManager): void;
     /**
+     * Run `build`, which builds rows' `Node`s with {@link buildRow} and reads none of their meshes,
+     * and paint every `Node` it built together when it returns, in one teardown of the meshes their
+     * paint rebuilds rather than one per row.
+     */
+    buildingRows<T>(manager: DataManager, build: () => T): T;
+    /**
      * Every node as an array, building none until its element is read (see `Graph.getNodes`), in
      * the order `nodes` walks them.
      */
@@ -512,6 +537,8 @@ interface UnbuiltRows<K, V> {
     /** Their ids, as a fresh array. */
     ids(): K[];
     build(id: K): V | undefined;
+    /** Runs `build`, which builds many, so they are built as one (`DataManager.buildingRows`). */
+    together(build: () => void): void;
 }
 
 /**
@@ -631,9 +658,11 @@ class LazyView<K, V> extends Map<K, V> {
     #buildAll(): void {
         const rows = this.#rows;
         if (rows !== null) {
-            for (const id of rows.ids()) {
-                rows.build(id);
-            }
+            rows.together(() => {
+                for (const id of rows.ids()) {
+                    rows.build(id);
+                }
+            });
         }
     }
 
@@ -723,6 +752,9 @@ export class DataManager implements Manager {
         count: () => this.unbuilt.size,
         ids: () => [...this.unbuilt.values()].map((row) => row.id),
         build: (id) => this.buildRow(id),
+        together: (build) => {
+            this.buildingRows(build);
+        },
     };
     private readonly nodeMap = new LazyView<NodeIdType, Node>().lazy(this.unbuiltRows);
     /**
@@ -742,6 +774,9 @@ export class DataManager implements Manager {
         count: () => this.unbuiltEdges.size,
         ids: () => [...this.unbuiltEdgeIds.keys()],
         build: (id) => this.buildEdgeRow(this.unbuiltEdgeIds.get(id) ?? INVALID_INDEX),
+        together: (build) => {
+            build();
+        },
     });
     private readonly edgeRows: (Edge | undefined)[] = [];
     /** Who else holds rows by index (the session's selection), told after the render objects. */
@@ -782,10 +817,13 @@ export class DataManager implements Manager {
         };
         dataManagerInternals.buildRow = (manager, id) => manager.buildRow(id);
         dataManagerInternals.nodeList = (manager) => manager.nodeMap.lazyValues();
+        dataManagerInternals.buildingRows = (manager, build) => manager.buildingRows(build);
         dataManagerInternals.buildAll = (manager) => {
-            for (const id of manager.unbuiltRows.ids()) {
-                manager.buildRow(id);
-            }
+            manager.buildingRows(() => {
+                for (const id of manager.unbuiltRows.ids()) {
+                    manager.buildRow(id);
+                }
+            });
 
             // Only a row line draws an edge stored with no `Edge`, and the objects path has none.
             for (const row of [...manager.unbuiltEdges.keys()]) {
@@ -885,6 +923,8 @@ export class DataManager implements Manager {
     nodeVersion = 0;
     /** See `dataManagerInternals.lateNodeVersions`. */
     private lateNodeVersions = 0;
+    /** The rows built inside {@link buildingRows} and the paint each waits for; null outside one. */
+    private builtToPaint: [Node, NodePaint][] | null = null;
     nodeCache: Map<NodeIdType, Node> = new LazyView<NodeIdType, Node>().lazy(this.unbuiltRows);
     /** See `dataManagerInternals.setLayoutRows`; no engine yet needs no hand-over. */
     private layoutRows: ((ids: readonly NodeIdType[]) => void) | null = noLayoutRows;
@@ -2733,15 +2773,34 @@ export class DataManager implements Manager {
             return;
         }
 
-        if (nodeRebuildsFor(node, paint)) {
-            disposeReleased([node], [], () => {
-                releaseNodeMesh(node);
-            });
+        if (this.builtToPaint === null) {
+            paintBuilt([[node, paint]]);
+        } else {
+            this.builtToPaint.push([node, paint]);
+        }
+    }
+
+    /**
+     * Build any number of rows' `Node`s inside `build` and paint them together when it returns: a
+     * paint that rebuilds a mesh pays a pass over every scene list (`disposeReleased`), so rows built
+     * one by one, each painted on its own, cost the size of the scene per row. Only a caller that
+     * reads none of the new `Node`s' meshes until `build` returns may use it.
+     * @param build - Builds the rows.
+     * @returns What `build` returns.
+     */
+    private buildingRows<T>(build: () => T): T {
+        if (this.builtToPaint !== null) {
+            return build();
         }
 
-        node.applySessionPaint(paint);
-        // and at its place, which a frame's update would otherwise write only at the next frame
-        node.update();
+        const built: [Node, NodePaint][] = [];
+        this.builtToPaint = built;
+        try {
+            return build();
+        } finally {
+            this.builtToPaint = null;
+            paintBuilt(built);
+        }
     }
 
     /**

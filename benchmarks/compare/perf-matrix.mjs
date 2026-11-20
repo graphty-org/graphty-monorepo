@@ -3,7 +3,7 @@
 //
 //   node perf-matrix.mjs list [--gate-set] [--only <regex>]
 //   BENCH_URL=<page> node perf-matrix.mjs run <results.jsonl> [--gate-set] [--only <regex>] [--reps <k>]
-//                                                               [--paths objects,batched]
+//                                                               [--paths objects,batched] [--resume]
 //   node perf-matrix.mjs gate <results.jsonl> [--baseline <file>]      exits 1 when a metric got worse
 //   node perf-matrix.mjs baseline <results.jsonl> [--baseline <file>]  writes the baseline from a run
 //   node perf-matrix.mjs report <results.jsonl>                        prints the results as Markdown tables
@@ -217,10 +217,15 @@ function run(results) {
     if (!process.env.BENCH_URL) throw new Error("set BENCH_URL to the bench page (RUNBOOK.md, section 2)");
     const reps = Number(opt("--reps") ?? 1);
     const paths = (opt("--paths") ?? PATHS.join(",")).split(",");
+    // --resume counts the rows the results file already holds, so an interrupted run carries on where it stopped.
+    const done = new Map();
+    if (args.includes("--resume") && existsSync(results))
+        for (const r of readRows(results)) done.set(keyOf(r), (done.get(keyOf(r)) ?? 0) + 1);
     for (const s of selected())
         for (let rep = 0; rep < reps; rep++)
             // Alternate which path goes first, so neither always runs on a warmer machine.
             for (const path of rep % 2 ? paths.toReversed() : paths) {
+                if ((done.get(`${s.id}|${path}`) ?? 0) > rep) continue;
                 console.log(`=== ${s.id} ${path} run ${rep + 1}`);
                 runOne(s, path, results);
             }

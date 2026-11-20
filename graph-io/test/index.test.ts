@@ -140,6 +140,7 @@ const VALUE_EXPORTS = [
     "CYS_LOSS",
     "cysExporter",
     "cysImporter",
+    "readCytoscapeStyleFile",
     // shared helpers for plugin authors
     "BAD_DEFAULT_CODE",
     "BAD_OPTIONS_CODE",

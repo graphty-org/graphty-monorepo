@@ -253,11 +253,26 @@ export interface FilterStepCount {
     /** Whether the step is on. */
     readonly on: boolean;
     /** Visible before the step. */
-    readonly before: { readonly nodes: number; readonly edges: number };
+    readonly before: {
+        /** The node count. */
+        readonly nodes: number;
+        /** The edge count. */
+        readonly edges: number;
+    };
     /** Visible after the step. */
-    readonly after: { readonly nodes: number; readonly edges: number };
+    readonly after: {
+        /** The node count. */
+        readonly nodes: number;
+        /** The edge count. */
+        readonly edges: number;
+    };
     /** Hidden by the step: `before` minus `after`. */
-    readonly leftOut: { readonly nodes: number; readonly edges: number };
+    readonly leftOut: {
+        /** The node count. */
+        readonly nodes: number;
+        /** The edge count. */
+        readonly edges: number;
+    };
 }
 
 /**

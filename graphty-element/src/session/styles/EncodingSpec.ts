@@ -202,13 +202,24 @@ export type EncodingRefusalCode = "E_UNSUPPORTED" | "E_CAP_EXCEEDED" | (string &
  * @since 3.36.0
  */
 export type ParamEncodingSpec = (Omit<EncodingSpec, "channel"> | Omit<ColumnEncodingSpec, "channel">) & {
+    /** The shader parameter to encode, by its address. */
     readonly channel: ShaderParamAddress;
 };
 
 /** What `styles.proposeEncoding()` answers: the binding `encode()` would store, or why not. */
 export type EncodingProposal =
-    | { readonly ok: true; readonly binding: RuleBinding }
-    | { readonly ok: false; readonly refusal: CodedFact<EncodingRefusalCode> };
+    | {
+          /** The encoding can be made. */
+          readonly ok: true;
+          /** The binding `encode()` would store. */
+          readonly binding: RuleBinding;
+      }
+    | {
+          /** The encoding cannot be made. */
+          readonly ok: false;
+          /** Why not. */
+          readonly refusal: CodedFact<EncodingRefusalCode>;
+      };
 
 /**
  * What `planEncoding` needs to know about the run it is binding to.

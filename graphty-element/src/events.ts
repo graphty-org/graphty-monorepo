@@ -6,6 +6,7 @@ import type { AiStatus } from "./ai/AiStatus";
 import type { CommandResult } from "./ai/commands/types";
 import type { AiSource } from "./ai/conversation/snapshot";
 import type { AiPointing } from "./ai/tools/prompt";
+import type { TourEndReason } from "./camera/tour";
 import type { AiHostedToolId, AiResultCode, AiResultParams, AiTarget } from "./catalog/ai";
 import type { EdgeId, FormatId, NodeId } from "./catalog/types";
 import type { NodeIdType } from "./config";
@@ -105,8 +106,14 @@ export type GraphEvent =
     | OperationCancelledEvent
     | StatsUpdateEvent
     | InputEnabledChangedEvent
+    | ReducedMotionChangedEvent
+    | AnimationProgressEvent
+    | TourProgressEvent
+    | TourEndedEvent
+    | ViewsChangedEvent
     | XRSessionStartedEvent
     | XRSessionEndedEvent
+    | XRMenuSelectEvent
     | InputPointerEvent
     | InputWheelEvent
     | InputTouchEvent
@@ -356,7 +363,6 @@ export interface GraphGenericEvent {
         // null when the layout cannot say) and an optional `message`, as the layout reported them.
         | "layout-progress"
         | "operation-obsoleted"
-        | "animation-progress"
         // A video capture was stopped before it finished. `animation-cancelled` is the same event
         // under its British name, emitted right after it and removed in the next major.
         | "animation-canceled"
@@ -728,6 +734,79 @@ export interface StatsUpdateEvent {
     stats: ReturnType<StatsManager["getStats"]>;
 }
 
+/**
+ * Emitted when whether motion is reduced changes: `setReducedMotion` was called with a different
+ * answer, or, under `"auto"`, the platform's `prefers-reduced-motion` changed. Read
+ * `isMotionReduced()` for the answer at any time.
+ * @since 3.58.0
+ */
+export interface ReducedMotionChangedEvent {
+    /** The event's name. */
+    type: "reduced-motion-changed";
+    /** Whether motion is reduced now. */
+    reduced: boolean;
+}
+
+/**
+ * Emitted while `captureAnimation` records: how far the recording has got, from 0 to 100. A tour
+ * recording follows the tour's own clock, so it reaches 100 only with the tour.
+ * @since 3.58.0
+ */
+export interface AnimationProgressEvent {
+    /** The event's name. */
+    type: "animation-progress";
+    /** How far the recording has got, from 0 to 100. */
+    progress: number;
+}
+
+/**
+ * Emitted while a tour plays or records, on each stop or phase change (never on a timer): the
+ * flight to a stop (`"flight"`, absent for a zero-length flight), the hold there (`"hold"`), or a
+ * pause stop's wait where the camera is (`"pause"`, one event per pause).
+ * @since 3.58.0
+ */
+export interface TourProgressEvent {
+    /** The event's name. */
+    type: "tour-progress";
+    /** The saved tour's name, or null for a tour given inline. */
+    tour: string | null;
+    /** The 0-based stop. */
+    stop: number;
+    /** How many stops the tour has. */
+    stops: number;
+    /**
+     * The saved view this stop flies to, as the tour was when it started playing (an edit while it
+     * plays does not change it); absent for a stop given as a camera state and for a pause.
+     */
+    view?: string;
+    /** The flight to the stop, the hold there, or a pause stop's wait. */
+    phase: "flight" | "hold" | "pause";
+}
+
+/**
+ * Emitted once when a tour ends, however it ended; `playTour` resolves with the same reason.
+ * @since 3.58.0
+ */
+export interface TourEndedEvent {
+    /** The event's name. */
+    type: "tour-ended";
+    /** The saved tour's name, or null for a tour given inline. */
+    tour: string | null;
+    /** Why the tour ended. */
+    reason: TourEndReason;
+}
+
+/**
+ * Emitted when anything `planTour` or `viewProblem` reads may have changed: the saved views, their
+ * order or the tours, the 2D/3D dimension, an XR session starting or ending, or a camera view
+ * being registered. An editor showing tour lengths or broken stops plans again on it alone.
+ * @since 3.58.0
+ */
+export interface ViewsChangedEvent {
+    /** The event's name. */
+    type: "views-changed";
+}
+
 /** Emitted when user input on the canvas is switched on or off, by `setInputEnabled`. */
 export interface InputEnabledChangedEvent {
     /** The event's name. */
@@ -762,6 +841,14 @@ export interface XRSessionEndedEvent {
      * when the headset or browser ended it (the system button, taking the headset off).
      */
     cause: "exit" | "device";
+}
+
+/** Emitted when the reader presses an item of the in-headset menu (`xr.menu`). */
+export interface XRMenuSelectEvent {
+    /** The event's name. */
+    type: "xr-menu-select";
+    /** The pressed item's `id`. */
+    id: string;
 }
 
 // Selection events

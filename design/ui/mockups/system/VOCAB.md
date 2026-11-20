@@ -991,7 +991,7 @@ the icon on a toggled row. Anchored below its trigger with a 4px gap.
 The second row is the hover state. A row with a trailing ellipsis in its
 label ("Save view...") opens a dialog (6.3). Disabled rows: `color: #5f6873`
 and no hover. Views menu order (5.6): Reset view `Shift+0`, Top `7`, Front
-`1`, Side `3`, Isometric (3D only), Follow selection (toggle), divider, Save
+`1`, Side `3`, Isometric (3D only), Focus selected (toggle), divider, Save
 view..., divider, Show minimap `M`, Show legend `L`, divider, Enter VR, Enter
 AR (only when the browser reports support). Export menu (5.1): Image, Data.
 

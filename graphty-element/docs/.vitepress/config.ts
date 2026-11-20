@@ -113,6 +113,7 @@ export default defineConfig({
                         { text: "Undo & History", link: "/guide/undo" },
                         { text: "Journal", link: "/guide/journal" },
                         { text: "Project Files", link: "/guide/project-file" },
+                        { text: "Several Graphs", link: "/guide/graphs" },
                         { text: "Autosave", link: "/guide/autosave" },
                         { text: "Experiments", link: "/guide/experiments" },
                         { text: "Timeline", link: "/guide/timeline" },

@@ -15,7 +15,6 @@ export type FeatureId =
     | "location-map"
     | "cosmograph"
     | "file-styles"
-    | "node-models"
     | "source-steps"
     | "save-files-v2";
 
@@ -40,10 +39,6 @@ export const FEATURES: readonly FeatureDescriptor[] = Object.freeze([
     // Reading and writing the styles other programs write into graph files, and every style channel
     // and value added to draw them.
     { id: "file-styles", plainName: "File styles", issue: 706, since: "2026-11-06" },
-    // The graphty app's model and picture UI in the Style panel and the save question, and in
-    // graphty-element a save with no choice for a URL keeping it as the project last kept it (off:
-    // embedded, as before); node.model* and node.texture, session.assets and session.network are not gated.
-    { id: "node-models", plainName: "Node models", issue: 3396, since: "2026-11-07" },
     // Sources kept as read and the graph rebuilt from ordered steps (design
     // design/data/multiple-data-sources-design.md, stage 1); off, loads, joins and saved files are
     // as before. `all` does not switch it on (features/resolve.ts); name it to try it.
@@ -55,4 +50,9 @@ export const FEATURES: readonly FeatureDescriptor[] = Object.freeze([
 ]);
 
 /** Ids of experiments that have shipped: accepted silently, and they change nothing. */
-export const GRADUATED_FEATURES: readonly string[] = Object.freeze(["network-data", "timeline", "selection-workspace"]);
+export const GRADUATED_FEATURES: readonly string[] = Object.freeze([
+    "network-data",
+    "timeline",
+    "selection-workspace",
+    "node-models",
+]);

@@ -147,6 +147,8 @@ export const PLAIN_STRING_ALLOWLIST = new Set([
     // only by the consumer, never words graphty-element shows
     "mode",
     "key",
+    // the camera view id a saved view follows (SavedView.follows)
+    "follows",
     "nodeId",
     "edgeId",
     "runId",
@@ -333,6 +335,9 @@ const COLUMN_NAME_TYPES = new Set(["TableMapping", "JoinKey"]);
  */
 // SourceHubValue.value and SourceDraftPreviewIssue.value: a key value of the consumer's own rows.
 // SourceDraftPreview.draft: the draft's id. SourceDraftPreviewIssue.filter: a filter condition's id.
+// TourStop.view: the name of the view a tour stop flies to, a camera view's id or the consumer's
+// saved view name, never words the element shows. TourRenameCommand.from and .to: the consumer's
+// own names for a saved tour, before and after.
 const PLAIN_STRING_MEMBERS = new Set([
     "JoinChoices.membership",
     "JoinLink.kind",
@@ -340,6 +345,9 @@ const PLAIN_STRING_MEMBERS = new Set([
     "SourceDraftPreview.draft",
     "SourceDraftPreviewIssue.filter",
     "SourceDraftPreviewIssue.value",
+    "TourStop.view",
+    "TourRenameCommand.from",
+    "TourRenameCommand.to",
 ]);
 
 /**

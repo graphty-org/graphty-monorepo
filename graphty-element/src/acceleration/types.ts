@@ -148,7 +148,10 @@ export interface GraphAccelerator {
      * The element awaits it, reports `state: "error"` with `E_DEVICE_LOST`, and attempts to
      * attach a fresh accelerator. A backend with no notion of device loss omits it.
      */
-    readonly lost?: Promise<{ reason: string }>;
+    readonly lost?: Promise<{
+        /** The backend's description of why the device was lost. */
+        reason: string;
+    }>;
     /** The arithmetic this accelerator computes in. Absent means {@link DEFAULT_ACCELERATOR_PRECISION}. */
     readonly precision?: AccelerationPrecision;
     /**
@@ -357,7 +360,12 @@ export interface XrCapability {
     /** Whether an immersive AR session can be entered. */
     readonly ar: boolean;
     /** Why each mode cannot be entered, or null when it can. */
-    readonly reasons: { readonly vr: XrUnavailableReason | null; readonly ar: XrUnavailableReason | null };
+    readonly reasons: {
+        /** Why immersive VR cannot be entered, or null when it can. */
+        readonly vr: XrUnavailableReason | null;
+        /** Why immersive AR cannot be entered, or null when it can. */
+        readonly ar: XrUnavailableReason | null;
+    };
     /** The immersive session the graph is presenting now, or null. */
     readonly active: "vr" | "ar" | null;
 }
@@ -372,8 +380,6 @@ export interface CaptureCapability {
     readonly webp: boolean;
     /** SVG capture. */
     readonly svg: boolean;
-    /** PDF capture. */
-    readonly pdf: boolean;
     /** Video recording. */
     readonly video: boolean;
     /** Writing a capture to the system clipboard. */

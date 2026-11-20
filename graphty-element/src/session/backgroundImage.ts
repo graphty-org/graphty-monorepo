@@ -30,16 +30,23 @@ export type BackgroundImageProblem = CodedFact<"E_IMAGE_DECODE">;
 /** What {@link prepareBackgroundImage} made of a picture. */
 export type PreparedBackgroundImage =
     | {
+          /** The picture could be used. */
           readonly ok: true;
           /** The picture as a `data:` address, for the `data` of a skybox background. */
           readonly data: string;
           /** Its size as kept, in pixels. */
           readonly width: number;
+          /** Its height as kept, in pixels. */
           readonly height: number;
           /** Whether it was scaled down to `maxSize`. */
           readonly scaled: boolean;
       }
-    | { readonly ok: false; readonly problem: BackgroundImageProblem };
+    | {
+          /** The picture could not be used. */
+          readonly ok: false;
+          /** Why not. */
+          readonly problem: BackgroundImageProblem;
+      };
 
 /**
  * Load a picture as the browser decodes it, through an `<img>`, so a format the browser can show

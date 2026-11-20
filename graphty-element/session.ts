@@ -63,6 +63,7 @@ import type { RuleTree, SelectionDirection } from "./src/catalog/types";
 import { englishReading, type ReadingOptions, type RunResult } from "./src/session/results";
 import type { SelectionOp } from "./src/session/selection";
 
+export type { EasingName, Tour, TourPause, TourStop } from "./src/camera/tour";
 export type { FeatureId } from "./src/features/registry";
 export type { EnabledFeatures } from "./src/features/resolve";
 export type {
@@ -168,6 +169,8 @@ export type {
     ProjectConfigPatch,
     ProjectSlice,
     ReaderEditRow,
+    RecordMatch,
+    RecordMatchRank,
     RecordPage,
     RecordPageOptions,
     RecordSort,
@@ -184,6 +187,7 @@ export type {
     RowReasonCode,
     RowUpdate,
     RunPlacement,
+    SavedView,
     ScoreTerm,
     SessionAnnotations,
     SessionAttributes,
@@ -200,9 +204,11 @@ export type {
     SessionPositions,
     SessionRunsOptions,
     SessionStatus,
+    SessionTours,
     SessionViews,
     SettingEffect,
     SettingEffectCode,
+    SideMapping,
     SourceBuildState,
     SourceCellState,
     SourceCellValue,
@@ -270,6 +276,7 @@ export type {
     SourceTypeRule,
     SourceValue,
     SourceValuesDiffer,
+    StartingCamera,
     StyleProblem,
     TableMapping,
     TableMappingRead,
@@ -306,6 +313,7 @@ export type {
     TooLargeDetails,
 } from "./src/data/report";
 export { IMPORT_ROWS_KEPT } from "./src/data/report";
+export type { SessionGraph, SessionGraphCreateOptions, SessionGraphs } from "./src/session/graphs/GraphsApi";
 export type { DataIssue, FixCode, FixResult, IssueCode, IssueId } from "./src/session/issues";
 export type {
     RecipeColumn,
@@ -334,6 +342,9 @@ export type {
     AssetState,
     BuiltInModelFormat,
     ModelCompression,
+    ModelDefaultChannel,
+    ModelDefaults,
+    ModelDefaultsPatch,
     ModelEncoding,
     ModelFormat,
     ModelGeometry,
@@ -341,11 +352,12 @@ export type {
     ModelPart,
     ModelPartRole,
     ModelPartState,
+    ModelPicture,
     ModelSummary,
     NamedBlob,
     PartAnswer,
 } from "./src/session";
-export { DEFAULT_MODEL_LIMITS, isAssetId } from "./src/session";
+export { DEFAULT_MODEL_LIMITS, isAssetId, MODEL_DEFAULT_CHANNELS } from "./src/session";
 
 /**
  * The fetches the page's code did not ask for -- a model URL from a project file, an AI command or
@@ -714,7 +726,15 @@ export type {
 // Asking what something would do and cost, before doing it
 // ---------------------------------------------------------------------------------------------
 
-export type { AlgorithmRunCommand, Plan, PlanBlock, PlanEffect, SessionCommand } from "./src/session";
+export type { AlgorithmRunCommand, AssetCommand, Plan, PlanBlock, PlanEffect, SessionCommand } from "./src/session";
+export type {
+    SavedTour,
+    TourCommand,
+    TourMoveCommand,
+    TourRemoveCommand,
+    TourRenameCommand,
+    TourSaveCommand,
+} from "./src/session";
 export { isAlgorithmRunCommand } from "./src/session";
 export type {
     CostBasis,
@@ -924,6 +944,7 @@ export {
     quotePath,
     renamePaths,
     rulePath,
+    ruleValuePath,
     selectorRule,
     selectorStates,
 } from "./src/session/styles";

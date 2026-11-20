@@ -159,6 +159,17 @@ function drawnOf(command: DataImportCommand): { readonly drawn?: Pick<DataImport
 }
 
 /**
+ * The separator a CSV load was split by: the draft's, since a draft's rows reach the load without
+ * their reader, or else the reader's.
+ * @param command - The import.
+ * @param reader - The load's reader.
+ * @returns The separator, or undefined.
+ */
+function csvDelimiter(command: DataImportCommand, reader: unknown): LoadedSource["delimiter"] {
+    return command.delimiter ?? (reader instanceof CSVDataSource ? reader.readDelimiter : undefined);
+}
+
+/**
  * The header columns a CSV reader read its table by, if the reader is one.
  * @param reader - The load's reader.
  * @returns The columns, or undefined.
@@ -992,6 +1003,7 @@ export class Ingest<K extends KnownEdge> {
             this.recordLoad(command, writer, {
                 described,
                 readBy: csvReadBy(outcome.reader),
+                delimiter: csvDelimiter(command, outcome.reader),
                 type,
                 added,
                 leftOut,
@@ -1048,6 +1060,7 @@ export class Ingest<K extends KnownEdge> {
      * @param load - What the load read and did.
      * @param load.described - Where it came from.
      * @param load.readBy - The header columns a CSV table was read by.
+     * @param load.delimiter - The separator a CSV table was split by.
      * @param load.type - The data source that read it.
      * @param load.added - How many nodes and edges it added.
      * @param load.leftOut - The edge rows it left out, when it left any out.
@@ -1063,6 +1076,7 @@ export class Ingest<K extends KnownEdge> {
             readonly described: DataSourceDescriptor;
             /** The header columns a CSV table was read by, kept for a version 2 save. */
             readonly readBy: CSVDataSource["readBy"];
+            readonly delimiter: LoadedSource["delimiter"];
             readonly type: string;
             readonly added: LoadedSource["added"];
             readonly leftOut: LoadedSource["leftOut"];
@@ -1072,7 +1086,7 @@ export class Ingest<K extends KnownEdge> {
             readonly same: number;
         },
     ): void {
-        const { described, readBy, type, added, leftOut, supplied, earlier, earlierProvenance, same } = load;
+        const { described, readBy, delimiter, type, added, leftOut, supplied, earlier, earlierProvenance, same } = load;
         const key: SourceKey = command.key ?? `s${String(++this.sourceSerial)}`;
         const kind: LoadedSourceKind = command.origin ?? kindOf(type, command.source.config);
         const loaded: LoadedSource = Object.freeze({
@@ -1081,6 +1095,7 @@ export class Ingest<K extends KnownEdge> {
             kind,
             ...tableFacts(command),
             ...(readBy === undefined ? {} : { readBy }),
+            ...(delimiter === undefined ? {} : { delimiter }),
             added,
             ...(leftOut === undefined ? {} : { leftOut }),
             loadedAt: new Date().toISOString(),

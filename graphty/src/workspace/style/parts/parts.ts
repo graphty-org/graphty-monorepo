@@ -300,7 +300,13 @@ export const PARTS: Readonly<Record<"node" | "edge", readonly PartSpec[]>> = {
                     id: "xlabel",
                     name: "External label",
                     main: ["node.xlabel"],
-                    tail: ["node.xlabelStyle", "node.xlabelLocation", "node.xlabelOffsetX", "node.xlabelOffsetY"],
+                    tail: [
+                        "node.xlabelStyle",
+                        "node.xlabelLocation",
+                        "node.xlabelOffsetX",
+                        "node.xlabelOffsetY",
+                        "node.xlabelTextAlign",
+                    ],
                 },
                 {
                     id: "glyph",
@@ -392,6 +398,7 @@ export const PARTS: Readonly<Record<"node" | "edge", readonly PartSpec[]>> = {
                     name: "Line",
                     main: ["edge.color", "edge.opacity", "edge.width", "edge.style"],
                     tail: [
+                        "edge.colorFrom",
                         "edge.minScreenWidth",
                         "edge.patternCount",
                         "edge.animationSpeed",

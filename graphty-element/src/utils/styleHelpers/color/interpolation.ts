@@ -34,8 +34,11 @@ export const MISSING_DATA_COLOR = "#ff00ff";
  * The red, green and blue channels of a color, each 0-255.
  */
 export interface RgbColor {
+    /** Red, 0-255. */
     r: number;
+    /** Green, 0-255. */
     g: number;
+    /** Blue, 0-255. */
     b: number;
 }
 

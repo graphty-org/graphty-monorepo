@@ -21,7 +21,17 @@ import {
 
 import { findTreeRow, rowLayers as treeRowLayers, rowName } from "../graph-place/rows";
 import type { BeneathValue, RowContext } from "./PropertyRow";
-import { channelPhrase, type EncodeKey, hexOf, isShaderParam, logUnexpected, OPACITY_OF, readableName } from "./words";
+import {
+    channelPhrase,
+    type EncodeKey,
+    hexOf,
+    isAddress,
+    isListItem,
+    isShaderParam,
+    logUnexpected,
+    OPACITY_OF,
+    readableName,
+} from "./words";
 
 /** Which side of the Style tab: nodes or edges. */
 export type Target = "node" | "edge";
@@ -33,7 +43,7 @@ export type Target = "node" | "edge";
  * @returns the value, if the layer sets one.
  */
 function setOf(layer: Layer, key: EncodeKey): ChannelValue | undefined {
-    return isShaderParam(key) ? undefined : layer.set?.[key];
+    return isAddress(key) ? undefined : layer.set?.[key];
 }
 
 /** A binding that reads a value from the data. */
@@ -340,7 +350,9 @@ export async function writeLine(
         .reverse()
         .find((layer) => !layer.locked && (!everything || home === undefined || sameSelector(layer.selector, home)));
     // A literal that combines with what lies beneath is an encoding of the value; a plain one is set.
-    const combined = "value" in write && write.combine !== undefined && write.combine !== "replace";
+    // An address (a list's item, a shader's parameter) holds a literal only as an encoding of the value.
+    const combined =
+        "value" in write && ((write.combine !== undefined && write.combine !== "replace") || isAddress(channel));
     const literal = "value" in write && !combined ? { [channel]: write.value } : undefined;
     // Values written with it in the same step (a new label's size), where the layer has none.
     const extra = Object.fromEntries(
@@ -383,7 +395,12 @@ function encodeOf(
     if ("template" in write) {
         return { [channel]: { template: write.template } };
     }
-    return combined ? { [channel]: { value: write.value, combine: write.combine } } : undefined;
+    if (!combined) {
+        return undefined;
+    }
+    return write.combine === undefined
+        ? { [channel]: { value: write.value } }
+        : { [channel]: { value: write.value, combine: write.combine } };
 }
 
 /**
@@ -499,8 +516,12 @@ async function addLine(styles: GraphSession["styles"], plan: LinePlan, fresh: Ne
  * @param channel - the channel.
  * @returns the line, or undefined.
  */
-export function lineIn(ctx: Pick<RowContext, "many" | "layers">, channel: Channel): Line | undefined {
-    return ctx.many === undefined ? lineOf(ctx.layers, channel) : ctx.many.line(channel);
+export function lineIn(ctx: Pick<RowContext, "many" | "layers">, channel: EncodeKey): Line | undefined {
+    if (ctx.many === undefined) {
+        return lineOf(ctx.layers, channel);
+    }
+    // Several rows edited together share plain channels only.
+    return isAddress(channel) ? undefined : ctx.many.line(channel);
 }
 
 /**
@@ -637,6 +658,10 @@ export function propose(
         choice.kind === "column"
             ? { column: choice.column, ...appRange(channel) }
             : { run: choice.runId, field: choice.field, ...appRange(channel) };
+    if (isListItem(channel)) {
+        // The panel varies a list by data as a whole; its items have no from-data control.
+        throw new Error(`${channel} is one item of a list, which varies by data only as a whole`);
+    }
     // The element takes a channel and a shader parameter's address in two spec shapes.
     if (isShaderParam(channel)) {
         return session.styles.proposeEncoding({ ...spec, channel });
@@ -973,7 +998,9 @@ export function needsFor(
                     return !(typeof beneath === "number" && beneath > 0);
                 }
                 if (partner?.accepts === "color") {
-                    return typeof beneath !== "string" || beneath === "" || beneath === "none" || beneath === partner.off;
+                    return (
+                        typeof beneath !== "string" || beneath === "" || beneath === "none" || beneath === partner.off
+                    );
                 }
                 return String(beneath) !== String(need.value);
             })

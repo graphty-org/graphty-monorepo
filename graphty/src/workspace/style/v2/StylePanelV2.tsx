@@ -24,7 +24,7 @@ import { addShader, pickedShader, placeOf, shaderEntries, type ShaderEntry } fro
 import { focusLineNext } from "../useFocusLine";
 import { channelWord, experimentChannelsOff, failureWords } from "../words";
 import { groupOutlineShaders, isGroupOutline, replaceUse } from "./families";
-import { ITEM_LISTS, LISTS, nextColor } from "./lists";
+import { drawnItems, firstColors, ITEM_LISTS, LISTS } from "./lists";
 import { PlusList } from "./PlusList";
 import { FIT_TO_LABEL, lineFor, V2_LABELS } from "./rubric";
 import { RubricLine } from "./RubricLine";
@@ -98,17 +98,20 @@ function thingsOf(
 }
 
 /**
- * What "+" writes for a list thing (design 5.1): its first item, a slice of the next color, a
- * line, an empty field or table cell.
+ * What "+" writes for a list thing (design 5.1): two items of colors unlike each other and the node's,
+ * or none while the layers beneath draw a list there (the editor shows it, an edit writes one item);
+ * a line, an empty field or table cell.
  * @param ctx - the row.
  * @param id - the thing's id.
  * @param main - its main channel.
- * @returns the writes, or undefined for a thing that is not a list.
+ * @returns the writes, or undefined for a thing that is not a list or inherits one.
  */
 function firstItem(ctx: RowContext, id: string, main: Channel): Partial<Record<Channel, string>> | undefined {
     const list = ctx.side === "node" ? LISTS[id] : undefined;
     if (list !== undefined) {
-        return { [list.colors]: writeChannelList(list.colors, [nextColor(ctx, [])]) };
+        return drawnItems(ctx, list.colors).items.length > 0
+            ? undefined
+            : { [list.colors]: writeChannelList(list.colors, firstColors(ctx)) };
     }
     const items = ITEM_LISTS[main];
     return items === undefined ? undefined : { [main]: items.fresh };
@@ -222,7 +225,7 @@ function ThingSection({
         focusLineNext(ctx.session, main.channel);
         const first = firstItem(ctx, id, main.channel);
         // A list thing opens on its list, and an Image on its picker (design 5.1).
-        if (first !== undefined || id === "image") {
+        if (first !== undefined || id === "image" || (ctx.side === "node" && LISTS[id] !== undefined)) {
             setOpening(id);
         }
         const start = first?.[main.channel] ?? (main.accepts === "text" ? undefined : startForOrNone(ctx, main));

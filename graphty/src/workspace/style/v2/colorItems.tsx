@@ -7,14 +7,14 @@
  */
 
 import { CompactColorInput } from "@graphty/compact-mantine";
-import type { Channel, ChannelDescriptor } from "@graphty/graphty-element/catalog";
+import { type Channel, type ChannelDescriptor, listItemAddress } from "@graphty/graphty-element/catalog";
 import { Group } from "@mantine/core";
 import React from "react";
 
 import { shownChannel } from "../offered";
 import type { RowContext } from "../PropertyRow";
 import { writeIn } from "../row";
-import { itemsOf, type ListNumber, type ListSpec, nextColor, writeList } from "./lists";
+import { drawnItems, type ListNumber, type ListSpec, nextColor, writeList } from "./lists";
 import { LineFrame, NumberLine } from "./RubricLine";
 
 /**
@@ -45,13 +45,17 @@ export function colorItems({
     readonly lines: React.ReactNode;
     readonly add: () => void;
 } {
-    const colors = itemsOf(ctx, list.colors);
-    const numbers = Object.fromEntries(list.numbers.map(({ channel }) => [channel, itemsOf(ctx, channel)])) as Record<
-        Channel,
-        string[]
-    >;
+    // A list the layers beneath draw shows here; an edit to one of its items writes that item alone.
+    const drawn = drawnItems(ctx, list.colors);
+    const colors = drawn.items;
+    const numbers = Object.fromEntries(
+        list.numbers.map(({ channel }) => [channel, drawnItems(ctx, channel).items]),
+    ) as Record<Channel, string[]>;
     const write = (nextColors: readonly string[], nextNumbers: Partial<Record<Channel, readonly string[]>>): void => {
         writeList(ctx, list, nextColors, { ...numbers, ...nextNumbers }).catch(fail);
+    };
+    const writeItem = (channel: Channel, at: number, value: string): void => {
+        writeIn(ctx, listItemAddress(channel, at), { value }).catch(fail);
     };
     const add = (): void => {
         write([...colors, nextColor(ctx, colors)], {});
@@ -66,6 +70,10 @@ export function colorItems({
         write(drop(colors), Object.fromEntries(list.numbers.map(({ channel }) => [channel, drop(numbers[channel])])));
     };
     const setNumber = (channel: Channel, at: number, value: number | undefined, fill: number): void => {
+        if (!drawn.own && value !== undefined && at < numbers[channel].length) {
+            writeItem(channel, at, String(value));
+            return;
+        }
         const items = [...numbers[channel]];
         while (items.length <= at) {
             items.push(String(fill));
@@ -96,11 +104,16 @@ export function colorItems({
                                 showReset={false}
                                 swatches={ctx.documentColors}
                                 onChange={(next) => {
-                                    if (next !== undefined) {
+                                    if (next === undefined) {
+                                        return;
+                                    }
+                                    if (drawn.own) {
                                         write(
                                             colors.map((each, index) => (index === at ? next : each)),
                                             {},
                                         );
+                                    } else {
+                                        writeItem(list.colors, at, next);
                                     }
                                 }}
                             />
@@ -144,7 +157,7 @@ export function colorItems({
  * @returns the background, or "" for an empty list.
  */
 export function swatchesOf(ctx: RowContext, list: ListSpec): string {
-    const colors = itemsOf(ctx, list.colors);
+    const colors = drawnItems(ctx, list.colors).items;
     const stops = colors.flatMap((color, at) => [
         `${color} ${String((at / colors.length) * 100)}%`,
         `${color} ${String(((at + 1) / colors.length) * 100)}%`,

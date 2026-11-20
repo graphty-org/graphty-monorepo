@@ -12,7 +12,9 @@ import {
     EDGE_LINE_DESCRIPTORS,
     type GlyphDescriptor,
     type KNOWN_PALETTE_IDS,
+    type ListItemAddress,
     NODE_SHAPE_DESCRIPTORS,
+    parseListItemAddress,
     type ShaderDescriptor,
     type ShaderInput,
     shaderParamChannel,
@@ -827,8 +829,11 @@ export function settingWord(style: Channel, setting: Channel): string {
     return rest.charAt(0).toUpperCase() + rest.slice(1);
 }
 
-/** What a binding is written under in a layer's `encode`: a channel, or a shader parameter's address. */
-export type EncodeKey = Channel | ShaderParamAddress;
+/**
+ * What a binding is written under in a layer's `encode`: a channel, a shader parameter's address, or one
+ * item of a list channel (`node.pieColors.1`).
+ */
+export type EncodeKey = Channel | ShaderParamAddress | ListItemAddress;
 
 /**
  * Whether a key is a shader parameter's address (`node.shaders.<shader>.<parameter>`); every
@@ -837,6 +842,25 @@ export type EncodeKey = Channel | ShaderParamAddress;
  * @returns whether it is an address.
  */
 export function isShaderParam(key: EncodeKey): key is ShaderParamAddress {
+    return key.split(".").length > 2 && !isListItem(key);
+}
+
+/**
+ * Whether a key is one item of a list channel (`node.pieColors.1`).
+ * @param key - the key.
+ * @returns whether it is.
+ */
+export function isListItem(key: EncodeKey): key is ListItemAddress {
+    return parseListItemAddress(key) !== null;
+}
+
+/**
+ * Whether a key is an address (a shader parameter's or a list item's), which a layer holds only in its
+ * `encode`; every channel id has one dot.
+ * @param key - the key.
+ * @returns whether it is an address.
+ */
+export function isAddress(key: EncodeKey): key is ShaderParamAddress | ListItemAddress {
     return key.split(".").length > 2;
 }
 
@@ -848,6 +872,10 @@ export function isShaderParam(key: EncodeKey): key is ShaderParamAddress {
  */
 export function channelPhrase(channel: EncodeKey): string {
     // A shader parameter goes by the element's name for it ("Glass marble spin").
+    if (isListItem(channel)) {
+        const item = parseListItemAddress(channel);
+        return item === null ? channel : `${channelPhrase(item.channel)} ${String(item.index + 1)}`;
+    }
     const name = isShaderParam(channel) ? shaderParamChannel(channel).plainName : fieldName(channel);
     return name.charAt(0).toLowerCase() + name.slice(1);
 }

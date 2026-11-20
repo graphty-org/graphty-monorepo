@@ -8,6 +8,8 @@ import {
     type Channel,
     type ChannelDescriptor,
     type ItemChannel,
+    listItemAddress,
+    paletteDescriptor,
     readChannelItems,
     readChannelList,
     writeChannelItems,
@@ -62,19 +64,56 @@ export const LISTS: Readonly<Record<string, ListSpec>> = {
 };
 
 /**
- * The color a new item starts with (design 5.1): the next of the document's colors after the
- * list's, else the color the row's nodes are drawn in.
+ * The color a new item starts with (design 5.1): the next of the document's colors, then of the
+ * element's Okabe-Ito palette, that is neither in the list nor the color the row's nodes are drawn in,
+ * so every item shows against the node and its neighbors.
  * @param ctx - the row.
  * @param colors - the list's colors now.
  * @returns the color.
  */
 export function nextColor(ctx: RowContext, colors: readonly string[]): string {
-    const unused = ctx.documentColors.find((color) => !colors.includes(color));
-    if (unused !== undefined) {
-        return unused;
+    const drawn =
+        lineIn(ctx, "node.color")?.value ??
+        ctx.beneath("node.color").value ??
+        ctx.session.styles.defaultValue("node.color");
+    const taken = new Set(
+        [...colors, drawn].flatMap((color) => (typeof color === "string" ? [color.toUpperCase()] : [])),
+    );
+    const offered = [...ctx.documentColors, ...(paletteDescriptor("okabe-ito")?.colors ?? [])];
+    return offered.find((color) => !taken.has(color.toUpperCase())) ?? (typeof drawn === "string" ? drawn : "#808080");
+}
+
+/**
+ * A new list thing's first items: two colors, each unlike the other and the node's (design 5.1), so a
+ * pie or stripes shows its parts the moment it is added.
+ * @param ctx - the row.
+ * @returns the colors.
+ */
+export function firstColors(ctx: RowContext): readonly string[] {
+    const first = nextColor(ctx, []);
+    return [first, nextColor(ctx, [first])];
+}
+
+/**
+ * The items a list channel draws on the row: its own, else the list the layers beneath draw there with the
+ * row's own item overrides (`node.pieColors.1`) over it.
+ * @param ctx - the row.
+ * @param channel - the list channel.
+ * @returns the items as text, and whether they are the row's own.
+ */
+export function drawnItems(ctx: RowContext, channel: Channel): { readonly items: string[]; readonly own: boolean } {
+    const own = itemsOf(ctx, channel);
+    if (own.length > 0) {
+        return { items: own, own: true };
     }
-    const drawn = lineIn(ctx, "node.color")?.value ?? ctx.session.styles.defaultValue("node.color");
-    return typeof drawn === "string" ? drawn : "#808080";
+    const beneath = readChannelList(channel, ctx.beneath(channel).value).map(String);
+    return {
+        items: beneath.map((item, at) => {
+            const over = lineIn(ctx, listItemAddress(channel, at))?.value;
+            return typeof over === "string" || typeof over === "number" ? String(over) : item;
+        }),
+        own: false,
+    };
 }
 
 /**

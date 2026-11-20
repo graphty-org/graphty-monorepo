@@ -176,7 +176,7 @@ import { edgeSpaceOf } from "./scope/ScopeApi";
 import type { SelectionTextMode } from "./selection";
 import { searchOf } from "./selection/targets";
 import type { CodedFact, ColumnRef, ProgressChange } from "./shared";
-import { ExpansionState, type HostEdge, type SourceHost } from "./sources/host";
+import { ExpansionState, type HostEdge, type LoadStamp, type SourceHost } from "./sources/host";
 import { isSourceFactKey, SOURCE_ATTR, sourceFactsOf, sourceLoadsOf } from "./sources/ids";
 import { SourceLedger } from "./sources/ledger";
 import {
@@ -274,6 +274,7 @@ import type {
     SessionEventMap,
     SessionGraphStore,
     SessionRecordSource,
+    SourceLoaded,
     TableMapping,
     TypeChangePreview,
     ValueCounts,
@@ -299,8 +300,16 @@ interface DataWrites {
     /**
      * Where a `data.import` made now would go -- the session, or the transaction a routed verb
      * runs in -- held for a verb that dispatches it after an await.
+     * @param options - The load's signal, and the caller's key its journal entries carry.
+     * @param options.signal - Withdraws the load.
+     * @param options.callerKey - Echoed on the load's journal entries.
+     * @param options.trigger - `"load"` for a load door: stamped on the load's journal entries.
      */
-    importer(signal?: AbortSignal): (command: DataImportCommand | BatchCommand) => Promise<unknown>;
+    importer(options?: {
+        readonly signal?: AbortSignal;
+        readonly callerKey?: string;
+        readonly trigger?: "load";
+    }): (command: DataImportCommand | BatchCommand) => Promise<unknown>;
     /** The ceilings in force, which a read-first load is refused above. */
     readonly ceilings?: RenderLimits;
     /** The `graph` slice now. */
@@ -322,7 +331,7 @@ interface DataWrites {
     /** The session's load line, shared with the graph's own loads, so loads land in call order. */
     readonly loadLine: LoadLine;
     /** Dispatch any command: the network-source loads and expansions dispatch their own ops. */
-    send?(command: SessionCommand): Promise<unknown>;
+    send?(command: SessionCommand, stamp?: LoadStamp): Promise<unknown>;
     /** Publish a session event: the network-source expansions publish theirs. */
     emit?<K extends keyof SessionEventMap>(event: K, detail: SessionEventMap[K]): void;
     /** The style stack and the finished runs now: what reads a column. */
@@ -1432,7 +1441,15 @@ export class SessionData implements SessionDataApi {
 
             // Taken before the first await: a transaction routes only what a verb dispatches
             // synchronously, and detecting the format may have to read the file or fetch the URL.
-            await this.importVia(this.keeping(this.writes.importer(signal), source), source, options, turn);
+            await this.importVia(
+                this.keeping(
+                    this.writes.importer({ ...(signal === undefined ? {} : { signal }), ...loadStampOf(options) }),
+                    source,
+                ),
+                source,
+                options,
+                turn,
+            );
         } catch (error) {
             // The dispatcher rejects a withdrawn command with its own AbortError.
             throw signal?.aborted === true ? signal.reason : error;
@@ -1478,7 +1495,7 @@ export class SessionData implements SessionDataApi {
      */
     async generate(name: string, params: GeneratorParams = {}, options: ImportOptions = {}): Promise<void> {
         this.requireLive("generate");
-        const send = this.writes.importer();
+        const send = this.writes.importer(loadStampOf(options));
         const descriptor = GENERATOR_CATALOG.find((each) => each.name === name);
         if (descriptor === undefined) {
             throw new GraphtyError({
@@ -1516,6 +1533,7 @@ export class SessionData implements SessionDataApi {
             await this.importVia(send, load.source, options, turn, {
                 ...load,
                 facts: { generator: name, params: { ...params } },
+                catalog: { generatorId: name },
             });
         } finally {
             turn.leave();
@@ -1530,7 +1548,7 @@ export class SessionData implements SessionDataApi {
      */
     async loadDataset(name: string, options: DatasetLoadOptions = {}): Promise<void> {
         this.requireLive("loadDataset");
-        const send = this.writes.importer();
+        const send = this.writes.importer(loadStampOf(options));
         const { baseUrl, signal, ...load } = options;
         // The element names no host of its own: the caller says where the files are published
         // (graph-samples exports its own default as `DEFAULT_DATASET_BASE_URL`).
@@ -1573,6 +1591,7 @@ export class SessionData implements SessionDataApi {
             await this.importVia(send, sample.source, load, turn, {
                 ...sample,
                 facts: { dataset: name, baseUrl },
+                catalog: { datasetId: name },
                 url: {
                     sha256: await sha256Hex(joined(await Promise.all(bodies))),
                     fetchedAt: new Date().toISOString(),
@@ -1634,7 +1653,11 @@ export class SessionData implements SessionDataApi {
         source: DataSourceInput,
         options: LoadChoices & Pick<SourceLoadOptions, "existing" | "signal">,
         turn: LoadTurn,
-        sample?: SampleLoad & { readonly facts: LoadFacts["sample"]; readonly url?: LoadFacts["url"] },
+        sample?: SampleLoad & {
+            readonly facts: LoadFacts["sample"];
+            readonly catalog: NonNullable<SourceLoaded["sample"]>;
+            readonly url?: LoadFacts["url"];
+        },
     ): Promise<void> {
         let resolvedConfig: Readonly<Record<string, unknown>> = source.config;
         const origin: LoadedSourceKind | undefined = sample === undefined ? undefined : "sample";
@@ -1649,6 +1672,10 @@ export class SessionData implements SessionDataApi {
                           ...(sample.url === undefined ? {} : { url: sample.url }),
                       }),
             choiceOptions(options),
+            {
+                ...(sample === undefined ? {} : { sample: sample.catalog }),
+                ...callerKeyOf(options),
+            },
         );
         const mark = historyMark(options);
         const send = (command: DataImportCommand | BatchCommand): ReturnType<typeof noted> =>
@@ -1715,12 +1742,14 @@ export class SessionData implements SessionDataApi {
      * @param send - The dispatch, taken when the verb was called.
      * @param read - What the load's bytes were, read once it is in the graph.
      * @param options - The import choices given beside the source's own configuration.
+     * @param loaded - What the load door knows beside the source list, for `source:loaded`.
      * @returns The dispatch.
      */
     private noting(
         send: (command: DataImportCommand | BatchCommand) => Promise<unknown>,
         read: () => Promise<Partial<LoadFacts>>,
-        options?: Readonly<Record<string, unknown>>,
+        options: Readonly<Record<string, unknown>> | undefined,
+        loaded: DoorFacts,
     ): (command: DataImportCommand | BatchCommand) => Promise<unknown> {
         return async (command) => {
             // Read before the dispatch, which takes its turn as soon as it is called.
@@ -1737,10 +1766,66 @@ export class SessionData implements SessionDataApi {
                 for (const each of added) {
                     this.loadFacts.set(each.key, facts);
                 }
+                this.publishAdded(before, facts.mode, loaded);
             }
 
             return result;
         };
+    }
+
+    /**
+     * Run a load the renderer dispatches itself -- `Graph.addDataFromSource`, `loadFromFile` and
+     * `loadFromUrl`, and so the `data-source` attribute -- and publish `source:loaded` for every
+     * source it added, as this surface's own load doors do.
+     * @param mode - Whether the load replaces the graph or merges into it.
+     * @param load - The load; it dispatches before it returns its promise.
+     * @returns What the load settled with.
+     */
+    async announcing<T>(mode: "replace" | "merge", load: () => Promise<T>): Promise<T> {
+        const before = new Set(this.storedSources().map((each) => each.key));
+        const result = await load();
+        this.publishAdded(before, mode, {});
+        return result;
+    }
+
+    /**
+     * Publish `source:loaded` for one source a load door added (or `replaceSource` and
+     * `reloadSource` replaced in place), once its load committed. Only the doors (and the
+     * renderer's loads, through `announcing`) call it: a project open, undo, redo, restore and `runPendingSourceLoad` never do.
+     * @param record - The source as `sources()` lists it, so the event never disagrees with it.
+     * @param mode - Whether the load replaced the graph or merged into it.
+     * @param facts - What the door knows beside the source list.
+     */
+    private publishLoaded(record: LoadedSource, mode: "replace" | "merge", facts: DoorFacts): void {
+        const { kind, type } = record;
+        const format = (kind === "file" || kind === "url") && type !== undefined && type !== "" ? type : undefined;
+        const loaded: SourceLoaded = {
+            source: record.key,
+            kind,
+            mode,
+            ...(format === undefined ? {} : { format }),
+            ...(facts.sourceId === undefined ? {} : { sourceId: facts.sourceId }),
+            ...(facts.sample === undefined ? {} : { sample: Object.freeze({ ...facts.sample }) }),
+            ...(facts.callerKey === undefined ? {} : { callerKey: facts.callerKey }),
+            ...(facts.replaced === undefined ? {} : { replaced: facts.replaced }),
+        };
+        this.writes.emit?.("source:loaded", Object.freeze(loaded));
+    }
+
+    /**
+     * Publish `source:loaded` for every source the graph lists now and did not list before.
+     * @param before - The keys listed before the load dispatched.
+     * @param mode - Whether the load replaced the graph or merged into it.
+     * @param facts - What the door knows beside the source list.
+     */
+    private publishAdded(before: ReadonlySet<SourceKey>, mode: "replace" | "merge", facts: DoorFacts): void {
+        const listed = this.sources();
+        for (const each of this.storedSources()) {
+            const record = before.has(each.key) ? undefined : listed.find((entry) => entry.key === each.key);
+            if (record !== undefined) {
+                this.publishLoaded(record, mode, facts);
+            }
+        }
     }
 
     /**
@@ -2086,10 +2171,10 @@ export class SessionData implements SessionDataApi {
         return {
             ...host,
             waitTurn: () => turn.wait(),
-            dispatch: (command) =>
+            dispatch: (command, stamp) =>
                 hold
-                    ? (turn.wait()?.then(() => host.dispatch(command)) ?? host.dispatch(command))
-                    : turn.take(() => host.dispatch(command)),
+                    ? (turn.wait()?.then(() => host.dispatch(command, stamp)) ?? host.dispatch(command, stamp))
+                    : turn.take(() => host.dispatch(command, stamp)),
         };
     }
 
@@ -2215,7 +2300,7 @@ export class SessionData implements SessionDataApi {
             },
             positionScale: () => this.readConfig().knownFields.positionScale,
             directed: () => this.current().directed,
-            dispatch: (command) =>
+            dispatch: (command, stamp) =>
                 writes.send === undefined
                     ? Promise.reject(
                           new GraphtyError({
@@ -2224,8 +2309,12 @@ export class SessionData implements SessionDataApi {
                               message: "This session cannot dispatch a source command.",
                           }),
                       )
-                    : writes.send(command),
+                    : writes.send(command, stamp),
             emit: (event, detail) => writes.emit?.(event, detail),
+            sourceKeys: () => new Set(this.storedSources().map((each) => each.key)),
+            loaded: (before, mode, facts) => {
+                this.publishAdded(before, mode, facts);
+            },
         };
     }
 
@@ -2295,9 +2384,12 @@ export class SessionData implements SessionDataApi {
                     }
                     return { nodes: new Set(slice.nodes.keys()), edges: slice.edges.size, pairs };
                 },
-                inLine: async (run) => {
-                    const send = this.noting(this.keeping(this.writes.importer(), source), () =>
-                        bytesFacts(source.config),
+                inLine: async (run, choices) => {
+                    const send = this.noting(
+                        this.keeping(this.writes.importer(loadStampOf(choices ?? {})), source),
+                        () => bytesFacts(source.config),
+                        undefined,
+                        callerKeyOf(choices ?? {}),
                     );
                     const turn = this.loadLine.join();
                     try {
@@ -2317,7 +2409,11 @@ export class SessionData implements SessionDataApi {
                           joinGraph: () => this.joinGraph(),
                           joiner: () => {
                               const send = this.sender("join a table");
-                              return (table, choices, shape) => this.applyJoin(send, table, choices, shape);
+                              return async (table, choices, shape, callerKey) => {
+                                  const before = new Set(this.storedSources().map((each) => each.key));
+                                  await this.applyJoin(send, table, choices, shape);
+                                  this.publishAdded(before, "merge", callerKeyOf({ callerKey }));
+                              };
                           },
                       }
                     : {}),
@@ -3813,7 +3909,40 @@ export class SessionData implements SessionDataApi {
     ): Promise<ReplaceReport> {
         this.requireLive("replaceSource");
 
-        return this.afterLoads(() => this.replaceSourceNow(key, source, choices));
+        return this.afterLoads(() =>
+            this.replacing(key, "replaceSource", source, choices, () => this.replaceSourceNow(key, source, choices)),
+        );
+    }
+
+    /**
+     * Run a replacement of one load in place and publish `source:loaded` for it once it is in,
+     * under its key, with `mode: "merge"` and how it was replaced.
+     * @param key - the load's key
+     * @param replaced - which verb replaced it
+     * @param input - what it is read from now, for a network source's id
+     * @param choices - the caller's choices
+     * @param choices.callerKey - the caller's key, echoed on the event
+     * @param run - the replacement
+     * @returns what the replacement returns
+     */
+    private async replacing(
+        key: SourceKey,
+        replaced: NonNullable<SourceLoaded["replaced"]>,
+        input: DataSourceInput | undefined,
+        choices: { readonly callerKey?: string },
+        run: () => Promise<ReplaceReport>,
+    ): Promise<ReplaceReport> {
+        const report = await run();
+        const record = this.sources().find((each) => each.key === key);
+        if (record !== undefined) {
+            this.publishLoaded(record, "merge", {
+                ...(input?.source === undefined ? {} : { sourceId: input.source }),
+                ...callerKeyOf(choices),
+                replaced,
+            });
+        }
+
+        return report;
     }
 
     /**
@@ -3829,7 +3958,7 @@ export class SessionData implements SessionDataApi {
         choices: LoadChoices & SourceLoadOptions = {},
     ): Promise<ReplaceReport> {
         this.requireLive("replaceSource");
-        const send = this.sender("replace a load");
+        const send = this.sender("replace a load", loadStampOf(choices));
         const stored = this.storedSources();
         const at = this.sources().findIndex((each) => each.key === key);
         const entry = stored[at] as LoadedSource | undefined;
@@ -3998,7 +4127,7 @@ export class SessionData implements SessionDataApi {
         source: SourceInput,
         choices: LoadChoices & SourceLoadOptions,
     ): Promise<ReplaceReport> {
-        const send = this.sender("replace a load");
+        const send = this.sender("replace a load", loadStampOf(choices));
         const old = this.sources().find((each) => each.key === key)?.loadKey;
         const record = this.ledger.loads().find((each) => each.key === old);
         const mode = record?.options.mode as SourceLoadOptions["mode"] | undefined;
@@ -4253,7 +4382,7 @@ export class SessionData implements SessionDataApi {
      */
     async reloadSource(key: SourceKey, choices: LoadChoices): Promise<ReplaceReport> {
         this.requireLive("reloadSource");
-        return this.afterLoads(() => this.reloadSourceNow(key, choices));
+        return this.afterLoads(() => this.reloading(key, choices));
     }
 
     /**
@@ -4286,7 +4415,7 @@ export class SessionData implements SessionDataApi {
                 });
             }
 
-            return await this.reloadSourceNow(key, { mapping });
+            return await this.reloading(key, { mapping });
         });
     }
 
@@ -4299,6 +4428,18 @@ export class SessionData implements SessionDataApi {
         const token = (this.storedSources().find((each) => each.key === key) as { readonly input?: string } | undefined)
             ?.input;
         return token === undefined ? undefined : this.kept.get(token);
+    }
+
+    /**
+     * reloadSource, publishing `source:loaded` once it is in.
+     * @param key - as reloadSource takes it
+     * @param choices - as reloadSource takes it
+     * @returns what reloadSource returns
+     */
+    private reloading(key: SourceKey, choices: LoadChoices): Promise<ReplaceReport> {
+        return this.replacing(key, "reloadSource", this.sourceInput(key), choices, () =>
+            this.reloadSourceNow(key, choices),
+        );
     }
 
     /**
@@ -4487,9 +4628,10 @@ export class SessionData implements SessionDataApi {
     /**
      * The session's dispatch, taken now, or a refusal for a session that cannot dispatch.
      * @param verb - the verb asking, for the error
+     * @param stamp - for a load door: what its journal entries carry
      * @returns the dispatch
      */
-    private sender(verb: string): (command: SessionCommand) => Promise<unknown> {
+    private sender(verb: string, stamp?: LoadStamp): (command: SessionCommand) => Promise<unknown> {
         const send = this.writes.send?.bind(this.writes);
         if (send === undefined) {
             throw new GraphtyError({
@@ -4499,7 +4641,7 @@ export class SessionData implements SessionDataApi {
             });
         }
 
-        return send;
+        return (command) => send(command, stamp);
     }
 
     /**
@@ -6858,6 +7000,9 @@ function overTables(a: ByTableMapping, b: ByTableMapping): ByTableMapping {
 /** The error limit the JSON source reads a sample's records with, by default. */
 const SAMPLE_ERROR_LIMIT = 100;
 
+/** What a load door knows of its load beside what `sources()` records: for `source:loaded`. */
+type DoorFacts = Pick<SourceLoaded, "sourceId" | "sample" | "callerKey" | "replaced">;
+
 /** What a generated graph or a dataset loads as; see `SessionData.sampleLoad`. */
 interface SampleLoad {
     readonly source: DataSourceInput;
@@ -7549,6 +7694,27 @@ async function bytesFacts(config: Readonly<Record<string, unknown>>): Promise<Pa
     }
 
     return {};
+}
+
+/**
+ * A caller's `callerKey`, as `{ callerKey }`, or nothing when it gave none.
+ * @param options - The load's options.
+ * @param options.callerKey - The caller's key.
+ * @returns `{ callerKey }` or `{}`.
+ */
+function callerKeyOf(options: { readonly callerKey?: string }): { callerKey?: string } {
+    return options.callerKey === undefined ? {} : { callerKey: options.callerKey };
+}
+
+/**
+ * A load door's journal stamp, so a consumer can tell the commands a load ran (the configuration
+ * it settled as well as the import) from the ones a reader asked for.
+ * @param options - The load's options.
+ * @param options.callerKey - The caller's key.
+ * @returns `{ trigger: "load" }`, with the caller's key when it gave one.
+ */
+function loadStampOf(options: { readonly callerKey?: string }): LoadStamp {
+    return { trigger: "load", ...callerKeyOf(options) };
 }
 
 /**

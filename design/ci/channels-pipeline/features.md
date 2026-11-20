@@ -241,15 +241,18 @@ is the app's, but nobody has asked for it).
 
 The app's half of an experiment (the Data place in the nav rail, a timeline scrubber panel) is
 shown when the element's `enabledFeatures.enabled` contains the id, read from the element, never
-computed in the app. An app-only experiment with no element part (none today) would be declared
-in `graphty/src/features.ts` and checked against the combined raw list; `tools/check-features.mjs`
-reads that file too, so its ids get the same checks.
+computed in the app. An app-only experiment with no element part is declared in
+`graphty/src/features.ts` (`APP_FEATURES`; today `usage-analytics`) and checked against the combined
+raw list (`appFeatureOn`, `useAppFeature`), where `"all"` switches it on as it does the element's;
+`tools/check-features.mjs` reads that file too, so its ids, its rows' issues and its gates get the
+same checks. graphty-element's `resolveFeatures` lists such an id under `unknown`, harmlessly.
 
 ## 6. Which work starts behind a flag
 
 - **`location-map`** -- Element part: the location-map layout (`src/layout/locationMap/`), its catalog entry in `catalog/layouts.ts`, the basemap catalog (`catalog/basemaps.ts`), `basemap` attribute and `BasemapManager`; App part: the layout's picker entry, the location column control; Branches to restructure: `feat/location-map-prototype`, `fix/3317-locationmap-load`, `fix/location-map-applies`, design on `design/location-map-layout`.
 - **`timeline`** -- Element part: the time attribute and the visibility filter it drives (`src/session/visibility/`), its commands and events; App part: the scrubber; Branches to restructure: `feat/timeline-data`, `feat/timeline-prototype`, `feat/timeline-samples`, design `design/data/timeline-attribute.md`.
 - **`data-management`** -- Element part: versioned, refreshed and joined data commands as they are built; App part: the Data place.
+- **`usage-analytics`** (issue #8818) -- Element part: none (an app-only experiment, section 5.3, declared in `graphty/src/features.ts`); App part: PostHog's anonymous and shared modes, surveys, and the words and links that describe them (design/graphty/usage-analytics.md). On for canary, which has PostHog ids like nightly and production, so canary sends; nightly and production send when opened with `?features=usage-analytics`, and insights filter by `$host` to separate the sites; the owner switches it on for production by adding it to production.json's features.
 
 The new `babylonjs-map` package itself is not flagged: a package is opt-in by install, and
 graphty-element loads it as an optional peer the way it loads webgpu-graph-algorithms.

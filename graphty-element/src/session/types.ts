@@ -32,12 +32,14 @@ import type {
 // published surface.
 import type { Tour } from "../camera/tour";
 import type { CameraState } from "../camera/types";
+import type { CameraGestureKind } from "../cameras/gestureEnd";
 import type {
     AlgorithmKey,
     AttributeDescriptor,
     CatalogApi,
     DeprecatedCatalogMethod,
     EdgeId,
+    FormatId,
     LayerId,
     LayoutId,
     MeasurementDeclaration,
@@ -1692,6 +1694,11 @@ export interface SessionDataApi {
      * joins, the column settings and the load's key all stay; the load moves to the end of
      * `sources()`, as the newest. One undo brings the earlier data back.
      *
+     * Once it is in, it publishes `source:loaded` for the load, under its key, with `mode: "merge"`,
+     * `replaced: "replaceSource"` and the `callerKey` given in `choices`; the journal entries of the
+     * commands it ran carry `trigger: "load"` and that key, and its returned report says what
+     * changed.
+     *
      * ```ts
      * const key = await session.data.matchesSource({ config: { file } });
      * if (key !== null) {
@@ -1720,7 +1727,8 @@ export interface SessionDataApi {
      * keeps everything else, as {@link SessionDataApi.replaceSource} does. The choices are laid
      * over the ones the load was read with (`LoadedSource.choices`); a mapping key set to `null`
      * goes back to the element's own reading. Only a load this session read itself can be read
-     * again (`LoadedSource.reloadable`): what a file was is never saved in a project.
+     * again (`LoadedSource.reloadable`): what a file was is never saved in a project. Once it is
+     * in, it publishes `source:loaded` with `replaced: "reloadSource"`, as `remap` does.
      *
      * ```ts
      * const [log] = session.data.sources();
@@ -3704,6 +3712,15 @@ export interface ImportOptions {
      * was pending is kept as its own steps.
      */
     readonly history?: "step" | "start";
+    /**
+     * An opaque value the caller chooses. The load does nothing with it but echo it as
+     * {@link SourceLoaded.callerKey} on the `source:loaded` event, and as `JournalEntry.callerKey`
+     * on the journal entries of the commands the load ran, so a caller can tell its own loads
+     * apart. It is never saved with the project. `replaceSource` and `reloadSource` echo it too,
+     * on the `source:loaded` they publish with {@link SourceLoaded.replaced} set.
+     * @since 3.40.0
+     */
+    readonly callerKey?: string;
 }
 
 /** A node record to add: its id is read through `data.knownFields.nodeIdPath`. */
@@ -4463,6 +4480,40 @@ export interface SessionEventMap {
         readonly load: string;
     };
     /**
+     * A load added a source to the graph: one event per source added, published by every load
+     * method (`import`, `LoadDraft.load`, `loadExample`, `loadDataset`, `generate`, and the
+     * element's `data-source` attribute, `loadFromFile`, `loadFromUrl` and `addDataFromSource`)
+     * once its load commits. Not published by opening a project, by undo, redo or restore, or by
+     * `runPendingSourceLoad`, which fills a source a project already listed. It carries no
+     * contents: no file name, URL or parameters.
+     *
+     * Unlike the graph event `data-loaded`, which fires whenever data arrives for any cause
+     * (undo and redo included), this fires only for a load a caller asked for.
+     * Mirrored on the element as `graphty-source-loaded`.
+     * @since 3.40.0
+     */
+    "source:loaded": SourceLoaded;
+    /**
+     * A reader's camera gesture on the canvas ended: once per gesture, never per frame. `kind` is
+     * what the gesture did: `"orbit"` turned the view, `"pan"` moved it sideways, `"zoom"` moved
+     * it nearer or farther (a wheel, a pinch, the zoom keys).
+     *
+     * A gesture's end is defined by the input, never by a timer: a drag or a pinch ends at the
+     * pointer up that ends it; a run of wheel events ends at the first frame in which the camera
+     * comes to rest with no new wheel event since the frame before (wheel events dispatched in one
+     * task are always one gesture); a key gesture ends once the last camera key held is released
+     * and the camera's own inertia has come to rest, and a key pressed before then continues it.
+     * Moves the element makes itself (a fit, a glide, `camera.autoRotate`) and calls such as
+     * `setCameraState` publish nothing.
+     *
+     * OPEN UNION: kinds may be added in a minor release; handle one you do not know.
+     * @since 3.40.0
+     */
+    "camera:gesture-end": {
+        /** What the gesture did. */
+        readonly kind: CameraGestureKind;
+    };
+    /**
      * The project's name or whether it has unsaved changes (`session.project.name`, `.dirty`)
      * changed. Mirrored on the element as `graphty-project-status`.
      */
@@ -4525,6 +4576,56 @@ export interface SessionEventMap {
      * microtask, so a host that asks too late still hears it.
      */
     "session:disposed": Readonly<Record<string, never>>;
+}
+
+/**
+ * What `source:loaded` carries: which source a load added (or replaced in place, see
+ * {@link SourceLoaded.replaced}), where it came from and how it was loaded, never what it holds.
+ *
+ * ```ts
+ * session.on("source:loaded", (loaded) => {
+ *     if (loaded.callerKey === "my-sample") console.log("my sample is in", loaded.source);
+ * });
+ * await session.data.import({ type: "csv", config: { data: text } }, { callerKey: "my-sample" });
+ * ```
+ * @since 3.40.0
+ */
+export interface SourceLoaded {
+    /** The source's key in `session.data.sources()`. */
+    readonly source: SourceKey;
+    /** The source's `LoadedSource.kind`, exactly as `session.data.sources()` records it. */
+    readonly kind: LoadedSourceKind;
+    /** For kinds `"file"` and `"url"`: the format read, named or detected; absent when none was settled. */
+    readonly format?: FormatId;
+    /** For kind `"server"`, and for a sample read from a network source: the source id. */
+    readonly sourceId?: string;
+    /** Whether the load replaced the graph or merged into it. */
+    readonly mode: "replace" | "merge";
+    /**
+     * Present when the load was a catalog sample: a dataset (`loadDataset`), a generator
+     * (`generate`) or a network source's example (`loadExample`, whose kind stays `"server"`).
+     */
+    readonly sample?:
+        | {
+              /** The graph-samples dataset's id, as `loadDataset` took it. */
+              readonly datasetId: string;
+          }
+        | {
+              /** The generator's id, as `generate` took it. */
+              readonly generatorId: string;
+          }
+        | {
+              /** The network source's example id, as `loadExample` took it. */
+              readonly exampleId: string;
+          };
+    /** The caller's own {@link ImportOptions.callerKey}, echoed unchanged. */
+    readonly callerKey?: string;
+    /**
+     * Present when the source was not added but replaced in place, under the same key, with
+     * `mode: "merge"`: `"replaceSource"` for a newer copy (`session.data.replaceSource`),
+     * `"reloadSource"` for the same input read again with other choices (`reloadSource`, `remap`).
+     */
+    readonly replaced?: "replaceSource" | "reloadSource";
 }
 
 /**
@@ -4994,6 +5095,13 @@ export interface TransactionOptions {
      * cancels it rather than undoing the step it continues.
      */
     readonly after?: HistoryStepId;
+    /**
+     * The caller's own key for this work, echoed unchanged as `JournalEntry.callerKey` on the
+     * journal entry of every command the transaction runs. Lets a caller tell the commands its
+     * own setup ran (naming a new project, say) from the ones a reader asked for.
+     * @since 3.40.0
+     */
+    readonly callerKey?: string;
 }
 
 /**
@@ -6179,6 +6287,11 @@ export interface ElementSession extends GraphSession {
      * @param target - What the click landed on.
      */
     elementClick(target: { readonly node: NodeId } | { readonly edge: EdgeId }): void;
+    /**
+     * Publishes `camera:gesture-end`; the renderer calls it when a reader's camera gesture ends.
+     * @param kind - What the gesture did.
+     */
+    cameraGestureEnd(kind: CameraGestureKind): void;
     /**
      * Publishes `canvas:group-outline-click`; the renderer calls it for a click on a group outline.
      * @param target - The outline's layer, shader and group.

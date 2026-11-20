@@ -204,6 +204,7 @@ export type {
     SettingEffect,
     SettingEffectCode,
     SideMapping,
+    SourceLoaded,
     StartingCamera,
     StyleProblem,
     TableMapping,

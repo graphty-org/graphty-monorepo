@@ -84,7 +84,7 @@ export function decideFetch(
 
     const layers = session.styles.list().filter((layer) => layerIds.includes(layer.id));
     let by: FetchQuestion["by"] = "data";
-    if (layers.some((layer) => layer.source?.by === "plugin" && layer.source.name === "graphty-ai")) {
+    if (layers.some((layer) => layer.source.by === "plugin" && layer.source.name === "graphty-ai")) {
         by = "ai";
     } else if (layers.some((layer) => layer.set?.[channel] === ref)) {
         by = "file";

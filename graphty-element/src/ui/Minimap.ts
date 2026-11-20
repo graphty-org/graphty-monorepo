@@ -14,7 +14,7 @@ export interface MinimapHost extends EventTarget {
 }
 
 /** The keys that step the view, and the direction each steps it in frame units of the viewport. */
-const STEPS: Readonly<Record<string, readonly [number, number]>> = {
+const STEPS: Readonly<Partial<Record<string, readonly [number, number]>>> = {
     ArrowLeft: [-1, 0],
     ArrowRight: [1, 0],
     ArrowUp: [0, -1],

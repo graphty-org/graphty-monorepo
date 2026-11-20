@@ -203,7 +203,12 @@ function assertAgree(reader: FormatDescriptor, writer: FormatDescriptor): void {
  * `E_DUPLICATE_PLUGIN`.
  */
 export function registerFormatWriter(registration: FormatWriterRegistration, options?: RegisterOptions): void {
-    const { descriptor, exporter } = registration as Partial<FormatWriterRegistration>;
+    // A JavaScript caller can leave either out or pass null.
+    const given: {
+        readonly descriptor?: FormatDescriptor | null;
+        readonly exporter?: FormatWriterRegistration["exporter"] | null;
+    } = registration;
+    const { descriptor, exporter } = given;
     if (typeof descriptor !== "object" || descriptor === null) {
         refuse("descriptor", "a writer registration needs a descriptor");
     }

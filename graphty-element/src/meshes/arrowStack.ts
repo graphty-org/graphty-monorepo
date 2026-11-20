@@ -38,7 +38,10 @@ export function parseArrowStack(stack: string | undefined): ArrowStackPart[] {
                 return [];
             }
 
-            const [, type, side, size, width, outline] = m;
+            // The optional groups are undefined when they did not match, whatever the lib types say.
+            const groups: readonly (string | undefined)[] = m;
+            const [, , side, size, width, outline] = groups;
+            const type = m[1];
             const part: ArrowStackPart = {
                 type,
                 ...(side === undefined ? {} : { side: side as "left" | "right" }),

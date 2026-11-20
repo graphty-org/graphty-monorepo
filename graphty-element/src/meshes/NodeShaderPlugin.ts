@@ -223,7 +223,9 @@ export function writeNodeShaderAttributes(
     meta: readonly [number, number, number, number],
 ): void {
     const mesh = instance as InstancedMesh;
-    if (mesh.instancedBuffers === undefined) {
+    // Babylon types the buffers as always there; an instance of a source with none has none.
+    const view: { readonly instancedBuffers?: InstancedMesh["instancedBuffers"] } = mesh;
+    if (view.instancedBuffers === undefined) {
         return;
     }
 

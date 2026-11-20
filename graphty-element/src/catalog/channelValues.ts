@@ -49,7 +49,7 @@ function glyphTableOf(channel: string): readonly GlyphDescriptor[] | undefined {
 const LINE_PATTERN_SPELLING: Readonly<Record<string, string>> = { dashed: "dash", dotted: "dot" };
 
 /** Names for the ids that do not read as words once their dashes are spaces. */
-const VALUE_NAMES: Readonly<Record<string, string>> = {
+const VALUE_NAMES: Readonly<Partial<Record<string, string>>> = {
     "-x": "Minus X",
     "-y": "Minus Y",
     "-z": "Minus Z",

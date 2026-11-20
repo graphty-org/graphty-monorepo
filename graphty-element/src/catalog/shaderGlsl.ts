@@ -1127,7 +1127,7 @@ function readLoopHeader(tokens: readonly Token[], constants: ReadonlyMap<string,
     const from = evaluateConstant(init.slice(3), constants);
     const to = test[0]?.text === index ? evaluateConstant(test.slice(2), constants) : null;
     const by = stepOf(step, index, constants);
-    const relation = test[1]?.text;
+    const relation = test.at(1)?.text;
     if (from === null || to === null || by === null || relation === undefined) {
         return null;
     }

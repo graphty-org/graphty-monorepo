@@ -751,7 +751,7 @@ function readerImportOf(
         path: (kind, name) => {
             const table = kind === "node" ? snapshot.nodes : snapshot.edges;
             const column = table.get(name);
-            if (column === null || column === undefined) {
+            if (column === null) {
                 return null;
             }
 

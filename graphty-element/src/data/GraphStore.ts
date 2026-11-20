@@ -2671,15 +2671,16 @@ export class GraphStore {
         const moved: number[] = [];
         // Rebuilt from the surviving rows: the entries of removed edges go with their rows.
         this.indexByEdgeId.clear();
-        for (const [index, edgeId] of this.edgeIdByIndex.entries()) {
+        // forEach skips the holes a removal leaves in the list.
+        this.edgeIdByIndex.forEach((edgeId, index) => {
             const next = remap[index] ?? INVALID_INDEX;
-            if (edgeId === undefined || next === INVALID_INDEX) {
-                continue;
+            if (next === INVALID_INDEX) {
+                return;
             }
 
             moved[next] = edgeId;
             this.indexByEdgeId.set(edgeId, next);
-        }
+        });
 
         this.edgeIdByIndex = moved;
         // Every row moved has its entry now; the offset no longer describes them.

@@ -392,7 +392,8 @@ const RICH_TEXT_FIELDS: ReadonlySet<string> = new Set(Object.keys(RichTextStyle.
  * @returns Its appearance, in the renderer's spelling, with its private bookkeeping left out.
  */
 function badgeAppearance(badge: LabelBadge): Record<string, unknown> {
-    const declared = BadgeStyleManager.getBadgeStyle(badge) ?? {};
+    // Read as unknown: an entry can hold undefined, whatever the table's type says.
+    const declared: Readonly<Record<string, unknown>> = BadgeStyleManager.getBadgeStyle(badge) ?? {};
     const kept: Record<string, unknown> = {};
 
     for (const [key, value] of Object.entries(declared)) {

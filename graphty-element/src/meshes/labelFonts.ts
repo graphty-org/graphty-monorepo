@@ -69,7 +69,7 @@ export function fontFamilies(list: string): string[] {
  * @param list - The font's family list.
  */
 export function noteLabelFont(scene: Scene, style: string, list: string): void {
-    const set = globalThis.document?.fonts as FontFaceSet | undefined;
+    const set = typeof document === "undefined" ? undefined : document.fonts;
     if (set === undefined) {
         return;
     }

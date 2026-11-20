@@ -630,7 +630,8 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
                     // The dispatcher may still answer on the CPU port with an accelerator attached --
                     // eigenvector centrality over a graph whose iteration the device kernel cannot
                     // match, say -- so the precision follows whether a member was actually reached.
-                    let reached = false;
+                    // Set from the device's callback, so read off an object narrowing cannot pin.
+                    const device = { reached: false };
                     const outcome = await controller.run(work, (accelerator) => {
                         // Logged before the device work starts, so a run that never comes back
                         // still says where it went.
@@ -638,7 +639,7 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
                         return fn(
                             accelerated(
                                 narrowAlgorithms(accelerator, () => {
-                                    reached = true;
+                                    device.reached = true;
                                 }),
                             ),
                             snapshot,
@@ -646,7 +647,7 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
                     });
 
                     if (outcome.accelerated) {
-                        if (reached) {
+                        if (device.reached) {
                             return { value: outcome.value, precision: outcome.precision };
                         }
 
@@ -938,5 +939,5 @@ function loadedWeightOf(graph: Graph): LoadedWeightFact | null {
     const attribute = graph.getDataManager().lastImport?.weights.attribute ?? null;
     return attribute === null
         ? null
-        : { attribute, meaning: graph.styles?.config.data.knownFields.edgeWeightMeaning ?? null };
+        : { attribute, meaning: graph.styles.config.data.knownFields.edgeWeightMeaning ?? null };
 }

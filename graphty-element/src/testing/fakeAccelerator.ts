@@ -372,7 +372,7 @@ export class FakeSimulation implements LayoutSimulation {
     step(iterations: number = this.#iterationsPerStep): Promise<void> {
         this.#assertLive("step");
 
-        const oldest = this.#inFlight[0];
+        const oldest = this.#inFlight.at(0);
         if (oldest !== undefined && this.#inFlight.length >= this.#maxInFlight) {
             return oldest;
         }

@@ -215,7 +215,7 @@ function topLevelNameAt(tokens: readonly Token[], i: number, initializing: boole
         return token.text;
     }
 
-    if (tokens[i - 1]?.text === "," && tokens[i + 1] !== undefined) {
+    if (tokens[i - 1]?.text === "," && i + 1 < tokens.length) {
         // The second name of "float a, b;".
         return token.text;
     }
@@ -438,8 +438,8 @@ function endOf(tokens: readonly Token[], from: number, stop: string): number {
  * @returns False for an index.
  */
 function maySizeAnArray(tokens: readonly Token[], open: number): boolean {
-    const before = tokens[open - 2];
-    const after = tokens[endOf(tokens, open + 1, "]") + 1];
+    const before = open >= 2 ? tokens[open - 2] : undefined;
+    const after = tokens.at(endOf(tokens, open + 1, "]") + 1);
     return (
         tokens[open - 1]?.kind !== "id" ||
         before?.text === "," ||
@@ -981,7 +981,7 @@ ${sampleFinish(kind, descriptor.place)}
 export function compileProblem(errors: string, bodyLine: number): ShaderProblem {
     const match = /ERROR:\s*\d+:(\d+):\s*(.*)/.exec(errors);
     const driverLine = match === null ? 0 : Number(match[1]);
-    const message = unprefix((match?.[2] ?? errors.split("\n")[0] ?? "").trim()).slice(0, 400);
+    const message = unprefix((match?.[2] ?? errors.split("\n")[0]).trim()).slice(0, 400);
     // A line of the wrapper's own code after the body has no place in the text.
     const line = driverLine > 0 && driverLine < WRAPPER_LINE ? bodyLine + driverLine - 1 : 0;
     let reason: string | undefined;

@@ -170,6 +170,15 @@ export default tseslint.config(
             "@typescript-eslint/no-unsafe-assignment": "error",
         },
     },
+    // A condition that can never be false is a wrong type or dead code. Still off for src/session/
+    // and src/ai/, whose findings are not fixed yet (213 on 2026-11-19), and for tests and stories.
+    {
+        files: ["src/**/*.ts"],
+        ignores: ["src/session/**", "src/ai/**"],
+        rules: {
+            "@typescript-eslint/no-unnecessary-condition": "error",
+        },
+    },
 
     // ============================================
     // THE ELEMENT KEEPS WRITING ITS OWN DEPRECATED FIELDS

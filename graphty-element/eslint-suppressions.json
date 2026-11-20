@@ -56,9 +56,6 @@
     },
     "unicorn/no-array-callback-reference": {
       "count": 1
-    },
-    "unicorn/prefer-modern-math-apis": {
-      "count": 3
     }
   },
   "src/NodeBehavior.ts": {
@@ -253,9 +250,6 @@
   },
   "src/autosave/Autosaver.ts": {
     "sonarjs/cognitive-complexity": {
-      "count": 1
-    },
-    "sonarjs/no-identical-functions": {
       "count": 1
     }
   },
@@ -876,11 +870,6 @@
     }
   },
   "src/session/styles/fileStyles/apply.ts": {
-    "unicorn/no-array-callback-reference": {
-      "count": 1
-    }
-  },
-  "src/session/styles/fileStyles/labelGrid.ts": {
     "unicorn/no-array-callback-reference": {
       "count": 1
     }

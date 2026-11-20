@@ -1075,7 +1075,9 @@ export class NodeMesh {
         mesh.outlineColor = from.outlineColor;
         mesh.isPickable = from.isPickable;
         mesh.isVisible = false;
-        for (const kind of Object.keys(from.instancedBuffers ?? {})) {
+        // Babylon types the buffers as always there; a mesh that registered none has none.
+        const fromView: { readonly instancedBuffers?: Mesh["instancedBuffers"] } = from;
+        for (const kind of Object.keys(fromView.instancedBuffers ?? {})) {
             mesh.registerInstancedBuffer(kind, from.getVertexBuffer(kind)?.getSize() ?? 4);
             mesh.instancedBuffers[kind] = from.instancedBuffers[kind] as unknown;
         }

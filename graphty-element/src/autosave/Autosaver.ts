@@ -1345,12 +1345,13 @@ export class Autosaver {
      */
     async #commitWithin(writes: readonly AutosaveWrite[], step: AutosaveStallStep): Promise<void> {
         const controller = new AbortController();
-        let stalled = false;
+        // Set by the timer, so read off an object narrowing cannot pin.
+        const watch = { stalled: false };
         let cancelTimer = (): void => undefined;
         const arm = (): void => {
             cancelTimer();
             cancelTimer = this.#deadline(() => {
-                stalled = true;
+                watch.stalled = true;
                 controller.abort();
             }, WATCHDOG_MS);
         };
@@ -1358,7 +1359,7 @@ export class Autosaver {
         try {
             await this.#store.commit(writes, { signal: controller.signal, onProgress: arm });
         } catch (error) {
-            throw stalled ? stalledError(step, WATCHDOG_MS) : error;
+            throw watch.stalled ? stalledError(step, WATCHDOG_MS) : error;
         } finally {
             cancelTimer();
         }
@@ -2051,7 +2052,16 @@ export class Autosaver {
         do {
             this.#again = false;
             await this.#writeOnce(retries);
-        } while (this.#again && !this.#stopped && this.#problem === null);
+        } while (this.#wantsAnotherWrite());
+    }
+
+    /**
+     * Whether a change asked for another write while the last one ran, and nothing stopped the saver.
+     * A method, because the write awaited between the reads and narrowing would pin the fields.
+     * @returns True to write again.
+     */
+    #wantsAnotherWrite(): boolean {
+        return this.#again && !this.#stopped && this.#problem === null;
     }
 
     /**

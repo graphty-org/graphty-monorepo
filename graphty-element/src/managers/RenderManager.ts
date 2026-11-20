@@ -266,7 +266,8 @@ export async function openWebGPUEngine(
     // Asked first, and apart from the engine: an engine that fails to open is half built, and it
     // has already registered itself as Babylon's last created engine.
     const adapter = await navigator.gpu.requestAdapter({ powerPreference: "high-performance" });
-    if (adapter === null || adapter === undefined) {
+    // Babylon's types say undefined when there is none; the WebGPU spec answers null.
+    if (!adapter) {
         return "this browser has WebGPU but no adapter (navigator.gpu.requestAdapter() returned null)";
     }
 
@@ -617,6 +618,23 @@ class ShaderScene {
     }
 
     /**
+     * Whether the outline pass is built. A method, so a read after the pass's module loads is not
+     * pinned by narrowing to the null an earlier check saw.
+     * @returns True once it is.
+     */
+    #outlineBuilt(): boolean {
+        return this.outline !== null;
+    }
+
+    /**
+     * Whether the bloom pass is built; a method for the same reason as {@link #outlineBuilt}.
+     * @returns True once it is.
+     */
+    #bloomBuilt(): boolean {
+        return this.bloom !== null;
+    }
+
+    /**
      * Whether a scene shader's picture is on its way, so the frame on screen does not show it yet:
      * the background or the group outline pass still loading, an outline's shader still resolving
      * or compiling, a background that owes a draw with the outlines laid out since, or a background
@@ -765,7 +783,7 @@ class ShaderScene {
                 "the group outline pass is still loading",
                 Promise.all([host.runtime(), import("../meshes/GroupOutlinePass")]),
             );
-            if (this.disposed || this.outline !== null) {
+            if (this.disposed || this.#outlineBuilt()) {
                 return;
             }
 
@@ -802,7 +820,7 @@ class ShaderScene {
             "the bloom pass is still loading",
             import("../meshes/BloomPass"),
         );
-        if (this.disposed || this.bloom !== null) {
+        if (this.disposed || this.#bloomBuilt()) {
             return;
         }
 

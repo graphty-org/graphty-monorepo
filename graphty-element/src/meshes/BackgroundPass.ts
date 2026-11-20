@@ -224,7 +224,7 @@ export class BackgroundPass {
      */
     guardedDrawn(): { readonly heavy: boolean; readonly moving: readonly string[] } {
         const { shader } = this;
-        if (shader === null || shader === undefined) {
+        if (shader === null) {
             return { heavy: false, moving: [] };
         }
 

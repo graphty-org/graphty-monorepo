@@ -697,7 +697,7 @@ export class ScreenshotCapture {
 
             // Check immediately in case it's already settled
 
-            if (!completed && atRest()) {
+            if (atRest()) {
                 completed = true;
                 cleanup();
                 resolve();
@@ -723,7 +723,9 @@ export class ScreenshotCapture {
      * @returns True for a WebGL context with preserveDrawingBuffer.
      */
     private keepsFrames(): boolean {
-        return (this.engine as Engine)._gl?.getContextAttributes()?.preserveDrawingBuffer === true;
+        // A WebGPU engine has no WebGL context.
+        const view: { readonly _gl?: WebGLRenderingContext | null } = this.engine as Engine;
+        return view._gl?.getContextAttributes()?.preserveDrawingBuffer === true;
     }
 
     /**

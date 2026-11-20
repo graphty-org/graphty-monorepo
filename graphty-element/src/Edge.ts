@@ -2753,7 +2753,7 @@ export class Edge {
         const frame = scene.getFrameId();
         let rule = liftRule.get(scene);
         if (rule?.frame !== frame) {
-            const layout = this.context.getSession?.()?.layout;
+            const layout = this.context.getSession?.().layout;
             rule = { frame, draws: layout?.dimension === "3d" && layout.arrangedDimension === "2d" };
             liftRule.set(scene, rule);
         }

@@ -88,7 +88,7 @@ export interface LoggerConfig {
         colors?: boolean;
     };
     level: LogLevel;
-    moduleLevels?: Readonly<Record<string, LogLevel>>;
+    moduleLevels?: Readonly<Partial<Record<string, LogLevel>>>;
     modules: string[] | "*";
 }
 

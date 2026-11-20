@@ -141,8 +141,8 @@ describe("one node acted on in a 10,000-node connected batched graph builds that
         await hoverMiddle(element);
     });
 
-    // a line with no arrowhead that a row line does not draw (a label, a dash) starts at its ends' outlines
-    it.each([{ "edge.label": "e" }, { "edge.style": "dash" }])(
+    // a line with no arrowhead drawn as an Edge (a label, a dash) or along a curve starts at its ends' outlines
+    it.each([{ "edge.label": "e" }, { "edge.style": "dash" }, { "edge.curvature": true }, { "edge.route": "arc" }])(
         "a real hover with undirected edges set %o",
         async (set) => {
             const element = await mounted(false, undefined, set);

@@ -861,6 +861,16 @@ export class Edge {
     }
 
     /**
+     * What one end is measured by: the row that draws it when it has no `Node`, else its `Node`, so measuring an end
+     * never builds one (issue #9166).
+     * @param end - Which end.
+     * @returns The row or the node.
+     */
+    private endMeasure(end: "source" | "target"): RowMeasure {
+        return this.columnEnd(end) ?? (end === "source" ? this.srcNode : this.dstNode);
+    }
+
+    /**
      * Whether one end is selected. An end with no `Node` reads the session's selection by its row, so none is built.
      * @param end - Which end.
      * @returns True while it is.
@@ -1908,7 +1918,7 @@ export class Edge {
         }
 
         // an end drawn with no `Node` is measured by its row, so none is built for it (issue #9166)
-        const node: RowMeasure = this.columnEnd(end) ?? (end === "source" ? this.srcNode : this.dstNode);
+        const node = this.endMeasure(end);
         if (gap > 0 || invisible) {
             return this.leaveNode(node, centre, toward, gap);
         }
@@ -2806,14 +2816,24 @@ export class Edge {
         if (stored === null) {
             base = bezier ? EdgeMesh.createBezierLine(src, dst) : [src.x, src.y, src.z, dst.x, dst.y, dst.z];
         } else {
-            base = fileRoute(src, dst, stored, this.srcNode.drawnHalfExtents, this.dstNode.drawnHalfExtents);
+            base = fileRoute(
+                src,
+                dst,
+                stored,
+                this.endMeasure("source").drawnHalfExtents,
+                this.endMeasure("target").drawnHalfExtents,
+            );
         }
 
-        const reach = (node: Node): number => {
+        const reach = (node: RowMeasure): number => {
             const half = node.drawnHalfExtents;
             return (node.roundRadius ?? Math.max(half.x, half.y, half.z)) + node.borderReach;
         };
-        const mid = interiorOutside(liftRoute(base, lift), reach(this.srcNode), reach(this.dstNode));
+        const mid = interiorOutside(
+            liftRoute(base, lift),
+            reach(this.endMeasure("source")),
+            reach(this.endMeasure("target")),
+        );
         if (mid.length === 0) {
             const { srcPoint, dstPoint } = this.transformArrowCap();
             this.transformEdgeMesh(srcPoint ?? src, dstPoint ?? dst);
@@ -3138,8 +3158,8 @@ export class Edge {
             const bent = curveSpan(
                 src,
                 dst,
-                Edge.outside(this.srcNode, src, this.gapAt("source")),
-                Edge.outside(this.dstNode, dst, this.gapAt("target")),
+                Edge.outside(this.endMeasure("source"), src, this.gapAt("source")),
+                Edge.outside(this.endMeasure("target"), dst, this.gapAt("target")),
                 { bends },
                 () => [this.bareEnd("source", src, dst), this.bareEnd("target", dst, src)],
             );
@@ -3166,8 +3186,8 @@ export class Edge {
         const span = curveSpan(
             src,
             dst,
-            Edge.outside(this.srcNode, src, this.gapAt("source")),
-            Edge.outside(this.dstNode, dst, this.gapAt("target")),
+            Edge.outside(this.endMeasure("source"), src, this.gapAt("source")),
+            Edge.outside(this.endMeasure("target"), dst, this.gapAt("target")),
             // a straight line raised off the map that clears neither node is drawn straight (`placeLine`)
             {
                 bow,
@@ -4186,9 +4206,9 @@ export class Edge {
             members.map((e) => e.fans),
             rank,
         );
-        const radius = Math.max(Edge.radiusOf(this.srcNode), Edge.radiusOf(this.dstNode));
+        const radius = Math.max(Edge.radiusOf(this.endMeasure("source")), Edge.radiusOf(this.endMeasure("target")));
         const offset = fanOffset(slot, count, radius, Vector3.Distance(src, dst), this.drawnStyle?.line?.fanSpacing);
-        return { offset, forward: first.srcNode === this.srcNode };
+        return { offset, forward: first.srcId === this.srcId };
     }
 
     /**
@@ -4341,7 +4361,7 @@ export class Edge {
      * @param node - The node.
      * @returns The radius.
      */
-    private static radiusOf(node: Node): number {
+    private static radiusOf(node: RowMeasure): number {
         const half = node.drawnHalfExtents;
         return node.roundRadius ?? Math.hypot(half.x, half.y);
     }
@@ -4353,7 +4373,7 @@ export class Edge {
      * @param gap - How far past the outline a point must be to count as outside (`line.nodeGap`).
      * @returns True for a point farther from the center than the node's outline in its direction.
      */
-    private static outside(node: Node, centre: Vector3, gap = 0): (x: number, y: number, z: number) => boolean {
+    private static outside(node: RowMeasure, centre: Vector3, gap = 0): (x: number, y: number, z: number) => boolean {
         return (x, y, z) => {
             const d = Math.hypot(x - centre.x, y - centre.y, z - centre.z);
             return (
@@ -4389,8 +4409,8 @@ export class Edge {
      */
     private placeRoute(batch: EdgeLineBatch | null, src: Vector3, dst: Vector3, route: readonly number[]): boolean {
         const [srcGap, dstGap] = [this.gapAt("source"), this.gapAt("target")];
-        const outSrc = Edge.outside(this.srcNode, src, srcGap);
-        const outDst = Edge.outside(this.dstNode, dst, dstGap);
+        const outSrc = Edge.outside(this.endMeasure("source"), src, srcGap);
+        const outDst = Edge.outside(this.endMeasure("target"), dst, dstGap);
         const span = routeOutside(route, outSrc, outDst, true);
         if (span === null) {
             return false;
@@ -4407,11 +4427,13 @@ export class Edge {
             return new Vector3(c.x, c.y, c.z);
         };
         const start =
-            span.first > 0 ? cross(span.first - 1, first, outSrc) : this.leaveNode(this.srcNode, src, first, srcGap);
+            span.first > 0
+                ? cross(span.first - 1, first, outSrc)
+                : this.leaveNode(this.endMeasure("source"), src, first, srcGap);
         const end =
             span.last < route.length / 3 - 1
                 ? cross(span.last + 1, last, outDst)
-                : this.leaveNode(this.dstNode, dst, last, dstGap);
+                : this.leaveNode(this.endMeasure("target"), dst, last, dstGap);
 
         const path = [start, ...points(route.slice(3 * span.first, 3 * span.last + 3)), end];
         const { arrowCap } = this;
@@ -4524,8 +4546,14 @@ export class Edge {
         stored: NonNullable<Edge["lineRoute"]>,
     ): boolean {
         const line = this.drawnStyle?.line;
-        const through = fileRoute(src, dst, stored, this.srcNode.outlineHalfExtents, this.dstNode.outlineHalfExtents);
-        const ring = stored.loop ? Edge.detachedRing(through, Edge.outside(this.srcNode, src)) : null;
+        const through = fileRoute(
+            src,
+            dst,
+            stored,
+            this.endMeasure("source").outlineHalfExtents,
+            this.endMeasure("target").outlineHalfExtents,
+        );
+        const ring = stored.loop ? Edge.detachedRing(through, Edge.outside(this.endMeasure("source"), src)) : null;
         if (ring !== null) {
             // ponytail: a ring's arrow caps are not placed; no program draws one on a ring that misses its node
             this.placeLineRun(batch, Edge.curveThroughBends(line, ring));
@@ -4539,8 +4567,8 @@ export class Edge {
             dst: stored.dstPort !== null || stored.ends === true,
         };
         const [srcGap, dstGap] = [this.gapAt("source"), this.gapAt("target")];
-        const outSrc = Edge.outside(this.srcNode, src, srcGap);
-        const outDst = Edge.outside(this.dstNode, dst, dstGap);
+        const outSrc = Edge.outside(this.endMeasure("source"), src, srcGap);
+        const outDst = Edge.outside(this.endMeasure("target"), dst, dstGap);
         const span = routeEnds(route, ports, outSrc, outDst);
         if (span === null) {
             return false;
@@ -4558,7 +4586,7 @@ export class Edge {
             return new Vector3(c.x, c.y, c.z);
         };
         const leave = (
-            node: Node,
+            node: RowMeasure,
             centre: Vector3,
             i: number,
             to: Vector3,
@@ -4568,8 +4596,8 @@ export class Edge {
         // A port inside a node drawn behind every edge, which hides no stretch of the line, only aims it: the line is
         // cut where it leaves the node's outline toward its next point, as yEd cuts one at a group's border
         // (graphml-galaxy-lcms-workflow's bands from its "3 tabulars" group, ports at its middle).
-        const aimed = (node: Node, port: Vector3, to: Vector3, out: typeof outSrc): Vector3 => {
-            if (!node.isDrawnBehindEdges || out(port.x, port.y, port.z) || !out(to.x, to.y, to.z)) {
+        const aimed = (end: "source" | "target", port: Vector3, to: Vector3, out: typeof outSrc): Vector3 => {
+            if (!this.endBehindEdges(end) || out(port.x, port.y, port.z) || !out(to.x, to.y, to.z)) {
                 return port;
             }
             const c = crossingOf(port, to, out);
@@ -4579,12 +4607,12 @@ export class Edge {
         const one = span.first === span.last;
         const afterA = one ? dst : Vector3.FromArray(route, 3 * span.first + 3);
         const start = ports.src
-            ? aimed(this.srcNode, a, afterA, outSrc)
-            : leave(this.srcNode, src, span.first - 1, a, outSrc, srcGap);
+            ? aimed("source", a, afterA, outSrc)
+            : leave(this.endMeasure("source"), src, span.first - 1, a, outSrc, srcGap);
         const beforeB = one ? start : Vector3.FromArray(route, 3 * span.last - 3);
         const end = ports.dst
-            ? aimed(this.dstNode, b, beforeB, outDst)
-            : leave(this.dstNode, dst, span.last + 1, b, outDst, dstGap);
+            ? aimed("target", b, beforeB, outDst)
+            : leave(this.endMeasure("target"), dst, span.last + 1, b, outDst, dstGap);
         const mid = clearOfCaps(
             route.slice(3 * (span.first + (ports.src ? 1 : 0)), 3 * (span.last + (ports.dst ? 0 : 1))),
             start,
@@ -4629,8 +4657,8 @@ export class Edge {
     ): void {
         const first = Vector3.FromArray(mid, 0);
         const last = Vector3.FromArray(mid, mid.length - 3);
-        const start = this.leaveNode(this.srcNode, src, first);
-        const end = this.leaveNode(this.dstNode, dst, last);
+        const start = this.leaveNode(this.endMeasure("source"), src, first);
+        const end = this.leaveNode(this.endMeasure("target"), dst, last);
         const path = [start, ...points(mid), end];
 
         const { arrowCap } = this;

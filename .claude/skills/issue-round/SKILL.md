@@ -180,10 +180,11 @@ the counts in the round's last line. Every free bug must have a reason, a job or
 
 **Count every red pull request, every round, whatever `jobs` prints.** One GraphQL query over all open pull
 requests (number, author, draft, `mergeStateStatus`, the last commit's date and `statusCheckRollup.state`) gives
-the graphty-agent ones that are red (`FAILURE`) or conflicting (`DIRTY`). Each with no head commit for 6 hours and
-no running fix job is a fix-red job to start this round, whoever opened it, at its issue's priority, after
-"Inherited failures" in the shared file (a pull request red only on a break master already has waits on that
-break's fix). The round's last line names the count (`red agent pull requests 45, 10 sent back`). A claim is not
+the graphty-agent ones that are red (`FAILURE`) or conflicting (`DIRTY`). Each one that meets the `fix-red`
+definition above (with all its exclusions: never a master-guard revert, no live claim, no `fix attempt` marker in
+the last 6 hours, not inherited, and the 2-attempts close rule) is a fix-red job to start this round, whether or not
+`jobs` printed it, whoever opened it, at its issue's priority. The round's last line names the count and how many
+each exclusion held back (`red agent pull requests 45: 10 sent back, 3 inherited, 2 attempted < 6 h, 1 revert`). A claim is not
 live work just because an open pull request names its issue: one whose pull request is red or conflicting with no
 commit for 6 hours is an abandoned claim. Never report the queue as empty, or the idle line's `startable` count as
 the work left, while this count has untaken entries. On 2026-11-19 about 45 agent pull requests sat red or

@@ -6012,8 +6012,9 @@ export class Graphty extends LitElement {
      * Wait for every queued operation to finish.
      *
      * The QUEUE only -- data loading, layout changes, algorithm runs. The layout may still be
-     * running and the camera may still be moving when this resolves. For a picture that will not
-     * change again, wait for {@link Graphty.waitForStableFrame}.
+     * running, the camera may still be moving, and a picture (a background image, a node's image
+     * or 3D model) may still be loading when this resolves. For a picture that will not change
+     * again, wait for {@link Graphty.waitForStableFrame}.
      *
      * It does not wait for a frame either, and only a frame moves a new node's mesh to its layout
      * position: {@link Graphty.nodeScreenPosition} read right after this can still report a new

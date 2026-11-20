@@ -239,7 +239,30 @@
             "loadedWeightByDefault": true
         },
         "degree": {
-            "options": [],
+            "options": [
+                {
+                    "name": "direction",
+                    "plainName": "Direction",
+                    "technicalName": "direction",
+                    "type": "enum",
+                    "description": "On a directed graph, which edges the published value counts: incoming (in), outgoing (out) or both (total)",
+                    "default": "total",
+                    "values": [
+                        {
+                            "value": "total",
+                            "label": "Total"
+                        },
+                        {
+                            "value": "in",
+                            "label": "In"
+                        },
+                        {
+                            "value": "out",
+                            "label": "Out"
+                        }
+                    ]
+                }
+            ],
             "scopeInput": "subgraph",
             "weightMeaning": null,
             "loadedWeightByDefault": true
@@ -1507,6 +1530,16 @@
                     "type": "number",
                     "description": "What every data position is multiplied by, on top of the element's positionScale",
                     "default": 1,
+                    "min": 0,
+                    "advanced": true
+                },
+                {
+                    "name": "spacing",
+                    "plainName": "Spacing",
+                    "technicalName": "spacing",
+                    "type": "number",
+                    "description": "How far apart neighbors are drawn at least, in scene units (a default node is one across): data positions closer than that are spread out, keeping their proportions; 0 draws them as given",
+                    "default": 3,
                     "min": 0,
                     "advanced": true
                 },

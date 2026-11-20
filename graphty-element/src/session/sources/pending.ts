@@ -23,7 +23,7 @@ export function descriptorOf(id: string): SourceDescriptor | undefined {
  * @param record - the load
  * @returns the endpoint, or null when none is known
  */
-export function targetOf(record: SourceLoadRecord): string | null {
+export function targetOf(record: Pick<SourceLoadRecord, "source" | "config" | "endpoint">): string | null {
     const { mapping } = record.config as { mapping?: { endpoint?: unknown } };
     const mapped = typeof mapping?.endpoint === "string" ? mapping.endpoint : null;
     const fallback = sourceEndpoint(descriptorOf(record.source), record.config);

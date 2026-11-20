@@ -360,6 +360,8 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "edge.gradientColors": "mesh",
     "edge.gradientStops": "mesh",
     "edge.gradientKind": "mesh",
+    "edge.strandColors": "mesh",
+    "edge.strandSpacing": "mesh",
 
     // Drawn beside the mesh, and per element by nature: the halo is an overlay instance, the band
     // its own line batch, each rebuilt by the paint that carries it.

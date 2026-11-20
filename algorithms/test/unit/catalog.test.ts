@@ -134,6 +134,7 @@ const NOT_ALGORITHMS = new Set([
     "bipartiteFlowNetwork",
     "arcSourceIn",
     "groupsById",
+    "partitionAgreement",
     "pathIds",
     "scoresById",
     "mulberry32",

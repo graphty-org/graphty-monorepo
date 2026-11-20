@@ -15,7 +15,7 @@ import { page, userEvent } from "vitest/browser";
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { withFeatures } from "../../../test/features";
 import { render, screen, waitFor } from "../../../test/test-utils";
-import { runsAsPicked } from "../../analyze/run";
+import { runsAsPicked, unavailable } from "../../analyze/run";
 import { wordsFor } from "../../analyze/words";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -100,9 +100,10 @@ describe("algorithms in Quick actions", () => {
 
     it("runs an algorithm with nothing to set at once", async () => {
         const session = await openScene();
-        const plain = session.catalog.algorithms().find((d) => runsAsPicked(d));
+        // The first row with nothing to set that is enabled now: a disabled row ignores Enter.
+        const plain = session.catalog.algorithms().find((d) => runsAsPicked(d) && unavailable(session, d) === null);
         if (plain === undefined) {
-            return;
+            throw new Error("no algorithm with nothing to set can run on this graph");
         }
         const { name } = wordsFor(plain);
         await search(name);

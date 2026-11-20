@@ -82,6 +82,7 @@ import {
 } from "./cost";
 import { headlessDataService, SessionData, sliceRecords } from "./data";
 import { dispatcherOf, registerDispatcher, registerSessionData, registerSessionRuns } from "./dispatchers";
+import { FILES_API, type FilesApi } from "./files/kindOf";
 import { createGroupsApi, type GroupsApi } from "./groups";
 import { createJournal, type JournalApi } from "./journal";
 import { type LayoutRecommendation, recommendLayout } from "./layout";
@@ -132,6 +133,7 @@ import { reportCaught } from "./project/strict";
 import { answeringFromProject, type CannedOutcomes, type ProjectApi, projectOf } from "./projectFile";
 import { createQueryEngine, type QueryEngine } from "./query";
 import { type RecipeDocument, recipeOf } from "./recipe";
+import { type RecipesApi, recipesOf } from "./recipes/RecipesApi";
 import { createResultsApi, type ResultsApi, type ResultsRunEntry, type RunRef } from "./results";
 import { resultExecutionOf } from "./results/ResultsApi";
 import { shareNodeIndex } from "./results/RunResult";
@@ -608,6 +610,8 @@ class Session implements ElementSession {
     readonly layout: SessionLayout;
     readonly paint: ElementPaint;
     readonly project: ProjectApi;
+    readonly recipes: RecipesApi;
+    readonly files: FilesApi = FILES_API;
 
     /**
      * Publish what happened to a model a layer names, as `model:changed`.
@@ -927,6 +931,7 @@ class Session implements ElementSession {
                 },
             },
         });
+        this.recipes = recipesOf(this.project, () => this.features);
         this.sessionData.setHeldRefresh(async (load, options) => {
             // Only a version 2 open holds a source.
             if (!this.features.has("save-files-v2")) {
@@ -3572,6 +3577,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             timeParsed: (kind, column) => timeline()?.parsedCount(kind, column),
             timeCandidates: () => time.api.candidates(),
             fileStyles: () => fileStylesOn(),
+            sourceReferences: () =>
+                (settledFeatures ?? resolveFeatures(requested())).enabled.includes("source-references"),
             batched: () => internals.batched?.() === true,
             visibleMasks: () => ({ nodes: visibility.masks.nodes(), edges: visibility.masks.edges() }),
             // And the working graph, built below the visibility.

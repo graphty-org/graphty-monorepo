@@ -203,9 +203,13 @@ first-parent merges since the last green full run.
 
 ### 4. Budget alarms
 
-- **`ci-budget` issues**, filed by a run's `timings` job (`tools/ci-budgets.mjs trend`, budgets in `ci-budgets.json`):
-  read the suspect merge range in the issue, find the task or step that slowed, and revert or fix it. A budget
-  raise is never the fix by itself: it is its own pull request with its new measurement, for the owner to review.
+- **`ci-budget` issues**, kept by a run's `timings` job (`tools/ci-budgets.mjs report`, budgets in `ci-budgets.json`):
+  one issue per workflow and run kind lists every key over its line, and each run strikes the keys back under and
+  closes it when none is left. `CI budget: <workflow> (<kind>) keys over the line`: read each key's suspect merge
+  range, find the task or step that slowed, and revert or fix it. `... shared slowdown` (`infrastructure`): the
+  whole run slowed (runner contention, a slower runner class): look at runner wait and queued runs, not the
+  merges. A budget raise is never the fix by itself: it is its own pull request with its new measurement, for the
+  owner to review.
 - A job killed at its `timeout-minutes` (labeled `hung`) is a defect: fix the hang, never re-run or raise it.
 - **`Nightly missed slot <date hh:mm> UTC: <cause>`** (`priority:critical`, from release.yml's slot job): act on
   the cause it names this round (see "Nightly every slot"). **`Nightly stalled since <date>`** (over a slot and a

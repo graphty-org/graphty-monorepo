@@ -287,10 +287,7 @@ export class ElementPositions {
 
         if (!written) {
             // the publish leaves this row as it is
-            const base = POSITION_COMPONENTS * index;
-            out.x = this.array[base] ?? Number.NaN;
-            out.y = this.array[base + 1] ?? Number.NaN;
-            out.z = this.array[base + 2] ?? Number.NaN;
+            this.copyRow(POSITION_COMPONENTS * index, out);
         }
 
         return true;
@@ -571,8 +568,19 @@ export class ElementPositions {
         }
 
         this.settle();
-        const base = this.rowBase(index);
-        // The fallbacks are unreachable past rowBase(), and NaN rather than 0 so that a future
+        this.copyRow(this.rowBase(index), out);
+    }
+
+    /**
+     * Copy one row out of the array as it stands.
+     * @param base - The offset of the row's x component.
+     * @param out - The object to fill.
+     * @param out.x - receives the scene-unit x
+     * @param out.y - receives the scene-unit y
+     * @param out.z - receives the scene-unit z
+     */
+    private copyRow(base: number, out: { x: number; y: number; z: number }): void {
+        // The fallbacks are unreachable for a live row, and NaN rather than 0 so that a future
         // change which makes them reachable reports "unplaced" instead of "at the origin".
         out.x = this.array[base] ?? Number.NaN;
         out.y = this.array[base + 1] ?? Number.NaN;

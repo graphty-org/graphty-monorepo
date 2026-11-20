@@ -746,19 +746,24 @@ export class SimulationLayoutEngine extends LayoutEngine {
             return false;
         }
 
-        if (this.#fixedRows.has(sim)) {
-            // a fixed row the lane has placed is left where it is kept
-            const lane = this.#dataManager[WRITABLE_LANE].unsettledView();
-            if (isStorableCoordinate(lane[POSITION_COMPONENTS * row])) {
-                return false;
-            }
+        // `#writeRows` leaves out a fixed row the lane has placed, and `publishColumn` a kept one
+        const store = this.#dataManager[WRITABLE_LANE];
+        if (this.#fixedRows.has(sim) && isStorableCoordinate(store.unsettledView()[POSITION_COMPONENTS * row])) {
+            return false;
         }
 
         const { scale, center, target } = via;
+        const x = (simPositions[3 * sim] - center[0]) * scale + target[0];
+        const y = (simPositions[3 * sim + 1] - center[1]) * scale + target[1];
+        const z = (simPositions[3 * sim + 2] - center[2]) * scale + target[2];
+        if (this.publishLeavesRow(store, row, x, y, z)) {
+            return false;
+        }
+
         // the lane is f32: answer what it will hold
-        out.x = Math.fround((simPositions[3 * sim] - center[0]) * scale + target[0]);
-        out.y = Math.fround((simPositions[3 * sim + 1] - center[1]) * scale + target[1]);
-        out.z = Math.fround((simPositions[3 * sim + 2] - center[2]) * scale + target[2]);
+        out.x = Math.fround(x);
+        out.y = Math.fround(y);
+        out.z = Math.fround(z);
         return true;
     };
 

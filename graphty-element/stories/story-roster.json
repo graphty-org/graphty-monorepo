@@ -373,6 +373,7 @@
         "Undo::StyleEditThenUndo",
         "Undo::ThreeDToTwoDThenUndo",
         "Undo::TwoDToThreeDThenUndo",
+        "ViewMode::SwitchTo2DAfterLoad",
         "ViewMode::SwitchViewModes",
         "XR::Default",
         "Data/Network sources/Sources::NdexWp5483",

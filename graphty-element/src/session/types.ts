@@ -1815,6 +1815,7 @@ export interface SessionDataApi {
      * Reference on a load that cannot be one keeps it a copy and returns the entry with
      * `refused`; nothing is thrown. Publishes `source:copy` when the choice changes.
      * Experimental: needs the `source-references` experiment.
+     * @experimental source-references
      * @example
      * ```ts
      * const session = createGraphSession({ features: ["source-references"] });

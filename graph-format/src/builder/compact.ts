@@ -297,6 +297,12 @@ export class StagingColumn {
 
     private readonly resizable: boolean | undefined;
 
+    /** Moved by every write, so a freeze knows its last frozen column is still this column's contents. */
+    private writes = 0;
+
+    /** The column the last freeze made, with the writes and rows it was made at; null before one. */
+    private frozen: { readonly writes: number; readonly rows: number; readonly column: Column } | null = null;
+
     /**
      * Create an empty column.
      * @param meta - the resolved metadata
@@ -340,6 +346,7 @@ export class StagingColumn {
         if (rows <= this.length) {
             return;
         }
+        this.writes++;
         const { meta } = this;
         if (this.typed !== null) {
             this.typed.resize(rows * meta.components, this.fillNumber());
@@ -379,6 +386,7 @@ export class StagingColumn {
      * @returns the widening that took place, or null
      */
     write(row: number, value: unknown): WideningStep | null {
+        this.writes++;
         this.ensureLength(row + 1);
         if (value === undefined || (value === null && (this.inferrer !== null || this.meta.dtype !== "json"))) {
             this.unset(row);
@@ -430,6 +438,7 @@ export class StagingColumn {
      * @param row - the row; E_COLUMN_TYPE on a non-nullable column
      */
     unset(row: number): void {
+        this.writes++;
         this.ensureLength(row + 1);
         if (this.validity === null) {
             throw this.unsetError(row);
@@ -507,6 +516,7 @@ export class StagingColumn {
      * @param next - the dtype to widen to
      */
     widenTo(next: InferredDtype): void {
+        this.writes++;
         const { meta } = this;
         const nextMeta = resolveColumnMeta(meta.name, meta.domain, {
             dtype: next,
@@ -664,6 +674,7 @@ export class StagingColumn {
      * @param i - the row being gathered; rows below it are already gathered
      */
     private unsetDangling(i: number): void {
+        this.writes++;
         if (this.validity !== null) {
             return;
         }
@@ -691,6 +702,24 @@ export class StagingColumn {
      */
     toColumn(rows: number): Column {
         this.ensureLength(rows);
+        // Nothing written since the last freeze: that freeze's column, shared rather than copied
+        // again (each is immutable and claimed by both tables, so a transfer copies it). A mutable
+        // column's contents can move after the freeze, so it is never shared.
+        const kept = this.frozen;
+        if (kept !== null && kept.writes === this.writes && kept.rows === rows && !this.meta.mutable) {
+            return kept.column;
+        }
+        const column = this.freshColumn(rows);
+        this.frozen = { writes: this.writes, rows, column };
+        return column;
+    }
+
+    /**
+     * Build the frozen column of {@link StagingColumn.toColumn}.
+     * @param rows - the row count
+     * @returns the column
+     */
+    private freshColumn(rows: number): Column {
         const { meta } = this;
         const { dtype, components } = meta;
         if (this.inferrer !== null) {

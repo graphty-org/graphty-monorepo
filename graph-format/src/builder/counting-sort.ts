@@ -543,3 +543,258 @@ export function sortIntoCore(input: SortInput, useArena: boolean): SortResult {
     });
     return { core, arcCount, selfLoopCount, flags };
 }
+
+// ============================================================ appending to a sorted core
+
+/**
+ * The most appended edges, as a share of the edges already sorted, that {@link appendIntoCore} takes
+ * on: past it a full sort is about as fast.
+ */
+const APPEND_SHARE = 1 / 16;
+
+/**
+ * The first arc of `[from, to)` whose target is above `target`: where an arc with that target and a
+ * higher edge index than every arc there goes (invariant I4: ties by ascending arcToEdge).
+ * @param colIdx - the targets
+ * @param from - the row's first arc
+ * @param to - one past its last arc
+ * @param target - the new arc's target
+ * @returns the arc index to insert before
+ */
+function upperBound(colIdx: U32, from: number, to: number, target: number): number {
+    let low = from;
+    let high = to;
+    while (low < high) {
+        const middle = (low + high) >>> 1;
+        if (colIdx[middle] <= target) {
+            low = middle + 1;
+        } else {
+            high = middle;
+        }
+    }
+    return low;
+}
+
+/**
+ * The core of a graph made by appending nodes and edges to one already sorted, built from that sort
+ * rather than sorting every edge again: the old arcs are copied in runs, each new arc is put where a
+ * full sort puts it (after every arc of its row with a lower or equal target, because its edge index
+ * is higher than theirs), and the permutations follow. The result is what {@link sortIntoCore} returns
+ * for `input`, array for array. A freeze after one added edge of a million-edge graph copies the core
+ * instead of running the two counting sorts.
+ * @param previous - the sort of the first `previousEdges` edges over `previousNodes` nodes
+ * @param previousNodes - its node count
+ * @param previousEdges - its edge count
+ * @param input - the same edges with more appended, over the same or more nodes
+ * @param useArena - allocate the core in an arena
+ * @returns the sort, or null when appending does not apply (an identity core, or too many edges)
+ */
+export function appendIntoCore(
+    previous: SortResult,
+    previousNodes: number,
+    previousEdges: number,
+    input: SortInput,
+    useArena: boolean,
+): SortResult | null {
+    const old = previous.core;
+    const added = input.edgeCount - previousEdges;
+    if (
+        old.arcToEdge === null ||
+        old.edgeToArc === null ||
+        input.nodeCount < previousNodes ||
+        added < 0 ||
+        added > Math.max(1, previousEdges * APPEND_SHARE) ||
+        (old.weights === null) !== (input.weights === null)
+    ) {
+        return null;
+    }
+
+    // Throws E_INVALID_WEIGHT for a NaN, as the full sort does, before anything is allocated.
+    const { allOne, nonNegative, finite } = weightPredicates(input.weights, input.edgeCount);
+    const { arcs, loops } = appendedArcs(input, previousEdges);
+    const arcCount = previous.arcCount + arcs.length;
+    const core = allocateCoreArrays(
+        {
+            nodeCount: input.nodeCount,
+            arcCount,
+            edgeCount: input.edgeCount,
+            weighted: old.weights !== null,
+            identity: false,
+        },
+        useArena,
+    );
+    const { at, multigraph } = mergeArcs(previous, previousNodes, arcs, input, core);
+    fillRowPtr(core.rowPtr, old.rowPtr, previousNodes, previous.arcCount, arcs);
+    // An old edge's arc moves by the new arcs put at or before it.
+    const edgeToArc = core.edgeToArc as U32;
+    for (let e = 0; e < previousEdges; e++) {
+        const arc = old.edgeToArc[e];
+        edgeToArc[e] = arc + countAtOrBefore(at, arc);
+    }
+
+    const selfLoopCount = previous.selfLoopCount + loops;
+    const flags: SnapshotFlags = Object.freeze({
+        multigraph: previous.flags.multigraph || multigraph,
+        hasSelfLoops: selfLoopCount > 0,
+        arcToEdgeIsIdentity: false,
+        weighted: core.weights !== null,
+        allWeightsOne: allOne,
+        nonNegativeWeights: nonNegative,
+        finiteWeights: finite,
+    });
+    return { core, arcCount, selfLoopCount, flags };
+}
+
+/** One arc an appended edge adds. */
+interface NewArc {
+    /** Its row (source node). */
+    readonly row: number;
+    /** Its target. */
+    readonly target: number;
+    /** Its edge. */
+    readonly edge: number;
+    /** Whether it is the edge's declared orientation (edgeToArc points at it). */
+    readonly declared: boolean;
+}
+
+/**
+ * The arcs the appended edges add, by row, then target, then edge: the order the full sort leaves them in.
+ * @param input - the sort input
+ * @param previousEdges - how many edges were sorted before
+ * @returns the arcs and how many of the edges are self-loops
+ */
+function appendedArcs(input: SortInput, previousEdges: number): { arcs: NewArc[]; loops: number } {
+    const arcs: NewArc[] = [];
+    let loops = 0;
+    for (let e = previousEdges; e < input.edgeCount; e++) {
+        const u = input.src[e];
+        const v = input.dst[e];
+        arcs.push({ row: u, target: v, edge: e, declared: true });
+        if (u === v) {
+            loops++;
+        } else if (!input.directed) {
+            arcs.push({ row: v, target: u, edge: e, declared: false });
+        }
+    }
+    arcs.sort((a, b) => a.row - b.row || a.target - b.target || a.edge - b.edge);
+    return { arcs, loops };
+}
+
+/**
+ * Copy the old arcs into the new core in runs, writing each new arc at its place.
+ * @param previous - the old sort
+ * @param previousNodes - its node count
+ * @param arcs - the new arcs, sorted
+ * @param input - the sort input (weights)
+ * @param core - the new core
+ * @returns each new arc's insertion point in old arc indices, and whether one sits beside an equal target
+ */
+function mergeArcs(
+    previous: SortResult,
+    previousNodes: number,
+    arcs: readonly NewArc[],
+    input: SortInput,
+    core: CoreArrays,
+): { at: U32; multigraph: boolean } {
+    const old = previous.core;
+    const oldColIdx = old.colIdx;
+    const oldArcToEdge = old.arcToEdge as U32;
+    const { colIdx, weights } = core;
+    const arcToEdge = core.arcToEdge as U32;
+    const edgeToArc = core.edgeToArc as U32;
+    const at = new Uint32Array(arcs.length);
+    let from = 0;
+    let to = 0;
+    let multigraph = false;
+    const copy = (end: number): void => {
+        colIdx.set(oldColIdx.subarray(from, end), to);
+        arcToEdge.set(oldArcToEdge.subarray(from, end), to);
+        if (weights !== null && old.weights !== null) {
+            weights.set(old.weights.subarray(from, end), to);
+        }
+        to += end - from;
+        from = end;
+    };
+    for (let i = 0; i < arcs.length; i++) {
+        const arc = arcs[i];
+        const inOld = arc.row < previousNodes;
+        const rowStart = inOld ? old.rowPtr[arc.row] : previous.arcCount;
+        const rowEnd = inOld ? old.rowPtr[arc.row + 1] : previous.arcCount;
+        const place = upperBound(oldColIdx, Math.max(rowStart, from), rowEnd, arc.target);
+        copy(place);
+        at[i] = place;
+        colIdx[to] = arc.target;
+        arcToEdge[to] = arc.edge;
+        if (weights !== null && input.weights !== null) {
+            weights[to] = Math.fround(input.weights[arc.edge]);
+        }
+        if (arc.declared) {
+            edgeToArc[arc.edge] = to;
+        }
+        // The arc before it in its row (an old arc or a new one just written) with the same target.
+        const newRowStart = rowStart + i - countBefore(arcs, i, arc.row);
+        multigraph ||= to > newRowStart && colIdx[to - 1] === arc.target;
+        to++;
+    }
+    copy(previous.arcCount);
+    return { at, multigraph };
+}
+
+/**
+ * The new row offsets: each old row start moved by the new arcs of the rows before it.
+ * @param rowPtr - the new row offsets, written
+ * @param oldRowPtr - the old ones
+ * @param previousNodes - the old node count
+ * @param oldArcs - the old arc count
+ * @param arcs - the new arcs, sorted
+ */
+function fillRowPtr(
+    rowPtr: U32,
+    oldRowPtr: U32,
+    previousNodes: number,
+    oldArcs: number,
+    arcs: readonly NewArc[],
+): void {
+    let shift = 0;
+    for (let r = 0; r < rowPtr.length; r++) {
+        while (shift < arcs.length && arcs[shift].row < r) {
+            shift++;
+        }
+        rowPtr[r] = (r < previousNodes ? oldRowPtr[r] : oldArcs) + shift;
+    }
+}
+
+/**
+ * How many of the new arcs before `i` are in the same row: they were written in this row ahead of it.
+ * @param arcs - the new arcs, sorted
+ * @param i - the arc
+ * @param row - its row
+ * @returns the count
+ */
+function countBefore(arcs: readonly { row: number }[], i: number, row: number): number {
+    let count = 0;
+    for (let j = i - 1; j >= 0 && arcs[j].row === row; j--) {
+        count++;
+    }
+    return count;
+}
+
+/**
+ * How many insertion points are at or before an old arc (sorted ascending): the new arcs written ahead of it.
+ * @param at - the insertion points, ascending
+ * @param arc - the old arc
+ * @returns the count
+ */
+function countAtOrBefore(at: U32, arc: number): number {
+    let low = 0;
+    let high = at.length;
+    while (low < high) {
+        const middle = (low + high) >>> 1;
+        if (at[middle] <= arc) {
+            low = middle + 1;
+        } else {
+            high = middle;
+        }
+    }
+    return low;
+}

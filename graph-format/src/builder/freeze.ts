@@ -45,7 +45,7 @@ import {
     type Staging,
     type StagingColumn,
 } from "./compact.js";
-import { type SortInput, sortIntoCore, type SortResult } from "./counting-sort.js";
+import { appendIntoCore, type SortInput, sortIntoCore, type SortResult } from "./counting-sort.js";
 import { assertDuplicatePolicy } from "./options.js";
 
 // ============================================================ context and outcome
@@ -906,7 +906,15 @@ export function runFreeze(ctx: FreezeContext, options: FreezeOptions): FreezeOut
     const kept = ctx.previousSort ?? null;
     const reused =
         kept !== null && policy === "keep" && sameSortInput(kept, compaction.staging, input, arena) ? kept : null;
-    const firstSort = reused?.result ?? sortIntoCore(input, arena);
+    // Edges or nodes only appended since: the kept core extended, not every edge sorted again.
+    const appended =
+        reused === null &&
+        kept !== null &&
+        policy === "keep" &&
+        extendsSortInput(kept, compaction.staging, input, arena)
+            ? appendIntoCore(kept.result, kept.nodeCount, kept.edgeCount, input, arena)
+            : null;
+    const firstSort = reused?.result ?? appended ?? sortIntoCore(input, arena);
     clock.lap("sort");
 
     // step 7: duplicate policy
@@ -988,12 +996,30 @@ export function runFreeze(ctx: FreezeContext, options: FreezeOptions): FreezeOut
  * @returns true when the kept core is this input's core
  */
 function sameSortInput(kept: SortCache, staging: Staging, input: SortInput, useArena: boolean): boolean {
+    return (
+        kept.nodeCount === input.nodeCount &&
+        kept.edgeCount === input.edgeCount &&
+        extendsSortInput(kept, staging, input, useArena)
+    );
+}
+
+/**
+ * Whether a sort input is a kept sort's input with nodes or edges appended: the same staging and
+ * endpoint arrays (an edge's ends never change, and a removal compacts into a new staging), no fewer
+ * nodes or edges, the same direction, and the kept edges' weights value for value.
+ * @param kept - the kept sort
+ * @param staging - the staging about to be sorted
+ * @param input - its sort input
+ * @param useArena - whether this freeze lays the core out in an arena
+ * @returns true when the kept edges are this input's first edges
+ */
+function extendsSortInput(kept: SortCache, staging: Staging, input: SortInput, useArena: boolean): boolean {
     if (
         kept.staging !== staging ||
         kept.src !== staging.src ||
         kept.dst !== staging.dst ||
-        kept.nodeCount !== input.nodeCount ||
-        kept.edgeCount !== input.edgeCount ||
+        kept.nodeCount > input.nodeCount ||
+        kept.edgeCount > input.edgeCount ||
         kept.directed !== input.directed ||
         kept.useArena !== useArena
     ) {
@@ -1004,7 +1030,7 @@ function sameSortInput(kept: SortCache, staging: Staging, input: SortInput, useA
     if (was === null || now === null) {
         return was === now;
     }
-    for (let e = 0; e < input.edgeCount; e++) {
+    for (let e = 0; e < kept.edgeCount; e++) {
         // Object.is: NaN never reaches here (E_INVALID_WEIGHT), and -0 is stored as given.
         if (!Object.is(was[e], now[e])) {
             return false;

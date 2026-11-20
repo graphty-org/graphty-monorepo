@@ -117,6 +117,7 @@ export type {
     XRConfig,
     XRControllerButton,
     XRInputConfig,
+    XRMenuItem,
     XRModeConfig,
     XRUIConfig,
 } from "./src/config/index";
@@ -182,6 +183,8 @@ export type {
 // `session.data.neighbors(id)`: a node's neighbors, one row each, with their combined weight
 export type { WeightMeaning } from "./src/session/runs";
 export type { Neighbor, NeighborOptions, NeighborPage, NeighborSort } from "./src/session/types";
+// `session.views`: a saved view (a fixed camera or a camera view it follows) and a starting camera
+export type { SavedView, StartingCamera } from "./src/session/types";
 // The id `e.detail.nodeId` and `neighbors(id)` carry; the same type as `NodeIdType`
 export type { NodeId } from "./src/catalog/types";
 // What `element.elementAt({ x, y })` finds under a point
@@ -228,6 +231,8 @@ export type {
     SourceStorage,
 } from "./src/session/projectFile";
 export { PROJECT_FILE, projectFileName } from "./src/session/projectFile";
+// What the element's `graphty-source-loaded` DOM event carries.
+export type { SourceLoaded } from "./src/session/types";
 // What autosave reports: its status, its codes, its entries and what a restore found.
 export type { AutosaveAtRisk } from "./src/autosave/elementAutosave";
 export type {
@@ -269,6 +274,7 @@ export type {
     ExportScope,
     ExportStyleLossCode,
 } from "./src/data/export";
+export type { OperationCategory, PendingWorkProgress } from "./src/managers/OperationQueueManager";
 export type { GroupSummary, GroupTableOptions } from "./src/session/types";
 
 // Error aggregation for data loading
@@ -311,6 +317,7 @@ export { defineShader } from "./src/simple/defineShader";
 export type {
     AiCommandCanceledEvent,
     AiEventType,
+    AnimationProgressEvent,
     BasemapStatusEvent,
     CameraStateChangedEvent,
     DataLoadingCompleteEvent,
@@ -358,10 +365,15 @@ export type {
     // eslint-disable-next-line @typescript-eslint/no-deprecated -- the British alias stays exported until the next major
     OperationCancelledEvent,
     OverviewChangedEvent,
+    ReducedMotionChangedEvent,
     RenderLostEvent,
     RenderRestoredEvent,
     StatsUpdateEvent,
     StyleChangedEvent,
+    TourEndedEvent,
+    TourProgressEvent,
+    ViewsChangedEvent,
+    XRMenuSelectEvent,
     XRSessionEndedEvent,
     XRSessionStartedEvent,
 } from "./src/events";
@@ -401,6 +413,16 @@ export { EDGE_CONSTANTS, PolyhedronType, SHAPE_CONSTANTS } from "./src/constants
 // =============================================================================
 // Screenshot exports
 // =============================================================================
+export type {
+    EasingName,
+    Tour,
+    TourEndReason,
+    TourInput,
+    TourPause,
+    TourPlan,
+    TourPlanStop,
+    TourStop,
+} from "./src/camera/tour";
 export type { CameraViewExtent, ViewInsets } from "./src/camera/types";
 export type { FigureOptions, FigureResult } from "./src/screenshot/figure";
 export type {
@@ -416,7 +438,7 @@ export type {
 } from "./src/screenshot/types";
 
 // One node drawn alone, for a key or a picker (element.nodeThumbnail)
-export type { ModelPreview, ModelPreviewOptions } from "./src/meshes/ModelPreview";
+export type { ModelCheck, ModelCheckOptions, ModelPreview, ModelPreviewOptions } from "./src/meshes/ModelPreview";
 export type { ModelThumbnailOptions, NodeThumbnailOptions } from "./src/meshes/NodeThumbnail";
 
 // Capability check for screenshot support
@@ -426,7 +448,14 @@ export type { CapabilityCheck, ScreenshotWarningCode } from "./src/screenshot/ca
 // Video capture exports
 // =============================================================================
 export { AnimationCanceledError, AnimationCancelledError } from "./src/video/MediaRecorderCapture";
-export type { AnimationOptions, AnimationResult, CameraWaypoint, ViewWaypoint } from "./src/video/VideoCapture";
+export type {
+    AnimationOptions,
+    AnimationResult,
+    CameraWaypoint,
+    VideoFormat,
+    ViewWaypoint,
+} from "./src/video/VideoCapture";
+export { VIDEO_FORMATS } from "./src/video/VideoCapture";
 
 // Video capture estimation
 export type { CaptureEstimate } from "./src/video/estimation";
@@ -440,7 +469,7 @@ export type { CaptureEstimate } from "./src/video/estimation";
  * modes each view works in, and both include the views a third party registered, which a fixed
  * array of five cannot.
  */
-export { BUILTIN_PRESETS } from "./src/camera/presets";
+export { BUILTIN_PRESETS, type SkippedPreset } from "./src/camera/presets";
 export { linkCameras, type LinkedCameraView } from "./src/cameras/linkCameras";
 
 // =============================================================================

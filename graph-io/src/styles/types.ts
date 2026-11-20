@@ -517,6 +517,8 @@ export interface NodeStyleValues {
     readonly xlabelOffsetX: number;
     /** How far down from the node's center the middle of `xlabel` is drawn (a length). */
     readonly xlabelOffsetY: number;
+    /** How the lines of `xlabel` line up with one another; unset, as the label's (`labelTextAlign`). */
+    readonly xlabelTextAlign: StyleLabelTextAlign;
     /** The label's font family, as the file names it. */
     readonly labelFont: string;
     /** The label's font weight. */
@@ -624,6 +626,19 @@ export interface NodeStyleValues {
      * `text-background-shape: circle`). Unset, `rectangle`.
      */
     readonly labelBackgroundShape: string;
+    /**
+     * The URI of a picture drawn in the label beside or behind its words (yEd's label icon), its middle the words'
+     * middle moved by `labelImageOffsetX` and `labelImageOffsetY`. Unset, none.
+     */
+    readonly labelImage: string;
+    /** How wide `labelImage` is drawn, in the units of `labelSize`. Unset, the label's font size. */
+    readonly labelImageWidth: number;
+    /** How tall `labelImage` is drawn, in the units of `labelSize`. Unset, the label's font size. */
+    readonly labelImageHeight: number;
+    /** How far right of the words' middle `labelImage`'s middle is, in the units of `labelSize`. */
+    readonly labelImageOffsetX: number;
+    /** How far below the words' middle `labelImage`'s middle is, in the units of `labelSize`. */
+    readonly labelImageOffsetY: number;
     /**
      * What the label's box is sized to: `words`, a label inside the node too large for it being centered on it;
      * `words-at-side`, a label inside the node staying against the side `labelPosition` names however large it is;

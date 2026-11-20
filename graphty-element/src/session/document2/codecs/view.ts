@@ -525,8 +525,12 @@ function freshBody(w: Writer): JsonObject {
     const layers = layersJson(w);
     return compact({
         camera: liveCamera(session),
-        views: [...session.views].flatMap(([name, state]) => {
-            const camera = cameraJson(state);
+        // A following view is written as the pose it gives now; version 2 does not keep `follows`
+        // or `key` yet.
+        views: [...session.views].flatMap(([name, view]) => {
+            const state =
+                view.follows === undefined ? view.camera : dispatcherOf(session).services.camera?.pose?.(view.follows);
+            const camera = state === undefined ? undefined : cameraJson(state);
             return camera === undefined ? [] : [{ name, camera }];
         }),
         selection: compact(selection as JsonObject),

@@ -43,11 +43,8 @@
     }
   },
   "src/lib/sentryPrivacy.ts": {
-    "eslint-comments/require-description": {
-      "count": 1
-    },
     "unicorn/no-array-callback-reference": {
-      "count": 2
+      "count": 1
     }
   },
   "src/main.tsx": {

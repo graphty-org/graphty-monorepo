@@ -353,6 +353,7 @@ function tagsOf(slices: readonly ProjectSlice[]): PartTag[] {
             case "visibility":
             case "sets":
             case "views":
+            case "tours":
             case "notes":
             case "attributes":
             case "shaders":

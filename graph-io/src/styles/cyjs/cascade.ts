@@ -1965,6 +1965,7 @@ function combineParts(
         }
     }
     if (kind === "node") {
+        combineDrawOrder(n, words.get("_zIndex"), values);
         combineFace(n, words, values);
         combineBackgroundGradient(n, words, values, notes);
     } else {
@@ -1975,6 +1976,36 @@ function combineParts(
     combineLabelText(kind, n, words, values);
     combineLabelDress(kind, n, words, values, notes, whole);
     combineVisibility(kind, n, words, values);
+}
+
+/**
+ * Each node's draw order, 0 to 100, as Cytoscape.js stacks nodes: by `z-index`, higher on top, and in element order
+ * among equal ones, a later node on top (cytoscape.js 3.34.3 `zIndexSort`). Left unset when every node has the same
+ * z-index, as the element order alone is then the order.
+ * ponytail: `z-compound-depth` (a compound parent beneath its children) is left out
+ * @param n - the element count
+ * @param zIndex - each node's `z-index`, or undefined when no rule sets one
+ * @param values - the values; changed in place
+ */
+function combineDrawOrder(
+    n: number,
+    zIndex: readonly (string | null)[] | undefined,
+    values: Partial<Record<string, (StyleValue | null)[]>>,
+): void {
+    const z = Array.from({ length: n }, (_, i) => {
+        const v = Number(zIndex?.[i] ?? 0);
+        return Number.isFinite(v) ? v : 0;
+    });
+    if (n < 2 || z.every((v) => v === z[0])) {
+        return;
+    }
+    const order = new Array<StyleValue | null>(n).fill(null);
+    Array.from({ length: n }, (_, i) => i)
+        .sort((a, b) => z[a] - z[b] || a - b)
+        .forEach((node, rank) => {
+            order[node] = Math.round((rank * 100) / (n - 1));
+        });
+    values.drawOrder = order;
 }
 
 /**

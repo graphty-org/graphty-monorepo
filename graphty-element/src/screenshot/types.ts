@@ -1,5 +1,7 @@
+import type { EasingName } from "../camera/tour.js";
 import type { CameraState } from "../camera/types.js";
 import type { GraphtyError } from "../errors/index.js";
+import type { PendingWorkProgress } from "../managers/OperationQueueManager.js";
 
 /**
  * What happened to a capture's clipboard copy. `"not-requested"` when the clipboard was not one of
@@ -87,6 +89,12 @@ export interface ScreenshotOptions {
      */
     signal?: AbortSignal;
     /**
+     * Told how much queued work -- loads, layouts, algorithm runs, earlier captures, this one
+     * among them -- the capture is waiting behind, now and on every change, until it is taken.
+     * Not called when `timing.waitForOperations` is false.
+     */
+    onProgress?: (fact: PendingWorkProgress) => void;
+    /**
      * Enable quality enhancement for the screenshot.
      * Can be a boolean (true = default settings) or an object with specific settings.
      *
@@ -118,14 +126,22 @@ export interface ScreenshotOptions {
      */
     preset?: "print" | "web-share" | "thumbnail" | "documentation";
     /**
-     * The camera to capture from, restored afterwards: a state, or a named view with its own
-     * options, e.g. `{ preset: "fitToGraph", params: { keepAngle: true } }` to frame every node
-     * from the angle on screen.
+     * The camera to capture from, restored afterwards: a state, or a named view (a camera view's
+     * id or a saved view's name) with its own options, e.g.
+     * `{ view: "fitToGraph", params: { keepAngle: true } }` to frame every node from the angle on
+     * screen. `preset` is the older spelling of `view`. A state or saved view that does not fit
+     * the drawing mode, or any camera while immersive, is refused as `setCameraState` refuses it.
      */
     camera?:
         | CameraState
         | {
-              /** The id of a registered camera view, such as `"fitToGraph"`. */
+              /** The id of a registered camera view, such as `"fitToGraph"`, or a saved view's name. */
+              view: string;
+              /** The view's own options, checked against the ones its descriptor declares. */
+              params?: Readonly<Record<string, unknown>>;
+          }
+        | {
+              /** The older spelling of `view`. */
               preset: string;
               /** The view's own options, checked against the ones its descriptor declares. */
               params?: Readonly<Record<string, unknown>>;
@@ -161,7 +177,8 @@ export interface ScreenshotOptions {
      *   ends. It writes no words of its own -- only the data's values and names.
      * - `"auto"` does the same, and only when a layer binds a value.
      * - `{ position, title }` is `true` with a corner (default `"bottom-right"`) and a heading line
-     *   in the caller's words (none by default).
+     *   in the caller's words (none by default); with `sections`, it draws those in place of the
+     *   element's own legend.
      * - An array draws exactly the sections passed, at the top left -- every word is the caller's.
      *
      * Absent, `false` or an empty array, the image has no key.
@@ -215,6 +232,12 @@ export interface ScreenshotLegendOptions {
     position?: ScreenshotLegendPosition;
     /** A heading line above the key, in the caller's words. Absent, the key has no heading. */
     title?: string;
+    /**
+     * The sections to draw in place of the element's own legend, every word the caller's (as the
+     * array form, but in `position`'s corner). Drawn below `title` when both are given.
+     * @since 3.58.0
+     */
+    sections?: readonly ScreenshotLegendSection[];
 }
 
 /** One section of the key a capture draws (`ScreenshotOptions.legend`), in the caller's words. */
@@ -296,7 +319,7 @@ export interface CameraAnimationOptions {
      */
     duration?: number;
     /** How the move speeds up and slows down: a cubic curve, or constant speed for `"linear"`. Default constant speed. */
-    easing?: "linear" | "easeIn" | "easeOut" | "easeInOut";
+    easing?: EasingName;
     /**
      * Jump at once, ahead of queued work, instead of animating in turn after it. Also cancels a
      * camera animation still running.

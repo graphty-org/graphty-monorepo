@@ -116,7 +116,7 @@ jobs:
                     || { echo "::error::no NVIDIA Vulkan ICD in the container -- NVIDIA_DRIVER_CAPABILITIES must include graphics"; exit 1; }
             - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
             - uses: actions/setup-node@v7
-              with: { node-version: 22.x, cache: pnpm }
+              with: { node-version: 22.x, package-manager-cache: false } # weekly: a saved pnpm store is evicted long before the next run (#8841, see gpu.yml)
             - run: pnpm install --frozen-lockfile
               working-directory: .
               env: { HUSKY: "0" }

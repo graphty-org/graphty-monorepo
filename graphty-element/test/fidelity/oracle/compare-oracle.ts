@@ -224,6 +224,12 @@ export const ORACLE_TOLERANCES = {
     /** A radial gradient's middle within this fraction of its node's box. */
     gradientCenter: 0.1,
     /**
+     * A gradient's colors are compared at each place along it, or this share of its length to either side on graphty's:
+     * a hard switch on the place itself reads either color, and a switch drawn a hair off the oracle's, as a band split
+     * at a laid spline's parameter is (dot-specimen-edges-lines color-segments: 0.0006 of the line), is no miss.
+     */
+    gradientShare: 0.01,
+    /**
      * An arrowhead's length and width: their ratio in this range, as a node's size, or within `pixel` of the
      * oracle's, which a rounding on a small head moves by more than the ratio allows.
      */
@@ -1045,6 +1051,26 @@ const insideNode = (n: PNode, [x, y]: Pt): boolean => {
 };
 
 /**
+ * Whether a line's end lies on a node's box, within a pixel, and out past the ellipse the box holds by more than one:
+ * where the program stopped the line on an outline that reaches the box (a notched note's corner). Not for a box or a
+ * round node, which are cut at their own outline already.
+ * @param n - the node
+ * @param end - the line's end
+ * @param pixel - one render pixel, in the node's frame
+ * @returns whether it does
+ */
+export function onBoxPastEllipse(n: PNode, end: Pt, pixel: number): boolean {
+    // a round node's box is no outline: a line stopped there short of the ellipse leaves a gap a reader sees
+    if (n.shape === null || ["rect", "roundrect", "ellipse"].includes(n.shape) || !(n.w > 0 && n.h > 0)) {
+        return false;
+    }
+    const [dx, dy] = [Math.abs(end[0] - n.cx), Math.abs(end[1] - n.cy)];
+    const [hw, hh] = [n.w / 2, n.h / 2];
+    const onBox = dx <= hw + pixel && dy <= hh + pixel && (dx >= hw - pixel || dy >= hh - pixel);
+    return onBox && !insideNode({ ...n, shape: "ellipse", w: n.w + 2 * pixel, h: n.h + 2 * pixel }, end);
+}
+
+/**
  * A path without its ends inside a node: from where it first leaves the start node to where it last enters the
  * end node, each crossing found on its segment. One program draws an edge from border to border and another from
  * center to center under opaque nodes; a reader sees the same line, so a route is judged on the part between the
@@ -1475,7 +1501,13 @@ function gradientMissAsRun(
     if (o.kind !== g.kind) {
         return { miss: 1, ...out };
     }
-    const colors = Math.max(...RAMP_AT.map((t) => deltaE(rampColor(o, t), rampColor(g, t))));
+    const near = (t: number): number[] =>
+        [t - ORACLE_TOLERANCES.gradientShare, t, t + ORACLE_TOLERANCES.gradientShare].map((u) =>
+            Math.min(1, Math.max(0, u)),
+        );
+    const colors = Math.max(
+        ...RAMP_AT.map((t) => Math.min(...near(t).map((u) => deltaE(rampColor(o, t), rampColor(g, u))))),
+    );
     let miss = Math.max(0, colors - ORACLE_TOLERANCES.colorDeltaE);
     // a ramp of one color looks the same run either way (Pajek's gradient between two vertices of one color), so it
     // has no direction to judge
@@ -1548,7 +1580,7 @@ const TOLERANCE_TEXT: Record<OracleProperty, string> = {
     "node.shape": "same shape class, where the oracle's can be told",
     "node.fill": `both unfilled, or both filled within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)}`,
     "node.fillOpacity": `within ${String(ORACLE_TOLERANCES.opacity)}, and a ratio in [${ORACLE_TOLERANCES.opacityRatio.join(", ")}] where either is over 0.05`,
-    "node.gradient": `a gradient on both sides or on neither; alike, the same kind, colors within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)} at five places along it, a linear one's direction within ${String(ORACLE_TOLERANCES.gradientAngleDeg)} degrees, a radial one's middle within ${String(ORACLE_TOLERANCES.gradientCenter)} of its node's box`,
+    "node.gradient": `a gradient on both sides or on neither; alike, the same kind, colors within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)} at five places along it (graphty's within ${String(ORACLE_TOLERANCES.gradientShare)} of its length), a linear one's direction within ${String(ORACLE_TOLERANCES.gradientAngleDeg)} degrees, a radial one's middle within ${String(ORACLE_TOLERANCES.gradientCenter)} of its node's box`,
     "node.stroke": `both outlined within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)} and at an opacity as a fill's, or neither (under ${String(ORACLE_TOLERANCES.hairline)} px is none)`,
     "node.strokeWidth": `ratio in [${ORACLE_TOLERANCES.strokeWidthRatio.join(", ")}]`,
     "node.ring": `a ring clear outside the outline (an outline ring, a second periphery) on both sides or neither; alike, its color within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)}, its opacity as a fill's, its width ratio in [${ORACLE_TOLERANCES.strokeWidthRatio.join(", ")}], the same line class, and how far it reaches out from the node in [${ORACLE_TOLERANCES.labelOutlineRatio.join(", ")}]`,
@@ -1584,7 +1616,7 @@ const TOLERANCE_TEXT: Record<OracleProperty, string> = {
     "edge.opacity": `within ${String(ORACLE_TOLERANCES.opacity)}, and a ratio in [${ORACLE_TOLERANCES.opacityRatio.join(", ")}] where either is over 0.05`,
     "edge.dash":
         "same line class (solid, dashed, dotted, dash-dot from the dashes and gaps against the width; double, zigzag, sine wave, slashes, arrows, a taper to a point from a pattern's geometry); a pattern no class names matches nothing",
-    "edge.gradient": `a gradient on both sides or on neither; alike, the same kind, colors within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)} at five places along it, a linear one's direction against the edge's chord within ${String(ORACLE_TOLERANCES.gradientAngleDeg)} degrees`,
+    "edge.gradient": `a gradient on both sides or on neither; alike, the same kind, colors within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)} at five places along it (graphty's within ${String(ORACLE_TOLERANCES.gradientShare)} of its length), a linear one's direction against the edge's chord within ${String(ORACLE_TOLERANCES.gradientAngleDeg)} degrees`,
     "edge.outline": `a band under the line (a line outline, an edge background) on both sides or neither; alike, its color within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)}, its whole width ratio in [${ORACLE_TOLERANCES.edgeWidthRatio.join(", ")}] and its opacity within ${String(ORACLE_TOLERANCES.opacity)}`,
     "edge.overlay": `a band over the line (Cytoscape.js's overlay) on both sides or neither; alike, its color within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)}, its whole width ratio in [${ORACLE_TOLERANCES.edgeWidthRatio.join(", ")}] and its opacity within ${String(ORACLE_TOLERANCES.opacity)}`,
     "edge.arrow": "an arrowhead at the same ends",
@@ -2432,6 +2464,21 @@ export function compareOracle(
         if (!bodied(on) || !bodied(at)) {
             return [undefined, undefined];
         }
+        // a line the program stops on its node's box out past the ellipse the box holds is cut at the boxes on both
+        // sides: the outline reaches the box there (graphml-libcitygml-mapping n38 -> n14: yEd stops at a UML note's
+        // top left corner, which the scene classes as a hexagon, and graphty's line, run to the center, was cut 20 px
+        // inside at the ellipse)
+        if (
+            on.figure === undefined &&
+            at.figure === undefined &&
+            end !== undefined &&
+            onBoxPastEllipse(on, end, pixel)
+        ) {
+            return [
+                { ...on, shape: "rect" },
+                { ...at, shape: "rect" },
+            ];
+        }
         return at.figure !== undefined && runsToMiddle(on, end)
             ? [on, at]
             : [
@@ -2915,7 +2962,16 @@ export function compareOracle(
             } else if (place !== null) {
                 j.add("edge.arrowPlace", "edge", at, place.miss, place.oracle, place.graphty);
             }
-            j.add("edge.arrowFill", "edge", at, oa.filled === gg.filled ? 0 : 1, oa.filled, gg.filled);
+            // a head filled in the canvas's own color and drawn with no outline shows nothing on either side: the
+            // oracle's reads hollow with no color (associate.ts arrowFrom), graphty's as filled in that color
+            // (graphml-synthetic-edges n17 -> n27 and n27 -> n36: white lines and white heads on white, in both)
+            const blank =
+                !oa.filled &&
+                oa.color === null &&
+                gg.filled &&
+                gg.color !== null &&
+                deltaE(gg.color, oracle.background ?? "#ffffff") <= 3;
+            j.add("edge.arrowFill", "edge", at, oa.filled === gg.filled || blank ? 0 : 1, oa.filled, gg.filled);
             if (oa.color !== null && gg.color !== null) {
                 j.add(
                     "edge.arrowColor",

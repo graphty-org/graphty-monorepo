@@ -17,6 +17,9 @@
 import { fromEdgeArrays } from "@graphty/graph-format";
 import { GENERATOR_CATALOG } from "@graphty/graph-samples";
 
+import { withStateMode } from "../camera/mode";
+import { isCameraViewName } from "../camera/names";
+import type { Tour } from "../camera/tour";
 import { sourceDescriptors } from "../catalog/sources";
 import {
     type EdgeId,
@@ -48,6 +51,7 @@ import {
 } from "./assets/projectMember";
 import { COLUMNS_VALUE, type ColumnSettings } from "./commands/data";
 import { shaderIdsIn } from "./commands/shaderCopies";
+import { type CameraService, startingCamerasOf } from "./commands/view";
 import type { SessionData } from "./data";
 import { refetchSources } from "./document2/codecs/dataFetch";
 import { openDocument2, saveDocument2 } from "./document2/document";
@@ -94,7 +98,9 @@ import type {
     LoadedSource,
     ProjectConfigPatch,
     ProjectSlice,
+    SavedView,
     ScoreTerm,
+    StartingCamera,
     TransactionScope,
 } from "./types";
 import { type LabelledValue, valueFromText, valueLabelOf } from "./valueLabels";
@@ -195,9 +201,9 @@ export interface ProjectSaveOptions {
      * the file's digest, so the file is fetched again when the project opens (after the reader
      * allows it) and reported with `W_MODEL_CHANGED` when it is no longer the same file.
      * `session.assets.list()` gives each asset's `url`, and `project.assetChoices()` lists the ones
-     * to ask about. A URL with no entry is embedded; with the `node-models` experiment on, it is
-     * kept as the project last kept it (as the file it was opened from, or the last written save
-     * that had an entry for it), else embedded.
+     * to ask about. A URL with no entry is kept as the project last kept it
+     * (as the file it was opened from, or the last written save that had an entry for it), else
+     * embedded.
      */
     readonly assets?: Readonly<Record<string, AssetStorage>>;
     /**
@@ -860,6 +866,9 @@ const DECLARATIONS_VERSION = 1;
 /** The version of the session member's `columns` field. */
 const COLUMNS_VERSION = 1;
 
+/** The version of the session member's `tours` field. */
+const TOURS_VERSION = 1;
+
 /**
  * The `graphty-data` member: the records, the direction and the source. The only builder that
  * reads the records.
@@ -1088,8 +1097,20 @@ export function sessionMember(sources: ProjectSources): Record<string, unknown> 
         // an older reader ignores it): a file without it was saved when every project with the
         // starting rows had the row (`timelineRowWritten`).
         timelineHiddenAdded: session.config.timelineHiddenAdded,
+        // Whether the session's starting cameras were written into this project, so an open never
+        // writes them again; outside `config`, like `timelineHiddenAdded`.
+        startingCamerasWritten: session.config.startingCamerasWritten,
         sets: session.sets.list().map((set) => ({ id: set.id, name: set.name, definition: set.definition })),
-        views: [...session.views].map(([name, camera]) => ({ name, camera })),
+        views: [...session.views].map(([name, view]) => viewEntryOf(name, view, dispatcher.services.camera)),
+        // Additive and versioned, written only when a tour is saved: an older reader ignores it.
+        ...(session.tours.size === 0
+            ? {}
+            : {
+                  tours: {
+                      version: TOURS_VERSION,
+                      list: [...session.tours].map(([name, tour]) => ({ name, ...tour })),
+                  },
+              }),
         // Written only when a value is named, so a project without names saves as before.
         ...(dispatcher.state.valueLabels.size === 0
             ? {}
@@ -1778,8 +1799,11 @@ async function restoreAssetsOf(session: GraphSession, doc: ReadDocument, problem
     }
 }
 
-/** The transaction opening a document that is not a project into the session. */
-const OPEN_DOCUMENT: TransactionOptions = { fact: { code: "document.open", params: {} } };
+/**
+ * The transaction opening a document that is not a project into the session. Its member entries
+ * carry `trigger: "project"`, as a project open's do: the file's commands, not the reader's.
+ */
+const OPEN_DOCUMENT: TransactionOptions = { fact: { code: "document.open", params: {} }, trigger: "project" };
 
 /**
  * Delete every row of the style tree, folders with their layers; the element's own layers stay.
@@ -1834,6 +1858,11 @@ async function clearInto(tx: TransactionScope, playback: unknown): Promise<void>
 
     if (tx.views.size > 0) {
         await tx.views.remove([...tx.views.keys()]);
+    }
+
+    // So no tour carries from one project into the next.
+    if (tx.tours.size > 0) {
+        await tx.tours.remove([...tx.tours.keys()]);
     }
 
     if (tx.visibility.filter !== null) {
@@ -2064,6 +2093,8 @@ interface Opening {
     readonly scopeCountOf: (spec?: Scope) => ElementCount | null;
     /** Where each of the file's edges is among those opened, when a changed reference dropped some. */
     readonly linkAt?: readonly (number | undefined)[];
+    /** The session's starting cameras, written once into a project that never had them. */
+    readonly starting?: readonly StartingCamera[] | null;
 }
 
 /**
@@ -2292,6 +2323,78 @@ async function addTimelineRowAfterTree(opening: Opening, doc: ReadDocument): Pro
 }
 
 /**
+ * One saved view as the file keeps it: `{ name, camera?, follows?, key? }`. A following view also
+ * carries the pose it gives now as `camera`, so a reader that does not know `follows` gets a usable
+ * fixed camera; one that knows it ignores that camera.
+ * @param name - The view's name.
+ * @param view - The view.
+ * @param camera - The renderer's camera, which computes a followed view's pose; absent headless.
+ * @returns The entry.
+ */
+function viewEntryOf(name: string, view: SavedView, camera: CameraService | undefined): Record<string, unknown> {
+    const pose = view.follows === undefined ? view.camera : camera?.pose?.(view.follows);
+    return {
+        name,
+        ...(pose === undefined ? {} : { camera: pose }),
+        ...(view.follows === undefined ? {} : { follows: view.follows }),
+        ...(view.key === undefined ? {} : { key: view.key }),
+    };
+}
+
+/**
+ * Restore the saved views a file holds, in its order, each on its own so one the session refuses
+ * is reported alone. A following view whose camera view is not registered here falls back to the
+ * pose saved beside it; an entry with neither is reported and skipped. An older fixed state gets
+ * its `mode` from the members it holds.
+ * @param opening - The open.
+ * @param views - The session member's `views` field.
+ */
+async function readViews(opening: Opening, views: unknown): Promise<void> {
+    for (const entry of (Array.isArray(views) ? (views as unknown[]) : []).filter(isObject)) {
+        const name = typeof entry.name === "string" ? entry.name : "";
+        const view = savedViewOf(entry);
+        if (view === null) {
+            opening.problems.push({
+                code: typeof entry.follows === "string" ? "E_UNKNOWN_CAMERA" : "E_BAD_DOCUMENT",
+                params: { slice: "views", id: name },
+            });
+        } else {
+            await attempt(opening, "views", () => opening.tx.views.save([{ name, ...view }]), name);
+        }
+    }
+}
+
+/**
+ * One file entry as the view to save: following its camera view when that is registered here, else
+ * its fixed camera, with its key.
+ * @param entry - The entry.
+ * @returns The view, or null when it has neither.
+ */
+function savedViewOf(entry: Record<string, unknown>): SavedView | null {
+    const key = typeof entry.key === "string" && entry.key !== "" ? { key: entry.key } : {};
+    if (typeof entry.follows === "string" && isCameraViewName(entry.follows)) {
+        return { follows: entry.follows, ...key };
+    }
+    return isObject(entry.camera) ? { camera: withStateMode(entry.camera), ...key } : null;
+}
+
+/**
+ * Write the session's starting cameras into the project being opened, inside its opening step,
+ * when the project has never had them.
+ * @param opening - The open.
+ */
+async function seedStartingCameras(opening: Opening): Promise<void> {
+    const starting = opening.starting ?? null;
+    if (starting === null || opening.tx.config.startingCamerasWritten) {
+        return;
+    }
+
+    await attempt(opening, "views", async () => {
+        await opening.tx.execute({ op: "view.starting", views: starting });
+    });
+}
+
+/**
  * Read a project's settings: the style member's shaders first, so the background never names one
  * the project lacks, then the settings themselves.
  * @param opening - The open.
@@ -2326,6 +2429,9 @@ async function readSettings(opening: Opening, doc: ReadDocument, config: unknown
             ...withReadableBackground(opening, withAddedDefaults(config)),
             name,
             timelineHiddenAdded: tree || timelineRowWritten(doc),
+            // Written from the file, false when it says nothing: a project saved before the starting
+            // cameras were written gets them after its own views.
+            startingCamerasWritten: doc.members.get("graphty-session")?.[0]?.startingCamerasWritten === true,
         }),
     );
     if (tree) {
@@ -2556,9 +2662,37 @@ async function readProject(
 
     await readIssues(opening, state.issues);
 
-    const views = (state.views ?? []) as never[];
-    if (views.length > 0) {
-        await attempt(opening, "views", () => tx.views.save(views));
+    await readViews(opening, state.views);
+    await readTours(opening, state.tours);
+    // The session's starting cameras, after the project's own views, in the same opening step.
+    await seedStartingCameras(opening);
+}
+
+/**
+ * Restore the tours the session member saved, after the views their stops name. A file written
+ * before tours were saved has none; a newer version of the field is reported and skipped.
+ * @param opening - The open.
+ * @param tours - The session member's `tours` field.
+ */
+async function readTours(opening: Opening, tours: unknown): Promise<void> {
+    if (!isObject(tours)) {
+        return;
+    }
+
+    if (tours.version !== TOURS_VERSION) {
+        opening.problems.push({
+            code: "E_UNSUPPORTED_VERSION",
+            params: { slice: "tours", found: tours.version as number },
+        });
+        return;
+    }
+
+    const list = (Array.isArray(tours.list) ? (tours.list as unknown[]) : []).filter(isObject).map((entry) => {
+        const { name, ...tour } = entry as unknown as { name: string } & Tour;
+        return { name, tour };
+    });
+    if (list.length > 0) {
+        await attempt(opening, "tours", () => opening.tx.tours.save(list));
     }
 }
 
@@ -3279,6 +3413,7 @@ export function projectOf(
         const opening: TransactionOptions = {
             fact: { code: "project.open", params: { name: name ?? null } },
             starts: true,
+            trigger: "project",
         };
         projectBoundary(session, "open");
         // After the boundary, which keeps the work it replaces under its own id; before anything
@@ -3326,6 +3461,7 @@ export function projectOf(
                             restoreDerived,
                             scopeCountOf,
                             ...(filled.linkAt === undefined ? {} : { linkAt: filled.linkAt }),
+                            starting: startingCamerasOf(dispatcher),
                         },
                         doc,
                         opened,

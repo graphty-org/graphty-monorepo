@@ -35,7 +35,8 @@ export function countUncaptured(): () => number {
  * @returns The device.
  */
 export function deviceOf(graph: Graph): Promise<GPUDevice> {
-    return (graph.engine as RecoveringWebGPUEngine).drawingDevice();
+    // The engine carries its device as an opaque handle (src/render/gpuHandles.ts).
+    return (graph.engine as RecoveringWebGPUEngine).drawingDevice() as Promise<GPUDevice>;
 }
 
 /**
@@ -46,5 +47,5 @@ export function deviceOf(graph: Graph): Promise<GPUDevice> {
 export function deviceNowOf(graph: Graph): GPUDevice {
     const device = (graph.engine as RecoveringWebGPUEngine).deviceNow();
     assert.isNotNull(device, "the graph has no device now: a loss waits for the new one");
-    return device;
+    return device as GPUDevice;
 }

@@ -63,6 +63,9 @@ import type { RuleTree, SelectionDirection } from "./src/catalog/types";
 import { englishReading, type ReadingOptions, type RunResult } from "./src/session/results";
 import type { SelectionOp } from "./src/session/selection";
 
+export type { EasingName, Tour, TourPause, TourStop } from "./src/camera/tour";
+export type { CameraGestureKind } from "./src/cameras/gestureEnd";
+export { CAMERA_GESTURE_KINDS } from "./src/cameras/gestureEnd";
 export type { FeatureId } from "./src/features/registry";
 export type { EnabledFeatures } from "./src/features/resolve";
 export type {
@@ -164,9 +167,12 @@ export type {
     PendingId,
     PendingStep,
     PositionEntry,
+    PreparePageControl,
     ProjectConfig,
     ProjectConfigPatch,
     ProjectSlice,
+    RecordMatch,
+    RecordMatchRank,
     RecordPage,
     RecordPageOptions,
     RecordSort,
@@ -183,6 +189,7 @@ export type {
     RowReasonCode,
     RowUpdate,
     RunPlacement,
+    SavedView,
     ScoreTerm,
     SessionAnnotations,
     SessionAttributes,
@@ -199,12 +206,16 @@ export type {
     SessionPositions,
     SessionRunsOptions,
     SessionStatus,
+    SessionTours,
     SessionViews,
     SettingEffect,
     SettingEffectCode,
+    SideMapping,
     SourceCopy,
     SourceCopyChoice,
+    SourceLoaded,
     SourceNoPathReason,
+    StartingCamera,
     StyleProblem,
     TableMapping,
     TableMappingRead,
@@ -219,6 +230,9 @@ export type { DrawnAnnotation, DrawnAnnotations } from "./src/session";
 export type { KeymapOptions, KeymapReport, KeymapRoot, KeymapSession } from "./src/session";
 export { createGraphSession } from "./src/session";
 export { attachKeymap } from "./src/session";
+// The recording formats, here too so a consumer can read them without loading the element.
+export type { VideoFormat } from "./src/video/VideoCapture";
+export { VIDEO_FORMATS } from "./src/video/VideoCapture";
 
 /**
  * What the element has to say about a load, once the load is over: which record keys named the
@@ -241,6 +255,7 @@ export type {
     TooLargeDetails,
 } from "./src/data/report";
 export { IMPORT_ROWS_KEPT } from "./src/data/report";
+export type { SessionGraph, SessionGraphCreateOptions, SessionGraphs } from "./src/session/graphs/GraphsApi";
 export type { DataIssue, FixCode, FixResult, IssueCode, IssueId } from "./src/session/issues";
 export type {
     RecipeColumn,
@@ -269,6 +284,9 @@ export type {
     AssetState,
     BuiltInModelFormat,
     ModelCompression,
+    ModelDefaultChannel,
+    ModelDefaults,
+    ModelDefaultsPatch,
     ModelEncoding,
     ModelFormat,
     ModelGeometry,
@@ -276,11 +294,12 @@ export type {
     ModelPart,
     ModelPartRole,
     ModelPartState,
+    ModelPicture,
     ModelSummary,
     NamedBlob,
     PartAnswer,
 } from "./src/session";
-export { DEFAULT_MODEL_LIMITS, isAssetId } from "./src/session";
+export { DEFAULT_MODEL_LIMITS, isAssetId, MODEL_DEFAULT_CHANNELS } from "./src/session";
 
 /**
  * The fetches the page's code did not ask for -- a model URL from a project file, an AI command or
@@ -563,6 +582,7 @@ export type {
     SelectionStatisticsOptions,
     SelectionTarget,
     SelectionTextMode,
+    SelectionVia,
     UnknownRulePath,
 } from "./src/session/selection";
 export { DEFAULT_SELECTION_CAP, SET_OPS } from "./src/session/selection";
@@ -602,6 +622,7 @@ export type {
     FilterResult,
     FilterSelectWithin,
     FilterStep,
+    FilterStepCount,
     HiddenNotDrawn,
     RuleTree,
     StepCounts,
@@ -649,7 +670,15 @@ export type {
 // Asking what something would do and cost, before doing it
 // ---------------------------------------------------------------------------------------------
 
-export type { AlgorithmRunCommand, Plan, PlanBlock, PlanEffect, SessionCommand } from "./src/session";
+export type { AlgorithmRunCommand, AssetCommand, Plan, PlanBlock, PlanEffect, SessionCommand } from "./src/session";
+export type {
+    SavedTour,
+    TourCommand,
+    TourMoveCommand,
+    TourRemoveCommand,
+    TourRenameCommand,
+    TourSaveCommand,
+} from "./src/session";
 export { isAlgorithmRunCommand } from "./src/session";
 export type {
     CostBasis,
@@ -859,6 +888,7 @@ export {
     quotePath,
     renamePaths,
     rulePath,
+    ruleValuePath,
     selectorRule,
     selectorStates,
 } from "./src/session/styles";

@@ -110,23 +110,16 @@ describe("the Style panel's parts of the drawing", () => {
         }
     });
 
-    it("with the cosmograph and node-models experiments off, their settings are nowhere in the panel", () => {
-        const off = experimentChannelsOff({ cosmograph: false, nodeModels: false });
-        const gated = [
-            "edge.fadeStart",
-            "edge.fadeEnd",
-            "edge.fadeOpacity",
-            "edge.blending",
-            "node.model",
-            "node.texture",
-        ];
+    it("with the cosmograph experiment off, its settings are nowhere in the panel", () => {
+        const off = experimentChannelsOff({ cosmograph: false });
+        const gated = ["edge.fadeStart", "edge.fadeEnd", "edge.fadeOpacity", "edge.blending"];
         for (const side of ["node", "edge"] as const) {
             const parts = partsFor(side, off);
             const listed = parts.flatMap(partChannels);
             for (const channel of gated) {
                 assert.notInclude(listed, channel);
             }
-            for (const query of ["blending", "fade", "picture", "model"]) {
+            for (const query of ["blending", "fade"]) {
                 const found = findSettings(side, query, parts).flatMap((group) => group.channels);
                 assert.isTrue(
                     found.every((channel) => !gated.includes(channel)),
@@ -134,12 +127,7 @@ describe("the Style panel's parts of the drawing", () => {
                 );
             }
         }
-        assert.notInclude(
-            partsFor("node", off).flatMap((part) => part.items.map((item) => item.id)),
-            "picture",
-            "an item left with no setting is dropped",
-        );
-        assert.strictEqual(partsFor("edge", experimentChannelsOff({ cosmograph: true, nodeModels: true })), PARTS.edge);
+        assert.strictEqual(partsFor("edge", experimentChannelsOff({ cosmograph: true })), PARTS.edge);
     });
 
     it("no two settings of an item read alike under its heading", () => {

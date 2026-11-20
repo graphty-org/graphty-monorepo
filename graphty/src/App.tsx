@@ -1,6 +1,7 @@
 import { lazy, Suspense } from "react";
 
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { bootQuery } from "./lib/analytics";
 import { Workspace } from "./workspace/Workspace";
 
 // The gallery loads only when asked for, so the start page's first paint
@@ -19,9 +20,8 @@ const CompactComponentsDemo = lazy(async () => ({
  * @returns The application root component.
  */
 export function App(): React.JSX.Element {
-    const params = new URLSearchParams(globalThis.location.search);
-
-    if (params.has("demo")) {
+    // The query as it was at boot: Share usage data removes it from the address bar.
+    if (bootQuery().has("demo")) {
         return (
             <ErrorBoundary>
                 <Suspense>

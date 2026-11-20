@@ -335,6 +335,12 @@ export class CSVDataSource extends DataSource {
     readBy: { readonly source: string; readonly target: string } | { readonly key: string } | undefined;
 
     /**
+     * The separator the first table it read was split by (a pair's node file), and whether it was
+     * detected rather than given; unset until it reads one.
+     */
+    readDelimiter: CsvRows["delimiter"] | undefined;
+
+    /**
      * Creates a new CSVDataSource instance.
      * @param config - Configuration options for CSV parsing and data loading
      */
@@ -517,6 +523,10 @@ export class CSVDataSource extends DataSource {
         nodes?: string,
     ): Promise<ImportedRecords> {
         const { delimiter, idColumn } = this.config;
+        this.readDelimiter ??= {
+            value: delimiter ?? guessDelimiter((nodes ?? content).split(/\r\n|\n|\r/, 1)[0] ?? ""),
+            detected: delimiter === undefined,
+        };
         // An adjacency table has no columns to name, and graph-io refuses a column option for one;
         // its `neighbour:weight` suffixes are its weight, which `weightFrom: null` would drop.
         const columns: CsvImportOptions & CommonImportOptions =

@@ -7,7 +7,7 @@
 
 import { assert, describe, it } from "vitest";
 
-import type { AttributeDescriptor } from "../../src/catalog/types";
+import type { AttributeDescriptor, RuleTree } from "../../src/catalog/types";
 import { GRAPHTY_ERROR_CODES, isGraphtyError } from "../../src/errors";
 import {
     type CodedFact,
@@ -18,7 +18,7 @@ import {
 } from "../../src/session";
 import { resolveColumn } from "../../src/session/columns";
 import { RevisionCache } from "../../src/session/revision";
-import { quotePath, renamePaths, rulePath } from "../../src/session/styles";
+import { quotePath, renamePaths, rulePath, ruleValuePath } from "../../src/session/styles";
 import { matchText, normalizeText } from "../../src/session/text";
 import { makeSession } from "./helpers";
 
@@ -98,6 +98,27 @@ describe("an attribute's path reads back as the column it names", () => {
 
             assert.deepStrictEqual([...harness.session.selection.nodes], ["x"]);
             harness.session.dispose();
+        });
+    }
+});
+
+describe("ruleValuePath", () => {
+    const cases: readonly (readonly [RuleTree, string | undefined])[] = [
+        [{ kind: "range", attribute: "data.age", min: 1 }, "data.age"],
+        [{ kind: "categories", attribute: "data.group", values: ["a"] }, "data.group"],
+        [{ kind: "threshold", path: "results.r.value", top: 3, ties: "all" }, "results.r.value"],
+        [{ kind: "text", reads: "data.name", mode: "substring", text: "x" }, "data.name"],
+        [{ kind: "same-value", path: "data.community" }, "data.community"],
+        [{ kind: "by-size", path: "data.community", top: 2 }, "data.community"],
+        [{ kind: "text", reads: "id", mode: "substring", text: "x" }, undefined],
+        [{ kind: "degree", min: 2 }, undefined],
+        [{ kind: "expression", where: "age > `1`" }, undefined],
+        [{ kind: "measure", algorithm: "degree", field: "degree" }, undefined],
+        [{ kind: "not", of: { kind: "range", attribute: "data.age" } }, undefined],
+    ];
+    for (const [rule, path] of cases) {
+        it(`reads ${String(path)} from a ${rule.kind} leaf`, () => {
+            assert.strictEqual(ruleValuePath(rule), path);
         });
     }
 });

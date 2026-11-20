@@ -1,7 +1,9 @@
 /**
  * The Undo button on the REAL graphty-element names each kind of step it would take back: a kept
  * set's changes, hiding and showing nodes, showing hidden nodes faintly, pinning and releasing
- * nodes, laying out part or all of the graph, and a result's rename. Each step runs through the
+ * nodes, laying out part or all of the graph, a result's rename and move, merging nodes, collapsing
+ * and expanding a group, column settings, annotations, filter steps, layer moves, the default rows
+ * and a project shader's changes. Each step runs through the
  * session; the test reads the Undo button's name, which is what its tooltip shows.
  */
 
@@ -126,5 +128,64 @@ describe("the Undo button names each kind of step", () => {
         await session.runs.rename(run.id, "Ties");
         // The step is named by the result's row, which keeps the method's name.
         await undoNamed("renaming Degree");
+    });
+
+    it("names merging nodes, a group's collapse and expand, column settings, annotations and filter steps", async () => {
+        const { session, ids } = await openWithGraph();
+        await session.data.mergeNodes(ids);
+        await undoNamed("merging 2 nodes");
+
+        await session.groups.collapse({ groupBy: "data.group", group: 3 });
+        await undoNamed("collapsing group 3");
+
+        await session.groups.expand({ groupBy: "data.group", group: 3 });
+        await undoNamed("expanding group 3");
+
+        await session.execute({ op: "data.columns", settings: { hidden: [], types: {}, renamed: {} } });
+        await undoNamed("changing the columns");
+
+        await session.execute({ op: "annotations.set", annotations: [] });
+        await undoNamed("setting the annotations");
+
+        await session.execute({ op: "visibility.steps", steps: [] });
+        await undoNamed("changing the filter steps");
+    });
+
+    it("names a result's move, a layer's move, the default rows and a shader's changes", async () => {
+        const { session } = await openWithGraph();
+        await session.styles.add({
+            name: "Big",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.size": 2 },
+        });
+        await undoNamed("adding the layer Big");
+        const big = session.styles.list().find((each) => each.name === "Big");
+        assert.isDefined(big);
+        const run = session.runs.start("degree");
+        await run;
+        // The result's layer comes in on top of Big: Big moving to the top is a step, and so is the
+        // result's block moving back to the top.
+        await session.execute({ op: "style.patch", action: "move", id: big.id, before: null });
+        await undoNamed("moving the layer Big");
+        await session.execute({ op: "algo.move", runId: run.id, before: null });
+        await undoNamed("moving Degree");
+
+        await session.execute({ op: "style.patch", action: "addDefaultRows" });
+        await undoNamed("adding the default rows");
+
+        // A project shader is named as the catalog names it ("Shader" for one that declares no name),
+        // and "a shader" once the catalog no longer holds it.
+        const shader = {
+            op: "shader.set",
+            id: "user/glow",
+            text: "vec4 shade(NodeInput n) { return n.color; }",
+        } as const;
+        await session.execute(shader);
+        await undoNamed("adding the shader Shader");
+        await session.execute({ ...shader, text: "vec4 shade(NodeInput n) { return vec4(1.0); }" });
+        await undoNamed("changing the shader Shader");
+        await session.execute({ ...shader, text: null });
+        await undoNamed("removing a shader");
     });
 });

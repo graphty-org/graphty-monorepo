@@ -369,6 +369,15 @@ export class RowTable {
     }
 
     /**
+     * {@link RowTable.moves} once the CPU copy is up to what the layout last published.
+     * @returns The count.
+     */
+    settledMoves(): number {
+        this.catchUp();
+        return this.moves;
+    }
+
+    /**
      * The CPU copy of `rowPosition`: x, y, z and w, a multiplier on the row's size.
      * @returns The array.
      */
@@ -845,15 +854,6 @@ export class RowTable {
                 this.positionUploads += table === this.positions ? 1 : 0;
             }
         }
-    }
-
-    /**
-     * {@link RowTable.moves} once the CPU copy is up to what the layout last published.
-     * @returns The count.
-     */
-    settledMoves(): number {
-        this.catchUp();
-        return this.moves;
     }
 
     /** Bring the CPU copy up to a publish the lane owes (`ElementPositions.owe`) before it is read. */

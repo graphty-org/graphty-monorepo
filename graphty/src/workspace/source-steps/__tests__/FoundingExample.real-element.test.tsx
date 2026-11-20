@@ -1,9 +1,10 @@
 /**
  * The owner's founding example end to end on the REAL graphty-element with the source-steps
  * experiment on (design/data/multiple-data-sources-design.md, sections 5.1-5.6, 7.13 and 13),
- * driven only by drops, clicks, typing and keys once people are in the graph as type person:
- * buildings arrive staged and are added; door entries are joined to the people who badged in (an edge "entered", ignoring case, the
- * test badge's entry left out) and to the buildings whose doors they opened (an edge "at"); HR's
+ * driven only by drops, clicks, typing and keys: buildings.csv is dropped on an empty project and
+ * drawn at once; people arrive staged, are given the type person in their section and are added;
+ * door entries are joined to the people who badged in (an edge "entered", ignoring case, the test
+ * badge's entry left out) and to the buildings whose doors they opened (an edge "at"); HR's
  * list is merged into people with Use 2 for dept and one pick back to people.csv's value; visitors
  * are added as people too, answering the key-overlap question. Before / After flips the drawing, each
  * card commits one undo step, Steps lists every step, and Undo returns the visitors to staged and
@@ -107,18 +108,27 @@ describe("the founding example through the app (source-steps)", () => {
         await page.viewport(1440, 900);
         const { store, session } = await emptyProject();
 
-        // People are in the graph as type person (the project the reader starts from); buildings
-        // arrive staged, drawing nothing, and Add adds them.
-        await session.data.import(
-            { type: "csv", config: { data: PEOPLE }, name: "people.csv" },
-            { key: "badge", type: "person" },
-        );
-        store.set({ dockOpen: false, dockMaximized: false });
-        const buildings = await stage("buildings.csv", BUILDINGS);
-        assert.strictEqual(session.data.nodes().length, 4, "a staged source draws nothing");
-        await userEvent.click(within(buildings).getByRole("button", { name: /^Add/ }));
+        // Buildings are dropped first and drawn at once, keyed by door.
+        drop("buildings.csv", BUILDINGS);
         await waitFor(() => {
-            assert.isNull(screen.queryByRole("region", { name: "buildings.csv" }));
+            assert.deepStrictEqual(nodeIds(session), ["D1", "D2"], "buildings keyed by door");
+        });
+        assert.isEmpty(session.data.staged(), "a first source is drawn, not staged");
+        store.set({ dockOpen: false, dockMaximized: false });
+
+        // People arrive staged, drawing nothing; the reader types their Type, person, and Add adds
+        // them.
+        const people = await stage("people.csv", PEOPLE);
+        assert.strictEqual(session.data.nodes().length, 2, "a staged source draws nothing");
+        await userEvent.click(within(people).getByRole("combobox", { name: "Type" }));
+        await userEvent.keyboard("person{Enter}");
+        await waitFor(() => {
+            const key = session.data.staged()[0]?.key ?? "";
+            assert.strictEqual(session.data.sourceTable(key).summary().mapping.type, "person");
+        });
+        await userEvent.click(within(people).getByRole("button", { name: /^Add/ }));
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("region", { name: "people.csv" }));
         });
         assert.deepStrictEqual(nodeIds(session), ["B1", "B2", "B3", "D1", "D2", "T0"]);
 

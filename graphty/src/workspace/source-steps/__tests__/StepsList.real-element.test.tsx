@@ -7,7 +7,8 @@
  * its rule, and Keep 1 puts people.csv's departments back; a changed direction makes the new act in
  * the old step's place. A pick on HR's list is a reader edit,
  * listed under Reader edits (R) and taken back by its Delete. Remove in people.csv's menu names
- * the later steps that go with it (HR's merge, never its own Add), and Undo brings it back.
+ * the later steps that go with it (HR's merge, never its own Add) and those whose counts drop,
+ * and Undo brings it back.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -87,6 +88,32 @@ async function stepsList(): Promise<HTMLElement> {
     return screen.findByRole("list", { name: "Steps" });
 }
 
+/**
+ * The founding example as "Open a file" leaves it: people.csv with no type, so its nodes are in
+ * its own space, entries.csv joined onto that space as edges, and HR's list merged into it.
+ * @returns the session and people's key.
+ */
+async function untypedFoundingExample(): Promise<{ session: GraphSession; people: string }> {
+    await page.viewport(1440, 900);
+    const { session, store } = await emptyProject();
+    await session.data.import({ type: "csv", config: { data: PEOPLE }, name: "people.csv" }, { key: "badge" });
+    store.set({ dockOpen: false, dockMaximized: false });
+    const people = session.data.sources()[0]?.key ?? "";
+    const space = session.data.spaces().find((row) => row.ownedBy === people)?.space ?? "";
+    const entries = await session.data.stage(
+        { type: "csv", config: { data: ENTRIES }, name: "entries.csv" },
+        { key: "entry", type: "entry" },
+    );
+    const connect = session.data.draft();
+    connect.connect({ from: { source: entries, field: "badge" }, into: { space }, edgeType: "entered" });
+    await connect.commit();
+    const hr = await session.data.stage({ type: "csv", config: { data: HR }, name: "hr.csv" }, { key: "badge" });
+    const merge = session.data.draft();
+    merge.merge({ from: { source: hr, field: "badge" }, into: { space } });
+    await merge.commit();
+    return { session, people };
+}
+
 describe("Steps and Reader edits (source-steps)", () => {
     it("lists each step with the element's counts; Delete on the edge step previews the edges going and commits one step", async () => {
         const { session } = await withPeople();
@@ -142,6 +169,62 @@ describe("Steps and Reader edits (source-steps)", () => {
         await waitFor(async () => {
             assert.lengthOf(within(await stepsList()).getAllByRole("listitem"), 2);
         });
+    });
+
+    it("a join onto an untyped source names that source, and its counts, Edit and Del stay inside the list", async () => {
+        const { session } = await untypedFoundingExample();
+        const edges = session.data.steps().find((row) => row.op === "join.edges");
+        assert.isDefined(edges);
+        const label = `Step ${String((edges?.index ?? 0) + 1)}`;
+        const list = await stepsList();
+        const item = await within(list).findByRole("listitem", { name: label });
+        assert.strictEqual(within(item).getByLabelText(`${label} joins`).textContent, "badge -> people.csv");
+        assert.strictEqual(within(item).getByLabelText(`${label} counts`).textContent, "5 edges");
+        const box = list.getBoundingClientRect();
+        for (const name of [`Edit ${label}`, `Delete ${label}`]) {
+            const button = within(item).getByRole("button", { name });
+            const rect = button.getBoundingClientRect();
+            assert.isAtMost(rect.right, box.right, `${name} is inside the list`);
+            const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+            assert.isTrue(hit !== null && button.contains(hit), `${name} is what a click at its center reaches`);
+        }
+        const counts = within(item).getByLabelText(`${label} counts`).getBoundingClientRect();
+        assert.isAtMost(counts.right, box.right, "the counts are inside the list");
+
+        await userEvent.click(within(item).getByRole("button", { name: `Delete ${label}` }));
+        const card = await screen.findByRole("form", { name: `Delete step ${String((edges?.index ?? 0) + 1)}` });
+        assert.strictEqual(
+            within(card).getByLabelText(`Delete step ${String((edges?.index ?? 0) + 1)} subject`).textContent,
+            "Edges entries.csv badge -> people.csv",
+        );
+        await userEvent.keyboard("{Escape}");
+    });
+
+    it("Remove on the untyped source other steps join onto lists the later steps whose counts drop", async () => {
+        const { session } = await untypedFoundingExample();
+        const rows = session.data.steps();
+        const edges = rows.find((row) => row.op === "join.edges");
+        const merge = rows.find((row) => row.op === "join.merge");
+        assert.strictEqual(edges === undefined ? "" : stepCountWords(edges), "5 edges");
+        assert.strictEqual(merge === undefined ? "" : stepCountWords(merge), "3 merged");
+        const row = await screen.findByRole("listitem", { name: "people.csv" });
+        await userEvent.click(within(row).getByRole("button", { name: "people.csv menu" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Remove" }));
+        const card = await screen.findByRole("form", { name: "Remove people.csv" });
+        assert.strictEqual(within(card).getByLabelText("Edges after").textContent, "5 -> 0");
+        const later = within(card).getByRole("group", { name: "Later steps" });
+        assert.include(later.textContent ?? "", "Later steps 2");
+        assert.include(
+            later.textContent ?? "",
+            `Step ${String((edges?.index ?? 0) + 1)} Edges: 5 edges -> 0 edges`,
+            "the edge step keeps no edge",
+        );
+        assert.include(
+            later.textContent ?? "",
+            `Step ${String((merge?.index ?? 0) + 1)} Merge: 3 merged -> 0 merged`,
+            "HR's merge finds no person",
+        );
+        await userEvent.keyboard("{Escape}");
     });
 
     it("Del on a Steps row's button opens the card, and Esc cancels it with nothing written", async () => {
@@ -302,8 +385,8 @@ describe("Steps and Reader edits (source-steps)", () => {
         );
         assert.strictEqual(
             later.textContent,
-            `Later steps 1Step ${String((hrStep?.index ?? 0) + 1)}: step removed`,
-            "only HR's merge is a later step; people.csv's own Add is what Remove removes",
+            `Later steps 2Step ${String((hrStep?.index ?? 0) + 1)}: step removedStep 3 Edges: 5 edges -> 0 edges`,
+            "HR's merge goes and the edge step keeps no edge; people.csv's own Add is what Remove removes",
         );
         assert.notInclude(card.textContent ?? "", "W_STEP_REMOVED", "no code is shown");
         assert.isTrue(sourcesHold(session, people), "nothing removed yet");

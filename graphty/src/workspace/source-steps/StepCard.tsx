@@ -12,10 +12,20 @@ import type { StepCardState } from "../state/store";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { cancelCard, commitCard } from "./actions";
 import { CancelButton } from "./CancelButton";
+import { spaceLabel } from "./join";
 import { COMMIT_KEY } from "./keys";
 import { openDraft } from "./preview";
 import { stepCardSource } from "./steps";
-import { afterWords, PREVIEW_WORDS, removeTitleWords, STEP_WORDS, stepRemovedWords, stepSubjectWords } from "./words";
+import {
+    afterWords,
+    PREVIEW_WORDS,
+    removeTitleWords,
+    STEP_WORDS,
+    stepChangedWords,
+    stepCountWords,
+    stepRemovedWords,
+    stepSubjectWords,
+} from "./words";
 
 /** The element's events after which the card reads its draft again. */
 const DRAFT_EVENTS = ["data:draft-changed"] as const;
@@ -41,8 +51,9 @@ function Line({ label, value }: Readonly<{ label: string; value: string }>): Rea
 /**
  * The step card (design 7.13, the source-steps experiment): what deleting a committed step, or
  * removing a committed source, would change, read from the draft that holds the removal: the
- * graph's totals before and after, the later steps that go with it, the references left unbound and
- * the reader edits that lose their element. Commit (Enter) is one undo step; Cancel (Esc) discards.
+ * graph's totals before and after, the later steps that go with it or whose counts it moves, the
+ * references left unbound and the reader edits that lose their element. Commit (Enter) is one undo
+ * step; Cancel (Esc) discards.
  * @param props - Component props
  * @param props.session - the element's session
  * @param props.card - the card
@@ -74,7 +85,8 @@ export function StepCard({
     const title = removeTitleWords(card.remove, source === undefined ? "" : sourceName(source));
     const preview = draft?.preview() ?? null;
     const { remove } = card;
-    const row = "step" in remove ? session.data.steps()[remove.step] : undefined;
+    const committed = session.data.steps();
+    const row = "step" in remove ? committed[remove.step] : undefined;
     // The element lists every committed step the draft drops, the card's own target too: the step
     // it deletes, or the removed source's own steps. Later steps are only the others.
     const removed =
@@ -84,6 +96,17 @@ export function StepCard({
                 ? [issue.params]
                 : [],
         ) ?? [];
+    // The steps the draft keeps whose counts it moves, such as edges onto a removed source's nodes.
+    const changed =
+        preview?.steps.flatMap((step) => {
+            const was = step.committed === null ? undefined : committed[step.committed];
+            if (was === undefined) {
+                return [];
+            }
+            const before = stepCountWords(was);
+            const after = stepCountWords(step);
+            return before === after ? [] : [stepChangedWords(was.index, was.op, before, after)];
+        }) ?? [];
     const unbound = preview?.issues.filter((issue) => issue.code === "W_REFERENCE_UNBOUND").length ?? 0;
     const edits = preview?.edits ?? [];
     const lost = edits.filter((edit) => edit.state === "lost").length;
@@ -113,7 +136,11 @@ export function StepCard({
                 </Text>
                 {row === undefined ? null : (
                     <Text size="xs" c="dimmed" aria-label={`${title} subject`}>
-                        {stepSubjectWords(row, source === undefined ? row.source : sourceName(source))}
+                        {stepSubjectWords(
+                            row,
+                            source === undefined ? row.source : sourceName(source),
+                            row.act === null ? "" : spaceLabel(session, row.act.into.space),
+                        )}
                     </Text>
                 )}
                 {preview === null ? null : (
@@ -133,11 +160,16 @@ export function StepCard({
                         </fieldset>
                         <fieldset className="ss-field" aria-label={STEP_WORDS.laterSteps}>
                             <Text component="legend" size="xs" fw={600}>
-                                {`${STEP_WORDS.laterSteps} ${formatNumber(removed.length)}`}
+                                {`${STEP_WORDS.laterSteps} ${formatNumber(removed.length + changed.length)}`}
                             </Text>
                             {removed.map((params) => (
                                 <Text key={params.step} size="xs">
                                     {stepRemovedWords(params)}
+                                </Text>
+                            ))}
+                            {changed.map((words) => (
+                                <Text key={words} size="xs">
+                                    {words}
                                 </Text>
                             ))}
                         </fieldset>

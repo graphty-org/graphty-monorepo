@@ -301,6 +301,16 @@ export function spaceChoices(session: GraphSession): readonly Choice[] {
 }
 
 /**
+ * A space as the reader reads it: its name, or its owning source's name (see `spaceChoices`).
+ * @param session - the element's session.
+ * @param space - the space.
+ * @returns its name.
+ */
+export function spaceLabel(session: GraphSession, space: string): string {
+    return spaceChoices(session).find((choice) => choice.value === space)?.label ?? space;
+}
+
+/**
  * The open card when it is the Join card.
  * @param card - the store's open card.
  * @returns the Join card, or null.

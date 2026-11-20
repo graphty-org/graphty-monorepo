@@ -460,20 +460,34 @@ export const OP_WORDS: Readonly<Record<SourceStepRow["op"], string>> = {
 /**
  * What a join step joined: field 2, then the field or space of node 1 it joined onto.
  * @param act - the step's act.
- * @returns such as "badge -> person".
+ * @param spaceName - the name the reader reads for `act.into.space` (see `spaceLabel`).
+ * @returns such as "badge -> person" or "badge -> people.csv".
  */
-export function actWords(act: SourceStepAct): string {
-    return `${act.from.field} -> ${act.into.field ?? act.into.space}`;
+export function actWords(act: SourceStepAct, spaceName: string): string {
+    return `${act.from.field} -> ${act.into.field ?? spaceName}`;
 }
 
 /**
  * A step as the step card names it under its title: its kind, its source and what it joined.
  * @param row - the step.
  * @param name - its source's name.
+ * @param spaceName - the name the reader reads for the space it joined onto.
  * @returns such as "Edges entries.csv badge -> person".
  */
-export function stepSubjectWords(row: SourceStepRow, name: string): string {
-    return [OP_WORDS[row.op], name, ...(row.act === null ? [] : [actWords(row.act)])].join(" ");
+export function stepSubjectWords(row: SourceStepRow, name: string, spaceName: string): string {
+    return [OP_WORDS[row.op], name, ...(row.act === null ? [] : [actWords(row.act, spaceName)])].join(" ");
+}
+
+/**
+ * A later step whose counts the change moves, as the step card lists it.
+ * @param index - its place in the committed list.
+ * @param op - its kind.
+ * @param before - its counts now, from `stepCountWords`.
+ * @param after - its counts once committed.
+ * @returns such as "Step 2 Edges: 5 edges -> 0 edges".
+ */
+export function stepChangedWords(index: number, op: SourceStepRow["op"], before: string, after: string): string {
+    return `${stepWords(index)} ${OP_WORDS[op]}: ${before || STEP_WORDS.off} -> ${after || STEP_WORDS.off}`;
 }
 
 /**

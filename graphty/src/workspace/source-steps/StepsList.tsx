@@ -6,6 +6,7 @@ import { sourceName } from "../data-place/words";
 import { GLYPHS } from "../glyphs";
 import { ariaKey, formatKey } from "../keys/keys";
 import { useWorkspace } from "../state/WorkspaceContext";
+import { spaceLabel } from "./join";
 import { DELETE_KEY } from "./keys";
 import { openEditStep, openRemove } from "./steps";
 import { actWords, missingWords, OP_WORDS, STEP_WORDS, stepCountWords, stepWords } from "./words";
@@ -54,8 +55,8 @@ function StepRow({
                     {name}
                 </Text>
                 {row.act === null ? null : (
-                    <Text size="xs" style={{ flexShrink: 0 }} aria-label={`${label} joins`}>
-                        {actWords(row.act)}
+                    <Text size="xs" truncate style={{ flex: 1, minWidth: 0 }} aria-label={`${label} joins`}>
+                        {actWords(row.act, spaceLabel(session, row.act.into.space))}
                     </Text>
                 )}
                 {off ? (

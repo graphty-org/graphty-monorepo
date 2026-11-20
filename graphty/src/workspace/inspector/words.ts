@@ -254,6 +254,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.xlabelLocation": "Outside label",
     "node.xlabelOffsetX": "Outside label",
     "node.xlabelOffsetY": "Outside label",
+    "node.xlabelTextAlign": "Outside label",
     "edge.xlabel": "Outside label",
     "edge.xlabelStyle": "Outside label",
     "edge.xlabelLocation": "Outside label",

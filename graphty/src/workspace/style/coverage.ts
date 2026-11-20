@@ -137,6 +137,7 @@ export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "node.xlabelLocation": NOT_PLACED,
     "node.xlabelOffsetX": NOT_PLACED,
     "node.xlabelOffsetY": NOT_PLACED,
+    "node.xlabelTextAlign": NOT_PLACED,
     "edge.xlabel": NOT_PLACED,
     "edge.xlabelStyle": NOT_PLACED,
     "edge.xlabelLocation": NOT_PLACED,

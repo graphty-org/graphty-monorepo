@@ -169,6 +169,8 @@ export type {
     ProjectConfig,
     ProjectConfigPatch,
     ProjectSlice,
+    RecordMatch,
+    RecordMatchRank,
     RecordPage,
     RecordPageOptions,
     RecordSort,

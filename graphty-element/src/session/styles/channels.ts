@@ -758,6 +758,7 @@ export interface ChannelValues {
     "node.xlabelLocation": LabelLocation;
     "node.xlabelOffsetX": number;
     "node.xlabelOffsetY": number;
+    "node.xlabelTextAlign": LabelTextAlign;
     "edge.labelTable": string;
     "edge.xlabel": string;
     "edge.xlabelStyle": LabelStyle;
@@ -5214,6 +5215,20 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         stylePath: "xlabel.offsetY",
         renderable: true,
         caveat: "How far the external label is moved down from where its location puts it, in scene units.",
+    },
+    "node.xlabelTextAlign": {
+        channel: "node.xlabelTextAlign",
+        target: "node",
+        plainName: "Node External Label Text Align",
+        shortName: "External label text align",
+        group: "text",
+        accepts: "enum",
+        values: LABEL_TEXT_ALIGN_VALUES,
+        stylePath: "xlabel.textAlign",
+        renderable: true,
+        caveat:
+            "Lines up the lines of an external label of more than one line with one another: their left edges, " +
+            "their middles or their right edges. Unset, as the label's.",
     },
     "edge.labelTable": {
         channel: "edge.labelTable",

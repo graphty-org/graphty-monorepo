@@ -2582,9 +2582,12 @@ export interface OptionBound {
 
 // @public
 export interface OptionChoice {
-    // (undocumented)
     label: string;
     refusal?: OptionChoiceRefusal;
+    runField?: {
+        readonly runId: RunId;
+        readonly field: string;
+    };
     // (undocumented)
     value: string;
 }

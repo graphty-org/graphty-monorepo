@@ -820,12 +820,17 @@ export function drawnPrimitives(
                 ? { sizedLabel: { label: textOf(d.label), acrossPx: rule.acrossPx, min: rule.min } }
                 : {};
         // its further texts (a record's fields) are its label too, as the oracle reads every text in the node's box
-        // each drawn on its own line at its own place, so their alignment is read off their boxes, as the oracle's is
-        const parts = (d?.texts ?? []).map((t) => ({ ...textOf(t), align: undefined }));
-        const label =
+        // each drawn on its own line at its own place, so their alignment is read off their boxes, as the oracle's is;
+        // an external label of several lines is drawn in one plane, so its own alignment is declared for them all
+        // (yed-graphml-specimen-labels configuration-er-labels: "Entity" centered over "id" and "name" set left)
+        const drawnParts = d?.texts ?? [];
+        const parts = drawnParts.map((t) => ({ ...textOf(t), align: undefined }));
+        const several = drawnParts.find((t) => t.lineCount >= 2);
+        const merged =
             parts.length === 0
                 ? ownLabel
                 : mergeTexts([...(ownLabel === null || ownLabel.content === "" ? [] : [ownLabel]), ...parts]);
+        const label = several === undefined || merged === null ? merged : { ...merged, align: several.align };
         // a node that draws no body (shape "none", no picture in its place) is its label and its glyph alone, as a
         // program draws a text-only or an icon-only node (vis-network's text and icon shapes): the comparison reads
         // those as free texts, never as a node shape (withoutCaptions)

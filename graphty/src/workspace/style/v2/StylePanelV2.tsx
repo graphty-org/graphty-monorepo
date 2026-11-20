@@ -225,7 +225,6 @@ function ThingSection({
         if (thing === undefined || main === undefined) {
             return;
         }
-        focusLineNext(ctx.session, main.channel);
         const first = firstItem(ctx, id, main.channel);
         // A list thing opens on its list, and an Image on its picker (design 5.1).
         if (first !== undefined || id === "image" || (ctx.side === "node" && LISTS[id] !== undefined)) {
@@ -234,9 +233,12 @@ function ThingSection({
         const start = first?.[main.channel] ?? (main.accepts === "text" ? undefined : startForOrNone(ctx, main));
         // A thing with no plain starting value (a text source, a list) waits for the reader's first pick.
         if (typeof start !== "number" && typeof start !== "boolean" && (typeof start !== "string" || start === "")) {
+            // Its row takes focus itself (a text source opens its list): an ask here would wait, unanswered, for the
+            // tab's next render and then pull focus from wherever the reader is (the pop-over's Size, batch B review).
             setWaiting((now) => (now.includes(id) ? now : [...now, id]));
             return;
         }
+        focusLineNext(ctx.session, main.channel);
         const value = start;
         // What "+" adds draws at once (design 5.1): with it, what graphty-element says it needs to draw, over a
         // list's first item (a chart's values and colors).

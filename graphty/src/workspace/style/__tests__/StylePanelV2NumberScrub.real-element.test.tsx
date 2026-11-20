@@ -15,8 +15,8 @@ import { userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
 import { dragAcross } from "../../../test/real-pointer";
-import { screen, waitFor } from "../../../test/test-utils";
-import { openGraph, openStyle, picture, sectionOf, written } from "./v2Harness";
+import { screen, waitFor, within } from "../../../test/test-utils";
+import { openGraph, openProject, openStyle, picture, sectionOf, written } from "./v2Harness";
 
 /**
  * The label style's size the layer writes.
@@ -102,5 +102,38 @@ describe("every v2 number is Figma's number input", () => {
         await userEvent.keyboard("{Control>}a{/Control}abc{Enter}");
         await session.styles.settled();
         assert.closeTo(sizeOf(session, nodes), kept, 1e-6, "bad input keeps the old value");
+    });
+
+    it("an UNSET label Size keeps focus on its first ArrowUp, so Shift+ArrowUp lands on it too", async () => {
+        // A Label just added with "+", its source list closed with nothing picked: nothing is written yet.
+        const { session, id } = await openProject();
+        const tab = await openStyle("Key people");
+        const text = sectionOf(tab, "node-text");
+        await userEvent.click(within(text).getByRole("button", { name: /^Add to node text/ }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Label" }));
+        await screen.findByRole("group", { name: "Node label" });
+        await userEvent.keyboard("{Escape}");
+        await userEvent.click(await within(text).findByRole("button", { name: /^Node label settings/ }));
+        const pop = await screen.findByRole("dialog");
+        const input = await waitFor(() => {
+            const found = pop.querySelector<HTMLInputElement>('input[aria-label="Node label size"]');
+            assert.isNotNull(found);
+            return found;
+        });
+        assert.equal(input.value, "", "the Size starts unset");
+        await userEvent.click(input);
+        await userEvent.keyboard("{ArrowUp}");
+        await waitFor(() => {
+            assert.closeTo(sizeOf(session, id), 1, 1e-6, "ArrowUp sets it");
+        });
+        await session.styles.settled();
+        await waitFor(() => {
+            assert.equal(input.value, "1");
+        });
+        assert.equal(document.activeElement, input, "focus stays on Size once it is set");
+        await userEvent.keyboard("{Shift>}{ArrowUp}{/Shift}");
+        await waitFor(() => {
+            assert.closeTo(sizeOf(session, id), 11, 1e-6, "Shift+ArrowUp reaches the same field");
+        });
     });
 });

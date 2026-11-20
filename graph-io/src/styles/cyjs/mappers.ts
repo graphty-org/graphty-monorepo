@@ -500,6 +500,8 @@ export const CYJS_NODE_PROPERTIES: ReadonlyMap<string, CyjsPropertySpec> = new M
     ["min-width-bias-right", { property: "_biasRight", type: "text" }],
     ["min-height-bias-top", { property: "_biasTop", type: "text" }],
     ["min-height-bias-bottom", { property: "_biasBottom", type: "text" }],
+    // which of two overlapping nodes is on top, combined with the element order into `drawOrder` (`combineDrawOrder`)
+    ["z-index", { property: "_zIndex", type: "text" }],
     ["compound-sizing-wrt-labels", { property: "_compoundLabels", type: "enum", enums: ["include", "exclude"] }],
     [
         "text-valign",

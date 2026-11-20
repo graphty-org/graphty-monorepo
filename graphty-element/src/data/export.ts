@@ -72,6 +72,7 @@ import {
 } from "../catalog/writerRegistry";
 import { GraphtyError } from "../errors";
 import { featureOff } from "../features/resolve";
+import type { PendingWorkProgress } from "../managers/OperationQueueManager";
 import { dispatcherOf, scopeResolverOfSession } from "../session/GraphSession";
 import { rowsOf } from "../session/notes/countIndex";
 import { resolveEdgeWeight } from "../session/project/ingest";
@@ -107,14 +108,18 @@ export type ExportScope =
  * (which nodes and edges, {@link ExportScope}; when absent, the whole graph, or what is shown
  * while `workingGraph` is on), `columns` (which attribute columns, by name, `data.<name>` or
  * result path; every column when absent -- the id, the ends of an edge, positions and styles are
- * always written) and `groupTable` (write one row per group instead of the graph,
- * {@link ExportGroupTable}).
+ * always written), `groupTable` (write one row per group instead of the graph,
+ * {@link ExportGroupTable}) and `onProgress` (told how much queued work -- loads, layouts,
+ * algorithm runs -- the export is waiting behind, now and on every change, until it starts
+ * writing; the last reading counts 0 operations).
  */
 export type ExportGraphOptions = Readonly<Record<string, unknown>> &
     CommonExportOptions & {
         readonly scope?: ExportScope;
         readonly columns?: readonly string[];
         readonly groupTable?: ExportGroupTable;
+        /** Told how much queued work the export waits behind, until it starts writing. */
+        readonly onProgress?: (fact: PendingWorkProgress) => void;
     };
 
 /**

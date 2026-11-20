@@ -115,6 +115,7 @@ import {
 } from "./camera/tour.js";
 import type { CameraState, CameraViewExtent, DrawingMode, GraphBounds, ViewInsets } from "./camera/types.js";
 import { type CameraController, cameraForViewMode, type CameraKey, CameraManager } from "./cameras/CameraManager";
+import type { CameraGestureKind } from "./cameras/gestureEnd";
 import { OrbitCameraController } from "./cameras/OrbitCameraController";
 import { type OverviewInputs, OverviewSource, watchOverview } from "./cameras/overview";
 import { TwoDCameraController } from "./cameras/TwoDCameraController";
@@ -141,6 +142,7 @@ import {
     type ColorScheme,
     defaultXRConfig,
     FetchEdgesFn,
+    FetchNeighborEdgesFn,
     FetchNodesFn,
     GraphBackground,
     type GraphBackgroundConfig,
@@ -174,6 +176,7 @@ import {
     type RenderRestoredEvent,
     type TourEndedEvent,
     type TourProgressEvent,
+    type XRMenuSelectEvent,
     type XRSessionEndedEvent,
     type XRSessionStartedEvent,
 } from "./events";
@@ -306,6 +309,7 @@ import {
     paintAddedRows,
     repaintGraphPass,
     scopeResolverOfSession,
+    sessionDataOf,
     sessionRunsOf,
     setsNotifierOfSession,
     workingGraphOfSession,
@@ -878,6 +882,19 @@ export class Graph implements GraphContext {
         this.#initialCameraStateOwed = false;
         this.updateManager.stopAutoZoomToFit();
     };
+    /**
+     * A reader's camera gesture ended: published as `camera:gesture-end`.
+     * @param kind - What the gesture did.
+     */
+    readonly #cameraGestureEnded = (kind: CameraGestureKind): void => {
+        this.session.cameraGestureEnd(kind);
+    };
+
+    /** Hooks the render manager's camera's reader input to the session. */
+    #hookCamera(): void {
+        this.camera.onReaderMove = this.#readerMovedCamera;
+        this.camera.onGestureEnd = this.#cameraGestureEnded;
+    }
     /** Whether the camera frames the graph on its own; see {@link setAutoFrame}. */
     /**
      * Announces a new skybox's image: `skybox-loaded` once its texture arrived, `skybox-failed`
@@ -916,6 +933,11 @@ export class Graph implements GraphContext {
     // graph
     fetchNodes?: FetchNodesFn;
     fetchEdges?: FetchEdgesFn;
+    /**
+     * The parsed `layoutBehavior.fetchNeighborEdges`, read by expansion; set it through that option.
+     * @internal
+     */
+    fetchNeighborEdges?: FetchNeighborEdgesFn;
     initialized = false;
 
     /**
@@ -1159,6 +1181,8 @@ export class Graph implements GraphContext {
     // XR managers
     private xrSessionManager: XRSessionManager | null = null;
     private xrUIManager: XRUIManager | null = null;
+    /** The in-headset menu (`xr.menu`) while a session draws one. */
+    private xrMenu: import("./xr/menu").XrCardStack | null = null;
     /** What VR and AR can do here, and which is presenting: `session.capabilities.xr`. */
     private readonly xrAvailability: XrAvailability;
     /** Stops redrawing the canvas XR buttons on each availability change. */
@@ -1315,7 +1339,7 @@ export class Graph implements GraphContext {
         this.engine = this.renderManager.engine;
         this.scene = this.renderManager.scene;
         this.camera = this.renderManager.camera;
-        this.camera.onReaderMove = this.#readerMovedCamera;
+        this.#hookCamera();
 
         // Initialize StatsManager
         this.statsManager = new StatsManager(this.eventManager);
@@ -2681,7 +2705,7 @@ export class Graph implements GraphContext {
         this.engine = this.renderManager.engine;
         this.scene = this.renderManager.scene;
         this.camera = this.renderManager.camera;
-        this.camera.onReaderMove = this.#readerMovedCamera;
+        this.#hookCamera();
         this.camera.setViewInsets(this.#viewInsets);
         this.camera.setZoomToPointer(this.#zoomToPointer);
         this.camera.setInstantGlides(this.#cameraMoveMs() === 0);
@@ -3496,6 +3520,7 @@ export class Graph implements GraphContext {
         // property.
         this.fetchNodes = parsed.fetchNodes as FetchNodesFn | undefined;
         this.fetchEdges = parsed.fetchEdges as FetchEdgesFn | undefined;
+        this.fetchNeighborEdges = parsed.fetchNeighborEdges as FetchNeighborEdgesFn | undefined;
 
         if (typeof type === "string") {
             // The settings and the layout it names are one step.
@@ -3774,7 +3799,12 @@ export class Graph implements GraphContext {
         try {
             // Waited for only when an earlier load still reads, so one with nothing ahead of it
             // dispatches before this call returns, as it did before the line existed.
-            await turn.take(() => this.dataManager.addDataFromSource(type, opts, { ...place, ...extras }));
+            // `source:loaded` for what it added, as `session.data`'s own loads publish it.
+            await turn.take(() =>
+                sessionDataOf(this.session).announcing(place.replace ? "replace" : "merge", () =>
+                    this.dataManager.addDataFromSource(type, opts, { ...place, ...extras }),
+                ),
+            );
         } finally {
             this.leaveLine(load);
         }
@@ -4609,7 +4639,8 @@ export class Graph implements GraphContext {
                         });
                     }
                 },
-                { fact: { code: "style.suggested", params: { algorithms: [...keys] } } },
+                // Every entry it writes, the layers and the moves stacking them, is the suggestion's.
+                { fact: { code: "style.suggested", params: { algorithms: [...keys] } }, trigger: "suggestion" },
             )
             .then(undefined, report);
         // Entered in the record of pending work until the layers are stacked, so
@@ -5865,8 +5896,8 @@ export class Graph implements GraphContext {
             return ids;
         }
 
-        const project = screenProjector(this.scene);
-        const view = this.scene.getViewMatrix().m;
+        const project = screenProjector(this.scene, camera);
+        const view = camera.getViewMatrix().m;
         for (const node of this.dataManager.nodes.values()) {
             regionWork.nodes++;
             if (node.getRenderState() !== "visible") {
@@ -5918,7 +5949,9 @@ export class Graph implements GraphContext {
                 const distance = Math.hypot(dx, dy);
 
                 if (duration < CLICK_MAX_DURATION_MS && distance < CLICK_MAX_MOVEMENT_PX) {
-                    this.handleBackgroundClick(pointerInfo.event);
+                    this.session.selection.byInput("click", () => {
+                        this.handleBackgroundClick(pointerInfo.event);
+                    });
                 }
             }
         });
@@ -5936,7 +5969,9 @@ export class Graph implements GraphContext {
                 }
             },
             select: (polygon) => {
-                this.session.selection.applyNow({ region: { polygon } }, "add", "user");
+                this.session.selection.byInput("box", () =>
+                    this.session.selection.applyNow({ region: { polygon } }, "add", "user"),
+                );
             },
         });
 
@@ -7180,6 +7215,7 @@ export class Graph implements GraphContext {
 
         this.xrSessionManager?.configure(this.xrSessionConfig());
         this.drawXRButtons();
+        void this.drawXRMenu();
         this.xrAvailability.changed();
     }
 
@@ -7274,11 +7310,12 @@ export class Graph implements GraphContext {
      * @returns Screen coordinates {x, y}
      */
     worldToScreen(worldPos: { x: number; y: number; z: number }): { x: number; y: number } {
-        if (!this.scene.activeCamera?.viewport) {
+        const camera = this.scene.activeCamera;
+        if (!camera?.viewport) {
             return { x: 0, y: 0 };
         }
 
-        return screenProjector(this.scene)(worldPos);
+        return screenProjector(this.scene, camera)(worldPos);
     }
 
     /**
@@ -7341,7 +7378,7 @@ export class Graph implements GraphContext {
         const { x, y } = this.worldToScreen(centre);
 
         // Distance in front of the camera along its view axis; the same test LabelDeclutter uses.
-        const view = this.scene.getViewMatrix().m;
+        const view = camera.getViewMatrix().m;
         const depth = centre.x * view[2] + centre.y * view[6] + centre.z * view[10] + view[14];
         const inDepth = depth >= camera.minZ && (camera.maxZ <= 0 || depth <= camera.maxZ);
 
@@ -7352,7 +7389,7 @@ export class Graph implements GraphContext {
 
         // The largest half-extent projected: the projection's y scale over the clip w (the depth in
         // perspective, 1 in orthographic), in pixels.
-        const projection = this.scene.getProjectionMatrix().m;
+        const projection = camera.getProjectionMatrix().m;
         const w = camera.mode === Camera.ORTHOGRAPHIC_CAMERA ? 1 : depth;
         const radius = inDepth ? (worldRadius * Math.abs(projection[5]) * height) / (2 * w) : 0;
 
@@ -10633,7 +10670,8 @@ export class Graph implements GraphContext {
      * it is built as one string and read back by `session.project.open`.
      * @param format - The format id, as `session.catalog.formats()` lists it.
      * @param options - The writer's options, plus graph-io's `sanitizeIds` and `onMixedDirection`
-     * and the element's `notes` and `styles`.
+     * and the element's `notes`, `styles` and `onProgress` (told what queued work the export waits
+     * behind, as `PENDING_WORK` facts, until it starts writing).
      * @returns What the export loses (`losses`, coded facts), and the document as text or as UTF-8
      * chunks.
      * @throws A `GraphtyError` (as a rejection): `E_UNKNOWN_FORMAT` when nothing writes the format,
@@ -10642,9 +10680,15 @@ export class Graph implements GraphContext {
      * options. A refusal found only while writing rejects `text()` or `bytes` instead.
      */
     async exportGraph(format: FormatId, options?: ExportGraphOptions): Promise<ExportResult> {
-        await this.operationQueue.waitForCompletion();
+        const { onProgress, ...writeOptions } = options ?? {};
+        const stop = onProgress === undefined ? undefined : this.operationQueue.watchPendingWork(onProgress);
+        try {
+            await this.operationQueue.waitForCompletion();
+        } finally {
+            stop?.();
+        }
         const painter = this.getStylePainter();
-        return exportSession(this.session, format, options, {
+        return exportSession(this.session, format, writeOptions, {
             nodeStyle: (row) => {
                 const paint = painter.nodePaint(row) ?? bootstrapNodePaint();
                 return {
@@ -11691,7 +11735,35 @@ export class Graph implements GraphContext {
                 // The session runs on without the assistant's controls.
                 graphLogger.warn("The assistant could not bind to the XR session", { error });
             });
+        await this.drawXRMenu();
         this.xrAvailability.changed();
+    }
+
+    /**
+     * Draw the in-headset menu (`xr.menu`) where the reader is now, or take it down when it has no
+     * items or no session is running. Pressing an item emits `xr-menu-select`.
+     */
+    private async drawXRMenu(): Promise<void> {
+        const items = this.xrConfig().menu ?? [];
+        const inSession = (): boolean => Boolean(this.scene.metadata?.xrHelper);
+        if (items.length === 0 || !inSession()) {
+            this.xrMenu?.dispose();
+            this.xrMenu = null;
+            return;
+        }
+
+        const { menuCards, MENU_HEIGHT, MENU_SIDE, XrCardStack } = await import("./xr/menu");
+        // The session can end while the module loads.
+        if (!inSession()) {
+            return;
+        }
+
+        this.xrMenu ??= new XrCardStack(this.scene, "graphty-xr-menu", MENU_HEIGHT, MENU_SIDE);
+        this.xrMenu.show(
+            menuCards(items, (id) => {
+                this.eventManager.emit("xr-menu-select", { id } satisfies Omit<XRMenuSelectEvent, "type">);
+            }),
+        );
     }
 
     /**
@@ -11705,6 +11777,8 @@ export class Graph implements GraphContext {
         this.immersiveSince = null;
         // Leaving XR closes a held microphone without sending, and stops speech.
         this.aiXr?.leave();
+        this.xrMenu?.dispose();
+        this.xrMenu = null;
 
         // Clean up XR camera controller
         const metadata = this.scene.metadata as {

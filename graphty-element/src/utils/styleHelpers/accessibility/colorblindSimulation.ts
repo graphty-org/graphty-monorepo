@@ -172,9 +172,13 @@ export function isPaletteSafe(
     colors: string[],
     threshold = 10,
 ): {
+    /** Whether the colors stay apart for red-blind (protanopia) vision. */
     protanopia: boolean;
+    /** Whether the colors stay apart for green-blind (deuteranopia) vision. */
     deuteranopia: boolean;
+    /** Whether the colors stay apart for blue-blind (tritanopia) vision. */
     tritanopia: boolean;
+    /** Whether the colors stay apart in grayscale. */
     grayscale: boolean;
 } {
     const tests = {

@@ -115,6 +115,53 @@ export const EDGE_ID_NAMES: readonly string[] = Object.freeze(["id"]);
  */
 export const TYPE_NAME = "Type";
 
+/**
+ * A header dialect of a database download: the columns that hold its endpoints and its weight.
+ * @category Plugin helpers
+ */
+export interface CsvHeaderDialect {
+    /** The database the header comes from. */
+    readonly name: "string" | "biogrid";
+    /** The source column's header name. */
+    readonly source: string;
+    /** The target column's header name. */
+    readonly target: string;
+    /** The weight column's header name, or null when the dialect has none. */
+    readonly weight: string | null;
+}
+
+/**
+ * The header dialects the importer recognizes, each by every one of its endpoint and weight names:
+ * STRING's network export (`#node1 node2 ... combined_score`), STRING's bulk protein links
+ * (`protein1 protein2 ... combined_score`) and BioGRID TAB3 (`Official Symbol Interactor A`, ...).
+ */
+const HEADER_DIALECTS: readonly CsvHeaderDialect[] = Object.freeze([
+    { name: "string", source: "node1", target: "node2", weight: "combined_score" },
+    { name: "string", source: "protein1", target: "protein2", weight: "combined_score" },
+    {
+        name: "biogrid",
+        source: "Official Symbol Interactor A",
+        target: "Official Symbol Interactor B",
+        weight: null,
+    },
+]);
+
+/**
+ * The database dialect a header row belongs to, recognized by its exact endpoint and weight names
+ * (a leading `#` on the first name is ignored, as both databases write it).
+ * @param names - the header names
+ * @returns the dialect, or null
+ * @category Plugin helpers
+ */
+export function headerDialect(names: readonly string[]): CsvHeaderDialect | null {
+    const plain = new Set(names.map((name, i) => (i === 0 ? name.replace(/^#\s*/, "") : name)));
+    return (
+        HEADER_DIALECTS.find(
+            (d) => plain.has(d.source) && plain.has(d.target) && (d.weight === null || plain.has(d.weight)),
+        ) ?? null
+    );
+}
+
 /** Every name that marks a first row as a header when the caller leaves detection to the importer. */
 const HEADER_MARKERS: ReadonlySet<string> = new Set([
     ...SOURCE_NAMES,
@@ -196,6 +243,9 @@ export function resolveColumnRef(names: readonly string[], ref: CsvColumnRef, op
  * @category Plugin helpers
  */
 export function looksLikeHeader(first: readonly string[], second: readonly string[] | null): boolean {
+    if (headerDialect(headerNames(first)) !== null) {
+        return true;
+    }
     let allText = true;
     let marker = false;
     for (const cell of first) {
@@ -243,8 +293,10 @@ export function positionalNames(width: number): string[] {
  * @category Plugin helpers
  */
 export function headerNames(cells: readonly string[]): string[] {
+    const dialect = headerDialect(cells.map((cell) => cell.trim()));
     return cells.map((cell, i) => {
-        const name = cell.trim();
+        // STRING and BioGRID mark their header row as a comment: `#node1`, `#BioGRID Interaction ID`
+        const name = i === 0 && dialect !== null ? cell.trim().replace(/^#\s*/, "") : cell.trim();
         return name.length === 0 ? `column${i + 1}` : name;
     });
 }

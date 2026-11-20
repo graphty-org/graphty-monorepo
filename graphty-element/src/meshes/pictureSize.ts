@@ -86,3 +86,57 @@ function read(scene: object, src: string, entry: Entry): void {
     image.onerror = done;
     image.src = src;
 }
+
+/** A picture a label draws: the image once loaded (null while loading or when it failed), and who waits for it. */
+interface Drawable {
+    image: HTMLImageElement | null;
+    loading: boolean;
+    readonly waiting: Set<() => void>;
+}
+
+/** The pictures labels draw in each scene, by URL. */
+const drawables = new WeakMap<object, Map<string, Drawable>>();
+
+/**
+ * A picture to draw on a label's canvas, loaded once per scene and URL. The first ask starts loading it, held in the
+ * record of pending work until it lands; `ready` is called once it has, so the label is painted again.
+ * @param scene - The scene the label draws in.
+ * @param src - The picture's URL.
+ * @param ready - Called once the picture has loaded, while it was loading.
+ * @returns The loaded picture, or null while it loads and when it cannot be.
+ */
+export function drawablePicture(scene: object, src: string, ready: () => void): HTMLImageElement | null {
+    let pictures = drawables.get(scene);
+    if (pictures === undefined) {
+        pictures = new Map();
+        drawables.set(scene, pictures);
+    }
+    let entry = pictures.get(src);
+    if (entry === undefined) {
+        const made: Drawable = { image: null, loading: true, waiting: new Set() };
+        entry = made;
+        pictures.set(src, made);
+        const release = pendingWorkOf(scene)?.begin("picture", "a label's picture is still loading");
+        const image = new Image();
+        // drawn on a canvas that is uploaded as a texture: a picture from another origin must not taint it
+        image.crossOrigin = "anonymous";
+        const done = (): void => {
+            made.loading = false;
+            for (const call of made.waiting) {
+                call();
+            }
+            made.waiting.clear();
+            release?.();
+        };
+        image.onload = () => {
+            made.image = image.naturalWidth > 0 ? image : null;
+            done();
+        };
+        image.onerror = done;
+        image.src = src;
+    }
+    if (entry.loading) {
+        entry.waiting.add(ready);
+    }
+    return entry.image;
+}

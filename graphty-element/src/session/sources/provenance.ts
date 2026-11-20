@@ -19,6 +19,12 @@ export interface Supplied {
      * load recorded before it was kept, which takes every node it named.
      */
     readonly held?: readonly NodeId[];
+    /**
+     * The nodes its edges named that none of its node rows did (spec 3.1): it names them, and
+     * supplies them only while no load's rows do. Absent when there were none, and on a load
+     * recorded before it was kept, which counts every node it lists as one of its rows.
+     */
+    readonly named?: readonly NodeId[];
 }
 
 /** The `provenance` graph value: what each load supplied, by its key. */
@@ -101,6 +107,9 @@ export function withSupplied(provenance: Provenance | undefined, key: SourceKey,
             ...(supplied.held === undefined || supplied.held.length === 0
                 ? {}
                 : { held: Object.freeze([...supplied.held]) }),
+            ...(supplied.named === undefined || supplied.named.length === 0
+                ? {}
+                : { named: Object.freeze([...supplied.named]) }),
         }),
     });
 }

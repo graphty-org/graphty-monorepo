@@ -7,7 +7,8 @@
  * A listed story reports as skipped, so a passed count is a count of stories compared.
  *
  * `VITE_PARITY_STORIES` narrows a run to files whose name matches it, and `VITE_PARITY_RENDERER`
- * says which engine draws: `webgl` unless it says `webgpu`. `VITE_PARITY_PULLED=1` compares the
+ * says which engine draws: `webgl` unless it says `webgpu`. `GRAPHTY_PARITY_BROWSER=webkit` draws in WebKit,
+ * whose own list is `unstable-webkit.json`. `VITE_PARITY_PULLED=1` compares the
  * object loads with a third that pulls edges from the row table (`pulledEdgesDefault`) instead of
  * one on `"batched"`. `VITE_PARITY_ANTIALIAS=false` builds every load without multisampling, so the
  * batched load draws straight pulled lines with the lean program (design/rendering/cosmos-gap.md, G12).
@@ -28,6 +29,7 @@ import { antialiasDefault, pulledEdgesDefault } from "../../src/meshes/PulledLin
 import { type CanvasFrame, pixelsOverBar as overBar, readCanvas } from "../helpers/whole-canvas";
 import unstable from "./unstable.json";
 import unstableWebgpu from "./unstable-webgpu.json";
+import unstableWebkit from "./unstable-webkit.json";
 
 // The page the visual capture loads, so a story runs its capture steps.
 history.replaceState(null, "", `${location.pathname}${location.search || "?"}&chromatic=true`);
@@ -41,8 +43,13 @@ const RENDERER = ((import.meta.env as Record<string, string | undefined>).VITE_P
 const PULLED = (import.meta.env as Record<string, string | undefined>).VITE_PARITY_PULLED === "1";
 /** Whether every load multisamples. */
 const ANTIALIAS = (import.meta.env as Record<string, string | undefined>).VITE_PARITY_ANTIALIAS !== "false";
-const UNSTABLE: Readonly<Record<string, string>> =
-    RENDERER === "webgpu" ? { ...unstable, ...unstableWebgpu } : unstable;
+/** Whether this run draws in WebKit (GRAPHTY_PARITY_BROWSER=webkit, vitest.config.ts). */
+const WEBKIT = (import.meta.env as Record<string, string | undefined>).GRAPHTY_PARITY_BROWSER === "webkit";
+const UNSTABLE: Readonly<Record<string, string>> = {
+    ...unstable,
+    ...(RENDERER === "webgpu" ? unstableWebgpu : {}),
+    ...(WEBKIT ? unstableWebkit : {}),
+};
 
 /** One composed story. */
 interface Composed {

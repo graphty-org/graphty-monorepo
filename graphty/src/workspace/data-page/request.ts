@@ -5,7 +5,7 @@
  * reads it once when it opens.
  */
 
-import type { GraphSession, LoadChoices, LoadedSource, SourceKey } from "@graphty/graphty-element/session";
+import type { GraphSession, LoadedChoices, LoadedSource, SourceKey } from "@graphty/graphty-element/session";
 
 import { newProjectId, type WorkspaceStore } from "../state/store";
 
@@ -22,7 +22,7 @@ export interface DataPageRequest {
     /** Files the reader already chose or dropped: one, or a node table and an edge table. */
     readonly files?: readonly File[];
     /** The choices the load being replaced was read with (`LoadedSource.choices`). */
-    readonly choices?: LoadChoices;
+    readonly choices?: LoadedChoices;
     /** With `intent: "replace"`, the load the page's Load replaces. */
     readonly replaces?: SourceKey;
 }

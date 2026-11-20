@@ -189,6 +189,20 @@ export interface XRConfig {
 
     /** The assistant in an immersive session; absent, every default. */
     ai?: XRAiConfig;
+
+    /** The in-headset menu, top first; absent or empty, no menu is drawn. */
+    menu?: readonly XRMenuItem[];
+}
+
+/**
+ * One command in the in-headset menu. The element draws `label` on a pressable card and, when the
+ * reader presses it (points and pulls the trigger, or pinches), emits `xr-menu-select` with `id`.
+ */
+export interface XRMenuItem {
+    /** What `xr-menu-select` reports when the item is pressed. */
+    id: string;
+    /** The words drawn on the item. */
+    label: string;
 }
 
 /**

@@ -6,6 +6,7 @@ import type { Edge } from "../Edge";
 import type { Node } from "../Node";
 import { GRAPHVIZ_TIME_BUDGET_MS } from "./graphviz/engines";
 import { POINTS_PER_UNIT } from "./graphviz/toDot";
+import type { LaidRoute } from "./GraphvizLayoutEngine";
 import { type EdgePosition, SimpleLayoutConfig } from "./LayoutEngine";
 import { SnapshotLayoutEngine, type SnapshotLayoutInput } from "./SnapshotLayoutEngine";
 
@@ -96,7 +97,7 @@ export class FixedLayout extends SnapshotLayoutEngine {
     static readonly zodOptionsSchema: OptionsSchema = fixedLayoutOptionsSchema;
     config: FixedLayoutConfigType;
     /** The route Graphviz laid each edge along, when `edgeRoutes` is `"graphviz"`. */
-    private routes = new Map<Edge, readonly number[]>();
+    private routes = new Map<Edge, LaidRoute>();
     /**
      * What the first run multiplied the data positions by to keep neighbors `spacing` apart; 1
      * when it spread nothing. An export divides it out to write the data's own coordinates.
@@ -160,8 +161,7 @@ export class FixedLayout extends SnapshotLayoutEngine {
      */
     override getEdgePosition(e: Edge): EdgePosition {
         const ends = super.getEdgePosition(e);
-        const bends = this.routes.get(e);
-        return bends === undefined ? ends : { ...ends, bends };
+        return { ...ends, ...this.routes.get(e) };
     }
 
     /**
@@ -180,7 +180,7 @@ export class FixedLayout extends SnapshotLayoutEngine {
             true,
         );
         try {
-            const bends = await pinnedRoutes(
+            const laid = await pinnedRoutes(
                 input,
                 positions,
                 this.dimensions,
@@ -194,7 +194,7 @@ export class FixedLayout extends SnapshotLayoutEngine {
                 structure,
             );
             if (!input.signal.aborted) {
-                this.routes = routesOf(bends, structure.edgeOf);
+                this.routes = routesOf(laid, structure.edgeOf);
             }
         } catch (error) {
             input.signal.throwIfAborted();

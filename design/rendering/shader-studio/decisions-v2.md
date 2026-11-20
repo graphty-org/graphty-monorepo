@@ -185,7 +185,7 @@ background shaders. It stays a separate list because the background is not on a 
 ## 3. The owner's second review, answered
 
 1. **"Why is wireframe a shader? It's already built in to Babylon.js."** It is not a shader. The
-   Wireframe shader preset of the first redesign is cancelled (it was never built). Wireframe is the
+   Wireframe shader preset of the first redesign is canceled (it was never built). Wireframe is the
    released `node.wireframe` channel, drawn by Babylon.js's own wireframe mode, and the Shape
    section's + offers it as an on/off row. The sphere looked too dense because wireframe draws every
    triangle of a finely tessellated mesh. So a new optional channel, `node.meshDetail`, draws a

@@ -196,7 +196,7 @@ What confused me or cost me:
 - **The table's row count may never be spoken**: "77 of 77 rows" and "254 of 254 rows" arrive in a status region that was already filled, which my screen reader often skips. With focus on nothing, Shift+T could have sounded like it did nothing.
 - No headings at all once a graph is open, unlike the start page.
 - "Direction: Undirected, from the file: directed 0" took me a second to parse; and then the edge table calls the endpoints "From" and "To", which sounds directed.
-- A browse-mode read of the table gave me only the first 14 rows of 77 -- I suspect a virtualised list. Fine for this question, worrying for the next.
+- A browse-mode read of the table gave me only the first 14 rows of 77 -- I suspect a virtualized list. Fine for this question, worrying for the next.
 - `shared_chapters` is not explained anywhere; it's the file's raw column name.
 
 Would I use this instead of my scripts? For this task, maybe as a quick look at a file I hadn't seen: the Overview line is what I'd print first in NetworkX anyway. Not yet for anything I'd have to navigate.

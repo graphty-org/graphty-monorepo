@@ -1,4 +1,5 @@
 import { TextInput } from "@mantine/core";
+import { useUncontrolled } from "@mantine/hooks";
 import React, { useEffect, useRef } from "react";
 
 import { useCompactStyles } from "../../theme/useCompactStyles";
@@ -110,4 +111,18 @@ export function InlineRename({
             }}
         />
     );
+}
+
+/**
+ * The id of the row being renamed, controlled by `value` when the caller passes one.
+ * @param value - The controlled id, or undefined to keep it inside.
+ * @param onChange - Called when a rename opens or closes.
+ * @returns The id (null when none) and its setter.
+ */
+export function useRenaming(
+    value: string | null | undefined,
+    onChange: ((id: string | null) => void) | undefined,
+): [string | null, (id: string | null) => void] {
+    const [renaming, setRenaming] = useUncontrolled<string | null>({ value, finalValue: null, onChange });
+    return [renaming, setRenaming];
 }

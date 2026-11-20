@@ -3,8 +3,8 @@
  *
  * A session is a graph with no screen attached -- the data, the coordinates, the runs and their
  * results, what is selected, what is visible, the style layers that say what paints what, the
- * statistics, the catalogue, the configuration and what the machine can do. A renderer binds to
- * one, a Node test uses one on its own, and two synchronised views of one dataset share one.
+ * statistics, the catalog, the configuration and what the machine can do. A renderer binds to
+ * one, a Node test uses one on its own, and two synchronized views of one dataset share one.
  *
  * Nothing in this module's import graph reaches Babylon.js, Lit or the DOM, and a packaging test
  * enforces it.
@@ -12,32 +12,21 @@
 
 export { EXPORT_LOSS_CODES } from "../data/exportLossCodes";
 export type { DrawnAnnotation, DrawnAnnotations } from "./annotations";
-export type {
-    AddAssetOptions,
-    AssetId,
-    AssetOffer,
-    AssetRecord,
-    AssetsApi,
-    AssetSource,
-    AssetState,
-    BuiltInModelFormat,
-    ModelCompression,
-    ModelEncoding,
-    ModelFormat,
-    ModelGeometry,
-    ModelLimits,
-    ModelPart,
-    ModelPartRole,
-    ModelPartState,
-    ModelSummary,
-    NamedBlob,
-    PartAnswer,
-} from "./assets/AssetsApi";
-export { DEFAULT_MODEL_LIMITS, isAssetId } from "./assets/AssetsApi";
+// Every model type, named one by one where it is published (session.ts).
+export type * from "./assets/AssetsApi";
+export { DEFAULT_MODEL_LIMITS, isAssetId, MODEL_DEFAULT_CHANNELS } from "./assets/AssetsApi";
 export type { BackgroundImageProblem, PrepareBackgroundImageOptions, PreparedBackgroundImage } from "./backgroundImage";
 export { DEFAULT_BACKGROUND_IMAGE_SIZE, prepareBackgroundImage } from "./backgroundImage";
 export type { BrowserProjects, BrowserProjectSaveOptions, StoredProject } from "./browserProjects";
 export { browserProjects } from "./browserProjects";
+export type { AssetCommand } from "./commands/assets";
+export type {
+    TourCommand,
+    TourMoveCommand,
+    TourRemoveCommand,
+    TourRenameCommand,
+    TourSaveCommand,
+} from "./commands/tour";
 export { COLUMN_ROLES } from "./data";
 export { LOAD_ROLES } from "./draft";
 export { createElementSession, createGraphSession } from "./GraphSession";
@@ -51,6 +40,7 @@ export { DEFAULT_LIMITS } from "./limits";
 export type { NetworkApi, NetworkPolicy, NetworkRequest, NetworkRequestAsker, NetworkRequestKind } from "./network";
 export type { AlgorithmRunCommand, Plan, PlanBlock, PlanEffect, SessionCommand } from "./planning";
 export { isAlgorithmRunCommand } from "./planning";
+export type { SavedTour } from "./project/state";
 export type { CodedFact, ColumnRef, ProgressChange, ResultRef } from "./shared";
 export type { LoadStyleReport } from "./styles/fileStyles/apply";
 export type {
@@ -175,6 +165,8 @@ export type {
     ProjectConfigPatch,
     ProjectSlice,
     ReadonlyElementPositions,
+    RecordMatch,
+    RecordMatchRank,
     RecordPage,
     RecordPageOptions,
     RecordSort,
@@ -191,6 +183,7 @@ export type {
     RowReasonCode,
     RowUpdate,
     RunPlacement,
+    SavedView,
     ScoreTerm,
     SessionAnnotations,
     SessionAttributes,
@@ -207,9 +200,11 @@ export type {
     SessionPositions,
     SessionRunsOptions,
     SessionStatus,
+    SessionTours,
     SessionViews,
     SettingEffect,
     SettingEffectCode,
+    StartingCamera,
     StyleProblem,
     TableMapping,
     TableMappingRead,

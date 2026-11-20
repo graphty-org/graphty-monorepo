@@ -9,7 +9,7 @@ Commands below use S=<that folder> and REAL_DIST=/home/apowers/Projects/graphty-
 ## Steps
 
 1. `real.mjs --start $S empty` -> 01.png. Start screen: Open project or file, New from data, samples on the right, a "help us" box at the bottom.
-2. `--step $S --click "No thanks" --click "New from data..."` -> 02.png. "Open as a new graph" page: Tables on the left, "Drop a file here, or choose a file...", Direction "As the file says", Load greyed out. Elena: "OK, a place for my file. I'll pick it."
+2. `--step $S --click "No thanks" --click "New from data..."` -> 02.png. "Open as a new graph" page: Tables on the left, "Drop a file here, or choose a file...", Direction "As the file says", Load grayed out. Elena: "OK, a place for my file. I'll pick it."
 3. `--step $S --click "choose a file..." --upload trails.csv` -> 03.png. Preview: "trails: 9 nodes, 13 edges", columns from/to/km with drop-downs From / To / Attribute, and a line "Weight: none (each edge counts 1)". Elena: "There it is -- weight none. I want the km to count. The km box says Attribute; let me open it."
 4. `--step $S --click "km"` -> 04.png. Refused as ambiguous (the column header button and the "Role of km" box share the name); nothing happened.
 5. `--step $S --click "Role of km"` -> 05.png. A list opened: From, To, Weight, Date or time, Edge id, Attribute (checked). Elena: "Weight -- that's the one that sounds like it makes km count."

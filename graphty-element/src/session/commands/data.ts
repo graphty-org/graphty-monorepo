@@ -5,7 +5,7 @@
  *   graph, `add-nodes`, `add-edges`, `set-attributes` and `update-rows`, and the removals and
  *   `clear`: `remove-nodes`, `remove-edges`, `clear`.
  * - `data.import`: a load through a registered data source, replacing the graph or adding to it.
- * - `data.expand`: the neighbourhood a double-click fetched, added as one step. The fetched
+ * - `data.expand`: the neighborhood a double-click fetched, added as one step. The fetched
  *   records are in the command, so redo never fetches again.
  * - `data.declare`: what a column measures, kept in the `attributes` slice under
  *   `<kind>:<name>` so it is saved and undone like any other project change.
@@ -89,12 +89,19 @@ export type DataMutation =
           /** The repeated-edge policy for this call. */
           readonly repeated?: DuplicatePolicy;
           /**
-           * The element-assigned ids to give the edges back, by position in `records`: for edges
-           * removed earlier and added again, so what is keyed by their ids (a run's edge values)
-           * still finds them. An id the graph holds, or one the element never assigned, gets a
-           * fresh one. Default: every edge gets a fresh id.
+           * The element-assigned ids to give the edges, by position in `records`: for edges removed
+           * earlier and added again, or opened from a save file that recorded their ids, so what is
+           * keyed by their ids (a run's edge values) still finds them. An id a live edge holds, or
+           * one that is not an element-assigned id, gets a fresh one; the counter continues past
+           * every id given, so none is issued twice. Default: every edge gets a fresh id.
            */
           readonly ids?: readonly (EdgeId | undefined)[];
+          /**
+           * Ids no edge given a fresh id may take: the counter continues past them before any edge
+           * is added (the ids a save file names, including those of a source it could not fetch).
+           * Default: none.
+           */
+          readonly reserve?: readonly EdgeId[];
           /** The record key weights are read from for this call, overriding `data.knownFields.edgeWeightPath`. */
           readonly weight?: string;
           /**
@@ -544,7 +551,7 @@ export interface DataService {
      * Carry out one import, writing through the graph primitives in `draft`.
      * @param command - The import.
      * @param draft - The command's draft.
-     * @param signal - Fires when the import is cancelled; it stops before the next chunk.
+     * @param signal - Fires when the import is canceled; it stops before the next chunk.
      * @param after - Starts work once the import's step is recorded, as its deferred members.
      * @returns Settles once the last chunk is written.
      */
@@ -709,6 +716,40 @@ export function replaceNodesCommand(
         label: "Replaced the nodes",
         fact: { code: "data.replace-nodes", params: {} },
         steps,
+        ...(setup ? { setup } : {}),
+    };
+}
+
+/**
+ * The step replacing both the graph's nodes and its edges: one step, so the graph never shows the
+ * new nodes without their edges. The held edges go first, so removing a node removes none twice.
+ * @param heldNodes - The records of the nodes it holds by id, read when the step is about to run.
+ * @param heldEdges - The ids of the edges it holds, read then too.
+ * @param nodes - The nodes it should hold afterwards.
+ * @param edges - The edges it should hold afterwards.
+ * @param idPath - Where a record's id is, `data.knownFields.nodeIdPath`.
+ * @param setup - Declared at construction.
+ * @returns The command.
+ */
+export function replaceGraphCommand(
+    heldNodes: ReadonlyMap<NodeId, Readonly<Record<string, unknown>>>,
+    heldEdges: readonly EdgeId[],
+    nodes: readonly RecordInput[],
+    edges: readonly RecordInput[],
+    idPath: string,
+    setup = false,
+): BatchCommand {
+    const removeEdges: DataApplyCommand[] =
+        heldEdges.length > 0 ? [{ op: "data.apply", mutation: { kind: "remove-edges", ids: [...heldEdges] } }] : [];
+    return {
+        op: "batch",
+        label: "Set the graph data",
+        fact: { code: "data.set", params: {} },
+        steps: [
+            ...removeEdges,
+            ...replaceNodesCommand(heldNodes, nodes, idPath).steps,
+            ...replaceEdgesCommand([], edges).steps,
+        ],
         ...(setup ? { setup } : {}),
     };
 }
@@ -1217,8 +1258,8 @@ const dataExpand: UndoableDefinition<DataExpandCommand> = {
         const service = serviceOf(ctx.services.data);
         refreshDerivedAfter(ctx);
         service.apply({ kind: "add-nodes", records: command.nodes }, ctx.draft, ctx.after);
-        // `first`, because a neighbourhood legitimately names edges the graph already holds: the
-        // edge the reader followed to get here is in both of its endpoints' neighbourhoods.
+        // `first`, because a neighborhood legitimately names edges the graph already holds: the
+        // edge the reader followed to get here is in both of its endpoints' neighborhoods.
         service.apply(
             {
                 kind: "add-edges",

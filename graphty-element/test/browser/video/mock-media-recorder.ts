@@ -12,10 +12,13 @@ export class MockMediaRecorder {
     mimeType: string;
     /** The stream the last recorder was made for, so a test can see what was recorded. */
     static lastStream: MediaStream | undefined;
+    /** The last recorder made, so a test can see when it records. */
+    static last: MockMediaRecorder | undefined;
 
     constructor(stream: MediaStream, options?: { mimeType?: string; videoBitsPerSecond?: number }) {
         this.mimeType = options?.mimeType ?? "video/webm";
         MockMediaRecorder.lastStream = stream;
+        MockMediaRecorder.last = this;
     }
 
     start(timeslice?: number): void {

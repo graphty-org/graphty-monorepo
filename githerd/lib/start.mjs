@@ -653,7 +653,7 @@ function serially(state, urgent, step) {
 }
 
 /**
- * Whether a job is still the one this task started: it may have been cancelled, faulted by its
+ * Whether a job is still the one this task started: it may have been canceled, faulted by its
  * worktree deadline or taken over meanwhile.
  * @param {any} job the job
  * @returns {boolean} still in a state that wants a session
@@ -877,7 +877,7 @@ function adoptSession(ctx, job, started, resume) {
 
 /**
  * Removes the worktree of every job that ended (design 7.8): a done job's once its pull request is
- * closed, a cancelled job's at once with its unpushed commits salvaged on a local branch. First the
+ * closed, a canceled job's at once with its unpushed commits salvaged on a local branch. First the
  * servherd servers running inside it are stopped. A failed job keeps its worktree for the findings.
  * A removal that fails is ledgered and tried again an hour later.
  * @param {StartContext & {servers: () => Promise<{name: string, cwd: string}[]>,

@@ -4,7 +4,7 @@
  * API -- the selection, and the x's place on screen from `labelOf(id).closeRect`.
  *
  * The scene: node a at the origin, and node b further from the camera (the 3D camera looks along
- * +z) and to the side, so b is drawn inside a's label panel when that panel is centred on a.
+ * +z) and to the side, so b is drawn inside a's label panel when that panel is centered on a.
  */
 
 import "../../src/graphty-element";
@@ -43,7 +43,7 @@ afterEach(() => {
 });
 
 /**
- * A mounted element with a's label centred on it, wide, and with or without the close button
+ * A mounted element with a's label centered on it, wide, and with or without the close button
  * only while a is selected.
  * @param closeButton - Whether the selected node's label has a close button.
  * @param onTop - Whether that label is drawn over the whole graph.
@@ -91,7 +91,7 @@ async function applied(element: Graphty): Promise<void> {
  * Where a node is drawn.
  * @param element - The element.
  * @param id - The node.
- * @returns Its centre in CSS pixels.
+ * @returns Its center in CSS pixels.
  */
 function at(element: Graphty, id: string): Point {
     const position = element.nodeScreenPosition(id);

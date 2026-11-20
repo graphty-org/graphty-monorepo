@@ -232,7 +232,7 @@ export function Composer({ choice, view, model }: Readonly<ComposerProps>): Reac
     }, [composerCalls]);
     const running = isRunning(view.status);
     const empty = draft.trim() === "";
-    const [question] = view.questions;
+    const question = view.questions.at(0);
     const asking = view.approvals.length === 0 && question !== undefined;
     const waiting = view.approvals.length > 0 || question !== undefined;
     const about =

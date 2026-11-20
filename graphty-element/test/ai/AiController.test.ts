@@ -626,8 +626,8 @@ describe("AiController", () => {
                 commandRegistry: registry,
                 graph: mockGraph,
                 emitEvent: (event) => {
-                    if (event.type === "ai-command-cancelled") {
-                        cancelledInputs.push(event.input);
+                    if (event.type === "ai-command-canceled" || event.type === "ai-command-cancelled") {
+                        cancelledInputs.push(`${event.type} ${event.input}`);
                     }
                 },
             });
@@ -642,7 +642,13 @@ describe("AiController", () => {
                 results.map((r) => r.code),
                 ["AI_CANCELLED", "AI_CANCELLED"],
             );
-            assert.deepEqual(cancelledInputs, ["first", "second"]);
+            // Each under its American name, then its deprecated British one.
+            assert.deepEqual(cancelledInputs, [
+                "ai-command-canceled first",
+                "ai-command-cancelled first",
+                "ai-command-canceled second",
+                "ai-command-cancelled second",
+            ]);
             // Messages run one at a time: the second never reached the model.
             assert.strictEqual(asks, 1);
         });

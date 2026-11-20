@@ -1,0 +1,22 @@
+; FBX 7.4.0 project file
+FBXHeaderExtension:  {
+	FBXHeaderVersion: 1003
+	FBXVersion: 7400
+}
+Objects:  {
+	Geometry: 200, "Geometry::Curve", "Line" {
+		Points: *6 {
+			a: 0,0,0,1,1,1
+		}
+		PointsIndex: *102 {
+			a: 0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,-2
+		}
+	}
+	Model: 100, "Model::Curve", "Line" {
+		Version: 232
+	}
+}
+Connections:  {
+	C: "OO", 100, 0
+	C: "OO", 200, 100
+}

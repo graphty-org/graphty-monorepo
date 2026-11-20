@@ -3,7 +3,7 @@
  * the 100k / 1M graph end to end on the exact tier: ~18 ms per iteration, correct"). Lays a seeded G(n, m) graph out
  * with ForceAtlas2 on the tier `--repulsion` names through `run({ batch })`, prints ms per iteration, the final stats,
  * the wall time and the scale-feasible layout metrics of the final positions (the spread, the edge-length quantiles
- * and the nearest-neighbour histogram of every NN_STRIDE-th node; the 1M 200-iteration exact-vs-grid comparison of
+ * and the nearest-neighbor histogram of every NN_STRIDE-th node; the 1M 200-iteration exact-vs-grid comparison of
  * spec 11.4 reads them, P4-T15), verifies that every position is finite and that the run ended by settling or by
  * reaching maxIter, and exits 1 otherwise.
  *
@@ -17,7 +17,7 @@
  * [--compat paper] [--repulsion auto]. PLAN DECISIONS (P3-T7 item 5; P4-T14): `--repulsion exact|grid|auto` is passed
  * through the tuning (default `auto`, the spec 7.8 crossover at exactMaxNodes); a software adapter is NOT
  * refused -- this is a correctness driver, not a benchmark, and spec 11.7's "software adapters never time anything" is
- * honoured by labelling its timings "not representative"; main() runs only when this file is the entry script, so
+ * honored by labeling its timings "not representative"; main() runs only when this file is the entry script, so
  * test/benchmarks.test.ts imports the pure helpers without side effects. No top-level await (module ES2020).
  */
 
@@ -52,10 +52,10 @@ export interface LayoutCheck {
 /** The option names parseLayoutRunArgs knows, in the usage order. */
 const KNOWN_OPTIONS = ["--nodes", "--edges", "--iterations", "--batch", "--seed", "--dim", "--compat", "--repulsion"];
 
-/** Every NN_STRIDE-th node enters the nearest-neighbour histogram (the O(n^2) metric sampled to O((n / 32)^2)). */
+/** Every NN_STRIDE-th node enters the nearest-neighbor histogram (the O(n^2) metric sampled to O((n / 32)^2)). */
 const NN_STRIDE = 32;
 
-/** The bins of the self-normalised nearest-neighbour histogram (test/helpers/metrics.ts layoutMetrics uses 8). */
+/** The bins of the self-normalized nearest-neighbor histogram (test/helpers/metrics.ts layoutMetrics uses 8). */
 const NN_BINS = 8;
 
 /**
@@ -241,10 +241,10 @@ function bboxText(positions: Float32Array, nodeCount: number): string {
 }
 
 /**
- * The scale-feasible metrics of a layout as one line: the spread, the edge-length quantiles and the self-normalised
- * nearest-neighbour histogram of every NN_STRIDE-th node (test/helpers/metrics.ts; the all-pairs `stress` of its
+ * The scale-feasible metrics of a layout as one line: the spread, the edge-length quantiles and the self-normalized
+ * nearest-neighbor histogram of every NN_STRIDE-th node (test/helpers/metrics.ts; the all-pairs `stress` of its
  * `layoutMetrics` is out of reach at 1M nodes). The histogram is over the SUBSAMPLE: each sampled node's nearest
- * neighbour WITHIN the sample, a different statistic from `nearestNeighbourHistogram` over all nodes (its distances are
+ * neighbor WITHIN the sample, a different statistic from `nearestNeighbourHistogram` over all nodes (its distances are
  * ~sqrt(NN_STRIDE) times longer in a uniform layout), so its bins compare only between two runs of this driver with
  * the same n, never with the `nnBins` of `layoutMetrics` or of test/limits/layout-1m.test.ts.
  * @param s - the snapshot

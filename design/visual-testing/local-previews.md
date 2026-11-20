@@ -50,7 +50,7 @@ Fixed, unchanged by this design:
 **CPU does not matter.** The visual job records the runner's CPU in each `results.json`. Over 16
 recent jobs (runs 37211866060 to 37220350543) the runners were AMD EPYC 7763 (Zen 3, AVX2 only),
 AMD EPYC 9V74 and 9V45 (AVX-512), and Intel Xeon Platinum 8370C and 8573C (AVX-512). All 1,002
-compact-mantine captures and 198 graphty-element captures equalled their baselines byte for byte.
+compact-mantine captures and 198 graphty-element captures equaled their baselines byte for byte.
 SwiftShader and Chromium's CPU rasterizer produce the same bytes whatever the SIMD width. The
 development machine's i9-14900KF (AVX2) sits inside that range.
 
@@ -259,7 +259,7 @@ pull request's current head.
 1. An agent pushes. Within a minute or two the server starts a local preview.
 2. About 6 to 10 minutes after the push the local capture is done; the pull request appears in
    the inbox (section 7) and the notifier (section 8) may tell the owner.
-3. The owner opens it. Each project captured locally is labelled "local preview" with the commit
+3. The owner opens it. Each project captured locally is labeled "local preview" with the commit
    it built; Accept, Reject and Exclude work exactly as on a CI capture, and decisions are saved
    in the same `tmp/visual-review/state/<pr>.json`, each keyed by the image's SHA-256 and its
    baseline's SHA-256 (`decisionsOf` in `trusted/lib/serve.mjs` already applies a saved decision

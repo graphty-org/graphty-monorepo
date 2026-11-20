@@ -2,7 +2,7 @@
  * The CPU references of label propagation (design 8.6, 9.7; the P11 plan's P11-T2) and the modularity function the
  * label-propagation floor on karate uses. `labelPropagationOracle` is synchronous label propagation with the rules
  * the device follows, which are those of `@graphty/algorithms`' `labelPropagationSynchronous`: node `i` starts with
- * the label `fmix32(i)` (the murmur3 32-bit finalizer, the CPU port's priority), the weighted mode of the neighbours'
+ * the label `fmix32(i)` (the murmur3 32-bit finalizer, the CPU port's priority), the weighted mode of the neighbors'
  * labels (a node's own label when it ties for the lead, else the lowest, through `groupByKeyOracle`), the alternating
  * direction rule (even passes move labels up only, odd passes down only), and a stop after two consecutive passes
  * that move nothing or after `maxIterations` passes; labels renumbered first-seen.

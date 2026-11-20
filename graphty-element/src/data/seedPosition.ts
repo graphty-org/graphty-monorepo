@@ -23,12 +23,13 @@ export function readSeedPosition(record: Record<string | number, unknown>): [num
     let y: unknown;
     let z: unknown;
     if (Array.isArray(position)) {
-        if (position.length !== 2 && position.length !== 3) {
+        const list: readonly unknown[] = position;
+        if (list.length !== 2 && list.length !== 3) {
             return null;
         }
 
-        [x, y] = position;
-        z = position.length === 3 ? position[2] : 0;
+        [x, y] = list;
+        z = list.length === 3 ? list[2] : 0;
     } else {
         const vector = position as { x?: unknown; y?: unknown; z?: unknown };
         ({ x, y } = vector);

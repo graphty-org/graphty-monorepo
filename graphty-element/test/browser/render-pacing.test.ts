@@ -111,6 +111,81 @@ describe("render loop pacing", () => {
 
         canvas.remove();
     });
+    it("draws nothing between two landings of a running layout on demand, never the smooth frame (issue #8801)", async () => {
+        const canvas = document.createElement("canvas");
+        document.body.appendChild(canvas);
+        let awaiting = false;
+        manager = new RenderManager(canvas, new EventManager(), {
+            pictureIsFinal: () => false,
+            awaitsLanding: () => awaiting,
+            drawsOnDemand: () => true,
+            antialiasAtRest: () => true,
+        });
+        let updates = 0;
+        manager.startRenderLoop(() => {
+            updates++;
+        });
+        const { ticks } = manager;
+        while (ticks.drawn < 3) {
+            await frames(1);
+        }
+        assert.strictEqual(ticks.awaitedLanding, 0, "a picture that is not final draws every tick");
+
+        awaiting = true;
+        while (ticks.awaitedLanding < 10) {
+            await frames(1);
+        }
+        const { drawn } = ticks;
+        const updated = updates;
+        const awaited = ticks.awaitedLanding;
+        while (ticks.awaitedLanding - awaited < 10) {
+            await frames(1);
+        }
+        assert.strictEqual(ticks.drawn, drawn, "no frame is drawn while the layout lands nothing new");
+        assert.isAtLeast(updates - updated, 10, "the update still runs, so the layout keeps stepping");
+        assert.strictEqual(ticks.smooth, 0, "the frame a still picture rests on is never drawn for it");
+        assert.strictEqual(ticks.rested, 0);
+
+        awaiting = false;
+        while (ticks.drawn === drawn) {
+            await frames(1);
+        }
+        canvas.remove();
+    });
+
+    for (const betweenLandings of [true, false]) {
+        it(`${betweenLandings ? "skips" : "draws"} the ticks between two landings with drawing on demand off when restsBetweenLandings says ${String(betweenLandings)}`, async () => {
+            const canvas = document.createElement("canvas");
+            document.body.appendChild(canvas);
+            let final = false;
+            manager = new RenderManager(canvas, new EventManager(), {
+                pictureIsFinal: () => final,
+                awaitsLanding: () => !final,
+                drawsOnDemand: () => false,
+                restsBetweenLandings: () => betweenLandings,
+            });
+            manager.startRenderLoop(() => undefined);
+            const { ticks } = manager;
+            while (ticks.drawn + ticks.awaitedLanding < 20) {
+                await frames(1);
+            }
+            const { drawn } = ticks;
+            while (ticks.drawn + ticks.awaitedLanding < 40) {
+                await frames(1);
+            }
+            assert.strictEqual(ticks.drawn === drawn, betweenLandings, "frames drawn between landings");
+
+            // A settled picture still draws every tick: nothing else of drawing on demand applies.
+            final = true;
+            const settled = ticks.drawn;
+            while (ticks.drawn - settled < 10) {
+                await frames(1);
+            }
+            assert.strictEqual(ticks.rested, 0, "a final picture rested with drawing on demand off");
+            canvas.remove();
+        });
+    }
+
     /**
      * A frame's commands reach the GPU only when its update-and-draw task ends, so the very next
      * tick always found the last fence unsignalled and skipped, one to two ticks per frame at

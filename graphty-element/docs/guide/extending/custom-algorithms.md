@@ -210,8 +210,8 @@ defineAlgorithm({
 ```
 
 A method that makes several passes over the graph uses `nodes`, and awaits `context.progress`
-once per pass. That await lets the page draw a frame and stops a cancelled run; without it the
-run cannot be cancelled and the page freezes until it ends. `passes` names the option that
+once per pass. That await lets the page draw a frame and stops a canceled run; without it the
+run cannot be canceled and the page freezes until it ends. `passes` names the option that
 counts the passes, so the cost estimate grows with it:
 
 ```ts
@@ -232,7 +232,7 @@ defineAlgorithm({
                 next.set(node.id, 0.15 / n + 0.85 * from.reduce((sum, m) => sum + (rank.get(m.id) ?? 0) / m.degree, 0));
             }
             rank = next;
-            await progress(pass / options.passes); // lets the page draw, and stops a cancelled run
+            await progress(pass / options.passes); // lets the page draw, and stops a canceled run
         }
         return rank;
     },

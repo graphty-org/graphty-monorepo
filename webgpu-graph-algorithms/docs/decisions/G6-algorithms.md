@@ -28,15 +28,15 @@ row above, which passes alone and which this phase does not touch. Section 6 car
 | 7 | fake-accelerator tests: delegation, CPU path, throw propagates | `accelerated.test.ts`, the three cases `delegates to a method the accelerator has`, `runs the CPU port for a method the accelerator does NOT have`, `lets a throwing accelerator method propagate unchanged -- there is no fallback` | 3 passed | pass |
 | 8 | W1b: `AlgorithmAccelerator` by `import type`, mirrors deleted | `grep -c "interface AlgorithmAccelerator" webgpu-graph-algorithms/src/types/accelerator.ts` | 0 | pass |
 | 9 | `CpuAlgorithmOptions` retired | `grep -rc CpuAlgorithmOptions webgpu-graph-algorithms/src webgpu-graph-algorithms/test` | 0 in every file | pass |
-| 10 | `implicitDependencies` negation removed | `nx show project webgpu-graph-algorithms --json` | `[]` -- nx normalises an absent key to an empty array; `grep -c implicitDependencies webgpu-graph-algorithms/project.json` reads 0 (finding G6-F3) | pass |
+| 10 | `implicitDependencies` negation removed | `nx show project webgpu-graph-algorithms --json` | `[]` -- nx normalizes an absent key to an empty array; `grep -c implicitDependencies webgpu-graph-algorithms/project.json` reads 0 (finding G6-F3) | pass |
 | 11 | the G10 reverse compile | `pnpm exec nx run webgpu-graph-algorithms:lint` (its third pass is `tsc -p tsconfig.strict-consumer.json`; that target already delegates to the npm script, `webgpu-graph-algorithms/project.json:46`) | clean, exit 0 | pass |
 
 ## 2. The A1 gate of graph-format design 14.6, discharged here (plan departure DEP-8A-B)
 
 | Item | Evidence | Result | Status |
 | --- | --- | --- | --- |
-| every fixture graph converts with `equalsTopology` / neighbour-set parity | `test/unit/indexed/to-snapshot-differential.test.ts` | 11 passed (11) | pass |
-| `mutationCount` memoisation, no stale hit | `test/unit/indexed/to-snapshot.test.ts` | 9 passed (9): the plan's eight plus the regression case for `Graph.edges()` on mixed-type ids (finding G6-F2) | pass |
+| every fixture graph converts with `equalsTopology` / neighbor-set parity | `test/unit/indexed/to-snapshot-differential.test.ts` | 11 passed (11) | pass |
+| `mutationCount` memoization, no stale hit | `test/unit/indexed/to-snapshot.test.ts` | 9 passed (9): the plan's eight plus the regression case for `Graph.edges()` on mixed-type ids (finding G6-F2) | pass |
 | `weightDtype: "f64"` keeps a non-f32-exact weight exactly | the shadow-column case of the same file (`keeps f64 weights exactly through the shadow column`) | pass | pass |
 | public signatures UNCHANGED | `git diff --stat origin/master -- algorithms/src/algorithms algorithms/src/types` (`origin/master` = 442bc98b; the same command against the stale local `master`, dad72f06, 126 files behind, gives the same result) | only `src/algorithms/centrality/betweenness.ts` (36 insertions, 11 deletions: the `sources` / `k` members, the `readonly ... \| undefined` restyle and the `rejectIndexOptions` guard of Task M8a-T9). Outside the two directories the command names, `src/core/graph.ts` (37+/2-: `mutationCount` and the `isMirror` mirror skip, finding G6-F2) and `src/index.ts` (46+/0-: the `indexed` namespace export) also differ; neither changes a signature | pass |
 
@@ -108,14 +108,14 @@ below:
   commit fixes a pre-existing `Graph.edges()` defect (the `isMirror` helper) and adds one regression case for it: for
   an undirected graph with mixed string / number ids, an edge between `123` and `"string"` used to be yielded from
   both endpoints and is now yielded once. That is a change to the observable output of a public method with no
-  signature change -- a SECOND behaviour change beyond the one the plan's Global Constraints allow (the `sources` /
+  signature change -- a SECOND behavior change beyond the one the plan's Global Constraints allow (the `sources` /
   `k` guard of Task M8a-T9) -- and the section 2 evidence command does not look at `src/core`, which is why the row
   above names the file separately. Decision: the fix is KEPT and recorded in
   `design/decisions/2026-09-19-a1-lands-inside-m8a.md` (section "A second change to a public method"). `toSnapshot`
   builds on `edges()` yielding each undirected edge once, and deduplicating inside the bridge instead would have hidden
   a public method's defect. The record names the reversal (revert the helper and the regression case together) should
   the owner want the constraint kept literal.
-- G6-F3 (row 10): `nx show project --json` prints `"implicitDependencies": []`, not `undefined`; nx normalises a
+- G6-F3 (row 10): `nx show project --json` prints `"implicitDependencies": []`, not `undefined`; nx normalizes a
   missing key. The key is absent from `project.json` and the project graph lists `algorithms` as a dependency
   (Task M8a-T13 Step 4). Pass.
 - G6-F4 (kruskalMST): the port's default path sums the f32 arc weights, the legacy sums f64, so on non-f32-exact

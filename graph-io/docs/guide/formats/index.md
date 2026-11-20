@@ -55,6 +55,7 @@ file they name is there.
 | [cx](./cx.md)           | `@graphty/graph-io/cx`      | `.cx`                                 | yes   | yes    | yes                     |
 | [obo](./obo.md)         | `@graphty/graph-io/obo`     | `.obo`                                | yes   | yes    | no                      |
 | [cys](./cys.md)         | `@graphty/graph-io/cys`     | `.cys`                                | yes   | yes    | yes                     |
+| [sif](./sif.md)         | `@graphty/graph-io/sif`     | `.sif`                                | yes   | yes    | no                      |
 
 ### What each writer keeps
 
@@ -79,6 +80,7 @@ file they name is there.
 | [cx](./cx.md)                  | no               | required  | integer       | string, f64, i32, bool                           | yes     | no     | no         | no        | yes         | none           | yes               | yes         | no    | 50 properties, rules kept |
 | [obo](./obo.md)                | no               | none      | any           | none                                             | no      | no     | no         | no        | no          | none           | no                | no          | no    | none                      |
 | [cys](./cys.md)                | yes              | required  | integer       | string, dict, f64, i32, bool, list               | yes     | no     | no         | no        | no          | none           | yes               | yes         | no    | 50 properties, rules kept |
+| [sif](./sif.md)                | no               | none      | any           | dict                                             | no      | no     | no         | no        | no          | none           | no                | no          | no    | none                      |
 
 ### What the capabilities mean
 

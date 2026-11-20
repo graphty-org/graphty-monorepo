@@ -104,8 +104,8 @@ reaches readers only as a file on graphty.app.
    its fixture to `test/helpers/datasets.ts`, and the dataset to `NOTICE` and
    `docs/guide/datasets.md`.
 3. `npm run build:all`, then `npm run datasets:pack` (rewrites `src/datasets/packed.ts`), then
-   build again. `test/datasets/datasets.test.ts` checks counts, columns, NOTICE and the catalogue,
-   `test/datasets/packed.test.ts` the packed file against the catalogue and `data/`; add a content
+   build again. `test/datasets/datasets.test.ts` checks counts, columns, NOTICE and the catalog,
+   `test/datasets/packed.test.ts` the packed file against the catalog and `data/`; add a content
    test for what the dataset is known for.
 4. The `./datasets/*` export pattern and `scripts/entries.js` pick the new directory up by themselves.
 
@@ -150,7 +150,7 @@ published to npm.
 
 `npm run datasets:hosted` (`scripts/build-hosted.mjs`) downloads each large dataset's source,
 checks it against the SHA-256 recorded in `SOURCES` (`scripts/hosted-sources.mjs`), and writes `public-data/v1/<name>.gsnp.gz`
-and `src/datasets/hosted.ts` (the catalogue entries); it copies the small datasets' files from
+and `src/datasets/hosted.ts` (the catalog entries); it copies the small datasets' files from
 `dist/data/v1/` beside them and writes `index.json` for all of them. The `.gsnp.gz` files are not
 committed: every deploy of graphty.app (`.github/workflows/deploy-pages.yml`) runs the script and
 publishes `public-data/v1/` at `/data/graph-samples/v1/`. The build is deterministic for a given

@@ -3,9 +3,9 @@
     "headroomPercent": 10,
     "minimumHeadroomBytes": 1024,
     "parts": {
-        "landing page": 1221356,
-        "landing page files": 64,
+        "landing page": 1348252,
+        "landing page files": 70,
         "all JavaScript": 8515084,
-        "all other files": 14472427
+        "all other files": 26160375
     }
 }

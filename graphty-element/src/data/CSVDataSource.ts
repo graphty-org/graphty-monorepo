@@ -26,7 +26,7 @@ import {
 } from "./graph-io-import.js";
 import { readOrRefuse, urlTail } from "./source-bytes.js";
 
-/** The CSV shapes the reader can be told to read, or recognises when it is not told. */
+/** The CSV shapes the reader can be told to read, or recognizes when it is not told. */
 export type CSVVariant = "neo4j" | "gephi" | "cytoscape" | "adjacency-list" | "edge-list" | "node-list" | "generic";
 
 /**
@@ -132,6 +132,12 @@ function typeCells(imported: ImportedRecords): ImportedRecords {
 
     return imported;
 }
+
+/**
+ * The id graph-io gives a node row whose id cell is blank, before its row number. A NUL starts it,
+ * so no id a file writes can collide with it; the row's id is put back to "" after reading.
+ */
+const BLANK_ID_PREFIX = "\u0000blank#";
 
 /** How much of a CSV file's text the parser is handed at a time while its rows are read. */
 const ROWS_SLICE = 1 << 20;
@@ -279,7 +285,7 @@ interface CSVDataSourceConfig extends BaseDataSourceConfig {
      * The column holding the node an edge starts at.
      *
      * Named `edgeSource` rather than `sourceColumn` so that ONE pair of option names describes the
-     * endpoints for every format the element reads. The catalogue used to advertise
+     * endpoints for every format the element reads. The catalog used to advertise
      * `edgeSrcIdPath`/`edgeDstIdPath` for JSON, `sourceColumn`/`targetColumn` for CSV and nothing
      * at all for the other five, which is three names for one fact.
      */
@@ -323,6 +329,13 @@ export class CSVDataSource extends DataSource {
     private readonly config: CSVDataSourceConfig;
 
     /**
+     * The header columns the one table it read was read by: an edge table's ends, or a node
+     * table's id column; unset for any other read (paired files, Neo4j, an adjacency list, node
+     * rows numbered). A version 2 save names them in a referenced source's mapping.
+     */
+    readBy: { readonly source: string; readonly target: string } | { readonly key: string } | undefined;
+
+    /**
      * Creates a new CSVDataSource instance.
      * @param config - Configuration options for CSV parsing and data loading
      */
@@ -341,7 +354,7 @@ export class CSVDataSource extends DataSource {
 
     /**
      * Fetches and parses CSV data into graph chunks.
-     * Recognises a Neo4j file from its header; every other file is read as the variant asked for,
+     * Recognizes a Neo4j file from its header; every other file is read as the variant asked for,
      * or as whatever table its header describes.
      * @yields DataSourceChunk objects containing parsed nodes and edges
      */
@@ -412,7 +425,7 @@ export class CSVDataSource extends DataSource {
 
         let imported: ImportedRecords;
         try {
-            imported = await this.importTable(content, options);
+            imported = await this.importNamed(content, options);
         } catch (error) {
             const header = missingColumnHeader(error);
             if (header === null) {
@@ -437,6 +450,24 @@ export class CSVDataSource extends DataSource {
     }
 
     /**
+     * Read one table by the columns named, remembering them as what it was read by.
+     * @param content - the file's text
+     * @param options - the table's options, its columns named
+     * @returns the records
+     */
+    private async importNamed(content: string, options: CsvImportOptions): Promise<ImportedRecords> {
+        const imported = await this.importTable(content, options);
+        const { sourceColumn, targetColumn } = options;
+        if (options.table === "edges" && typeof sourceColumn === "string" && typeof targetColumn === "string") {
+            this.readBy = { source: sourceColumn, target: targetColumn };
+        } else if (options.table === "nodes" && typeof options.idColumn === "string") {
+            this.readBy = { key: options.idColumn };
+        }
+
+        return imported;
+    }
+
+    /**
      * Read a table whose columns were not configured, by the columns its header holds: an edge
      * table by the first pair of {@link ENDPOINT_PAIRS} it holds, a node table (or, where it may be
      * one, any table) by its id column, and a node table without one by row number.
@@ -457,11 +488,11 @@ export class CSVDataSource extends DataSource {
         const pair = ENDPOINT_PAIRS.find(([source, target]) => header.includes(source) && header.includes(target));
         const idColumn = mayBeNodeList || nodeTable ? NODE_ID_COLUMNS.find((name) => header.includes(name)) : undefined;
         if (edgeTable && pair !== undefined) {
-            return this.importTable(content, { ...table, sourceColumn: pair[0], targetColumn: pair[1] });
+            return this.importNamed(content, { ...table, sourceColumn: pair[0], targetColumn: pair[1] });
         }
 
         if (idColumn !== undefined) {
-            return this.importTable(content, { table: "nodes", idColumn });
+            return this.importNamed(content, { table: "nodes", idColumn });
         }
 
         if (nodeTable) {
@@ -500,16 +531,22 @@ export class CSVDataSource extends DataSource {
                       typeColumn: null,
                       ...(idColumn === undefined ? {} : { idColumn }),
                   };
-        return typeCells(
+        const imported = typeCells(
             await importRecords(csvImporter, content, {
                 ids: "string",
                 errorLimit: this.config.errorLimit,
+                blankIdPrefix: BLANK_ID_PREFIX,
                 ...columns,
                 ...table,
                 ...(delimiter === undefined ? {} : { delimiter }),
                 ...(nodes === undefined ? {} : { nodes }),
             }),
         );
+        // A node row with a blank id comes back empty, so the element keeps it as a keyless node.
+        const keyed = imported.nodes.map((node) =>
+            typeof node.id === "string" && node.id.startsWith(BLANK_ID_PREFIX) ? { ...node, id: "" } : node,
+        );
+        return { ...imported, nodes: keyed };
     }
 
     /**

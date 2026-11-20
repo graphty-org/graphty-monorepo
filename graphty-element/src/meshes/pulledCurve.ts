@@ -882,7 +882,7 @@ vec3 pulledCurvePoint(vec3 src, vec3 dst, vec4 span, vec4 cut, int j) {
         // width the batch made it (PulledLineBatch's tableShape)
         int texel = int(cut.z + 0.5) + int(span.w + 0.5) * ${String(ROUTE_SPLIT)} + j;
         int width = textureSize(edgeRoutes, 0).x;
-        return texelFetch(edgeRoutes, ivec2(texel & (width - 1), texel >> findMSB(width)), 0).xyz;
+        return texelFetch(edgeRoutes, ivec2(texel & (width - 1), texel >> int(log2(float(width)) + 0.5)), 0).xyz;
     }
     if (abs(cut.w - 3.0) < 0.5) {
         // the lone curve between two points of the chord, where a gap moves an uncut curve's ends

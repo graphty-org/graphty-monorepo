@@ -151,7 +151,8 @@ export function pulledTexelGlsl(table: string, name: string): string {
     return `
 vec4 ${name}(int i) {
     int width = textureSize(${table}, 0).x;
-    return texelFetch(${table}, ivec2(i & (width - 1), i >> findMSB(width)), 0);
+    // GLSL ES 3.00 has no findMSB: log2 of a power of two, rounded
+    return texelFetch(${table}, ivec2(i & (width - 1), i >> int(log2(float(width)) + 0.5)), 0);
 }
 `;
 }

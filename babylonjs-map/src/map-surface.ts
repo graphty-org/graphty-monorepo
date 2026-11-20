@@ -40,7 +40,12 @@ export interface MapSurfaceOptions {
      * (a tile drawn more than `tileSize * lodScale` pixels across). Default 1.
      */
     lodScale?: number;
-    /** At most this many tiles are drawn per source. Default 256. */
+    /**
+     * At most this many tiles are chosen per source for each world copy the view spans (a flat map
+     * across the antimeridian spans two or more). While a chosen tile loads, the loaded finer tiles
+     * (up to three levels down) or the coarser tile standing in for it are drawn in addition, so more
+     * meshes than this can be drawn for a moment. Default 256.
+     */
     maxTiles?: number;
     /** Loaded tiles kept for reuse; the least recently drawn beyond this are disposed. Default 256. */
     maxCachedTiles?: number;

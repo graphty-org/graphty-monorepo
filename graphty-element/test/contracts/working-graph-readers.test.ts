@@ -270,10 +270,10 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "data.removeEdit()": "writes",
     "data.removeStep()": "writes",
     "data.resolveStep()": "writes",
+    "data.setStepOff()": "writes",
     "data.settleEdit()": "writes",
     "data.profile()": "not the graph",
     "data.setMapping()": "writes",
-    "data.setStepOff()": "writes",
     "data.sourceTable()": "not the graph",
     "data.spaces()": "not the graph",
     "data.stage()": "writes",
@@ -333,6 +333,16 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "data.overRepresented()": { view: (s) => s.data.overRepresented("data.type") },
     "data.pendingSourceLoads()": "not the graph",
     "data.prepare()": "writes",
+    "data.preparePage()": {
+        view: async (s) => {
+            await s.data.preparePage("node", { sort: { key: "id" } });
+            return s.data.nodePage({ limit: 50, sort: { key: "id" } });
+        },
+        whole: async (s) => {
+            await s.data.preparePage("node", { scope: "graph", sort: { key: "id" } });
+            return s.data.nodePage({ limit: 50, scope: "graph", sort: { key: "id" } });
+        },
+    },
     "data.previewSource()": "not the graph",
     "data.previewType()": "not the graph",
     "data.readableValues()": "not the graph",
@@ -705,6 +715,7 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "visibility.filter": "the filter's own",
     "visibility.held": "the filter's own",
     "visibility.isVisible()": "names its target",
+    "visibility.moveStep()": "writes",
     "visibility.nodeMask()": "the filter's own",
     "visibility.nodes": "the filter's own",
     "visibility.notDrawn": "state",
@@ -714,6 +725,7 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "visibility.setSteps()": "writes",
     "visibility.setWindow()": "writes",
     "visibility.showContext": "the filter's own",
+    "visibility.stepCounts()": "the filter's own",
     "visibility.steps": "the filter's own",
     "visibility.summary.totalEdges": "the filter's own",
     "visibility.summary.totalNodes": "the filter's own",

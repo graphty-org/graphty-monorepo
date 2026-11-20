@@ -7,17 +7,9 @@
 import type { Path } from "../../../catalog/types";
 import type { ValuesWhere } from "../../commands/derive";
 import { compileExpressionValue } from "../../styles/predicate";
+import type { SourceDraftPreviewSource as PreviewSource } from "../../types";
 import type { DraftState } from "./draft";
-import {
-    buildOf,
-    type EditRow,
-    editRows,
-    type SourceState,
-    sourceState,
-    type SourceSteps,
-    type StepRow,
-    stepRows,
-} from "./project";
+import { buildOf, type EditRow, editRows, sourceState, type SourceSteps, type StepRow, stepRows } from "./project";
 import { element } from "./provenance";
 import { type ChangeCounts, changeCounts, editStates } from "./refresh";
 import type { BuildIssue, BuildResult, ElementRef, StepStats } from "./types";
@@ -70,22 +62,6 @@ interface PreviewStep extends StepRow {
     readonly state: "new" | "edited" | "kept";
     readonly committed: number | null;
     readonly change: StatsChange | null;
-}
-
-/** One source of the draft or the committed project, with its counts and their change. */
-interface PreviewSource {
-    readonly source: string;
-    readonly state: SourceState | "removed";
-    readonly nodes: number;
-    readonly edges: number;
-    readonly named: number;
-    readonly noStep: number;
-    readonly change: {
-        readonly nodes: number;
-        readonly edges: number;
-        readonly named: number;
-        readonly noStep: number;
-    };
 }
 
 /** One outcome of a preview. */

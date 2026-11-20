@@ -32,12 +32,14 @@ import type {
 // published surface.
 import type { Tour } from "../camera/tour";
 import type { CameraState } from "../camera/types";
+import type { CameraGestureKind } from "../cameras/gestureEnd";
 import type {
     AlgorithmKey,
     AttributeDescriptor,
     CatalogApi,
     DeprecatedCatalogMethod,
     EdgeId,
+    FormatId,
     LayerId,
     LayoutId,
     MeasurementDeclaration,
@@ -416,6 +418,14 @@ export interface RecordMatch {
 export interface EdgePageOptions extends RecordPageOptions {
     /** Only the edges with this node at one end or both. */
     readonly touching?: NodeId;
+}
+
+/** How a caller follows and stops {@link SessionDataApi.preparePage}. */
+export interface PreparePageControl {
+    /** Stops the work: the call rejects with the signal's reason, and no order is kept. */
+    readonly signal?: AbortSignal;
+    /** Told how far the work has got, from 0 to 1, between two slices and once more at the end. */
+    readonly onProgress?: (fraction: number) => void;
 }
 
 /** One window onto an ordered list of records. */
@@ -802,7 +812,10 @@ export interface LoadedWeight {
      * Experimental: may change or be removed in a minor release.
      * @beta
      */
-    readonly mixed?: { readonly sources: readonly string[] };
+    readonly mixed?: {
+        /** The sources whose weights were combined. */
+        readonly sources: readonly string[];
+    };
 }
 
 /** A {@link RecordPage} of neighbors, plus what the numbers measured. */
@@ -1483,6 +1496,29 @@ export interface SessionDataApi {
      */
     edgePage(options?: EdgePageOptions): RecordPage<EdgeRecord>;
     /**
+     * Compute the order a {@link nodePage} or {@link edgePage} read with the same options needs,
+     * a slice at a time, handing the thread back between slices so the page stays responsive. Once
+     * it settles, that page read returns at once; until then the orders already computed still
+     * read at once, so a table can keep showing its old order while the new one is prepared. The
+     * order is the one the page read would compute. An edit while it works starts it again.
+     *
+     * ```ts
+     * const stop = new AbortController();
+     * await session.data.preparePage("node", { sort: { key: "name" } }, {
+     *     signal: stop.signal,
+     *     onProgress: (fraction) => console.log(fraction),
+     * });
+     * const page = session.data.nodePage({ sort: { key: "name" }, limit: 30 }); // at once
+     * ```
+     * @param kind - `"node"` for {@link nodePage}, `"edge"` for {@link edgePage}
+     * @param options - the scope, the order, the filters and the node; the window is ignored
+     * @param control - a signal to stop it and a progress callback
+     * @returns settles once the order is ready
+     * @throws The signal's reason once it aborts; `E_UNKNOWN_RUN`, `E_UNKNOWN_ATTRIBUTE` or
+     *     `E_BAD_COMMAND` as the page read would; `E_DISPOSED` once the session is disposed.
+     */
+    preparePage(kind: "node" | "edge", options?: EdgePageOptions, control?: PreparePageControl): Promise<void>;
+    /**
      * The runs whose result a node or an edge page can show as a column with no field named: every
      * run, in the session's order, whose primary field holds one value per record of that kind.
      * Exactly the runs `nodePage({ columns: [run] })` or `edgePage(...)` accepts, so a table
@@ -2014,6 +2050,11 @@ export interface SessionDataApi {
      * joins, the column settings and the load's key all stay; the load moves to the end of
      * `sources()`, as the newest. One undo brings the earlier data back.
      *
+     * Once it is in, it publishes `source:loaded` for the load, under its key, with `mode: "merge"`,
+     * `replaced: "replaceSource"` and the `callerKey` given in `choices`; the journal entries of the
+     * commands it ran carry `trigger: "load"` and that key, and its returned report says what
+     * changed.
+     *
      * ```ts
      * const key = await session.data.matchesSource({ config: { file } });
      * if (key !== null) {
@@ -2042,7 +2083,8 @@ export interface SessionDataApi {
      * keeps everything else, as {@link SessionDataApi.replaceSource} does. The choices are laid
      * over the ones the load was read with (`LoadedSource.choices`); a mapping key set to `null`
      * goes back to the element's own reading. Only a load this session read itself can be read
-     * again (`LoadedSource.reloadable`): what a file was is never saved in a project.
+     * again (`LoadedSource.reloadable`): what a file was is never saved in a project. Once it is
+     * in, it publishes `source:loaded` with `replaced: "reloadSource"`, as `remap` does.
      *
      * ```ts
      * const [log] = session.data.sources();
@@ -4104,6 +4146,15 @@ export interface ImportOptions {
      */
     readonly history?: "step" | "start";
     /**
+     * An opaque value the caller chooses. The load does nothing with it but echo it as
+     * {@link SourceLoaded.callerKey} on the `source:loaded` event, and as `JournalEntry.callerKey`
+     * on the journal entries of the commands the load ran, so a caller can tell its own loads
+     * apart. It is never saved with the project. `replaceSource` and `reloadSource` echo it too,
+     * on the `source:loaded` they publish with {@link SourceLoaded.replaced} set.
+     * @since 3.40.0
+     */
+    readonly callerKey?: string;
+    /**
      * The column the loaded node rows are keyed by; the id column the load read when absent.
      * @experimental source-steps
      */
@@ -4125,7 +4176,9 @@ export interface ImportOptions {
      * @experimental source-steps
      */
     readonly edges?: {
+        /** The column naming each edge's source end, and that end's space and type. */
         readonly from: SourceEndOption;
+        /** The column naming each edge's target end, and that end's space and type. */
         readonly to: SourceEndOption;
         /** The column holding each edge's own key; absent keys each row by its place in the file. */
         readonly id?: string;
@@ -4260,7 +4313,7 @@ export interface SourceStepCounts {
 }
 
 /** The counts of {@link SourceStepCounts} that are numbers, besides the step's place and part. */
-type SourceStepNumber = Exclude<
+export type SourceStepNumber = Exclude<
     {
         [K in keyof SourceStepCounts]-?: SourceStepCounts[K] extends number | undefined ? K : never;
     }[keyof SourceStepCounts],
@@ -4268,7 +4321,7 @@ type SourceStepNumber = Exclude<
 >;
 
 /** The counts of {@link SourceStepCounts} kept by name (a column, a space or a type). */
-type SourceStepByName =
+export type SourceStepByName =
     "valuesDiffer" | "ruleType" | "rowsDifferIn" | "endsMeet" | "endsMissing" | "newNodeTypes" | "newEdgeTypes";
 
 /**
@@ -4285,9 +4338,13 @@ export type SourceStepCountsChange = { readonly [K in SourceStepNumber]: number 
  * @experimental source-steps
  */
 export interface SourceDraftPreviewTotals {
+    /** Nodes in all. */
     readonly nodes: number;
+    /** Edges in all. */
     readonly edges: number;
+    /** Nodes by type. */
     readonly nodeTypes: Readonly<Record<SourceTypeName, number>>;
+    /** Edges by type. */
     readonly edgeTypes: Readonly<Record<SourceTypeName, number>>;
 }
 
@@ -4296,8 +4353,11 @@ export interface SourceDraftPreviewTotals {
  * @experimental source-steps
  */
 export interface SourceDraftPreviewChanges {
+    /** Elements the draft adds. */
     readonly added: number;
+    /** Elements the draft removes. */
     readonly removed: number;
+    /** Elements the draft keeps with different values. */
     readonly changed: number;
 }
 
@@ -4321,6 +4381,7 @@ export interface SourceDraftPreviewStep extends SourceStepRow {
  * @experimental source-steps
  */
 export interface SourceDraftPreviewSource {
+    /** The source. */
     readonly source: SourceKey;
     /** Where it stands in the draft; `"removed"` for a committed source the draft takes out. */
     readonly state: "staged" | "built" | "off" | "held" | "removed";
@@ -4334,9 +4395,13 @@ export interface SourceDraftPreviewSource {
     readonly noStep: number;
     /** Each count minus the committed one. */
     readonly change: {
+        /** Nodes it supplies, minus the committed count. */
         readonly nodes: number;
+        /** Edges it supplies, minus the committed count. */
         readonly edges: number;
+        /** Nodes it only names, minus the committed count. */
         readonly named: number;
+        /** Rows no step reads, minus the committed count. */
         readonly noStep: number;
     };
 }
@@ -4366,50 +4431,180 @@ export interface SourceDraftPreviewSource {
  */
 export type SourceDraftPreviewIssue =
     | {
+          /** The code. */
           readonly code: "W_STEP_REMOVED";
+          /** Its parameters. */
           readonly params: {
+              /** The step's place. */
               readonly step: number;
+              /** Why it went. */
               readonly reason: "source-removed" | "step-removed" | "source-held";
+              /** The source. */
               readonly source: SourceKey;
           };
       }
-    | { readonly code: "W_REFERENCE_UNBOUND"; readonly params: { readonly ref: SourceElementRef } }
-    | { readonly code: "W_FILTER_HELD"; readonly params: { readonly filter: string; readonly column: Path } }
-    | Extract<SourceRefreshIssue, { readonly code: "W_EDIT_SOURCE_CHANGED" }>
-    | SourceValuesDiffer
-    | { readonly code: "W_FAN_OUT"; readonly params: { readonly step: number; readonly rows: number } }
-    | { readonly code: "W_UNMATCHED"; readonly params: { readonly step: number; readonly rows: number } }
-    | { readonly code: "W_UNTOUCHED"; readonly params: { readonly step: number; readonly nodes: number } }
-    | { readonly code: "W_PARALLEL_EDGES"; readonly params: { readonly step: number; readonly pairs: number } }
-    | { readonly code: "W_SELF_LOOPS"; readonly params: { readonly step: number; readonly count: number } }
     | {
-          readonly code: "W_ROWS_DIFFER";
-          readonly params: { readonly step: number; readonly column: string; readonly keys: number };
-      }
-    | {
-          readonly code: "W_NODE_NAMED_ONLY";
-          readonly params: { readonly step: number; readonly source: SourceKey; readonly nodes: number };
-      }
-    | {
-          readonly code: "W_EDGE_END_MISSING";
-          readonly params: { readonly step: number; readonly space: SourceSpaceName; readonly ends: number };
-      }
-    | {
-          readonly code: "W_KEY_EMPTY";
-          readonly params: { readonly source: SourceKey; readonly column: string; readonly rows: number };
-      }
-    | {
-          readonly code: "W_VALUE_HUB";
+          /** The code. */
+          readonly code: "W_REFERENCE_UNBOUND";
+          /** Its parameters. */
           readonly params: {
-              readonly source: SourceKey;
-              readonly column: string;
-              readonly value: string;
+              /** The element the reference names. */
+              readonly ref: SourceElementRef;
+          };
+      }
+    | {
+          /** The code. */
+          readonly code: "W_FILTER_HELD";
+          /** Its parameters. */
+          readonly params: {
+              /** The filter condition's id. */
+              readonly filter: string;
+              /** The column. */
+              readonly column: Path;
+          };
+      }
+    | Extract<
+          SourceRefreshIssue,
+          {
+              /** The code. */
+              readonly code: "W_EDIT_SOURCE_CHANGED";
+          }
+      >
+    | SourceValuesDiffer
+    | {
+          /** The code. */
+          readonly code: "W_FAN_OUT";
+          /** Its parameters. */
+          readonly params: {
+              /** The step's place. */
+              readonly step: number;
+              /** How many rows. */
               readonly rows: number;
           };
       }
     | {
+          /** The code. */
+          readonly code: "W_UNMATCHED";
+          /** Its parameters. */
+          readonly params: {
+              /** The step's place. */
+              readonly step: number;
+              /** How many rows. */
+              readonly rows: number;
+          };
+      }
+    | {
+          /** The code. */
+          readonly code: "W_UNTOUCHED";
+          /** Its parameters. */
+          readonly params: {
+              /** The step's place. */
+              readonly step: number;
+              /** How many nodes. */
+              readonly nodes: number;
+          };
+      }
+    | {
+          /** The code. */
+          readonly code: "W_PARALLEL_EDGES";
+          /** Its parameters. */
+          readonly params: {
+              /** The step's place. */
+              readonly step: number;
+              /** How many end pairs. */
+              readonly pairs: number;
+          };
+      }
+    | {
+          /** The code. */
+          readonly code: "W_SELF_LOOPS";
+          /** Its parameters. */
+          readonly params: {
+              /** The step's place. */
+              readonly step: number;
+              /** How many edges. */
+              readonly count: number;
+          };
+      }
+    | {
+          /** The code. */
+          readonly code: "W_ROWS_DIFFER";
+          /** Its parameters. */
+          readonly params: {
+              /** The step's place. */
+              readonly step: number;
+              /** The column. */
+              readonly column: string;
+              /** How many keys. */
+              readonly keys: number;
+          };
+      }
+    | {
+          /** The code. */
+          readonly code: "W_NODE_NAMED_ONLY";
+          /** Its parameters. */
+          readonly params: {
+              /** The step's place. */
+              readonly step: number;
+              /** The source. */
+              readonly source: SourceKey;
+              /** How many nodes. */
+              readonly nodes: number;
+          };
+      }
+    | {
+          /** The code. */
+          readonly code: "W_EDGE_END_MISSING";
+          /** Its parameters. */
+          readonly params: {
+              /** The step's place. */
+              readonly step: number;
+              /** The id space. */
+              readonly space: SourceSpaceName;
+              /** How many edge ends. */
+              readonly ends: number;
+          };
+      }
+    | {
+          /** The code. */
+          readonly code: "W_KEY_EMPTY";
+          /** Its parameters. */
+          readonly params: {
+              /** The source. */
+              readonly source: SourceKey;
+              /** The column. */
+              readonly column: string;
+              /** How many rows. */
+              readonly rows: number;
+          };
+      }
+    | {
+          /** The code. */
+          readonly code: "W_VALUE_HUB";
+          /** Its parameters. */
+          readonly params: {
+              /** The source. */
+              readonly source: SourceKey;
+              /** The column. */
+              readonly column: string;
+              /** The key value. */
+              readonly value: string;
+              /** How many rows. */
+              readonly rows: number;
+          };
+      }
+    | {
+          /** The code. */
           readonly code: "E_EDGE_KEY_COLLISION";
-          readonly params: { readonly load: SourceKey; readonly key: string; readonly steps: readonly number[] };
+          /** Its parameters. */
+          readonly params: {
+              /** The source that made the edges. */
+              readonly load: SourceKey;
+              /** The edge key. */
+              readonly key: string;
+              /** The places of the steps that make the key. */
+              readonly steps: readonly number[];
+          };
       };
 
 /**
@@ -4432,7 +4627,9 @@ export interface SourceDraftPreview {
     readonly before: SourceDraftPreviewTotals;
     /** The graph once committed. */
     readonly after: SourceDraftPreviewTotals;
+    /** How the draft changes the nodes. */
     readonly nodes: SourceDraftPreviewChanges;
+    /** How the draft changes the edges. */
     readonly edges: SourceDraftPreviewChanges;
     /** Every step of the draft, with its buckets and their change from the committed counts. */
     readonly steps: readonly SourceDraftPreviewStep[];
@@ -4440,6 +4637,7 @@ export interface SourceDraftPreview {
     readonly sources: readonly SourceDraftPreviewSource[];
     /** Each reader edit of the draft, with its state. */
     readonly edits: readonly ReaderEditRow[];
+    /** The outcomes the draft reports. */
     readonly issues: readonly SourceDraftPreviewIssue[];
     /**
      * The key-overlap questions still open, in a draft opened with `askOverlap`; `commit()` is
@@ -4544,6 +4742,7 @@ export interface SourceDraftRow {
 export interface SourceDraftRows {
     /** How many the count counted: the step's count, or its count for `name`. */
     readonly total: number;
+    /** The page's rows. */
     readonly rows: readonly SourceDraftRow[];
 }
 
@@ -4580,6 +4779,7 @@ export interface SourceDraftCell extends SourceConflict {
 export interface SourceDraftCells {
     /** How many cells the filter keeps. */
     readonly total: number;
+    /** The page's cells. */
     readonly cells: readonly SourceDraftCell[];
 }
 
@@ -4707,7 +4907,9 @@ export interface SourceStepAct {
  * @experimental source-steps
  */
 export interface SourceValuesDiffer {
+    /** The code. */
     readonly code: "W_VALUES_DIFFER";
+    /** Its parameters. */
     readonly params: {
         /** The step's place. */
         readonly step: number;
@@ -4757,7 +4959,18 @@ export interface ReaderEditRow {
     readonly op: "add" | "add-edge" | "remove" | "edit";
     /** The node (`{ space, key }`) or edge (`{ load, key }`: the source that made it, and its key there) it names. */
     readonly target:
-        { readonly space: SourceSpaceName; readonly key: string } | { readonly load: SourceKey; readonly key: string };
+        | {
+              /** The id space the node's key lives in. */
+              readonly space: SourceSpaceName;
+              /** The node's key. */
+              readonly key: string;
+          }
+        | {
+              /** The source that made the edge. */
+              readonly load: SourceKey;
+              /** The edge's key within that source. */
+              readonly key: string;
+          };
     /** For an edit: the column it writes. */
     readonly column?: string;
     /** For an edit: the value it writes. */
@@ -4885,8 +5098,22 @@ export interface SourceField {
  * @experimental source-steps
  */
 export type SourceJoinInto =
-    | { readonly source: SourceKey; readonly field?: string; readonly space?: SourceSpaceName }
-    | { readonly space: SourceSpaceName; readonly source?: undefined; readonly field?: undefined };
+    | {
+          /** The source whose nodes are joined onto. */
+          readonly source: SourceKey;
+          /** The field of the source naming them; absent, its key. */
+          readonly field?: string;
+          /** For a source that holds only edges: the space of the end whose nodes `field` names. */
+          readonly space?: SourceSpaceName;
+      }
+    | {
+          /** The id space whose every node is joined onto. */
+          readonly space: SourceSpaceName;
+          /** Never set: the space names the nodes. */
+          readonly source?: undefined;
+          /** Never set: the space names the nodes. */
+          readonly field?: undefined;
+      };
 
 /**
  * The two fields a Merge or Make an edge would compare, for `data.matchCounts` and
@@ -5084,7 +5311,15 @@ export interface SourceMoveColumnsOptions {
     /** The columns. */
     readonly columns: readonly string[];
     /** Where they go. */
-    readonly to: "source" | "target" | { readonly column: string; readonly space: SourceSpaceName };
+    readonly to:
+        | "source"
+        | "target"
+        | {
+              /** The column naming the nodes. */
+              readonly column: string;
+              /** The id space the column's values live in. */
+              readonly space: SourceSpaceName;
+          };
 }
 
 /**
@@ -5351,12 +5586,19 @@ export interface SourceDraftOptions {
  * @experimental source-steps
  */
 export interface SourceOverlapQuestion {
+    /** The code. */
     readonly code: "W_SPACE_OVERLAP";
+    /** Its parameters. */
     readonly params: {
+        /** The space the keys meet in. */
         readonly space: SourceSpaceName;
+        /** How many of the source's keys meet a node there. */
         readonly count: number;
+        /** How many keys the source holds. */
         readonly of: number;
+        /** The source the question is about. */
         readonly source: SourceKey;
+        /** The sources whose node rows built the nodes met; `"reader"` for nodes the reader added. */
         readonly sources: readonly SourceKey[];
     };
 }
@@ -5706,7 +5948,14 @@ export interface SourceLineage {
     /** The sources that only named it (an edge end, a key a step looked up). */
     readonly named: readonly SourceKey[];
     /** Every row a step read into it: the step's place, its source and the row. */
-    readonly steps: readonly { readonly step: number; readonly source: SourceKey; readonly row: number }[];
+    readonly steps: readonly {
+        /** The step's place. */
+        readonly step: number;
+        /** The source the step read. */
+        readonly source: SourceKey;
+        /** The row it read. */
+        readonly row: number;
+    }[];
     /** The references that also reach it: merged nodes, a moved node's former place, reduced edges' rows. */
     readonly aliases: readonly SourceElementRef[];
     /** The types other steps would have given it. */
@@ -5722,9 +5971,13 @@ export interface SourceLineage {
 export interface SourceCellValues {
     /** Each source's value, in step order, then the values a merge kept only in the lineage. */
     readonly list: readonly {
+        /** The source that holds the value. */
         readonly source: SourceKey;
+        /** The value. */
         readonly value: SourceValue;
+        /** The place of the step that read it. */
         readonly step?: number;
+        /** The row of the source it was read from. */
         readonly row?: number;
         /** For a value a merge kept only in the lineage: the key of the node it came from. */
         readonly from?: SourceNodeRef["key"];
@@ -5743,9 +5996,22 @@ export interface SourceCellValues {
  * @experimental source-steps
  */
 export type SourceCellState =
-    | { readonly state: "value"; readonly value: SourceValue; readonly edited?: true }
-    | { readonly state: "empty" }
-    | { readonly state: "not-carried" };
+    | {
+          /** The cell holds a value. */
+          readonly state: "value";
+          /** The value. */
+          readonly value: SourceValue;
+          /** Set when a reader edit wrote the value. */
+          readonly edited?: true;
+      }
+    | {
+          /** A supplying source has the column, but the cell is empty. */
+          readonly state: "empty";
+      }
+    | {
+          /** No supplying source has the column. */
+          readonly state: "not-carried";
+      };
 
 /**
  * One cell where supplying sources hold different values.
@@ -5764,7 +6030,12 @@ export interface SourceConflict {
     /** The column. */
     readonly column: string;
     /** Each source's value. */
-    readonly values: readonly { readonly source: SourceKey; readonly value: SourceValue }[];
+    readonly values: readonly {
+        /** The source. */
+        readonly source: SourceKey;
+        /** Its value. */
+        readonly value: SourceValue;
+    }[];
     /** The value shown. */
     readonly shown: SourceValue | null;
     /** What shows the value: the rule, or `"reader"` for a reader decision (a pick or an edit). */
@@ -5809,40 +6080,87 @@ export interface SourceConflictQuery {
  */
 export type SourceRefreshIssue =
     | {
+          /** The code. */
           readonly code: "E_COLUMN_MISSING";
+          /** Its parameters. */
           readonly params: {
+              /** The source whose rows lost the column. */
               readonly source: SourceKey;
+              /** The column. */
               readonly column: string;
+              /** The table that held it. */
               readonly table: "nodes" | "edges";
+              /** The place of the step that reads it. */
               readonly step?: number;
+              /** The type whose rule reads it. */
               readonly type?: SourceTypeName;
           };
       }
     | {
+          /** The code. */
           readonly code: "E_READ_ROLE_MISSING";
+          /** Its parameters. */
           readonly params: {
+              /** The place of the step that reads the role. */
               readonly step: number;
+              /** The source whose rows lost the column. */
               readonly source: SourceKey;
+              /** The column. */
               readonly column: string;
+              /** The role read from it. */
               readonly role: SourceRoleName;
+              /** The table that held it. */
               readonly table: "nodes" | "edges";
           };
       }
-    | { readonly code: "W_COLUMN_UNUSED"; readonly params: { readonly source: SourceKey; readonly column: string } }
     | {
-          readonly code: "W_STEP_REMOVED";
-          readonly params: { readonly step: number; readonly reason: "source-removed"; readonly source: SourceKey };
+          /** The code. */
+          readonly code: "W_COLUMN_UNUSED";
+          /** Its parameters. */
+          readonly params: {
+              /** The source whose new rows bring the column. */
+              readonly source: SourceKey;
+              /** The column. */
+              readonly column: string;
+          };
       }
     | {
-          readonly code: "W_EDIT_SOURCE_CHANGED";
+          /** The code. */
+          readonly code: "W_STEP_REMOVED";
+          /** Its parameters. */
           readonly params: {
+              /** The removed step's place. */
+              readonly step: number;
+              /** Why it went. */
+              readonly reason: "source-removed";
+              /** The removed source. */
+              readonly source: SourceKey;
+          };
+      }
+    | {
+          /** The code. */
+          readonly code: "W_EDIT_SOURCE_CHANGED";
+          /** Its parameters. */
+          readonly params: {
+              /** The reader edit's id. */
               readonly edit: ReaderEditRow["id"];
+              /** The value under the edit before. */
               readonly was: SourceValue | null;
+              /** The value under the edit now. */
               readonly now: SourceValue | null;
+              /** For a pick: the source it took from. */
               readonly picked?: SourceKey;
           };
       }
-    | { readonly code: "W_REFERENCE_UNBOUND"; readonly params: { readonly ref: SourceElementRef } };
+    | {
+          /** The code. */
+          readonly code: "W_REFERENCE_UNBOUND";
+          /** Its parameters. */
+          readonly params: {
+              /** The element the reference names. */
+              readonly ref: SourceElementRef;
+          };
+      };
 
 /**
  * A weight, time or location role a step reads from a column. OPEN UNION: roles may be added.
@@ -5864,7 +6182,15 @@ export type SourceEditChoice = "follow" | "keep" | "drop";
  * `none` clears a vanished weight, time or location role.
  * @experimental source-steps
  */
-export type SourceStepResolution = { readonly column: string } | { readonly none: true };
+export type SourceStepResolution =
+    | {
+          /** The column of the new rows that takes the vanished name. */
+          readonly column: string;
+      }
+    | {
+          /** Clear the vanished role. */
+          readonly none: true;
+      };
 
 /**
  * A key overlap a source met when it was added: its keys meet nodes another source built in the
@@ -6649,6 +6975,40 @@ export interface SessionEventMap {
         readonly load: string;
     };
     /**
+     * A load added a source to the graph: one event per source added, published by every load
+     * method (`import`, `LoadDraft.load`, `loadExample`, `loadDataset`, `generate`, and the
+     * element's `data-source` attribute, `loadFromFile`, `loadFromUrl` and `addDataFromSource`)
+     * once its load commits. Not published by opening a project, by undo, redo or restore, or by
+     * `runPendingSourceLoad`, which fills a source a project already listed. It carries no
+     * contents: no file name, URL or parameters.
+     *
+     * Unlike the graph event `data-loaded`, which fires whenever data arrives for any cause
+     * (undo and redo included), this fires only for a load a caller asked for.
+     * Mirrored on the element as `graphty-source-loaded`.
+     * @since 3.40.0
+     */
+    "source:loaded": SourceLoaded;
+    /**
+     * A reader's camera gesture on the canvas ended: once per gesture, never per frame. `kind` is
+     * what the gesture did: `"orbit"` turned the view, `"pan"` moved it sideways, `"zoom"` moved
+     * it nearer or farther (a wheel, a pinch, the zoom keys).
+     *
+     * A gesture's end is defined by the input, never by a timer: a drag or a pinch ends at the
+     * pointer up that ends it; a run of wheel events ends at the first frame in which the camera
+     * comes to rest with no new wheel event since the frame before (wheel events dispatched in one
+     * task are always one gesture); a key gesture ends once the last camera key held is released
+     * and the camera's own inertia has come to rest, and a key pressed before then continues it.
+     * Moves the element makes itself (a fit, a glide, `camera.autoRotate`) and calls such as
+     * `setCameraState` publish nothing.
+     *
+     * OPEN UNION: kinds may be added in a minor release; handle one you do not know.
+     * @since 3.40.0
+     */
+    "camera:gesture-end": {
+        /** What the gesture did. */
+        readonly kind: CameraGestureKind;
+    };
+    /**
      * The project's name or whether it has unsaved changes (`session.project.name`, `.dirty`)
      * changed. Mirrored on the element as `graphty-project-status`.
      */
@@ -6711,6 +7071,56 @@ export interface SessionEventMap {
      * microtask, so a host that asks too late still hears it.
      */
     "session:disposed": Readonly<Record<string, never>>;
+}
+
+/**
+ * What `source:loaded` carries: which source a load added (or replaced in place, see
+ * {@link SourceLoaded.replaced}), where it came from and how it was loaded, never what it holds.
+ *
+ * ```ts
+ * session.on("source:loaded", (loaded) => {
+ *     if (loaded.callerKey === "my-sample") console.log("my sample is in", loaded.source);
+ * });
+ * await session.data.import({ type: "csv", config: { data: text } }, { callerKey: "my-sample" });
+ * ```
+ * @since 3.40.0
+ */
+export interface SourceLoaded {
+    /** The source's key in `session.data.sources()`. */
+    readonly source: SourceKey;
+    /** The source's `LoadedSource.kind`, exactly as `session.data.sources()` records it. */
+    readonly kind: LoadedSourceKind;
+    /** For kinds `"file"` and `"url"`: the format read, named or detected; absent when none was settled. */
+    readonly format?: FormatId;
+    /** For kind `"server"`, and for a sample read from a network source: the source id. */
+    readonly sourceId?: string;
+    /** Whether the load replaced the graph or merged into it. */
+    readonly mode: "replace" | "merge";
+    /**
+     * Present when the load was a catalog sample: a dataset (`loadDataset`), a generator
+     * (`generate`) or a network source's example (`loadExample`, whose kind stays `"server"`).
+     */
+    readonly sample?:
+        | {
+              /** The graph-samples dataset's id, as `loadDataset` took it. */
+              readonly datasetId: string;
+          }
+        | {
+              /** The generator's id, as `generate` took it. */
+              readonly generatorId: string;
+          }
+        | {
+              /** The network source's example id, as `loadExample` took it. */
+              readonly exampleId: string;
+          };
+    /** The caller's own {@link ImportOptions.callerKey}, echoed unchanged. */
+    readonly callerKey?: string;
+    /**
+     * Present when the source was not added but replaced in place, under the same key, with
+     * `mode: "merge"`: `"replaceSource"` for a newer copy (`session.data.replaceSource`),
+     * `"reloadSource"` for the same input read again with other choices (`reloadSource`, `remap`).
+     */
+    readonly replaced?: "replaceSource" | "reloadSource";
 }
 
 /**
@@ -7182,6 +7592,13 @@ export interface TransactionOptions {
      * cancels it rather than undoing the step it continues.
      */
     readonly after?: HistoryStepId;
+    /**
+     * The caller's own key for this work, echoed unchanged as `JournalEntry.callerKey` on the
+     * journal entry of every command the transaction runs. Lets a caller tell the commands its
+     * own setup ran (naming a new project, say) from the ones a reader asked for.
+     * @since 3.40.0
+     */
+    readonly callerKey?: string;
 }
 
 /**
@@ -8369,6 +8786,11 @@ export interface ElementSession extends GraphSession {
      * @param target - What the click landed on.
      */
     elementClick(target: { readonly node: NodeId } | { readonly edge: EdgeId }): void;
+    /**
+     * Publishes `camera:gesture-end`; the renderer calls it when a reader's camera gesture ends.
+     * @param kind - What the gesture did.
+     */
+    cameraGestureEnd(kind: CameraGestureKind): void;
     /**
      * Publishes `canvas:group-outline-click`; the renderer calls it for a click on a group outline.
      * @param target - The outline's layer, shader and group.

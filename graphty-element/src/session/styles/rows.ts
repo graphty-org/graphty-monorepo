@@ -264,7 +264,7 @@ const DRAFT_ROW_ID = "graphty:starting-draft";
  * border on the nodes it would add, and the edges it would add drawn dashed. The literal part is
  * `set`; what tells a merged node from a new one reads `graphty.draft` in `encode`.
  */
-export const STARTING_DRAFT_LOOK = {
+const STARTING_DRAFT_LOOK = {
     set: {
         "node.haloColor": "#7048E8",
         "node.haloScale": 1.4,

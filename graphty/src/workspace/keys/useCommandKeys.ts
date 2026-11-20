@@ -1,7 +1,14 @@
 import { KEYMAP_DESCRIPTORS, type KeymapAction } from "@graphty/graphty-element/catalog";
-import { attachKeymap, type GraphSession, type KeymapReport } from "@graphty/graphty-element/session";
+import {
+    attachKeymap,
+    type GraphSession,
+    isGraphtyError,
+    isGraphtyErrorCode,
+    type KeymapReport,
+} from "@graphty/graphty-element/session";
 import { useEffect } from "react";
 
+import { detail } from "../../lib/analytics";
 import { switchedOff } from "../commands/registry";
 import { historyNotice, undoOrRedo } from "../frame/historyWords";
 import { selectionClearedWords } from "../inspector/words";
@@ -146,12 +153,18 @@ function sayKeymapAction(session: GraphSession, store: WorkspaceStore): (report:
             return;
         }
         const undo = report.action === "undo";
+        // Counted as the Undo and Redo commands are from their buttons: the keymap runs the same
+        // step without going through the workspace's run(id).
+        const command = undo ? "history.undo" : "history.redo";
+        detail("command_run", { command });
         const say = historyNotice(session, undo, store);
         report.done.then(say, (error: unknown) => {
             // A source card's draft holds the history: ask Commit / Discard / Cancel, as the buttons do.
             if (askIfDraftOpen(store, error, () => undoOrRedo(session, undo, store))) {
                 return;
             }
+            const code = isGraphtyError(error) && isGraphtyErrorCode(error.code) ? error.code : undefined;
+            detail("command_failed", { command, code });
             store.set({ notice: { message: errorWords(`${undo ? "Undo" : "Redo"} failed`, error) } });
         });
     };

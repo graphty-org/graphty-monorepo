@@ -9,6 +9,7 @@
  * off turned on. Pure, and free of Babylon.js, Lit and the DOM.
  */
 
+import type { SourceMatchCounts as MatchCounts } from "../../types";
 import { type JoinInto, type NodeOne, nodeOne, sourceOf } from "./acts";
 import { isEmpty, isStaged, type MatchOptions, normalize, resolveNode, tableRows } from "./build";
 import { buildOf, type Copies, copyMap, type SourceSteps } from "./project";
@@ -24,28 +25,6 @@ interface MatchFrom {
 export interface MatchPair {
     readonly from: MatchFrom;
     readonly into: JoinInto;
-}
-
-/** The counts `data.matchCounts` returns. Keys count once however many rows hold them. */
-export interface MatchCounts {
-    /** Keys both sides hold. */
-    readonly matched: number;
-    /** Keys only side 1 holds: node 1s no row reaches. */
-    readonly only1: number;
-    /** Keys only side 2 holds: rows naming no node 1. */
-    readonly only2: number;
-    /** Keys reaching more than one node 1 (rows of one node holding a key count once). */
-    readonly repeated1: number;
-    /** Keys side 2 holds more than once. */
-    readonly repeated2: number;
-    /** Rows of side 2 whose key reaches more than one node 1: they name several nodes, so merge nothing. */
-    readonly fanOut: number;
-    /** Rows of side 2 that match nothing as text but would as numbers, such as `"007"` and `7`. */
-    readonly textVersusNumber: number;
-    /** How many more keys match with `ignoreCase` on; null while it is on. */
-    readonly moreWithIgnoreCase: number | null;
-    /** How many more keys match with `ignoreSpaces` on; null while it is on. */
-    readonly moreWithIgnoreSpaces: number | null;
 }
 
 /** One value of the overlap list. */

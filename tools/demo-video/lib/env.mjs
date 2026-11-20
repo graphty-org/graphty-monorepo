@@ -1,17 +1,16 @@
 /**
  * Where things are, and the browser the recorder drives: the built graphty app served in-process
- * on loopback, in headless Chromium drawn on this machine's NVIDIA card, with the dry run's own
- * server and GPU browser (graphty/acceptance/run.mjs `serve` and `gpuContext`: its GPU flags, the
- * extracted libEGL) and its rule that anything but the NVIDIA renderer is refused.
+ * on loopback, in headless Chromium drawn on this machine's NVIDIA card with the GPU flags and the
+ * extracted libEGL the dry run uses (graphty/acceptance/run.mjs), and its rule that anything but the
+ * NVIDIA renderer is refused.
  */
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { createServer } from "node:http";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, extname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-
-import { gpuContext, serve as serveDist } from "../../../graphty/acceptance/run.mjs";
 
 export const TOOL = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 export const REPO = resolve(TOOL, "../..");
@@ -71,7 +70,28 @@ export function mkdirp(d) {
 export async function serve(dist = DIST) {
     if (!existsSync(join(dist, "index.html")))
         throw new Error(`no built app at ${dist}: run tools/low-priority.sh pnpm exec nx run graphty:build`);
-    const http = await serveDist(dist);
+    const mime = {
+        ".html": "text/html",
+        ".js": "text/javascript",
+        ".css": "text/css",
+        ".json": "application/json",
+        ".svg": "image/svg+xml",
+        ".wasm": "application/wasm",
+    };
+    const http = createServer(async (req, res) => {
+        const rel = decodeURIComponent(new URL(req.url, "http://127.0.0.1").pathname);
+        const file = resolve(dist, `.${rel}`);
+        if (relative(dist, file).startsWith("..")) return void res.writeHead(403).end();
+        // a path with no file behind it is a route of the single-page app
+        const data =
+            (await readFile(file).catch(() => null)) ??
+            (extname(file) ? null : await readFile(join(dist, "index.html")));
+        if (!data) return void res.writeHead(404).end();
+        res.writeHead(200, {
+            "content-type": mime[extname(file)] ?? (extname(file) ? "application/octet-stream" : "text/html"),
+        }).end(data);
+    });
+    await new Promise((ok) => http.listen(0, "127.0.0.1", ok));
     return { origin: `http://127.0.0.1:${http.address().port}/`, close: () => http.close() };
 }
 
@@ -101,13 +121,30 @@ export async function launch(o = {}) {
     if (!existsSync(join(EGL, "libEGL.so.1"))) throw new Error(`the GPU flags need libEGL.so.1 in ${EGL}`);
     const { chromium } = await import("playwright");
     const profile = await mkdtemp(join(tmpdir(), "graphty-demo-video-"));
-    const { context, page, renderer } = await gpuContext(chromium, profile, {
+    const context = await chromium.launchPersistentContext(profile, {
+        headless: true,
+        acceptDownloads: true,
+        ignoreDefaultArgs: ["--hide-scrollbars"],
+        env: { ...process.env, LD_LIBRARY_PATH: [EGL, process.env.LD_LIBRARY_PATH].filter(Boolean).join(":") },
         ...(o.channel ? { channel: o.channel } : {}),
-        args: o.args ?? [],
+        // ANGLE on Vulkan: the flags the dry run proved on this machine
+        args: [
+            "--enable-unsafe-webgpu",
+            "--enable-features=Vulkan",
+            "--use-angle=vulkan",
+            "--disable-vulkan-surface",
+            ...(o.args ?? []),
+        ],
         viewport: { width: W, height: H },
         deviceScaleFactor: 1,
         colorScheme: "light",
         ...o.context,
+    });
+    const page = context.pages()[0] ?? (await context.newPage());
+    const renderer = await page.evaluate(() => {
+        const gl = globalThis.document.createElement("canvas").getContext("webgl2");
+        const info = gl?.getExtension("WEBGL_debug_renderer_info");
+        return info ? gl.getParameter(info.UNMASKED_RENDERER_WEBGL) : "no WebGL";
     });
     const close = () => context.close().finally(() => rm(profile, { recursive: true, force: true }));
     if (!/NVIDIA/i.test(renderer)) {

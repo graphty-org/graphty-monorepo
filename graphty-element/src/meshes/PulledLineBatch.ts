@@ -92,9 +92,9 @@ const MOST_ENTRIES = 2 ** 24;
 const MOST_VERTICES = 2 ** 31 - 1;
 
 /**
- * Routes of at most this many points take a block of the next power of two, so a path a point longer
- * keeps its block; longer ones take exactly what they need, which keeps a million 65-point center arcs
- * (65 million texels) inside one 8192 x 8192 table.
+ * Routes of at most this many points take a block of the next power of two, so a path a point longer keeps its block;
+ * longer ones (a line through more than 30 bends) take exactly what they need. A center arc has at most 25 points
+ * (`edgeRoute.centerCircle`), so a million of them take 32 million texels, inside one 8192 x 8192 table.
  */
 const ROUTE_ROUNDED = 32;
 

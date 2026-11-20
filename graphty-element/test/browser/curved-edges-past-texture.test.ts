@@ -145,10 +145,10 @@ describe.each(RENDERERS)("curved edges past the card's largest texture on %s", (
     });
 
     it("report a route table the card cannot hold once, as an error event, and keep drawing", async () => {
-        // 1,296 center arcs of about 63 points each (their ends are cut at the nodes): over 80,000 route texels, past
-        // the 65,536 of a 256 x 256 table
-        const side = 36;
-        const { element, errors } = await loaded(renderer, "batched", side, { "edge.arcRadius": 2 });
+        // 2,304 half circles (a radius of half the chord) of up to 25 points each, a 32-texel block apiece: 73,728
+        // route texels, past the 65,536 of a 256 x 256 table
+        const side = 48;
+        const { element, errors } = await loaded(renderer, "batched", side, { "edge.arcRadius": 0.5 });
         assert.lengthOf(errors, 1, "one error event for the batch");
         const [{ error, context }] = errors as [{ error: unknown; context: string }];
         assert.strictEqual((error as { code?: string }).code, "E_TOO_LARGE");

@@ -30,6 +30,8 @@ export interface KindMember {
     readonly slots: { readonly color?: readonly SlotRef[]; readonly size?: readonly SlotRef[] };
     /** What it writes when switched to with nothing moved or held, so the row stays (graphty-element's starts). */
     readonly start: () => Readonly<Record<string, unknown>>;
+    /** What its main control takes, as the row's tooltip (E269: a box says what to type in it). */
+    readonly hint?: string;
 }
 
 /** One group: the thing it is drawn as, and its kinds, the first the one "+" adds. */
@@ -65,6 +67,7 @@ export const KIND_GROUPS: readonly KindGroup[] = [
                 id: "glyph",
                 plainName: "Glyph",
                 head: "node.glyph",
+                hint: "Character or icon",
                 owns: (channel) => channel.startsWith("node.glyph"),
                 slots: { color: ["node.glyphColor"], size: ["node.glyphSize"] },
                 start: () => ({ "node.glyphColor": channelDescriptor("node.glyphColor")?.default }),

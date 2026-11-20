@@ -183,6 +183,7 @@ function setLinesOf(ctx: RowContext, rubric: ThingRubric | undefined, main: Chan
  * @param props.pending - added with "+" and waiting for its first value
  * @param props.onCancel - takes a waiting thing away again
  * @param props.slots - its settings button and whole-thing minus
+ * @param props.hint - what its control takes, as its tooltip, for a kind's row
  * @returns The line
  */
 function MainLine(
@@ -195,12 +196,21 @@ function MainLine(
         pending: boolean;
         onCancel: () => void;
         slots: RowSlots;
+        hint?: string;
     }>,
 ): React.JSX.Element {
     // A row graphty-element draws nothing for now (Order in 3D) is dimmed, its tooltip saying why.
     // A rubric line drawing the row dims itself.
     const dimmed =
         props.replacing === undefined && props.row === undefined ? dimOf(props.ctx, props.main.channel) : undefined;
+    if (dimmed === undefined && props.hint !== undefined) {
+        // A kind's row says what its control takes ("Character or icon" for a Glyph).
+        return (
+            <div title={props.hint}>
+                <MainControl {...props} />
+            </div>
+        );
+    }
     return dimmed === undefined ? (
         <MainControl {...props} />
     ) : (
@@ -491,7 +501,9 @@ export function ThingRow({
             <ThingLine member={member}>
                 <MainLine
                     ctx={ctx}
-                    thing={thing}
+                    // A kind's row is named by its kind ("Glyph"): its control takes that kind's value.
+                    thing={kind === undefined ? thing : { ...thing, name: kind.plainName }}
+                    hint={kind?.hint}
                     main={main}
                     row={rubric?.row}
                     replacing={replacing?.shader}

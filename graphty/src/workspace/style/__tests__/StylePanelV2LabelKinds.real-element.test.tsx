@@ -137,6 +137,15 @@ describe("a node's Label is Text or Glyph", () => {
             assert.isNotNull(found);
             return found;
         });
+        // The row says what it is and what its box takes (E269): named Glyph, its tooltip "Character or icon".
+        const line = field.closest<HTMLElement>('.ws-row[data-line="node.glyph"]');
+        assert.include(line?.innerText ?? "", "Glyph", "the row is named by its kind");
+        assert.notInclude(line?.innerText ?? "", "Label", "not by the Text kind's name");
+        assert.match(
+            field.closest<HTMLElement>("[title]")?.title ?? "",
+            /character/i,
+            "its tooltip names the character",
+        );
         await userEvent.click(field);
         await userEvent.keyboard("A{Enter}");
         await waitFor(() => {

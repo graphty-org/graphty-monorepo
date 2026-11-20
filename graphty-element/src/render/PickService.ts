@@ -1031,7 +1031,7 @@ export function pickEdgeAt(
  * @param only - Measure only these of `lines`' edge rows; all of them when absent.
  * @returns The edge's id, or `undefined`.
  */
-export function pickEdgeId(
+function pickEdgeId(
     scene: Scene,
     edges: Iterable<Edge>,
     x: number,

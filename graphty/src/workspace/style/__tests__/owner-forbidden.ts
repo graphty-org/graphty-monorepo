@@ -77,4 +77,12 @@ export const OWNER_FORBIDDEN: readonly Forbidden[] = [
         channel: /^node\.shaders.*\.place$|^edge\.shaders.*\.place$/,
         source: /writePlace/,
     },
+    {
+        what: "a reader switch for empty Style sections, and its Add section bar (every section is shown)",
+        ledger: "E106, E209",
+        setting: /Show empty style sections/i,
+        text: /^Add section$/,
+        selector: "[data-add-section]",
+        source: /styleEmptySections|STYLE_EMPTY_SECTIONS/,
+    },
 ];

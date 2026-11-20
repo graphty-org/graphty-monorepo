@@ -148,13 +148,19 @@ async function onlyPlusAdds(session: GraphSession, list: HTMLElement, what: stri
     const plus = list.querySelector<HTMLElement>("[data-plus]");
     assert.isNotNull(plus, `${what} has a "+"`);
     await userEvent.click(plus);
+    // Its menu, its one list (the Shaders list, E381), or what it adds at once.
+    const gallery = (): Element | null => document.querySelector(".ws-gallery-grid");
     await waitFor(() => {
-        assert.isTrue(screen.queryByRole("menu") !== null || layersNow(session) !== before, `${what}: its "+" adds`);
+        assert.isTrue(
+            screen.queryByRole("menu") !== null || gallery() !== null || layersNow(session) !== before,
+            `${what}: its "+" adds`,
+        );
     });
-    if (screen.queryByRole("menu") !== null) {
+    if (screen.queryByRole("menu") !== null || gallery() !== null) {
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
             assert.isNull(screen.queryByRole("menu"));
+            assert.isNull(gallery());
         });
     }
 }
@@ -269,17 +275,6 @@ describe("Style panel v2's '+' lists", () => {
         }
     });
 
-    it("Add section is a bar whose only button is its '+'", async () => {
-        const { session } = await openProject({ styleEmptySections: false });
-        const tab = await openStyle("Key people");
-        const bar = await waitFor(() => {
-            const found = tab.querySelector<HTMLElement>("[data-add-section] [data-plus-list]");
-            assert.isNotNull(found);
-            return found;
-        });
-        await onlyPlusAdds(session, bar, "Add section");
-    });
-
     it("a section collapses from its caret only, and the reader's choice outlives a remount and a layer switch", async () => {
         const key = "graphty.styleSectionCollapsed.v1:node:fill";
         try {
@@ -362,38 +357,6 @@ describe("Style panel v2's '+' lists", () => {
 
 describe("Style panel v2 with empty sections not shown", () => {
     withFeatures(["file-styles", "style-panel-v2"]);
-
-    it("shows only the sections the layer sets, and Add section shows one and opens its '+'", async () => {
-        const { session, id } = await openProject({ styleEmptySections: false });
-        const tab = await openStyle("Key people");
-        const panel = await waitFor(() => {
-            const found = tab.querySelector<HTMLElement>("[data-style-panel-v2]");
-            assert.isNotNull(found);
-            return found;
-        });
-        assert.deepEqual(
-            within(panel)
-                .getAllByRole("heading", { level: 3 })
-                .map((heading) => heading.textContent),
-            ["Fill"],
-            "only the section the layer sets",
-        );
-        await userEvent.click(within(panel).getByRole("button", { name: "Add section" }));
-        const menu = await screen.findByRole("menu");
-        assert.notInclude(
-            within(menu)
-                .getAllByRole("menuitem")
-                .map((item) => item.textContent),
-            "Fill",
-        );
-        await userEvent.click(within(menu).getByRole("menuitem", { name: "Border" }));
-        // The section shows, with its own "+" menu open.
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Rings" }));
-        await waitFor(() => {
-            assert.isDefined(written(session, id, "node.outerBorderColor"));
-            assert.isNotNull(sectionOf(tab, "node-border").querySelector('[data-thing="rings"]'));
-        });
-    });
 });
 
 describe("Style panel v2 off", () => {

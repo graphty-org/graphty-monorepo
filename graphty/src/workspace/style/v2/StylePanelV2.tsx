@@ -11,7 +11,7 @@ import { type Channel, writeChannelList } from "@graphty/graphty-element/catalog
 import React, { useRef, useState } from "react";
 
 import { cosmographOn, nodeModelsOn } from "../../features";
-import { useWorkspace, useWorkspaceState } from "../../state/WorkspaceContext";
+import { useWorkspace } from "../../state/WorkspaceContext";
 import { FindSettingBox, FindSettingResults } from "../parts/FindSetting";
 import { ChannelLine } from "../parts/PartPage";
 import { itemChannels, partsFor, type PartSpec } from "../parts/parts";
@@ -20,7 +20,6 @@ import { PickerNamesOnly } from "../pickerNames";
 import type { RowContext } from "../PropertyRow";
 import { needsFor, startForOrNone, writeIn, writeLine } from "../row";
 import { AddButton, type AddOption, Section } from "../Section";
-import { placeOf, shaderEntries } from "../shaderSlots";
 import { focusLineNext } from "../useFocusLine";
 import { channelWord, experimentChannelsOff, failureWords } from "../words";
 import { viewDim } from "./drawn";
@@ -43,9 +42,6 @@ const FIND_WORDS: Partial<Readonly<Record<Channel, readonly string[]>>> = {
     "node.label": ["name", "label"],
     "edge.label": ["name", "label"],
 };
-
-/** The words of the button that shows a section while empty sections are not shown (design 11). */
-const ADD_SECTION = "Add section";
 
 /**
  * Every channel the kind's parts offer here (an experiment that is off keeps its own out).
@@ -142,20 +138,6 @@ function firstItem(ctx: RowContext, id: string, main: Channel): Partial<Record<C
 }
 
 /**
- * Whether the row sets anything a section holds.
- * @param ctx - the row.
- * @param part - its part.
- * @param section - its things.
- * @returns true when it does.
- */
-function sectionUsed(ctx: RowContext, part: PartSpec, section: SectionThings): boolean {
-    // A shader in the shapes' place is the Shape row's, never the Shaders section's (design 4.1).
-    return part.id === "shaders"
-        ? shaderEntries(ctx).some((entry) => placeOf(entry) !== "replace")
-        : thingsOf(ctx, part, section, []).shown.length > 0;
-}
-
-/**
  * A setting Find a setting found, as the line its thing's pop-over draws (design 2.1).
  * @param ctx - the row.
  * @param channel - the setting.
@@ -198,19 +180,17 @@ function rowsOf(
  * @param props.ctx - the row and kind
  * @param props.part - its part
  * @param props.section - its things
- * @param props.openMenu - opens its "+" menu at once (picked from Add section)
  * @returns The section
  */
 function ThingSection({
     ctx,
     part,
     section,
-    openMenu = false,
-}: Readonly<{ ctx: RowContext; part: PartSpec; section: SectionThings; openMenu?: boolean }>): React.JSX.Element {
+}: Readonly<{ ctx: RowContext; part: PartSpec; section: SectionThings }>): React.JSX.Element {
     const { store } = useWorkspace();
     // Things "+" added that the row does not set yet, waiting for their first value.
     const [waiting, setWaiting] = useState<readonly string[]>([]);
-    const [menu, setMenu] = useState(openMenu);
+    const [menu, setMenu] = useState(false);
     // The thing "+" just added whose pop-over or picker opens at once (a list, an image).
     const [opening, setOpening] = useState<string | undefined>(undefined);
     const { things, shown } = thingsOf(ctx, part, section, waiting);
@@ -334,9 +314,6 @@ function ThingSection({
  */
 export function StylePanelV2({ ctx: row }: Readonly<{ ctx: RowContext }>): React.JSX.Element {
     const [query, setQuery] = useState("");
-    const showEmpty = useWorkspaceState((state) => state.styleEmptySections);
-    // Sections picked from Add section while empty sections are not shown (design 11).
-    const [revealed, setRevealed] = useState<readonly string[]>([]);
     const box = useRef<HTMLInputElement>(null);
     const onKeyDown = useFindKey(box);
     const ctx: RowContext = { ...row, pickers: "listbox", listSections: sectionsOf, namesOnly: true, withNeeds: true };
@@ -350,36 +327,10 @@ export function StylePanelV2({ ctx: row }: Readonly<{ ctx: RowContext }>): React
         const part = parts.find((each) => each.id === section.part);
         return part === undefined ? [] : [{ part, section }];
     });
-    const shownSections = sections.filter(
-        ({ part, section }) => showEmpty || revealed.includes(part.id) || sectionUsed(ctx, part, section),
-    );
-    const hidden = sections.filter((each) => !shownSections.includes(each));
-    const addSection =
-        hidden.length === 0 ? null : (
-            <div className="ws-add-section" data-add-section="">
-                <PlusList
-                    level="section"
-                    title={ADD_SECTION}
-                    empty
-                    heading={false}
-                    add={
-                        <AddButton
-                            kind={ctx.side}
-                            title={ADD_SECTION}
-                            name={ADD_SECTION}
-                            alwaysMenu
-                            groups={[hidden.map(({ part }) => ({ key: part.id, label: part.title }))]}
-                            onAdd={(id) => {
-                                setRevealed((now) => [...now, id]);
-                            }}
-                        />
-                    }
-                />
-            </div>
-        );
     const body =
         query.trim() === "" ? (
-            shownSections.map(({ part, section }) =>
+            // Every section is shown, an empty one as its header with its "+" (B.8: no reader switch).
+            sections.map(({ part, section }) =>
                 part.id === "shaders" ? (
                     <Section
                         key={part.id}
@@ -394,13 +345,7 @@ export function StylePanelV2({ ctx: row }: Readonly<{ ctx: RowContext }>): React
                         }}
                     />
                 ) : (
-                    <ThingSection
-                        key={part.id}
-                        ctx={ctx}
-                        part={part}
-                        section={section}
-                        openMenu={!showEmpty && revealed.includes(part.id)}
-                    />
+                    <ThingSection key={part.id} ctx={ctx} part={part} section={section} />
                 ),
             )
         ) : (
@@ -431,7 +376,6 @@ export function StylePanelV2({ ctx: row }: Readonly<{ ctx: RowContext }>): React
                     >
                         <FindSettingBox query={query} onQuery={setQuery} inputRef={box} />
                         {body}
-                        {query.trim() === "" ? addSection : null}
                     </section>
                 </PickerNamesOnly.Provider>
             </LabelsProvider>

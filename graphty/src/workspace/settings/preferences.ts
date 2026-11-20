@@ -73,16 +73,6 @@ export const MAP_DEPTH_INDEPENDENT_SIZE = {
 } as const;
 
 /**
- * Show empty style sections (Settings > General, Style panel v2 only): on, the Style tab shows every
- * section, an empty one as its empty header; off, only the sections the layer sets, and "Add section".
- */
-export const STYLE_EMPTY_SECTIONS = {
-    key: "graphty.styleEmptySections.v1",
-    values: ["on", "off"],
-    fallback: "on",
-} as const;
-
-/**
  * Whether one Style panel v2 section is collapsed, by kind and section id: the reader's own, kept in this browser
  * and never in a project, so it holds across layers and reloads.
  * @param kind - nodes or edges.

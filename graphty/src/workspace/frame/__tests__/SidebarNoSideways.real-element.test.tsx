@@ -252,11 +252,7 @@ async function openWorkspace(
     state: Partial<WorkspaceState> = {},
 ): Promise<GraphSession> {
     await page.viewport(size[0], size[1]);
-    render(
-        <Workspace
-            store={createWorkspaceStore({ project: { name: "Untitled", id: 1 }, styleEmptySections: true, ...state })}
-        />,
-    );
+    render(<Workspace store={createWorkspaceStore({ project: { name: "Untitled", id: 1 }, ...state })} />);
     const session = await waitFor(() => {
         const found = document.querySelector("graphty-element")?.session;
         assert.isDefined(found);

@@ -27,7 +27,7 @@ import { type ReactNode, useSyncExternalStore } from "react";
 
 import type { StartSample } from "../../data/sampleManifest";
 import type { InspectedKind } from "../commands/registry";
-import { MAP_DEPTH_INDEPENDENT_SIZE, readPreference, STYLE_EMPTY_SECTIONS } from "../settings/preferences";
+import { MAP_DEPTH_INDEPENDENT_SIZE, readPreference } from "../settings/preferences";
 
 /**
  * How the open project was opened, when opening it again gives the same project: one of the app's
@@ -315,11 +315,6 @@ export interface WorkspaceState {
      * default; kept in this browser.
      */
     readonly mapDepthIndependentSize: boolean;
-    /**
-     * Settings, General (Style panel v2): whether the Style tab shows its empty sections. On by
-     * default; kept in this browser.
-     */
-    readonly styleEmptySections: boolean;
     /** Graph settings, Lighting: how the 3D nodes are lit. A view preference, never saved. */
     readonly lighting: Lighting;
     /** Camera > Auto-rotate: whether the 3D view turns on its own. A view preference, never saved. */
@@ -477,7 +472,6 @@ export const ON_RELOAD = {
     serverEdit: "fresh: set when the server form opens",
     singleKeyShortcuts: "fresh: read from this browser's settings at start",
     mapDepthIndependentSize: "fresh: read from this browser's settings at start",
-    styleEmptySections: "fresh: read from this browser's settings at start",
     notice: "fresh: a notice",
     noteDraft: "fresh: its edge targets are this page's ids, which a reload gives anew",
     authorWarningClosed: "fresh: closed for this page view only",
@@ -581,7 +575,6 @@ const INITIAL: WorkspaceState = {
     layoutShownOnly: true,
     sameSizeAtAnyDepth: null,
     mapDepthIndependentSize: true,
-    styleEmptySections: true,
     lighting: "studio",
     autoRotate: false,
     recording: false,
@@ -691,7 +684,6 @@ export function createWorkspaceStore(initial: Partial<WorkspaceState> = {}): Wor
     let state: WorkspaceState = {
         ...INITIAL,
         mapDepthIndependentSize: readPreference(MAP_DEPTH_INDEPENDENT_SIZE) === "on",
-        styleEmptySections: readPreference(STYLE_EMPTY_SECTIONS) === "on",
         ...initial,
     };
     const listeners = new Set<() => void>();

@@ -155,11 +155,27 @@ function fitsNode(shape: NodeStyleConfig["shape"]): boolean {
 /** A resolved style as a node draws it: with what its table label draws over its face, once laid out. */
 type DecoratedStyle = NodeStyleConfig & { readonly table?: TableDecoration };
 
-/** The label fields an external label does not take from the label: what it says, where it sits, its switch. */
+/**
+ * The label fields an external label does not take from the label: what it says (its words or its table), where it
+ * sits, its box (what it is sized to, its background and border), its switch. It takes the label's font, size, color
+ * and outline.
+ */
 export const XLABEL_UNSHARED = [
     "enabled",
     "text",
     "textPath",
+    "table",
+    "box",
+    "backgroundColor",
+    "backgroundOpacity",
+    "backgroundShape",
+    "borderWidth",
+    "borderColor",
+    "borderOpacity",
+    "borders",
+    "borderStyle",
+    "borderAlign",
+    "cornerRadius",
     "location",
     "attachOffset",
     "offsetX",

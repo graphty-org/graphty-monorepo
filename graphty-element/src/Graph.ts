@@ -175,6 +175,7 @@ import {
     type RenderRestoredEvent,
     type TourEndedEvent,
     type TourProgressEvent,
+    type XRMenuSelectEvent,
     type XRSessionEndedEvent,
     type XRSessionStartedEvent,
 } from "./events";
@@ -1173,6 +1174,8 @@ export class Graph implements GraphContext {
     // XR managers
     private xrSessionManager: XRSessionManager | null = null;
     private xrUIManager: XRUIManager | null = null;
+    /** The in-headset menu (`xr.menu`) while a session draws one. */
+    private xrMenu: import("./xr/menu").XrCardStack | null = null;
     /** What VR and AR can do here, and which is presenting: `session.capabilities.xr`. */
     private readonly xrAvailability: XrAvailability;
     /** Stops redrawing the canvas XR buttons on each availability change. */
@@ -7204,6 +7207,7 @@ export class Graph implements GraphContext {
 
         this.xrSessionManager?.configure(this.xrSessionConfig());
         this.drawXRButtons();
+        void this.drawXRMenu();
         this.xrAvailability.changed();
     }
 
@@ -11711,7 +11715,35 @@ export class Graph implements GraphContext {
                 // The session runs on without the assistant's controls.
                 graphLogger.warn("The assistant could not bind to the XR session", { error });
             });
+        await this.drawXRMenu();
         this.xrAvailability.changed();
+    }
+
+    /**
+     * Draw the in-headset menu (`xr.menu`) where the reader is now, or take it down when it has no
+     * items or no session is running. Pressing an item emits `xr-menu-select`.
+     */
+    private async drawXRMenu(): Promise<void> {
+        const items = this.xrConfig().menu ?? [];
+        const inSession = (): boolean => Boolean(this.scene.metadata?.xrHelper);
+        if (items.length === 0 || !inSession()) {
+            this.xrMenu?.dispose();
+            this.xrMenu = null;
+            return;
+        }
+
+        const { menuCards, MENU_HEIGHT, MENU_SIDE, XrCardStack } = await import("./xr/menu");
+        // The session can end while the module loads.
+        if (!inSession()) {
+            return;
+        }
+
+        this.xrMenu ??= new XrCardStack(this.scene, "graphty-xr-menu", MENU_HEIGHT, MENU_SIDE);
+        this.xrMenu.show(
+            menuCards(items, (id) => {
+                this.eventManager.emit("xr-menu-select", { id } satisfies Omit<XRMenuSelectEvent, "type">);
+            }),
+        );
     }
 
     /**
@@ -11725,6 +11757,8 @@ export class Graph implements GraphContext {
         this.immersiveSince = null;
         // Leaving XR closes a held microphone without sending, and stops speech.
         this.aiXr?.leave();
+        this.xrMenu?.dispose();
+        this.xrMenu = null;
 
         // Clean up XR camera controller
         const metadata = this.scene.metadata as {

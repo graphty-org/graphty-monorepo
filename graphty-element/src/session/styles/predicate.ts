@@ -1880,6 +1880,63 @@ export function rulePath(path: Path): Query {
 }
 
 /**
+ * The value path a rule leaf tests: `attribute` for `range` and `categories`, `path` for
+ * `threshold`, `same-value` and `by-size`, and `reads` for `text`. Every other leaf reads no
+ * column -- a `text` leaf reading the node's `"id"`, an `expression`, a `state`, a `measure` (it tests an
+ * algorithm's field, not a path), a structural or membership leaf -- and neither does an `all`,
+ * `any` or `not`, which hold leaves rather than test a value; for those it returns undefined.
+ * A leaf kind added later is placed here before the package compiles.
+ *
+ * ```ts
+ * import { ruleValuePath } from "@graphty/graphty-element/session";
+ *
+ * ruleValuePath({ kind: "range", attribute: "data.age", min: 18 }); // "data.age"
+ * ruleValuePath({ kind: "degree", min: 2 }); // undefined
+ * ```
+ * @param rule - The rule leaf.
+ * @returns The path it reads, or undefined.
+ * @since 3.40.0
+ */
+export function ruleValuePath(rule: RuleTree): Path | undefined {
+    switch (rule.kind) {
+        case "range":
+        case "categories":
+            return rule.attribute;
+        case "threshold":
+        case "same-value":
+        case "by-size":
+            return rule.path;
+        case "text":
+            return rule.reads === "id" ? undefined : rule.reads;
+        case "expression":
+        case "degree":
+        case "component":
+        case "neighborhood":
+        case "isolated":
+        case "self-loop":
+        case "repeated-edge":
+        case "edges":
+        case "member":
+        case "item":
+        case "source":
+        case "union":
+        case "hops":
+        case "touching":
+        case "nonempty":
+        case "measure":
+        case "state":
+        case "all":
+        case "any":
+        case "not":
+            return undefined;
+        default: {
+            const unhandled: never = rule;
+            return unhandled;
+        }
+    }
+}
+
+/**
  * Whether a path segment can be written in an expression without quotes.
  * @param segment - One segment of a column key.
  * @returns True when the lexer would read the whole segment as one identifier.

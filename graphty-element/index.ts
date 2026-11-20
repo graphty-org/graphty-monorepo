@@ -117,6 +117,7 @@ export type {
     XRConfig,
     XRControllerButton,
     XRInputConfig,
+    XRMenuItem,
     XRModeConfig,
     XRUIConfig,
 } from "./src/config/index";
@@ -371,6 +372,7 @@ export type {
     TourEndedEvent,
     TourProgressEvent,
     ViewsChangedEvent,
+    XRMenuSelectEvent,
     XRSessionEndedEvent,
     XRSessionStartedEvent,
 } from "./src/events";

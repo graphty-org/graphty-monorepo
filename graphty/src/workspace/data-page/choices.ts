@@ -357,7 +357,9 @@ function tablesOf(draft: LoadDraft, mapping: LoadChoices["mapping"]): Readonly<P
         return mapping.tables;
     }
     const only = draft.tables.at(0);
-    return only === undefined ? {} : { [only.id]: mapping };
+    // graphty-element keeps a load's mapping bare or by table id, never by side.
+    const bySide = "nodes" in mapping || "edges" in mapping;
+    return only === undefined || bySide ? {} : { [only.id]: mapping as TableMapping };
 }
 
 /**

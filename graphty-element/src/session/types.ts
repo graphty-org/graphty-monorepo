@@ -68,6 +68,7 @@ import type { EnabledFeatures } from "../features/resolve";
 import type { DrawnAnnotation } from "./annotations";
 import type { AssetId, AssetsApi } from "./assets/AssetsApi";
 import type { CostEstimate, CostGateLimits, CostMeasurement, MachineCalibration } from "./cost";
+import type { SessionGraphs } from "./graphs/GraphsApi";
 import type { GroupsApi } from "./groups";
 import type { DataIssue, FixCode, FixResult, IssueId } from "./issues";
 import type { JournalApi, JournalEntry } from "./journal";
@@ -347,6 +348,19 @@ export interface RecordPageOptions {
          * @beta
          */
         readonly names?: boolean;
+        /**
+         * Rank the matches: the records whose matched value is the text come first, then those
+         * whose value starts with it, then those that hold it elsewhere; within each rank, `sort`
+         * (or the graph's order) as without it. The page then carries {@link RecordPage.matches}:
+         * for each record, the field it matched and how. `total` counts every match. Default
+         * false, which leaves the page as it was.
+         *
+         * ```ts
+         * const page = session.data.nodePage({ matching: { text: "jav", rank: true }, limit: 10 });
+         * page.matches?.[0]; // { field: "data.name", rank: "starts-with" }
+         * ```
+         */
+        readonly rank?: boolean;
     };
     /**
      * Only the records an expression matches, read the way a style layer's selector reads it: a
@@ -380,6 +394,24 @@ export interface RecordPageOptions {
      * @since 3.37.0
      */
     readonly markIssues?: boolean;
+}
+
+/**
+ * How well a record's value matched a page's text: equal to it (`"exact"`, ignoring case unless
+ * the mode reads case), starting with it, or holding it elsewhere. A regular expression's match
+ * is always `"contains"`. An open set: later releases may add ranks.
+ */
+export type RecordMatchRank = "exact" | "starts-with" | "contains";
+
+/** Where and how a page's text matched one record: its best-ranked field. */
+export interface RecordMatch {
+    /**
+     * The field that matched: `"id"`, for an edge also `"source"` or `"target"` (an endpoint's id),
+     * or the value path read (`"data.name"`).
+     */
+    readonly field: Path;
+    /** How well it matched. */
+    readonly rank: RecordMatchRank;
 }
 
 /** Which edges a page holds: {@link RecordPageOptions}, plus the edges at one node. */
@@ -419,6 +451,11 @@ export interface RecordPage<TRecord> {
      * @since 3.37.0
      */
     readonly issues?: readonly (readonly IssueId[])[];
+    /**
+     * Where the page's text matched each record, aligned with `records`. Present exactly when the
+     * page was asked with `matching.rank`.
+     */
+    readonly matches?: readonly RecordMatch[];
 }
 
 /** What {@link GraphSession.find} lists. An open set: later releases add kinds. */
@@ -2825,13 +2862,30 @@ export interface Endpoint {
     readonly column: string;
 }
 
-/** A bare `TableMapping` applies to a source with one table; otherwise each table is named by id. */
+/**
+ * A bare `TableMapping` applies to a source with one table; otherwise each table is named by id
+ * (`{ tables }`) or by what its rows are (`{ nodes, edges }`, see {@link SideMapping}).
+ */
 export type LoadMapping =
     | TableMapping
     | {
           /** Each table's roles, by table id. */
           readonly tables: Readonly<Record<string, TableMapping>>;
-      };
+      }
+    | SideMapping;
+
+/**
+ * Each table's roles named by what its rows are, so a caller need not look up table ids: `nodes`
+ * applies to the table read as nodes and `edges` to the table read as edges. With one table, the
+ * side named is what its rows are read as.
+ * @since 3.40.0
+ */
+export interface SideMapping {
+    /** The node table's roles. */
+    readonly nodes?: TableMapping;
+    /** The edge table's roles. */
+    readonly edges?: TableMapping;
+}
 
 /** One table's roles as the element reads them: `rowsAre` always set, endpoints always objects. */
 export interface TableMappingRead extends TableMapping {
@@ -2998,6 +3052,13 @@ export interface LoadedSource extends DataSourceDescriptor {
      * name, and in a project saved before it was kept.
      */
     readonly tableRows?: readonly ("nodes" | "edges")[];
+    /**
+     * How a CSV load's file was split into columns, as {@link DraftTable.delimiter} says while
+     * drafting: the separator and whether the element detected it. For a pair of files, the node
+     * file's. Absent for any other format and in a project reopened from a save.
+     * @since 3.40.0
+     */
+    readonly delimiter?: DraftTable["delimiter"];
     /** How many nodes and edges the load added to the graph. */
     readonly added: {
         /** Nodes added. */
@@ -5903,6 +5964,11 @@ export interface GraphSession {
      * @since 3.58.0
      */
     readonly tours: SessionTours;
+    /**
+     * The session's graphs, one shown at a time: copy the graph shown, or a selection of it, into a
+     * new graph, and switch between them. Each keeps its own attributes, results and styles.
+     */
+    readonly graphs: SessionGraphs;
     /** The annotations drawn beside the graph; every change is a step, and a project file saves them. */
     readonly annotations: SessionAnnotations;
     /** Which layout draws the graph, and in how many dimensions; choosing either is a step. */

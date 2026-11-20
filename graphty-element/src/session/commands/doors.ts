@@ -452,6 +452,7 @@ const REPLACE_SOURCE_STEPS: readonly SessionCommand[] = [
         source: DOOR_REPLACE_SOURCE,
         tables: ["door-ships-2.csv"],
         tableRows: ["edges"],
+        delimiter: { value: ",", detected: true },
         mode: "merge",
         held: {
             // An edge table's ends get node rows of their own, so the nodes they make are drawn.
@@ -494,6 +495,7 @@ const RELOAD_SOURCE_STEPS: readonly SessionCommand[] = [
         source: DOOR_SHIPS_SOURCE,
         tables: ["door-ships.csv"],
         tableRows: ["edges"],
+        delimiter: { value: ",", detected: true },
         mode: "merge",
         held: {
             nodes: [{ id: "r1" }, { id: "r2" }, { id: "r3" }],
@@ -993,6 +995,7 @@ const SESSION: Readonly<Record<string, Door>> = {
     shaders: READ,
     views: READ,
     tours: READ,
+    graphs: READ,
     annotations: READ,
     layout: READ,
     positions: READ,
@@ -3938,6 +3941,22 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 [{ op: "tour.rename", from: "door tour", to: "door renamed" }],
             ),
             move: calls(["door tour", 0], [{ op: "tour.move", name: "door tour", index: 0 }]),
+        },
+    },
+    {
+        name: "SessionGraphs",
+        file: "src/session/graphs/GraphsApi.ts",
+        half: "session",
+        doors: {
+            currentId: READ,
+            list: READ,
+            create: exempt(
+                "Saves the graph shown and opens its copy through project.save and project.open, whose rows " +
+                    "cover them; trimming the copy to its scope is data.removeNodes, then the copy's history starts.",
+            ),
+            switch: exempt(
+                "Saves the graph shown and opens another through project.save and project.open, whose rows cover them.",
+            ),
         },
     },
     {

@@ -341,6 +341,9 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.color": "instance",
     "node.opacity": "instance",
     "edge.color": "instance",
+    // Read by the renderer as the end node's color in place of `edge.color` (GraphSession's paint), so it keys what
+    // `edge.color` keys.
+    "edge.colorFrom": "instance",
     "edge.opacity": "instance",
     // The outline is a batch of its own, keyed by its color, width and opacity.
     "edge.outlineColor": "mesh",
@@ -544,6 +547,7 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.xlabelLocation": "content",
     "node.xlabelOffsetX": "content",
     "node.xlabelOffsetY": "content",
+    "node.xlabelTextAlign": "content",
     "edge.xlabel": "content",
     "edge.xlabelStyle": "content",
     "edge.xlabelLocation": "content",

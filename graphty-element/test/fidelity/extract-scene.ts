@@ -40,7 +40,7 @@ import type { Graphty } from "../../index.js";
 import { polygonPoints } from "../../src/meshes/shapeOutlines";
 import { childrenOf } from "../../src/session/styles/fileStyles/translate";
 import type { DrawnEdge, DrawnGraph, DrawnNode, ScreenBox } from "./drawn-scene";
-import { insideFigure } from "./oracle/primitives";
+import { ellipseOutline, insideFigure } from "./oracle/primitives";
 
 /**
  * What the graphty side cannot read off the drawn scene. A property here is scored "unmeasurable
@@ -369,15 +369,12 @@ const drawnShapeClass = (d: DrawnNode): ShapeClass =>
         : shapeClassOf(SHAPE_NAMES.has(d.meshName) ? d.meshName : d.shapeType);
 
 /**
- * Points around the ellipse a screen box holds, every 22.5 degrees.
+ * Points round the ellipse a screen box holds (`ellipseOutline`).
  * @param b - the box
  * @returns the points
  */
 const ellipsePoints = (b: ScreenBox): number[][] =>
-    Array.from({ length: 16 }, (_, k) => [
-        (b.x0 + b.x1) / 2 + ((b.x1 - b.x0) / 2) * Math.cos((k * Math.PI) / 8),
-        (b.y0 + b.y1) / 2 + ((b.y1 - b.y0) / 2) * Math.sin((k * Math.PI) / 8),
-    ]);
+    ellipseOutline((b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2, (b.x1 - b.x0) / 2, (b.y1 - b.y0) / 2);
 
 /**
  * Whether one screen box lies wholly under a node's outline: under its box for a shape that fills its box, else

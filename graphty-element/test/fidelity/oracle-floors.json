@@ -56471,22 +56471,6 @@
                 "date": "2026-11-16"
             }
         },
-        "pajek-1crn": {
-            "node.extra": {
-                "floor": 1,
-                "to": 0.997,
-                "reason": "pajek-1crn v1 sits at the half-pixel cover boundary once graphty draws Pajek samples on Pajek's own 500 x 500 canvas: covered on the oracle's side, shown on graphty's, though neither drawing shows a pixel of it (#9149)",
-                "date": "2026-11-20"
-            }
-        },
-        "pajek-1crn@matched": {
-            "node.extra": {
-                "floor": 1,
-                "to": 0.997,
-                "reason": "pajek-1crn v1 sits at the half-pixel cover boundary once graphty draws Pajek samples on Pajek's own 500 x 500 canvas: covered on the oracle's side, shown on graphty's, though neither drawing shows a pixel of it (#9149)",
-                "date": "2026-11-20"
-            }
-        },
         "xgmml-syn-mappings": {
             "label.alongLine": {
                 "floor": 1,

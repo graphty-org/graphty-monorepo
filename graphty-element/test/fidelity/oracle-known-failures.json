@@ -30865,7 +30865,7 @@
         },
         "pajek-1crn": {
             "node.present": [],
-            "node.extra": ["graphty:1","graphty:27"],
+            "node.extra": ["graphty:27"],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -30912,7 +30912,7 @@
         },
         "pajek-1crn@matched": {
             "node.present": [],
-            "node.extra": ["graphty:1","graphty:27"],
+            "node.extra": ["graphty:27"],
             "node.position": [],
             "node.width": [],
             "node.height": [],

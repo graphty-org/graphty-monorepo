@@ -19,6 +19,7 @@ import {
     bandPaintedAsFill,
     boxOfPoints,
     compareIds,
+    ellipseOutline,
     figureOf,
     insideFigure,
     PAINTED_OUTLINE,
@@ -6235,7 +6236,8 @@ function edgesAtCovers(scene: PScene, coverOf: ReadonlyMap<PNode, PNode>): PEdge
  * node at (nearly) the same place as a larger or earlier one under it (`gexf-cns-wos` n5, n23, n50, n100), which
  * graphty's scene marks hidden, and the arrowheads of edges whose nodes swallow their line under those nodes
  * (`gexf-sigma-ediaspora`). The half pixel a box may poke past is graphty's, taken into the oracle's pixels by the
- * ratio of the two drawings' sizes of the same nodes (`gexf-cns-wos` draws 1.36 oracle pixels to graphty's one).
+ * scale between where the two drawings put the same nodes, or, when they do not share a layout, by the ratio of the
+ * two drawings' sizes of the same nodes (`gexf-cns-wos` draws 1.36 oracle pixels to graphty's one).
  * An edge's end at a covered node stacked on the node over it moves there (`edgesAtCovers`).
  * @param scene - the oracle's scene
  * @param guide - graphty's scene, whose nodes' sizes give the scale; none takes the oracle's pixel as graphty's
@@ -6249,7 +6251,18 @@ export function withoutCovered(scene: PScene, guide?: PScene): PScene {
             return w > 0 && n.w > 0 ? [n.w / w] : [];
         })
         .sort((a, b) => a - b);
-    const slack = INSIDE_SLACK * (ratios.length > 0 ? ratios[Math.floor(ratios.length / 2)] : 1);
+    const sizeRatio = ratios.length > 0 ? ratios[Math.floor(ratios.length / 2)] : 1;
+    // one pixel of graphty's drawing in the oracle's, by where both put the same nodes when they share a layout: a
+    // node-size ratio would also scale graphty's half pixel by how much bigger the program draws its nodes, so a node
+    // poking past its cover by the same amount on both sides would be covered on one and shown on the other
+    // (pajek-1crn v1, #9149); with no shared layout, the node-size ratio
+    const fit = guide === undefined ? null : guideFit(guide, scene.nodes);
+    const sizes = scene.nodes.map((n) => Math.min(n.w, n.h)).sort((a, b) => a - b);
+    const shared =
+        fit !== null &&
+        Math.sqrt(fit.sse / scene.nodes.filter((n) => theirs.has(n.id)).length) <=
+            0.25 * (sizes[sizes.length >> 1] ?? 0);
+    const slack = INSIDE_SLACK * (shared ? fit.scale : sizeRatio);
     const boxOf = (n: PNode): PBox => {
         const out = (n.stroke?.width ?? 0) / 2;
         return {
@@ -6285,10 +6298,7 @@ export function withoutCovered(scene: PScene, guide?: PScene): PScene {
         const [mx, my, rx, ry] = [(b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2, (b.x1 - b.x0) / 2, (b.y1 - b.y0) / 2];
         const points: Pt[] =
             n.shape === "ellipse"
-                ? Array.from({ length: 16 }, (_, k) => [
-                      mx + rx * Math.cos((k * Math.PI) / 8),
-                      my + ry * Math.sin((k * Math.PI) / 8),
-                  ])
+                ? ellipseOutline(mx, my, rx, ry)
                 : [
                       [b.x0, b.y0],
                       [b.x1, b.y0],

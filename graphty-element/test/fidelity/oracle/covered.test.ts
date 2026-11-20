@@ -97,6 +97,30 @@ describe("an oracle node drawn under another", () => {
         );
     });
 
+    it("takes the half pixel by where both drawings put the nodes when they share a layout (pajek-1crn v1, #9149)", () => {
+        // one canvas and one layout, the program's nodes 1.5% bigger: v pokes 0.505 px past c on both sides, so it is
+        // shown on both, as graphty's side judges it
+        const at = (n: PNode, cx: number, cy: number): PNode => ({ ...n, shape: "rect", cx, cy });
+        const drawn = (size: number): PNode[] => [
+            at(node("a", 0, size), 20, 20),
+            at(node("b", 0, size), 180, 180),
+            at(node("c", 2, size), 100, 100),
+        ];
+        const v = at(node("v", 1, 10), 105.655, 100);
+        assert.include(
+            withoutCovered(scene([...drawn(20.3), v]), scene([...drawn(20), v])).nodes.map((n) => n.id),
+            "v",
+        );
+    });
+
+    it("finds a round node poking half a pixel out of its cover between two of its outline's points (#9149)", () => {
+        // pajek-1crn v1 by v289 as graphty draws them position-matched: 0.503 px out, toward 19.5 degrees above the
+        // x axis, where a point every 22.5 degrees read it as under half a pixel
+        const v = { ...node("v", 1, 30.3), cx: 103.397, cy: 98.8, stroke: null };
+        const c = { ...node("c", 2, 36.5), stroke: null };
+        assert.lengthOf(withoutCovered(scene([v, c])).nodes, 2);
+    });
+
     it("moves an edge's end at a covered node to the node drawn over it (json-cyjs-tokyo's stacked stations)", () => {
         const far = { ...node("far", 0, 20), cx: 300 };
         const edge = (id: string, source: string, target: string) => ({

@@ -2115,6 +2115,24 @@ export function figureOf(
 }
 
 /**
+ * Points round an ellipse, a degree apart: where both sides of the style fidelity comparison look for a round node's
+ * outline when they judge it covered (`coveredBy` in extract-scene.ts, `withoutCovered` in associate.ts). A point every
+ * 22.5 degrees read a node poking half a pixel out of its cover as up to 0.004 px less, so the same node at the
+ * half-pixel boundary was covered in one drawing and shown in the other (pajek-1crn v1, #9149).
+ * @param cx - the center's x
+ * @param cy - the center's y
+ * @param rx - the horizontal radius
+ * @param ry - the vertical radius
+ * @returns the points
+ */
+export function ellipseOutline(cx: number, cy: number, rx: number, ry: number): Pt[] {
+    return Array.from({ length: 360 }, (_, k): Pt => [
+        cx + rx * Math.cos((k * Math.PI) / 180),
+        cy + ry * Math.sin((k * Math.PI) / 180),
+    ]);
+}
+
+/**
  * Whether a point lies inside a node's figure (`PNode.figure`, even-odd), or within `slack` pixels of its outline.
  * @param figure - the figure's edges, in halves of the node's size from its center
  * @param n - the node's center and size, in the point's pixels

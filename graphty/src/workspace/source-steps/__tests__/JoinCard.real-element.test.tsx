@@ -16,9 +16,9 @@ import { assert, describe, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
-import { render, screen, waitFor, within } from "../../../test/test-utils";
-import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
-import { Workspace } from "../../Workspace";
+import { screen, waitFor, within } from "../../../test/test-utils";
+import type { WorkspaceStore } from "../../state/store";
+import { choose, drop, emptyProject } from "./sourceSteps";
 
 withFeatures(["source-steps"]);
 
@@ -27,36 +27,11 @@ const PEOPLE = "badge,name,dept\nB1,Ann,Ops\nB2,Bo,Lab\nB3,Cy,Sales";
 const ENTRIES = "entry,badge,door\nE1,B1,D1\nE2,B1,D2\nE3,B2,D1\nE4,B9,D1\nE5,b3,D3\nE6,B2,D2";
 
 /**
- * Drops a file as the browser does, on the window. A synthetic DragEvent, the one exception to
- * real input here: a page cannot start a drag of a file from the operating system.
- * @param name - the file's name.
- * @param text - its contents.
- */
-function drop(name: string, text: string): void {
-    const dataTransfer = new DataTransfer();
-    dataTransfer.items.add(new File([text], name, { type: "text/csv" }));
-    for (const type of ["dragover", "drop"]) {
-        globalThis.dispatchEvent(new DragEvent(type, { dataTransfer, bubbles: true, cancelable: true }));
-    }
-}
-
-/**
  * People in the graph as type person, and entries.csv dropped and staged.
  * @returns the store, the session and the staged entries' key.
  */
 async function foundingProject(): Promise<{ store: WorkspaceStore; session: GraphSession; entries: string }> {
-    const store = createWorkspaceStore({ project: { name: "Doors", id: 1 }, place: "data" });
-    render(<Workspace store={store} />);
-    let session: GraphSession | undefined;
-    await waitFor(() => {
-        session = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
-            "graphty-element:not([data-start-page])",
-        )?.session;
-        assert.isDefined(session);
-    });
-    if (session === undefined) {
-        throw new Error("the element never came up");
-    }
+    const { store, session } = await emptyProject();
     await session.data.import(
         { type: "csv", config: { data: PEOPLE }, name: "people.csv" },
         { key: "badge", type: "person" },
@@ -66,17 +41,6 @@ async function foundingProject(): Promise<{ store: WorkspaceStore; session: Grap
     await screen.findByRole("region", { name: "entries.csv" });
     const entries = session.data.staged()[0]?.key ?? "";
     return { store, session, entries };
-}
-
-/**
- * Picks a choice in a select by clicking it open and clicking the option.
- * @param where - where the select is.
- * @param name - the select's name.
- * @param option - the option.
- */
-async function choose(where: HTMLElement, name: string, option: string): Promise<void> {
-    await userEvent.click(within(where).getByRole("combobox", { name }));
-    await userEvent.click(await screen.findByRole("option", { name: option }));
 }
 
 /**
@@ -167,6 +131,15 @@ describe("the Join card (source-steps)", () => {
         await waitFor(() => {
             assert.isTrue(merge.checked);
         });
+
+        // Esc in an open select closes only its list.
+        await userEvent.click(within(card).getByRole("combobox", { name: "Field 2 field" }));
+        await screen.findByRole("option", { name: "door" });
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("option", { name: "door" }));
+        });
+        assert.isNotNull(screen.queryByRole("form", { name: "Join" }), "the card stays open");
 
         // Esc closes it, writing nothing, and gives the dock back.
         const before = session.data.store.getSnapshot();

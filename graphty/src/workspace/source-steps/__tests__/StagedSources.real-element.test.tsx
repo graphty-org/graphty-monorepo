@@ -14,9 +14,9 @@ import { assert, describe, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
-import { render, screen, waitFor, within } from "../../../test/test-utils";
-import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
-import { Workspace } from "../../Workspace";
+import { screen, waitFor, within } from "../../../test/test-utils";
+import type { WorkspaceStore } from "../../state/store";
+import { choose, drop, emptyProject } from "./sourceSteps";
 
 withFeatures(["source-steps"]);
 
@@ -24,40 +24,6 @@ const PEOPLE = "badge,name,dept\nB1,Ann,Ops\nB2,Bo,Lab\nB3,Cy,Sales";
 const BUILDINGS = "door,building\nD1,North\nD2,South";
 /** V1 is new; B1 is a person already. */
 const VISITORS = "badge,name\nB1,Ann\nV1,Val";
-
-/**
- * Drops a file as the browser does, on the window. A synthetic DragEvent, the one exception to
- * real input here: a page cannot start a drag of a file from the operating system.
- * @param name - the file's name.
- * @param text - its contents.
- */
-function drop(name: string, text: string): void {
-    const dataTransfer = new DataTransfer();
-    dataTransfer.items.add(new File([text], name, { type: "text/csv" }));
-    for (const type of ["dragover", "drop"]) {
-        globalThis.dispatchEvent(new DragEvent(type, { dataTransfer, bubbles: true, cancelable: true }));
-    }
-}
-
-/**
- * An empty project on the Data place.
- * @returns the store and the session.
- */
-async function emptyProject(): Promise<{ store: WorkspaceStore; session: GraphSession }> {
-    const store = createWorkspaceStore({ project: { name: "Doors", id: 1 }, place: "data" });
-    render(<Workspace store={store} />);
-    let session: GraphSession | undefined;
-    await waitFor(() => {
-        session = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
-            "graphty-element:not([data-start-page])",
-        )?.session;
-        assert.isDefined(session);
-    });
-    if (session === undefined) {
-        throw new Error("the element never came up");
-    }
-    return { store, session };
-}
 
 /**
  * A project whose first file, people.csv, was dropped and drawn.
@@ -82,17 +48,6 @@ async function withPeopleDropped(): Promise<{ store: WorkspaceStore; session: Gr
 async function stage(name: string, text: string): Promise<HTMLElement> {
     drop(name, text);
     return screen.findByRole("region", { name });
-}
-
-/**
- * Picks a choice in a select by clicking it open and clicking the option.
- * @param within_ - where the select is.
- * @param name - the select's name.
- * @param option - the option.
- */
-async function choose(within_: HTMLElement, name: string, option: string): Promise<void> {
-    await userEvent.click(within(within_).getByRole("combobox", { name }));
-    await userEvent.click(await screen.findByRole("option", { name: option }));
 }
 
 describe("a second source arrives staged (source-steps)", () => {

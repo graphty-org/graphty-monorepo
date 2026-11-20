@@ -2,16 +2,16 @@ import "./source-steps.css";
 
 import { ComboInput, SegmentedControl } from "@graphty/compact-mantine";
 import type { GraphSession, SourceColumnProfile } from "@graphty/graphty-element/session";
-import { ActionIcon, Button, Group, Kbd, Radio, Select, Stack, Switch, Text, Tooltip } from "@mantine/core";
+import { ActionIcon, Group, Radio, Select, Stack, Switch, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useRef } from "react";
 
 import { sourceName } from "../data-place/words";
 import { GLYPHS } from "../glyphs";
 import { formatNumber } from "../inspector/words";
-import { ariaKey, formatKey } from "../keys/keys";
 import type { JoinCardState, JoinField1 } from "../state/store";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { cancelCard } from "./actions";
+import { CancelButton } from "./CancelButton";
 import {
     field1Profile,
     field2Profile,
@@ -373,7 +373,9 @@ export function JoinCard({
                 event.preventDefault();
             }}
             onKeyDown={(event) => {
-                if (event.key === "Escape" && !event.defaultPrevented) {
+                // An open select's Esc closes its list, not the card.
+                const open = (event.target as HTMLElement).getAttribute("aria-expanded") === "true";
+                if (event.key === "Escape" && !event.defaultPrevented && !open) {
                     event.preventDefault();
                     event.stopPropagation();
                     cancel();
@@ -403,15 +405,7 @@ export function JoinCard({
                 <Counts session={session} card={card} />
                 <Act session={session} card={card} />
                 <Group gap={6} justify="flex-end">
-                    <Button
-                        size="compact-xs"
-                        variant="default"
-                        rightSection={<Kbd size="xs">{formatKey("Escape")}</Kbd>}
-                        aria-keyshortcuts={ariaKey("Escape")}
-                        onClick={cancel}
-                    >
-                        {JOIN_WORDS.cancel}
-                    </Button>
+                    <CancelButton onClick={cancel} />
                 </Group>
             </Stack>
         </form>

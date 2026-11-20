@@ -43,7 +43,6 @@ describe("source-steps: data.nodeRef", () => {
 
     it("is refused with the experiment off", async () => {
         const session = createGraphSession();
-        await session.data.import(PEOPLE, { key: "badge" });
         await refused(() => Promise.resolve().then(() => session.data.nodeRef("B1")), "E_FEATURE_OFF");
     });
 });

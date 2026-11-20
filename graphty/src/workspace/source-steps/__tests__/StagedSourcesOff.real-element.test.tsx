@@ -8,13 +8,12 @@
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
-import { createGraphSession, type GraphSession } from "@graphty/graphty-element/session";
+import { createGraphSession } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 
 import { withFeatures } from "../../../test/features";
-import { render, screen, waitFor, within } from "../../../test/test-utils";
-import { createWorkspaceStore } from "../../state/store";
-import { Workspace } from "../../Workspace";
+import { screen, within } from "../../../test/test-utils";
+import { emptyProject } from "./sourceSteps";
 
 withFeatures([]);
 
@@ -37,16 +36,8 @@ async function savedWithStaged(): Promise<string> {
 describe("a staged source with the source-steps experiment off", () => {
     it("opens and lists it as an ordinary Sources row; the Data place draws", async () => {
         const text = await savedWithStaged();
-        const store = createWorkspaceStore({ project: { name: "Doors", id: 1 }, place: "data" });
-        render(<Workspace store={store} />);
-        let session: GraphSession | undefined;
-        await waitFor(() => {
-            session = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
-                "graphty-element:not([data-start-page])",
-            )?.session;
-            assert.isDefined(session);
-        });
-        await session?.project.open(text, { discard: true });
+        const { session } = await emptyProject();
+        await session.project.open(text, { discard: true });
 
         const list = await screen.findByRole("list", { name: "Data sources" });
         await within(list).findByRole("listitem", { name: "buildings.csv" });
@@ -54,7 +45,7 @@ describe("a staged source with the source-steps experiment off", () => {
         assert.isNull(screen.queryByText("This panel could not be shown"));
         assert.isNull(screen.queryByRole("region", { name: "buildings.csv" }), "no staged section");
         assert.isNull(screen.queryByRole("button", { name: /^Join/ }), "no Join with two sources");
-        await session?.selection.apply({ nodes: ["B1"] });
+        await session.selection.apply({ nodes: ["B1"] });
         await screen.findByRole("button", { name: /^Copy id/ });
         assert.isNull(screen.queryByRole("button", { name: /^Join/ }), "no Join in the inspector");
     });

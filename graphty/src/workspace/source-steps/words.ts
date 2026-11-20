@@ -125,7 +125,6 @@ export const JOIN_WORDS = {
     twoToOne: "2->1",
     ignoreCase: "Ignore case",
     ignoreSpaces: "Ignore spaces",
-    cancel: "Cancel",
     fields: "Fields",
     values: "Values",
     value: "Value",

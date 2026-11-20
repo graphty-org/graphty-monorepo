@@ -5,6 +5,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { ariaKey, formatKey } from "../keys/keys";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { cancelCard, commitCard } from "./actions";
+import { CancelButton } from "./CancelButton";
 import { overlapCountWords, overlapQuestionWords, STAGED_WORDS } from "./words";
 
 /** The answers to the key-overlap question, by the source it asks about. */
@@ -92,15 +93,7 @@ export function AddCard({ session }: Readonly<{ session: GraphSession }>): React
                     </Radio.Group>
                 ))}
                 <Group gap={6} justify="flex-end">
-                    <Button
-                        size="compact-xs"
-                        variant="default"
-                        rightSection={<Kbd size="xs">{formatKey("Escape")}</Kbd>}
-                        aria-keyshortcuts={ariaKey("Escape")}
-                        onClick={cancel}
-                    >
-                        {STAGED_WORDS.cancel}
-                    </Button>
+                    <CancelButton onClick={cancel} />
                     <Button
                         type="submit"
                         size="compact-xs"

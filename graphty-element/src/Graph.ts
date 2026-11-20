@@ -5610,7 +5610,8 @@ export class Graph implements GraphContext {
             this.#nodeIds = target;
             useNodeIdTarget(this.scene, {
                 target,
-                nodeIdAt: (row) => this.dataManager.nodeIdAtRow(row),
+                // Builds the hovered row's Node on purpose: hover is delivered to its pointer handler.
+                nodeIdAt: (row) => this.dataManager.nodeAtRow(row)?.id,
                 hiddenRows: () => batches.hiddenRows(),
             });
             this.#edgeIds = new EdgeIdTarget(this.scene, {

@@ -20,14 +20,14 @@ import { GLYPHS } from "../glyphs";
 import { runName } from "../runWords";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import {
-    DEFAULT_IMAGE,
+    cameraScreenshotOptions,
+    DEFAULT_CAMERA_IMAGE,
     failureWords,
     fileName,
     REPORT_SECTIONS,
     type ReportChoices,
     type ReportSection,
     saveBlob,
-    screenshotOptions,
 } from "./choices";
 import { cleaningSteps, issuesCsv, pinnedRuns, reportMarkdown, sectionCounts, validationIssues } from "./report";
 import {
@@ -131,7 +131,7 @@ export function ReportOutput({ choices, onChange, onCancel, onDone }: Readonly<R
             try {
                 // What is on screen now: a layout still moving is taken as it stands.
                 const shot = await element.captureScreenshot({
-                    ...screenshotOptions(DEFAULT_IMAGE, { blob: true }),
+                    ...cameraScreenshotOptions(DEFAULT_CAMERA_IMAGE, {}),
                     legend: legendShown ? imageKey(session) : [],
                     timing: { waitForSettle: false },
                 });
@@ -160,7 +160,7 @@ export function ReportOutput({ choices, onChange, onCancel, onDone }: Readonly<R
         setSavedName(configName);
     };
     const importConfig = async (): Promise<void> => {
-        const [file] = await pickFiles({ accept: ".json,application/json" });
+        const file = (await pickFiles({ accept: ".json,application/json" })).at(0);
         if (file === undefined) {
             return;
         }

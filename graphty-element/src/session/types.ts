@@ -68,6 +68,7 @@ import type { EnabledFeatures } from "../features/resolve";
 import type { DrawnAnnotation } from "./annotations";
 import type { AssetId, AssetsApi } from "./assets/AssetsApi";
 import type { CostEstimate, CostGateLimits, CostMeasurement, MachineCalibration } from "./cost";
+import type { FilesApi } from "./files/kindOf";
 import type { SessionGraphs } from "./graphs/GraphsApi";
 import type { GroupsApi } from "./groups";
 import type { DataIssue, FixCode, FixResult, IssueId } from "./issues";
@@ -79,6 +80,7 @@ import type { NoteChange, NoteId, NotesApi } from "./notes/types";
 import type { AlgorithmRunCommand, Plan, SessionCommand } from "./planning";
 import type { ProjectApi, ProjectStatus } from "./projectFile";
 import type { RecipeDocument } from "./recipe";
+import type { RecipesApi } from "./recipes/RecipesApi";
 import type { ResultsApi, RunRef } from "./results";
 import type { Histogram, HistogramOptions } from "./results/types";
 import type {
@@ -1790,6 +1792,47 @@ export interface SessionDataApi {
      */
     sourceInput(key: SourceKey): DataSourceInput | undefined;
     /**
+     * How a project save keeps each load: as a copy (its rows inside the file, the default) or as
+     * a reference (where to read it again; an open reads the rows again). One entry per load, in
+     * {@link SessionDataApi.sources} order. A load that cannot be a reference carries `refused`.
+     * With the `source-references` experiment off every entry is a copy and a save writes every
+     * load as a copy, as before the experiment, even in a project opened from a file that held
+     * references (the open still reads them again, so the graph is whole); only a reference the
+     * open could not read is written back as it was, so nothing is lost.
+     * @example
+     * ```ts
+     * for (const each of session.data.copies()) {
+     *     console.log(each.source, each.copy, each.refused?.params.reason);
+     * }
+     * ```
+     * @returns The entries; empty when no load is in the graph.
+     * @since 3.58.0
+     */
+    copies(): readonly SourceCopy[];
+    /**
+     * Choose how a project save keeps one load. Not a step: like `save({ assets })`, it is a save
+     * choice, kept with the project (autosave included), and it marks the project unsaved.
+     * Reference on a load that cannot be one keeps it a copy and returns the entry with
+     * `refused`; nothing is thrown. Publishes `source:copy` when the choice changes.
+     * Experimental: needs the `source-references` experiment.
+     * @experimental source-references
+     * @example
+     * ```ts
+     * const session = createGraphSession({ features: ["source-references"] });
+     * await session.data.import({ type: "json", config: { url: "https://example.com/graph.json" } });
+     * const [load] = session.data.sources();
+     * session.data.setCopy(load.key, "reference");
+     * const saved = await session.project.save(); // the rows are read again on open
+     * ```
+     * @param source - The load's key, from {@link SessionDataApi.sources}.
+     * @param copy - `"copy"` or `"reference"`.
+     * @returns The load's entry after the choice.
+     * @throws A `GraphtyError` with `E_SOURCE_UNKNOWN` for a key no load has, and `E_FEATURE_OFF`
+     *     (`{ feature: "source-references", key: "setCopy" }`) while the experiment is off.
+     * @since 3.58.0
+     */
+    setCopy(source: SourceKey, copy: SourceCopyChoice): SourceCopy;
+    /**
      * The load whose rows carry the same columns as a file's header (in any order), newest
      * first: the load a dropped file is most likely a newer copy of. Reads the file; loads nothing.
      * @param source - The file, as `import` takes it.
@@ -2384,10 +2427,18 @@ export interface SessionDataApi {
      * values, and what it added arrives. A source that has not changed dispatches nothing and
      * reports zeros. Expansions of the load are not fetched again. Experimental.
      *
+     * With the `save-files-v2` experiment, it also takes the id of a source a version 2 open held
+     * (`W_SOURCE_UNAVAILABLE`: its copy changed, it needed permission, or it was not found): the
+     * call is the permission, so it fetches the source from where the open would have, reads its
+     * new bytes with its saved roles, and builds it into the graph with the reader's edits on it
+     * applied, as one undoable step. The data gets a new build, so runs on the old data go stale
+     * (`W_DATA_CHANGED` when saved and reopened). It rejects with `E_FETCH_FAILED`, `E_TOO_LARGE` or
+     * `E_PARSE_FAILED` (`details.source`, `details.reason`) and the source stays held.
+     *
      * ```ts
      * const { added, removed, updated } = await session.data.refresh(session.data.loads()[0].key);
      * ```
-     * @param load - The load's key, from `sources()` or `loads()`.
+     * @param load - The load's key, from `sources()` or `loads()`, or a held source's id.
      * @param options - The credential and the endpoint.
      * @returns The node and edge counts added, removed and updated; rejects with
      *     `E_LOAD_UNKNOWN` for an unknown key, `E_SOURCE_PENDING` for a load of an opened project
@@ -2897,18 +2948,26 @@ export interface Endpoint {
  * A bare `TableMapping` applies to a source with one table; otherwise each table is named by id
  * (`{ tables }`) or by what its rows are (`{ nodes, edges }`, see {@link SideMapping}).
  */
-export type LoadMapping =
+export type LoadMapping = ByTableMapping | SideMapping;
+
+/**
+ * A load mapping bare (a source with one table) or naming each table by id: the shape a load
+ * keeps its mapping in, never by side.
+ * @since 3.40.0
+ */
+export type ByTableMapping =
     | TableMapping
     | {
           /** Each table's roles, by table id. */
           readonly tables: Readonly<Record<string, TableMapping>>;
-      }
-    | SideMapping;
+      };
 
 /**
  * Each table's roles named by what its rows are, so a caller need not look up table ids: `nodes`
- * applies to the table read as nodes and `edges` to the table read as edges. With one table, the
- * side named is what its rows are read as.
+ * applies to the table read as nodes and `edges` to the table read as edges, with one table or
+ * two; a side no table is read as is refused (`E_BAD_COMMAND`). The side picks the table and never
+ * changes what its rows are: to read the table read as nodes as edges, say so in its roles
+ * (`{ nodes: { rowsAre: "edges", source: "from", target: "to" } }`).
  * @since 3.40.0
  */
 export interface SideMapping {
@@ -2929,6 +2988,16 @@ export interface TableMappingRead extends TableMapping {
 export interface LoadMappingRead {
     /** Each table's roles, by table id. */
     readonly tables: Readonly<Record<string, TableMappingRead>>;
+}
+
+/**
+ * The choices a load was read with, as `data.sources()` hands them back: its mapping is bare or by
+ * table id, never by side, so it can be read without the source's tables.
+ * @since 3.40.0
+ */
+export interface LoadedChoices extends LoadChoices {
+    /** The column roles, bare or by table id. */
+    readonly mapping?: ByTableMapping;
 }
 
 /** What `import` and `LoadDraft.load` take. */
@@ -3147,7 +3216,7 @@ export interface LoadedSource extends DataSourceDescriptor {
      * element's own reading.
      * @since 3.30.0
      */
-    readonly choices?: LoadChoices;
+    readonly choices?: LoadedChoices;
     /**
      * The roles each table of the load was read with, by table id: the element's own reading
      * with the choices laid over it (`draft.mapping` as loaded). Absent for a graph file, whose
@@ -3168,6 +3237,13 @@ export interface LoadedSource extends DataSourceDescriptor {
      * @since 3.30.0
      */
     readonly reloadable?: true;
+    /**
+     * `"reference"` when a project save keeps this load as a reference, read again on open
+     * ({@link SessionDataApi.setCopy}); absent when it is kept as a copy, and always absent with
+     * the `source-references` experiment off.
+     * @since 3.58.0
+     */
+    readonly copy?: "reference";
     /**
      * For a network source's load: its record's key in {@link SessionDataApi.loads}. `data.more`,
      * `data.refresh` and `data.checkSource` take it or {@link LoadedSource.key}; keep `key`, which a
@@ -3329,6 +3405,17 @@ export interface JoinSuggestion {
 }
 
 /**
+ * A clash rule: what a join shows for a column the element already holds a value in. `"keep"`
+ * (the default) the held value, `"overwrite"` the incoming one, `"both"` the held one with the
+ * incoming one beside it as `<column> (<table name>)`, `"min"` or `"max"` the smaller or larger
+ * (numbers, or dates written as ISO 8601 text), `"mean"` their mean (numbers), `"vote"` the value
+ * most sources hold, the held one on a tie. A cell a number rule cannot read keeps the held value.
+ * OPEN UNION: later releases may add rules.
+ * @since 3.40.0
+ */
+export type JoinClashRule = "keep" | "overwrite" | "both" | "min" | "max" | "mean" | "vote";
+
+/**
  * How a table joins onto the graph: what `draft.joinReport` and `draft.load({ join })` take.
  * @since 3.30.0
  */
@@ -3344,10 +3431,16 @@ export interface JoinChoices {
     /** The incoming columns to bring; every column but the keys when absent. */
     readonly columns?: readonly string[];
     /**
-     * A column the graph already has: `"keep"` the graph's value where it has one, `"overwrite"`
-     * it, or keep `"both"` (the default), the incoming one as `<column> (<table name>)`.
+     * What to do with a column the graph already has, by column name, `"*"` for every column not
+     * named: see {@link JoinClashRule}. A column with no rule keeps the graph's value (`"keep"`).
+     * A number rule (`min`, `max`, `mean`) named for a column holding another value is refused with
+     * `E_CLASH_RULE_TYPE` (`details.column`, `details.rule`); under `"*"` such a cell keeps its value.
+     *
+     * ```ts
+     * draft.load({ join: { keys, clash: { "*": "both", amount: "max" } } });
+     * ```
      */
-    readonly clash?: Readonly<Record<string, "keep" | "overwrite" | "both">>;
+    readonly clash?: Readonly<Record<string, JoinClashRule>>;
     /**
      * Several rows with one key: `"first"` (the default) takes the first row, `"last"` the last
      * one; `"both"` keeps every row, as a list of values for values, as one edge each for edges.
@@ -3622,6 +3715,37 @@ export interface JoinRecord {
  * may be added.
  */
 export type LoadedSourceKind = "file" | "url" | "server" | "sample" | "join";
+
+/** How a project save keeps a load: its rows in the file, or where to read them again. */
+export type SourceCopyChoice = "copy" | "reference";
+
+/**
+ * Why a load cannot be saved as a reference: a file the page holds no path to (`file`), rows
+ * handed over inline (`inline`), a joined table (`join`), a URL or network source's load whose
+ * secret query parameters or credential a save drops (`secret-url`), a URL that is not an absolute http(s) address (`relative-url`), or a generated
+ * graph or dataset with nothing recorded to make it again (`no-seed`). OPEN UNION: later releases add values.
+ */
+export type SourceNoPathReason = "file" | "inline" | "join" | "secret-url" | "relative-url" | "no-seed";
+
+/** How a project save keeps one load: one entry of {@link SessionDataApi.copies}. */
+export interface SourceCopy {
+    /** The load's key. */
+    readonly source: SourceKey;
+    /** How a save keeps it. */
+    readonly copy: SourceCopyChoice;
+    /** Present when the load cannot be a reference: `W_SOURCE_NO_PATH` with `{ source, reason }`. */
+    readonly refused?: {
+        /** Always `W_SOURCE_NO_PATH`. */
+        readonly code: "W_SOURCE_NO_PATH";
+        /** The load and why it cannot be a reference. */
+        readonly params: {
+            /** The load's key. */
+            readonly source: SourceKey;
+            /** Why the load cannot be a reference. */
+            readonly reason: SourceNoPathReason;
+        };
+    };
+}
 
 /**
  * What `session.data.removeSource(key)` did.
@@ -3970,6 +4094,20 @@ export interface GraphFraming {
     readonly extent: "drawn" | "centers";
     /** CSS pixels kept clear at each end of the canvas's shorter side, 0 or more; absent, a small margin. */
     readonly padding?: number;
+    /**
+     * A fixed box to frame in place of the nodes, in the units node positions are drawn in (`min` its smallest x and
+     * y, `max` its largest): the canvas shows this box whatever the nodes' extent, so a node outside it runs past the
+     * edge and `extent` is not read. Read only while the `"fixed"` layout draws stored positions; under any other
+     * layout, or absent, the nodes are framed. A replacing load that does not set it from its file drops it. A Pajek file's 0..1 square is framed so on import
+     * with file style option `framing: "file"`, as Pajek fits it to its Draw window.
+     * @since 3.40.0
+     */
+    readonly box?: {
+        /** The smallest x and y. */
+        readonly min: readonly [number, number];
+        /** The largest x and y. */
+        readonly max: readonly [number, number];
+    };
 }
 
 /** Where a finished run's layer lands: see {@link ProjectConfig.runPlacement}. */
@@ -4479,6 +4617,13 @@ export interface SessionEventMap {
         /** The key of the load that was read again. */
         readonly load: string;
     };
+    /** How a project save keeps a load changed ({@link SessionDataApi.setCopy}). Experimental. */
+    "source:copy": {
+        /** The load's key. */
+        readonly source: SourceKey;
+        /** How a save keeps it now. */
+        readonly copy: SourceCopyChoice;
+    };
     /**
      * A load added a source to the graph: one event per source added, published by every load
      * method (`import`, `LoadDraft.load`, `loadExample`, `loadDataset`, `generate`, and the
@@ -4764,20 +4909,22 @@ export type PendingId = string & {
  * | `data.columns` | none: the column settings a project file restored |
  * | `data.derive` | `kind`: `"node"` or `"edge"`, or null; `column`: the computed column added or changed, or null when its values were only brought up to date |
  * | `shader.add`, `shader.replace`, `shader.remove` | `id`: the shader's id; `layer` (`shader.add` only): the layer `add` also wrote it to, or null |
- * | `style.add-layer`, `style.remove-layer`, `style.move-layer` | `layer`: its name, or its id |
- * | `style.update-layer` | `layer`: its name, or its id; `channels`: the channels whose set value or binding changed (empty when only another key did) |
+ * | `style.add-layer` | `layer`: its name; `layerId`: the id it gets (a two-part row's id), or null when the step adds none |
+ * | `style.remove-layer`, `style.move-layer` | `layer`: its name, or its id; `layerId`: its id |
+ * | `style.update-layer` | `layer`: its name, or its id; `layerId`: its id; `channels`: the channels whose set value or binding changed (empty when only another key did) |
  * | `style.remove-layers` | `count` |
  * | `style.highlight` | `run`: the run highlighted |
- * | `style.fix-channel` | `channel`; `layer`: its name, or its id |
+ * | `style.fix-channel` | `channel`; `layer`: its name, or its id; `layerId`: its id |
  * | `style.encode` | `channel`; `run` |
  * | `style.template` | none |
  * | `style.suggested` | `algorithms`: the algorithms whose suggested styles were applied |
- * | `style.add-folder` | `name`: the folder's name |
- * | `style.rename-row` | `row`: its name before, or its id; `name`: the new name |
- * | `style.move-row`, `style.delete-row` | `row`: its name, or its id |
- * | `style.pin-row` | `row`: its name, or its id; `pin`: `"top"`, `"bottom"` or `"none"` |
- * | `style.lock-row` | `row`: its name, or its id; `locked` |
- * | `style.hide-row` | `row`: its name, or its id; `hidden` |
+ * | `style.add-folder` | `name`: the folder's name; `rowId`: the id it gets |
+ * | `style.rename-row` | `row`: its name before, or its id; `rowId`: its id; `name`: the new name |
+ * | `style.move-row`, `style.delete-row` | `row`: its name, or its id; `rowId`: its id |
+ * | `style.duplicate-row` | `row`: the source row's name, or its id; `rowId`: the source's id; `copyId`: the copy's id |
+ * | `style.pin-row` | `row`: its name, or its id; `rowId`: its id; `pin`: `"top"`, `"bottom"` or `"none"` |
+ * | `style.lock-row` | `row`: its name, or its id; `rowId`: its id; `locked` |
+ * | `style.hide-row` | `row`: its name, or its id; `rowId`: its id; `hidden` |
  * | `style.add-default-rows` | none |
  * | `visibility.filter` | `kind`: the filter's kind |
  * | `visibility.clear-filter`, `visibility.window`, `visibility.clear-window` | none |
@@ -4878,6 +5025,7 @@ export type HistoryCode =
     | "style.lock-row"
     | "style.hide-row"
     | "style.delete-row"
+    | "style.duplicate-row"
     | "style.add-default-rows"
     | "shader.add"
     | "shader.replace"
@@ -6175,6 +6323,20 @@ export interface GraphSession {
     readonly history: SessionHistory;
     /** Saving the whole session to one project file and opening one again. */
     readonly project: ProjectApi;
+    /**
+     * A session's analysis and style layers as one recipe file, applied to other data. Needs the
+     * `save-files-v2` experiment.
+     * @since 3.40.0
+     * @experimental save-files-v2
+     * @beta
+     */
+    readonly recipes: RecipesApi;
+    /**
+     * What a file is, read from its contents: a project, a recipe, a style file or graph data.
+     * @since 3.40.0
+     * @beta
+     */
+    readonly files: FilesApi;
     /**
      * What was done to the data and how it is drawn, as a document that names columns by name
      * and role and never names a node or an edge: the sources, the columns (roles, types,

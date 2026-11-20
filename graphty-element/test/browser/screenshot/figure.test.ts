@@ -1,6 +1,7 @@
 /**
  * @file A vector figure (`exportFigure`, issue #819) draws each node where and in the color the
- * canvas draws it, with its border, each edge along its curve and stopped at its arrowheads, keeps labels and the key as text, and fails with a code for a format it does
+ * canvas draws it, with its border, each edge along its curve and stopped at its arrowheads, each label over its
+ * solid or gradient panel, keeps labels and the key as text, and fails with a code for a format it does
  * not write.
  */
 
@@ -103,6 +104,46 @@ test("a label's solid background is a box behind its text", async () => {
         });
         assert.ok(inside, "the text sits on a box");
     }
+});
+
+test("a label's gradient background is a box filled with its gradient, in SVG and PDF", async () => {
+    graph = await createTestGraphWithData();
+    await graph.getSession().styles.add({
+        name: "Labelled on red to blue",
+        target: "node",
+        selector: { match: "everything" },
+        set: {
+            "node.label": "N",
+            "node.labelStyle": {
+                gradient: true,
+                gradientColors: ["#ff0000", "#0000ff"],
+                gradientDirection: "horizontal",
+            },
+        },
+    });
+    await graph.waitForStableFrame();
+
+    const svg = await parse(exportFigure(graph).blob);
+    const boxes = [...svg.querySelectorAll('rect[fill^="url(#graphty-panel-"]')];
+    assert.equal(boxes.length, 3, "one box per label");
+    for (const box of boxes) {
+        const id = /url\(#(.+)\)/.exec(box.getAttribute("fill") ?? "")?.[1] ?? "";
+        const ramp = svg.querySelector(`linearGradient[id="${id}"]`);
+        assert.ok(ramp, "the box's gradient is in the file");
+        const stops = [...(ramp?.querySelectorAll("stop") ?? [])].map((s) => s.getAttribute("stop-color"));
+        assert.deepEqual(stops, ["#ff0000", "#0000ff"]);
+        const left = Number(box.getAttribute("x"));
+        const right = left + Number(box.getAttribute("width"));
+        assert.closeTo(Number(ramp?.getAttribute("x1")), left, 1, "red at the box's left");
+        assert.closeTo(Number(ramp?.getAttribute("x2")), right, 1, "blue at its right");
+        assert.equal(ramp?.getAttribute("y1"), ramp?.getAttribute("y2"), "running across it");
+    }
+
+    const pdf = new TextDecoder("latin1").decode(await exportFigure(graph, { format: "pdf" }).blob.arrayBuffer());
+    assert.equal(pdf.match(/ re\nW n/g)?.length, 3, "each label's bands are cut to its box");
+    assert.include(pdf, "1 0 0 rg", "its red end");
+    assert.include(pdf, "0 0 1 rg", "its blue end");
+    assert.match(pdf, /\n0\.\d+ 0 0\.\d+ rg\n/, "and the blend between");
 });
 
 test("a PDF figure is one page the canvas's size with the labels and the key as text", async () => {

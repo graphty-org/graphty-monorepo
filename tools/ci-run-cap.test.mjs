@@ -8,6 +8,7 @@ import {
     DEFAULT_BUDGET,
     earlierActive,
     FULL_RUN_MAX_PARALLEL,
+    MASTER_SHARE,
     MAX_WAIT_MINUTES,
     parseBudget,
     parseCap,
@@ -27,7 +28,7 @@ const run = (id, started, status, event = "pull_request") => ({
 const ME = run(40268423520, "2026-10-26T04:18:51Z", "in_progress");
 
 // a fake API that answers each path from a table, and a fake clock that advances on sleep
-function fake({ ci, release = [], jobs = {}, suites = {} }) {
+function fake({ ci, master = [], release = [], jobs = {}, suites = {} }) {
     const calls = [];
     let t = 0;
     const api = async (path, body) => {
@@ -48,6 +49,7 @@ function fake({ ci, release = [], jobs = {}, suites = {} }) {
                 },
             };
         if (path === `actions/runs/${ME.id}`) return ME;
+        if (path.startsWith("actions/workflows/ci.yml/runs?event=push&branch=master")) return { workflow_runs: master };
         if (path.startsWith("actions/workflows/ci.yml/runs")) {
             const status = /status=(\w+)/.exec(path)[1];
             const runs = typeof ci === "function" ? ci(t) : ci;
@@ -87,9 +89,9 @@ test("parseCap: default 2, off or junk is no cap", () => {
     assert.equal(parseCap("0"), null);
 });
 
-test("parseBudget: unset is the runner ceiling less the full run's share, off is no budget", () => {
-    // 180 runners less the full run's 24 Test and 6 Story tests jobs (#7849; 160 while the full run ran 14)
-    assert.equal(DEFAULT_BUDGET, 150);
+test("parseBudget: unset is the runner ceiling less the full run's and master's shares, off is no budget", () => {
+    // 180 runners less the full run's 24 Test and 6 Story tests jobs (#7849) and master's 30 (#9153)
+    assert.equal(DEFAULT_BUDGET, 120);
     assert.equal(parseBudget(undefined), DEFAULT_BUDGET);
     assert.equal(parseBudget(""), DEFAULT_BUDGET); // ci.yml passes an unset variable as ""
     assert.equal(parseBudget("120"), 120);
@@ -116,7 +118,10 @@ test("proceeds at once under the cap, with one listing per status", async () => 
     const f = fake({ ci: [ME, run(1, "2026-10-26T04:00:00Z", "in_progress")] });
     const r = await waitTurn({ cap: 2, runId: ME.id, ...f });
     assert.deepEqual(r, { waitedSeconds: 0, outcome: "proceeded", checks: 1 });
-    assert.equal(f.calls.filter((c) => c.startsWith("actions/workflows/ci.yml")).length, 2);
+    assert.equal(
+        f.calls.filter((c) => c.startsWith("actions/workflows/ci.yml") && c.includes("pull_request")).length,
+        2,
+    );
     assert.match(f.calls[1], /event=pull_request&status=in_progress&per_page=100$/);
 });
 
@@ -175,6 +180,29 @@ test("yields to a release run waiting for a GitHub-hosted runner, not to a T4 or
     };
     const f4 = fake({ ci: [ME], release, jobs: full });
     assert.equal((await waitTurn({ cap: 2, runId: ME.id, ...f4 })).outcome, "proceeded");
+});
+
+test("yields to a master push build waiting for a runner, until it holds MASTER_SHARE of them (#9153)", async () => {
+    // a master build whose Build job waits for a runner behind pull request jobs
+    const master = [run(44669000001, "2026-11-20T04:13:00Z", "in_progress", "push")];
+    const jobs = { 44669000001: [job("Run cap", "completed"), job("Build", "queued")] };
+    assert.match(await firstTurn(fake({ ci: [ME], master, jobs }), { cap: 2 }), /master build 44669000001 is waiting/);
+    // a pending master build (held by its concurrency group, no jobs yet) and a finished one hold nothing
+    const idle = [
+        run(44669000002, "2026-11-20T04:14:00Z", "pending", "push"),
+        run(44669000003, "2026-11-20T04:00:00Z", "completed", "push"),
+    ];
+    const done = { 44669000003: [job("Build", "queued")] };
+    assert.equal(
+        (await waitTurn({ cap: 2, runId: ME.id, ...fake({ ci: [ME], master: idle, jobs: done }) })).outcome,
+        "proceeded",
+    );
+    // a master build that already holds its share no longer holds pull requests back
+    const full = { 44669000001: [...legs("visual", MASTER_SHARE, "in_progress"), job("Build", "queued")] };
+    assert.equal(
+        (await waitTurn({ cap: 2, runId: ME.id, ...fake({ ci: [ME], master, jobs: full }) })).outcome,
+        "proceeded",
+    );
 });
 
 test("never fails: an API error proceeds, and no cap asks nothing", async () => {

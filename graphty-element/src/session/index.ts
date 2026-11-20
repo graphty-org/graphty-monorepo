@@ -59,6 +59,7 @@ export {
 } from "./styles/fileStyles/codes";
 export type { FileStyleNote, FileStyleOptions } from "./styles/fileStyles/translate";
 export type {
+    ByTableMapping,
     ColumnHistogram,
     ColumnRole,
     CommandOutcome,
@@ -115,6 +116,7 @@ export type {
     ImportColumnsInput,
     ImportOptions,
     JoinChoices,
+    JoinClashRule,
     JoinKey,
     JoinLink,
     JoinLookup,
@@ -131,6 +133,7 @@ export type {
     LeftOutEdge,
     LoadChoices,
     LoadDraft,
+    LoadedChoices,
     LoadedSource,
     LoadedSourceKind,
     LoadedWeight,
@@ -204,7 +207,10 @@ export type {
     SettingEffect,
     SettingEffectCode,
     SideMapping,
+    SourceCopy,
+    SourceCopyChoice,
     SourceLoaded,
+    SourceNoPathReason,
     StartingCamera,
     StyleProblem,
     TableMapping,

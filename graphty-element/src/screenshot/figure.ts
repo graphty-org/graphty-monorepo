@@ -17,7 +17,7 @@ import { type Edge, type EdgeCapEnd, edgeInternals } from "../Edge";
 import type { DrawnNodeSpot, Graph, NodeScreenPosition } from "../Graph";
 import { dataManagerInternals } from "../managers/DataManager";
 import type { ArrowCap } from "../meshes/ArrowCapBatch";
-import type { RichTextLabel } from "../meshes/RichTextLabel";
+import type { PanelGradientShape, RichTextLabel } from "../meshes/RichTextLabel";
 import { pixelsPerUnit } from "../meshes/screenSize";
 import { convexHull, flatShapeOutline, isFlatShape, type Point2 } from "../meshes/shapeOutlines";
 import { type Node, nodeInternals } from "../Node";
@@ -69,7 +69,7 @@ export type FigureShape = (
     opacity: number;
 };
 
-/** One label's lines of text, centered on its point, over its panel when it has a solid one. */
+/** One label's lines of text, centered on its point, over its panel when it has one. */
 export interface FigureText {
     x: number;
     y: number;
@@ -79,9 +79,21 @@ export interface FigureText {
     weight: string;
     style: string;
     color: string;
-    /** The panel drawn behind the words, in screen pixels. */
-    background?: { x: number; y: number; w: number; h: number; radius: number; fill: string; opacity: number };
+    /** The panel drawn behind the words, in screen pixels, filled with `fill` or, when it has one, its gradient. */
+    background?: {
+        x: number;
+        y: number;
+        w: number;
+        h: number;
+        radius: number;
+        fill: string;
+        opacity: number;
+        gradient?: FigureGradient;
+    };
 }
+
+/** A gradient in screen pixels: its line or circle, its colors and where each sits, 0 to 1. */
+export type FigureGradient = PanelGradientShape & { colors: readonly string[]; stops: readonly number[] };
 
 /** One mark of the key: a box, a color ramp, a filled outline or a line of text centered on its `y`. */
 export type FigureMark =
@@ -218,6 +230,22 @@ function shapeSvg(shape: FigureShape): string {
 }
 
 /**
+ * A gradient as an SVG paint server, in the figure's own pixels.
+ * @param g - The gradient.
+ * @param id - Its id.
+ * @returns The element.
+ */
+function gradientSvg(g: FigureGradient, id: string): string {
+    const stops = g.colors.map((c, i) => `<stop offset="${num(g.stops[i] ?? 0)}" stop-color="${esc(c)}"/>`).join("");
+    const at =
+        g.kind === "linear"
+            ? `x1="${num(g.x1)}" y1="${num(g.y1)}" x2="${num(g.x2)}" y2="${num(g.y2)}"`
+            : `cx="${num(g.cx)}" cy="${num(g.cy)}" r="${num(g.r)}"`;
+    const tag = g.kind === "linear" ? "linearGradient" : "radialGradient";
+    return `<${tag} id="${id}" gradientUnits="userSpaceOnUse" ${at}>${stops}</${tag}>`;
+}
+
+/**
  * A point as a path takes it.
  * @param point - The point.
  * @returns `x y`.
@@ -260,10 +288,15 @@ function figureSvg(drawing: FigureDrawing, key: readonly FigureMark[]): string {
         out.push(shapeSvg(c));
     }
     out.push(`</g><g text-anchor="middle" dominant-baseline="central">`);
-    for (const t of drawing.texts) {
+    drawing.texts.forEach((t, i) => {
         if (t.background !== undefined) {
             const bg = t.background;
-            out.push(rectSvg(bg, `fill="${esc(bg.fill)}"${opacityAttr("fill-opacity", bg.opacity)}`));
+            const id = `graphty-panel-${String(i)}`;
+            const fill = bg.gradient === undefined ? esc(bg.fill) : `url(#${id})`;
+            if (bg.gradient !== undefined) {
+                out.push(`<defs>${gradientSvg(bg.gradient, id)}</defs>`);
+            }
+            out.push(rectSvg(bg, `fill="${fill}"${opacityAttr("fill-opacity", bg.opacity)}`));
         }
         const first = t.y - ((t.lines.length - 1) * t.size * 1.2) / 2;
         const spans = t.lines
@@ -273,7 +306,7 @@ function figureSvg(drawing: FigureDrawing, key: readonly FigureMark[]): string {
             `<text font-family="${esc(t.font)}" font-size="${num(t.size)}" font-weight="${esc(t.weight)}" ` +
                 `font-style="${esc(t.style)}" fill="${esc(t.color)}">${spans}</text>`,
         );
-    }
+    });
     out.push(`</g>`);
     if (key.length > 0) {
         out.push(
@@ -465,7 +498,7 @@ function labelText(
 function labelPanel(label: RichTextLabel, mesh: Mesh, graph: Graph): FigureText["background"] {
     const { panel } = label;
     const color = panel === undefined ? null : toColorValue(panel.color);
-    if (panel === undefined || color === null || color.a <= 0) {
+    if (panel === undefined || color === null || (panel.gradient === undefined && color.a <= 0)) {
         return undefined;
     }
     const corners = mesh.getBoundingInfo().boundingBox.vectorsWorld.map((c) => graph.worldToScreen(c));
@@ -475,16 +508,24 @@ function labelPanel(label: RichTextLabel, mesh: Mesh, graph: Graph): FigureText[
     const top = Math.min(...ys);
     const w = Math.max(...xs) - left;
     const h = Math.max(...ys) - top;
-    // ponytail: a pointer, a border or a gradient panel is drawn as its solid box only.
-    return {
+    // ponytail: a pointer or a border is drawn as the panel's box only.
+    const box = {
         x: left + panel.left * w,
         y: top + panel.top * h,
         w: (panel.right - panel.left) * w,
         h: (panel.bottom - panel.top) * h,
         radius: panel.radius * w,
         fill: rgb(color),
-        opacity: color.a,
     };
+    const g = panel.gradient;
+    if (g === undefined) {
+        return { ...box, opacity: color.a };
+    }
+    const shape: PanelGradientShape =
+        g.kind === "linear"
+            ? { kind: "linear", x1: left + g.x1 * w, y1: top + g.y1 * h, x2: left + g.x2 * w, y2: top + g.y2 * h }
+            : { kind: "radial", cx: left + g.cx * w, cy: top + g.cy * h, r: g.r * w };
+    return { ...box, opacity: g.opacity, gradient: { ...shape, colors: g.colors, stops: g.stops } };
 }
 
 /**

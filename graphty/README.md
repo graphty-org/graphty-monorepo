@@ -39,7 +39,7 @@ when a reader opens one.
 
 Usage data: by default the app sends PostHog nothing, and Share usage data turns on error reports
 (Sentry) only. The `usage-analytics` experiment, switched on in the `features` list of the site's
-`/site.json` or with `?features=usage-analytics` in the address, adds usage counts to PostHog (EU
+`/site.json` or with `?features=usage-analytics` in the address, adds usage counts to PostHog (US
 region). They are sent only when that `/site.json` also has an `analytics` block with PostHog ids
 and the page is served from that site's own host, so a copy you host yourself sends PostHog nothing.
 Where they are sent, every visitor who has not turned on Share usage data sends a few anonymous

@@ -15,6 +15,7 @@ import type {
     AutosaveStatus,
 } from "./autosave/types";
 import type { GraphOverview, OverviewOptions } from "./camera/overview";
+import type { SkippedPreset } from "./camera/presets";
 import type { CameraViewExtent, ViewInsets } from "./camera/types";
 import { layoutDescriptor, layoutIdForEngine } from "./catalog/layouts";
 import type {
@@ -64,7 +65,7 @@ import {
 import { GraphtyLogger, type Logger } from "./logging";
 import type { EdgeLabelCounts, NodeLabel, NodeLabelCounts } from "./managers/LabelDeclutter";
 import type { PixelRatio, RendererRequest, RendererStatus } from "./managers/RenderManager";
-import type { ModelPreview, ModelPreviewOptions } from "./meshes/ModelPreview";
+import type { ModelCheck, ModelCheckOptions, ModelPreview, ModelPreviewOptions } from "./meshes/ModelPreview";
 import type { RenderPath, RowCounts } from "./meshes/NodeBatch";
 import type { ModelThumbnailOptions, NodeThumbnailOptions } from "./meshes/NodeThumbnail";
 import { type Antialias, antialiasDefault } from "./meshes/PulledLineBatch";
@@ -3634,7 +3635,11 @@ export class Graphty extends LitElement {
      * Off (the default), the graph is drawn on every animation frame, still or not. On, it stops
      * drawing once the layout has settled, the styles are painted and the camera is at rest, and
      * draws again as soon as anything changes the picture: data, styles, the layout, the camera,
-     * the selection, an animation, or the reader's pointer, wheel or keys on the canvas. A still
+     * the selection, an animation, or the reader's pointer, wheel or keys on the canvas. While a
+     * layout runs on the GPU it also skips the frames between two landings of the layout's
+     * batches, which would show the same positions again, so the layout has more of the GPU and
+     * reaches its result sooner. Under renderPath "batched" those frames between landings are
+     * skipped even with this off. A still
      * graph then costs the page nothing per frame -- on a software GPU (a virtual machine, a CI
      * runner, a headless browser) that is tens to hundreds of milliseconds of every frame, and
      * the page's own controls answer that much faster.
@@ -4598,9 +4603,26 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Phase 6: Capability Check API
+     * Whether a model can be drawn, without drawing it on screen: for a model picker that marks the
+     * files of a set it cannot draw before the reader steps to them. The model is loaded and built
+     * once, as a node would draw it, and freed; the answer is kept by the model's files.
+     * @param ref - What `node.model` takes: an asset id, a sample's id, or a URL the session holds.
+     * @param options - `signal` to stop waiting; `standInMissing` to count a model waiting only for
+     *     pictures or materials as drawable, as `modelThumbnail` draws it.
+     * @returns `{ drawable: true }`; `{ drawable: false, failure }` with the code `modelThumbnail`
+     *     would reject with; or `{ drawable: null }` when nothing is drawn here (no WebGL).
+     * @example
+     * ```typescript
+     * const check = await element.checkModel(asset.id);
+     * if (check.drawable === false) console.warn(check.failure?.code);
+     * ```
+     */
+    async checkModel(ref: string, options?: ModelCheckOptions): Promise<ModelCheck> {
+        return this.#graph.checkModel(ref, options);
+    }
+
+    /**
      * Check if screenshot can be captured with given options.
-     * Available from Phase 6 onwards.
      * @param options - Screenshot options to validate
      * @returns Promise<CapabilityCheck> - Result indicating whether screenshot is supported
      * @example
@@ -4623,30 +4645,28 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Phase 7: Video Capture API
-     * Capture an animation as a video (stationary or animated camera)
-     * Available from Phase 7 onwards.
-     * @param options - Animation capture options
+     * Record a video: a still recording, or a tour.
+     *
+     * A still recording lasts `duration`. A tour recording (`tour`: a saved tour's name, a tour, or
+     * stops, as `playTour` takes) opens on the first stop, lasts as long as the tour unless
+     * `duration` is given, and puts the camera back afterwards. A tour stop's `duration` is the
+     * flight to it; the recording's `duration` is the whole video's length.
+     * @param options - What to record and how.
      * @returns Promise<AnimationResult> - Result with video blob and metadata
+     * @throws A `GraphtyError`: `E_BAD_COMMAND` for conflicting or missing options or a tour with
+     *     no stops, the problem `planTour` reports for a tour that cannot be played,
+     *     `E_UNSUPPORTED` `{ reason: "xr", mode }` while immersive, `E_CANCELED` when canceled
+     *     (`signal`, `cancelAnimationCapture()`), and `E_CAPTURE_FAILED` `{ media: "video", reason }`
+     *     when the tab is hidden, the canvas is resized or the tour ends early.
      * @example
      * ```typescript
      * const el = document.querySelector('graphty-element');
      *
-     * // Basic 5-second video
-     * const result = await el.captureAnimation({
-     *   duration: 5000,
-     *   fps: 30,
-     *   cameraMode: 'stationary'
-     * });
+     * // A 5-second still video
+     * const still = await el.captureAnimation({ duration: 5000 });
      *
-     * // With download
-     * const result = await el.captureAnimation({
-     *   duration: 10000,
-     *   fps: 60,
-     *   cameraMode: 'stationary',
-     *   download: true,
-     *   downloadFilename: 'my-video.webm'
-     * });
+     * // A saved tour, as long as the tour, saved as a file
+     * await el.captureAnimation({ tour: "intro", destination: { download: true } });
      * ```
      */
     async captureAnimation(
@@ -4656,9 +4676,7 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Phase 7: Cancel Animation Capture
-     * Cancel an ongoing animation capture
-     * Available from Phase 7 onwards.
+     * Cancel an ongoing animation capture.
      * @returns true if a capture was canceled, false if no capture was in progress
      * @example
      * ```typescript
@@ -4681,7 +4699,7 @@ export class Graphty extends LitElement {
      * try {
      *   await capturePromise;
      * } catch (error) {
-     *   if (error.name === 'AnimationCancelledError') {
+     *   if (isGraphtyError(error) && error.code === 'E_CANCELED') {
      *     console.log('Capture was cancelled by user');
      *   }
      * }
@@ -4720,40 +4738,77 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Play a camera tour: fly to each stop in turn and hold there, in 2D or in 3D. A stop names a
-     * view (a camera view or one saved in `session.views`), gives a camera state, or gives a 3D
-     * `position` and `target`; `duration` is the flight to it and `hold` the time spent there, in
-     * milliseconds. Every stop is checked before the camera moves. `cameraTransitionDuration`,
-     * when set, replaces each flight's duration. `cancelCameraAnimation` ends the tour. To record
-     * the same tour, pass it as `cameraPath` to `captureAnimation`.
-     * @param path - The stops, in order.
+     * Play a camera tour: fly to each stop in turn and hold there, in 2D or in 3D. A tour is a
+     * saved tour's name (`session.tours`), a tour, or stops given inline. A stop names a view (a
+     * camera view or one saved in `session.views`), gives a camera state, or gives a 3D `position`
+     * and `target`; `duration` is the flight to it and `hold` the time spent there, in
+     * milliseconds, both taken as given (under reduced motion a flight is a cut held for its
+     * time). A stop may instead be a pause, `{ pause }` in milliseconds, which waits where the
+     * camera is. Every stop is checked before the camera moves. Auto-rotate and following the
+     * selection wait while a tour plays.
+     *
+     * It always resolves, with how it ended: `"finished"`; `"cancelled"` by `signal` or
+     * `cancelCameraAnimation()`; `"interrupted"` by the reader's drag, pinch, wheel, camera key or
+     * press on the canvas (the camera stays where the reader left it); `"replaced"` by another
+     * tour, a recording, `setCameraState`, `applyCameraView` or a screenshot with a `camera`; or
+     * `"mode-changed"` by a switch between 2D, 3D and immersive. `tour-progress` marks each stop
+     * and phase; `tour-ended` says how it ended.
+     * @param tour - A saved tour's name, a tour, or stops.
      * @param options - How to fly.
-     * @param options.easing - The easing of each flight. Default `"easeInOut"`.
-     * @returns Settles when the last stop's hold is over, or the tour is ended.
-     * @throws A `GraphtyError` with `E_UNKNOWN_CAMERA` for a view name nothing answers to, or
-     * `E_UNSUPPORTED` for a stop with nothing the current drawing mode can use.
+     * @param options.easing - The easing of each flight; wins over the tour's own. Default `"easeInOut"`.
+     * @param options.restoreCamera - Put the camera back where it was when the tour finishes.
+     *     Default false.
+     * @param options.signal - Ends the tour as `"cancelled"` when it aborts.
+     * @returns How the tour ended.
+     * @throws A `GraphtyError` with the problem `planTour` reports: `E_BAD_COMMAND`
+     *     `{ missing, available }` for an unknown tour name or `{ reason: "no-stops" }`,
+     *     `E_UNKNOWN_CAMERA` `{ name, available, stop }`, `E_UNSUPPORTED` `{ reason: "mode", ... }`
+     *     or `{ reason: "xr", mode }`, or `E_OPTION_RANGE` `{ option, stop }`.
      * @example
      * ```typescript
      * const el = document.querySelector("graphty-element");
-     * await el.session.views.save([{ name: "cluster-a", camera: el.getCameraState() }]);
-     * await el.playTour([
+     * await el.session.views.save([{ name: "cluster-a" }]); // the current camera
+     * await el.session.tours.save([{ name: "intro", tour: { stops: [
      *     { view: "fitToGraph", hold: 2000 },
      *     { view: "cluster-a", duration: 1500, hold: 3000 },
-     * ]);
+     * ] } }]);
+     * const { reason } = await el.playTour("intro", { restoreCamera: true });
      * ```
      */
     async playTour(
-        path: readonly (
-            import("./video/VideoCapture.js").CameraWaypoint | import("./video/VideoCapture.js").ViewWaypoint
-        )[],
-        options?: { easing?: "linear" | "easeIn" | "easeOut" | "easeInOut" },
-    ): Promise<void> {
-        return this.#graph.playTour(path, options);
+        tour: import("./camera/tour.js").TourInput,
+        options?: {
+            easing?: import("./camera/tour.js").EasingName;
+            restoreCamera?: boolean;
+            signal?: AbortSignal;
+        },
+    ): Promise<{ /** How the tour ended. */ reason: import("./camera/tour.js").TourEndReason }> {
+        return this.#graph.playTour(tour, options);
     }
 
     /**
-     * Phase 7: Check if animation capture is in progress
-     * Available from Phase 7 onwards.
+     * Check and time a tour without moving anything: the advanced path, for an editor that shows a
+     * tour's length and its broken stops before playing. `playTour` and `captureAnimation` refuse
+     * with the same problem, so a caller that only plays needs no plan. Plan again on
+     * `views-changed`, which fires whenever anything a plan reads may have changed.
+     * @param tour - A saved tour's name (`session.tours`), a tour, or stops given inline.
+     * @returns `totalMs` (the sum of the authored flights and holds), `playable`, each stop's
+     *     `startMs`, `duration`, `hold` and `problem` (as `viewProblem` answers, plus `stop`), and the
+     *     tour's own `problem` (`{ reason: "no-stops" }`, `{ missing, available }` or `xr`).
+     * @since 3.58.0
+     * @example
+     * ```typescript
+     * const plan = element.planTour("intro");
+     * lengthLabel.textContent = `${plan.totalMs / 1000} s`;
+     * playButton.disabled = !plan.playable;
+     * ```
+     */
+    planTour(tour: import("./camera/tour.js").TourInput): import("./camera/tour.js").TourPlan {
+        return this.#graph.planTour(tour);
+    }
+
+    /**
+     * Check if animation capture is in progress.
      * @returns true if a capture is currently running
      */
     isAnimationCapturing(): boolean {
@@ -4761,10 +4816,9 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Phase 7: Animation Capture Estimation
-     * Estimate performance and potential issues for animation capture
-     * Available from Phase 7 onwards.
-     * @param options - Animation options to estimate
+     * Estimate performance and potential issues for animation capture. Absent `width` and `height`
+     * are the canvas's pixel size; an absent `duration` is the tour's planned length.
+     * @param options - The recording's length or tour, frame rate, size and bitrate.
      * @returns Promise<CaptureEstimate> - Estimation result
      * @example
      * ```typescript
@@ -4783,7 +4837,10 @@ export class Graphty extends LitElement {
      * ```
      */
     async estimateAnimationCapture(
-        options: Pick<import("./video/VideoCapture.js").AnimationOptions, "duration" | "fps" | "width" | "height">,
+        options: Pick<
+            import("./video/VideoCapture.js").AnimationOptions,
+            "duration" | "fps" | "width" | "height" | "videoBitrate" | "tour"
+        >,
     ): Promise<import("./video/estimation.js").CaptureEstimate> {
         return this.#graph.estimateAnimationCapture(options);
     }
@@ -4866,10 +4923,6 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Phase 4: Camera State API
-     */
-
-    /**
      * Get current camera state (supports both 2D and 3D)
      * @returns Current camera state including position, target, zoom, etc.
      */
@@ -4878,10 +4931,17 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Set camera state (supports both 2D and 3D)
+     * Set camera state (supports both 2D and 3D).
+     *
+     * The state must fit the drawing mode: one with a `mode` applies only in that mode, and one
+     * without applies in each mode it holds a member of (2D reads `zoom`, `pan` and `rotation`; 3D
+     * reads `position`, `target`, `alpha`, `beta`, `radius`, `pivotRotation`, `cameraDistance` and
+     * `fov`). To jump to a named view, use `applyCameraView`.
      * @param state - Camera state to apply or preset name
      * @param options - Animation options
      * @returns Promise that resolves when the camera state is applied (or animation completes)
+     * @throws A `GraphtyError` with `E_UNSUPPORTED` `{ reason: "mode", name?, modes, mode }` for a
+     *     state that does not fit the drawing mode, or `{ reason: "xr", mode }` while immersive.
      */
     async setCameraState(
         state: import("./screenshot/types.js").CameraState | { preset: string },
@@ -5000,8 +5060,8 @@ export class Graphty extends LitElement {
      * node the camera does not move. The camera is view state, so this is not an undoable step.
      * @param nodeIds - One node id, or several.
      * @param options - Optional animation configuration, and the `extent` each node is measured by.
-     * @param options.extent - `"centers"` (the default) measures each node by its center;
-     *   `"drawn"` by the box it is drawn in, so a big node is framed whole.
+     * @param options.extent - `"drawn"` (the default) measures each node by the box it is drawn
+     *   in, so every framed node is whole; `"centers"` by its center alone.
      * @returns Promise that resolves when the camera has moved.
      * @since 3.3.0
      * @example
@@ -5021,10 +5081,14 @@ export class Graphty extends LitElement {
      * Save the current camera state as a named preset. One undoable step.
      * @param name - Name for the preset
      * @param camera - The camera state to save instead of where the camera is now
-     * @throws A `GraphtyError` with `E_PROTECTED` when a camera view already answers to the name.
+     * @returns Settles once the step is recorded.
+     * @throws A `GraphtyError` (as a rejection) with `E_PROTECTED` when a camera view already
+     *     answers to the name.
+     * @deprecated Use `session.views.save([{ name, camera }])`.
      */
-    saveCameraPreset(name: string, camera?: import("./screenshot/types.js").CameraState): void {
-        this.#graph.saveCameraPreset(name, camera);
+    saveCameraPreset(name: string, camera?: import("./screenshot/types.js").CameraState): Promise<void> {
+        // eslint-disable-next-line @typescript-eslint/no-deprecated -- the deprecated element method forwards to Graph's own
+        return this.#graph.saveCameraPreset(name, camera);
     }
 
     /**
@@ -5032,49 +5096,121 @@ export class Graphty extends LitElement {
      * @param name - The name it was saved under
      * @returns Settles once the step is recorded; rejects with `E_BAD_COMMAND` when nothing is
      *   saved under the name
+     * @deprecated Use `session.views.remove([name])`.
      */
     removeCameraPreset(name: string): Promise<void> {
+        // eslint-disable-next-line @typescript-eslint/no-deprecated -- the deprecated element method forwards to Graph's own
         return this.#graph.removeCameraPreset(name);
     }
 
     /**
      * Load a camera preset (built-in or user-defined).
-     * Available from Phase 5 onwards.
      * @param name - Name of the preset to load
      * @param options - Animation options
      * @returns Promise that resolves when preset is loaded
+     * @deprecated Use `applyCameraView(name, options)`.
      */
-    async loadCameraPreset(
-        name: string,
-        options?: import("./screenshot/types.js").CameraAnimationOptions,
-    ): Promise<void> {
+    loadCameraPreset(name: string, options?: import("./screenshot/types.js").CameraAnimationOptions): Promise<void> {
+        // eslint-disable-next-line @typescript-eslint/no-deprecated -- the deprecated element method forwards to Graph's own
         return this.#graph.loadCameraPreset(name, options);
     }
 
     /**
      * Get all camera presets (built-in + user-defined).
-     * Available from Phase 5 onwards.
      * @returns Record of preset names to their state (built-in presets are marked)
+     * @deprecated Read `session.catalog.cameras()` for the camera views and `session.views` for
+     *     the saved ones.
      */
     getCameraPresets(): Record<string, import("./screenshot/types.js").CameraState | { builtin: true }> {
+        // eslint-disable-next-line @typescript-eslint/no-deprecated -- the deprecated element method forwards to Graph's own
         return this.#graph.getCameraPresets();
     }
 
     /**
      * Export user-defined presets as JSON
-     * Available from Phase 5 onwards
      * @returns Record of user-defined preset names to their state
+     * @deprecated Read `session.views`, a map in project order.
      */
     exportCameraPresets(): Record<string, import("./screenshot/types.js").CameraState> {
+        // eslint-disable-next-line @typescript-eslint/no-deprecated -- the deprecated element method forwards to Graph's own
         return this.#graph.exportCameraPresets();
     }
 
     /**
      * Import user-defined presets from JSON, as one undoable step
      * @param presets - Record of preset names to their state
+     * @returns The entries left out, each with the code `session.views.save` would refuse it with:
+     *     `E_PROTECTED` for a camera view's name, `E_BAD_COMMAND` for an empty one.
+     * @deprecated Use `session.views.save`.
      */
-    importCameraPresets(presets: Record<string, import("./screenshot/types.js").CameraState>): void {
-        this.#graph.importCameraPresets(presets);
+    importCameraPresets(presets: Record<string, import("./screenshot/types.js").CameraState>): {
+        /** The presets left out, each with why. */
+        skipped: SkippedPreset[];
+    } {
+        // eslint-disable-next-line @typescript-eslint/no-deprecated -- the deprecated element method forwards to Graph's own
+        return this.#graph.importCameraPresets(presets);
+    }
+
+    /**
+     * Whether a view name can be applied now, without moving anything: the answer
+     * `applyCameraView(name)` would give. A name is a camera view when one answers to it, and a
+     * saved view only otherwise. `{ saved: true }` judges the saved view under the name itself, for
+     * a list of saved views.
+     * @param name - A camera view's id or a saved view's name.
+     * @param options - What to judge.
+     * @param options.saved - Judge the saved view under the name, not whatever the name resolves to.
+     * @returns Null when it can be applied now; otherwise one coded fact whose `params` equal the
+     *     refusal's `details`: `E_UNSUPPORTED` `{ reason: "xr", mode }` while immersive,
+     *     `E_UNSUPPORTED` `{ reason: "mode", name, modes, mode }` in a drawing mode it does not
+     *     work in, `E_UNKNOWN_CAMERA` `{ name, available }` when nothing answers to the name,
+     *     `E_PROTECTED` `{ name }` for `{ saved: true }` when a camera view holds the name, and
+     *     `E_BAD_COMMAND` `{ reason: "empty-name" }` for an empty name.
+     * @since 3.58.0
+     * @example
+     * ```typescript
+     * const problem = element.viewProblem("topView");
+     * button.disabled = problem !== null; // the app words problem.code
+     * ```
+     */
+    viewProblem(name: string, options?: { saved?: boolean }): import("./session/shared.js").CodedFact | null {
+        return this.#graph.viewProblem(name, options);
+    }
+
+    /**
+     * How big the drawing surface is.
+     * @returns The canvas's width and height in device pixels, and the ratio of device pixels to
+     *     CSS pixels it is drawn at.
+     * @since 3.58.0
+     * @example
+     * ```typescript
+     * const { width, height } = element.getCanvasSize();
+     * label.textContent = `${width * 2} x ${height * 2}`;
+     * ```
+     */
+    getCanvasSize(): {
+        /** The width in device pixels. */
+        width: number;
+        /** The height in device pixels. */
+        height: number;
+        /** Device pixels per CSS pixel. */
+        devicePixelRatio: number;
+    } {
+        return this.#graph.getCanvasSize();
+    }
+
+    /**
+     * Whether motion is reduced now: `reducedMotion`, with `"auto"` resolved against the
+     * platform's `prefers-reduced-motion`. `reduced-motion-changed` fires when the answer changes.
+     * @returns True when camera moves jump, auto-rotate is stopped and layouts are shown settled.
+     * @since 3.58.0
+     * @example
+     * ```typescript
+     * element.reducedMotion = "auto";
+     * element.addEventListener("reduced-motion-changed", () => render(element.isMotionReduced()));
+     * ```
+     */
+    isMotionReduced(): boolean {
+        return this.#graph.isMotionReduced();
     }
 
     /**
@@ -5086,7 +5222,7 @@ export class Graphty extends LitElement {
     }
 
     // ============================================================================
-    // Phase 7a: High Priority Methods - Data Management
+    // Data Management
     // ============================================================================
 
     /**
@@ -5622,7 +5758,7 @@ export class Graphty extends LitElement {
     }
 
     // ============================================================================
-    // Phase 7a: High Priority Methods - Selection
+    // Selection
     // ============================================================================
 
     /**
@@ -5702,7 +5838,7 @@ export class Graphty extends LitElement {
     }
 
     // ============================================================================
-    // Phase 7a: High Priority Methods - Algorithm
+    // Algorithm
     // ============================================================================
 
     /**
@@ -5779,7 +5915,7 @@ export class Graphty extends LitElement {
     }
 
     // ============================================================================
-    // Phase 7a: High Priority Methods - Layout
+    // Layout
     // ============================================================================
 
     /**
@@ -5810,7 +5946,7 @@ export class Graphty extends LitElement {
     }
 
     // ============================================================================
-    // Phase 7a: High Priority Methods - Utility
+    // Utility
     // ============================================================================
 
     /**
@@ -5981,7 +6117,7 @@ export class Graphty extends LitElement {
     }
 
     // ============================================================================
-    // Phase 7a: High Priority Methods - Events
+    // Events
     // ============================================================================
 
     /**
@@ -6024,7 +6160,7 @@ export class Graphty extends LitElement {
     }
 
     // ============================================================================
-    // Phase 7b: Medium Priority Methods - View
+    // View
     // ============================================================================
 
     /**
@@ -6043,7 +6179,7 @@ export class Graphty extends LitElement {
     }
 
     // ============================================================================
-    // Phase 7b: Medium Priority Methods - XR
+    // XR
     // ============================================================================
 
     /**
@@ -6085,7 +6221,7 @@ export class Graphty extends LitElement {
     }
 
     // ============================================================================
-    // Phase 7b: Medium Priority Methods - Camera
+    // Camera
     // ============================================================================
 
     /**
@@ -6098,8 +6234,7 @@ export class Graphty extends LitElement {
      * @param options.nodes - The nodes to measure the box over. Absent frames the whole graph.
      * @param options.params - The view's own options, filled in from its declared defaults.
      * @param options.extent - What each node counts as in the box: `"centers"` its center,
-     *   `"drawn"` the box it is drawn in. The default is `"drawn"` for the whole graph and
-     *   `"centers"` when `nodes` names a subset.
+     *   `"drawn"` the box it is drawn in. The default is `"drawn"`.
      * @returns The resolved camera state.
      * @since 1.5.0
      * @example
@@ -6130,8 +6265,7 @@ export class Graphty extends LitElement {
      *   selected nodes and both ends of every selected edge.
      * @param options.params - The view's own options, filled in from its declared defaults.
      * @param options.extent - What each node counts as in the box the view is handed: `"centers"`
-     *   its center, `"drawn"` the box it is drawn in. The default is `"drawn"` for the whole graph
-     *   and `"centers"` when `scope` names a subset.
+     *   its center, `"drawn"` the box it is drawn in. The default is `"drawn"`.
      * @returns A promise that resolves once the camera has arrived.
      * @since 1.5.0
      * @example
@@ -6151,7 +6285,7 @@ export class Graphty extends LitElement {
     }
 
     // ============================================================================
-    // Phase 7b: Medium Priority Methods - Input
+    // Input
     // ============================================================================
 
     /**
@@ -6168,7 +6302,7 @@ export class Graphty extends LitElement {
     }
 
     // ============================================================================
-    // Phase 7b: Medium Priority Methods - Lifecycle
+    // Lifecycle
     // ============================================================================
 
     /**
@@ -6225,7 +6359,7 @@ export class Graphty extends LitElement {
     }
 
     // ============================================================================
-    // Phase 7b: Medium Priority Methods - Coordinate Transform
+    // Coordinate Transform
     // ============================================================================
 
     /**
@@ -7279,6 +7413,15 @@ export class Graphty extends LitElement {
      * How nodes are drawn: `"objects"` (the default), a mesh per node, or `"batched"`, every
      * eligible node of one look in one draw call. A node a batch cannot draw stays an object, with
      * no change to the picture. It can change at any time.
+     *
+     * While a layout runs on the GPU, `"batched"` also skips the frames between two landings of
+     * the layout's batches, even with `renderOnDemand` off: such a frame would show the same
+     * positions again and take GPU time from the layout. A camera move, hover, a restyle or other
+     * work still draws at once, and a settled graph is drawn every frame unless `renderOnDemand` is
+     * on. `"objects"` draws every frame. The one change not drawn at once is your own code setting
+     * a property of something already in the Babylon.js scene (through `graph.scene`, a material's
+     * color, say): during the layout that waits for its next landing. Use `"objects"` if it must
+     * show at once.
      * @returns The path asked for.
      * @example
      * ```html

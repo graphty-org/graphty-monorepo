@@ -24,6 +24,20 @@ import type { GraphBounds, Vec3 } from "./types";
  */
 const DEFAULT_EXTENT = 10;
 
+/** The boxes that stand in for a single point: the point is their content, not their corners. */
+const pointBoxes = new WeakSet<GraphBounds>();
+
+/**
+ * Whether a box is the default box moved onto a single point (one node, or every node in one place).
+ * Its corners are not content: a view that centers the picture of the box's corners puts the point
+ * off center, because the corners nearer the camera project larger.
+ * @param bounds - The box a view was handed.
+ * @returns True for a box around a single point.
+ */
+export function isPointBox(bounds: GraphBounds): boolean {
+    return pointBoxes.has(bounds);
+}
+
 /**
  * The box around nothing: what an empty graph, and one whose nodes have no positions yet, both
  * get.
@@ -143,7 +157,7 @@ function measurePoints(points: Iterable<Vec3>): GraphBounds {
         const center = { x: minX, y: minY, z: minZ };
         const offset = (by: number): Vec3 => ({ x: minX + by, y: minY + by, z: minZ + by });
 
-        return Object.freeze({
+        const box = Object.freeze({
             min: offset(-DEFAULT_EXTENT),
             max: offset(DEFAULT_EXTENT),
             center,
@@ -151,6 +165,8 @@ function measurePoints(points: Iterable<Vec3>): GraphBounds {
             maxDimension: DEFAULT_EXTENT * 2,
             measured,
         });
+        pointBoxes.add(box);
+        return box;
     }
 
     const size = { x: maxX - minX, y: maxY - minY, z: maxZ - minZ };

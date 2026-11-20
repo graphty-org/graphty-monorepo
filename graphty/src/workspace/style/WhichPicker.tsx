@@ -1432,10 +1432,12 @@ export function AddCondition({
                 }
                 break;
             case "Escape":
-                // Escape closes the list only, not the picker it opened from.
+                // Escape closes the list only, not the picker it opened from. Focus goes back to
+                // what opened it -- the anchor when there is one, which `button` never holds --
+                // before the search unmounts, so focus is never left on the page.
                 event.preventDefault();
                 combobox.closeDropdown();
-                button.current?.focus();
+                combobox.targetRef.current?.focus();
                 break;
             case "Tab":
                 // With letters typed, Tab takes the attribute they highlight and moves on into its
@@ -1451,7 +1453,7 @@ export function AddCondition({
                 if (event.shiftKey) {
                     event.preventDefault();
                 }
-                button.current?.focus();
+                combobox.targetRef.current?.focus();
                 break;
             default:
                 break;
@@ -3451,78 +3453,70 @@ function TextCard({
                     onChange({ ...card, match: match as typeof card.match });
                 }}
             />
-            {card.match === "list"
-                ? variant !== undefined && (
-                      // eslint-disable-next-line graphty/style-sidebar-controls -- drawn only in the selection workspace's steps (a card with a variant), never in the Style sidebar
-                      <Text size="xs">
-                          {(card.ids ?? []).length} {(card.ids ?? []).length === 1 ? "node" : "nodes"}:{" "}
-                          {(card.ids ?? []).slice(0, 5).join(", ")}
-                          {(card.ids ?? []).length > 5 ? ", ..." : ""}
-                      </Text>
-                  )
-                : card.match !== "present" &&
-                  card.match !== "absent" && (
-                      <>
-                          <Autocomplete
-                              aria-label={`${name}: text to match`}
-                              data-enter-done
-                              placeholder="Text"
-                              // Never more than a checklist draws, whatever the column holds (spec 4.3).
-                              limit={SHOWN_VALUES}
-                              data={listed}
-                              filter={({ options }) => options}
-                              // Focus put here (the card opening, Undo, a card removed) never opens
-                              // the list: typing or ArrowDown does, so a stray Enter cannot take a
-                              // suggestion over the text the rule holds.
-                              openOnFocus={false}
-                              // ArrowDown on a closed list only opens it, with nothing highlighted, so
-                              // the Enter after it is Done, not a suggestion; the next ArrowDown walks.
-                              // Escape with the list shut keeps the text and the picker open; an
-                              // open list's Escape closes the list only, and an empty box's goes on.
-                              onKeyDownCapture={(event) => {
-                                  const shut = !("expanded" in event.currentTarget.dataset);
-                                  // Enter commits the text (or takes the lit suggestion): the list goes
-                                  // with it, never left over the rows below.
-                                  if (event.key === "Enter" && !event.nativeEvent.isComposing) {
-                                      setOpened(false);
-                                      return;
-                                  }
-                                  if (
-                                      (event.key === "ArrowDown" && !opened) ||
-                                      (event.key === "Escape" && shut && card.text !== "")
-                                  ) {
-                                      event.preventDefault();
-                                      event.stopPropagation();
-                                      if (event.key === "ArrowDown") {
-                                          setOpened(true);
-                                      }
-                                  }
-                              }}
-                              // Listed once something is typed: an empty box opens on nothing.
-                              dropdownOpened={opened && typed !== "" && listed.length > 0}
-                              onDropdownOpen={() => {
-                                  setOpened(true);
-                              }}
-                              onDropdownClose={() => {
-                                  setOpened(false);
-                              }}
-                              value={card.text}
-                              onChange={(text) => {
-                                  onChange({ ...card, text });
-                              }}
-                          />
-                          {variant !== "step" && (
-                              <Checkbox
-                                  size="xs"
-                                  label="Match case"
-                                  checked={card.caseSensitive}
-                                  onChange={(event) => {
-                                      onChange({ ...card, caseSensitive: event.currentTarget.checked });
-                                  }}
-                              />
-                          )}
-                      </>
-                  )}
+            {/* A list (the selected nodes) has no box. Only the Style sidebar's card holds one: a step's
+                card is read back from its rule, where the nodes are a picked-by-hand rule. */}
+            {card.match !== "list" && card.match !== "present" && card.match !== "absent" && (
+                <>
+                    <Autocomplete
+                        aria-label={`${name}: text to match`}
+                        data-enter-done
+                        placeholder="Text"
+                        // Never more than a checklist draws, whatever the column holds (spec 4.3).
+                        limit={SHOWN_VALUES}
+                        data={listed}
+                        filter={({ options }) => options}
+                        // Focus put here (the card opening, Undo, a card removed) never opens
+                        // the list: typing or ArrowDown does, so a stray Enter cannot take a
+                        // suggestion over the text the rule holds.
+                        openOnFocus={false}
+                        // ArrowDown on a closed list only opens it, with nothing highlighted, so
+                        // the Enter after it is Done, not a suggestion; the next ArrowDown walks.
+                        // Escape with the list shut keeps the text and the picker open; an
+                        // open list's Escape closes the list only, and an empty box's goes on.
+                        onKeyDownCapture={(event) => {
+                            const shut = !("expanded" in event.currentTarget.dataset);
+                            // Enter commits the text (or takes the lit suggestion): the list goes
+                            // with it, never left over the rows below.
+                            if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+                                setOpened(false);
+                                return;
+                            }
+                            if (
+                                (event.key === "ArrowDown" && !opened) ||
+                                (event.key === "Escape" && shut && card.text !== "")
+                            ) {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                if (event.key === "ArrowDown") {
+                                    setOpened(true);
+                                }
+                            }
+                        }}
+                        // Listed once something is typed: an empty box opens on nothing.
+                        dropdownOpened={opened && typed !== "" && listed.length > 0}
+                        onDropdownOpen={() => {
+                            setOpened(true);
+                        }}
+                        onDropdownClose={() => {
+                            setOpened(false);
+                        }}
+                        value={card.text}
+                        onChange={(text) => {
+                            onChange({ ...card, text });
+                        }}
+                    />
+                    {variant !== "step" && (
+                        <Checkbox
+                            size="xs"
+                            label="Match case"
+                            checked={card.caseSensitive}
+                            onChange={(event) => {
+                                onChange({ ...card, caseSensitive: event.currentTarget.checked });
+                            }}
+                        />
+                    )}
+                </>
+            )}
             {isName && (
                 <Button
                     size="compact-xs"

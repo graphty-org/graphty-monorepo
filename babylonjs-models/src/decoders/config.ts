@@ -20,6 +20,8 @@ export interface DecoderOptions {
     readonly ktx2?: false;
     /** `false` turns the meshopt decoder off: a glTF with meshopt geometry is refused. */
     readonly meshopt?: false;
+    /** `false` turns the OpenUSD importer off: a USD or USDZ model is refused with `E_MODEL_DECODER_UNAVAILABLE`. */
+    readonly usd?: false;
 }
 
 let settings: DecoderOptions = {};
@@ -39,7 +41,7 @@ export function configureDecoders(options: DecoderOptions): void {
  * @param kind - The decoder.
  * @returns False when {@link configureDecoders} turned it off.
  */
-export function allowed(kind: "draco" | "ktx2" | "meshopt"): boolean {
+export function allowed(kind: "draco" | "ktx2" | "meshopt" | "usd"): boolean {
     return settings[kind] !== false;
 }
 

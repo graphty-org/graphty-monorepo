@@ -132,7 +132,7 @@ jobs:
         # write of issue #273 needs a writable /proc/sys. The runner is a single-use machine.dev VM, so the wider
         # container boundary exposes nothing another job shares.
         container:
-            image: ubuntu:24.04
+            image: ubuntu:24.04@sha256:73b999393d07f2bf65a40373778a44dc9a6d54ad7718d29247d8ff9413c4d6a8
             options: --gpus all --ipc=host --privileged
             env:
                 NVIDIA_VISIBLE_DEVICES: all
@@ -168,8 +168,11 @@ jobs:
             # The .deb files apt chose are cached, keyed on the bare image's own package list (every package and
             # version dpkg reports before anything is installed) and the packages asked for, so a hit installs with
             # dpkg and never touches archive.ubuntu.com: in run 42555029230 the runner could not reach it, apt
-            # found "no installation candidate" for libvulkan1 and the full run went red (#6390). A new ubuntu:24.04
-            # build changes the key, so its first run fetches once more (with apt's retries) and saves the set.
+            # found "no installation candidate" for libvulkan1 and the full run went red (#6390). The image is pinned
+            # by digest (above) because a new ubuntu:24.04 build changes the key, and the first run on it must reach
+            # the archive: full run 44519887010 met a new build while archive.ubuntu.com refused connections and went
+            # red (#9035). Bump the digest on purpose (`docker pull ubuntu:24.04` prints it) in both T4 workflows; the
+            # first run after the bump fetches once (with apt's retries) and saves the set.
             # The image's docker-clean hook deletes every .deb apt downloads; it is removed so the Playwright
             # system packages below can be cached the same way.
             - name: Key the container's packages by its image
@@ -256,9 +259,14 @@ jobs:
                   nvidia-smi
                   test -e /usr/share/vulkan/icd.d/nvidia_icd.json -o -e /etc/vulkan/icd.d/nvidia_icd.json \
                     || { echo "::error::no NVIDIA Vulkan ICD in the container -- NVIDIA_DRIVER_CAPABILITIES must include graphics"; exit 1; }
+            # No pnpm store cache and no Playwright browser cache (#8841). The repository's caches sit at GitHub's
+            # 10 GB limit and evict the least recently used entry within about an hour (CodeQL databases and pull
+            # requests' LFS sets), so an entry this job saved was gone before the next T4 run six hours later: every
+            # run missed, then spent a minute uploading 660 MB nobody read. The small .deb sets keep their saves:
+            # they cost seconds and still serve a rerun soon after.
             - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
             - uses: actions/setup-node@v7
-              with: { node-version: 22.x, cache: pnpm }
+              with: { node-version: 22.x, package-manager-cache: false }
             - run: pnpm install --frozen-lockfile
               working-directory: .
               env: { HUSKY: "0" }
@@ -380,22 +388,9 @@ jobs:
               run: cd .. && node tools/results/run-group.mjs t4-node-no-subgroups "cd webgpu-graph-algorithms && GRAPHTY_GPU_NO_SUBGROUPS=1 node scripts/run-node-shard.js --project=node --project=node-gpu-alone $T4_ARGS"
             - if: ${{ !inputs.files }}
               run: cd .. && node tools/results/run-group.mjs t4-node-no-subgroups-device-errors "cd webgpu-graph-algorithms && GRAPHTY_GPU_NO_SUBGROUPS=1 node scripts/run-node-shard.js --project=node-device-errors $T4_ARGS"
-            # The key carries the container image, not just runner.os. Playwright downloads a browser build
-            # matched to the distribution it detects, and every other lane keys on `Linux` alone -- so without
-            # this the 22.04 build another job saved would be restored into a 24.04 container and run against the
-            # wrong shared libraries. HOME is the container's, so the path is consistent within the job.
-            - name: Cache Playwright browsers
-              id: pw
-              uses: actions/cache@v6
-              with:
-                  {
-                      path: ~/.cache/ms-playwright,
-                      key: "playwright-${{ runner.os }}-ubuntu2404-${{ hashFiles('pnpm-lock.yaml') }}",
-                  }
-            - if: steps.pw.outputs.cache-hit != 'true'
-              run: pnpm exec playwright install chromium # a fresh VM each job
-            # The cache holds the browser, not its system libraries, and the container starts bare every job: without
-            # them chrome-headless-shell cannot load libglib-2.0.so.0 (run 37211866080). Their .deb files are cached
+            - run: pnpm exec playwright install chromium # a fresh VM each job, never cached (see the pnpm setup above)
+            # The container starts bare every job: without Chromium's system
+            # libraries chrome-headless-shell cannot load libglib-2.0.so.0 (run 37211866080). Their .deb files are cached
             # like the bootstrap's, keyed on the same image, so a hit never runs apt against archive.ubuntu.com (#6390).
             - name: Install Chromium's system packages
               uses: ./.github/actions/playwright-system-deps

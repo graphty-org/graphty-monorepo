@@ -45,6 +45,8 @@ const CODES_FROM_THE_DESIGN = [
     // a screenshot or video that could not be made (issue #6826)
     "E_CAPTURE_FAILED",
     "E_NOT_SETTLED",
+    // a recording canceled (design/ui/camera-views-tours-and-capture.md section 4.4)
+    "E_CANCELED",
     // the network sources (design/graph-io/network-sources-design.md section 8), experimental
     "E_SOURCE_BLOCKED",
     "E_SOURCE_AUTH",
@@ -137,6 +139,7 @@ const CODES_FROM_THE_DESIGN = [
     "E_SOFTWARE_ONLY",
     "E_DEVICE_INCORRECT",
     "E_DEVICE_LOST",
+    "E_GPU_TIMEOUT",
     "E_RENDER_LOST",
     "E_NO_WEBGL",
     "E_SHADER_REFUSED",
@@ -229,6 +232,7 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_SOFTWARE_ONLY":
         case "E_DEVICE_INCORRECT":
         case "E_DEVICE_LOST":
+        case "E_GPU_TIMEOUT":
         case "E_RENDER_LOST":
         case "E_NO_WEBGL":
         case "E_SHADER_REFUSED":
@@ -293,6 +297,7 @@ function bucketOf(code: GraphtyErrorCode): string {
             return "extension";
         case "E_CAPTURE_FAILED":
         case "E_NOT_SETTLED":
+        case "E_CANCELED":
             return "capture";
         default: {
             const unreachable: never = code;
@@ -354,7 +359,7 @@ describe("isGraphtyErrorCode", () => {
 });
 
 describe("ACCELERATION_ERROR_CODES", () => {
-    it("is the ten codes capabilities.acceleration can report", () => {
+    it("is the eleven codes capabilities.acceleration can report", () => {
         assert.deepStrictEqual(
             [...ACCELERATION_ERROR_CODES],
             [
@@ -363,6 +368,7 @@ describe("ACCELERATION_ERROR_CODES", () => {
                 "E_SOFTWARE_ONLY",
                 "E_DEVICE_INCORRECT",
                 "E_DEVICE_LOST",
+                "E_GPU_TIMEOUT",
                 "E_TOO_LARGE",
                 "E_NO_ACCELERATOR_REGISTERED",
                 "E_ACCELERATOR_FAILED",

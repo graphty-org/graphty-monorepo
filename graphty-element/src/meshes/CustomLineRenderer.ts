@@ -4,7 +4,7 @@ import { Effect } from "@babylonjs/core/Materials/effect.js";
 import { ShaderMaterial } from "@babylonjs/core/Materials/shaderMaterial.js";
 import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial.js";
 import { Color3 } from "@babylonjs/core/Maths/math.color.js";
-import { Vector2, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import { Vector2, Vector3, Vector4 } from "@babylonjs/core/Maths/math.vector.js";
 import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 import { VertexData } from "@babylonjs/core/Meshes/mesh.vertexData.js";
 import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder.js";
@@ -89,12 +89,17 @@ export interface JoinedLineOptions {
     fade?: EdgeFade | undefined;
     /** Draw without alpha blending (`line.blending` false): every fragment at full strength. */
     opaque?: boolean | undefined;
-    /** A patterned line: its element's length along the line (world units), its kind, count and gap. */
+    /**
+     * A patterned line: its element's length along the line (world units), its kind, count and gap; with `dashes`,
+     * dashes and gaps of several lengths alternating from the line's start (world units, at most 8, an even count),
+     * drawn in place of its elements every `elementLength + gap`.
+     */
     pattern?: {
         kind: JoinedPatternKind;
         elementLength: number;
         count?: number | undefined;
         gap?: number | undefined;
+        dashes?: readonly number[] | undefined;
     };
     /**
      * Whether its slots carry the static values a taper or a shader reads (`EDGE_WIDENED`). A
@@ -132,6 +137,26 @@ export interface JoinedLineOptions {
      * `"smooth"` also widens it by a pixel and smooths its edges in the fragment shader (`EDGE_LINE_AA`).
      */
     pulledLean?: boolean | "smooth";
+}
+
+/**
+ * Set a joined line's pattern on its material: (element length, kind: 0 solid, 1 dash or box, 2 dot, 3 diamond, 4 star,
+ * 5 a dash array, half the width), read by the fragment shader, with the dash array's dashes and gaps.
+ * @param material - The line's material.
+ * @param options - The line's look.
+ */
+function setPattern(material: ShaderMaterial, options: JoinedLineOptions): void {
+    const { pattern } = options;
+    const dashes = pattern?.dashes;
+    if (pattern === undefined) {
+        material.setVector3("pattern", Vector3.Zero());
+    } else {
+        const kind = dashes === undefined ? JOINED_PATTERN_KINDS[pattern.kind] : 5;
+        material.setVector3("pattern", new Vector3(pattern.elementLength, kind, options.width / 2));
+    }
+    const dash = (i: number): number => dashes?.[i] ?? 0;
+    material.setVector4("dashA", new Vector4(dash(0), dash(1), dash(2), dash(3)));
+    material.setVector4("dashB", new Vector4(dash(4), dash(5), dash(6), dash(7)));
 }
 
 /**
@@ -188,7 +213,13 @@ function joinedLineMeta(options: JoinedLineOptions, widened: boolean, color: Col
     return {
         joinedLine: true,
         pattern: pattern
-            ? { kind: pattern.kind, elementLength: pattern.elementLength, count: pattern.count, gap: pattern.gap }
+            ? {
+                  kind: pattern.kind,
+                  elementLength: pattern.elementLength,
+                  count: pattern.count,
+                  gap: pattern.gap,
+                  dashes: pattern.dashes,
+              }
             : undefined,
         ...(widened ? { widened: true } : {}),
         ...(opaque ? { opaque: true } : {}),
@@ -600,6 +631,8 @@ void main(void) {
                     "color",
                     "opacity",
                     "pattern",
+                    "dashA",
+                    "dashB",
                     ...(options.pulled === true ? ["edgeOrdered"] : []),
                     ...(widened ? ["edgeReach"] : []),
                     ...(fade === undefined ? [] : ["edgeFade"]),
@@ -647,14 +680,7 @@ void main(void) {
         material.setFloat("minWidth", options.minScreenWidth ?? 0);
         material.setFloat("opacity", opacity);
         material.setFloat("miterLimit", EDGE_MITER_LIMIT);
-        const { pattern } = options;
-        // (element length, kind: 0 solid, 1 dash or box, 2 dot, 3 diamond, 4 star, half the width), read by the
-        // fragment shader.
-        const kind = pattern === undefined ? 0 : JOINED_PATTERN_KINDS[pattern.kind];
-        material.setVector3(
-            "pattern",
-            pattern ? new Vector3(pattern.elementLength, kind, options.width / 2) : Vector3.Zero(),
-        );
+        setPattern(material, options);
         // See create (issue #2894).
         material.blockDirtyMechanism = true;
         material.backFaceCulling = false;

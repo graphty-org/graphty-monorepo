@@ -3,12 +3,24 @@
  * Writes src/models/environment.ts: the neutral environment a loaded model's PBR materials
  * reflect when the scene has no environment of its own.
  *
- * The environment is one uniform gray radiance in every direction. A uniform environment is its
- * own prefiltered version at every roughness, so each mip level of each cube face is the same
- * flat color and no GPU prefiltering pass is needed: the file is written here byte by byte in
- * Babylon.js's .env layout (magic bytes, a NUL-terminated JSON manifest, then one RGBD-encoded
- * PNG per face per mip level; the six faces of a level point at one copy). Its irradiance is the matching spherical polynomial: a constant
- * radiance L is the polynomial with xx = yy = zz = L and every other term zero.
+ * graphty-element's lights carry no specular color, so they light a model's diffuse color and
+ * nothing else: what a surface reflects comes only from this environment. Its two parts are
+ * therefore set apart:
+ *
+ * - Irradiance (the diffuse part) is a dim uniform gray, a little fill under the lights. At 0.5 the
+ *   two together washed a light gray model out to flat white.
+ * - Radiance (the reflected part) is a soft studio gradient, bright above and dark below. A metal
+ *   has no diffuse color and shows only what it reflects: in a dim uniform environment gold read
+ *   flat olive and a clear coat had nothing to show.
+ *
+ * The radiance is linear in the height of the direction, L(d) = MID + SLOPE * d.y, so it can be
+ * prefiltered exactly here with no GPU pass: a lobe symmetric about d averages it to
+ * MID + SLOPE * k * d.y, where k is the lobe's mean cosine to d, measured once per mip level by
+ * sampling the GGX lobe Babylon.js's own prefiltering uses at that level's roughness. The file is
+ * written byte by byte in Babylon.js's .env layout (magic bytes, a NUL-terminated JSON manifest,
+ * then one RGBD-encoded PNG per face per mip level; the four side faces of a level point at one
+ * copy). Its irradiance is the matching spherical polynomial: a constant radiance L is the
+ * polynomial with xx = yy = zz = L and every other term zero.
  *
  * The file is a base64 `data:` URL in a TypeScript module rather than a binary asset, so every
  * build that reads the source (the library, ./bundle, the tests, Storybook) inlines it the same
@@ -21,12 +33,13 @@ import { writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { deflateSync } from "node:zlib";
 
-/**
- * Linear radiance of the environment, the same in every direction and color channel. The scene's
- * hemispheric light already lights a model; this only adds a little fill and reflection. At 0.5 the
- * two together washed a light gray model out to flat white.
- */
-const RADIANCE = 0.125;
+/** Linear irradiance, the same from every direction and in every color channel. */
+const IRRADIANCE = 0.125;
+/** Reflected radiance straight up and straight down, in every color channel. */
+const TOP = 1;
+const BOTTOM = 0.1;
+const MID = (TOP + BOTTOM) / 2;
+const SLOPE = (TOP - BOTTOM) / 2;
 /** Width of the largest mip level of each face. */
 const WIDTH = 16;
 
@@ -57,42 +70,93 @@ function chunk(type, data) {
     return out;
 }
 
-/** A size x size RGBA PNG of one color. */
-function flatPng(size, rgba) {
+/**
+ * A size x size RGBA PNG.
+ * @param size - Its width and height.
+ * @param pixel - The RGBA bytes of the texel in column x and row y.
+ * @returns The PNG's bytes.
+ */
+function png(size, pixel) {
     const ihdr = Buffer.alloc(13);
     ihdr.writeUInt32BE(size, 0);
     ihdr.writeUInt32BE(size, 4);
     ihdr.set([8, 6, 0, 0, 0], 8); // 8-bit RGBA, no interlace
-    const row = Buffer.concat([Buffer.from([0]), Buffer.from(Array.from({ length: size }, () => rgba).flat())]);
-    const raw = Buffer.concat(Array.from({ length: size }, () => row));
+    const rows = [];
+    for (let y = 0; y < size; y++) {
+        rows.push(Buffer.from([0, ...Array.from({ length: size }, (_, x) => pixel(x, y)).flat()]));
+    }
     return Buffer.concat([
         Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
         chunk("IHDR", ihdr),
-        chunk("IDAT", deflateSync(raw, { level: 9 })),
+        chunk("IDAT", deflateSync(Buffer.concat(rows), { level: 9 })),
         chunk("IEND", Buffer.alloc(0)),
     ]);
 }
 
-// RGBD, as Babylon's toRGBD shader writes it: D = clamp(floor(255 / max) / 255, 0, 1), rgb in gamma space.
-const d = Math.min(Math.floor(Math.max(255 / RADIANCE, 1)) / 255, 1);
-const gamma = Math.round(Math.min((RADIANCE * d) ** (1 / 2.2), 1) * 255);
-const levels = Math.log2(WIDTH) + 1;
+/**
+ * The mean cosine to its axis of the GGX lobe Babylon.js prefilters with (normal = view =
+ * reflection), weighted by N.L as its filter weights samples.
+ * @param alpha - The lobe's GGX alpha.
+ * @returns k, from 1 (a mirror) down.
+ */
+function meanCosine(alpha) {
+    if (alpha === 0) {
+        return 1;
+    }
+    const samples = 4096;
+    let sum = 0;
+    let weight = 0;
+    for (let i = 0; i < samples; i++) {
+        const xi = (i + 0.5) / samples;
+        const cosH = Math.sqrt((1 - xi) / (1 + (alpha * alpha - 1) * xi));
+        // L = reflect(-N, H): its cosine to N is 2 cos^2(H) - 1, whatever H's azimuth.
+        const cosL = 2 * cosH * cosH - 1;
+        if (cosL > 0) {
+            sum += cosL * cosL;
+            weight += cosL;
+        }
+    }
+    return sum / weight;
+}
 
+/**
+ * The RGBA bytes of a linear gray radiance at most 1, RGBD-encoded as Babylon's toRGBD shader
+ * writes it: D = clamp(floor(255 / max) / 255, 0, 1) is 1 for every value here, rgb in gamma space.
+ * @param value - The radiance.
+ * @returns The four bytes.
+ */
+function rgbd(value) {
+    const gamma = Math.round(Math.min(value, 1) ** (1 / 2.2) * 255);
+    return [gamma, gamma, gamma, 255];
+}
+
+// Babylon.js's cube faces in .env order (+x, -x, +y, -y, +z, -z): a side face's rows run from +y
+// down to -y; +y and -y face straight up and down. Each face's height of a texel's direction:
+const side = (u, v) => -v / Math.hypot(1, u, v);
+const up = (u, v) => 1 / Math.hypot(1, u, v);
+const down = (u, v) => -1 / Math.hypot(1, u, v);
+
+const levels = Math.log2(WIDTH) + 1;
 const images = [];
 const mipmaps = [];
 let position = 0;
 for (let level = 0; level < levels; level++) {
-    // The six faces of a level are the same image, so they share one copy of its bytes.
-    const png = flatPng(WIDTH >> level, [gamma, gamma, gamma, Math.round(d * 255)]);
-    images.push(png);
-    for (let face = 0; face < 6; face++) {
-        mipmaps.push({ length: png.length, position });
-    }
-    position += png.length;
+    const size = WIDTH >> level;
+    // The roughness Babylon.js's HDRFiltering gives this level (lodGenerationScale 0.8, offset 0).
+    const k = meanCosine(level === 0 ? 0 : Math.min(2 ** (level / 0.8) / WIDTH, 1));
+    const face = (height) =>
+        png(size, (x, y) => rgbd(MID + SLOPE * k * height((2 * (x + 0.5)) / size - 1, (2 * (y + 0.5)) / size - 1)));
+    const [sides, top, bottom] = [face(side), face(up), face(down)].map((bytes) => {
+        const at = { length: bytes.length, position };
+        images.push(bytes);
+        position += bytes.length;
+        return at;
+    });
+    mipmaps.push(sides, sides, top, bottom, sides, sides);
 }
 
 const zero = [0, 0, 0];
-const flat = [RADIANCE, RADIANCE, RADIANCE];
+const flat = [IRRADIANCE, IRRADIANCE, IRRADIANCE];
 const manifest = {
     version: 2,
     width: WIDTH,
@@ -111,7 +175,8 @@ const target = fileURLToPath(new URL("../src/models/environment.ts", import.meta
 const source = `/**
  * @file THIS FILE IS AUTO GENERATED: DO NOT EDIT THIS FILE. INSTEAD EDIT scripts/make-model-environment.mjs
  * The neutral prefiltered environment (a Babylon.js .env file, ${out.length} bytes) that model
- * materials reflect when the scene has none: uniform linear radiance ${RADIANCE} in every direction.
+ * materials reflect when the scene has none: uniform linear irradiance ${IRRADIANCE}, and reflected
+ * radiance from ${TOP} straight up to ${BOTTOM} straight down.
  */
 
 /** The .env file as a data: URL. */

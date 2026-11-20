@@ -389,6 +389,7 @@ const css = `
     letter-spacing: normal;
 }
 .cm-page-description[data-tone="danger"] { color: var(--cm-text-danger); }
+.cm-page-cell[aria-disabled="true"] .cm-page-name { color: var(--cm-text-disabled); }
 .cm-page-cell .cm-rename { width: 100%; }
 
 /* ---- Inline rename (10.3) ---------------------------------------------------------------- */

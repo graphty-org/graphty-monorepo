@@ -19,6 +19,11 @@
  *   direction and later rows that differ go through `onMixedDirection` (expansion by default).
  * - The weight column (`weightFrom`, default "weight", matched case-insensitively) is parsed per
  *   row; a blank cell means "no weight given" and the edge is pushed without one.
+ * - STRING (`#node1 node2 ... combined_score`, `protein1 protein2 ... combined_score`) and BioGRID
+ *   TAB3 (`#BioGRID Interaction ID ... Official Symbol Interactor A ...`) downloads are recognized by
+ *   their header, read even when it is a `#` line: their endpoint columns are the source and target,
+ *   STRING's `combined_score` is the weight (unless `weightFrom` is given), every other column an
+ *   attribute.
  * - Every other column is an attribute: cells are parsed by the fixed lexical grammar of design
  *   section 5.1 and the sink infers the column dtype (widening per column, never per cell); an
  *   all-text column of low cardinality becomes a dict (design section 5.4); an `id` column of the
@@ -58,7 +63,6 @@ import {
     MISSING_ENDPOINT_CODE as SHARED_MISSING_ENDPOINT_CODE,
     MISSING_ID_CODE as SHARED_MISSING_ID_CODE,
     OPTION_IGNORED_CODE,
-    ROLE_TAKEN_CODE as SHARED_ROLE_TAKEN_CODE,
 } from "../../common/codes.js";
 import { DirectionResolver, type EdgeKind } from "../../common/direction.js";
 import { IdCoercer } from "../../common/ids.js";
@@ -77,6 +81,7 @@ import {
     type CsvColumnRef,
     EDGE_ID_NAMES,
     findColumn,
+    headerDialect,
     headerNames,
     ID_NAMES,
     idCandidates,
@@ -256,7 +261,7 @@ export const COLUMN_MISSING_CODE = "W_CSV_COLUMN_MISSING";
  * role.
  * @category Issue and loss codes
  */
-export const ROLE_TAKEN_CODE = SHARED_ROLE_TAKEN_CODE;
+
 /**
  * A repeated edge id (the column is unique); the edge is skipped.
  * @category Issue and loss codes
@@ -972,14 +977,19 @@ class TableReader {
         const firstLine = this.reader.line;
         const firstQuoted = this.reader.quoted.slice(0, firstRow.length);
         const pending: PendingRow[] = [];
-        const header = await this.decideHeader(
-            iterator,
-            { row: firstRow, quoted: firstQuoted, line: firstLine },
-            pending,
-        );
-        const names = header ? uniqueNames(headerNames(firstRow), report, firstLine) : positionalNames(firstRow.length);
+        const commented = this.commentedHeader(firstRow.length);
+        if (commented !== null) {
+            pending.push({ row: firstRow, quoted: firstQuoted, line: firstLine });
+        }
+        const header =
+            commented !== null ||
+            (await this.decideHeader(iterator, { row: firstRow, quoted: firstQuoted, line: firstLine }, pending));
+        const headerRow = commented ?? firstRow;
+        const names = header
+            ? uniqueNames(headerNames(headerRow), report, firstLine)
+            : positionalNames(firstRow.length);
         const last = firstRow.length - 1;
-        const optionalLast = header && last > 0 && isUnset(firstRow[last], firstQuoted[last]);
+        const optionalLast = commented === null && header && last > 0 && isUnset(firstRow[last], firstQuoted[last]);
         if (this.guessesNodeId(names, header)) {
             await this.drain(iterator, pending);
         }
@@ -1017,6 +1027,22 @@ class TableReader {
         }
         this.reportPossibleHeader();
         this.reportReaderFindings();
+    }
+
+    /**
+     * The header row of a STRING or BioGRID download, which both write as a `#` line the reader
+     * skipped as a leading comment: the last leading comment when it splits into as many cells as
+     * the first record and names a known dialect.
+     * @param width - the number of cells of the first record
+     * @returns the header cells, or null
+     */
+    private commentedHeader(width: number): string[] | null {
+        const { delimiter, leadingComments } = this.reader;
+        if (this.headerMode() === false || delimiter === null || leadingComments.length === 0) {
+            return null;
+        }
+        const cells = leadingComments.at(-1)?.split(delimiter) ?? [];
+        return cells.length === width && headerDialect(cells) !== null ? cells : null;
     }
 
     /** Warn when a first row read as data could be a header and no later row repeated any of its cells. */
@@ -1117,6 +1143,7 @@ class TableReader {
             csv.targetColumn === null &&
             csv.nodes === null &&
             idCandidates(names).length > 0 &&
+            headerDialect(names) === null &&
             findColumn(names, SOURCE_NAMES) < 0 &&
             findColumn(names, TARGET_NAMES) < 0
         );
@@ -1269,7 +1296,13 @@ class TableReader {
         }
         for (let i = 0; i < leadingComments.length; i++) {
             const comment = leadingComments[i];
-            if (comment.length > 1 && comment[1].trim().length > 0 && comment.split(delimiter).length === width) {
+            const cells = comment.split(delimiter);
+            if (
+                comment.length > 1 &&
+                comment[1].trim().length > 0 &&
+                cells.length === width &&
+                headerDialect(cells) === null
+            ) {
                 this.state.report.warnOnce(
                     "parse-error",
                     COMMENT_LIKE_RECORD_CODE,
@@ -1340,8 +1373,12 @@ class TableReader {
         let source = -1;
         let target = -1;
         if (this.kind !== "nodes") {
-            source = endpointColumn(names, header, csv.sourceColumn, "sourceColumn", SOURCE_NAMES, 0);
-            target = endpointColumn(names, header, csv.targetColumn, "targetColumn", TARGET_NAMES, 1);
+            // a STRING or BioGRID header names its endpoints its own way; generic names still come first
+            const dialect = header ? headerDialect(names) : null;
+            const sources = dialect === null ? SOURCE_NAMES : [...SOURCE_NAMES, dialect.source];
+            const targets = dialect === null ? TARGET_NAMES : [...TARGET_NAMES, dialect.target];
+            source = endpointColumn(names, header, csv.sourceColumn, "sourceColumn", sources, 0);
+            target = endpointColumn(names, header, csv.targetColumn, "targetColumn", targets, 1);
             if (source >= 0 && target >= 0 && source === target) {
                 throw new GraphFormatError("E_UNSUPPORTED", "sourceColumn and targetColumn name the same column", {
                     option: "targetColumn",
@@ -1517,7 +1554,13 @@ class TableReader {
             return -1;
         }
         if (header) {
-            const weight = findFree(names, [common.weightFrom], claimed);
+            // STRING's combined_score is the weight unless the caller named one or a weight column exists
+            const dialectWeight = this.state.weightFromExplicit ? null : headerDialect(names)?.weight;
+            const weight = findFree(
+                names,
+                dialectWeight ? [common.weightFrom, dialectWeight] : [common.weightFrom],
+                claimed,
+            );
             if (weight < 0 && this.state.weightFromExplicit) {
                 report.warning(
                     "missing-value",
@@ -2563,3 +2606,5 @@ function nodesInput(value: ImportInput | Blob | undefined): ImportInput | null {
     const blob = typeof value === "object" && typeof object.stream === "function" && typeof object.size === "number";
     return blob ? (value as Blob).stream() : (value as ImportInput);
 }
+
+export { ROLE_TAKEN_CODE } from "../../common/codes.js";

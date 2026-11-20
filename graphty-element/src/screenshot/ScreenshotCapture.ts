@@ -46,6 +46,9 @@ import type {
     ScreenshotResult,
 } from "./types.js";
 
+/** The kinds of pending work that are a picture still loading; see `PendingWork`. */
+const PICTURE_LOADS = ["picture", "model", "font", "basemap"] as const;
+
 /**
  * Handles screenshot capture for graph visualizations using Babylon.js rendering engine.
  * Supports quality enhancement, transparent backgrounds, format conversion, and multiple output destinations.
@@ -244,12 +247,17 @@ export class ScreenshotCapture {
                 timing.captureNow,
             );
         }
+        // 3. Wait for pictures still loading -- a background, a node's image or 3D model, a font,
+        // the map -- and a frame drawn once they have landed, as waitForStableFrame() does.
+        if (timing.captureNow?.aborted !== true) {
+            await this.waitForPictures(options.signal, timing.captureNow);
+        }
         throwIfAborted(options.signal);
 
         // The legend is read once the queued edits have landed, so the key matches the picture.
         this.legend = this.resolveLegend(options.legend);
 
-        // 3. Handle camera override
+        // 4. Handle camera override
         const cameraOverride = options.camera ? await this.overrideCamera(options, options.camera) : undefined;
 
         // Left out of the picture only: the selection itself, and its events, are untouched. A
@@ -702,6 +710,57 @@ export class ScreenshotCapture {
                 cleanup();
                 resolve();
             }
+        });
+    }
+
+    /**
+     * Wait until no picture is still loading and a frame has been drawn since, asked after every
+     * drawn frame. Only the record of pending work's loads are waited for, not the rest of what
+     * `waitForStableFrame()` waits for (a camera turning by itself never rests), and each load
+     * ends by itself, landed or failed.
+     * @param signal - Aborted, the wait rejects with the signal's reason.
+     * @param captureNow - Aborted, the wait ends at once.
+     * @returns Promise that resolves once a frame was drawn with nothing loading.
+     */
+    private async waitForPictures(signal?: AbortSignal, captureNow?: AbortSignal): Promise<void> {
+        const { pending } = this.graph.getUpdateManager();
+        const loading = (): boolean => PICTURE_LOADS.some((kind) => pending.isPending(kind));
+        if (!loading()) {
+            return;
+        }
+        throwIfAborted(signal);
+
+        await new Promise<void>((resolve, reject) => {
+            const stop = new AbortController();
+            const finish = (outcome: () => void): void => {
+                this.scene.onAfterRenderObservable.remove(observer);
+                stop.abort();
+                outcome();
+            };
+            const observer = this.scene.onAfterRenderObservable.add(() => {
+                if (loading()) {
+                    this.requestFrame();
+                } else {
+                    finish(resolve);
+                }
+            });
+            captureNow?.addEventListener(
+                "abort",
+                () => {
+                    finish(resolve);
+                },
+                { signal: stop.signal },
+            );
+            signal?.addEventListener(
+                "abort",
+                () => {
+                    finish(() => {
+                        reject(abortReason(signal));
+                    });
+                },
+                { signal: stop.signal },
+            );
+            this.requestFrame();
         });
     }
 

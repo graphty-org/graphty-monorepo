@@ -574,6 +574,45 @@ describe("ElementPositions", () => {
         assert.strictEqual(rowsAnswered, answered + 1);
     });
 
+    it("answers few rows on the landings after one whose readers read every row", () => {
+        // every edge arrowed: each landing's readers read every row, so answering a quarter of them one at
+        // a time before writing would cost more than the publish alone on every landing
+        const rows = 4000;
+        const p = new ElementPositions(rows);
+        p.grow(rows);
+        let publishes = 0;
+        let rowsAnswered = 0;
+        const publish = (): void => {
+            publishes++;
+        };
+        const answer = (row: number, out: { x: number; y: number; z: number }): boolean => {
+            rowsAnswered++;
+            out.x = out.y = out.z = row;
+            return true;
+        };
+        const out = { x: 0, y: 0, z: 0 };
+        const land = (read: number): number => {
+            const before = rowsAnswered;
+            p.owe(publish, answer);
+            for (let row = 0; row < read; row++) {
+                p.read(row, out);
+            }
+
+            p.settle();
+            return rowsAnswered - before;
+        };
+        // the first landing answers a quarter of the rows, then writes
+        assert.strictEqual(land(rows), rows / 4);
+        // the next seven answer the floor of 64 only, and every eighth tries the quarter again
+        const answered = Array.from({ length: 16 }, () => land(rows));
+        assert.deepStrictEqual(answered, [64, 64, 64, 64, 64, 64, 64, rows / 4, 64, 64, 64, 64, 64, 64, 64, rows / 4]);
+        assert.strictEqual(publishes, 17);
+        // once the readers read few rows again, a landing whose readers stayed under the floor restores the quarter
+        assert.strictEqual(land(10), 10);
+        assert.strictEqual(land(1000), 1000);
+        assert.strictEqual(publishes, 19);
+    });
+
     it("forgets the one-row reader with the publish it came with", () => {
         const p = new ElementPositions(8);
         p.grow(2);

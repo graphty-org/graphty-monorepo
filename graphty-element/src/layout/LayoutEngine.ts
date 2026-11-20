@@ -1006,6 +1006,7 @@ export abstract class LayoutEngine {
      * @param y - The y.
      * @param z - The z.
      * @returns True when the publish would not write the row.
+     * @internal
      */
     protected publishLeavesRow(lane: ElementPositions, row: number, x: number, y: number, z: number): boolean {
         if (!isPublishable(row, x, y, z)) {

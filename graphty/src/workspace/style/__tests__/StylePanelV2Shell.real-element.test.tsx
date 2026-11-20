@@ -355,10 +355,6 @@ describe("Style panel v2's '+' lists", () => {
     });
 });
 
-describe("Style panel v2 with empty sections not shown", () => {
-    withFeatures(["file-styles", "style-panel-v2"]);
-});
-
 describe("Style panel v2 off", () => {
     withFeatures(["file-styles"]);
 

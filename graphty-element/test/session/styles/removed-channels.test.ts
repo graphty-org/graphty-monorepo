@@ -87,7 +87,8 @@ describe("removed channels in a saved layer", () => {
         const read = readRemovedChannels({
             encode: { "node.haloColor": { field: "kind" }, "node.haloScale": { field: "rank" } },
         });
-        assert.deepEqual(read.spec.encode as unknown, { "node.outerBorderColor": { field: "kind" } });
+        assert.deepEqual(read.spec.encode, { "node.outerBorderColor": { field: "kind" } });
         assert.deepEqual(read.dropped, ["node.haloScale"]);
+        assert.deepEqual(read.spec.set, { "node.outerBorderWidth": (DEFAULT_SELECTION_STYLE.scale - 1) / 2 });
     });
 });

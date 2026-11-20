@@ -1156,6 +1156,37 @@ export class Node implements ModelUser {
     }
 
     /**
+     * Build the node's underlay and overlay plates. A plate is drawn in the 2D view only (its
+     * channels' drawnWhen), so in 3D both are left empty.
+     * @param key - The mesh cache key of this style and zoom step.
+     * @param style - The resolved style.
+     */
+    private syncPlates(key: string, style: NodeStyleConfig): void {
+        for (const kind of ["underlay", "overlay"] as const) {
+            const old = this[kind];
+            if (old !== null && !old.isDisposed()) {
+                old.dispose();
+            }
+
+            const halo = NodeMesh.createHalo(
+                this.context.getMeshCache(),
+                { styleId: key, is2D: this.context.is2D(), size: this.size },
+                style.shape,
+                this.context.is2D() ? style[kind] : undefined,
+                kind,
+                this.#anchor as AbstractMesh,
+                this.context.getScene(),
+            );
+            if (halo !== null) {
+                halo.parent = this.#anchor;
+                halo.position.setAll(0);
+            }
+
+            this[kind] = halo;
+        }
+    }
+
+    /**
      * Build this node's border from its style, as a child of its mesh so it moves, hides and is
      * disposed with the node. Called after every new mesh: the old border went with the old mesh.
      * @param meshKey - The source mesh key the node is drawn under.
@@ -1200,29 +1231,7 @@ export class Node implements ModelUser {
             this.outerBorder.position.setAll(0);
         }
 
-        for (const kind of ["underlay", "overlay"] as const) {
-            const old = this[kind];
-            if (old !== null && !old.isDisposed()) {
-                old.dispose();
-            }
-
-            // A plate beneath or over the node is drawn in the 2D view only (its channels' drawnWhen).
-            const halo = NodeMesh.createHalo(
-                this.context.getMeshCache(),
-                { styleId: key, is2D: this.context.is2D(), size: this.size },
-                style.shape,
-                this.context.is2D() ? style[kind] : undefined,
-                kind,
-                this.#anchor as AbstractMesh,
-                this.context.getScene(),
-            );
-            if (halo !== null) {
-                halo.parent = this.#anchor;
-                halo.position.setAll(0);
-            }
-
-            this[kind] = halo;
-        }
+        this.syncPlates(key, style);
 
         for (const layer of this.shadow) {
             if (!layer.isDisposed()) {

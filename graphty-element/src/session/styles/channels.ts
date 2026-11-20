@@ -6294,8 +6294,8 @@ function readRemovedEncode(encode: Readonly<Record<string, unknown>>): {
  * a document an earlier build wrote opens with the look it was saved with.
  *
  * The halo was a ring drawn wider: `node.halo*` reads as `node.outerBorder*`, any halo channel
- * switching the ring on as it switched the halo on, with the old selection look filling in what
- * it did not set (`node.haloScale` s is a ring `(s - 1) / 2` wide), and `node.halo: false` a ring
+ * switching the ring on as it switched the halo on (a bound one too), with the old selection look
+ * filling in what it did not set (`node.haloScale` s is a ring `(s - 1) / 2` wide), and `node.halo: false` a ring
  * of width 0. The node outline reads as a border (`node.outline` to `node.borderColor`, with the
  * width a border needs). A bound halo scale and `node.outlineWidth` have no reading and are
  * dropped. Where a layer names the current channel too, the current one wins.
@@ -6310,8 +6310,17 @@ export function readRemovedChannels<T extends { readonly set?: object; readonly 
     if (!names(spec.set) && !names(spec.encode)) {
         return { spec, dropped: [] };
     }
-    const set = spec.set === undefined ? undefined : readRemovedSet(spec.set as Record<string, unknown>);
+    let set = spec.set === undefined ? undefined : readRemovedSet(spec.set as Record<string, unknown>);
     const encode = spec.encode === undefined ? undefined : readRemovedEncode(spec.encode as Record<string, unknown>);
+    // a bound halo channel switches the ring on too: give it the old selection look's width
+    const bound = spec.encode;
+    const boundHalo = bound !== undefined && HALO_KEYS.some((key) => key in bound);
+    if (boundHalo && !(set?.values !== undefined && "node.outerBorderWidth" in set.values)) {
+        set = {
+            values: { ...set?.values, "node.outerBorderWidth": (DEFAULT_SELECTION_STYLE.scale - 1) / 2 },
+            dropped: set?.dropped ?? [],
+        };
+    }
     return {
         spec: {
             ...spec,

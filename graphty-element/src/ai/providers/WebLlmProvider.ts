@@ -1,3 +1,4 @@
+/// <reference types="@webgpu/types" />
 /**
  * WebLLM Provider - In-browser LLM using WebGPU.
  * Lazy-loads the @mlc-ai/web-llm package on demand.

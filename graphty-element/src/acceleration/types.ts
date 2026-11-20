@@ -372,8 +372,6 @@ export interface CaptureCapability {
     readonly webp: boolean;
     /** SVG capture. */
     readonly svg: boolean;
-    /** PDF capture. */
-    readonly pdf: boolean;
     /** Video recording. */
     readonly video: boolean;
     /** Writing a capture to the system clipboard. */

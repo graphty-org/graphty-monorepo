@@ -1,5 +1,8 @@
+/// <reference types="@webgpu/types" />
 import { WebGPUEngine } from "@babylonjs/core/Engines/webgpuEngine.js";
 import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+
+import type { GpuDeviceHandle } from "../render/gpuHandles";
 
 /**
  * A WebGPU engine that comes back from a lost device.
@@ -24,7 +27,7 @@ export class RecoveringWebGPUEngine extends WebGPUEngine {
     /** Babylon's reopening of the device after the last loss, kept for {@link retryRestore}. */
     private reopen: (() => void) | null = null;
     /** Those told of the new device by {@link drawingDevice}. */
-    private readonly waiting: { resolve: (device: GPUDevice) => void; reject: (error: unknown) => void }[] = [];
+    private readonly waiting: { resolve: (device: GpuDeviceHandle) => void; reject: (error: unknown) => void }[] = [];
 
     /**
      * The device drawn on, waiting for the new one during a loss. The wait is already set when a
@@ -33,7 +36,7 @@ export class RecoveringWebGPUEngine extends WebGPUEngine {
      * @returns The device; rejects once a restore has failed or the engine is disposed, since
      * nothing would ever answer.
      */
-    drawingDevice(): Promise<GPUDevice> {
+    drawingDevice(): Promise<GpuDeviceHandle> {
         if (this.noDevice !== null) {
             return Promise.reject(this.noDevice.error);
         }
@@ -49,7 +52,7 @@ export class RecoveringWebGPUEngine extends WebGPUEngine {
      * The device drawn on now, or null while a loss waits for the new one.
      * @returns The device, or null.
      */
-    deviceNow(): GPUDevice | null {
+    deviceNow(): GpuDeviceHandle | null {
         return this.awaitingDevice || this.noDevice !== null ? null : this._device;
     }
 

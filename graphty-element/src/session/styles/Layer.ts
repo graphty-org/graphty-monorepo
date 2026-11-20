@@ -700,7 +700,7 @@ function problemFrom(error: unknown, path: string): LayerProblem {
  * @param carried - What an opened file carried, for a label look this build lacks.
  * @returns The problem, or null when the value is one the channel takes.
  */
-function checkStaticValue(
+export function checkStaticValue(
     descriptor: ChannelDescriptor,
     value: ChannelValue,
     path: string,

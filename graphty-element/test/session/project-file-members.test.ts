@@ -10,6 +10,7 @@ import { join } from "node:path";
 import { assert, describe, it, vi } from "vitest";
 
 import { createGraphSession, type GraphSession, type ProjectSlice } from "../../session";
+import { assetsMember } from "../../src/session/assets/projectMember";
 import { dispatcherOf } from "../../src/session/GraphSession";
 import {
     arrangementMember,
@@ -23,6 +24,7 @@ import {
     viewStateMember,
 } from "../../src/session/projectFile";
 import { ENGINE_VERSIONS } from "../../src/session/runs";
+import { gltfPair } from "../fixtures/models/fixtures";
 import { baseSession, sessionWithRuns } from "../helpers/project-session";
 
 /** One slice: how a test changes it, and how it reads it back. */
@@ -97,9 +99,17 @@ const SLICES: Record<ProjectSlice, SliceCase> = {
     views: {
         change: (session) =>
             session.views.save([
-                { name: "Overview", camera: { position: { x: 0, y: 0, z: 10 }, target: { x: 0, y: 0, z: 0 } } },
+                {
+                    name: "Overview",
+                    camera: { mode: "3d", position: { x: 0, y: 0, z: 10 }, target: { x: 0, y: 0, z: 0 } },
+                },
             ]),
         read: (session) => [...session.views],
+    },
+    tours: {
+        change: (session) =>
+            session.tours.save([{ name: "Walk", tour: { stops: [{ view: "Overview", duration: 0, hold: 2000 }] } }]),
+        read: (session) => [...session.tours],
     },
     notes: {
         change: (session) => {
@@ -123,6 +133,16 @@ const SLICES: Record<ProjectSlice, SliceCase> = {
     shaders: {
         change: (session) => session.shaders.add("vec4 shade(NodeInput n) { return n.color * 0.5; }", {}),
         read: (session) => session.shaders.list().map((shader) => [shader.id, shader.hash]),
+    },
+    modelDefaults: {
+        change: async (session) => {
+            const record = await session.assets.add({ files: gltfPair() });
+            await session.assets.setDefaults(record.id, {
+                style: { "node.modelTurn": 90 },
+                hiddenTextures: ["tri.png"],
+            });
+        },
+        read: (session) => session.assets.list().map((record) => record.defaults),
     },
 };
 
@@ -176,6 +196,8 @@ describe("the member builders", () => {
             styleMember(session),
             notesMember(session),
             viewStateMember(session, ids),
+            // The model the model-settings slice's change added.
+            assetsMember(session).member,
         ];
         assert.strictEqual(nodes.mock.calls.length, 0, "no member but the data builds node records");
         assert.strictEqual(edges.mock.calls.length, 0, "no member but the data builds edge records");

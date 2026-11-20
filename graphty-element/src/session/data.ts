@@ -253,6 +253,7 @@ import type {
     OverRepresentedOptions,
     OverRepresentedValues,
     PageColumn,
+    RecordMatch,
     RecordPage,
     RecordPageOptions,
     RecordSort,
@@ -361,6 +362,19 @@ interface PageSources {
         target: "node" | "edge",
         only?: readonly Path[],
     ): (index: number) => boolean;
+    /**
+     * Which field of one record a text matches best, by row: a ranked page's `matching`.
+     * @param text - What was typed, its mode prefix already read
+     * @param mode - How to match it
+     * @param target - Nodes or edges
+     * @returns The best match of each row, or undefined for one that does not match
+     */
+    textMatch(
+        text: string,
+        mode: SelectionTextMode,
+        target: "node" | "edge",
+        only?: readonly Path[],
+    ): (index: number) => RecordMatch | undefined;
     /**
      * The ids an expression matches: a page's `where`, over the query engine.
      * @param where - The expression
@@ -2037,16 +2051,25 @@ export class SessionData implements SessionDataApi {
      * @param options.signal - Abandons the read.
      * @param options.onto - `"graph"` holds the rows as a table to join onto the graph.
      * @param options.guess - `"values"` also reads the values when no header names the roles.
+     * @param options.onProgress - Called with each change the read publishes.
      * @returns The draft.
      * @throws What `import` would reject with while reading, with the same code.
      */
     async prepare(
         source: DataSourceInput,
-        options: { readonly signal?: AbortSignal; readonly onto?: "graph"; readonly guess?: "names" | "values" } = {},
+        options: {
+            readonly signal?: AbortSignal;
+            readonly onto?: "graph";
+            readonly guess?: "names" | "values";
+            readonly onProgress?: (change: ProgressChange) => void;
+        } = {},
     ): Promise<Draft> {
         this.requireLive("prepare");
         this.draft?.dispose();
-        const read = await readWithProgress(source, options.signal, (change) => this.writes.progress?.(change));
+        const read = await readWithProgress(source, options.signal, (change) => {
+            this.writes.progress?.(change);
+            options.onProgress?.(change);
+        });
         this.reads.set(source, read);
         return this.draftOf(source, read, options);
     }
@@ -2669,8 +2692,15 @@ export class SessionData implements SessionDataApi {
         const rowCount = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
         const total = rows === null ? rowCount : rows.length;
         const records: TRecord[] = [];
+        const ranked = this.rankedMatch(target, options);
+        const matches: RecordMatch[] = [];
         for (let position = offset; position < Math.min(total, offset + limit); position++) {
-            records.push(recordAt(rows === null ? position : (rows[position] ?? position)));
+            const row = rows === null ? position : (rows[position] ?? position);
+            records.push(recordAt(row));
+            const match = ranked?.(row);
+            if (match !== undefined) {
+                matches.push(Object.freeze(match));
+            }
         }
 
         // Finding the issues reads every record once per revision, so only a page that asks does.
@@ -2683,6 +2713,7 @@ export class SessionData implements SessionDataApi {
             total,
             revision: String(revision),
             ...(marked ? { issues: Object.freeze(records.map((record) => marks.get(record.id) ?? NO_ISSUES)) } : {}),
+            ...(ranked === undefined ? {} : { matches: Object.freeze(matches) }),
         };
         if (columns === undefined) {
             return Object.freeze(page);
@@ -2713,18 +2744,7 @@ export class SessionData implements SessionDataApi {
         const { sort } = options;
         const matching = matchingOf(options.matching);
         // By name only: the id, and for a node the label column data.name reads.
-        const labelPath = this.readConfig().knownFields.nodeLabelPath;
-        let names: readonly Path[] | undefined;
-        if (options.matching?.names === true) {
-            // A node's name is its label column; a graph with none names its nodes in its other
-            // columns (a "name" column the table shows), so every searchable value is read, as
-            // without `names`. An edge is named by its id and its ends' ids.
-            if (target === "edge") {
-                names = [];
-            } else if (labelPath !== null) {
-                names = [labelPath];
-            }
-        }
+        const names = this.namesOf(target, options);
         const { where, issue } = options;
         if (
             scope === undefined &&
@@ -2745,7 +2765,8 @@ export class SessionData implements SessionDataApi {
         // resolved to, never by the run handle it was given.
         const sortKey =
             result === undefined ? sort : { run: result.run, field: result.field, descending: sort?.descending };
-        const key = JSON.stringify([target, scope, sortKey, touching, matching, where, issueKey, names]);
+        const ranked = this.rankedMatch(target, options);
+        const key = JSON.stringify([target, scope, sortKey, touching, matching, where, issueKey, names, !!ranked]);
         return this.orders.get(key, () => {
             const space = edgeSpaceOf(snapshot);
             const order =
@@ -2762,8 +2783,55 @@ export class SessionData implements SessionDataApi {
                                   : rowReader(resultSortValue(result, target), snapshot, target),
                       };
             const matches = this.rowFilter(snapshot, target, matching, issue, where, names);
-            return this.computeOrder(snapshot, target, scope, touching, order, matches);
+            const rows = this.computeOrder(snapshot, target, scope, touching, order, matches);
+            if (ranked === undefined) {
+                return rows;
+            }
+            // Rank first, keeping the order within a rank: the sort is stable.
+            const place = { exact: 0, "starts-with": 1, contains: 2 } as const;
+            const rankOf = (row: number): number => place[ranked(row)?.rank ?? "contains"];
+            return Uint32Array.from(Array.from(rows).sort((a, b) => rankOf(a) - rankOf(b)));
         });
+    }
+
+    /**
+     * The best match of each row for a page asked with `matching.rank`, reading what its text
+     * match reads.
+     * @param target - nodes or edges
+     * @param options - what the caller asked for
+     * @returns the match by row, or undefined when the page is not ranked
+     */
+    private rankedMatch(
+        target: "node" | "edge",
+        options: EdgePageOptions,
+    ): ((index: number) => RecordMatch | undefined) | undefined {
+        const matching = matchingOf(options.matching);
+        if (matching === undefined || options.matching?.rank !== true) {
+            return undefined;
+        }
+
+        return this.pages.textMatch(matching.text, matching.mode, target, this.namesOf(target, options));
+    }
+
+    /**
+     * The columns a page's text match reads when it searches names only: the id, and for a node
+     * the label column `data.name` reads.
+     * @param target - nodes or edges
+     * @param options - what the caller asked for
+     * @returns the paths, or undefined to read every searchable value
+     */
+    private namesOf(target: "node" | "edge", options: EdgePageOptions): readonly Path[] | undefined {
+        if (options.matching?.names !== true) {
+            return undefined;
+        }
+        // A node's name is its label column; a graph with none names its nodes in its other
+        // columns (a "name" column the table shows), so every searchable value is read, as
+        // without `names`. An edge is named by its id and its ends' ids.
+        if (target === "edge") {
+            return [];
+        }
+        const labelPath = this.readConfig().knownFields.nodeLabelPath;
+        return labelPath === null ? undefined : [labelPath];
     }
 
     /**

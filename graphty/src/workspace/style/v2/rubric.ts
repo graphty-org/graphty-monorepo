@@ -290,6 +290,8 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
             { channel: "node.gradientDirection", name: "Direction" },
             { channel: "node.gradientCenterX", name: "Center", pair: "node.gradientCenterY", letters: ["X", "Y"] },
             { channel: "node.gradientRadius", name: "Radius" },
+            // The end color of a gradient that names no colors of its own (from the fill color into this).
+            { channel: "node.gradientColor", name: "End" },
             { channel: "node.opacity", name: "Opacity" },
         ],
     },
@@ -393,6 +395,7 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
         common: [{ channel: "node.borderWidth", name: "Width", glyph: "weight", units: ["node.borderScreenWidth"] }],
         main: [
             { channel: "node.borderWidth", name: "Unit", unit: BORDER_UNIT },
+            { channel: "node.borderOpacity", name: "Opacity" },
             { channel: "node.borderStyle", name: "Style", rule: "R10" },
             { channel: "node.borderPosition", name: "Position", rule: "R8" },
         ],

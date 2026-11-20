@@ -59,6 +59,13 @@ function migrateDepthIndependent(value: z.input<typeof NodeBehaviorShape>): unkn
 
 const NodeBehaviorOpts = z.preprocess(migrateDepthIndependent, NodeBehaviorShape).prefault({});
 
+/**
+ * Every way node labels can draw their words (`labels.labelText`), as a const array for validation and
+ * controls: `"canvas"` each label on its own canvas, `"glyphs"` plain labels from one shared atlas.
+ * @since 3.63.0
+ */
+export const LABEL_TEXT_VALUES = ["canvas", "glyphs"] as const;
+
 const LabelBehaviorOpts = z
     .strictObject({
         /*
@@ -107,7 +114,7 @@ const LabelBehaviorOpts = z
          * glyph that no longer fits in the atlas -- is drawn on its own canvas, label by label.
          * Applies to labels built after it is set.
          */
-        labelText: z.enum(["canvas", "glyphs"]).optional(),
+        labelText: z.enum(LABEL_TEXT_VALUES).optional(),
     })
     .prefault({});
 

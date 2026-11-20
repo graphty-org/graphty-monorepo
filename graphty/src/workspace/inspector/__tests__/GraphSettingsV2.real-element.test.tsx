@@ -2,7 +2,8 @@
  * Graph settings in Style panel v2 on the REAL graphty-element, driven by real clicks and typing
  * (design/ui/style-panel-v2/design.md, section 4.3 and acceptance check 5): no "Scene" or "World"
  * anywhere; the highlight color, the framing extent and padding and the smallest mark are written
- * to the element; the background switches Color -> Sky -> Color, keeping its color.
+ * to the element; the background switches Color -> Sky -> Color, keeping its color; the labels' text
+ * mode and sample cell are written to the element and change what the graph draws.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -14,6 +15,7 @@ import { page, userEvent } from "vitest/browser";
 import { withFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
+import { picture, pixelsApart } from "../../style/__tests__/v2Harness";
 import { Workspace } from "../../Workspace";
 
 /**
@@ -145,5 +147,44 @@ describe("Graph settings v2", () => {
         });
         assert.strictEqual(element.session.config.background.backgroundType, "color");
         assert.strictEqual(element.session.config.background.color?.toLowerCase(), "#445566");
+    });
+
+    it("writes the labels' text mode and sample cell to the element, and each changes what the graph draws", async () => {
+        const { element, panel } = await openGraphSettings();
+        await element.session.layout.set("circular");
+        const labels = (): Record<string, unknown> => ({ ...element.layoutBehavior?.labels });
+        // A text mode applies to labels built after it is set: name the nodes after picking it.
+        const named = async (): Promise<string> => {
+            const { id } = await element.session.styles.add({
+                name: "Names",
+                target: "node",
+                selector: { match: "everything" },
+                set: { "node.label": "Hello", "node.labelSize": 144 },
+            });
+            await element.session.styles.settled();
+            return id;
+        };
+
+        await clickSegment(panel, "Glyphs");
+        await waitFor(() => {
+            assert.strictEqual(labels().labelText, "glyphs");
+        });
+        const glyphLayer = await named();
+        const glyphs = await picture(element);
+        await element.session.styles.remove(glyphLayer);
+        await clickSegment(panel, "Canvas");
+        await waitFor(() => {
+            assert.strictEqual(labels().labelText, "canvas");
+        });
+        await named();
+        const canvas = await picture(element);
+        assert.isAbove(pixelsApart(glyphs, canvas), 0, "glyph labels draw differently from canvas labels");
+
+        await typeNumber(fieldOf(panel, "labels.sampleCell"), "4000");
+        await waitFor(() => {
+            assert.strictEqual(labels().sampleCell, 4000);
+        });
+        // One cell covers the canvas: one node's label is built, the other's is not.
+        assert.isAbove(pixelsApart(canvas, await picture(element)), 0, "sampling leaves a label out");
     });
 });

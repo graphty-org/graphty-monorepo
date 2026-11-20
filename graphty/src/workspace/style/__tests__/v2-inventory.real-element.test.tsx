@@ -94,8 +94,6 @@ const KNOWN_CHANNEL_GAPS: readonly string[] = [
     "node.labelMinNodeScreenSize",
     "node.labelTextAlign",
     "node.labelLocation",
-    "node.borderOpacity",
-    "node.gradientColor",
     "node.tooltipSize",
     "node.tooltipColor",
     "node.tooltipBackground",
@@ -171,7 +169,7 @@ const KNOWN_CHANNEL_GAPS: readonly string[] = [
 ];
 
 /** Check 1: graph-wide style settings with no line in Graph settings. */
-const KNOWN_GRAPH_SETTING_GAPS: readonly string[] = ["node.outlineWidth", "labels.labelText", "labels.sampleCell"];
+const KNOWN_GRAPH_SETTING_GAPS: readonly string[] = ["node.outlineWidth"];
 
 /** Check 2: label style fields, per text kind (`<style channel>.<field>`), with no line or no By data. */
 const KNOWN_LABEL_FIELD_GAPS: readonly string[] = [
@@ -381,8 +379,6 @@ const KNOWN_EXTRANEOUS: readonly string[] = [];
 
 /** Check 6: channels a file's styles reach with no normal visible control. */
 const KNOWN_FILE_STYLE_GAPS: readonly string[] = [
-    "node.gradientColor",
-    "node.borderOpacity",
     "node.xlabelOffsetX",
     "node.xlabelLocation",
     "node.xlabelOffsetY",

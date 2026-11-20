@@ -126,6 +126,7 @@ export {
     GraphSelectionStyleOpts,
     isLighting,
     isViewMode,
+    LABEL_TEXT_VALUES,
     LIGHTING_VALUES,
     NodeBorderStyles,
     NodeShapes,

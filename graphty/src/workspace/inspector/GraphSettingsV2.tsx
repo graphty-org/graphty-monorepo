@@ -22,6 +22,7 @@ import {
     FRAMING_EXTENT_VALUES,
     type FramingExtent,
     type GraphBackgroundConfig,
+    LABEL_TEXT_VALUES,
     LIGHTING_VALUES,
 } from "@graphty/graphty-element/schema";
 import type { GraphSession } from "@graphty/graphty-element/session";
@@ -49,6 +50,15 @@ const EXTENT_WORDS: Readonly<Record<FramingExtent, string>> = { drawn: "Drawn", 
 
 /** Framing's extents, in the element's order. */
 const EXTENT_OPTIONS = FRAMING_EXTENT_VALUES.map((value) => ({ value, name: EXTENT_WORDS[value] }));
+
+/** Each way labels draw their words, as the panel names it. */
+const LABEL_TEXT_WORDS: Readonly<Record<(typeof LABEL_TEXT_VALUES)[number], string>> = {
+    canvas: "Canvas",
+    glyphs: "Glyphs",
+};
+
+/** The ways labels draw their words, in the element's order. */
+const LABEL_TEXT_OPTIONS = LABEL_TEXT_VALUES.map((value) => ({ value, name: LABEL_TEXT_WORDS[value] }));
 
 /** What an unnamed line's minus removes. */
 const REMOVE_WORDS: Readonly<Record<string, string>> = {
@@ -316,6 +326,8 @@ export function GraphSettingsV2(): React.JSX.Element | null {
     useProjectVersion(session);
     const allLabelsShown = useWorkspaceState((state) => state.allLabelsShown);
     const labelsAvoid = useWorkspaceState((state) => state.labelsAvoid);
+    const labelText = useWorkspaceState((state) => state.labelText);
+    const labelSampleCell = useWorkspaceState((state) => state.labelSampleCell);
     const lighting = useWorkspaceState((state) => state.lighting);
     const sizeBound = useSizeBound(session);
     const sameSizeChosen = useWorkspaceState((state) => state.sameSizeAtAnyDepth);
@@ -544,6 +556,43 @@ export function GraphSettingsV2(): React.JSX.Element | null {
                                 }}
                             />,
                             false,
+                        )}
+                        {line(
+                            "labels.labelText",
+                            "Text",
+                            "R8",
+                            <SegmentsLine
+                                label="Label text"
+                                options={LABEL_TEXT_OPTIONS}
+                                value={labelText ?? ""}
+                                onPick={(picked) => {
+                                    const next = LABEL_TEXT_VALUES.find((value) => value === picked);
+                                    if (next !== undefined) {
+                                        store.set({ labelText: next });
+                                    }
+                                }}
+                            />,
+                            labelText !== null,
+                            () => {
+                                store.set({ labelText: null });
+                            },
+                        )}
+                        {line(
+                            "labels.sampleCell",
+                            "Sample",
+                            "R5",
+                            <NumberField
+                                label="Label sample cell"
+                                value={labelSampleCell ?? undefined}
+                                min={1}
+                                onWrite={(value) => {
+                                    store.set({ labelSampleCell: value ?? null });
+                                }}
+                            />,
+                            labelSampleCell !== null,
+                            () => {
+                                store.set({ labelSampleCell: null });
+                            },
                         )}
                     </ControlSection>
                     <ShaderSection />

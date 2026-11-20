@@ -290,6 +290,17 @@ export interface WorkspaceState {
      */
     readonly labelsAvoid: boolean;
     /**
+     * Graph settings, Labels: how node labels draw their words (graphty-element's `labels.labelText`):
+     * "canvas", each label on its own canvas, or "glyphs", plain labels from one shared atlas. Null is
+     * unset: the element's own default.
+     */
+    readonly labelText: "canvas" | "glyphs" | null;
+    /**
+     * Graph settings, Labels: the side, in CSS pixels, of the screen cells label sampling keeps one node
+     * label in (graphty-element's `labels.sampleCell`). Null is unset: every label is built.
+     */
+    readonly labelSampleCell: number | null;
+    /**
      * The layout form's "Shown nodes only": a layout runs over only what the filter shows, and runs
      * again when the filter changes (graphty-element's `layout.visibleOnly`). On by default, so a
      * filtered graph fills the space; off, the shown nodes keep the places the whole graph gave them.
@@ -450,6 +461,8 @@ export const ON_RELOAD = {
     textNext: "fresh: a one-time request the Style tab clears",
     shaderNext: "fresh: a one-time request the Style tab clears",
     labelsAvoid: "kept",
+    labelText: "kept",
+    labelSampleCell: "kept",
     layoutShownOnly: "kept",
     sameSizeAtAnyDepth: "kept",
     lighting: "kept",
@@ -564,6 +577,8 @@ const INITIAL: WorkspaceState = {
     textNext: null,
     shaderNext: null,
     labelsAvoid: true,
+    labelText: null,
+    labelSampleCell: null,
     layoutShownOnly: true,
     sameSizeAtAnyDepth: null,
     mapDepthIndependentSize: true,

@@ -98,6 +98,8 @@ export function ElementHost({
     // Graph settings: the reader's choices, view preferences that record no step. Same size at
     // any depth follows the size binding until the reader sets it.
     const labelsAvoid = useWorkspaceState((state) => state.labelsAvoid);
+    const labelText = useWorkspaceState((state) => state.labelText);
+    const labelSampleCell = useWorkspaceState((state) => state.labelSampleCell);
     const sameSize = useWorkspaceState((state) => state.sameSizeAtAnyDepth) ?? sizeBound;
     // Settings' "Map layout automatically enables depth-independent size": while the map is drawn,
     // every node keeps one size on screen, so zooming to a region pulls apart the nodes a world
@@ -112,7 +114,12 @@ export function ElementHost({
     const followSelection = useWorkspaceState((state) => state.followSelection);
     const layoutBehavior = useMemo<NonNullable<GraphtyElement["layoutBehavior"]>>(
         () => ({
-            labels: { declutter: !allLabelsShown, avoidNodesAndEdges: labelsAvoid },
+            labels: {
+                declutter: !allLabelsShown,
+                avoidNodesAndEdges: labelsAvoid,
+                ...(labelText === null ? {} : { labelText }),
+                ...(labelSampleCell === null ? {} : { sampleCell: labelSampleCell }),
+            },
             node: { sizeSpace },
             rendering: { onDemand: true },
             layout: { visibleOnly: layoutShownOnly },
@@ -122,7 +129,7 @@ export function ElementHost({
             // selection turns the gliding off.
             camera: { pivotOnSelection: followSelection, pivotOnSelectionCauses: ["user", "api"], refitOnResize: true },
         }),
-        [allLabelsShown, labelsAvoid, sizeSpace, layoutShownOnly, followSelection],
+        [allLabelsShown, labelsAvoid, labelText, labelSampleCell, sizeSpace, layoutShownOnly, followSelection],
     );
     // A reader who prefers less motion gets camera moves without the glide, and the globe is drawn
     // as the earth from space (constants/globe.ts). View settings, written on the element; they

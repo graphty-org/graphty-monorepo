@@ -91,6 +91,92 @@ describe("pointer: the part of a JSON file read", () => {
     });
 });
 
+describe("pointer left unset: an array at the root is a document", () => {
+    it("reads a Cytoscape elements array whole", async () => {
+        const session = createGraphSession();
+        const data = JSON.stringify([
+            { data: { id: "a" } },
+            { data: { id: "b" } },
+            { data: { source: "a", target: "b" } },
+        ]);
+        await session.data.import({ type: "json", config: { data } });
+        assert.deepStrictEqual(
+            session.data.nodes().map((node) => node.id),
+            ["a", "b"],
+        );
+        assert.strictEqual(session.data.edges().length, 1);
+        session.dispose();
+    });
+
+    it("selects the root array's nodes and edges by the node and edge paths", async () => {
+        const session = createGraphSession();
+        const data = JSON.stringify([
+            { kind: "n", id: "a", team: "x" },
+            { kind: "n", id: "b" },
+            { kind: "e", source: "a", target: "b" },
+        ]);
+        await session.data.import({
+            type: "json",
+            config: { data, node: { path: "[?kind=='n']" }, edge: { path: "[?kind=='e']" } },
+        });
+        assert.strictEqual(session.data.node("a")?.team, "x");
+        assert.strictEqual(session.data.nodes().length, 2);
+        assert.strictEqual(session.data.edges().length, 1);
+        session.dispose();
+    });
+});
+
+describe("pointer with edgeSource and edgeTarget", () => {
+    it("reads the collection as edges by the named end keys", async () => {
+        const session = createGraphSession();
+        const data = JSON.stringify({ k: [{ s: "a", t: "b" }] });
+        await session.data.import({
+            type: "json",
+            config: { data, pointer: "/k", edgeSource: "s", edgeTarget: "t" },
+        });
+        const [edge] = session.data.edges();
+        assert.strictEqual(session.data.edges().length, 1);
+        assert.strictEqual(edge.source, "a");
+        assert.strictEqual(edge.target, "b");
+        session.dispose();
+    });
+
+    it("reads the collection as edges by the session's configured end keys", async () => {
+        const session = createGraphSession();
+        await session.config.set({ data: { knownFields: { edgeSrcIdPath: "s", edgeDstIdPath: "t" } } });
+        const data = JSON.stringify({ k: [{ s: "a", t: "b" }], people: [{ id: "c" }] });
+        await session.data.import({ type: "json", config: { data, pointer: "/k" } });
+        assert.strictEqual(session.data.edges().length, 1);
+        assert.deepStrictEqual(
+            session.data
+                .nodes()
+                .map((node) => node.id)
+                .sort(),
+            ["a", "b"],
+        );
+        // records that carry neither key are still a node table
+        await session.data.import({ type: "json", config: { data, pointer: "/people" } }, { mode: "merge" });
+        assert.isDefined(session.data.node("c"));
+        assert.strictEqual(session.data.edges().length, 1);
+        session.dispose();
+    });
+});
+
+describe("the format catalog lists the parse options", () => {
+    it("offers missing for csv and json, and pointer for json", () => {
+        const session = createGraphSession();
+        const optionsOf = (id: string): string[] =>
+            session.catalog
+                .formats()
+                .find((format) => format.id === id)
+                ?.options?.map((option) => option.name) ?? [];
+        assert.include(optionsOf("csv"), "missing");
+        assert.include(optionsOf("json"), "missing");
+        assert.include(optionsOf("json"), "pointer");
+        session.dispose();
+    });
+});
+
 describe("missing: cell texts read as unset", () => {
     const CSV = "id,team,age\nava,core,30\nben,N/A,N/A\n";
 

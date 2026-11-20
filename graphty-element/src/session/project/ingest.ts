@@ -29,7 +29,7 @@ import { readEndpoint, type ResolvedEndpoints, resolveEndpoints, searchRecord } 
 import { type DataLoadingError, ErrorAggregator } from "../../data/ErrorAggregator";
 import type { GraphStore } from "../../data/GraphStore";
 import { GROUPS_VALUE, RANK_SETS_VALUE, readGroups, readRankSets } from "../../data/groups";
-import { JsonDataSource } from "../../data/JsonDataSource";
+import { JsonDataSource, setKnownEnds } from "../../data/JsonDataSource";
 import { otherIdSpelling } from "../../data/nodeIdSpelling";
 import {
     type ImportReport,
@@ -2613,6 +2613,13 @@ export class Ingest<K extends KnownEdge> {
             const source = held === undefined ? DataSource.get(type, opts) : null;
             if (source !== null && signal !== undefined) {
                 setReaderSignal(source, signal);
+            }
+            if (source instanceof JsonDataSource) {
+                const { knownFields } = this.host.dataConfig();
+                setKnownEnds(source, {
+                    source: knownFields.edgeSrcIdPath ?? null,
+                    target: knownFields.edgeDstIdPath ?? null,
+                });
             }
             const reader: ChunkReader | null = held === undefined ? source : heldReader(held);
             if (!reader) {

@@ -747,10 +747,13 @@ await session.data.import({ type: "json", config: { ...config, pointer: "/graph/
 What the pointer names decides how it is read:
 
 - An array is one table of rows. Its records are edges when they name their ends (`edgeSource` and
-  `edgeTarget`, else `source`/`target`, `src`/`dst` or `from`/`to`), and nodes otherwise, keyed by
+  `edgeTarget`, else `data.knownFields.edgeSrcIdPath` and `edgeDstIdPath` when the records carry
+  them, else `source`/`target`, `src`/`dst` or `from`/`to`), and nodes otherwise, keyed by
   `nodeIdPath`, else `id`, `name`, `key` or `label`. In `session.data.prepare` it is a `rows`
   table you map like a CSV file's.
 - An object is read whole, as if it were the file.
+- Without `pointer`, an array at the top of the file is still read as a whole document: a Cytoscape
+  elements array, or records that `node.path` and `edge.path` select.
 - A pointer that names nothing, or names a number, string or other value, fails the load with
   `E_OPTION_RANGE` (`details.option` is `"pointer"`).
 

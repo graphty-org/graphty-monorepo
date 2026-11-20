@@ -386,7 +386,7 @@ describe("format catalogue", () => {
 
         assert.deepEqual(
             csv?.options.map((option) => option.name),
-            ["delimiter", "variant", "idColumn", "edgeSource", "edgeTarget"],
+            ["delimiter", "variant", "idColumn", "missing", "edgeSource", "edgeTarget"],
         );
         assert.strictEqual(variant?.type, "enum");
         assert.include(variant?.values?.map((choice) => choice.value) ?? [], "edge-list");

@@ -61,6 +61,9 @@ export const JsonDataSourceConfig = z.object({
     importOptions: z.record(z.string(), z.unknown()).optional(),
     edgeSrcIdPath: z.string().optional(),
     edgeDstIdPath: z.string().optional(),
+    // The keys naming an edge's ends, as every reader takes them; the paths above win when both are set.
+    edgeSource: z.string().optional(),
+    edgeTarget: z.string().optional(),
     // A JSON Pointer (RFC 6901) to the part of the document read: an array is one collection, read
     // as a table of rows; an object is read whole as a graph document. Checked when it is read.
     pointer: z.string().optional(),
@@ -161,6 +164,25 @@ function readDirectedKey(document: unknown): { directed: boolean; statedBy: stri
 
 /** The attribute a record's position in the file is carried to graph-io and back under. */
 const ROW_KEY = "graphty.row";
+
+/**
+ * The session's configured end keys (`data.knownFields.edgeSrcIdPath` / `edgeDstIdPath`), set by the
+ * load beside the reader: a collection a pointer names is read as edges when its records carry
+ * them, as the load's endpoint decision would read them. A hint, not a declaration: records that
+ * carry neither are still a node table.
+ */
+const KNOWN_ENDS = new WeakMap<object, { source: string | null; target: string | null }>();
+
+/**
+ * Sets the session's configured end keys for a reader (see KNOWN_ENDS).
+ * @param reader - the reader
+ * @param ends - the configured keys, null for one left unset
+ * @param ends.source - the source key
+ * @param ends.target - the target key
+ */
+export function setKnownEnds(reader: object, ends: { source: string | null; target: string | null }): void {
+    KNOWN_ENDS.set(reader, ends);
+}
 
 /**
  * The import a document's records came from, each column at the top-level key of its own name on
@@ -364,8 +386,10 @@ export class JsonDataSource extends DataSource {
             return;
         }
 
+        // Only a pointer reads an array as one table of rows: an array at the root without one is a
+        // document (a Cytoscape elements array, or records the node and edge paths select).
         const pointed = this.pointed(data);
-        if (Array.isArray(pointed)) {
+        if (this.opts.pointer !== undefined && Array.isArray(pointed)) {
             yield* this.readCollection(pointed);
             return;
         }
@@ -464,8 +488,10 @@ export class JsonDataSource extends DataSource {
      */
     private async *readCollection(found: readonly unknown[]): AsyncGenerator<DataSourceChunk, void, unknown> {
         const records = this.collectionRecords(found);
-        const declared = this.opts.edgeSrcIdPath !== undefined || this.opts.edgeDstIdPath !== undefined;
-        const endpoints = records.length > 0 || declared ? this.endpointKeys(records) : null;
+        const named = this.endsNamed();
+        const declared = named.source !== null || named.target !== null;
+        const known = declared ? null : this.knownEndsCarried(records);
+        const endpoints = records.length > 0 || declared ? (known ?? this.endpointKeys(records, named)) : null;
         if (declared || endpoints !== null) {
             if (endpoints !== null) {
                 this.readBy = endpoints;
@@ -853,6 +879,33 @@ export class JsonDataSource extends DataSource {
     }
 
     /**
+     * The keys the load names an edge's ends by: `edgeSrcIdPath`/`edgeDstIdPath`, else
+     * `edgeSource`/`edgeTarget`; null for an end it leaves to the records.
+     * @returns the two keys
+     */
+    private endsNamed(): { source: string | null; target: string | null } {
+        const { edgeSrcIdPath, edgeDstIdPath, edgeSource, edgeTarget } = this.opts;
+        return { source: edgeSrcIdPath ?? edgeSource ?? null, target: edgeDstIdPath ?? edgeTarget ?? null };
+    }
+
+    /**
+     * The session's configured end keys, when some record carries both (see KNOWN_ENDS).
+     * @param records - the collection's records
+     * @returns the two keys, or null
+     */
+    private knownEndsCarried(records: readonly unknown[]): { source: string; target: string } | null {
+        const known = KNOWN_ENDS.get(this);
+        if (known === undefined || (known.source === null && known.target === null)) {
+            return null;
+        }
+        const ends = this.endpointKeys(records, known);
+        return ends !== null &&
+            records.some((record) => isObject(record) && ends.source in record && ends.target in record)
+            ? ends
+            : null;
+    }
+
+    /**
      * The keys that name an edge's endpoints, when graph-io can read them.
      *
      * The spelling is the one the element itself would resolve (`src/data/endpoints.ts`): the
@@ -860,15 +913,18 @@ export class JsonDataSource extends DataSource {
      * record carries. Null when no key names them, or when a configured one is a JMESPath
      * expression rather than a key: the records then reach the element as the file wrote them.
      * @param edges - the edge records
+     * @param ends - the keys asked for, null for an end left to the records
+     * @param ends.source - the source key
+     * @param ends.target - the target key
      * @returns the two keys, or null
      */
-    private endpointKeys(edges: readonly unknown[]): { source: string; target: string } | null {
+    private endpointKeys(
+        edges: readonly unknown[],
+        ends: { source: string | null; target: string | null } = this.endsNamed(),
+    ): { source: string; target: string } | null {
         let resolved: { source: string; target: string };
         try {
-            resolved = resolveEndpoints(edges.filter(isObject), {
-                source: this.opts.edgeSrcIdPath ?? null,
-                target: this.opts.edgeDstIdPath ?? null,
-            });
+            resolved = resolveEndpoints(edges.filter(isObject), ends);
         } catch {
             return null;
         }

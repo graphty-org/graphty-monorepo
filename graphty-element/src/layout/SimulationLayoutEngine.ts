@@ -445,8 +445,10 @@ export interface SimulationEngineInit {
     /**
      * Start the first load from the seed rather than from the arrangement the element holds: the
      * rebuild a seeded layout makes when new data arrives, so the frames that stepped the graph
-     * as it stood before do not decide where it settles (issue #3379). Pinned rows are replayed
-     * after `init()` as for any build.
+     * as it stood before do not decide where it settles (issue #3379), and the build a consumer
+     * asks for, so applying the same seed again over the drawing the last run left draws the same
+     * picture (issue #9292). Pinned rows are replayed after `init()` as for any build. An unseeded
+     * layout ignores it and starts from the arrangement the element holds.
      */
     readonly fromSeed?: boolean;
     /**
@@ -664,6 +666,9 @@ export class SimulationLayoutEngine extends LayoutEngine {
 
     /** What a simulation-unit offset from {@link SimulationLayoutEngine.#simCentre} is multiplied by. */
     #envelopeScale = 1;
+
+    /** The simulation {@link SimulationLayoutEngine.#setCollision} last told, at {@link SimulationLayoutEngine.#envelopeScale}. */
+    #collided: unknown = null;
 
     /** The arrangement's center at the last publish, in the simulation's own units. */
     readonly #simCentre: [number, number, number] = [0, 0, 0];
@@ -962,11 +967,12 @@ export class SimulationLayoutEngine extends LayoutEngine {
         this.#snapshot = simGraph;
         this.#positions = positions;
         const simPositions = this.#adoptPositions(simGraph.nodeCount, positions);
-        if (this.#fromSeed) {
+        if (this.#fromSeed && typeof this.#options.model.seed === "number") {
             // Every row unplaced, so `#seed` draws the whole graph from the seed alone.
-            this.#fromSeed = false;
             simPositions.fill(Number.NaN);
         }
+
+        this.#fromSeed = false;
 
         this.#build();
     }
@@ -1902,7 +1908,11 @@ export class SimulationLayoutEngine extends LayoutEngine {
         // has to divide a scene-unit coordinate back into the simulation's units, and those units
         // did not move just because no row was published in them.
         if (measured.placed > 0) {
-            this.#envelopeScale = measured.scale;
+            // A SETTLED nodeGap ARRANGEMENT NEVER SHRINKS. Its last sweeps left pairs exactly touching at the scale the
+            // collision was given, and the refit after them -- the sweeps pushed the furthest node out -- would draw
+            // every such pair a hair inside each other. It is published that hair wider instead (issue #9292).
+            const parted = radii !== null && this.isSettled && this.#collided === this.#simulation;
+            this.#envelopeScale = parted ? Math.max(measured.scale, this.#envelopeScale) : measured.scale;
             this.#simCentre[0] = measured.centre[0];
             this.#simCentre[1] = measured.centre[1];
             this.#simCentre[2] = measured.centre[2];
@@ -2063,6 +2073,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
      */
     #setCollision(radii: F32, envelopeScale: number): void {
         const simulation = this.#simulation;
+        this.#collided = simulation;
         try {
             simulation?.setCollision?.({
                 radii,

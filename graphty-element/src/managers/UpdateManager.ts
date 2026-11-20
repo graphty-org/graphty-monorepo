@@ -4313,6 +4313,12 @@ export class UpdateManager implements Manager {
     /** Whether the row table moved a row since the last edge walk while some row has no Node. */
     private unbuiltRowsMoved = false;
 
+    /** The lane rows that moved since the last walk of the nodes, when the lane could say; see {@link nodesMoved}. */
+    private unbuiltRowsChanged: readonly number[] | null = null;
+
+    /** The lane's `changes` at the last walk of the nodes, or -1. */
+    private lastLaneChanges = -1;
+
     /**
      * Update the placed edges -- every edge whose line does not follow its rows ({@link Edge.followsRows}) -- after
      * the table moved its rows while some row has no Node: such a row is in no walk of the nodes, so its edges are
@@ -4323,6 +4329,20 @@ export class UpdateManager implements Manager {
      */
     private placedEdgesAtRows(): void {
         if (!this.unbuiltRowsMoved) {
+            return;
+        }
+
+        // The lane names the rows that moved, so their own edges are placed: an add that seeds one row and
+        // then places it walked every placed edge of the graph (issue #9164).
+        const rows = this.unbuiltRowsChanged;
+        if (rows !== null && rows.length <= this.dataManager.nodes.size * MOST_MOVED_SHARE) {
+            for (const row of rows) {
+                const id = row === INVALID_INDEX ? undefined : this.dataManager.nodeIdAtRow(row);
+                if (id !== undefined) {
+                    UpdateManager.placeEdges(dataManagerInternals.builtEdgesAt(this.dataManager, id));
+                }
+            }
+
             return;
         }
 
@@ -4651,9 +4671,12 @@ export class UpdateManager implements Manager {
         // Only a placed row drawn somewhere else moves one: a seeded new row, or a freeze that renumbered rows,
         // leaves every other row where it was, and walking every placed edge for them was the cost of an add
         // (issue #9164).
-        const relocations = writableLane(this.dataManager)?.relocations ?? Number.NaN;
+        const lane = writableLane(this.dataManager);
+        const relocations = lane?.relocations ?? Number.NaN;
         const laneMoved = relocations !== this.lastLaneRelocations;
         this.lastLaneRelocations = relocations;
+        this.unbuiltRowsChanged = lane?.rowsChangedSince(this.lastLaneChanges) ?? null;
+        this.lastLaneChanges = lane?.changes ?? -1;
         this.unbuiltRowsMoved =
             rowsMoved && laneMoved && total === undefined && nodeCount < this.dataManager.nodes.size;
         // A share of the graph's nodes, not of the `Node`s walked: under "batched" one built `Node` that moved

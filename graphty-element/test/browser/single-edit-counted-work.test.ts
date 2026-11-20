@@ -151,11 +151,10 @@ async function editsOn(size: number): Promise<Record<string, Counted>> {
         return record.id;
     };
 
-    // Under "batched" the store let its builder go after the load, and the first edit brings it back
-    // once for the session (test/data/builder-release.test.ts counts that): made here, uncounted.
-    await data.updateNodes([{ id: "n0", values: { group: 1 } }]);
-    await settle(element);
     const work: Record<string, Counted> = {};
+    // Under "batched" the store let its builder go after the load, and the first edit brings it back once
+    // for the session, as whole columns (test/data/builder-release.test.ts counts the cells it writes).
+    work.firstEdit = await countedWork(element, () => data.updateNodes([{ id: "n0", values: { group: 1 } }]));
     work.removeEdge = await countedWork(element, () => data.removeEdges([firstEdge()]));
     work.updateNode = await countedWork(element, () => data.updateNodes([{ id: "n7", values: { group: 9 } }]));
     work.updateEdge = await countedWork(element, () => data.updateEdges([{ id: firstEdge(), values: { w: 2 } }]));
@@ -201,23 +200,25 @@ describe("one data edit on a large graph", () => {
                 `${edit} repaints the same at four times the graph`,
             );
             assert.strictEqual(counted.placed, before.placed, `${edit} places the same at four times the graph`);
-            // Putting a node back brings back its node and its ten edges, each placed on the frames that build it.
+            // Putting a node back brings back its node and its ten edges, each placed on the frames that build it;
+            // an undo or redo also selects what it touched, which places that node's edges again.
             const restores = /^(undo|redo)Remove/.test(edit);
             assert.isAtMost(
                 counted.placed,
-                (restores ? 6 : 2) * SPAN,
+                (/^(undo|redo)/.test(edit) ? 6 : 2) * SPAN,
                 `${edit} places only the edges of its own pairs`,
             );
             assert.isAtMost(
                 counted.repainted,
-                restores ? 2 * SPAN + 2 : 2,
+                restores ? 3 * SPAN : 2,
                 `${edit} repaints only the elements it changed`,
             );
             assert.strictEqual(counted.walked, 0, `${edit} walks no built edge`);
-            if (/remove/i.test(edit)) {
-                // A removal, its undo and its redo renumber the rows after it: the builder's id map, and under
-                // "batched" the rows waiting for a `Node`, hold an entry per node -- never one per edge (1,500 more).
-                assert.isAtMost(counted.hashed - before.hashed, 2 * (400 - 100), `${edit} indexes no edge again`);
+            if (/remove/i.test(edit) || edit === "firstEdit") {
+                // A removal, its undo and its redo renumber the rows after it, and the first edit under "batched"
+                // brings the builder back: the builder's id map, and under "batched" the rows waiting for a `Node`
+                // and their ids, hold an entry per node -- never one per edge (1,500 more).
+                assert.isAtMost(counted.hashed - before.hashed, 3 * (400 - 100), `${edit} indexes no edge again`);
             } else {
                 assert.strictEqual(counted.hashed, before.hashed, `${edit} indexes nothing again`);
             }

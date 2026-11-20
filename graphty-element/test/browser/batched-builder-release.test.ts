@@ -139,4 +139,23 @@ describe("the graph builder on the batched path", () => {
         assert.deepEqual(sorted(graphOf(element)), sorted(want));
         assert.strictEqual(builderRelease(element).revivals, 1, "the clear set the let-go graph aside unrebuilt");
     });
+
+    it("keep the builder let go through calls that change nothing, and through reads", async () => {
+        const element = await loaded("batched", nodes(), edges());
+        const { data } = element.session;
+        const step = async (what: string, call: () => unknown): Promise<void> => {
+            await call();
+            await operationQueueOf(element.graph).waitForCompletion();
+            await element.waitForStableFrame();
+            assert.deepEqual(builderRelease(element), { released: true, revivals: 0 }, what);
+        };
+
+        await step("removing a node the graph does not hold", () => data.removeNodes([999]));
+        await step("removing an edge the graph does not hold", () => data.removeEdges(["no-such-edge"]));
+        await step("adding a node the graph holds", () => data.addNodes([{ id: 3, position: { x: 3, y: -3, z: 0 } }]));
+        await step("updating a node to the values it holds", () => data.updateNodes([{ id: 3, values: { id: 3 } }]));
+        await step("reading how many edges join a pair", () =>
+            [...element.graph.getDataManager().edges.values()].slice(0, 5).map((edge) => edge.parallelCount),
+        );
+    });
 });

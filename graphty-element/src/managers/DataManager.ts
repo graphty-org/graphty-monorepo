@@ -421,6 +421,8 @@ export const dataManagerInternals = {} as {
     builtNode(manager: DataManager, id: NodeIdType): Node | undefined;
     /** See `DataManager.incidentEdgeIds`, by id, so a row with no `Node` is not given one. */
     incidentEdgeIds(manager: DataManager, id: NodeIdType): EdgeId[];
+    /** The built `Edge`s at a node, building none. */
+    builtEdgesAt(manager: DataManager, id: NodeIdType): Iterable<Edge>;
     /** The id of a row stored with no `Node` yet, or undefined when a `Node` draws it or none is stored there. */
     unbuiltAt(manager: DataManager, index: number): NodeIdType | undefined;
     /** The record of a row stored with no `Node` yet, or undefined when a `Node` draws it or none is stored there. */
@@ -805,6 +807,7 @@ export class DataManager implements Manager {
         };
         dataManagerInternals.builtNode = (manager, id) => manager.nodeMap.builtOf(id);
         dataManagerInternals.incidentEdgeIds = (manager, id) => manager.incidentEdgeIdsOf(id);
+        dataManagerInternals.builtEdgesAt = (manager, id) => manager.builtEdgesAt.get(id) ?? [];
         dataManagerInternals.unbuiltAt = (manager, index) => manager.unbuilt.get(index)?.id;
         dataManagerInternals.unbuiltRecord = (manager, index) => {
             const row = manager.unbuilt.get(index);

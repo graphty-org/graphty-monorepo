@@ -10206,16 +10206,18 @@ export class Graph implements GraphContext {
             return nodes;
         }
 
-        for (const row of unbuilt) {
-            const id =
-                batches?.columnRowOf(row) === undefined
-                    ? dataManagerInternals.unbuiltAt(this.dataManager, row)
-                    : undefined;
-            const node = id === undefined ? undefined : dataManagerInternals.buildRow(this.dataManager, id);
-            if (node !== undefined) {
-                nodes.push(node);
+        dataManagerInternals.buildRowsTogether(this.dataManager, () => {
+            for (const row of unbuilt) {
+                const id =
+                    batches?.columnRowOf(row) === undefined
+                        ? dataManagerInternals.unbuiltAt(this.dataManager, row)
+                        : undefined;
+                const node = id === undefined ? undefined : dataManagerInternals.buildRow(this.dataManager, id);
+                if (node !== undefined) {
+                    nodes.push(node);
+                }
             }
-        }
+        });
 
         return nodes;
     }

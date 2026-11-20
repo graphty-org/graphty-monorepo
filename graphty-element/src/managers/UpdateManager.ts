@@ -1970,14 +1970,17 @@ export class UpdateManager implements Manager {
         const painted: [Node, NodePaint][] = [];
         const taken = painter.takeNodes(size);
 
-        for (const index of taken) {
-            const node = rows.get(index) ?? this.unbuiltPainted(painter, index);
-            const paint = node === undefined ? null : painter.nodePaint(index);
+        // A row built here is painted at once; its rebuilt mesh goes with the batch's (#9184).
+        dataManagerInternals.buildRowsTogether(this.dataManager, () => {
+            for (const index of taken) {
+                const node = rows.get(index) ?? this.unbuiltPainted(painter, index);
+                const paint = node === undefined ? null : painter.nodePaint(index);
 
-            if (node !== undefined && paint !== null) {
-                painted.push([node, paint]);
+                if (node !== undefined && paint !== null) {
+                    painted.push([node, paint]);
+                }
             }
-        }
+        });
 
         return { painted, taken: taken.length };
     }
@@ -3750,12 +3753,14 @@ export class UpdateManager implements Manager {
             }
         }
 
-        for (const row of faint) {
-            const id = dataManagerInternals.unbuiltAt(this.dataManager, row);
-            if (id !== undefined) {
-                dataManagerInternals.buildRow(this.dataManager, id);
+        dataManagerInternals.buildRowsTogether(this.dataManager, () => {
+            for (const row of faint) {
+                const id = dataManagerInternals.unbuiltAt(this.dataManager, row);
+                if (id !== undefined) {
+                    dataManagerInternals.buildRow(this.dataManager, id);
+                }
             }
-        }
+        });
     }
 
     /**

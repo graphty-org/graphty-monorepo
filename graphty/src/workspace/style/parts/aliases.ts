@@ -33,4 +33,6 @@ export const SEARCH_ALIASES: Readonly<Partial<Record<Channel, readonly string[]>
     "node.visible": ["hide", "display"],
     "edge.visible": ["hide", "display"],
     "node.gradientColors": ["gradient stops"],
+    // The halo was a ring drawn wider (E305, E496); a selection is marked with a ring (ia-design section 6).
+    "node.outerBorderColor": ["ring", "rings", "halo", "highlight", "selection"],
 };

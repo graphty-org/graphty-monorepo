@@ -5058,7 +5058,8 @@ export class Edge {
     private createHaloBands(meshKey: string, style: EdgeStyleConfig): void {
         for (const kind of ["underlay", "overlay"] as const) {
             const halo = style.line?.[kind];
-            const opacity = halo?.opacity ?? 0;
+            // An overlay is drawn in the 2D view only (its channels' drawnWhen); the underlay in both.
+            const opacity = kind === "overlay" && !this.context.is2D() ? 0 : (halo?.opacity ?? 0);
             const width = 2 * (halo?.padding ?? 0);
             if (opacity <= 0 || width <= 0 || this.lineBatch === null) {
                 continue;

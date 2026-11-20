@@ -1206,11 +1206,12 @@ export class Node implements ModelUser {
                 old.dispose();
             }
 
+            // A plate beneath or over the node is drawn in the 2D view only (its channels' drawnWhen).
             const halo = NodeMesh.createHalo(
                 this.context.getMeshCache(),
                 { styleId: key, is2D: this.context.is2D(), size: this.size },
                 style.shape,
-                style[kind],
+                this.context.is2D() ? style[kind] : undefined,
                 kind,
                 this.#anchor as AbstractMesh,
                 this.context.getScene(),

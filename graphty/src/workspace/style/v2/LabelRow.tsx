@@ -21,15 +21,7 @@ import { ValueField } from "../ValueField";
 import { failureWords } from "../words";
 import { LabelFieldLine, type LabelLineContext, type LabelPatch } from "./LabelFieldLine";
 import { LabelPopover } from "./LabelPopover";
-import {
-    flatOf,
-    LABEL_COVERED,
-    LABEL_RUBRIC,
-    type LabelField,
-    labelFieldDescriptor,
-    labelLineFields,
-    type TextThing,
-} from "./labelRubric";
+import { flatOf, LABEL_COVERED, LABEL_RUBRIC, type LabelField, labelLineFields, type TextThing } from "./labelRubric";
 import { unsetIn } from "./lineWrites";
 import { LineFrame } from "./RubricLine";
 import { RowSettings, ThingLine } from "./ThingLine";
@@ -64,25 +56,6 @@ function sourceText(ctx: RowContext, words: Line | undefined): string {
         return sourceName(ctx.session, words.binding) ?? words.binding.by;
     }
     return typeof words.value === "string" ? words.value : "";
-}
-
-/**
- * The size a label's words start at, written with its first words (design 5.1): graphty-element's starting
- * size for the field, where neither this layer nor a layer beneath sizes it, so a new label can be read.
- * @param ctx - the row.
- * @param kind - the text thing.
- * @returns the label style to write with the words, or nothing when it is sized already.
- */
-function startingSize(ctx: RowContext, kind: TextThing): Partial<Record<Channel, LabelStyle>> {
-    const start = labelFieldDescriptor("size")?.start;
-    const own = styleOf(lineIn(ctx, kind.style));
-    const beneath = ctx.beneath(kind.style).value;
-    const below = typeof beneath === "object" && beneath !== null ? (beneath as LabelStyle) : {};
-    const sized = (["size", "sizePx", "letterSize"] as const).some((field) => {
-        const flat = flatOf(ctx.side, kind.style, field);
-        return own[field] !== undefined || below[field] !== undefined || (flat !== undefined && setOn(ctx, flat));
-    });
-    return typeof start !== "number" || sized ? {} : { [kind.style]: { ...own, size: start } };
 }
 
 /**
@@ -122,7 +95,7 @@ function TextSource({
                 shown={undefined}
                 onChange={(next) => {
                     setTyping(false);
-                    writeIn(ctx, kind.words, { value: next }, startingSize(ctx, kind), true).catch(fail);
+                    writeIn(ctx, kind.words, { value: next }, {}, true).catch(fail);
                 }}
             />
         );
@@ -147,13 +120,7 @@ function TextSource({
                 setOpen(false);
                 const proposal = propose(session, choice, kind.words);
                 if (proposal.ok) {
-                    writeIn(
-                        ctx,
-                        kind.words,
-                        { binding: textBinding(session, proposal.binding) },
-                        startingSize(ctx, kind),
-                        true,
-                    ).catch(fail);
+                    writeIn(ctx, kind.words, { binding: textBinding(session, proposal.binding) }, {}, true).catch(fail);
                 }
             }}
         >

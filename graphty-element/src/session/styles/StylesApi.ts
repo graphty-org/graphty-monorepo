@@ -160,6 +160,7 @@ import {
     isChannel,
     labelStyleFieldChannels,
     parseLabelFieldAddress,
+    readRemovedChannels,
     toColorValue,
 } from "./channels";
 import {
@@ -3672,7 +3673,22 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             ...(admit ? {} : { shaders: "report" as const }),
         };
 
-        return checkLayerSpec(withDefaultPalettes(given, id), options);
+        // A layer naming a removed channel (a saved halo or node outline) reads as the look's current channels.
+        const read = readRemovedChannels(given);
+        const checked = checkLayerSpec(withDefaultPalettes(read.spec, id), options);
+        if (read.dropped.length === 0) {
+            return checked;
+        }
+
+        const removed = read.dropped.map((channel): CodedFact<GraphtyWarningCode> => ({
+            code: "W_CHANNEL_REMOVED",
+            params: { channel, layer: given.name },
+        }));
+
+        return {
+            ...checked,
+            result: { ...checked.result, warnings: Object.freeze([...checked.result.warnings, ...removed]) },
+        };
     };
 
     /**

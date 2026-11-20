@@ -1382,12 +1382,16 @@ describe("ChannelDescriptor.drawnWhen", () => {
             { channel: "edge.curvature", values: ["true"] },
         ]);
         for (const kind of ["underlay", "overlay"] as const) {
-            const condition = CHANNEL_DESCRIPTORS[`node.${kind}CornerRadius`].drawnWhen?.[0];
+            const [view, condition] = CHANNEL_DESCRIPTORS[`node.${kind}CornerRadius`].drawnWhen ?? [];
+            assert.deepStrictEqual(view, { dimension: "2d" }, "a plate is drawn in 2D only (E669)");
             assert.strictEqual(
                 condition !== undefined && "channel" in condition ? condition.channel : undefined,
                 `node.${kind}Shape`,
             );
+            assert.deepStrictEqual(CHANNEL_DESCRIPTORS[`node.${kind}Color`].drawnWhen, [{ dimension: "2d" }]);
         }
+        assert.deepStrictEqual(CHANNEL_DESCRIPTORS["edge.overlayColor"].drawnWhen, [{ dimension: "2d" }]);
+        assert.isUndefined(CHANNEL_DESCRIPTORS["edge.underlayColor"].drawnWhen, "an edge underlay draws in both views");
     });
 });
 
@@ -1452,9 +1456,9 @@ describe("ChannelDescriptor.needs and start", () => {
         ]);
     });
 
-    it("starts a label field on a size that can be read", () => {
+    it("starts a new label at the default size, one node size tall, with no start value over it", () => {
         const size = LABEL_STYLE_DESCRIPTORS.find((descriptor) => descriptor.field === "size");
-        assert.strictEqual(size?.start, 3);
+        assert.isUndefined(size?.start);
     });
 });
 

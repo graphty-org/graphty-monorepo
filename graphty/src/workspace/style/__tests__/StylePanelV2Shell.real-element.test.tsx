@@ -93,7 +93,9 @@ describe("Style panel v2 on", () => {
         await waitFor(() => {
             assert.isDefined(written(session, id, "node.outerBorderColor"), "Ring starts with its color");
             assert.isAbove(Number(written(session, id, "node.outerBorderOffset")), 0, "and stands off the rim");
+            assert.isAbove(Number(written(session, id, "node.outerBorderWidth")), 0, "with a width");
         });
+        assert.isUndefined(written(session, id, "node.borderWidth"), "a ring writes no border width");
         const ring = await waitFor(() => {
             const found = effects.querySelector<HTMLElement>('[data-thing="rings"]');
             assert.isNotNull(found);

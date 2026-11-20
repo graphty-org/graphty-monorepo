@@ -1122,10 +1122,11 @@ const BAND_CAVEAT =
 /**
  * The glow color to start from when switching a glow on: the `node.glow` channel's default. A glow
  * is drawn only when a style names a color (a strength alone draws nothing), so a consumer that
- * turns glow on writes this color. Cyan rather than white: the glow is drawn around the node over the element's light (#F5F5F5)
- * canvas, where a white glow would not be seen. A saturated cyan leaves a visible halo there.
+ * turns glow on writes this color. A saturated golden yellow rather than a pale one: the glow is
+ * drawn around the node over the element's light (#F5F5F5) canvas, where a pale yellow or white
+ * glow would not be seen.
  */
-export const DEFAULT_GLOW_COLOR = "#00B4FF";
+export const DEFAULT_GLOW_COLOR = "#FFC800";
 
 /**
  * What an arrow caption narrows, written once and read by all four caption channels.
@@ -2598,11 +2599,11 @@ function haloChannels(target: "node" | "edge", kind: HaloKind): ChannelDescripto
         target === "node"
             ? `A filled shape drawn ${where} the node, \`node.${kind}Padding\` beyond its box on every side ` +
               `(in the units of \`node.size\`), as Cytoscape.js draws its ${kind}. Drawn only with an ` +
-              "opacity above 0; unset, its shape is the node's own, and a solid shape is drawn as its flat " +
-              "silhouette."
+              "opacity above 0, in the 2D view only; unset, its shape is the node's own, and a solid shape is " +
+              "drawn as its flat silhouette."
             : `A band drawn ${where} the edge's line along its whole length, twice \`edge.${kind}Padding\` ` +
               `wide (in the line's width units) whatever the line's own width, as Cytoscape.js draws its ` +
-              `${kind}. Drawn only with an opacity above 0.`;
+              `${kind}. Drawn only with an opacity above 0${kind === "overlay" ? ", in the 2D view only." : "."}`;
     const row = (suffix: string, rest: Partial<ChannelDescriptor>): ChannelDescriptor =>
         ({
             channel: `${target}.${kind}${suffix}` as Channel,
@@ -5727,9 +5728,20 @@ const DRAWN_WHEN: ReadonlyMap<string, readonly ChannelCondition[]> = new Map<Cha
     ["edge.arrowTailImage", [{ channel: "edge.arrowTail", values: ["image"] }]],
     ["edge.arrowMiddleHeadImage", [{ channel: "edge.arrowMiddleHead", values: ["image"] }]],
     ["edge.arrowMiddleTailImage", [{ channel: "edge.arrowMiddleTail", values: ["image"] }]],
-    // An underlay's or overlay's corners are rounded only on a round-cornered shape of its own; unset, it follows the node.
-    ["node.underlayCornerRadius", [{ channel: "node.underlayShape", values: ROUND_CORNER_SHAPES }]],
-    ["node.overlayCornerRadius", [{ channel: "node.overlayShape", values: ROUND_CORNER_SHAPES }]],
+    // A node's underlay and overlay and an edge's overlay are flat plates: "in the 2D view only". An
+    // underlay's or overlay's corners are rounded only on a round-cornered shape of its own; unset, it follows the node.
+    ...(["Color", "Opacity", "Padding", "Shape"] as const).flatMap(
+        (suffix): [Channel, readonly ChannelCondition[]][] => [
+            [`node.underlay${suffix}`, [ONLY_2D]],
+            [`node.overlay${suffix}`, [ONLY_2D]],
+        ],
+    ),
+    ...(["Color", "Opacity", "Padding"] as const).map((suffix): [Channel, readonly ChannelCondition[]] => [
+        `edge.overlay${suffix}`,
+        [ONLY_2D],
+    ]),
+    ["node.underlayCornerRadius", [ONLY_2D, { channel: "node.underlayShape", values: ROUND_CORNER_SHAPES }]],
+    ["node.overlayCornerRadius", [ONLY_2D, { channel: "node.overlayShape", values: ROUND_CORNER_SHAPES }]],
     // A picture drawn at a size of its own (`node.imageFit` "none"). `node.imageClip` has no entry: under
     // every fit it decides whether the picture is cut to the node's outline (a "contain" picture's corners
     // stick out past a sphere's), NodeDecorationMesh.buildImage.
@@ -5780,7 +5792,11 @@ const NEEDS: ReadonlyMap<string, readonly ChannelNeed[]> = new Map<Channel, read
     ["node.borderPosition", [THIN_BORDER]],
     [
         "node.outerBorderColor",
-        [{ channel: "node.outerBorderWidth", value: 1 }, { channel: "node.outerBorderOffset", value: 1 }, THIN_BORDER],
+        // A ring draws on its own, outside whatever border there is or is not: it needs no border width.
+        [
+            { channel: "node.outerBorderWidth", value: 1 },
+            { channel: "node.outerBorderOffset", value: 1 },
+        ],
     ],
     ["node.raisedBorderLightColor", [{ channel: "node.raisedBorderWidth", value: 0.1 }]],
     ["node.raisedBorderDarkColor", [{ channel: "node.raisedBorderWidth", value: 0.1 }]],
@@ -6201,6 +6217,109 @@ export function modelBindingProblem(
                   "Add the file with session.assets.add and map the category to the id it returns.",
               path: `${path}${bad[0]}`,
           };
+}
+
+/** A removed channel's value read into the channels that draw its look now, or dropped. */
+export interface RemovedChannelRead<T> {
+    /** The layer, naming only current channels. */
+    readonly spec: T;
+    /** The removed channels that had no translation and were dropped, as named in the layer. */
+    readonly dropped: readonly string[];
+}
+
+const HALO_KEYS = ["node.halo", "node.haloColor", "node.haloScale", "node.haloSize", "node.haloOpacity"] as const;
+const REMOVED_KEYS: ReadonlySet<string> = new Set([...HALO_KEYS, "node.outline", "node.outlineWidth"]);
+
+/** Bound values that read straight across to a current channel; every other removed binding is dropped. */
+const REMOVED_BINDINGS: ReadonlyMap<string, string> = new Map([
+    ["node.haloColor", "node.outerBorderColor"],
+    ["node.haloOpacity", "node.outerBorderOpacity"],
+    ["node.outline", "node.borderColor"],
+]);
+
+/**
+ * The set values of a layer that names removed channels, in current channels.
+ * @param set - The layer's set values.
+ * @returns The values in current channels, with what was dropped.
+ */
+function readRemovedSet(set: Readonly<Record<string, unknown>>): {
+    values: Record<string, unknown>;
+    dropped: string[];
+} {
+    const added: Record<string, unknown> = {};
+    if (HALO_KEYS.some((key) => key in set)) {
+        if (set["node.halo"] === false) {
+            added["node.outerBorderWidth"] = 0;
+        } else {
+            const scale = set["node.haloScale"] ?? set["node.haloSize"] ?? DEFAULT_SELECTION_STYLE.scale;
+            added["node.outerBorderColor"] = set["node.haloColor"] ?? DEFAULT_SELECTION_STYLE.color;
+            added["node.outerBorderWidth"] = typeof scale === "number" ? Math.max(0, (scale - 1) / 2) : 0;
+            added["node.outerBorderOpacity"] = set["node.haloOpacity"] ?? DEFAULT_SELECTION_STYLE.opacity;
+        }
+    }
+    if ("node.outline" in set) {
+        added["node.borderColor"] = set["node.outline"];
+        added["node.borderWidth"] = THIN_BORDER.value;
+    }
+    const kept = Object.entries(set).filter(([key]) => !REMOVED_KEYS.has(key));
+    // a current channel the layer names itself wins over a translated one
+    return {
+        values: { ...added, ...Object.fromEntries(kept) },
+        dropped: "node.outlineWidth" in set ? ["node.outlineWidth"] : [],
+    };
+}
+
+/**
+ * The bindings of a layer that names removed channels, in current channels.
+ * @param encode - The layer's bindings.
+ * @returns The bindings in current channels, with what was dropped.
+ */
+function readRemovedEncode(encode: Readonly<Record<string, unknown>>): {
+    values: Record<string, unknown>;
+    dropped: string[];
+} {
+    const added = Object.entries(encode).flatMap(([key, value]): [string, unknown][] => {
+        const to = REMOVED_BINDINGS.get(key);
+        return to === undefined ? [] : [[to, value]];
+    });
+    const kept = Object.entries(encode).filter(([key]) => !REMOVED_KEYS.has(key));
+    return {
+        values: { ...Object.fromEntries(added), ...Object.fromEntries(kept) },
+        dropped: Object.keys(encode).filter((key) => REMOVED_KEYS.has(key) && !REMOVED_BINDINGS.has(key)),
+    };
+}
+
+/**
+ * A saved layer that names a removed channel, read with the channels that draw its look today, so
+ * a document an earlier build wrote opens with the look it was saved with.
+ *
+ * The halo was a ring drawn wider: `node.halo*` reads as `node.outerBorder*`, any halo channel
+ * switching the ring on as it switched the halo on, with the old selection look filling in what
+ * it did not set (`node.haloScale` s is a ring `(s - 1) / 2` wide), and `node.halo: false` a ring
+ * of width 0. The node outline reads as a border (`node.outline` to `node.borderColor`, with the
+ * width a border needs). A bound halo scale and `node.outlineWidth` have no reading and are
+ * dropped. Where a layer names the current channel too, the current one wins.
+ * @param spec - A layer as a document or a caller gives it.
+ * @returns The layer in current channels and what was dropped.
+ */
+export function readRemovedChannels<T extends { readonly set?: object; readonly encode?: object }>(
+    spec: T,
+): RemovedChannelRead<T> {
+    const names = (entries: object | undefined): boolean =>
+        entries !== undefined && Object.keys(entries).some((key) => REMOVED_KEYS.has(key));
+    if (!names(spec.set) && !names(spec.encode)) {
+        return { spec, dropped: [] };
+    }
+    const set = spec.set === undefined ? undefined : readRemovedSet(spec.set as Record<string, unknown>);
+    const encode = spec.encode === undefined ? undefined : readRemovedEncode(spec.encode as Record<string, unknown>);
+    return {
+        spec: {
+            ...spec,
+            ...(set === undefined ? {} : { set: set.values }),
+            ...(encode === undefined ? {} : { encode: encode.values }),
+        },
+        dropped: [...(encode?.dropped ?? []), ...(set?.dropped ?? [])],
+    };
 }
 
 // ---------------------------------------------------------------------------------------------

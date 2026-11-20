@@ -855,7 +855,9 @@ const FIELD_DRAWN_ON: Partial<Record<keyof LabelStyle, readonly Channel[]>> = {
 };
 
 /** Each field's first value where its default draws too little: see {@link LabelStyleFieldDescriptor.start}. */
-const FIELD_START: Partial<Record<keyof LabelStyle, number>> = { size: 3, sizePx: 3 * 48 };
+// None today: a new label starts at the default size, one node size tall (fontSize / 48), so a style
+// editor's "+" writes no size over it (owner, 2026-11-20: "the default label text size should be 1").
+const FIELD_START: Partial<Record<keyof LabelStyle, number>> = {};
 
 const isSet = (field: keyof LabelStyle): LabelFieldCondition => ({ field, set: true });
 const isOn = (field: keyof LabelStyle): LabelFieldCondition => ({ field, values: ["true"] });

@@ -467,6 +467,41 @@ describe("a node's underlay and overlay", () => {
         assert.strictEqual(paint(parts.overlay).emissiveColor.toHexString().toLowerCase(), "#0000ff");
     });
 
+    test("are drawn in the 2D view only (E669), as is an edge's overlay; an edge's underlay draws in both", async () => {
+        await oneEdge(
+            {
+                "edge.underlayOpacity": 1,
+                "edge.underlayPadding": 4,
+                "edge.overlayOpacity": 0.5,
+                "edge.overlayPadding": 4,
+            },
+            {
+                "node.underlayOpacity": 1,
+                "node.underlayPadding": 0.5,
+                "node.overlayOpacity": 0.5,
+                "node.overlayPadding": 0.5,
+            },
+        );
+        assert(graph);
+        const parts = (): { underlay: AbstractMesh | null; overlay: AbstractMesh | null } =>
+            graph?.getDataManager().nodes.get("A") as unknown as {
+                underlay: AbstractMesh | null;
+                overlay: AbstractMesh | null;
+            };
+        const bands = (): string[] =>
+            (edgeBetween(graph as Graph, "A", "B") as unknown as { haloBands: { kind: string }[] }).haloBands.map(
+                (band) => band.kind,
+            );
+        assert(parts().underlay && parts().overlay, "2D draws both plates");
+        assert.sameMembers(bands(), ["underlay", "overlay"]);
+        await graph.setViewMode("3d");
+        await operationQueueOf(graph).waitForCompletion();
+        await graph.waitForStableFrame();
+        assert.isNull(parts().underlay, "3D draws no node underlay");
+        assert.isNull(parts().overlay, "3D draws no node overlay");
+        assert.deepEqual(bands(), ["underlay"], "3D draws the edge's underlay and not its overlay");
+    });
+
     test("are read off the scene as shapes of their own round the node, in their colors", async () => {
         await oneEdge(
             {},

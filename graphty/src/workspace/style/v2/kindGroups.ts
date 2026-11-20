@@ -12,7 +12,6 @@ import type { Encoding, Layer, StaticStyle } from "@graphty/graphty-element/sess
 import { itemChannels, partsFor } from "../parts/parts";
 import type { RowContext } from "../PropertyRow";
 import { heldFor, holdsAny } from "./families";
-import { labelFieldDescriptor } from "./labelRubric";
 import { setOn } from "./things";
 
 /** Where a slot's value lives: a channel, or a field of a style channel (a label's color). */
@@ -61,7 +60,7 @@ export const KIND_GROUPS: readonly KindGroup[] = [
                     color: ["node.labelColor", { style: "node.labelStyle", field: "color" }],
                     size: [{ style: "node.labelStyle", field: "size" }],
                 },
-                start: () => ({ "node.labelStyle": { size: labelFieldDescriptor("size")?.start } }),
+                start: () => ({ "node.labelStyle": {} }),
             },
             {
                 id: "glyph",

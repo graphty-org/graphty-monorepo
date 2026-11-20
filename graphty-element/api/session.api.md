@@ -2837,6 +2837,14 @@ export type GraphtyWarningCode =
 */
 | "W_VERSION_UPGRADED"
 /**
+* A style layer named a channel graphty-element no longer has and that has no current reading
+* (`node.outlineWidth`, or a bound `node.haloScale`): the value was dropped and the rest of the
+* layer kept. `params.channel` is the channel, `params.layer` the layer's name. A saved halo
+* reads as a ring (`node.outerBorder*`) and a saved node outline as a border, with no warning.
+* @since 4.0.0
+*/
+| "W_CHANNEL_REMOVED"
+/**
 * The `location-map` layout found no usable location for some nodes, and put them in its tray
 * or left them where they were. `params.missing` counts nodes with no value, `params.unparsed`
 * values no location format reads, `params.outOfRange` values out of range (see

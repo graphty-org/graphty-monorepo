@@ -6,13 +6,16 @@
 
 import {
     isGraphtyError,
+    type ReaderEditRow,
     type SourceCellValue,
     type SourceClashRule,
     type SourceDraftBucket,
     type SourceDraftRow,
     type SourceOverlapQuestion,
     type SourceProfileKind,
+    type SourceRefreshIssue,
     type SourceStepCounts,
+    type SourceStepRow,
     type SourceTableMapping,
 } from "@graphty/graphty-element/session";
 
@@ -308,12 +311,13 @@ export function refusedWords(error: unknown): string {
 
 /**
  * The notice after a source card commits.
- * @param kind - the card.
+ * @param kind - the card: Add, Join, or Join editing a step.
  * @param name - the source it added or joined.
  * @returns such as "Joined entries.csv".
  */
-export function committedWords(kind: "add" | "join", name: string): string {
-    return `${kind === "join" ? "Joined" : "Added"} ${name}`;
+export function committedWords(kind: "add" | "join" | "edit", name: string): string {
+    const verb = { add: "Added", join: "Joined", edit: "Edited" }[kind];
+    return `${verb} ${name}`;
 }
 
 /**
@@ -423,4 +427,156 @@ export function pickWords(side: 1 | 2, count: number): string {
  */
 export function clearPicksWords(count: number): string {
     return `Clear picks (${formatNumber(count)})`;
+}
+
+/** The Steps list, the step card and the Reader edits list. */
+export const STEP_WORDS = {
+    steps: "Steps",
+    edit: "Edit",
+    delete: "Delete",
+    off: "Off",
+    graphAfter: "Graph after",
+    nodes: "Nodes",
+    edges: "Edges",
+    laterSteps: "Later steps",
+    references: "References",
+    readerEdits: "Reader edits",
+    applies: "apply",
+    lost: "lost",
+    sourceChanged: "source changed",
+    notRemoved: "Not removed",
+} as const;
+
+/** A step's kind, as the Steps list names it. */
+export const OP_WORDS: Readonly<Record<SourceStepRow["op"], string>> = {
+    "join.add": "Add",
+    "join.merge": "Merge",
+    "join.edges": "Edges",
+    "join.node-values": "Values",
+    "join.edge-values": "Values",
+};
+
+/**
+ * A Steps row's counts, from the step's buckets in the committed build.
+ * @param row - the step.
+ * @returns such as "3 nodes, 4 edges", "3 merged", or "" when it was not built.
+ */
+export function stepCountWords(row: SourceStepRow): string {
+    const { buckets } = row;
+    if (buckets === null) {
+        return "";
+    }
+    const plural = (count: number, one: string, many: string): string =>
+        `${formatNumber(count)} ${count === 1 ? one : many}`;
+    switch (row.op) {
+        case "join.add": {
+            const parts = [plural(buckets.newNodes, "node", "nodes")];
+            if (buckets.newEdges > 0) {
+                parts.push(plural(buckets.newEdges, "edge", "edges"));
+            }
+            return parts.join(", ");
+        }
+        case "join.merge": {
+            return `${formatNumber(buckets.merged)} merged`;
+        }
+        case "join.edges": {
+            return plural(buckets.newEdges, "edge", "edges");
+        }
+        default: {
+            return `${formatNumber(buckets.matched)} matched`;
+        }
+    }
+}
+
+/**
+ * The column a held step misses, as the Steps row names it.
+ * @param issue - one of the step's `missing`.
+ * @returns such as "badge missing".
+ */
+export function missingWords(issue: SourceRefreshIssue): string {
+    return "column" in issue.params ? `${issue.params.column} missing` : STEP_WORDS.off;
+}
+
+/**
+ * A Steps row's name.
+ * @param index - the step's place, from 0.
+ * @returns such as "Step 2".
+ */
+export function stepWords(index: number): string {
+    return `Step ${formatNumber(index + 1)}`;
+}
+
+/**
+ * The step card's title.
+ * @param remove - what it removes.
+ * @param name - the source's name.
+ * @returns such as "Delete step 2" or "Remove people.csv".
+ */
+export function removeTitleWords(
+    remove: { readonly step: number } | { readonly source: string },
+    name: string,
+): string {
+    return "step" in remove ? `Delete step ${formatNumber(remove.step + 1)}` : `Remove ${name}`;
+}
+
+/** Why a later step goes with the removal, by `W_STEP_REMOVED`'s reason. */
+const REMOVED_REASON_WORDS: Readonly<Record<"source-removed" | "step-removed" | "source-held", string>> = {
+    "source-removed": "source removed",
+    "step-removed": "step removed",
+    "source-held": "source held",
+};
+
+/**
+ * A later step the removal takes away, from the preview's `W_STEP_REMOVED`.
+ * @param params - the issue's params.
+ * @param params.step - the step's place.
+ * @param params.reason - why it goes.
+ * @returns such as "Step 3: source removed".
+ */
+export function stepRemovedWords(params: {
+    readonly step: number;
+    readonly reason: "source-removed" | "step-removed" | "source-held";
+}): string {
+    return `${stepWords(params.step)}: ${REMOVED_REASON_WORDS[params.reason]}`;
+}
+
+/**
+ * A reader edit's kind, as the Reader edits list names it: a pick names the source it took.
+ * @param edit - the edit.
+ * @returns its words.
+ */
+export function editKindWords(edit: ReaderEditRow): string {
+    switch (edit.op) {
+        case "add": {
+            return "Add";
+        }
+        case "add-edge": {
+            return "Add edge";
+        }
+        case "remove": {
+            return "Remove";
+        }
+        default: {
+            return edit.picked === undefined ? "Value" : "Pick";
+        }
+    }
+}
+
+/**
+ * A reader edit's value: the column and what it writes.
+ * @param edit - the edit.
+ * @returns such as "dept = Research", or "" for an edit that writes no cell.
+ */
+export function editValueWords(edit: ReaderEditRow): string {
+    return edit.column === undefined ? "" : `${edit.column} = ${cellWords(edit.value ?? null)}`;
+}
+
+/**
+ * The notice after a step card commits.
+ * @param remove - what it removed.
+ * @param name - the source's name.
+ * @returns such as "Deleted step 2" or "Removed people.csv".
+ */
+export function removedWords(remove: { readonly step: number } | { readonly source: string }, name: string): string {
+    return "step" in remove ? `Deleted step ${formatNumber(remove.step + 1)}` : `Removed ${name}`;
 }

@@ -267,6 +267,7 @@ export type {
     SourceSpaceName,
     SourceSpaceOverlap,
     SourceSpaceRow,
+    SourceStepAct,
     SourceStepCounts,
     SourceStepCountsChange,
     SourceStepOp,

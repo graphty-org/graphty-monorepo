@@ -7,6 +7,8 @@ import {
     defineRegistration,
     type SourceRowCommand,
 } from "../commands/registry";
+import { sourceStepsOn } from "../features";
+import { openRemove } from "../source-steps/steps";
 import type { WorkspaceStore } from "../state/store";
 import { panelsInView } from "../time/timeActions";
 import { openFilterDraft, selectRule } from "./filterCards";
@@ -164,20 +166,23 @@ const SOURCE_ROW_COMMANDS: readonly SourceRowCommand[] = [
         label: "Remove",
         order: 90,
         run: (ctx, source) =>
-            attempt(
-                ctx,
-                async (session) => {
-                    const sources = session.data.sources();
-                    const { alsoRemoved } = await session.data.removeSource(source.key);
-                    const names = sources.filter((each) => alsoRemoved.includes(each.key)).map(sourceName);
-                    if (names.length > 0) {
-                        ctx.workspace.set({
-                            notice: { message: `Also removed what was joined to it: ${names.join(", ")}` },
-                        });
-                    }
-                },
-                "Not removed",
-            ),
+            // Under the source-steps experiment Remove opens the step card on a draft holding it.
+            ctx.session !== null && sourceStepsOn(ctx.session)
+                ? openRemove(ctx.workspace, ctx.session, { source: source.key })
+                : attempt(
+                      ctx,
+                      async (session) => {
+                          const sources = session.data.sources();
+                          const { alsoRemoved } = await session.data.removeSource(source.key);
+                          const names = sources.filter((each) => alsoRemoved.includes(each.key)).map(sourceName);
+                          if (names.length > 0) {
+                              ctx.workspace.set({
+                                  notice: { message: `Also removed what was joined to it: ${names.join(", ")}` },
+                              });
+                          }
+                      },
+                      "Not removed",
+                  ),
     },
 ];
 

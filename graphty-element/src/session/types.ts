@@ -4656,6 +4656,50 @@ export interface SourceStepRow {
      * listed, which `draft.include` takes off; null when it leaves none out.
      */
     readonly except: SourceRowFilter | null;
+    /**
+     * For a step a join act made (`draft.merge`, or `draft.connect` on node rows): that act's
+     * fields and choices, read back so an application can show the step as it was made and make it
+     * again with a field or the act changed (`draft.removeStep`, then the new act, in one draft).
+     * Null for any other step. Its Values differ rules are in `valuesDiffer`, its excluded keys in
+     * `except`.
+     */
+    readonly act: SourceStepAct | null;
+}
+
+/**
+ * A join step read back as the act that makes it (see {@link SourceStepRow.act}).
+ * @example
+ * ```ts
+ * const merge = session.data.steps().find((s) => s.act?.act === "merge");
+ * merge?.act?.from; // { source: "hr", field: "badge" }
+ * merge?.act?.into; // { space: "person" }
+ * ```
+ * @experimental source-steps
+ */
+export interface SourceStepAct {
+    /** `"connect"` for Make an edge, `"merge"` for Merge 2 into 1. */
+    readonly act: "connect" | "merge";
+    /** Field 2: the source the step reads and the column it matches on. */
+    readonly from: SourceField;
+    /**
+     * Node 1: the space it lives in, with the source and column a value translates through when
+     * the step matches on a column that is not node 1's key. `connect` and `merge` take it as it is.
+     */
+    readonly into: SourceJoinInto & { readonly space: SourceSpaceName };
+    /** Make an edge: which way the edges run, as `connect` takes it. */
+    readonly direction?: "into-from" | "from-into";
+    /** Make an edge: the type its edges carry, when one was given. */
+    readonly edgeType?: SourceTypeName;
+    /** Values that differ only in case match. */
+    readonly ignoreCase: boolean;
+    /** Values that differ only in spaces match. */
+    readonly ignoreSpaces: boolean;
+    /** Which row a key the source repeats keeps; null when `aggregate` settles it or nothing was set. */
+    readonly repeated: "first" | "last" | "both" | null;
+    /** The columns reduced over a repeated key's rows; null for none. */
+    readonly aggregate: Readonly<Record<string, JoinReduce>> | null;
+    /** Merge: what becomes of source 2's rows that meet no node 1. */
+    readonly unmatchedFrom?: "keep" | "drop";
 }
 
 /**

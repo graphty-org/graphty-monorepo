@@ -119,9 +119,28 @@ export interface JoinCardState {
      * Set once Preview made the act in the element's draft: the step it made, and the choices as
      * they were before each change made since, so Undo puts them back. Null while picking.
      */
-    readonly preview: { readonly step: number; readonly undo: readonly JoinChoices[] } | null;
+    readonly preview: {
+        readonly step: number;
+        readonly undo: readonly JoinChoices[];
+        /** The card reopened a committed step as it is: nothing the card made yet to take back. */
+        readonly reopened?: boolean;
+    } | null;
+    /**
+     * The committed step the card edits (Edit on a Steps row), or null for a new join. A field or
+     * act changed while editing removes that step and makes the new act in the same draft.
+     */
+    readonly editing: number | null;
     /** What the dock's Preview tab shows once the reader clicked a count or a Values differ column. */
     readonly drill: JoinDrill | null;
+}
+
+/**
+ * The card that removes a committed step or a committed source (the source-steps experiment): its
+ * draft holds the removal, and the card shows what the commit would change.
+ */
+export interface StepCardState {
+    readonly kind: "step";
+    readonly remove: { readonly step: number } | { readonly source: SourceKey };
 }
 
 /**
@@ -328,7 +347,9 @@ export interface WorkspaceState {
      * key-overlap question, or Join, with the reader's picks. A draft it opens is the element's
      * (`data.currentDraft()`).
      */
-    readonly sourceCard: { readonly kind: "add"; readonly source: SourceKey } | JoinCardState | null;
+    readonly sourceCard: { readonly kind: "add"; readonly source: SourceKey } | JoinCardState | StepCardState | null;
+    /** The Data place's Reader edits list is open (the source-steps experiment). */
+    readonly readerEditsOpen: boolean;
     /**
      * Edges picked in a staged source's Rows are before both ends are (the source-steps
      * experiment): held here until both are, then written to the element. While it is set, that
@@ -562,6 +583,7 @@ export const ON_RELOAD = {
     editingJoin: "fresh: an edit in progress on the join screen",
     ends: "fresh: a half-made choice of edge ends",
     sourceCard: "fresh: its draft lives in the element, which a reload replaced",
+    readerEditsOpen: "fresh: a list opened for a look",
     stagedEnds: "fresh: a half-made choice of edge ends",
     draftOpen: "fresh: a question about a draft a reload discarded",
     pickedSource: "kept",
@@ -686,6 +708,7 @@ const INITIAL: WorkspaceState = {
     editingJoin: null,
     ends: null,
     sourceCard: null,
+    readerEditsOpen: false,
     stagedEnds: null,
     draftOpen: null,
     pickedSource: null,

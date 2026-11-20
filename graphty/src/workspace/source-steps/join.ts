@@ -46,22 +46,33 @@ export function openJoin(
         return;
     }
     const source = start.field2 ?? session.data.staged().at(-1)?.key;
+    showJoinCard(workspace, {
+        kind: "join",
+        field1: start.field1 ?? null,
+        field2: source === undefined ? null : { source },
+        act: null,
+        edgeType: "",
+        reversed: false,
+        ignoreCase: false,
+        ignoreSpaces: false,
+        repeated: "first",
+        unmatchedFrom: "keep",
+        preview: null,
+        editing: null,
+        drill: null,
+    });
+}
+
+/**
+ * Draws the Join card on the Data place's Sources tab, from wherever the reader opened it, with the
+ * dock open on its Fields tab; closing the card gives the dock back as it was.
+ * @param workspace - the workspace store.
+ * @param card - the card, but for the dock it found.
+ */
+export function showJoinCard(workspace: WorkspaceStore, card: Omit<JoinCardState, "dockWas">): void {
+    const now = workspace.get();
     workspace.set({
-        sourceCard: {
-            kind: "join",
-            field1: start.field1 ?? null,
-            field2: source === undefined ? null : { source },
-            act: null,
-            edgeType: "",
-            reversed: false,
-            ignoreCase: false,
-            ignoreSpaces: false,
-            repeated: "first",
-            unmatchedFrom: "keep",
-            preview: null,
-            drill: null,
-            dockWas: { open: now.dockOpen, tab: now.dockTab },
-        },
+        sourceCard: { ...card, dockWas: { open: now.dockOpen, tab: now.dockTab } },
         page: "panels",
         place: "data",
         dataTab: "loaded",

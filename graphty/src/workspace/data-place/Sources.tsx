@@ -5,7 +5,10 @@ import React, { useEffect, useRef } from "react";
 import { sourceStepsOn } from "../features";
 import { JoinButton } from "../source-steps/JoinButton";
 import { JoinCard } from "../source-steps/JoinCard";
+import { ReaderEdits } from "../source-steps/ReaderEdits";
 import { StagedSection } from "../source-steps/StagedSection";
+import { StepCard } from "../source-steps/StepCard";
+import { StepsList } from "../source-steps/StepsList";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { StyleNotes } from "../styles/StyleNotes";
 import { AddSourceMenu } from "./AddSourceMenu";
@@ -16,7 +19,8 @@ import { SourceRow } from "./SourceRow";
  * (`data.sources()`), oldest first, and "+" to add one. Clicking a row selects it, and the Fields
  * section below shows its special fields. A load added while the section is drawn takes focus on
  * its row, unless the reader is typing in a field. A staged source (the source-steps experiment)
- * shows as its own dashed section after the rows.
+ * shows as its own dashed section after the rows; then the reader's edits and the committed steps,
+ * and the card that removes a step or a source.
  * @param props - Component props
  * @param props.sources - `data.sources()`
  * @param props.selected - the selected load's key
@@ -85,6 +89,9 @@ export function Sources({
                 <StagedSection key={source.key} source={source} />
             ))}
             {stepsOn && card?.kind === "join" ? <JoinCard session={session} card={card} /> : null}
+            {stepsOn && card?.kind === "step" ? <StepCard session={session} card={card} /> : null}
+            {stepsOn ? <ReaderEdits session={session} /> : null}
+            {stepsOn ? <StepsList session={session} folded={card !== null} /> : null}
             <StyleNotes notes={session?.data.lastImport()?.styles?.notes} />
         </ControlSection>
     );

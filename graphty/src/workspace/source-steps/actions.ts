@@ -9,7 +9,8 @@ import type { GraphSession, LoadedSource, SourceKey, SourceMappingPatch } from "
 import { sourceName } from "../data-place/words";
 import type { Notice, WorkspaceState, WorkspaceStore } from "../state/store";
 import { askIfDraftOpen } from "./preview";
-import { committedWords, PREVIEW_WORDS, refusedWords, STAGED_WORDS } from "./words";
+import { stepCardSource } from "./steps";
+import { committedWords, PREVIEW_WORDS, refusedWords, removedWords, STAGED_WORDS } from "./words";
 
 /**
  * The staged sources, oldest first.
@@ -71,12 +72,33 @@ export function cancelCard(workspace: WorkspaceStore, session: GraphSession): vo
 }
 
 /**
- * The source a card adds or joins: the Add card's, or the Join card's Field 2.
+ * The source a card adds, joins or removes: the Add card's, the Join card's Field 2, or the step
+ * card's.
+ * @param session - the element's session.
  * @param card - the open card.
  * @returns its key, or undefined.
  */
-function cardSource(card: WorkspaceState["sourceCard"]): SourceKey | undefined {
+function cardSource(session: GraphSession, card: WorkspaceState["sourceCard"]): SourceKey | undefined {
+    if (card?.kind === "step") {
+        return stepCardSource(session, card);
+    }
     return card?.kind === "join" ? card.field2?.source : card?.source;
+}
+
+/**
+ * The notice after a card commits.
+ * @param card - the card.
+ * @param name - the source it names.
+ * @returns its words.
+ */
+function noticeWords(card: NonNullable<WorkspaceState["sourceCard"]>, name: string): string {
+    if (card.kind === "step") {
+        return removedWords(card.remove, name);
+    }
+    if (card.kind === "join" && card.editing !== null) {
+        return committedWords("edit", name);
+    }
+    return committedWords(card.kind, name);
 }
 
 /**
@@ -93,7 +115,7 @@ export async function commitCard(workspace: WorkspaceStore, session: GraphSessio
         workspace.set({ sourceCard: null });
         return;
     }
-    const key = cardSource(card);
+    const key = cardSource(session, card);
     const source = session.data.sources({ staged: true }).find((each) => each.key === key);
     const before = session.history.steps.length;
     try {
@@ -113,7 +135,7 @@ export async function commitCard(workspace: WorkspaceStore, session: GraphSessio
         return step !== undefined && now?.kind === "undo" && now.step.id === step;
     };
     const notice: Notice = {
-        message: committedWords(card.kind, source === undefined ? "" : sourceName(source)),
+        message: noticeWords(card, source === undefined ? "" : sourceName(source)),
         action: {
             label: PREVIEW_WORDS.undo,
             run: () => {

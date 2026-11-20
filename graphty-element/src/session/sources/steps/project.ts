@@ -20,6 +20,7 @@ import { RECORD_PATHS } from "./paths";
 import { conflictReport, readableRecord, type StepsOutcome } from "./provenance";
 import { applyRefreshEdit, editStates, missingColumns, type RefreshEdit, type RefreshIssue } from "./refresh";
 import {
+    type Aggregate,
     type BuildResult,
     type BuiltEdge,
     type BuiltNode,
@@ -1012,6 +1013,82 @@ export interface StepRow {
     readonly valuesDiffer: readonly Extract<StepsOutcome, { code: "W_VALUES_DIFFER" }>[];
     /** The rows it leaves out by one column's values (5.4); null when it leaves none out. */
     readonly except: RowFilter | null;
+    /** The join act that made it, as `connect` or `merge` would take it again; null for any other step. */
+    readonly act: StepAct | null;
+}
+
+/** A merge or a Make an edge step, read back as the act that makes it (5.2, 7.13). */
+export interface StepAct {
+    readonly act: "connect" | "merge";
+    /** Source 2's field, read on its rows. */
+    readonly from: { readonly source: string; readonly field: string };
+    /** Node 1: its space, and the source and field translating to its key when it is not the key. */
+    readonly into:
+        | { readonly space: string; readonly source: string; readonly field: string }
+        | { readonly space: string; readonly source?: undefined; readonly field?: undefined };
+    readonly direction?: "into-from" | "from-into";
+    readonly edgeType?: string;
+    readonly ignoreCase: boolean;
+    readonly ignoreSpaces: boolean;
+    readonly repeated: "first" | "last" | "both" | null;
+    readonly aggregate: Aggregate | null;
+    readonly unmatchedFrom?: "keep" | "drop";
+}
+
+/**
+ * A merge, or an edge step reading node rows, read back as its act: the inverse of `merge` and
+ * `connect` in acts.ts.
+ * @param value - The value.
+ * @param step - The step.
+ * @returns The act, or null for a step no join act makes.
+ */
+function stepAct(value: SourceSteps, step: Step): StepAct | null {
+    const into = (
+        space: string,
+        s: { readonly via?: string; readonly mapping?: { readonly columns: readonly [string, string] } },
+    ): StepAct["into"] =>
+        s.via !== undefined && s.mapping !== undefined
+            ? { space, source: s.via, field: s.mapping.columns[0] }
+            : { space };
+    const shared = {
+        ignoreCase: step.ignoreCase === true,
+        ignoreSpaces: step.ignoreSpaces === true,
+    };
+    if (step.op === "join.merge") {
+        return {
+            act: "merge",
+            from: { source: step.source, field: step.read.key },
+            into: into(step.read.space, step),
+            ...shared,
+            repeated: step.repeated ?? null,
+            aggregate: step.aggregate ?? null,
+            unmatchedFrom: step.unmatchedFrom ?? "keep",
+        };
+    }
+    const src = value.sources[step.source] as Source | undefined;
+    if (
+        step.op !== "join.edges" ||
+        step.read.table !== "nodes" ||
+        step.read.edgeId === undefined ||
+        src === undefined
+    ) {
+        return null;
+    }
+    const { read } = step;
+    const intoFrom = read.target === read.edgeId && read.targetSpace === nodeSpace(src);
+    const edgeType = value.types.find(
+        (t) => t.kind === "edge" && t.rules.some((r) => r.source === step.source && r.part === step.part),
+    )?.name;
+    return {
+        act: "connect",
+        from: { source: step.source, field: intoFrom ? read.source : read.target },
+        into: into(intoFrom ? read.sourceSpace : read.targetSpace, step),
+        direction: intoFrom ? "into-from" : "from-into",
+        ...(edgeType === undefined ? {} : { edgeType }),
+        ...shared,
+        repeated: step.repeated ?? null,
+        aggregate: step.aggregate ?? null,
+    };
 }
 
 /**
@@ -1094,6 +1171,7 @@ export function stepRows(value: SourceSteps, result: BuildResult, copies: Copies
             buckets: result.stats.find((s) => s.step === index) ?? null,
             valuesDiffer: Object.freeze(report.filter((each) => each.params.step === index)),
             except: step.op === "join.add" || step.except === undefined ? null : step.except,
+            act: stepAct(value, step),
         });
     });
 }

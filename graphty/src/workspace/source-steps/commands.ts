@@ -2,9 +2,10 @@ import { defineRegistration } from "../commands/registry";
 import { sourceStepsOn } from "../features";
 import { cancelCard, commitCard, stagedSources, startAdd } from "./actions";
 import { joinCardOf, nodeField1, openJoin, previewing } from "./join";
-import { ADD_KEY, COMMIT_KEY, JOIN_KEY, PREVIEW_KEY, SIDE_KEY } from "./keys";
+import { ADD_KEY, COMMIT_KEY, JOIN_KEY, PREVIEW_KEY, READER_EDITS_KEY, SIDE_KEY } from "./keys";
 import { canPreview, openDraft, showSide, startPreview, undoInCard } from "./preview";
-import { JOIN_WORDS, PREVIEW_WORDS, STAGED_WORDS } from "./words";
+import { toggleReaderEdits } from "./steps";
+import { JOIN_WORDS, PREVIEW_WORDS, STAGED_WORDS, STEP_WORDS } from "./words";
 
 /** Where Enter belongs to the control under focus: it presses, opens, toggles or walks it. */
 const OWN_ENTER =
@@ -114,7 +115,8 @@ export const registration = defineRegistration({
             run: ({ session, workspace }) => (session === null ? undefined : startPreview(workspace, session)),
         },
         {
-            // Enter while the Join card previews, wherever focus is but on something Enter presses.
+            // Enter while the Join card previews or the step card is open, wherever focus is but on
+            // something Enter presses.
             id: "source.commit-card",
             label: PREVIEW_WORDS.commit,
             group: "Data",
@@ -123,7 +125,10 @@ export const registration = defineRegistration({
             experiment: true,
             feature: "source-steps",
             shown: ({ session, workspace }) =>
-                sourceStepsOn(session) && session !== null && previewing(workspace.get().sourceCard) && enterCommits(),
+                sourceStepsOn(session) &&
+                session !== null &&
+                (previewing(workspace.get().sourceCard) || workspace.get().sourceCard?.kind === "step") &&
+                enterCommits(),
             run: ({ session, workspace }) => (session === null ? undefined : commitCard(workspace, session)),
         },
         {
@@ -136,6 +141,18 @@ export const registration = defineRegistration({
             shown: ({ session }) =>
                 sourceStepsOn(session) && session !== null && openDraft(session)?.displayed === true,
             run: ({ session }) => (session === null ? undefined : showSide(session)),
+        },
+        {
+            id: "source.reader-edits",
+            label: STEP_WORDS.readerEdits,
+            group: "Data",
+            keys: [READER_EDITS_KEY],
+            experiment: true,
+            feature: "source-steps",
+            shown: ({ session }) => sourceStepsOn(session) && session !== null && session.data.edits().length > 0,
+            run: ({ workspace }) => {
+                toggleReaderEdits(workspace);
+            },
         },
         {
             // Undo while the Join card previews takes back the draft's newest change, not the

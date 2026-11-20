@@ -8179,6 +8179,22 @@ export interface SourceSpaceRow {
 }
 
 // @public
+export interface SourceStepAct {
+    readonly act: "connect" | "merge";
+    readonly aggregate: Readonly<Record<string, JoinReduce>> | null;
+    readonly direction?: "into-from" | "from-into";
+    readonly edgeType?: SourceTypeName;
+    readonly from: SourceField;
+    readonly ignoreCase: boolean;
+    readonly ignoreSpaces: boolean;
+    readonly into: SourceJoinInto & {
+        readonly space: SourceSpaceName;
+    };
+    readonly repeated: "first" | "last" | "both" | null;
+    readonly unmatchedFrom?: "keep" | "drop";
+}
+
+// @public
 export interface SourceStepCounts {
     readonly emptyKey: number;
     readonly endsMeet: Readonly<Record<SourceSpaceName, number>>;
@@ -8243,6 +8259,7 @@ export type SourceStepResolution = {
 
 // @public
 export interface SourceStepRow {
+    readonly act: SourceStepAct | null;
     readonly buckets: SourceStepCounts | null;
     readonly except: SourceRowFilter | null;
     readonly held: boolean;

@@ -46,7 +46,8 @@ export function canPreview(card: JoinCardState): boolean {
 
 /**
  * Preview (Shift+P): opens a draft, makes the card's act in it with its choices, and draws it on
- * the graph (After first). A refusal discards the draft and says so.
+ * the graph (After first). Editing a committed step, the draft removes that step first. A refusal
+ * discards the draft and says so.
  * @param workspace - the workspace store.
  * @param session - the element's session.
  * @returns settles once the draft is drawn.
@@ -65,6 +66,10 @@ export async function startPreview(workspace: WorkspaceStore, session: GraphSess
     const op = card.act === "edge" ? "join.edges" : "join.merge";
     let step: number | undefined;
     try {
+        // Editing a committed step with a field or the act changed: the step goes, the new act comes.
+        if (card.editing !== null) {
+            draft.removeStep(card.editing);
+        }
         if (card.act === "edge") {
             draft.connect({
                 ...pair,
@@ -217,6 +222,10 @@ export function undoInCard(workspace: WorkspaceStore, session: GraphSession): vo
         return;
     }
     const was = card.preview.undo.at(-1);
+    // A step reopened as it is holds nothing the card made: Undo waits for the commit.
+    if (was === undefined && card.preview.reopened === true) {
+        return;
+    }
     if (was === undefined) {
         // The act was the draft's only act: taking it back leaves nothing to draw or commit.
         draft.dispose();

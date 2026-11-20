@@ -3,7 +3,7 @@
  * on) opens on the REAL graphty-element and the Data place lists the source as an ordinary row, as
  * it did before staged sections existed, rather than failing to draw the panel. No Join control
  * shows anywhere: not in the Sources header, nor in a node's inspector; nor Preview, nor the
- * Before / After chip over the canvas.
+ * Before / After chip over the canvas; nor the Steps list or Reader edits.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -51,5 +51,7 @@ describe("a staged source with the source-steps experiment off", () => {
         assert.isNull(screen.queryByRole("button", { name: /^Join/ }), "no Join in the inspector");
         assert.isNull(screen.queryByRole("radiogroup", { name: "Before / After" }), "no Before / After chip");
         assert.isNull(screen.queryByRole("button", { name: /^Preview/ }), "no Preview");
+        assert.isNull(screen.queryByRole("list", { name: "Steps" }), "no Steps list");
+        assert.isNull(screen.queryByRole("button", { name: /^Reader edits/ }), "no Reader edits");
     });
 });

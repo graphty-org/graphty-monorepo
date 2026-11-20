@@ -697,17 +697,45 @@ function textColor(trimmed: string, dialect: StyleDialect): { hex: StyleColor; a
             return pajekColor(trimmed);
         case "yfiles3":
             return hexColor(trimmed, true) ?? cssColor(lower.replaceAll("_", ""));
+        case "cytoscape":
+            // Cytoscape's ColorUtil also reads `r,g,b`, the spelling of its 2.x style files
+            return commaColor(trimmed) ?? javaOrCss(lower, trimmed);
         case "java":
         case "gephi":
-        case "cytoscape": {
-            const java = JAVA_COLORS.get(lower);
-            return java === undefined ? cssColor(trimmed) : { hex: java as StyleColor, alpha: 1 };
-        }
+            return javaOrCss(lower, trimmed);
         case "tk":
             return cssColor(trimmed) ?? tkColor(lower);
         default:
             return cssColor(trimmed);
     }
+}
+
+/**
+ * A `java.awt.Color` name, else a CSS color.
+ * @param lower - the value, trimmed and lowercase
+ * @param trimmed - the value, trimmed
+ * @returns the color, or null
+ */
+function javaOrCss(lower: string, trimmed: string): { hex: StyleColor; alpha: number } | null {
+    const java = JAVA_COLORS.get(lower);
+    return java === undefined ? cssColor(trimmed) : { hex: java as StyleColor, alpha: 1 };
+}
+
+/**
+ * Cytoscape's `r,g,b` and `r,g,b,a` color, each component 0..255.
+ * @param trimmed - the value, trimmed
+ * @returns the color, or null
+ */
+function commaColor(trimmed: string): { hex: StyleColor; alpha: number } | null {
+    const m = /^(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})(?:\s*,\s*(\d{1,3}))?$/.exec(trimmed);
+    if (m === null) {
+        return null;
+    }
+    const [r, g, b, a] = [m[1], m[2], m[3], m.at(4) ?? "255"].map(Number);
+    if (Math.max(r, g, b, a) > 255) {
+        return null;
+    }
+    return { hex: rgbHex(r, g, b), alpha: a / 255 };
 }
 
 /**

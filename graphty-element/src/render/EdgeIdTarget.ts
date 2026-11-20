@@ -8,6 +8,7 @@ import type { TransformNode } from "@babylonjs/core/Meshes/transformNode.js";
 import type { Scene } from "@babylonjs/core/scene.js";
 
 import type { Edge } from "../Edge";
+import type { RowLinePicks } from "./PickService";
 
 /**
  * @file The edge ID target: what an edge hover reads instead of measuring every edge on screen
@@ -16,7 +17,8 @@ import type { Edge } from "../Edge";
  * A render target the size of the canvas, with no depth and no antialiasing, as today's edge hit
  * ignores depth. Each straight edge is drawn into it as a one-pixel line between its two nodes'
  * places, read from the row table's position texture, writing its place in {@link EdgeIdTarget.edges}
- * plus one. A hover reads a window around the pointer as wide as the pick tolerance and hands the
+ * plus one; an edge drawn with no `Edge` (a row line) is drawn after them the same way, naming its
+ * edge row. A hover reads a window around the pointer as wide as the pick tolerance and hands the
  * edges it names, plus every edge the target cannot draw (a curve, a route, a loop, a group's
  * edge), to the exact distance test: no edge outside the window is put on screen. Moving nodes
  * moves the lines with no upload; the list of edges is rebuilt only when an edge is added,
@@ -53,12 +55,20 @@ void main(void) {
 }
 `;
 
+/** The edges a hover must measure: `Edge`s, and the edge rows of lines drawn with no `Edge`. */
+export interface EdgeCandidates {
+    readonly edges: Edge[];
+    readonly rows: number[];
+}
+
 /** What the target asks of its graph. */
 export interface EdgeIdHost {
     /** The texture that places each row. */
     positionTexture(): RawTexture;
     /** The graph's edges, in the order the full walk takes them. */
     edges(): Iterable<Edge>;
+    /** The edges drawn with no `Edge`, or null when there are none. */
+    rowLines(): RowLinePicks | null;
     /** The node that places every row. */
     root(): TransformNode | null;
     /** Draw a frame soon: on WebGPU the target is drawn inside one. */
@@ -67,10 +77,15 @@ export interface EdgeIdHost {
 
 /** The edge ID target of one scene; see the file comment. */
 export class EdgeIdTarget {
-    /** How many times the target was drawn, its list rebuilt, and windows read from it. */
-    readonly counts = { draws: 0, rebuilds: 0, reads: 0 };
+    /**
+     * How many times the target was drawn, its list rebuilt and windows read from it, and how many answers are
+     * pending: on WebGPU a read answers a frame or more after it is asked for.
+     */
+    readonly counts = { draws: 0, rebuilds: 0, reads: 0, pending: 0 };
     /** The visible edges as of the last rebuild, in walk order. */
     edges: Edge[] = [];
+    /** The edge rows of the shown row lines as of the last rebuild, drawn after {@link edges}. */
+    lineRows: number[] = [];
 
     private readonly target: RenderTargetTexture;
     private readonly material: ShaderMaterial;
@@ -171,7 +186,7 @@ export class EdgeIdTarget {
      * @param radius - The window's half-width, in render pixels.
      * @returns The edges, in walk order, now or once read; null when the target cannot answer yet.
      */
-    candidates(x: number, y: number, radius: number): Edge[] | Promise<Edge[]> | null {
+    candidates(x: number, y: number, radius: number): EdgeCandidates | Promise<EdgeCandidates> | null {
         if (this.disposed) {
             return null;
         }
@@ -194,15 +209,17 @@ export class EdgeIdTarget {
             return this.drawnIn === this.scene.getFrameId() ? this.window(x, y, radius, true) : null;
         }
 
-        if (fresh) {
-            return this.window(x, y, radius, false);
-        }
-
-        return new Promise<void>((resolve) => {
-            this.waiting.push(resolve);
-            this.drawnRequested = true;
-            this.host.requestFrame();
-        }).then(() => this.window(x, y, radius, false));
+        this.counts.pending++;
+        const read = fresh
+            ? this.window(x, y, radius, false)
+            : new Promise<void>((resolve) => {
+                  this.waiting.push(resolve);
+                  this.drawnRequested = true;
+                  this.host.requestFrame();
+              }).then(() => this.window(x, y, radius, false));
+        return read.finally(() => {
+            this.counts.pending--;
+        });
     }
 
     /**
@@ -233,7 +250,7 @@ export class EdgeIdTarget {
         this.settle(true);
     }
 
-    /** Take the visible edges again, and give each straight one its line. */
+    /** Take the visible edges again, and give each straight one, and each row line, its line. */
     private rebuild(): void {
         this.builtAt = edgeDrawChanges.count;
         this.builtIn = this.scene.getFrameId();
@@ -255,10 +272,28 @@ export class EdgeIdTarget {
             }
         }
 
+        // The row lines after the `Edge`s, with no object per line: a million of them is two plain arrays.
+        const lineRows: number[] = [];
+        const lineEnds: number[] = [];
+        this.host.rowLines()?.forEachShown((row, source, target) => {
+            lineRows.push(row);
+            lineEnds.push(source, target);
+        });
+        const vertices = new Float32Array(Math.max(1, lines.length / 6 + lineRows.length) * 6);
+        vertices.set(lines);
+        for (let i = 0, at = lines.length; i < lineRows.length; i++, at += 6) {
+            const id = edges.length + i + 1;
+            vertices[at] = lineEnds[i * 2];
+            vertices[at + 1] = id;
+            vertices[at + 3] = lineEnds[i * 2 + 1];
+            vertices[at + 4] = id;
+        }
+
         this.edges = edges;
+        this.lineRows = lineRows;
         this.loose = loose;
         // At least one line, so a graph of curves alone still draws (nothing) and reads as fresh.
-        this.mesh.setVerticesData("position", lines.length > 0 ? lines : [0, 0, 0, 0, 0, 0], false);
+        this.mesh.setVerticesData("position", vertices, false);
         this.drawnIn = -1;
     }
 
@@ -305,9 +340,9 @@ export class EdgeIdTarget {
      * @param now - Read synchronously (WebGL only).
      * @returns The edges, in walk order.
      */
-    private window(x: number, y: number, radius: number, now: true): Edge[];
-    private window(x: number, y: number, radius: number, now: false): Promise<Edge[]>;
-    private window(x: number, y: number, radius: number, now: boolean): Edge[] | Promise<Edge[]> {
+    private window(x: number, y: number, radius: number, now: true): EdgeCandidates;
+    private window(x: number, y: number, radius: number, now: false): Promise<EdgeCandidates>;
+    private window(x: number, y: number, radius: number, now: boolean): EdgeCandidates | Promise<EdgeCandidates> {
         const engine = this.scene.getEngine();
         const scaling = engine.getHardwareScalingLevel();
         const { width, height } = this.target.getSize();
@@ -345,9 +380,9 @@ export class EdgeIdTarget {
      * The edges the pixels just read name, with the loose ones, in walk order.
      * @param pixels - The pixels read.
      * @param count - How many pixels were read.
-     * @returns The edges.
+     * @returns The edges, and the row lines' edge rows.
      */
-    private named(pixels: Uint8Array, count: number): Edge[] {
+    private named(pixels: Uint8Array, count: number): EdgeCandidates {
         const at = new Set<number>(this.loose);
         for (let i = 0; i < count && !this.disposed; i++) {
             const id = pixels[i * 4] + pixels[i * 4 + 1] * 256 + pixels[i * 4 + 2] * 65536;
@@ -356,7 +391,14 @@ export class EdgeIdTarget {
             }
         }
 
-        return [...at].sort((a, b) => a - b).flatMap((i) => this.edges[i] ?? []);
+        const { edges, lineRows } = this;
+        const named = [...at].sort((a, b) => a - b);
+        return {
+            edges: named.flatMap((i) => edges[i] ?? []),
+            rows: named.flatMap((i) =>
+                i >= edges.length && i - edges.length < lineRows.length ? [lineRows[i - edges.length]] : [],
+            ),
+        };
     }
 }
 

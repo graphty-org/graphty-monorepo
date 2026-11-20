@@ -270,10 +270,11 @@ import {
     openRowScan,
     pickAsDrawn,
     pickCloseLabel,
-    pickEdgeId,
     pickNodeId,
     pickWorldPoint,
+    pressEdgeAt,
     regionWork,
+    type RowLinePicks,
     rowScanOf,
     screenProjector,
     useEdgeIdTarget,
@@ -5616,6 +5617,7 @@ export class Graph implements GraphContext {
             this.#edgeIds = new EdgeIdTarget(this.scene, {
                 positionTexture: () => places.positionTexture,
                 edges: () => this.builtEdges(),
+                rowLines: () => this.rowLinePicks(),
                 root: () => this.scene.getTransformNodeByName("graph-root"),
                 requestFrame: () => {
                     this.renderManager.requestFrame();
@@ -6015,6 +6017,7 @@ export class Graph implements GraphContext {
                 this.scene.pointerX,
                 this.scene.pointerY,
                 (point) => this.worldToScreen(point),
+                this.rowLinePicks(),
             );
             if (edgeId instanceof Promise) {
                 void edgeId.then(over);
@@ -7606,7 +7609,33 @@ export class Graph implements GraphContext {
     }
 
     private pickEdgeId(x: number, y: number): EdgeId | undefined {
-        return pickEdgeId(this.scene, this.builtEdges(), x, y, (point) => this.worldToScreen(point));
+        return pressEdgeAt(
+            this.scene,
+            () => this.builtEdges(),
+            x,
+            y,
+            (point) => this.worldToScreen(point),
+            this.rowLinePicks(),
+        );
+    }
+
+    /**
+     * The edges drawn with no `Edge` on the `"batched"` path, as an edge pick measures them: a pick names such an
+     * edge by its id and builds no `Edge` for it.
+     * @returns Them, or null off the `"batched"` path.
+     */
+    private rowLinePicks(): RowLinePicks | null {
+        const lines = this.#edgeRowLines;
+        if (lines === null) {
+            return null;
+        }
+
+        return {
+            forEachShown: (visit, only) => {
+                lines.forEachShown(visit, only);
+            },
+            idOf: (row) => dataManagerInternals.unbuiltEdgeId(this.dataManager, row),
+        };
     }
 
     /**

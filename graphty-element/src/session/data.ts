@@ -227,6 +227,7 @@ import {
 import type { DraftMark, DraftMarks } from "./sources/steps/draft";
 import { matchCounts, matchValues } from "./sources/steps/match";
 import { RECORD_PATHS } from "./sources/steps/paths";
+import { spaceProfile, tableHandle } from "./sources/steps/profile";
 import {
     applyEdit,
     buildOf,
@@ -359,6 +360,7 @@ import type {
     SourceCellState,
     SourceCellValue,
     SourceCellValues,
+    SourceColumnProfile,
     SourceConflict,
     SourceConflictQuery,
     SourceConnectOptions,
@@ -369,6 +371,7 @@ import type {
     SourceElementsFilter,
     SourceExtractOptions,
     SourceLineage,
+    SourceMappingPatch,
     SourceMatchCounts,
     SourceMatchOptions,
     SourceMatchPair,
@@ -382,6 +385,7 @@ import type {
     SourceSpaceRow,
     SourceStepResolution,
     SourceStepRow,
+    SourceTable,
     SourceTypeEntry,
     TableMapping,
     TypeChangePreview,
@@ -3562,7 +3566,13 @@ export class SessionData implements SessionDataApi {
     ): Promise<{ source: StepsSource; copies: Copies } | null> {
         checkSpace(options.space);
         const draft = await this.prepare(source);
-        const digest = await copyDigest(source.config);
+        const { sha256: digest, size } = await copyFacts(source.config);
+        const delimiter = draft.tables.find((table) => table.delimiter !== undefined)?.delimiter;
+        const facts = {
+            ...(size === undefined ? {} : { size }),
+            at: new Date().toISOString(),
+            ...(delimiter === undefined ? {} : { delimiter: { ...delimiter } }),
+        };
         let read: { source: StepsSource; copies: Copies } | null = null;
         try {
             await draft.loadVia(
@@ -3570,7 +3580,10 @@ export class SessionData implements SessionDataApi {
                     const load = (command.op === "batch" ? command.steps.at(-1) : command) as DataImportCommand;
                     const compiled = compileImport(withDigest(load, digest), options, this.readConfig().knownFields);
                     if (compiled !== null) {
-                        read = { source: compiled.edit.source, copies: compiled.copies ?? EMPTY_COPIES };
+                        read = {
+                            source: { ...compiled.edit.source, read: facts },
+                            copies: compiled.copies ?? EMPTY_COPIES,
+                        };
                     }
                     return Promise.resolve();
                 },
@@ -3721,6 +3734,42 @@ export class SessionData implements SessionDataApi {
     matchValues(pair: SourceMatchPair, options: SourceMatchValuesOptions = {}): SourceMatchValues {
         this.requireSteps("matchValues");
         return matchValues(this.stepsValue(), this.stepsCopies(), pair, options);
+    }
+
+    /**
+     * One source's rows as read, staged or built, building nothing (design 5.1, 5.2).
+     * @param source - The source.
+     * @returns The table.
+     * @throws A `GraphtyError` with `E_LOAD_UNKNOWN` or `E_FEATURE_OFF`.
+     */
+    sourceTable(source: SourceKey): SourceTable {
+        this.requireSteps("sourceTable");
+        return tableHandle(() => ({ value: this.stepsValue(), copies: this.stepsCopies() }), source);
+    }
+
+    /**
+     * The profile of the keys of the nodes one id space holds.
+     * @param options - The space.
+     * @param options.space - The space.
+     * @returns The profile.
+     * @throws A `GraphtyError` with `E_FEATURE_OFF`.
+     */
+    profile(options: { readonly space: string }): SourceColumnProfile {
+        this.requireSteps("profile");
+        return spaceProfile(this.stepsValue(), this.stepsCopies(), options.space);
+    }
+
+    /**
+     * Change what a staged source's rows are for, outside a draft. Like staging, it joins the step
+     * before it.
+     * @param source - The staged source.
+     * @param patch - The change.
+     * @returns Settles once it is recorded.
+     * @throws A `GraphtyError` with `E_BAD_COMMAND` (reason `not-staged`) or `E_FEATURE_OFF`.
+     */
+    async setMapping(source: SourceKey, patch: SourceMappingPatch): Promise<void> {
+        this.requireSteps("setMapping");
+        await this.stepsEdit(() => ({ kind: "act", act: { act: "set-mapping", source, patch } }), undefined, true);
     }
 
     /**
@@ -9538,19 +9587,35 @@ async function bytesFacts(config: Readonly<Record<string, unknown>>): Promise<Pa
  * @returns The lower-case hex digest, or undefined.
  */
 async function copyDigest(config: Readonly<Record<string, unknown>> | undefined): Promise<string | undefined> {
+    return (await copyFacts(config)).sha256;
+}
+
+/**
+ * The digest and size of what a source reads, when the session holds its bytes.
+ * @param config - The source's options.
+ * @returns The hex SHA-256 and the size in bytes, each absent when not known.
+ */
+async function copyFacts(
+    config: Readonly<Record<string, unknown>> | undefined,
+): Promise<{ readonly sha256?: string; readonly size?: number }> {
     const { data, file, url } = config ?? {};
     const blob = fileOf(file);
     if (typeof url === "string" && !(data instanceof Uint8Array)) {
-        return peekFetched(url)?.sha256;
+        const fetched = peekFetched(url);
+        return fetched === undefined ? {} : { sha256: await fetched.sha256, size: fetched.size };
     }
     if (blob !== null) {
-        return sha256Hex(new Uint8Array(await blob.slice(0, blob.size).arrayBuffer()));
+        return {
+            sha256: await sha256Hex(new Uint8Array(await blob.slice(0, blob.size).arrayBuffer())),
+            size: blob.size,
+        };
     }
     if (!isSourceData(data)) {
-        return undefined;
+        return {};
     }
     const input = toSourceInput(data);
-    return sha256Hex(typeof input === "string" ? new TextEncoder().encode(input) : input);
+    const bytes = typeof input === "string" ? new TextEncoder().encode(input) : input;
+    return { sha256: await sha256Hex(bytes), size: bytes.byteLength };
 }
 
 /**

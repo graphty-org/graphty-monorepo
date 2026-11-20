@@ -114,7 +114,12 @@ function column(rows: readonly Row[], field: string): Entry[] {
 function sides(value: SourceSteps, copies: Copies, pair: MatchPair): Sides {
     const two = column(rowsOf(value, copies, pair.from.source), pair.from.field);
     const n1 = nodeOne(value, pair.into);
-    if (n1.isKey || pair.into.source === undefined) {
+    const { source } = pair.into;
+    if (source !== undefined && n1.keyCol !== undefined && isStaged(value, source)) {
+        // A staged node 1 is not built yet: its rows' keys stand for the nodes adding it makes.
+        return { one: translated(value, copies, source, pair.into.field ?? n1.keyCol, n1), two };
+    }
+    if (n1.isKey || source === undefined) {
         const { space } = n1;
         // ponytail: a merged node's former keys (aliases) are not counted; add them if a Merge
         // into an already merged space reads short.
@@ -127,7 +132,7 @@ function sides(value: SourceSteps, copies: Copies, pair: MatchPair): Sides {
         };
         return { one: keys(), two };
     }
-    return { one: translated(value, copies, pair.into.source, pair.into.field ?? "", n1), two };
+    return { one: translated(value, copies, source, pair.into.field ?? "", n1), two };
 }
 
 /**

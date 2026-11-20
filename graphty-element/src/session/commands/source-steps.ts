@@ -111,6 +111,7 @@ const ACT_LABELS: Readonly<Record<StepsAct["act"], string>> = {
     "remove-step": "Deleted a step",
     "set-step-off": "Turned a step off or on",
     "add-staged": "Added a staged source",
+    "set-mapping": "Changed a staged source's mapping",
 };
 
 /**
@@ -217,6 +218,23 @@ function joinNow(value: SourceSteps, src: StepsSource): JoinRecord | undefined {
 }
 
 /**
+ * For a staged source: the committed source it is named like (design 5.1, 9.2), the one Replace
+ * would replace.
+ * @param value - The value.
+ * @param src - The source.
+ * @returns `{ sameName }`, or nothing.
+ */
+function sameNameOf(value: SourceSteps, src: StepsSource): { sameName?: string } {
+    if (src.label === null || sourceState(value, src.id) !== "staged") {
+        return {};
+    }
+    const same = Object.values(value.sources).find(
+        (other) => other.id !== src.id && other.label === src.label && sourceState(value, other.id) !== "staged",
+    );
+    return same === undefined ? {} : { sameName: same.id };
+}
+
+/**
  * The sources list and the provenance `data.sources()` and `data.sourcesOf()` read, from the build.
  * @param value - The value.
  * @param copies - Its copies.
@@ -250,6 +268,7 @@ function listed(
             added: Object.freeze({ nodes: own?.added.nodes ?? 0, edges: own?.added.edges ?? 0 }),
             counts,
             state: sourceState(value, src.id),
+            ...sameNameOf(value, src),
             named: own?.named ?? 0,
             rowsLeftOut: Object.freeze({ ...own?.leftOut }),
             ...(src.issues === undefined ? {} : { issues: src.issues }),
@@ -475,6 +494,7 @@ const dataStepsSet: UndoableDefinition<DataStepsSetCommand> = {
         "remove-step",
         "set-step-off",
         "add-staged",
+        "set-mapping",
         "replace-copy",
         "settle-edit",
         "resolve-step",

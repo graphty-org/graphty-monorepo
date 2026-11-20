@@ -10,22 +10,25 @@
  */
 
 import { GraphtyError } from "../../../errors/GraphtyError";
-import { checkClash, refuseBoth } from "./acts";
+import { checkClash, mapped, type MappingPatch, refuseBoth } from "./acts";
+
+export type { MappingPatch } from "./acts";
 import { isStaged, ownSpace } from "./build";
 import {
     addSource,
     applyEdit,
     buildOf,
-    checkSpace,
     type Copies,
     nodeIdsOf,
     type OverlapQuestion,
     overlapQuestion,
     type SourceSteps,
     type StepsEdit,
-    withSourceRules,
 } from "./project";
-import type { BuiltEdge, BuiltNode, ClashRule, Mapping, RowFilter, Step } from "./types";
+import type { Aggregate, BuiltEdge, BuiltNode, ClashRule, RowFilter, Step } from "./types";
+
+/** The steps that may reduce a repeated key's rows by `aggregate` (3.3). */
+const AGGREGATES: ReadonlySet<Step["op"]> = new Set(["join.merge", "join.node-values", "join.edges"]);
 
 /** A draft's value, its copies, and the sources whose mapping it may change. */
 export interface DraftState {
@@ -69,18 +72,10 @@ export interface StepPatch {
     readonly repeated?: "first" | "last" | "both" | null;
     /** Keep the step but build nothing from it. */
     readonly off?: boolean;
-}
-
-/** What `setMapping` may change on a source the draft owns. */
-export interface MappingPatch {
-    /** The id space its node keys live in; naming one means a later Add never asks the overlap question. */
-    readonly space?: string;
-    /** Its node type, written as its whole-source rule; `null` gives it none. */
-    readonly type?: string | null;
-    /** Roles of its node rows, merged into its node mapping. */
-    readonly nodes?: Partial<NonNullable<Mapping["nodes"]>>;
-    /** Roles of its edge rows, merged into its edge mapping. */
-    readonly edges?: Partial<NonNullable<Mapping["edges"]>>;
+    /** A merge's node 2 that names no node 1: kept as its own node, or dropped. */
+    readonly unmatchedFrom?: "keep" | "drop";
+    /** Per column, how the rows of one repeated key are reduced; `null` takes it off. */
+    readonly aggregate?: Aggregate | null;
 }
 
 /**
@@ -411,6 +406,18 @@ export function stepEdit(value: SourceSteps, copies: Copies, index: number, patc
         }
         refuseBoth(step.op, repeated);
     }
+    if (patch.unmatchedFrom !== undefined && step.op !== "join.merge") {
+        throw refused("E_BAD_COMMAND", `A ${step.op} step takes no unmatchedFrom choice.`, {
+            reason: "unmatched-from",
+            op: step.op,
+        });
+    }
+    if (patch.aggregate !== undefined && !AGGREGATES.has(step.op)) {
+        throw refused("E_BAD_COMMAND", `A ${step.op} step takes no aggregate choice.`, {
+            reason: "aggregate",
+            op: step.op,
+        });
+    }
     // Rules for some columns keep "*" for the rest, as a door's rule per column writes it (3.10).
     const held = typeof step.clash === "object" ? step.clash : { "*": step.clash ?? "keep" };
     const patched: Record<string, unknown> = {
@@ -420,6 +427,8 @@ export function stepEdit(value: SourceSteps, copies: Copies, index: number, patc
         ignoreSpaces: patch.ignoreSpaces,
         repeated,
         off: patch.off,
+        unmatchedFrom: patch.unmatchedFrom,
+        aggregate: patch.aggregate,
     };
     const given = Object.entries(patched).filter(([, v]) => v !== undefined);
     // A null or false takes the choice off; anything else sets it.
@@ -445,50 +454,9 @@ export function stepEdit(value: SourceSteps, copies: Copies, index: number, patc
  * @param id - The source's id.
  * @param patch - The change.
  * @returns The `set` edit that makes the change.
- * @throws A `GraphtyError` with `E_LOAD_UNKNOWN` for an unknown source, `E_SPACE_RESERVED` for a
- *   `graph:` space, or `E_BAD_COMMAND` for roles of a table the source does not hold (reason
- *   `no-nodes` or `no-edges`).
  */
 export function mappingEdit(value: SourceSteps, id: string, patch: MappingPatch): StepsEdit {
-    const src = value.sources[id] as SourceSteps["sources"][string] | undefined;
-    if (src === undefined) {
-        throw refused("E_LOAD_UNKNOWN", `No source has key ${JSON.stringify(id)}.`, {
-            key: id,
-            known: Object.keys(value.sources),
-        });
-    }
-    checkSpace(patch.space);
-    const { nodes, edges } = src.mapping;
-    if (nodes === undefined && (patch.nodes !== undefined || patch.space !== undefined)) {
-        throw refused("E_BAD_COMMAND", `Source ${id} holds no node rows.`, { reason: "no-nodes", source: id });
-    }
-    if (edges === undefined && patch.edges !== undefined) {
-        throw refused("E_BAD_COMMAND", `Source ${id} holds no edge rows.`, { reason: "no-edges", source: id });
-    }
-    const mapping: Mapping = {
-        ...(nodes === undefined
-            ? {}
-            : { nodes: { ...nodes, ...patch.nodes, ...(patch.space === undefined ? {} : { space: patch.space }) } }),
-        ...(edges === undefined ? {} : { edges: { ...edges, ...patch.edges } }),
-    };
-    const next = {
-        ...src,
-        mapping,
-        ...(patch.space === undefined ? {} : { spacePicked: true }),
-        ...(patch.type === undefined ? {} : { stagedType: patch.type }),
-    };
-    let { types } = value;
-    if (patch.type !== undefined) {
-        // The source's whole-source and end rules are written again from its new type (9.1).
-        const own = (rule: (typeof types)[number]["rules"][number]): boolean =>
-            rule.source === id &&
-            (Object.keys(rule).length === 1 || (rule.end !== undefined && rule.part === undefined));
-        types = withSourceRules(
-            types.map((t) => (t.kind === "node" ? { ...t, rules: t.rules.filter((r) => !own(r)) } : t)),
-            next,
-        );
-    }
-    return { kind: "set", value: { ...value, sources: { ...value.sources, [id]: next }, types } };
+    return { kind: "set", value: mapped(value, id, patch) };
 }
 
 /** What a draft's commit does to one element (design 10, row 12), as `graphty.draft` reads it. */

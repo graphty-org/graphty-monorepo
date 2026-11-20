@@ -9,9 +9,28 @@
 import type { GraphtyErrorCode } from "../../../errors/codes";
 import { GraphtyError } from "../../../errors/GraphtyError";
 import { copyKey, isStaged, mintPart, nodeSpace, ownSpace } from "./build";
-import { addSource, buildOf, type Copies, declared, type SourceSteps, type StepsSource } from "./project";
+import {
+    addSource,
+    buildOf,
+    checkSpace,
+    type Copies,
+    declared,
+    type SourceSteps,
+    type StepsSource,
+    withSourceRules,
+} from "./project";
 import { checkClashRule, conflicts, isOutcome, pickEdit, type Rename, renameColumn } from "./provenance";
-import type { ClashRule, EdgesStep, ElementRef, MergeStep, NodeValuesStep, RowFilter, Step, TableName } from "./types";
+import type {
+    ClashRule,
+    EdgesStep,
+    ElementRef,
+    Mapping,
+    MergeStep,
+    NodeValuesStep,
+    RowFilter,
+    Step,
+    TableName,
+} from "./types";
 
 /** A column of one source. */
 interface FieldRef {
@@ -49,6 +68,7 @@ interface ConnectAct {
     readonly direction?: "into-from" | "from-into";
     readonly edgeType?: string;
     readonly ignoreCase?: boolean;
+    readonly ignoreSpaces?: boolean;
 }
 
 /** Extract (4.3): one column of an edge source becomes nodes, joined to one end by new edges. */
@@ -86,7 +106,23 @@ export type StepsAct =
     | { readonly act: "remove-step"; readonly index: number }
     /** Turn one step off (kept and listed, not built) or back on (7.13). */
     | { readonly act: "set-step-off"; readonly index: number; readonly off: boolean }
-    | { readonly act: "add-staged"; readonly source: string; readonly overlap?: "separate" | "merge" };
+    | { readonly act: "add-staged"; readonly source: string; readonly overlap?: "separate" | "merge" }
+    /** Change a staged source's mapping, space or type (5.1): Rows are, Key, Space, Type, the edge ends. */
+    | { readonly act: "set-mapping"; readonly source: string; readonly patch: MappingPatch };
+
+/** What `setMapping` may change on a source. */
+export interface MappingPatch {
+    /** The id space its node keys live in; naming one means a later Add never asks the overlap question. */
+    readonly space?: string;
+    /** Its node type, written as its whole-source rule; `null` gives it none. */
+    readonly type?: string | null;
+    /** Roles of its node rows, merged into its node mapping. */
+    readonly nodes?: Partial<NonNullable<Mapping["nodes"]>>;
+    /** Roles of its edge rows, merged into its edge mapping. */
+    readonly edges?: Partial<NonNullable<Mapping["edges"]>>;
+    /** The node types of its edge ends, written as end rules; `null` takes one off. */
+    readonly endTypes?: { readonly source?: string | null; readonly target?: string | null };
+}
 
 /**
  * A refusal.
@@ -441,7 +477,7 @@ function connect(prior: SourceSteps, copies: Copies, o: ConnectAct): SourceSteps
         },
         unmatchedRows: "leave-out",
         columns: [],
-        ...defined({ ignoreCase: o.ignoreCase }),
+        ...defined({ ignoreCase: o.ignoreCase, ignoreSpaces: o.ignoreSpaces }),
         ...(n1.isKey || n1.keyCol === undefined
             ? {}
             : {
@@ -632,7 +668,79 @@ export function applyAct(value: SourceSteps, act: StepsAct, copies: Copies): Sou
         }
         case "set-step-off":
             return setStepOff(value, act.index, act.off);
+        case "set-mapping":
+            if (!isStaged(value, sourceOf(value, act.source).id)) {
+                throw refused("E_BAD_COMMAND", `Source ${act.source} is not staged.`, {
+                    reason: "not-staged",
+                    source: act.source,
+                });
+            }
+            return mapped(value, act.source, act.patch);
         default:
             return removeStep(value, act.index);
     }
+}
+
+/**
+ * A source's mapping, space or type changed (5.1, 5.6). A type writes the source's whole-source and
+ * end rules again at once (9.1).
+ * @param value - The value.
+ * @param id - The source's id.
+ * @param patch - The change.
+ * @returns The next value.
+ * @throws A `GraphtyError` with `E_LOAD_UNKNOWN` for an unknown source, `E_SPACE_RESERVED` for a
+ *   `graph:` space, or `E_BAD_COMMAND` for roles of a table the source does not hold (reason
+ *   `no-nodes` or `no-edges`).
+ */
+export function mapped(value: SourceSteps, id: string, patch: MappingPatch): SourceSteps {
+    const src = sourceOf(value, id);
+    checkSpace(patch.space);
+    const { nodes, edges } = src.mapping;
+    if (nodes === undefined && (patch.nodes !== undefined || patch.space !== undefined)) {
+        throw refused("E_BAD_COMMAND", `Source ${id} holds no node rows.`, { reason: "no-nodes", source: id });
+    }
+    if (edges === undefined && (patch.edges !== undefined || patch.endTypes !== undefined)) {
+        throw refused("E_BAD_COMMAND", `Source ${id} holds no edge rows.`, { reason: "no-edges", source: id });
+    }
+    const mapping: Mapping = {
+        ...(nodes === undefined
+            ? {}
+            : { nodes: { ...nodes, ...patch.nodes, ...(patch.space === undefined ? {} : { space: patch.space }) } }),
+        ...(edges === undefined ? {} : { edges: { ...edges, ...patch.edges } }),
+    };
+    const next = {
+        ...src,
+        mapping,
+        ...(patch.space === undefined ? {} : { spacePicked: true }),
+        ...(patch.type === undefined ? {} : { stagedType: patch.type }),
+        ...(patch.endTypes === undefined ? {} : { endTypes: endTypesOf(src.endTypes, patch.endTypes) }),
+    };
+    let { types } = value;
+    if (patch.type !== undefined || patch.endTypes !== undefined) {
+        const own = (rule: (typeof types)[number]["rules"][number]): boolean =>
+            rule.source === id &&
+            (Object.keys(rule).length === 1 || (rule.end !== undefined && rule.part === undefined));
+        types = withSourceRules(
+            types.map((t) => (t.kind === "node" ? { ...t, rules: t.rules.filter((r) => !own(r)) } : t)),
+            next,
+        );
+    }
+    return { ...value, sources: { ...value.sources, [id]: next }, types };
+}
+
+/**
+ * A source's end types with a change laid over them.
+ * @param held - The end types now.
+ * @param patch - The change; `null` takes an end's type off.
+ * @returns The end types.
+ */
+function endTypesOf(
+    held: StepsSource["endTypes"],
+    patch: NonNullable<MappingPatch["endTypes"]>,
+): NonNullable<StepsSource["endTypes"]> {
+    const pick = (end: "source" | "target"): string | undefined =>
+        patch[end] === undefined ? held?.[end] : (patch[end] ?? undefined);
+    const source = pick("source");
+    const target = pick("target");
+    return { ...(source === undefined ? {} : { source }), ...(target === undefined ? {} : { target }) };
 }

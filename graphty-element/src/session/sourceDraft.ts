@@ -27,6 +27,7 @@ import {
 import { clearPicksEdit, drillCells, drillElements, drillRows, exceptOf, pickAllEdit } from "./sources/steps/drill";
 import { matchCounts, matchValues } from "./sources/steps/match";
 import { contextIssues, type PreviewContext, previewOf } from "./sources/steps/preview";
+import { spaceProfile, tableHandle } from "./sources/steps/profile";
 import {
     buildOf,
     type Copies,
@@ -42,6 +43,7 @@ import type {
     ReaderEditRow,
     SourceCellValue,
     SourceClearPicksOptions,
+    SourceColumnProfile,
     SourceConnectOptions,
     SourceDraft,
     SourceDraftChange,
@@ -60,6 +62,7 @@ import type {
     SourcePickAllOptions,
     SourceStepPatch,
     SourceStepRow,
+    SourceTable,
     SourceTypeEntry,
 } from "./types";
 
@@ -460,6 +463,18 @@ export class SourceDraftHandle implements SourceDraft {
     /** @inheritdoc */
     edits(): readonly ReaderEditRow[] {
         return editRows(this.state.value, this.state.copies);
+    }
+
+    /** @inheritdoc */
+    sourceTable(source: SourceKey): SourceTable {
+        this.live("sourceTable");
+        return tableHandle(() => this.state, source);
+    }
+
+    /** @inheritdoc */
+    profile(options: { readonly space: string }): SourceColumnProfile {
+        this.live("profile");
+        return spaceProfile(this.state.value, this.state.copies, options.space);
     }
 
     /** @inheritdoc */

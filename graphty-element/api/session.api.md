@@ -3897,6 +3897,7 @@ export interface LoadedSource extends DataSourceDescriptor {
     readonly named?: number;
     readonly reloadable?: true;
     readonly rowsLeftOut?: Readonly<Partial<Record<"left-out:empty-key" | "left-out:empty-end" | "left-out:unmatched" | "left-out:fan-out" | "left-out:no-step", number>>>;
+    readonly sameName?: SourceKey;
     readonly state?: SourceBuildState;
     readonly tableRows?: readonly ("nodes" | "edges")[];
     readonly tables: readonly string[];
@@ -6606,6 +6607,9 @@ export interface SessionDataApi {
     }): Promise<LoadDraft>;
     previewSource(source: SourceInput, options?: SourcePreviewOptions): Promise<SourcePreview>;
     previewType(column: ColumnRef, type: ValueType): TypeChangePreview;
+    profile(options: {
+        readonly space: SourceSpaceName;
+    }): SourceColumnProfile;
     readableValues(): readonly ReadableValue[];
     readExample(source: string, example: string, options?: SourceLoadOptions): Promise<SourceRead>;
     ref(key: string, options?: {
@@ -6629,6 +6633,7 @@ export interface SessionDataApi {
     roleCandidate(kind: "node" | "edge", role: ColumnRole): string | null;
     runPendingSourceLoad(id: string, options?: SourceLoadOptions): Promise<void>;
     setHidden(columns: readonly ColumnRef[], hidden: boolean): Promise<void>;
+    setMapping(source: SourceKey, patch: SourceMappingPatch): Promise<void>;
     setRole(column: ColumnRef, role: ColumnRole | null, options?: SourceRoleOptions): Promise<void>;
     setStepOff(index: number, off: boolean): Promise<void>;
     settleEdit(id: string, choice: SourceEditChoice): Promise<void>;
@@ -6642,6 +6647,7 @@ export interface SessionDataApi {
     sourcesOf(id: NodeId_2 | EdgeId, options?: {
         readonly kind?: "node" | "edge";
     }): readonly SourceKey[];
+    sourceTable(source: SourceKey): SourceTable;
     spaces(): readonly SourceSpaceRow[];
     stage(source: DataSourceInput, options?: ImportOptions): Promise<string>;
     statistics(options?: {
@@ -7348,6 +7354,20 @@ export interface SourceClearPicksOptions {
 }
 
 // @public
+export interface SourceColumnProfile {
+    readonly distinct: number;
+    readonly empty: number;
+    readonly kind: SourceProfileKind;
+    readonly repeated: {
+        readonly keys: number;
+        readonly rows: number;
+    };
+    readonly rows: number;
+    readonly samples: readonly SourceCellValue[];
+    readonly valid: number;
+}
+
+// @public
 export interface SourceConflict {
     readonly by: SourceClashRule | "reader";
     readonly column: string;
@@ -7376,6 +7396,7 @@ export interface SourceConnectOptions {
     readonly edgeType?: SourceTypeName;
     readonly from: SourceField;
     readonly ignoreCase?: boolean;
+    readonly ignoreSpaces?: boolean;
     readonly into: SourceJoinInto;
 }
 
@@ -7433,6 +7454,9 @@ export interface SourceDraft {
     pick(ref: SourceElementRef, column: string, source: SourceKey): void;
     pickAll(options: SourcePickAllOptions): number;
     preview(): SourceDraftPreview;
+    profile(options: {
+        readonly space: SourceSpaceName;
+    }): SourceColumnProfile;
     removeEdit(id: string): void;
     removeSource(source: SourceKey): void;
     removeStep(index: number): void;
@@ -7442,6 +7466,7 @@ export interface SourceDraft {
     setMapping(source: SourceKey, patch: SourceMappingPatch): void;
     show(side: "before" | "after"): Promise<void>;
     readonly side: "before" | "after";
+    sourceTable(source: SourceKey): SourceTable;
     stage(source: DataSourceInput, options?: ImportOptions): Promise<string>;
     steps(): readonly SourceStepRow[];
     types(): readonly SourceTypeEntry[];
@@ -7875,6 +7900,10 @@ export interface SourceMappingPatch {
         readonly weight?: string;
         readonly weightMeaning?: string;
     };
+    readonly endTypes?: {
+        readonly source?: SourceTypeName | null;
+        readonly target?: SourceTypeName | null;
+    };
     readonly nodes?: SourceRolePatch & {
         readonly key?: string;
     };
@@ -8011,6 +8040,9 @@ export interface SourcePreviewRow {
 }
 
 export { SourceProbe }
+
+// @public
+export type SourceProfileKind = "text" | "number" | "date" | "boolean";
 
 // @public
 export interface SourceRead extends SourceInput {
@@ -8184,12 +8216,14 @@ export type SourceStepOp = "join.add" | "join.merge" | "join.node-values" | "joi
 
 // @public
 export interface SourceStepPatch {
+    readonly aggregate?: Readonly<Record<string, JoinReduce>> | null;
     readonly clash?: SourceClashRule | Readonly<Record<string, SourceClashRule>>;
     readonly except?: SourceRowFilter | null;
     readonly ignoreCase?: boolean;
     readonly ignoreSpaces?: boolean;
     readonly off?: boolean;
     readonly repeated?: "first" | "last" | "both" | null;
+    readonly unmatchedFrom?: "keep" | "drop";
 }
 
 // @public
@@ -8216,6 +8250,32 @@ export interface SourceStepRow {
 
 // @beta
 export type SourceStorage = "embedded" | "referenced";
+
+// @public
+export interface SourceTable {
+    profile(column: string, options?: {
+        readonly table?: "nodes" | "edges";
+    }): SourceColumnProfile;
+    readonly source: SourceKey;
+    summary(): SourceTableFacts;
+}
+
+// @public
+export interface SourceTableFacts {
+    readonly delimiter?: DraftTable["delimiter"];
+    readonly format?: string;
+    readonly loadedAt?: string;
+    readonly origin: string;
+    readonly size?: number;
+    readonly tables: readonly SourceTablePart[];
+}
+
+// @public
+export interface SourceTablePart {
+    readonly columns: readonly string[];
+    readonly rows: number;
+    readonly table: "nodes" | "edges";
+}
 
 // @public
 export interface SourceTypeEntry {

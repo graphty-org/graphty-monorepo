@@ -264,6 +264,7 @@ export const MUTATING: readonly string[] = [
     "SessionDataApi.removeSource",
     "SessionDataApi.removeStep",
     "SessionDataApi.setStepOff",
+    "SessionDataApi.setMapping",
     "SessionDataApi.renameColumn",
     "SessionDataApi.renameSource",
     "SessionDataApi.refresh",
@@ -1242,6 +1243,13 @@ export const READ_ONLY: readonly string[] = [
     "SessionDataApi.matchValues",
     "SourceDraft.matchCounts",
     "SourceDraft.matchValues",
+    // A source's rows as read, and one column's profile: one walk of one column, building nothing.
+    "SessionDataApi.sourceTable",
+    "SessionDataApi.profile",
+    "SourceDraft.sourceTable",
+    "SourceDraft.profile",
+    "SourceTable.summary",
+    "SourceTable.profile",
     // A preview diffs the committed build and the draft's, which its acts already built.
     "SourceDraft.preview",
     // The drill-down lists what one count counted in the build the preview already made.

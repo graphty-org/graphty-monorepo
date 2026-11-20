@@ -464,8 +464,18 @@ function aggregateFor(step: Step, column: string): JoinReduce | undefined {
 }
 
 type Held = [origin: string, value: Value];
-const isNumber = (v: Value | undefined): boolean => !isEmpty(v) && !Array.isArray(v) && !Number.isNaN(Number(v));
-const isDate = (v: Value | undefined): boolean => typeof v === "string" && parseTime(v) !== null;
+/**
+ * Whether a cell reads as a number, as the numeric clash rules read it.
+ * @param v - The cell.
+ * @returns True when it does.
+ */
+export const isNumber = (v: Value | undefined): boolean => !isEmpty(v) && !Array.isArray(v) && !Number.isNaN(Number(v));
+/**
+ * Whether a cell reads as a date, as `min` and `max` order it.
+ * @param v - The cell.
+ * @returns True when it does.
+ */
+export const isDate = (v: Value | undefined): boolean => typeof v === "string" && parseTime(v) !== null;
 /**
  * Whether a numeric clash rule fits these values (3.10): `mean` needs numbers, `min` and `max`
  * numbers or dates.

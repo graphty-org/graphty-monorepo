@@ -424,6 +424,9 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
                 "currentDraft",
                 "matchCounts",
                 "matchValues",
+                "sourceTable",
+                "profile",
+                "setMapping",
             ],
         },
         {
@@ -455,6 +458,8 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
                 "dispose",
                 "matchCounts",
                 "matchValues",
+                "sourceTable",
+                "profile",
                 "preview",
                 "pickAll",
                 "clearPicks",
@@ -467,6 +472,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
                 "show",
             ],
         },
+        { root: "SourceTable", members: ["source", "summary", "profile"] },
         {
             root: "SourceDraftPreview",
             members: [

@@ -1577,15 +1577,17 @@ export class AiController {
 
         this.statusManager.setError(errorObj, true);
 
+        const { code, params } = this.failureOutcome(error, run);
+
         // Emit error event
         this.emitAiEvent({
             type: "ai-command-error",
             error: errorObj,
+            code,
             input: run.input,
             canRetry: true,
         });
 
-        const { code, params } = this.failureOutcome(error, run);
         const failed: ExecutionResult = {
             success: false,
             message: `Error: ${errorMessage}`,

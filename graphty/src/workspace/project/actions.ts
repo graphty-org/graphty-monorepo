@@ -19,7 +19,7 @@ import {
     type ProjectSaveReport,
 } from "@graphty/graphty-element/session";
 
-import { count, detail } from "../../lib/analytics";
+import { count } from "../../lib/analytics";
 import { forgetKeptWork } from "../autosave/autosave";
 import type { CommandContext } from "../commands/registry";
 import { openDataPage } from "../data-page/request";
@@ -338,6 +338,7 @@ async function writeProject(
         ...(on ? { format: 2 as const } : {}),
         ...(on && choices !== null ? { sections: choices.sections, embed: choices.embed } : {}),
     });
+    count("project_saved", { kind: "browser", as: target === null ? "new" : "again" });
     state.target = saved.id;
     if (on && v2 !== null) {
         state.v2 = v2;
@@ -426,6 +427,7 @@ export async function saveProjectAsV2(
             markSaved: false,
             ...(Object.keys(assets).length === 0 ? {} : { assets }),
         });
+        count("project_saved", { kind: "file", as: "new" });
         workspace.set({ notice: { message: withModelsLeftOut(`Saved ${fileName}`, report) } });
         await reportSave(workspace, session, `Saved ${fileName}`, report);
     } catch {
@@ -683,7 +685,7 @@ async function openedProject(
     if (pending.storedId === undefined && pending.recentId === undefined) {
         count("own_file_opened", { format: "graphty", via: "file" });
     } else {
-        detail("project_reopened");
+        count("project_reopened", { from: pending.recentId === undefined ? "browser" : "recent" });
     }
     const state = fileState(workspace);
     state.target = pending.storedId ?? null;

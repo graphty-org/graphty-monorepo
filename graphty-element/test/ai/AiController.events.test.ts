@@ -166,6 +166,16 @@ describe("AiController Events", () => {
             assert.strictEqual(errorEvents[0].input, "test command");
         });
 
+        it("carries the code the command resolves with", async () => {
+            mockProvider.setError(new Error("Network error"));
+
+            const result = await controller.execute("test command");
+
+            const errorEvent = emittedEvents.find((e): e is AiCommandErrorEvent => e.type === "ai-command-error");
+            assert.ok(errorEvent, "Should have error event");
+            assert.strictEqual(errorEvent.code, result.code);
+        });
+
         it("includes original input in error event", async () => {
             mockProvider.setError(new Error("API failure"));
 

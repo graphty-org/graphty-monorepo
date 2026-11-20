@@ -239,6 +239,9 @@ describe("usage counts for layout, filters and the timeline on the real element"
             .map((each) => each.op);
         assert.notInclude(ops, "visibility.window");
         assert.notInclude(ops, "visibility.playback");
+        // The press of Play is counted once, for every reader; the play reaching its end sends nothing.
+        assert.lengthOf(captured("timeline_played"), 1);
+        assert.deepEqual(firstOnPage([...anonymous, ...posthog], "timeline_played"), [{}]);
         assert.notInclude(JSON.stringify({ anonymous, posthog }), "SECRET_MAIL");
     });
 });

@@ -239,7 +239,8 @@ describe("usage counts from the real element", () => {
         assert.strictEqual(session.config.name, "Les Miserables");
         assert.notInclude(actionOps(), "config.set");
         const loaded = sent("sample_loaded");
-        assert.deepEqual(loaded.counted, [{ sample: "les-miserables" }]);
+        // Les Miserables has 77 characters: the smallest size bucket.
+        assert.deepEqual(loaded.counted, [{ sample: "les-miserables", size: "1-100" }]);
         assert.lengthOf(loaded.posthog, 1);
         assert.strictEqual(loaded.posthog[0].sample, "les-miserables");
         assert.isEmpty(sent("own_file_opened").posthog);
@@ -251,8 +252,8 @@ describe("usage counts from the real element", () => {
         await emptyProject();
         const opened = next("own_file_opened");
         drop(await fixtureAs("people.csv", "secret-PATIENT-ids.csv"));
-        assert.deepEqual({ ...(await opened) }, { format: "csv", via: "file" });
-        assert.deepEqual(sent("own_file_opened").counted, [{ format: "csv", via: "file" }]);
+        assert.deepEqual({ ...(await opened) }, { format: "csv", via: "file", size: "1-100" });
+        assert.deepEqual(sent("own_file_opened").counted, [{ format: "csv", via: "file", size: "1-100" }]);
         assert.isEmpty(sent("sample_loaded").posthog);
         sendsNone("secret", "PATIENT", "people");
     });
@@ -265,6 +266,8 @@ describe("usage counts from the real element", () => {
         assert.include(["load", "prepare"], props.task);
         assert.isString(props.code);
         assert.lengthOf(sent("load_failed").posthog, 1);
+        // Counted for every reader now, by its code and step alone.
+        assert.deepEqual(sent("load_failed").counted, [{ code: props.code, task: props.task }]);
         sendsNone("SECRET_BAD", "SECRET_LABEL");
     });
 
@@ -299,16 +302,44 @@ describe("usage counts from the real element", () => {
         const { session } = await loadedProject();
         const before = sent("graph_action").posthog.length;
         const action = next("graph_action");
-        await session.layout.setDimension("2d");
+        session.notes.add({ targets: [{ graph: true }], text: "SECRET_NOTE_TEXT" });
         const props = await action;
-        assert.strictEqual(props.op, "view.dimension");
+        assert.strictEqual(props.op, "note.add");
         assert.notProperty(props, "suggested");
         // What PostHog was handed, past cleanPostHogEvent: the one action, by its op.
         const [handed, ...more] = sent("graph_action").posthog.slice(before);
         assert.isEmpty(more);
-        assert.strictEqual(handed?.op, "view.dimension");
+        assert.strictEqual(handed?.op, "note.add");
         assert.notProperty(handed, "suggested");
-        sendsNone("SECRET_GENES", "TP53");
+        sendsNone("SECRET_GENES", "TP53", "SECRET_NOTE_TEXT");
+    });
+
+    it("counts the 2D and 3D switch as view_mode, not as a graph action", async () => {
+        await loadedProject();
+        const actionsBefore = actionOps().length;
+        const switched = next("view_mode");
+        await userEvent.click(
+            within(screen.getByRole("toolbar", { name: "Canvas tools" })).getByRole("button", { name: "Mode, 3D" }),
+        );
+        const menu = await screen.findByRole("menu", { name: /^Mode/ });
+        await userEvent.click(within(menu).getByRole("menuitemradio", { name: /^2D/ }));
+        assert.deepEqual({ ...(await switched) }, { mode: "2d" });
+        assert.deepEqual(sent("view_mode").counted, [{ mode: "2d" }]);
+        assert.lengthOf(actionOps(), actionsBefore, "no graph_action for the switch");
+    });
+
+    it("counts a view saved in the Views place as camera_saved, never its name", async () => {
+        await loadedProject();
+        await userEvent.click(
+            within(screen.getByRole("toolbar", { name: "Places" })).getByRole("button", { name: "Views" }),
+        );
+        const place = await screen.findByRole("region", { name: "Views place" });
+        const saved = next("camera_saved");
+        await userEvent.click(within(place).getByRole("button", { name: "Save camera" }));
+        assert.deepEqual({ ...(await saved) }, {});
+        assert.deepEqual(sent("camera_saved").counted, [{}]);
+        assert.notInclude(actionOps(), "view.save");
+        sendsNone("SECRET_GENES");
     });
 
     it("sends a later, separate edit of the same layer again, after other work in between", async () => {
@@ -320,24 +351,49 @@ describe("usage counts from the real element", () => {
             set: { "node.color": "#0072b2" },
         });
         await session.styles.settled();
-        const before = sent("graph_action").posthog.length;
+        const before = sent("style_changed").posthog.length;
+        const actionsBefore = actionOps().length;
         const recolor = async (color: string): Promise<void> => {
-            const action = next("graph_action");
+            const changed = next("style_changed");
             await session.styles.update(layer.id, { set: { "node.color": color } });
-            assert.strictEqual((await action).op, "style.patch");
+            assert.deepEqual({ ...(await changed) }, { op: "style.patch", action: "update" });
         };
         await recolor("#d55e00");
-        // Work that is no graph action, recorded by the element as a step of its own.
+        // A drag of a color: more updates of the same color merge into the one step, and send nothing more.
+        await session.styles.update(layer.id, { set: { "node.color": "#cc79a7" } });
+        await session.styles.update(layer.id, { set: { "node.color": "#f0e442" } });
+        // Work that is no style edit, recorded by the element as a step of its own.
         await session.layout.set("circular");
         await recolor("#009e73");
         assert.deepEqual(
-            sent("graph_action")
+            sent("style_changed")
                 .posthog.slice(before)
-                .map((each) => each.op),
-            ["style.patch", "style.patch"],
-            "each separate recolor of the layer is its own graph action",
+                .map(({ op, action }) => ({ op, action })),
+            [
+                { op: "style.patch", action: "update" },
+                { op: "style.patch", action: "update" },
+            ],
+            "each separate recolor of the layer is its own style edit",
         );
+        assert.lengthOf(actionOps(), actionsBefore, "style edits are no graph actions");
         sendsNone("SECRET_GENES", "TP53", "SECRET_LAYER");
+    });
+
+    it("finds the entry's own step as the newest history step when the journal tells of it", async () => {
+        const { session } = await loadedProject();
+        // A step of another op first, so the newest step at the time is not the style's by chance.
+        await session.layout.set("circular");
+        const newest: (readonly string[] | undefined)[] = [];
+        const off = session.on("journal:appended", ({ entry }) => {
+            if (entry.command.op === "style.patch") {
+                newest.push(session.history.steps.at(-1)?.ops);
+            }
+        });
+        await session.styles.add({ name: "SECRET_LAYER", target: "node", selector: { match: "everything" }, set: {} });
+        await session.styles.settled();
+        off();
+        assert.lengthOf(newest, 1);
+        assert.include(newest[0] ?? [], "style.patch");
     });
 
     it("never sends a load or the app's own starting settings as a graph action", async () => {
@@ -376,11 +432,11 @@ describe("usage counts from the real element", () => {
         sendsNone("SECRET_GENES", "SECRET_PROJECT", "TP53");
     });
 
-    it("sends the suggested styles a batch of runs releases as one suggested graph action", async () => {
+    it("sends the suggested styles a batch of runs releases as one suggested style edit", async () => {
         const { session } = await loadedProject();
         const suggested = new Promise<Readonly<Record<string, unknown>>>((resolve) => {
             const off = onUsageEvent((name, props) => {
-                if (name === "graph_action" && props.suggested === true) {
+                if (name === "style_changed" && props.suggested === true) {
                     off();
                     resolve(props);
                 }
@@ -390,12 +446,13 @@ describe("usage counts from the real element", () => {
         await session.runs.batch([{ algorithm: "degree" }, { algorithm: "betweenness" }]);
         const props = await suggested;
         assert.isString(props.op);
-        assert.isString(props.kind);
+        assert.notProperty(props, "by");
         assert.lengthOf(
-            sent("graph_action").posthog.filter((each) => each.suggested === true),
+            sent("style_changed").posthog.filter((each) => each.suggested === true),
             1,
             "one gesture, one event",
         );
+        assert.isEmpty(sent("graph_action").posthog.filter((each) => each.suggested === true));
     });
 
     it("never counts a project open's own entries as the reader's", async () => {
@@ -421,7 +478,15 @@ describe("usage counts from the real element", () => {
         const opened = members.map((entry) => entry.command.op);
         assert.isTrue(opened.some((op) => op.startsWith("data.")));
         assert.isNotEmpty(session.runs.list(), "the project file holds a run");
-        for (const name of ["graph_action", "own_file_opened", "sample_loaded", "nodes_dragged", "algorithm_run"]) {
+        for (const name of [
+            "graph_action",
+            "style_changed",
+            "view_mode",
+            "own_file_opened",
+            "sample_loaded",
+            "nodes_dragged",
+            "algorithm_run",
+        ]) {
             assert.isEmpty(sent(name).posthog, `${name} from a project open`);
             assert.isEmpty(sent(name).counted, `${name} from a project open`);
         }
@@ -507,7 +572,8 @@ describe("usage counts from the real element", () => {
             [{ kind: "zoom" }],
         );
         assert.isEmpty(sent("canvas_selected").counted);
-        assert.isEmpty(sent("camera_used").counted);
+        // Camera use is counted for every reader, its first gesture on the page.
+        assert.deepEqual(sent("camera_used").counted, [{ kind: "zoom" }]);
         sendsNone("SECRET_GENES", "TP53");
     });
 
@@ -546,7 +612,7 @@ describe("usage counts from the real element", () => {
 
         assert.lengthOf(sent("nodes_dragged").posthog, 1);
         assert.isEmpty(sent("nodes_dragged").counted);
-        assert.isEmpty(sent("camera_used").counted);
+        assert.lengthOf(sent("camera_used").counted, 1);
         sendsNone("SECRET_GENES", "TP53", String(first.id));
     });
 
@@ -630,10 +696,16 @@ describe("usage counts from the real element", () => {
         await userEvent.keyboard("{Control>}s{/Control}");
         const save = await screen.findByRole("dialog", { name: /^Save .* as$/ });
         await userEvent.clear(within(save).getByRole("textbox", { name: "Name" }));
+        const kept = next("project_saved");
         await userEvent.type(within(save).getByRole("textbox", { name: "Name" }), "SECRET_SAVED{Enter}");
+        assert.deepEqual({ ...(await kept) }, { kind: "browser", as: "new" });
         await waitFor(() => {
             assert.isNull(screen.queryByRole("dialog"));
         });
+        // A later Save writes the same record again.
+        const again = next("project_saved");
+        await userEvent.keyboard("{Control>}s{/Control}");
+        assert.deepEqual({ ...(await again) }, { kind: "browser", as: "again" });
         await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Back to start" }));
         const recent = await screen.findByRole("gridcell", { name: /^SECRET_SAVED/ });
@@ -647,7 +719,7 @@ describe("usage counts from the real element", () => {
         assert.notInclude(actionOps().slice(actionsBefore), "config.set");
         // The open set the place and page itself: no panel the reader opened.
         assert.lengthOf(sent("panel_opened").posthog, panelsBefore);
-        assert.isEmpty(sent("project_reopened").counted);
+        assert.deepEqual(sent("project_reopened").counted, [{ from: "recent" }]);
         assert.lengthOf(sent("own_file_opened").posthog, 2, "the TSV and the dropped project file, not the reopen");
         sendsNone("SECRET_PROJECT_FILE", "SECRET_LAYER", "SECRET_GENES", "SECRET_SAVED");
     });

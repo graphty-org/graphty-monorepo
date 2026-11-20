@@ -39,7 +39,15 @@ import { USE_CASE_CHOICES, USE_CASE_SURVEY } from "./surveyFixtures";
 const VISITS = "graphty.visits.v1";
 const NDEX = "https://www.ndexbio.org";
 /** The loads a reader's own opening sends, which a reopen of this tab's work never does. */
-const LOAD_EVENTS = ["own_file_opened", "sample_loaded", "algorithm_run", "graph_action"];
+const LOAD_EVENTS = [
+    "own_file_opened",
+    "sample_loaded",
+    "algorithm_run",
+    "graph_action",
+    "style_changed",
+    // This tab's own work coming back by itself is no reopen the reader asked for.
+    "project_reopened",
+];
 
 /** What the anonymous mode's stand-in recorded, after cleaning. */
 const anonymous: Recorded[] = [];
@@ -191,8 +199,10 @@ describe("usage counts when a project opens", () => {
         const tile = await screen.findByRole("button", { name: "Load network data: WikiPathways WP5483" });
         const loaded = next("sample_loaded");
         await openBy(store, () => userEvent.click(tile));
-        assert.deepEqual({ ...(await loaded) }, { sample: "ndex-wp5483" });
-        assert.deepEqual(sent("sample_loaded").counted, [{ sample: "ndex-wp5483" }]);
+        const props = await loaded;
+        assert.strictEqual(props.sample, "ndex-wp5483");
+        assert.include(["1-100", "101-1k", "1k-10k", "10k+"], props.size);
+        assert.deepEqual(sent("sample_loaded").counted, [{ sample: "ndex-wp5483", size: props.size }]);
         assert.deepEqual(
             sent("sample_loaded").posthog.map(({ sample }) => sample),
             ["ndex-wp5483"],

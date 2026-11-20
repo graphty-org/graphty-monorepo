@@ -2791,7 +2791,7 @@ export type ExportScope = RuleTree | "all" | "shown" | "selection" | {
 export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];
 
 // @public
-export type FeatureId = "assistant" | "data-management" | "location-map" | "cosmograph" | "file-styles" | "save-files-v2";
+export type FeatureId = "assistant" | "data-management" | "location-map" | "cosmograph" | "file-styles" | "source-references" | "save-files-v2";
 
 // @public
 export interface FigureOptions {
@@ -5169,6 +5169,25 @@ export type GraphtyWarningCode =
 * names left out. See the project file guide, "What a save leaves out".
 */
 | "W_SOURCE_URL_REDACTED"
+/**
+* A load cannot be saved as a reference: there is nothing to read it from again. It stays a
+* copy. `params.source` is the load's key and `params.reason` why (`file`, `inline`, `join`,
+* `secret-url`, `relative-url`, `no-seed`; OPEN UNION).
+*/
+| "W_SOURCE_NO_PATH"
+/**
+* A load saved as a reference could not be read again: the project opened with its rows held
+* bare in their places (node ids and edge ends, with no values; a save writes them and the
+* reference back as they were), or a save kept it as a copy. `params.source` is the load's key
+* and `params.reason` is `not-found`, `denied` or `unreadable`. On an open, `params.name` (its
+* name, when it has one) and `params.url` (its address, for a URL load) say which it was.
+*/
+| "W_SOURCE_UNAVAILABLE"
+/**
+* A load saved as a reference was read again and is no longer what the project was saved
+* with: its rows hold the new values. `params.source` is the load's key.
+*/
+| "W_SOURCE_CHANGED"
 /**
 * A `graphty-sources` entry of an opened project names a network source this release has not
 * registered: its elements are there and the entry is written back, but it is not offered to

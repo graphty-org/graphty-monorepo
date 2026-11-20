@@ -203,6 +203,8 @@ import {
     type LoadFacts,
     redactedParams,
     redactUrl,
+    type ReferenceEntry,
+    sampleAddress,
     type SourcesRead,
     type SourcesWrite,
     withKeptSecrets,
@@ -210,6 +212,7 @@ import {
 } from "./sources/member";
 import { pendingSourceLoads, targetOf } from "./sources/pending";
 import { type Provenance, PROVENANCE_VALUE, provenanceIndex, withoutSource, withSupplied } from "./sources/provenance";
+import { type LoadHow, type NetworkRecord, refusalOf } from "./sources/references";
 import { refreshReport } from "./sources/refreshReport";
 import type { StepsAct } from "./sources/steps/acts";
 import { copyKey, resolveNode } from "./sources/steps/build";
@@ -358,6 +361,8 @@ import type {
     SourceConflict,
     SourceConflictQuery,
     SourceConnectOptions,
+    SourceCopy,
+    SourceCopyChoice,
     SourceEditChoice,
     SourceElementRef,
     SourceElementsFilter,
@@ -558,6 +563,11 @@ interface PageSources {
      * @returns true when it is
      */
     sourceSteps?(): boolean;
+    /**
+     * Whether the source references experiment is on; absent reads off.
+     * @returns true when it is
+     */
+    sourceReferences?(): boolean;
     /**
      * Whether the element draws on the `"batched"` render path; absent reads false.
      * @returns true when it does
@@ -1246,8 +1256,11 @@ export class SessionData implements SessionDataApi {
         readonly provenance: Provenance | undefined;
         readonly snapshot: GraphSnapshot;
         readonly ledger: object;
+        readonly copyTick: number;
         readonly result: readonly LoadedSource[];
     } | null = null;
+    /** Moves whenever a load's copy choice does, so `sources()` lists it again. */
+    private copyTick = 0;
     /**
      * What each file load this session read was read from, by the token its `data.import`
      * command and its `sources()` entry carry (`input`), for `reloadSource`. Memory only: a file is
@@ -1255,6 +1268,8 @@ export class SessionData implements SessionDataApi {
      */
     private readonly kept = new Map<string, DataSourceInput>();
     private keptSerial = 0;
+    /** What the last open read each reference from again, by load key: those loads are reloadable. */
+    private openedInputs: ReadonlyMap<string, DataSourceInput> = new Map();
     /**
      * The rows a draft read from each source, so `remap` and `reloadSource` read a load again
      * without opening its file or fetching its URL. ponytail: held as long as the source is,
@@ -2308,15 +2323,19 @@ export class SessionData implements SessionDataApi {
      * What a project file writes about the loads: the `graphty-sources` member (null when the graph
      * holds no load), what the save left out, and how each record's `_source.loads` is written.
      * Internal: the project file writes it.
+     * @param references - What the entries of the referenced loads whose rows the save leaves out say.
      * @returns the member and its ids
      */
-    sourceFile(): SourcesWrite {
+    sourceFile(references?: ReadonlyMap<SourceKey, ReferenceEntry>): SourcesWrite {
         const write = writeSourcesMember({
             sources: this.sources(),
             loads: this.loads(),
-            facts: this.loadFacts,
+            facts: this.referencesOn()
+                ? this.loadFacts
+                : new Map([...this.loadFacts].map(([key, { copy: _copy, ...facts }]) => [key, facts])),
             waiting: [...this.pendingLoads],
             provenance: this.provenance(),
+            ...(references === undefined || references.size === 0 ? {} : { references }),
         });
         const skipped = this.skippedMember;
         // A member the file held and this release skipped goes back in place while the loads are
@@ -2357,6 +2376,14 @@ export class SessionData implements SessionDataApi {
         this.ledger.fromMember({ version: 1, loads: read?.records ?? [] });
         for (const [key, facts] of read?.facts ?? []) {
             this.loadFacts.set(key, facts);
+        }
+
+        // The open published its graph before these choices came back: tell readers of `sources()`.
+        this.copyTick++;
+        for (const [key, facts] of read?.facts ?? []) {
+            if (facts.copy === "reference" && this.referencesOn()) {
+                this.writes.emit?.("source:copy", { source: key, copy: "reference" });
+            }
         }
 
         // A member with no `waiting` list was written before the list existed: everything waits.
@@ -3665,7 +3692,8 @@ export class SessionData implements SessionDataApi {
             memo?.stored === stored &&
             memo.provenance === provenance &&
             memo.snapshot === snapshot &&
-            memo.ledger === ledger
+            memo.ledger === ledger &&
+            memo.copyTick === this.copyTick
         ) {
             return memo.result;
         }
@@ -3707,7 +3735,10 @@ export class SessionData implements SessionDataApi {
                     ...entry,
                     key,
                     kind,
-                    ...(input !== undefined && this.kept.has(input) ? { reloadable: true as const } : {}),
+                    ...((input !== undefined && this.kept.has(input)) || this.openedInputs.has(key)
+                        ? { reloadable: true as const }
+                        : {}),
+                    ...(this.referenced(key) ? { copy: "reference" as const } : {}),
                     ...(loadKey === undefined ? {} : { loadKey }),
                     ...loadFacts(records.get(loadKey ?? ""), catalog),
                     ...addressOf(kind, each.config, records.get(loadKey ?? "")),
@@ -3722,7 +3753,7 @@ export class SessionData implements SessionDataApi {
                 });
             }),
         );
-        this.sourcesMemo = { stored, provenance, snapshot, ledger, result };
+        this.sourcesMemo = { stored, provenance, snapshot, ledger, copyTick: this.copyTick, result };
         return result;
     }
 
@@ -5642,6 +5673,157 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
+     * The loads a save keeps as references, and how to read each again. Internal: the project
+     * file reads it.
+     * @returns One entry per referenced load that can be one and is not kept as a file held it.
+     */
+    referenceLoads(): readonly { readonly key: SourceKey; readonly how: LoadHow; readonly ask: boolean }[] {
+        return this.sources().flatMap((load) => {
+            const facts = this.loadFacts.get(load.key);
+            const record = this.networkRecordOf(load);
+            if (
+                facts?.copy !== "reference" ||
+                !this.referencesOn() ||
+                facts.kept !== undefined ||
+                refusalOf(load, facts, record) !== undefined
+            ) {
+                return [];
+            }
+
+            if (record !== undefined) {
+                const { mode: _mode, ...options } = record.options;
+                const how: LoadHow = {
+                    kind: load.kind,
+                    config: record.config,
+                    ...(load.choices === undefined ? {} : { choices: load.choices }),
+                    network: { source: record.source, endpoint: record.endpoint, options },
+                };
+                return [{ key: load.key, how, ask: facts.opened === true }];
+            }
+
+            // A sample read by URL reads its address again, resolved against the page.
+            const address = sampleAddress(load, facts);
+            const how: LoadHow = {
+                kind: load.kind,
+                ...(load.type === undefined ? {} : { type: load.type }),
+                ...(load.name === undefined ? {} : { name: load.name }),
+                config: address === undefined ? (load.config ?? {}) : { ...load.config, url: address },
+                ...(load.choices === undefined ? {} : { choices: load.choices }),
+                ...(facts.sample === undefined ? {} : { sample: facts.sample }),
+            };
+            return [{ key: load.key, how, ask: facts.opened === true }];
+        });
+    }
+
+    /**
+     * A network load's record: the ledger's, or the listed source and params when it has none.
+     * @param load - The listed load.
+     * @returns The record, or undefined for a load that is no network load.
+     */
+    private networkRecordOf(load: LoadedSource): NetworkRecord | undefined {
+        if (load.kind !== "server") {
+            return undefined;
+        }
+
+        return (
+            this.ledger.loads().find((record) => record.key === load.loadKey) ?? {
+                source: (load.type ?? "").replace(/^source:/, ""),
+                config: load.config ?? {},
+                endpoint: null,
+                credential: null,
+                options: {},
+            }
+        );
+    }
+
+    /**
+     * Whether the source references experiment is on. With it off every load is saved as a copy,
+     * as before the experiment, even one an opened file kept as a reference: its choice is held,
+     * unused, and comes back if the experiment is switched on again.
+     * @returns True when it is on.
+     */
+    private referencesOn(): boolean {
+        return this.pages.sourceReferences?.() === true;
+    }
+
+    /**
+     * Whether a save keeps a load as a reference: chosen, and the experiment on.
+     * @param key - The load's key.
+     * @returns True when it does.
+     */
+    private referenced(key: SourceKey): boolean {
+        return this.referencesOn() && this.loadFacts.get(key)?.copy === "reference";
+    }
+
+    /**
+     * How a project save keeps each load: a copy or a reference.
+     * @returns One entry per load, in `sources()` order.
+     */
+    copies(): readonly SourceCopy[] {
+        this.requireLive("copies");
+        return Object.freeze(
+            this.sources().map((load) => {
+                const facts = this.loadFacts.get(load.key);
+                const reason = refusalOf(load, facts, this.networkRecordOf(load));
+                return Object.freeze({
+                    source: load.key,
+                    copy:
+                        this.referenced(load.key) && reason === undefined ? ("reference" as const) : ("copy" as const),
+                    ...(reason === undefined
+                        ? {}
+                        : { refused: { code: "W_SOURCE_NO_PATH" as const, params: { source: load.key, reason } } }),
+                });
+            }),
+        );
+    }
+
+    /**
+     * Choose how a project save keeps one load.
+     * @param source - The load's key.
+     * @param copy - `"copy"` or `"reference"`.
+     * @returns The load's entry after the choice.
+     */
+    setCopy(source: SourceKey, copy: SourceCopyChoice): SourceCopy {
+        this.requireLive("setCopy");
+        if (!this.referencesOn()) {
+            throw featureOff("source-references", "setCopy");
+        }
+
+        const at = this.sources().findIndex((each) => each.key === source);
+        if (at < 0) {
+            throw new GraphtyError({
+                code: "E_SOURCE_UNKNOWN",
+                message: `No load still in the graph has key ${JSON.stringify(source)}.`,
+                source: "data",
+                details: { key: source, known: this.sources().map((each) => each.key) },
+            });
+        }
+
+        const before = this.copies()[at];
+        const wanted = copy === "reference" && before.refused === undefined ? "reference" : "copy";
+        if (wanted !== before.copy) {
+            // A save choice, as `save({ assets })` is: kept with the load's facts, never a step.
+            // A network load's facts start from its record, as the writer's would.
+            const record = this.ledger.loads().find((each) => each.key === this.sources()[at].loadKey);
+            const recorded = record?.options.mode;
+            const listed = at === 0 ? ("replace" as const) : ("merge" as const);
+            const { copy: _was, ...facts } = this.loadFacts.get(source) ?? {
+                loadedAt: record?.loadedAt ?? new Date().toISOString(),
+                mode: recorded === "replace" || recorded === "merge" ? recorded : listed,
+            };
+            this.loadFacts.set(source, wanted === "reference" ? { ...facts, copy: "reference" } : facts);
+            this.copyTick++;
+            this.writes.emit?.("source:copy", { source, copy: wanted });
+            // The autosave writes the sources part again, and the project is unsaved.
+            for (const listener of this.ledger.changed) {
+                listener();
+            }
+        }
+
+        return this.copies()[at];
+    }
+
+    /**
      * What this session read a load from, when it read it itself.
      * @param key - The load's key.
      * @returns What `import` or `prepare` was given, or undefined.
@@ -5649,7 +5831,17 @@ export class SessionData implements SessionDataApi {
     sourceInput(key: SourceKey): DataSourceInput | undefined {
         const token = (this.storedSources().find((each) => each.key === key) as { readonly input?: string } | undefined)
             ?.input;
-        return token === undefined ? undefined : this.kept.get(token);
+        return (token === undefined ? undefined : this.kept.get(token)) ?? this.openedInputs.get(key);
+    }
+
+    /**
+     * Keep what an open read each reference from again, so those loads are reloadable. Internal:
+     * the project file calls it once an open is done; each open replaces the last one's.
+     * @param inputs - What each reference was read from, by load key.
+     */
+    keepOpenedInputs(inputs: ReadonlyMap<string, DataSourceInput>): void {
+        this.openedInputs = inputs;
+        this.copyTick++;
     }
 
     /**
@@ -5673,9 +5865,7 @@ export class SessionData implements SessionDataApi {
     private async reloadSourceNow(key: SourceKey, choices: LoadChoices): Promise<ReplaceReport> {
         this.requireLive("reloadSource");
         const entry = this.sources().find((each) => each.key === key);
-        const token = (this.storedSources().find((each) => each.key === key) as { readonly input?: string } | undefined)
-            ?.input;
-        const input = token === undefined ? undefined : this.kept.get(token);
+        const input = this.sourceInput(key);
         if (entry === undefined) {
             throw new GraphtyError({
                 code: "E_SOURCE_UNKNOWN",

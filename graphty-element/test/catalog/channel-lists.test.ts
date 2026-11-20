@@ -20,6 +20,7 @@ const LISTS = [
     "node.chartValues",
     "edge.gradientColors",
     "edge.gradientStops",
+    "edge.strandColors",
 ];
 
 describe("list channels", () => {

@@ -3640,6 +3640,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             timeCandidates: () => time.api.candidates(),
             fileStyles: () => fileStylesOn(),
             sourceSteps: sourceStepsOn,
+            sourceReferences: () =>
+                (settledFeatures ?? resolveFeatures(requested())).enabled.includes("source-references"),
             batched: () => internals.batched?.() === true,
             visibleMasks: () => ({ nodes: visibility.masks.nodes(), edges: visibility.masks.edges() }),
             // And the working graph, built below the visibility.

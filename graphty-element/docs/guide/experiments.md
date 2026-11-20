@@ -160,6 +160,41 @@ keeps the sources (their rows, or where a referenced one is read from) and the s
 project file's `graphty-sources` member, and opening the file rebuilds the same graph. With it
 off, loads, joins, removal, refresh and saved files are as before.
 
+### `source-references`
+
+Saving a load as a **reference** instead of a copy: the project file says where to read the load
+again, and an open reads it again, instead of holding its rows. A URL load, a network source's load
+(by its source, endpoint and params) and a generated graph or sample dataset can be a reference; a
+file the page holds no path to, pasted rows, a joined table and a load that needed a credential or a
+secret parameter stay copies.
+
+```ts
+const session = createGraphSession({ features: ["source-references"] });
+await session.data.import({ type: "json", config: { url: "https://example.com/graph.json" } });
+const [load] = session.data.sources();
+session.data.setCopy(load.key, "reference"); // load.copy === "reference" from now on
+const saved = await session.project.save();
+
+// Later, anywhere:
+const report = await other.project.open(saved.text); // reads the URL again, after the page allows its host
+report.problems; // W_SOURCE_UNAVAILABLE or W_SOURCE_CHANGED with { source }, when it could not or it changed
+```
+
+- `session.data.copies()` lists how a save keeps each load; a load that cannot be a reference
+  carries `refused`, `W_SOURCE_NO_PATH` with `{ source, reason }`. `setCopy` publishes
+  `source:copy` and marks the project unsaved.
+- A save keeps in the file every row of a referenced load that a reader edited or another load
+  also supplied; only the rows the load reads as they are now are left out. A save that cannot read
+  the load keeps it as a copy and lists `W_SOURCE_UNAVAILABLE` in `report.leftOut`.
+- An open asks the page before fetching (`network:pending` with `kind: "data"`). A reference that
+  cannot be read opens with its rows held bare in their places (ids and edge ends, no values), so
+  positions, runs, notes and edges that name them stay; the next save writes them and the
+  reference back unchanged, and an open that can read it again fills them.
+- Autosave and exports always write every row.
+
+With it off, `setCopy` refuses with `E_FEATURE_OFF` (`{ feature: "source-references", key:
+"setCopy" }`) and every save is what it was before. A file saved with references opens either way.
+
 ## What `@experimental` promises
 
 API marked `@experimental` in the reference may change or disappear in a minor release of

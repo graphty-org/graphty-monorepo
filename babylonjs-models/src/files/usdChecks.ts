@@ -63,9 +63,10 @@ const ROOT_LAYER = /\.usd[ac]?$/i;
 const PICTURE = /\.(?:png|jpe?g|webp|avif|bmp|gif|tga|tiff?|exr|hdr|ktx2?)$/i;
 /**
  * A picture Babylon's USD loader never draws: OpenUSD's importer hands Babylon only PNG, JPEG, BMP
- * and WebP pictures, so an OpenEXR or Radiance HDR one is left off and takes no GPU memory.
+ * and WebP pictures, so an OpenEXR one is left off and takes no GPU memory. (A Radiance HDR one is
+ * decoded and drawn as a BMP: ../load/usdHdr.ts.)
  */
-const UNDRAWN_PICTURE = /\.(?:exr|hdr)$/i;
+const UNDRAWN_PICTURE = /\.exr$/i;
 /** A package-relative asset path, `pkg.usdz[geo.usda]`: a file inside a USDZ package (nestable). */
 const PACKAGED = /^(.+?\.usdz)\[(.+)\]$/i;
 

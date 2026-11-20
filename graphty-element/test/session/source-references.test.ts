@@ -162,7 +162,7 @@ describe("session.data.copies and setCopy", () => {
         assert.instanceOf(unknown, GraphtyError);
         assert.strictEqual(unknown.code, "E_SOURCE_UNKNOWN");
 
-        const off = createGraphSession();
+        const off = createGraphSession({ features: [] });
         await off.data.import({ type: "json", config: { url: URL_A } });
         const refused = thrown(() => off.data.setCopy(off.data.sources()[0]?.key ?? "", "reference"));
         assert.instanceOf(refused, GraphtyError);
@@ -616,7 +616,7 @@ describe("a sample read by URL, as an application opens its own samples", () => 
 describe("with the experiment off", () => {
     it("writes no copy choice, placeholder or references marker", async () => {
         stubSite({ [URL_A]: GRAPH });
-        const session = createGraphSession();
+        const session = createGraphSession({ features: [] });
         await session.data.import({ type: "json", config: { url: URL_A } });
         const saved = await session.project.save();
         assert.notInclude(saved.text, "_source.ref");
@@ -695,7 +695,7 @@ describe("defects found walking the feature", () => {
         session.data.setCopy(session.data.sources()[0]?.key ?? "", "reference");
         const saved = await session.project.save();
 
-        const off = createGraphSession();
+        const off = createGraphSession({ features: [] });
         off.network.setPolicy("allow");
         await off.project.open(saved.text);
         assert.deepEqual(labels(off), labels(session));

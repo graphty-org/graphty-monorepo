@@ -1,6 +1,3 @@
 {
-    "../../stories/Screenshot.stories.ts Video": "Fails on objects in WebKit: Playwright's WebKit has no MediaRecorder",
-    "../../stories/shaders/PatternsAndSprites.stories.ts FoilShimmer": "Differs on the batched path in WebKit only (#9179)",
-    "../../stories/shaders/PatternsAndSprites.stories.ts Frost": "Differs on the batched path in WebKit only (#9179)",
-    "../../stories/shaders/PatternsAndSprites.stories.ts Hologram": "Differs on the batched path in WebKit only (#9179)"
+    "../../stories/Screenshot.stories.ts Video": "Fails on objects in WebKit: Playwright's WebKit has no MediaRecorder"
 }

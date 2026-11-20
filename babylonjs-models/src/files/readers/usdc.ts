@@ -744,3 +744,86 @@ export function readCrate(bytes: Uint8Array, budget: number): Crate {
 export function isTimeSamples(rep: ValueRep | undefined): boolean {
     return rep?.type === TYPE.timeSamples;
 }
+
+/**
+ * Compress bytes as one LZ4 block of literals in OpenUSD's TfFastCompression (one chunk, written
+ * as a chunk count of 0): valid LZ4 that any reader inflates, though no smaller than its input.
+ * @param raw - The bytes.
+ * @returns The compressed bytes.
+ */
+function literalBlock(raw: Uint8Array): Uint8Array {
+    const out = new Uint8Array(raw.length + 3 + Math.floor(raw.length / 255));
+    out[1] = Math.min(raw.length, 15) << 4;
+    let at = 2;
+    if (raw.length >= 15) {
+        let rest = raw.length - 15;
+        for (; rest >= 255; rest -= 255) {
+            out[at++] = 255;
+        }
+        out[at++] = rest;
+    }
+    out.set(raw, at);
+    return out.subarray(0, at + raw.length);
+}
+
+/**
+ * A crate file with some of its tokens renamed (an asset path is a token). The new TOKENS section
+ * and a table of contents pointing at it are appended, and the header points at that table; the
+ * old ones are left in place, unread.
+ * @param bytes - The file.
+ * @param rename - Each token's new spelling (itself to keep it).
+ * @param budget - The most bytes its tokens may decompress to.
+ * @returns The file, or `bytes` itself when no token changed or it has no tokens.
+ * @throws {ModelReadError} `"usd"` for a damaged file or one past the budget.
+ */
+export function renameCrateTokens(bytes: Uint8Array, rename: (token: string) => string, budget: number): Uint8Array {
+    const reader = new Reader(bytes);
+    reader.need(24);
+    if (bytes[8] !== 0 || bytes[9] < 4) {
+        fail();
+    }
+    reader.at = 16;
+    const toc = reader.u64();
+    reader.at = toc;
+    const sections = count(reader);
+    let entry = -1;
+    for (let s = 0; s < sections; s++) {
+        const name = new TextDecoder().decode(reader.take(16)).replace(/\0.*$/s, "");
+        entry = name === "TOKENS" ? reader.at - 16 : entry;
+        reader.take(16);
+    }
+    if (entry < 0) {
+        return bytes;
+    }
+
+    const tocEnd = reader.at;
+    reader.at = entry + 16;
+    reader.at = reader.u64();
+    const total = count(reader);
+    const size = reader.u64();
+    const tokens = new TextDecoder()
+        .decode(decompress(reader.take(reader.u64()), size, { left: budget }))
+        .split("\0")
+        .slice(0, total);
+    const renamed = tokens.map((token) => rename(token));
+    if (renamed.every((token, i) => token === tokens[i])) {
+        return bytes;
+    }
+
+    const raw = new TextEncoder().encode(renamed.map((token) => `${token}\0`).join(""));
+    const block = literalBlock(raw);
+    const section = bytes.length;
+    const table = section + 24 + block.length;
+    const out = new Uint8Array(table + tocEnd - toc);
+    out.set(bytes);
+    out.set(bytes.subarray(toc, tocEnd), table);
+    out.set(block, section + 24);
+    const view = new DataView(out.buffer);
+    view.setBigUint64(section, BigInt(total), true);
+    view.setBigUint64(section + 8, BigInt(raw.length), true);
+    view.setBigUint64(section + 16, BigInt(block.length), true);
+    view.setBigUint64(table + entry - toc + 16, BigInt(section), true);
+    view.setBigUint64(table + entry - toc + 24, BigInt(24 + block.length), true);
+    view.setBigUint64(16, BigInt(table), true);
+    return out;
+}

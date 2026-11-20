@@ -31,6 +31,7 @@ import {
     type Scope,
     type Selector,
     type SetDefinitionInput,
+    type SourceKey,
     type StyleDocument,
 } from "../catalog/types";
 import { otherIdSpelling } from "../data/nodeIdSpelling";
@@ -61,6 +62,7 @@ import type { DocumentCode, DocumentProblem, DocumentSection, SourceStorage } fr
 import { expandedGraph, type SavedCollapse } from "./groups";
 import { ISSUES_VALUE, type IssueState } from "./issues";
 import { loadLineOf } from "./loadLine";
+import type { NetworkApiInternal } from "./network";
 import { projectBoundary } from "./project/boundary";
 import type { Dispatcher, TransactionOptions } from "./project/Dispatcher";
 import { ENGINE_VERSIONS, type RunExecutionContext, type RunExecutor, type RunOutcome } from "./runs";
@@ -69,14 +71,17 @@ import { edgeSpaceOf } from "./scope/spaces";
 import type { CodedFact } from "./shared";
 import { SOURCE_RECORD_MEMBER, sourceLoadsOf, SOURCES_MEMBER_VERSION } from "./sources/ids";
 import {
+    type LoadFacts,
     readSourcesMember,
     redactedParams,
     redactUrl,
+    type ReferenceEntry,
     savedLoads,
     type SourcesRead,
     type SourcesWrite,
 } from "./sources/member";
 import { isProvenance, type Provenance } from "./sources/provenance";
+import { fillReferences, type LeaveOut, planLeaveOut, REF_KEY, unreadLoads } from "./sources/references";
 import { computeFingerprint } from "./statistics";
 import { oldLookColumns, rewriteOldPaths } from "./styles/fileStyles/oldLooks";
 import type {
@@ -310,6 +315,14 @@ export interface ProjectSaveOptions {
      * @beta
      */
     readonly location?: string;
+    /**
+     * Version 2 only: write the recipe from the session's state even when the session holds a
+     * recipe opened from a file, which is otherwise written back as read. Default false.
+     * @since 3.40.0
+     * @experimental save-files-v2
+     * @beta
+     */
+    readonly rewriteRecipe?: boolean;
 }
 
 /** What the session lends the project file for the loads. */
@@ -329,12 +342,16 @@ const READS: Partial<Record<string, readonly number[]>> = { [SOURCE_RECORD_MEMBE
 /**
  * What a session's project file writes about its loads.
  * @param session - The session.
+ * @param references - What the entries of the referenced loads whose rows the save leaves out say.
  * @returns The sources member and the ids of each record's loads, or undefined for a session
  *     that keeps no load records (one this module did not build).
  */
-export function sourcesFileOf(session: GraphSession): SourcesWrite | undefined {
+export function sourcesFileOf(
+    session: GraphSession,
+    references?: ReadonlyMap<SourceKey, ReferenceEntry>,
+): SourcesWrite | undefined {
     const data = session.data as Partial<Pick<SessionData, "sourceFile">>;
-    return typeof data.sourceFile === "function" ? data.sourceFile() : undefined;
+    return typeof data.sourceFile === "function" ? data.sourceFile(references) : undefined;
 }
 
 /**
@@ -479,6 +496,15 @@ export interface ProjectOpenOptions {
      * @beta
      */
     readonly migrate?: boolean;
+    /**
+     * Version 2 only: apply a recipe the file holds to the data open now -- its filters, sets,
+     * runs and layout, in order -- instead of only keeping it for the next save. Default false.
+     * `session.recipes.apply` opens a recipe this way.
+     * @since 3.40.0
+     * @experimental save-files-v2
+     * @beta
+     */
+    readonly applyRecipe?: boolean;
     /**
      * Version 2 only: the URL of the file being opened, which a referenced source's relative
      * `url` or `path` is resolved against. Without it, a referenced source with a relative
@@ -1019,11 +1045,14 @@ const TOURS_VERSION = 1;
  * reads the records.
  * @param session - The session.
  * @param file - What the save writes about the loads; read from the session when not given.
+ * @param leaveOut - For `project.save` only: the rows of loads saved as references that the file
+ *     writes as placeholders, read again on open. Autosave never passes it: it keeps copies.
  * @returns The member.
  */
 export function dataMember(
     session: GraphSession,
     file: SourcesWrite | undefined = sourcesFileOf(session),
+    leaveOut?: LeaveOut,
 ): Record<string, unknown> {
     // Each record names the loads that supplied it, as the sources member's ids (sources.md, "Provenance").
     const withLoads = <T extends Readonly<Record<string, unknown>>>(record: T, supplied: readonly string[]): T => {
@@ -1075,6 +1104,42 @@ export function dataMember(
         });
     }
 
+    // A referenced load's row is written as a placeholder in its place, so positions hold on open.
+    // So is a row the last open held for a reference it could not read, while it is that load's
+    // alone: with the values the reader gave it since, which a reference that comes back keeps.
+    const unread = unreadLoads(session);
+    const heldFor = (supplied: readonly SourceKey[]): string | undefined =>
+        supplied.length === 1 && unread.has(supplied[0]) ? supplied[0] : undefined;
+    const placeholder = (
+        row: Record<string, unknown>,
+        bare: Record<string, unknown>,
+        key: string | undefined,
+        held: string | undefined,
+    ): Record<string, unknown> => {
+        if (key !== undefined) {
+            return { ...bare, [REF_KEY]: file?.idOf(key) ?? key };
+        }
+
+        if (held === undefined) {
+            return row;
+        }
+
+        const { "_source.loads": _loads, ...edited } = row;
+        return { ...edited, ...bare, [REF_KEY]: file?.idOf(held) ?? held };
+    };
+    const nodeRows: Record<string, unknown>[] = nodes.map((node) =>
+        placeholder(node, { id: node.id }, leaveOut?.nodes.get(node.id), heldFor(session.data.sourcesOf(node.id))),
+    );
+    const links: Record<string, unknown>[] = edges.map(({ id, ...rest }) => {
+        const edge: Record<string, unknown> = rest;
+        return placeholder(
+            edge,
+            { source: edge.source, target: edge.target },
+            leaveOut?.edges.get(id),
+            heldFor(session.data.sourcesOf(id, { kind: "edge" })),
+        );
+    });
+
     return {
         kind: "graphty-data",
         version: VERSION,
@@ -1084,8 +1149,8 @@ export function dataMember(
         // direction, so a graph nobody described still opens with nothing said.
         graph: {
             ...(session.data.store.directionSettledBy.by === "unsettled" ? {} : { directed: session.status.directed }),
-            nodes,
-            links: edges.map(({ id: _id, ...edge }) => edge),
+            nodes: nodeRows,
+            links,
         },
         ...(source === null ? {} : { source: withoutSecrets(source) }),
         ...(sources.length === 0 ? {} : { sources: sources.map((each) => withoutSecrets(each)) }),
@@ -1432,19 +1497,21 @@ export function documentAround(
  * Write the session as a graphty document: every member's builder, in file order.
  * @param sources - The session, its dispatcher and which run ids the element minted.
  * @param options - What to leave out, and the caller's extensions.
+ * @param references - The rows of loads kept as references that the file leaves out.
  * @returns The document and what was left out.
  */
 function write(
     sources: ProjectSources,
     options: ProjectSaveOptions,
+    references?: LeaveOut,
 ): { document: Record<string, unknown>; leftOut: ProjectProblem[] } {
     const { session, dispatcher } = sources;
     const extensions = checkedExtensions(options.extensions ?? {});
     const ids = graphIdsOf(session);
     const leaveOut = new Set<string>(options.leaveOut ?? []);
-    const file = sourcesFileOf(session);
+    const file = sourcesFileOf(session, references?.entries);
     const members = [
-        dataMember(session, file),
+        dataMember(session, file, references),
         sessionMember(sources),
         arrangementMember(session, ids),
         resultsMember(
@@ -1473,6 +1540,7 @@ function write(
             .filter((run) => !dispatcher.state.runs.has(run.id))
             .map((run): ProjectProblem => ({ code: "W_RUN_PENDING", params: { slice: "runs", id: run.id } })),
         ...assets.leftOut,
+        ...(references?.problems ?? []),
         ...(file?.problems ?? []),
         ...shadersNotSaved(sources, leaveOut),
     ];
@@ -2001,7 +2069,8 @@ async function clearInto(tx: TransactionScope, playback: unknown): Promise<void>
  * @param source - The member's `source`: where the graph was loaded from, when the file says.
  * @param sources - The member's `sources`: every load the graph held, when the file says.
  * @param provenance - The member's `provenance`: what each load supplied, edges by position.
- * @returns The edge ids this session gave the file's edges, by position.
+ * @param linkAt - Where each of the file's edges is in `graph.links`, when some were dropped.
+ * @returns The edge ids this session gave the file's edges, by the file's position.
  */
 async function importInto(
     tx: TransactionScope,
@@ -2009,6 +2078,7 @@ async function importInto(
     source: unknown,
     sources: unknown,
     provenance?: unknown,
+    linkAt?: readonly (number | undefined)[],
 ): Promise<(EdgeId | undefined)[]> {
     const before = tx.data.edges({ scope: "graph" }).length;
     await tx.execute({ op: "data.apply", mutation: { kind: "add-nodes", records: graph.nodes, idPath: "id" } });
@@ -2022,10 +2092,11 @@ async function importInto(
             ...(typeof graph.directed === "boolean" ? { directed: graph.directed } : {}),
         },
     });
-    const edgeIds = tx.data
+    const added = tx.data
         .edges({ scope: "graph" })
         .slice(before)
         .map((edge) => edge.id);
+    const edgeIds = linkAt === undefined ? added : linkAt.map((at) => (at === undefined ? undefined : added[at]));
     if (isObject(source)) {
         // A list with an entry not shaped like a load is left out whole, as an older file has none.
         const loads = Array.isArray(sources) && sources.every(isLoadedSource) ? sources : undefined;
@@ -2070,6 +2141,29 @@ function provenanceInto(saved: unknown, edgeIds: readonly (EdgeId | undefined)[]
                 }),
             ]),
         ),
+    );
+}
+
+/**
+ * Each load's facts, those of the references an open could not read kept as the file held them,
+ * so a save writes the reference back unchanged.
+ * @param facts - The facts as read.
+ * @param unread - The ids of the entries that could not be read.
+ * @param member - The sources member.
+ * @returns The facts.
+ */
+function withKeptEntries(
+    facts: ReadonlyMap<SourceKey, LoadFacts>,
+    unread: ReadonlySet<string>,
+    member: Record<string, unknown> | undefined,
+): Map<SourceKey, LoadFacts> {
+    const entries = (Array.isArray(member?.loads) ? (member.loads as unknown[]) : []).filter(isObject);
+    const raw = new Map(entries.map((entry) => [String(entry.id), entry]));
+    return new Map(
+        [...facts].map(([key, each]): [SourceKey, LoadFacts] => {
+            const entry = raw.get(key);
+            return [key, unread.has(key) && entry !== undefined ? { ...each, kept: structuredClone(entry) } : each];
+        }),
     );
 }
 
@@ -2170,6 +2264,8 @@ interface Opening {
     readonly restoreDerived: (id: RunId) => void;
     /** How many elements a run over a scope (absent: the default run scope) would hold now. */
     readonly scopeCountOf: (spec?: Scope) => ElementCount | null;
+    /** Where each of the file's edges is among those opened, when a changed reference dropped some. */
+    readonly linkAt?: readonly (number | undefined)[];
     /** The session's starting cameras, written once into a project that never had them. */
     readonly starting?: readonly StartingCamera[] | null;
 }
@@ -2602,7 +2698,7 @@ async function readProject(
     await readSettings(opening, doc, state.config, name);
     const records =
         loads.graph === undefined ? graph : { ...graph, nodes: loads.graph.nodes, links: loads.graph.links };
-    const edgeIds = await importInto(tx, records, source, sources, provenance);
+    const edgeIds = await importInto(tx, records, source, sources, provenance, opening.linkAt);
     opening.restored.add("graph");
     const nodeIds = new Set(tx.data.nodes({ scope: "graph" }).map((node) => node.id));
     const lookPaths = await readOldLooks(opening, state, nodeIds, edgeIds);
@@ -3358,6 +3454,8 @@ export function projectOf(
         projectChanged,
         scratch,
     } = hooks;
+    const network = (): NetworkApiInternal | undefined =>
+        (session as Partial<Pick<GraphSession, "network">>).network as NetworkApiInternal | undefined;
     let id = newDocumentId();
     // Clean means: the history's cursor is on the save point's step (null: the baseline), and
     // nothing has been merged into that step or cleared from under it. A save made with
@@ -3396,6 +3494,11 @@ export function projectOf(
     };
 
     UNSAVED.set(session, () => {
+        point.lost = true;
+        tell();
+    });
+    // How a save keeps a load is saved with the project, outside the history.
+    session.on("source:copy", () => {
         point.lost = true;
         tell();
     });
@@ -3495,22 +3598,38 @@ export function projectOf(
             starts: true,
             trigger: "project",
         };
-        const loads: SourcesRead = readSourcesMember(member, {
-            pointer: `/members/${String(member === undefined ? -1 : doc.positions.get(member))}`,
-            data,
-            nodes: graph.nodes,
-            links: graph.links,
-            isRegistered: (id) => sourceDescriptors().some((entry) => entry.id === id),
-            isGenerator: (generator) => GENERATOR_CATALOG.some((entry) => entry.name === generator),
-            now: new Date().toISOString(),
-        });
-        problems.push(...loads.problems);
         projectBoundary(session, "open");
         // After the boundary, which keeps the work it replaces under its own id; before anything
         // the project names is fetched, so the page's remembered hosts for it apply.
         const before = id;
         id = projectIdOf(state?.id) ?? newDocumentId();
         projectChanged?.();
+        // The loads saved as references are read again, through the network gate, and their
+        // rows take the placeholders' places before anything binds to the graph.
+        const filled = await fillReferences({
+            session,
+            nodes: graph.nodes,
+            links: graph.links,
+            data,
+            member,
+            scratch,
+            network: network(),
+        });
+        problems.push(...filled.problems);
+        const opened: NodeLink = { ...graph, nodes: filled.nodes, links: filled.links };
+        const read: SourcesRead = readSourcesMember(member, {
+            pointer: `/members/${String(member === undefined ? -1 : doc.positions.get(member))}`,
+            data,
+            nodes: opened.nodes,
+            links: opened.links,
+            isRegistered: (id) => sourceDescriptors().some((entry) => entry.id === id),
+            isGenerator: (generator) => GENERATOR_CATALOG.some((entry) => entry.name === generator),
+            now: new Date().toISOString(),
+        });
+        problems.push(...read.problems);
+        // A reference that could not be read is written back as the file held it.
+        const loads: SourcesRead =
+            filled.unread.size === 0 ? read : { ...read, facts: withKeptEntries(read.facts, filled.unread, member) };
         try {
             await session.transaction(
                 "Open project",
@@ -3524,10 +3643,11 @@ export function projectOf(
                             services: dispatcher.services,
                             restoreDerived,
                             scopeCountOf,
+                            ...(filled.linkAt === undefined ? {} : { linkAt: filled.linkAt }),
                             starting: startingCamerasOf(dispatcher),
                         },
                         doc,
-                        graph,
+                        opened,
                         name,
                         loads,
                     ),
@@ -3540,6 +3660,8 @@ export function projectOf(
         }
         // The network loads wait, fetching nothing, until the application runs them.
         networkSources?.restore(member === undefined ? undefined : loads, ownWork);
+        // A reference read again from a URL can be read again, as the load it was.
+        (session.data as Partial<Pick<SessionData, "keepOpenedInputs">>).keepOpenedInputs?.(filled.inputs ?? new Map());
         // Its restored source loads on the hosts remembered for it run now.
         projectChanged?.();
         fresh = false;
@@ -3669,6 +3791,7 @@ export function projectOf(
                 ...(options.results === undefined ? {} : { results: options.results }),
                 ...(options.embed === undefined ? {} : { embed: options.embed }),
                 ...(options.paths === undefined ? {} : { paths: options.paths }),
+                ...(options.rewriteRecipe === undefined ? {} : { rewriteRecipe: options.rewriteRecipe }),
                 ...(options.handles === undefined ? {} : { handles: options.handles }),
                 ...(options.location === undefined ? {} : { location: options.location }),
                 extensions,
@@ -3734,6 +3857,7 @@ export function projectOf(
                 ...(options.runs === undefined ? {} : { runs: options.runs }),
                 ...(options.dataMode === undefined ? {} : { dataMode: options.dataMode }),
                 ...(options.bindOtherData === undefined ? {} : { bindOtherData: options.bindOtherData }),
+                ...(options.applyRecipe === undefined ? {} : { applyRecipe: options.applyRecipe }),
                 ...(options.columns === undefined ? {} : { columns: options.columns }),
             },
             {
@@ -3770,6 +3894,22 @@ export function projectOf(
             problems: Object.freeze([...before, ...outcome.problems]),
             extensions: isJsonObject(extensions) ? extensions : {},
         });
+    };
+
+    /**
+     * Write a version 1 file and move the save point, as `save` does once it knows what to leave out.
+     * @param options - What `save` was given.
+     * @param references - The rows of loads kept as references that the file leaves out.
+     * @returns The file.
+     */
+    const saveNow = (options: ProjectSaveOptions, references?: LeaveOut): SavedProject => {
+        const { document, leftOut } = write({ session, dispatcher, isDerived }, options, references);
+        return finishSave(
+            document,
+            (document.members as { kind: string }[]).map((member) => member.kind),
+            leftOut,
+            options,
+        );
     };
 
     return {
@@ -3824,7 +3964,7 @@ export function projectOf(
         },
         save(options = {}) {
             const versionTwoOnly = (
-                ["sections", "form", "results", "embed", "paths", "handles", "location"] as const
+                ["sections", "form", "results", "embed", "paths", "handles", "location", "rewriteRecipe"] as const
             ).find((key) => options[key] !== undefined);
             if (options.format !== 2 && versionTwoOnly !== undefined) {
                 // Never ignored: a version 1 file cannot hold what the option asks for.
@@ -3846,15 +3986,27 @@ export function projectOf(
                 return saveVersion2(options);
             }
 
-            const { document, leftOut } = write({ session, dispatcher, isDerived }, options);
-            return Promise.resolve(
-                finishSave(
-                    document,
-                    (document.members as { kind: string }[]).map((member) => member.kind),
-                    leftOut,
-                    options,
-                ),
-            );
+            const referenced = (session.data as Partial<Pick<SessionData, "referenceLoads">>).referenceLoads?.() ?? [];
+            // A load kept as a reference is read once to tell which rows the file can leave out;
+            // with a group collapsed the file holds the expanded graph, so it keeps copies.
+            if (referenced.length === 0 || expandedGraph(session) !== null) {
+                return Promise.resolve(saveNow(options));
+            }
+
+            const derived = session.data.derivedColumns();
+            const named = (kind: "node" | "edge"): ReadonlySet<string> =>
+                new Set(derived.filter((column) => column.kind === kind).map((column) => column.name));
+            return planLeaveOut({
+                session,
+                loads: referenced,
+                computed: { node: named("node"), edge: named("edge") },
+                scratch,
+                network: network(),
+            }).then((plan) => {
+                // Worked out now, in the tick the file is written, from the graph as it is now.
+                const still = (session.data as SessionData).referenceLoads().map((each) => each.key);
+                return expandedGraph(session) === null ? saveNow(options, plan(new Set(still))) : saveNow(options);
+            });
         },
         markSaved(saved) {
             rememberOf.get(saved)?.();

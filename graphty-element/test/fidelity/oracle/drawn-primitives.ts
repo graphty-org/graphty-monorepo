@@ -1039,6 +1039,7 @@ export function drawnPrimitives(
                     fill: a.fill ?? null,
                     stroke: null,
                     text: a.text ?? null,
+                    ...(a.label === true ? { label: true as const } : {}),
                 },
                 // an arrow's heads are shapes of their own to a reader, as the program's drawing has them (Cytoscape
                 // desktop's annotation arrows on the specimen-images-charts pages, 68 heads a page read as missing)

@@ -58,6 +58,22 @@ async function openList(kind: "node" | "edge"): Promise<HTMLElement> {
     });
 }
 
+/**
+ * Adds a Shape to the Key people layer from its section's "+" and opens the Shape list, by real clicks.
+ */
+async function openShapeList(): Promise<void> {
+    const tab = await openStyle("Key people");
+    await showKind("node");
+    const shape = sectionOf(tab, "node-shape");
+    await userEvent.click(within(shape).getByRole("button", { name: "Add to node shape" }));
+    const picker = await waitFor(() => {
+        const found = shape.querySelector<HTMLElement>('[data-value-listbox="node.shape"]');
+        assert.isNotNull(found);
+        return found;
+    });
+    await userEvent.click(picker);
+}
+
 describe("custom and built-in shaders are one list", () => {
     withFeatures(["file-styles", "style-panel-v2"]);
 
@@ -107,16 +123,7 @@ describe("custom and built-in shaders are one list", () => {
         // The custom replace shader is in the node Shape menu, beside the built-in shapes.
         const replacing = ids.node.find((each) => each.place === "replace");
         assert.isDefined(replacing, "the code dialog offers replace for a node");
-        const tab = await openStyle("Key people");
-        await showKind("node");
-        const shape = sectionOf(tab, "node-shape");
-        await userEvent.click(within(shape).getByRole("button", { name: "Add to node shape" }));
-        const picker = await waitFor(() => {
-            const found = shape.querySelector<HTMLElement>('[data-value-listbox="node.shape"]');
-            assert.isNotNull(found);
-            return found;
-        });
-        await userEvent.click(picker);
+        await openShapeList();
         const menu = await screen.findByRole("group", { name: /values$/ });
         const search = within(menu).getByRole("combobox", { name: "Search" });
         // The menu narrowed to a name: what its options say once it settles.
@@ -171,16 +178,7 @@ describe("custom and built-in shaders are one list", () => {
 
     it("the Shape menu has a Shaders section, New shader... first, whose New shader... opens the code dialog", async () => {
         await openGraph();
-        const tab = await openStyle("Key people");
-        await showKind("node");
-        const shape = sectionOf(tab, "node-shape");
-        await userEvent.click(within(shape).getByRole("button", { name: "Add to node shape" }));
-        const picker = await waitFor(() => {
-            const found = shape.querySelector<HTMLElement>('[data-value-listbox="node.shape"]');
-            assert.isNotNull(found);
-            return found;
-        });
-        await userEvent.click(picker);
+        await openShapeList();
         await userEvent.click(await screen.findByRole("combobox", { name: "Node shape section" }));
         await userEvent.click(await screen.findByRole("option", { name: "Shaders" }));
         const list = await screen.findByRole("group", { name: /values$/ });
@@ -248,16 +246,7 @@ describe("the Shape menu's Models section", () => {
 
     it("holds Custom model... and sits beside the Shaders section", async () => {
         await openGraph();
-        const tab = await openStyle("Key people");
-        await showKind("node");
-        const shape = sectionOf(tab, "node-shape");
-        await userEvent.click(within(shape).getByRole("button", { name: "Add to node shape" }));
-        const picker = await waitFor(() => {
-            const found = shape.querySelector<HTMLElement>('[data-value-listbox="node.shape"]');
-            assert.isNotNull(found);
-            return found;
-        });
-        await userEvent.click(picker);
+        await openShapeList();
         const sections = await screen.findByRole("combobox", { name: "Node shape section" });
         await userEvent.click(sections);
         const offered = (await screen.findAllByRole("option")).map((option) => option.textContent);

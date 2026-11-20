@@ -912,6 +912,41 @@ export class Edge {
     }
 
     /**
+     * The batch row one end is drawn at, for edge picking: read from the row for an end with no `Node`, so a hover
+     * that measures every edge builds none (issue #9166).
+     * @param end - Which end.
+     * @returns The row, or INVALID_INDEX when no batch draws the end.
+     * @internal
+     */
+    batchEndRow(end: "source" | "target"): number {
+        const column = this.columnEnd(end);
+        if (column !== undefined) {
+            return column.index;
+        }
+
+        if (this.unbuiltEnd(end) !== INVALID_INDEX) {
+            return INVALID_INDEX;
+        }
+
+        const node = end === "source" ? this.srcNode : this.dstNode;
+        return node.drawnInBatch ? node.index : INVALID_INDEX;
+    }
+
+    /**
+     * Whether one end is drawn as a group (`Node.isDrawnAsGroup`). An end with no `Node` never is, so none is built.
+     * @param end - Which end.
+     * @returns True while it is.
+     * @internal
+     */
+    endDrawnAsGroup(end: "source" | "target"): boolean {
+        if (this.columnEnd(end) !== undefined || this.unbuiltEnd(end) !== INVALID_INDEX) {
+            return false;
+        }
+
+        return (end === "source" ? this.srcNode : this.dstNode).isDrawnAsGroup;
+    }
+
+    /**
      * The graph's `Node` for one of this edge's ends.
      * @param id - The end's node id.
      * @returns The node.

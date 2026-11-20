@@ -20,6 +20,7 @@ import { Matrix, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
 import type { TransformNode } from "@babylonjs/core/Meshes/transformNode.js";
 import type { Scene } from "@babylonjs/core/scene.js";
+import { INVALID_INDEX } from "@graphty/graph-format";
 
 import type { EdgeId } from "../catalog/types";
 import type { Edge } from "../Edge";
@@ -955,13 +956,15 @@ export function pickEdgeId(
     const root = scan.rootMatrix();
     const ends: [Vector3, Vector3] = [new Vector3(), new Vector3()];
     return pickEdgeAt(scene, edges, x, y, toScreen, (edge) => {
-        const { srcNode, dstNode } = edge;
-        if (!srcNode.drawnInBatch || !dstNode.drawnInBatch || edge.drawnCurve !== null) {
+        // Rows, not Nodes: measuring every edge must build no Node for an end drawn without one (issue #9166).
+        const src = edge.batchEndRow("source");
+        const dst = src === INVALID_INDEX ? INVALID_INDEX : edge.batchEndRow("target");
+        if (dst === INVALID_INDEX || edge.drawnCurve !== null) {
             return null;
         }
 
-        scan.worldCenterToRef(srcNode.index, root, ends[0]);
-        scan.worldCenterToRef(dstNode.index, root, ends[1]);
+        scan.worldCenterToRef(src, root, ends[0]);
+        scan.worldCenterToRef(dst, root, ends[1]);
         return ends;
     });
 }

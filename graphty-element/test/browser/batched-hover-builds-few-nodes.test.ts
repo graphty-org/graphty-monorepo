@@ -167,6 +167,38 @@ describe("one node acted on in a 10,000-node connected batched graph builds that
         },
     );
 
+    // every pointer move that misses a node measures the edges under it, and a click or `elementAt` there measures
+    // every edge: each must read the edges' ends from their rows, not build their Nodes
+    it("a real hover and a click on an edge, and on empty canvas", async () => {
+        const element = await mounted(true);
+        assert.equal(built(element), 0, "the load builds no Node");
+        const middle = Number(middleOf(COUNT).slice(1));
+        const a = element.nodeScreenPosition(`n${String(middle)}`);
+        const b = element.nodeScreenPosition(`n${String(middle + 1)}`);
+        assert.isDefined(a);
+        assert.isDefined(b);
+        const onEdge = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+
+        await hover(element, onEdge);
+        await drawn(element);
+        assert.isNull(element.session.selection.hovered, "the hover is on the edge, not a node");
+        assert.equal(element.elementAt(onEdge)?.kind, "edge", "an edge is under the pointer");
+        assert.equal(built(element), 0, "the hover and elementAt on the edge");
+
+        await click(element, onEdge);
+        await drawn(element);
+        assert.equal(built(element), 0, "the click on the edge");
+
+        // the canvas's corner, outside the framed grid
+        const empty = { x: 3, y: 3 };
+        await hover(element, empty);
+        await drawn(element);
+        assert.isNull(element.elementAt(empty), "nothing is under the empty point");
+        await click(element, empty);
+        await drawn(element);
+        assert.equal(built(element), 0, "the hover and click on empty canvas");
+    });
+
     it("a border on one node", async () => {
         const element = await mounted(true);
         assert.equal(built(element), 0, "the load builds no Node");

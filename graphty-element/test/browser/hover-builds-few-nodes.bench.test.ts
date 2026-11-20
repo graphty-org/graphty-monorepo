@@ -1,6 +1,6 @@
 /**
  * @file What one real pointer hover on a node costs in a large connected graph with arrowed edges, on both render
- * paths, for round and boxed nodes (issue #9166).
+ * paths, for round and boxed nodes, on a node and on an edge (issue #9166).
  *
  * On the `"batched"` path a row is drawn with no `Node` until something asks for one. An edge used to trim its arrowed
  * end by asking for both ends' `Node`s, so a hover built one `Node`, its edges built their far ends', and so on through
@@ -39,6 +39,8 @@ const CASES: { path: RenderPath; count: number }[] = [
     { path: "batched", count: 100_000 },
 ];
 const SHAPES = ["sphere", "box"] as const;
+/** Where the pointer goes: onto the middle node, or onto the middle of the edge it starts. */
+const TARGETS = ["node", "edge"] as const;
 
 /** Run a full garbage collection; the page runs with `--expose-gc`. */
 async function collect(): Promise<void> {
@@ -107,34 +109,43 @@ async function mounted(path: RenderPath, count: number, shape: string): Promise<
 describe("one real hover in a large connected arrowed graph", () => {
     for (const { path, count } of CASES) {
         for (const shape of SHAPES) {
-            it(`${path}, ${String(count)} ${shape} nodes`, async () => {
-                const element = await mounted(path, count, shape);
-                const manager = element.graph.getDataManager();
-                const atLoad = dataManagerInternals.nodesBuilt(manager);
-                const middle = `n${String(Math.floor(count / 2))}`;
-                const at = element.nodeScreenPosition(middle);
-                assert.isDefined(at);
+            for (const target of TARGETS) {
+                it(`${path}, ${String(count)} ${shape} nodes, on a ${target}`, async () => {
+                    const element = await mounted(path, count, shape);
+                    const manager = element.graph.getDataManager();
+                    const atLoad = dataManagerInternals.nodesBuilt(manager);
+                    const middle = `n${String(Math.floor(count / 2))}`;
+                    const center = element.nodeScreenPosition(middle);
+                    const next = element.nodeScreenPosition(`n${String(Math.floor(count / 2) + 1)}`);
+                    assert.isDefined(center);
+                    assert.isDefined(next);
+                    const at = target === "node" ? center : { x: (center.x + next.x) / 2, y: (center.y + next.y) / 2 };
 
-                const startHeap = await heap();
-                const start = performance.now();
-                await hover(element, at);
-                await operationQueueOf(element.graph).waitForCompletion();
-                await element.waitForSettled();
-                await element.waitForStableFrame();
-                await element.waitForStableFrame();
-                const ms = performance.now() - start;
-                const bytes = (await heap()) - startHeap;
-                const builtByHover = dataManagerInternals.nodesBuilt(manager) - atLoad;
-                console.log(
-                    `[hover-builds-few-nodes] ${path} ${String(count)} ${shape}: hover to settled ${ms.toFixed(1)} ms, ` +
-                        `${(bytes / 1e6).toFixed(1)} MB heap kept, ${String(atLoad)} Nodes at load, ` +
-                        `${String(builtByHover)} built by the hover`,
-                );
-                assert.equal(element.session.selection.hovered, middle, "the hover reached the node");
-                if (path === "batched") {
-                    assert.isAtMost(atLoad + builtByHover, 3, "a batched hover builds a handful of Nodes");
-                }
-            });
+                    const startHeap = await heap();
+                    const start = performance.now();
+                    await hover(element, at);
+                    await operationQueueOf(element.graph).waitForCompletion();
+                    await element.waitForSettled();
+                    await element.waitForStableFrame();
+                    await element.waitForStableFrame();
+                    const ms = performance.now() - start;
+                    const bytes = (await heap()) - startHeap;
+                    const builtByHover = dataManagerInternals.nodesBuilt(manager) - atLoad;
+                    console.log(
+                        `[hover-builds-few-nodes] ${path} ${String(count)} ${shape} on a ${target}: hover to settled ${ms.toFixed(1)} ms, ` +
+                            `${(bytes / 1e6).toFixed(1)} MB heap kept, ${String(atLoad)} Nodes at load, ` +
+                            `${String(builtByHover)} built by the hover`,
+                    );
+                    assert.equal(
+                        element.session.selection.hovered,
+                        target === "node" ? middle : null,
+                        "the hover's target",
+                    );
+                    if (path === "batched") {
+                        assert.isAtMost(atLoad + builtByHover, 3, "a batched hover builds a handful of Nodes");
+                    }
+                });
+            }
         }
     }
 });
